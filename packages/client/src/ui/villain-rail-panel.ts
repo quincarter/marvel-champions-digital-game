@@ -42,6 +42,8 @@ import { shortSeatName } from "../view/names.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
+import type { GlyphGround } from "./input-glyph.js";
 import { McButton, fitText, fitWrapped, label } from "./widgets.js";
 
 /** What the body shows: the encounter card being revealed (D2), or the activation / narration happening now (D1). */
@@ -91,6 +93,9 @@ export interface RailInterrupt {
   readonly onResolve: (optionIds: readonly string[]) => void;
 }
 
+/** The START gate's way back to the hero turn (`RailGate.onNevermind`). */
+export const NEVERMIND_LABEL = "Nevermind, back to my turn";
+
 /**
  * The window in the interrupt window's place while the phase waits on the player for something that is not an
  * interrupt (the owner's call, 2026-10-14): START VILLAIN PHASE before anything plays, or a decision someone has to make
@@ -102,6 +107,8 @@ export type RailGate =
       /** What ended the player phase ("You drew 3 cards: …"), said first; empty when nothing did. */
       readonly lead: string;
       readonly onPress: () => void;
+      /** Takes End turn back (`view/end-turn-takeback.ts`); absent once it can no longer be. */
+      readonly onNevermind?: () => void;
     }
   | {
       readonly kind: "decision";
@@ -113,6 +120,18 @@ export type RailGate =
       readonly cardInstanceId: InstanceId | null;
       readonly onPress: () => void;
     };
+
+/**
+ * Gives a button its glyph. `primary` is the stop key when the button is what A / Enter presses with nothing focused (and
+ * what Start presses from anywhere); `enabled` is false for a primary that cannot be pressed now.
+ */
+export type RailHint = (
+  button: McButton,
+  ids: readonly ShortcutId[],
+  ground?: GlyphGround,
+  primary?: string,
+  enabled?: boolean,
+) => void;
 
 export interface RailPanelArgs {
   readonly layout: VillainRailLayout;
@@ -139,6 +158,13 @@ export interface RailPanelArgs {
   readonly onFlip?: (() => void) | null;
   readonly autoAdvance: VillainAutoAdvance;
   readonly buttons: McButton[];
+  /** Gives a button its key / pad glyph where the layout has room (`ui/glyph-hints.ts`); absent where there are none. */
+  readonly hint?: RailHint;
+  /**
+   * The panel's second answer, pressed with X (G on the keyboard): Let it resolve beside an interrupt's Use. `stop` is
+   * the focus key the press goes to.
+   */
+  readonly hintSecondary?: (button: McButton, stop: string) => void;
   readonly onSkip: () => void;
   readonly onHide: () => void;
   readonly onToggle: () => void;
@@ -188,12 +214,16 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     .setLetterSpacing(1);
   fitText(title, layout.title.width, 40);
 
-  const button = (key: string, text: string, rect: Rect, onClick: () => void): void => {
-    args.buttons.push(new McButton(scene, { kind: "onInk", label: text, type: typeRole.label, rect, onClick }));
+  const button = (key: string, text: string, rect: Rect, onClick: () => void, glyph: ShortcutId | null): void => {
+    const made = new McButton(scene, { kind: "onInk", label: text, type: typeRole.label, rect, onClick });
+    args.buttons.push(made);
+    if (glyph !== null) args.hint?.(made, [glyph], "ink");
     stops.set(key, { rect, activate: onClick });
   };
-  button("skip", "Skip", layout.skip, args.onSkip);
-  button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide);
+  // B / Esc is Nevermind while the START gate offers it, so Skip does not wear that glyph then.
+  const takesBack = args.gate?.kind === "start" && args.gate.onNevermind !== undefined;
+  button("skip", "Skip", layout.skip, args.onSkip, takesBack ? null : "cancel");
+  button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide, "peek");
 
   if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
 
@@ -567,9 +597,15 @@ function drawReveal(
   );
   if (next) {
     const rect: Rect = { x, y: y + height - nextHeight, width: Math.min(width, 200), height: nextHeight };
-    args.buttons.push(
-      new McButton(scene, { kind: "onInk", label: "Next card ▸", type: typeRole.label, rect, onClick: next }),
-    );
+    const nextButton = new McButton(scene, {
+      kind: "onInk",
+      label: "Next card ▸",
+      type: typeRole.label,
+      rect,
+      onClick: next,
+    });
+    args.buttons.push(nextButton);
+    args.hint?.(nextButton, ["activate"], "ink", "next");
     stops.set("next", { rect, activate: next });
   }
 }
@@ -629,16 +665,16 @@ function drawFacedownText(
   );
   if (flip && body.flip?.elapsedMs === null) {
     const rect: Rect = { x, y: y + height - flipHeight, width: Math.min(width, 240), height: flipHeight };
-    args.buttons.push(
-      new McButton(scene, {
-        kind: "primary",
-        label: flipLabel,
-        type: typeRole.label,
-        rect,
-        tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-        onClick: flip,
-      }),
-    );
+    const flipButton = new McButton(scene, {
+      kind: "primary",
+      label: flipLabel,
+      type: typeRole.label,
+      rect,
+      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+      onClick: flip,
+    });
+    args.buttons.push(flipButton);
+    args.hint?.(flipButton, ["activate"], "ink", "flip");
     stops.set("flip", { rect, activate: flip });
   }
 }
@@ -764,9 +800,15 @@ function drawHappening(
   const next = args.onNext;
   if (next) {
     const rect: Rect = { x, y: y + height - hit.target, width: Math.min(width, 200), height: hit.target };
-    args.buttons.push(
-      new McButton(scene, { kind: "onInk", label: "Next card ▸", type: typeRole.label, rect, onClick: next }),
-    );
+    const nextButton = new McButton(scene, {
+      kind: "onInk",
+      label: "Next card ▸",
+      type: typeRole.label,
+      rect,
+      onClick: next,
+    });
+    args.buttons.push(nextButton);
+    args.hint?.(nextButton, ["activate"], "ink", "next");
     stops.set("next", { rect, activate: next });
   }
 }
@@ -915,6 +957,8 @@ function drawInterrupt(
 
   drawInterruptAnswer(scene, { use: layout.use, resolve: layout.resolve }, game, interrupt, args.buttons, stops, {
     thumb: args.layout.kind === "tab",
+    ...(args.hint ? { hint: args.hint } : {}),
+    ...(args.hintSecondary ? { hintSecondary: args.hintSecondary } : {}),
   });
 }
 
@@ -930,7 +974,11 @@ export function drawInterruptAnswer(
   interrupt: RailInterrupt,
   buttons: McButton[],
   stops: Map<string, FocusStop>,
-  options: { readonly thumb: boolean },
+  options: {
+    readonly thumb: boolean;
+    readonly hint?: RailHint;
+    readonly hintSecondary?: (button: McButton, stop: string) => void;
+  },
 ): void {
   const multi = !inlineSingle(interrupt.options);
   const picks = interrupt.picks;
@@ -946,29 +994,32 @@ export function drawInterruptAnswer(
   }
   const use = (): void => interrupt.onResolve(multi ? picks : [first.optionId]);
   const useLabel = multi ? inlineConfirmLabel(game, interrupt.options, picks) : interruptActionLabel(game, first);
-  buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      label: useLabel,
-      type: { ...typeRole.barTitle, size: options.thumb ? 22 : 26 },
-      rect: rects.use,
-      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-      enabled: !multi || picks.length > 0,
-      onClick: use,
-    }),
-  );
-  if (!multi) stops.set(`interrupt:${first.optionId}`, { rect: rects.use, activate: use });
-  else stops.set("confirm", { rect: rects.use, activate: use });
+  const useEnabled = !multi || picks.length > 0;
+  const useButton = new McButton(scene, {
+    kind: "primary",
+    label: useLabel,
+    type: { ...typeRole.barTitle, size: options.thumb ? 22 : 26 },
+    rect: rects.use,
+    tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+    enabled: useEnabled,
+    onClick: use,
+  });
+  buttons.push(useButton);
+  const useStop = multi ? "confirm" : `interrupt:${first.optionId}`;
+  stops.set(useStop, { rect: rects.use, activate: use });
+  // Use (or the pick list's Confirm) is the window's forward answer: A with nothing focused, and Start from anywhere.
+  if (useEnabled) options.hint?.(useButton, ["activate"], "ink", useStop);
   const letItResolve = (): void => interrupt.onResolve([]);
-  buttons.push(
-    new McButton(scene, {
-      kind: options.thumb ? "primary" : "onInk",
-      label: options.thumb ? "Resolve ▸" : "Let it resolve ▸",
-      type: options.thumb ? { ...typeRole.barTitle, size: 22 } : { ...typeRole.label, size: 12 },
-      rect: rects.resolve,
-      onClick: letItResolve,
-    }),
-  );
+  const resolveButton = new McButton(scene, {
+    kind: options.thumb ? "primary" : "onInk",
+    label: options.thumb ? "Resolve ▸" : "Let it resolve ▸",
+    type: options.thumb ? { ...typeRole.barTitle, size: 22 } : { ...typeRole.label, size: 12 },
+    rect: rects.resolve,
+    onClick: letItResolve,
+  });
+  buttons.push(resolveButton);
+  // The other answer: X (G), so both of the window's answers carry a glyph.
+  options.hintSecondary?.(resolveButton, "resolve");
   stops.set("resolve", { rect: rects.resolve, activate: letItResolve });
 }
 
@@ -1031,17 +1082,33 @@ function drawGate(
     ground.fillStyle(surface.ink.hex, 1).fillRect(rect.x - 8, rect.y - 6, rect.width + 16, rect.height + 12);
   }
   const key = gate.kind === "start" ? "start" : "answer";
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
-      type: { ...typeRole.barTitle, size: args.layout.kind === "tab" ? 22 : 26 },
-      rect,
-      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-      onClick: gate.onPress,
-    }),
-  );
-  stops.set(key, { rect, activate: gate.onPress });
+  // Nevermind sits where LET IT RESOLVE would, beside the wider START (the interrupt window's own two-button shape).
+  const onNevermind = gate.kind === "start" ? gate.onNevermind : undefined;
+  const goRect: Rect = onNevermind ? { ...rect, width: layout.use.width } : rect;
+  const gateButton = new McButton(scene, {
+    kind: "primary",
+    label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
+    type: { ...typeRole.barTitle, size: args.layout.kind === "tab" ? 22 : 26 },
+    rect: goRect,
+    tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+    onClick: gate.onPress,
+  });
+  args.buttons.push(gateButton);
+  args.hint?.(gateButton, ["activate"], "ink", key);
+  stops.set(key, { rect: goRect, activate: gate.onPress });
+  if (onNevermind) {
+    const backButton = new McButton(scene, {
+      kind: "onInk",
+      label: NEVERMIND_LABEL,
+      type: { ...typeRole.label, size: 12 },
+      rect: layout.resolve,
+      wrap: true,
+      onClick: onNevermind,
+    });
+    args.buttons.push(backButton);
+    args.hint?.(backButton, ["cancel"], "ink");
+    stops.set("nevermind", { rect: layout.resolve, activate: onNevermind });
+  }
 }
 
 /** "Spider-Sense": the printed name of the ability on offer, else the card's. */

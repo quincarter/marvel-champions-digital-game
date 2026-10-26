@@ -19,6 +19,7 @@ export type SettingsItemId =
   | "token-motion"
   | "display-mode"
   | "resolution"
+  | "couch-mode"
   | "render-scale"
   | "frame-rate"
   | "steam-deck"
@@ -33,6 +34,7 @@ export type SettingsItemId =
   | "unlocks"
   | "save-data"
   | "rules"
+  | "controls"
   | "achievement-popup-time"
   | "achievement-popup-place"
   | "achievement-popup-size";
@@ -72,12 +74,21 @@ export function settingsSectionsOf(input: {
   readonly cardLanguage?: boolean;
   readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
+  /** The Couch mode row, first under Animation and display: shown where a choice besides Off fits, or while on. */
+  readonly couchMode?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
   readonly steamDeck?: boolean;
   /** The Android app, which can read power saving mode, or a forced `?powersave=`: a "Lighter play" row under motion. */
   readonly powerSaving?: boolean;
   /** A build that draws at the screen's own density (every one, unless `?renderscale=off`): a Screen section. */
   readonly screenSettings?: boolean;
+  /**
+   * The Controls row. False in the phone apps until a controller is connected (the owner, 2026-10-24): a touch-only
+   * player has no controller settings to change. Defaults to shown.
+   */
+  readonly controls?: boolean;
+  /** The desktop app: the "Show my game on Discord" row under More. */
+  readonly discord?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -115,6 +126,7 @@ export function settingsSectionsOf(input: {
       id: "motion",
       title: "Animation and display",
       items: [
+        ...(input.couchMode ? (["couch-mode"] as const) : []),
         ...(input.powerSaving ? (["power-saving"] as const) : []),
         "reduced-motion",
         "token-motion",
@@ -133,7 +145,17 @@ export function settingsSectionsOf(input: {
       ],
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
-    { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
+    {
+      id: "more",
+      title: "More",
+      items: [
+        "unlocks",
+        "save-data",
+        ...(input.controls === false ? [] : (["controls"] as const)),
+        ...(input.discord ? (["discord-presence"] as const) : []),
+        "rules",
+      ],
+    },
     {
       id: "achievements",
       title: "Achievements",

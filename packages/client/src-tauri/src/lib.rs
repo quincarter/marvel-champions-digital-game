@@ -1,5 +1,11 @@
 mod app_volume;
+mod discord_presence;
 mod display_mode;
+mod gamepad_bridge;
+mod hang_watchdog;
+mod native_audio;
+#[cfg(any(target_os = "linux", test))]
+mod native_audio_engine;
 mod save_file;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -75,12 +81,29 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       app_volume::master_muted,
       app_volume::start_app_volume_watch,
       app_volume::stop_app_volume_watch,
-      save_file::save_text_file
+      save_file::save_text_file,
+      discord_presence::discord_set_activity,
+      discord_presence::discord_status,
+      gamepad_bridge::gamepad_bridge_status,
+      hang_watchdog::hang_watchdog_beat,
+      native_audio::native_audio_available,
+      native_audio::native_audio_load,
+      native_audio::native_audio_play,
+      native_audio::native_audio_set_volume,
+      native_audio::native_audio_set_paused,
+      native_audio::native_audio_stop
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {
       if let tauri::WindowEvent::Focused(focused) = event {
         display_mode::on_focus(*focused);
+        hang_watchdog::on_focus(*focused);
+      }
+    })
+    // A new page load (a reload the page asks for, or the watchdog's own) waits for that page's first heartbeat.
+    .on_page_load(|_, payload| {
+      if payload.event() == tauri::webview::PageLoadEvent::Started {
+        hang_watchdog::on_page_load_started();
       }
     })
     // No card-art code here on purpose: the scans are bundled into `dist/` at
@@ -93,6 +116,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             .build(),
         )?;
       }
+      // Linux: reloads the page if WebKit's web process hangs for good (hang_watchdog.rs).
+      hang_watchdog::start(app.handle());
       Ok(())
     })
     .build(context)
@@ -101,6 +126,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       // The user's own display mode back on the way out (Windows would also restore it once the process ends).
       if let tauri::RunEvent::Exit = event {
         display_mode::restore(false);
+        // Clear the Discord activity so the profile doesn't keep showing the game after it closes.
+        discord_presence::on_exit();
       }
     });
 }

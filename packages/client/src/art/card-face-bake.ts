@@ -18,11 +18,14 @@ interface DecodedArt {
 
 /** How many decoded (already downscaled) art bitmaps one baker keeps. A shelf screen shows a dozen or two at once. */
 const ART_CACHE_SIZE = 32;
+/** How long an evicted art bitmap stays open, for bakes already holding it to finish painting. */
+export const EVICTED_ART_CLOSE_DELAY_MS = 10_000;
 
 export class ArtBitmaps {
   readonly #decoded = new Map<string, Promise<DecodedArt | null>>();
   /** Fetches in flight, by URL, so two decode sizes of one picture asked for at once fetch it once. */
   readonly #blobs = new Map<string, Promise<Blob | null>>();
+  readonly #reported = new Set<string>();
 
   get(spec: CardFaceSpec): Promise<DecodedArt | null> {
     const url = spec.artUrl;
@@ -42,14 +45,22 @@ export class ArtBitmaps {
       const oldest = this.#decoded.keys().next().value as string;
       const evicted = this.#decoded.get(oldest);
       this.#decoded.delete(oldest);
-      void evicted?.then((art) => art?.source.close());
+      // Not at once: a bake that took this entry from the cache a moment ago is still awaiting it, and painting from a
+      // closed bitmap throws, which left that face failed for good (a mass re-request, such as a screen's relayout,
+      // turns over the whole cache while earlier bakes are still in flight).
+      void evicted?.then((art) => {
+        if (art) setTimeout(() => art.source.close(), EVICTED_ART_CLOSE_DELAY_MS);
+      });
     }
     return decoding;
   }
 
   async #decode(url: string, slot: { width: number; height: number }, spec: CardFaceSpec): Promise<DecodedArt | null> {
     const blob = await this.#blob(url);
-    if (!blob) return null;
+    if (!blob) {
+      this.#reportFailure(url, "could not be fetched");
+      return null;
+    }
     try {
       const full = await createImageBitmap(blob);
       const size = artDecodeSize(full, slot, spec.artFit, spec.resolution);
@@ -64,9 +75,20 @@ export class ArtBitmaps {
       });
       full.close();
       return { width: scaled.width, height: scaled.height, source: scaled };
-    } catch {
+    } catch (error) {
+      this.#reportFailure(
+        url,
+        `could not be decoded (${String(error)}, ${blob.type || "no type"}, ${blob.size} bytes)`,
+      );
       return null;
     }
+  }
+
+  /** Said once per picture, so a device where one will not load (a decoder refusing it) names it in its console. */
+  #reportFailure(url: string, why: string): void {
+    if (this.#reported.has(url)) return;
+    this.#reported.add(url);
+    console.warn(`Card art ${url} ${why}; the tile falls back to the printed scan.`);
   }
 
   #blob(url: string): Promise<Blob | null> {
@@ -105,13 +127,20 @@ function surfaceFor(
 }
 
 export async function bakeCardFace(spec: CardFaceSpec, art: ArtBitmaps): Promise<ImageBitmap> {
-  const decoded = await art.get(spec);
+  let decoded = await art.get(spec);
+  let painted = spec;
+  // The picture failed (not on disk, or not decodable here): the fallback scan fills the window instead of a blank one.
+  if (!decoded && spec.artFallbackUrl) {
+    const { artFocus: _pictureFocus, ...rest } = spec;
+    painted = { ...rest, artUrl: spec.artFallbackUrl };
+    decoded = await art.get(painted);
+  }
   const pixelWidth = Math.max(1, Math.ceil(spec.width * spec.resolution));
   const pixelHeight = Math.max(1, Math.ceil(spec.height * spec.resolution));
   const { ctx, finish } = surfaceFor(pixelWidth, pixelHeight);
   ctx.save();
   ctx.scale(spec.resolution, spec.resolution);
-  paintCardFace(ctx, spec, decoded);
+  paintCardFace(ctx, painted, decoded);
   ctx.restore();
   return finish();
 }

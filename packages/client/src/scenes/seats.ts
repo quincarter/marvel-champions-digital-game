@@ -137,6 +137,18 @@ import {
   renderShelfHeader,
 } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { forwardHint } from "./campaign/pad-hints.js";
+import { PadFilters } from "./pad-filters.js";
+import { drawFiltersControl, searchRectForInspectHint } from "./filters-control.js";
+import { filtersLabel } from "../view/filters-layout.js";
+import { shelfPagingHints } from "./shelf-row-hints.js";
+import { bindExtraInput } from "./extra-input.js";
+import { inputDevice, padInputTracked } from "../platform/input-device.js";
+import { glyphSetOf } from "../view/input-mode.js";
+import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
+import { seatToClear, steppedSeatIndex } from "../view/seat-step.js";
 import { SCENES } from "./keys.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import { appSession, deckStorage } from "../session.js";
@@ -175,6 +187,12 @@ interface HeroChipDef {
 function withInfo(info: ChipInfoToggle | undefined): { readonly info?: ChipInfoToggle } {
   return info ? { info } : {};
 }
+
+/** The focus key of an aspect chip's "i" (the tip), by aspect. */
+const infoStopKey = (aspect: string): string => `hero-chip-info:${aspect}`;
+/** The stops that are the filters (search, the chips and their "i"), and the ones that are the list. */
+const FILTER_STOP = /^(hero-search-toggle|hero-search|filters-toggle|hero-chip:.*|hero-chip-info:.*)$/;
+const LIST_STOP = /^(rec-toggle|drill-back|hero-clear|hero:.*|hero-rec:.*)$/;
 
 /** What shuts a deck to this player: a precon's hero, or a tested community deck's hero or card wave. Null when it may be seated. */
 function deckLockOf(deck: Deck): string | null {
@@ -282,9 +300,26 @@ export class SeatsScene extends Phaser.Scene {
   /** Narrow only: the sideways-scrolling chip rail (`SeatsLayout.chipsScroll`). Null on wide, where the chips wrap. */
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
+  /** The key and pad glyphs beside the seat row (LB / RB, X, Y); drawn only while a keyboard or pad is in use. */
+  #hints!: GlyphHints;
+  /** The chips fold away while a controller is in use (`view/pad-filters.ts`). */
+  #padFilters!: PadFilters;
+  /** Each hero tile's shelf row, by focus key, for LT / RT. */
+  readonly #rowOfKey = new Map<string, { readonly shelfIndex: number; readonly itemIndex: number }>();
+  /** Whether the last redraw folded the chips, so Y knows whether it opens or folds them. */
+  #chipsFolded = false;
+  /** The filters and the list as two areas of the route, for Y and B (`view/focus-areas.ts`). */
+  readonly #areaJump = new AreaJump();
+  #areas: FocusAreas = { filters: [], entry: null, list: [] };
+  /** The word after the Y glyph, which says what Y does where focus is now (Filters, List or Inspect). */
+  #yWord: Phaser.GameObjects.Text | null = null;
   #drill: ShelfDrillState = ALL_PACKS;
   /** Which aspect chip's inline tip (G10b) is open, if any — a plain field, like every other stateful control here; `#rebuild()` redraws whichever badge/panel that implies. */
   #aspectTipOpen: CoreAspect | null = null;
+  /** Where the open tip and its "i" are on screen (with the gap between), for the pointer-leaves check. */
+  #tipZone: Rect | null = null;
+  /** A screen change is under way (Back, Play, Deck check): later presses do nothing. */
+  #leaving = false;
   /** The circle masks the pair pills made, and what the screen last worked out for the Recommended shelf. */
   #masks: Phaser.GameObjects.Graphics[] = [];
   #insights: SeatInsights | null = null;
@@ -293,6 +328,8 @@ export class SeatsScene extends Phaser.Scene {
   /** The deck under the pointer or under keyboard focus, whose reason the detail panel spells out. */
   #hoverDeckId: string | null = null;
   #focusDeckId: string | null = null;
+  /** The focus key of the topmost hero tile as of the last rebuild, where focus starts on arrival. */
+  #firstTileKey: string | null = null;
   #hoverBounds: Rect[] = [];
   #insightLayer: Phaser.GameObjects.Container | null = null;
   #insightArea: Rect | null = null;
@@ -332,6 +369,10 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Phaser reuses this scene: nothing from the last visit carries over.
+    this.#leaving = false;
+    this.#aspectTipOpen = null;
+    this.#tipZone = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
@@ -364,31 +405,80 @@ export class SeatsScene extends Phaser.Scene {
       this.#hover = null;
       this.#search.destroy();
     });
+    this.#hints = new GlyphHints(this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#hints.dispose());
+    this.#padFilters = new PadFilters(this, () => this.#rebuild());
+    this.#padFilters.reset();
+    // A tap elsewhere shuts an open aspect tip (it opens only on a press of its own "i"). On release, so a swipe of the
+    // chip rail keeps its drag, and not over another "i", whose own tap switches the tip in the same press.
+    this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (this.#aspectTipOpen === null || pointer.getDistance() > 10) return;
+      for (const [key, stop] of this.#stops) {
+        if (!key.startsWith("hero-chip-info:")) continue;
+        const r = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+        if (pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height) return;
+      }
+      this.#closeAspectTip();
+    });
+    const covered = (): boolean =>
+      this.scene.isActive(SCENES.inspect) ||
+      this.scene.isActive(SCENES.unlockConfirm) ||
+      this.scene.isActive(SCENES.nameConflict) ||
+      this.scene.isActive(SCENES.heroDecks);
     this.#route = new FocusRoute(this, {
       onFocusChange: (key) => {
         this.#focusDeckId = key === null ? null : deckIdOfStop(key);
         this.#drawInsights();
+        this.#refreshYWord();
+        // The LT / RT glyphs belong to the row focus is in.
+        this.#hints.refresh();
+        // Focus moving off the open tip's own "i" shuts it.
+        if (this.#aspectTipOpen !== null && key !== infoStopKey(this.#aspectTipOpen)) void this.#closeAspectTip();
       },
-      blocked: () =>
-        this.scene.isActive(SCENES.inspect) ||
-        this.scene.isActive(SCENES.unlockConfirm) ||
-        this.scene.isActive(SCENES.nameConflict) ||
-        this.scene.isActive(SCENES.heroDecks) ||
-        (this.#searchInput?.focused ?? false),
-      onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
-      onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
+      blocked: () => covered() || (this.#searchInput?.focused ?? false),
+      onCancel: () => this.#onCancel(),
+      // Y is the filters' fold while a controller is in use (the keyboard's Inspect key is unchanged); View inspects.
+      onInspect: (source) => {
+        if (source === "key" || !this.#padFilters.padMode) return false;
+        this.#toggleFilters();
+        return true;
+      },
+      // LT / RT page the focused row, like its ‹ / › chevrons.
+      onTrigger: (trigger) => this.#pageRow(trigger === "lt" ? -1 : 1),
+      // Start / Menu (and A with nothing focused) goes on to the table.
+      primary: () => (this.#stops.has("play") ? "play" : null),
+      // LB / RB: the seat being edited; the hero list then fills that seat.
+      onTab: (direction) => this.#stepSeat(direction),
+      // X: clears the focused (or active) seat, the same as its ✕.
+      onToggle: () => this.#clearSeatByPad(),
+      onScroll: (_dx, dy) => (this.#grid ?? this.#roster)?.scrollByPx(dy),
       onHomeEnd: (edge) => {
         const active = this.#grid ?? this.#roster;
         if (edge === "home") active?.scrollToStart();
         else active?.scrollToEnd();
       },
     });
+    bindExtraInput(this, {
+      blocked: () => covered() || (this.#searchInput?.focused ?? false),
+      intents: {
+        view: () => {
+          const key = this.#route?.focused ?? null;
+          if (this.#padFilters.padMode && key !== null && /^hero(-rec)?:/.test(key)) this.#route?.inspectFocused();
+        },
+      },
+    });
+    // A pad that put the caret in the search field can take it out again (B, A or Start).
+    bindTextFieldEscape(this, () => this.#searchInput, covered);
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
     });
     this.#savedDecks = this.#seedDecks;
     this.#rebuild();
+    // Arriving by pad at blank seats, focus is on the topmost hero rather than Back. A mouse or touch player gets no
+    // ring (it would read as a preselection), and a return trip (Deck check, Table setup) keeps its own place.
+    if (this.#draft.seats.length === 0 && padInputTracked() && this.#firstTileKey !== null)
+      this.#route?.focusKey(this.#firstTileKey);
     fadeScreenIn(this);
     void refreshUnlocks().then((changed) => {
       if (changed && this.sys.isActive()) this.#rebuild();
@@ -427,11 +517,15 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   #goToTableSetup(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
   }
 
   #back(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     if (this.#backTo === "civil-war-builder") {
       goToScreen(this, SCENES.civilWarBuilder, { draft: this.#draft, step: 5 } satisfies CivilWarBuilderData);
@@ -490,6 +584,10 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    this.#hints.reset();
+    this.#rowOfKey.clear();
+    this.#yWord = null;
+    this.#tipZone = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -519,6 +617,12 @@ export class SeatsScene extends Phaser.Scene {
     this.#identityOfDeck = new Map(deckOptions.map((o) => [o.deck.id as string, o.deck.identityCardId as string]));
     this.#syncSearchDocuments(deckOptions);
     const chipDefs = this.#heroChipDefs(deckOptions);
+    // Behind the Filters button while a controller is in use or the game is narrower than the breakpoint (Y or the
+    // button brings the chips back).
+    const behindButton = this.#padFilters.behindButton(width);
+    const folded = this.#padFilters.folded(width);
+    const padMode = this.#padFilters.padMode;
+    this.#chipsFolded = folded;
 
     const activeDeckId = this.#draft.seats[this.#draft.activeSeatIndex];
     const detailOption = activeDeckId ? deckOptions.find((o) => (o.deck.id as string) === activeDeckId) : undefined;
@@ -535,14 +639,16 @@ export class SeatsScene extends Phaser.Scene {
     const layout = seatsLayout({
       width,
       height,
-      chipRows: packCompactChipsToRows(chipDefs, rosterColumnWidthFor(width, height)).length,
+      chipRows: folded ? 0 : packCompactChipsToRows(chipDefs, rosterColumnWidthFor(width, height)).length,
       detailLines: 10,
       detailsOpen: this.#detailsOpen,
       searchOpen: this.#searchOpen,
+      filtersButton: behindButton,
+      chipsShown: !folded,
       pairRows: Math.min(insights.pairs.length, 3),
       noticeRows: unresolved.length > 0 ? 1 : 0,
     });
-    const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
+    const chipRows = folded ? [] : packCompactChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under the same full-width ink header bar Scenario select uses.
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
@@ -649,6 +755,12 @@ export class SeatsScene extends Phaser.Scene {
       );
       rosterLabel.setOrigin(0, 0.5);
       fitText(rosterLabel, layout.usePreconstructed.x - layout.rosterHeader.x - 12, typeRole.label.size);
+      this.#drawHints(
+        padMode,
+        layout.rosterHeader.y + layout.rosterHeader.height / 2,
+        rosterLabel.x + rosterLabel.displayWidth + 18,
+        layout.usePreconstructed.x - 12,
+      );
     }
     const usePreconstructed = (): void => {
       this.#draft = usePreconstructedForAllSeats(this.#draft, deckOptions);
@@ -668,7 +780,7 @@ export class SeatsScene extends Phaser.Scene {
     if (layout.search.height > 0) {
       this.#searchInput = drawSearchField(
         this,
-        layout.search,
+        searchRectForInspectHint(layout.search, padMode && layout.wide && layout.filtersButton !== null),
         "hero-search",
         this.#draft.heroFilter.text,
         "search heroes, aspects, decks…",
@@ -695,12 +807,33 @@ export class SeatsScene extends Phaser.Scene {
         this.#stops,
       );
     }
-    if (layout.chipsScroll) {
+    if (layout.filtersButton) {
+      const filter = this.#draft.heroFilter;
+      const active = (filter.aspect ? 1 : 0) + (filter.source ? 1 : 0) + (filter.playableOnly ? 1 : 0);
+      drawFiltersControl(
+        this,
+        this.#hints,
+        layout.filtersButton,
+        filtersLabel(active, !folded),
+        padMode && layout.wide,
+        () => this.#toggleFilters(),
+        this.#buttons,
+        this.#stops,
+      );
+    }
+    // Each aspect chip's "i" segment on screen now, for its focus stop (the rail moves them as it scrolls).
+    let infoRectOf: (id: string, index: number) => Rect | null = () => null;
+    let infoRail: McChipRail | null = null;
+    if (folded) {
+      // Folded away: no chips and no tips (the Filters button and Y bring them back).
+    } else if (layout.chipsScroll) {
       // Narrow: one row that scrolls sideways (P03 has no room for three wrapped rows of 44px chips). An aspect
       // chip's "i" segment is drawn by `McChipRail` *inside* the rail's own scrolling, masked content, so it moves
       // and clips with its chip (`ChipRailChip.info`).
       const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
       this.#chipRail = rail;
+      infoRail = rail;
+      infoRectOf = (_id, index) => rail.infoRectFor(index);
       chipDefs.forEach((chip, index) => {
         this.#stops.set(`hero-chip:${chip.id}`, {
           rect: () => rail.rectFor(index),
@@ -712,6 +845,7 @@ export class SeatsScene extends Phaser.Scene {
       this.#drawAspectTipPanelAt(openIndex >= 0 ? rail.infoRectFor(openIndex) : null, { x: 0, y: 0, width, height });
     } else {
       const infoRects = drawCompactChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
+      infoRectOf = (id) => infoRects.get(id) ?? null;
       const open = chipDefs.find((chip) => chip.info?.isOpen);
       this.#drawAspectTipPanelAt(open ? (infoRects.get(open.id) ?? null) : null, { x: 0, y: 0, width, height });
     }
@@ -843,6 +977,7 @@ export class SeatsScene extends Phaser.Scene {
         },
         buttons: this.#buttons,
         stops: this.#stops,
+        rowOfKey: this.#rowOfKey,
       });
       if (recShelf) {
         const roster = this.#roster;
@@ -889,8 +1024,10 @@ export class SeatsScene extends Phaser.Scene {
     // "Deck check ▸" for the active seat's own deck. D03 draws them the other way round; the owner's call
     // (2026-09-18) is that the way forward is the red one and looking at a deck is the side trip.
     const tableLock = this.#tableLock(deckOptions);
+    // The seats start blank: nothing is dealt in until the player picks a hero.
+    const noHeroes = this.#draft.seats.length === 0;
     const play = (): void => {
-      if (tableLock) return;
+      if (tableLock || noHeroes) return;
       // A card that can't be played beside another seat's hero is answered first, in the sheet; Continue there plays.
       if (unresolved.length > 0) {
         this.#openConflictSheet();
@@ -898,19 +1035,22 @@ export class SeatsScene extends Phaser.Scene {
       }
       this.#goToTableSetup();
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: tableLock
-          ? "Hero locked"
+    const playButton = new McButton(this, {
+      kind: "primary",
+      label: tableLock
+        ? "Hero locked"
+        : noHeroes
+          ? "Pick a hero ▸"
           : `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
-        type: typeRole.barTitle,
-        rect: layout.play,
-        enabled: tableLock === null,
-        ...(tableLock ? { reason: tableLock } : {}),
-        onClick: play,
-      }),
-    );
+      type: typeRole.barTitle,
+      rect: layout.play,
+      enabled: tableLock === null && !noHeroes,
+      ...(tableLock ? { reason: tableLock } : noHeroes ? { reason: "Pick a hero first." } : {}),
+      onClick: play,
+    });
+    this.#buttons.push(playButton);
+    // Start moves forward on this screen (the route's primary), so its glyph sits on the red button.
+    if (tableLock === null && !noHeroes) forwardHint(this.#hints, playButton, "ink");
     if (layout.footer) {
       // The red fill on an ink footer takes the same paper outline Table setup's "Deal it out" does, so the two
       // sticky footers of the setup flow read as one.
@@ -919,9 +1059,11 @@ export class SeatsScene extends Phaser.Scene {
         .lineStyle(3, surface.paper.hex, 1)
         .strokeRect(layout.play.x + 1.5, layout.play.y + 1.5, layout.play.width - 3, layout.play.height - 3);
     }
-    this.#stops.set("play", { rect: layout.play, activate: play });
+    if (!noHeroes) this.#stops.set("play", { rect: layout.play, activate: play });
 
     const deckCheck = (): void => {
+      if (this.#leaving || noHeroes) return;
+      this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
       goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
     };
@@ -932,9 +1074,11 @@ export class SeatsScene extends Phaser.Scene {
         type: typeRole.barTitle,
         rect: layout.deckCheck,
         onClick: deckCheck,
+        enabled: !noHeroes,
+        ...(noHeroes ? { reason: "Pick a hero first." } : {}),
       }),
     );
-    this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
+    if (!noHeroes) this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
     // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
     if (import.meta.env.DEV) {
@@ -953,19 +1097,179 @@ export class SeatsScene extends Phaser.Scene {
       };
     }
 
-    this.#route?.set(
-      seatsFocusOrder({
-        seatCount: MAX_SEATS,
-        deckIds: cardIds,
-        heroChipIds: chipDefs.map((c) => c.id),
-        narrow: !layout.wide,
-        hasRecommended: this.#stops.has("rec-toggle"),
-        recommendedIds: recIds,
-        hasConflictNotice: this.#stops.has("conflict-notice"),
-      }),
-      this.#stops,
+    // Each aspect chip's "i" is a stop of its own, right after its chip: Enter or A on it opens or shuts the tip.
+    const infoIds = new Set<string>();
+    (folded ? [] : chipDefs).forEach((chip, index) => {
+      const info = chip.info;
+      if (!info) return;
+      infoIds.add(chip.id);
+      const rail = infoRail;
+      this.#stops.set(infoStopKey(chip.id.replace(/^aspect:/, "")), {
+        rect: () => infoRectOf(chip.id, index) ?? layout.chips,
+        activate: () => (info.isOpen ? info.onClose() : info.onOpen()),
+        ...(rail ? { ensureVisible: () => rail.scrollIntoView(index) } : {}),
+      });
+    });
+    // Where focus starts on arrival: the topmost hero tile on screen (a recommended pick when that shelf leads).
+    this.#firstTileKey =
+      recIds[0] !== undefined ? `hero-rec:${recIds[0]}` : cardIds[0] !== undefined ? `hero:${cardIds[0]}` : null;
+    const baseOrder = seatsFocusOrder({
+      seatCount: MAX_SEATS,
+      deckIds: cardIds,
+      heroChipIds: folded ? [] : chipDefs.map((c) => c.id),
+      filtersToggle: this.#stops.has("filters-toggle"),
+      narrow: !layout.wide,
+      hasRecommended: this.#stops.has("rec-toggle"),
+      recommendedIds: recIds,
+      hasConflictNotice: this.#stops.has("conflict-notice"),
+    });
+    const order = baseOrder.flatMap((key) =>
+      key.startsWith("hero-chip:") && infoIds.has(key.slice("hero-chip:".length))
+        ? [key, infoStopKey(key.slice("hero-chip:aspect:".length))]
+        : [key],
     );
+    this.#areas = {
+      filters: order.filter((key) => FILTER_STOP.test(key)),
+      entry:
+        order.find((key) => key.startsWith("hero-chip:")) ??
+        order.find((key) => key === "filters-toggle") ??
+        order.find((key) => key === "hero-search") ??
+        null,
+      list: order.filter((key) => LIST_STOP.test(key)),
+    };
+    shelfPagingHints(this.#hints, {
+      roster: () => this.#roster,
+      shelfIndex: () => this.#rowOfKey.get(this.#route?.focused ?? "")?.shelfIndex ?? null,
+    });
+    this.#hints.onSnapshot(() => this.#refreshYWord());
+    this.#refreshYWord();
+    // Y on a stop with no Inspect of its own jumps between the filters and the list; a hero tile keeps its Inspect.
+    for (const [key, stop] of this.#stops) {
+      if (!stop.inspect) this.#stops.set(key, { ...stop, inspect: () => this.#jumpAreas(false) });
+    }
+    this.#route?.set(order, this.#stops);
     this.#hover?.onDraw();
+  }
+
+  /** Shuts an open aspect tip; true when there was one (B then does nothing more). */
+  #closeAspectTip(): boolean {
+    if (this.#aspectTipOpen === null) return false;
+    this.#aspectTipOpen = null;
+    this.#rebuild();
+    return true;
+  }
+
+  /** B / Escape: shuts an open tip, then from the list returns to the filters (scrolled back to the top), then backs out. */
+  #onCancel(): void {
+    if (this.#closeAspectTip()) return;
+    if (areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
+      this.#jumpAreas(true);
+      return;
+    }
+    if (this.#drill.packId !== null) this.#drillOut();
+    else this.#back();
+  }
+
+  /**
+   * Y toggles focus between the filters and the list (back to the row it left); B from the list goes to the filters and
+   * scrolls the list to its start (`view/focus-areas.ts`).
+   */
+  #jumpAreas(fromBack: boolean): void {
+    // B from the list with the chips folded opens them first, so there is a row to land on.
+    if (this.#chipsFolded) {
+      this.#padFilters.open();
+      this.#rebuild();
+    }
+    const focus = this.#route?.focused ?? null;
+    const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
+    if (target === null) return;
+    if (fromBack) (this.#grid ?? this.#roster)?.scrollToStart();
+    this.#route?.focusKey(target);
+  }
+
+  #refreshYWord(): void {
+    this.#yWord?.setText(this.#yWordFor(this.#route?.focused ?? null));
+  }
+
+  /** What Y does with focus where it is: back to the list from the filters, Inspect on a hero tile, else to the filters. */
+  #yWordFor(key: string | null): string {
+    const settings = appSession().settings;
+    const pad = glyphSetOf(inputDevice(), settings.inputGlyphs, settings.glyphSource) === "pad";
+    if (pad && this.#padFilters.padMode) return "Filters";
+    if (areaOf(key, this.#areas) === "filters") return "List";
+    return key !== null && /^hero(-rec)?:/.test(key) ? "Inspect" : "Filters";
+  }
+
+  /** LB / RB: the seat being edited steps to the previous or next one; the hero list then fills that seat. */
+  #stepSeat(direction: 1 | -1): void {
+    const next = steppedSeatIndex(this.#draft, direction, MAX_SEATS);
+    if (next === this.#draft.activeSeatIndex) return;
+    this.#draft = setActiveSeat(this.#draft, next);
+    this.#rebuild();
+  }
+
+  /** X: clears the focused seat tile's seat (or the active seat), the same as its ✕; the last hero stays. */
+  #clearSeatByPad(): void {
+    const index = seatToClear(this.#draft, this.#route?.focused ?? null);
+    if (index === null) return;
+    this.#draft = clearSeat(this.#draft, index);
+    this.#rebuild();
+  }
+
+  /**
+   * The seat row's key and pad hints (wide only): LB / RB pick the seat, X clears it, Y moves between the filters and the
+   * list. Each glyph shows only while a keyboard or pad is in use, never on touch (`ui/glyph-hints.ts`).
+   */
+  #drawHints(padMode: boolean, y: number, fromX: number, maxX: number): void {
+    const word = (text: string): Phaser.GameObjects.Text =>
+      label(this, 0, 0, text, typeRole.label, surface.ink.hex, ink.label).setOrigin(0, 0.5);
+    const items = [
+      { ids: ["zonePrevious", "zoneNext"] as const, text: "Seat", width: 118 },
+      { ids: ["guide"] as const, text: "Clear seat", width: 132 },
+      { ids: ["inspect"] as const, text: this.#yWordFor(this.#route?.focused ?? null), width: 112 },
+    ];
+    let x = fromX;
+    for (const item of items) {
+      if (x + item.width > maxX) break;
+      const text = word(item.text);
+      if (item.ids[0] === "inspect") this.#yWord = text;
+      // With a controller the Filters button beside the search field carries the Y glyph, so it is not repeated here.
+      const when = item.ids[0] === "inspect" && padMode ? (set: "keyboard" | "pad") => set !== "pad" : undefined;
+      this.#hints.inline(x, y, item.ids, 16, { ground: "paper", word: text, ...(when ? { when } : {}) });
+      x += item.width;
+    }
+  }
+
+  /**
+   * Y (or the Filters button) while a controller is in use: shows the chips, or folds them away again. Opening moves
+   * focus to the first chip, remembering the tile it left; folding from a chip returns to that tile.
+   */
+  #toggleFilters(): void {
+    const focus = this.#route?.focused ?? null;
+    const opening = this.#chipsFolded;
+    const onChip = focus?.startsWith("hero-chip") ?? false;
+    this.#padFilters.toggle();
+    this.#rebuild();
+    // The ring follows a pad or keyboard user; a mouse press leaves focus alone (no ring appears for it).
+    if (focus === null && !this.#padFilters.padMode) return;
+    if (opening) {
+      const target = this.#areaJump.toFilters(focus, this.#areas);
+      if (target !== null) this.#route?.focusKey(target);
+    } else if (onChip) {
+      const target = this.#areaJump.toList(this.#areas);
+      if (target !== null) this.#route?.focusKey(target);
+    }
+  }
+
+  /** LT / RT: pages the shelf row focus is in, as its chevron would, and moves focus to the first card in view. */
+  #pageRow(direction: 1 | -1): void {
+    const row = this.#rowOfKey.get(this.#route?.focused ?? "");
+    if (!row || !this.#roster) return;
+    const first = this.#roster.pageShelf(row.shelfIndex, direction);
+    if (first === null) return;
+    const key = [...this.#rowOfKey].find(([, at]) => at.shelfIndex === row.shelfIndex && at.itemIndex === first)?.[0];
+    if (key) this.#route?.focusKey(key);
+    this.#hints.refresh();
   }
 
   /** Narrow only: the one line the details disclosure shows while shut — enough to know what's in the seat without opening it. */
@@ -1455,7 +1759,8 @@ export class SeatsScene extends Phaser.Scene {
     // The hero's artwork where there is some, the way Scenario select shows a villain's; otherwise the identity
     // card's own scan, as before. Only the URL: the card-face worker fetches and decodes it, downscaled to the card.
     const picture = this.#heroPictureFor(option.deck.identityCardId as string);
-    const artUrl = picture?.url ?? (identity ? artFor(identity, { kind: "hero" }) : null)?.url ?? null;
+    const scanUrl = (identity ? artFor(identity, { kind: "hero" }) : null)?.url ?? null;
+    const artUrl = picture?.url ?? scanUrl;
     const entry = active.get(option.deck.id as string);
     const sourceText =
       testedSubtitleOf(option.deck, testedCatalog()) ??
@@ -1484,6 +1789,8 @@ export class SeatsScene extends Phaser.Scene {
     const rec = this.#insights?.analysis.get(option.deck.id as string);
     const card = renderShelfCard(this, rect, {
       artUrl,
+      // The hero's own picture failing to load on a device (a decoder that refuses it) falls back to the printed scan.
+      ...(picture && scanUrl ? { artFallbackUrl: scanUrl } : {}),
       ...(picture?.focus ? { artFocus: picture.focus } : {}),
       titleRole: typeRole.barTitle,
       title: several
@@ -1678,6 +1985,18 @@ ${sourceWordsOf(decks)}`
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
+    // An open aspect tip shuts when the mouse leaves it and its "i" (the segment's own pointerout is lost when the press
+    // that opened it redrew the screen under the pointer).
+    const zone = this.#tipZone;
+    if (
+      this.#aspectTipOpen !== null &&
+      zone !== null &&
+      !pointer.wasTouch &&
+      (pointer.x < zone.x || pointer.x > zone.x + zone.width || pointer.y < zone.y || pointer.y > zone.y + zone.height)
+    ) {
+      this.#closeAspectTip();
+      return;
+    }
     const inside = this.#hoverBounds.some(
       (r) => pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height,
     );
@@ -1814,7 +2133,17 @@ ${sourceWordsOf(decks)}`
     const aspect = this.#aspectTipOpen;
     if (!aspect || !anchor) return;
     const content = aspectTipContentOf(aspect);
-    if (content) drawAspectTipPanel(this, anchor, content, viewport);
+    if (!content) return;
+    const panel = drawAspectTipPanel(this, anchor, content, viewport).getBounds();
+    // The segment and its panel with the gap between them: the pointer travelling to the panel's link stays inside.
+    const x = Math.min(anchor.x, panel.x);
+    const y = Math.min(anchor.y, panel.y);
+    this.#tipZone = {
+      x,
+      y,
+      width: Math.max(anchor.x + anchor.width, panel.right) - x,
+      height: Math.max(anchor.y + anchor.height, panel.bottom) - y,
+    };
   }
 
   /** The "i" segment's toggle for an aspect chip with a tip (`aspectTipContentOf`); undefined when it has none. */
@@ -1822,6 +2151,7 @@ ${sourceWordsOf(decks)}`
     if (!aspectTipContentOf(aspect)) return undefined;
     return {
       isOpen: this.#aspectTipOpen === aspect,
+      pressOnly: true,
       onOpen: () => {
         this.#aspectTipOpen = aspect;
         this.#rebuild();

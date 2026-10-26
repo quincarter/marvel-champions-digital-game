@@ -16,6 +16,7 @@ import type { Rect } from "../view/layout.js";
 import { confirmOf } from "../view/unlocks-model.js";
 import { unlockByHand, type UnlockTarget } from "../progression/unlocks.js";
 import { setUnlockPrefs, unlocks } from "../progression/progression.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -34,6 +35,7 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
   #data!: UnlockConfirmData;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
 
   constructor() {
     super(SCENES.unlockConfirm);
@@ -45,8 +47,10 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     if (from) from.input.enabled = false;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, { onCancel: () => this.#answer(false) });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
@@ -68,6 +72,7 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
 
     const confirm = confirmOf(unlocks(), this.#data.target);
     const { width, height } = this.scale.gameSize;
@@ -112,6 +117,7 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
         onClick: () => this.#answer(false),
       }),
     );
+    this.#hints.button(this.#buttons[0]!, ["cancel"], confirm.affordable ? "paper" : "ink");
     const stops = new Map([["cancel", { rect: cancelRect, activate: () => this.#answer(false) }]]);
     if (confirm.affordable) {
       this.#buttons.push(

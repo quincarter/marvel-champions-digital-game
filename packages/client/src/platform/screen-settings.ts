@@ -14,7 +14,8 @@
  * slowest mode that covers a cap, so the panel slows down with the game.
  */
 import type Phaser from "phaser";
-import { fpsLimitOf, type FrameRate, type Settings } from "../settings.js";
+import { couchModeFactor, fpsLimitOf, type FrameRate, type Settings } from "../settings.js";
+import { applyCouchMode, couchFactorInUse, setCouchFactorHandler } from "../ui/render-resolution.js";
 import { setTextResolution } from "../ui/theme.js";
 import { currentRenderScale, setRenderScale } from "../ui/render-scale.js";
 import { drawsAtScreenDensity, renderScaleFor, screenEnvironment, textResolutionFor } from "./screen-density.js";
@@ -83,13 +84,38 @@ function requestRefreshRate(rate: FrameRate): void {
   void displayRate().then((boxed) => boxed?.plugin.setFrameRate({ fps }).catch(() => {}));
 }
 
+/** The render scale and the sharp text to match, for the settings and couch factor in effect now. */
+function followRenderScale(settings: Settings): void {
+  const scale = renderScaleFor(settings, screenEnvironment(), couchFactorInUse());
+  if (scale !== currentRenderScale()) setRenderScale(scale);
+  applyTextResolution(settings);
+}
+
+/** Sets the text resolution for `settings` at the density the game draws at now (couch mode's scale-up included). */
+export function applyTextResolution(settings: Pick<Settings, "textResolution">): void {
+  const env = screenEnvironment();
+  setTextResolution(textResolutionFor(settings, currentRenderScale(), drawsAtScreenDensity(env.search)));
+}
+
+/**
+ * The density Sharper text aims for: the screen's own pixel ratio or the render scale the game draws at, whichever is
+ * higher. At a pixel ratio of 1 under couch mode the game draws at 2x, so text has to as well.
+ */
+export function drawnDensity(): number {
+  return Math.max(globalThis.devicePixelRatio || 1, currentRenderScale());
+}
+
+let followingCouch = false;
+
 /** Puts the screen settings into effect on a running game: the render scale, sharp text to match, and the frame rate. */
 export function applyScreenSettings(game: Phaser.Game, settings: Settings): void {
-  const env = screenEnvironment();
-  const densityOn = drawsAtScreenDensity(env.search);
-  const scale = renderScaleFor(settings, env);
-  if (scale !== currentRenderScale()) setRenderScale(scale);
-  setTextResolution(textResolutionFor(settings, currentRenderScale(), densityOn));
+  if (!followingCouch) {
+    followingCouch = true;
+    // A resize can lower or restore the couch factor in use; the buffer follows it, not just a settings change.
+    setCouchFactorHandler(() => followRenderScale(appSession().settings));
+  }
+  applyCouchMode(game, couchModeFactor(settings.couchMode));
+  followRenderScale(settings);
   game.loop.setFPSLimit(fpsLimitOf(settings.frameRate));
   requestRefreshRate(settings.frameRate);
 }

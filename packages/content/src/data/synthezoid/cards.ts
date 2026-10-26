@@ -113,11 +113,13 @@ export const SYNTHEZOID_CARDS: readonly AnyCard[] = [
           { id: abilityId("57005b.enforce-the-law-constant") },
           { id: abilityId("57005b.enforce-the-law-constant-2") },
         ],
+        image: imageRef("/bundles/cards/57005b.png"),
         aSide: {
           text: {
             printed: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
+          image: imageRef("/bundles/cards/57005a.png"),
           abilities: [{ id: abilityId("57005a.setup") }],
         },
       },
@@ -137,7 +139,9 @@ export const SYNTHEZOID_CARDS: readonly AnyCard[] = [
         keywords: [],
         abilities: [{ id: abilityId("57006b.mighty-avengers-constant") }],
         completionLoses: true,
+        image: imageRef("/bundles/cards/57006b.png"),
         aSide: {
+          image: imageRef("/bundles/cards/57006a.png"),
           text: { printed: "", current: "" },
           abilities: [],
         },
@@ -1058,7 +1062,9 @@ export const SYNTHEZOID_CARDS: readonly AnyCard[] = [
             id: abilityId("57044b.protect-secret-identities-forced-response"),
           },
         ],
+        image: imageRef("/bundles/cards/57044b.png"),
         aSide: {
+          image: imageRef("/bundles/cards/57044a.png"),
           text: {
             printed: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
@@ -1082,7 +1088,9 @@ export const SYNTHEZOID_CARDS: readonly AnyCard[] = [
         keywords: [],
         abilities: [{ id: abilityId("57045b.expose-overreach-constant") }],
         completionLoses: true,
+        image: imageRef("/bundles/cards/57045b.png"),
         aSide: {
+          image: imageRef("/bundles/cards/57045a.png"),
           text: { printed: "", current: "" },
           abilities: [],
         },

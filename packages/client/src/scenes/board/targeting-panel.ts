@@ -9,6 +9,10 @@
  * that data out and wires the taps.
  */
 
+import { appSession } from "../../session.js";
+import { inputDevice } from "../../platform/input-device.js";
+import { cancelLabel } from "../../view/glyph-placement.js";
+import { glyphSetOf } from "../../view/input-mode.js";
 import type Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
 import { drawArt } from "../../art/card-art.js";
@@ -26,7 +30,11 @@ import {
   type TargetOption,
 } from "../../view/targeting-panel.js";
 import type { BoardDrawContext } from "./context.js";
+import { registerPickGlyph, registerPickMore } from "./pick-hints.js";
 import { focusKey } from "./selection.js";
+
+/** The height of a candidate's pick glyph on a tile (the hint size setting scales it). */
+const PICK_GLYPH_HEIGHT = 22;
 
 /** Which target tile is currently hovered or focused, so its confirm line draws — the one piece of state this draw needs that outlives a single draw call. */
 export interface TargetingHover {
@@ -68,7 +76,7 @@ export function drawTargetingPanel(
 
   drawTitleBar(ctx, layout.titleBar, layout.cancelButton, panel, layout.formFactor);
 
-  scene.add
+  const headingText = scene.add
     .text(
       layout.heading.x,
       layout.heading.y,
@@ -114,6 +122,11 @@ export function drawTargetingPanel(
     );
   });
 
+  // More candidates than a page of buttons: the hint that turns the page follows the heading's words.
+  registerPickMore(ctx, PICK_GLYPH_HEIGHT - 4, () => ({
+    x: headingText.x + headingText.width + 14,
+    y: layout.heading.y + layout.heading.height / 2,
+  }));
   if (!panel.hideExcluded) drawExcludedPanel(ctx, layout.excluded, panel.excluded);
   if (panel.multi) {
     drawFooter(
@@ -167,16 +180,31 @@ function drawTitleBar(
     }
   }
 
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "secondary",
-      // The Esc hint is for a keyboard, and a phone button 84 px wide cannot hold it without clipping.
-      label: formFactor === "desktop" || formFactor === "tabletLandscape" ? "Cancel · Esc" : "Cancel",
-      type: typeRole.label,
-      rect: cancelRect,
-      onClick: () => ctx.controller.cancel(),
-    }),
-  );
+  // Desktop and tablet landscape only: a phone button has no room for the Esc hint or its glyph.
+  const hinted = formFactor === "desktop" || formFactor === "tabletLandscape";
+  // Until a key or pad has been used (`glyphSetOf` null) the old "Cancel · Esc" text stays; after, a B / Esc glyph
+  // sits beside the word instead and the label is just "Cancel" (`view/glyph-placement.ts#cancelLabel`).
+  const settings = appSession().settings;
+  const cancelButton = new McButton(scene, {
+    kind: "secondary",
+    label: cancelLabel(hinted, glyphSetOf(inputDevice(), settings.inputGlyphs, settings.glyphSource)),
+    type: typeRole.label,
+    rect: cancelRect,
+    onClick: () => ctx.controller.cancel(),
+  });
+  ctx.frame.buttons.push(cancelButton);
+  if (hinted) {
+    // Scene-scoped: the hints drop this listener at the next redraw and at shutdown, and it only touches the button
+    // when the label actually changes.
+    ctx.hints.onSnapshot((snapshot) => {
+      const label = cancelLabel(
+        true,
+        glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource),
+      );
+      if (cancelButton.container.active && label !== cancelButton.label) cancelButton.update({ label });
+    });
+    ctx.hints.button(cancelButton, ["cancel"], "paper");
+  }
   ctx.frame.focusRects.set(focusKey({ kind: "cancel" }), cancelRect);
 }
 
@@ -279,6 +307,11 @@ function drawTargetTile(
 
   ctx.frame.hitRects.set(option.instanceId, rect);
   ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: option.instanceId }), rect);
+  // The button (or number key) that picks this tile outright, on the art's lower right corner above the name.
+  registerPickGlyph(ctx, option.instanceId, PICK_GLYPH_HEIGHT, ({ width, height }) => ({
+    x: rect.x + rect.width - width - 8,
+    y: artHeight > 24 ? rect.y + artHeight - height / 2 - 6 : rect.y + height / 2 + 8,
+  }));
 
   const zone = scene.add
     .zone(rect.x, rect.y, rect.width, rect.height)

@@ -60,6 +60,9 @@ import type { SeatRecommendation } from "../../view/seat-recommendations.js";
 import { storyFor } from "../../campaign/story.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { bindTextFieldEscape } from "../text-field-escape.js";
+import { createHints, forwardHintAtEnd } from "./pad-hints.js";
 import { unlocks } from "../../progression/progression.js";
 import { tableRulesOf } from "../../settings.js";
 import { appSession } from "../../session.js";
@@ -99,6 +102,7 @@ export class CampaignRosterScene extends Phaser.Scene {
   /** The picker's search text, and its field (kept across rebuilds so typing keeps focus). Cleared when it closes. */
   #pickerQuery = "";
   #pickerSearch: McTextInput | null = null;
+  #hints: GlyphHints | null = null;
   /** Ranks the picker's decks for the query off the main thread; `#pickerRanking` is its latest answer (null: no query). */
   readonly #search = new DeckSearchClient();
   #pickerRanking: ReadonlyMap<string, number> | null = null;
@@ -164,10 +168,23 @@ export class CampaignRosterScene extends Phaser.Scene {
       cardIds: () => this.#pickerHoverCards?.() ?? new Map(),
       area: (pointer) => this.#hoverArea(pointer),
     });
+    this.#hints = createHints(this);
+    // Before the route, so the press that puts the caret in the field is not also the one that takes it out.
+    bindTextFieldEscape(
+      this,
+      () => this.#pickerSearch,
+      () => this.scene.isActive(SCENES.nameConflict) || this.scene.isActive(SCENES.inspect),
+    );
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.nameConflict) || (this.#pickerSearch?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.nameConflict) ||
+        this.scene.isActive(SCENES.inspect) ||
+        (this.#pickerSearch?.focused ?? false),
+      // Start and A with nothing focused: Sign & open issue #1 (never behind the open deck picker).
+      primary: () => (this.#pickerSeat === null ? "cta" : null),
       onCancel: () => this.#onCancel(),
       onPage: (direction) => this.#pickerList?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#pickerList?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
     });
     this.#campaignId = data.campaignId;
@@ -319,12 +336,14 @@ export class CampaignRosterScene extends Phaser.Scene {
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
     this.#stops = new Map();
+    this.#hints?.reset();
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
 
     const frame = campaignFrame(this);
     const top = drawTopBar(this, {
       backLabel: frame.phone ? "◂" : "◂ Cover",
       onBack: () => this.#onCancel(),
+      hints: this.#hints,
       title: this.#expertCampaign ? "Sign the roster · Expert" : "Sign the roster",
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => this.#onCancel() });
@@ -406,6 +425,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     });
     void cta;
     this.#stops.set("cta", { rect: ctaRect, activate: () => this.#onSign() });
+    if (this.#pickerSeat === null)
+      forwardHintAtEnd(this.#hints, ctaRect, "ink", model?.canSign === true && !this.#signing);
 
     if (this.#error) {
       this.add.text(gutter, actionBar.y - 20, this.#error, textStyle(typeRole.label, 0xc8102e, 1));
@@ -413,12 +434,14 @@ export class CampaignRosterScene extends Phaser.Scene {
 
     if (this.#pickerSeat !== null) this.#drawPicker(frame, this.#pickerSeat);
 
-    const order = [
-      "back",
-      ...Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => `seat-${i + 1}`),
-      "cta",
-      ...[...this.#stops.keys()].filter((k) => k.startsWith("pick-")),
-    ].filter((key) => this.#stops.has(key));
+    // With the deck picker open it is the whole route: nothing behind it can be reached.
+    const picks = [...this.#stops.keys()].filter((k) => k.startsWith("pick-"));
+    const order =
+      this.#pickerSeat !== null
+        ? picks
+        : ["back", ...Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => `seat-${i + 1}`), "cta"].filter((key) =>
+            this.#stops.has(key),
+          );
     this.#route?.set(order, this.#stops);
     this.#hover?.onDraw();
   }
@@ -579,7 +602,17 @@ export class CampaignRosterScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     onTap(zone, open, `roster:seat-${seatNumber}`);
-    this.#stops.set(`seat-${seatNumber}`, { rect, activate: open });
+    this.#stops.set(`seat-${seatNumber}`, {
+      rect,
+      activate: open,
+      inspect: () => this.#inspectIdentity(deck.identityCardId as string),
+    });
+  }
+
+  /** Y: the hero's identity card in full. */
+  #inspectIdentity(cardId: string): void {
+    this.scene.launch(SCENES.inspect, { card: { cardId: cardId as CardId, face: { kind: "front" } } });
+    this.scene.bringToTop(SCENES.inspect);
   }
 
   /** The hero's artwork as Take your seats picks it, else the identity card's own scan; null draws a plain block. */
@@ -947,6 +980,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.#stops.set(key, {
         rect: () => list.rectFor(entryIndex),
         activate: () => selectAt(entry.optionIndex),
+        inspect: () => this.#inspectIdentity(options[entry.optionIndex]!.identityId as string),
         ensureVisible: () => list.scrollIntoView(entryIndex),
       });
     });

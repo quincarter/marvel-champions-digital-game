@@ -220,7 +220,7 @@ export interface DefendOptionParts {
   readonly text: Rect;
 }
 
-const OPTION_PAD = 10;
+export const OPTION_PAD = 10;
 /** What a card's text stack (title, cost, damage, HP line) needs at its least. */
 const TEXT_STACK_MIN = 112;
 

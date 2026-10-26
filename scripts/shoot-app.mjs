@@ -25,6 +25,9 @@
  *   --hover <x,y>          Move the mouse there and leave it (a desktop hover popover), then wait 300 ms.
  *   --hold <x,y>           Press for 600 ms then release (the touch "hold to inspect"), then wait 300 ms.
  *   --key <Key>            Press a key (Escape, Enter, Tab, ArrowRight, i, …), then wait 300 ms.
+ *   --keydown <Key>        Press a key and keep it down (a hold, such as E for hold-to-zoom); pair with --keyup.
+ *   --keyup <Key>          Release a key held by --keydown.
+ *   --eval <js>            Run a JavaScript expression in the page (a dev hook such as `__mcPadToast()`), then wait 300 ms.
  *   --pause <ms>           Wait this long before the next action (a screen change's fade, a deck save).
  *   --settle <ms>          Wait this long after the last action before capturing (default 700; use 0 with --frames)
  *   --frames <n>           Capture n frames instead of one (default 1)
@@ -91,7 +94,10 @@ function parse(argv) {
       case "hover":
       case "hold":
       case "key":
+      case "keydown":
+      case "keyup":
       case "pause":
+      case "eval":
         options.actions.push({ kind: key, value });
         break;
       default:
@@ -156,6 +162,12 @@ async function main() {
       await page.mouse.up();
     } else if (action.kind === "key") {
       await page.keyboard.press(action.value);
+    } else if (action.kind === "keydown") {
+      await page.keyboard.down(action.value);
+    } else if (action.kind === "keyup") {
+      await page.keyboard.up(action.value);
+    } else if (action.kind === "eval") {
+      await page.evaluate(action.value);
     } else if (action.kind === "pause") {
       await page.waitForTimeout(Number(action.value));
     }

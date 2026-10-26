@@ -36,6 +36,8 @@ tauri-plugin-http = "2.8.2"
 tauri-plugin-opener = "2"
 # The desktop Save dialog for exporting save data (src/save_file.rs).
 tauri-plugin-dialog = "2"
+# Discord Rich Presence over the local IPC socket (src/discord_presence.rs).
+discord-rich-presence = "1.1"
 
 # Exclusive fullscreen: switching the monitor's display mode (src/display_mode.rs).
 [target.'cfg(windows)'.dependencies]
@@ -55,3 +57,22 @@ windows = { version = "0.61", features = [
   "Win32_System_Variant",
   "Win32_UI_Shell",
 ] }
+
+# Native gamepads on Linux (src/gamepad_bridge.rs): WebKitGTK's Gamepad API misreads common pads, so gilrs reads them
+# through evdev with SDL_GameControllerDB mappings. Needs libudev-dev to build (libudev-sys).
+[target.'cfg(target_os = "linux")'.dependencies]
+gilrs = "0.11.2"
+
+# The Linux app plays its own music and effects (src/native_audio*.rs): WebKitGTK's Web Audio crackled on the Steam
+# Deck. symphonia decodes the mp3s; libpulse talks to PulseAudio / PipeWire's pulse server. Needs libpulse-dev to build.
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
+libpulse-binding = "2.28"
+libpulse-simple-binding = "2.28"
+# The page-hang watchdog (src/hang_watchdog.rs) restarts WebKitGTK's web process. Pinned to exactly the version wry
+# pins (wry 0.57's own `webkit2gtk = "=2.0.2"`, see Cargo.lock): a Tauri/wry bump that moves it needs this line moved too,
+# or the two versions conflict and the Linux build fails.
+webkit2gtk = { version = "=2.0.2", features = ["v2_34"] }
+
+# The engine's tests run on every host (the engine itself is Linux-only in the app).
+[dev-dependencies]
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }

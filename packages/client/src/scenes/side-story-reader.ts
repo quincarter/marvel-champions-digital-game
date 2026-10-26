@@ -28,7 +28,10 @@ import {
 } from "../view/comic-reader-model.js";
 import type { Rect } from "../view/layout.js";
 import type { ExtrasSceneData } from "./extras.js";
+import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import type { GlyphHints } from "../ui/glyph-hints.js";
+import { advanceHint, createHints, skipHint } from "./campaign/pad-hints.js";
 import { SCENES } from "./keys.js";
 
 export interface SideStoryReaderData {
@@ -47,6 +50,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
   #panTween: Phaser.Tweens.Tween | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
 
   constructor() {
     super(SCENES.sideStoryReader);
@@ -67,12 +71,15 @@ export class SideStoryReaderScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
+    this.#route = null;
     if (!this.#story || this.#steps.length === 0) {
       this.#leave();
       return;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     this.scale.on("resize", this.#draw, this);
+    this.#hints = createHints(this);
     const onArrow = (event: KeyboardEvent): void => {
       if (event.key === "ArrowRight") {
         event.preventDefault();
@@ -83,6 +90,17 @@ export class SideStoryReaderScene extends Phaser.Scene {
       }
     };
     this.input.keyboard?.on("keydown", onArrow);
+    // The D-pad pages as the arrows do.
+    bindExtraInput(this, {
+      intents: {
+        right: () => {
+          this.#advance();
+        },
+        left: () => {
+          this.#back();
+        },
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#draw, this);
       this.input.keyboard?.off("keydown", onArrow);
@@ -149,6 +167,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
     if (!story) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints?.reset();
     destroyChildren(this);
 
     const { width, height, phone } = campaignFrame(this);
@@ -168,15 +187,15 @@ export class SideStoryReaderScene extends Phaser.Scene {
     // Header: the story's title and its credit, with CLOSE.
     const headerPad = phone ? 16 : 24;
     const closeRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "CLOSE ✕",
-        type: typeRole.label,
-        rect: closeRect,
-        onClick: () => this.#leave(),
-      }),
-    );
+    const closeButton = new McButton(this, {
+      kind: "onInk",
+      label: "CLOSE ✕",
+      type: typeRole.label,
+      rect: closeRect,
+      onClick: () => this.#leave(),
+    });
+    this.#buttons.push(closeButton);
+    skipHint(this.#hints, closeButton, "ink");
     stops.set("close", { rect: closeRect, activate: () => this.#leave() });
     label(this, headerPad, 14, "SIDE STORY", typeRole.label, surface.paper.hex, ink.label);
     const title = this.add
@@ -238,15 +257,15 @@ export class SideStoryReaderScene extends Phaser.Scene {
       ? width - ctaPad * 2 - backWidth - backGap
       : Math.min(425, width - ctaPad * 2 - backWidth - backGap);
     const ctaRect: Rect = { x: width - ctaPad - ctaWidth, y: ctaY, width: ctaWidth, height: ctaHeight };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: view.isLast ? "DONE ▸" : "NEXT ▸",
-        type: typeRole.barTitle,
-        rect: ctaRect,
-        onClick: () => this.#advance(),
-      }),
-    );
+    const nextButton = new McButton(this, {
+      kind: "primary",
+      label: view.isLast ? "DONE ▸" : "NEXT ▸",
+      type: typeRole.barTitle,
+      rect: ctaRect,
+      onClick: () => this.#advance(),
+    });
+    this.#buttons.push(nextButton);
+    advanceHint(this.#hints, nextButton, "ink");
     stops.set("next", { rect: ctaRect, activate: () => this.#advance() });
     if (hasBack) {
       const backRect: Rect = { x: ctaPad, y: ctaY, width: backWidth, height: ctaHeight };
@@ -267,7 +286,15 @@ export class SideStoryReaderScene extends Phaser.Scene {
     onTap(tapZone, () => this.#advance(), "side-story:picture");
     this.children.sendToBack(tapZone);
 
-    this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leave() });
+    // B, Start and View close the story (as CLOSE does); A with nothing focused turns the page.
+    this.#route =
+      this.#route ??
+      new FocusRoute(this, {
+        onCancel: () => this.#leave(),
+        onPause: () => this.#leave(),
+        onView: () => this.#leave(),
+        primary: () => "next",
+      });
     this.#route.set(hasBack ? ["back", "next", "close"] : ["next", "close"], stops);
   }
 }

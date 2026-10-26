@@ -129,6 +129,11 @@ export class WorkerEngineHost implements EngineHost {
     return response.saves;
   }
 
+  /** Hands the worker a port to post the Discord presence summary to (it computes it where the state already is). */
+  attachPresencePort(port: MessagePort): void {
+    this.#worker.postMessage({ kind: "presencePort", id: 0, port } satisfies HostRequest, [port]);
+  }
+
   dispose(): void {
     this.#worker.removeEventListener("message", this.#onMessage);
     this.#worker.removeEventListener("error", this.#onError);

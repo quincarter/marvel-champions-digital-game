@@ -8,6 +8,9 @@
 
 import type { TableRules } from "@mc/engine";
 import { preferredCardLanguage, type CardLanguage } from "./art/card-language.js";
+import type { KeyboardHand } from "./view/input-shortcuts.js";
+import type { GlyphSource } from "./view/input-mode.js";
+import type { PadFamilySetting } from "./view/pad-family.js";
 
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
 export const SHARP_TEXT_RESOLUTION_CEILING = 2;
@@ -19,6 +22,19 @@ export const MUSIC_VOLUME_MAX = 100;
 export function clampMusicVolume(volume: number): number {
   if (!Number.isFinite(volume)) return MUSIC_VOLUME_MAX;
   return Math.round(Math.min(MUSIC_VOLUME_MAX, Math.max(0, volume)));
+}
+
+/** The key and button hints' size, as a percent of their base size (`Settings.glyphSize`): range, step and default. */
+export const GLYPH_SIZE_MIN = 75;
+export const GLYPH_SIZE_MAX = 200;
+export const GLYPH_SIZE_STEP = 5;
+export const GLYPH_SIZE_DEFAULT = 130;
+
+/** A stored or dragged hint size brought into range and to a step of 5. */
+export function clampGlyphSize(percent: number): number {
+  if (!Number.isFinite(percent)) return GLYPH_SIZE_DEFAULT;
+  const stepped = Math.round(percent / GLYPH_SIZE_STEP) * GLYPH_SIZE_STEP;
+  return Math.min(GLYPH_SIZE_MAX, Math.max(GLYPH_SIZE_MIN, stepped));
 }
 
 export interface Settings {
@@ -64,6 +80,8 @@ export interface Settings {
   readonly villainAutoAdvance: VillainAutoAdvance;
   /** Keep every revealed encounter card on screen until the player taps past it, even one with no answer to give. Defaults on. */
   readonly holdEncounterCards: boolean;
+  /** Desktop app only: show what you are playing on your Discord profile while Discord is open (`platform/discord-presence.ts`). Defaults on. */
+  readonly discordPresence: boolean;
   /** Stop on each encounter card dealt facedown and show its back until the player presses Flip Encounter Card (#287). Defaults on. */
   readonly flipEncounterCards: boolean;
   /** How long Flip Encounter Card takes to turn the card over: 1 s, 0.5 s, or instantly (`flipDurationMs`). Defaults normal. */
@@ -127,6 +145,11 @@ export interface Settings {
    */
   readonly renderScale: RenderScale;
   /**
+   * Couch mode: everything drawn bigger, for a TV across the room. The game lays out at the window's size divided by
+   * the factor and scales it up to fill (`ui/render-resolution.ts`). Defaults to off.
+   */
+  readonly couchMode: CouchMode;
+  /**
    * The frame rate the game holds to: the screen's own refresh rate (120 Hz on a 120 Hz phone), or a 60 or 30 fps cap.
    * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own, or 60 on a phone the
    * hardware check rates below high-end; power saving mode defaults it to 30 (`POWER_SAVING_FPS`).
@@ -147,6 +170,30 @@ export interface Settings {
    * browser's language when the bundle has it.
    */
   readonly cardLanguage: CardLanguage;
+  /**
+   * Which button labels the controller glyphs show (`view/pad-family.ts`): follow the detected pad, or a family the
+   * player picks when detection is wrong. Defaults to auto.
+   */
+  readonly padGlyphFamily: PadFamilySetting;
+  /**
+   * On a Nintendo-layout pad, buttons act by their printed label: A (right) confirms, B (bottom) backs out, as on a
+   * Switch. Ignored for other pads and under Steam Input, which swaps for itself (the owner, 2026-10-24). Defaults on.
+   */
+  readonly nintendoLayout: boolean;
+  /**
+   * Which hand the one-handed keyboard map sits under (`view/input-shortcuts.ts`): left (WASD) by default, right (IJKL)
+   * for a mouse in the left hand (the owner, 2026-10-24).
+   */
+  readonly keyboardHand: KeyboardHand;
+  /** Key and button glyphs beside the controls they trigger, while a keyboard or controller is in use. Defaults on. */
+  readonly inputGlyphs: boolean;
+  /**
+   * Which hints to show: follow the last input (auto), or pin the controller's or the keyboard's. Pin the controller on
+   * a Steam Deck in Desktop Mode, where Steam turns the buttons into keys. Defaults to auto.
+   */
+  readonly glyphSource: GlyphSource;
+  /** How big those hints draw, in percent of the base size: 75 to 200 in steps of 5 (`clampGlyphSize`). Defaults to 130. */
+  readonly glyphSize: number;
 }
 
 export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
@@ -180,6 +227,15 @@ export const MAX_RENDER_SCALE = 4;
 export function renderScaleFactorOf(choice: RenderScale, devicePixelRatio: number): number {
   const native = Math.min(MAX_RENDER_SCALE, Math.max(1, devicePixelRatio || 1));
   return choice === "native" ? native : Math.min(native, Number.parseFloat(choice));
+}
+
+/** Couch mode: "off", or how much bigger everything is drawn (`ui/render-resolution.ts`). */
+export type CouchMode = "off" | "125%" | "150%" | "175%" | "200%" | "250%" | "300%";
+export const COUCH_MODE_VALUES: readonly CouchMode[] = ["off", "125%", "150%", "175%", "200%", "250%", "300%"];
+
+/** The factor a `couchMode` stands for: 1 for "off", 1.5 for "150%". */
+export function couchModeFactor(mode: CouchMode): number {
+  return mode === "off" ? 1 : Number.parseInt(mode, 10) / 100;
 }
 
 /** "screen": no cap, the screen's own refresh rate. */
@@ -310,6 +366,11 @@ export function tableRulesOf(settings: Pick<Settings, "sameNameHeroAllyConflict"
 
 /** What the device says right now that some defaults follow. */
 export interface DeviceConditions {
+  /**
+   * The player's own couch mode choice. Everything is drawn that much bigger, so the text a player never set a
+   * resolution for defaults to match (`defaultSettings`): sharp, not 1x stretched.
+   */
+  readonly couchMode?: CouchMode;
   /** The device is in power saving mode (`platform/power-saving.ts`). */
   readonly powerSaving?: boolean;
   /**
@@ -330,9 +391,13 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
   return {
     reducedMotion: prefersReduced || powerSaving,
     // Capped at `SHARP_TEXT_RESOLUTION_CEILING`: beyond that the texture cost buys nothing visible.
+    // Couch mode draws at that many more pixels per game pixel, so its factor counts as density (power saving stays 1x).
     textResolution: powerSaving
       ? 1
-      : Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
+      : Math.min(
+          SHARP_TEXT_RESOLUTION_CEILING,
+          Math.max(1, globalThis.devicePixelRatio || 1, couchModeFactor(device.couchMode ?? "off")),
+        ),
     largeCardText: false,
     sound: true,
     musicShuffle: false,
@@ -342,6 +407,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,
+    discordPresence: true,
     flipEncounterCards: true,
     flipEncounterSpeed: "normal",
     villainBeatSpeed: "normal",
@@ -357,10 +423,17 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     resolution: "native",
     powerSavingAdjust: true,
     renderScale: device.screen?.renderScale ?? "native",
+    couchMode: "off",
     frameRate: powerSaving ? "30" : (device.screen?.frameRate ?? "screen"),
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",
     cardLanguage: preferredCardLanguage(globalThis.navigator?.languages ?? []),
+    padGlyphFamily: "auto",
+    nintendoLayout: true,
+    keyboardHand: "left",
+    inputGlyphs: true,
+    glyphSource: "auto",
+    glyphSize: GLYPH_SIZE_DEFAULT,
   };
 }

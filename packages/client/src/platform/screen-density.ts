@@ -49,12 +49,15 @@ export function screenEnvironment(): ScreenEnvironment {
 export function renderScaleFor(
   settings: Pick<Settings, "renderScale">,
   env: ScreenEnvironment = screenEnvironment(),
+  couch = 1,
 ): number {
-  if (!drawsAtScreenDensity(env.search)) return 1;
+  // `couch` is the factor couch mode really uses (`couchFactorInUse`): it lays the game out smaller and scales it up
+  // (`ui/render-resolution.ts`), so the buffer needs that many more pixels per game pixel to stay as sharp.
+  if (!drawsAtScreenDensity(env.search)) return couch;
   const forced = forcedRenderScale(env.search);
-  if (forced === "native") return renderScaleFactorOf("native", env.devicePixelRatio);
-  if (typeof forced === "number") return forced;
-  return renderScaleFactorOf(settings.renderScale, env.devicePixelRatio);
+  if (forced === "native") return renderScaleFactorOf("native", env.devicePixelRatio) * couch;
+  if (typeof forced === "number") return forced * couch;
+  return renderScaleFactorOf(settings.renderScale, env.devicePixelRatio) * couch;
 }
 
 /**

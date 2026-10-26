@@ -9,6 +9,8 @@ import { textStyle } from "../../ui/theme.js";
 import { McButton, fitText } from "../../ui/widgets.js";
 import { sourceFocusKey } from "../../view/guide-source-override.js";
 import type { Rect } from "../../view/layout.js";
+import { addBarButton, addBarCancel } from "./bar-stops.js";
+import { pickSpecsOf, registerPickMore } from "./pick-hints.js";
 import type { BoardDrawContext } from "./context.js";
 import type {
   AbilityChoiceView,
@@ -52,22 +54,24 @@ export function drawPlayConfirmBar(ctx: BoardDrawContext, rect: Rect, confirmati
     .setLetterSpacing(1);
   fitText(title, playX - gap - (rect.x + 12), typeRole.barTitle.size);
 
-  ctx.frame.buttons.push(
-    new McButton(scene, {
+  addBarButton(
+    ctx,
+    {
       kind: "secondary",
       label: "Play it",
       type: typeRole.label,
       rect: { x: playX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
       onClick: () => void controller.confirmPlay(),
-    }),
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Decline",
-      type: typeRole.label,
-      rect: { x: declineX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
-      onClick: () => controller.cancel(),
-    }),
+    },
+    { primary: true },
   );
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Decline",
+    type: typeRole.label,
+    rect: { x: declineX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+    onClick: () => controller.cancel(),
+  });
 }
 
 /**
@@ -113,22 +117,24 @@ export function drawAllianceHelpBar(ctx: BoardDrawContext, rect: Rect, help: All
     .setOrigin(0, 0.5)
     .setWordWrapWidth(countWidth);
 
-  ctx.frame.buttons.push(
-    new McButton(scene, {
+  addBarButton(
+    ctx,
+    {
       kind: "secondary",
       label: "Approve",
       type: typeRole.label,
       rect: { x: approveX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
       onClick: () => void controller.approveAllianceHelp(),
-    }),
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Decline",
-      type: typeRole.label,
-      rect: { x: declineX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
-      onClick: () => controller.declineAllianceHelp(),
-    }),
+    },
+    { primary: true },
   );
+  addBarButton(ctx, {
+    kind: "quiet",
+    label: "Decline",
+    type: typeRole.label,
+    rect: { x: declineX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+    onClick: () => controller.declineAllianceHelp(),
+  });
 }
 
 /**
@@ -176,18 +182,19 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
     const hatch = source.cancelledBy ? status[source.cancelledBy].hex : undefined;
     // The guide's `TRY THIS` rings a suggested character's button (`view/guide-source-override.ts`).
     ctx.frame.focusRects.set(sourceFocusKey(source.instanceId), { x, y: rect.y + 4, width, height: buttonHeight });
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: source.name,
-        // On a phone the stat moves into the note, or it runs into a centered name.
-        ...(narrow ? {} : { value: source.stat }),
-        type: typeRole.label,
-        rect: { x, y: rect.y + 4, width, height: buttonHeight },
-        ...(hatch !== undefined ? { hatch } : {}),
-        onClick: () => controller.chooseSource(source.instanceId),
-      }),
-    );
+    const button = new McButton(scene, {
+      kind: "secondary",
+      label: source.name,
+      // On a phone the stat moves into the note, or it runs into a centered name.
+      ...(narrow ? {} : { value: source.stat }),
+      type: typeRole.label,
+      rect: { x, y: rect.y + 4, width, height: buttonHeight },
+      ...(hatch !== undefined ? { hatch } : {}),
+      onClick: () => controller.chooseSource(source.instanceId),
+    });
+    ctx.frame.buttons.push(button);
+    // The button (or number key) that picks this character outright, beside its name (`view/pick-assign.ts`).
+    if (!ctx.tabbed) ctx.hints.button(button, [], "paper", { specs: pickSpecsOf(ctx, source.instanceId) });
     const note = scene.add
       .text(
         x + 2,
@@ -198,15 +205,17 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
       .setOrigin(0, 0);
     fitText(note, width - 4, typeRole.body.size);
   });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
-      type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: buttonHeight },
-      onClick: () => controller.cancel(),
-    }),
-  );
+  // More characters than one page of buttons: the hint that turns the page sits under the bar's title.
+  if (!narrow) {
+    registerPickMore(ctx, 16, () => ({ x: rect.x + 12, y: rect.y + 4 + buttonHeight + SOURCE_BAR_NOTE / 2 + 1 }));
+  }
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: buttonHeight },
+    onClick: () => controller.cancel(),
+  });
 }
 
 /**
@@ -240,25 +249,21 @@ export function drawFormBar(ctx: BoardDrawContext, rect: Rect, choice: FormChoic
   const width = Math.max(48, (right - left - gap * (count - 1)) / count);
 
   choice.sources.forEach((source, index) => {
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: source.label,
-        type: typeRole.label,
-        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
-        onClick: () => controller.chooseForm(source),
-      }),
-    );
-  });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
+    addBarButton(ctx, {
+      kind: "secondary",
+      label: source.label,
       type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
-      onClick: () => controller.cancel(),
-    }),
-  );
+      rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+      onClick: () => controller.chooseForm(source),
+    });
+  });
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+    onClick: () => controller.cancel(),
+  });
 }
 
 /**
@@ -297,25 +302,21 @@ export function drawThwartStatBar(ctx: BoardDrawContext, rect: Rect, choice: Thw
 
   choice.options.forEach((option, index) => {
     const damage = allyDamage ? ` · ${option.consequential} dmg` : "";
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: `${narrow ? "" : `${index + 1} `}${option.label}${damage}`,
-        type: typeRole.label,
-        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
-        onClick: () => void controller.chooseThwartStat(option.useAtk),
-      }),
-    );
-  });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
+    addBarButton(ctx, {
+      kind: "secondary",
+      label: `${narrow ? "" : `${index + 1} `}${option.label}${damage}`,
       type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
-      onClick: () => controller.cancel(),
-    }),
-  );
+      rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+      onClick: () => void controller.chooseThwartStat(option.useAtk),
+    });
+  });
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+    onClick: () => controller.cancel(),
+  });
 }
 
 /**
@@ -348,25 +349,21 @@ export function drawAbilityBar(ctx: BoardDrawContext, rect: Rect, choice: Abilit
   const width = Math.max(48, (right - left - gap * (count - 1)) / count);
 
   choice.options.forEach((option, index) => {
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: `${index + 1} ${option.label}`,
-        type: typeRole.label,
-        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
-        onClick: () => void controller.chooseEventAbility(option.abilityId),
-      }),
-    );
-  });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
+    addBarButton(ctx, {
+      kind: "secondary",
+      label: `${index + 1} ${option.label}`,
       type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
-      onClick: () => controller.cancel(),
-    }),
-  );
+      rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+      onClick: () => void controller.chooseEventAbility(option.abilityId),
+    });
+  });
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+    onClick: () => controller.cancel(),
+  });
 }
 
 /**
@@ -410,24 +407,20 @@ export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: De
   const width = Math.max(48, (right - left - gap * (count - 1)) / count);
   choice.options.forEach((option, index) => {
     const rectOf: Rect = { x: left + index * (width + gap), y: buttonsY, width, height: buttonsHeight };
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: `${index + 1} ${option.label}${option.costLabel ? ` · ${option.costLabel}` : ""}`,
-        type: typeRole.label,
-        rect: rectOf,
-        onClick: () => void controller.chooseDestination(option),
-      }),
-    );
+    addBarButton(ctx, {
+      kind: "secondary",
+      label: `${index + 1} ${option.label}${option.costLabel ? ` · ${option.costLabel}` : ""}`,
+      type: typeRole.label,
+      rect: rectOf,
+      onClick: () => void controller.chooseDestination(option),
+    });
     ctx.frame.focusRects.set(`destination:${index}`, rectOf);
   });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
-      type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: buttonsY, width: cancelWidth, height: buttonsHeight },
-      onClick: () => controller.cancel(),
-    }),
-  );
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: buttonsY, width: cancelWidth, height: buttonsHeight },
+    onClick: () => controller.cancel(),
+  });
 }

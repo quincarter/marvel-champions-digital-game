@@ -32,6 +32,8 @@
 import Phaser from "phaser";
 import { dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { hintCancelInHeader } from "../ui/header-cancel-hint.js";
 import { McButton, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { onTap } from "../ui/tap.js";
@@ -73,6 +75,7 @@ export class HowToPlayScene extends Phaser.Scene {
   #region: McScrollRegion | null = null;
   #scroll = new VariableListScroll();
   #starting = false;
+  #hints!: GlyphHints;
   #unsubscribePrefs: (() => void) | null = null;
 
   constructor() {
@@ -89,7 +92,15 @@ export class HowToPlayScene extends Phaser.Scene {
       this.#unsubscribePrefs?.();
       this.#unsubscribePrefs = null;
     });
-    this.#route = new FocusRoute(this, { onCancel: () => this.#leave() });
+    this.#hints = new GlyphHints(this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#hints.dispose());
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#leave(),
+      // Start is "forward": it presses Continue learning, the hub's one primary action.
+      primary: () => "continue-learning",
+      onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
+      onPage: (direction) => this.#region?.scrollByPx(direction * this.scale.gameSize.height * 0.7),
+    });
     this.#rebuild();
     fadeScreenIn(this);
   }
@@ -114,6 +125,7 @@ export class HowToPlayScene extends Phaser.Scene {
       dotGrid.onPaper,
     );
 
+    this.#hints.reset();
     this.#drawHeader(header);
 
     const viewport: Rect = {
@@ -305,12 +317,14 @@ export class HowToPlayScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     onTap(zone, () => this.#leave(), "close");
 
-    this.add
+    const title = this.add
       .text(header.title.x, header.header.height / 2, "HOW TO PLAY", {
         ...textStyle(TITLE_TYPE, surface.paper.hex),
         fontSize: "22px",
       })
       .setOrigin(0, 0.5);
+    // The close is a drawn ×, not an McButton: its Cancel glyph follows the title.
+    hintCancelInHeader(this.#hints, header.header, title);
   }
 
   /** A lesson row: index badge, title, and a done ✓ / yellow "NEXT" stamp / quiet "▸" — every lesson is always tappable, whatever its own done state (`docs/guided-mode.md` §4 G6c: "a recommended order the player can ignore"). */

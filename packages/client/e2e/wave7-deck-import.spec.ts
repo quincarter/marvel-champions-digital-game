@@ -132,7 +132,7 @@ test("Psylocke's MarvelCDB deck 32089: imported on Decks, seated for Morlock Sie
   await clickStop(page, "next", "ScenarioSelect");
   await waitForScene(page, "Seats", 15000);
   await settle(page);
-  // Going back to Scenario select rebuilt the draft with the default seat; seat the imported deck through Psylocke's
+  // The seats start blank; seat the imported deck through Psylocke's
   // tile (she has the precon, tested community decks and this import, so the tile opens "Pick a deck").
   await seatDeckThroughTile(page, deck.id, { search: "Ten Percent Luck" });
   await settle(page);

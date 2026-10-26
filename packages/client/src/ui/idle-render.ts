@@ -228,6 +228,34 @@ function signObjects(objects: readonly SignedObject[]): boolean {
 
 let dirtyFrames = DIRTY_FRAMES;
 
+/** The slice of a browser `Gamepad` the idle check reads. */
+export interface PadState {
+  readonly buttons: readonly { readonly pressed: boolean; readonly value: number }[];
+  readonly axes: readonly number[];
+}
+
+/**
+ * What the pads are doing right now, as one number: every button down, every trigger and stick position in tenths.
+ * Phaser reads a pad only inside a drawn frame (`InputManager#preRender`), so a press and release that both fall in the
+ * gap between two idle draws (up to `MAX_IDLE_MS`) would never be seen, and a press that lands is up to half a second
+ * late. A change in this value makes the frame draw, and so poll, at once.
+ */
+export function padSignature(pads: readonly (PadState | null | undefined)[]): number {
+  let sum = 0x811c9dc5;
+  const take = (value: number): void => {
+    sum = Math.imul(sum ^ (Math.round(value * 10) | 0), 0x01000193);
+  };
+  for (const pad of pads) {
+    if (!pad) {
+      take(-99);
+      continue;
+    }
+    for (const button of pad.buttons) take(button.pressed ? Math.max(button.value, 0.1) : 0);
+    for (const axis of pad.axes) take(axis);
+  }
+  return sum;
+}
+
 /** Draws the next few frames whatever their signature: something changed that a signature can't see. */
 export function markRenderDirty(): void {
   dirtyFrames = DIRTY_FRAMES;
@@ -300,6 +328,7 @@ export function installIdleRender(target: Phaser.Game, phaser: typeof Phaser, se
   else target.events.once(phaser.Core.Events.READY, listen);
 
   let last: number | null = null;
+  let lastPads = 0;
   let lastDrawn = Number.NEGATIVE_INFINITY;
   game.step = (time: number, delta: number): void => {
     if (game.pendingDestroy) return game.runDestroy();
@@ -312,6 +341,12 @@ export function installIdleRender(target: Phaser.Game, phaser: typeof Phaser, se
 
     const renderer = game.renderer;
     if ("gl" in renderer) {
+      // A pad that moved wakes the draw, so the poll that rides on it sees the press (and the release).
+      const pads = padSignature(globalThis.navigator?.getGamepads?.() ?? []);
+      if (pads !== lastPads) {
+        lastPads = pads;
+        markRenderDirty();
+      }
       const now = signature(scenesOf(game));
       const snapshotWanted = Boolean(renderer.snapshotState?.callback);
       const unchanged = now !== null && now === last && dirtyFrames === 0 && !snapshotWanted;

@@ -49,6 +49,8 @@ import {
 } from "../../view/campaign-run-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignRunData } from "./routes.js";
@@ -93,6 +95,8 @@ export class CampaignRunScene extends Phaser.Scene {
   #model: CampaignRunModel | null = null;
   #campaignId = "";
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
+  #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
   #buttons: McButton[] = [];
   #status = "";
   /** The phone's issue list scrolls (five rows and the hint are taller than the screen); the offset survives redraws. */
@@ -107,7 +111,15 @@ export class CampaignRunScene extends Phaser.Scene {
     this.#data = data;
     this.#model = null;
     this.#status = "";
-    this.#route = new FocusRoute(this, { onCancel: () => this.#back() });
+    this.#hints = createHints(this);
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#back(),
+      // Start and A with nothing focused: the bar's one button (Briefing, Read issue, Finale).
+      primary: () => (this.#stopsNow.has("briefing") ? "briefing" : this.#stopsNow.has("finale") ? "finale" : null),
+      // The phone's issue list scrolls under the right stick and Page Up / Down.
+      onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
+      onPage: (direction) => this.#region?.scrollByPx(direction * this.#region.rect.height * 0.85),
+    });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -148,6 +160,7 @@ export class CampaignRunScene extends Phaser.Scene {
   #draw(): void {
     this.#region?.destroy();
     this.#region = null;
+    this.#hints?.reset();
     destroyChildren(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -161,6 +174,7 @@ export class CampaignRunScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ Cover",
       onBack: () => this.#back(),
+      hints: this.#hints,
       title: model?.campaignName ?? "The run",
       right: model ? `Issue ${model.issueNumber} of ${model.totalIssues}` : "",
     });
@@ -173,6 +187,7 @@ export class CampaignRunScene extends Phaser.Scene {
       this.add
         .text(frame.width / 2, frame.height / 2, this.#status || "Loading…", textStyle(typeRole.body, surface.ink.hex))
         .setOrigin(0.5);
+      this.#stopsNow = stops;
       this.#route?.set(order, stops);
       return;
     }
@@ -249,6 +264,7 @@ export class CampaignRunScene extends Phaser.Scene {
       );
     }
 
+    this.#stopsNow = stops;
     this.#route?.set(order, stops);
   }
 
@@ -727,6 +743,8 @@ export class CampaignRunScene extends Phaser.Scene {
   ): void {
     stops.set(key, { rect, activate: onClick });
     order.push(key);
-    this.#buttons.push(new McButton(this, { kind, label: text, type: typeRole.barTitle, rect, onClick }));
+    const button = new McButton(this, { kind, label: text, type: typeRole.barTitle, rect, onClick });
+    this.#buttons.push(button);
+    if (key === "briefing" || key === "finale") forwardHint(this.#hints, button, "ink");
   }
 }

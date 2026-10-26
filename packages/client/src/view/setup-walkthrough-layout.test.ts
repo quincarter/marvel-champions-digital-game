@@ -266,3 +266,76 @@ describe("setupWalkthroughLayout at an enlarged Card size", () => {
     expect(layout.body!.contentHeight).toBeGreaterThan(layout.body!.viewport.height);
   });
 });
+
+describe("the opening hand grows into the free space (desktop and tablet portrait)", () => {
+  const base = { otherSeatCount: 1, seatCount: 2, handCount: 6 } as const;
+  const at = (width: number, height: number, extra: object = {}) =>
+    setupWalkthroughLayout({ width, height, ...base, ...extra });
+  const CARD_W = 0.716;
+  const cardsOf = (rect: { width: number; height: number }) => Math.min(rect.height, (rect.width - 40) / (6 * CARD_W));
+
+  test("at 1920 x 1080 the hand spans the full width and its cards are taller than in the body column", () => {
+    const wide = at(1920, 1080);
+    const usual = setupWalkthroughLayout({ width: 1920, height: 1080, otherSeatCount: 1, seatCount: 2 });
+    expect(wide.handRow.width).toBeGreaterThan(usual.handRow.width);
+    expect(cardsOf(wide.handRow)).toBeGreaterThan(cardsOf(usual.handRow) * 1.1);
+    expect(wide.handRow.height).toBeLessThanOrEqual(1080 / 2);
+  });
+
+  test("the commit row follows the cards, and the sidebar sits beside it and the other seats", () => {
+    const layout = at(1920, 1080);
+    expect(layout.commitRow.y).toBeGreaterThanOrEqual(layout.handRow.y + layout.handRow.height);
+    expect(layout.revealedPanel!.y).toBe(layout.commitRow.y);
+    expect(layout.revealedPanel!.x).toBeGreaterThan(layout.commitRow.x + layout.commitRow.width - 1);
+    expect(layout.otherSeatsLabel.y).toBeGreaterThan(layout.commitRow.y);
+  });
+
+  test("nothing overlaps or leaves the screen, and nothing scrolls, at desktop sizes and seat counts", () => {
+    for (const [width, height] of [
+      [1280, 720],
+      [1440, 900],
+      [1920, 1080],
+      [2560, 1440],
+      [768, 1024],
+    ] as const) {
+      for (const otherSeatCount of [0, 1, 3]) {
+        const layout = at(width, height, { otherSeatCount, seatCount: otherSeatCount + 1 });
+        const rects = setupWalkthroughLayoutRects(layout);
+        for (let i = 0; i < rects.length; i++) {
+          for (let j = i + 1; j < rects.length; j++) {
+            expect(rectsOverlap(rects[i]!, rects[j]!), `${width}x${height} ${otherSeatCount} ${i}/${j}`).toBe(false);
+          }
+        }
+        for (const rect of rects) {
+          expect(rect.x + rect.width).toBeLessThanOrEqual(width + 0.5);
+          expect(rect.y + rect.height).toBeLessThanOrEqual(height + 0.5);
+        }
+        expect(layout.body!.contentHeight).toBeLessThanOrEqual(layout.body!.viewport.height + 0.5);
+      }
+    }
+  });
+
+  test("a screen with no room to gain keeps the usual layout", () => {
+    const short = at(1280, 600);
+    const usual = setupWalkthroughLayout({ width: 1280, height: 600, otherSeatCount: 1, seatCount: 2 });
+    expect(short.handRow).toEqual(usual.handRow);
+  });
+
+  test("a phone, an enlarged Card size and an unknown hand all keep the usual layout", () => {
+    const phone = at(390, 844);
+    expect(phone.handRow).toEqual(
+      setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 1, seatCount: 2 }).handRow,
+    );
+    const landscape = at(900, 420);
+    expect(landscape.formFactor).toBe("phoneLandscape");
+    expect(landscape.handRow).toEqual(
+      setupWalkthroughLayout({ width: 900, height: 420, otherSeatCount: 1, seatCount: 2 }).handRow,
+    );
+    const big = at(1920, 1080, { cardScale: 1.5 });
+    expect(big.handRow).toEqual(
+      setupWalkthroughLayout({ width: 1920, height: 1080, otherSeatCount: 1, seatCount: 2, cardScale: 1.5 }).handRow,
+    );
+    const none = setupWalkthroughLayout({ width: 1920, height: 1080, otherSeatCount: 1, seatCount: 2 });
+    expect(none.revealedPanel!.y).toBe(none.handLabel.y);
+  });
+});

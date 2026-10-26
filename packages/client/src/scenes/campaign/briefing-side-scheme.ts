@@ -50,7 +50,7 @@ function chip(ctx: SideSchemeDrawContext, rect: Rect, word: string, stopKey: str
       onClick: open,
     }),
   );
-  ctx.stops.set(stopKey, { rect, activate: open });
+  ctx.stops.set(stopKey, { rect, activate: open, inspect: open });
 }
 
 /**

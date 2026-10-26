@@ -16,6 +16,7 @@ import { cardArt, drawArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { cardSizeFactor } from "../settings.js";
 import { ink, surface, typeRole } from "../tokens.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { HoverPreview, isMousePointer, resetHoverCards } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
@@ -52,6 +53,20 @@ export class PileViewOverlay extends Phaser.Scene {
   #hover: HoverPreview | null = null;
   #artOff: (() => void) | null = null;
   #layout: PileViewLayout | null = null;
+  #hints!: GlyphHints;
+  #stops: ReadonlyMap<string, FocusStop> = new Map();
+  #focusKey: string | null = null;
+  #legendRect: Rect | null = null;
+
+  /** The legend follows the ring as the list scrolls (right stick, LB / RB, drag). */
+  override update(): void {
+    if (this.#focusKey === null) return;
+    const stop = this.#stops.get(this.#focusKey);
+    if (!stop) return;
+    const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+    const last = this.#legendRect;
+    if (!last || last.x !== rect.x || last.y !== rect.y) this.#legend();
+  }
 
   constructor() {
     super(SCENES.pileView);
@@ -68,9 +83,21 @@ export class PileViewOverlay extends Phaser.Scene {
     }
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#focusKey = null;
+    this.#hints = new GlyphHints(this, () => this.#obstacles());
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#close(),
+      // Close sits in the corner over the grid: Down from it, and Up from the top row, still reach each other.
+      reachAcross: true,
+      // LB / RB and PageUp / PageDown turn a screenful; the right stick scrolls; Home / End jump.
+      onPage: (direction) => this.#list?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onFocusChange: (key) => {
+        this.#focusKey = key;
+        this.#legend();
+      },
     });
     this.#artOff = cardArt(this).onArrived(() => this.#draw());
     // The desktop hover popover over the pile's own cards, as on the table; their rects follow the scroll.
@@ -101,6 +128,7 @@ export class PileViewOverlay extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       this.#artOff?.();
       this.#artOff = null;
+      this.#hints.dispose();
       this.#hover?.destroy();
       this.#hover = null;
       this.#list?.destroy();
@@ -117,6 +145,23 @@ export class PileViewOverlay extends Phaser.Scene {
 
   #close(): void {
     this.#motion.exit(this, () => this.scene.stop());
+  }
+
+  /** What a hanging glyph must not cover: the panel's cards in view. */
+  #obstacles(): readonly Rect[] {
+    return [...this.#visibleCards().values()];
+  }
+
+  /** The Select / Inspect / Back strip over the card in focus (pad and keyboard only); gone with focus off a card. */
+  #legend(): void {
+    const stop = this.#focusKey?.startsWith("card:") ? this.#stops.get(this.#focusKey) : undefined;
+    const { width, height } = this.scale.gameSize;
+    const rect = stop ? (typeof stop.rect === "function" ? stop.rect() : stop.rect) : null;
+    // Scrolled out of the list's window: no strip floating over the header. A opens the card here, so it says Inspect.
+    const view = this.#layout?.list;
+    const shown = rect && view && rect.y + rect.height > view.y && rect.y < view.y + view.height ? rect : null;
+    this.#legendRect = rect;
+    this.#hints.legend(shown, { x: 0, y: 0, width, height }, "back", "Inspect");
   }
 
   /** The cards on screen right now, scroll applied; one scrolled out of the list's window has no hover. */
@@ -145,6 +190,7 @@ export class PileViewOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
     const { width, height } = this.scale.gameSize;
     const { ids, name } = this.#data;
     const layout = pileViewLayout(width, height, ids.length, cardSizeFactor(appSession().settings.cardSize));
@@ -184,6 +230,7 @@ export class PileViewOverlay extends Phaser.Scene {
         onClick: () => this.#close(),
       }),
     );
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
     stops.set("close", { rect: close, activate: () => this.#close() });
     order.push("close");
 
@@ -208,7 +255,9 @@ export class PileViewOverlay extends Phaser.Scene {
       });
       order.push(key);
     });
+    this.#stops = stops;
     this.#route?.set(order, stops);
+    this.#legend();
     this.#hover?.onDraw();
     this.#motion.enter(this, { scrim: [scrim], panels: [ground, heading] });
 

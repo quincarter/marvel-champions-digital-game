@@ -10,18 +10,31 @@
  *
  * Same conventions as everywhere else: Tab walks the route, the arrows move to
  * the nearest stop that way on screen (`view/spatial-nav.ts`), Enter or
- * Space presses, `I` reads (where a stop has something to read), Escape backs
+ * Space (or the hand's Select key) presses, Inspect (E / O) reads (where a stop has something to read), Escape backs
  * out, and the ring is the selection ring drawn static — a pulse means "the game
  * is waiting for you", and focus is not a prompt.
  */
 
 import type Phaser from "phaser";
+import { onInputDeviceChange } from "../platform/input-device.js";
+import { shownReportButton } from "../ui/report-slot.js";
+import { shownMusicButton } from "../ui/music-slot.js";
+import { chromeStopsOf } from "../view/chrome-stops.js";
 import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
+import type { PadLayer, PickBumper } from "../view/pad-layer-bindings.js";
+import { activationTarget } from "../view/primary-activation.js";
 import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import { bindExtraInput } from "./extra-input.js";
+import { CHROME_SCENES, SCENES } from "./keys.js";
+import type { MusicButtonScene } from "./music-button.js";
+
+/** The focus keys of the two top-bar chrome buttons, added to every route while they are on screen. */
+export const CHROME_MUSIC_STOP = "chrome:music";
+export const CHROME_REPORT_STOP = "chrome:report";
 
 export interface FocusStop {
   /**
@@ -43,6 +56,14 @@ export interface FocusStop {
    * brings it on screen instead of leaving the ring nowhere a player can see.
    */
   readonly ensureVisible?: () => void;
+  /** A slider: Left / Right (and the pad's d-pad) step it instead of moving focus. */
+  readonly adjust?: (direction: -1 | 1) => void;
+  /**
+   * The right stick while this stop is focused, for a stop that holds its own scroll (a text block, a card's rules, a
+   * nested list): pixels to scroll this frame (positive down) and the frame's length. Return true when it scrolled;
+   * false (at its end, or nothing to scroll) hands the stick on to the screen's `onScroll`.
+   */
+  readonly scroll?: (dx: number, dy: number, dtMs: number) => boolean;
 }
 
 export interface FocusRouteOptions {
@@ -56,6 +77,66 @@ export interface FocusRouteOptions {
   readonly onHomeEnd?: (edge: "home" | "end") => void;
   /** Called whenever the focused stop changes by keyboard or pad (null when focus is dropped), so a screen can show what is in focus. */
   readonly onFocusChange?: (key: string | null) => void;
+  /**
+   * The right stick, forwarded as pixels to scroll (positive down) a frame at a time. A screen with a virtualized list
+   * or a scroll region passes its `scrollByPx`; no-op when omitted.
+   */
+  readonly onScroll?: (dx: number, dy: number, dtMs: number) => void;
+  /**
+   * LB / RB (and the zone keys: R / F, P / ;, [ / ]) on a screen with tabs or a track list: step to the previous (-1) or
+   * next (1) one. Takes the place of `onPage` for the shoulder buttons when given; PageUp / PageDown on the keyboard
+   * always go to `onPage`.
+   */
+  readonly onTab?: (direction: 1 | -1) => void;
+  /** X (G / H on the keyboard), for a screen with one extra toggle (the music player's Shuffle). No-op when omitted. */
+  readonly onToggle?: () => void;
+  /**
+   * Menu / Start / +, for a screen that has a pause or menu of its own. Without one it presses the screen's
+   * `primary` stop (the same path as A with nothing focused): Start is "forward" on a setup screen.
+   */
+  readonly onPause?: () => void;
+  /** View / Select / - and the Peek key (R / P), for a screen with a Peek-style control. No-op (and no key) when omitted. */
+  readonly onView?: () => void;
+  /** R3 and the Expand key (F / ;), for a screen with an Expand/Collapse control. No-op (and no key) when omitted. */
+  readonly onExpand?: () => void;
+  /**
+   * The key of the screen's primary commit stop right now (Start, Continue), or null. With nothing focused, Enter / A
+   * presses it (`view/primary-activation.ts`); with a stop focused it presses that stop.
+   */
+  readonly primary?: () => string | null;
+  /**
+   * For a screen whose stops sit off to the side of each other (a Close in a corner over a card grid): an arrow that
+   * finds nothing in its 90 degree cone goes to the nearest stop strictly that way instead of staying put.
+   */
+  readonly reachAcross?: boolean;
+  /**
+   * Y / the Inspect key, ahead of the focused stop's own `inspect`. Return true when the screen took it (Y shows or
+   * hides the filters on Scenario select and Take your seats while a pad is in use). `source` is "key" for the keyboard.
+   */
+  readonly onInspect?: (source?: "key") => boolean;
+  /**
+   * LT or RT pulled (a trigger alone has no meaning on most screens; the Board uses them as hold layers): a screen
+   * whose rows page sideways pages the focused one. Called once per pull, not while the trigger stays down.
+   */
+  readonly onTrigger?: (trigger: "lt" | "rt") => void;
+  /**
+   * Direct picks (`view/pick-assign.ts`), for a screen whose options each wear a combo (the docked defend panel): a
+   * trigger's or a bumper's hold changes (for the glyphs), and a face button pressed under one picks.
+   */
+  readonly picks?: {
+    readonly onLayer: (layer: PadLayer | null) => void;
+    readonly onLayerPress: (layer: PadLayer, meaningIndex: number) => void;
+    readonly active: () => boolean;
+    readonly onBumper: (bumper: PickBumper | null) => void;
+    readonly onBumperPick: (bumper: PickBumper, meaningIndex: number) => void;
+  };
+  /**
+   * Hold Inspect (Y, or E / O): true when the hold starts, false when it ends. A tap still inspects. A screen with a
+   * card picture to enlarge shows the focused stop's card (`HoverPreview.pin`). Left out, Y is Inspect at once.
+   */
+  readonly onInspectZoom?: (zooming: boolean) => void;
+  /** False while the zoom is switched off (Card hover size "off"): a hold is then a tap. */
+  readonly zoomEnabled?: () => boolean;
 }
 
 export class FocusRoute {
@@ -64,11 +145,25 @@ export class FocusRoute {
   readonly #onPage: ((direction: 1 | -1) => void) | undefined;
   readonly #onHomeEnd: ((edge: "home" | "end") => void) | undefined;
   readonly #onFocusChange: ((key: string | null) => void) | undefined;
-  #order: readonly string[] = [];
-  #stops: ReadonlyMap<string, FocusStop> = new Map();
+  readonly #onPause: (() => void) | undefined;
+  readonly #onView: (() => void) | undefined;
+  readonly #onExpand: (() => void) | undefined;
+  readonly #primary: (() => string | null) | undefined;
+  readonly #onTab: ((direction: 1 | -1) => void) | undefined;
+  readonly #onToggle: (() => void) | undefined;
+  readonly #onInspect: ((source?: "key") => boolean) | undefined;
+  readonly #reachAcross: boolean;
+  /** The ring is hidden after the mouse takes over, until the next pad or keyboard input. */
+  #ringHidden = false;
+  #chromeFrame = -1;
+  #chromeStops: ReadonlyMap<string, FocusStop> = new Map();
+  #ownOrder: readonly string[] = [];
+  #ownStops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
   #ring: McSelectionRing | null = null;
   #ringColor: number | undefined;
+  /** Where the ring was drawn last, to notice a stop that moved under it. */
+  #ringRect: Rect | null = null;
 
   /**
    * Binds the scene's keyboard and pad. Both listeners live on the scene's own
@@ -81,16 +176,118 @@ export class FocusRoute {
     this.#onPage = options.onPage;
     this.#onHomeEnd = options.onHomeEnd;
     this.#onFocusChange = options.onFocusChange;
+    this.#onPause = options.onPause;
+    this.#onView = options.onView;
+    this.#onExpand = options.onExpand;
+    this.#primary = options.primary;
+    this.#onTab = options.onTab;
+    this.#onToggle = options.onToggle;
+    this.#onInspect = options.onInspect;
+    this.#reachAcross = options.reachAcross ?? false;
+    // The mouse moving hides the ring (it comes back, on the same stop, at the next pad or keyboard input). The change
+    // arrives deferred (platform/input-device.ts), never mid-press.
+    const unsubscribe = onInputDeviceChange((state) => {
+      if (!state.mouseMoving || this.#ringHidden) return;
+      this.#ringHidden = true;
+      this.#drawRing();
+    });
+    // A row inside a scrolling list moves when the list scrolls by touch, wheel or drag, not only when focus moves: the
+    // ring follows its stop (a stale ring sat above and left of the button it marked, Settings on the Deck).
+    const follow = (): void => {
+      if (!this.#ring || this.#focus === null) return;
+      // Chrome rects are static: only a hidden one (the pad toast covers the bar for a moment) needs a look.
+      if (this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP) {
+        const shown = this.#focus === CHROME_MUSIC_STOP ? shownMusicButton() : shownReportButton();
+        if (shown === null) this.#drawRing();
+        return;
+      }
+      const stop = this.#ownStops.get(this.#focus);
+      if (!stop || typeof stop.rect !== "function") return;
+      const rect = stop.rect();
+      const last = this.#ringRect;
+      if (last && last.x === rect.x && last.y === rect.y && last.width === rect.width && last.height === rect.height)
+        return;
+      // Move the ring where it stands; no new graphics each frame while a list scrolls.
+      this.#ringRect = rect;
+      this.#ring.show(rect, "static", true);
+    };
+    scene.events.on("update", follow);
+    const release = (): void => {
+      unsubscribe();
+      scene.events.off("update", follow);
+      scene.events.off("shutdown", release);
+      scene.events.off("destroy", release);
+    };
+    scene.events.once("shutdown", release);
+    scene.events.once("destroy", release);
+    const onTrigger = options.onTrigger;
     const binding = {
+      ...(options.onInspectZoom ? { onInspectZoom: options.onInspectZoom } : {}),
+      ...(options.zoomEnabled ? { zoomEnabled: options.zoomEnabled } : {}),
+      ...(onTrigger || options.picks
+        ? {
+            onLayer: (layer: PadLayer | null) => {
+              options.picks?.onLayer(layer);
+              if (layer !== null) onTrigger?.(layer);
+            },
+          }
+        : {}),
+      ...(options.picks
+        ? {
+            // With no pickable option on screen a combo is not used: the button keeps its own meaning.
+            onLayerPress: (layer: PadLayer, index: number) => {
+              if (!options.picks!.active()) return false;
+              options.picks!.onLayerPress(layer, index);
+              return true;
+            },
+            pickModifiers: () => options.picks!.active(),
+            onBumper: (bumper: PickBumper | null) => options.picks!.onBumper(bumper),
+            onBumperPick: (bumper: PickBumper, index: number) => options.picks!.onBumperPick(bumper, index),
+          }
+        : {}),
       blocked: options.blocked ?? (() => false),
-      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
+      onScroll: (dx: number, dy: number, dtMs: number) => {
+        const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
+        if (stop?.scroll?.(dx, dy, dtMs)) return;
+        options.onScroll?.(dx, dy, dtMs);
+      },
     };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);
+    if (options.onTab) {
+      const onTab = options.onTab;
+      bindExtraInput(scene, {
+        blocked: binding.blocked,
+        zones: { previous: () => this.#tab(onTab, -1), next: () => this.#tab(onTab, 1) },
+      });
+    }
+    // View and R3 arrive as intents above; their keys (Peek and Expand: R / F left-handed, P / ; right-handed) have no
+    // intent in the shared keyboard binding.
+    if (options.onView || options.onExpand) {
+      bindExtraInput(scene, {
+        blocked: binding.blocked,
+        peekExpand: {
+          ...(options.onView ? { peek: options.onView } : {}),
+          ...(options.onExpand ? { expand: options.onExpand } : {}),
+        },
+      });
+    }
+  }
+
+  /** Inspect on the focused stop, as Y would (View does it on screens where Y is taken). */
+  inspectFocused(): void {
+    if (this.#focus) this.#stopOf(this.#focus)?.inspect?.();
   }
 
   get focused(): string | null {
     return this.#focus;
+  }
+
+  /** Moves focus to `key` as a pad step would (stop scrolls into view, ring drawn, onFocusChange hears it). A non-stop key drops focus. */
+  focusKey(key: string | null): void {
+    this.#ringHidden = false;
+    this.#moveTo(key !== null && this.#order.includes(key) ? key : null);
   }
 
   /**
@@ -102,31 +299,134 @@ export class FocusRoute {
    * Hero Red loss screen.
    */
   set(order: readonly string[], stops: ReadonlyMap<string, FocusStop>, ringColor?: number): void {
-    this.#order = order.filter((key) => stops.has(key));
-    this.#stops = stops;
+    this.#ownOrder = order.filter((key) => stops.has(key));
+    this.#ownStops = stops;
+    this.#chromeFrame = -1;
     this.#ringColor = ringColor;
     this.#drawRing();
     if (import.meta.env.DEV) this.#publishForE2e();
   }
 
   /**
-   * Dev-only e2e hook (never referenced by product code): `window.__mcFocusRoutes[sceneKey]()` lists this scene's
-   * current stops — key and on-screen rect, in route order — so a Playwright run can click a control by what it is
-   * rather than by pixel guesses, and read which controls exist right now (a disabled button has no stop).
+   * Dev-only e2e hooks (never referenced by product code): `window.__mcFocusState[sceneKey]()` is the focused key and
+   * whether the ring is drawn; `window.__mcFocusRoutes[sceneKey]()` lists this scene's current stops — key and
+   * on-screen rect, in route order — so a Playwright run can click a control by what it is rather than by pixel
+   * guesses, and read which controls exist right now (a disabled button has no stop).
    */
   #publishForE2e(): void {
     const w = window as unknown as { __mcFocusRoutes?: Record<string, () => { key: string; rect: Rect }[]> };
     w.__mcFocusRoutes ??= {};
-    const stops = this.#stops;
-    const order = this.#order;
+    const state = window as unknown as {
+      __mcFocusState?: Record<string, () => { focus: string | null; ringShown: boolean; ringRect: Rect | null }>;
+    };
+    state.__mcFocusState ??= {};
+    state.__mcFocusState[this.#scene.sys.settings.key] = () => ({
+      focus: this.#focus,
+      ringShown: this.#ring !== null,
+      ringRect: this.#ringRect,
+    });
     w.__mcFocusRoutes[this.#scene.sys.settings.key] = () =>
-      order.map((key) => {
-        const rect = stops.get(key)!.rect;
+      this.#order.map((key) => {
+        const rect = this.#stopOf(key)!.rect;
         return { key, rect: typeof rect === "function" ? rect() : rect };
       });
   }
 
-  #onIntent(intent: GamepadIntent): void {
+  /**
+   * The music note and the bug in the top bar, as focus stops, while they are drawn and this is the screen on top:
+   * pressing up or right from the top row reaches them on every screen. A screen that already has a stop over one of
+   * them keeps its own.
+   */
+  #chrome(): ReadonlyMap<string, FocusStop> {
+    // One answer per frame: a pad step asks for every stop's rect, and nothing here changes within a frame.
+    const frame = this.#scene.game.loop.frame;
+    if (this.#chromeFrame === frame) return this.#chromeStops;
+    const manager = this.#scene.scene.manager;
+    const key = this.#scene.sys.settings.key;
+    const top = manager
+      .getScenes(true)
+      .filter((one) => !CHROME_SCENES.has(one.scene.key) && one.scene.key !== SCENES.music)
+      .at(-1);
+    const found = chromeStopsOf({
+      isTop: top === this.#scene,
+      excluded: key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton,
+      music: shownMusicButton(),
+      report: shownReportButton(),
+      own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
+    });
+    const out = new Map<string, FocusStop>();
+    if (found.music) {
+      out.set(CHROME_MUSIC_STOP, {
+        rect: found.music,
+        activate: () => (manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
+      });
+    }
+    if (found.report) {
+      out.set(CHROME_REPORT_STOP, {
+        rect: found.report,
+        activate: () => {
+          if (!this.#scene.scene.isActive(SCENES.reportIssue)) this.#scene.scene.launch(SCENES.reportIssue);
+        },
+      });
+    }
+    this.#chromeFrame = frame;
+    this.#chromeStops = out;
+    return out;
+  }
+
+  get #order(): readonly string[] {
+    return [...this.#ownOrder, ...this.#chrome().keys()];
+  }
+
+  /** Presses the screen's primary stop (the Start gate, Continue) as Start does; false when it has none right now. */
+  pressPrimary(): boolean {
+    const key = activationTarget(null, this.#primary?.() ?? null, true);
+    const stop = key === null ? undefined : this.#stopOf(key);
+    stop?.activate();
+    return stop !== undefined;
+  }
+
+  /** Presses the stop `key` as a tap on it would (a screen's second answer, on X); false when it is not on screen. */
+  pressStop(key: string): boolean {
+    const stop = this.#ownStops.get(key);
+    stop?.activate();
+    return stop !== undefined;
+  }
+
+  #stopOf(key: string): FocusStop | undefined {
+    return this.#ownStops.get(key) ?? this.#chrome().get(key);
+  }
+
+  #rectOfOwn(key: string): Rect | null {
+    const rect = this.#ownStops.get(key)?.rect;
+    if (!rect) return null;
+    return typeof rect === "function" ? rect() : rect;
+  }
+
+  #tab(onTab: (direction: 1 | -1) => void, direction: 1 | -1): void {
+    this.#ringHidden = false;
+    onTab(direction);
+    this.#drawRing();
+  }
+
+  #onIntent(intent: GamepadIntent, source?: "key"): void {
+    // The mouse hid the ring: the first move, press or inspect only brings it back, on the stop it was on. A press
+    // with the ring hidden acts as nothing focused (the primary), never on a stop the player cannot see.
+    if (this.#ringHidden) {
+      const reveals =
+        intent === "up" ||
+        intent === "down" ||
+        intent === "left" ||
+        intent === "right" ||
+        intent === "next" ||
+        intent === "previous" ||
+        intent === "inspect";
+      this.#ringHidden = false;
+      this.#drawRing();
+      // With a stop focused the press only brings the ring back; A never presses what the player cannot see, nor the
+      // screen's primary (Start covers "forward"). With nothing focused a direction moves as usual.
+      if (intent === "activate" || (reveals && this.#focus !== null)) return;
+    }
     switch (intent) {
       case "next":
       case "previous":
@@ -135,24 +435,58 @@ export class FocusRoute {
       case "up":
       case "down":
       case "left":
-      case "right":
-        this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent));
+      case "right": {
+        const adjust =
+          this.#focus !== null && (intent === "left" || intent === "right")
+            ? this.#stopOf(this.#focus)?.adjust
+            : undefined;
+        if (adjust) {
+          adjust(intent === "left" ? -1 : 1);
+          break;
+        }
+        this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross));
         break;
+      }
       case "activate":
-        if (this.#focus) this.#stops.get(this.#focus)?.activate();
+        {
+          // A stop exists only while its control can be pressed, so a primary that has one is enabled.
+          const key = activationTarget(this.#focus, this.#primary?.() ?? null, true);
+          if (key !== null) this.#stopOf(key)?.activate();
+        }
         break;
       case "inspect":
-        if (this.#focus) this.#stops.get(this.#focus)?.inspect?.();
+        if (this.#onInspect?.(source)) break;
+        if (this.#focus) this.#stopOf(this.#focus)?.inspect?.();
         break;
       case "pageNext":
       case "pagePrevious":
-        this.#onPage?.(intent === "pageNext" ? 1 : -1);
+        // LB / RB are the tab buttons; the keyboard's PageUp / PageDown always page.
+        if (this.#onTab && source !== "key") this.#onTab(intent === "pageNext" ? 1 : -1);
+        else this.#onPage?.(intent === "pageNext" ? 1 : -1);
         this.#drawRing();
         break;
       case "home":
       case "end":
         this.#onHomeEnd?.(intent);
         this.#drawRing();
+        break;
+      case "pause":
+        if (this.#onPause) {
+          this.#onPause();
+        } else {
+          // Start is "forward": it presses the screen's primary stop, as A does with nothing focused.
+          const key = activationTarget(null, this.#primary?.() ?? null, true);
+          if (key !== null) this.#stopOf(key)?.activate();
+        }
+        break;
+      case "toggleGuide":
+        this.#onToggle?.();
+        break;
+      case "view":
+        this.#onView?.();
+        break;
+      case "expand":
+        this.#onExpand?.();
         break;
       case "cancel":
         if (this.#onCancel) {
@@ -167,13 +501,13 @@ export class FocusRoute {
 
   #moveTo(key: string | null): void {
     this.#focus = key;
-    if (this.#focus) this.#stops.get(this.#focus)?.ensureVisible?.();
+    if (this.#focus) this.#stopOf(this.#focus)?.ensureVisible?.();
     this.#drawRing();
     this.#onFocusChange?.(this.#focus);
   }
 
   #rectOf(key: string): Rect | null {
-    const rect = this.#stops.get(key)?.rect;
+    const rect = this.#stopOf(key)?.rect;
     if (!rect) return null;
     return typeof rect === "function" ? rect() : rect;
   }
@@ -182,10 +516,18 @@ export class FocusRoute {
     // Destroying a ring whose graphics a display-list sweep already took is safe.
     this.#ring?.destroy();
     this.#ring = null;
-    if (this.#focus !== null && !this.#order.includes(this.#focus)) this.#focus = null;
-    const stop = this.#focus === null ? undefined : this.#stops.get(this.#focus);
-    if (!stop) return;
-    this.#ring = new McSelectionRing(this.#scene, this.#ringColor);
-    this.#ring.show(typeof stop.rect === "function" ? stop.rect() : stop.rect, "static", true);
+    this.#ringRect = null;
+    if (this.#focus !== null && !this.#order.includes(this.#focus)) {
+      // A stop that left the route (the music note while the pad toast covers it) drops focus; the screen hears it, so
+      // a glyph that depends on focus (Start's, A's) stops claiming a control that is no longer in focus.
+      this.#focus = null;
+      this.#onFocusChange?.(null);
+    }
+    const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
+    if (!stop || this.#ringHidden) return;
+    const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+    this.#ringRect = rect;
+    this.#ring = new McSelectionRing(this.#scene, this.#ringColor, true);
+    this.#ring.show(rect, "static", true);
   }
 }

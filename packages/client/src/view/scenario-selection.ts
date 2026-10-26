@@ -6,13 +6,15 @@
  * Chips and search both go through this, so they behave the same.
  */
 export interface ScenarioSelection {
-  /** The scenario id the panel shows and "Choose heroes" starts. */
-  readonly selectedId: string;
+  /** The scenario id the panel shows and "Choose heroes" starts; `null` while the player has picked none yet. */
+  readonly selectedId: string | null;
   /** False when the shelf shows no scenario at all: "Choose heroes" is disabled. */
   readonly canContinue: boolean;
 }
 
-export function selectionAmongVisible(selectedId: string, visibleIds: readonly string[]): ScenarioSelection {
+export function selectionAmongVisible(selectedId: string | null, visibleIds: readonly string[]): ScenarioSelection {
+  // Nothing is picked until the player picks (a fresh New game): no scenario is moved into the pick for them.
+  if (selectedId === null) return { selectedId: null, canContinue: false };
   if (visibleIds.length === 0) return { selectedId, canContinue: false };
   if (visibleIds.includes(selectedId)) return { selectedId, canContinue: true };
   return { selectedId: visibleIds[0]!, canContinue: true };

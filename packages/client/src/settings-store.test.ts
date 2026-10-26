@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { MemoryGameStorage } from "./engine/game-storage.js";
 import { EngineSessionCore } from "./engine/session-core.js";
-import { defaultSettings, tableRulesOf, type Settings } from "./settings.js";
+import { clampGlyphSize, defaultSettings, tableRulesOf, type Settings } from "./settings.js";
 import {
   SETTINGS_KEY,
   SettingsStore,
@@ -72,11 +72,13 @@ describe("SettingsStore", () => {
     ["sound", false],
     ["musicShuffle", true],
     ["musicVolume", 35],
+    ["glyphSize", 170],
     ["effectsVolume", 60],
     ["confirmBeforeEndTurn", false],
     ["sameNameHeroAllyConflict", false],
     ["villainAutoAdvance", "afterPause"],
     ["holdEncounterCards", false],
+    ["discordPresence", false],
     ["flipEncounterCards", false],
     ["flipEncounterSpeed", "off"],
     ["villainBeatSpeed", "fast"],
@@ -169,6 +171,16 @@ describe("SettingsStore", () => {
   });
 });
 
+describe("keyboardHand", () => {
+  test("defaults to the left hand and persists a right-hand choice", () => {
+    expect(defaultSettings().keyboardHand).toBe("left");
+    expect(parseSettingsOverrides('{"keyboardHand":"right"}')).toEqual({ keyboardHand: "right" });
+    expect(parseSettingsOverrides('{"keyboardHand":"both"}')).toEqual({});
+    const saved = serializeSettingsOverrides({ ...defaultSettings(), keyboardHand: "right" });
+    expect(parseSettingsOverrides(saved).keyboardHand).toBe("right");
+  });
+});
+
 describe("parseSettingsOverrides", () => {
   test("ignores unknown fields and falls back per field on wrong types", () => {
     expect(
@@ -250,6 +262,15 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"textResolution":0}')).toEqual({ textResolution: 1 });
   });
 
+  test("hint size is read as a step of 5 from 75 to 200, default 130", () => {
+    expect(parseSettingsOverrides('{"glyphSize":162}')).toEqual({ glyphSize: 160 });
+    expect(parseSettingsOverrides('{"glyphSize":500}')).toEqual({ glyphSize: 200 });
+    expect(parseSettingsOverrides('{"glyphSize":10}')).toEqual({ glyphSize: 75 });
+    expect(parseSettingsOverrides('{"glyphSize":"big"}')).toEqual({});
+    expect(defaultSettings().glyphSize).toBe(130);
+    expect(clampGlyphSize(Number.NaN)).toBe(130);
+  });
+
   test("music volume is read as a whole percent from 0 to 100 (#243)", () => {
     expect(parseSettingsOverrides('{"musicVolume":42.4}')).toEqual({ musicVolume: 42 });
     expect(parseSettingsOverrides('{"musicVolume":250}')).toEqual({ musicVolume: 100 });
@@ -264,5 +285,41 @@ describe("parseSettingsOverrides", () => {
     const overrides = { sound: false, textResolution: 1, reducedMotion: true };
     expect(parseSettingsOverrides(serializeSettingsOverrides(overrides))).toEqual(overrides);
     expect(resolveSettings({ sound: false }, defaultSettings()).sound).toBe(false);
+  });
+});
+
+describe("couch mode in the saved record", () => {
+  test("a known choice is read back and anything else falls to the default", () => {
+    expect(parseSettingsOverrides(serializeSettingsOverrides({ couchMode: "150%" })).couchMode).toBe("150%");
+    expect(parseSettingsOverrides(JSON.stringify({ couchMode: "400%" })).couchMode).toBe(undefined);
+  });
+});
+
+describe("text resolution follows couch mode until the player sets it", () => {
+  const defaults = (overrides: { couchMode?: Settings["couchMode"] }) =>
+    defaultSettings({ ...(overrides.couchMode === undefined ? {} : { couchMode: overrides.couchMode }) });
+
+  test("turning couch mode up sharpens text the player never set, and an explicit Off stays off", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    const store = new SettingsStore(new MapStorage(), defaults);
+    expect(store.current.textResolution).toBe(1);
+    store.set({ ...store.current, couchMode: "200%" });
+    expect(store.current.textResolution).toBe(2);
+    store.set({ ...store.current, textResolution: 1 });
+    store.set({ ...store.current, couchMode: "300%" });
+    expect(store.current.textResolution).toBe(1);
+    expect(store.current.couchMode).toBe("300%");
+  });
+});
+
+describe("glyphSource", () => {
+  test("defaults to auto, parses the three values and drops unknown ones", () => {
+    expect(defaultSettings().glyphSource).toBe("auto");
+    expect(parseSettingsOverrides('{"glyphSource":"pad"}')).toEqual({ glyphSource: "pad" });
+    expect(parseSettingsOverrides('{"glyphSource":"keyboard"}')).toEqual({ glyphSource: "keyboard" });
+    expect(parseSettingsOverrides('{"glyphSource":"both"}')).toEqual({});
+    const saved = serializeSettingsOverrides({ ...defaultSettings(), glyphSource: "pad" });
+    expect(parseSettingsOverrides(saved).glyphSource).toBe("pad");
   });
 });

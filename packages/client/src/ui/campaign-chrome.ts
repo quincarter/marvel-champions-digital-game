@@ -15,6 +15,7 @@ import { ART_CATALOG } from "../art/scenario-art.js";
 import { accent, border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { formFactorFor, type FormFactor, type Rect } from "../view/layout.js";
 import { cssOf, fontFamilyOf, textStyle } from "./theme.js";
+import type { GlyphHints } from "./glyph-hints.js";
 import { McButton, fitText } from "./widgets.js";
 
 /** Heights the canvases draw at: 60px chrome on desktop/tablet ("60px chrome to match Screens - Desktop"), 52 on phone. */
@@ -66,6 +67,8 @@ export interface TopBarOptions {
   readonly right?: string;
   /** A red chip before the title ("ROUND 4" on the in-game beat). */
   readonly chip?: string;
+  /** The scene's glyph hints: the back button then carries the Cancel glyph (B, Esc) on a pad or keyboard. */
+  readonly hints?: GlyphHints | null;
 }
 
 export interface TopBar {
@@ -73,6 +76,9 @@ export interface TopBar {
   readonly back: McButton | null;
   readonly backRect: Rect | null;
 }
+
+/** Room a back button reserves for its Cancel glyph: the glyph (a keycap at the widest), its gap and edge padding. */
+const BACK_GLYPH_ROOM = 64;
 
 /** The ink top bar: boxed back button, Bangers title, right-aligned label. */
 export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar {
@@ -84,7 +90,13 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   let back: McButton | null = null;
   let backRect: Rect | null = null;
   if (options.backLabel && options.onBack) {
-    const labelWidth = Math.max(frame.phone ? hit.target : 64, estimateBangersWidth(options.backLabel, 22) + 26);
+    // With hints the button also holds the Cancel glyph beside its word (B, or Esc as a keycap) inside its own edge,
+    // so it never hangs over the button's border; a phone layout carries no glyph.
+    const glyphRoom = options.hints && !frame.phone ? BACK_GLYPH_ROOM : 0;
+    const labelWidth = Math.max(
+      frame.phone ? hit.target : 64,
+      estimateBangersWidth(options.backLabel, 22) + 26 + glyphRoom,
+    );
     backRect = {
       x,
       y: (height - hit.target) / 2,
@@ -98,6 +110,7 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
       rect: backRect,
       onClick: options.onBack,
     });
+    options.hints?.button(back, ["cancel"], "ink");
     x += backRect.width + 14;
   }
   if (options.chip) {

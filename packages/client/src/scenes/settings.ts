@@ -25,7 +25,6 @@
  * them does.
  */
 import Phaser from "phaser";
-import { setTextResolution } from "../ui/theme.js";
 import {
   guideRowInfoOf,
   guideRowDetailOf,
@@ -43,6 +42,8 @@ import {
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
   nextSettingsAfterRenderScale,
+  nextSettingsAfterCouchMode,
+  couchModeRowInfoOf,
   renderScaleRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterDisplayMode,
@@ -62,6 +63,7 @@ import {
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
+  discordRowInfoOf,
   earnedItemRowInfoOf,
   villainRowInfoOf,
   type GuideRowInfo,
@@ -69,6 +71,8 @@ import {
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
+import { glyphRightInRow } from "../view/glyph-placement.js";
 import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import { availableCardLanguages, type CardLanguage } from "../art/card-language.js";
@@ -83,6 +87,8 @@ import type {
   FlipEncounterSpeed,
   Resolution,
 } from "../settings.js";
+import { couchBaseSize } from "../ui/render-resolution.js";
+import type { CouchSize } from "../view/couch-mode.js";
 import {
   applyDesktopWindow,
   desktopMonitor,
@@ -92,6 +98,7 @@ import {
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
+import { syncDiscordPresence } from "../platform/discord-presence.js";
 import {
   followsWindowsMixer,
   knownMixerVolume,
@@ -117,8 +124,15 @@ import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-st
 import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { detectPlatform } from "../platform/platform.js";
+import { padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
-import { applyScreenSettings, knownRefreshInfo, readRefreshInfo } from "../platform/screen-settings.js";
+import {
+  applyScreenSettings,
+  applyTextResolution,
+  drawnDensity,
+  knownRefreshInfo,
+  readRefreshInfo,
+} from "../platform/screen-settings.js";
 import { knownHardware, onHardwareChange } from "../platform/device-hardware.js";
 import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -146,6 +160,10 @@ const RULES_ROW_TITLE = "Rules reference";
 const STEAM_DECK_DETAIL =
   "Fullscreen at the screen's own resolution (1280 × 800 on the Deck), what this device starts with.";
 
+/** The Controls row: a door to `scenes/controls.ts`, the drawn controller and the keyboard's keys. */
+const CONTROLS_ROW = "controls";
+const CONTROLS_ROW_DETAIL = "Your controller's buttons, the keyboard shortcuts and the on-screen hints.";
+
 const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
@@ -162,8 +180,23 @@ const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
 const RESOLUTION_CONTROL_WIDTH = 320;
 const APPLY_WIDTH = 88;
+/** Couch mode's seven short segments ("Off" to "300%"). */
+const COUCH_MODE_CONTROL_WIDTH = 560;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;
+
+/**
+ * The size couch mode divides, from the real window (couch mode shrinks the game's own size, which must not hide the
+ * row that undoes it): the fixed resolution when one is set, else the window.
+ */
+function couchBaseOf(game: Phaser.Game): CouchSize {
+  return couchBaseSize(game) ?? { width: window.innerWidth, height: window.innerHeight };
+}
+
+/** The Couch mode row: any build with a choice besides Off on this window (a phone has none), and while it is on. */
+function couchModeShown(game: Phaser.Game, settings: Settings): boolean {
+  return settings.couchMode !== "off" || couchModeRowInfoOf(settings, couchBaseOf(game)).options.length > 1;
+}
 
 /** The Screen section: every build, unless `?renderscale=off`. */
 function screenSettingsShown(): boolean {
@@ -206,11 +239,17 @@ export interface SettingsSceneData {
   readonly receive?: TransferCode;
   /** `syncLink` opens Save data, then Sync across devices, asking to join with a scanned `#link=` (device sync, #276). */
   readonly syncLink?: SyncLinkAddress;
+  /** Opens Controls straight away (the "Controller connected" toast's button), so it stacks over Settings as usual. */
+  readonly openControls?: boolean;
 }
 
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
+  /** LB / RB glyphs beside the tab strip (pad only). */
+  #hints!: GlyphHints;
+  /** The tabs drawn now, in order, for LB / RB. */
+  #tabIds: SettingsTabId[] = [];
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   /** The active tab's own scroll region (docs/guided-mode.md §4 G2b): its sections all draw into it. */
@@ -238,9 +277,25 @@ export class SettingsOverlay extends Phaser.Scene {
       if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     };
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.unlocks) || this.scene.isActive(SCENES.saveData),
-      onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList() : this.#close()),
+      onScroll: (_dx, dy) => this.#bodyRegion?.scrollByPx(dy),
+      // LB / RB (R / F on the keyboard) step through the tabs, wrapping at the ends.
+      onTab: (direction) => {
+        const ids = this.#tabIds;
+        if (ids.length === 0) return;
+        if (this.#resolutionListOpen) return;
+        const at = Math.max(0, ids.indexOf(lastTab));
+        const next = ids[(at + direction + ids.length) % ids.length]!;
+        this.#setTab(next);
+        // The ring goes onto the new tab, as a press on it would leave it.
+        this.#route?.focusKey(`tab:${next}`);
+      },
+      blocked: () =>
+        this.scene.isActive(SCENES.unlocks) ||
+        this.scene.isActive(SCENES.saveData) ||
+        this.scene.isActive(SCENES.controls),
+      onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList(true) : this.#close()),
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
     // behind it — redraw so this one never shows a stale level/toggle.
@@ -260,6 +315,7 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#tabs = null;
       this.#bodyRegion?.destroy();
       this.#bodyRegion = null;
+      this.#hints.dispose();
     });
     this.#draw();
     // Phaser hands a later launch with no data this same object again, so take the code once.
@@ -267,6 +323,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.sys.settings.data = {};
     const syncLink = data.syncLink;
     if (receive || syncLink) this.#openSaveData(receive, syncLink);
+    if (data.openControls === true) this.#openControls();
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The Frame rate row names the screen's refresh rate once the Android app has said it.
     if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());
@@ -315,6 +372,15 @@ export class SettingsOverlay extends Phaser.Scene {
     });
   }
 
+  #openControls(): void {
+    if (this.scene.isActive(SCENES.controls)) return;
+    this.input.enabled = false;
+    this.scene.launch(SCENES.controls);
+    this.scene.get(SCENES.controls).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+    });
+  }
+
   #openRules(): void {
     if (this.scene.isActive(SCENES.rules)) return;
     this.input.enabled = false;
@@ -350,8 +416,9 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #toggle(row: SettingsRowInfo): void {
     const { settings } = appSession();
-    const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
-    if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    const next = nextSettingsAfterToggle(settings, row.id, drawnDensity());
+    if (row.id === "sharper-text") applyTextResolution(next);
+    if (row.id === "discord-presence") syncDiscordPresence(next.discordPresence);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
     applyEarnedItems();
@@ -392,11 +459,15 @@ export class SettingsOverlay extends Phaser.Scene {
       gameVolume: followsWindowsMixer(),
       // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
       soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
+      couchMode: couchModeShown(this.game, settings),
       desktopWindow: hasDesktopWindow(),
+      discord: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
       screenSettings: screenSettingsShown(),
+      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
+      controls: detectPlatform() !== "capacitor" || padAvailable(),
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
@@ -462,6 +533,13 @@ export class SettingsOverlay extends Phaser.Scene {
       activeId: active.id,
       onSelect: (id) => this.#setTab(id as SettingsTabId),
     });
+    this.#tabIds = tabs.map((tab) => tab.id);
+    this.#hints.reset();
+    this.#hints.custom(
+      (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
+      22,
+      ({ width }) => glyphRightInRow(layout.panel, layout.header.y, layout.header.height, width, closeSize + 32 + 12),
+    );
     const cellWidth = layout.tabs.width / tabs.length;
     tabs.forEach((tab, index) => {
       stops.set(`tab:${tab.id}`, {
@@ -471,8 +549,15 @@ export class SettingsOverlay extends Phaser.Scene {
     });
 
     const stopIds = this.#drawBody(layout.bodyViewport, layout.content, items, stops);
-    if (this.#resolutionListOpen) this.#drawResolutionList({ x: 0, y: 0, width, height });
-    this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
+    if (this.#resolutionListOpen) {
+      // While the list is open it owns the pad and keyboard: the route holds only its sizes, so the d-pad never
+      // reaches the rows behind it. A picks and closes, B closes unchanged.
+      const listStops = new Map<string, FocusStop>();
+      const listIds = this.#drawResolutionList({ x: 0, y: 0, width, height }, listStops);
+      this.#route?.set(listIds, listStops);
+    } else {
+      this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
+    }
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -484,6 +569,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const items = new Map<SettingsItemId, SettingsItem>();
     for (const row of [
       ...settingsRowInfoOf(settings, powerSavingOn()),
+      ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
@@ -573,6 +659,14 @@ export class SettingsOverlay extends Phaser.Scene {
         (v) => setScreen(nextSettingsAfterFrameRate(appSession().settings, v)),
       );
     }
+    if (couchModeShown(this.game, settings)) {
+      segmented("couch-mode", couchModeRowInfoOf(settings, couchBaseOf(this.game)), COUCH_MODE_CONTROL_WIDTH, (v) => {
+        const next = nextSettingsAfterCouchMode(appSession().settings, v);
+        appSession().settings = next;
+        applyScreenSettings(this.game, next);
+        this.#draw();
+      });
+    }
     if (hasDesktopWindow()) {
       const monitor = desktopMonitor();
       const sizes = monitor === null ? [] : resolutionOptionsFor(monitor, settings.displayMode);
@@ -658,6 +752,7 @@ export class SettingsOverlay extends Phaser.Scene {
     };
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
+    door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
     items.set("steam-deck", {
       spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },
@@ -1004,7 +1099,13 @@ export class SettingsOverlay extends Phaser.Scene {
       .text(field.x + field.width - 12, field.y + field.height / 2, "▼", textStyle(typeRole.label, surface.ink.hex))
       .setFontSize(10)
       .setOrigin(1, 0.5);
-    stops.set("row:resolution:field", this.#bodyStop(field, item.slot, open));
+    stops.set(
+      "row:resolution:field",
+      this.#bodyStop(field, item.slot, () => {
+        open();
+        this.#route?.focusKey(`list:${this.#resolutionPickedIndex()}`);
+      }),
+    );
 
     const pending = this.#pendingResolution !== null && this.#pendingResolution !== info.selected;
     const activateApply = (): void => {
@@ -1028,9 +1129,22 @@ export class SettingsOverlay extends Phaser.Scene {
     stops.set("row:resolution:apply", this.#bodyStop(apply, item.slot, activateApply));
   }
 
-  #closeResolutionList(): void {
+  /** Index in the open list of the size shown as picked (the pending one, else the one in effect). */
+  #resolutionPickedIndex(): number {
+    const info = this.#resolutionInfo;
+    if (info === null) return 0;
+    const picked = this.#pendingResolution ?? info.selected;
+    return Math.max(
+      0,
+      info.options.findIndex((option) => option.value === picked),
+    );
+  }
+
+  /** Closes the list; `refocus` (pad or keyboard) puts the ring back on the field it opened from. */
+  #closeResolutionList(refocus = false): void {
     this.#resolutionListOpen = false;
     this.#draw();
+    if (refocus) this.#route?.focusKey("row:resolution:field");
   }
 
   /**
@@ -1038,10 +1152,10 @@ export class SettingsOverlay extends Phaser.Scene {
    * scrolling for the rest. A press anywhere else closes it without a change; picking a row makes it the pending
    * choice, which Apply then puts into effect.
    */
-  #drawResolutionList(bounds: Rect): void {
+  #drawResolutionList(bounds: Rect, stops: Map<string, FocusStop>): string[] {
     const field = this.#resolutionField;
     const info = this.#resolutionInfo;
-    if (field === null || info === null) return;
+    if (field === null || info === null) return [];
     this.add
       .zone(0, 0, bounds.width, bounds.height)
       .setOrigin(0, 0)
@@ -1070,11 +1184,26 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     const region = this.#listRegion;
     const picked = this.#pendingResolution ?? info.selected;
-    const pickedIndex = Math.max(
-      0,
-      info.options.findIndex((option) => option.value === picked),
-    );
+    const pickedIndex = this.#resolutionPickedIndex();
+    const ids: string[] = [];
     info.options.forEach((option, i) => {
+      const pick = (): void => {
+        this.#pendingResolution = option.value === info.selected ? null : option.value;
+      };
+      ids.push(`list:${i}`);
+      stops.set(`list:${i}`, {
+        rect: () => ({
+          x: viewport.x,
+          y: viewport.y + i * LIST_ROW_HEIGHT - this.#resolutionListScroll.offsetPx,
+          width: viewport.width - 8,
+          height: LIST_ROW_HEIGHT,
+        }),
+        activate: () => {
+          pick();
+          this.#closeResolutionList(true);
+        },
+        ensureVisible: () => region.scrollIntoView(i),
+      });
       const row: Rect = {
         x: viewport.x,
         y: viewport.y + i * LIST_ROW_HEIGHT,
@@ -1091,7 +1220,7 @@ export class SettingsOverlay extends Phaser.Scene {
             rect: row,
             selected,
             onClick: () => {
-              this.#pendingResolution = option.value === info.selected ? null : option.value;
+              pick();
               this.#closeResolutionList();
             },
             clip: () => region.rect,
@@ -1102,6 +1231,7 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     region.syncInteractivity();
     region.scrollIntoView(pickedIndex);
+    return ids;
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {

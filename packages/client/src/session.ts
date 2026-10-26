@@ -115,9 +115,10 @@ export function appSession(): AppSession {
     // Render resolution and Frame rate start from what this device's hardware is recommended.
     const env = screenEnvironment();
     const density = drawsAtScreenDensity(env.search);
-    const settingsStore = new SettingsStore(undefined, () =>
+    const settingsStore = new SettingsStore(undefined, (overrides) =>
       defaultSettings({
         powerSaving: powerSavingOn(),
+        ...(overrides.couchMode === undefined ? {} : { couchMode: overrides.couchMode }),
         ...(density ? { screen: recommendedScreenOf(knownHardware()) } : {}),
       }),
     );

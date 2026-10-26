@@ -14,6 +14,7 @@
 import type Phaser from "phaser";
 import { surface, typeRole } from "../tokens.js";
 import { drawPlayPlatformIcon } from "./play-platform-icon.js";
+import type { GlyphHints } from "./glyph-hints.js";
 import { McScrollRegion } from "./scroll-region.js";
 import { textStyle } from "./theme.js";
 import { McButton, addRowTapZone, fitText } from "./widgets.js";
@@ -46,6 +47,8 @@ export interface GamesListOptions {
   readonly onRemove: (row: GameRow) => void;
   /** Why the last Remove failed, shown under the question; null when there is nothing to say. */
   readonly error?: string | null;
+  /** The scene's glyph hints (pad and keyboard only): "Keep it" shows the Cancel glyph. */
+  readonly hints?: GlyphHints;
 }
 
 export interface DrawnGamesList {
@@ -217,6 +220,7 @@ function drawConfirm(scene: Phaser.Scene, options: GamesListOptions, row: GameRo
       onClick: remove,
     }),
   ];
+  options.hints?.button(buttons[0]!, ["cancel"], "ink");
   stops.set("remove-keep", { rect: parts.keep, activate: keep });
   stops.set("remove-confirm", { rect: parts.remove, activate: remove });
   return { buttons, stops, region: null };

@@ -65,7 +65,7 @@ export function drawPickCardArt(
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
   onTap(zone, open, `pick-card:${stopKey}`);
-  stops.set(stopKey, { rect: art, activate: open });
+  stops.set(stopKey, { rect: art, activate: open, inspect: open });
 }
 
 /** A caption's tone: the earned side reads green, as on the campaign sheet; the rest are quiet labels. */

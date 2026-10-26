@@ -110,6 +110,7 @@ import type { VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText, fitWrapped, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import {
   costPipColor,
   drawGroupedCardList,
@@ -213,6 +214,8 @@ export class DeckCheckScene extends Phaser.Scene {
   #cardList: McVariableList | null = null;
   #cardListScroll = new VariableListScroll();
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
+  #obstacles: Rect[] = [];
   #stops = new Map<string, FocusStop>();
   /** Which aspect tile's inline tip (G10b) is open, if any — wide only, the rail's own aspect tiles. */
   #aspectTipOpen: CoreAspect | null = null;
@@ -251,13 +254,32 @@ export class DeckCheckScene extends Phaser.Scene {
       artOff();
       this.#hover?.destroy();
       this.#hover = null;
+      this.#hints.dispose();
       this.#tabs?.destroy();
       this.#tabs = null;
       this.#cardList?.destroy();
       this.#cardList = null;
     });
+    this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
+      onCancel: () => {
+        // An open aspect tip closes first; the next B leaves.
+        if (this.#aspectTipOpen !== null) {
+          this.#aspectTipOpen = null;
+          this.#rebuild();
+        } else this.#stops.get("back")?.activate();
+      },
+      // LB / RB step Curve, Cards and Aspect on a narrow screen; the wide layout has no strip, so they page the cards.
+      onTab: (direction) => {
+        if (this.#tabs === null) {
+          this.#cardList?.scrollByPage(direction);
+          return;
+        }
+        const order: readonly DeckCheckTab[] = ["curve", "cards", "aspect"];
+        const next = order[order.indexOf(this.#activeTab) + direction];
+        if (next) this.#setTab(next);
+      },
       onPage: (direction) => this.#cardList?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#cardList?.scrollToStart() : this.#cardList?.scrollToEnd()),
     });
@@ -278,6 +300,8 @@ export class DeckCheckScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    this.#hints.reset();
+    this.#obstacles = [];
     this.#tabs?.destroy();
     this.#tabs = null;
     // The card grid only exists on wide, or on narrow's Cards tab; recreated fresh every rebuild like every other
@@ -326,6 +350,7 @@ export class DeckCheckScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("back", { rect: layout.back, activate: goBack });
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
 
     const titleX = layout.back.x + layout.back.width + 16;
     if (layout.wide) this.#drawWideHeader(titleX, layout, this.#deck, option, stats, status);
@@ -350,6 +375,14 @@ export class DeckCheckScene extends Phaser.Scene {
         activeId: this.#activeTab,
         onSelect: (id) => this.#setTab(id as DeckCheckTab),
       });
+      const strip = layout.tabs!;
+      this.#obstacles.push(layout.content!);
+      this.#hints.custom(
+        (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
+        14,
+        ({ width }) => ({ x: strip.x + strip.width - width, y: strip.y + strip.height + 11 }),
+        { avoidObstacles: true },
+      );
       const tabWidth = layout.tabs!.width / 3;
       this.#stops.set("tab:curve", {
         rect: { ...layout.tabs!, width: tabWidth },

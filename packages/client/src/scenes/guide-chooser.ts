@@ -18,6 +18,8 @@
 import Phaser from "phaser";
 import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { onTap } from "../ui/tap.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
@@ -46,6 +48,9 @@ const RADIO_RADIUS = 9;
 
 export class GuideChooserScene extends Phaser.Scene {
   #buttons: McButton[] = [];
+  #hints!: GlyphHints;
+  /** What a hanging glyph must not cover: the option cards and Suit up. */
+  #obstacles: { x: number; y: number; width: number; height: number }[] = [];
   #route: FocusRoute | null = null;
   #selected: GuideChooserValue = "full";
   #art: TitleArt | null = null;
@@ -59,10 +64,15 @@ export class GuideChooserScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
+    this.#hints = new GlyphHints(this, () => this.#obstacles);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.#rebuild, this);
+      this.#hints.dispose();
+    });
     this.#selected = "full";
     this.#art = pickTitleArt(TITLE_ART, null);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#decline() });
+    // Start is "forward": it presses Suit up.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#decline(), primary: () => "suit-up" });
     this.#rebuild();
     fadeScreenIn(this);
   }
@@ -70,11 +80,13 @@ export class GuideChooserScene extends Phaser.Scene {
   #rebuild(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const layout = guideChooserLayout(width, height);
     this.#artPanel = layout.art;
+    this.#obstacles = [...layout.options, layout.suitUp];
 
     // Ground: paper everywhere (the picture sits over an ink scrim so the yellow banner/paper cards stay legible).
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0).setDepth(GROUND_DEPTH);
@@ -121,20 +133,20 @@ export class GuideChooserScene extends Phaser.Scene {
         .zone(rect.x, rect.y, rect.width, rect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on("pointerup", select);
+      onTap(zone, select, `option:${option.value}`);
       stops.set(`option:${option.value}`, { rect, activate: select });
     });
 
     if (layout.back.width > 0) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: "Back",
-          type: typeRole.menuButton,
-          rect: layout.back,
-          onClick: () => this.#decline(),
-        }),
-      );
+      const back = new McButton(this, {
+        kind: "secondary",
+        label: "Back",
+        type: typeRole.menuButton,
+        rect: layout.back,
+        onClick: () => this.#decline(),
+      });
+      this.#buttons.push(back);
+      this.#hints.button(back, ["cancel"], "paper");
       stops.set("back", { rect: layout.back, activate: () => this.#decline() });
     }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { signature, type SignedObject, type SignedScene } from "./idle-render.js";
+import { padSignature, signature, type PadState, type SignedObject, type SignedScene } from "./idle-render.js";
 
 const camera = { x: 0, y: 0, width: 360, height: 788, scrollX: 0, scrollY: 0, zoom: 1, rotation: 0, alpha: 1 };
 
@@ -72,5 +72,28 @@ describe("signature", () => {
 
   test("a label waiting on the text worker draws again when its bitmap is in", () => {
     expect(signature([scene([{ type: "Text", workerJob: 4 }])])).not.toBe(signature([scene([{ type: "Text" }])]));
+  });
+});
+
+describe("padSignature", () => {
+  const pad = (down: number[] = [], axes: number[] = [0, 0, 0, 0]): PadState => ({
+    buttons: Array.from({ length: 17 }, (_, index) => ({
+      pressed: down.includes(index),
+      value: down.includes(index) ? 1 : 0,
+    })),
+    axes,
+  });
+
+  test("a press and its release each change it, so each wakes a draw", () => {
+    const up = padSignature([pad()]);
+    expect(padSignature([pad([5])])).not.toBe(up);
+    expect(padSignature([pad()])).toBe(up);
+  });
+
+  test("a stick moving a hair, or no pad at all, leaves it alone; a stick pushed or a pad dropped changes it", () => {
+    expect(padSignature([pad([], [0.01, 0, 0, 0])])).toBe(padSignature([pad()]));
+    expect(padSignature([pad([], [0.8, 0, 0, 0])])).not.toBe(padSignature([pad()]));
+    expect(padSignature([null])).not.toBe(padSignature([pad()]));
+    expect(padSignature([])).toBe(padSignature([]));
   });
 });

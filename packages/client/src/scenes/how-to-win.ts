@@ -23,6 +23,9 @@ import Phaser from "phaser";
 import { accent, dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { hintCancelInHeader } from "../ui/header-cancel-hint.js";
+import { onTap } from "../ui/tap.js";
 import { McTermText } from "../ui/term-text.js";
 import { McTooltip } from "../ui/tooltip.js";
 import type { TermTextTerm } from "../view/term-text-model.js";
@@ -60,6 +63,7 @@ export class HowToWinScene extends Phaser.Scene {
   #termBlocks: McTermText[] = [];
   #buttons: McButton[] = [];
   #starting = false;
+  #hints!: GlyphHints;
 
   constructor() {
     super(SCENES.howToWin);
@@ -76,12 +80,16 @@ export class HowToWinScene extends Phaser.Scene {
       artOff();
       this.#tooltip?.destroy();
       this.#tooltip = null;
+      this.#hints.dispose();
     });
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       onCancel: () => {
         if (this.#tooltip?.handleEscape()) return;
         this.#leave();
       },
+      // Start is "forward": it presses Start the fight.
+      primary: () => "start-the-fight",
     });
     this.#rebuild();
     fadeScreenIn(this);
@@ -108,6 +116,7 @@ export class HowToWinScene extends Phaser.Scene {
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
+    this.#hints.reset();
     this.#drawHeader(layout);
     this.#drawTitle(layout);
     this.#drawWinCard(layout, content);
@@ -138,7 +147,7 @@ export class HowToWinScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.add
+    const title = this.add
       .text(close.x + close.width + 12, layout.header.height / 2, "LESSON 1 OF 5", {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "18px",
@@ -165,7 +174,8 @@ export class HowToWinScene extends Phaser.Scene {
       .zone(close.x, close.y, close.width, close.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#leave());
+    onTap(zone, () => this.#leave(), "close");
+    hintCancelInHeader(this.#hints, layout.header, title);
   }
 
   #drawTitle(layout: HowToWinLayout): void {
@@ -410,9 +420,18 @@ export class HowToWinScene extends Phaser.Scene {
 
     const stops = new Map<string, FocusStop>();
     stops.set("close", { rect: layout.close, activate: () => this.#leave() });
+    // The glossary terms (dotted underlines) are stops too: A opens the tooltip, B closes it.
+    const order = ["close"];
+    this.#termBlocks.forEach((block, b) => {
+      for (const term of block.termStops()) {
+        const key = `term:${b}:${term.id}`;
+        order.push(key);
+        stops.set(key, { rect: term.rect, activate: term.activate });
+      }
+    });
     stops.set("tell-me-more", { rect: layout.tellMeMore, activate: () => this.#openRules() });
     stops.set("start-the-fight", { rect: layout.startTheFight, activate: () => this.#startTheFight() });
-    this.#route?.set(["close", "tell-me-more", "start-the-fight"], stops);
+    this.#route?.set([...order, "tell-me-more", "start-the-fight"], stops);
   }
 
   #openTooltip(term: TermTextTerm, anchor: { x: number; y: number; width: number; height: number }): void {

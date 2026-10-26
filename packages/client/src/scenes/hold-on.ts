@@ -18,6 +18,7 @@ import { tooltipContentOf, type TermTextTerm } from "../view/term-text-model.js"
 import { holdOnContentOf, holdOnLayoutOf, type HoldOnContent, type HoldOnFact } from "../view/hold-on-model.js";
 import type { Hint } from "../view/guide-hints.js";
 import type { Rect } from "../view/layout.js";
+import { onTap } from "../ui/tap.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -298,7 +299,7 @@ export class HoldOnOverlay extends Phaser.Scene {
       .zone(checkboxHit.x, checkboxHit.y, checkboxHit.width, checkboxHit.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    this.#checkboxZone.on("pointerup", () => this.#toggleCheckbox());
+    onTap(this.#checkboxZone, () => this.#toggleCheckbox(), "hold-on:checkbox");
     stops.set("checkbox", { rect: checkboxHit, activate: () => this.#toggleCheckbox() });
     focusOrder.push("checkbox");
 

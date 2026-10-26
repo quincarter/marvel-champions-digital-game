@@ -509,19 +509,19 @@ export function cardFaceLayout(rect: Rect, content: CardFaceContent): CardFaceLa
 /**
  * What the "Rules & state" panel is when the card has nothing to put in it (a printed card in the Civil War builder: no
  * game behind it, so no verdict, timing, notes or history). With a choice open the panel is only the choice buttons, so
- * it drops its heading and shrinks to a strip at the card's foot; with no choice either it is not drawn at all (the
- * sheet still closes on a click anywhere or Escape). Anything in it, or a card in a game, keeps the full panel.
+ * it drops its heading and shrinks to a strip at the card's foot. With no choice either it keeps the full panel, which
+ * says it has nothing to add: a panel that came and went card by card read as a missing side (the owner, 2026-10-24).
+ * Anything in it, or a card in a game, keeps the full panel.
  */
-export type RulesPanelMode = "full" | "compact" | "none";
+export type RulesPanelMode = "full" | "compact";
 export function rulesPanelMode(
   sectionCount: number,
   historyCount: number,
   choiceOpen: boolean,
-  printedCard: boolean,
+  _printedCard: boolean,
 ): RulesPanelMode {
   if (sectionCount > 0 || historyCount > 0) return "full";
-  if (choiceOpen) return "compact";
-  return printedCard ? "none" : "full";
+  return choiceOpen ? "compact" : "full";
 }
 
 /** The compact strip: the panel's own padding above and below one primary-height button row, at the card's foot. */

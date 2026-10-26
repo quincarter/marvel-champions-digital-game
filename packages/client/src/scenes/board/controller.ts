@@ -13,6 +13,7 @@ import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalA
 import { paymentFor, tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
+import { pagedOffset } from "../../view/pick-assign.js";
 import {
   assaultThwartSuffix,
   powerEntries,
@@ -57,7 +58,8 @@ import {
   type InPlayCostChoiceView,
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
-import { focusOrder, type FocusTarget } from "../../view/focus.js";
+import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
+import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import { undoOf, undoTargetsOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
 import {
   abilityActionsFor,
@@ -143,6 +145,15 @@ export interface BoardControllerHost {
   /** True when the card has a tile or chip on screen right now (it has a focus rect). */
   hasTile?(id: InstanceId): boolean;
   openTeamUp?(pairKey: string): void;
+  /** How many mode-bar buttons the last draw made focus stops, and whether the bar has a Cancel; pressing one. */
+  barStops?(): { readonly count: number; readonly cancel: boolean };
+  pressBarStop?(index: number): void;
+  /** True while the top bar's music note is drawn (a stop at the end of the idle route), and what Enter on it does. */
+  hasMusicStop?(): boolean;
+  openMusic?(): void;
+  /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
+  hasDiscardStop?(): boolean;
+  openDiscard?(): void;
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -333,6 +344,14 @@ export class BoardController {
   #shown: { readonly action: PaymentState["action"]; readonly verdict: PaymentVerdict } | null = null;
   /** Pay was pressed and is waiting for its verdict. */
   #committing = false;
+  /** The direct-pick page showing (`pickOffset`) and the candidates it was for; the targeting panel's ids for one selection and game. */
+  #pickOffset = 0;
+  #pickKey = "";
+  #pickCache: {
+    readonly selection: Selection;
+    readonly game: GameState | null;
+    readonly ids: readonly InstanceId[] | null;
+  } | null = null;
 
   constructor(host: BoardControllerHost, options: { readonly readOnly?: boolean } = {}) {
     this.#host = host;
@@ -357,6 +376,11 @@ export class BoardController {
   /** Escape's own release (§3.10, owner: "no one should ever feel locked into a tutorial"): lifts the active gate
    * immediately and fires its `onGateReleased`. Returns whether a gate was actually open, so `board.ts`'s own
    * Escape handling knows whether to fall through to its usual cancel/Pause behavior. */
+  /** Whether a guided-mode gate is open (Escape would release it), without releasing it. */
+  hasGuideGate(): boolean {
+    return this.#guideGate.current !== null;
+  }
+
   releaseGuideGate(): boolean {
     return this.#guideGate.release();
   }
@@ -384,8 +408,20 @@ export class BoardController {
     this.#host.redraw();
   }
 
-  /** The focus route for whatever the board is currently asking for. */
-  focusOrder(): readonly FocusTarget[] {
+  /**
+   * The focus route for whatever the board is currently asking for. `alsoTiled` names cards that count as drawn though
+   * they have no tile this frame (a play area card scrolled out of its row), for a caller that must not depend on scroll.
+   */
+  focusOrder(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
+    const route = this.#routeOf(alsoTiled);
+    if (this.#selection.kind === "idle") return route;
+    // The mode bar's own buttons (Pay, Play it, a form) come after the cards and before the way out, so a pad can reach
+    // and press every one of them (`board/bar-stops.ts`).
+    const bar = this.#host.barStops?.() ?? { count: 0, cancel: false };
+    return withBarStops(route, bar);
+  }
+
+  #routeOf(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
     const model = this.#host.model();
     if (!model) return [];
     const marks = this.#host.marks();
@@ -430,6 +466,8 @@ export class BoardController {
       const { action } = this.#selection.entry;
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
+    // Bars whose answers are all buttons: nothing on the table to step through, only the bar (`focusOrder`).
+    if (BUTTON_ONLY_SELECTIONS.has(this.#selection.kind)) return [];
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;
@@ -440,8 +478,12 @@ export class BoardController {
         kind: "idle",
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
+        ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
+        ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
         undo: this.undoOffer() !== null,
-        ...(this.#host.hasTile ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) } : {}),
+        ...(this.#host.hasTile
+          ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
+          : {}),
       },
       marks,
     );
@@ -495,6 +537,19 @@ export class BoardController {
     }
     if (focus.kind === "confirm") {
       void this.confirmPick();
+      return;
+    }
+    if (focus.kind === "music") {
+      this.#host.openMusic?.();
+      return;
+    }
+    // Reading the pile sends nothing, like a click on it, but is held back with the rest while the board is read-only.
+    if (focus.kind === "discard") {
+      this.#host.openDiscard?.();
+      return;
+    }
+    if (focus.kind === "bar") {
+      this.#host.pressBarStop?.(focus.index);
       return;
     }
     if (focus.kind === "xLess" || focus.kind === "xMore") {
@@ -700,6 +755,70 @@ export class BoardController {
   sourceChoice(): SourceChoiceView | null {
     if (this.#selection.kind !== "choosingSource") return null;
     return { power: this.#selection.power, sources: this.#selection.sources };
+  }
+
+  /**
+   * The candidates a direct pick (RT + A / X / Y / B, the digits; `view/pick-assign.ts`) chooses among right now, in the
+   * order they are drawn: the "Who attacks?" characters, or the targeting panel's tiles. Null when no such choice is
+   * open or it holds nothing. Read from the same data the bar and the panel draw, never recomputed.
+   */
+  pickIds(): readonly InstanceId[] | null {
+    const ids = this.#pickIdsNow();
+    // The page starts over with every new choice: once nothing is open, forget where the last one had got to.
+    if (ids === null) {
+      this.#pickKey = "";
+      this.#pickOffset = 0;
+    }
+    return ids;
+  }
+
+  #pickIdsNow(): readonly InstanceId[] | null {
+    if (this.#readOnly) return null;
+    const selection = this.#selection;
+    const kind = selection.kind;
+    if (kind === "choosingSource") return selection.sources.map((source) => source.instanceId);
+    if (
+      kind !== "targeting" &&
+      kind !== "choosingInPlayCost" &&
+      kind !== "dividingPower" &&
+      kind !== "choosingController"
+    )
+      return null;
+    // The panel is built from a preview per tile: once per selection and game, not once per glyph.
+    const { game } = appSession().store.state;
+    if (this.#pickCache?.selection !== selection || this.#pickCache.game !== game) {
+      const ids = this.targetingPanel()?.options.map((option) => option.instanceId) ?? [];
+      this.#pickCache = { selection, game, ids: ids.length > 0 ? ids : null };
+    }
+    return this.#pickCache.ids;
+  }
+
+  /** Which candidate the page showing starts at; starts over whenever the list of candidates changes. */
+  pickOffset(): number {
+    const ids = this.pickIds();
+    const key = ids === null ? "" : `${this.#selection.kind}:${ids.join(",")}`;
+    if (key !== this.#pickKey) {
+      this.#pickKey = key;
+      this.#pickOffset = 0;
+    }
+    return this.#pickOffset;
+  }
+
+  /** Pages the candidates a step (LB / RB under RT, the zone keys), cycling past the end. False when there is only one page. */
+  pagePicks(direction: 1 | -1, size: number): boolean {
+    const ids = this.pickIds();
+    if (ids === null || ids.length <= size) return false;
+    this.#pickOffset = pagedOffset(ids.length, this.pickOffset(), size, direction);
+    return true;
+  }
+
+  /** Answers the open choice with its `index`th candidate, as a tap on it would. */
+  pickByIndex(index: number): boolean {
+    const id = this.pickIds()?.[index];
+    if (id === undefined) return false;
+    if (this.#selection.kind === "choosingSource") this.chooseSource(id);
+    else this.tapInMode(id);
+    return true;
   }
 
   /** The forms the "Which form?" bar offers, or null when it isn't open. */
@@ -1760,7 +1879,16 @@ export class BoardController {
   undoOffer(): UndoOffer | null {
     const { game, perspectiveId, commandTrail, offTurnSeat } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
-    const offer = undoOf(commandTrail, game, perspectiveId);
+    // Nevermind after End turn (`view/end-turn-takeback.ts`): the next hero's turn has just begun and nothing else has
+    // happened, so the same Undo button takes the End turn back to the hero who pressed it.
+    const handover = handoverTakebackOf(commandTrail, game);
+    const offer: UndoOffer | null =
+      handover &&
+      game.step.phase === "player" &&
+      game.step.kind === "turn" &&
+      game.step.activePlayerId === perspectiveId
+        ? { kind: "available", ...handover }
+        : undoOf(commandTrail, game, perspectiveId);
     if (offer && this.#selection.kind !== "idle") return { kind: "unavailable", reason: UNDO_REASONS.selecting };
     return offer;
   }

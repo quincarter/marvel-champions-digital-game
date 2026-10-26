@@ -67,9 +67,28 @@ export class PlayAreaScroll {
   #ids: ReadonlySet<InstanceId> | null = null;
   #focus: InstanceId | null = null;
   #targets: string | null = null;
+  #slots: readonly Rect[] = [];
+  #order: readonly InstanceId[] = [];
 
   constructor(redraw: () => void) {
     this.row = new HandScroll(redraw, { wheelWithinX: true });
+  }
+
+  /** Whether `id` is a card in the row as last drawn, scrolled into view or not. */
+  has(id: InstanceId): boolean {
+    return this.#order.includes(id);
+  }
+
+  /**
+   * Scrolls the row, outside a draw, just far enough that card `id` sits wholly in view (the pad's RT layer showing
+   * its glyphs on a card the row had scrolled off). False when the card is not in the row.
+   */
+  revealCard(id: InstanceId): boolean {
+    const at = this.#order.indexOf(id);
+    const slot = this.#slots[at];
+    if (!slot) return false;
+    this.row.scrollIntoView({ ...slot, x: slot.x - this.row.scrollX });
+    return true;
   }
 
   /** Measures this draw's row and brings into view what the player now needs to see. Call once per draw, before drawing. */
@@ -82,6 +101,8 @@ export class PlayAreaScroll {
   ): void {
     const rowRight = slots.reduce((right, slot) => Math.max(right, slot.x + slot.width), area.x);
     this.row.measure(area, rowRight);
+    this.#slots = slots;
+    this.#order = ids;
 
     const known = this.#ids;
     this.#ids = new Set(ids);

@@ -6,6 +6,7 @@
  * still owns the actual toggle (it needs `appSession()`, which view modules never
  * import), keyed by `SettingsRowInfo.id`.
  */
+import { couchFactorFits, type CouchSize } from "./couch-mode.js";
 import {
   SILENCED_WARNING_KEYS,
   silenceWarning,
@@ -24,12 +25,15 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
+  COUCH_MODE_VALUES,
+  couchModeFactor,
   RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   clampMusicVolume,
   renderScaleFactorOf,
   resolutionPixelsOf,
   type FrameRate,
+  type CouchMode,
   type RenderScale,
   type AchievementPopupPlace,
   type AchievementPopupSize,
@@ -66,6 +70,7 @@ export type SettingsRowId =
   | "same-name-conflict"
   | "hover-hero"
   | "hover-villain"
+  | "discord-presence"
   | EarnedItemId;
 
 export interface SettingsRowInfo {
@@ -146,6 +151,16 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
   ];
 }
 
+/** The desktop app's "Show my game on Discord" row. Drawn only there, so it is not in `settingsRowInfoOf` (shared with Pause). */
+export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "discord-presence",
+    title: "Show my game on Discord",
+    detail: "Shows what you're playing on your Discord profile while Discord is open.",
+    on: settings.discordPresence,
+  };
+}
+
 /**
  * Settings ▸ More ▸ Earned items (issue #291): one toggle per earned item. One not earned yet is still listed, dim, and
  * says how to earn it instead of what it does.
@@ -160,7 +175,11 @@ export function earnedItemRowInfoOf(settings: Settings, earned: ReadonlySet<Earn
   }));
 }
 
-/** The value "Sharper text" should switch *to* when it's off, given the screen's own device pixel ratio. What "off" restores is always `1`. */
+/**
+ * The value "Sharper text" should switch *to* when it's off, given the density the game draws at
+ * (`platform/screen-settings.ts#drawnDensity`: the pixel ratio or the render scale, couch mode's included). What "off"
+ * restores is always `1`.
+ */
 export function sharperTextTargetResolution(devicePixelRatio: number): number {
   return Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, devicePixelRatio || 1));
 }
@@ -193,6 +212,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
+    case "discord-presence":
+      return { ...settings, discordPresence: !settings.discordPresence };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
   }
@@ -540,7 +561,7 @@ export function cardHoverRowInfoOf(settings: Settings): CardHoverRowInfo {
   };
 }
 
-/** `settings` with the hover size set; a value that is not one of the five changes nothing. */
+/** `settings` with the hover size set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterCardHover(settings: Settings, value: CardHoverScale): Settings {
   return CARD_HOVER_SCALE_VALUES.includes(value) ? { ...settings, cardHoverScale: value } : settings;
 }
@@ -658,7 +679,7 @@ export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
   };
 }
 
-/** `settings` with the token's motion set; a value that is not one of the five changes nothing. */
+/** `settings` with the token's motion set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPlayerTokenMotion): Settings {
   return FIRST_PLAYER_TOKEN_MOTION_VALUES.includes(value) ? { ...settings, firstPlayerTokenMotion: value } : settings;
 }
@@ -731,7 +752,7 @@ export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementP
   };
 }
 
-/** `settings` with the popup's time set; a value that is not one of the five changes nothing. */
+/** `settings` with the popup's time set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterAchievementPopupTime(settings: Settings, value: AchievementPopupTime): Settings {
   return ACHIEVEMENT_POPUP_TIME_VALUES.includes(value) ? { ...settings, achievementPopupTime: value } : settings;
 }
@@ -772,6 +793,27 @@ export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
 /** `settings` with the window mode set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayMode): Settings {
   return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
+}
+
+// "Couch mode": everything drawn bigger for a TV (`ui/render-resolution.ts`). Every build but a phone.
+// `base` is the size the game is drawn from (`couchBaseSize`): only the choices it can use whole are offered.
+export function couchModeRowInfoOf(
+  settings: Settings,
+  base: CouchSize = { width: Infinity, height: Infinity },
+): ScreenChoiceRowInfo<CouchMode> {
+  return {
+    title: "Couch mode",
+    detail: "Makes everything bigger, for playing on a TV from across the room.",
+    options: COUCH_MODE_VALUES.filter(
+      (value) => value === "off" || value === settings.couchMode || couchFactorFits(couchModeFactor(value), base),
+    ).map((value) => ({ value, label: value === "off" ? "Off" : value })),
+    selected: settings.couchMode,
+  };
+}
+
+/** `settings` with couch mode set; a value that is not one of the seven changes nothing. */
+export function nextSettingsAfterCouchMode(settings: Settings, value: CouchMode): Settings {
+  return COUCH_MODE_VALUES.includes(value) ? { ...settings, couchMode: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

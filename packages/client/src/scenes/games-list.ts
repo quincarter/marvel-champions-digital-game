@@ -8,6 +8,8 @@
  */
 import Phaser from "phaser";
 import { hit, surface, typeRole } from "../tokens.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import type { McScrollRegion } from "../ui/scroll-region.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { drawGamesList } from "../ui/games-list.js";
@@ -42,6 +44,10 @@ export class GamesListOverlay extends Phaser.Scene {
   #saves: readonly SaveMeta[] = [];
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
+  #region: McScrollRegion | null = null;
+  /** Resumes the first game that can be resumed: what Start does (never A with nothing focused). */
+  #startResume: (() => void) | null = null;
   #scroll = new VariableListScroll();
   #confirming: string | null = null;
   #busy = false;
@@ -61,7 +67,15 @@ export class GamesListOverlay extends Phaser.Scene {
     if (from) from.input.enabled = false;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#cancel() });
+    this.#hints = new GlyphHints(this);
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#cancel(),
+      // LB / RB and PageUp / PageDown turn a screenful; the right stick scrolls; Start resumes the first game.
+      onPage: (direction) => this.#region?.scrollByPx(direction * this.#region.rect.height * 0.9),
+      onHomeEnd: (edge) => this.#region?.scrollByPx(edge === "home" ? -1e6 : 1e6),
+      onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
+      onPause: () => this.#startResume?.(),
+    });
     // Games a device sync brought in or took away while the list is open.
     const unsubscribeSync = onSyncApplied(() => {
       if (!this.sys.isActive()) return;
@@ -76,12 +90,18 @@ export class GamesListOverlay extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       unsubscribeSync();
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       if (from) from.input.enabled = true;
     });
     this.#draw();
+  }
+
+  #resume(row: GameRow): void {
+    this.scene.stop();
+    this.#data.onResume(row.save);
   }
 
   #cancel(): void {
@@ -119,6 +139,9 @@ export class GamesListOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
+    this.#region = null;
+    this.#startResume = null;
 
     const { width, height } = this.scale.gameSize;
     const { pad } = setupMetrics(width, height);
@@ -152,6 +175,7 @@ export class GamesListOverlay extends Phaser.Scene {
       }),
     );
     stops.set("close", { rect: closeRect, activate: close });
+    if (this.#confirming === null) this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
 
     const top = pad + hit.target + 12;
     const columnWidth = Math.min(width - pad * 2, 560);
@@ -168,10 +192,8 @@ export class GamesListOverlay extends Phaser.Scene {
         confirming,
         enabled: !this.#busy,
         error: this.#error,
-        onResume: (row) => {
-          this.scene.stop();
-          this.#data.onResume(row.save);
-        },
+        hints: this.#hints,
+        onResume: (row) => this.#resume(row),
         onAskRemove: (row) => {
           this.#confirming = row.id;
           this.#draw();
@@ -180,6 +202,9 @@ export class GamesListOverlay extends Phaser.Scene {
         onRemove: (row) => void this.#remove(row),
       });
       this.#buttons.push(...drawn.buttons);
+      this.#region = drawn.region;
+      const first = confirming ? null : (rows.find((row) => !row.needsUpdate) ?? null);
+      this.#startResume = first && !this.#busy ? () => this.#resume(first) : null;
       for (const [key, stop] of drawn.stops) stops.set(key, stop);
     }
     this.#route?.set(

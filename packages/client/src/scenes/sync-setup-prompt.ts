@@ -77,6 +77,8 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
       // The sync screen it opens has its own route and owns Escape while it is up.
       blocked: () => this.scene.isActive(SCENES.syncData),
       onCancel: () => this.#answer("not-now"),
+      // Start is "forward": Set up sync.
+      primary: () => "set-up",
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);

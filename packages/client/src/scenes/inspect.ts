@@ -116,6 +116,11 @@ import type { BoardScene } from "./board.js";
 import type { RulesSceneData } from "./rules.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import type { GlyphHints } from "../ui/glyph-hints.js";
+import { createHints } from "./campaign/pad-hints.js";
+import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
+import { glyphSetOf } from "../view/input-mode.js";
+import { glyphsForShortcut } from "../view/input-glyph-model.js";
 import { McGuideTag } from "../ui/guide-tag.js";
 import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
@@ -291,6 +296,10 @@ export class InspectOverlay extends Phaser.Scene {
    * own `PressArm` for the identical reason.
    */
   #dismissArm = new PressArm();
+  /** The B glyph on the close control and the closing line, while a controller is in use. */
+  #hints!: GlyphHints;
+  /** Whether the last draw worded its close controls for a controller. */
+  #padWording = false;
   /** What the sheet's primary button does this rebuild — what Enter presses. Null when there is none. */
   #primaryAction: (() => void) | null = null;
   /** The panels' own rise-and-fade entrance/exit (`ui/transitions.ts`) — a fresh instance per open, so stepping ◂ ▸ through siblings (an ordinary rebuild, not a reopen) never replays it. */
@@ -328,6 +337,12 @@ export class InspectOverlay extends Phaser.Scene {
     this.#flipped = false;
     this.#sheetScroll = new VariableListScroll();
     this.#motion = new OverlayMotion();
+    this.#hints = createHints(this);
+    // The close wording follows the input in use: a pad press (or a key) redraws the sheet when that changes it.
+    const offInput = onInputDeviceChange(() => {
+      if (this.#padInUse() !== this.#padWording && this.sys.isActive()) this.#rebuild();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offInput);
 
     const { store } = appSession();
     // Only a card in a game can change underneath the sheet.
@@ -350,7 +365,17 @@ export class InspectOverlay extends Phaser.Scene {
 
     // The same five intents the Board and the choice sheet speak, so a pad
     // works here too. Both of those are blocked while this sheet is open.
-    const binding = { blocked: () => false, onIntent: (intent: GamepadIntent) => this.#onIntent(intent) };
+    const binding = {
+      blocked: () => false,
+      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      // The right stick reads long rules text: the phone sheet's one scrolling body, or the card panel's own text when
+      // it overflowed. "View" has no meaning here (a card is already the whole screen), so it is left unhandled.
+      onScroll: (_dx: number, dy: number) => {
+        if (this.#motion.leaving) return;
+        if (this.#sheetRegion) this.#sheetRegion.scrollByPx(dy);
+        else for (const panel of this.#scrollPanels) panel.scrollByPx(dy);
+      },
+    };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
 
@@ -381,6 +406,12 @@ export class InspectOverlay extends Phaser.Scene {
     }
 
     this.#rebuild();
+  }
+
+  /** Whether the hints are the controller's right now (the close wording says B, not Esc or click). */
+  #padInUse(): boolean {
+    const settings = appSession().settings;
+    return glyphSetOf(inputDevice(), settings.inputGlyphs, settings.glyphSource) === "pad";
   }
 
   #close(): void {
@@ -486,6 +517,8 @@ export class InspectOverlay extends Phaser.Scene {
     // claim in the same tick never wins.
     this.scene.bringToTop(SCENES.inspect);
 
+    this.#hints.reset();
+    this.#padWording = this.#padInUse();
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     for (const panel of this.#scrollPanels) panel.destroy();
@@ -669,6 +702,27 @@ export class InspectOverlay extends Phaser.Scene {
   #drawPanels(layout: Extract<InspectLayout, { mode: "panels" }>, model: InspectModel): void {
     this.#drawCardPanel(layout.card, model);
     this.#drawRulesPanel(layout.rules, model);
+    const hintStyle = { ...typeRole.label, size: 11, letterSpacing: 1.6 };
+    const stepper = this.#siblings.length > 1 ? "◂ previous card · next ▸ · " : "";
+    if (this.#padWording) {
+      // A controller closes with B: the glyph stands where "click anywhere" was, after the card stepper's words.
+      const cx = layout.hint.x + layout.hint.width / 2;
+      const cy = layout.hint.y + layout.hint.height / 2;
+      const lead = label(this, cx, cy, stepper, hintStyle, surface.paper.hex, ink.meta).setOrigin(0, 0.5);
+      const word = label(this, cx, cy, "to close", hintStyle, surface.paper.hex, ink.meta).setOrigin(0, 0.5);
+      this.#hints.custom(
+        (set, snapshot) => (set === "pad" ? glyphsForShortcut("cancel", snapshot.state, snapshot.settings) : null),
+        18,
+        ({ full }) => {
+          const total = lead.width + full + 6 + word.width;
+          const x = cx - total / 2;
+          lead.setPosition(x, cy);
+          return { x: x + lead.width, y: cy };
+        },
+        { ground: "ink", word },
+      );
+      return;
+    }
     const hint =
       this.#siblings.length > 1 ? "◂ previous card · next ▸ · click anywhere to dismiss" : "click anywhere to dismiss";
     label(
@@ -1154,13 +1208,13 @@ export class InspectOverlay extends Phaser.Scene {
   #drawRulesPanel(fullRect: Rect, model: InspectModel): void {
     // A card with nothing to say beside an open choice (a printed card in the Civil War builder) gets no heading and
     // no tall empty box: only the choice buttons, in a strip at the card's foot.
+    const sectionCount = this.#rulesSectionHeights(Math.max(1, fullRect.width - RULES_PAD * 2), model).length;
     const mode = rulesPanelMode(
-      this.#rulesSectionHeights(Math.max(1, fullRect.width - RULES_PAD * 2), model).length,
+      sectionCount,
       model.history.length,
       Boolean(this.#choice) && !this.#note,
       model.instanceId === ("" as InstanceId) && !this.#note,
     );
-    if (mode === "none") return;
     const compact = mode === "compact";
     const rect = compact ? compactRulesRect(fullRect, RULES_PAD, hit.primary) : fullRect;
     this.#drawShadow(rect);
@@ -1180,19 +1234,29 @@ export class InspectOverlay extends Phaser.Scene {
         })
         .setLetterSpacing(1);
       const escWidth = 50;
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: "Esc",
-          type: { ...typeRole.label, size: 11 },
-          rect: { x: rect.x + rect.width - pad - escWidth, y: rect.y + pad - 3, width: escWidth, height: 28 },
-          onClick: () => this.#close(),
-        }),
-      );
+      // A controller closes with B, so the button says "Close" and wears the B glyph instead of "Esc".
+      const closeWidth = this.#padWording ? 96 : escWidth;
+      const closeButton = new McButton(this, {
+        kind: "onInk",
+        label: this.#padWording ? "Close" : "Esc",
+        type: { ...typeRole.label, size: 11 },
+        rect: { x: rect.x + rect.width - pad - closeWidth, y: rect.y + pad - 3, width: closeWidth, height: 28 },
+        onClick: () => this.#close(),
+      });
+      this.#buttons.push(closeButton);
+      this.#hints.button(closeButton, ["cancel"], "ink", { when: (set) => set === "pad" });
     }
 
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;
+    // A printed card with nothing to add still gets its panel, saying so, so the sheet keeps one shape card to card.
+    if (!compact && sectionCount === 0 && model.history.length === 0)
+      this.add
+        .text(rect.x + pad, y, "No traits, keywords or rules notes on this card.", {
+          ...textStyle(typeRole.body, surface.paper.hex, 0.75),
+          fontSize: "13px",
+        })
+        .setWordWrapWidth(inner);
 
     // A main scheme's other side (issue #295): a secondary button, never the Enter default (`#primaryAction` below).
     const sideToggle = this.#sideToggle();

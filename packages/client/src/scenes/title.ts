@@ -25,7 +25,7 @@ import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
 import { cardLanguage } from "../art/card-language.js";
-import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
 import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
@@ -35,7 +35,6 @@ import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
-import { preconDecks } from "../view/deck-list-model.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -73,6 +72,7 @@ import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
@@ -101,15 +101,18 @@ export interface TitleSceneData {
   readonly initialSeatDeck?: Deck;
 }
 
-/** The default seat: the first Core precon, as a `Deck` id — unchanged from before the setup flow split, so "New game" always starts from the same hero. */
-const DEFAULT_SEAT_DECK_ID = preconDecks(POOL_VERSION)[0]!.id as string;
-
-/** A fresh New game draft: the pool's first scenario, the default seat-one precon, a new seed. Shared with the
- * first-run chooser (`scenes/guide-chooser.ts`), whose "Hints only" / "No guide" continue straight into scenario select. */
-export function newGameDraft(): ReturnType<typeof initialSetupDraft> {
+/**
+ * A fresh New game draft: a new seed, every seat blank and, by default, no villain picked. Nothing is preselected
+ * (owner, 2026-10-26): Scenario select and Take your seats each wait for the player's pick. `picked` seeds the pool's
+ * first scenario as the pick, for the two entries that skip Scenario select (Civil War!'s builder, "Play this deck").
+ * Shared with the first-run chooser (`scenes/guide-chooser.ts`), whose "Hints only" / "No guide" continue straight
+ * into scenario select.
+ */
+export function newGameDraft(picked = false): ReturnType<typeof initialSetupDraft> {
   return initialSetupDraft({
     scenarioId: POOL_SCENARIOS[0]!.id as string,
-    seatDeckId: DEFAULT_SEAT_DECK_ID,
+    seatDeckId: null,
+    scenarioPicked: picked,
     seed: rollSeed(),
   });
 }
@@ -140,6 +143,10 @@ export class TitleScene extends Phaser.Scene {
   /** "Rank up: <title>" while the badge shows the fanfare (a few seconds after the Title opens), else null. */
   #rankUp: string | null = null;
   #route: FocusRoute | null = null;
+  /** The scene's glyph hints (pad and keyboard only): R3 / F jumps to the in-progress games. */
+  #hints: GlyphHints | null = null;
+  /** The Trophy Room hand-off drawn this rebuild (its button and the rank tile press it), for the View button. */
+  #openTrophies: (() => void) | null = null;
   #stops = new Map<string, FocusStop>();
 
   constructor() {
@@ -148,7 +155,7 @@ export class TitleScene extends Phaser.Scene {
 
   create(data: TitleSceneData = {}): void {
     if (data.initialSeatDeckId) {
-      const draft = withSeatOne(this.#freshDraft(), data.initialSeatDeckId);
+      const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
       const seedDecks =
         data.initialSeatDeck && data.initialSeatDeck.id === data.initialSeatDeckId ? [data.initialSeatDeck] : [];
       goToScreen(this, SCENES.seats, { draft, seedDecks } satisfies SeatsData);
@@ -156,6 +163,7 @@ export class TitleScene extends Phaser.Scene {
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
+    this.#hints = new GlyphHints(this);
     // The footer says when power saving mode is on (`platform/power-saving.ts`).
     const unsubscribePowerSaving = onPowerSavingChange(() => {
       if (this.sys.isActive()) this.#rebuild();
@@ -169,12 +177,28 @@ export class TitleScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       unsubscribePowerSaving();
       unsubscribeSync();
+      this.#hints?.dispose();
+      this.#hints = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.gamesList),
+      // R3 (and the Expand key, F / ;) snaps focus to the in-progress games, ready to scroll.
+      onExpand: () => {
+        if (this.#starting) return;
+        // The first game's Resume, else the games row, else the remove question's "Keep it"; none of them a stop
+        // (no games, nothing listed): leave focus where it is, as focusKey would drop it.
+        const stop =
+          [...this.#stops.keys()].find((key) => key.startsWith("game:")) ??
+          ["games-row", "remove-keep"].find((key) => this.#stops.has(key));
+        if (stop) this.#route?.focusKey(stop);
+      },
+      // View / Back (and the Peek key) is the Trophy Room, the same as its button.
+      onView: () => {
+        if (!this.#starting) this.#openTrophies?.();
+      },
     });
     // Phaser reuses this scene instance across "back to title" round trips, so state from a previous visit
     // (a stuck "Starting…", a stale Continue) must not survive into this one.
@@ -308,6 +332,7 @@ export class TitleScene extends Phaser.Scene {
     this.#buttons = [];
     this.#stops = new Map();
     destroyChildren(this);
+    this.#hints?.reset();
 
     const { width, height } = this.scale.gameSize;
     const civilWar = civilWarTitleEntryOf(unlocks().waveLock(CIVIL_WAR_CYCLE_ID), POOL_SCENARIOS);
@@ -444,6 +469,7 @@ export class TitleScene extends Phaser.Scene {
           onClick: () => this.#openGamesList(),
         }),
       );
+      this.#hints?.button(this.#buttons.at(-1)!, ["expand"], "ink");
       // A decorative tag at the row's right end, over the button but taking no press.
       if (layout.gamesRow.width >= 300) {
         const row = layout.gamesRow;
@@ -500,7 +526,7 @@ export class TitleScene extends Phaser.Scene {
     // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
     if (civilWar && layout.civilWar) {
       const openCivilWar = (): void => {
-        const entry = enterBuilder("build", newGameDraft(), civilWar.scenarioId);
+        const entry = enterBuilder("build", newGameDraft(true), civilWar.scenarioId);
         setBuilderOrigin("title");
         this.scale.off("resize", this.#rebuild, this);
         goToScreen(this, SCENES.civilWarBuilder, {
@@ -539,6 +565,7 @@ export class TitleScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.trophyRoom);
     };
+    this.#openTrophies = openTrophies;
     this.#buttons.push(
       new McButton(this, {
         kind: menuKind,
@@ -691,7 +718,9 @@ export class TitleScene extends Phaser.Scene {
         textStyle(typeRole.sectionHeader, surface.paper.hex),
       )
       .setLetterSpacing(1);
-    drawBetaTagBeside(this, heading, list.x + list.width);
+    // The R3 glyph owns the header's right end; the Beta tag stops short of it (about 56px for glyph and gap).
+    drawBetaTagBeside(this, heading, list.x + list.width - 56);
+    this.#hints?.rightInRow(panel, panel.y + 12, GAMES_PANEL_HEADER, 14, ["expand"], 20);
     const confirming = this.#removing === null ? null : (rows.find((row) => row.id === this.#removing) ?? null);
     const drawn = drawGamesList(this, {
       area: list,
@@ -881,8 +910,8 @@ export class TitleScene extends Phaser.Scene {
     if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
-  #freshDraft() {
-    return newGameDraft();
+  #freshDraft(picked = false) {
+    return newGameDraft(picked);
   }
 
   #newGame(): void {

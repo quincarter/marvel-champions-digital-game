@@ -12,6 +12,7 @@
 import Phaser from "phaser";
 import { hit, signal, statHue, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton, McTextInput } from "../ui/widgets.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { drawQr } from "../ui/qr-draw.js";
@@ -58,6 +59,8 @@ import { drawBetaTagBeside } from "../ui/beta-tag.js";
 import { isNativeShell, openExternal } from "../platform/platform.js";
 import { SYNC_INFO_LABEL, syncInfoUrl } from "../view/sync-info-link.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { PressGuard } from "./press-guard.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 
 const HEADER_HEIGHT = 60;
@@ -89,6 +92,9 @@ interface ButtonSpec {
 export class SyncDataOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #field: McTextInput | null = null;
+  #hints!: GlyphHints;
+  /** Holds the pad for a moment on every new step, so a press meant for the last one cannot join or unlink. */
+  #guard!: PressGuard;
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   #step: SyncStep = { kind: "home" };
@@ -115,9 +121,15 @@ export class SyncDataOverlay extends Phaser.Scene {
     const service = syncService();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
+    this.#guard = new PressGuard(this);
+    // B, A or Start take the caret out of the code field (before the route, so the same press cannot also back out).
+    bindTextFieldEscape(this, () => this.#field);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.#field?.focused ?? false,
+      blocked: () => (this.#field?.focused ?? false) || !this.#guard.armed,
       onCancel: () => this.#cancel(),
+      // Start is "forward" on the steps that have one main button.
+      primary: () => (this.#step.kind === "join" ? "join-go" : this.#step.kind === "join-link" ? "join-link" : null),
     });
     let subscribed = false;
     const stopStatus = service.status.subscribe(() => {
@@ -131,6 +143,7 @@ export class SyncDataOverlay extends Phaser.Scene {
     subscribed = true;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#hints.dispose();
       stopStatus();
       stopLink();
       this.#clearControls();
@@ -156,6 +169,7 @@ export class SyncDataOverlay extends Phaser.Scene {
   #set(step: SyncStep, status: SaveDataStatus): void {
     this.#step = step;
     this.#status = status;
+    this.#guard.restart();
     this.#draw();
   }
 
@@ -293,6 +307,7 @@ export class SyncDataOverlay extends Phaser.Scene {
     const step = this.#step;
     const keepField = step.kind === "join" && step.phase === "typing";
     this.#clearControls(keepField);
+    this.#hints.reset();
     const kept = (keepField && this.#field?.gameObjects) || [];
     for (const object of kept) this.children.remove(object);
     destroyChildren(this);
@@ -320,16 +335,16 @@ export class SyncDataOverlay extends Phaser.Scene {
       height: closeSize,
     };
     const locked = this.#working || syncStepMustAcknowledge(step);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "✕",
-        type: typeRole.rowTitle,
-        rect: closeRect,
-        enabled: !locked,
-        onClick: () => this.#close(),
-      }),
-    );
+    const closeButton = new McButton(this, {
+      kind: "secondary",
+      label: "✕",
+      type: typeRole.rowTitle,
+      rect: closeRect,
+      enabled: !locked,
+      onClick: () => this.#close(),
+    });
+    this.#buttons.push(closeButton);
+    if (!locked) this.#hints.button(closeButton, ["cancel"], "ink");
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     const barTitle = this.add
       .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, SYNC_ROW_TITLE), {

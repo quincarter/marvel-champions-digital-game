@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Linux app: X/Y and the triggers read correctly on pads the bridge has no SDL mapping for, so the LT/RT hold layers, the board glyphs and Inspect work on the pad.'
+time: 2026-10-24T21:23:08.5055645-04:00

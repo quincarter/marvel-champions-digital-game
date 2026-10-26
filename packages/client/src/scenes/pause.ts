@@ -43,7 +43,8 @@ import type { CardSize } from "../settings.js";
 import { playableScenarioOffer } from "@mc/cards";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
+import { caseOf, textStyle } from "../ui/theme.js";
+import { applyTextResolution, drawnDensity } from "../platform/screen-settings.js";
 import {
   McButton,
   McTextInput,
@@ -92,6 +93,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
 import { withLevel } from "../guide/guide-prefs.js";
+import { detectPlatform } from "../platform/platform.js";
+import { padAvailable } from "../platform/input-device.js";
 
 /** One "Quick reference" row (phone only): a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
 interface QuickReferenceRow {
@@ -100,6 +103,8 @@ interface QuickReferenceRow {
   readonly detail: string;
   readonly open?: () => void;
   readonly unavailable?: string;
+  /** Shares one line with the other compact rows (Music, Report, Controls): a short title in a cell, no detail, no chevron. */
+  readonly compact?: true;
 }
 
 /** The wide menu's own Bangers size — smaller than a bar title, still the display face, matching D13's own read of "RESUME"/"SETTINGS" etc. */
@@ -148,6 +153,7 @@ export class PauseOverlay extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.controls) ||
         this.scene.isActive(SCENES.inspect) ||
         (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#confirmingConcede ? this.#setConfirmingConcede(false) : this.#resume()),
@@ -166,6 +172,15 @@ export class PauseOverlay extends Phaser.Scene {
       this.#lowerRegion = null;
     });
     this.#draw();
+  }
+
+  /** The music player, over this sheet (the same scene the top bar's note opens). */
+  #openMusic(): void {
+    if (!this.scene.isActive(SCENES.musicPlayer)) this.scene.launch(SCENES.musicPlayer);
+  }
+
+  #openReport(): void {
+    if (!this.scene.isActive(SCENES.reportIssue)) this.scene.launch(SCENES.reportIssue);
   }
 
   #setConfirmingConcede(value: boolean): void {
@@ -217,7 +232,14 @@ export class PauseOverlay extends Phaser.Scene {
     // done. `scene.start(SCENES.title)` stops this scene as part of starting
     // Title, so there is no separate `this.scene.stop()` for Pause itself.
     this.#motion.exit(this, () => {
-      for (const overlay of [SCENES.rules, SCENES.settings, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+      for (const overlay of [
+        SCENES.rules,
+        SCENES.settings,
+        SCENES.controls,
+        SCENES.choice,
+        SCENES.inspect,
+        SCENES.villainPhase,
+      ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);
@@ -292,6 +314,32 @@ export class PauseOverlay extends Phaser.Scene {
         detail: "Sound, card size, villain phase and more.",
         open: () => this.scene.launch(SCENES.settings),
       },
+      {
+        id: "music",
+        title: "Music",
+        detail: "What is playing, and the songs you have earned.",
+        compact: true,
+        open: () => this.#openMusic(),
+      },
+      {
+        id: "report",
+        title: "Report",
+        detail: "Tell us about a bug or a wrong ruling.",
+        compact: true,
+        open: () => this.#openReport(),
+      },
+      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
+      ...(detectPlatform() !== "capacitor" || padAvailable()
+        ? [
+            {
+              id: "controls",
+              title: "Controls",
+              detail: "Controller buttons, keyboard shortcuts and hints.",
+              compact: true as const,
+              open: () => this.scene.launch(SCENES.controls),
+            },
+          ]
+        : []),
     );
     return rows;
   }
@@ -330,6 +378,7 @@ export class PauseOverlay extends Phaser.Scene {
           hasTail: entry.cardRefs.length > 0,
         })),
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
+        quickReferenceCompactTail: quickReferenceRows.filter((row) => row.compact).length,
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
@@ -469,6 +518,10 @@ export class PauseOverlay extends Phaser.Scene {
       this.scene.launch(SCENES.settings),
     );
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
+    this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
+    // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
+    const reportLabel = layout.menu.report.width < 130 ? "Report" : "Report a problem";
+    this.#menuButton(stops, "report", "onInk", reportLabel, layout.menu.report, () => this.#openReport());
 
     // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
     // `layout.guideStopTutorial`/`guideTurnGuideOff` are `null` unless `guidedRunActive` was true when this layout
@@ -963,6 +1016,24 @@ export class PauseOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, rect, "onInk", enabled ? "rest" : "unavailable");
     const alpha = enabled ? 1 : ink.disabled;
+    if (row.compact) {
+      // A cell of a shared line: the title centred, nothing else (the row's detail is its accessible hint, not drawn).
+      const title = label(
+        this,
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+        row.title,
+        typeRole.rowTitle,
+        surface.paper.hex,
+        alpha,
+      ).setOrigin(0.5);
+      fitText(title, rect.width - 12, typeRole.rowTitle.size);
+      const act = (): void => row.open?.();
+      stops.set(`quick:${row.id}`, { rect, activate: act });
+      const cell = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+      if (enabled) onTap(cell.setInteractive({ useHandCursor: true }), act, `quick:${row.id}`);
+      return;
+    }
     this.add
       .text(rect.x + 12, rect.y + 6, row.title, textStyle(typeRole.rowTitle, surface.paper.hex, alpha))
       .setWordWrapWidth(rect.width - 60);
@@ -1058,8 +1129,8 @@ export class PauseOverlay extends Phaser.Scene {
 
   #toggleTableRow(row: SettingsRowInfo): void {
     const { settings } = appSession();
-    const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
-    if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    const next = nextSettingsAfterToggle(settings, row.id, drawnDensity());
+    if (row.id === "sharper-text") applyTextResolution(next);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
     this.#draw();
@@ -1401,7 +1472,14 @@ export class PauseOverlay extends Phaser.Scene {
    */
   #openHowToWin(): void {
     this.#motion.exit(this, () => {
-      for (const overlay of [SCENES.rules, SCENES.settings, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+      for (const overlay of [
+        SCENES.rules,
+        SCENES.settings,
+        SCENES.controls,
+        SCENES.choice,
+        SCENES.inspect,
+        SCENES.villainPhase,
+      ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);

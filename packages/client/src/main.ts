@@ -22,6 +22,8 @@ import { installLazyText } from "./ui/lazy-text.js";
 import { appSession } from "./session.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
+import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
+import { startDiscordPresence } from "./platform/discord-presence.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
 import { MusicScene } from "./audio/music-controller.js";
@@ -32,6 +34,13 @@ import { ReportButtonScene } from "./scenes/report-button.js";
 import { LanguageButtonScene } from "./scenes/language-button.js";
 import { LanguagePopupOverlay } from "./scenes/language-popup.js";
 import { installDebugDump } from "./ui/debug-dump.js";
+import { installInputDeviceTracking } from "./platform/input-device.js";
+import { installVisibleArea } from "./platform/visible-area.js";
+import { installGamepadLive } from "./platform/gamepad-live.js";
+import { linuxAudioContext } from "./platform/linux-audio.js";
+import { startNativeAudio } from "./audio/native-audio.js";
+import { startNativeGamepad } from "./platform/native-gamepad.js";
+import { startHangWatchdogHeartbeat } from "./platform/hang-watchdog.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -44,6 +53,8 @@ import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
 import { installIdleRender } from "./ui/idle-render.js";
+import { fpsReadoutWanted, installFpsHotkey, installFpsReadout } from "./ui/fps-readout.js";
+import { holdDebugWanted, installHoldDebug } from "./ui/hold-debug.js";
 import { onHardwareChange, readHardware } from "./platform/device-hardware.js";
 import {
   drawsAtScreenDensity,
@@ -86,6 +97,14 @@ const rendererOptions = rendererOptionsOf(
   renderScale,
 );
 
+// Linux desktop app: a 48 kHz, playback-latency context, so the Deck's audio stops crackling (`platform/linux-audio.ts`).
+const inTauri = (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined;
+const audioContext = linuxAudioContext(inTauri, navigator.userAgent);
+
+// The Linux app plays its music and effects natively (`audio/native-audio.ts`); the 48 kHz context above is what Phaser
+// falls back to if the shell cannot reach the audio server.
+void startNativeAudio(inTauri, navigator.userAgent);
+
 const game = new Phaser.Game({
   // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).
   type: rendererOptions.canvas ? Phaser.CANVAS : Phaser.WEBGL,
@@ -102,6 +121,7 @@ const game = new Phaser.Game({
   // Off by default in Phaser 4; the Board's focus route is otherwise wired
   // for it already (`view/gamepad.ts`, `scenes/board/input.ts#bindGamepad`).
   input: { gamepad: true },
+  ...(audioContext ? { audio: { context: audioContext } } : {}),
   scale: {
     // RESIZE makes the canvas exactly its parent's size, so game coordinates
     // are CSS pixels and every layout rectangle is drawn at its real size.
@@ -150,6 +170,9 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
   applyDesktopWindowOnLaunch(launch);
 });
 watchStartup(game);
+// The "Controller connected" toast (`scenes/pad-toast.ts`), fed by the browser's gamepad events.
+startPadToastWatch(game);
+startDiscordPresence(game);
 
 // Device sync (#276, `sync/sync-wiring.ts`): its code loads after the first frame, so it stays out of the entry chunk. It
 // syncs in the background when this device is linked, and leaves alone the game on the table (the Board, or its deal),
@@ -203,12 +226,42 @@ game.input.mouse?.disableContextMenu();
 // A frame that would look exactly like the last one isn't drawn again (#328, `ui/idle-render.ts`). Before the frame
 // guard, which wraps whatever `step` is by then.
 installIdleRender(game, Phaser, window.location.search);
+// `?fps=1` or Ctrl+Shift+F shows a frame-rate readout, for checking a slow screen on a real device (`ui/fps-readout.ts`).
+if (fpsReadoutWanted(window.location.search)) installFpsReadout(game);
+installFpsHotkey(game);
+const seenScenes = new Set<string>();
+// `?holddebug=1` logs what a long press does, for a phone where Inspect waits for the lift (`ui/hold-debug.ts`).
+if (holdDebugWanted(window.location.search))
+  installHoldDebug((listener) =>
+    game.events.on(Phaser.Core.Events.POST_STEP, () => {
+      for (const scene of game.scene.getScenes(true)) {
+        const key = scene.sys.settings.key;
+        if (!seenScenes.has(key)) {
+          seenScenes.add(key);
+          listener(key);
+        }
+      }
+      for (const key of [...seenScenes]) if (!game.scene.isActive(key)) seenScenes.delete(key);
+    }),
+  );
 
 // One bad frame must not end the game: a throwing tween is removed, anything else skips that frame (`ui/frame-guard.ts`).
 installFrameGuard(game);
 
 // Ctrl/Cmd+Shift+D copies a snapshot of every overlay's and the store's state, in production too (`ui/debug-dump.ts`).
 installDebugDump(game);
+// A reconnected controller works at once, and a webview whose pads keep their own clock still reads them
+// (`platform/gamepad-live.ts`).
+installGamepadLive(Phaser);
+// On Linux the desktop app reads controllers itself, in place of the webview's (`platform/native-gamepad.ts`).
+startNativeGamepad(game);
+// On Linux the desktop app reloads the page if WebKit's web process hangs; this is the page's heartbeat for it
+// (`platform/hang-watchdog.ts`).
+startHangWatchdogHeartbeat();
+// Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
+installInputDeviceTracking();
+// Trims the game box to the visible area where a toolbar overlays the page (`platform/visible-area.ts`).
+installVisibleArea(game);
 
 // A GPU reset in the native webviews turns every label into a black box
 // unless the text is redrawn once the context is back (`ui/context-recovery.ts`).

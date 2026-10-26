@@ -68,6 +68,8 @@ export interface AspectInfoSegmentOptions {
    */
   readonly clip?: () => Rect | null;
   readonly suppressClick?: () => boolean;
+  /** The tip opens only on a press (`ChipInfoToggle.pressOnly`): the pointer resting over the segment opens nothing. */
+  readonly pressOnly?: boolean;
 }
 
 /** `color` scaled toward black by `factor` (0–1), channel by channel. */
@@ -114,7 +116,7 @@ export function drawAspectInfoSegment(
   });
   zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
     if (pointer.wasTouch) return;
-    if (!isOpen) onOpen();
+    if (!isOpen && options.pressOnly !== true) onOpen();
   });
   zone.on("pointerout", (pointer: Phaser.Input.Pointer) => {
     if (pointer.wasTouch) return;

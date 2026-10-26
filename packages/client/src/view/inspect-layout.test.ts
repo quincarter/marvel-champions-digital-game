@@ -323,7 +323,7 @@ describe("sheetPlayPayWidths", () => {
 describe("the compact Rules & state panel", () => {
   test("an empty panel is compact beside a choice, absent without one on a printed card, and full otherwise", () => {
     expect(rulesPanelMode(0, 0, true, true)).toBe("compact");
-    expect(rulesPanelMode(0, 0, false, true)).toBe("none");
+    expect(rulesPanelMode(0, 0, false, true)).toBe("full");
     expect(rulesPanelMode(0, 0, false, false)).toBe("full");
     expect(rulesPanelMode(1, 0, true, true)).toBe("full");
     expect(rulesPanelMode(0, 2, false, true)).toBe("full");

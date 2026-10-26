@@ -42,6 +42,8 @@ import {
 import type { RunPageCrop } from "../../view/campaign-run-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignFinaleData } from "./routes.js";
 
@@ -51,6 +53,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
   #view: FinaleView | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
 
   constructor() {
     super(SCENES.campaignFinale);
@@ -63,6 +66,9 @@ export class CampaignFinaleScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
+    this.#route = null;
+    this.#hints = createHints(this);
     this.cameras.main.setBackgroundColor(cssOf(signal.caution.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
@@ -104,12 +110,19 @@ export class CampaignFinaleScene extends Phaser.Scene {
     // plain villain/hero grid below; a box with no `pages` or no `finale.page` (MC10) keeps that grid untouched.
     const pageCrop = finaleSpreadCropFor(fullStory);
 
+    this.#hints?.reset();
     const order: string[] = [];
     const stops = new Map<string, FocusStop>();
     if (phone) this.#drawPhone(width, height, view, story, lastNodeId, pageCrop, order, stops);
     else this.#drawWide(width, height, view, story, lastNodeId, pageCrop, order, stops);
 
-    this.#route = this.#route ?? new FocusRoute(this);
+    // B goes back to the saga; Start and A with nothing focused take the big button (Expert campaign / Back to the saga).
+    this.#route =
+      this.#route ??
+      new FocusRoute(this, {
+        onCancel: () => goToScreen(this, SCENES.campaignSaga),
+        primary: () => "primary",
+      });
     this.#route.set(order, stops);
   }
 
@@ -492,7 +505,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
 
     const primaryLabel = view.alreadyExpert ? "Back to the saga ▸" : "Expert campaign unlocked ▸";
     const primaryRect: Rect = { x: rect.x, y, width: rect.width, height: 54 };
-    button({
+    const primaryButton = button({
       kind: "primary",
       label: primaryLabel,
       type: typeRole.barTitle,
@@ -520,7 +533,10 @@ export class CampaignFinaleScene extends Phaser.Scene {
 
     const bottom = y;
     const offset = Math.max(0, rect.y + rect.height - bottom);
-    if (offset <= 0) return;
+    if (offset <= 0) {
+      forwardHint(this.#hints, primaryButton, "ink");
+      return;
+    }
     for (const object of objects) {
       const positioned = object as Phaser.GameObjects.GameObject & { y?: number; setY?: (y: number) => unknown };
       if (typeof positioned.y === "number" && positioned.setY) positioned.setY(positioned.y + offset);
@@ -530,6 +546,10 @@ export class CampaignFinaleScene extends Phaser.Scene {
     }
     const reread = stops.get("reread");
     if (reread) stops.set("reread", { ...reread, rect: { ...rereadRect, y: rereadRect.y + offset } });
+    const primaryStop = stops.get("primary");
+    if (primaryStop) stops.set("primary", { ...primaryStop, rect: { ...primaryRect, y: primaryRect.y + offset } });
+    // After the shift, so the glyph sits where the button ended up.
+    forwardHint(this.#hints, primaryButton, "ink");
   }
 
   /** A ground-colored, ink-outlined Bangers button — `skin()` has no kind that draws this, so it's hand-drawn. */

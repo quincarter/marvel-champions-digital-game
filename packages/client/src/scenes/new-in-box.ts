@@ -16,6 +16,8 @@ import { dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { hintCancelInHeader } from "../ui/header-cancel-hint.js";
 import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { Rect } from "../view/layout.js";
@@ -62,6 +64,9 @@ export class NewInBoxScene extends Phaser.Scene {
   #region: McScrollRegion | null = null;
   #scroll = new VariableListScroll();
   #starting = false;
+  #hints!: GlyphHints;
+  /** The header title's bounds, which the Cancel glyph must not cover. */
+  #titleBounds: Rect[] = [];
   #unsubscribePrefs: (() => void) | null = null;
 
   constructor() {
@@ -79,12 +84,16 @@ export class NewInBoxScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       this.#unsubscribePrefs?.();
       this.#unsubscribePrefs = null;
+      this.#hints.dispose();
       this.#region?.destroy();
       this.#region = null;
     });
+    this.#hints = new GlyphHints(this, () => this.#titleBounds);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.rules),
       onCancel: () => this.#leave(),
+      onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
+      onPage: (direction) => this.#region?.scrollByPx(direction * this.scale.gameSize.height * 0.7),
     });
     if (!this.#page()) {
       this.#leave();
@@ -101,6 +110,7 @@ export class NewInBoxScene extends Phaser.Scene {
   #rebuild(): void {
     this.#region?.destroy();
     this.#region = null;
+    this.#hints.reset();
     destroyChildren(this);
     const page = this.#page();
     if (!page) return;
@@ -251,13 +261,16 @@ export class NewInBoxScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     onTap(zone, () => this.#leave(), "close");
-    this.add
+    const title = this.add
       .text(header.title.x, header.header.height / 2, page.title.toUpperCase(), {
         ...textStyle(TITLE_TYPE, surface.paper.hex),
         fontSize: "20px",
         wordWrap: { width: header.title.width },
       })
       .setOrigin(0, 0.5);
+    const b = title.getBounds();
+    this.#titleBounds = [{ x: b.x, y: b.y, width: b.width, height: b.height }];
+    hintCancelInHeader(this.#hints, header.header, title);
   }
 
   #drawRowFrame(rect: Rect): void {

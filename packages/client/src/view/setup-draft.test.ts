@@ -57,6 +57,24 @@ describe("initialSetupDraft", () => {
     expect(draft.scenarioFilter.text).toBe("");
     expect(draft.heroFilter.text).toBe("");
   });
+
+  test("a fresh New game: blank seats and no villain picked, until setScenario and a seat pick", () => {
+    const blank = initialSetupDraft({
+      scenarioId: RHINO.id as string,
+      seatDeckId: null,
+      scenarioPicked: false,
+      seed: 1,
+    });
+    expect(blank.seats).toEqual([]);
+    expect(blank.scenarioPicked).toBe(false);
+    // The table stays blank when Take your seats prunes against the decks on offer (no fallback seat is invented).
+    expect(pruneSeats(blank, new Set([DEFAULT_DECK_ID]), DEFAULT_DECK_ID).seats).toEqual([]);
+    expect(setScenario(blank, RHINO, RHINO.id as string).scenarioPicked ?? true).toBe(true);
+    expect(assignToActiveSeat(blank, DEFAULT_DECK_ID).seats).toEqual([DEFAULT_DECK_ID]);
+    // Every other draft (dev jumps, Random, replays) is picked without saying so.
+    const normal = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    expect(normal.scenarioPicked).toBeUndefined();
+  });
 });
 
 describe("difficultyOptionsFor", () => {

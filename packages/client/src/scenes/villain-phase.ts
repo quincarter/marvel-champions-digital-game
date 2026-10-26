@@ -115,6 +115,14 @@
  * work identically either way.
  */
 
+import { GlyphHints } from "../ui/glyph-hints.js";
+import type { GlyphGround } from "../ui/input-glyph.js";
+import { primaryGlyphShown } from "../view/primary-activation.js";
+import { pickGlyphSpecs } from "../view/input-glyph-model.js";
+import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import { isSamePress } from "../view/press-settle.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
 import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
@@ -206,6 +214,7 @@ import {
 import { villainDefendFocusOrder, villainPhaseFocusOrder, villainRailFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
+import { openPauseOverBoard } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { VILLAIN_DOCK_CHANGED, type BoardScene } from "./board.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
@@ -248,11 +257,13 @@ import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { endOfTurnDrawsOf, endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
+import { gateTakebackOf } from "../view/end-turn-takeback.js";
 import {
   abilityName,
   drawInterruptAnswer,
   drawVillainRailPanel,
   happeningDebug,
+  NEVERMIND_LABEL,
   type RailBody,
   type RailGate,
 } from "../ui/villain-rail-panel.js";
@@ -302,7 +313,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #revealTimer: Phaser.Time.TimerEvent | null = null;
   #closeTimer: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
+  /** The key and button glyphs on the phase's controls (`ui/glyph-hints.ts`), desktop and tablet landscape only. */
+  #hints!: GlyphHints;
+  /** The stop key of this draw's primary commit (Start, Answer, Continue, Resolve): what Enter / A presses unfocused. */
+  #primaryStop: string | null = null;
+  /** The stop X (G) presses: the panel's second answer, or null when it has none right now. */
+  #secondaryStop: string | null = null;
+  /** The docked defend panel's direct picks: the slot a combo means (`view/pick-assign.ts`) to what pressing it does. */
+  #pickTaps = new Map<number, () => void>();
   #route: FocusRoute | null = null;
+  /**
+   * What the pad's View and R3 (and the P and X keys) do on the docked decision this draw: its tuck / PEEK control and
+   * its EXPAND control. Set by the draw that shows those controls, so a press never reaches a control that is not there.
+   */
+  #padPeek: (() => void) | null = null;
+  #padExpand: (() => void) | null = null;
   #motion = new OverlayMotion();
   /** The game before the phase began, for the recap's "what changed" tiles. */
   #before: GameState | null = null;
@@ -328,6 +353,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * on its five steps and waits for the player before anything plays (`#gateEligible`).
    */
   #started = false;
+  /** Nevermind rewound the End turn that began this phase: closing it keeps no recap for a phase that never happened. */
+  #tookBack = false;
   /** Who drew what as the player phase ended, read off the command that began this phase. */
   #endOfTurn: EndOfTurnDraws | null = null;
   /** Decisions the player chose to answer from the phase's notice (ANSWER ▸): their sheet may come up. */
@@ -357,12 +384,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #defendPick: { readonly choiceId: string; readonly optionId: string } | null = null;
   /** EXPAND on the docked recap: today's full-screen recap instead. */
   #recapExpanded = false;
+  /** The game frame EXPAND / COLLAPSE / PEEK last changed the decision's shape (`view/press-settle.ts`). */
+  #lastToggleFrame: number | null = null;
 
   constructor() {
     super({ key: SCENES.villainPhase });
   }
 
   create(data?: VillainPhaseLaunchData): void {
+    this.#hints = new GlyphHints(this);
     this.#motion = new OverlayMotion();
     this.#before = data?.before ?? null;
     this.#recapScrolls.forEach((scroll) => scroll.reset());
@@ -385,6 +415,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#slideStartedAt = null;
     this.#recapShownAt = null;
     this.#started = false;
+    this.#tookBack = false;
     this.#answered = new Set();
     this.#soleAnswered = new Set();
     this.#noticeShownAt = new Map();
@@ -431,9 +462,32 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       blocked: () =>
         (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) ||
         this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.pause) ||
         // The only-option notice (#412) owns Escape: closing it must not also skip the walkthrough.
         this.scene.isActive(SCENES.optionNotice),
-      onCancel: () => this.#skip(),
+      // Esc / B on the START gate is Nevermind when End turn can still be taken back; otherwise it hides the phase.
+      onCancel: () => (this.#nevermindTarget() !== null ? void this.#nevermind() : this.#skip()),
+      primary: () => this.#primaryStop,
+      onToggle: () => {
+        if (this.#secondaryStop !== null) this.#route?.pressStop(this.#secondaryStop);
+      },
+      onFocusChange: () => this.#hints.refresh(),
+      // The docked defend's options each wear a combo (RT + A ...): hold a trigger or a bumper and press a face button.
+      picks: {
+        onLayer: (layer) => this.#hints.setLayer(layer),
+        onLayerPress: (layer, index) => this.#pickTaps.get(padPickSlotOf(layer, index) ?? -1)?.(),
+        active: () => this.#pickTaps.size > 0,
+        onBumper: (bumper) => this.#hints.setBumper(bumper),
+        onBumperPick: (bumper, index) => this.#pickTaps.get(padPickSlotOf(bumper, index) ?? -1)?.(),
+      },
+      // Start is "forward": it starts the phase (or continues) when that gate is up, and opens Pause otherwise.
+      onPause: () => {
+        // The gate's own button is "forward" even if the primary was not noted this draw: Start never opens Pause over it.
+        if (this.#route?.pressPrimary() || this.#route?.pressStop("start") || this.#route?.pressStop("answer")) return;
+        openPauseOverBoard(this);
+      },
+      onView: () => this.padPeek(),
+      onExpand: () => this.padExpand(),
     });
 
     // The desktop hover popover over the phase's own cards (the enemy, the revealed card, the interrupt card, the
@@ -562,7 +616,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /** A finished phase, closing: kept for review on the Board's drawer handle through the next player phase. */
   #tuckAway(): void {
     const game = this.#latest?.game;
-    if (this.#review || !game || !this.#walkthrough.complete) return;
+    if (this.#review || this.#tookBack || !game || !this.#walkthrough.complete) return;
     appSession().villainReview = {
       round: this.#walkthrough.round,
       walkthrough: this.#walkthrough,
@@ -591,6 +645,29 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       (playerId) => seatName(game, playerId, viewer),
       (instanceId) => cardName(game, instanceId),
     );
+  }
+
+  /**
+   * The pad's View (or P): PEEK AT TABLE / HIDE on the docked decision, the same call its control makes. The choice
+   * sheet forwards its own View here when the decision is docked, because it owns the pad while it is up.
+   */
+  padPeek(): void {
+    if (this.#sameToggle()) return;
+    this.#padPeek?.();
+  }
+
+  /** The pad's R3 (or X): EXPAND on the docked decision, recap or defend, the same call its control makes. */
+  padExpand(): void {
+    if (this.#sameToggle()) return;
+    this.#padExpand?.();
+  }
+
+  /** True when this press is one the choice sheet already acted on in the same poll; stamps the time otherwise. */
+  #sameToggle(): boolean {
+    const frame = this.game.loop.frame;
+    if (isSamePress(this.#lastToggleFrame, frame)) return true;
+    this.#lastToggleFrame = frame;
+    return false;
   }
 
   /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
@@ -923,6 +1000,35 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     return this.#answered.has(choice.choiceId) ? null : choice.choiceId;
   }
 
+  /**
+   * Nevermind, back to my turn (`view/end-turn-takeback.ts`): the command count to rewind to while this phase is still
+   * waiting on START and the End turn that began it is the last thing that happened; null from the moment START is
+   * pressed (the beats are being shown) or when anything else came after it.
+   */
+  #nevermindTarget(): number | null {
+    const state = this.#latest;
+    if (!state?.game || state.perspectiveId === null || this.#review || this.#started || this.#motion.leaving)
+      return null;
+    if (!this.#gateEligible() || state.game.outcome) return null;
+    // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
+    if (this.scene.isActive(SCENES.pause)) return null;
+    if (state.inFlight || state.version !== state.commandTrail.length) return null;
+    return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
+  }
+
+  /** Rewinds to just before End turn and closes the phase as if it had not begun: no recap is kept for it. */
+  async #nevermind(): Promise<void> {
+    const target = this.#nevermindTarget();
+    if (target === null) return;
+    // Before the await: the rewound state reaches `#onState` and `#tuckAway` while it is still in flight.
+    this.#tookBack = true;
+    if (!(await appSession().store.rewindTo(target))) {
+      this.#tookBack = false;
+      return;
+    }
+    this.#close();
+  }
+
   /** START VILLAIN PHASE: the beats start playing and any decision already open gets its notice. */
   #start(): void {
     if (this.#started) return;
@@ -949,7 +1055,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (this.#waitingToStart()) {
       // "End of your turn: you drew 1 card: Energy." reads on from the gate's own lead-in.
       const lead = this.#endOfTurnText(game, viewer).replace(/^You /, "you ");
-      return { kind: "start", lead, onPress: () => this.#start() };
+      return {
+        kind: "start",
+        lead,
+        onPress: () => this.#start(),
+        ...(this.#nevermindTarget() !== null ? { onNevermind: () => void this.#nevermind() } : {}),
+      };
     }
     const held = this.#heldChoiceId();
     // Peeking at the table from a docked decision (#231): the banner keeps the decision, and ANSWER goes back to it.
@@ -1290,6 +1401,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
+    this.#pickTaps.clear();
+    this.#primaryStop = null;
+    this.#secondaryStop = null;
+    this.#padPeek = null;
+    this.#padExpand = null;
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -1455,7 +1572,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .setLetterSpacing(1);
     fitText(title, layout.title.width, phone ? 22 : 34);
 
-    this.#buttons.push(
+    this.#pushHinted(
+      ["cancel"],
+      "ink",
+      null,
       new McButton(this, {
         kind: "onInk",
         label: "Skip",
@@ -1652,7 +1772,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
     const tuck = (): void => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true));
     const expand = (): void => this.#expandDecision(choiceId);
-    this.#buttons.push(
+    this.#padPeek = tuck;
+    this.#padExpand = expand;
+    this.#pushHinted(
+      ["expand"],
+      "ink",
+      null,
       new McButton(this, {
         kind: "onInk",
         label: "Expand",
@@ -1660,6 +1785,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         rect: layout.expand,
         onClick: expand,
       }),
+    );
+    this.#pushHinted(
+      ["peek"],
+      "ink",
+      null,
       new McButton(this, {
         // At the thumb on a phone, in the caution yellow the peek banner's ANSWER wears: the way to the table and back.
         ...(kind === "tab"
@@ -1751,6 +1881,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * EXPANDed decision comes back docked when the player returns to it.
    */
   #collapse(choiceId: string, tucked: boolean): void {
+    this.#lastToggleFrame = this.game.loop.frame;
     if (this.#userExpanded.has(choiceId)) {
       this.#expanded.delete(choiceId);
       this.#userExpanded.delete(choiceId);
@@ -1830,6 +1961,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     addPressShield(this, panel);
     if (layout.confirmInFooter && footer) addPressShield(this, footer);
     const choiceId = choice.choiceId;
+    this.#padPeek = () => this.#collapse(choiceId, true);
+    this.#padExpand = () => this.#expandDefend(choiceId);
     const stops = drawVillainDefendPanel(this, {
       layout,
       view,
@@ -1844,6 +1977,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       footer,
       buttons: this.#buttons,
       decider: game.players.length > 1 ? seatHeadingName(playerName(game, choice.playerId)) : null,
+      hint: (button, ids, primary, enabled) => this.#hintButton(button, ids, "ink", primary, enabled),
+      ...(glyphsFitFormFactor(formFactorFor(this.scale.gameSize.width, this.scale.gameSize.height))
+        ? {
+            pickHint: (optionId: string, row: Rect) => {
+              const slot = choice.options.findIndex((o) => o.optionId === optionId);
+              this.#registerPick(slot, row, () => this.#pickDefender(choiceId, optionId));
+            },
+          }
+        : {}),
     });
     this.#route?.set(villainDefendFocusOrder(view.options.map((option) => option.optionId)), stops);
     if (import.meta.env.DEV) {
@@ -1915,6 +2057,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFullLog: () => this.#openFullLog(),
       onToggle: () => this.#toggleAutoAdvance(),
       onStart: () => this.#close(),
+      hint: (button, ids, ground, primary, enabled) =>
+        this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),
+      hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       ...(this.#review ? { ctaLabel: "Close" } : {}),
       docked: {
         kind,
@@ -1922,6 +2067,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         onExpand: () => this.#expandRecap(),
       },
     });
+    this.#padExpand = () => this.#expandRecap();
     this.#route?.set(villainPhaseFocusOrder(true, [], undefined, true, true), stops);
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
@@ -1950,6 +2096,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFullLog: () => this.#openFullLog(),
       onToggle: () => this.#toggleAutoAdvance(),
       onStart: () => this.#close(),
+      hint: (button, ids, ground, primary, enabled) =>
+        this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),
+      hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       ...(this.#review ? { ctaLabel: "Close" } : {}),
     });
     // The recap is finished by definition, so Start player phase is first in the route.
@@ -2210,7 +2359,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       width: Math.min(width, 240),
       height: hit.target,
     };
-    this.#buttons.push(
+    this.#pushHinted(
+      ["activate"],
+      "ink",
+      "flip",
       new McButton(this, {
         kind: "primary",
         label: flipLabel,
@@ -2737,17 +2889,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       }
       if (typeText.y + typeText.height > textY + textHeight) typeText.setVisible(false);
 
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: multi
-            ? inlinePickLabel(interruptActionLabel(state, option), picks, option.optionId)
-            : interruptActionLabel(state, option),
-          type: typeRole.label,
-          rect: slot.button,
-          onClick: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
-        }),
-      );
+      const optionButton = new McButton(this, {
+        kind: "primary",
+        label: multi
+          ? inlinePickLabel(interruptActionLabel(state, option), picks, option.optionId)
+          : interruptActionLabel(state, option),
+        type: typeRole.label,
+        rect: slot.button,
+        onClick: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
+      });
+      this.#buttons.push(optionButton);
+      // The one card's Use is the window's forward answer: A with nothing focused, Start from anywhere.
+      if (!multi && i === 0) this.#hintButton(optionButton, ["activate"], "ink", `interrupt:${option.optionId}`);
       stops.set(`interrupt:${option.optionId}`, {
         rect: slot.button,
         activate: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
@@ -2762,15 +2915,19 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           height: resolveHeight,
         }
       : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: multi && picks.length > 0 ? "primary" : "secondary",
-        label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
-        type: typeRole.barTitle,
-        rect: resolveRect,
-        onClick: () => answer(multi ? picks : []),
-      }),
-    );
+    const commits = multi && picks.length > 0;
+    // B / Esc skip the whole walkthrough here, not "Let it resolve": the committing button carries A (Start), and a plain
+    // Let it resolve carries X (G).
+    const resolveButton = new McButton(this, {
+      kind: multi && picks.length > 0 ? "primary" : "secondary",
+      label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
+      type: typeRole.barTitle,
+      rect: resolveRect,
+      onClick: () => answer(multi ? picks : []),
+    });
+    this.#buttons.push(resolveButton);
+    if (commits) this.#hintButton(resolveButton, ["activate"], "ink", "resolve");
+    else this.#hintSecondary(resolveButton, "resolve");
     stops.set("resolve", { rect: resolveRect, activate: () => answer(multi ? picks : []) });
   }
 
@@ -2872,6 +3029,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       ...(draws ? [{ step: "Draw ·", text: draws }] : []),
     ];
 
+    // View / P do what the rail's Hide (or Peek at table) does, so its glyph is telling the truth.
+    const hide = (): void => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true));
+    this.#padPeek = hide;
     const stops = drawVillainRailPanel(this, {
       layout,
       game,
@@ -2898,8 +3058,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFlip: this.#flipGate() !== null ? () => this.#pressFlip() : null,
       autoAdvance: appSession().settings.villainAutoAdvance,
       buttons: this.#buttons,
+      hint: (button, ids, ground, primary, enabled) =>
+        this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),
+      hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       onSkip: () => this.#skip(),
-      onHide: () => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true)),
+      onHide: hide,
       onToggle: () => this.#toggleAutoAdvance(),
       onInspect: (instanceId) => this.scene.launch(SCENES.inspect, { instanceId }),
     });
@@ -2922,6 +3085,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         resolveRect: () => (inline ? (layout.interrupt?.resolve ?? null) : null),
         startRect: () => stops.get("start")?.rect ?? null,
         answerRect: () => stops.get("answer")?.rect ?? null,
+        nevermindRect: () => stops.get("nevermind")?.rect ?? null,
         boostedBeat: () => happeningDebug.boosted,
         breakdownBeat: () => happeningDebug.breakdown,
       };
@@ -3056,6 +3220,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       flipPeekEdge();
       this.#draw();
     };
+    const backButton = new McButton(this, {
+      kind: "secondary",
+      label: "Back ▴",
+      type: typeRole.label,
+      rect: layout.back,
+      onClick: back,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
@@ -3064,14 +3235,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         rect: layout.move,
         onClick: move,
       }),
-      new McButton(this, {
-        kind: "secondary",
-        label: "Back ▴",
-        type: typeRole.label,
-        rect: layout.back,
-        onClick: back,
-      }),
+      backButton,
     );
+    // View is the same toggle that opened the peek: it goes back, and Back wears its glyph.
+    this.#padPeek = back;
+    this.#hintButton(backButton, ["peek"], "ink");
     stops.set("move", { rect: layout.move, activate: move });
     stops.set("back", { rect: layout.back, activate: back });
 
@@ -3084,17 +3252,42 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       };
       const ground = this.add.graphics();
       ground.fillStyle(surface.ink.hex, 1).fillRect(footer.x, footer.y, footer.width, footer.height);
-      this.#buttons.push(
+      // Nevermind takes the right share of the bar while End turn can still be taken back.
+      const onNevermind = gate.kind === "start" ? gate.onNevermind : undefined;
+      const backWidth = onNevermind ? Math.round((rect.width - 12) * 0.38) : 0;
+      const goRect: Rect = onNevermind ? { ...rect, width: rect.width - backWidth - 12 } : rect;
+      // A / Enter presses it with nothing focused, and its glyph says so (the docked rail's gate does the same).
+      this.#pushHinted(
+        ["activate"],
+        "ink",
+        gate.kind === "start" ? "start" : "answer",
         new McButton(this, {
           kind: "primary",
           label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
           type: { ...typeRole.barTitle, size: 22 },
-          rect,
+          rect: goRect,
           tint: { fill: signal.caution.hex, ink: surface.ink.hex },
           onClick: gate.onPress,
         }),
       );
-      stops.set(gate.kind === "start" ? "start" : "answer", { rect, activate: gate.onPress });
+      stops.set(gate.kind === "start" ? "start" : "answer", { rect: goRect, activate: gate.onPress });
+      if (onNevermind) {
+        const backRect: Rect = { ...rect, x: rect.x + rect.width - backWidth, width: backWidth };
+        this.#pushHinted(
+          ["cancel"],
+          "ink",
+          null,
+          new McButton(this, {
+            kind: "onInk",
+            label: NEVERMIND_LABEL,
+            type: { ...typeRole.label, size: 12 },
+            rect: backRect,
+            wrap: true,
+            onClick: onNevermind,
+          }),
+        );
+        stops.set("nevermind", { rect: backRect, activate: onNevermind });
+      }
     } else if (inline && pause) {
       const resolveWidth = Math.round((footer.width - 24) * 0.38);
       const height = Math.max(hit.target, footer.height - 12);
@@ -3123,6 +3316,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         ),
         "start",
         "answer",
+        "nevermind",
         "move",
         "back",
       ],
@@ -3141,6 +3335,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         resolveRect: () => stops.get("resolve")?.rect ?? null,
         startRect: () => stops.get("start")?.rect ?? null,
         answerRect: () => stops.get("answer")?.rect ?? null,
+        nevermindRect: () => stops.get("nevermind")?.rect ?? null,
       };
     }
     this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });
@@ -3160,9 +3355,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#presentation = "hidden";
     const rect: Rect = { x: width - 16 - 220, y: 72, width: 220, height: hit.target };
     const show = (): void => this.#setHidden(false);
-    this.#buttons.push(
-      new McButton(this, { kind: "onInk", label: "◂ Villain phase", type: typeRole.label, rect, onClick: show }),
-    );
+    const handle = new McButton(this, {
+      kind: "onInk",
+      label: "◂ Villain phase",
+      type: typeRole.label,
+      rect,
+      onClick: show,
+    });
+    this.#buttons.push(handle);
+    // View brings the rail back, the same toggle that hid it.
+    this.#padPeek = show;
+    this.#hintButton(handle, ["peek"], "ink");
     this.#route?.set(["show"], new Map([["show", { rect, activate: show }]]));
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
@@ -3175,13 +3378,80 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#motion.enter(this, { scrim: [], panels: this.children.list.slice() });
   }
 
+  /** Registers a button for cleanup and, where the layout has the room, gives it its key / pad glyph. */
+  #pushHinted(ids: readonly ShortcutId[], ground: GlyphGround, primary: string | null, button: McButton): void {
+    this.#buttons.push(button);
+    this.#hintButton(button, ids, ground, primary);
+  }
+
+  /**
+   * `primary` is the stop key when this is the screen's primary commit: Enter / A presses it while nothing is focused
+   * (`FocusRoute`), so its glyph shows only while focus is null or on it (`view/primary-activation.ts`).
+   */
+  #hintButton(
+    button: McButton,
+    ids: readonly ShortcutId[],
+    ground: GlyphGround,
+    primary: string | null = null,
+    enabled = true,
+  ): void {
+    // Only a primary that can be pressed is what A and Start press: a greyed Confirm leaves them to the rest of the screen.
+    if (primary !== null && enabled) this.#primaryStop = primary;
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
+    this.#hints.button(
+      button,
+      ids,
+      ground,
+      primary === null
+        ? {}
+        : {
+            // A / Enter while it is what they would press; with a control focused A presses that, so a pad shows Start,
+            // which presses the primary from anywhere (`FocusRoute#pressPrimary`).
+            idsNow: (set) =>
+              primaryGlyphShown(this.#route?.focused ?? null, primary, enabled)
+                ? ids
+                : set === "pad" && enabled
+                  ? ["confirm"]
+                  : null,
+          },
+    );
+  }
+
+  /** A direct-pick combo (`view/pick-assign.ts`) for the option at `slot`, its glyph at the right end of `row`. */
+  #registerPick(slot: number, row: Rect, tap: () => void): void {
+    if (slot < 0 || padPickBinding(slot) === null) return;
+    this.#pickTaps.set(slot, tap);
+    this.#hints.custom(
+      (set, snapshot, _layer, held) =>
+        set === "pad" ? pickGlyphSpecs(slot, snapshot.state, snapshot.settings, held) : null,
+      18,
+      ({ width, height }) => ({ x: row.x + row.width - width - 2, y: row.y + Math.max(row.height, height) / 2 }),
+      { ground: "ink" },
+    );
+  }
+
+  /**
+   * The panel's second answer (Let it resolve, Full log): X on a pad, G on the keyboard (the `guide` shortcut, which this
+   * screen has no other use for). It presses `stop` wherever focus is.
+   */
+  #hintSecondary(button: McButton, stop: string): void {
+    this.#secondaryStop = stop;
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
+    this.#hints.button(button, ["guide"], "ink");
+  }
+
   /** Returns true when the phase is over and Continue is showing. */
   #drawFooter(rect: Rect, reveal: Reveal): boolean {
     const done = this.#walkthrough.complete && reveal.caughtUp;
     const paused = this.#shownPause() !== null;
 
     if (done) {
-      this.#buttons.push(
+      this.#pushHinted(
+        ["activate"],
+        "ink",
+        "continue",
         new McButton(this, {
           kind: "primary",
           label: "Continue",

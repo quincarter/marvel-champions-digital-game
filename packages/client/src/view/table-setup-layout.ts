@@ -446,7 +446,8 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const { width, height } = input;
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
   const headerPad = 16;
-  const backWidth = 90;
+  // Wide enough for "◂ Seats" with the Cancel glyph (B, or Esc) beside the word inside the button.
+  const backWidth = 150;
   const stepWidth = Math.min(160, Math.max(90, width * 0.28));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
   const step: Rect = {

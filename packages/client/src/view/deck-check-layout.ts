@@ -58,6 +58,9 @@ export const RAIL_GAP = 24;
  */
 export const WIDE_MIN_WIDTH = 1000;
 /** Never let the card grid get squeezed narrower than this by the two rails — unreachable once `WIDE_MIN_WIDTH` holds, kept as a documented floor the way `decks-layout.ts`'s `POOL_MIN_WIDTH` is. */
+/** The gap under a tab strip: room for the LB / RB hint (14px tall) between the strip and the content. */
+const TAB_HINT_GAP = 22;
+
 const CARDS_MIN_WIDTH = 260;
 
 export type DeckCheckTab = "curve" | "cards" | "aspect";
@@ -191,7 +194,7 @@ export function deckCheckLayout(input: DeckCheckLayoutInput): DeckCheckLayout {
     height: hit.primary,
   };
 
-  const contentTop = tabs.y + tabs.height + 10;
+  const contentTop = tabs.y + tabs.height + TAB_HINT_GAP;
   // Never negative: a viewport too short for even the fixed chrome still gets a zero-height content rect rather than
   // one that overlaps the footer above it — the same floor `statBlockLayout` (`view/layout.ts`) holds for a badge row.
   const content: Rect = { x: tabLeft, y: contentTop, width: column, height: Math.max(0, footer.y - contentTop) };

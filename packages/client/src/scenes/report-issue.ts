@@ -14,6 +14,7 @@ import Phaser from "phaser";
 import { cardLanguage } from "../art/card-language.js";
 import { hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton } from "../ui/widgets.js";
 import { copyText, downloadText } from "../ui/report-export.js";
 import { debugSnapshot } from "../ui/debug-dump.js";
@@ -42,6 +43,15 @@ const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 /** How long "Hide for a screenshot" keeps the panel away. A tap anywhere brings it back sooner. */
 const HIDE_MS = 5_000;
 
+type Disabled = { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean };
+
+/**
+ * The input a closed panel has not yet given back (it waits for the held pad button to be let go). One slot for the
+ * whole module: a panel opened meanwhile cancels the wait and takes the scenes over, so the old timer can never turn a
+ * screen's input back on under the new panel.
+ */
+let pendingRestore: { readonly cancel: () => void; readonly entries: readonly Disabled[] } | null = null;
+
 type StopId = "close" | "hide" | "copy" | "download" | "github" | "feature" | "deck";
 
 export class ReportIssueOverlay extends Phaser.Scene {
@@ -55,6 +65,11 @@ export class ReportIssueOverlay extends Phaser.Scene {
   #disabled: { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[] = [];
   #feedback = "";
   #hideTimer: Phaser.Time.TimerEvent | null = null;
+  /** Brings the panel back while it is hidden for a screenshot (a tap does it; so does any pad button or key). */
+  #restore: (() => void) | null = null;
+  #hints!: GlyphHints;
+  /** The buttons' rects, which a hanging glyph must not cover. */
+  #obstacles: Rect[] = [];
 
   constructor() {
     super(SCENES.reportIssue);
@@ -62,11 +77,15 @@ export class ReportIssueOverlay extends Phaser.Scene {
 
   create(): void {
     this.#feedback = "";
+    const inherited = pendingRestore?.entries ?? [];
+    pendingRestore?.cancel();
+    pendingRestore = null;
     this.#disabled = this.scene.manager
       .getScenes(true)
       .filter((scene) => scene !== this && scene.scene.key !== SCENES.reportButton && scene.input)
       .map((scene) => ({ scene, pointer: scene.input.enabled, keyboard: scene.input.keyboard?.enabled === true }))
       .filter(({ pointer, keyboard }) => pointer || keyboard);
+    this.#disabled.push(...inherited);
     for (const { scene, pointer, keyboard } of this.#disabled) {
       if (pointer) scene.input.enabled = false;
       if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = false;
@@ -74,18 +93,52 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.scene.get(SCENES.reportButton)?.sys.setVisible(false);
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop() });
+    this.#hints = new GlyphHints(this, () => this.#obstacles);
+    this.#route = new FocusRoute(this, {
+      // B, Start and A bring a hidden panel back first; otherwise B closes it and Start files the bug report.
+      onCancel: () => (this.#restore ? this.#restore() : this.scene.stop()),
+      onPause: () => (this.#restore ? this.#restore() : this.#openIssue()),
+      primary: () => (this.#restore ? "restore" : null),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#hints.dispose();
       this.#hideTimer?.remove();
       this.#hideTimer = null;
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
-      for (const { scene, pointer, keyboard } of this.#disabled) {
-        if (!scene.sys.isActive()) continue;
-        if (pointer) scene.input.enabled = true;
-        if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = true;
-      }
+      // Given back only once no pad button is held. A scene's pad plugin does not poll while its input is off, so
+      // the press that closed this panel (B) would look like a fresh press to the screen under it the moment its input
+      // came back, and close that too (B on the Trophy Room under the panel left both).
+      const disabled = this.#disabled;
+      const restore = (): void => {
+        for (const { scene, pointer, keyboard } of disabled) {
+          if (!scene.sys.isActive()) continue;
+          if (pointer) scene.input.enabled = true;
+          if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = true;
+        }
+      };
+      const padHeld = (): boolean =>
+        [...(globalThis.navigator?.getGamepads?.() ?? [])].some((pad) => pad?.buttons.some((b) => b.pressed));
+      let waited = 0;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const wait = (): void => {
+        waited += 1;
+        if (padHeld() && waited < 40) {
+          timer = setTimeout(wait, 25);
+          return;
+        }
+        timer = null;
+        if (pendingRestore?.entries === disabled) pendingRestore = null;
+        restore();
+      };
+      pendingRestore = {
+        entries: disabled,
+        cancel: () => {
+          if (timer !== null) clearTimeout(timer);
+        },
+      };
+      timer = setTimeout(wait, 0);
       this.#disabled = [];
       this.scene.get(SCENES.reportButton)?.sys.setVisible(true);
     });
@@ -159,17 +212,20 @@ export class ReportIssueOverlay extends Phaser.Scene {
     const back = (): void => {
       this.#hideTimer?.remove();
       this.#hideTimer = null;
+      this.#restore = null;
       this.input.off("pointerup", back);
       if (!this.sys.isActive()) return;
       this.sys.setVisible(true);
       this.#draw();
     };
     this.#hideTimer = this.time.delayedCall(HIDE_MS, back);
+    this.#restore = back;
     // The press that hid the panel is still going up: listen from the next frame on.
     this.time.delayedCall(0, () => this.input.once("pointerup", back));
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#route?.set([], new Map());
+    // No stop is on the route (no ring over the screenshot); A reaches this one through the primary.
+    this.#route?.set([], new Map([["restore", { rect: { x: 0, y: 0, width: 1, height: 1 }, activate: back }]]));
   }
 
   #say(message: string): void {
@@ -180,6 +236,8 @@ export class ReportIssueOverlay extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
+    this.#obstacles = [];
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -318,18 +376,19 @@ export class ReportIssueOverlay extends Phaser.Scene {
       width: closeSize,
       height: closeSize,
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: "✕",
-        type: BUTTON_TYPE,
-        rect: close,
-        onClick: () => this.scene.stop(),
-      }),
-    );
+    const closeButton = new McButton(this, {
+      kind: "quiet",
+      label: "✕",
+      type: BUTTON_TYPE,
+      rect: close,
+      onClick: () => this.scene.stop(),
+    });
+    this.#buttons.push(closeButton);
+    this.#hints.button(closeButton, ["cancel"], "paper");
     placed.push({ id: "close", rect: close, activate: () => this.scene.stop() });
     for (const { button, rect } of buttons) {
       const moved = { ...rect, x: rect.x + box.x, y: rect.y + box.y };
+      this.#obstacles.push(moved);
       this.#buttons.push(
         new McButton(this, {
           kind: button.kind,

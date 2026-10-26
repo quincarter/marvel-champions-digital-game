@@ -42,6 +42,7 @@ import { bindHoldTarget } from "./hold-target.js";
 import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
+import { inputDevice } from "../platform/input-device.js";
 
 /** Draws a rect with the design's border model into an existing Graphics. */
 export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: WidgetKind, state: WidgetState): void {
@@ -292,6 +293,7 @@ export class McButton {
   readonly #scene: Phaser.Scene;
   #options: McButtonOptions;
   #hovered = false;
+  #labelShift = 0;
   /**
    * A click needs a pointer-down *and* a pointer-up, both seen by this
    * button (`view/press-arm.ts`). Without this, a button that appears mid-
@@ -434,6 +436,38 @@ export class McButton {
     return this.#options.enabled === false ? (this.#options.reason ?? null) : null;
   }
 
+  /** Where the button is drawn, for a glyph hint that sits inside it (`ui/glyph-hints.ts`). */
+  get rect(): Rect {
+    return this.#options.rect;
+  }
+
+  /**
+   * Where the label really is, before any `nudgeLabel`: its center, drawn width (after fitting), and the room the
+   * button leaves on either side (`labelInset` at the left, the value text's 40px at the right). A glyph hint reads
+   * this rather than assuming a centered label.
+   */
+  get labelBox(): { readonly cx: number; readonly width: number; readonly minX: number; readonly maxX: number } {
+    const { rect } = this.#options;
+    return {
+      cx: this.#label.x - this.#labelShift,
+      width: this.#label.displayWidth,
+      minX: rect.x + (this.#options.labelInset ?? 0),
+      maxX: rect.x + rect.width - (this.#value ? 40 : 0),
+    };
+  }
+
+  /** The label as last set. */
+  get label(): string {
+    return this.#options.label;
+  }
+
+  /** Slides the label sideways by `dx` (a glyph hint making room beside it); 0 puts it back where redraw puts it. */
+  nudgeLabel(dx: number): void {
+    if (dx === this.#labelShift) return;
+    this.#label.x += dx - this.#labelShift;
+    this.#labelShift = dx;
+  }
+
   redraw(): void {
     const { rect, type } = this.#options;
     const state = this.state;
@@ -464,7 +498,10 @@ export class McButton {
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(s.text, s.textAlpha))
-      .setPosition(rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+      .setPosition(
+        rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0) + this.#labelShift,
+        rect.y + rect.height / 2,
+      );
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
     const room = rect.width - inset - (hasValue ? 40 : rect.width <= 44 ? 4 : 16);
@@ -501,7 +538,7 @@ export class McButton {
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(tint.ink, dim))
-      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0) + this.#labelShift, rect.y + rect.height / 2);
     fitText(this.#label, rect.width - (hasValue ? 40 : rect.width <= 44 ? 4 : 20), type.size);
     this.#value?.setColor(cssOf(tint.ink, dim)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
   }
@@ -532,6 +569,8 @@ export class McSelectionRing {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly color?: number,
+    /** A pad / keyboard focus ring (not a prompt or committed-choice ring): drawn with a white edge under the red. */
+    private readonly focus = false,
   ) {
     this.graphics = scene.add.graphics();
   }
@@ -548,6 +587,12 @@ export class McSelectionRing {
     this.graphics.clear().setVisible(true).setAlpha(1);
     this.graphics.lineStyle(glowWidth, color.hex, glowAlpha);
     this.graphics.strokeRect(outer.x - 2, outer.y - 2, outer.width + 4, outer.height + 4);
+    // A focus ring has a white edge under the red, so it still reads against a red button (End turn, Select, the
+    // commit buttons) and fills the gap between the two; on cream and ink the red stays the ring.
+    if (this.focus) {
+      this.graphics.lineStyle(width + selectionRing.focusEdgeExtra, selectionRing.focusEdge, 1);
+      this.graphics.strokeRect(outer.x, outer.y, outer.width, outer.height);
+    }
     this.graphics.lineStyle(width, color.hex, 1);
     this.graphics.strokeRect(outer.x, outer.y, outer.width, outer.height);
 
@@ -1109,6 +1154,12 @@ export class McScrollPanel {
     this.panel.setText(text);
   }
 
+  /** Scrolls the text by `amount` pixels (positive is down), clamped: the pad's right stick. */
+  scrollByPx(amount: number): void {
+    // The content moves up as the view moves down, so the child offset runs the other way.
+    this.panel.addChildOY(-amount);
+  }
+
   /** Repositions and resizes in place, for a scene that redraws on every state change. */
   layout(rect: Rect): void {
     this.panel.setPosition(rect.x, rect.y);
@@ -1143,6 +1194,9 @@ export interface McTextInputOptions {
  */
 /** Every live text field by scene, so a card hover popover can move the fields it covers aside (`fieldsOf`). */
 const FIELDS = new WeakMap<Phaser.Scene, Set<McTextInput>>();
+
+/** What an empty text field says when it is focused from a controller under Steam. */
+const STEAM_KEYBOARD_HINT = "Steam + X: on-screen keyboard";
 
 /** The scene's live text fields: the DOM elements a canvas popover can't draw over. */
 export const fieldsOf = (scene: Phaser.Scene): readonly McTextInput[] => [...(FIELDS.get(scene) ?? [])];
@@ -1216,6 +1270,18 @@ export class McTextInput {
      */
     this.#input.setOrigin(0, 0);
 
+    // A controller can't type. Under Steam (the Steam Deck) Steam + X opens Steam's own on-screen keyboard, so an empty
+    // field focused from the pad says so in its placeholder (`docs/controller-support.md`, owner decision 7).
+    const node = this.#input.node as HTMLInputElement;
+    const placeholder = options.placeholder ?? "";
+    node.addEventListener("focus", () => {
+      const device = inputDevice();
+      if (device.mode === "pad" && device.pad?.steam === true) node.placeholder = STEAM_KEYBOARD_HINT;
+    });
+    node.addEventListener("blur", () => {
+      node.placeholder = placeholder;
+    });
+
     /**
      * A DOM element is not in the canvas, so it is not under anything drawn
      * there: Phaser's DOM container sits over the whole canvas, and an overlay
@@ -1277,6 +1343,11 @@ export class McTextInput {
   /** True while the player is typing in the field — a screen's keyboard route stands aside. */
   get focused(): boolean {
     return this.#input.isFocused;
+  }
+
+  /** Takes the caret out of the field: a pad has no Enter or Escape to press inside it (`scenes/text-field-escape.ts`). */
+  blur(): void {
+    if (this.#input.isFocused) this.#input.setBlur();
   }
 
   /** Puts the caret in the field, for a keyboard or pad user who pressed Enter on it. */
@@ -1466,6 +1537,12 @@ export class McMultilineInput {
   focus(): void {
     const child = (this.#input as unknown as { childrenMap?: { child?: { open?: () => void } } }).childrenMap?.child;
     child?.open?.();
+  }
+
+  /** Takes the caret out (`scenes/text-field-escape.ts`), defensively like `focus()`: the canvas input's own `close()`. */
+  blur(): void {
+    const child = (this.#input as unknown as { childrenMap?: { child?: { close?: () => void } } }).childrenMap?.child;
+    if (this.#focused) child?.close?.();
   }
 
   get value(): string {

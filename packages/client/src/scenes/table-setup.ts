@@ -147,6 +147,7 @@ import {
   type TableSetupLayout,
 } from "../view/table-setup-layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import {
   civilWarTableSummaryOf,
   EDIT_SCENARIO_ID,
@@ -157,7 +158,10 @@ import type { BuilderContext } from "../view/civil-war-builder-model.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
-import { tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
+import { cardHoverFactor, tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
+import type { InstanceId } from "@mc/engine";
+import type { GlyphHints } from "../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./campaign/pad-hints.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
@@ -256,6 +260,15 @@ interface SetPictureLayout {
 /** The "Cards ▸" tab in a wide modular tile's bottom-right corner. */
 const SET_CARDS_TAB_WIDTH = 64;
 
+/** A card picture the hover popover (and hold-Y zoom) can enlarge. */
+interface TileFace {
+  readonly cardId: string;
+  readonly face?: FaceRef["face"];
+  readonly rect: Rect;
+  /** The region the rect scrolls in: the phone's page, the wide modular grid, or none (wide seats). */
+  readonly region: "page" | "grid" | "none";
+}
+
 export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
   #savedDecks: readonly Deck[] = [];
@@ -272,16 +285,16 @@ export class TableSetupScene extends Phaser.Scene {
   #setChoiceRows: readonly SetupOptionRow[] = [];
   /** The desktop hover popover over the modular tiles' pictures (`ui/card-hover-preview.ts`). */
   #hover: HoverPreview | null = null;
-  #hoverFaces: {
-    readonly cardId: string;
-    readonly face?: FaceRef["face"];
-    readonly rect: Rect;
-    /** The region the rect scrolls in: the phone's page, the wide modular grid, or none (wide seats). */
-    readonly region: "page" | "grid" | "none";
-  }[] = [];
+  /** B, Start and Y's glyphs (pad or keyboard in use only). */
+  #hints!: GlyphHints;
+  /** A modular tile's focus key to the picture hold-Y enlarges (rebuilt each draw). */
+  #zoomFaces = new Map<string, TileFace>();
+  #hoverFaces: TileFace[] = [];
   /** What the status line reads with no seed error: the wide sidebar's deal hold, or nothing (the phone's footer says it). */
   #statusIdle = "";
   #starting = false;
+  /** A screen change (Back) is under way: later presses do nothing. */
+  #leaving = false;
   #route: FocusRoute | null = null;
   /** Phone's own scroll position (`tableSetupCompactLayout`, the 2026-09-18 correction) — persists across rebuilds like every other scroll owner in the app (`ListScroll`/`VariableListScroll` convention), reset fresh only in `create()`. */
   #compactScroll = new VariableListScroll();
@@ -331,6 +344,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#tokenView = null;
     this.#tokenFlight = null;
     this.scale.on("resize", this.#rebuild, this);
+    this.#hints = createHints(this);
     // A face baked off the main thread arrives: fill the pictures waiting for it, never a whole rebuild.
     const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
     this.#hover = new HoverPreview(this, {
@@ -360,8 +374,21 @@ export class TableSetupScene extends Phaser.Scene {
         this.scene.isActive(SCENES.setCards) ||
         (this.#seedInput?.focused ?? false),
       onCancel: () => this.#back(),
+      // Hold Y (or E) enlarges the focused set's picture, as the desktop hover does; a tap opens its cards.
+      onInspectZoom: (zooming) => this.#setZoom(zooming),
+      zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
+      onFocusChange: (key) => this.#showLegend(key),
+      // Start / Menu (and A with nothing focused) deals: the way forward on this screen.
+      primary: () => (this.#stops.has("deal-it-out") && !this.#starting && !this.#leaving ? "deal-it-out" : null),
     });
+    // A pad that put the caret in the seed field can take it out again (B, A or Start).
+    bindTextFieldEscape(
+      this,
+      () => this.#seedInput,
+      () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.setCards),
+    );
     this.#starting = false;
+    this.#leaving = false;
     this.#savedDecks = [];
     this.#rebuild();
     fadeScreenIn(this);
@@ -375,7 +402,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   #back(): void {
-    if (this.#starting) return;
+    if (this.#starting || this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
   }
@@ -404,6 +432,8 @@ export class TableSetupScene extends Phaser.Scene {
     this.#thumbs = [];
     resetHoverCards(this);
     this.#hoverFaces = [];
+    this.#zoomFaces = new Map();
+    this.#hints.reset();
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -504,6 +534,8 @@ export class TableSetupScene extends Phaser.Scene {
         modularViewport: () => this.#modularViewportRect ?? this.#compactViewport,
         modularHeader: () => this.#modularRightLabel(scenario, requiredSets.length, modularOptions),
         encounterDeckSize: () => encounterDeckSize,
+        // The card the hover popover (or the held-Y zoom) shows now, or null.
+        hoverShown: () => this.#hover?.shownKey ?? null,
         summary: () => gameSummaryRows.map((r) => [r.label, r.value]),
         // The first player token: which seat it rests on, where it is drawn now, and where it is headed.
         firstPlayerToken: () =>
@@ -613,6 +645,7 @@ export class TableSetupScene extends Phaser.Scene {
         enabled: !this.#starting,
       }),
     );
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     this.#stops.set("back", { rect: layout.back, activate: back });
     const titleX = layout.back.x + layout.back.width + 16;
     const title = this.add
@@ -818,6 +851,7 @@ export class TableSetupScene extends Phaser.Scene {
         onClick: () => void this.#start(players),
       }),
     );
+    forwardHint(this.#hints, this.#buttons.at(-1)!, "ink");
     this.#stops.set("deal-it-out", { rect: layout.dealItOut, activate: () => void this.#start(players) });
 
     this.#status = this.add.text(
@@ -841,6 +875,7 @@ export class TableSetupScene extends Phaser.Scene {
     );
     this.#fillThumbs();
     this.#hover?.onDraw();
+    this.#showLegend(this.#route?.focused ?? null);
   }
 
   // -----------------------------------------------------------------------------------------------------------
@@ -1007,6 +1042,7 @@ export class TableSetupScene extends Phaser.Scene {
     );
     this.#fillThumbs();
     this.#hover?.onDraw();
+    this.#showLegend(this.#route?.focused ?? null);
   }
 
   /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), since `this.add.graphics()`/`new McButton(this, …)` always land at the top level first. */
@@ -1681,6 +1717,7 @@ export class TableSetupScene extends Phaser.Scene {
         onClick: () => void this.#start(players),
       }),
     );
+    forwardHint(this.#hints, this.#buttons.at(-1)!, "ink");
     const outline = this.add.graphics();
     outline
       .lineStyle(3, surface.paper.hex, 1)
@@ -2510,13 +2547,16 @@ export class TableSetupScene extends Phaser.Scene {
       .strokeRect(picture.x + 0.75, picture.y + 0.75, picture.width - 1.5, picture.height - 1.5);
     const url = this.#setPictureUrl(option.id);
     const face = this.#setFace(option.id);
-    if (face)
-      this.#hoverFaces.push({
+    if (face) {
+      const tile: TileFace = {
         cardId: face.cardId,
         face: face.face,
         rect: picture,
         region: at.phone ? "page" : "grid",
-      });
+      };
+      this.#hoverFaces.push(tile);
+      this.#zoomFaces.set(`modular:${option.id}`, tile);
+    }
     const parent = at.phone ? (this.#compactRegion?.content ?? null) : (this.#modularRegion?.content ?? null);
     if (url) this.#thumbs.push({ rect: picture, url, parent, alpha, done: false });
     const caption = this.add
@@ -2580,19 +2620,50 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   /** The tile pictures on screen now, each clipped to the region it scrolls in (the phone's page, or the wide grid). */
+  /** Where a picture is on screen now (scrolled, clipped to its region), or null when it is scrolled out of view. */
+  #shownRectOf({ rect, region }: TileFace): Rect | null {
+    const view =
+      region === "page" ? this.#compactRegion?.rect : region === "grid" ? this.#modularRegion?.rect : undefined;
+    const offset =
+      region === "page"
+        ? this.#compactScroll.offsetPx
+        : region === "grid" && this.#modularRegion
+          ? this.#modularScroll.offsetPx
+          : 0;
+    const at = { ...rect, y: rect.y - offset };
+    return view ? clipHoverRect(at, view) : at;
+  }
+
+  /** Hold Y: the focused modular tile's picture enlarged beside it, following the focus while held. */
+  #setZoom(zooming: boolean): void {
+    if (!zooming) {
+      this.#hover?.unpin();
+      return;
+    }
+    this.#hover?.pin(() => {
+      const focus = this.#route?.focused;
+      const tile = focus ? this.#zoomFaces.get(focus) : undefined;
+      const rect = tile ? this.#shownRectOf(tile) : null;
+      const area = screenHoverArea(this, this.input.activePointer);
+      return tile && rect && area
+        ? { id: tile.cardId as InstanceId, rect, area, plain: { ...(tile.face ? { face: tile.face } : {}) } }
+        : null;
+    });
+  }
+
+  /** The legend (A Select, Y Inspect hold to zoom, B Back) beside a focused modular tile that has a picture. */
+  #showLegend(key: string | null): void {
+    const tile = key ? this.#zoomFaces.get(key) : undefined;
+    const rect = tile ? this.#shownRectOf(tile) : null;
+    const { width, height } = this.scale.gameSize;
+    this.#hints.legend(rect, { x: 0, y: 0, width, height }, "back");
+  }
+
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
-    this.#hoverFaces.forEach(({ cardId, face, rect, region }, index) => {
-      const view =
-        region === "page" ? this.#compactRegion?.rect : region === "grid" ? this.#modularRegion?.rect : undefined;
-      const offset =
-        region === "page"
-          ? this.#compactScroll.offsetPx
-          : region === "grid" && this.#modularRegion
-            ? this.#modularScroll.offsetPx
-            : 0;
-      const at = { ...rect, y: rect.y - offset };
-      const shown = view ? clipHoverRect(at, view) : at;
+    this.#hoverFaces.forEach((tile, index) => {
+      const { cardId, face } = tile;
+      const shown = this.#shownRectOf(tile);
       if (shown)
         found.set(hoverSlotOf(cardId, `card${index}`), { ...shown, cardId, ...(face ? { face } : {}), through: true });
     });
@@ -2950,7 +3021,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   async #start(players: readonly ReturnType<typeof corePlayerForSeat>[]): Promise<void> {
-    if (this.#starting) return;
+    // A press during a screen change (Back, then Start inside the fade) must not deal a game behind the screen.
+    if (this.#starting || this.#leaving) return;
     if (this.#dealBlocked !== null) return;
     if (parseSeed(this.#seedText) === null) {
       this.#status?.setText("seed must be a whole number");
@@ -2969,6 +3041,8 @@ export class TableSetupScene extends Phaser.Scene {
       ),
     );
 
+    // The screen was left while the game was being made: nothing here is on screen any more.
+    if (!this.sys.isActive()) return;
     if (store.state.status === "failed") {
       this.#starting = false;
       this.#rebuild();

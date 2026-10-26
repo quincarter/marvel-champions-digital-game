@@ -9,6 +9,7 @@ import { hit, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -28,6 +29,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
   #data!: EndTurnConfirmData;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
 
   constructor() {
     super(SCENES.endTurnConfirm);
@@ -39,8 +41,16 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     if (from) from.input.enabled = false;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#answer(false) });
+    this.#hints = new GlyphHints(this);
+    // Start is "forward" and ends the turn. Not `primary`: that would let A with nothing focused skip this confirm.
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#answer(false),
+      onPause: () => this.#answer(true),
+      // End turn's glyph is A while it has the ring and Start otherwise: the ring moved, so read it again.
+      onFocusChange: () => this.#hints.refresh(),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
@@ -59,6 +69,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
 
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
@@ -108,6 +119,10 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
         onClick: () => this.#answer(true),
       }),
     );
+    this.#hints.button(this.#buttons[0]!, ["cancel"], "paper");
+    this.#hints.button(this.#buttons[1]!, ["activate"], "ink", {
+      idsNow: (set) => (this.#route?.focused === "ok" ? ["activate"] : set === "pad" ? ["confirm"] : null),
+    });
     const stops = new Map([
       ["cancel", { rect: keepRect, activate: () => this.#answer(false) }],
       ["ok", { rect: endRect, activate: () => this.#answer(true) }],

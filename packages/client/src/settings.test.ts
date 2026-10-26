@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   VILLAIN_RECAP_PAUSE_MS,
   achievementPopupHoldMs,
@@ -8,6 +8,8 @@ import {
   villainBeatIntervalMs,
   cardHoverFactor,
   cardSizeFactor,
+  couchModeFactor,
+  COUCH_MODE_VALUES,
 } from "./settings.js";
 
 describe("villain phase settings", () => {
@@ -25,6 +27,7 @@ describe("villain phase settings", () => {
     const settings = defaultSettings();
     expect(settings.villainAutoAdvance).toBe("off");
     expect(settings.holdEncounterCards).toBe(true);
+    expect(settings.discordPresence).toBe(true);
     expect(settings.flipEncounterCards).toBe(true);
     expect(settings.flipEncounterSpeed).toBe("normal");
     expect(flipDurationMs("slow")).toBe(1000);
@@ -70,5 +73,23 @@ describe("villain phase settings", () => {
     expect(cardHoverFactor("1.5x")).toBe(1.5);
     expect(cardHoverFactor("2.5x")).toBe(2.5);
     expect(cardHoverFactor("3x")).toBe(3);
+  });
+});
+
+describe("couch mode", () => {
+  test("it defaults to off and each choice is its scale factor", () => {
+    expect(defaultSettings().couchMode).toBe("off");
+    expect(COUCH_MODE_VALUES.map(couchModeFactor)).toEqual([1, 1.25, 1.5, 1.75, 2, 2.5, 3]);
+  });
+});
+
+describe("text resolution under couch mode", () => {
+  test("a pixel ratio of 1 defaults to the couch factor, capped at the sharp ceiling; power saving stays 1x", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    expect(defaultSettings().textResolution).toBe(1);
+    expect(defaultSettings({ couchMode: "125%" }).textResolution).toBe(1.25);
+    expect(defaultSettings({ couchMode: "300%" }).textResolution).toBe(2);
+    expect(defaultSettings({ couchMode: "300%", powerSaving: true }).textResolution).toBe(1);
+    vi.unstubAllGlobals();
   });
 });

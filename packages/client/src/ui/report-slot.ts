@@ -14,3 +14,14 @@ export function setReportSlot(sceneKey: string, rect: Rect | null): void {
 export function reportSlots(): ReadonlyMap<string, Rect> {
   return slots;
 }
+
+let shown: Rect | null = null;
+
+/** Where the Report button is drawn now, or null while it is hidden: pad and keyboard focus reach it from here. */
+export function shownReportButton(): Rect | null {
+  return shown;
+}
+
+export function setShownReportButton(rect: Rect | null): void {
+  shown = rect;
+}

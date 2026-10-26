@@ -289,6 +289,8 @@ export interface ShelfCardOptions {
    * fails, paints the plain parchment window.
    */
   readonly artUrl: string | null;
+  /** Tried when `artUrl` fails to load or decode (a hero's picture, with the identity card's printed scan behind it). */
+  readonly artFallbackUrl?: string | null;
   /** Defaults to `"cover"` — D02/D03's own cards fill their whole art window and crop, never letterbox a narrower or wider scan (second-pass item 7). `"contain"` is for the rare caller that truly wants the whole image visible. */
   readonly artFit?: "contain" | "cover";
   /** Where a cover crop keeps the art vertically, 0 = top edge. Defaults to 0.34; a scan whose printed title sits at its top edge (a villain card) passes 0 so the title is not cropped. */
@@ -410,6 +412,7 @@ function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
     resolution: currentTextResolution(),
     desktop: isDesktopType(),
     artUrl: options.artUrl === null ? null : new URL(options.artUrl, document.baseURI).href,
+    ...(options.artFallbackUrl ? { artFallbackUrl: new URL(options.artFallbackUrl, document.baseURI).href } : {}),
     artFit: options.artFit ?? "cover",
     artFocusY: options.artFocusY ?? 0.34,
     ...(options.artFocus ? { artFocus: options.artFocus } : {}),
@@ -510,6 +513,8 @@ export interface ShelfRosterPanelOptions<T> {
   readonly onClear: () => void;
   readonly buttons: McButton[];
   readonly stops: Map<string, FocusStop>;
+  /** Filled with each card stop's shelf and card index, for a screen that pages the focused row (LT / RT). */
+  readonly rowOfKey?: Map<string, { readonly shelfIndex: number; readonly itemIndex: number }>;
 }
 
 /**
@@ -539,6 +544,7 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     onClear,
     buttons,
     stops,
+    rowOfKey,
   } = options;
   if (shelves.length === 0) {
     scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
@@ -569,6 +575,7 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     const prefix = focusPrefixOf?.(shelf) ?? focusPrefix;
     shelf.items.forEach((item, itemIndex) => {
       const id = idOf(item);
+      rowOfKey?.set(`${prefix}:${id}`, { shelfIndex, itemIndex });
       stops.set(`${prefix}:${id}`, {
         rect: () => roster.rectFor(shelfIndex, itemIndex),
         activate: () => onCardActivate(item, shelfIndex, itemIndex),
@@ -724,7 +731,10 @@ export function drawCompactChipStrip(
         const { isOpen, onOpen, onClose } = cell.info;
         infoRects.set(
           cell.id,
-          drawAspectInfoSegment(scene, split.info, isOpen, onOpen, onClose, cell.tint ? { tint: cell.tint } : {}),
+          drawAspectInfoSegment(scene, split.info, isOpen, onOpen, onClose, {
+            ...(cell.tint ? { tint: cell.tint } : {}),
+            ...(cell.info.pressOnly ? { pressOnly: true } : {}),
+          }),
         );
       }
       stops.set(`${focusPrefix}:${cell.id}`, { rect: mainRect, activate: cell.onClick });

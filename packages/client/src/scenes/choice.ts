@@ -12,6 +12,27 @@
  * an encounter-side decision legible as one (docs/phase3-encounter-ai.md).
  */
 
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { DEFEND_PICK_RESERVE } from "../ui/villain-defend-panel.js";
+import type { GlyphGround } from "../ui/input-glyph.js";
+import { activationTarget } from "../view/primary-activation.js";
+import {
+  BACK_OUT_GLYPH_IDS,
+  backOutOnCancel,
+  confirmGlyphIds,
+  DECLINE_GLYPH_IDS,
+  declineGlyphIdsNow,
+  declineKeyActive,
+  ignoreActivate,
+  revealGlyphIds,
+  type DeclineKeyState,
+} from "../view/choice-glyphs.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import { pickGlyphSpecs } from "../view/input-glyph-model.js";
+import type { PadLayer, PickBumper } from "../view/pad-layer-bindings.js";
+import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
+import { clipHoverRect } from "../view/card-hover.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
 import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
 import { choiceDock, choiceDockOptions, choiceSheetHost } from "../view/choice-dock.js";
 import {
@@ -142,7 +163,11 @@ import {
 } from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
+import type { SessionState } from "../store/session-store.js";
+import { choiceTakebackOf } from "../view/end-turn-takeback.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
+import type { VillainPhaseOverlay } from "./villain-phase.js";
 import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
@@ -188,6 +213,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
   /** The collection search's page (`view/collection-search.ts`), kept for the choice it belongs to across redraws. */
   #collectionPage = { choiceId: "", page: 0 };
+  /** The taps of the card tiles drawn now by pick slot (`view/pick-assign.ts`): a modifier + a face button. */
+  #pickTaps = new Map<number, () => void>();
   /** The target tiles' bars for the sheet being drawn (`view/choice-tile-bars.ts`), rebuilt with every draw. */
   #tileBars: ReadonlyMap<string, TileBar> = new Map();
   /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
@@ -195,6 +222,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** Redraws the break clock's digits once a second (the digits are the only thing that moves). */
   #breakTick: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
+  /** The key and button glyphs on the sheet's controls (`ui/glyph-hints.ts`), desktop and tablet landscape only. */
+  #hints!: GlyphHints;
   #unsubscribe: (() => void) | null = null;
   /** The decision this sheet last drew, by `choiceSheetKey` (a bare choice id comes back after an undo). */
   #choiceId: string | null = null;
@@ -239,6 +268,12 @@ export class ChoiceOverlay extends Phaser.Scene {
    * fire its Skip/Stop/primary callback from a later keyboard/pad press, not only `drawGuideStrip`'s own pointer
    * handlers. Set once per `#rebuild`, alongside `#focusRects`. */
   #guideStrip: GuideStripContent | null = null;
+  /** The guide rail is up beside this sheet: it owns X / G ("move focus to the guide"), so they must not decline. */
+  #guideRailUp = false;
+  /** The back-out target this draw's title bar actually showed (null on sheets with no such button), for B. */
+  #drawnBackOut: number | null = null;
+  /** The Enter that revealed the hidden-info cover is still down: its key repeats must not commit the hidden choice. */
+  #revealKeyDown = false;
   #focusRing: McSelectionRing | null = null;
   /**
    * Not `#close`d by an X/Back here — most decisions are cancel-less. Instead
@@ -254,6 +289,14 @@ export class ChoiceOverlay extends Phaser.Scene {
   #idleSince: number | null = null;
   /** The decision whose sheet stepped aside for PEEK AT TABLE's banner (`view/choice-peek.ts`); a new one shows its sheet. */
   #peekingAt: string | null = null;
+  /**
+   * What the pad's View and R3 (and the Peek and Expand keys) do on the sheet drawn now: its PEEK AT TABLE and COLLAPSE
+   * controls, set by the draw that shows them. Null where the sheet has no such control, so the press does nothing.
+   * Over the docked villain phase they call the phase's own, since the phase draws those controls and this sheet owns
+   * the pad while it is up.
+   */
+  #padPeek: (() => void) | null = null;
+  #padExpand: (() => void) | null = null;
 
   constructor() {
     super({ key: SCENES.choice });
@@ -324,6 +367,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   create(): void {
+    this.#hints = new GlyphHints(this, () => [...this.#focusRects.values()]);
     this.#motion = new OverlayMotion();
     // Phaser keeps this instance across stop and launch: a launch is a fresh sheet, with nothing of the last one
     // still picked or revealed.
@@ -361,11 +405,35 @@ export class ChoiceOverlay extends Phaser.Scene {
     // (`BoardScene`'s `blocked`), so this is where they have to land — and
     // Inspect, opened from here, owns them in turn while it is open.
     const binding = {
-      blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.optionNotice) || this.#covered(),
-      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      // Pause (Menu on a pad) owns input over the sheet too: its A must not also commit the decision underneath.
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.pause) ||
+        this.scene.isActive(SCENES.optionNotice) ||
+        this.#covered(),
+      onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
+      // A trigger or a bumper held with a face button picks a target tile outright, as on the table's targeting panel.
+      onLayer: (layer: PadLayer | null) => this.#hints.setLayer(layer),
+      // With no target tiles drawn (a yes / no popup, a paged list) the press is not ours: it keeps its own meaning.
+      onLayerPress: (layer: PadLayer, index: number) => {
+        if (this.#pickTaps.size === 0) return false;
+        this.#pickTile(padPickSlotOf(layer, index));
+        return true;
+      },
+      pickModifiers: () => this.#pickTaps.size > 0,
+      onBumper: (bumper: PickBumper | null) => this.#hints.setBumper(bumper),
+      onBumperPick: (bumper: PickBumper, index: number) => this.#pickTile(padPickSlotOf(bumper, index)),
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
+    // A fresh press is needed after Enter reveals the hidden-info cover: its key repeats stop counting at the keyup.
+    this.input.keyboard?.on("keyup", () => (this.#revealKeyDown = false));
+    // Peek and Expand are View and R3's keys (R / F left-handed, P / ; right-handed; the board beneath is blocked, so
+    // they are not zones here); they go through the same two paths as the controls' own presses.
+    bindExtraInput(this, {
+      blocked: binding.blocked,
+      peekExpand: { peek: () => this.#padAction("peek"), expand: () => this.#padAction("expand") },
+    });
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
     // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.
     // The cards it reads were noted by the first draw, which `store.subscribe` above already ran: a reset here emptied
@@ -407,6 +475,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         allRects: () =>
           this.#covered() ? [] : [...this.#focusRects.keys()].map((key) => [key, this.#screenRect(key)] as const),
         scrollOffset: () => this.#optionScroll.offsetPx,
+        focusKey: () => (this.#focus ? choiceFocusKey(this.#focus) : null),
         hoverRects: () => [...this.#hoverCards()],
         hoverShown: () => this.#hover?.shownKey ?? null,
       };
@@ -493,9 +562,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#breakTick = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
+    this.#padPeek = null;
+    this.#padExpand = null;
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
+    this.#pickTaps.clear();
     this.#scrolledRows.clear();
     this.#optionRegion = null;
     this.#guideOptionRects.clear();
@@ -516,6 +589,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     const guideStrip = isTabbed(formFactor) ? (boardScene?.guideStripContent() ?? null) : null;
     const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
     this.#guideStrip = guideStrip;
+    this.#guideRailUp = guideRailWidth > 0;
+    this.#drawnBackOut = null;
 
     // W6 (docs/phase4-screen-gaps.md): a dedicated presentation for the defend prompt, over the same PendingChoice
     // and answered with the same `resolveChoice` command the bare list below sends — see `#drawDefendChoice`'s own
@@ -567,6 +642,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const canPeek = !docked && (!this.scene.isActive(SCENES.villainPhase) || host?.peek !== undefined);
     const collapse = host?.collapse ?? null;
     const peekingNow = canPeek && this.#peekingAt === key;
+    if (docked) {
+      const phase = (): VillainPhaseOverlay | null =>
+        this.scene.isActive(SCENES.villainPhase) ? (this.scene.get(SCENES.villainPhase) as VillainPhaseOverlay) : null;
+      this.#padPeek = () => phase()?.padPeek();
+      this.#padExpand = () => phase()?.padExpand();
+    }
     setChoicePeeking(peekingNow);
     if (peekingNow) {
       const question = choiceHeaderOf(
@@ -686,7 +767,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // own `playCard`/`useAbility` opened this very choice — offered only when that command's own resolution hasn't
     // yet taught anyone anything new. Placed in the title bar rather than beside Confirm/Decline: it belongs with
     // "how did I get here", not with the answer to the question the choice is actually asking.
-    const backOutTarget = state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null;
+    // The end-of-phase "discard any cards" sheet offers "Nevermind" instead (`view/end-turn-takeback.ts`): End turn has
+    // only asked it, so the whole turn end is taken back, and B on a pad does the same.
+    const takeback = this.#takebackOf(state, choice);
+    const backOutTarget =
+      takeback ?? (state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null);
     let backOutRect: Rect | null = null;
     // Everything else in the bar (the seat thumbnail, the title) stays clear of this reserved strip on its right,
     // whether or not a seat is also shown — the same way the seat's own thumbnail already carves out its own space.
@@ -783,7 +868,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
     if (peekRect) {
       const peekKey = key;
-      this.#buttons.push(
+      this.#pushHinted(
+        ["peek"],
+        "ink",
         new McButton(this, {
           ...(peekStrip > 0
             ? { kind: "primary" as const, tint: { fill: signal.caution.hex, ink: surface.ink.hex } }
@@ -794,9 +881,12 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: () => (host?.peek ? host.peek() : this.#setPeek(peekKey)),
         }),
       );
+      this.#padPeek = () => (host?.peek ? host.peek() : this.#setPeek(peekKey));
     }
     if (collapseRect && collapse) {
-      this.#buttons.push(
+      this.#pushHinted(
+        ["expand"],
+        "ink",
         new McButton(this, {
           kind: "onInk",
           label: "Collapse",
@@ -805,18 +895,23 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: collapse,
         }),
       );
+      this.#padExpand = collapse;
     }
 
     if (backOutRect) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: "Back out",
-          type: typeRole.label,
-          rect: backOutRect,
-          onClick: () => void this.#backOut(backOutTarget!),
-        }),
-      );
+      const backOut = new McButton(this, {
+        kind: "secondary",
+        label: takeback !== null ? "Nevermind" : "Back out",
+        type: typeRole.label,
+        rect: backOutRect,
+        onClick: () => void this.#backOut(backOutTarget!),
+      });
+      this.#buttons.push(backOut);
+      this.#drawnBackOut = backOutTarget;
+      // B backs out with nothing focused (a focused control drops its focus first); the glyph is always shown, so a
+      // player with a pad in hand sees the way out whatever is focused.
+      const { width, height } = this.scale.gameSize;
+      if (glyphsFitFormFactor(formFactorFor(width, height))) this.#hints.button(backOut, BACK_OUT_GLYPH_IDS, "paper");
     }
 
     // The compact strip (phone, phone landscape, tablet portrait): there's no width to spare beside the sheet at
@@ -894,15 +989,23 @@ export class ChoiceOverlay extends Phaser.Scene {
         width: sheet.width - 24,
         height: Math.max(hit.primary, listHeight),
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: gate.coverLabel,
-          type: typeRole.rowTitle,
-          rect: cover,
-          onClick: () => this.#reveal(choice),
-        }),
-      );
+      const coverButton = new McButton(this, {
+        kind: "secondary",
+        label: gate.coverLabel,
+        type: typeRole.rowTitle,
+        rect: cover,
+        onClick: () => this.#reveal(choice),
+      });
+      this.#buttons.push(coverButton);
+      {
+        // A reveals while nothing else is focused (`#activate`), and the glyph says so: no hunting for the box.
+        const { width: gameWidth, height: gameHeight } = this.scale.gameSize;
+        if (glyphsFitFormFactor(formFactorFor(gameWidth, gameHeight)))
+          this.#hints.button(coverButton, ["activate"], "ink", {
+            idsNow: () =>
+              revealGlyphIds(this.#focus ? choiceFocusKey(this.#focus) : null, choiceFocusKey({ kind: "reveal" })),
+          });
+      }
       this.#focusRects.set(choiceFocusKey({ kind: "reveal" }), cover);
       this.#route = [{ kind: "reveal" }, ...choiceFocusOrder([], canDeclineChoice(choice))];
       this.#drawCommit(sheet, commitTop, choice);
@@ -1006,7 +1109,10 @@ export class ChoiceOverlay extends Phaser.Scene {
           : optionLabelOf(state.game, option),
       );
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
-    const maxChars = Math.floor((sheet.width - 48) / (typeRole.rowTitle.size * 0.62));
+    // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
+    // (never cut): the text stays clear of the glyph on either side.
+    const glyphRoom = choice.options.some((o) => this.#pickGlyphFits(o.optionId)) ? DEFEND_PICK_RESERVE * 2 : 0;
+    const maxChars = Math.floor((sheet.width - 48 - glyphRoom) / (typeRole.rowTitle.size * 0.62));
     // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
     const rows = choiceRowsOf(
       choice,
@@ -1072,6 +1178,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       const key = choiceFocusKey({ kind: "option", optionId: option.optionId });
       this.#focusRects.set(key, rect);
       if (rowsLayout.scrolls) this.#scrolledRows.set(key, index);
+      // RT + A, RT + B, ... press this row as a tap does; the combo hangs at the row's right end.
+      this.#registerTilePick(rect, option.optionId, () => this.#toggle(option.optionId, choice.maxSelections), "row");
     });
     if (rowsLayout.scrolls) {
       const region = new McScrollRegion(this, {
@@ -1144,6 +1252,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0.5);
     fitWrapped(line, layout.text.width, 2, 14);
     const back = (): void => this.#setPeek(null);
+    this.#padPeek = back;
     const move = (): void => {
       flipPeekEdge();
       this.#rebuild();
@@ -1156,6 +1265,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         rect: layout.move,
         onClick: move,
       }),
+    );
+    // Back wears View's glyph: the same button that peeked goes back.
+    this.#pushHinted(
+      ["peek"],
+      "ink",
       new McButton(this, {
         kind: "primary",
         label: "Back ▴",
@@ -1393,7 +1507,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
     if (headerControls.peek && host?.peek) {
       const peek = host.peek;
-      this.#buttons.push(
+      this.#pushHinted(
+        ["peek"],
+        "ink",
         new McButton(this, {
           kind: "primary",
           label: choicePeekLabel(layout.formFactor === "phone"),
@@ -1403,9 +1519,12 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: () => peek(),
         }),
       );
+      this.#padPeek = peek;
     }
     if (headerControls.collapse && host?.collapse) {
-      this.#buttons.push(
+      this.#pushHinted(
+        ["expand"],
+        "ink",
         new McButton(this, {
           kind: "onInk",
           label: "Collapse",
@@ -1414,6 +1533,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: host.collapse,
         }),
       );
+      this.#padExpand = host.collapse;
     }
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
@@ -1615,17 +1735,17 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // One red commit, labeled with the current pick.
     const picked = view.options.find((option) => option.selected) ?? null;
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: picked ? `Confirm — ${picked.title}` : "Confirm",
-        type: typeRole.barTitle,
-        rect: layout.commit,
-        enabled: this.#selected.length === 1,
-        reason: "choose one option to continue",
-        onClick: () => void this.#confirm(),
-      }),
-    );
+    const defendCommit = new McButton(this, {
+      kind: "primary",
+      label: picked ? `Confirm — ${picked.title}` : "Confirm",
+      type: typeRole.barTitle,
+      rect: layout.commit,
+      enabled: this.#selected.length === 1,
+      reason: "choose one option to continue",
+      onClick: () => void this.#confirm(),
+    });
+    this.#buttons.push(defendCommit);
+    this.#hintCommit(defendCommit, this.#selected.length === 1);
     this.#focusRects.set(choiceFocusKey({ kind: "confirm" }), layout.commit);
     this.#drawFocusRing();
 
@@ -1794,17 +1914,17 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     const commit: Rect = { x: sheet.x + pad, y, width: innerWidth, height: COMMIT };
     const accusedName = view.selected ? (CARDS_BY_ID.get(view.selected.boardMember)?.name ?? "") : "";
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: view.selected ? `Accuse ${accusedName}` : "Accuse",
-        type: typeRole.barTitle,
-        rect: commit,
-        enabled: view.canConfirm,
-        reason: "pick one open combination",
-        onClick: () => void this.#confirm(),
-      }),
-    );
+    const accuse = new McButton(this, {
+      kind: "primary",
+      label: view.selected ? `Accuse ${accusedName}` : "Accuse",
+      type: typeRole.barTitle,
+      rect: commit,
+      enabled: view.canConfirm,
+      reason: "pick one open combination",
+      onClick: () => void this.#confirm(),
+    });
+    this.#buttons.push(accuse);
+    this.#hintCommit(accuse, view.canConfirm);
     this.#focusRects.set(choiceFocusKey({ kind: "confirm" }), commit);
     this.#route = [
       ...optionOrder.map((optionId): ChoiceFocusTarget => ({ kind: "option", optionId })),
@@ -1879,7 +1999,9 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     let y = isGuidePick ? usual.y + guideTag.height / 2 + 6 : usual.y + 8;
     const title = this.add.text(textX, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(title, textWidth, typeRole.rowTitle.size);
+    // The combo that picks this option hangs in the card's top-right corner (`#registerTilePick`): the title stops short of it.
+    const pickable = this.#pickGlyphFits(option.optionId);
+    fitText(title, pickable ? textWidth - DEFEND_PICK_RESERVE : textWidth, typeRole.rowTitle.size);
     y += title.height + 4;
 
     const costLine =
@@ -1929,6 +2051,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     // A tap, not any release (#231): a finger dragging the defend sheet that lifted on an option picked it.
     onTap(zone, () => this.#toggle(option.optionId, 1), `defend:${option.optionId}`);
+    // RT + A, RT + B, ... pick the option outright, as on the target tiles; Confirm still commits it.
+    this.#registerTilePick(slot, option.optionId, () => this.#toggle(option.optionId, 1));
     // The picture over it: a tap still picks the option, a hold reads the card, and on desktop its popover previews
     // the health this option leaves the character (#298).
     // Not a card the sheet already shows (the hero is the matchup's target): the sheet's popover keeps one rect a card.
@@ -2225,6 +2349,12 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /** True when Confirm can be pressed with the current picks (a payment asks the engine; the rest count). */
+  /** The focus key of the screen's primary commit (Confirm), when it is drawn and not behind a reveal cover. */
+  #primaryKey(): string | null {
+    const confirm = choiceFocusKey({ kind: "confirm" });
+    return this.#focusRects.has(confirm) && !this.#focusRects.has(choiceFocusKey({ kind: "reveal" })) ? confirm : null;
+  }
+
   #canCommit(choice: PendingChoice): boolean {
     const payment = this.#paymentSheet(choice);
     return payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
@@ -2262,6 +2392,38 @@ export class ChoiceOverlay extends Phaser.Scene {
     return used;
   }
 
+  /** Registers a button for cleanup and, where the layout has the room, gives it its key / pad glyph. */
+  #pushHinted(
+    ids: readonly ShortcutId[],
+    ground: GlyphGround,
+    button: McButton,
+    when?: (set: "keyboard" | "pad") => boolean,
+  ): void {
+    this.#buttons.push(button);
+    const { width, height } = this.scale.gameSize;
+    if (glyphsFitFormFactor(formFactorFor(width, height)))
+      this.#hints.button(button, ids, ground, when ? { when } : {});
+  }
+
+  /**
+   * Confirm's glyph (`view/choice-glyphs.ts`): A / Enter while it is what they would press, Start on a pad otherwise,
+   * nothing while it is greyed or the reveal cover hides it.
+   */
+  #hintCommit(button: McButton, ready: boolean): void {
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
+    this.#hints.button(button, ["activate"], "ink", {
+      idsNow: (set) =>
+        confirmGlyphIds(
+          set,
+          this.#focus ? choiceFocusKey(this.#focus) : null,
+          choiceFocusKey({ kind: "confirm" }),
+          this.#primaryKey(),
+          ready,
+        ),
+    });
+  }
+
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     // A payment is judged by the engine, and declining it is its own, named control (view/payment-sheet.ts).
@@ -2270,40 +2432,51 @@ export class ChoiceOverlay extends Phaser.Scene {
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: payment ? payment.confirmLabel : commitLabelOf(choice),
-        type: typeRole.barTitle,
+    const commit = new McButton(this, {
+      kind: "primary",
+      label: payment ? payment.confirmLabel : commitLabelOf(choice),
+      type: typeRole.barTitle,
+      rect: {
+        x: sheet.x + 12,
+        y: commitTop,
+        width: commitWidth,
+        height: hit.primary,
+      },
+      enabled: canCommit,
+      reason: payment ? payment.confirmLabel : `choose ${confirmMinimum(choice)} to continue`,
+      onClick: () => void this.#confirm(),
+    });
+    this.#buttons.push(commit);
+    this.#hintCommit(commit, canCommit);
+    if (canDecline) {
+      // X (G on the keyboard) declines from anywhere on the sheet (`#onIntent`'s "toggleGuide"); B only clears focus or
+      // backs out, so it is not Decline's glyph.
+      const decline = new McButton(this, {
+        kind: "quiet",
+        label: payment ? payment.declineLabel : this.#pairing ? "Assign none" : "Decline",
+        type: typeRole.label,
         rect: {
-          x: sheet.x + 12,
+          x: sheet.x + 20 + commitWidth,
           y: commitTop,
           width: commitWidth,
           height: hit.primary,
         },
-        enabled: canCommit,
-        reason: payment ? payment.confirmLabel : `choose ${confirmMinimum(choice)} to continue`,
-        onClick: () => void this.#confirm(),
-      }),
-    );
-    if (canDecline) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: payment ? payment.declineLabel : this.#pairing ? "Assign none" : "Decline",
-          type: typeRole.label,
-          rect: {
-            x: sheet.x + 20 + commitWidth,
-            y: commitTop,
-            width: commitWidth,
-            height: hit.primary,
-          },
-          onClick: () => {
-            this.#selected = [];
-            void this.#confirm();
-          },
-        }),
-      );
+        onClick: () => {
+          this.#selected = [];
+          void this.#confirm();
+        },
+      });
+      this.#buttons.push(decline);
+      {
+        const { width, height } = this.scale.gameSize;
+        if (glyphsFitFormFactor(formFactorFor(width, height)))
+          this.#hints.button(decline, DECLINE_GLYPH_IDS, "ink", {
+            idsNow: () => {
+              const open = appSession().store.state.game?.pendingChoice;
+              return open ? declineGlyphIdsNow(this.#declineState(open)) : null;
+            },
+          });
+      }
       this.#focusRects.set(choiceFocusKey({ kind: "decline" }), {
         x: sheet.x + 20 + commitWidth,
         y: commitTop,
@@ -2504,6 +2677,52 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.scene.bringToTop(SCENES.inspect);
   }
 
+  /** Presses the tile wearing a pick slot, as a tap on it would. A slot with no tile does nothing. */
+  #pickTile(slot: number | null): void {
+    if (slot === null || this.#motion.leaving || this.#covered()) return;
+    this.#pickTaps.get(slot)?.();
+  }
+
+  /**
+   * The pick slot an option wears, or null where there are no glyphs or the option is past the sixteenth combo. Slots are
+   * numbered among all the choice's options, on purpose: a tile keeps its combo as picks move it between the stack and
+   * the picked row, and an acknowledge-only or off-screen tile just leaves its number unused.
+   */
+  #pickSlotOf(optionId: string): number | null {
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return null;
+    const slot = appSession().store.state.game?.pendingChoice?.options.findIndex((o) => o.optionId === optionId);
+    return slot === undefined || slot < 0 || padPickBinding(slot) === null ? null : slot;
+  }
+
+  #pickGlyphFits(optionId: string): boolean {
+    return this.#pickSlotOf(optionId) !== null;
+  }
+
+  /** The combo that presses a card tile (`view/pick-assign.ts`): its place among the choice's options, drawn on the tile's corner. */
+  #registerTilePick(tile: Rect, optionId: string, tap: () => void, place: "corner" | "row" = "corner"): void {
+    const slot = this.#pickSlotOf(optionId);
+    if (slot === null) return;
+    this.#pickTaps.set(slot, tap);
+    const key = choiceFocusKey({ kind: "option", optionId });
+    this.#hints.custom(
+      (set, snapshot, _layer, held) =>
+        set === "pad" && !this.#covered() ? pickGlyphSpecs(slot, snapshot.state, snapshot.settings, held) : null,
+      18,
+      ({ width: glyphWidth, height: glyphHeight }) => {
+        // Where the tile is on screen now: inside a scrolling grid it moves, and a tile scrolled out of view has no glyph.
+        const rect = this.#optionRegion
+          ? clipHoverRect(this.#screenRect(key) ?? tile, this.#optionRegion.rect)
+          : this.#screenRect(key);
+        if (!rect || rect.height < glyphHeight + 8) return null;
+        // A text row is a strip: the combo is centred on its right end. A tile hangs it in the top-right corner.
+        const y = place === "row" ? rect.y + rect.height / 2 : rect.y + 4 + glyphHeight / 2;
+        return { x: rect.x + rect.width - glyphWidth - (place === "row" ? 10 : 4), y };
+      },
+      { ground: "ink" },
+    );
+  }
+
   #drawCardOption(slot: Rect, option: PendingChoice["options"][number], ordered: boolean): void {
     const { store } = appSession();
     const state = store.state.game;
@@ -2700,14 +2919,16 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // A keyword tile is words, not a picture of the card: nothing to blow up.
     if (instanceId && !keywordTile) noteHoverCard(this, instanceId, slot);
+    // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the
+    // read is plain: Inspect gets no Select button.
+    const tap = (): void => {
+      if (this.#maxSelections === 0 && instanceId) this.scene.launch(SCENES.inspect, { instanceId });
+      else this.#toggle(option.optionId, this.#maxSelections);
+    };
+    if (this.#maxSelections > 0) this.#registerTilePick(slot, option.optionId, tap);
     bindHoldTarget(this, zone, {
       key: option.optionId as string,
-      // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the
-      // read is plain: Inspect gets no Select button.
-      onTap: () =>
-        this.#maxSelections === 0 && instanceId
-          ? this.scene.launch(SCENES.inspect, { instanceId })
-          : this.#toggle(option.optionId, this.#maxSelections),
+      onTap: tap,
       // An option that is not a card has nothing to read; its press is only a tap.
       onInspect: instanceId
         ? () =>
@@ -2727,7 +2948,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * focused, `I` reads a card option, Escape drops focus — it does not dismiss
    * the sheet, because an open decision has to be answered.
    */
-  #onIntent(intent: GamepadIntent): void {
+  #onIntent(intent: GamepadIntent, source?: "key"): void {
     if (this.#motion.leaving) return;
     const choice = appSession().store.state.game?.pendingChoice;
     if (!choice) return;
@@ -2762,31 +2983,97 @@ export class ChoiceOverlay extends Phaser.Scene {
         break;
       }
       case "activate":
-        this.#activate(choice);
+        if (ignoreActivate(source, this.#revealKeyDown)) break;
+        this.#activate(choice, source === "key");
         break;
       case "inspect":
         if (this.#focus?.kind === "option") this.#inspectOption(choice, this.#focus.optionId);
         break;
       case "cancel":
+        // B on the end-of-phase discard sheet is Nevermind (`#takebackOf`); anywhere else it only drops focus.
+        {
+          // With a control focused, B first drops that focus; the next press takes the turn back.
+          const takeback = backOutOnCancel(this.#focus ? choiceFocusKey(this.#focus) : null, this.#drawnBackOut);
+          if (takeback !== null) {
+            void this.#backOut(takeback);
+            break;
+          }
+        }
         this.#focus = null;
         this.#drawFocusRing();
+        break;
+      case "toggleGuide":
+        // X (G): the second answer, Decline, from anywhere on the sheet while it is offered and no cover hides it.
+        if (this.#declineKeyActive(choice)) {
+          this.#selected = [];
+          void this.#confirm();
+        }
+        break;
+      case "pause":
+        // Start is "forward": with the commit ready it presses Confirm from wherever focus is. Pause otherwise.
+        if (this.#primaryKey() !== null && this.#canCommit(choice)) {
+          this.#focus = { kind: "confirm" };
+          this.#activate(choice);
+          break;
+        }
+        openPauseOverBoard(this);
+        break;
+      case "view":
+        this.#padAction("peek");
+        break;
+      case "expand":
+        this.#padAction("expand");
         break;
     }
   }
 
-  #reveal(choice: PendingChoice): void {
+  /** View / P and R3 / X: what the sheet's PEEK AT TABLE (or BACK) and COLLAPSE controls do, only where drawn. */
+  #padAction(action: "peek" | "expand"): void {
     if (this.#motion.leaving) return;
+    (action === "peek" ? this.#padPeek : this.#padExpand)?.();
+  }
+
+  #declineState(choice: PendingChoice): DeclineKeyState {
+    return {
+      canDecline: canDeclineChoice(choice),
+      drawn: this.#focusRects.has(choiceFocusKey({ kind: "decline" })),
+      revealUp: this.#hasReveal(),
+      guideRailUp: this.#guideRailUp,
+    };
+  }
+
+  #declineKeyActive(choice: PendingChoice): boolean {
+    return declineKeyActive(this.#declineState(choice));
+  }
+
+  /** True while the hidden-info cover is up: nothing under it may be answered. */
+  #hasReveal(): boolean {
+    return this.#focusRects.has(choiceFocusKey({ kind: "reveal" }));
+  }
+
+  #reveal(choice: PendingChoice, byKey = false): void {
+    if (this.#motion.leaving) return;
+    this.#revealKeyDown = byKey;
     this.#revealedChoiceId = choiceSheetKey(choice);
     this.#focus = null;
     this.#rebuild();
   }
 
   /** Enter on the focused control means exactly what a tap on it means — including nothing, for a Confirm that isn't ready. */
-  #activate(choice: PendingChoice): void {
-    const focus = this.#focus;
+  #activate(choice: PendingChoice, byKey = false): void {
+    // With nothing focused, Enter / A presses the primary commit when it is ready (`view/primary-activation.ts`),
+    // which is what the glyph on that button promises; with a control focused it presses that control.
+    const target = activationTarget(
+      this.#focus ? choiceFocusKey(this.#focus) : null,
+      this.#primaryKey(),
+      this.#canCommit(choice),
+    );
+    const focus =
+      this.#focus ??
+      (target === null ? (this.#hasReveal() ? { kind: "reveal" as const } : null) : { kind: "confirm" as const });
     if (!focus) return;
     if (focus.kind === "reveal") {
-      this.#reveal(choice);
+      this.#reveal(choice, byKey);
       return;
     }
     if (focus.kind === "confirm" && isBreakChoice(choice) && !this.#breakManual) {
@@ -2904,6 +3191,12 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** Static, not pulsing: the ring says "here you are", not "act now" — the Board's convention. */
   #drawFocusRing(): void {
+    this.#placeFocusRing();
+    // The Confirm glyph shows only while Enter would press it, which depends on the focus.
+    this.#hints.refresh();
+  }
+
+  #placeFocusRing(): void {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     const focus = this.#focus;
@@ -2914,7 +3207,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
     const rect = this.#screenRect(choiceFocusKey(focus));
     if (!rect) return;
-    this.#focusRing = new McSelectionRing(this);
+    this.#focusRing = new McSelectionRing(this, undefined, true);
     this.#focusRing.show(rect, "static", true);
   }
 
@@ -2975,6 +3268,12 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
       this.#rebuild();
     }
+  }
+
+  /** Nevermind on the end-of-phase discard sheet (`view/end-turn-takeback.ts`): the count to rewind to, or null. */
+  #takebackOf(state: SessionState, choice: PendingChoice): number | null {
+    if (!state.perspectiveId || choice.playerId !== state.perspectiveId) return null;
+    return choiceTakebackOf(state.commandTrail, choice, state.perspectiveId);
   }
 
   /**

@@ -164,6 +164,39 @@ export function collectDesktopBundles(releaseDir = defaultReleaseDir) {
 }
 
 /**
+ * The "Install for Steam" script for this machine's OS (scripts/<os>/install-for-steam.*), which adds the installed
+ * game to Steam as a non-Steam game with its library art. Each desktop leg of the release stages its own OS's, with
+ * the release's tag stamped in so it fetches that release's art; both macOS legs stage the same file.
+ */
+const STEAM_INSTALLERS = {
+  linux: { source: path.join("linux", "install-for-steam.sh"), name: "Linux-Install-for-Steam.sh" },
+  win32: { source: path.join("windows", "install-for-steam.ps1"), name: "Windows-Install-for-Steam.ps1" },
+  darwin: { source: path.join("macos", "install-for-steam.sh"), name: "macOS-Install-for-Steam.sh" },
+};
+
+export function steamInstallerName(platform, version) {
+  const installer = STEAM_INSTALLERS[platform];
+  return installer ? `${ASSET_PREFIX}-${version}-${installer.name}` : null;
+}
+
+/**
+ * Stages this OS's Install for Steam script into the release directory.
+ * @returns {{ name: string, path: string, size: number, sha256: string } | null}
+ */
+export function collectSteamInstaller(platform = process.platform, releaseDir = defaultReleaseDir) {
+  const installer = STEAM_INSTALLERS[platform];
+  if (!installer) return null;
+  fs.mkdirSync(releaseDir, { recursive: true });
+  const version = getProjectVersion();
+  const name = steamInstallerName(platform, version);
+  const dest = path.join(releaseDir, name);
+  const script = fs.readFileSync(path.join(repoRoot, "scripts", installer.source), "utf8");
+  fs.writeFileSync(dest, script.replaceAll("__MC_RELEASE_TAG__", `v${version}`), { mode: 0o755 });
+  const stat = fs.statSync(dest);
+  return { name, path: dest, size: stat.size, sha256: computeSha256(dest) };
+}
+
+/**
  * Collects the signed release APK into the release directory.
  * @returns {{ name: string, path: string, size: number, sha256: string } | null}
  */

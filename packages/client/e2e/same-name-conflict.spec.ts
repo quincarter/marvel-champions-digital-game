@@ -391,6 +391,9 @@ test.describe("Same-name hero and ally conflicts", () => {
     await settle(page);
     await clickStop(page, "next", "ScenarioSelect");
     await waitForScene(page, "Seats");
+    await waitFor(async () => (await hasStop(page, "hero-search", "Seats")) || null, "hero search", 10000);
+    // The seats start blank: one hero is the player's pick.
+    await seatDeckThroughTile(page, "precon:colossus-protection", { search: "Colossus" });
     await settle(page);
     expect(await noticeText(page), "no notice for one hero").toHaveLength(0);
     await clickStop(page, "play", "Seats");

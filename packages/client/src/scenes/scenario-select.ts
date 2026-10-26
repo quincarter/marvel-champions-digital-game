@@ -44,6 +44,7 @@ import { rankShelvesByScore } from "../view/deck-search.js";
 import { scenarioSearchDocumentOf } from "../view/scenario-search.js";
 import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
 import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
+import { padInputTracked } from "../platform/input-device.js";
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
 import {
@@ -81,6 +82,15 @@ import { McChipRail } from "../ui/chip-rail.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { onTap } from "../ui/tap.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { createHints, forwardHint } from "./campaign/pad-hints.js";
+import type { GlyphHints } from "../ui/glyph-hints.js";
+import { PadFilters } from "./pad-filters.js";
+import { drawFiltersControl, searchRectForInspectHint } from "./filters-control.js";
+import { filtersLabel } from "../view/filters-layout.js";
+import { shelfPagingHints } from "./shelf-row-hints.js";
+import { bindExtraInput } from "./extra-input.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
+import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
 import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -99,6 +109,10 @@ const DETAIL_TEXT_PAD = 24;
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
 const roman = (n: number): string => ROMAN[n] ?? String(n);
 
+/** The stops that are the filters (search and the product chips), and the ones that are the list. */
+const FILTER_STOP = /^(scenario-search-toggle|scenario-search|filters-toggle|scenario-chip:.*)$/;
+const LIST_STOP = /^(drill-back|scenario-clear|scenario:.*)$/;
+
 const scenarioCountCaption = (count: number): string => `${count} ${count === 1 ? "SCENARIO" : "SCENARIOS"}`;
 
 export class ScenarioSelectScene extends Phaser.Scene {
@@ -114,15 +128,32 @@ export class ScenarioSelectScene extends Phaser.Scene {
   readonly #search = new DeckSearchClient();
   #ranking: ReadonlyMap<string, number> | null = null;
   #roster: McShelfRoster<RosterEntry> | null = null;
+  /** Whether "Choose heroes" can be pressed now, for the route's primary stop (Start). */
+  #canContinue = false;
+  /** A screen change is under way (Back, Choose heroes): later presses do nothing. */
+  #leaving = false;
   #grid: McVirtualList | null = null;
   /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
+  /** The filters and the list as two areas of the route, for Y and B (`view/focus-areas.ts`). */
+  readonly #areaJump = new AreaJump();
+  #areas: FocusAreas = { filters: [], entry: null, list: [] };
+  /** The Start glyph on "Choose heroes", the Y / View hints and the LT / RT glyphs by the row chevrons (pad or keyboard only). */
+  #hints!: GlyphHints;
+  /** The chips fold away while a controller is in use (`view/pad-filters.ts`). */
+  #padFilters!: PadFilters;
+  /** Each scenario tile's shelf row, by focus key, for LT / RT. */
+  readonly #rowOfKey = new Map<string, { readonly shelfIndex: number; readonly itemIndex: number }>();
+  /** Whether the last redraw folded the chips, so Y knows whether it opens or folds them. */
+  #chipsFolded = false;
   #drill: ShelfDrillState = ALL_PACKS;
   /** Every scenario's played record, keyed by scenario id, so the side panel reads the *current* selection's row on each redraw (issue 141). */
   #history: ReadonlyMap<string, ScenarioRecord> = new Map();
   /** The record line last drawn in the side panel, for the dev e2e hook only. */
   #recordText = "";
+  /** The focus key of the topmost scenario tile as of the last rebuild, where focus starts on arrival. */
+  #firstTileKey: string | null = null;
   readonly #artCache = new Map<string, Picture | null>();
   /** Dev e2e hook only: every tile drawn so far (see `create`). */
   readonly #tileDebug = new Map<string, { id: string; title: string; villainArt: boolean; baked: boolean }>();
@@ -139,6 +170,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.#leaving = false;
+    // The scene is reused: a visit starts on the full shelf list with the stages panel shut.
+    this.#drill = ALL_PACKS;
+    this.#stagesOpen = false;
+    this.#hints = createHints(this);
+    this.#padFilters = new PadFilters(this, () => this.#rebuild());
+    this.#padFilters.reset();
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
@@ -155,7 +193,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#tileDebug.clear();
       (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
         tiles: () => [...this.#tileDebug.values()],
-        selectedId: () => this.#draft.scenarioId,
+        selectedId: () => (this.#scenarioPicked() ? this.#draft.scenarioId : null),
         recordText: () => this.#recordText,
         stops: () =>
           [...this.#stops].map(([key, stop]) => ({
@@ -177,12 +215,31 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#chipRail?.destroy();
       this.#chipRail = null;
     });
+    const covered = (): boolean => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.unlockConfirm);
     this.#route = new FocusRoute(this, {
-      blocked: () =>
-        this.scene.isActive(SCENES.inspect) ||
-        this.scene.isActive(SCENES.unlockConfirm) ||
-        (this.#searchInput?.focused ?? false),
-      onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
+      // The LT / RT glyphs belong to the row focus is in.
+      onFocusChange: () => this.#hints.refresh(),
+      blocked: () => covered() || (this.#searchInput?.focused ?? false),
+      // B from the list returns to the filters (scrolled back to the top); from the filters it backs out.
+      // Y is the filters' fold while a controller is in use (the keyboard's Inspect key is unchanged); View inspects.
+      onInspect: (source) => {
+        if (source === "key" || !this.#padFilters.padMode) return false;
+        this.#toggleFilters();
+        return true;
+      },
+      // LT / RT page the focused row, like its ‹ / › chevrons.
+      onTrigger: (trigger) => this.#pageRow(trigger === "lt" ? -1 : 1),
+      onCancel: () => {
+        if (areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
+          this.#jumpAreas(true);
+          return;
+        }
+        if (this.#drill.packId !== null) this.#drillOut();
+        else this.#back();
+      },
+      // Start / Menu (and A with nothing focused) is "Choose heroes ▸".
+      primary: () => (this.#canContinue ? "next" : null),
+      onScroll: (_dx, dy) => (this.#grid ?? this.#roster)?.scrollByPx(dy),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
       onHomeEnd: (edge) => {
         const active = this.#grid ?? this.#roster;
@@ -190,6 +247,17 @@ export class ScenarioSelectScene extends Phaser.Scene {
         else active?.scrollToEnd();
       },
     });
+    bindExtraInput(this, {
+      blocked: () => covered() || (this.#searchInput?.focused ?? false),
+      intents: {
+        view: () => {
+          const key = this.#route?.focused ?? null;
+          if (this.#padFilters.padMode && key?.startsWith("scenario:")) this.#route?.inspectFocused();
+        },
+      },
+    });
+    // A pad that put the caret in the search field can take it out again (B, A or Start).
+    bindTextFieldEscape(this, () => this.#searchInput, covered);
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
@@ -199,6 +267,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
       POOL_VERSION + ":scenarios",
     );
     this.#rebuild();
+    // Arriving by pad, focus is on the picked villain (coming back from Seats) or else the topmost one; a mouse or
+    // touch player gets no ring, which would read as a preselection.
+    if (padInputTracked()) {
+      const picked = this.#scenarioPicked() ? `scenario:${this.#draft.scenarioId}` : null;
+      const key = picked !== null && this.#stops.has(picked) ? picked : this.#firstTileKey;
+      if (key !== null) this.#route?.focusKey(key);
+    }
     if (this.#draft.scenarioFilter.text.trim() !== "") this.#requestSearch(this.#draft.scenarioFilter.text);
     fadeScreenIn(this);
     void refreshUnlocks().then((changed) => {
@@ -213,7 +288,14 @@ export class ScenarioSelectScene extends Phaser.Scene {
       });
   }
 
+  /** False on a fresh New game until the player taps a villain (`SetupDraft.scenarioPicked`). */
+  #scenarioPicked(): boolean {
+    return this.#draft.scenarioPicked !== false;
+  }
+
   #back(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.title);
   }
@@ -235,6 +317,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    this.#hints.reset();
+    this.#rowOfKey.clear();
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -255,13 +339,14 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // scenario still visible (`view/scenario-selection.ts`); with none visible, "Choose heroes" is disabled.
     const shelves = this.#shelves();
     const selection = selectionAmongVisible(
-      this.#draft.scenarioId,
+      this.#scenarioPicked() ? this.#draft.scenarioId : null,
       flattenShelves(shelves)
         .filter((entry): entry is Scenario => !isBuilderTile(entry))
         .map((entry) => entry.id as string),
     );
     const scenario = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === selection.selectedId);
-    this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
+    // Nothing is picked until the player picks one: the draft is left alone (its scenarioId is only a placeholder).
+    if (selection.selectedId !== null) this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
 
     const chipDefs = scenarioProductsOf(POOL_SCENARIOS).map((code) => ({
       id: `product:${code}`,
@@ -276,10 +361,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
       },
     }));
 
-    const currentScenario = scenario ?? POOL_SCENARIOS[0]!;
     // "Customize this scenario": only on a ready-made Civil War scenario (inert until one is in the pool).
     const customize = customizeEntryOf(scenario);
-    const detail = scenarioDetailOf(currentScenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const detail = scenario ? scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS) : null;
     // The real wrapped line count against the panel's own text width, not a raw string count — a fixed
     // per-string budget clipped a long line against a ~300px side panel.
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
@@ -289,8 +373,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // gutters narrower, 300px+ on wide) and drew the extra row straight through the first shelf's header
     // (2026-09-19 phone check: "The Wrecking Crew" sat on top of "CORE SET").
     // A lock reason is a sentence: it wraps in the footer, and the layout gives the footer the height it measures.
-    const lock = unlocks().scenarioLock(currentScenario);
+    const lock = scenario ? unlocks().scenarioLock(scenario) : null;
     let footerHeight = FOOTER_HEIGHT;
+    // Behind the Filters button while a controller is in use or the game is narrower than the breakpoint (Y or the
+    // button brings the chips back).
+    const behindButton = this.#padFilters.behindButton(width);
+    const folded = this.#padFilters.folded(width);
+    this.#chipsFolded = folded;
     const layoutFor = (chipRowCount: number): ReturnType<typeof scenarioSelectLayout> =>
       scenarioSelectLayout({
         footerHeight,
@@ -298,13 +387,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
         height,
         chipRows: chipRowCount,
         detailLines: 12,
-        detailCollapsed: !this.#stagesOpen,
+        // Nothing picked: the panel has no stages to show, so it stays a bar (it has no toggle either).
+        detailCollapsed: !this.#stagesOpen || scenario === undefined,
         searchOpen: this.#searchOpen,
         secondaryAction: customize !== null,
+        filtersButton: behindButton,
+        chipsShown: !folded,
       });
-    const estimatedRows = packCompactChipsToRows(chipDefs, width).length;
+    const estimatedRows = folded ? 0 : packCompactChipsToRows(chipDefs, width).length;
     const firstPass = layoutFor(estimatedRows);
-    const chipRows = packCompactChipsToRows(chipDefs, firstPass.chips.width);
+    const chipRows = folded ? [] : packCompactChipsToRows(chipDefs, firstPass.chips.width);
     let layout = chipRows.length === estimatedRows ? firstPass : layoutFor(chipRows.length);
     if (lock) {
       const probe = label(this, 0, 0, lock, typeRole.label, surface.paper.hex, 1);
@@ -357,7 +449,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       )
       .setOrigin(1, 0.5);
 
-    this.#drawSearchAndChips(layout, chipDefs, chipRows);
+    this.#drawSearchAndChips(layout, chipDefs, chipRows, folded);
 
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
@@ -443,6 +535,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         },
         buttons: this.#buttons,
         stops: this.#stops,
+        rowOfKey: this.#rowOfKey,
       });
       cardIds = flattenShelves(shelves).map((s) => s.id as string);
     }
@@ -450,7 +543,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
     // Zero-height while the phone's disclosure is shut — the strip folds away with the stages.
     // (An open phone sheet draws the strip itself, over its own ground — see `#drawSidePanel`.)
-    if (layout.statStrip.height > 0 && !layout.detailOverlay)
+    if (detail && layout.statStrip.height > 0 && !layout.detailOverlay)
       this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
 
     // The side panel (D02's own "SCENARIO STAGES" sidebar): a Bangers header, one outlined box per stage (bright at
@@ -458,25 +551,33 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#drawSidePanel(layout, detail, detailTextWidth);
 
     // Locked, the CTA becomes the door to unlocking this one scenario with champion points, right here.
-    const unlockTarget = { kind: "scenario", scenarioId: currentScenario.id as string } as const;
+    const unlockTarget = { kind: "scenario", scenarioId: (scenario?.id ?? this.#draft.scenarioId) as string } as const;
     const next = (): void => {
+      if (this.#leaving) return;
       if (lock) {
         unlockOrAsk(this, unlockTarget, () => this.#rebuild());
         return;
       }
+      this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: lock ? `Unlock · ${unlockCostOf(unlockTarget)} pts` : "Choose heroes ▸",
-        type: typeRole.barTitle,
-        rect: layout.next,
-        onClick: next,
-        enabled: selection.canContinue,
-      }),
-    );
+    const nextButton = new McButton(this, {
+      kind: "primary",
+      label: lock ? `Unlock · ${unlockCostOf(unlockTarget)} pts` : "Choose heroes ▸",
+      type: typeRole.barTitle,
+      rect: layout.next,
+      onClick: next,
+      enabled: selection.canContinue,
+      ...(selection.canContinue
+        ? {}
+        : { reason: selection.selectedId === null ? "Pick a villain first." : "No scenario is showing." }),
+    });
+    this.#buttons.push(nextButton);
+    // Start moves forward on this screen (the route's primary), so its glyph sits on the red button.
+    if (selection.canContinue) forwardHint(this.#hints, nextButton, "ink");
+    this.#canContinue = selection.canContinue;
+    // Kept a stop while greyed (specs wait on it as "the list is ready"); the route's primary is null until a pick.
     this.#stops.set("next", { rect: layout.next, activate: selection.canContinue ? next : () => {} });
     if (customize && layout.secondary) {
       const open = (): void => this.#openBuilder("customize", customize.scenarioId);
@@ -504,16 +605,79 @@ export class ScenarioSelectScene extends Phaser.Scene {
     );
     if (lock) footer.setWordWrapWidth(layout.footer.width);
 
-    this.#route?.set(
-      scenarioSelectFocusOrder({
-        scenarioIds: cardIds,
-        scenarioChipIds: chipDefs.map((c) => c.id),
-        stagesToggle: !layout.wide,
-        searchToggle: !layout.wide,
-        customize: customize !== null,
-      }),
-      this.#stops,
-    );
+    this.#firstTileKey = cardIds[0] !== undefined ? `scenario:${cardIds[0]}` : null;
+    const order = scenarioSelectFocusOrder({
+      scenarioIds: cardIds,
+      scenarioChipIds: folded ? [] : chipDefs.map((c) => c.id),
+      filtersToggle: this.#stops.has("filters-toggle"),
+      stagesToggle: !layout.wide,
+      searchToggle: !layout.wide,
+      customize: customize !== null,
+    });
+    this.#areas = {
+      filters: order.filter((key) => FILTER_STOP.test(key)),
+      entry:
+        order.find((key) => key.startsWith("scenario-chip:")) ??
+        order.find((key) => key === "filters-toggle") ??
+        order.find((key) => key === "scenario-search") ??
+        null,
+      list: order.filter((key) => LIST_STOP.test(key)),
+    };
+    // Y on a stop with no Inspect of its own jumps between the filters and the list; a scenario tile keeps its Inspect.
+    for (const [key, stop] of this.#stops) {
+      if (!stop.inspect) this.#stops.set(key, { ...stop, inspect: () => this.#jumpAreas(false) });
+    }
+    shelfPagingHints(this.#hints, {
+      roster: () => this.#roster,
+      shelfIndex: () => this.#rowOfKey.get(this.#route?.focused ?? "")?.shelfIndex ?? null,
+    });
+    this.#route?.set(order, this.#stops);
+  }
+
+  /**
+   * Y (or the Filters button) while a controller is in use: shows the chips, or folds them away again. Opening moves
+   * focus to the first chip, remembering the tile it left; folding from a chip returns to that tile.
+   */
+  #toggleFilters(): void {
+    const focus = this.#route?.focused ?? null;
+    const opening = this.#chipsFolded;
+    const onChip = focus?.startsWith("scenario-chip:") ?? false;
+    this.#padFilters.toggle();
+    this.#rebuild();
+    // The ring follows a pad or keyboard user; a mouse press leaves focus alone (no ring appears for it).
+    if (focus === null && !this.#padFilters.padMode) return;
+    if (opening) {
+      const target = this.#areaJump.toFilters(focus, this.#areas);
+      if (target !== null) this.#route?.focusKey(target);
+    } else if (onChip) {
+      const target = this.#areaJump.toList(this.#areas);
+      if (target !== null) this.#route?.focusKey(target);
+    }
+  }
+
+  /** LT / RT: pages the shelf row focus is in, as its chevron would, and moves focus to the first card in view. */
+  #pageRow(direction: 1 | -1): void {
+    const row = this.#rowOfKey.get(this.#route?.focused ?? "");
+    if (!row || !this.#roster) return;
+    const first = this.#roster.pageShelf(row.shelfIndex, direction);
+    if (first === null) return;
+    const key = [...this.#rowOfKey].find(([, at]) => at.shelfIndex === row.shelfIndex && at.itemIndex === first)?.[0];
+    if (key) this.#route?.focusKey(key);
+    this.#hints.refresh();
+  }
+
+  /** Y toggles focus between the filters and the list (back to the row it left); B (`fromBack`) also scrolls the list to its start. */
+  #jumpAreas(fromBack: boolean): void {
+    // B from the list with the chips folded opens them first, so there is a row to land on.
+    if (this.#chipsFolded) {
+      this.#padFilters.open();
+      this.#rebuild();
+    }
+    const focus = this.#route?.focused ?? null;
+    const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
+    if (target === null) return;
+    if (fromBack) (this.#grid ?? this.#roster)?.scrollToStart();
+    this.#route?.focusKey(target);
   }
 
   /**
@@ -525,12 +689,15 @@ export class ScenarioSelectScene extends Phaser.Scene {
     layout: ReturnType<typeof scenarioSelectLayout>,
     chipDefs: readonly { id: string; text: string; selected: boolean; onClick: () => void }[],
     chipRows: readonly (readonly { id: string; text: string; selected: boolean; onClick: () => void }[])[],
+    folded: boolean,
   ): void {
     const filter = this.#draft.scenarioFilter;
+    // The View "Inspect" hint beside the button needs room a phone does not have.
+    const inspectHint = this.#padFilters.padMode && layout.wide && layout.filtersButton !== null;
     if (layout.search.height > 0) {
       this.#searchInput = drawSearchField(
         this,
-        layout.search,
+        searchRectForInspectHint(layout.search, inspectHint),
         "scenario-search",
         filter.text,
         "search scenarios, villains, packs…",
@@ -558,6 +725,19 @@ export class ScenarioSelectScene extends Phaser.Scene {
         this.#stops,
       );
     }
+    if (layout.filtersButton) {
+      drawFiltersControl(
+        this,
+        this.#hints,
+        layout.filtersButton,
+        filtersLabel(this.#draft.scenarioFilter.product ? 1 : 0, !folded),
+        inspectHint,
+        () => this.#toggleFilters(),
+        this.#buttons,
+        this.#stops,
+      );
+    }
+    if (folded) return;
     if (layout.chipsScroll) {
       const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
       this.#chipRail = rail;
@@ -637,7 +817,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       null;
     const cardDetail = scenarioDetailOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const subtitle = shelfSubtitleOf(cardDetail);
-    const selected = this.#draft.scenarioId === (s.id as string);
+    const selected = this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string);
     // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
     const lock = unlocks().scenarioLock(s);
     const row = renderShelfCard(this, rect, {
@@ -724,11 +904,32 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   #drawSidePanel(
     layout: ReturnType<typeof scenarioSelectLayout>,
-    detail: ScenarioDetail,
+    detail: ScenarioDetail | null,
     detailTextWidth: number,
   ): void {
     const rect = layout.detail;
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
+    if (detail === null) {
+      // No villain picked yet: the panel says what it will show, and the record below has nothing to read.
+      this.#recordText = "";
+      const headerY = layout.wide ? rect.y + 16 : rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT / 2;
+      const header = this.add.text(
+        rect.x + 16,
+        headerY,
+        "Scenario stages",
+        textStyle(typeRole.sectionHeader, surface.paper.hex),
+      );
+      if (!layout.wide) header.setOrigin(0, 0.5);
+      const hint = this.add.text(
+        layout.wide ? rect.x + 16 : rect.x + rect.width - 16,
+        layout.wide ? headerY + 32 : headerY,
+        layout.wide ? "Pick a villain to see its stages." : "Pick a villain",
+        textStyle(layout.wide ? typeRole.body : typeRole.label, surface.paper.hex, ink.label),
+      );
+      if (!layout.wide) hint.setOrigin(1, 0.5);
+      else hint.setWordWrapWidth(rect.width - 32);
+      return;
+    }
     let y = rect.y + 16;
     if (layout.wide) {
       this.add.text(rect.x + 16, y, "Scenario stages", textStyle(typeRole.sectionHeader, surface.paper.hex));
@@ -912,7 +1113,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const candidates: ShelfCandidate<Scenario>[] = withSelectionPinned(
       POOL_SCENARIOS,
       () => true,
-      (s) => this.#draft.scenarioId === (s.id as string),
+      (s) => this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string),
     ).map((s) => {
       const passesChips =
         (!this.#draft.scenarioFilter.product || (s.packCode as string) === this.#draft.scenarioFilter.product) &&

@@ -16,6 +16,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { afterWallMs } from "../ui/wall-timer.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { splashLayout } from "../view/team-up-layout.js";
+import { bindExtraInput } from "./extra-input.js";
 import { SCENES } from "./keys.js";
 
 /** Dev-only record of each splash (`window.__mcTeamUpSplashLog`, e2e): the splash is on screen for a moment, a record is not. */
@@ -79,6 +80,8 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
     keyboard?.on("keydown-ENTER", dismiss);
     keyboard?.on("keydown-ESC", dismiss);
     keyboard?.on("keydown-SPACE", dismiss);
+    // A and B dismiss it as Enter and Escape do; the Board and the sheet hold their own pad while it is up.
+    bindExtraInput(this, { intents: { activate: dismiss, cancel: dismiss } });
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#draw, this);

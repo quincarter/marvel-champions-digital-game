@@ -136,6 +136,8 @@ import {
 } from "../view/campaign-deck-edit-model.js";
 import type { CampaignReturn } from "./campaign/routes.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
+import { inputDevice } from "../platform/input-device.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -398,13 +400,19 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#deckRegion?.destroy();
       this.#deckRegion = null;
     });
+    // A pad that put the caret in a field can take it out again (B, A or Start).
+    for (const field of [() => this.#nameInput, () => this.#filterInput, () => this.#identityInput])
+      bindTextFieldEscape(this, field, () => this.scene.isActive(SCENES.inspect));
     this.#route = new FocusRoute(this, {
+      // B is the Back button (which asks to confirm when there are unsaved changes).
+      onCancel: () => this.#stops.get("back")?.activate(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         (this.#nameInput?.focused ?? false) ||
         (this.#filterInput?.focused ?? false) ||
         (this.#identityInput?.focused ?? false),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
     this.#rebuild();
@@ -487,7 +495,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       // Unsaved changes: the first Back says so, the second leaves without saving.
       if (this.#isDirty() && !this.#leaveArmed) {
         this.#leaveArmed = true;
-        this.#status = "You have unsaved changes. Save the deck, or press Leave again to leave without saving.";
+        const again = inputDevice().mode === "pad" ? "press Leave (B) again" : "press Leave again";
+        this.#status = `You have unsaved changes. Save the deck, or ${again} to leave without saving.`;
         this.#rebuild();
         return;
       }
@@ -1877,6 +1886,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#stops.set(`identity:${identity.id as string}`, {
         rect: () => tileRect(list.rectFor(rowIndex), index % cols),
         activate: () => chooseAt(index),
+        inspect: () => this.#inspect(identity),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
     });

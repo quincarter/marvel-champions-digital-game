@@ -69,6 +69,10 @@ test.describe("Table setup: MojoMania", () => {
     await clickStop(page, "__mcScenarioSelectDebug", "next");
     await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 8000);
     await settle(page);
+    // A new game seats nobody: seat Spider-Man first, then open seat 2 for She-Hulk.
+    await scrollStopIntoView(page, "hero:precon:core-spider-man-justice", "Seats");
+    await seatDeckThroughTile(page, "precon:core-spider-man-justice");
+    await settle(page);
     await clickStop(page, "__mcSeatsDebug", "seat:1");
     // The tile sits in the Core Set shelf, below the Recommended shelf: scroll it into view, then click where it is.
     // She-Hulk has more than one deck (the precon and tested community decks), so her tile opens "Pick a deck".

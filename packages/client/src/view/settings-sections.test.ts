@@ -26,6 +26,7 @@ describe("settingsSectionsOf", () => {
       "villain-dock",
       "unlocks",
       "save-data",
+      "controls",
       "rules",
       "achievement-popup-time",
       "achievement-popup-place",
@@ -140,6 +141,10 @@ describe("the desktop app's Window section", () => {
   test("the Android app leads Animation and display with Lighter play in power saving; elsewhere it is left out", () => {
     const motion = (powerSaving: boolean) =>
       settingsSectionsOf({ guideRowIds, cardHover: false, powerSaving }).find((s) => s.id === "motion")!.items;
+    const withCouch = settingsSectionsOf({ guideRowIds, cardHover: false, couchMode: true }).find(
+      (s) => s.id === "motion",
+    )!.items;
+    expect(withCouch[0]).toBe("couch-mode");
     expect(motion(true)).toEqual(["power-saving", "reduced-motion", "token-motion", "sharper-text"]);
     expect(motion(false)).toEqual(["reduced-motion", "token-motion", "sharper-text"]);
   });
@@ -190,5 +195,16 @@ describe("the Screen section (#320)", () => {
   test("with ?renderscale=off it is left out", () => {
     const sections = settingsSectionsOf({ guideRowIds, cardHover: true, screenSettings: false });
     expect(sections.map((s) => s.id)).not.toContain("screen");
+  });
+});
+
+describe("the Controls row", () => {
+  const base = { guideRowIds: [], cardHover: true };
+  const more = (input: Parameters<typeof settingsSectionsOf>[0]) =>
+    settingsSectionsOf(input).find((section) => section.id === "more")!.items;
+
+  test("shows by default, and hides when the phone app has no controller", () => {
+    expect(more(base)).toContain("controls");
+    expect(more({ ...base, controls: false })).not.toContain("controls");
   });
 });

@@ -63,6 +63,7 @@ import Phaser from "phaser";
 import { ListScroll, thumbOf } from "../view/list-scroll.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import { withinTapSlop } from "../view/press-arm.js";
+import { HOLD_SLOP_PX, INSPECT_HOLD_MS } from "../view/hold-gesture.js";
 import type { Rect } from "../view/layout.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "./theme.js";
@@ -105,6 +106,12 @@ export interface McVirtualListOptions {
    */
   readonly onRowActivate?: (index: number, pointer: Phaser.Input.Pointer) => void;
   /**
+   * A row whose tap only reads it (the Decks pool, where a tap opens Inspect): a press held there opens it at once,
+   * as a long press does on the table, without waiting for the lift, and the list allows a held finger's wobble
+   * (`HOLD_SLOP_PX`) before it scrolls. A finger is never still, and the list's usual 6 px made every hold a scroll.
+   */
+  readonly activateOnHold?: boolean;
+  /**
    * Uniform rows only: a scroll comes to rest on a row boundary (after a drag, a coast or a wheel), so a row is never
    * left half under whatever sits above the list. The caller sizes the list to a whole number of rows so the last
    * position is a boundary too.
@@ -134,7 +141,10 @@ export class McVirtualList {
   readonly #thumb: Phaser.GameObjects.Rectangle;
   readonly #rows = new Map<number, VirtualListRow>();
   readonly #onDestroy: (() => void)[] = [];
-  readonly #drag = new DragGesture();
+  #drag = new DragGesture();
+  readonly #activateOnHold: boolean;
+  /** The press whose hold already activated its row: its release activates nothing. */
+  #heldDownTime: number | null = null;
   readonly #momentum = new Momentum();
   #rect: Rect;
   #rowHeight: number;
@@ -166,6 +176,8 @@ export class McVirtualList {
     this.#measureRows();
     this.#renderRow = options.renderRow;
     this.#onRowActivate = options.onRowActivate;
+    this.#activateOnHold = options.activateOnHold === true;
+    if (this.#activateOnHold) this.#drag = new DragGesture({ tapThresholdPx: HOLD_SLOP_PX });
     this.#scroll = options.scroll;
     this.#snapRows = options.snapRows === true && !options.rowHeightOf;
     this.#hintFade = options.moreHint?.fadeTo ?? 0;
@@ -316,6 +328,13 @@ export class McVirtualList {
       this.#redrawWindow(false);
   }
 
+  /** Scrolls by `amount` pixels (positive is down), clamped: the pad's right stick, a little each frame. */
+  scrollByPx(amount: number): void {
+    const { count, rowHeight } = this.#shape;
+    if (this.#scroll.scrollByPx(amount, count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    this.#settleSoon();
+  }
+
   scrollToStart(): void {
     const { count, rowHeight } = this.#shape;
     if (this.#scroll.scrollToStart(count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
@@ -430,6 +449,23 @@ export class McVirtualList {
     this.#drag.start(pointer.id, pointer.y, pointer.downTime);
     this.#dragSuppressed = false;
     this.#downAt = { x: pointer.x, y: pointer.y };
+    this.#heldDownTime = null;
+    if (!this.#activateOnHold || !this.#onRowActivate) return;
+    const { downTime } = pointer;
+    const downAt = this.#downAt;
+    this.#scene.time.delayedCall(INSPECT_HOLD_MS, () => {
+      const still = pointer.isDown && pointer.downTime === downTime && this.#drag.isDragging;
+      if (
+        !still ||
+        this.#drag.movedPastThreshold ||
+        Math.hypot(pointer.x - downAt.x, pointer.y - downAt.y) > HOLD_SLOP_PX
+      )
+        return;
+      const index = this.#rowIndexAt(pointer.y);
+      if (index < 0 || index >= this.#count) return;
+      this.#heldDownTime = downTime;
+      this.#onRowActivate?.(index, pointer);
+    });
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -453,6 +489,11 @@ export class McVirtualList {
     this.#applyRowInteractivity();
     const downAt = this.#downAt;
     this.#downAt = null;
+    // Its hold already activated the row: the lift is only the end of it.
+    if (this.#heldDownTime !== null && this.#heldDownTime === pointer.downTime) {
+      this.#heldDownTime = null;
+      return;
+    }
     if (result.wasTap) {
       if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
         return;

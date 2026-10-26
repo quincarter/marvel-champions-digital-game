@@ -22,7 +22,10 @@ import { fitText, label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, DeckTopView } from "../../view/board-model.js";
 import type { HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
+import { specsForShortcuts } from "../../ui/glyph-hints.js";
+import { glyphsFitLayout } from "../../view/glyph-placement.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
+import { focusKey } from "./selection.js";
 import { addTapTarget } from "./tap-target.js";
 
 /** Draws both piles. */
@@ -45,6 +48,22 @@ export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: Bo
       onTap: () => ctx.openPile("Discard pile", model.myDiscard),
       onInspect: () => ctx.inspect(top, model.myDiscard),
     });
+    // A focus stop for the pad and keyboard (A / Enter opens the pile as a tap does), with the shortcut's own glyph
+    // (L3, or 5 / 6) over the pile's art: desktop and tablet landscape only, like every glyph.
+    ctx.frame.focusRects.set(focusKey({ kind: "discard" }), row.discard);
+    if (glyphsFitLayout(ctx.tabbed)) {
+      const box = row.discard;
+      ctx.hints.custom(
+        // Not under a hold layer, and not as the 5 / 6 key while a direct pick is open: digits pick candidates then.
+        (set, snapshot, layer) =>
+          layer === null && !(set === "keyboard" && ctx.controller.pickIds() !== null)
+            ? specsForShortcuts(["discard"], snapshot)
+            : null,
+        14,
+        ({ width }) => ({ x: box.x + (box.width - width) / 2, y: box.y + box.height * 0.5 }),
+        { ground: "ink" },
+      );
+    }
   }
 }
 

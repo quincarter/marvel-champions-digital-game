@@ -17,6 +17,7 @@ import { OverlayMotion } from "../ui/transitions.js";
 import type { Rect } from "../view/layout.js";
 import { EXTRAS_ENTRIES, unlockHint, type ExtrasEntry } from "../progression/extras.js";
 import { extras } from "../progression/progression.js";
+import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -51,12 +52,23 @@ export class ExtrasViewerScene extends Phaser.Scene {
     this.#motion = new OverlayMotion();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#close() });
+    this.#route = new FocusRoute(this, { onCancel: () => this.#close(), onTab: (direction) => this.#step(direction) });
     const onArrow = (event: KeyboardEvent): void => {
       if (event.key === "ArrowRight") this.#step(1);
       else if (event.key === "ArrowLeft") this.#step(-1);
     };
     this.input.keyboard?.on("keydown", onArrow);
+    // The D-pad pages as the arrows do.
+    bindExtraInput(this, {
+      intents: {
+        right: () => {
+          this.#step(1);
+        },
+        left: () => {
+          this.#step(-1);
+        },
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.scale.off("resize", onResize, this);

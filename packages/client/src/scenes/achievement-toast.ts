@@ -44,6 +44,7 @@ import {
 } from "../view/achievement-toast.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { lerp } from "../view/motion-math.js";
+import { bindExtraInput } from "./extra-input.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 
 /** How often it looks for something newly earned. */
@@ -110,6 +111,30 @@ export class AchievementToastScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ESC", () => {
       if (this.#list) this.collapse();
     });
+    // B closes the open list as Escape does, and A / Start dismisses it (the list's two buttons are Collapse and Dismiss,
+    // and a pad has no pointer to press them with). A closed popup has nothing to answer, so the pad leaves it alone.
+    bindExtraInput(this, {
+      blocked: () => this.#list === null,
+      intents: {
+        cancel: () => this.collapse(),
+        activate: () => {
+          if (this.listOpen) this.dismiss();
+        },
+        pause: () => {
+          if (this.listOpen) this.dismiss();
+        },
+      },
+    });
+  }
+
+  /** An opened list is up, opening or closing: every other screen's keys and buttons are held meanwhile (`conflictPromptOwnsInput`). */
+  get listHeld(): boolean {
+    return this.#list !== null;
+  }
+
+  /** The opened list of achievements is up: it owns B / Esc, so the Board holds its own input meanwhile. */
+  get listOpen(): boolean {
+    return this.#list?.phase === "open";
   }
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`) and the e2e specs. */

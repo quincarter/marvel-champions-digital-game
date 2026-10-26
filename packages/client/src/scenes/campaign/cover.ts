@@ -30,6 +30,8 @@ import { wonStandardOf } from "../../view/campaign-saga-model.js";
 import type { Rect } from "../../view/layout.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHintAtEnd } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignCoverData } from "./routes.js";
@@ -43,6 +45,7 @@ const identityNameOf = (id: string): string => {
 
 export class CampaignCoverScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
   #stops = new Map<string, FocusStop>();
   #model: CoverModel | null = null;
   #campaignId = "";
@@ -60,7 +63,12 @@ export class CampaignCoverScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
-    this.#route = new FocusRoute(this, { onCancel: () => goToScreen(this, SCENES.campaignSaga) });
+    this.#hints = createHints(this);
+    this.#route = new FocusRoute(this, {
+      onCancel: () => goToScreen(this, SCENES.campaignSaga),
+      // Start and A with nothing focused: the cover's one big button (Sign the roster, Read issue #N).
+      primary: () => "cta",
+    });
     this.#campaignId = data.campaignId;
     this.#runId = data.runId ?? null;
     this.#model = null;
@@ -99,6 +107,7 @@ export class CampaignCoverScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    this.#hints?.reset();
     destroyChildren(this);
     this.#stops = new Map();
     const model = this.#model;
@@ -125,7 +134,7 @@ export class CampaignCoverScene extends Phaser.Scene {
       rect,
       onClick: () => this.#back(),
     });
-    void button;
+    this.#hints?.button(button, ["cancel"], "ink");
     this.#stops.set("back", { rect, activate: () => this.#back() });
   }
 
@@ -385,6 +394,7 @@ export class CampaignCoverScene extends Phaser.Scene {
       titleSize: 18,
     });
     this.#stops.set("cta", { rect: ctaRect, activate: cta.onClick });
+    forwardHintAtEnd(this.#hints, ctaRect, "ink", cta.enabled);
     y -= 14;
 
     if (model.hasRun && model.pips.length > 0) {

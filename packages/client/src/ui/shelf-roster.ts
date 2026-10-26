@@ -270,6 +270,11 @@ export class McShelfRoster<T> {
     if (this.#scrollByPx(direction * shelves * step)) this.#sync();
   }
 
+  /** Scrolls by `amount` pixels (positive is down), clamped: the pad's right stick, a little each frame (`FocusRoute.onScroll`). */
+  scrollByPx(amount: number): void {
+    if (this.#scrollByPx(amount)) this.#sync();
+  }
+
   /** Parity with `McVirtualList.scrollToStart`, for `FocusRoute.onHomeEnd`. */
   scrollToStart(): void {
     if (this.#verticalScroll.scrollToStart(1, this.#tops().total, this.#rect.height)) this.#sync();
@@ -305,6 +310,37 @@ export class McShelfRoster<T> {
     const hs = this.#horizontalScrollFor(shelf.id);
     const cardStep = this.#metrics.cardWidth + this.#metrics.cardGap;
     if (hs.scrollIntoView(itemIndex, shelf.items.length, cardStep, this.#innerWidth())) this.#sync();
+  }
+
+  /** Whether shelf `shelfIndex` has more cards to bring in from that side (when its chevron there is drawn). */
+  canPageShelf(shelfIndex: number, direction: 1 | -1): boolean {
+    const shelf = this.#shelves[shelfIndex];
+    if (!shelf || shelf.collapsed) return false;
+    const hs = this.#horizontalScrollFor(shelf.id);
+    if (direction < 0) return hs.offsetPx > 0;
+    const contentWidth = shelf.items.length * (this.#metrics.cardWidth + this.#metrics.cardGap) - this.#metrics.cardGap;
+    return hs.offsetPx < contentWidth - this.#innerWidth() - 0.5;
+  }
+
+  /**
+   * Pages shelf `shelfIndex` sideways exactly as its ‹ / › chevron does (LT / RT on a pad). Returns the index of the
+   * first card fully in view afterwards, for the caller to move focus onto, or null when the shelf cannot go that way.
+   */
+  pageShelf(shelfIndex: number, direction: 1 | -1): number | null {
+    const shelf = this.#shelves[shelfIndex];
+    if (!shelf || !this.canPageShelf(shelfIndex, direction)) return null;
+    this.#scrollShelfBy(shelf.id, direction);
+    const step = this.#metrics.cardWidth + this.#metrics.cardGap;
+    return Math.min(shelf.items.length - 1, Math.ceil(this.#horizontalScrollFor(shelf.id).offsetPx / step - 0.001));
+  }
+
+  /** Where shelf `shelfIndex`'s ‹ (direction -1) or › chevron is, or would be, on screen right now. */
+  chevronRectFor(shelfIndex: number, direction: 1 | -1): Rect {
+    const m = this.#metrics;
+    const shelfTop = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0) - this.#verticalScroll.offsetPx;
+    const y = shelfTop + m.headerHeight + m.headerToCardsGap + (m.cardHeight - CHEVRON_HEIGHT) / 2;
+    const x = direction < 0 ? this.#rect.x : this.#rect.x + this.#rect.width - CHEVRON_WIDTH;
+    return { x, y, width: CHEVRON_WIDTH, height: CHEVRON_HEIGHT };
   }
 
   /** Runs `fn` once, when this roster is destroyed — for a subscription whose life is the roster's. */

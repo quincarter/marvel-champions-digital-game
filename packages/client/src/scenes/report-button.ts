@@ -8,7 +8,7 @@
  */
 import Phaser from "phaser";
 import { surface } from "../tokens.js";
-import { reportSlots } from "../ui/report-slot.js";
+import { reportSlots, setShownReportButton } from "../ui/report-slot.js";
 import { reportButtonSlot } from "../view/report-button.js";
 import type { Rect } from "../view/layout.js";
 import { SCENES } from "./keys.js";
@@ -41,6 +41,7 @@ export class ReportButtonScene extends Phaser.Scene {
       this.#setHovered(false);
       openReportIssue(this);
     });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => setShownReportButton(null));
     this.#place(null);
   }
 
@@ -78,6 +79,7 @@ export class ReportButtonScene extends Phaser.Scene {
         rect.height === this.#rect.height);
     if (same) return;
     this.#rect = rect;
+    setShownReportButton(rect);
     this.#draw();
   }
 

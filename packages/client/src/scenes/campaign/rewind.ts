@@ -36,6 +36,8 @@ import {
 } from "../../view/campaign-rewind-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignRewindData } from "./routes.js";
 
@@ -117,6 +119,8 @@ export class CampaignRewindScene extends Phaser.Scene {
   #view: RewindView | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
+  #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
 
   constructor() {
     super(SCENES.campaignRewind);
@@ -129,6 +133,9 @@ export class CampaignRewindScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
+    this.#route = null;
+    this.#hints = createHints(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
@@ -155,6 +162,7 @@ export class CampaignRewindScene extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints?.reset();
     destroyChildren(this);
     const { width, height, phone } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.void.hex).setOrigin(0, 0);
@@ -187,7 +195,14 @@ export class CampaignRewindScene extends Phaser.Scene {
     if (phone) this.#drawPhone(width, height, view, ctx, order, stops);
     else this.#drawWide(width, height, view, ctx, order, stops);
 
-    this.#route = this.#route ?? new FocusRoute(this);
+    this.#stopsNow = stops;
+    // B shelves the run (back to the saga, nothing lost); Start and A with nothing focused rewind.
+    this.#route =
+      this.#route ??
+      new FocusRoute(this, {
+        onCancel: () => goToScreen(this, SCENES.campaignSaga),
+        primary: () => (this.#stopsNow.has("rewind") ? "rewind" : this.#stopsNow.has("saga") ? "saga" : null),
+      });
     this.#route.set(order, stops);
   }
 
@@ -383,15 +398,15 @@ export class CampaignRewindScene extends Phaser.Scene {
         .setWordWrapWidth(rect.width);
       y += 60;
       const ctaRect: Rect = { x: rect.x, y, width: Math.min(320, rect.width), height: 52 };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: "Back to the saga ▸",
-          type: typeRole.barTitle,
-          rect: ctaRect,
-          onClick: () => goToScreen(this, SCENES.campaignSaga),
-        }),
-      );
+      const sagaButton = new McButton(this, {
+        kind: "primary",
+        label: "Back to the saga ▸",
+        type: typeRole.barTitle,
+        rect: ctaRect,
+        onClick: () => goToScreen(this, SCENES.campaignSaga),
+      });
+      this.#buttons.push(sagaButton);
+      forwardHint(this.#hints, sagaButton, "ink");
       order.push("saga");
       stops.set("saga", { rect: ctaRect, activate: () => goToScreen(this, SCENES.campaignSaga) });
       return;
@@ -459,15 +474,15 @@ export class CampaignRewindScene extends Phaser.Scene {
     y += boxHeight + 20;
 
     const rewindRect: Rect = { x: rect.x, y, width: rect.width, height: 56 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: rewindActionLabelOf(view),
-        type: typeRole.barTitle,
-        rect: rewindRect,
-        onClick: () => this.#rewind(),
-      }),
-    );
+    const rewindButton = new McButton(this, {
+      kind: "primary",
+      label: rewindActionLabelOf(view),
+      type: typeRole.barTitle,
+      rect: rewindRect,
+      onClick: () => this.#rewind(),
+    });
+    this.#buttons.push(rewindButton);
+    forwardHint(this.#hints, rewindButton, "ink");
     order.push("rewind");
     stops.set("rewind", { rect: rewindRect, activate: () => this.#rewind() });
     y += 56 + 10;

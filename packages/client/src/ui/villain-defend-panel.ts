@@ -9,6 +9,7 @@ import { cardOf, type GameState, type InstanceId } from "@mc/engine";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { FocusStop } from "../scenes/focus-route.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
 import { SCENES } from "../scenes/keys.js";
 import { noteHoverCard, type HoverHpPreview } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -17,7 +18,7 @@ import { faceOf } from "../view/board-model.js";
 import type { DefendChoiceView, DefendOptionView } from "../view/defend-choice.js";
 import { defendMiddleLayout } from "../view/defend-choice-layout.js";
 import type { Rect } from "../view/layout.js";
-import { villainDefendOptionParts, type VillainDefendLayout } from "../view/villain-defend-layout.js";
+import { OPTION_PAD, villainDefendOptionParts, type VillainDefendLayout } from "../view/villain-defend-layout.js";
 import { onTap } from "./tap.js";
 import { textStyle } from "./theme.js";
 import { McButton, fitText, label, paintPanel } from "./widgets.js";
@@ -41,7 +42,27 @@ export interface DefendPanelArgs {
   readonly buttons: McButton[];
   /** The deciding seat, named in the header when more than one seat is playing (hot-seat: "your" is whoever holds the device). */
   readonly decider?: string | null;
+  /**
+   * Gives a button its key / pad glyph where the layout has room (`ui/glyph-hints.ts`); absent where there are none.
+   * `primary` is the stop key of the screen's primary commit, with whether it can be pressed now.
+   */
+  readonly hint?: (
+    button: McButton,
+    ids: readonly ShortcutId[],
+    primary: string | null,
+    primaryEnabled: boolean,
+  ) => void;
+  /**
+   * Gives an option its direct-pick combo glyph (RT + A ...; `view/pick-assign.ts`). Called with the option's id and the
+   * row its glyph sits at the right end of; the option's title keeps clear of it. Absent where there are no glyphs.
+   */
+  readonly pickHint?: (optionId: string, row: Rect) => void;
 }
+
+/** Width an option's title leaves clear for its pick glyph. */
+export const DEFEND_PICK_RESERVE = 72;
+/** The least room beside an option's picture that holds a trigger + button glyph pair. */
+const DEFEND_PICK_BESIDE = 50;
 
 /** Below this a caption is not read at a glance across a phone; the tag then says less, larger. */
 const TAG_READABLE_SIZE = 12;
@@ -86,15 +107,15 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
     .setOrigin(0, 0)
     .setLetterSpacing(1);
   fitText(title, layout.title.width, compact ? 28 : 40);
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "onInk",
-      label: args.expandLabel,
-      type: typeRole.label,
-      rect: layout.expand,
-      onClick: args.onExpand,
-    }),
-  );
+  const expand = new McButton(scene, {
+    kind: "onInk",
+    label: args.expandLabel,
+    type: typeRole.label,
+    rect: layout.expand,
+    onClick: args.onExpand,
+  });
+  args.buttons.push(expand);
+  args.hint?.(expand, ["expand"], null, false);
   stops.set("expand", { rect: layout.expand, activate: args.onExpand });
 
   if (layout.matchup.height > 0) drawMatchup(scene, layout, view, game);
@@ -111,7 +132,7 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
   view.options.forEach((option, index) => {
     const slot = layout.options[index];
     if (!slot) return;
-    drawOption(scene, layout, slot, option, option.optionId === args.selected, game);
+    drawOption(scene, layout, slot, option, option.optionId === args.selected, game, args.pickHint);
     const zone = scene.add
       .zone(slot.x, slot.y, slot.width, slot.height)
       .setOrigin(0, 0)
@@ -135,28 +156,30 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
       .fillStyle(surface.ink.hex, 1)
       .fillRect(args.footer.x, args.footer.y, args.footer.width, args.footer.height);
   }
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      label: picked ? `Confirm: ${picked.title} ▸` : "Confirm ▸",
-      type: typeRole.barTitle,
-      rect: layout.confirm,
-      enabled: picked !== null,
-      reason: "choose a defender to continue",
-      onClick: args.onConfirm,
-    }),
-  );
+  const confirm = new McButton(scene, {
+    kind: "primary",
+    label: picked ? `Confirm: ${picked.title} ▸` : "Confirm ▸",
+    type: typeRole.barTitle,
+    rect: layout.confirm,
+    enabled: picked !== null,
+    reason: "choose a defender to continue",
+    onClick: args.onConfirm,
+  });
+  args.buttons.push(confirm);
+  // A while nothing is focused, Start from anywhere on the panel: the glyph on the commit says which one will do it.
+  // Only a Confirm that can be pressed is the screen's primary: with nothing picked Start still opens Pause.
+  args.hint?.(confirm, ["activate"], "confirm", picked !== null);
   stops.set("confirm", { rect: layout.confirm, activate: args.onConfirm });
   // After the footer's ink ground, which a phone's PEEK AT TABLE shares with CONFIRM.
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "onInk",
-      label: args.tuckLabel,
-      type: typeRole.label,
-      rect: layout.tuck,
-      onClick: args.onTuck,
-    }),
-  );
+  const tuck = new McButton(scene, {
+    kind: "onInk",
+    label: args.tuckLabel,
+    type: typeRole.label,
+    rect: layout.tuck,
+    onClick: args.onTuck,
+  });
+  args.buttons.push(tuck);
+  args.hint?.(tuck, ["peek"], null, false);
   stops.set("tuck", { rect: layout.tuck, activate: args.onTuck });
   return stops;
 }
@@ -329,6 +352,7 @@ function drawOption(
   option: DefendOptionView,
   selected: boolean,
   game: GameState,
+  pickHint?: DefendPanelArgs["pickHint"],
 ): void {
   const g = scene.add.graphics();
   paintPanel(g, slot, "card", selected ? "selected" : "rest");
@@ -340,7 +364,7 @@ function drawOption(
   const text = parts.text;
   const small = slot.height < 150;
   if (layout.dense) {
-    drawDenseOption(scene, text, option, selected);
+    drawDenseOption(scene, text, option, selected, pickHint);
     return;
   }
   let y = text.y;
@@ -350,7 +374,20 @@ function drawOption(
     selected ? `${option.title} ✓` : option.title,
     textStyle({ ...typeRole.rowTitle, size: small ? 13 : 16 }, surface.ink.hex),
   );
-  fitText(title, text.width, small ? 13 : 16);
+  // The pick glyph sits beside the picture when there is room there, so the title keeps its full width (a pad glyph
+  // only shows for a pad, and a title cut short for it read "War Machine..." with a mouse); else at the title's end.
+  const picture = parts.picture;
+  const besidePicture =
+    picture && slot.x + slot.width - OPTION_PAD - (picture.x + picture.width) >= DEFEND_PICK_BESIDE
+      ? {
+          x: picture.x + picture.width,
+          y: picture.y,
+          width: slot.x + slot.width - OPTION_PAD - picture.x - picture.width,
+          height: 22,
+        }
+      : null;
+  fitText(title, pickHint && !besidePicture ? text.width - DEFEND_PICK_RESERVE : text.width, small ? 13 : 16);
+  pickHint?.(option.optionId, besidePicture ?? { x: text.x, y, width: text.width, height: title.height });
   y += title.height + 2;
   const costLine =
     option.kind === "decline"
@@ -400,7 +437,13 @@ function drawOption(
 }
 
 /** The dense shape: the title and the damage on one line, what it exhausts and the HP left under it. */
-function drawDenseOption(scene: Phaser.Scene, text: Rect, option: DefendOptionView, selected: boolean): void {
+function drawDenseOption(
+  scene: Phaser.Scene,
+  text: Rect,
+  option: DefendOptionView,
+  selected: boolean,
+  pickHint?: DefendPanelArgs["pickHint"],
+): void {
   const damage = scene.add
     .text(
       text.x + text.width,
@@ -428,8 +471,10 @@ function drawDenseOption(scene: Phaser.Scene, text: Rect, option: DefendOptionVi
       costLine,
       textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, ink.secondary),
     )
-    .setWordWrapWidth(text.width)
+    .setWordWrapWidth(pickHint ? text.width - DEFEND_PICK_RESERVE : text.width)
     .setMaxLines(1);
+  // On the cost line, whose right end is free (the title line holds the damage).
+  pickHint?.(option.optionId, { x: text.x, y: cost.y, width: text.width, height: cost.height });
   const defeat = option.defeatAt !== null ? [`DEFEATED AT ${option.defeatAt}+`] : [];
   const full = [...(option.hpLine ? [option.hpLine.toUpperCase()] : []), ...defeat].join(" · ");
   const short = [...(option.hpLineShort ? [option.hpLineShort.toUpperCase()] : []), ...defeat].join(" · ");

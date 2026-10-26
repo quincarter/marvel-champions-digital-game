@@ -59,12 +59,14 @@ import Phaser from "phaser";
 import type { InstanceId, PendingChoice } from "@mc/engine";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { setMask } from "../ui/rex.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, dashedRect, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt, type CardArt } from "../art/card-art.js";
 import { canConfirmChoice, cardChoiceDisplayOrder, initialChoiceSelection } from "../view/choice-focus.js";
 import { wrapChipsToRows } from "../view/chip-layout.js";
+import { commitStepDown, commitStepUp } from "../view/commit-row-nav.js";
 import { stepFocus } from "../view/focus.js";
 import { directionOf, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep } from "../view/spatial-nav.js";
@@ -73,7 +75,7 @@ import type { Rect } from "../view/layout.js";
 import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
 import { setupMetrics } from "../view/setup-metrics.js";
 import { setChoiceDock } from "../view/choice-dock.js";
-import { cardSizeFactor } from "../settings.js";
+import { cardHoverFactor, cardSizeFactor } from "../settings.js";
 import {
   HoverPreview,
   hoverCardsOf,
@@ -154,6 +156,8 @@ const CHIP_SKIN: Readonly<
   },
 };
 const CHIP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
+/** The held-Y zoom stays below this y, clear of the A / Y / B legend strip that sits over the focused card. */
+const ZOOM_TOP = 204;
 /** Section headers ("YOUR OPENING HAND — <hero>", "OTHER SEATS", "SETUP LOG"): Bangers, then a rule to the column's own right edge. */
 const SECTION_HEADER_TYPE: TypeSpec = typeRole.barTitle;
 /** The header's inline step caption, beside the Bangers title. */
@@ -198,6 +202,9 @@ export class SetupDealScene extends Phaser.Scene {
   #route: readonly string[] = [];
   #focusRects = new Map<string, Rect>();
   #focusRing: McSelectionRing | null = null;
+  #hints!: GlyphHints;
+  /** The hand card Down left from, so Up from Mulligan / Keep returns to it. */
+  #cameFrom: string | null = null;
   /**
    * The opening hand's sideways scroll, on a width where the cards would otherwise not read
    * (`view/opening-hand-layout.ts`). Every scrolled pixel redraws the scene, the way the Board's own tabbed hand
@@ -237,6 +244,19 @@ export class SetupDealScene extends Phaser.Scene {
     this.#selected = [];
     this.#choiceId = null;
     this.#focus = null;
+    this.#cameFrom = null;
+    this.#resolving = false;
+    // Dev-only e2e hook (never referenced by product code): the focused stop and the route, in order.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcSetupDealDebug?: unknown }).__mcSetupDealDebug = {
+        focus: () => this.#focus,
+        route: () => this.#route,
+        selected: () => this.#selected,
+        choiceId: () => this.#choiceId,
+        rects: () => [...this.#focusRects],
+      };
+    }
+    this.#hints = new GlyphHints(this, () => [...this.#focusRects.values()]);
     this.#hand = new HandScroll(() => this.#draw());
     this.#bodyScroll = new VariableListScroll();
     resetHoverCards(this);
@@ -280,6 +300,9 @@ export class SetupDealScene extends Phaser.Scene {
     const binding = {
       blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      // Hold Y (or E) enlarges the focused card as the desktop hover does; a tap still opens Inspect.
+      onInspectZoom: (zooming: boolean) => this.#setZoom(zooming),
+      zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
@@ -296,6 +319,7 @@ export class SetupDealScene extends Phaser.Scene {
       this.#artUnsubscribe = null;
       this.#focusRing?.destroy();
       this.#focusRing = null;
+      this.#hints.dispose();
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       if (this.scene.isActive(SCENES.choice)) this.scene.stop(SCENES.choice);
@@ -361,6 +385,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
+    this.#hints.reset();
     destroyChildren(this);
     this.#stripMask?.destroy();
     this.#stripMask = null;
@@ -378,6 +403,7 @@ export class SetupDealScene extends Phaser.Scene {
       view.checklist.map((item) => ({ id: item.key, text: item.label, item })),
       width - pad * 2,
     );
+    const mulliganHandCount = this.#mulliganHandCount(view);
     const layout = setupWalkthroughLayout({
       width,
       height,
@@ -386,6 +412,8 @@ export class SetupDealScene extends Phaser.Scene {
       checklistRows: checklistRows.length,
       hasRevealedCard: view.revealedCard !== null,
       cardScale: this.#cardScale,
+      // Only while the mulligan hand is on screen (a docked decision keeps the usual layout and its room).
+      ...(mulliganHandCount === null ? {} : { handCount: mulliganHandCount }),
     });
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
@@ -411,6 +439,13 @@ export class SetupDealScene extends Phaser.Scene {
 
     this.#drawFocusRing();
     this.#hover?.onDraw();
+  }
+
+  /** The deciding seat's hand size while its mulligan is pending, else null. */
+  #mulliganHandCount(view: SetupWalkthroughView): number | null {
+    const choice = appSession().store.state.game?.pendingChoice ?? null;
+    if (choice === null || choice.prompt.kind !== "mulligan") return null;
+    return view.seats.find((seat) => seat.playerId === view.decidingPlayerId)?.hand.length ?? null;
   }
 
   /** Title inline with "Step N of M · …" (fidelity pass): the caption follows the title's own measured width, so it always sits right beside it rather than a fixed far-corner box. */
@@ -964,6 +999,8 @@ export class SetupDealScene extends Phaser.Scene {
       }),
     );
     this.#focusRects.set("confirm", mulliganRect);
+    // A presses it while it has the ring (a glyph only then: A on a card selects, so it must not promise Mulligan).
+    this.#hints.button(this.#buttons.at(-1)!, ["activate"], "ink", { when: () => this.#focus === "confirm" });
 
     this.#buttons.push(
       new McButton(this, {
@@ -978,6 +1015,11 @@ export class SetupDealScene extends Phaser.Scene {
       }),
     );
     this.#focusRects.set("decline", keepRect);
+    // Start keeps the hand on a pad (the keyboard has no such key); A presses it while it has the ring.
+    this.#hints.button(this.#buttons.at(-1)!, ["pause"], "paper", {
+      when: (set) => set === "pad" && this.#focus !== "decline",
+    });
+    this.#hints.button(this.#buttons.at(-1)!, ["activate"], "paper", { when: () => this.#focus === "decline" });
 
     if (!phoneOrder) {
       const noteX = rect.x + mulliganWidth + gap + keepWidth + 16;
@@ -1017,8 +1059,17 @@ export class SetupDealScene extends Phaser.Scene {
     this.scene.launch(SCENES.inspect, { instanceId });
   }
 
+  /** True from a commit until the pending choice changes: a double press must not resolve twice. */
+  #resolving = false;
+
   async #confirm(): Promise<void> {
-    await appSession().store.resolveChoice(this.#selected);
+    if (this.#resolving) return;
+    this.#resolving = true;
+    try {
+      await appSession().store.resolveChoice(this.#selected);
+    } finally {
+      this.#resolving = false;
+    }
   }
 
   #onIntent(intent: GamepadIntent): void {
@@ -1032,7 +1083,15 @@ export class SetupDealScene extends Phaser.Scene {
       case "left":
       case "right": {
         const direction = directionOf(intent);
-        if (direction) {
+        const down = direction === "down" ? commitStepDown(this.#focus, (key) => this.#focusRects.get(key)) : null;
+        const up = direction === "up" ? commitStepUp(this.#focus, this.#cameFrom, this.#route) : null;
+        if (down) {
+          // The commit row sits under only the leftmost cards: Down from any card reaches the nearer button.
+          this.#cameFrom = this.#focus;
+          this.#focus = down;
+        } else if (up) {
+          this.#focus = up;
+        } else if (direction) {
           // The arrows and the D-pad: the nearest card or button that way (issue #206).
           this.#focus = spatialStep(this.#route, (key) => this.#focusRects.get(key), this.#focus, direction);
         } else {
@@ -1045,6 +1104,8 @@ export class SetupDealScene extends Phaser.Scene {
         const focused = this.#focus ? this.#focusRects.get(this.#focus) : undefined;
         if (focused && this.#focus?.startsWith("option:")) this.#hand.scrollIntoView(focused);
         this.#drawFocusRing();
+        // A held Y follows the step: the popover re-reads which card has focus.
+        if (this.#hover?.pinned) this.#hover.onDraw();
         break;
       }
       case "activate":
@@ -1055,6 +1116,10 @@ export class SetupDealScene extends Phaser.Scene {
           const instanceId = this.#focus.slice("option:".length) as InstanceId;
           this.#inspect(instanceId, this.#selected.includes(this.#focus.slice("option:".length)));
         }
+        break;
+      case "pause":
+        // Start is "forward": mulligan the marked cards, or keep the hand as dealt when none is marked.
+        if (this.#selected.length === 0 || canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
         break;
       case "cancel":
         this.#focus = null;
@@ -1079,11 +1144,38 @@ export class SetupDealScene extends Phaser.Scene {
       void this.#confirm();
   }
 
+  /** Hold Y: the focused card enlarged beside it, following the focus while held; release closes it. */
+  #setZoom(zooming: boolean): void {
+    if (!zooming) {
+      this.#hover?.unpin();
+      return;
+    }
+    this.#hover?.pin(() => {
+      const focus = this.#focus;
+      const rect = focus?.startsWith("option:") ? this.#focusRects.get(focus) : undefined;
+      const { width, height } = this.scale.gameSize;
+      // Below the legend strip, and at least 1.6x the card's height: the mulligan cards are already as large as the
+      // popover setting makes them, so a same-size copy would show nothing new.
+      return focus && rect
+        ? {
+            id: focus.slice("option:".length) as InstanceId,
+            rect,
+            area: { x: 0, y: ZOOM_TOP, width, height: height - ZOOM_TOP },
+            minHeight: rect.height * 1.6,
+          }
+        : null;
+    });
+  }
+
   /** Static, not pulsing: the ring says "here you are", not "act now" — the same convention `ChoiceOverlay` uses. */
   #drawFocusRing(): void {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     const focus = this.#focus;
+    this.#hints.refresh();
+    const { width, height } = this.scale.gameSize;
+    const cardRect = focus?.startsWith("option:") ? (this.#focusRects.get(focus) ?? null) : null;
+    this.#hints.legend(cardRect, { x: 0, y: 0, width, height }, "back");
     if (!focus) return;
     if (!this.#route.includes(focus)) {
       this.#focus = null;
@@ -1091,7 +1183,7 @@ export class SetupDealScene extends Phaser.Scene {
     }
     const rect = this.#focusRects.get(focus);
     if (!rect) return;
-    this.#focusRing = new McSelectionRing(this);
+    this.#focusRing = new McSelectionRing(this, undefined, true);
     this.#focusRing.show(rect, "static", true);
   }
 }

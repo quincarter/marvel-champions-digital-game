@@ -13,6 +13,7 @@ import Phaser from "phaser";
 import { accent, hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText } from "../ui/widgets.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { onTap } from "../ui/tap.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -44,6 +45,12 @@ export class MusicPlayerOverlay extends Phaser.Scene {
   #disabled: { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[] = [];
   #unsubscribe: (() => void) | null = null;
   #alive = false;
+  /** The key and button glyphs beside the controls (pad and keyboard only). */
+  #hints!: GlyphHints;
+  /** The songs drawn now, for LB / RB. */
+  #songs: readonly PlayerSong[] = [];
+  /** Shuffle's button press, for X. */
+  #shuffle: (() => void) | null = null;
 
   constructor() {
     super(SCENES.musicPlayer);
@@ -62,9 +69,15 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     }
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      // B / Esc / Q close it; A presses the focused control, or Play / Pause with nothing focused.
       onCancel: () => this.#close(),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
+      primary: () => "pause",
+      // LB / RB (and R / F, [ / ]) play the previous / next song; X (G) is Shuffle. The list scrolls with the stick.
+      onTab: (direction) => this.#step(direction),
+      onToggle: () => this.#shuffle?.(),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
     const offTrack = appSession().music?.onTrackStart(() => this.#redrawSoon());
     const offPause = appSession().music?.onPauseChange(() => this.#redrawSoon());
@@ -78,6 +91,7 @@ export class MusicPlayerOverlay extends Phaser.Scene {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       this.#destroyWidgets();
+      this.#hints.dispose();
       for (const { scene, pointer, keyboard } of this.#disabled) {
         if (!scene.sys.isActive()) continue;
         if (pointer) scene.input.enabled = true;
@@ -104,6 +118,22 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     this.#list = null;
   }
 
+  /** Plays the song before or after the one playing in the earned list, wrapping; the first (last) when none is. */
+  #step(direction: 1 | -1): void {
+    const songs = this.#songs;
+    const music = appSession().music;
+    if (!music || songs.length === 0) return;
+    // RB is the Next button's twin: with Shuffle on it takes the shuffle's own pick.
+    if (direction === 1 && appSession().settings.musicShuffle) {
+      music.next();
+      return;
+    }
+    const at = songs.findIndex((song) => song.track.key === music.nowPlaying()?.key);
+    const to = at < 0 ? (direction === 1 ? 0 : songs.length - 1) : (at + direction + songs.length) % songs.length;
+    this.#play(songs[to]!);
+    this.#list?.scrollIntoView(to);
+  }
+
   #play(song: PlayerSong): void {
     const music = appSession().music;
     if (!music || music.nowPlaying()?.key === song.track.key) return;
@@ -122,6 +152,8 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     const icon = shownMusicButton() ?? { x: width - 104, y: 5, width: 44, height: 34 };
     const current = extras();
     const songs = earnedSongsOf(current);
+    this.#songs = songs;
+    this.#hints.reset();
     const locked = lockedSongCount(current);
     const panel = playerPanelRect(icon, { width, height }, phone, songs.length);
     const playing = appSession().music?.nowPlaying() ?? null;
@@ -181,9 +213,10 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     stops.set("close", { rect: closeRect, activate: () => this.#close() });
     order.push("close");
     const titleX = phone ? closeRect.x + closeRect.width + 12 : inner.x;
-    this.add
+    const titleText = this.add
       .text(titleX, y + headHeight / 2, "Music", textStyle(typeRole.sectionHeader, surface.ink.hex))
       .setOrigin(0, 0.5);
+    const titleEnd = titleX + titleText.width;
     const total = songs.length + locked;
     this.add
       .text(
@@ -209,6 +242,15 @@ export class MusicPlayerOverlay extends Phaser.Scene {
       stops.set(stop.id, { rect: stop.rect, activate: stop.activate });
       order.push(stop.id);
     }
+    this.#shuffle = head.stops.find((stop) => stop.id === "shuffle")?.activate ?? null;
+    // head.buttons: Shuffle, Next, then Pause and the volume row.
+    const [shuffleButton, nextButton, pauseButton] = head.buttons;
+    if (shuffleButton) this.#hints.button(shuffleButton, ["guide"], "paper");
+    if (nextButton) this.#hints.button(nextButton, ["zoneNext"], "paper");
+    if (pauseButton) this.#hints.button(pauseButton, ["activate"], "paper");
+    this.#hints.button(this.#buttons[0]!, ["cancel"], "paper");
+    // Previous song (LB): beside the title.
+    this.#hints.inline(titleEnd + 10, y - headHeight / 2, ["zonePrevious"], 20, { ground: "paper" });
     y += head.height + 8;
 
     // The songs.
@@ -276,6 +318,7 @@ export class MusicPlayerOverlay extends Phaser.Scene {
         },
         listRect: (): Rect => listRect,
         paused: (): boolean => appSession().music?.paused() ?? false,
+        nowPlaying: (): string | null => appSession().music?.nowPlaying()?.key ?? null,
         volume: (): number => appSession().settings.musicVolume,
       };
     }

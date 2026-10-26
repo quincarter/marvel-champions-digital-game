@@ -26,6 +26,7 @@ import { border, hit, ink, typeRole, type TypeSpec } from "../tokens.js";
 import { termTextModelOf, type TermTextTerm } from "../view/term-text-model.js";
 import type { RulesEntry } from "../view/rules-reference.js";
 import type { Rect } from "../view/layout.js";
+import { onTap } from "./tap.js";
 import { textStyle } from "./theme.js";
 
 interface Word {
@@ -169,7 +170,8 @@ export class McTermText {
       if (pointer.wasTouch) return;
       this.#open(term, rect);
     });
-    zone.on("pointerup", () => {
+    // onTap, never a bare pointerup: the end of a scroll or swipe that lifts over a term must not open it.
+    onTap(zone, () => {
       if (this.#openTermId === term.id) {
         this.#close();
       } else {
@@ -235,6 +237,18 @@ export class McTermText {
   /** Every term's own id and on-screen rect, for a headless click-through driving real pointer events against canvas-drawn terms (`scenes/term-text-demo.ts`'s dev-only hook). */
   debugTermRects(): readonly { readonly id: string; readonly rect: Rect }[] {
     return this.#termZones.map((zone) => ({ id: zone.term.id, rect: zone.rect }));
+  }
+
+  /**
+   * Every term as a focus stop for a screen's own route: its id, its rect in the scene's coordinates right now, and
+   * what pressing it does (open its tooltip, or close it when it is the one open).
+   */
+  termStops(): readonly { readonly id: string; readonly rect: () => Rect; readonly activate: () => void }[] {
+    return this.#termZones.map(({ term, rect }) => ({
+      id: term.id,
+      rect: () => this.#worldRect(rect),
+      activate: () => (this.#openTermId === term.id ? this.#close() : this.#open(term, rect)),
+    }));
   }
 
   /**

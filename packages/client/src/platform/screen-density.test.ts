@@ -55,6 +55,13 @@ describe("renderScaleFor", () => {
     expect(renderScaleFor({ renderScale: "native" }, { ...desktop, devicePixelRatio: 1 })).toBe(1);
   });
 
+  test("couch mode in use multiplies the buffer, so the scaled-up game stays as sharp as the screen", () => {
+    const desktop: ScreenEnvironment = { platform: "tauri", userAgent: "Windows", search: "", devicePixelRatio: 1 };
+    expect(renderScaleFor({ renderScale: "native" }, desktop, 2)).toBe(2);
+    expect(renderScaleFor({ renderScale: "native" }, { ...desktop, devicePixelRatio: 2 }, 1.5)).toBe(3);
+    expect(renderScaleFor({ renderScale: "native" }, desktop)).toBe(1);
+  });
+
   test("a test link forces a scale, or 1x with off", () => {
     const web: ScreenEnvironment = { platform: "web", userAgent: ANDROID_UA, search: "", devicePixelRatio: 3 };
     expect(renderScaleFor({ renderScale: "native" }, { ...web, search: "?renderscale=off" })).toBe(1);
@@ -74,6 +81,10 @@ describe("textResolutionFor", () => {
     expect(textResolutionFor({ textResolution: 2 }, 3, true)).toBe(3);
     expect(textResolutionFor({ textResolution: 2 }, 3.5, true)).toBe(MAX_TEXT_RESOLUTION);
     expect(textResolutionFor({ textResolution: 2 }, 1.5, true)).toBe(2);
+  });
+
+  test("couch mode's scale-up counts: text at 2x in a 2x buffer at a pixel ratio of 1", () => {
+    expect(textResolutionFor({ textResolution: 2 }, 2, true)).toBe(2);
   });
 
   test("Sharper text off stays 1x, and elsewhere the setting is used as it is", () => {

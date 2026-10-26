@@ -54,6 +54,7 @@ describe("card catalog", () => {
   });
 
   it("maps every playable card to printed cards that are in the catalog", () => {
+    // Collected and compared with [] rather than a boolean, so a failure names each card and the code it maps to.
     const outside = PLAYABLE_CARDS.flatMap((card) =>
       [...printedCodesOfCard(card, CATALOG_REPRINTS)]
         .filter((code) => !catalog.codes.has(code))

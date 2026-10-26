@@ -89,6 +89,8 @@ export function decksLayoutRects(layout: DecksLayout): readonly Rect[] {
   ];
 }
 
+/** The gap under a tab strip: room for the LB / RB hint (14px tall) between the strip and the content. */
+const TAB_HINT_GAP = 22;
 const GAP = 16;
 /** D14's own list column reads narrower than a full reading measure; clamped so it never crowds the pool grid out at the low end of "wide" (desktop's own 1280px floor) or run away with the screen at 4K. */
 const LIST_WIDTH_MIN = 260;
@@ -123,7 +125,7 @@ export function decksLayout(input: DecksLayoutInput): DecksLayout {
 
   if (!wide) {
     const tabs: Rect = { x: left, y: bodyTop, width: column, height: hit.target };
-    const contentTop = tabs.y + tabs.height + 10;
+    const contentTop = tabs.y + tabs.height + TAB_HINT_GAP;
     const content: Rect = { x: left, y: contentTop, width: column, height: Math.max(0, height - contentTop - pad) };
     return { formFactor, wide, pad, header, listPane: null, poolPane: null, statsPane: null, tabs, content };
   }

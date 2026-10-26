@@ -32,7 +32,9 @@ import {
 import { GUIDE_LEVEL_OPTIONS } from "../view/settings-rows.js";
 import { withLevel, type GuideLevel } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import type { Rect } from "../view/layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -70,6 +72,9 @@ export class RoundDebriefScene extends Phaser.Scene {
   #level!: GuideLevel;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
+  /** Each guide-level cell's own rect, by stop key (the ring frames the cell, not the whole row). */
+  #cellRects = new Map<string, Rect>();
   #artGeneration = 0;
 
   constructor() {
@@ -82,8 +87,11 @@ export class RoundDebriefScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#nextRound() });
+    this.#hints = new GlyphHints(this);
+    // Start is "forward": Round N+1, as Escape and B do. Not `primary`, so A with nothing focused never skips the debrief.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#nextRound(), onPause: () => this.#nextRound() });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
@@ -95,6 +103,8 @@ export class RoundDebriefScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
+    this.#cellRects = new Map();
 
     const { width, height } = this.scale.gameSize;
     const content = roundDebriefContentOf({ ...this.#data, level: this.#level });
@@ -291,6 +301,7 @@ export class RoundDebriefScene extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setWordWrapWidth(cellWidth - 10);
+      this.#cellRects.set(`guide-level:${option.value}`, cellRect);
       stopIds.push(`guide-level:${option.value}`);
     });
     return stopIds;
@@ -316,10 +327,15 @@ export class RoundDebriefScene extends Phaser.Scene {
       }),
     );
 
+    // Escape and B do what Round N+1 does, so the glyph sits on that button.
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     const stops = new Map<string, FocusStop>();
     for (const id of guideStops) {
       const option = GUIDE_LEVEL_OPTIONS.find((o) => `guide-level:${o.value}` === id)!;
-      stops.set(id, { rect: layout.guideLevel, activate: () => this.#setGuideLevel(option.value) });
+      stops.set(id, {
+        rect: this.#cellRects.get(id) ?? layout.guideLevel,
+        activate: () => this.#setGuideLevel(option.value),
+      });
     }
     stops.set("replay-lesson", { rect: layout.replayLesson, activate: () => this.#replayLesson() });
     stops.set("next-round", { rect: layout.nextRound, activate: () => this.#nextRound() });

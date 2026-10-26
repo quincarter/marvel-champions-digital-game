@@ -1,0 +1,3 @@
+kind: Added
+body: 'Full controller support: Xbox, PlayStation, Switch and Steam Deck controllers are detected and their own button glyphs show; left stick, held D-pad and right-stick scrolling work everywhere (#398).'
+time: 2026-10-23T22:53:17.9670339-04:00

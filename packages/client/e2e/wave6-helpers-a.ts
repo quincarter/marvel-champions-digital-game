@@ -136,6 +136,14 @@ export async function hasStop(page: Page, key: string, sceneKey?: string): Promi
 
 /** Clicks the center of a named control, with a real pointer click. Waits briefly for it to exist. */
 export async function clickStop(page: Page, key: string, sceneKey?: string, timeoutMs = 10000): Promise<void> {
+  // A filter chip folded behind the Filters button (a narrow screen, or a pad in use): open the button first.
+  if (
+    /^(scenario|hero)-chip:/.test(key) &&
+    !(await hasStop(page, key, sceneKey)) &&
+    (await hasStop(page, "filters-toggle", sceneKey))
+  ) {
+    await clickStop(page, "filters-toggle", sceneKey, timeoutMs);
+  }
   const stop = await waitFor(
     async () => (await routeStops(page, sceneKey))?.stops.find((s) => s.key === key) ?? null,
     `control "${key}" on ${sceneKey ?? "the current screen"}`,
@@ -427,6 +435,8 @@ export async function scrollStopIntoView(
   sceneKey: string,
   // The y a control's top must clear: a screen with a fixed bar under its header (the Extras tabs) clips rows above it.
   top = 70,
+  // The x a control's centre must stay left of: a tile row clipped by a side panel (Scenario select) needs less than the viewport.
+  right?: number,
 ): Promise<void> {
   const size = page.viewportSize() ?? { width: 1440, height: 900 };
   for (let step = 0; step < 60; step++) {
@@ -434,7 +444,7 @@ export async function scrollStopIntoView(
     if (!stop) throw new Error(`no "${key}" control on ${sceneKey}`);
     const { x, y, width, height } = stop.rect;
     const inY = y >= top && y + height / 2 <= size.height - 90;
-    const inX = x >= 0 && x + width / 2 <= size.width - 10;
+    const inX = x >= 0 && x + width / 2 <= (right ?? size.width - 10);
     if (inY && inX) return;
     await page.mouse.move(size.width / 2, size.height / 2);
     if (!inY) await page.mouse.wheel(0, y < top ? -250 : 250);

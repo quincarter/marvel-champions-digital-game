@@ -86,6 +86,12 @@ export class HandScroll {
     this.#contentRect = content;
   }
 
+  /** The right stick: `scrollBy`, after ending any flick still carrying the row, as a wheel gesture does. */
+  padScroll(delta: number): void {
+    this.#momentum.stop();
+    this.scrollBy(delta);
+  }
+
   /** Moves the scroll by a pixel delta (positive reveals more to the right), clamped to what the last draw measured. */
   scrollBy(delta: number): void {
     if (this.#maxScroll <= 0) return;
