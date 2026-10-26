@@ -86,6 +86,16 @@ describe("NativePads", () => {
     expect(pads.snapshot()[0]?.buttons[0]?.pressed).toBe(true);
   });
 
+  it("keeps Steam's virtual pad shown while the physical pad's stick only drifts at rest", () => {
+    const pads = new NativePads();
+    pads.apply({ kind: "connected", pad: pad([]) });
+    pads.apply({ kind: "connected", pad: pad([], [], STEAM) });
+    pads.apply({ kind: "state", pad: pad([], [], { axes: [0.02, -0.01, 0, 0] }) });
+    expect(pads.shows(1)).toBe(true);
+    pads.apply({ kind: "state", pad: pad([], [], { axes: [0.9, 0, 0, 0] }) });
+    expect(pads.shows(1)).toBe(false);
+  });
+
   it("keeps Steam's virtual pad when it is the only one giving input", () => {
     const pads = new NativePads();
     pads.apply({ kind: "connected", pad: pad([]) });

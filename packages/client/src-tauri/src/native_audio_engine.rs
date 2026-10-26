@@ -55,7 +55,8 @@ impl Kind {
 
 /// Opens an output stream for a voice: sample rate, channel count, kind.
 pub type OutputFactory = Arc<dyn Fn(u32, u8, Kind) -> Result<Box<dyn Output>, String> + Send + Sync>;
-/// Told when a voice has played to its end (not when it was stopped or looped).
+/// Told when a voice has finished: played to its end, or failed (the audio server went away mid-game), so the page
+/// never keeps a sound it thinks is playing. Not when it was stopped or while it loops.
 pub type EndedCallback = Arc<dyn Fn(u32) + Send + Sync>;
 
 struct Loaded {
@@ -190,14 +191,19 @@ impl Engine {
     std::thread::Builder::new()
       .name(format!("audio-voice-{id}"))
       .spawn(move || {
-        let natural = run_voice(&bytes, &control, looped, kind, &factory);
+        let outcome = run_voice(&bytes, &control, looped, kind, &factory);
+        // A failure is told late: the page answers an end by starting the next track, and with the server gone every
+        // track would fail at once, round and round.
+        if outcome == Outcome::Failed {
+          std::thread::sleep(FAILED_VOICE_DELAY);
+        }
         let mut voices = voices.lock().expect("voices");
         // Only this voice's own entry: the id may have been played again meanwhile.
         if voices.get(&id).is_some_and(|c| Arc::ptr_eq(c, &control)) {
           voices.remove(&id);
         }
         drop(voices);
-        if natural {
+        if outcome != Outcome::Stopped && !control.stopped.load(Ordering::Relaxed) {
           ended(id);
         }
       })
@@ -234,8 +240,19 @@ impl Engine {
   }
 }
 
-/// Plays one voice to its end on the calling thread. True when it ended on its own (not stopped, not failed).
-fn run_voice(bytes: &Arc<[u8]>, control: &Control, looped: bool, kind: Kind, factory: &OutputFactory) -> bool {
+/// How long a failed voice waits before it is told as ended.
+const FAILED_VOICE_DELAY: Duration = Duration::from_secs(2);
+
+/// How a voice's playback ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Outcome {
+  Ended,
+  Stopped,
+  Failed,
+}
+
+/// Plays one voice to its end on the calling thread.
+fn run_voice(bytes: &Arc<[u8]>, control: &Control, looped: bool, kind: Kind, factory: &OutputFactory) -> Outcome {
   let mut output: Option<Box<dyn Output>> = None;
   let mut gain = f32::from_bits(control.volume.load(Ordering::Relaxed));
   let result = loop {
@@ -274,7 +291,13 @@ fn run_voice(bytes: &Arc<[u8]>, control: &Control, looped: bool, kind: Kind, fac
       out.drain();
     }
   }
-  !stopped && result.is_ok()
+  if stopped {
+    Outcome::Stopped
+  } else if result.is_err() {
+    Outcome::Failed
+  } else {
+    Outcome::Ended
+  }
 }
 
 #[cfg(test)]
@@ -297,6 +320,27 @@ mod tests {
     assert!(engine.load("x", vec![1, 2, 3, 4, 5, 6, 7, 8]).is_err());
     assert!(!engine.is_loaded("x"));
     assert!(engine.play(1, "x", 1.0, false, Kind::Music).is_err());
+  }
+
+  /// The audio server gone after the startup probe: the voice fails, and is still told as ended (after a pause) so the
+  /// page doesn't keep a sound it thinks is playing.
+  #[test]
+  fn a_failed_voice_is_told_as_ended() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/audio/sfx/card-played.mp3");
+    let bytes = std::fs::read(path).expect("sfx file");
+    let (tx, rx) = std::sync::mpsc::channel();
+    let tx = Mutex::new(tx);
+    let engine = Engine::new(
+      Arc::new(|_, _, _| Err("no server".into())),
+      Arc::new(move |id| {
+        let _ = tx.lock().unwrap().send(id);
+      }),
+    );
+    engine.load("fx", bytes).expect("loads");
+    engine.play(3, "fx", 1.0, false, Kind::Effect).expect("starts");
+    assert!(rx.recv_timeout(Duration::from_millis(500)).is_err(), "told at once");
+    assert_eq!(rx.recv_timeout(Duration::from_secs(5)).expect("ended"), 3);
+    assert!(engine.voices.lock().unwrap().is_empty());
   }
 
   /// A real mp3 from the game: loads with a length, plays through a recording output, ends on its own, can be looped

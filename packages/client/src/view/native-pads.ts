@@ -71,10 +71,6 @@ export function isSteamVirtualPad(id: string): boolean {
   return /Vendor: 28de Product: 11ff/i.test(id);
 }
 
-function hasInput(pad: BridgePad): boolean {
-  return pad.downs.length > 0 || pad.buttons.some((button) => button.pressed) || pad.axes.some((axis) => axis !== 0);
-}
-
 /**
  * True when a bridge message shows the player using the pad: a button went down or is held, or a stick is pushed well
  * past its rest (a resting stick drifts, so a small lean is not input). This is what switches the glyphs to the pad's,
@@ -112,7 +108,9 @@ export class NativePads {
     }
     const known = this.#pads.has(pad.index);
     this.#pads.set(pad.index, pad);
-    if (hasInput(pad)) this.#active.add(pad.index);
+    // Deliberate input only: a resting stick's drift must not mark the player's own pad in use, or Steam's virtual pad
+    // would stay hidden for good while it may be the one with the working mapping.
+    if (isDeliberatePadInput(pad)) this.#active.add(pad.index);
     if (pad.downs.length > 0) {
       const latched = this.#latched.get(pad.index) ?? new Map<number, number>();
       for (const index of pad.downs) if (!TRIGGERS.has(index)) latched.set(index, LATCH_STEPS);
