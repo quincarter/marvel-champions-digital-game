@@ -25,8 +25,9 @@ non-Steam game, with its icon and library art (the grid, wide and Big Picture ba
 and Big Picture with a controller. Running it again updates the entry instead of adding a second one, and keeps its
 collections and play time. Steam has to be closed while it runs; the script offers to close it.
 
-- **Windows**: install the game, then download `-Windows-Install-for-Steam.ps1` and run, in PowerShell:
-  `powershell -ExecutionPolicy Bypass -File .\MarvelChampions-*-Windows-Install-for-Steam.ps1`
+- **Windows**: install the game, then download `-Windows-Install-for-Steam.ps1` and run, in PowerShell (`-File`
+  takes no wildcards, so this looks the file up first):
+  `powershell -ExecutionPolicy Bypass -File (Get-ChildItem ~\Downloads\MarvelChampions-*-Windows-Install-for-Steam.ps1 | Select-Object -Last 1).FullName`
 - **macOS**: drag the game into Applications from the `.dmg`, then download `-macOS-Install-for-Steam.sh` and run
   `bash ~/Downloads/MarvelChampions-*-macOS-Install-for-Steam.sh`.
 - **Linux, Steam Deck and Bazzite**: download the `.AppImage` and `-Linux-Install-for-Steam.sh` (on a Steam Deck, in

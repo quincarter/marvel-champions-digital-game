@@ -276,7 +276,9 @@ fi
 
 newest_appimage() {
   # The newest release AppImage in a folder, by version (MarvelChampions-<version>-Linux-x64.AppImage).
-  find "$1" -maxdepth 1 -type f -name 'MarvelChampions-*-Linux-*.AppImage' 2> /dev/null | sort -V | tail -n 1
+  # A missing folder (no ~/Downloads, or a localized one) is just no AppImage, so the download fallback still runs.
+  [ -d "$1" ] || return 0
+  find "$1" -maxdepth 1 -type f -name 'MarvelChampions-*-Linux-*.AppImage' 2> /dev/null | sort -V | tail -n 1 || true
 }
 
 if [ -z "$appimage" ] && [ "$force_download" = 0 ]; then
