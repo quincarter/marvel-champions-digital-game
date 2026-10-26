@@ -321,6 +321,16 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   const VIEW_BUTTON = 8;
   // The frames this screen was held: a sheet that switched this scene's input off leaves a stale `down` behind it.
   const pressGuard = createPressGuard();
+  // The buttons down on the pads themselves: this plugin's own state is stale while the screen's input is off.
+  const liveDown = (): number[] => {
+    const down: number[] = [];
+    for (const live of navigator.getGamepads?.() ?? []) {
+      live?.buttons.forEach((button, index) => {
+        if (button.pressed) down.push(index);
+      });
+    }
+    return down;
+  };
 
   gamepad.on("down", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
     if (!usable(pad)) return;
@@ -331,11 +341,11 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     if (DPAD_INDICES.has(button.index)) return;
     const frame = scene.game.loop.frame;
     if (held()) {
-      pressGuard.noteHeld(frame);
+      pressGuard.noteHeld(frame, liveDown());
       return;
     }
     // A press that began while something owned the pad (this plugin was not polling then) is that owner's, not ours.
-    if (!pressGuard.allows(frame)) return;
+    if (!pressGuard.allows(frame, button.index)) return;
     const settings = appSession().settings;
     const swap = usesNintendoSwap(
       resolvePadFamily(settings.padGlyphFamily, identity),
@@ -449,7 +459,7 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     }
     const blocked = held();
     if (blocked) {
-      pressGuard.noteHeld(scene.game.loop.frame);
+      pressGuard.noteHeld(scene.game.loop.frame, liveDown());
       dropBumper();
     }
     if (binding.onLayer || binding.onLayerPress) syncLayer(blocked);

@@ -7,27 +7,32 @@
  * fresh `down` for it one frame later. The Board is no longer blocked by then, so the same Start also opened Pause.
  *
  * Phaser builds a Button as already pressed for a button held when the pad connects, for the same reason. This is that,
- * for a screen that was held: a screen records each frame it was held (`noteHeld`), and a `down` within a couple of
- * frames after is the tail of a press the owner already took (`allows` says no). The window is frames, not time, so a
- * slow machine gets the same answer as a fast one; a person cannot release and press a button again that quickly.
+ * for a screen that was held: each frame it was held, the screen records which buttons were down on the pad itself
+ * (`noteHeld`, from the live `navigator.getGamepads()`, since its own plugin was not polling), and a `down` within a couple
+ * of frames after, for a button that was already down then, is the tail of a press the owner already took (`allows`
+ * says no). A button that was up while the screen was held is a new press and always goes through, however soon: only
+ * the stale one is dropped. The window is frames, not time, so a slow machine gets the same answer as a fast one.
  */
 
 /** Frames after the last held one in which a `down` still counts as the press that began under the owner. */
 export const PRESS_GUARD_FRAMES = 2;
 
 export interface PressGuard {
-  /** This frame the screen was held (blocked, or its input switched off). */
-  noteHeld(frame: number): void;
-  /** False for a `down` at `frame` that belongs to a press which began while the screen was held. */
-  allows(frame: number): boolean;
+  /** This frame the screen was held (blocked, or its input switched off), with the buttons down on the pad then. */
+  noteHeld(frame: number, pressed: readonly number[]): void;
+  /** False for a `down` of `button` at `frame` that belongs to a press which began while the screen was held. */
+  allows(frame: number, button: number): boolean;
 }
 
 export function createPressGuard(): PressGuard {
   let lastHeld = Number.NEGATIVE_INFINITY;
+  let downThen = new Set<number>();
   return {
-    noteHeld: (frame) => {
-      lastHeld = Math.max(lastHeld, frame);
+    noteHeld: (frame, pressed) => {
+      if (frame < lastHeld) return;
+      lastHeld = frame;
+      downThen = new Set(pressed);
     },
-    allows: (frame) => frame - lastHeld > PRESS_GUARD_FRAMES,
+    allows: (frame, button) => frame - lastHeld > PRESS_GUARD_FRAMES || !downThen.has(button),
   };
 }
