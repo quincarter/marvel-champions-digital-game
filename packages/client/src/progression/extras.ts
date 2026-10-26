@@ -537,6 +537,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/registration-iron-man/villain-loses.mp3": "The Armor Stands Down",
   "scenarios/resistance-captain-america/battle.mp3": "Not Without a Fight",
   "scenarios/resistance-captain-america/villain-wins.mp3": "The Shield Falls",
+  "scenarios/resistance-captain-america/villain-loses.mp3": "Standing Down Together",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
