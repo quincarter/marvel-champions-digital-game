@@ -1,6 +1,6 @@
 # Music prompts for every empty slot (2026-10-10, updated 2026-10-26)
 
-Every scenario and campaign slot in `music/` that has no track today: 49 tracks. The titles here are the ones to
+Every scenario and campaign slot in `music/` that has no track today: 46 tracks. The titles here are the ones to
 use for the files and the `TRACK_TITLES` entries, whatever name the generator gives the download. None repeats a
 title already in the jukebox. [music-prompts-ready.md](music-prompts-ready.md) has each of them as a whole request,
 ready to paste; the descriptions below are the same ones in the shorter form.
@@ -66,14 +66,6 @@ A cosmic-powered air force pilot and government agent who believes heroes must f
 ```
 
 # Wave 11: Fear No Evil
-
-## The Getaway
-
-Tracks: **Floor It** (battle), **Clean Getaway** (villain wins), **End of the Road** (heroes win).
-
-```text
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
-```
 
 ## Protection Racket
 
@@ -245,7 +237,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- The Getaway: `scenarios/the-getaway/`
 - Protection Racket: `scenarios/protection-racket/`
 - The Raft Breakout: `scenarios/the-raft-breakout/`
 - Stop the Presses!: `scenarios/stop-the-presses/`
@@ -505,6 +496,14 @@ Tracks: **Gallery After Hours** (battle), **The Masterpiece Walks** (villain win
 
 ```text
 Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
+```
+
+## The Getaway
+
+Tracks: **Floor It** (battle), **Clean Getaway** (villain wins), **End of the Road** (heroes win).
+
+```text
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
 ```
 
 </details>

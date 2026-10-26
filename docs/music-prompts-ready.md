@@ -62,50 +62,6 @@ Title: "Clear Skies Again"
 
 The six Fear No Evil scenarios and the campaign's two tracks. Five scenarios are named by their main scheme and take any of five underling villains (Bullseye, Electro, Hammerhead, Purple Man, Typhoid Mary), so each scenario's music follows the scheme, not the villain. Files go straight into `music/scenarios/<scenarioId>/`, and the campaign's into `music/campaigns/fne/`.
 
-## The Getaway
-
-Folder: `music/scenarios/the-getaway/`
-
-### Floor It (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
-
-Title: "Floor It"
-```
-
-### Clean Getaway (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
-
-Title: "Clean Getaway"
-```
-
-### End of the Road (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
-
-Title: "End of the Road"
-```
-
 ## Protection Racket
 
 Folder: `music/scenarios/protection-racket/`
@@ -1144,10 +1100,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 54 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 57 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 54 prompts already used</summary>
+<summary>Show the 57 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1879,50 @@ Use the same main melody and instruments as the battle track I just generated.
 Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
 
 Title: "Returned to the Wall"
+```
+
+## The Getaway
+
+Folder: `music/scenarios/the-getaway/`
+
+### Floor It (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
+
+Title: "Floor It"
+```
+
+### Clean Getaway (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
+
+Title: "Clean Getaway"
+```
+
+### End of the Road (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
+
+Title: "End of the Road"
 ```
 
 </details>
