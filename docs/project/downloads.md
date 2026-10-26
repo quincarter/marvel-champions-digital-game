@@ -20,16 +20,15 @@ Title screen when one exists. The web app always runs the latest version.
 
 ## Linux launch options
 
-The Linux app runs on WebKitGTK, and a few environment variables change how it behaves. The app sets the first three
+The Linux app runs on WebKitGTK, and a few environment variables change how it behaves. The app sets the first two
 itself when it starts, and only when you haven't set them, so a value of your own always wins.
 
-| Variable                            | Set by the app                | What it does                                                                                                                                                                                           |
-| ----------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PULSE_LATENCY_MSEC=90`             | Always on Linux               | A longer audio buffer, so sound doesn't crackle under PipeWire (Steam Deck, Bazzite).                                                                                                                  |
-| `WEBKIT_DISABLE_DMABUF_RENDERER=1`  | Always on Linux               | Turns off WebKit's DMA-BUF renderer, which drew corrupt or blank card textures on the Steam Deck and Bazzite.                                                                                          |
-| `NO_AT_BRIDGE=1`                    | In the AppImage only          | Turns off GTK's accessibility bridge. The AppImage bundles an older bridge than current distros run, and the mismatch is the likely cause of the game freezing (no input, nothing redrawn) on Bazzite. |
-| `WEBKIT_DISABLE_COMPOSITING_MODE=1` | No: set it yourself if needed | Turns off WebKit's GPU compositing. Try it if the game still freezes or flickers, especially on very new GPUs.                                                                                         |
-| `G_MESSAGES_DEBUG=all`              | No: for reporting a problem   | Prints GTK and WebKit debug messages to the terminal.                                                                                                                                                  |
+| Variable                            | Set by the app                | What it does                                                                                                  |
+| ----------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `PULSE_LATENCY_MSEC=90`             | Always on Linux               | A longer audio buffer, so sound doesn't crackle under PipeWire (Steam Deck, Bazzite).                         |
+| `WEBKIT_DISABLE_DMABUF_RENDERER=1`  | Always on Linux               | Turns off WebKit's DMA-BUF renderer, which drew corrupt or blank card textures on the Steam Deck and Bazzite. |
+| `WEBKIT_DISABLE_COMPOSITING_MODE=1` | No: set it yourself if needed | Turns off WebKit's GPU compositing. Try it if the game flickers or draws wrongly on your GPU.                 |
+| `G_MESSAGES_DEBUG=all`              | No: for reporting a problem   | Prints GTK and WebKit debug messages to the terminal.                                                         |
 
 To run the AppImage with an option, put it in front of the command in a terminal, for example:
 

@@ -145,9 +145,12 @@ test.describe("the opening hand with a controller", () => {
       await press(page, UP, async () => (await setup(page, (d) => d.focus())) === last);
       expect(await setup(page, (d) => d.focus())).toBe(last);
 
-      // Y inspects the card, B closes the sheet and leaves the hand up; E and Escape do the same.
-      await press(page, Y, sceneIs(page, "InspectOverlay"));
-      expect(await sceneIs(page, "InspectOverlay")()).toBe(true);
+      // A tap of Y inspects the card (a hold zooms it instead, so the press is let go quickly), B closes the sheet and
+      // leaves the hand up; E and Escape do the same.
+      await setButton(page, Y, true);
+      await page.waitForTimeout(100);
+      await setButton(page, Y, false);
+      await waitFor(sceneIs(page, "InspectOverlay"), "a tap of Y opens Inspect", 10_000);
       await press(page, B);
       await waitFor(sceneGone(page, "InspectOverlay"), "B closes Inspect", 10_000);
       expect(await sceneIs(page, "SetupDeal")()).toBe(true);

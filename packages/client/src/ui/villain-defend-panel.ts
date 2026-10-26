@@ -18,7 +18,7 @@ import { faceOf } from "../view/board-model.js";
 import type { DefendChoiceView, DefendOptionView } from "../view/defend-choice.js";
 import { defendMiddleLayout } from "../view/defend-choice-layout.js";
 import type { Rect } from "../view/layout.js";
-import { villainDefendOptionParts, type VillainDefendLayout } from "../view/villain-defend-layout.js";
+import { OPTION_PAD, villainDefendOptionParts, type VillainDefendLayout } from "../view/villain-defend-layout.js";
 import { onTap } from "./tap.js";
 import { textStyle } from "./theme.js";
 import { McButton, fitText, label, paintPanel } from "./widgets.js";
@@ -61,6 +61,8 @@ export interface DefendPanelArgs {
 
 /** Width an option's title leaves clear for its pick glyph. */
 export const DEFEND_PICK_RESERVE = 72;
+/** The least room beside an option's picture that holds a trigger + button glyph pair. */
+const DEFEND_PICK_BESIDE = 50;
 
 /** Below this a caption is not read at a glance across a phone; the tag then says less, larger. */
 const TAG_READABLE_SIZE = 12;
@@ -372,8 +374,20 @@ function drawOption(
     selected ? `${option.title} ✓` : option.title,
     textStyle({ ...typeRole.rowTitle, size: small ? 13 : 16 }, surface.ink.hex),
   );
-  fitText(title, pickHint ? text.width - DEFEND_PICK_RESERVE : text.width, small ? 13 : 16);
-  pickHint?.(option.optionId, { x: text.x, y, width: text.width, height: title.height });
+  // The pick glyph sits beside the picture when there is room there, so the title keeps its full width (a pad glyph
+  // only shows for a pad, and a title cut short for it read "War Machine..." with a mouse); else at the title's end.
+  const picture = parts.picture;
+  const besidePicture =
+    picture && slot.x + slot.width - OPTION_PAD - (picture.x + picture.width) >= DEFEND_PICK_BESIDE
+      ? {
+          x: picture.x + picture.width,
+          y: picture.y,
+          width: slot.x + slot.width - OPTION_PAD - picture.x - picture.width,
+          height: 22,
+        }
+      : null;
+  fitText(title, pickHint && !besidePicture ? text.width - DEFEND_PICK_RESERVE : text.width, small ? 13 : 16);
+  pickHint?.(option.optionId, besidePicture ?? { x: text.x, y, width: text.width, height: title.height });
   y += title.height + 2;
   const costLine =
     option.kind === "decline"
