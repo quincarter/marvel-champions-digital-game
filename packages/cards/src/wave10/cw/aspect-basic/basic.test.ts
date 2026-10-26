@@ -374,6 +374,43 @@ describe(`${IRON_LAD}: exhaust another Avenger ally to add its matching power`, 
     expect(inst(after, t.villain).damage).toBe(inst(t.state, t.villain).damage + 1);
   });
 
+  /** The `abilityNotOffered` events a basic attack by Iron Lad emits, when it opens no choice. */
+  const notOffered = (s: GameState, attacker: InstanceId) => {
+    const result = applyCommand(
+      s,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: s.activeVillainId! },
+      WAVE10_DEPS,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    return result.events.filter((e) => e.type === "abilityNotOffered");
+  };
+
+  it("with no other ready Avenger ally the engine says the interrupt was not offered: its cost cannot be paid (#431)", () => {
+    for (const others of [[], [DAREDEVIL]]) {
+      const t = table(others);
+      expect(notOffered(t.state, t.lad)).toEqual([
+        expect.objectContaining({ instanceId: t.lad, abilityId: IRON_LAD, timing: "interrupt", reason: "cannotPay" }),
+      ]);
+    }
+  });
+
+  it("with a ready Avenger ally the interrupt is offered and nothing says it was not", () => {
+    const t = table([SPIDER_WOMAN]);
+    const result = applyCommand(
+      t.state,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: t.lad, targetInstanceId: t.villain },
+      WAVE10_DEPS,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.events.filter((e) => e.type === "abilityNotOffered")).toEqual([]);
+    expect(result.state.pendingChoice?.options.some((o) => o.optionId.endsWith(IRON_LAD))).toBe(true);
+  });
+
+  it("another character's attack is not Iron Lad's use: nothing is said about his interrupt", () => {
+    const t = table([DAREDEVIL]);
+    expect(notOffered(t.state, t.ids[DAREDEVIL]!)).toEqual([]);
+  });
+
   it("a stunned Iron Lad has not used a basic power: the stun is removed, nothing is dealt, the ally stays ready", () => {
     const t = table([SPIDER_WOMAN]);
     const stunned = patchInstance(t.state, t.lad, {

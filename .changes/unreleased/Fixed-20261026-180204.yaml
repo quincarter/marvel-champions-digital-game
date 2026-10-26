@@ -1,0 +1,3 @@
+kind: Fixed
+body: When an interrupt or response matches what just happened but can't be used (no valid target, or a cost you can't pay, like Iron Lad with no other ready Avenger ally), the table now says why and the log records it (#431).
+time: 2026-10-26T18:02:04.8097871-04:00

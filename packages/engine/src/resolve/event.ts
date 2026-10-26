@@ -152,7 +152,15 @@ import {
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { continueActivation } from "../villain/phase.js";
 import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
-import { answeredByNoResponse, candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
+import {
+  answeredByNoResponse,
+  candidatesFor,
+  eachTimeEffectsFor,
+  hasCandidates,
+  heard,
+  unofferedAbilities,
+} from "./triggers.js";
+import type { WindowTiming } from "../stack.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import { mainSchemePlayAreaOf } from "../per-player-main-schemes.js";
@@ -311,6 +319,11 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       const opened =
         interrupts && frame.event.kind === "dealDamage" ? pierceBeforeInterrupts(ctx, frame.event) : frame.event;
       if (opened !== frame.event) setFrame(ctx, { ...frame, stage: "apply", event: opened });
+      noteUnoffered(
+        ctx,
+        [opened, ...companions.map((companion) => companion.event), ...(engaging ? [engaging] : [])],
+        "interrupt",
+      );
       if (interrupts)
         pushWindow(
           ctx,
@@ -502,11 +515,13 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       });
       if (joinLaterResponses(ctx, frame, event, spills)) {
         // Its responses wait for the later frame's window (`pushEventsSharingResponses`).
-      } else if (
-        hasCandidates(ctx.state, ctx.deps, event, "response") ||
-        joined.some((other) => hasCandidates(ctx.state, ctx.deps, other, "response"))
-      ) {
-        pushWindow(ctx, event, "response", frame.frameId, joined);
+      } else {
+        noteUnoffered(ctx, [event, ...joined], "response");
+        if (
+          hasCandidates(ctx.state, ctx.deps, event, "response") ||
+          joined.some((other) => hasCandidates(ctx.state, ctx.deps, other, "response"))
+        )
+          pushWindow(ctx, event, "response", frame.frameId, joined);
       }
       // Lasting "each time …" effects resolve before the responses, so they are pushed on top (§3.17).
       for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
@@ -746,6 +761,22 @@ function overkillSpillConditions(frame: Frame<"event">, event: TriggerEvent): re
 }
 
 /**
+ * Says which optional abilities on players' cards answered these conditions but cannot be initiated, and why
+ * (`abilityNotOffered`, `unofferedAbilities`; #431). Once per ability, however many of the conditions it answers.
+ */
+function noteUnoffered(ctx: Ctx, events: readonly TriggerEvent[], timing: WindowTiming): void {
+  const said = new Set<string>();
+  for (const event of events) {
+    for (const { instanceId, abilityId, playerId, reason } of unofferedAbilities(ctx.state, ctx.deps, event, timing)) {
+      const key = `${instanceId}:${abilityId}`;
+      if (said.has(key)) continue;
+      said.add(key);
+      emit(ctx, { type: "abilityNotOffered", instanceId, abilityId, playerId, timing, reason, event });
+    }
+  }
+}
+
+/**
  * Whether this event's *response* window waits for the activation it belongs to to finish.
  *
  * RRG 1.8 "Defend, Defense" (p. 16): "Abilities that trigger after a character defends an attack resolve after that
@@ -773,7 +804,9 @@ const defersResponsesToActivation = (event: TriggerEvent): boolean =>
 function openDeferredResponses(ctx: Ctx, frame: Frame<"event">, deferred: readonly TriggerEvent[]): void {
   const [first, ...rest] = deferred.map((each) => withResults(each, frame.vars));
   // Triggering conditions are checked when the window opens, not when the defense happened.
-  if (!first || ![first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) return;
+  if (!first) return;
+  noteUnoffered(ctx, [first, ...rest], "response");
+  if (![first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) return;
   // One window for all of them, tiered forced first (RRG 1.8 "Attack (Enemy Activation)" step 6, p. 9).
   pushWindow(ctx, first, "response", frame.frameId, rest);
 }
@@ -823,6 +856,7 @@ function openJoinedResponses(ctx: Ctx, frame: Frame<"event">): boolean {
   if (!first) return false;
   const { joinedResponses: _opened, ...unjoined } = frame;
   setFrame(ctx, unjoined);
+  noteUnoffered(ctx, [first, ...rest], "response");
   if ([first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) {
     pushWindow(ctx, first, "response", null, rest);
   }

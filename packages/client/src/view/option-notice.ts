@@ -5,7 +5,7 @@
  * offered (`unavailableOptionReasons`, from what the engine recorded). Nothing here decides anything: it reads events.
  */
 import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
-import { unavailableOptionReasons } from "./ability-refusal.js";
+import { abilityNameOf, unavailableOptionReasons, unofferedReason } from "./ability-refusal.js";
 import { cardName } from "./names.js";
 
 export type OptionNoticeRow =
@@ -14,6 +14,8 @@ export type OptionNoticeRow =
 
 export interface OptionNotice {
   readonly title: string;
+  /** The line under the title; the overlay's own "only one option" line when absent. */
+  readonly lead?: string;
   readonly rows: readonly OptionNoticeRow[];
 }
 
@@ -41,5 +43,37 @@ export function optionNoticesOf(
     const rows = placed.sort((a, b) => a.at - b.at).map(({ row }) => row);
     const source = unavailable.sourceInstanceId ? cardName(state, unavailable.sourceInstanceId) : null;
     return [{ title: source ? `${source}: only one option` : "Only one option", rows }];
+  });
+}
+
+/**
+ * One notice per optional interrupt or response in this batch of events that answered what happened but was not
+ * offered (`abilityNotOffered`, #431: Iron Lad attacks with no other ready Avenger ally), for `viewer`'s cards (every
+ * seat when null), each with a `key` (card and ability) so a caller can show one only the first time. The log says it
+ * every time.
+ */
+export function unofferedNoticesOf(
+  events: readonly GameEvent[],
+  state: GameState,
+  viewer: PlayerId | null,
+  deps: EngineDeps,
+): { readonly key: string; readonly notice: OptionNotice }[] {
+  const seen = new Set<string>();
+  return events.flatMap((event) => {
+    if (event.type !== "abilityNotOffered") return [];
+    if (viewer !== null && event.playerId !== viewer) return [];
+    const key = `${event.instanceId}:${event.abilityId}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const name = cardName(state, event.instanceId);
+    const printed = abilityNameOf(state, event.instanceId, event.abilityId);
+    const label = printed === "This ability" ? `${name}'s ${event.timing}` : printed;
+    const why = unofferedReason(state, event.instanceId, event.playerId, event.abilityId, event.reason, deps);
+    const notice: OptionNotice = {
+      title: `${name}: ${event.timing} not offered`,
+      lead: `It answers what just happened, but it cannot be used right now, so you were not asked.`,
+      rows: [{ kind: "unavailable", label, why }],
+    };
+    return [{ key, notice }];
   });
 }

@@ -122,7 +122,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       .text(
         0,
         0,
-        "The other options could not be chosen, so this one was taken.",
+        notice.lead ?? "The other options could not be chosen, so this one was taken.",
         textStyle(typeRole.body, surface.ink.hex, 0.9),
       )
       .setWordWrapWidth(textWidth);

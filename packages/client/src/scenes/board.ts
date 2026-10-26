@@ -86,7 +86,7 @@ import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
 import type { OptionNoticeData, OptionNoticeOverlay } from "./option-notice.js";
-import { optionNoticesOf, type OptionNotice } from "../view/option-notice.js";
+import { optionNoticesOf, unofferedNoticesOf, type OptionNotice } from "../view/option-notice.js";
 import { showHoldOn } from "./hold-on.js";
 import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
@@ -425,6 +425,8 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A scene is reused from game to game: each game shows its own first "not offered" notices.
+    this.#unofferedShown = new Set();
     this.#hints = new GlyphHints(this, () => [
       ...this.#frame.hitRects.values(),
       ...this.#frame.focusRects.values(),
@@ -879,6 +881,8 @@ export class BoardScene extends Phaser.Scene {
     // A choose-one that took its only option says what the others were and why they could not be chosen (#412). Every
     // seat is this player's (one person plays them all), so no viewer narrows it.
     if (fresh) this.#openOptionNotices(optionNoticesOf(state.lastEvents, state.game, null, POOL_DEPS));
+    // An interrupt or response that answered but could not be used says why, the first time for each card (#431).
+    if (fresh) this.#openOptionNotices(this.#firstUnofferedNotices(state.lastEvents, state.game));
     this.#tryOpenCampaignBeat();
     // Guided mode G10e part 2: fed *after* the choice/campaign-beat overlays above have had their own chance to
     // open this frame, so `#tipBlocked()` already sees this command's own overlay, not last frame's. Gated on
@@ -1012,6 +1016,17 @@ export class BoardScene extends Phaser.Scene {
     if (!state.game || !state.config) return;
     const beat = campaignBeatFor(state.lastEvents, state.game, state.config);
     if (beat) this.#pendingCampaignBeat = beat;
+  }
+
+  /** The cards and abilities whose "not offered" notice was shown this game (`unofferedNoticesOf`): once each. */
+  #unofferedShown = new Set<string>();
+
+  #firstUnofferedNotices(events: readonly GameEvent[], game: GameState): OptionNotice[] {
+    return unofferedNoticesOf(events, game, null, POOL_DEPS).flatMap(({ key, notice }) => {
+      if (this.#unofferedShown.has(key)) return [];
+      this.#unofferedShown.add(key);
+      return [notice];
+    });
   }
 
   /**

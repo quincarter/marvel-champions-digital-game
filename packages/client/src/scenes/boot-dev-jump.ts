@@ -501,6 +501,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&fixture=iron-lad`: Hulkling's Iron Lad attacks with no other Avenger ally out, so his interrupt is not
+  // offered and the board says why (#431).
+  if (screen === "board" && params.get("fixture") === "iron-lad") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { playIronLadAttack } = await import("../store/dev-iron-lad-game.js");
+      await playIronLadAttack(store, false);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=board&fixture=make-the-call`: Captain Marvel with Make the Call in hand and an ally in her discard pile, so
   // playing it lists the allies in the discard piles and whose pile each is in (#419); `&tight=1` first spends down the
   // hand so the allies it cannot pay for are shown dimmed; `&many=1` moves every ally in the deck to the discard pile,

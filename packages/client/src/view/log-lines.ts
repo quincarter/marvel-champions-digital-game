@@ -33,7 +33,7 @@ import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { facedownRoleName, facedownUntilLater } from "./facedown-history.js";
 import { foeWord } from "./foe-words.js";
-import { unavailableOptionLines } from "./ability-refusal.js";
+import { unavailableOptionLines, unofferedReason } from "./ability-refusal.js";
 import { cardName, faceUpName, formWords, optionLabelOf, playerName, seatName } from "./names.js";
 
 /** A line that opens with a card named only as far as the table may see it ("a facedown card") starts with a capital. */
@@ -622,6 +622,11 @@ function describe(
         text: `${event.name} is closed to player card effects — ${getCard(state, event.sourceCardId)?.name ?? "a card"} has no effect on it.`,
         voice: "scenario",
       };
+    // #431: an interrupt or response that answered what happened but could not be used says why nothing was asked.
+    case "abilityNotOffered": {
+      const why = unofferedReason(state, event.instanceId, event.playerId, event.abilityId, event.reason, deps);
+      return { text: `${card(event.instanceId)}'s ${event.timing} was not offered: ${why}.`, voice: "player" };
+    }
     case "interruptsPreempted":
       return { text: `Toughness has interrupt priority — no other interrupt fires first.`, voice: "scenario" };
     case "threatPlaced": {

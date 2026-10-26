@@ -11,6 +11,7 @@
  * (Owed to the engine: exporting `evaluate`, or a per-clause refusal message, would let this glue go.)
  */
 import {
+  type AbilityDefinition,
   activeAbilityRefs,
   cardsInPlay,
   hasKeyword,
@@ -262,6 +263,53 @@ export function unavailableOptionReasons(
 /** `unavailableOptionReasons` as one "label: why" line each, for the log. */
 export const unavailableOptionLines = (state: GameState, unavailable: UnavailableOptions, deps: EngineDeps): string[] =>
   unavailableOptionReasons(state, unavailable, deps).map(({ label, why }) => `${label}: ${why}`);
+
+/**
+ * "Exhaust another Avenger ally you control →" while none is ready (Iron Lad `cw` 56052, #431): "you control no other
+ * ready Avenger ally", from the cost's own shape (one pick of cards in play to exhaust, of one known noun, the payer's,
+ * with at most a trait). The pick never takes the ability's own card (`AbilityCost.exhaustCards`), hence "other". Null
+ * for any other cost.
+ */
+function exhaustCostClause(cost: AbilityDefinition["cost"]): string | null {
+  const picks = cost?.exhaustCards;
+  const pick = Array.isArray(picks) ? (picks.length === 1 ? picks[0] : undefined) : picks;
+  if (!pick || pick.min < 1) return null;
+  const query = pick.query;
+  const categories = query.categories ?? [];
+  const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
+  const known = Object.entries(query).every(
+    ([key, value]) => value === undefined || key === "categories" || key === "controller" || key === "trait",
+  );
+  if (!noun || !known || query.controller !== "you") return null;
+  const trait = query.trait ? `${titleCase(query.trait)} ` : "";
+  return `you control no other ready ${trait}${noun}`;
+}
+
+/** What each `abilityNotOffered` reason means, when nothing more specific can be said. */
+const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay", string>> = {
+  noTarget: "it has no valid target",
+  cannotPay: "you cannot pay its cost",
+};
+
+/**
+ * Why an optional interrupt or response that answered what just happened was not offered (`abilityNotOffered`, #431),
+ * in a few words: which target is missing (`targetRefusalReason`) or which part of the cost cannot be paid, else the
+ * engine's reason in words. The engine decided; this only words it, from the ability's own data.
+ */
+export function unofferedReason(
+  state: GameState,
+  instanceId: InstanceId,
+  controllerId: PlayerId,
+  abilityId: AbilityId,
+  reason: "noTarget" | "cannotPay",
+  deps: EngineDeps,
+): string {
+  const specific =
+    reason === "noTarget"
+      ? targetRefusalReason(state, instanceId, controllerId, abilityId, deps)
+      : exhaustCostClause(deps.abilities[abilityId]?.cost);
+  return specific ?? UNOFFERED_WORDS[reason];
+}
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */
 export function abilityNameOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string {
