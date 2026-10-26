@@ -345,3 +345,52 @@ describe("§3.34 'Hero/Alter-ego' names one identity by both sides (Heart of the
     expect(result.ok).toBe(true);
   });
 });
+
+describe("§3.34 'Hero/Alter-ego' is met by an ally titled the alter-ego half (issue #425)", () => {
+  // Ruling November 21, 2025: Black Panther (Shuri) and the T'Challa ally (51002) in play let Heart of the Panther be
+  // played. An ally has no hero side, so it matches the second half by its title or subtitle.
+  const OTHER = identity("other", "Other", "O");
+  const ally = (id: string, name: string, subtitle?: string): AnyCard => ({
+    ...stubAlly({ id, cost: 1, atk: 1, thw: 1, hp: 2 }),
+    name,
+    ...(subtitle === undefined ? {} : { subtitle }),
+  });
+  const T_ALLY = ally("t-ally", "T");
+  const SUBTITLED = ally("subtitled", "Panther", "T");
+  const PANTHER_ALLY = ally("panther-ally", "Panther");
+  const S_ALLY = ally("s-ally", "S");
+
+  /** Plays Heart from P1's hand: the refusal's message, or null when it played. */
+  function playHeart(allyCard: AnyCard | null, seat: HeroIdentityCard = PANTHER_S): string | null {
+    const deps = depsOf();
+    const cards = [HEART, T_ALLY, SUBTITLED, PANTHER_ALLY, S_ALLY];
+    const deck = cards.map((card) => card.id);
+    let state = inForm(twoSeats(seat, OTHER, cards, deps, deck), P1, "hero");
+    if (allyCard) state = playerCardIntoPlay(state, allyCard.id).state;
+    const given = giveCard(state, P1, HEART.id);
+    const result = applyCommand(
+      given.state,
+      { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
+    return result.ok ? null : result.error.message;
+  }
+
+  it("the Shuri-shaped hero and an ally titled T can play it", () => {
+    expect(playHeart(T_ALLY)).toBeNull();
+  });
+
+  it("an ally whose subtitle is T counts too", () => {
+    expect(playHeart(SUBTITLED)).toBeNull();
+  });
+
+  it("an ally titled by the shared hero half, by the other alter-ego, or no ally at all does not", () => {
+    expect(playHeart(PANTHER_ALLY)).toContain("Panther/T");
+    expect(playHeart(S_ALLY)).toContain("Panther/T");
+    expect(playHeart(null)).toContain("Panther/T");
+  });
+
+  it("the mirror: the T-shaped hero and an ally titled S can play it", () => {
+    expect(playHeart(S_ALLY, PANTHER_T)).toBeNull();
+  });
+});
