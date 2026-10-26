@@ -511,6 +511,14 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&fixture=heart-panther`: Black Panther (Shuri) with the T'Challa ally in play and Heart of the
+  // Panther in hand, which the hand shows as playable, not "needs partner" (#425).
+  if (screen === "board" && params.get("fixture") === "heart-panther") {
+    const { startDevHeartPantherGame } = await import("../store/dev-heart-panther-game.js");
+    await startDevHeartPantherGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=board&fixture=option-reasons`: Nick Fury's "choose one" with its threat option disabled, and why (#412).
   if (screen === "board" && params.get("fixture") === "option-reasons") {
     const { startDevOptionReasonsGame } = await import("../store/dev-option-reasons-game.js");
