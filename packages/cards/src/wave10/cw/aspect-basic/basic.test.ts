@@ -1,5 +1,5 @@
 import { CORE_CARDS, CW_CARDS, cardId, trait, type AllyCard, type AnyCard } from "@mc/content";
-import { applyCommand, createGame, handSize, type GameState, type InstanceId } from "@mc/engine";
+import { applyCommand, createGame, handSize, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../../core/setup.js";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -409,6 +409,99 @@ describe(`${IRON_LAD}: exhaust another Avenger ally to add its matching power`, 
   it("another character's attack is not Iron Lad's use: nothing is said about his interrupt", () => {
     const t = table([DAREDEVIL]);
     expect(notOffered(t.state, t.ids[DAREDEVIL]!)).toEqual([]);
+  });
+
+  /** Applies `command` and answers every choice with `pick`, keeping every event on the way. */
+  function playing(s: GameState, pick: Picker, command: Parameters<typeof applyCommand>[1]) {
+    const events: GameEvent[] = [];
+    let result = applyCommand(s, command, WAVE10_DEPS);
+    for (let guard = 0; ; guard++) {
+      if (!result.ok) throw new Error(result.error.message);
+      events.push(...result.events);
+      const choice = result.state.pendingChoice;
+      if (!choice || result.state.outcome || guard > 200) return { state: result.state, events };
+      result = applyCommand(
+        result.state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(result.state),
+        },
+        WAVE10_DEPS,
+      );
+    }
+  }
+  /** What a basic attack can hit: a minion engaged with the player (one with guard must be), else the villain. */
+  const targetOf = (s: GameState): InstanceId =>
+    Object.values(s.instances).find((i) => i.engagedWith === P1 && typeOf(s, i.instanceId) === "minion")?.instanceId ??
+    s.activeVillainId!;
+  const attackWith = (s: GameState, attacker: InstanceId, pick: Picker) =>
+    playing(s, pick, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: attacker,
+      targetInstanceId: targetOf(s),
+    });
+  /**
+   * Ends the turn and plays the villain phase out (no defender), to the next round's player turn. The main scheme is
+   * cleared first (`table` loads it with 20 threat for the thwart tests), and the hero healed (no one defends), so the
+   * villain phase does not end the game.
+   */
+  const nextRound = (s: GameState): GameState => {
+    const hero = playerOf(s, P1).identity.instanceId;
+    const cleared = patchInstance(patchInstance(s, s.mainScheme.instanceId, { threat: 0 }), hero, { damage: 0 });
+    const ended = playing(cleared, firstLegal, { type: "endTurn", playerId: P1 }).state;
+    expect(ended.outcome ?? null, JSON.stringify(ended.outcome)).toBeNull();
+    expect(ended.round).toBe(s.round + 1);
+    return ended;
+  };
+  const offeredIn = (events: readonly GameEvent[]) =>
+    events.some((e) => e.type === "abilityResolved" && (e.abilityId as string) === IRON_LAD);
+  const notOfferedIn = (events: readonly GameEvent[]) =>
+    events.filter((e) => e.type === "abilityNotOffered" && (e.abilityId as string) === IRON_LAD);
+
+  it("across a game: offered while another Avenger ally is ready, then not, with the reason, once none is (#431)", () => {
+    const t = table([SPIDER_WOMAN]);
+    const woman = t.ids[SPIDER_WOMAN]!;
+    // Round 1: Spider-Woman is ready, so Iron Lad's interrupt is offered and taken; nothing says it was not.
+    const first = attackWith(t.state, t.lad, choosing(IRON_LAD, woman));
+    expect(offeredIn(first.events)).toBe(true);
+    expect(notOfferedIn(first.events)).toEqual([]);
+    expect(inst(first.state, woman).exhausted).toBe(true);
+    // Round 2: both ready again, but Spider-Woman attacks first, so no other Avenger ally is ready for Iron Lad.
+    const round2 = nextRound(first.state);
+    expect(inst(round2, woman).exhausted).toBe(false);
+    const herAttack = attackWith(round2, woman, firstLegal);
+    const second = attackWith(herAttack.state, t.lad, choosing(IRON_LAD, woman));
+    expect(offeredIn(second.events)).toBe(false);
+    expect(notOfferedIn(second.events)).toEqual([expect.objectContaining({ reason: "cannotPay" })]);
+  });
+
+  it("across a game: not offered with no other Avenger ally, then offered for each of two that arrive, one per use (#431)", () => {
+    // Spider-Woman and Tigra are in the deck, to be put into play later; Iron Lad starts alone.
+    const placed = stagedInPlay(game("56052", [SPIDER_WOMAN, TIGRA]), "56052");
+    const t = { state: placed.state, lad: placed.id };
+    // Round 1: Iron Lad alone. Not offered, and the engine says why.
+    const first = attackWith(t.state, t.lad, firstLegal);
+    expect(offeredIn(first.events)).toBe(false);
+    expect(notOfferedIn(first.events)).toEqual([expect.objectContaining({ reason: "cannotPay" })]);
+    // Round 2: Spider-Woman and Tigra join him. Offered; Spider-Woman is the one exhausted.
+    let round2 = nextRound(first.state);
+    const woman = stagedInPlay(round2, SPIDER_WOMAN);
+    const tigra = stagedInPlay(woman.state, TIGRA);
+    round2 = tigra.state;
+    const second = attackWith(round2, t.lad, choosing(IRON_LAD, woman.id));
+    expect(offeredIn(second.events)).toBe(true);
+    expect(notOfferedIn(second.events)).toEqual([]);
+    expect([inst(second.state, woman.id).exhausted, inst(second.state, tigra.id).exhausted]).toEqual([true, false]);
+    // Round 3: Spider-Woman attacks on her own first; Tigra is the other Avenger ally left, so she pays this time.
+    const round3 = nextRound(second.state);
+    const herAttack = attackWith(round3, woman.id, firstLegal);
+    const third = attackWith(herAttack.state, t.lad, choosing(IRON_LAD, tigra.id));
+    expect(offeredIn(third.events)).toBe(true);
+    expect(notOfferedIn(third.events)).toEqual([]);
+    expect(inst(third.state, tigra.id).exhausted).toBe(true);
   });
 
   it("a stunned Iron Lad has not used a basic power: the stun is removed, nothing is dealt, the ally stays ready", () => {
