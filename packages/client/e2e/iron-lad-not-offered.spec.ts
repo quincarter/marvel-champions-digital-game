@@ -26,7 +26,7 @@ test("Iron Lad attacks alone: the board says his interrupt was not offered, and 
 
   expect(await hasText(page, "Iron Lad: interrupt not offered", NOTICE)).toBe(true);
   expect(await hasText(page, "you control no other ready Avenger ally", NOTICE)).toBe(true);
-  await page.screenshot({ path: "../../artifacts/qa/iron-lad-not-offered.png" });
+  await page.screenshot({ path: "../../artifacts/qa/431/iron-lad-not-offered.png" });
 
   await clickText(page, "OK", { sceneKey: NOTICE });
   await waitFor(
@@ -49,6 +49,32 @@ test("Iron Lad's Inspect sheet says his interrupt has no other ready Avenger all
   );
   await settle(page, { quietMs: 500, maxMs: 4000 });
   expect(await hasText(page, "Interrupt can't be used right now: you control no other ready Avenger ally")).toBe(true);
-  await page.screenshot({ path: "../../artifacts/qa/iron-lad-inspect.png" });
+  await page.screenshot({ path: "../../artifacts/qa/431/iron-lad-inspect.png" });
   expect(errors).toEqual([]);
 });
+
+for (const [fixture, name, why, kind] of [
+  ["aneka", "Aneka", "there is no other Dora Milaje ally in play", "response"],
+] as const) {
+  test(`${name}: the board's notice and Inspect both say why the ${kind} was not offered`, async ({ page }) => {
+    test.setTimeout(240_000);
+    const errors = trackErrors(page);
+    await installWave6Helpers(page);
+    await page.goto(`/?screen=board&fixture=${fixture}`);
+    await waitFor(
+      async () => ((await activeScenes(page)).includes(NOTICE) ? true : null),
+      "the not-offered notice opens",
+      120_000,
+    );
+    await settle(page, { quietMs: 500, maxMs: 4000 });
+    expect(await hasText(page, `${name}: ${kind} not offered`, NOTICE)).toBe(true);
+    expect(await hasText(page, why, NOTICE)).toBe(true);
+    await page.screenshot({ path: `../../artifacts/qa/431/${fixture}-not-offered.png` });
+
+    await page.goto(`/?screen=inspect&fixture=${fixture}`);
+    await waitFor(async () => ((await hasText(page, why)) ? true : null), "Inspect's Right now note", 120_000);
+    await settle(page, { quietMs: 500, maxMs: 4000 });
+    await page.screenshot({ path: `../../artifacts/qa/431/${fixture}-inspect.png` });
+    expect(errors).toEqual([]);
+  });
+}

@@ -140,26 +140,51 @@ function noTargetClause(state: GameState, query: TargetQuery, context: TargetCon
 const traitWord = (trait: string): string =>
   trait.includes(".") ? trait : trait.replace(/[A-Za-z]+/g, (word) => titleCase(word));
 
-/**
- * "Avenger ally" from a query of the payer's cards of one known noun with at most one trait (`controller: "you"`, or
- * none for a cost's pick: `payer`; nothing else); null for any other shape, which is not worded.
- */
-function yourNounOf(query: TargetQuery, payer = false): string | null {
-  const categories = query.categories ?? [];
-  const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
-  const known = Object.entries(query).every(
-    ([key, value]) => value === undefined || key === "categories" || key === "controller" || key === "trait",
-  );
-  // A cost is paid with the payer's own cards, so a cost's query needs no controller to be "yours".
-  const yours = query.controller === "you" || (payer && query.controller === undefined);
-  if (!noun || !known || !yours) return null;
-  return query.trait ? `${traitWord(query.trait)} ${noun}` : noun;
+/** A query's worded kind: "Avenger ally", whether it leaves out the ability's own card, and whose cards it reads. */
+interface QueryNoun {
+  readonly noun: string;
+  /** "Another Dora Milaje ally" (`not: { self: true }`). */
+  readonly other: boolean;
+  /** Any player's cards (no `controller`), not only the payer's. */
+  readonly anyone: boolean;
 }
 
-/** "You control no ally" ("no Avenger ally") from a query's shape alone (`yourNounOf`); null otherwise. */
-function noMatchClause(query: TargetQuery): string | null {
-  const noun = yourNounOf(query);
-  return noun ? `you control no ${noun}` : null;
+/**
+ * The kind of card a query asks for, when it is one known noun with at most one trait and at most "another"
+ * (`not: { self: true }`), of the payer's cards (`controller: "you"`, or none for a cost's pick: `payer`, as a cost is
+ * paid with the payer's own cards) or anyone's (no `controller`); null for any other shape, which is not worded.
+ */
+function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null {
+  const categories = query.categories ?? [];
+  const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
+  const not = query.not as { readonly self?: boolean } | undefined;
+  const other = not !== undefined && not.self === true && Object.keys(not).length === 1;
+  const known = Object.entries(query).every(
+    ([key, value]) =>
+      value === undefined ||
+      key === "categories" ||
+      key === "controller" ||
+      key === "trait" ||
+      (key === "not" && other),
+  );
+  if (!noun || !known || (query.controller !== undefined && query.controller !== "you")) return null;
+  const anyone = query.controller === undefined && !payer;
+  return { noun: query.trait ? `${traitWord(query.trait)} ${noun}` : noun, other, anyone };
+}
+
+/**
+ * "You control no ally", "you control no other Avenger ally", "there is no other Dora Milaje ally in play": what is
+ * missing, from a query's shape alone (`queryNounOf`); null otherwise.
+ */
+function noMatchClause(
+  query: TargetQuery,
+  /** A cost's pick: its cards are the payer's (`queryNounOf`), "ready" ones (`readiness`), "other" than the card. */
+  pick: { readonly other: boolean; readonly readiness: string } | null = null,
+): string | null {
+  const kind = queryNounOf(query, pick !== null);
+  if (!kind) return null;
+  const noun = `${kind.other || pick?.other ? "other " : ""}${pick?.readiness ?? ""}${kind.noun}`;
+  return kind.anyone ? `there is no ${noun} in play` : `you control no ${noun}`;
 }
 
 /**
@@ -302,12 +327,12 @@ function wordedPicks(cost: AbilityDefinition["cost"], state: GameState, instance
   const controllerId = controllerOf(state, instanceId);
   const context = { selfInstanceId: instanceId, controllerId, deps, event: null, bindings: {} };
   return inPlayPicksOf(cost).flatMap(({ mode, pick }) => {
-    const noun = yourNounOf(pick.query, true);
-    const word = PICK_WORD[mode];
-    if (!noun || word === undefined || pick.min < 1) return [];
+    const readiness = PICK_WORD[mode];
+    if (readiness === undefined || pick.min < 1) return [];
     // "Other" when the card itself is of that kind but cannot pay for its own ability (Iron Lad, an Avenger ally).
-    const self = cardsInPlay(state).includes(instanceId) && matchesQuery(state, instanceId, pick.query, context);
-    return [{ mode, pick, clause: `you control no ${self ? "other " : ""}${word}${noun}` }];
+    const other = cardsInPlay(state).includes(instanceId) && matchesQuery(state, instanceId, pick.query, context);
+    const clause = noMatchClause(pick.query, { other, readiness });
+    return clause ? [{ mode, pick, clause }] : [];
   });
 }
 
@@ -345,11 +370,9 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
     );
     // "Choose an Avenger ally": its opening target choice, when none of the payer's cards fits it.
     const target = firstTargetQuery(definition.effects.slice(definition.costEffects ?? 0));
-    const noun = target ? yourNounOf(target) : null;
+    const missing = target ? noMatchClause(target) : null;
     const targetless =
-      target && noun && !inPlay.some((id) => matchesQuery(state, id, target, context))
-        ? [`you control no ${noun}`]
-        : [];
+      target && missing && !inPlay.some((id) => matchesQuery(state, id, target, context)) ? [missing] : [];
     const clauses = [...short.map(({ clause }) => clause), ...targetless];
     return clauses.length > 0 ? [`${titleCase(trigger.kind)} can't be used right now: ${clauses.join(", and ")}`] : [];
   });

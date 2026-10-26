@@ -503,11 +503,12 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
 
   // `?screen=board&fixture=iron-lad`: Hulkling's Iron Lad attacks with no other Avenger ally out, so his interrupt is not
   // offered and the board says why (#431).
-  if (screen === "board" && params.get("fixture") === "iron-lad") {
+  // `&fixture=aneka`: the same with Black Panther's Aneka and no other Dora Milaje ally to choose.
+  if (screen === "board" && (params.get("fixture") === "iron-lad" || params.get("fixture") === "aneka")) {
     const { store } = appSession();
     if (!gameRunning(store)) {
-      const { playIronLadAttack } = await import("../store/dev-iron-lad-game.js");
-      await playIronLadAttack(store, false);
+      const { playAllyAttack } = await import("../store/dev-iron-lad-game.js");
+      await playAllyAttack(store, params.get("fixture")!, false);
     }
     return { key: SCENES.board, data: {} };
   }
@@ -603,11 +604,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
 
   // `?screen=inspect&fixture=iron-lad`: Iron Lad's Inspect sheet after he attacked alone, so "Right now" says his
   // interrupt has no other ready Avenger ally to exhaust (#431).
-  if (screen === "inspect" && params.get("fixture") === "iron-lad") {
-    const { IRON_LAD, playIronLadAttack } = await import("../store/dev-iron-lad-game.js");
+  if (screen === "inspect" && (params.get("fixture") === "iron-lad" || params.get("fixture") === "aneka")) {
+    const { NOT_OFFERED_GAMES, playAllyAttack } = await import("../store/dev-iron-lad-game.js");
     const { store } = appSession();
-    await playIronLadAttack(store);
-    const lad = Object.values(store.state.game?.instances ?? {}).find((i) => i.cardId === IRON_LAD)?.instanceId;
+    const fixture = params.get("fixture")!;
+    await playAllyAttack(store, fixture);
+    const code = NOT_OFFERED_GAMES[fixture]!.code;
+    const lad = Object.values(store.state.game?.instances ?? {}).find((i) => i.cardId === code)?.instanceId;
     if (!lad) return { key: SCENES.board, data: {} };
     return { key: SCENES.inspect, data: { instanceId: lad, siblings: [lad] } satisfies InspectData };
   }

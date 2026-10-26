@@ -4,7 +4,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { idleTriggerNotes, unofferedReason } from "../view/ability-refusal.js";
 import { logLine } from "../view/log-lines.js";
 import { unofferedNoticesOf } from "../view/option-notice.js";
-import { IRON_LAD, playIronLadAttack } from "./dev-iron-lad-game.js";
+import { ANEKA, IRON_LAD, playAllyAttack, playIronLadAttack } from "./dev-iron-lad-game.js";
 import { SessionStore } from "./session-store.js";
 
 describe("the Iron Lad dev game (#431)", () => {
@@ -86,8 +86,33 @@ describe("the Iron Lad dev game (#431)", () => {
     expect(idleTriggerNotes(game, lad, withAbility({ cost: undefined, effects: [choose] }))).toEqual([
       "Interrupt can't be used right now: you control no X-Men ally",
     ]);
+    // Anyone's card, "another" one: a Web-Warrior ally to choose, and a Mutant one to exhaust.
+    const webWarrior = { categories: ["ally"], trait: "WEB-WARRIOR", not: { self: true } };
+    expect(
+      idleTriggerNotes(game, lad, withAbility({ cost: undefined, effects: [{ ...choose, query: webWarrior }] })),
+    ).toEqual(["Interrupt can't be used right now: there is no other Web-Warrior ally in play"]);
+    const mutant = { categories: ["ally"], trait: "MUTANT" };
+    expect(idleTriggerNotes(game, lad, withAbility({ cost: { exhaustCards: pick(mutant) } }))).toEqual([
+      "Interrupt can't be used right now: you control no ready Mutant ally",
+    ]);
     // Iron Lad is an Avenger ally himself: "choose an Avenger ally" has him, so nothing is said.
     const avenger = { ...choose, query: { ...xMen, trait: "AVENGER" } };
     expect(idleTriggerNotes(game, lad, withAbility({ cost: undefined, effects: [avenger] }))).toEqual([]);
+  }, 120_000);
+
+  test("Aneka uses a basic power with no other Dora Milaje ally: her response is not offered, and every view says why", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    const events = (await playAllyAttack(store, "aneka"))!;
+    const game = store.state.game!;
+    const aneka = Object.values(game.instances).find((i) => i.cardId === ANEKA)!.instanceId;
+    const notOffered = events.filter((e) => e.type === "abilityNotOffered");
+    expect(notOffered).toEqual([expect.objectContaining({ instanceId: aneka, reason: "noTarget" })]);
+    const why = "there is no other Dora Milaje ally in play";
+    expect(unofferedNoticesOf(events, game, null, POOL_DEPS).map(({ notice }) => notice.rows)).toEqual([
+      [{ kind: "unavailable", label: "Aneka's response", why }],
+    ]);
+    const line = logLine(notOffered[0]!, game, game.players[0]!.playerId, POOL_DEPS);
+    expect(line?.text).toBe(`Aneka's response was not offered: ${why}.`);
+    expect(idleTriggerNotes(game, aneka, POOL_DEPS)).toEqual([`Response can't be used right now: ${why}`]);
   }, 120_000);
 });
