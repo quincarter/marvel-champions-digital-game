@@ -138,15 +138,15 @@ What you can play today is in [Current status](docs/project/current-status.md). 
 
 ## More
 
-| Page                                               | What's in it                                                         |
-| -------------------------------------------------- | -------------------------------------------------------------------- |
-| [Current status](docs/project/current-status.md)   | What you can play today and what the next release adds               |
-| [Architecture](docs/project/architecture.md)       | The four packages, how they depend on each other, running it locally |
-| [Downloads](docs/project/downloads.md)             | Every installer, unsigned macOS builds, the in-app update notice     |
-| [Contributing](CONTRIBUTING.md)                    | Setup, tests, CI, conventions, card data and the release flow        |
-| [PLAN.md](PLAN.md)                                 | The full roadmap, decisions and per-phase detail                     |
-| [Rules authority](docs/project/rules-authority.md) | Which rules source wins a conflict, and every RRG and rulings page   |
-| [CHANGELOG.md](CHANGELOG.md)                       | Every release's changes                                              |
+| Page                                               | What's in it                                                                           |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [Current status](docs/project/current-status.md)   | What you can play today and what the next release adds                                 |
+| [Architecture](docs/project/architecture.md)       | The four packages, how they depend on each other, running it locally                   |
+| [Downloads](docs/project/downloads.md)             | Every installer, unsigned macOS builds, Linux launch options, the in-app update notice |
+| [Contributing](CONTRIBUTING.md)                    | Setup, tests, CI, conventions, card data and the release flow                          |
+| [PLAN.md](PLAN.md)                                 | The full roadmap, decisions and per-phase detail                                       |
+| [Rules authority](docs/project/rules-authority.md) | Which rules source wins a conflict, and every RRG and rulings page                     |
+| [CHANGELOG.md](CHANGELOG.md)                       | Every release's changes                                                                |
 
 ## License
 
