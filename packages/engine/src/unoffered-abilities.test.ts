@@ -193,5 +193,18 @@ describe("abilityNotOffered (#431)", () => {
     );
     expect(offered.some((id) => id.includes(WANTS_TIRED.ref.id))).toBe(true);
     expect(notOffered(events)).toEqual([]);
+
+    // Taken, so the support is ready again by the time the window closes: still nothing said about it.
+    const taken = runCommandsPicking(
+      state,
+      late,
+      (s) =>
+        s.pendingChoice?.prompt.kind === "chooseTriggers"
+          ? s.pendingChoice.options.filter((o) => o.optionId.includes(WANTS_TIRED.ref.id)).map((o) => o.optionId)
+          : defaultPick(s),
+      { type: "useAbility", playerId: P1, cardInstanceId: ids[0]!, abilityId: BLAST.ref.id, payment: [] },
+    );
+    expect(taken.events.some((e) => e.type === "abilityResolved" && e.abilityId === WANTS_TIRED.ref.id)).toBe(true);
+    expect(notOffered(taken.events)).toEqual([]);
   });
 });

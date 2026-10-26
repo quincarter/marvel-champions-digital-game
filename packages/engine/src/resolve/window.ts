@@ -111,6 +111,20 @@ export function pushWindow(
 const unofferedKey = (instanceId: InstanceId, abilityId: AbilityId): string => `${instanceId}:${abilityId}`;
 
 /**
+ * `unofferedAtOpen` less the abilities among `offered`: one offered while the window is open had its opportunity,
+ * whatever its target or cost is by the time the window closes (Codex review of #431).
+ */
+function stillUnoffered(
+  frame: Frame<"window">,
+  offered: readonly TriggerCandidate[],
+): { readonly unofferedAtOpen?: readonly string[] } {
+  if (!frame.unofferedAtOpen) return {};
+  const keys = new Set(offered.map((c) => unofferedKey(c.instanceId, c.abilityId)));
+  const left = frame.unofferedAtOpen.filter((key) => !keys.has(key));
+  return { unofferedAtOpen: left };
+}
+
+/**
  * The window has offered everything it will: those of the abilities that could not be used as it opened
  * (`unofferedAtOpen`) that still cannot are said now (`noteUnoffered`). Not for a window a tough status card or a
  * replacement closed early: those abilities never had their opportunity.
@@ -498,6 +512,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       });
       setFrame(ctx, {
         ...frame,
+        ...stillUnoffered(frame, late),
         pending: late,
         optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late],
         askingPlayerIds: controllersToAsk(ctx.state, late),
@@ -565,6 +580,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   const joined = [...late, ...turnedUp];
   const advanced = {
     ...frame,
+    ...stillUnoffered(frame, candidates),
     ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
     ...(atOpen ? { optionalAtOpen: atOpen } : {}),
