@@ -45,7 +45,7 @@ const titleCase = (word: string): string => word.charAt(0).toUpperCase() + word.
 /** "a Labor card" for a trait query, "Appeal to Athena" for a named one, null for a query it cannot word. */
 function queryNoun(query: Query): string | null {
   if (query.name) return query.name;
-  if (query.trait) return `${titleCase(query.trait)} card`;
+  if (query.trait) return `${traitWord(query.trait)} card`;
   return null;
 }
 
@@ -138,37 +138,61 @@ function noTargetClause(state: GameState, query: TargetQuery, context: TargetCon
 
 /** A trait as cards print it in a sentence: "Avenger", "X-Men", and an acronym ("S.H.I.E.L.D.") as it is. */
 const traitWord = (trait: string): string =>
-  trait.includes(".") ? trait : trait.replace(/[A-Za-z]+/g, (word) => titleCase(word));
+  trait.includes(".")
+    ? trait
+    : trait.replace(/[A-Za-z]+/g, (word, at: number) =>
+        at > 0 && SMALL_WORDS.has(word.toLowerCase()) ? word.toLowerCase() : titleCase(word),
+      );
+
+/** Words a printed trait keeps lower case after its first ("Hero for Hire"). */
+const SMALL_WORDS: ReadonlySet<string> = new Set(["for", "of", "the", "and"]);
 
 /** A query's worded kind: "Avenger ally", whether it leaves out the ability's own card, and whose cards it reads. */
-interface QueryNoun {
+export interface QueryNoun {
   readonly noun: string;
-  /** "Another Dora Milaje ally" (`not: { self: true }`). */
+  /** "Another Dora Milaje ally" (`not: { self: true }`, `self: false`, `excluding` the card itself). */
   readonly other: boolean;
-  /** Any player's cards (no `controller`), not only the payer's. */
+  /** Any player's cards (no `controller`, or `"any"`), not only the payer's. */
   readonly anyone: boolean;
 }
 
 /**
- * The kind of card a query asks for, when it is one known noun with at most one trait and at most "another"
- * (`not: { self: true }`), of the payer's cards (`controller: "you"`, or none for a cost's pick: `payer`, as a cost is
- * paid with the payer's own cards) or anyone's (no `controller`); null for any other shape, which is not worded.
+ * The nouns for a query's categories, as a set: an ally, a support, a minion, and a hero or ally ("an X-Men
+ * character": Serve and Protect `47029`, Stand Together `23034`, Spider-Man `27049`).
  */
-function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null {
-  const categories = query.categories ?? [];
-  const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
+function categoryNoun(categories: readonly string[]): string | undefined {
+  if (categories.length === 1) return TARGET_NOUN[categories[0]!];
+  const set = new Set(categories);
+  const character = set.size === 2 && set.has("ally") && (set.has("identity") || set.has("hero"));
+  return character ? "character" : undefined;
+}
+
+/**
+ * The kind of card a query asks for, when it is one known noun (`categoryNoun`) with at most one trait and at most
+ * "another" (`not: { self: true }`, `self: false`, `excluding` the ability's own card), of the payer's cards
+ * (`controller: "you"`, or none for a cost's pick: `payer`, as a cost is paid with the payer's own cards) or anyone's
+ * (none, or `"any"`); null for any other shape (the card itself, `self: true`; the card it is attached to,
+ * `hostOfSelf`; a trait shared with someone; …), which is not worded.
+ */
+export function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null {
+  const noun = categoryNoun(query.categories ?? []);
   const not = query.not as { readonly self?: boolean } | undefined;
-  const other = not !== undefined && not.self === true && Object.keys(not).length === 1;
+  const notSelf = not !== undefined && not.self === true && Object.keys(not).length === 1;
+  const excludingSelf = (query.excluding as { readonly kind?: string } | undefined)?.kind === "self";
+  const other = notSelf || query.self === false || excludingSelf;
   const known = Object.entries(query).every(
     ([key, value]) =>
       value === undefined ||
       key === "categories" ||
       key === "controller" ||
       key === "trait" ||
-      (key === "not" && other),
+      (key === "not" && notSelf) ||
+      (key === "self" && value === false) ||
+      (key === "excluding" && excludingSelf),
   );
-  if (!noun || !known || (query.controller !== undefined && query.controller !== "you")) return null;
-  const anyone = query.controller === undefined && !payer;
+  const controller = query.controller;
+  if (!noun || !known || (controller !== undefined && controller !== "you" && controller !== "any")) return null;
+  const anyone = controller === "any" || (controller === undefined && !payer);
   return { noun: query.trait ? `${traitWord(query.trait)} ${noun}` : noun, other, anyone };
 }
 
@@ -371,12 +395,21 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
     // "Choose an Avenger ally": its opening target choice, when none of the payer's cards fits it.
     const target = firstTargetQuery(definition.effects.slice(definition.costEffects ?? 0));
     const missing = target ? noMatchClause(target) : null;
+    // Not for a trigger that brings a card into play: the card it answers can be the target ("ready an ally" after you
+    // play one: Flight Squadron's granted response, `falcon` 53020).
+    const on = (trigger.on as { readonly on?: string | readonly string[] }).on;
+    const bringsCard = [on ?? []].flat().some((kind) => ENTERING.has(kind));
     const targetless =
-      target && missing && !inPlay.some((id) => matchesQuery(state, id, target, context)) ? [missing] : [];
+      !bringsCard && target && missing && !inPlay.some((id) => matchesQuery(state, id, target, context))
+        ? [missing]
+        : [];
     const clauses = [...short.map(({ clause }) => clause), ...targetless];
     return clauses.length > 0 ? [`${titleCase(trigger.kind)} can't be used right now: ${clauses.join(", and ")}`] : [];
   });
 }
+
+/** The events whose card arrives on the table: a target an ability answering one needs can be that card. */
+const ENTERING: ReadonlySet<string> = new Set(["cardEntersPlay", "cardPlayed", "cardBeingPlayed"]);
 
 /** What each `abilityNotOffered` reason means, when nothing more specific can be said. */
 const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay", string>> = {

@@ -95,6 +95,18 @@ describe("the Iron Lad dev game (#431)", () => {
     expect(idleTriggerNotes(game, lad, withAbility({ cost: { exhaustCards: pick(mutant) } }))).toEqual([
       "Interrupt can't be used right now: you control no ready Mutant ally",
     ]);
+    // A ready Iron Lad is still no payer for his own "another Avenger ally": said before he attacks.
+    const ready = {
+      ...game,
+      instances: { ...game.instances, [lad]: { ...game.instances[lad]!, exhausted: false } },
+    } as typeof game;
+    expect(idleTriggerNotes(ready, lad, POOL_DEPS)).toEqual([
+      "Interrupt can't be used right now: you control no other ready Avenger ally",
+    ]);
+    // A trigger that brings a card into play can target it ("after you play an Aerial card … ready an ally": Flight
+    // Squadron), so an empty table says nothing about the target.
+    const onPlay = { trigger: { ...real.trigger, on: { on: "cardPlayed" } }, cost: undefined, effects: [choose] };
+    expect(idleTriggerNotes(game, lad, withAbility(onPlay))).toEqual([]);
     // Iron Lad is an Avenger ally himself: "choose an Avenger ally" has him, so nothing is said.
     const avenger = { ...choose, query: { ...xMen, trait: "AVENGER" } };
     expect(idleTriggerNotes(game, lad, withAbility({ cost: undefined, effects: [avenger] }))).toEqual([]);
