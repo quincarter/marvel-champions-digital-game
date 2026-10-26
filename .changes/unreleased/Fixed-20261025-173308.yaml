@@ -1,3 +1,0 @@
-kind: Fixed
-body: Make the Call asks which cards to pay with again when only one ally can be chosen and another card sits above it in the discard pile, instead of spending cards for you (#419, reported by @zackburnley).
-time: 2026-10-25T17:33:08.5291596-04:00
