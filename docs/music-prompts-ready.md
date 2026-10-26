@@ -1,4 +1,4 @@
-# Music prompts, ready to paste (2026-10-10, wave 11 added 2026-10-20)
+# Music prompts, ready to paste (2026-10-10, wave 11 added 2026-10-20, updated 2026-10-26)
 
 One block per track still to make. Copy a whole block into the generator; nothing needs to be added. Within a scenario, do the three in order **in the same chat**, so the second and third reuse the battle track's melody. Built from [music-prompts-missing.md](music-prompts-missing.md); the titles are the ones the files and jukebox entries will carry.
 
@@ -12,51 +12,7 @@ Tracks already delivered are folded into the collapsed section at the bottom, **
 
 # Wave 10: Civil War
 
-The four ready-made Civil War scenarios, one set of three per leader. A custom scenario plays its leader's music. Until a scenario is playable its files wait in `music/scenarios/_pending/<folder name>/`.
-
-## Iron Man (Registration)
-
-Folder: `music/scenarios/registration-iron-man/`
-
-### Registration Day (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-A brilliant armored inventor, once a friend, now enforcing a new law that makes every superhero register with the government, hunting his old teammates with drones, upgrades bolted on one after another and a high-tech prison in another dimension. Sleek, cold and relentless, with regret underneath: a driving synth arpeggio and industrial percussion under a proud brass theme that keeps getting harmonized by more machines, electric guitar chugs, servo and repulsor-like risers, a brief sad piano echo of the theme between hits. About 132 BPM, D minor, polished and unyielding.
-
-Title: "Registration Day"
-```
-
-### Negative Zone Lockdown (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A brilliant armored inventor, once a friend, now enforcing a new law that makes every superhero register with the government, hunting his old teammates with drones, upgrades bolted on one after another and a high-tech prison in another dimension. Sleek, cold and relentless, with regret underneath: a driving synth arpeggio and industrial percussion under a proud brass theme that keeps getting harmonized by more machines, electric guitar chugs, servo and repulsor-like risers, a brief sad piano echo of the theme between hits. About 132 BPM, D minor, polished and unyielding.
-
-Title: "Negative Zone Lockdown"
-```
-
-### The Armor Stands Down (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A brilliant armored inventor, once a friend, now enforcing a new law that makes every superhero register with the government, hunting his old teammates with drones, upgrades bolted on one after another and a high-tech prison in another dimension. Sleek, cold and relentless, with regret underneath: a driving synth arpeggio and industrial percussion under a proud brass theme that keeps getting harmonized by more machines, electric guitar chugs, servo and repulsor-like risers, a brief sad piano echo of the theme between hits. About 132 BPM, D minor, polished and unyielding.
-
-Title: "The Armor Stands Down"
-```
+The four ready-made Civil War scenarios, one set of three per leader. A custom scenario plays its leader's music. Iron Man and Captain America are done and folded into **Already in the game** below.
 
 ## Captain Marvel (Registration)
 
@@ -100,50 +56,6 @@ Use the same main melody and instruments as the battle track I just generated.
 A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
 
 Title: "Clear Skies Again"
-```
-
-## Captain America (Resistance)
-
-Folder: `music/scenarios/resistance-captain-america/`
-
-### Not Without a Fight (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
-
-Title: "Not Without a Fight"
-```
-
-### The Shield Falls (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
-
-Title: "The Shield Falls"
-```
-
-### Standing Down Together (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
-
-Title: "Standing Down Together"
 ```
 
 ## Spider-Woman (Resistance)
@@ -192,11 +104,11 @@ Title: "Neighborhood Watch"
 
 # Wave 11: Fear No Evil
 
-The six Fear No Evil scenarios and the campaign's two tracks. Five scenarios are named by their main scheme and take any of five underling villains (Bullseye, Electro, Hammerhead, Purple Man, Typhoid Mary), so each scenario's music follows the scheme, not the villain. Until a scenario is playable its files wait in `music/scenarios/_pending/<folder name>/`, and the campaign's in `music/campaigns/_pending/fne/`.
+The six Fear No Evil scenarios and the campaign's two tracks. Five scenarios are named by their main scheme and take any of five underling villains (Bullseye, Electro, Hammerhead, Purple Man, Typhoid Mary), so each scenario's music follows the scheme, not the villain. Files go straight into `music/scenarios/<scenarioId>/`, and the campaign's into `music/campaigns/fne/`.
 
 ## Art Museum Heist
 
-Folder: `music/scenarios/_pending/art-museum-heist/`
+Folder: `music/scenarios/art-museum-heist/`
 
 ### Gallery After Hours (battle, `battle.mp3`)
 
@@ -240,7 +152,7 @@ Title: "Returned to the Wall"
 
 ## The Getaway
 
-Folder: `music/scenarios/_pending/the-getaway/`
+Folder: `music/scenarios/the-getaway/`
 
 ### Floor It (battle, `battle.mp3`)
 
@@ -284,7 +196,7 @@ Title: "End of the Road"
 
 ## Protection Racket
 
-Folder: `music/scenarios/_pending/protection-racket/`
+Folder: `music/scenarios/protection-racket/`
 
 ### Pay Up or Else (battle, `battle.mp3`)
 
@@ -328,7 +240,7 @@ Title: "Open for Business"
 
 ## The Raft Breakout
 
-Folder: `music/scenarios/_pending/the-raft-breakout/`
+Folder: `music/scenarios/the-raft-breakout/`
 
 ### Riot on the Raft (battle, `battle.mp3`)
 
@@ -372,7 +284,7 @@ Title: "The Raft Holds"
 
 ## Stop the Presses!
 
-Folder: `music/scenarios/_pending/stop-the-presses/`
+Folder: `music/scenarios/stop-the-presses/`
 
 ### Ink and Gunfire (battle, `battle.mp3`)
 
@@ -416,7 +328,7 @@ Title: "Extra! Extra!"
 
 ## Kingpin
 
-Folder: `music/scenarios/_pending/kingpin/`
+Folder: `music/scenarios/kingpin/`
 
 ### The King of Hell's Kitchen (battle, `battle.mp3`)
 
@@ -460,7 +372,7 @@ Title: "The Kingdom Falls"
 
 ## Fear No Evil campaign interlude
 
-### Hell's Kitchen After Dark (`music/campaigns/_pending/fne/interlude.mp3`)
+### Hell's Kitchen After Dark (`music/campaigns/fne/interlude.mp3`)
 
 ```text
 Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
@@ -472,7 +384,7 @@ Title: "Hell's Kitchen After Dark"
 
 ## Fear No Evil campaign finale
 
-### The Neighborhood Breathes Again (`music/campaigns/_pending/fne/finale.mp3`)
+### The Neighborhood Breathes Again (`music/campaigns/fne/finale.mp3`)
 
 ```text
 Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
@@ -484,11 +396,11 @@ Title: "The Neighborhood Breathes Again"
 
 # Synthezoid Smackdown
 
-The two Synthezoid leaders' scenarios, one set of three each, in the same shape as the four Civil War leaders above (a custom scenario plays its leader's music). Until a scenario is playable its files wait in `music/scenarios/_pending/<folder name>/`.
+The two Synthezoid leaders' scenarios, one set of three each, in the same shape as the four Civil War leaders above (a custom scenario plays its leader's music).
 
 ## She-Hulk (Registration)
 
-Folder: `music/scenarios/_pending/registration-she-hulk/`
+Folder: `music/scenarios/registration-she-hulk/`
 
 ### Objection Overruled (battle, `battle.mp3`)
 
@@ -532,7 +444,7 @@ Title: "Verdict Reversed"
 
 ## Vision (Resistance)
 
-Folder: `music/scenarios/_pending/resistance-vision/`
+Folder: `music/scenarios/resistance-vision/`
 
 ### Phase Shift (battle, `battle.mp3`)
 
@@ -576,11 +488,11 @@ Title: "A Synthetic Heart"
 
 # Shadowland
 
-The three Shadowland scenarios and the campaign's two tracks. The scenarios have no ids yet; the folder names below follow their titles and are confirmed when the scenarios are added. Until then their files wait in `music/scenarios/_pending/<folder name>/`, and the campaign's in `music/campaigns/_pending/shadowland/`.
+The three Shadowland scenarios and the campaign's two tracks. Files go straight into `music/scenarios/<scenarioId>/`, and the campaign's into `music/campaigns/shadowland/`.
 
 ## Shadows in the Night
 
-Folder: `music/scenarios/_pending/shadows-in-the-night/`
+Folder: `music/scenarios/shadows-in-the-night/`
 
 ### Midnight Belongs to the Hand (battle, `battle.mp3`)
 
@@ -624,7 +536,7 @@ Title: "First Light on the Rooftops"
 
 ## Shadow Labyrinth
 
-Folder: `music/scenarios/_pending/shadow-labyrinth/`
+Folder: `music/scenarios/shadow-labyrinth/`
 
 ### Labyrinth of Blades (battle, `battle.mp3`)
 
@@ -668,7 +580,7 @@ Title: "The Way Out Found"
 
 ## Heart of Shadow
 
-Folder: `music/scenarios/_pending/heart-of-shadow/`
+Folder: `music/scenarios/heart-of-shadow/`
 
 ### The Beast at the Heart (battle, `battle.mp3`)
 
@@ -712,7 +624,7 @@ Title: "The Darkness Driven Out"
 
 ## Shadowland campaign interlude
 
-### Before the Tower (`music/campaigns/_pending/shadowland/interlude.mp3`)
+### Before the Tower (`music/campaigns/shadowland/interlude.mp3`)
 
 ```text
 Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
@@ -724,7 +636,7 @@ Title: "Before the Tower"
 
 ## Shadowland campaign finale
 
-### The Shadow Lifts (`music/campaigns/_pending/shadowland/finale.mp3`)
+### The Shadow Lifts (`music/campaigns/shadowland/finale.mp3`)
 
 ```text
 Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
@@ -1320,10 +1232,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 42 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 48 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 42 prompts already used</summary>
+<summary>Show the 48 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1835,94 @@ Use the same main melody and instruments as the battle track I just generated.
 A skull-masked mercenary and trainer who copies every hero's fighting style after seeing it once, with captured allies held hostage. Sharp, cool and professional: precise martial snare and woodblock patterns, staccato strings, a theme that imitates heroic fanfares and then twists them, sword-ring and shield-clang percussion. About 134 BPM, A minor, exact and controlled.
 
 Title: "Class Dismissed"
+```
+
+## Iron Man (Registration)
+
+Folder: `music/scenarios/registration-iron-man/`
+
+### Registration Day (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A brilliant armored inventor, once a friend, now enforcing a new law that makes every superhero register with the government, hunting his old teammates with drones, upgrades bolted on one after another and a high-tech prison in another dimension. Sleek, cold and relentless, with regret underneath: a driving synth arpeggio and industrial percussion under a proud brass theme that keeps getting harmonized by more machines, electric guitar chugs, servo and repulsor-like risers, a brief sad piano echo of the theme between hits. About 132 BPM, D minor, polished and unyielding.
+
+Title: "Registration Day"
+```
+
+### Negative Zone Lockdown (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brilliant armored inventor, once a friend, now enforcing a new law that makes every superhero register with the government, hunting his old teammates with drones, upgrades bolted on one after another and a high-tech prison in another dimension. Sleek, cold and relentless, with regret underneath: a driving synth arpeggio and industrial percussion under a proud brass theme that keeps getting harmonized by more machines, electric guitar chugs, servo and repulsor-like risers, a brief sad piano echo of the theme between hits. About 132 BPM, D minor, polished and unyielding.
+
+Title: "Negative Zone Lockdown"
+```
+
+### The Armor Stands Down (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brilliant armored inventor, once a friend, now enforcing a new law that makes every superhero register with the government, hunting his old teammates with drones, upgrades bolted on one after another and a high-tech prison in another dimension. Sleek, cold and relentless, with regret underneath: a driving synth arpeggio and industrial percussion under a proud brass theme that keeps getting harmonized by more machines, electric guitar chugs, servo and repulsor-like risers, a brief sad piano echo of the theme between hits. About 132 BPM, D minor, polished and unyielding.
+
+Title: "The Armor Stands Down"
+```
+
+## Captain America (Resistance)
+
+Folder: `music/scenarios/resistance-captain-america/`
+
+### Not Without a Fight (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
+
+Title: "Not Without a Fight"
+```
+
+### The Shield Falls (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
+
+Title: "The Shield Falls"
+```
+
+### Standing Down Together (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
+
+Title: "Standing Down Together"
 ```
 
 </details>
