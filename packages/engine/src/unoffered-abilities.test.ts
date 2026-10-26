@@ -7,7 +7,6 @@
 
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
-import { applyCommand } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -15,7 +14,8 @@ import { unofferedAbilities } from "./resolve/triggers.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubResource, stubSupport } from "./testing/fixtures.js";
-import { giveCard } from "./testing/scenario.js";
+import { defaultPick, giveCard } from "./testing/scenario.js";
+import { runCommandsPicking } from "./testing/drive.js";
 import { gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const BLAST = stubAbility("blast.action", {
@@ -89,16 +89,23 @@ function table(energy: boolean): Table {
   return { state, blaster: ids.blaster!, ids };
 }
 
+/** Uses Blaster and plays the turn's choices out, declining every optional ability; what was offered, and the events. */
 function blast(t: Table): { readonly events: readonly GameEvent[]; readonly offered: readonly string[] } {
-  const result = applyCommand(
-    t.state,
-    { type: "useAbility", playerId: P1, cardInstanceId: t.blaster, abilityId: BLAST.ref.id, payment: [] },
-    deps,
-  );
-  if (!result.ok) throw new Error(result.error.message);
-  const choice = result.state.pendingChoice;
-  const offered = choice?.prompt.kind === "chooseTriggers" ? choice.options.map((o) => o.optionId) : [];
-  return { events: result.events, offered };
+  const offered: string[] = [];
+  const pick = (state: GameState): readonly string[] => {
+    const choice = state.pendingChoice;
+    if (choice?.prompt.kind !== "chooseTriggers") return defaultPick(state);
+    offered.push(...choice.options.map((o) => o.optionId));
+    return [];
+  };
+  const { events } = runCommandsPicking(t.state, deps, pick, {
+    type: "useAbility",
+    playerId: P1,
+    cardInstanceId: t.blaster,
+    abilityId: BLAST.ref.id,
+    payment: [],
+  });
+  return { events, offered };
 }
 
 const notOffered = (events: readonly GameEvent[]) =>
@@ -141,5 +148,50 @@ describe("abilityNotOffered (#431)", () => {
     expect(reported(t.state)).toContain(PAID.ref.id);
     const inSetup = { ...t.state, step: { ...t.state.step, phase: "setup" } } as GameState;
     expect(reported(inSetup)).toEqual([]);
+  });
+
+  it("one a forced interrupt makes usable in the same window is offered, and never said to be not offered", () => {
+    // Forced: the Tirer exhausts itself as the attack is made; optional: choose an exhausted support, none until then.
+    const SELF_EXHAUST = stubAbility("selfexhaust.interrupt", {
+      trigger: { kind: "interrupt", forced: true, on: onBlast },
+      effects: [{ kind: "exhaust", target: { kind: "self" } }],
+    });
+    const WANTS_TIRED = stubAbility("wantstired.interrupt", {
+      trigger: { kind: "interrupt", forced: false, on: onBlast },
+      effects: [
+        {
+          kind: "chooseTarget",
+          slot: "tired",
+          chooser: { kind: "controller" },
+          query: { categories: ["support"], exhausted: true },
+        },
+        { kind: "ready", target: { kind: "slot", slot: "tired" } },
+      ],
+    });
+    const EXHAUSTER = stubSupport({ id: "exhauster", cost: 0, abilities: [SELF_EXHAUST.ref] });
+    const WANTER = stubSupport({ id: "wanter", cost: 0, abilities: [WANTS_TIRED.ref] });
+    const late = depsOf(BLAST, SELF_EXHAUST, WANTS_TIRED);
+    const cards = [BLASTER, EXHAUSTER, WANTER];
+    let state = gameAtFirstTurn({ cards, deps: late, deck: cards.map((c) => c.id) });
+    const ids: InstanceId[] = [];
+    for (const card of cards) {
+      const placed = playerCardIntoPlay(state, card.id);
+      state = placed.state;
+      ids.push(placed.id);
+    }
+    // Declined, so the window closes with it still usable: nothing is said about it then either.
+    const offered: string[] = [];
+    const { events } = runCommandsPicking(
+      state,
+      late,
+      (s) => {
+        if (s.pendingChoice?.prompt.kind !== "chooseTriggers") return defaultPick(s);
+        offered.push(...s.pendingChoice.options.map((o) => o.optionId));
+        return [];
+      },
+      { type: "useAbility", playerId: P1, cardInstanceId: ids[0]!, abilityId: BLAST.ref.id, payment: [] },
+    );
+    expect(offered.some((id) => id.includes(WANTS_TIRED.ref.id))).toBe(true);
+    expect(notOffered(events)).toEqual([]);
   });
 });
