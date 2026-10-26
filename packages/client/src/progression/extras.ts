@@ -532,6 +532,10 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/god-of-lies/battle.mp3": "A Thousand Lokis",
   "scenarios/god-of-lies/villain-loses.mp3": "The Last Illusion Fades",
   "scenarios/god-of-lies/villain-wins.mp3": "Mischief Managed the World",
+  "scenarios/registration-iron-man/battle.mp3": "Registration Day",
+  "scenarios/registration-iron-man/villain-wins.mp3": "Negative Zone Lockdown",
+  "scenarios/registration-iron-man/villain-loses.mp3": "The Armor Stands Down",
+  "scenarios/resistance-captain-america/battle.mp3": "Not Without a Fight",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
