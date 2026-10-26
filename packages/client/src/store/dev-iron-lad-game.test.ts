@@ -58,4 +58,36 @@ describe("the Iron Lad dev game (#431)", () => {
       "it has no valid target",
     );
   });
+
+  test("Inspect's note is not Iron Lad's alone: any trait, a discard cost, or a 'choose an X ally' target", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await playIronLadAttack(store);
+    const game = store.state.game!;
+    const lad = Object.values(game.instances).find((i) => i.cardId === IRON_LAD)!.instanceId;
+    const real = POOL_DEPS.abilities["56052.iron-lad-interrupt" as never]!;
+    const withAbility = (change: object) =>
+      ({
+        ...POOL_DEPS,
+        abilities: { ...POOL_DEPS.abilities, "56052.iron-lad-interrupt": { ...real, ...change } },
+      }) as never;
+    const xMen = { categories: ["ally"], controller: "you", trait: "X-MEN" };
+    const pick = (query: object) => ({ slot: "ally", query, min: 1 });
+    expect(idleTriggerNotes(game, lad, withAbility({ cost: { exhaustCards: pick(xMen) } }))).toEqual([
+      "Interrupt can't be used right now: you control no ready X-Men ally",
+    ]);
+    expect(
+      idleTriggerNotes(
+        game,
+        lad,
+        withAbility({ cost: { discardCards: pick({ categories: ["ally"], trait: "X-MEN" }) } }),
+      ),
+    ).toEqual(["Interrupt can't be used right now: you control no X-Men ally"]);
+    const choose = { kind: "chooseTarget", slot: "ally", chooser: { kind: "controller" }, query: xMen };
+    expect(idleTriggerNotes(game, lad, withAbility({ cost: undefined, effects: [choose] }))).toEqual([
+      "Interrupt can't be used right now: you control no X-Men ally",
+    ]);
+    // Iron Lad is an Avenger ally himself: "choose an Avenger ally" has him, so nothing is said.
+    const avenger = { ...choose, query: { ...xMen, trait: "AVENGER" } };
+    expect(idleTriggerNotes(game, lad, withAbility({ cost: undefined, effects: [avenger] }))).toEqual([]);
+  }, 120_000);
 });

@@ -21,6 +21,9 @@ import {
   type EffectSpec,
   type EngineDeps,
   type GameState,
+  inPlayCostCandidates,
+  inPlayPicksOf,
+  type InPlayCostMode,
   type InstanceId,
   type OptionUnavailableReason,
   type Predicate,
@@ -133,13 +136,30 @@ function noTargetClause(state: GameState, query: TargetQuery, context: TargetCon
   return noMatchClause(query);
 }
 
-/** "You control no ally" from a query's shape alone (one known noun, `controller: "you"`, nothing else); null otherwise. */
-function noMatchClause(query: TargetQuery): string | null {
+/** A trait as cards print it in a sentence: "Avenger", "X-Men", and an acronym ("S.H.I.E.L.D.") as it is. */
+const traitWord = (trait: string): string =>
+  trait.includes(".") ? trait : trait.replace(/[A-Za-z]+/g, (word) => titleCase(word));
+
+/**
+ * "Avenger ally" from a query of the payer's cards of one known noun with at most one trait (`controller: "you"`, or
+ * none for a cost's pick: `payer`; nothing else); null for any other shape, which is not worded.
+ */
+function yourNounOf(query: TargetQuery, payer = false): string | null {
   const categories = query.categories ?? [];
   const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
-  const fields = Object.values(query).filter((value) => value !== undefined).length;
-  if (noun && query.controller === "you" && fields === 2) return `you control no ${noun}`;
-  return null;
+  const known = Object.entries(query).every(
+    ([key, value]) => value === undefined || key === "categories" || key === "controller" || key === "trait",
+  );
+  // A cost is paid with the payer's own cards, so a cost's query needs no controller to be "yours".
+  const yours = query.controller === "you" || (payer && query.controller === undefined);
+  if (!noun || !known || !yours) return null;
+  return query.trait ? `${traitWord(query.trait)} ${noun}` : noun;
+}
+
+/** "You control no ally" ("no Avenger ally") from a query's shape alone (`yourNounOf`); null otherwise. */
+function noMatchClause(query: TargetQuery): string | null {
+  const noun = yourNounOf(query);
+  return noun ? `you control no ${noun}` : null;
 }
 
 /**
@@ -265,33 +285,50 @@ export function unavailableOptionReasons(
 export const unavailableOptionLines = (state: GameState, unavailable: UnavailableOptions, deps: EngineDeps): string[] =>
   unavailableOptionReasons(state, unavailable, deps).map(({ label, why }) => `${label}: ${why}`);
 
+/** How each kind of in-play cost pick words the card it needs ("no other ready Avenger ally"). */
+const PICK_WORD: Partial<Record<InPlayCostMode, string>> = {
+  exhaust: "ready ",
+  ready: "exhausted ",
+  return: "",
+  discard: "",
+};
+
 /**
- * "Exhaust another Avenger ally you control →" while none is ready (Iron Lad `cw` 56052, #431): "you control no other
- * ready Avenger ally", from the cost's own shape (one pick of cards in play to exhaust, of one known noun, the payer's,
- * with at most a trait). The pick never takes the ability's own card (`AbilityCost.exhaustCards`), hence "other". Null
- * for any other cost.
+ * The cost's picks of cards in play this wording knows: "exhaust another Avenger ally you control →" (Iron Lad `cw`
+ * 56052, #431), and likewise a ready, return or discard of the payer's cards of one noun with at most a trait
+ * (`yourNounOf`). The picks never take the ability's own card (`AbilityCost.exhaustCards`), hence "other".
  */
-function exhaustCostClause(cost: AbilityDefinition["cost"]): string | null {
-  const picks = cost?.exhaustCards;
-  const pick = Array.isArray(picks) ? (picks.length === 1 ? picks[0] : undefined) : picks;
-  if (!pick || pick.min < 1) return null;
-  const query = pick.query;
-  const categories = query.categories ?? [];
-  const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
-  const known = Object.entries(query).every(
-    ([key, value]) => value === undefined || key === "categories" || key === "controller" || key === "trait",
-  );
-  if (!noun || !known || query.controller !== "you") return null;
-  const trait = query.trait ? `${titleCase(query.trait)} ` : "";
-  return `you control no other ready ${trait}${noun}`;
+function wordedPicks(cost: AbilityDefinition["cost"], state: GameState, instanceId: InstanceId, deps: EngineDeps) {
+  const controllerId = controllerOf(state, instanceId);
+  const context = { selfInstanceId: instanceId, controllerId, deps, event: null, bindings: {} };
+  return inPlayPicksOf(cost).flatMap(({ mode, pick }) => {
+    const noun = yourNounOf(pick.query, true);
+    const word = PICK_WORD[mode];
+    if (!noun || word === undefined || pick.min < 1) return [];
+    // "Other" when the card itself is of that kind but cannot pay for its own ability (Iron Lad, an Avenger ally).
+    const self = cardsInPlay(state).includes(instanceId) && matchesQuery(state, instanceId, pick.query, context);
+    return [{ mode, pick, clause: `you control no ${self ? "other " : ""}${word}${noun}` }];
+  });
+}
+
+/** "You control no other ready Avenger ally" for a cost of one worded pick (`wordedPicks`); null for any other cost. */
+function exhaustCostClause(
+  cost: AbilityDefinition["cost"],
+  state: GameState,
+  instanceId: InstanceId,
+  deps: EngineDeps,
+): string | null {
+  const picks = wordedPicks(cost, state, instanceId, deps);
+  return picks.length === 1 && inPlayPicksOf(cost).length === 1 ? picks[0]!.clause : null;
 }
 
 /**
- * Inspect's "Right now" for a card in play whose own optional interrupt or response exhausts other cards to pay
- * ("exhaust another Avenger ally you control →", Iron Lad `cw` 56052, #431) while none of them is ready: "Interrupt
- * can't be used right now: you control no other ready Avenger ally". Read from the cost's shape and the cards in play
- * (`exhaustCostClause`), before anything triggers it, for whoever controls the card; empty when every such cost has a
- * card to pay it.
+ * Inspect's "Right now" for a card in play whose own optional interrupt or response needs a card of a kind that is not
+ * on the table: one to pay with ("exhaust another Avenger ally you control →", Iron Lad `cw` 56052, #431: "Interrupt
+ * can't be used right now: you control no other ready Avenger ally"; any trait, and a ready, return or discard cost
+ * too, `wordedPicks`) or one to choose ("choose an Avenger ally": "you control no Avenger ally"). Read from the
+ * ability's shape and the cards in play before anything triggers it, for whoever controls the card; the cards that
+ * could pay are the engine's own (`inPlayCostCandidates`).
  */
 export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps: EngineDeps): string[] {
   const controllerId = controllerOf(state, instanceId);
@@ -301,15 +338,20 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
     const definition = deps.abilities[ref.id];
     const trigger = definition?.trigger;
     if (!trigger || (trigger.kind !== "interrupt" && trigger.kind !== "response") || trigger.forced) return [];
-    const clause = exhaustCostClause(definition.cost);
-    const picks = definition.cost?.exhaustCards;
-    const pick = Array.isArray(picks) ? picks[0] : picks;
-    if (!clause || !pick) return [];
-    const ready = cardsInPlay(state).filter(
-      (id) => id !== instanceId && !state.instances[id]?.exhausted && matchesQuery(state, id, pick.query, context),
+    const inPlay = cardsInPlay(state);
+    // Counted by the engine's own list of cards that could pay (`inPlayCostCandidates`): yours, matching, able to.
+    const short = wordedPicks(definition.cost, state, instanceId, deps).filter(
+      ({ mode, pick }) => inPlayCostCandidates(state, deps, instanceId, controllerId, mode, pick).length < pick.min,
     );
-    if (ready.length >= pick.min) return [];
-    return [`${titleCase(trigger.kind)} can't be used right now: ${clause}`];
+    // "Choose an Avenger ally": its opening target choice, when none of the payer's cards fits it.
+    const target = firstTargetQuery(definition.effects.slice(definition.costEffects ?? 0));
+    const noun = target ? yourNounOf(target) : null;
+    const targetless =
+      target && noun && !inPlay.some((id) => matchesQuery(state, id, target, context))
+        ? [`you control no ${noun}`]
+        : [];
+    const clauses = [...short.map(({ clause }) => clause), ...targetless];
+    return clauses.length > 0 ? [`${titleCase(trigger.kind)} can't be used right now: ${clauses.join(", and ")}`] : [];
   });
 }
 
@@ -335,7 +377,7 @@ export function unofferedReason(
   const specific =
     reason === "noTarget"
       ? targetRefusalReason(state, instanceId, controllerId, abilityId, deps)
-      : exhaustCostClause(deps.abilities[abilityId]?.cost);
+      : exhaustCostClause(deps.abilities[abilityId]?.cost, state, instanceId, deps);
   return specific ?? UNOFFERED_WORDS[reason];
 }
 
