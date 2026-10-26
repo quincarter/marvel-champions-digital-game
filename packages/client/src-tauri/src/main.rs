@@ -17,5 +17,13 @@ fn main() {
   if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
   }
+  // Linux: WebKitGTK under Wayland froze the page for good when the screen slept or a TV was switched off (Bazzite,
+  // KDE; the owner, 2026-10-25). Under X11 (XWayland) the owner's tests were steadier, though a long screen sleep still
+  // hung the page once (`hang_watchdog.rs` recovers that). Wayland stays the fallback where there is no X11 at all. Set
+  // only when the player hasn't chosen a backend.
+  #[cfg(target_os = "linux")]
+  if std::env::var_os("GDK_BACKEND").is_none() {
+    std::env::set_var("GDK_BACKEND", "x11,wayland");
+  }
   marvel_champions_lib::run(tauri::generate_context!());
 }

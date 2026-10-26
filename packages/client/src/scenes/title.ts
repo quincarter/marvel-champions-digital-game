@@ -24,7 +24,7 @@ import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-ma
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
-import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
 import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
@@ -34,7 +34,6 @@ import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
-import { preconDecks } from "../view/deck-list-model.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -101,15 +100,18 @@ export interface TitleSceneData {
   readonly initialSeatDeck?: Deck;
 }
 
-/** The default seat: the first Core precon, as a `Deck` id — unchanged from before the setup flow split, so "New game" always starts from the same hero. */
-const DEFAULT_SEAT_DECK_ID = preconDecks(POOL_VERSION)[0]!.id as string;
-
-/** A fresh New game draft: the pool's first scenario, the default seat-one precon, a new seed. Shared with the
- * first-run chooser (`scenes/guide-chooser.ts`), whose "Hints only" / "No guide" continue straight into scenario select. */
-export function newGameDraft(): ReturnType<typeof initialSetupDraft> {
+/**
+ * A fresh New game draft: a new seed, every seat blank and, by default, no villain picked. Nothing is preselected
+ * (owner, 2026-10-26): Scenario select and Take your seats each wait for the player's pick. `picked` seeds the pool's
+ * first scenario as the pick, for the two entries that skip Scenario select (Civil War!'s builder, "Play this deck").
+ * Shared with the first-run chooser (`scenes/guide-chooser.ts`), whose "Hints only" / "No guide" continue straight
+ * into scenario select.
+ */
+export function newGameDraft(picked = false): ReturnType<typeof initialSetupDraft> {
   return initialSetupDraft({
     scenarioId: POOL_SCENARIOS[0]!.id as string,
-    seatDeckId: DEFAULT_SEAT_DECK_ID,
+    seatDeckId: null,
+    scenarioPicked: picked,
     seed: rollSeed(),
   });
 }
@@ -152,7 +154,7 @@ export class TitleScene extends Phaser.Scene {
 
   create(data: TitleSceneData = {}): void {
     if (data.initialSeatDeckId) {
-      const draft = withSeatOne(this.#freshDraft(), data.initialSeatDeckId);
+      const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
       const seedDecks =
         data.initialSeatDeck && data.initialSeatDeck.id === data.initialSeatDeckId ? [data.initialSeatDeck] : [];
       goToScreen(this, SCENES.seats, { draft, seedDecks } satisfies SeatsData);
@@ -523,7 +525,7 @@ export class TitleScene extends Phaser.Scene {
     // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
     if (civilWar && layout.civilWar) {
       const openCivilWar = (): void => {
-        const entry = enterBuilder("build", newGameDraft(), civilWar.scenarioId);
+        const entry = enterBuilder("build", newGameDraft(true), civilWar.scenarioId);
         setBuilderOrigin("title");
         this.scale.off("resize", this.#rebuild, this);
         goToScreen(this, SCENES.civilWarBuilder, {
@@ -907,8 +909,8 @@ export class TitleScene extends Phaser.Scene {
     if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
-  #freshDraft() {
-    return newGameDraft();
+  #freshDraft(picked = false) {
+    return newGameDraft(picked);
   }
 
   #newGame(): void {

@@ -52,7 +52,14 @@ export type SetupDifficulty = "standard" | "expert" | "extreme";
 export type HeroSortMode = "wave" | "az";
 
 export interface SetupDraft {
+  /** The scenario Scenario select shows picked. Meaningful only while `scenarioPicked` is not `false`. */
   readonly scenarioId: string;
+  /**
+   * `false` on a fresh New game draft: the player has not chosen a villain yet, so Scenario select shows none as
+   * selected and "Choose heroes" waits for a pick (`scenarioId` then only seeds the field). Absent or `true` everywhere
+   * else (dev jumps, Random, replays, drafts built for a scenario); `setScenario` makes it `true`.
+   */
+  readonly scenarioPicked?: boolean;
   readonly difficulty: SetupDifficulty;
   /** `null` = the scenario's own recommended modular set(s) (`Scenario.recommendedModularSetIds`), the same default `SessionConfig.modularSetIds` documents. */
   readonly modularSetIds: readonly string[] | null;
@@ -141,8 +148,11 @@ export const MAX_SEATS = 4;
 
 export interface InitialSetupDraftOptions {
   readonly scenarioId: string;
-  readonly seatDeckId: string;
+  /** The deck to seat in seat 1; `null` leaves every seat blank until the player picks (a fresh New game). */
+  readonly seatDeckId: string | null;
   readonly seed: number;
+  /** `false`: no villain picked yet (`SetupDraft.scenarioPicked`). Default `true`. */
+  readonly scenarioPicked?: boolean;
 }
 
 /** A fresh draft — Title's own defaults on first load: standard difficulty, one seat, no filter, a rolled seed. */
@@ -151,7 +161,8 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     scenarioId: options.scenarioId,
     difficulty: "standard",
     modularSetIds: null,
-    seats: [options.seatDeckId],
+    seats: options.seatDeckId === null ? [] : [options.seatDeckId],
+    ...(options.scenarioPicked === false ? { scenarioPicked: false } : {}),
     firstPlayerIndex: null,
     seed: options.seed,
     scenarioFilter: EMPTY_ROSTER_FILTER,
@@ -225,8 +236,10 @@ export function difficultyOptionsFor(scenario: Scenario | undefined): readonly S
  */
 export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, scenarioId: string): SetupDraft {
   const difficulty = difficultyOptionsFor(scenario).includes(draft.difficulty) ? draft.difficulty : "standard";
+  // A missing `scenarioPicked` already means picked: dropping the `false` keeps a picked draft's shape unchanged.
+  const { scenarioPicked: _unpicked, ...rest } = draft;
   return {
-    ...draft,
+    ...rest,
     scenarioId,
     difficulty,
     // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
@@ -383,6 +396,8 @@ export function pruneSeats(
   availableDeckIds: ReadonlySet<string>,
   fallbackDeckId: string,
 ): SetupDraft {
+  // A blank table (a fresh New game, nothing picked yet) stays blank: the fallback is for decks that went away.
+  if (draft.seats.length === 0) return draft;
   const seats = draft.seats.filter((id) => availableDeckIds.has(id));
   const kept = seats.length > 0 ? seats : [fallbackDeckId];
   return withSeats(draft, { seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) });

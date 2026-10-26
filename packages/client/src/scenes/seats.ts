@@ -145,7 +145,7 @@ import { drawFiltersControl, searchRectForInspectHint } from "./filters-control.
 import { filtersLabel } from "../view/filters-layout.js";
 import { shelfPagingHints } from "./shelf-row-hints.js";
 import { bindExtraInput } from "./extra-input.js";
-import { inputDevice } from "../platform/input-device.js";
+import { inputDevice, padInputTracked } from "../platform/input-device.js";
 import { glyphSetOf } from "../view/input-mode.js";
 import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
 import { seatToClear, steppedSeatIndex } from "../view/seat-step.js";
@@ -328,6 +328,8 @@ export class SeatsScene extends Phaser.Scene {
   /** The deck under the pointer or under keyboard focus, whose reason the detail panel spells out. */
   #hoverDeckId: string | null = null;
   #focusDeckId: string | null = null;
+  /** The focus key of the topmost hero tile as of the last rebuild, where focus starts on arrival. */
+  #firstTileKey: string | null = null;
   #hoverBounds: Rect[] = [];
   #insightLayer: Phaser.GameObjects.Container | null = null;
   #insightArea: Rect | null = null;
@@ -473,6 +475,10 @@ export class SeatsScene extends Phaser.Scene {
     });
     this.#savedDecks = this.#seedDecks;
     this.#rebuild();
+    // Arriving by pad at blank seats, focus is on the topmost hero rather than Back. A mouse or touch player gets no
+    // ring (it would read as a preselection), and a return trip (Deck check, Table setup) keeps its own place.
+    if (this.#draft.seats.length === 0 && padInputTracked() && this.#firstTileKey !== null)
+      this.#route?.focusKey(this.#firstTileKey);
     fadeScreenIn(this);
     void refreshUnlocks().then((changed) => {
       if (changed && this.sys.isActive()) this.#rebuild();
@@ -1018,8 +1024,10 @@ export class SeatsScene extends Phaser.Scene {
     // "Deck check ▸" for the active seat's own deck. D03 draws them the other way round; the owner's call
     // (2026-09-18) is that the way forward is the red one and looking at a deck is the side trip.
     const tableLock = this.#tableLock(deckOptions);
+    // The seats start blank: nothing is dealt in until the player picks a hero.
+    const noHeroes = this.#draft.seats.length === 0;
     const play = (): void => {
-      if (tableLock) return;
+      if (tableLock || noHeroes) return;
       // A card that can't be played beside another seat's hero is answered first, in the sheet; Continue there plays.
       if (unresolved.length > 0) {
         this.#openConflictSheet();
@@ -1031,16 +1039,18 @@ export class SeatsScene extends Phaser.Scene {
       kind: "primary",
       label: tableLock
         ? "Hero locked"
-        : `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
+        : noHeroes
+          ? "Pick a hero ▸"
+          : `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
       type: typeRole.barTitle,
       rect: layout.play,
-      enabled: tableLock === null,
-      ...(tableLock ? { reason: tableLock } : {}),
+      enabled: tableLock === null && !noHeroes,
+      ...(tableLock ? { reason: tableLock } : noHeroes ? { reason: "Pick a hero first." } : {}),
       onClick: play,
     });
     this.#buttons.push(playButton);
     // Start moves forward on this screen (the route's primary), so its glyph sits on the red button.
-    if (tableLock === null) forwardHint(this.#hints, playButton, "ink");
+    if (tableLock === null && !noHeroes) forwardHint(this.#hints, playButton, "ink");
     if (layout.footer) {
       // The red fill on an ink footer takes the same paper outline Table setup's "Deal it out" does, so the two
       // sticky footers of the setup flow read as one.
@@ -1049,10 +1059,10 @@ export class SeatsScene extends Phaser.Scene {
         .lineStyle(3, surface.paper.hex, 1)
         .strokeRect(layout.play.x + 1.5, layout.play.y + 1.5, layout.play.width - 3, layout.play.height - 3);
     }
-    this.#stops.set("play", { rect: layout.play, activate: play });
+    if (!noHeroes) this.#stops.set("play", { rect: layout.play, activate: play });
 
     const deckCheck = (): void => {
-      if (this.#leaving) return;
+      if (this.#leaving || noHeroes) return;
       this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
       goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
@@ -1064,9 +1074,11 @@ export class SeatsScene extends Phaser.Scene {
         type: typeRole.barTitle,
         rect: layout.deckCheck,
         onClick: deckCheck,
+        enabled: !noHeroes,
+        ...(noHeroes ? { reason: "Pick a hero first." } : {}),
       }),
     );
-    this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
+    if (!noHeroes) this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
     // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
     if (import.meta.env.DEV) {
@@ -1098,6 +1110,9 @@ export class SeatsScene extends Phaser.Scene {
         ...(rail ? { ensureVisible: () => rail.scrollIntoView(index) } : {}),
       });
     });
+    // Where focus starts on arrival: the topmost hero tile on screen (a recommended pick when that shelf leads).
+    this.#firstTileKey =
+      recIds[0] !== undefined ? `hero-rec:${recIds[0]}` : cardIds[0] !== undefined ? `hero:${cardIds[0]}` : null;
     const baseOrder = seatsFocusOrder({
       seatCount: MAX_SEATS,
       deckIds: cardIds,

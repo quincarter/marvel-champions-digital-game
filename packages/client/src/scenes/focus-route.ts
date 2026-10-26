@@ -517,7 +517,12 @@ export class FocusRoute {
     this.#ring?.destroy();
     this.#ring = null;
     this.#ringRect = null;
-    if (this.#focus !== null && !this.#order.includes(this.#focus)) this.#focus = null;
+    if (this.#focus !== null && !this.#order.includes(this.#focus)) {
+      // A stop that left the route (the music note while the pad toast covers it) drops focus; the screen hears it, so
+      // a glyph that depends on focus (Start's, A's) stops claiming a control that is no longer in focus.
+      this.#focus = null;
+      this.#onFocusChange?.(null);
+    }
     const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
     if (!stop || this.#ringHidden) return;
     const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;

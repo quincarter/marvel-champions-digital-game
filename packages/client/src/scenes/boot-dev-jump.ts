@@ -157,14 +157,18 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     const players = Math.min(4, Math.max(1, Number(params.get("players")) || 1));
     // `&seed=<n>` deals a fixed game, for a spec that plays on past the deal (as `board`'s own `&seed=` does).
     const seed = Number(params.get("seed"));
+    // `&blank=1`: a real New game's arrival state, no villain picked and every seat blank (the jump otherwise
+    // preselects Rhino and the first precon so a spec can go straight on).
+    const blank = params.get("blank") === "1";
     const draft = decks
-      .filter((d) => d !== deck)
+      .filter((d) => d !== deck && !blank)
       .slice(0, players - 1)
       .reduce(
         (seated, extra) => addSeat(seated, extra.id as string),
         initialSetupDraft({
           scenarioId: scenario.id as string,
-          seatDeckId: deck.id as string,
+          seatDeckId: blank ? null : (deck.id as string),
+          scenarioPicked: !blank,
           seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
         }),
       );
@@ -393,6 +397,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       const turn = store.state.legal?.actions;
       const flip = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "changeForm") : undefined;
       if (flip) await store.dispatch(flip.example);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+  // `&fixture=tech-hand`: Iron Man in hero form with two Tech upgrades in play, for his hand size on the identity panel.
+  if (screen === "board" && params.get("fixture") === "tech-hand") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startTechHandGame } = await import("../store/dev-tech-hand-game.js");
+      await startTechHandGame(store);
     }
     return { key: SCENES.board, data: {} };
   }

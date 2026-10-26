@@ -14,6 +14,7 @@ const PAD_ID = "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e
 const A = 0;
 const B = 1;
 const START = 9;
+const VIEW = 8;
 const UP = 12;
 const RIGHT = 15;
 
@@ -305,5 +306,41 @@ test("Start with Pay greyed opens Pause instead of swallowing the press", async 
     "Start opened Pause over the unpayable payment",
     10_000,
   );
+  expect(errors).toEqual([]);
+});
+
+test("View hides the villain phase's rail and the same button brings it back, its glyph on the handle", async ({
+  page,
+}) => {
+  test.setTimeout(100_000);
+  const errors = trackErrors(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
+  );
+  await installPad(page);
+  await installWave6Helpers(page);
+  await page.goto("/?screen=villain-interrupt");
+  await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 30_000);
+  const presentation = (): Promise<string | null> =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as { __mcVillainPhaseDebug?: { presentation(): string } }
+        ).__mcVillainPhaseDebug?.presentation() ?? null,
+    );
+  await padTap(page, RIGHT);
+  await padTap(page, VIEW);
+  await waitFor(async () => ((await presentation()) === "hidden" ? true : null), "View hid the rail", 8000);
+  const handle = await waitFor(() => villainDebugRect(page, "showRect"), "the handle", 8000);
+  await waitFor(
+    async () => ((await glyphIn(page, "VillainPhaseOverlay", "View", handle)) ? true : null),
+    "the View glyph on the handle",
+    8000,
+  );
+  await padTap(page, VIEW);
+  await waitFor(async () => ((await presentation()) === "rail" ? true : null), "View brought the rail back", 8000);
   expect(errors).toEqual([]);
 });

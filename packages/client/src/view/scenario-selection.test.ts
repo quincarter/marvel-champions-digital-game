@@ -11,6 +11,9 @@ describe("selectionAmongVisible", () => {
       canContinue: true,
     });
   });
+  it("selects nothing, and disables Choose heroes, until a scenario is picked", () => {
+    expect(selectionAmongVisible(null, ["rhino", "klaw"])).toEqual({ selectedId: null, canContinue: false });
+  });
   it("disables Choose heroes when nothing is visible, keeping the old id", () => {
     expect(selectionAmongVisible("rhino", [])).toEqual({ selectedId: "rhino", canContinue: false });
   });

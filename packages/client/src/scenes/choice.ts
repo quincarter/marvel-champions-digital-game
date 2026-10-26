@@ -1109,7 +1109,10 @@ export class ChoiceOverlay extends Phaser.Scene {
           : optionLabelOf(state.game, option),
       );
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
-    const maxChars = Math.floor((sheet.width - 48) / (typeRole.rowTitle.size * 0.62));
+    // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
+    // (never cut): the text stays clear of the glyph on either side.
+    const glyphRoom = choice.options.some((o) => this.#pickGlyphFits(o.optionId)) ? DEFEND_PICK_RESERVE * 2 : 0;
+    const maxChars = Math.floor((sheet.width - 48 - glyphRoom) / (typeRole.rowTitle.size * 0.62));
     // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
     const rows = choiceRowsOf(
       choice,
@@ -1175,6 +1178,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       const key = choiceFocusKey({ kind: "option", optionId: option.optionId });
       this.#focusRects.set(key, rect);
       if (rowsLayout.scrolls) this.#scrolledRows.set(key, index);
+      // RT + A, RT + B, ... press this row as a tap does; the combo hangs at the row's right end.
+      this.#registerTilePick(rect, option.optionId, () => this.#toggle(option.optionId, choice.maxSelections), "row");
     });
     if (rowsLayout.scrolls) {
       const region = new McScrollRegion(this, {
@@ -1260,6 +1265,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         rect: layout.move,
         onClick: move,
       }),
+    );
+    // Back wears View's glyph: the same button that peeked goes back.
+    this.#pushHinted(
+      ["peek"],
+      "ink",
       new McButton(this, {
         kind: "primary",
         label: "Back ▴",
@@ -2690,7 +2700,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /** The combo that presses a card tile (`view/pick-assign.ts`): its place among the choice's options, drawn on the tile's corner. */
-  #registerTilePick(tile: Rect, optionId: string, tap: () => void): void {
+  #registerTilePick(tile: Rect, optionId: string, tap: () => void, place: "corner" | "row" = "corner"): void {
     const slot = this.#pickSlotOf(optionId);
     if (slot === null) return;
     this.#pickTaps.set(slot, tap);
@@ -2705,7 +2715,9 @@ export class ChoiceOverlay extends Phaser.Scene {
           ? clipHoverRect(this.#screenRect(key) ?? tile, this.#optionRegion.rect)
           : this.#screenRect(key);
         if (!rect || rect.height < glyphHeight + 8) return null;
-        return { x: rect.x + rect.width - glyphWidth - 4, y: rect.y + 4 + glyphHeight / 2 };
+        // A text row is a strip: the combo is centred on its right end. A tile hangs it in the top-right corner.
+        const y = place === "row" ? rect.y + rect.height / 2 : rect.y + 4 + glyphHeight / 2;
+        return { x: rect.x + rect.width - glyphWidth - (place === "row" ? 10 : 4), y };
       },
       { ground: "ink" },
     );

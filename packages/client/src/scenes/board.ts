@@ -1677,7 +1677,7 @@ export class BoardScene extends Phaser.Scene {
 
   /**
    * A new turn on the board (the board's first state, the next hero's turn, the next round): focus goes back to the first
-   * card in that player's hand, far left, or to the route's first stop when the hand is empty (`view/focus.ts#turnStartFocus`).
+   * card in that player's hand, far left, or nowhere when that card isn't a stop (`view/focus.ts#turnStartFocus`).
    * Not for touch, which has no ring to move. Sets the focus only; the state's own redraw follows.
    */
   #focusTurnStart(key: string | null): void {

@@ -30,6 +30,7 @@ import {
   attachmentChipDamageTag,
   attachmentChipText,
   counterNote,
+  handSizeChipText,
   threatNote,
   tuckedLine,
   type CharacterPanel,
@@ -235,7 +236,9 @@ export function drawCharacter(
   top = drawStatusTags(ctx, left, top, textWidth, panel, dim, compact);
   // The seat's lasting effects and Gift count, the Gift count a card reads, and an ability the engine refused with the
   // part of its condition that failed (`view/ability-refusal.ts`): all notes in words.
+  // A seat's hand size, always in the wide panel (Iron Man's grows with his Tech upgrades; the engine's number).
   const notes = [
+    ...(panel.handSize && !compact ? [handSizeChipText(panel.handSize)] : []),
     ...panel.effects,
     ...(panel.countNote ? [panel.countNote] : []),
     ...controller.refusedAbilityLines(panel.instanceId),
@@ -649,6 +652,9 @@ function drawCardShapedPanel(
   // A Labor card: an encounter card a player owns, so the table says whose deck it came from.
   if (panel.ownedBy && rect.height >= 40) strips.push({ text: panel.ownedBy, tone: "note" });
   if (panel.countNote && rect.height >= 40) strips.push({ text: panel.countNote, tone: "note" });
+  // A card-shaped identity has little room: its hand size shows only when it is not the printed one.
+  if (panel.handSize && panel.handSize.value !== panel.handSize.printed && rect.height >= 80)
+    strips.push({ text: handSizeChipText(panel.handSize), tone: "note" });
   if (rect.height >= 40) {
     for (const line of controller.refusedAbilityLines(panel.instanceId)) strips.push({ text: line, tone: "note" });
   }

@@ -214,13 +214,13 @@ describe("a decision's bar on the route", () => {
     expect(focusOrder({ kind: "idle", hand: [id("a")] }, marksWith([])).some((t) => t.kind === "discard")).toBe(false);
   });
 
-  test("a turn starts on the first card in hand, else the route's first stop, else nothing", () => {
+  test("a turn starts on the first card in hand, else with nothing focused", () => {
     const route: FocusTarget[] = [{ kind: "basic", action: "endTurn" }];
     const withHand: FocusTarget[] = [{ kind: "card", instanceId: id("a") }, ...route];
     expect(turnStartFocus([id("a"), id("b")], withHand)).toEqual({ kind: "card", instanceId: id("a") });
-    // A decision narrowed the route to its answers: the hand card is not a stop, so the route's first is.
-    expect(turnStartFocus([id("a")], route)).toEqual({ kind: "basic", action: "endTurn" });
-    expect(turnStartFocus([], route)).toEqual({ kind: "basic", action: "endTurn" });
+    // A decision narrowed the route to its answers, or the hand can't be played: no stop is picked for the player.
+    expect(turnStartFocus([id("a")], route)).toBeNull();
+    expect(turnStartFocus([], route)).toBeNull();
     expect(turnStartFocus([], [])).toBeNull();
   });
 

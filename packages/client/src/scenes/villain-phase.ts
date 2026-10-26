@@ -482,7 +482,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       },
       // Start is "forward": it starts the phase (or continues) when that gate is up, and opens Pause otherwise.
       onPause: () => {
-        if (!this.#route?.pressPrimary()) openPauseOverBoard(this);
+        // The gate's own button is "forward" even if the primary was not noted this draw: Start never opens Pause over it.
+        if (this.#route?.pressPrimary() || this.#route?.pressStop("start") || this.#route?.pressStop("answer")) return;
+        openPauseOverBoard(this);
       },
       onView: () => this.padPeek(),
       onExpand: () => this.padExpand(),
@@ -3218,6 +3220,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       flipPeekEdge();
       this.#draw();
     };
+    const backButton = new McButton(this, {
+      kind: "secondary",
+      label: "Back ▴",
+      type: typeRole.label,
+      rect: layout.back,
+      onClick: back,
+    });
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
@@ -3226,14 +3235,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         rect: layout.move,
         onClick: move,
       }),
-      new McButton(this, {
-        kind: "secondary",
-        label: "Back ▴",
-        type: typeRole.label,
-        rect: layout.back,
-        onClick: back,
-      }),
+      backButton,
     );
+    // View is the same toggle that opened the peek: it goes back, and Back wears its glyph.
+    this.#padPeek = back;
+    this.#hintButton(backButton, ["peek"], "ink");
     stops.set("move", { rect: layout.move, activate: move });
     stops.set("back", { rect: layout.back, activate: back });
 
@@ -3349,9 +3355,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#presentation = "hidden";
     const rect: Rect = { x: width - 16 - 220, y: 72, width: 220, height: hit.target };
     const show = (): void => this.#setHidden(false);
-    this.#buttons.push(
-      new McButton(this, { kind: "onInk", label: "◂ Villain phase", type: typeRole.label, rect, onClick: show }),
-    );
+    const handle = new McButton(this, {
+      kind: "onInk",
+      label: "◂ Villain phase",
+      type: typeRole.label,
+      rect,
+      onClick: show,
+    });
+    this.#buttons.push(handle);
+    // View brings the rail back, the same toggle that hid it.
+    this.#padPeek = show;
+    this.#hintButton(handle, ["peek"], "ink");
     this.#route?.set(["show"], new Map([["show", { rect, activate: show }]]));
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {

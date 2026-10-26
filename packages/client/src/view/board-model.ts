@@ -11,6 +11,7 @@
 import type { AbilityId, Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
   handSize,
+  printedHandSize,
   cardOf,
   cardsInPlay,
   characterProfile,
@@ -154,6 +155,19 @@ export interface StatusPip {
   readonly count: number;
 }
 
+/** A hero identity's hand size: the effective one now, and the one printed on the face that is up. */
+export interface HandSizeChip {
+  /** The effective hand size now. */
+  readonly value: number;
+  /** The hand size printed on the face that is up. */
+  readonly printed: number;
+}
+
+/** "HAND SIZE 3 · printed 1" when a modifier is at work, "HAND SIZE 4" when not. */
+export function handSizeChipText(chip: HandSizeChip): string {
+  return chip.value === chip.printed ? `HAND SIZE ${chip.value}` : `HAND SIZE ${chip.value} · printed ${chip.printed}`;
+}
+
 /** Villain, minion, hero identity or ally — the design's one "character panel". */
 export interface CharacterPanel {
   readonly instanceId: InstanceId;
@@ -239,6 +253,12 @@ export interface CharacterPanel {
   readonly ownedBy: string | null;
   /** "Counts Gift cards you control: 2" on a card that reads the Gift count (Olympus); null for every other card. */
   readonly countNote: string | null;
+  /**
+   * A seat's identity only: its hand size now (the engine's `handSize`, printed value plus modifiers, as the end-of-turn
+   * draw uses it) beside the printed one on the face that is up (`printedHandSize`), so Iron Man's +1 per Tech upgrade
+   * is on the table. Absent on every other card.
+   */
+  readonly handSize?: HandSizeChip;
   /** Lasting effects aimed at this identity's seat, as short notes ("next card costs 1 less"). */
   readonly effects: readonly string[];
   /**
@@ -1382,6 +1402,9 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
         : null,
     ownedBy: ownedEncounterLabel(state, id),
     countNote: giftReaderNote(state, id, controllerOf(state, id) ?? state.players[0]!.playerId, deps),
+    ...(seat && !defeat
+      ? { handSize: { value: handSize(state, seat.playerId, deps), printed: printedHandSize(state, seat.playerId) } }
+      : {}),
     effects: seatNotesOf(state, state.players.find((seat) => seat.identity.instanceId === id)?.playerId ?? null, deps),
     tucked: tuckedCardsUnder(state, id),
     tuckedCount: instance.tucked.length,

@@ -127,7 +127,9 @@ export function turnStartFocus(hand: readonly InstanceId[], order: readonly Focu
   if (first !== undefined && order.some((t) => t.kind === "card" && t.instanceId === first)) {
     return { kind: "card", instanceId: first };
   }
-  return order[0] ?? null;
+  // No focus otherwise: the route's first stop could be a corner control (the music note) the player never meant, and
+  // with nothing focused A and Start still reach the screen's forward button.
+  return null;
 }
 
 /**
