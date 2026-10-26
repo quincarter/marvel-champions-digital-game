@@ -473,7 +473,7 @@ with brief turns to D-flat major.
 Title: "The Quiet Before Titan"
 ```
 
-# Wave 10: Civil War
+# Waves 10 and 11 (added 2026-10-26)
 
 ## Iron Man (Registration)
 
