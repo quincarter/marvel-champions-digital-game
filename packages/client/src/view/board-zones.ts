@@ -45,6 +45,9 @@ export function zoneOfTarget(target: FocusTarget, members: ZoneMembers): BoardZo
     case "xMore":
     case "bar":
       return "actionBar";
+    // The discard pile sits on the hand row, so a zone jump reads it as the hand's.
+    case "discard":
+      return "hand";
     case "teamUp":
     case "music":
       return null;

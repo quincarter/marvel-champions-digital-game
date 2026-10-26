@@ -75,7 +75,7 @@ import type { Rect } from "../view/layout.js";
 import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
 import { setupMetrics } from "../view/setup-metrics.js";
 import { setChoiceDock } from "../view/choice-dock.js";
-import { cardSizeFactor } from "../settings.js";
+import { cardHoverFactor, cardSizeFactor } from "../settings.js";
 import {
   HoverPreview,
   hoverCardsOf,
@@ -156,6 +156,8 @@ const CHIP_SKIN: Readonly<
   },
 };
 const CHIP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
+/** The held-Y zoom stays below this y, clear of the A / Y / B legend strip that sits over the focused card. */
+const ZOOM_TOP = 204;
 /** Section headers ("YOUR OPENING HAND — <hero>", "OTHER SEATS", "SETUP LOG"): Bangers, then a rule to the column's own right edge. */
 const SECTION_HEADER_TYPE: TypeSpec = typeRole.barTitle;
 /** The header's inline step caption, beside the Bangers title. */
@@ -298,6 +300,9 @@ export class SetupDealScene extends Phaser.Scene {
     const binding = {
       blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      // Hold Y (or E) enlarges the focused card as the desktop hover does; a tap still opens Inspect.
+      onInspectZoom: (zooming: boolean) => this.#setZoom(zooming),
+      zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
@@ -1099,6 +1104,8 @@ export class SetupDealScene extends Phaser.Scene {
         const focused = this.#focus ? this.#focusRects.get(this.#focus) : undefined;
         if (focused && this.#focus?.startsWith("option:")) this.#hand.scrollIntoView(focused);
         this.#drawFocusRing();
+        // A held Y follows the step: the popover re-reads which card has focus.
+        if (this.#hover?.pinned) this.#hover.onDraw();
         break;
       }
       case "activate":
@@ -1137,6 +1144,29 @@ export class SetupDealScene extends Phaser.Scene {
       void this.#confirm();
   }
 
+  /** Hold Y: the focused card enlarged beside it, following the focus while held; release closes it. */
+  #setZoom(zooming: boolean): void {
+    if (!zooming) {
+      this.#hover?.unpin();
+      return;
+    }
+    this.#hover?.pin(() => {
+      const focus = this.#focus;
+      const rect = focus?.startsWith("option:") ? this.#focusRects.get(focus) : undefined;
+      const { width, height } = this.scale.gameSize;
+      // Below the legend strip, and at least 1.6x the card's height: the mulligan cards are already as large as the
+      // popover setting makes them, so a same-size copy would show nothing new.
+      return focus && rect
+        ? {
+            id: focus.slice("option:".length) as InstanceId,
+            rect,
+            area: { x: 0, y: ZOOM_TOP, width, height: height - ZOOM_TOP },
+            minHeight: rect.height * 1.6,
+          }
+        : null;
+    });
+  }
+
   /** Static, not pulsing: the ring says "here you are", not "act now" — the same convention `ChoiceOverlay` uses. */
   #drawFocusRing(): void {
     this.#focusRing?.destroy();
@@ -1153,7 +1183,7 @@ export class SetupDealScene extends Phaser.Scene {
     }
     const rect = this.#focusRects.get(focus);
     if (!rect) return;
-    this.#focusRing = new McSelectionRing(this);
+    this.#focusRing = new McSelectionRing(this, undefined, true);
     this.#focusRing.show(rect, "static", true);
   }
 }

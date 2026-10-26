@@ -16,13 +16,14 @@ import type { BoardDrawContext } from "./context.js";
 
 /** What a candidate's glyph shows now: its slot's button on this page, or nothing when it is on another page. */
 export function pickSpecsOf(ctx: BoardDrawContext, id: InstanceId): CustomSpecs {
-  return (set, snapshot, layer): readonly GlyphSpec[] | null => {
+  return (set, snapshot, _layer, held): readonly GlyphSpec[] | null => {
     const ids = ctx.controller.pickIds();
     const index = ids?.indexOf(id) ?? -1;
     if (ids === null || index < 0) return null;
-    const window = pickWindow(ids.length, ctx.controller.pickOffset(), pickSlotsOf(set));
+    // A pad never pages: slot n is always the nth candidate, and past the sixteenth there is no combo.
+    const window = pickWindow(ids.length, set === "pad" ? 0 : ctx.controller.pickOffset(), pickSlotsOf(set));
     const slot = pickSlotOfIndex(window, index);
-    return slot === null ? null : pickGlyphSpecs(slot, snapshot.state, snapshot.settings, set === "pad" ? layer : null);
+    return slot === null ? null : pickGlyphSpecs(slot, snapshot.state, snapshot.settings, set === "pad" ? held : null);
   };
 }
 
@@ -53,14 +54,16 @@ export function registerPickMore(
     .setOrigin(0, 0.5)
     .setVisible(false);
   ctx.hints.custom(
-    (set, snapshot, layer) => {
+    (set, snapshot) => {
+      // Only the keyboard pages: a pad has a combo per candidate (`view/pick-assign.ts`).
+      if (set === "pad") return null;
       const ids = ctx.controller.pickIds();
       if (ids === null) return null;
       const window = pickWindow(ids.length, ctx.controller.pickOffset(), pickSlotsOf(set));
       if (!window.paged) return null;
       const text = pickMoreText(window);
       if (word.text !== text) word.setText(text);
-      return pickMoreGlyphSpecs(snapshot.state, snapshot.settings, set === "pad" ? layer : null);
+      return pickMoreGlyphSpecs(snapshot.state, snapshot.settings);
     },
     height,
     ({ full, height: shown }) => place({ full, height: shown, wordWidth: word.width }),

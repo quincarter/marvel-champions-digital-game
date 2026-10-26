@@ -2,17 +2,38 @@
  * Direct picks: while the Board asks "who attacks?" or "which target?", each candidate wears the button (or number
  * key) that picks it, so a decision never needs a walk of the focus ring.
  *
- * The scheme (owner report, 2026-10-24): on a pad, hold RT and press A / X / Y / B for the first four candidates, the
- * same buttons and the same LB / RB paging the RT layer already uses for abilities (`view/pad-layers.ts`); nothing is
- * taken from the base buttons (A selects the focused card, B cancels, Y inspects, Start confirms). On the keyboard the
- * digits 1 to 9 pick, and the zone keys page past nine. A candidate off the page showing wears nothing, and a "more"
- * hint says there are others.
+ * The scheme (owner playtest, 2026-10-26): on a pad every candidate has its own combo and nothing pages. Hold a modifier
+ * and press a face button: RT + A, B, X, Y for the first four, then LT + A, B, X, Y, then RB + A, B, X, Y, then LB + A,
+ * B, X, Y (16 in all). A candidate past the sixteenth wears nothing and stays reachable by focus. Nothing is taken from
+ * the base buttons (A selects the focused card, B cancels, Y inspects, Start confirms), and a bumper used as a modifier
+ * fires its own tap only when no face button was pressed under it. On the keyboard the digits 1 to 9 pick, and the zone
+ * keys page past nine (`pickWindow`, `pagedOffset`).
  *
- * Pure: this module only answers which candidate a slot means, and how paging moves the window.
+ * Pure: this module only answers which candidate a slot means, which button a slot is, and how paging moves the window.
  */
 
-/** Candidates per page on a pad: the four face buttons. */
-export const PAD_PICK_SLOTS = 4;
+import type { PickModifier } from "./pad-layer-bindings.js";
+
+/** The modifiers in the order slots fill: four face buttons each. */
+export const PAD_PICK_MODIFIERS: readonly PickModifier[] = ["rt", "lt", "rb", "lb"];
+/** The face buttons in the order slots fill, as standard-layout indices: A, B, X, Y. */
+export const PAD_PICK_FACES: readonly number[] = [0, 1, 2, 3];
+
+/** Candidates a pad can pick directly: four modifiers by four face buttons. */
+export const PAD_PICK_SLOTS = PAD_PICK_MODIFIERS.length * PAD_PICK_FACES.length;
+
+/** The modifier and standard-layout face index a pad slot (0-based) is pressed with, or null past the sixteenth. */
+export function padPickBinding(slot: number): { readonly modifier: PickModifier; readonly index: number } | null {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= PAD_PICK_SLOTS) return null;
+  const faces = PAD_PICK_FACES.length;
+  return { modifier: PAD_PICK_MODIFIERS[Math.floor(slot / faces)]!, index: PAD_PICK_FACES[slot % faces]! };
+}
+
+/** The slot a face button means under a held modifier, or null for a button that is not a face button. */
+export function padPickSlotOf(modifier: PickModifier, meaningIndex: number): number | null {
+  const face = PAD_PICK_FACES.indexOf(meaningIndex);
+  return face < 0 ? null : PAD_PICK_MODIFIERS.indexOf(modifier) * PAD_PICK_FACES.length + face;
+}
 /** Candidates per page on the keyboard: the digits 1 to 9. */
 export const KEY_PICK_SLOTS = 9;
 

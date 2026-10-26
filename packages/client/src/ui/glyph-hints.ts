@@ -36,7 +36,7 @@ import {
 } from "../view/glyph-placement.js";
 import { glyphsForShortcut, type GlyphSpec } from "../view/input-glyph-model.js";
 import { glyphSetOf } from "../view/input-mode.js";
-import type { PadLayer } from "../view/pad-layer-bindings.js";
+import type { PadLayer, PickBumper, PickModifier } from "../view/pad-layer-bindings.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
 import type { Rect } from "../view/layout.js";
 import { McInputGlyph, type GlyphGround } from "./input-glyph.js";
@@ -59,6 +59,11 @@ export type CustomSpecs = (
   set: GlyphSet,
   snapshot: InputHintsSnapshot,
   layer: PadLayer | null,
+  /**
+   * The pick modifier down now: the hold layer's trigger, else a bumper held for a direct pick
+   * (`view/pick-assign.ts`).
+   */
+  pickHeld: PickModifier | null,
 ) => readonly GlyphSpec[] | null;
 
 interface Entry {
@@ -105,6 +110,8 @@ export class GlyphHints {
   #legend: LegendStrip | null = null;
   /** The pad's hold layer (LT / RT), null at rest. Kept across `reset()`: a redraw does not release a trigger. */
   #layer: PadLayer | null = null;
+  /** The bumper held as a pick modifier, null at rest. */
+  #bumper: PickBumper | null = null;
   #legendCard: {
     readonly rect: Rect;
     readonly viewport: Rect;
@@ -137,6 +144,16 @@ export class GlyphHints {
   setLayer(layer: PadLayer | null): void {
     if (layer === this.#layer) return;
     this.#layer = layer;
+    this.#binding.refresh();
+  }
+
+  /**
+   * A bumper was held or let go as a pick modifier: the pick glyphs of its slots drop their bumper and show the bare
+   * button.
+   */
+  setBumper(bumper: PickBumper | null): void {
+    if (bumper === this.#bumper) return;
+    this.#bumper = bumper;
     this.#binding.refresh();
   }
 
@@ -324,7 +341,7 @@ export class GlyphHints {
     const specs =
       set !== null && (entry.when?.(set) ?? true)
         ? entry.custom
-          ? entry.custom(set, snapshot, this.#layer)
+          ? entry.custom(set, snapshot, this.#layer, this.#layer ?? this.#bumper)
           : specsForShortcuts(entry.ids, snapshot, set === "pad" ? this.#layer : null)
         : null;
     // Owner rule: while the mouse moves the glyph goes all the way to nothing (it narrows and fades as it goes),

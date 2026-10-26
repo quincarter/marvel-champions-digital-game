@@ -143,28 +143,37 @@ describe("OpennessAnimator", () => {
 describe("direct-pick glyphs", () => {
   const labels = (specs: ReturnType<typeof pickGlyphSpecs>) => specs?.map((g) => g.label);
 
-  test("pad: RT then the slot's button at rest; the bare button once RT is held; nothing under LT", () => {
+  test("pad: the modifier then the face button at rest, in the order RT, LT, RB, LB by A, B, X, Y", () => {
     const xbox = padState(XBOX);
-    // The RT layer's order (A, X, Y, B) is the abilities' (`view/pad-layer-bindings.ts`).
-    expect([0, 1, 2, 3].map((slot) => labels(pickGlyphSpecs(slot, xbox, settings, null)))).toEqual([
-      ["RT", "A"],
-      ["RT", "X"],
-      ["RT", "Y"],
-      ["RT", "B"],
+    const rows = [0, 4, 8, 12].map((first) =>
+      [0, 1, 2, 3].map((n) => labels(pickGlyphSpecs(first + n, xbox, settings, null))?.join("+")),
+    );
+    expect(rows).toEqual([
+      ["RT+A", "RT+B", "RT+X", "RT+Y"],
+      ["LT+A", "LT+B", "LT+X", "LT+Y"],
+      ["RB+A", "RB+B", "RB+X", "RB+Y"],
+      ["LB+A", "LB+B", "LB+X", "LB+Y"],
     ]);
+    // Sixteen combos and no more: the rest are reachable by focus.
+    expect(pickGlyphSpecs(16, xbox, settings, null)).toBeNull();
+  });
+
+  test("pad: the bare face button on its own modifier's slots while it is held, nothing on the others", () => {
+    const xbox = padState(XBOX);
     expect([0, 1, 2, 3].map((slot) => labels(pickGlyphSpecs(slot, xbox, settings, "rt")))).toEqual([
       ["A"],
+      ["B"],
       ["X"],
       ["Y"],
-      ["B"],
     ]);
+    expect(labels(pickGlyphSpecs(8, xbox, settings, "rb"))).toEqual(["A"]);
     expect(pickGlyphSpecs(0, xbox, settings, "lt")).toBeNull();
-    expect(pickGlyphSpecs(4, xbox, settings, null)).toBeNull();
+    expect(pickGlyphSpecs(8, xbox, settings, "rt")).toBeNull();
   });
 
   test("pad: follows the family's own symbols and the Nintendo swap", () => {
     expect(labels(pickGlyphSpecs(0, padState(PS), settings, "rt"))).toEqual(["✕"]);
-    expect(labels(pickGlyphSpecs(1, padState(PS), settings, "rt"))).toEqual(["□"]);
+    expect(labels(pickGlyphSpecs(1, padState(PS), settings, "rt"))).toEqual(["○"]);
     // The swap puts the confirm meaning on the Switch pad's own A, and the layout off leaves it on the bottom button, B.
     expect(labels(pickGlyphSpecs(0, padState(SWITCH), settings, "rt"))).toEqual(["A"]);
     expect(labels(pickGlyphSpecs(0, padState(SWITCH), { ...settings, nintendoLayout: false }, "rt"))).toEqual(["B"]);
@@ -185,11 +194,8 @@ describe("direct-pick glyphs", () => {
     expect(pickGlyphSpecs(0, padState(XBOX), { ...settings, inputGlyphs: false }, null)).toBeNull();
   });
 
-  test("the more hint is RT then RB at rest, LB and RB under RT, and the zone key on a keyboard", () => {
-    const xbox = padState(XBOX);
-    expect(pickMoreGlyphSpecs(xbox, settings, null)?.map((g) => g.label)).toEqual(["RT", "RB"]);
-    expect(pickMoreGlyphSpecs(xbox, settings, "rt")?.map((g) => g.label)).toEqual(["LB", "RB"]);
-    expect(pickMoreGlyphSpecs(xbox, settings, "lt")).toBeNull();
-    expect(pickMoreGlyphSpecs(keyboard, settings, null)?.map((g) => g.label)).toEqual(["F"]);
+  test("the more hint is the zone key on a keyboard and nothing on a pad, which never pages", () => {
+    expect(pickMoreGlyphSpecs(padState(XBOX), settings)).toBeNull();
+    expect(pickMoreGlyphSpecs(keyboard, settings)?.map((g) => g.label)).toEqual(["F"]);
   });
 });

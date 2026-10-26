@@ -151,6 +151,9 @@ export interface BoardControllerHost {
   /** True while the top bar's music note is drawn (a stop at the end of the idle route), and what Enter on it does. */
   hasMusicStop?(): boolean;
   openMusic?(): void;
+  /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
+  hasDiscardStop?(): boolean;
+  openDiscard?(): void;
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -476,6 +479,7 @@ export class BoardController {
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
+        ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
         undo: this.undoOffer() !== null,
         ...(this.#host.hasTile
           ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
@@ -537,6 +541,11 @@ export class BoardController {
     }
     if (focus.kind === "music") {
       this.#host.openMusic?.();
+      return;
+    }
+    // Reading the pile sends nothing, like a click on it, but is held back with the rest while the board is read-only.
+    if (focus.kind === "discard") {
+      this.#host.openDiscard?.();
       return;
     }
     if (focus.kind === "bar") {

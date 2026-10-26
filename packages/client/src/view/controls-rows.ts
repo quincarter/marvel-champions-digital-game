@@ -257,10 +257,25 @@ const PAD_ROWS: readonly PadRowDef[] = [
     note: "Everywhere; on the table it plays or uses the card",
   },
   { id: "cancel", index: 1, action: "Back · cancel", note: "Everywhere; with nothing open on the table, Pause" },
-  { id: "guide", index: 2, action: "Move focus to the guide", note: "On the table, when the guide is showing" },
+  {
+    id: "guide",
+    index: 2,
+    action: "Move focus to the guide",
+    note: "On the table, when the guide is showing. On a decision with Decline: Decline",
+  },
   { id: "inspect", index: 3, action: "Inspect · hold to zoom", note: "Where a card has focus" },
-  { id: "pagePrevious", index: 4, action: "Previous zone · page", note: "Table: previous zone. Lists: previous page" },
-  { id: "pageNext", index: 5, action: "Next zone · page", note: "Table: next zone. Lists: next page" },
+  {
+    id: "pagePrevious",
+    index: 4,
+    action: "Previous zone · page",
+    note: "Table: previous zone. Lists: previous page. Picking a target: hold with A / B / X / Y",
+  },
+  {
+    id: "pageNext",
+    index: 5,
+    action: "Next zone · page",
+    note: "Table: next zone. Lists: next page. Picking a target: hold with A / B / X / Y",
+  },
   {
     id: "view",
     index: 8,
@@ -280,6 +295,12 @@ const PAD_ROWS: readonly PadRowDef[] = [
     note: "The list, hand or log under focus",
   },
   { id: "expand", index: 11, action: "Expand · collapse", note: "On a decision popup" },
+  {
+    id: "discard",
+    index: 10,
+    action: "Open your discard pile",
+    note: "On the table, when the pile has a card in it. A on the pile does the same",
+  },
 ];
 
 /** What each layer row says it does and where. */
@@ -363,7 +384,7 @@ export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly Keyboard
         shortcutRow("select", hand, left ? "Enter works too" : "Everywhere", "Select · press"),
         shortcutRow("back", hand, "Esc works too; with nothing open on the table, Pause", "Back · cancel"),
         shortcutRow("inspect", hand, "Where a card has focus"),
-        shortcutRow("guide", hand, "On the table, when the guide is showing"),
+        shortcutRow("guide", hand, "On the table, when the guide is showing. On a decision with Decline: Decline"),
         { id: "tab", glyphs: [key("Tab")], action: "Next control", note: "Shift+Tab goes back" },
         {
           id: "page",
@@ -400,6 +421,7 @@ export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly Keyboard
         shortcutRow("confirm", hand, "Pays, plays or confirms the decision open on the table"),
         shortcutRow("teamUp", hand, "When a Team-Up is available"),
         shortcutRow("evidence", hand, "When evidence is on the table"),
+        shortcutRow("discard", hand, "When your discard pile has a card in it"),
       ],
     },
     {

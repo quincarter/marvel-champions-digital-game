@@ -35,6 +35,8 @@ export type FocusTarget =
    * frame, in the order the bar draws them (`scenes/board/bar-stops.ts`). Its Cancel is the `cancel` stop instead.
    */
   | { readonly kind: "bar"; readonly index: number }
+  /** Your discard pile, bottom right of the table: Enter opens the pile view, as a click on it does. */
+  | { readonly kind: "discard" }
   /** The top bar's music note: Enter opens the music player. The last stop on the idle route. */
   | { readonly kind: "music" };
 
@@ -46,6 +48,8 @@ export type FocusMode =
       readonly teamUps?: readonly string[];
       /** True while the top bar's music note is drawn: the route's last stop. */
       readonly music?: true;
+      /** True while the discard pile has a card to open: a stop just after the hand, where the table draws it. */
+      readonly discard?: true;
       /** True while the action bar draws Undo, so it is a stop just before End turn. */
       readonly undo?: boolean;
       /** True when the card is drawn as a tile or chip right now; a usable card with none is not a stop. */
@@ -103,7 +107,40 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   const endTurnAt = basics.findIndex((target) => target.kind === "basic" && target.action === "endTurn");
   if (mode.undo) basics.splice(endTurnAt < 0 ? basics.length : endTurnAt, 0, { kind: "undo" });
   const teamUps: FocusTarget[] = (mode.teamUps ?? []).map((pairKey) => ({ kind: "teamUp", pairKey }));
-  return [...cards, ...abilityCards, ...basics, ...teamUps, ...(mode.music ? [{ kind: "music" as const }] : [])];
+  return [
+    ...cards,
+    ...(mode.discard ? [{ kind: "discard" as const }] : []),
+    ...abilityCards,
+    ...basics,
+    ...teamUps,
+    ...(mode.music ? [{ kind: "music" as const }] : []),
+  ];
+}
+
+/**
+ * Where focus lands when a player's turn begins (or the board first shows it): the first card in their hand, far left,
+ * else the route's first stop, else nothing.
+ */
+export function turnStartFocus(hand: readonly InstanceId[], order: readonly FocusTarget[]): FocusTarget | null {
+  const first = hand[0];
+  // Only a stop the route has now: a decision open at turn start (paying, targeting) narrows the route to its answers.
+  if (first !== undefined && order.some((t) => t.kind === "card" && t.instanceId === first)) {
+    return { kind: "card", instanceId: first };
+  }
+  return order[0] ?? null;
+}
+
+/**
+ * The key of the turn the board shows: the round and whose player turn it is, or null with no player turn step (setup,
+ * the villain phase). Not the viewer's perspective, which also follows a pending choice's player and the seat tabs.
+ */
+export function turnKeyOf(game: {
+  readonly round: number;
+  readonly step: { readonly phase: string; readonly kind: string; readonly activePlayerId?: string };
+}): string | null {
+  const { step } = game;
+  if (step.phase !== "player" || step.kind !== "turn" || step.activePlayerId === undefined) return null;
+  return `${step.activePlayerId}|${game.round}`;
 }
 
 /** Moves focus by `delta`, wrapping. Returns the new index, or -1 when there is nothing to focus. */

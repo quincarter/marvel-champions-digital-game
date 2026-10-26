@@ -256,6 +256,9 @@ export const selectionRing = {
   glowWidth: 6,
   glowAlpha: accent.redGlowAlpha,
   pulseMs: 900,
+  /** A focus ring's edge under the red (pad / keyboard focus), so it still reads against a red button. */
+  focusEdge: 0xffffff,
+  focusEdgeExtra: 4,
 } as const;
 
 /**

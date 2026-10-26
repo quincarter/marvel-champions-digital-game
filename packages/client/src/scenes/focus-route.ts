@@ -24,7 +24,7 @@ import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
-import type { PadLayer } from "../view/pad-layer-bindings.js";
+import type { PadLayer, PickBumper } from "../view/pad-layer-bindings.js";
 import { activationTarget } from "../view/primary-activation.js";
 import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
@@ -120,6 +120,17 @@ export interface FocusRouteOptions {
    */
   readonly onTrigger?: (trigger: "lt" | "rt") => void;
   /**
+   * Direct picks (`view/pick-assign.ts`), for a screen whose options each wear a combo (the docked defend panel): a
+   * trigger's or a bumper's hold changes (for the glyphs), and a face button pressed under one picks.
+   */
+  readonly picks?: {
+    readonly onLayer: (layer: PadLayer | null) => void;
+    readonly onLayerPress: (layer: PadLayer, meaningIndex: number) => void;
+    readonly active: () => boolean;
+    readonly onBumper: (bumper: PickBumper | null) => void;
+    readonly onBumperPick: (bumper: PickBumper, meaningIndex: number) => void;
+  };
+  /**
    * Hold Inspect (Y, or E / O): true when the hold starts, false when it ends. A tap still inspects. A screen with a
    * card picture to enlarge shows the focused stop's card (`HoverPreview.pin`). Left out, Y is Inspect at once.
    */
@@ -213,7 +224,27 @@ export class FocusRoute {
     const binding = {
       ...(options.onInspectZoom ? { onInspectZoom: options.onInspectZoom } : {}),
       ...(options.zoomEnabled ? { zoomEnabled: options.zoomEnabled } : {}),
-      ...(onTrigger ? { onLayer: (layer: PadLayer | null) => (layer === null ? undefined : onTrigger(layer)) } : {}),
+      ...(onTrigger || options.picks
+        ? {
+            onLayer: (layer: PadLayer | null) => {
+              options.picks?.onLayer(layer);
+              if (layer !== null) onTrigger?.(layer);
+            },
+          }
+        : {}),
+      ...(options.picks
+        ? {
+            // With no pickable option on screen a combo is not used: the button keeps its own meaning.
+            onLayerPress: (layer: PadLayer, index: number) => {
+              if (!options.picks!.active()) return false;
+              options.picks!.onLayerPress(layer, index);
+              return true;
+            },
+            pickModifiers: () => options.picks!.active(),
+            onBumper: (bumper: PickBumper | null) => options.picks!.onBumper(bumper),
+            onBumperPick: (bumper: PickBumper, index: number) => options.picks!.onBumperPick(bumper, index),
+          }
+        : {}),
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       onScroll: (dx: number, dy: number, dtMs: number) => {
@@ -491,7 +522,7 @@ export class FocusRoute {
     if (!stop || this.#ringHidden) return;
     const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
     this.#ringRect = rect;
-    this.#ring = new McSelectionRing(this.#scene, this.#ringColor);
+    this.#ring = new McSelectionRing(this.#scene, this.#ringColor, true);
     this.#ring.show(rect, "static", true);
   }
 }

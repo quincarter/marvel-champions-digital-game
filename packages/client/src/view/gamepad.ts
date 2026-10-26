@@ -53,7 +53,9 @@ export type GamepadIntent =
   /** A tap of View on the Board: reopen the last villain phase recap (a hold is `view`, the log). */
   | "recap"
   /** The right stick's press (R3): Expand / Collapse a decision popup. */
-  | "expand";
+  | "expand"
+  /** The left stick's press (L3): the Board opens your discard pile (`view/input-shortcuts.ts` `discard`). */
+  | "discard";
 
 /**
  * Indices from the Web Gamepad API's "standard" layout, which browsers map
@@ -112,6 +114,7 @@ const INTENT_BY_BUTTON: Readonly<Record<number, GamepadIntent>> = {
   [GAMEPAD_BUTTON.menu]: "pause",
   [GAMEPAD_BUTTON.view]: "view",
   [GAMEPAD_BUTTON.r3]: "expand",
+  [GAMEPAD_BUTTON.l3]: "discard",
 };
 
 /**

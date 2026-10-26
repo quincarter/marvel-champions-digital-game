@@ -47,7 +47,7 @@ import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
-import { primaryPressOf, sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
+import { primaryPressOf, sameTarget, stepFocus, turnKeyOf, turnStartFocus, type FocusTarget } from "../view/focus.js";
 import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
 import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
 import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
@@ -97,7 +97,7 @@ import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits
 import { drawActionBar } from "./board/action-bar.js";
 import { specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
 import { abilityActionOfSlot, layerButtonGlyph, layerTriggerGlyph, type GlyphSpec } from "../view/input-glyph-model.js";
-import { abilityPageCount, abilityPageOf, abilitySlotOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
+import { abilityPageCount, abilityPageOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
 import type { LayerActionId } from "../view/pad-layer-bindings.js";
 import { layerMarkerSpot } from "../view/layer-marker.js";
 import { nextAbilityPage } from "../view/pad-layer-hold.js";
@@ -108,7 +108,14 @@ import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { glyphsFitLayout } from "../view/glyph-placement.js";
-import { KEY_PICK_SLOTS, PAD_PICK_SLOTS, pickIndexOfSlot, pickSlotOfDigit, pickWindow } from "../view/pick-assign.js";
+import {
+  KEY_PICK_SLOTS,
+  PAD_PICK_SLOTS,
+  padPickSlotOf,
+  pickIndexOfSlot,
+  pickSlotOfDigit,
+  pickWindow,
+} from "../view/pick-assign.js";
 import { escapeMeaning } from "../view/escape-meaning.js";
 import { guideHintText } from "../view/guide-hint.js";
 import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
@@ -293,6 +300,8 @@ export class BoardScene extends Phaser.Scene {
   #hover: HoverPreview | null = null;
   /** True while Inspect is held past the tap: the focused card shows enlarged (`#setZoom`). */
   #zoomOn = false;
+  /** Whose turn (and which round) focus was last put at the start of the hand for (`turnStartFocus`). */
+  #turnFocusKey: string | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -307,6 +316,8 @@ export class BoardScene extends Phaser.Scene {
     barStops: () => ({ count: this.#frame.barStops.length, cancel: this.#frame.focusRects.has("cancel") }),
     hasMusicStop: () => this.#frame.focusRects.has(focusKey({ kind: "music" })),
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
+    hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
+    openDiscard: () => this.#openMyDiscard(),
     pressBarStop: (index) => {
       const stop = this.#frame.barStops[index];
       if (stop?.enabled) stop.press();
@@ -457,6 +468,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabBadges.clear();
     this.#tabChanged.clear();
     this.#focus = null;
+    this.#turnFocusKey = null;
     this.#zoomOn = false;
     this.#controller.setUndoFocus(false);
     this.#focusRegion = "board";
@@ -555,6 +567,13 @@ export class BoardScene extends Phaser.Scene {
       // Card hover size "off" turns the zoom off with the mouse popover: a hold is then a tap.
       zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
       onLayerPress: (layer, index) => this.#pressLayer(layer, index),
+      // While a direct pick is open LB / RB are modifiers too, and a quick tap of one keeps its zone jump on release.
+      pickModifiers: () => this.#controller.pickIds() !== null,
+      onBumper: (bumper) => this.#hints.setBumper(bumper),
+      onBumperPick: (bumper, index) => {
+        const slot = padPickSlotOf(bumper, index);
+        if (slot !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
+      },
     };
     bindKeyboard(this, binding);
     this.#bindBoardShortcuts(binding);
@@ -826,6 +845,7 @@ export class BoardScene extends Phaser.Scene {
           POOL_DEPS,
         )
       : null;
+    this.#focusTurnStart(turnKeyOf(state.game));
     const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
     this.#teamUps = present.map((entry) => entry.pair);
     this.#teamUpPlayable = new Set(present.filter((entry) => entry.playable).map((entry) => entry.pair.key));
@@ -1655,6 +1675,26 @@ export class BoardScene extends Phaser.Scene {
     this.#drawFocusRing();
   }
 
+  /**
+   * A new turn on the board (the board's first state, the next hero's turn, the next round): focus goes back to the first
+   * card in that player's hand, far left, or to the route's first stop when the hand is empty (`view/focus.ts#turnStartFocus`).
+   * Not for touch, which has no ring to move. Sets the focus only; the state's own redraw follows.
+   */
+  #focusTurnStart(key: string | null): void {
+    // Keyed on the active player's turn (`turnKeyOf`), not the viewer: a pending choice or a seat tab moves that.
+    if (key === null || key === this.#turnFocusKey) return;
+    this.#turnFocusKey = key;
+    if (inputDevice().mode === "touch" || this.#focusRegion !== "board") return;
+    this.#focus = turnStartFocus(this.#model?.hand.map((card) => card.instanceId) ?? [], this.#controller.focusOrder());
+    this.#logFocused = false;
+    this.#controller.setUndoFocus(false);
+  }
+
+  /** L3 / 5 and a press on the discard stop: the pile view, as a click on the pile opens it. */
+  #openMyDiscard(): void {
+    if (this.#model) this.#openPile("Discard pile", this.#model.myDiscard);
+  }
+
   /** What one `GamepadIntent` does, shared by the keyboard and gamepad bindings. */
   #actOnIntent(intent: GamepadIntent): void {
     switch (intent) {
@@ -1699,6 +1739,9 @@ export class BoardScene extends Phaser.Scene {
         break;
       case "view":
         this.#toggleLogFocus();
+        break;
+      case "discard":
+        if (this.#focusRegion === "board" && !this.#controller.readOnly) this.#openMyDiscard();
         break;
       case "pageNext":
         this.#jumpZone(1);
@@ -1935,6 +1978,9 @@ export class BoardScene extends Phaser.Scene {
           // The keyboard route to the badge's click: the first active pair's panel.
           if (this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
           break;
+        case "discard":
+          this.#actOnIntent("discard");
+          break;
         case "evidence":
           // Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
           if (this.#hasEvidence()) this.#openEvidence();
@@ -2052,17 +2098,15 @@ export class BoardScene extends Phaser.Scene {
    * turn the page.
    */
   #pressLayer(layer: PadLayer, meaningIndex: number): void {
-    const action = layerActionOf(layer, meaningIndex);
-    if (action === null) return;
-    // While the Board asks who attacks or which target, RT's buttons pick that candidate outright (`view/pick-assign.ts`).
-    if (layer === "rt" && this.#controller.pickIds() !== null) {
-      const slot = abilitySlotOf(action);
+    // While the Board asks who attacks or which target, a trigger held with a face button picks that candidate outright
+    // (`view/pick-assign.ts`; the bumper combos are `onBumperPick`). The bumpers under a trigger do nothing then.
+    if (this.#controller.pickIds() !== null) {
+      const slot = padPickSlotOf(layer, meaningIndex);
       if (slot !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
-      else if (action === "pagePrevious" || action === "pageNext") {
-        this.#pagePicks(action === "pageNext" ? 1 : -1, PAD_PICK_SLOTS);
-      }
       return;
     }
+    const action = layerActionOf(layer, meaningIndex);
+    if (action === null) return;
     switch (action) {
       case "attack":
       case "thwart":
@@ -2094,11 +2138,16 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  /** The open choice's candidate on a slot of the page showing (A / X / Y / B under RT, a digit), as a tap on it. */
+  /**
+   * The open choice's candidate on a slot (a modifier and a face button on a pad, a digit on the keyboard), as a tap on
+   * it.
+   */
   #pickSlot(slot: number, size: number): boolean {
     const ids = this.#controller.pickIds();
     if (ids === null) return false;
-    const index = pickIndexOfSlot(pickWindow(ids.length, this.#controller.pickOffset(), size), slot);
+    // A pad never pages (its size is every combo there is); the keyboard's page is where the zone keys left it.
+    const offset = size === PAD_PICK_SLOTS ? 0 : this.#controller.pickOffset();
+    const index = pickIndexOfSlot(pickWindow(ids.length, offset, size), slot);
     return index !== null && this.#controller.pickByIndex(index);
   }
 
@@ -2475,7 +2524,7 @@ export class BoardScene extends Phaser.Scene {
     // The log has no stop to ring, so the ring goes round the panel; a tab or layout that no longer shows it ends the focus.
     if (this.#logFocused) {
       if (this.#logRect) {
-        this.#focusRing = new McSelectionRing(this);
+        this.#focusRing = new McSelectionRing(this, undefined, true);
         this.#focusRing.show(this.#logRect, "static", true);
         return null;
       }
@@ -2492,7 +2541,7 @@ export class BoardScene extends Phaser.Scene {
     }
     const rect = this.#frame.focusRects.get(focusKey(focus));
     if (!rect) return null;
-    this.#focusRing = new McSelectionRing(this);
+    this.#focusRing = new McSelectionRing(this, undefined, true);
     // Static, not pulsing: the ring says "here you are", not "act now".
     this.#focusRing.show(rect, "static", true);
     return focus.kind === "card" && glyphsFitLayout(this.#layout?.tabbed ?? true) ? rect : null;

@@ -32,6 +32,11 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
    layer as LT+LB and LT+RB (default picked; End turn always takes two buttons). The first trigger pulled owns the
    layer until it is released. On a Nintendo-layout pad with the Switch layout setting on, layer presses act by the
    printed label (decision 2), not by position: the button labelled A is the one that means A.
+   **Picking a target (the owner, 2026-10-26):** while the table asks "Choose a target" or "Who attacks?", and on the
+   decision popup's card tiles, every candidate wears its own combo and nothing pages: hold a modifier and press a face
+   button, in the order RT+A, RT+B, RT+X, RT+Y, LT+A..Y, RB+A..Y, LB+A..Y (16 in all; a candidate past the sixteenth has
+   no combo and stays reachable by focus). A bumper held as a modifier does not also jump zones: its tap fires on
+   release, and only if no face button was pressed under it. The keyboard keeps the digits 1-9, paged by the zone keys.
 10. **Keyboard is one-handed, left hand by default (the owner, 2026-10-24).** Move WASD, select Space, back Q, inspect E
     (hold to zoom), Z X C V Attack / Thwart / Recover / Change form (the LT layer), 1-4 card abilities (the RT layer; 1-3
     still answer an open choice bar), End turn Shift+Space, Undo Ctrl+Z, zones R up / F down, game log B, guide G,
@@ -86,14 +91,14 @@ Positional names (Xbox letters; PlayStation and Switch glyphs are drawn at the s
 | View / Select / −      |                                                                                                          | Tap: villain recap; hold: game log; on a decision popup, Peek at table           |
 | Right stick            | Scroll the list or row under focus (hand, log, lists)                                                    | same                                                                             |
 | R3 (right stick press) |                                                                                                          | Expand / Collapse a decision popup                                               |
-| L3                     | unbound (available to remap)                                                                             |                                                                                  |
+| L3 (left stick press)  |                                                                                                          | Open your discard pile (A on the pile, a stop after the hand, does the same)     |
 
 Start as forward, on every screen: a forward button is only pressed while it is ready, so a greyed Pay or a pick that
 can't be confirmed yet leaves Start to open Pause. The glyph beside each forward button shows Start.
 
 Keyboard on the board (one-handed, by physical key; the Keyboard hand setting mirrors it onto IJKL): **WASD** move,
 **Space** select, **Q** back, **E** inspect, **Z X C V** Attack / Thwart / Recover / Change form, **1-4** abilities,
-**Shift+Space** End turn, **Ctrl+Z** Undo, **R / F** previous / next zone, **B** villain recap, **Shift+B** game log.
+**Shift+Space** End turn, **Ctrl+Z** Undo, **R / F** previous / next zone, **B** villain recap, **Shift+B** game log, **5** (6 on IJKL) discard pile.
 
 ## Detection and glyph families
 

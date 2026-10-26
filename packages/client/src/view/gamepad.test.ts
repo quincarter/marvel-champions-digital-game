@@ -39,8 +39,8 @@ describe("gamepadIntentFor", () => {
     const intents = Object.values(GAMEPAD_BUTTON)
       .map((index) => gamepadIntentFor(index))
       .filter((intent): intent is GamepadIntent => intent !== null);
-    // LT and RT are hold layers (`view/pad-layers.ts`) and mean nothing alone; L3 and the home button are unbound.
-    expect(intents).toHaveLength(13);
+    // LT and RT are hold layers (`view/pad-layers.ts`) and mean nothing alone; the home button is unbound.
+    expect(intents).toHaveLength(14);
     expect(new Set(intents)).toEqual(
       new Set<GamepadIntent>([
         "up",
@@ -56,6 +56,7 @@ describe("gamepadIntentFor", () => {
         "pause",
         "view",
         "expand",
+        "discard",
       ]),
     );
   });

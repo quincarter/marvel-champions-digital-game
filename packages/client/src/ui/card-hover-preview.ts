@@ -33,6 +33,7 @@ import {
   type HoverCardIdRect,
   hoverWorthShowing,
   hoverCardSize,
+  HOVER_MARGIN,
   villainHoverArea,
   hoverPlacement,
   hoverStateLines,
@@ -151,6 +152,8 @@ export interface PinnedHover {
   readonly area: Rect;
   /** A plain card (a screen with no game: Set the table's modular tiles): `id` is then its card id and the face to show. */
   readonly plain?: { readonly face?: CardFace };
+  /** Show the card at least this tall (within `area`), for a screen whose cards are already as large as the setting's popover. */
+  readonly minHeight?: number;
 }
 
 export class HoverPreview {
@@ -168,6 +171,8 @@ export class HoverPreview {
   #shownId: string | null = null;
   #visual: Phaser.GameObjects.Container | null = null;
   #size: Size = { width: 0, height: 0 };
+  /** The pinned target's `minHeight` while its popover is being built. */
+  #minHeight = 0;
   /** A card pressed or scrolled over stays quiet until the pointer moves to another one. */
   #suppressed: string | null = null;
   #destroyed = false;
@@ -242,9 +247,11 @@ export class HoverPreview {
       return;
     }
     this.#clear();
+    this.#minHeight = target.minHeight ?? 0;
     const built = target.plain
       ? this.#buildPlain(target.id, target.plain.face, target.rect, target.area)
       : this.#build(target.id, target.rect, target.area, null);
+    this.#minHeight = 0;
     if (!built) return;
     this.#shownId = target.id;
     this.#waitingKey = built.waitingFor;
@@ -526,6 +533,11 @@ export class HoverPreview {
 
     const container = this.scene.add.container(0, 0).setDepth(HOVER_DEPTH);
     let size = hoverCardSize(onTable, aspect, scale, area);
+    if (this.#minHeight > size.height) {
+      const ratio = size.width / size.height;
+      const height = Math.min(this.#minHeight, area.height - HOVER_MARGIN * 2);
+      if (height > size.height) size = { width: height * ratio, height };
+    }
     let strip: Phaser.GameObjects.Text | null = null;
     let stripHeight = 0;
     const meterHeight = hp ? HP_PLATE_HEIGHT + 14 : scheme ? METER_HEIGHT + 14 : 0;

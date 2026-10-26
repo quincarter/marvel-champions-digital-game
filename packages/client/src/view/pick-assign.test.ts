@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   KEY_PICK_SLOTS,
   PAD_PICK_SLOTS,
+  padPickBinding,
+  padPickSlotOf,
   pagedOffset,
   pickIndexOfSlot,
   pickMoreText,
@@ -12,9 +14,10 @@ import {
 } from "./pick-assign.js";
 
 describe("pickWindow", () => {
-  it("holds four candidates on a pad page and nine on a keyboard page", () => {
+  it("holds sixteen candidates on a pad (every combo) and nine on a keyboard page", () => {
     expect(pickSlotsOf("pad")).toBe(PAD_PICK_SLOTS);
     expect(pickSlotsOf("keyboard")).toBe(KEY_PICK_SLOTS);
+    expect(PAD_PICK_SLOTS).toBe(16);
     expect(pickWindow(3, 0, 4)).toMatchObject({ start: 0, pageCount: 1, paged: false });
     expect(pickWindow(5, 0, 4)).toMatchObject({ start: 0, pageCount: 2, paged: true });
     expect(pickWindow(5, 4, 4)).toMatchObject({ start: 4, page: 1 });
@@ -81,5 +84,38 @@ describe("number keys", () => {
 describe("pickMoreText", () => {
   it("names the page", () => {
     expect(pickMoreText(pickWindow(9, 4, 4))).toBe("more ▸ 2/3");
+  });
+});
+
+describe("pad combos", () => {
+  it("fills RT, LT, RB, LB in turn with A, B, X, Y (standard indices 0, 1, 2, 3)", () => {
+    expect(padPickBinding(0)).toEqual({ modifier: "rt", index: 0 });
+    expect(padPickBinding(1)).toEqual({ modifier: "rt", index: 1 });
+    expect(padPickBinding(3)).toEqual({ modifier: "rt", index: 3 });
+    expect(padPickBinding(4)).toEqual({ modifier: "lt", index: 0 });
+    expect(padPickBinding(8)).toEqual({ modifier: "rb", index: 0 });
+    expect(padPickBinding(15)).toEqual({ modifier: "lb", index: 3 });
+  });
+
+  it("has no combo past the sixteenth or for a bad slot", () => {
+    expect(padPickBinding(16)).toBeNull();
+    expect(padPickBinding(-1)).toBeNull();
+    expect(padPickBinding(1.5)).toBeNull();
+  });
+
+  it("reads a press back to the slot it is, and is the inverse of the binding", () => {
+    for (let slot = 0; slot < PAD_PICK_SLOTS; slot++) {
+      const binding = padPickBinding(slot)!;
+      expect(padPickSlotOf(binding.modifier, binding.index)).toBe(slot);
+    }
+    expect(padPickSlotOf("rt", 4)).toBeNull();
+    expect(padPickSlotOf("lb", 7)).toBeNull();
+  });
+
+  it("gives candidates past the sixteenth no slot on the one pad window", () => {
+    const window = pickWindow(20, 0, PAD_PICK_SLOTS);
+    expect(pickIndexOfSlot(window, 15)).toBe(15);
+    expect(pickIndexOfSlot(window, 16)).toBeNull();
+    expect(pickSlotOfIndex(window, 16)).toBeNull();
   });
 });

@@ -27,9 +27,11 @@ import {
   triggerPull,
   type TriggerHold,
 } from "../../view/pad-layer-hold.js";
-import type { PadLayer } from "../../view/pad-layer-bindings.js";
+import { createBumperHold } from "../../view/pick-bumper.js";
+import { pickBumperOf, type PadLayer, type PickBumper } from "../../view/pad-layer-bindings.js";
 import { createInspectHold, type InspectHold } from "../../view/inspect-hold.js";
 import { createHoldTap } from "../../view/pad-hold-tap.js";
+import { createPressGuard } from "../../view/pad-press-guard.js";
 import { createPadRepeater, scrollDelta, stickDirection } from "../../view/pad-repeat.js";
 import type { FocusDirection } from "../../view/spatial-nav.js";
 import { notePadInput } from "../../platform/input-device.js";
@@ -53,9 +55,19 @@ export interface IntentBinding {
   onLayer?(layer: PadLayer | null): void;
   /**
    * A face button or bumper pressed while a layer is held, as its standard-layout meaning index (0-5, after the
-   * Nintendo swap). Left out, the press keeps its base intent.
+   * Nintendo swap). Left out, or returning false (it did not use the press), the press keeps its base intent.
    */
-  onLayerPress?(layer: PadLayer, meaningIndex: number): void;
+  onLayerPress?(layer: PadLayer, meaningIndex: number): boolean | void;
+  /**
+   * True while LB / RB are pick modifiers (a direct pick is open, `view/pick-assign.ts`). A bumper pressed then waits: a
+   * face button pressed under it calls `onBumperPick`, and the bumper's own meaning (a zone jump) fires on its release
+   * only when no face button was used, so a quick tap keeps its old meaning and a held one never also jumps.
+   */
+  pickModifiers?(): boolean;
+  /** The bumper held as a pick modifier, or null once it is let go (the glyphs drop its half of the combo). */
+  onBumper?(bumper: PickBumper | null): void;
+  /** A face button (standard-layout index 0-3) pressed under a held pick bumper. */
+  onBumperPick?(bumper: PickBumper, meaningIndex: number): void;
   /**
    * Splits View: a tap calls this (the Board reopens the villain phase recap) and a hold of about 400 ms sends the
    * `view` intent (the game log). Left out, View is the `view` intent the moment it is pressed, as on every other screen.
@@ -290,8 +302,25 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     return layer;
   };
   if (binding.onInspectZoom) inspectHoldOf(scene, binding);
+  // A bumper held as a pick modifier (`binding.pickModifiers`): its own intent waits for the release, unless used.
+  const bumperHold = createBumperHold();
+  const dropBumper = (): void => {
+    if (bumperHold.cancel()) binding.onBumper?.(null);
+  };
+  const meaningOfButton = (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button): number => {
+    const settings = appSession().settings;
+    const identity = identityOf(pad);
+    const swap = usesNintendoSwap(
+      resolvePadFamily(settings.padGlyphFamily, identity),
+      settings.nintendoLayout,
+      identity,
+    );
+    return physicalIndexOf(button.index, swap);
+  };
   const viewHold = createHoldTap();
   const VIEW_BUTTON = 8;
+  // The frames this screen was held: a sheet that switched this scene's input off leaves a stale `down` behind it.
+  const pressGuard = createPressGuard();
 
   gamepad.on("down", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
     if (!usable(pad)) return;
@@ -300,7 +329,13 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     if (systemChordHeld(pad)) return;
     // The D-pad is polled below, so a press isn't delivered twice.
     if (DPAD_INDICES.has(button.index)) return;
-    if (held()) return;
+    const frame = scene.game.loop.frame;
+    if (held()) {
+      pressGuard.noteHeld(frame);
+      return;
+    }
+    // A press that began while something owned the pad (this plugin was not polling then) is that owner's, not ours.
+    if (!pressGuard.allows(frame)) return;
     const settings = appSession().settings;
     const swap = usesNintendoSwap(
       resolvePadFamily(settings.padGlyphFamily, identity),
@@ -316,8 +351,25 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
       // The layer across every pad, not only the one pressed: a trigger on one pad and a button on another still counts.
       const layer = syncLayer(false);
       if (layer !== null) {
-        binding.onLayerPress(layer, meaning);
+        // A combo made under a held bumper is a use of it: its release must not also jump zones.
+        bumperHold.markUsed();
+        // A handler that reports false did not use the press: it falls through to the button's own meaning.
+        if (binding.onLayerPress(layer, meaning) !== false) return;
+      }
+    }
+    if (binding.pickModifiers?.()) {
+      const bumper = pickBumperOf(meaning);
+      if (bumper !== null) {
+        // The first bumper down is the modifier; a second is swallowed (it would be a zone jump under a combo).
+        if (bumperHold.press(pad.index, meaning, bumper, scene.time.now) === "held") binding.onBumper?.(bumper);
         return;
+      }
+      if (meaning >= 0 && meaning <= 3) {
+        const modifier = bumperHold.face();
+        if (modifier !== null) {
+          binding.onBumperPick?.(modifier, meaning);
+          return;
+        }
       }
     }
     const intent = gamepadIntentFor(meaning);
@@ -329,6 +381,16 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   });
 
   gamepad.on("up", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
+    if (bumperHold.held() !== null) {
+      const meaning = meaningOfButton(pad, button);
+      const result = bumperHold.release(pad.index, meaning, scene.time.now, binding.pickModifiers?.() === true);
+      if (result.released) {
+        binding.onBumper?.(null);
+        // A quick tap alone keeps its old meaning, now that it is let go.
+        const tapped = result.tap && !held() ? gamepadIntentFor(meaning) : null;
+        if (tapped) binding.onIntent(tapped);
+      }
+    }
     if (binding.onInspectZoom && usable(pad) && !DPAD_INDICES.has(button.index)) {
       const settings = appSession().settings;
       const identity = identityOf(pad);
@@ -386,6 +448,10 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
       if (touched) notePadInput(identity);
     }
     const blocked = held();
+    if (blocked) {
+      pressGuard.noteHeld(scene.game.loop.frame);
+      dropBumper();
+    }
     if (binding.onLayer || binding.onLayerPress) syncLayer(blocked);
     if (binding.onViewTap) {
       if (blocked) viewHold.cancel();

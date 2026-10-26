@@ -43,7 +43,12 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
     // Start is "forward" and ends the turn. Not `primary`: that would let A with nothing focused skip this confirm.
-    this.#route = new FocusRoute(this, { onCancel: () => this.#answer(false), onPause: () => this.#answer(true) });
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#answer(false),
+      onPause: () => this.#answer(true),
+      // End turn's glyph is A while it has the ring and Start otherwise: the ring moved, so read it again.
+      onFocusChange: () => this.#hints.refresh(),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hints.dispose();
       this.scale.off("resize", onResize, this);
@@ -115,6 +120,9 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
       }),
     );
     this.#hints.button(this.#buttons[0]!, ["cancel"], "paper");
+    this.#hints.button(this.#buttons[1]!, ["activate"], "ink", {
+      idsNow: (set) => (this.#route?.focused === "ok" ? ["activate"] : set === "pad" ? ["confirm"] : null),
+    });
     const stops = new Map([
       ["cancel", { rect: keepRect, activate: () => this.#answer(false) }],
       ["ok", { rect: endRect, activate: () => this.#answer(true) }],

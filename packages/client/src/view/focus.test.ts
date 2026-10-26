@@ -11,6 +11,8 @@ import {
   primaryPressOf,
   sameTarget,
   stepFocus,
+  turnKeyOf,
+  turnStartFocus,
   withBarStops,
   type FocusTarget,
 } from "./focus.js";
@@ -200,6 +202,33 @@ describe("a decision's bar on the route", () => {
       "confirmingAllianceHelp",
     ]);
     expect(withBarStops([], { count: 2, cancel: true }).map((target) => target.kind)).toEqual(["bar", "bar", "cancel"]);
+  });
+
+  test("the discard pile is a stop right after the hand, only while it has a card", () => {
+    const withPile = focusOrder({ kind: "idle", hand: [id("a"), id("b")], discard: true }, marksWith([]));
+    expect(withPile.slice(0, 3)).toEqual([
+      { kind: "card", instanceId: id("a") },
+      { kind: "card", instanceId: id("b") },
+      { kind: "discard" },
+    ]);
+    expect(focusOrder({ kind: "idle", hand: [id("a")] }, marksWith([])).some((t) => t.kind === "discard")).toBe(false);
+  });
+
+  test("a turn starts on the first card in hand, else the route's first stop, else nothing", () => {
+    const route: FocusTarget[] = [{ kind: "basic", action: "endTurn" }];
+    const withHand: FocusTarget[] = [{ kind: "card", instanceId: id("a") }, ...route];
+    expect(turnStartFocus([id("a"), id("b")], withHand)).toEqual({ kind: "card", instanceId: id("a") });
+    // A decision narrowed the route to its answers: the hand card is not a stop, so the route's first is.
+    expect(turnStartFocus([id("a")], route)).toEqual({ kind: "basic", action: "endTurn" });
+    expect(turnStartFocus([], route)).toEqual({ kind: "basic", action: "endTurn" });
+    expect(turnStartFocus([], [])).toBeNull();
+  });
+
+  test("the turn key is the active player's turn and round, null outside a player turn", () => {
+    const turn = { phase: "player", kind: "turn", activePlayerId: "p1" };
+    expect(turnKeyOf({ round: 2, step: turn })).toBe("p1|2");
+    expect(turnKeyOf({ round: 2, step: { ...turn, activePlayerId: "p2" } })).toBe("p2|2");
+    expect(turnKeyOf({ round: 2, step: { phase: "villain", kind: "boost" } })).toBeNull();
   });
 
   test("the music note ends the idle route", () => {

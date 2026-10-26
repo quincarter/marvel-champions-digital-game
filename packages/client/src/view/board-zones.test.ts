@@ -41,6 +41,10 @@ describe("zoneOfTarget", () => {
     expect(zoneOfTarget(card("teammate"), members)).toBeNull();
   });
 
+  it("reads the discard pile on the hand row as the hand's", () => {
+    expect(zoneOfTarget({ kind: "discard" }, members)).toBe("hand");
+  });
+
   it("puts the bar's controls and a decision's controls with the action bar", () => {
     for (const target of [basic("attack"), { kind: "undo" }, { kind: "cancel" }, { kind: "confirm" }] as const) {
       expect(zoneOfTarget(target, members)).toBe("actionBar");

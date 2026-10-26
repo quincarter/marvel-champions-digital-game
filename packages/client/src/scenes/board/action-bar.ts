@@ -102,7 +102,12 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   const stacked = rect.height >= hit.target + hit.primary;
   // Keys and base pad hints do not fit a phone's bar, but the LT layer's own buttons (A on Attack, LB on Undo, ...) are
   // pad-only and do, so a phone still gets them while a trigger is held.
-  const hintOptions = glyphsFitLayout(ctx.tabbed) ? {} : { when: (set: string) => set === "pad" };
+  // While a direct pick is open the pad's hold layers mean picks (LT + A picks a target, `view/pick-assign.ts`), so the
+  // bar's pad glyphs step aside rather than promise Attack or Undo.
+  const fits = glyphsFitLayout(ctx.tabbed);
+  const hintOptions = {
+    when: (set: string) => (fits || set === "pad") && (set !== "pad" || ctx.controller.pickIds() === null),
+  };
   // Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form: more than one destination is legal, so the
   // button can no longer say *which* way the flip goes — it opens the "Which form?" picker instead
   // (`view/change-form-choice.ts`, `controller-bar.ts`'s own `drawFormBar`).

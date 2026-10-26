@@ -52,7 +52,15 @@ export interface DefendPanelArgs {
     primary: string | null,
     primaryEnabled: boolean,
   ) => void;
+  /**
+   * Gives an option its direct-pick combo glyph (RT + A ...; `view/pick-assign.ts`). Called with the option's id and the
+   * row its glyph sits at the right end of; the option's title keeps clear of it. Absent where there are no glyphs.
+   */
+  readonly pickHint?: (optionId: string, row: Rect) => void;
 }
+
+/** Width an option's title leaves clear for its pick glyph. */
+export const DEFEND_PICK_RESERVE = 72;
 
 /** Below this a caption is not read at a glance across a phone; the tag then says less, larger. */
 const TAG_READABLE_SIZE = 12;
@@ -122,7 +130,7 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
   view.options.forEach((option, index) => {
     const slot = layout.options[index];
     if (!slot) return;
-    drawOption(scene, layout, slot, option, option.optionId === args.selected, game);
+    drawOption(scene, layout, slot, option, option.optionId === args.selected, game, args.pickHint);
     const zone = scene.add
       .zone(slot.x, slot.y, slot.width, slot.height)
       .setOrigin(0, 0)
@@ -342,6 +350,7 @@ function drawOption(
   option: DefendOptionView,
   selected: boolean,
   game: GameState,
+  pickHint?: DefendPanelArgs["pickHint"],
 ): void {
   const g = scene.add.graphics();
   paintPanel(g, slot, "card", selected ? "selected" : "rest");
@@ -353,7 +362,7 @@ function drawOption(
   const text = parts.text;
   const small = slot.height < 150;
   if (layout.dense) {
-    drawDenseOption(scene, text, option, selected);
+    drawDenseOption(scene, text, option, selected, pickHint);
     return;
   }
   let y = text.y;
@@ -363,7 +372,8 @@ function drawOption(
     selected ? `${option.title} ✓` : option.title,
     textStyle({ ...typeRole.rowTitle, size: small ? 13 : 16 }, surface.ink.hex),
   );
-  fitText(title, text.width, small ? 13 : 16);
+  fitText(title, pickHint ? text.width - DEFEND_PICK_RESERVE : text.width, small ? 13 : 16);
+  pickHint?.(option.optionId, { x: text.x, y, width: text.width, height: title.height });
   y += title.height + 2;
   const costLine =
     option.kind === "decline"
@@ -413,7 +423,13 @@ function drawOption(
 }
 
 /** The dense shape: the title and the damage on one line, what it exhausts and the HP left under it. */
-function drawDenseOption(scene: Phaser.Scene, text: Rect, option: DefendOptionView, selected: boolean): void {
+function drawDenseOption(
+  scene: Phaser.Scene,
+  text: Rect,
+  option: DefendOptionView,
+  selected: boolean,
+  pickHint?: DefendPanelArgs["pickHint"],
+): void {
   const damage = scene.add
     .text(
       text.x + text.width,
@@ -441,8 +457,10 @@ function drawDenseOption(scene: Phaser.Scene, text: Rect, option: DefendOptionVi
       costLine,
       textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, ink.secondary),
     )
-    .setWordWrapWidth(text.width)
+    .setWordWrapWidth(pickHint ? text.width - DEFEND_PICK_RESERVE : text.width)
     .setMaxLines(1);
+  // On the cost line, whose right end is free (the title line holds the damage).
+  pickHint?.(option.optionId, { x: text.x, y: cost.y, width: text.width, height: cost.height });
   const defeat = option.defeatAt !== null ? [`DEFEATED AT ${option.defeatAt}+`] : [];
   const full = [...(option.hpLine ? [option.hpLine.toUpperCase()] : []), ...defeat].join(" · ");
   const short = [...(option.hpLineShort ? [option.hpLineShort.toUpperCase()] : []), ...defeat].join(" · ");

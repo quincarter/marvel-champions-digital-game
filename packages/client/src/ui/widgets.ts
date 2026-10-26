@@ -569,6 +569,8 @@ export class McSelectionRing {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly color?: number,
+    /** A pad / keyboard focus ring (not a prompt or committed-choice ring): drawn with a white edge under the red. */
+    private readonly focus = false,
   ) {
     this.graphics = scene.add.graphics();
   }
@@ -585,6 +587,12 @@ export class McSelectionRing {
     this.graphics.clear().setVisible(true).setAlpha(1);
     this.graphics.lineStyle(glowWidth, color.hex, glowAlpha);
     this.graphics.strokeRect(outer.x - 2, outer.y - 2, outer.width + 4, outer.height + 4);
+    // A focus ring has a white edge under the red, so it still reads against a red button (End turn, Select, the
+    // commit buttons) and fills the gap between the two; on cream and ink the red stays the ring.
+    if (this.focus) {
+      this.graphics.lineStyle(width + selectionRing.focusEdgeExtra, selectionRing.focusEdge, 1);
+      this.graphics.strokeRect(outer.x, outer.y, outer.width, outer.height);
+    }
     this.graphics.lineStyle(width, color.hex, 1);
     this.graphics.strokeRect(outer.x, outer.y, outer.width, outer.height);
 

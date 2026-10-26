@@ -118,7 +118,10 @@
 import { GlyphHints } from "../ui/glyph-hints.js";
 import type { GlyphGround } from "../ui/input-glyph.js";
 import { primaryGlyphShown } from "../view/primary-activation.js";
+import { pickGlyphSpecs } from "../view/input-glyph-model.js";
+import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import { isSamePress } from "../view/press-settle.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
@@ -316,6 +319,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #primaryStop: string | null = null;
   /** The stop X (G) presses: the panel's second answer, or null when it has none right now. */
   #secondaryStop: string | null = null;
+  /** The docked defend panel's direct picks: the slot a combo means (`view/pick-assign.ts`) to what pressing it does. */
+  #pickTaps = new Map<number, () => void>();
   #route: FocusRoute | null = null;
   /**
    * What the pad's View and R3 (and the P and X keys) do on the docked decision this draw: its tuck / PEEK control and
@@ -379,6 +384,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #defendPick: { readonly choiceId: string; readonly optionId: string } | null = null;
   /** EXPAND on the docked recap: today's full-screen recap instead. */
   #recapExpanded = false;
+  /** The game frame EXPAND / COLLAPSE / PEEK last changed the decision's shape (`view/press-settle.ts`). */
+  #lastToggleFrame: number | null = null;
 
   constructor() {
     super({ key: SCENES.villainPhase });
@@ -465,6 +472,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         if (this.#secondaryStop !== null) this.#route?.pressStop(this.#secondaryStop);
       },
       onFocusChange: () => this.#hints.refresh(),
+      // The docked defend's options each wear a combo (RT + A ...): hold a trigger or a bumper and press a face button.
+      picks: {
+        onLayer: (layer) => this.#hints.setLayer(layer),
+        onLayerPress: (layer, index) => this.#pickTaps.get(padPickSlotOf(layer, index) ?? -1)?.(),
+        active: () => this.#pickTaps.size > 0,
+        onBumper: (bumper) => this.#hints.setBumper(bumper),
+        onBumperPick: (bumper, index) => this.#pickTaps.get(padPickSlotOf(bumper, index) ?? -1)?.(),
+      },
       // Start is "forward": it starts the phase (or continues) when that gate is up, and opens Pause otherwise.
       onPause: () => {
         if (!this.#route?.pressPrimary()) openPauseOverBoard(this);
@@ -635,12 +650,22 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * sheet forwards its own View here when the decision is docked, because it owns the pad while it is up.
    */
   padPeek(): void {
+    if (this.#sameToggle()) return;
     this.#padPeek?.();
   }
 
   /** The pad's R3 (or X): EXPAND on the docked decision, recap or defend, the same call its control makes. */
   padExpand(): void {
+    if (this.#sameToggle()) return;
     this.#padExpand?.();
+  }
+
+  /** True when this press is one the choice sheet already acted on in the same poll; stamps the time otherwise. */
+  #sameToggle(): boolean {
+    const frame = this.game.loop.frame;
+    if (isSamePress(this.#lastToggleFrame, frame)) return true;
+    this.#lastToggleFrame = frame;
+    return false;
   }
 
   /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
@@ -1375,6 +1400,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#hints.reset();
+    this.#pickTaps.clear();
     this.#primaryStop = null;
     this.#secondaryStop = null;
     this.#padPeek = null;
@@ -1853,6 +1879,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * EXPANDed decision comes back docked when the player returns to it.
    */
   #collapse(choiceId: string, tucked: boolean): void {
+    this.#lastToggleFrame = this.game.loop.frame;
     if (this.#userExpanded.has(choiceId)) {
       this.#expanded.delete(choiceId);
       this.#userExpanded.delete(choiceId);
@@ -1949,6 +1976,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       buttons: this.#buttons,
       decider: game.players.length > 1 ? seatHeadingName(playerName(game, choice.playerId)) : null,
       hint: (button, ids, primary, enabled) => this.#hintButton(button, ids, "ink", primary, enabled),
+      ...(glyphsFitFormFactor(formFactorFor(this.scale.gameSize.width, this.scale.gameSize.height))
+        ? {
+            pickHint: (optionId: string, row: Rect) => {
+              const slot = choice.options.findIndex((o) => o.optionId === optionId);
+              this.#registerPick(slot, row, () => this.#pickDefender(choiceId, optionId));
+            },
+          }
+        : {}),
     });
     this.#route?.set(villainDefendFocusOrder(view.options.map((option) => option.optionId)), stops);
     if (import.meta.env.DEV) {
@@ -3366,6 +3401,19 @@ export class VillainPhaseOverlay extends Phaser.Scene {
                   ? ["confirm"]
                   : null,
           },
+    );
+  }
+
+  /** A direct-pick combo (`view/pick-assign.ts`) for the option at `slot`, its glyph at the right end of `row`. */
+  #registerPick(slot: number, row: Rect, tap: () => void): void {
+    if (slot < 0 || padPickBinding(slot) === null) return;
+    this.#pickTaps.set(slot, tap);
+    this.#hints.custom(
+      (set, snapshot, _layer, held) =>
+        set === "pad" ? pickGlyphSpecs(slot, snapshot.state, snapshot.settings, held) : null,
+      18,
+      ({ width, height }) => ({ x: row.x + row.width - width - 2, y: row.y + Math.max(row.height, height) / 2 }),
+      { ground: "ink" },
     );
   }
 

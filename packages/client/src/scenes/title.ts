@@ -72,6 +72,7 @@ import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
@@ -139,6 +140,8 @@ export class TitleScene extends Phaser.Scene {
   /** "Rank up: <title>" while the badge shows the fanfare (a few seconds after the Title opens), else null. */
   #rankUp: string | null = null;
   #route: FocusRoute | null = null;
+  /** The scene's glyph hints (pad and keyboard only): R3 / F jumps to the in-progress games. */
+  #hints: GlyphHints | null = null;
   /** The Trophy Room hand-off drawn this rebuild (its button and the rank tile press it), for the View button. */
   #openTrophies: (() => void) | null = null;
   #stops = new Map<string, FocusStop>();
@@ -157,6 +160,7 @@ export class TitleScene extends Phaser.Scene {
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
+    this.#hints = new GlyphHints(this);
     // The footer says when power saving mode is on (`platform/power-saving.ts`).
     const unsubscribePowerSaving = onPowerSavingChange(() => {
       if (this.sys.isActive()) this.#rebuild();
@@ -170,12 +174,24 @@ export class TitleScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       unsubscribePowerSaving();
       unsubscribeSync();
+      this.#hints?.dispose();
+      this.#hints = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.gamesList),
+      // R3 (and the Expand key, F / ;) snaps focus to the in-progress games, ready to scroll.
+      onExpand: () => {
+        if (this.#starting) return;
+        // The first game's Resume, else the games row, else the remove question's "Keep it"; none of them a stop
+        // (no games, nothing listed): leave focus where it is, as focusKey would drop it.
+        const stop =
+          [...this.#stops.keys()].find((key) => key.startsWith("game:")) ??
+          ["games-row", "remove-keep"].find((key) => this.#stops.has(key));
+        if (stop) this.#route?.focusKey(stop);
+      },
       // View / Back (and the Peek key) is the Trophy Room, the same as its button.
       onView: () => {
         if (!this.#starting) this.#openTrophies?.();
@@ -313,6 +329,7 @@ export class TitleScene extends Phaser.Scene {
     this.#buttons = [];
     this.#stops = new Map();
     destroyChildren(this);
+    this.#hints?.reset();
 
     const { width, height } = this.scale.gameSize;
     const civilWar = civilWarTitleEntryOf(unlocks().waveLock(CIVIL_WAR_CYCLE_ID), POOL_SCENARIOS);
@@ -449,6 +466,7 @@ export class TitleScene extends Phaser.Scene {
           onClick: () => this.#openGamesList(),
         }),
       );
+      this.#hints?.button(this.#buttons.at(-1)!, ["expand"], "ink");
       // A decorative tag at the row's right end, over the button but taking no press.
       if (layout.gamesRow.width >= 300) {
         const row = layout.gamesRow;
@@ -697,7 +715,9 @@ export class TitleScene extends Phaser.Scene {
         textStyle(typeRole.sectionHeader, surface.paper.hex),
       )
       .setLetterSpacing(1);
-    drawBetaTagBeside(this, heading, list.x + list.width);
+    // The R3 glyph owns the header's right end; the Beta tag stops short of it (about 56px for glyph and gap).
+    drawBetaTagBeside(this, heading, list.x + list.width - 56);
+    this.#hints?.rightInRow(panel, panel.y + 12, GAMES_PANEL_HEADER, 14, ["expand"], 20);
     const confirming = this.#removing === null ? null : (rows.find((row) => row.id === this.#removing) ?? null);
     const drawn = drawGamesList(this, {
       area: list,

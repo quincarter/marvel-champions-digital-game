@@ -64,3 +64,21 @@ export function layerBindingOf(action: LayerActionId): { readonly layer: PadLaye
   }
   return null;
 }
+
+/**
+ * A button held to pick a target outright (`view/pick-assign.ts`): the two triggers (the hold layers) and the two bumpers.
+ * A bumper held this way does not also jump zones: its tap fires on release, and only when no face button was pressed
+ * under it (`scenes/board/input.ts`).
+ */
+export type PickModifier = "rt" | "lt" | "rb" | "lb";
+
+/** The bumpers a pick may hold. */
+export type PickBumper = "rb" | "lb";
+
+/** The standard-layout index of each pick modifier (LB 4, RB 5, LT 6, RT 7). */
+export const PICK_MODIFIER_INDEX: Readonly<Record<PickModifier, number>> = { lb: 4, rb: 5, lt: 6, rt: 7 };
+
+/** The bumper a standard-layout index is, or null. */
+export function pickBumperOf(meaningIndex: number): PickBumper | null {
+  return meaningIndex === 4 ? "lb" : meaningIndex === 5 ? "rb" : null;
+}

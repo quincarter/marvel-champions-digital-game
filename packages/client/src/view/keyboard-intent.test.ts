@@ -163,6 +163,15 @@ describe("boardKeyActionOf", () => {
     expect(boardKeyActionOf(key("KeyE"), "left")).toBeNull();
   });
 
+  it("opens the discard pile on 5 left-handed and 6 right-handed", () => {
+    expect(boardKeyActionOf(key("Digit5"), "left")).toEqual({ kind: "discard" });
+    expect(boardKeyActionOf(key("Digit6"), "right")).toEqual({ kind: "discard" });
+    expect(boardKeyActionOf(key("Digit6"), "left")).toBeNull();
+    expect(boardKeyActionOf(key("Digit5"), "right")).toBeNull();
+    // A held key does not reopen it.
+    expect(boardKeyActionOf(key("Digit5", { repeat: true }), "left")).toBeNull();
+  });
+
   it("numbers the abilities 1-4 left-handed and 7-0 right-handed", () => {
     expect(["Digit1", "Digit2", "Digit3", "Digit4"].map((c) => boardKeyActionOf(key(c), "left"))).toEqual([
       { kind: "ability", slot: 0 },
