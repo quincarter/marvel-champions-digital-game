@@ -553,6 +553,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/the-raft-breakout/battle.mp3": "Riot on the Raft",
   "scenarios/the-raft-breakout/villain-wins.mp3": "Every Cell Open",
   "scenarios/the-raft-breakout/villain-loses.mp3": "The Raft Holds",
+  "scenarios/stop-the-presses/battle.mp3": "Ink and Gunfire",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
