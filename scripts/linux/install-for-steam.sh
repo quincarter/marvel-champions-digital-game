@@ -27,7 +27,8 @@ REPO="quincarter/marvel-champions-digital-game"
 ART_REF="__MC_RELEASE_TAG__"
 case "$ART_REF" in __*) ART_REF="main" ;; esac
 
-APP_NAME="Marvel Champions"
+# The shortcut's name: what Steam, Big Picture and status plugins (Discord via Decky) show.
+APP_NAME="Marvel Champions Digital Edition"
 INSTALL_DIR="$HOME/Applications/MarvelChampions"
 INSTALLED="$INSTALL_DIR/MarvelChampions.AppImage"
 ART_FILES=(icon.png portrait.jpg wide.jpg hero.jpg logo.png)
@@ -141,12 +142,12 @@ fi
 
 # The Python half: reads and writes Steam's binary shortcuts.vdf, and works out the shortcut's id the way Steam does,
 # which names its art in the grid folder. Arguments: <command> <shortcuts.vdf> <exe> <name> [start dir] [icon]
-# [launch options] [variables to drop]. "add" prints the shortcut's grid id and, after a tab, the launch options it
-# wrote: the given ones, plus whatever the earlier entry had that the script doesn't manage (a player's own additions).
-# "remove" prints the grid ids of the entries it took out.
+# [launch options] [variables to drop]. "add" prints, tab-separated, the shortcut's grid id, the launch options it
+# wrote (the given ones, plus what the earlier entry had that the script doesn't manage: a player's own additions) and
+# the grid ids of the other entries for this game it replaced. "remove" prints the grid ids of the entries it took out.
 vdf_tool() {
   python3 - "$@" << 'PY'
-import os, struct, sys, zlib
+import os, re, struct, sys, zlib
 
 cmd, path, exe, name = sys.argv[1:5]
 rest = sys.argv[5:]
@@ -196,8 +197,16 @@ quoted = f'"{exe}"'
 grid_id = (zlib.crc32((quoted + name).encode()) & 0xFFFFFFFF) | 0x80000000
 signed_id = grid_id - (1 << 32)
 
+# This game's entry under any name it has had: this script's, its first draft's ("Marvel Champions"), or one added by
+# hand, which Steam names after the AppImage file (Marvel-Champions-PR401-...-x86_64.AppImage).
+appimage = re.compile(r"(?i)^marvel-?champions.*\.appimage$")
+
 def ours(entry):
-    return quoted in (entry.get("Exe"), entry.get("exe")) or name in (entry.get("AppName"), entry.get("appname"))
+    exe = entry.get("Exe") or entry.get("exe") or ""
+    app = entry.get("AppName") or entry.get("appname") or ""
+    if exe == quoted or app in (name, "Marvel Champions"):
+        return True
+    return bool(appimage.match(os.path.basename(exe.strip('"'))) or appimage.match(app))
 
 kept = [e for e in shortcuts.values() if not ours(e)]
 previous = next((e for e in shortcuts.values() if ours(e)), None)
@@ -244,11 +253,12 @@ if cmd == "add" or previous is not None:
         f.write(body)
     os.replace(tmp, path)
 
+# The grid ids of every entry taken out, to delete their art (an entry under another name has its art under another
+# id).
+removed = {e["appid"] & 0xFFFFFFFF for e in shortcuts.values() if ours(e) and "appid" in e} - {grid_id}
 if cmd == "add":
-    print(f"{grid_id}	{launch}")
+    print(grid_id, launch, " ".join(map(str, removed)), sep="\t")
 else:
-    # The grid ids of every entry taken out, to delete their art.
-    removed = {e["appid"] & 0xFFFFFFFF for e in shortcuts.values() if ours(e) and "appid" in e}
     print(" ".join(str(i) for i in removed | {grid_id}))
 PY
 }
@@ -373,10 +383,12 @@ for user in "${users[@]}"; do
   icon=""
   [ -f "$INSTALL_DIR/icon.png" ] && icon="$INSTALL_DIR/icon.png"
   result="$(vdf_tool add "$config/shortcuts.vdf" "$INSTALLED" "$APP_NAME" "$INSTALL_DIR" "$icon" "$launch" "$drop")"
-  id="${result%%$'	'*}"
-  written="${result#*$'	'}"
+  IFS=$'\t' read -r id written replaced <<< "$result"
   grid="$config/grid"
   mkdir -p "$grid"
+  for old in $replaced; do
+    rm -f "$grid/${old}p.jpg" "$grid/${old}.jpg" "$grid/${old}_hero.jpg" "$grid/${old}_logo.png" "$grid/${old}_icon.png"
+  done
   # Steam's names for a shortcut's library art: <id>p portrait, <id> wide, <id>_hero, <id>_logo, <id>_icon.
   [ -f "$art_dir/portrait.jpg" ] && cp -f "$art_dir/portrait.jpg" "$grid/${id}p.jpg"
   [ -f "$art_dir/wide.jpg" ] && cp -f "$art_dir/wide.jpg" "$grid/${id}.jpg"

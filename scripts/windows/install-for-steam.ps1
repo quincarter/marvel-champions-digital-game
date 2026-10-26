@@ -33,6 +33,8 @@ $Repo = "quincarter/marvel-champions-digital-game"
 $ArtRef = "__MC_RELEASE_TAG__"
 if ($ArtRef.StartsWith("__")) { $ArtRef = "main" }
 $AppName = "Marvel Champions"
+# The shortcut's name: what Steam, Big Picture and status plugins (Discord) show.
+$ShortcutName = "Marvel Champions Digital Edition"
 $ExeName = "marvel-champions.exe"
 $ArtFiles = @("icon.png", "portrait.jpg", "wide.jpg", "hero.jpg", "logo.png")
 
@@ -156,7 +158,11 @@ function Update-Shortcuts([string]$file, [string]$quotedExe, $entry) {
   $changed = $null -ne $entry
   foreach ($field in $shortcuts) {
     $exe = Get-VdfField $field[2] "Exe"
-    if ($exe -eq $quotedExe -or (Get-VdfField $field[2] "AppName") -eq $AppName) {
+    # This game's entry under any name it has had (the script's first draft named it "Marvel Champions"), or one added
+    # by hand, which points at the same marvel-champions.exe.
+    $name = Get-VdfField $field[2] "AppName"
+    $target = if ($exe) { Split-Path -Leaf $exe.Trim('"') } else { "" }
+    if ($exe -eq $quotedExe -or $name -eq $ShortcutName -or $name -eq $AppName -or $target -ieq $ExeName) {
       $changed = $true
       $oldId = Get-VdfField $field[2] "appid"
       if ($null -ne $oldId) { $removed += [uint32]([int64]$oldId -band 4294967295) }
@@ -222,7 +228,7 @@ if ($Uninstall) {
 }
 
 $quotedExe = '"' + $Path + '"'
-$gridId = [uint32]((Get-Crc32 ([System.Text.Encoding]::UTF8.GetBytes($quotedExe + $AppName))) -bor [uint32]2147483648)
+$gridId = [uint32]((Get-Crc32 ([System.Text.Encoding]::UTF8.GetBytes($quotedExe + $ShortcutName))) -bor [uint32]2147483648)
 $signedId = [int32]([int64]$gridId - 4294967296)
 
 if ($Uninstall) {
@@ -234,7 +240,7 @@ if ($Uninstall) {
       }
     }
   }
-  Write-Host "Removed $AppName from Steam. Start Steam again to see the change."
+  Write-Host "Removed $ShortcutName from Steam. Start Steam again to see the change."
   exit 0
 }
 
@@ -276,16 +282,22 @@ foreach ($user in $users) {
   if (-not (Test-Path $icon)) { $icon = $Path }
   $entry = New-Object System.Collections.ArrayList
   foreach ($field in @(
-      @("appid", 2, $signedId), @("AppName", 1, $AppName), @("Exe", 1, $quotedExe),
+      @("appid", 2, $signedId), @("AppName", 1, $ShortcutName), @("Exe", 1, $quotedExe),
       @("StartDir", 1, ('"' + (Split-Path $Path) + '\"')), @("icon", 1, $icon), @("ShortcutPath", 1, ""),
       @("LaunchOptions", 1, ""), @("IsHidden", 2, 0), @("AllowDesktopConfig", 2, 1), @("AllowOverlay", 2, 1),
       @("OpenVR", 2, 0), @("Devkit", 2, 0), @("DevkitGameID", 1, ""), @("DevkitOverrideAppID", 2, 0),
       @("LastPlayTime", 2, 0), @("FlatpakAppID", 1, ""), @("tags", 0, (New-Object System.Collections.ArrayList))
     )) { [void]$entry.Add($field) }
-  [void](Update-Shortcuts (Join-Path $config "shortcuts.vdf") $quotedExe $entry)
-  Write-Host "Added $AppName to Steam user $($user.Name)."
+  # An entry it replaced under another name has its art under another id.
+  foreach ($old in @(Update-Shortcuts (Join-Path $config "shortcuts.vdf") $quotedExe $entry)) {
+    if ($old -eq $gridId) { continue }
+    foreach ($name in @("${old}p.jpg", "${old}.jpg", "${old}_hero.jpg", "${old}_logo.png", "${old}_icon.png")) {
+      Remove-Item (Join-Path $grid $name) -ErrorAction SilentlyContinue
+    }
+  }
+  Write-Host "Added $ShortcutName to Steam user $($user.Name)."
 }
 if ($temp) { Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue }
 
 Write-Host ""
-Write-Host "Done. Start Steam: $AppName is in your library."
+Write-Host "Done. Start Steam: $ShortcutName is in your library."

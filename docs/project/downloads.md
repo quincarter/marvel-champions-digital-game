@@ -22,8 +22,9 @@ Title screen when one exists. The web app always runs the latest version.
 
 Each release has an "Install for Steam" script for Windows, macOS and Linux. It adds the installed game to Steam as a
 non-Steam game, with its icon and library art (the grid, wide and Big Picture banners), so it plays from your library
-and Big Picture with a controller. Running it again updates the entry instead of adding a second one, and keeps its
-collections and play time. Steam has to be closed while it runs; the script offers to close it.
+and Big Picture with a controller. The entry is named "Marvel Champions Digital Edition", which is what Steam and status
+plugins such as Discord show. Running it again updates the entry instead of adding a second one, keeps its collections
+and play time, and also replaces an entry you added by hand (named after the AppImage or exe file). Steam has to be closed while it runs; the script offers to close it.
 
 - **Windows**: install the game, then download `-Windows-Install-for-Steam.ps1` and run, in PowerShell (`-File`
   takes no wildcards, so this looks the file up first):

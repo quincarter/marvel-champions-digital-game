@@ -24,6 +24,8 @@ ART_REF="__MC_RELEASE_TAG__"
 case "$ART_REF" in __*) ART_REF="main" ;; esac
 
 APP_NAME="Marvel Champions"
+# The shortcut's name: what Steam, Big Picture and status plugins (Discord) show.
+SHORTCUT_NAME="Marvel Champions Digital Edition"
 BUNDLE_ID="com.quincarter.marvelchampions"
 ART_FILES=(icon.png portrait.jpg wide.jpg hero.jpg logo.png)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -166,7 +168,11 @@ my $grid = (crc32($quoted . $name) | 0x80000000) & 0xFFFFFFFF;
 my (@kept, @removed, $previous);
 for my $s (@$shortcuts) {
   my $e = $s->[2];
-  if ((field($e, "Exe") // "") eq $quoted || (field($e, "AppName") // "") eq $name) {
+  # This game s entry under any name it has had (the first draft named it "Marvel Champions"), or one added by hand,
+  # which points at the same app.
+  my ($target, $title) = (field($e, "Exe") // "", field($e, "AppName") // "");
+  (my $leaf = $target) =~ s{^"|"$}{}g; $leaf =~ s{/+$}{}; $leaf =~ s{.*/}{};
+  if ($target eq $quoted || $title eq $name || $title eq "Marvel Champions" || $leaf eq "Marvel Champions.app") {
     $previous //= $e;
     my $id = field($e, "appid"); push @removed, $id & 0xFFFFFFFF if defined $id;
   } else { push @kept, $e }
@@ -197,11 +203,11 @@ if [ "$uninstall" = 1 ]; then
   for user in "${users[@]}"; do
     config="$steam_root/userdata/$user/config"
     [ -f "$config/shortcuts.vdf" ] || continue
-    for id in $(vdf_tool remove "$config/shortcuts.vdf" "$app" "$APP_NAME"); do
+    for id in $(vdf_tool remove "$config/shortcuts.vdf" "$app" "$SHORTCUT_NAME"); do
       while read -r file; do rm -f "$config/grid/$file"; done < <(art_names "$id")
     done
   done
-  say "Removed $APP_NAME from Steam. Start Steam again to see the change."
+  say "Removed $SHORTCUT_NAME from Steam. Start Steam again to see the change."
   exit 0
 fi
 
@@ -233,7 +239,7 @@ for user in "${users[@]}"; do
   mkdir -p "$grid"
   # The shortcut's grid id, as vdf_tool works it out, to name the art before the entry that points at the icon.
   id="$(perl -MCompress::Zlib=crc32 -e 'print((crc32("\"$ARGV[0]\"" . $ARGV[1]) | 0x80000000) & 0xFFFFFFFF)' \
-    "$app" "$APP_NAME")"
+    "$app" "$SHORTCUT_NAME")"
   # Steam's names for a shortcut's library art: <id>p portrait, <id> wide, <id>_hero, <id>_logo, <id>_icon.
   [ -f "$art_dir/portrait.jpg" ] && cp -f "$art_dir/portrait.jpg" "$grid/${id}p.jpg"
   [ -f "$art_dir/wide.jpg" ] && cp -f "$art_dir/wide.jpg" "$grid/${id}.jpg"
@@ -244,9 +250,13 @@ for user in "${users[@]}"; do
     cp -f "$art_dir/icon.png" "$grid/${id}_icon.png"
     icon="$grid/${id}_icon.png"
   fi
-  vdf_tool add "$config/shortcuts.vdf" "$app" "$APP_NAME" "$(dirname "$app")/" "$icon" > /dev/null
-  say "Added $APP_NAME to Steam user $user."
+  # The first id printed is this entry's; the rest are entries it replaced, whose art is under other ids.
+  for old in $(vdf_tool add "$config/shortcuts.vdf" "$app" "$SHORTCUT_NAME" "$(dirname "$app")/" "$icon"); do
+    [ "$old" = "$id" ] && continue
+    while read -r file; do rm -f "$grid/$file"; done < <(art_names "$old")
+  done
+  say "Added $SHORTCUT_NAME to Steam user $user."
 done
 
 say ""
-say "Done. Start Steam: $APP_NAME is in your library."
+say "Done. Start Steam: $SHORTCUT_NAME is in your library."
