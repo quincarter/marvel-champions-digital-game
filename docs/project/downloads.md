@@ -33,8 +33,9 @@ collections and play time. Steam has to be closed while it runs; the script offe
 - **Linux, Steam Deck and Bazzite**: download the `.AppImage` and `-Linux-Install-for-Steam.sh` (on a Steam Deck, in
   Desktop Mode), then run `bash ~/Downloads/MarvelChampions-*-Linux-Install-for-Steam.sh`. It takes the newest
   AppImage from Downloads (or downloads the latest), installs it to `~/Applications/MarvelChampions/`, works with
-  native and Flatpak Steam on any distro, and sets the [launch options](#linux-launch-options) below in the Steam
-  entry. Launch options you add or change in Steam yourself are kept when you run it again for a new version.
+  native and Flatpak Steam on any distro (without libfuse2 it adds `APPIMAGE_EXTRACT_AND_RUN=1` to the launch
+  options so the AppImage still starts). The app sets the [launch options](#linux-launch-options) below itself, so the
+  entry doesn't need them. Launch options you add in Steam yourself are kept when you run it again for a new version.
 
 Every script takes `--help` (`-?` on Windows) and an uninstall option (`--uninstall`, or `-Uninstall` on Windows) that
 removes the Steam entry and its art. The scripts live in `scripts/linux/`, `scripts/macos/` and `scripts/windows/`;

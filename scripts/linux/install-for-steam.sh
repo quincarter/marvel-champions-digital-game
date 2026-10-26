@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Install for Steam: adds the Marvel Champions AppImage to Steam as a non-Steam game, with the game's icon and
-# library art and the launch options it needs on Linux, so it plays from the library, Big Picture and the Steam Deck's
-# Game Mode.
+# library art, so it plays from the library, Big Picture and the Steam Deck's Game Mode.
 #
 #   bash install-for-steam.sh [options] [path/to/MarvelChampions-<version>-Linux-x64.AppImage]
 #
@@ -210,7 +209,7 @@ if cmd == "add":
         before, sep, after = previous.get("LaunchOptions", "").partition("%command%")
         key = lambda t: t.split("=", 1)[0]
         dropped = set(drop.split())
-        old = {key(t): t for t in before.split() if key(t) not in dropped}
+        old = {key(t): t for t in before.split() if key(t) not in dropped and t not in dropped}
         given = [old.pop(key(t), t) for t in launch.split("%command%")[0].split()]
         launch = " ".join(given + list(old.values()) + ["%command%"]) + (after if sep else "")
     entry = {
@@ -332,13 +331,14 @@ fi
 
 # --- Launch options --------------------------------------------------------------------------------------------------
 
-# The app sets these itself on Linux unless they're already set (src-tauri/src/main.rs); they're repeated here so the
-# Steam entry shows them and a player can change them under the game's Properties.
-options=(PULSE_LATENCY_MSEC=90 WEBKIT_DISABLE_DMABUF_RENDERER=1)
-# Variables the script decides each run, so an earlier run's value doesn't linger in the entry. The script's first
-# draft set NO_AT_BRIDGE and, on request, WEBKIT_DISABLE_COMPOSITING_MODE; neither stopped the Bazzite freeze (#401),
-# so a re-run takes them out.
-drop="APPIMAGE_EXTRACT_AND_RUN NO_AT_BRIDGE WEBKIT_DISABLE_COMPOSITING_MODE"
+# The app sets the WebKitGTK and audio variables it needs itself (src-tauri/src/main.rs), so the entry only gets what
+# this system needs to run an AppImage at all.
+options=()
+# Variables the script decides each run, so an earlier run's value doesn't linger in the entry, and what its drafts
+# set while #401 chased the Bazzite freeze (none of it stopped the freeze): a variable, or one exact setting of it so a
+# player's own value stays.
+drop="APPIMAGE_EXTRACT_AND_RUN NO_AT_BRIDGE WEBKIT_DISABLE_COMPOSITING_MODE GDK_BACKEND=x11 PULSE_LATENCY_MSEC=90"
+drop="$drop WEBKIT_DISABLE_DMABUF_RENDERER=1"
 
 # An AppImage mounts itself with FUSE 2. Without libfuse2 (newer Ubuntu and Debian, Flatpak Steam's sandbox) it can
 # still run by unpacking itself to /tmp at each launch, which is a few seconds slower.
@@ -358,7 +358,7 @@ fi
 if [ "$steam_kind" = flatpak ] || [ "$fuse_ok" = 0 ]; then
   options+=(APPIMAGE_EXTRACT_AND_RUN=1)
 fi
-launch="${options[*]} %command%"
+launch="${options[*]:+${options[*]} }%command%"
 
 if [ "$steam_kind" = flatpak ]; then
   # Flatpak Steam can only see the folders it is given.
