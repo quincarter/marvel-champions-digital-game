@@ -541,6 +541,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/resistance-spider-woman/battle.mp3": "Gone Underground",
   "scenarios/resistance-spider-woman/villain-wins.mp3": "Caught in the Web",
   "scenarios/resistance-spider-woman/villain-loses.mp3": "Neighborhood Watch",
+  "scenarios/art-museum-heist/battle.mp3": "Gallery After Hours",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
