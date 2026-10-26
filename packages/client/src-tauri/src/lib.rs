@@ -2,6 +2,7 @@ mod app_volume;
 mod discord_presence;
 mod display_mode;
 mod gamepad_bridge;
+mod hang_watchdog;
 mod native_audio;
 #[cfg(any(target_os = "linux", test))]
 mod native_audio_engine;
@@ -84,6 +85,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       discord_presence::discord_set_activity,
       discord_presence::discord_status,
       gamepad_bridge::gamepad_bridge_status,
+      hang_watchdog::hang_watchdog_beat,
       native_audio::native_audio_available,
       native_audio::native_audio_load,
       native_audio::native_audio_play,
@@ -95,6 +97,13 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
     .on_window_event(|_, event| {
       if let tauri::WindowEvent::Focused(focused) = event {
         display_mode::on_focus(*focused);
+        hang_watchdog::on_focus(*focused);
+      }
+    })
+    // A new page load (a reload the page asks for, or the watchdog's own) waits for that page's first heartbeat.
+    .on_page_load(|_, payload| {
+      if payload.event() == tauri::webview::PageLoadEvent::Started {
+        hang_watchdog::on_page_load_started();
       }
     })
     // No card-art code here on purpose: the scans are bundled into `dist/` at
@@ -107,6 +116,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             .build(),
         )?;
       }
+      // Linux: reloads the page if WebKit's web process hangs for good (hang_watchdog.rs).
+      hang_watchdog::start(app.handle());
       Ok(())
     })
     .build(context)

@@ -40,6 +40,11 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 ./MarvelChampions-*-Linux-x64.AppImage
 Added to Steam as a non-Steam game (the way to play on a Steam Deck), set it in the game's Properties → Launch Options:
 `WEBKIT_DISABLE_COMPOSITING_MODE=1 %command%`.
 
+**If the game freezes for good** (nothing redraws and no input works, often after the display slept or the TV went off
+and on), the app restarts WebKit's stuck page process and reloads the game once the page has been unresponsive for 10
+seconds while its window is focused, and prints a `hang watchdog:` line to the terminal; your game in progress is
+under Continue on the Title screen. `MC_DISABLE_HANG_WATCHDOG=1` turns this off.
+
 **Reporting a freeze or crash on Linux:** run the game from a terminal with its output saved, then attach `mc-log.txt`
 to the issue. The last lines before the problem matter most.
 

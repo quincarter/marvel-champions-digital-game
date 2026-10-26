@@ -38,6 +38,7 @@ import { installGamepadLive } from "./platform/gamepad-live.js";
 import { linuxAudioContext } from "./platform/linux-audio.js";
 import { startNativeAudio } from "./audio/native-audio.js";
 import { startNativeGamepad } from "./platform/native-gamepad.js";
+import { startHangWatchdogHeartbeat } from "./platform/hang-watchdog.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -250,6 +251,9 @@ installDebugDump(game);
 installGamepadLive(Phaser);
 // On Linux the desktop app reads controllers itself, in place of the webview's (`platform/native-gamepad.ts`).
 startNativeGamepad(game);
+// On Linux the desktop app reloads the page if WebKit's web process hangs; this is the page's heartbeat for it
+// (`platform/hang-watchdog.ts`).
+startHangWatchdogHeartbeat();
 // Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
 installInputDeviceTracking();
 // Trims the game box to the visible area where a toolbar overlays the page (`platform/visible-area.ts`).
