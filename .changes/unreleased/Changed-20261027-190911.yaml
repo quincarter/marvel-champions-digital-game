@@ -1,0 +1,3 @@
+kind: Changed
+body: An optional response offered ahead of the forced ones says Not now instead of Decline, and that it is offered again once the forced responses resolve
+time: 2026-10-27T19:09:11.3559048-04:00

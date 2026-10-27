@@ -45,7 +45,7 @@ import {
   setChoicePeeking,
 } from "../view/choice-peek.js";
 import { flipPeekEdge, peekMoveLabel } from "../view/peek-banner.js";
-import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
+import { declineLabelOf, triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
   cardOf,
@@ -2387,6 +2387,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (context.whyNow) add(context.whyNow, 13, "normal", surface.ink.hex, ink.secondary);
     for (const effect of context.effects) add(`If you confirm: ${effect}`, 13, "bold", surface.ink.hex, 1);
     if (context.warning) add(context.warning, 13, "bold", surface.ink.hex, 1);
+    if (context.later) add(context.later, 13, "normal", surface.ink.hex, ink.secondary);
     const used = cursor - y;
     if (measureOnly) made.forEach((object) => object.destroy());
     return used;
@@ -2453,7 +2454,11 @@ export class ChoiceOverlay extends Phaser.Scene {
       // backs out, so it is not Decline's glyph.
       const decline = new McButton(this, {
         kind: "quiet",
-        label: payment ? payment.declineLabel : this.#pairing ? "Assign none" : "Decline",
+        label: payment
+          ? payment.declineLabel
+          : this.#pairing
+            ? "Assign none"
+            : declineLabelOf(appSession().store.state.game, choice),
         type: typeRole.label,
         rect: {
           x: sheet.x + 20 + commitWidth,

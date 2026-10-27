@@ -24,6 +24,7 @@ import type {
   ChoicePrompt,
   DecisionAuthority,
   EngineDeps,
+  FrameId,
   GameEvent,
   GameState,
   InstanceId,
@@ -33,7 +34,7 @@ import type {
 import { facedownUntilLater } from "./facedown-history.js";
 import { beatTextWithStatus, logLine } from "./log-lines.js";
 import { cardName, numberWord, optionLabelOf, playerName, shortSeatName } from "./names.js";
-import { triggerHeadlineOf } from "./trigger-window-context.js";
+import { triggerChoiceHeadlineOf } from "./trigger-window-context.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
 export const VILLAIN_STEPS = [
@@ -723,7 +724,7 @@ export function pauseFor(
   // for your interrupt" alone left the player deciding on Great Responsibility without the amount or the scheme (#371).
   const about =
     choice.prompt.kind === "chooseTriggers"
-      ? triggerHeadlineOf(state, choice.prompt.event, windowTimingOf(choice), viewer ?? choice.playerId)
+      ? triggerChoiceHeadlineOf(state, choice, windowTimingOf(choice), viewer ?? choice.playerId)
       : null;
   const base = counted
     ? // Names the boost card: nothing else on screen does while the interrupt panel is up (issue #172), and two boost
@@ -823,6 +824,8 @@ interface ChoiceLike {
   readonly authority: DecisionAuthority;
   readonly soleDecider: boolean;
   readonly options: readonly ChoiceOption[];
+  /** The window frame a `chooseTriggers` choice answers for, to read which conditions its options answer. */
+  readonly frameId?: FrameId | null | undefined;
   /** Present exactly when `authority` is `enemyTeam`. */
   readonly onBehalfOf?: ChoiceBehalf | undefined;
 }

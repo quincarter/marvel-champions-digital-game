@@ -9,8 +9,12 @@
  */
 
 import {
+  cardOf,
   getPlayer,
+  type ChoiceOption,
+  type ChoicePrompt,
   type EngineDeps,
+  type FrameId,
   type GameState,
   type InstanceId,
   type PendingChoice,
@@ -18,6 +22,7 @@ import {
   type TriggerEvent,
 } from "@mc/engine";
 import { abilityFirst, sourceCardPanelFor } from "./choice-source-panel.js";
+import { heroFaceNameAt } from "./hero-names.js";
 import { triggerLabel } from "./inspect-model.js";
 import { cardName, faceUpName, playerName } from "./names.js";
 import { triggerEventWords } from "./trigger-event-words.js";
@@ -31,6 +36,8 @@ export interface TriggerWindowContext {
   readonly effects: readonly string[];
   /** What saying yes costs that the card text does not say; null when there is nothing to warn about. */
   readonly warning: string | null;
+  /** What declining here means when the window will offer these again ("Not now"); null for a plain decline. */
+  readonly later: string | null;
 }
 
 const count = (n: number, word: string): string => `${n} ${word}`;
@@ -136,11 +143,33 @@ export function triggerHeadlineOf(
       const thwarter = cardName(state, event.thwarterInstanceId);
       return before ? `${thwarter} is about to thwart` : `${thwarter} thwarted`;
     }
+    case "formChanging":
+    case "formChanged": {
+      const who = playerRef(state, event.playerId, viewer);
+      const Who = who === "you" ? "You" : who;
+      const face = formChangeTarget(state, event);
+      if (before) return `${Who} ${who === "you" ? "are" : "is"} about to change to ${face}`;
+      return `${Who} changed to ${face}`;
+    }
     default: {
       const words = triggerEventWords(event.kind);
       return before ? `About to happen: ${words}` : `Just happened: ${words}`;
     }
   }
+}
+
+/** What a form change changes to: the named hero face of an identity with several, an additional form's name. */
+function formChangeTarget(
+  state: GameState,
+  event: Extract<TriggerEvent, { kind: "formChanging" | "formChanged" }>,
+): string {
+  if (event.kind === "formChanged" && event.change === "additional") return event.formName ?? "another form";
+  if (event.to === "alterEgo") return "alter-ego form";
+  const seat = getPlayer(state, event.playerId);
+  const identity = seat ? cardOf(state, seat.identity.instanceId) : undefined;
+  if (identity?.type !== "hero_identity" || (identity.additionalHeroForms ?? []).length === 0) return "hero form";
+  const index = event.kind === "formChanging" ? event.heroFormIndex : (event.toHeroForm ?? 0);
+  return heroFaceNameAt(identity, index) ?? "hero form";
 }
 
 /** The card whose reveal is running, innermost first: its When Revealed (or setup reveal) is what is resolving. */
@@ -230,6 +259,76 @@ export function deckDiscardWarningOf(state: GameState, event: TriggerEvent): str
   return `Heads up: if ${cardName(state, event.instanceId)} leaves the discard pile, it won't count for ${cardName(state, source)}. Decline to keep it counted.`;
 }
 
+/** The parts of a choice the window headline reads. */
+export interface TriggerChoiceLike {
+  readonly prompt: ChoicePrompt;
+  readonly options: readonly ChoiceOption[];
+  readonly frameId?: FrameId | null | undefined;
+}
+
+/**
+ * The triggering conditions a `chooseTriggers` choice's options answer, each once, in the order they happened. A
+ * sentence's held responses open one window for all of the sentence's conditions (RRG 1.8 "Triggering Condition",
+ * p. 45; `resolve/sentence-hold.ts`), and the prompt's own `event` is only the last of them: a form change's Response
+ * offered after Gamma Blast's attack answers the form change, not the attack. The window's frame says which condition
+ * each offered ability answers (`TriggerCandidate.sharedEvent`); without the frame (a beat read back after the window
+ * closed), the prompt's event stands.
+ */
+export function answeredEventsOf(state: GameState, choice: TriggerChoiceLike): readonly TriggerEvent[] {
+  const { prompt } = choice;
+  if (prompt.kind !== "chooseTriggers") return [];
+  const frame = state.stack.find((f) => f.frameId === choice.frameId);
+  if (!frame || frame.kind !== "window" || !frame.alsoEvents?.length) return [prompt.event];
+  // `alsoEvents` resolved before `event`, in order.
+  const answered = new Set<number>();
+  const last = frame.alsoEvents.length;
+  for (const option of choice.options) {
+    const { ref } = option;
+    if (ref.kind !== "ability") continue;
+    for (const candidate of frame.pending) {
+      if (candidate.instanceId !== ref.instanceId || candidate.abilityId !== ref.abilityId) continue;
+      answered.add(candidate.sharedEvent ? candidate.sharedEvent.index : last);
+    }
+  }
+  if (answered.size === 0) return [prompt.event];
+  return [...answered].sort((a, b) => a - b).map((index) => frame.alsoEvents![index] ?? frame.event);
+}
+
+/**
+ * The headline for a `chooseTriggers` choice: the condition its options answer, or each of them in turn when they
+ * answer several ("You changed to Hulk form, then you attacked Rhino").
+ */
+export function triggerChoiceHeadlineOf(
+  state: GameState,
+  choice: TriggerChoiceLike,
+  timing: "interrupt" | "response",
+  viewer: PlayerId,
+): string {
+  const lines = answeredEventsOf(state, choice).map((event) => triggerHeadlineOf(state, event, timing, viewer));
+  const distinct = lines.filter((line, index) => lines.indexOf(line) === index);
+  return distinct
+    .map((line, index) =>
+      index === 0 ? line : line.replace(/^(You|Just happened|About to happen)\b/, (lead) => lead.toLowerCase()),
+    )
+    .join(", then ");
+}
+
+/**
+ * True while a sentence's combined response window offers its early round (`Frame<"window">.earlyOptional`): optional
+ * responses to the conditions no forced response answers, ahead of the forced ones (RRG 1.8 p. 5, p. 20, p. 45). One
+ * declined there is offered again once the forced responses have resolved, so declining is "Not now", not "Decline".
+ */
+export function offeredAgainLater(state: GameState, choice: TriggerChoiceLike): boolean {
+  if (choice.prompt.kind !== "chooseTriggers") return false;
+  const frame = state.stack.find((f) => f.frameId === choice.frameId);
+  return frame?.kind === "window" && frame.earlyOptional === "offering";
+}
+
+/** The decline button's label for a choice: "Not now" for the early round of a combined window, else "Decline". */
+export function declineLabelOf(state: GameState | null, choice: TriggerChoiceLike): string {
+  return state && offeredAgainLater(state, choice) ? "Not now" : "Decline";
+}
+
 /**
  * The context for a `chooseTriggers` prompt, or null for any other prompt. `effects` has one line per distinct
  * offered ability.
@@ -252,10 +351,17 @@ export function triggerWindowContextOf(
     const line = effectLineOf(faceUpName(state, ref.instanceId), ordered.split(/\n+/)[0] ?? ordered);
     if (!effects.includes(line)) effects.push(line);
   }
+  const answered = answeredEventsOf(state, choice);
   return {
-    headline: triggerHeadlineOf(state, prompt.event, prompt.timing, viewer),
-    whyNow: triggerWhyNowOf(state, prompt.event),
+    headline: triggerChoiceHeadlineOf(state, choice, prompt.timing, viewer),
+    whyNow: triggerWhyNowOf(state, answered[0] ?? prompt.event),
     effects,
-    warning: prompt.timing === "response" ? deckDiscardWarningOf(state, prompt.event) : null,
+    warning:
+      prompt.timing === "response"
+        ? (answered.map((event) => deckDiscardWarningOf(state, event)).find((line) => line !== null) ?? null)
+        : null,
+    later: offeredAgainLater(state, choice)
+      ? "Not now: you'll be offered these again after the forced responses resolve. Pick one now to use it first."
+      : null,
   };
 }
