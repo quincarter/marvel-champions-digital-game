@@ -92,6 +92,16 @@ describe("glyphsForShortcut", () => {
     expect(colorOf(first(glyphsForShortcut("activate", padState(SWITCH), settings)))).toBeUndefined();
   });
 
+  test("each family's button carries its own picture; the Nintendo swap moves confirm onto A's picture", () => {
+    const artOf = (glyph: GlyphSpec | undefined) => (glyph?.kind === "pad" ? glyph.art : undefined);
+    expect(artOf(first(glyphsForShortcut("activate", padState(XBOX), settings)))).toBe("xbox/face-south");
+    expect(artOf(first(glyphsForShortcut("activate", padState(PS), settings)))).toBe("playstation/face-south");
+    expect(artOf(first(glyphsForShortcut("activate", padState(SWITCH), settings)))).toBe("nintendo/face-east");
+    expect(artOf(first(glyphsForShortcut("activate", padState(SWITCH), { ...settings, nintendoLayout: false })))).toBe(
+      "nintendo/face-south",
+    );
+  });
+
   test("Nintendo swap: confirm is drawn on the right-hand A", () => {
     expect(first(glyphsForShortcut("activate", padState(SWITCH), settings))?.label).toBe("A");
     expect(first(glyphsForShortcut("activate", padState(SWITCH), { ...settings, nintendoLayout: false }))?.label).toBe(

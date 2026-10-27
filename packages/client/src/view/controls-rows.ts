@@ -5,10 +5,11 @@
  */
 
 import { GLYPH_SIZE_MAX, GLYPH_SIZE_MIN, GLYPH_SIZE_STEP, clampGlyphSize, type Settings } from "../settings.js";
-import { padGlyphSpec, type GlyphSpec } from "./input-glyph-model.js";
+import { padGlyphSpec, type GlyphSpec, type PadGlyphSpec } from "./input-glyph-model.js";
 import type { GlyphSource } from "./input-mode.js";
 import { shortcutCaps, shortcutOf, type KeyboardHand, type ShortcutId } from "./input-shortcuts.js";
 import { layerSheet, type LayerRow, type PadLayer } from "./pad-layers.js";
+import { glyphArtFor, type GlyphArt } from "./pad-glyph-art.js";
 import {
   padFamilyName,
   PAD_FAMILY_SETTING_VALUES,
@@ -226,19 +227,28 @@ export interface ControlsListRow {
   readonly note: string;
 }
 
-const fixedGlyph = (label: string, shape: "dpad" | "stick", name: string): GlyphSpec => ({
-  kind: "pad",
-  label,
-  shape,
-  symbol: null,
-  name,
+interface FixedGlyph {
+  readonly spec: PadGlyphSpec;
+  readonly art: GlyphArt;
+}
+
+const fixedGlyph = (label: string, shape: "dpad" | "stick", name: string, art: GlyphArt): FixedGlyph => ({
+  spec: { kind: "pad", label, shape, symbol: null, name },
+  art,
 });
+
+/** A fixed glyph as this family draws it: with the family's picture where its set has one. */
+function fixedFor(fixed: FixedGlyph, family: PadFamily): PadGlyphSpec {
+  const art = glyphArtFor(family, fixed.art);
+  return { ...fixed.spec, ...(art === null ? {} : { art }) };
+}
 
 interface PadRowDef {
   readonly id: string;
   /** Standard-layout index, or a fixed glyph for the D-pad and the right stick. */
   readonly index?: number;
-  readonly fixed?: GlyphSpec;
+  /** Drawn the same on every family, apart from the family's picture. */
+  readonly fixed?: FixedGlyph;
   readonly action: string;
   readonly note: string;
 }
@@ -246,7 +256,7 @@ interface PadRowDef {
 const PAD_ROWS: readonly PadRowDef[] = [
   {
     id: "move",
-    fixed: fixedGlyph("D-pad", "dpad", "D-pad"),
+    fixed: fixedGlyph("D-pad", "dpad", "D-pad", "dpad"),
     action: "Move focus",
     note: "Everywhere; the left stick does the same",
   },
@@ -290,7 +300,7 @@ const PAD_ROWS: readonly PadRowDef[] = [
   },
   {
     id: "scroll",
-    fixed: fixedGlyph("RS", "stick", "Right stick"),
+    fixed: fixedGlyph("RS", "stick", "Right stick", "rstick"),
     action: "Scroll",
     note: "The list, hand or log under focus",
   },
@@ -346,7 +356,11 @@ export function padLayerSectionsOf(family: PadFamily, swap: boolean): readonly P
 /** The BUTTONS list for a family, with the Nintendo swap already applied to each glyph. */
 export function padRowsOf(family: PadFamily, swap: boolean): readonly ControlsListRow[] {
   return PAD_ROWS.map((def) => {
-    const spec = def.fixed ?? (def.index === undefined ? null : padGlyphSpec(def.index, family, swap));
+    const spec = def.fixed
+      ? fixedFor(def.fixed, family)
+      : def.index === undefined
+        ? null
+        : padGlyphSpec(def.index, family, swap);
     return { id: def.id, glyphs: spec ? [spec] : [], action: def.action, note: def.note };
   });
 }

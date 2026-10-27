@@ -28,6 +28,7 @@ import {
   type GlyphShape,
   type PadFamily,
 } from "./pad-family.js";
+import { padGlyphArtOf, type PadGlyphArtId } from "./pad-glyph-art.js";
 
 /** The PlayStation face symbols the fonts lack: drawn as shapes. */
 export type FaceSymbol = "cross" | "circle" | "square" | "triangle";
@@ -40,6 +41,8 @@ export interface PadGlyphSpec {
   readonly name: string;
   /** Xbox face letters only: the letter's color, drawn on an ink disc. */
   readonly color?: number;
+  /** The picture drawn in place of the plain shape once its texture is baked, where the family's set has one. */
+  readonly art?: PadGlyphArtId;
 }
 
 export interface KeyGlyphSpec {
@@ -79,6 +82,7 @@ export function padGlyphSpec(meaningIndex: number, family: PadFamily, swap: bool
   if (!glyph) return null;
   const symbol = glyph.shape === "face" ? (SYMBOLS[glyph.label] ?? null) : null;
   const color = glyph.shape === "face" ? faceColorOf(family, physicalIndexOf(meaningIndex, swap)) : null;
+  const art = padGlyphArtOf(family, physicalIndexOf(meaningIndex, swap));
   return {
     kind: "pad",
     label: glyph.label,
@@ -86,6 +90,7 @@ export function padGlyphSpec(meaningIndex: number, family: PadFamily, swap: bool
     symbol,
     name: glyph.name,
     ...(color === null ? {} : { color }),
+    ...(art === null ? {} : { art }),
   };
 }
 

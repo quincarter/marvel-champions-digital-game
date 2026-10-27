@@ -9,6 +9,7 @@
 
 import Phaser from "phaser";
 import { ensureFirstPlayerTokenTexture } from "../ui/first-player-token.js";
+import { ensurePadGlyphTextures } from "../ui/pad-glyph-textures.js";
 import { surface, typeRole, WEB_FONTS } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { refreshUnlocks } from "../progression/progression.js";
@@ -40,6 +41,8 @@ export class BootScene extends Phaser.Scene {
     this.scene.launch(SCENES.music);
     // The first player token's art, rasterized now so Set the table and the board have it on first draw.
     ensureFirstPlayerTokenTexture(this);
+    // The controller button pictures, so a pad's first hints are drawn as pictures rather than swapped in a moment later.
+    ensurePadGlyphTextures(this.textures);
 
     // Progress is read before Title so no screen draws a hero or scenario locked that the player has earned.
     void Promise.all([this.#awaitFonts(), refreshUnlocks().catch(() => false)])

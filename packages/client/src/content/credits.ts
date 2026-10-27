@@ -95,6 +95,18 @@ export const CREDITS: readonly CreditEntry[] = [
     folders: ["packages/client/public/assets/controllers"],
   },
   {
+    id: "controller-button-icons",
+    group: "game",
+    title: "Controller button icons",
+    shownIn: "Controller button hints",
+    credit:
+      'Xbox: "Xbox Controller Icons Free" by Alric Monteiro. PlayStation: "PlayStation Controller Icons" by Antoine Plu. Switch: "Switch Button Icons [Essential pack]" by Gioele Casazza. All from Figma Community, CC BY 4.0, recolored to match the game.',
+    notice:
+      "The controllers are Microsoft's, Sony's and Nintendo's designs and trademarks; no ownership is claimed, and the icon makers are not affiliated with them.",
+    url: "https://www.figma.com/community/file/1271153059120916114/xbox-controller-icons-free",
+    folders: ["packages/client/src/ui/pad-glyphs"],
+  },
+  {
     id: "original-game",
     group: "game",
     title: "Marvel Champions: The Card Game",
