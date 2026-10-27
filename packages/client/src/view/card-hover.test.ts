@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   HOVER_MARGIN,
   HOVER_BASE_LONG_SIDE,
+  HOVER_MIN_GROWTH,
+  fieldClipPath,
   clipHoverRect,
   hoverCardIdAt,
   hoverKeyOfCardId,
@@ -97,7 +99,7 @@ describe("hoverCardSize", () => {
   const heroPanel: Rect = { x: 0, y: 0, width: 175, height: 245 };
   const chip: Rect = { x: 0, y: 0, width: 30, height: 42 };
 
-  test("every portrait card comes up at the same size, the base long side times the setting", () => {
+  test("every small portrait card comes up at the same size, the base long side times the setting", () => {
     for (const rect of [handCard, heroPanel, chip]) {
       const size = hoverCardSize(rect, 120 / 168, "2.5x", area);
       expect(size.height).toBeCloseTo(HOVER_BASE_LONG_SIDE * 2.5);
@@ -110,10 +112,32 @@ describe("hoverCardSize", () => {
   });
 
   test("a sideways card's long side is its width", () => {
-    const scheme: Rect = { x: 0, y: 0, width: 300, height: 214 };
+    const scheme: Rect = { x: 0, y: 0, width: 168, height: 120 };
     const size = hoverCardSize(scheme, 168 / 120, "2x", area);
     expect(size.width).toBeCloseTo(HOVER_BASE_LONG_SIDE * 2);
     expect(size.height).toBeCloseTo(120 * 2);
+  });
+
+  test("a card drawn as big as the setting's size still comes up larger, at least 1.5x its drawn size", () => {
+    // A deck builder cell on a 2560px window, and the hero panel at the smallest setting.
+    const bigCell: Rect = { x: 0, y: 0, width: 200, height: 280 };
+    const size = hoverCardSize(bigCell, 120 / 168, "1.5x", area);
+    expect(size.height).toBeCloseTo(280 * HOVER_MIN_GROWTH);
+    expect(size.width / size.height).toBeCloseTo(120 / 168);
+    expect(hoverCardSize(heroPanel, 120 / 168, "1.5x", area).height).toBeCloseTo(245 * HOVER_MIN_GROWTH);
+    // A bigger setting still wins when it is the larger of the two.
+    expect(hoverCardSize(bigCell, 120 / 168, "3x", area).height).toBeCloseTo(HOVER_BASE_LONG_SIDE * 3);
+  });
+
+  test("a sideways card drawn large grows by its width", () => {
+    const scheme: Rect = { x: 0, y: 0, width: 400, height: 286 };
+    expect(hoverCardSize(scheme, 168 / 120, "1.5x", area).width).toBeCloseTo(400 * HOVER_MIN_GROWTH);
+  });
+
+  test("the growth is capped to the area", () => {
+    const huge: Rect = { x: 0, y: 0, width: 500, height: 700 };
+    const size = hoverCardSize(huge, 120 / 168, "2x", area);
+    expect(size.height).toBeCloseTo(area.height - HOVER_MARGIN * 2);
   });
 
   test("never larger than the area, aspect kept", () => {
@@ -270,5 +294,25 @@ describe("hoverCardIdAt", () => {
     const own = new Map([["b@1", { ...cell, cardId: "b" }]]);
     expect(hoverCardIdAt(50, 50, own, null)).toBeNull();
     expect(hoverCardIdAt(50, 50, own, cell)).toBe("b@1");
+  });
+});
+
+describe("fieldClipPath", () => {
+  const field: Rect = { x: 0, y: 100, width: 1000, height: 40 };
+
+  test("nothing to cut when the popover misses the field or is gone", () => {
+    expect(fieldClipPath(field, null)).toBe("");
+    expect(fieldClipPath(field, { x: 0, y: 200, width: 300, height: 400 })).toBe("");
+  });
+
+  test("cuts the popover's part of the field out, in percent of the field", () => {
+    const clip = fieldClipPath(field, { x: 400, y: 50, width: 200, height: 300 });
+    expect(clip).toBe(
+      "polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 40% 0%, 60% 0%, 60% 100%, 40% 100%, 40% 0%, 0% 0%)",
+    );
+  });
+
+  test("a popover over part of the field's height cuts only that part", () => {
+    expect(fieldClipPath(field, { x: 900, y: 120, width: 300, height: 300 })).toContain("90% 50%, 100% 50%");
   });
 });

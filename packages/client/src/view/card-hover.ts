@@ -205,14 +205,23 @@ export interface Size {
 /**
  * The long side of the card the setting multiplies: a desktop hand card's height. Every card blows up to the same
  * size whatever it is drawn at on the table (the owner, 2026-10-14: the villain and the hero came up far larger than
- * a hand card at the same setting, because their on-table size was what got multiplied).
+ * a hand card at the same setting, because their on-table size was what got multiplied). A card drawn larger than
+ * that is the exception: see `HOVER_MIN_GROWTH`.
  */
 export const HOVER_BASE_LONG_SIDE = 168;
 
 /**
- * The popover card's size: a card whose long side is `HOVER_BASE_LONG_SIDE` times the setting, in the scan's shape
- * (a sideways scheme's long side is its width), never larger than the area less its margins. `aspect` is the scan's
- * width over height; without one the on-table rect's own shape stands in.
+ * The popover is always at least this many times the card as it is drawn on screen, so hovering a card that is
+ * already as big as the setting's size (a deck builder cell on a wide window, the hero panel) still enlarges it
+ * (the owner, 2026-10-27).
+ */
+export const HOVER_MIN_GROWTH = 1.5;
+
+/**
+ * The popover card's size: a card whose long side is `HOVER_BASE_LONG_SIDE` times the setting, or `HOVER_MIN_GROWTH`
+ * times the long side it is drawn at when that is larger, in the scan's shape (a sideways scheme's long side is its
+ * width), never larger than the area less its margins. `aspect` is the scan's width over height; without one the
+ * on-table rect's own shape stands in.
  */
 export function hoverCardSize(
   cardRect: Rect,
@@ -223,7 +232,8 @@ export function hoverCardSize(
 ): Size {
   const factor = cardHoverFactor(scale) ?? 1;
   const ratio = aspect !== null && aspect > 0 ? aspect : cardRect.width / Math.max(1, cardRect.height);
-  const longSide = HOVER_BASE_LONG_SIDE * factor;
+  const onScreenLong = Math.max(cardRect.width, cardRect.height);
+  const longSide = Math.max(HOVER_BASE_LONG_SIDE * factor, onScreenLong * HOVER_MIN_GROWTH);
   let width = ratio >= 1 ? longSide : longSide * ratio;
   let height = width / ratio;
   const maxWidth = Math.max(1, area.width - margin * 2);
@@ -256,6 +266,25 @@ export function hoverPlacement(
   x = Math.max(left, Math.min(x, Math.max(left, right - size.width)));
   y = Math.max(top, Math.min(y, Math.max(top, bottom - size.height)));
   return { x, y };
+}
+
+/**
+ * The CSS `clip-path` that cuts a hover popover's rect out of a DOM text field, so the field stays in place and the
+ * card shows over it (a DOM element draws above the canvas). Empty when the popover misses the field. The hole is in
+ * percent of the field, so it holds whatever the canvas is scaled to.
+ */
+export function fieldClipPath(field: Rect, popover: Rect | null): string {
+  if (!popover || field.width <= 0 || field.height <= 0) return "";
+  const pct = (value: number, start: number, size: number): number =>
+    Math.round(Math.max(0, Math.min(100, ((value - start) / size) * 100)) * 100) / 100;
+  const left = pct(popover.x, field.x, field.width);
+  const right = pct(popover.x + popover.width, field.x, field.width);
+  const top = pct(popover.y, field.y, field.height);
+  const bottom = pct(popover.y + popover.height, field.y, field.height);
+  if (right <= left || bottom <= top) return "";
+  // The outer box, then back to its corner and round the hole: evenodd leaves the hole unpainted.
+  const hole = `${left}% ${top}%, ${right}% ${top}%, ${right}% ${bottom}%, ${left}% ${bottom}%, ${left}% ${top}%`;
+  return `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ${hole}, 0% 0%)`;
 }
 
 export interface HoverStateInput {

@@ -81,8 +81,9 @@ export interface HoverPreviewDeps {
    */
   readonly area: (pointer: Phaser.Input.Pointer) => Rect | null;
   /**
-   * Skip a card already drawn large (`hoverWorthShowing`). Off unless set: every popover is one size, so a large card
-   * on the table (the hero panel) still gets a readable, same-size copy.
+   * Skip a card already drawn large (`hoverWorthShowing`). Off unless set: the popover is the setting's size or 1.5x
+   * the card as drawn, whichever is larger (`hoverCardSize`), so a large card on the table (the hero panel) still gets
+   * a bigger copy.
    */
   readonly skipLarge?: boolean;
 }
@@ -471,7 +472,7 @@ export class HoverPreview {
     this.#coverFields();
   }
 
-  /** A DOM text field draws above the canvas, so one the popover overlaps steps aside while it shows (#308 feedback). */
+  /** A DOM text field draws above the canvas, so the popover cuts its own rect out of any field it overlaps (#308, #470). */
   #coverFields(): void {
     const rect = this.shownRect;
     for (const field of fieldsOf(this.scene)) field.coverWith(rect);

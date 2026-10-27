@@ -32,6 +32,7 @@ import {
   typeRole,
   type TypeSpec,
 } from "../tokens.js";
+import { fieldClipPath } from "../view/card-hover.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm, withinTapSlop } from "../view/press-arm.js";
@@ -1212,8 +1213,8 @@ export class McTextInput {
   #coveredByOtherScene = false;
   /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
   #requestedVisible = true;
-  /** A card hover popover sits over the field (`coverWith`): a DOM field draws above the canvas, so it steps aside. */
-  #underPopover = false;
+  /** The `clip-path` cutting a card hover popover out of the field (`coverWith`), or "" when none overlaps it. */
+  #clip = "";
 
   readonly #scene: Phaser.Scene;
 
@@ -1399,22 +1400,15 @@ export class McTextInput {
   }
 
   /**
-   * Hides the field while `popover` (a card hover popover's rect, or null) overlaps it. The field is a DOM element over
-   * the canvas, so a popover drawn on the canvas would otherwise show under it (the Seats search bar cut a hero's
-   * popover in half). Never hides a field being typed in. Combined with the other reasons in `#applyVisibility`.
+   * Cuts `popover` (a card hover popover's rect, or null) out of the field. The field is a DOM element over the canvas,
+   * so a popover drawn on the canvas would otherwise show under it (the Seats search bar cut a hero's popover in half);
+   * the field stays where it is and the card shows through the hole, rather than the field blinking out (#470).
    */
   coverWith(popover: Rect | null): void {
-    const r = this.#rect;
-    const over =
-      popover !== null &&
-      !this.#input.isFocused &&
-      popover.x < r.x + r.width &&
-      popover.x + popover.width > r.x &&
-      popover.y < r.y + r.height &&
-      popover.y + popover.height > r.y;
-    if (this.#underPopover === over) return;
-    this.#underPopover = over;
-    this.#applyVisibility();
+    const clip = fieldClipPath(this.#rect, popover);
+    if (this.#clip === clip) return;
+    this.#clip = clip;
+    (this.#input.node as HTMLElement).style.clipPath = clip;
   }
 
   /**
@@ -1428,7 +1422,7 @@ export class McTextInput {
    * screen's own focus route blocked on `focused`) after either reason makes it invisible.
    */
   #applyVisibility(): void {
-    const visible = this.#requestedVisible && !this.#coveredByOtherScene && !this.#underPopover;
+    const visible = this.#requestedVisible && !this.#coveredByOtherScene;
     if (this.#hidden === !visible) return;
     this.#hidden = !visible;
     this.#input.setVisible(visible);
