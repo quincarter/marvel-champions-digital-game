@@ -393,6 +393,8 @@ function activationEntryOf(
     seat: target === viewer ? "YOU" : shortSeatName(after, target, viewer),
     seatIsViewer: target === viewer,
     boostInstanceIds: activation.boosts.map((boost) => boost.instanceId),
+    // Retaliate is no one's response and the villain's hit points have no tile: without this it shows nowhere (#444).
+    effects: members.filter((beat) => beat.retaliate).map((beat) => beat.text),
     responses: members.filter(isResponse).map(respond),
   };
 }
@@ -454,7 +456,8 @@ function splitRows(
       aftermath = false;
       continue;
     }
-    if (aftermath && open && beat.eventType && AFTERMATH.has(beat.eventType)) {
+    // Retaliate answers the attack, so it stays on the attack's row even past a beat that would close it (#444).
+    if (aftermath && open && (beat.retaliate || (beat.eventType && AFTERMATH.has(beat.eventType)))) {
       open.beats.push(beat);
       continue;
     }

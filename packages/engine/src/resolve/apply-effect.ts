@@ -684,6 +684,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             fromAttack: effect.fromAttack === true,
             ...(effect.ignoreTough || unpreventable ? { ignoreTough: true } : {}),
             ...(unpreventable ? { unpreventable: true as const } : {}),
+            // Retaliate damage moved to another character is still the retaliate's, for the log (#444).
+            ...(effect.sourceFromEvent && context.event?.kind === "dealDamage" && context.event.retaliate
+              ? { retaliate: true as const }
+              : {}),
             ...(namedBy(effect.by) === null ? { noPlayer: true } : {}),
             ...ofAttack?.damage,
             // "Deal damage … equal to your ATK" as an attack's damage (docs/phase7-wave10.md §3.17).

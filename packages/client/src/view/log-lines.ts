@@ -503,6 +503,13 @@ function describe(
           voice: "player",
         };
       }
+      // Named, so a player can see the keyword worked (#444: "Rhino took 1 damage from Black Panther" read as nothing).
+      if (event.retaliate && event.sourceInstanceId) {
+        return {
+          text: `Retaliate: ${card(event.targetInstanceId)} took ${event.amount} damage from ${card(event.sourceInstanceId)}.`,
+          voice: "player",
+        };
+      }
       return {
         text: `${card(event.targetInstanceId)} took ${event.amount} damage${event.sourceInstanceId ? ` from ${selfDealt ? "itself" : card(event.sourceInstanceId)}` : ""}.`,
         voice: "player",

@@ -213,6 +213,8 @@ export interface WalkthroughBeat {
    * encounter card being revealed when it moved (Buddy System), so the rail and the recap can give it a beat of its own.
    */
   readonly activeChange?: ActiveVillainChange;
+  /** The beat narrates retaliate damage dealt back to an attacker, which the recap lists on the attack's row. */
+  readonly retaliate?: true;
   /** The seat the event is attributable to (its `playerId` / `controllerId`), or null when none is. */
   readonly seatId?: PlayerId | null;
 }
@@ -389,6 +391,7 @@ export function appendWalkthrough(
       encounterInstanceId: revealing?.instanceId ?? null,
       ...(event ? { eventType: event.type, seatId: seatOfEvent(event) } : {}),
       ...(startsActivation ? { startsActivation: true as const } : {}),
+      ...(event?.type === "damageDealt" && event.retaliate ? { retaliate: true as const } : {}),
       ...(event?.type === "activeVillainChanged"
         ? { activeChange: { from: event.from, to: event.to, reason: event.reason, via: revealing?.instanceId ?? null } }
         : {}),

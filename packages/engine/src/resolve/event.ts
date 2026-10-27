@@ -1961,6 +1961,7 @@ function recordDamageTaken(
     amount: taken,
     sourceInstanceId: event.sourceInstanceId,
     ...(event.noPlayer ? { noPlayer: true as const } : {}),
+    ...(event.retaliate ? { retaliate: true as const } : {}),
     ...(event.unpreventable ? { unpreventable: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
@@ -2084,6 +2085,7 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
     amount,
     sourceInstanceId: event.targetInstanceId,
     fromAttack: false,
+    retaliate: true,
   });
 }
 

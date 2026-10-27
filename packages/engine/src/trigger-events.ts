@@ -182,6 +182,8 @@ export type TriggerEventBody =
        * no defeating player (`sourcePlayerOf`). What applies to any damage still applies: a tough status card absorbs it.
        */
       readonly noPlayer?: true;
+      /** The attacked character's retaliate keyword deals it to its attacker (RRG 1.8 "Retaliate X", p. 38). */
+      readonly retaliate?: true;
       /**
        * The target as it took this damage (`TargetSnapshot`), stamped as the damage is applied, so it is absent in the
        * damage's interrupt window and present in its response window. "After Deadpool takes damage" still names him
