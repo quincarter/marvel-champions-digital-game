@@ -2,10 +2,10 @@
  * The controller button pictures, one trimmed SVG per button and family in `ui/pad-glyphs/<family>/` (sources and
  * licences in `ui/pad-glyphs/README.md`, credited in `content/credits.ts`).
  *
- * Pure: which picture a standard-layout index wears on a family, its size, and its SVG recolored for the ground it
- * sits on. The drawings use two placeholder colors, `BODY` (the button) and `CUT` (the letter or mark cut into it);
- * the colored face buttons (Xbox's discs, PlayStation's symbols) keep their own colors. Pictures are named by position,
- * not label: `face-south` is the bottom face button, Xbox A, PlayStation ✕ and Switch B alike.
+ * Pure: which picture a standard-layout index wears on a family, its size, and its SVG recolored. The drawings use two
+ * placeholder colors, `BODY` (the button) and `CUT` (the letter or mark cut into it); the colored face buttons (Xbox's
+ * discs, PlayStation's symbols) keep their own colors. Pictures are named by position, not label: `face-south` is the
+ * bottom face button, Xbox A, PlayStation ✕ and Switch B alike.
  * `ui/pad-glyph-textures.ts` turns them into textures.
  */
 
@@ -96,13 +96,24 @@ export function glyphArtSize(id: PadGlyphArtId): { readonly width: number; reado
 /** The face disc's diameter in picture units: a glyph of height h draws a disc h across. */
 export const GLYPH_ART_UNIT = 24.5;
 
+/** The ink outline around a white picture, in picture units (about 1.5px on a 24px hint). */
+export const GLYPH_ART_OUTLINE = 1.5;
+
+/** A picture's size with its outline, in picture units: what its texture covers. */
+export function glyphArtOutlinedSize(id: PadGlyphArtId): { readonly width: number; readonly height: number } {
+  const size = glyphArtSize(id);
+  const pad = isColoredGlyphArt(id) ? 0 : GLYPH_ART_OUTLINE * 2;
+  return { width: size.width + pad, height: size.height + pad };
+}
+
 /**
- * The drawn size of a picture for a glyph of height `h`: scaled so a face disc is h across, and nothing (a trigger,
- * a stick with its arrows) runs past h.
+ * The drawn size of a picture, outline included, for a glyph of height `h`: scaled so an outlined face disc is h
+ * across, and nothing (a trigger, a stick with its arrows) runs past h.
  */
 export function glyphArtDrawSize(id: PadGlyphArtId, h: number): { readonly width: number; readonly height: number } {
-  const size = glyphArtSize(id);
-  const scale = h / Math.max(GLYPH_ART_UNIT, size.height);
+  const size = glyphArtOutlinedSize(id);
+  const disc = isColoredGlyphArt(id) ? GLYPH_ART_UNIT : GLYPH_ART_UNIT + GLYPH_ART_OUTLINE * 2;
+  const scale = h / Math.max(disc, size.height);
   return { width: size.width * scale, height: size.height * scale };
 }
 
@@ -113,17 +124,22 @@ export interface GlyphArtColors {
   readonly cut: number;
 }
 
+/** The colored face buttons (Xbox's discs, PlayStation's symbols): drawn in their own colors, with no outline. */
+export function isColoredGlyphArt(id: PadGlyphArtId): boolean {
+  return id.startsWith("xbox/face-") || id.startsWith("playstation/face-");
+}
+
 /**
- * The colors for a ground: on ink chrome a paper button with an ink mark, on paper an ink button with a white mark.
- * Xbox's colored face discs keep an ink letter on both (the disc color is the picture's own).
+ * The colors of a picture: a white button with an ink mark on every ground, which `ui/pad-glyph-textures.ts` rings
+ * with an ink outline so it reads on light and dark chrome alike (the owner, 2026-10-27). Xbox's colored face discs
+ * keep an ink letter.
  */
 export function glyphArtColors(
-  id: PadGlyphArtId,
-  ground: GlyphArtGround,
+  _id: PadGlyphArtId,
+  _ground: GlyphArtGround,
   palette: { readonly ink: number; readonly paper: number; readonly card: number },
 ): GlyphArtColors {
-  if (id.startsWith("xbox/face-")) return { body: palette.paper, cut: palette.ink };
-  return ground === "ink" ? { body: palette.paper, cut: palette.ink } : { body: palette.ink, cut: palette.card };
+  return { body: palette.card, cut: palette.ink };
 }
 
 const hex = (color: number): string => `#${color.toString(16).padStart(6, "0")}`;
