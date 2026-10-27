@@ -58,6 +58,7 @@ export type SettingsRowId =
   | "reduced-motion"
   | "sharper-text"
   | "large-card-text"
+  | "not-offered-notices"
   | "sound"
   | "music-shuffle"
   | "confirm-end-turn"
@@ -122,6 +123,13 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       detail:
         "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
       on: settings.confirmBeforeEndTurn,
+    },
+    {
+      id: "not-offered-notices",
+      title: "Explain abilities not offered",
+      detail:
+        "The first time a card's interrupt or response can't be used (no target, or a cost you can't pay), say why. The log always says it.",
+      on: settings.notOfferedNotices,
     },
     {
       id: "same-name-conflict",
@@ -200,6 +208,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, musicShuffle: !settings.musicShuffle };
     case "confirm-end-turn":
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
+    case "not-offered-notices":
+      return { ...settings, notOfferedNotices: !settings.notOfferedNotices };
     case "same-name-conflict":
       return { ...settings, sameNameHeroAllyConflict: !settings.sameNameHeroAllyConflict };
     case "hover-hero":

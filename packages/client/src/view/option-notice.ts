@@ -16,6 +16,8 @@ export interface OptionNotice {
   readonly title: string;
   /** The line under the title; the overlay's own "only one option" line when absent. */
   readonly lead?: string;
+  /** Offers "Don't show again", which turns these notices off (`Settings.notOfferedNotices`): an ability not offered. */
+  readonly optOut?: true;
   readonly rows: readonly OptionNoticeRow[];
 }
 
@@ -73,6 +75,7 @@ export function unofferedNoticesOf(
       title: `${name}: ${event.timing} not offered`,
       lead: `It answers what just happened, but it cannot be used right now, so you were not asked.`,
       rows: [{ kind: "unavailable", label, why }],
+      optOut: true,
     };
     return [{ key, notice }];
   });

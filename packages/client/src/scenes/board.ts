@@ -1022,6 +1022,8 @@ export class BoardScene extends Phaser.Scene {
   #unofferedShown = new Set<string>();
 
   #firstUnofferedNotices(events: readonly GameEvent[], game: GameState): OptionNotice[] {
+    // Turned off in Settings, or by a notice's "Don't show again": the log and Inspect still say it.
+    if (!appSession().settings.notOfferedNotices) return [];
     return unofferedNoticesOf(events, game, null, POOL_DEPS).flatMap(({ key, notice }) => {
       if (this.#unofferedShown.has(key)) return [];
       this.#unofferedShown.add(key);

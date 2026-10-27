@@ -29,6 +29,7 @@ describe("the Iron Lad dev game (#431)", () => {
               why: "you control no other ready Avenger ally",
             },
           ],
+          optOut: true,
         },
       },
     ]);

@@ -1,0 +1,3 @@
+kind: Added
+body: Settings > Game > "Explain abilities not offered" (on by default) and the notice's own "Don't show again" button (X on a pad) turn off the not-offered notice; the log and Inspect still say why (#431).
+time: 2026-10-26T20:00:25.6367435-04:00
