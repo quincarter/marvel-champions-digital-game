@@ -163,7 +163,11 @@ function formChangeTarget(
   state: GameState,
   event: Extract<TriggerEvent, { kind: "formChanging" | "formChanged" }>,
 ): string {
-  if (event.kind === "formChanged" && event.change === "additional") return event.formName ?? "another form";
+  if (event.kind === "formChanged" && event.change === "additional") {
+    // "Gamma energy form", as the card says "change to Gamma energy form".
+    if (!event.formName) return "another form";
+    return event.formType ? `${event.formName} ${event.formType} form` : event.formName;
+  }
   if (event.to === "alterEgo") return "alter-ego form";
   const seat = getPlayer(state, event.playerId);
   const identity = seat ? cardOf(state, seat.identity.instanceId) : undefined;
