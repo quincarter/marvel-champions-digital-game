@@ -17,13 +17,11 @@ describe("controller button pictures", () => {
   test("every standard button from the face buttons to D-pad right has a picture on each family", () => {
     for (const family of ["xbox", "playstation", "nintendo"] as const)
       for (let index = 0; index <= 15; index++) {
-        // PlayStation's Create and Options are not in the set yet.
-        if (family === "playstation" && (index === 8 || index === 9)) continue;
         expect(padGlyphArtOf(family, index), `${family} ${index}`).not.toBeNull();
       }
     expect(padGlyphArtOf("xbox", 0)).toBe("xbox/face-south");
     expect(padGlyphArtOf("nintendo", 7)).toBe("nintendo/rt");
-    expect(padGlyphArtOf("playstation", 8)).toBeNull();
+    expect(padGlyphArtOf("playstation", 8)).toBe("playstation/view");
     expect(padGlyphArtOf("xbox", 16)).toBeNull();
     expect(glyphArtFor("playstation", "dpad")).toBeNull();
     expect(glyphArtFor("nintendo", "dpad")).toBe("nintendo/dpad");

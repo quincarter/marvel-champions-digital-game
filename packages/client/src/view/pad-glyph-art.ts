@@ -67,7 +67,7 @@ const SOURCES: ReadonlyMap<PadGlyphArtId, string> = new Map(
 /** Every picture there is. */
 export const PAD_GLYPH_ARTS: readonly PadGlyphArtId[] = [...SOURCES.keys()];
 
-/** A family's picture for one button, or null where the set has none (PlayStation's Create and Options, extras). */
+/** A family's picture for one button, or null where the set has none (PlayStation's whole D-pad, extras). */
 export function glyphArtFor(family: PadFamily, art: GlyphArt): PadGlyphArtId | null {
   const id: PadGlyphArtId = `${family}/${art}`;
   return SOURCES.has(id) ? id : null;
