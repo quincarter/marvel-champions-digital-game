@@ -131,7 +131,8 @@ export class McInputGlyph extends Phaser.GameObjects.Container {
       const key = padGlyphTextureKey(spec.art, this.ground);
       if (this.scene.textures.exists(key)) {
         const size = glyphArtDrawSize(spec.art, h);
-        const image = this.scene.add.image(0, 0, key);
+        // Named for its label, so a test can find the button the picture shows.
+        const image = this.scene.add.image(0, 0, key).setName(`glyph:${spec.label}`);
         this.add(image);
         return {
           spec,

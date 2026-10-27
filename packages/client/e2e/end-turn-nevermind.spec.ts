@@ -230,13 +230,14 @@ test("B on a pad is Nevermind on the discard sheet and the START gate, with its 
       type Node = {
         visible?: boolean;
         text?: string;
+        name?: string;
         list?: Node[];
         getBounds?: () => { x: number; y: number; width: number; height: number };
       };
       let found = false;
       const walk = (nodes: Node[]): void => {
         for (const node of nodes) {
-          if (node.text === "B" && node.visible !== false && node.getBounds) {
+          if ((node.text === "B" || node.name === "glyph:B") && node.visible !== false && node.getBounds) {
             const b = node.getBounds();
             const cx = b.x + b.width / 2;
             const cy = b.y + b.height / 2;
