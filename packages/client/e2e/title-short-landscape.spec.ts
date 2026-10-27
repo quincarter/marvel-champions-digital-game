@@ -64,9 +64,20 @@ test("a Title menu too tall for a landscape phone scrolls; a swipe presses nothi
   expect(settings.y + settings.height, "Settings starts below the screen").toBeGreaterThan(height);
   if (SHOT) await page.screenshot({ path: `${SHOT}/title-short-landscape-${info.project.name}-top.png` });
 
-  // A swipe that starts on Decks & Collection and lifts on whatever row slides under the finger.
+  // New game scrolled half under the logo's rule: a tap on its hidden half, over the logo, presses nothing.
   const before = await activeScenes(page);
+  const newGame = await stopRect(page, "new-game");
   const decks = await stopRect(page, "decks");
+  await scrollMenu(page, phone, decks, Math.round(newGame.height / 2) + 2);
+  const half = await stopRect(page, "new-game");
+  expect(half.y, "New game has moved up under the rule").toBeLessThan(newGame.y - 4);
+  const hidden = { x: half.x + half.width / 2, y: half.y + 3 };
+  if (phone) await page.touchscreen.tap(hidden.x, hidden.y);
+  else await pressAt(page, hidden.x, hidden.y);
+  await settle(page);
+  expect(await activeScenes(page), "a tap on a row's hidden part opens nothing").toEqual(before);
+
+  // A swipe that starts on Decks & Collection and lifts on whatever row slides under the finger.
   await scrollMenu(page, phone, decks, 120);
   expect(await activeScenes(page), "a swipe over the menu opens nothing").toEqual(before);
 
