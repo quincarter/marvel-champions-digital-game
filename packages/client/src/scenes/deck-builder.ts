@@ -232,6 +232,8 @@ const WIDE_MIN_WIDTH = 1000;
 const LEFT_RAIL_WIDTH = 230;
 const RIGHT_RAIL_WIDTH = 300;
 const RAIL_GAP = 24;
+/** Card view's column cap: enough that a 4K window's pool keeps cards near their usual size instead of blowing them up. */
+const POOL_MAX_COLUMNS = 20;
 
 /**
  * W1's type filter chips (docs/phase4-screen-gaps.md §3): "All" plus every `PoolFilter.type` the pool actually
@@ -471,7 +473,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     const phone = formFactorFor(width, height) === "phone";
     const wide = !phone && width >= WIDE_MIN_WIDTH;
     const pad = phone ? 16 : 40;
-    const column = Math.min(width - pad * 2, wide ? 1200 : 720);
+    // The wide layout spans the whole window (issue #458): the rails keep their widths and the pool takes the rest,
+    // adding columns as it grows (`POOL_MAX_COLUMNS`).
+    const column = wide ? width - pad * 2 : Math.min(width - pad * 2, 720);
     const left = (width - column) / 2;
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
@@ -1551,7 +1555,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A phone's column takes three smaller cards across rather than two big ones, so a screen shows more than one row.
     const { width: screenWidth, height: screenHeight } = this.scale.gameSize;
     const phoneScale = formFactorFor(screenWidth, screenHeight) === "phone" ? 0.8 : 1;
-    const geometry = poolGridGeometry(width, count, false, cardSizeFactor(appSession().settings.cardSize) * phoneScale);
+    const geometry = poolGridGeometry(
+      width,
+      count,
+      false,
+      cardSizeFactor(appSession().settings.cardSize) * phoneScale,
+      POOL_MAX_COLUMNS,
+    );
     return { ...geometry, cellHeight: geometry.cellHeight + GRID_CONTROLS_HEIGHT };
   }
 

@@ -88,6 +88,8 @@ import { musicSlotBeside } from "../view/music-player.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { SHADOWLAND_NOTICE_ON } from "../view/shadowland-notice.js";
 import { drawShadowlandNoticeBar } from "../ui/shadowland-notice-bar.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { captureIntoRegion } from "../ui/scroll-capture.js";
 
 /**
  * "Play this deck ▸" (W9, docs/phase4-screen-gaps.md §3): the Decks screen starts Title with the deck to seat.
@@ -128,6 +130,8 @@ export class TitleScene extends Phaser.Scene {
   #games: readonly SaveMeta[] = [];
   /** The games panel's scroll offset, kept across the redraws a resize or a sync makes. */
   #gamesScroll = new VariableListScroll();
+  /** The menu's scroll offset on a window too short for it (`layout.menuScroll`), kept across redraws. */
+  #menuScroll = new VariableListScroll();
   /** The game the panel is asking "Remove this game?" about, or null while it lists. */
   #removing: string | null = null;
   #removeBusy = false;
@@ -417,6 +421,21 @@ export class TitleScene extends Phaser.Scene {
       .setLetterSpacing(2);
     this.add.rectangle(layout.rule.x, layout.rule.y, layout.rule.width, layout.rule.height, textColor).setOrigin(0, 0);
 
+    // A window too short for the menu: everything from here to the footer is drawn as usual, then moved into a
+    // scroll region under the rule (`ui/scroll-capture.ts`).
+    // A placeholder until the menu is drawn, so a kept offset survives the region's first layout.
+    const menuHeights: number[] = [1_000_000];
+    const menuRegion = layout.menuScroll
+      ? new McScrollRegion(this, {
+          rect: layout.menuScroll,
+          heights: menuHeights,
+          scroll: this.#menuScroll,
+          clipInteractive: true,
+        })
+      : null;
+    const menuFrom = this.children.list.length;
+    const stopsBeforeMenu = new Set(this.#stops.keys());
+
     if (layout.continueRow) {
       const save = this.#continuable!;
       const rect = layout.continueRow;
@@ -455,9 +474,6 @@ export class TitleScene extends Phaser.Scene {
     }
 
     const gameRows = layout.gamesPanel ? gameRowsOf(this.#listedGames(), GAME_LABEL_NAMES, Date.now()) : [];
-    if (layout.gamesPanel && layout.gamesPanelList) {
-      this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows);
-    }
     if (layout.gamesRow) {
       this.#buttons.push(
         new McButton(this, {
@@ -702,6 +718,28 @@ export class TitleScene extends Phaser.Scene {
     this.#status = this.add
       .text(layout.left, layout.footer.y - 24, "", textStyle(typeRole.body, textColor))
       .setWordWrapWidth(layout.column);
+
+    if (menuRegion && layout.menuScroll) {
+      const viewport = layout.menuScroll;
+      captureIntoRegion(this, {
+        region: menuRegion,
+        heights: menuHeights,
+        scroll: this.#menuScroll,
+        fromIndex: menuFrom,
+        stops: this.#stops,
+        stopsBefore: stopsBeforeMenu,
+        viewportTop: viewport.y,
+        viewportBottom: viewport.y + viewport.height,
+        bottom: layout.footer.y + layout.footer.height,
+        padBottom: layout.pad,
+      });
+      menuRegion.syncInteractivity();
+    }
+
+    // The games panel sits in the art panel, outside the menu's scroll region, so it is drawn after the capture.
+    if (layout.gamesPanel && layout.gamesPanelList) {
+      this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows);
+    }
 
     // Temporary: the Shadowland notice bar across the top (`view/shadowland-notice.ts`).
     if (layout.noticeBar) {

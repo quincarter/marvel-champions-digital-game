@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap, type Rect } from "./layout.js";
-import { poolCellRect, poolColumnAt, poolGridGeometry } from "./deck-pool-grid.js";
+import { MAX_COLUMNS, poolCellRect, poolColumnAt, poolGridGeometry } from "./deck-pool-grid.js";
 
 const WIDTHS = [160, 260, 400, 644, 781, 1094, 1600];
 
@@ -88,6 +88,26 @@ describe("poolGridGeometry card scale", () => {
       });
     }
   }
+});
+
+describe("poolGridGeometry column cap (issue #458)", () => {
+  test("the default cap holds 8 columns, so a very wide pane grows its cards instead", () => {
+    const geometry = poolGridGeometry(1950, 60);
+    expect(geometry.columns).toBe(MAX_COLUMNS);
+    expect(geometry.cellWidth).toBeGreaterThan(200);
+  });
+
+  test("a higher cap keeps adding columns near the usual card size as the pane widens", () => {
+    const at1080p = poolGridGeometry(1270, 60, false, 1, 20);
+    const at1440p = poolGridGeometry(1950, 60, false, 1, 20);
+    expect(at1440p.columns).toBeGreaterThan(at1080p.columns);
+    expect(at1440p.columns).toBeGreaterThan(MAX_COLUMNS);
+    expect(at1440p.cellWidth).toBeLessThan(170);
+  });
+
+  test("a higher cap changes nothing on a pane the default cap never reached", () => {
+    expect(poolGridGeometry(781, 30, false, 1, 20)).toEqual(poolGridGeometry(781, 30));
+  });
 });
 
 describe("poolColumnAt", () => {
