@@ -866,6 +866,8 @@ export type GameEvent =
       readonly sourceInstanceId: InstanceId | null;
       /** No player dealt it although a player controls its source (`TriggerEvent dealDamage.noPlayer`). */
       readonly noPlayer?: true;
+      /** Retaliate damage (`TriggerEvent dealDamage.retaliate`), so a log can name the keyword. */
+      readonly retaliate?: true;
       /** Unpreventable damage (`TriggerEvent dealDamage.unpreventable`, docs/phase7-wave11-hero-packs.md §H3.3). */
       readonly unpreventable?: true;
     }

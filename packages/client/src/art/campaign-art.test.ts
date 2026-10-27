@@ -8,7 +8,6 @@ import { GMW_STORY } from "../campaign/stories/gmw.js";
 import { MOJO_STORY } from "../campaign/stories/mojo.js";
 import {
   CAMPAIGN_ART,
-  RULEBOOK_CAMPAIGN_IDS,
   campaignArtboardFor,
   campaignCoverFor,
   campaignPageFor,
@@ -124,18 +123,13 @@ describe("the real art/campaigns folder", () => {
         expect(file, `${campaignId}/rulebook/${file}`).toMatch(/^(page_\d{3}\.jpg|SOURCE\.md)$/);
       }
     }
-    // Rulebook pages reach the client only through `rulebookPages` (a one-off scenario intro,
-    // `campaign/scenario-intros.ts`) — never mixed into the campaign reader's own pages/covers/artboards.
+    // Rulebook pages reach the client only through `rulebookPages` (a one-off scenario intro, the Extras rulebook
+    // reader) — never mixed into the campaign reader's own pages/covers/artboards.
     for (const picture of [...CAMPAIGN_ART.pages.values(), ...CAMPAIGN_ART.covers.values()]) {
       expect(picture.key).not.toContain("/rulebook/");
     }
     for (const pictures of CAMPAIGN_ART.artboards.values())
       for (const picture of pictures) expect(picture.key).not.toContain("/rulebook/");
-    // The boxes actually wired to a rulebook-page intro (`RULEBOOK_CAMPAIGN_IDS`) each got at least one.
-    for (const campaignId of RULEBOOK_CAMPAIGN_IDS) {
-      const own = [...CAMPAIGN_ART.rulebookPages.keys()].filter((slot) => slot.startsWith(`${campaignId}/`));
-      expect(own.length, campaignId).toBeGreaterThan(0);
-      for (const slot of own) expect(CAMPAIGN_ART.rulebookPages.get(slot)!.key).toContain("/rulebook/");
-    }
+    for (const [slot, picture] of CAMPAIGN_ART.rulebookPages) expect(picture.key, slot).toContain("/rulebook/");
   });
 });

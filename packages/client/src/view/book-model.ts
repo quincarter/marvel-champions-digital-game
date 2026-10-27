@@ -15,7 +15,12 @@ export type BookBlock =
   /** A list item; `depth` 0 is top level. */
   | { readonly kind: "bullet"; readonly text: string; readonly depth: number }
   /** A quoted or called-out passage: a card, a sidebar, flavor text. */
-  | { readonly kind: "quote"; readonly text: string };
+  | { readonly kind: "quote"; readonly text: string }
+  /**
+   * A rulebook page that is all art (a cover, a comic page): the conversion has no text for it, so the reader shows
+   * the page's own picture by its printed `page` number, and `text` (the conversion's note) while there is none.
+   */
+  | { readonly kind: "illustration"; readonly text: string; readonly page: number | null };
 
 export interface BookSection {
   readonly title: string;
@@ -66,6 +71,9 @@ function isNoise(text: string): boolean {
   );
 }
 
+/** The conversion's whole body for a page with no text on it. */
+const ILLUSTRATION_NOTE = /^\(Full-page graphic \/ illustration\b.*\)$/i;
+
 /** "Page 6: Page 6 Rules" → "Page 6": the converter's placeholder for a page with no heading of its own. */
 function sectionTitle(text: string): string {
   const placeholder = /^Page (\d+): Page \1 Rules$/i.exec(text);
@@ -82,7 +90,10 @@ export function parseBook(markdown: string, options: BookParseOptions): readonly
   const flushParagraph = (): void => {
     const text = cleanInline(paragraph.join(" "));
     paragraph = [];
-    if (!isNoise(text)) current.blocks.push({ kind: "paragraph", text });
+    if (ILLUSTRATION_NOTE.test(text)) {
+      const page = /^Page (\d+)\b/i.exec(current.title);
+      current.blocks.push({ kind: "illustration", text, page: page ? Number(page[1]) : null });
+    } else if (!isNoise(text)) current.blocks.push({ kind: "paragraph", text });
   };
   const flushQuote = (): void => {
     const lines = quote.map(cleanInline).filter((line) => line !== "");

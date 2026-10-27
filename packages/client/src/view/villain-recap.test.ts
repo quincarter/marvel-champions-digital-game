@@ -14,12 +14,12 @@ interface Played {
 }
 
 /** Ends turns until one whole villain phase has been walked, keeping the state from before the command it began in. */
-async function playOnePhase(): Promise<Played> {
+async function playOnePhase(starterDeckId = "core-spider-man-justice", asHero = false): Promise<Played> {
   const store = new SessionStore(new LocalEngineHost());
   await store.start({
     scenarioId: "rhino",
     difficulty: "standard",
-    players: [{ starterDeckId: "core-spider-man-justice" }],
+    players: [{ starterDeckId }],
     seed: 2026,
   });
   const viewer = store.state.game!.players[0]!.playerId;
@@ -34,6 +34,13 @@ async function playOnePhase(): Promise<Played> {
       const { choice } = legal.actions;
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
     } else if (legal.actions.kind === "turn") {
+      // `asHero`: the identity flips to hero form once, before its first turn ends.
+      const flip = legal.actions.legal.find((entry) => entry.action.kind === "changeForm");
+      if (asHero && flip) {
+        asHero = false;
+        await store.dispatch(flip.example);
+        continue;
+      }
       const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn");
       if (!end) break;
       await store.dispatch(end.example);
@@ -107,4 +114,14 @@ describe("villainRecapOf", () => {
   test("step 5 words the token pass as old to new", () => {
     expect(recap.columns[4]!.entries[0]).toMatchObject({ headline: "Token passes: you → you", detail: null });
   });
+});
+
+describe("villainRecapOf: retaliate (#444)", () => {
+  test("Black Panther's Retaliate 1 is listed on Rhino's attack row, in the log's words", async () => {
+    const played = await playOnePhase("core-black-panther-protection", true);
+    const recap = villainRecapOf(played.walkthrough, played.before, played.after, played.viewer, POOL_DEPS);
+    const attack = recap.columns[1]!.entries.find((entry) => entry.headline === "Rhino attacks you")!;
+    expect(attack.effects).toEqual(["Retaliate: Rhino took 1 damage from Black Panther (T'Challa)."]);
+    expect(played.after.instances[played.after.activeVillainId!]!.damage).toBe(1);
+  }, 60_000);
 });

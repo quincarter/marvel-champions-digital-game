@@ -2,7 +2,8 @@
  * Draws one controller (`view/controller-shapes.ts`: Xbox, DualSense-style, a Joy-Con grip, a Steam Deck) scaled into
  * a rect, with each button wearing the label its family prints there (`view/pad-family.ts#padGlyphOf`). Labels are
  * positional: a Nintendo pad prints B at the bottom whatever the layout swap says; the swap only changes what a press
- * does, which the list beside the drawing shows.
+ * does, which the list beside the drawing shows. A label box (a rect followed by its label) is drawn as the button's
+ * picture (`view/pad-glyph-art.ts`) once that texture is baked.
  *
  * Returns every object it made, so a caller can parent them into a scroll region's content container.
  */
@@ -11,7 +12,9 @@ import { font } from "../tokens.js";
 import type { DrawingKind } from "../view/controls-rows.js";
 import { CONTROLLER_SHAPES, type ShapeOp } from "../view/controller-shapes.js";
 import { padGlyphOf, type PadFamily } from "../view/pad-family.js";
+import { glyphArtDrawSize, padGlyphArtOf, type PadGlyphArtId } from "../view/pad-glyph-art.js";
 import { flattenPath } from "../view/svg-path.js";
+import { padGlyphTextureKey } from "./pad-glyph-textures.js";
 import { textStyle } from "./theme.js";
 
 /** The drawing's labels by the reference the shapes use. */
@@ -70,6 +73,19 @@ export function ensureControllerImage(scene: Phaser.Scene, kind: DrawingKind, on
   return "loading";
 }
 
+/** The picture for a label reference (`$lt`) on this family, when its texture is ready. */
+function pictureOf(
+  scene: Phaser.Scene,
+  ref: string,
+  family: PadFamily,
+): { readonly id: PadGlyphArtId; readonly key: string } | null {
+  const index = LABEL_INDEX[ref];
+  const id = index === undefined ? null : padGlyphArtOf(family, index);
+  if (id === null) return null;
+  const key = padGlyphTextureKey(id, "paper");
+  return scene.textures.exists(key) ? { id, key } : null;
+}
+
 export function labelOf(ref: string, family: PadFamily): string {
   const index = LABEL_INDEX[ref];
   if (index === undefined) return ref;
@@ -88,7 +104,29 @@ export function drawController(
   const made: Phaser.GameObjects.GameObject[] = [g];
   const sx = (v: number): number => rect.x + v * scale;
   const sy = (v: number): number => rect.y + v * scale;
-  for (const op of shape.ops) {
+  for (let i = 0; i < shape.ops.length; i++) {
+    const op = shape.ops[i]!;
+    const label = shape.ops[i + 1];
+    if (op.k === "rect" && label?.k === "text") {
+      const picture = pictureOf(scene, label.text, family);
+      if (picture) {
+        // The box and its label give way to the button's picture, centered on the box and a little larger than it, so
+        // the corner callouts keep their spacing.
+        const tall = glyphArtDrawSize(picture.id, op.h * 1.2 * scale);
+        const fit = Math.min(1, (op.w * 1.2 * scale) / tall.width);
+        const size = { width: tall.width * fit, height: tall.height * fit };
+        made.push(
+          scene.add
+            .image(sx(op.x + op.w / 2), sy(op.y + op.h / 2), picture.key)
+            .setDisplaySize(size.width, size.height)
+            .setName(`glyph:${labelOf(label.text, family)}`),
+        );
+        g = scene.add.graphics();
+        made.push(g);
+        i++;
+        continue;
+      }
+    }
     if (op.k === "image") {
       const image = IMAGES[op.src]!;
       if (scene.textures.exists(image.key)) {

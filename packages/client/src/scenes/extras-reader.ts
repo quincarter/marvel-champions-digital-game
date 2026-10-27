@@ -1,12 +1,15 @@
 /**
  * The Extras reader: one rulebook as plain text (`content/books.ts`, parsed by `view/book-model.ts`). A contents
  * list with a search field, the open section's text, ◂ PREV / NEXT ▸ through the book, and a button per PDF that
- * opens the repo's copy of the original.
+ * opens the repo's copy of the original. A page that is all art (a cover, a comic page) shows the box's own picture
+ * of it (`art/campaigns/<id>/rulebook/`), fitted to the reading area, fetched the first time it is opened.
  *
  * Wide screens show the contents beside the text; a phone shows one at a time (the contents first, a section once
  * one is picked, "☰ CONTENTS" to go back). Back returns to Extras' Rulebooks tab.
  */
 import Phaser from "phaser";
+import { CAMPAIGN_ART, campaignRulebookPageFor } from "../art/campaign-art.js";
+import { ensurePictureLoaded } from "../art/pictures.js";
 import { accent, ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -52,6 +55,8 @@ export class ExtrasReaderScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   readonly #tocScroll = new ListScroll();
   readonly #textScroll = new VariableListScroll();
+  /** One callback for every page picture, so a redraw while one loads waits on it once. */
+  readonly #onPictureReady = (): void => this.#draw();
 
   constructor() {
     super(SCENES.extrasReader);
@@ -390,7 +395,7 @@ export class ExtrasReaderScene extends Phaser.Scene {
 
     const textRect: Rect = { x: rect.x + pad, y: top, width: rect.width - pad * 2, height: navY - top - 8 };
     const before = this.children.list.length;
-    const bottom = this.#drawBlocks(section, textRect);
+    const bottom = this.#drawBlocks(book, section, textRect);
     const drawn = this.children.list.slice(before);
     this.#region = new McScrollRegion(this, {
       rect: textRect,
@@ -402,7 +407,7 @@ export class ExtrasReaderScene extends Phaser.Scene {
   }
 
   /** The section's title and blocks, top to bottom from `rect.y`; returns the y under the last one. */
-  #drawBlocks(section: BookSection, rect: Rect): number {
+  #drawBlocks(book: BookSpec, section: BookSection, rect: Rect): number {
     const width = Math.max(120, rect.width - 12);
     let y = rect.y + 8;
     const title = this.add
@@ -411,11 +416,13 @@ export class ExtrasReaderScene extends Phaser.Scene {
     y += title.height + 6;
     this.add.rectangle(rect.x, y, Math.min(width, 120), 3, accent.heroRed.hex).setOrigin(0, 0);
     y += 16;
-    for (const block of section.blocks) y = this.#drawBlock(block, rect.x, y, width) + 10;
+    // A page picture fits the reading area whole, under the title, rather than scrolling past it.
+    const pictureHeight = Math.max(240, rect.y + rect.height - y - 40);
+    for (const block of section.blocks) y = this.#drawBlock(book, block, rect.x, y, width, pictureHeight) + 10;
     return y;
   }
 
-  #drawBlock(block: BookBlock, x: number, y: number, width: number): number {
+  #drawBlock(book: BookSpec, block: BookBlock, x: number, y: number, width: number, pictureHeight: number): number {
     const body = (text: string, left: number, alpha = 0.92) =>
       this.add
         .text(left, y, text, textStyle(typeRole.body, surface.ink.hex, alpha))
@@ -431,6 +438,23 @@ export class ExtrasReaderScene extends Phaser.Scene {
       }
       case "paragraph":
         return y + body(block.text, x).height;
+      case "illustration": {
+        const picture =
+          book.pageArtId && block.page !== null
+            ? campaignRulebookPageFor(CAMPAIGN_ART, book.pageArtId, block.page)
+            : null;
+        if (!picture) return y + body(block.text, x).height;
+        const key = ensurePictureLoaded(this, picture, this.#onPictureReady);
+        if (!key) return y + body("Loading the page…", x, 0.6).height;
+        const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
+        const scale = Math.min(width / source.width, pictureHeight / source.height);
+        const shown = { width: source.width * scale, height: source.height * scale };
+        this.add
+          .image(x + (width - shown.width) / 2, y, key)
+          .setOrigin(0, 0)
+          .setScale(scale);
+        return y + shown.height;
+      }
       case "bullet": {
         const left = x + 14 + block.depth * 18;
         this.add

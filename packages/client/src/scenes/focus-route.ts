@@ -444,7 +444,12 @@ export class FocusRoute {
           adjust(intent === "left" ? -1 : 1);
           break;
         }
-        this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross));
+        // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow
+        // that finds nothing in its cone still reaches the screen below, so focus there is never stranded.
+        const fromChrome = this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP;
+        this.#moveTo(
+          spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross || fromChrome),
+        );
         break;
       }
       case "activate":

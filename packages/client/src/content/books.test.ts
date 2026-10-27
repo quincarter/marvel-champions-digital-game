@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { CAMPAIGN_ART, campaignRulebookPageFor } from "../art/campaign-art.js";
 import { BOOKS, REPO_FILE_URL, hasBookText, loadBook } from "./books.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -29,6 +30,20 @@ describe("the rulebooks", () => {
         for (const block of section.blocks)
           expect(block.text, `${book.id}: ${section.title}`).not.toMatch(/\*\*|<a id=/);
       }
+    }
+  });
+
+  it("has a page picture for every all-art page of a campaign rulebook (#446)", async () => {
+    for (const book of BOOKS.filter((b) => b.id.startsWith("book:mc"))) {
+      expect(book.pageArtId, book.id).toBeDefined();
+      const sections = await loadBook(book);
+      for (const section of sections)
+        for (const block of section.blocks) {
+          if (block.kind !== "illustration") continue;
+          expect(block.page, `${book.id}: ${section.title}`).not.toBeNull();
+          const picture = campaignRulebookPageFor(CAMPAIGN_ART, book.pageArtId!, block.page!);
+          expect(picture, `${book.id}: ${section.title}`).not.toBeNull();
+        }
     }
   });
 

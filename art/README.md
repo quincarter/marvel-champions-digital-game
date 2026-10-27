@@ -4,28 +4,28 @@ Full-bleed pictures the client shows outside of card scans. Every folder here
 is globbed at build time, so **adding a file is all it takes** — there is no
 list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 
-| Put it in                     | Named                                 | Shown                                                                                                                                                                                                                      |
-| ----------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extras/`                     | `<title>.<ext>`                       | Extras ▸ Artwork shelf only, always open; name the file for its title (`psylocke-and-angel.png` is "Psylocke and Angel")                                                                                                   |
-| `title/`                      | anything                              | Title screen — one at random per visit, never the same twice running                                                                                                                                                       |
-| `scenarios/<scenarioId>/`     | `villain.<ext>`                       | The villain's artwork for that scenario                                                                                                                                                                                    |
-| `scenarios/<scenarioId>/`     | `villain-wins.<ext>`                  | Game Over, when the players lose to it                                                                                                                                                                                     |
-| `scenarios/<scenarioId>/`     | `villain-loses.<ext>`                 | Game Over, when the players beat it                                                                                                                                                                                        |
-| `scenarios/<scenarioId>/`     | `villain-loses-with-<identity>.<ext>` | Game Over, when the players beat it with that hero identity (card code, e.g. `60001a` Daredevil) seated; ahead of the plain scene; also `villain-wins-with-<identity>`                                                     |
-| `scenarios/<scenarioId>/`     | `intro.<ext>`                         | OPTIONAL: a one-off game's intro artboard, read beat by beat before the deal (`scenario-intros.ts`)                                                                                                                        |
-| `villains/<villainSetId>/`    | `villain-wins.<ext>`                  | Game Over when a chosen villain (Fear No Evil's underlings, by encounter set id: `hammerhead`, `typhoid_mary`) beats the players; ahead of the scenario's own scene                                                        |
-| `villains/<villainSetId>/`    | `villain-loses.<ext>`                 | Game Over when the players beat that chosen villain; see `villains/SOURCE.md`                                                                                                                                              |
-| `outcomes/`                   | `defeat.<ext>`                        | Game Over for any loss with no scene of its own, and for a concession                                                                                                                                                      |
-| `outcomes/`                   | `victory.<ext>`                       | Game Over for any win with no scene of its own                                                                                                                                                                             |
-| `heroes/<identityId>-<slug>/` | `hero.<ext>`                          | The hero's artwork on hero select (Take your seats), the way a villain's shows on Scenario select                                                                                                                          |
-| `packs/<packCode>/`           | `cover.<ext>`                         | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves)                                                                                                                      |
-| `teamups/<pair-slug>/`        | `splash.<ext>`                        | OPTIONAL: the full picture, shown once over the Board the first time that Team-Up becomes active (`<pair-slug>` is the two names, lowercased and sorted: `gambit-rogue`)                                                   |
-| `teamups/<pair-slug>/`        | `badge.<ext>`                         | OPTIONAL: the closeup, shown in a circle on the Board's top bar while that Team-Up is active; a pair with neither gets neither                                                                                             |
-| `side-stories/<story-id>/`    | `<page>.<ext>`                        | Extras ▸ Side Stories: a short comic's pages, read panel by panel in the comic reader; `content/side-stories.ts` lists each page (by file name), its panels and the achievement that opens it                              |
-| `campaigns/<campaignId>/`     | `cover.<ext>`                         | The campaign's key art: the Saga tile and the Cover screen (`campaignCoverFor`); no file, the villain picture                                                                                                              |
-| `campaigns/<campaignId>/`     | `artboards/<name>.*`                  | A story panel's picture, where the story file names it (`{ kind: "artboard", name }`); else its note                                                                                                                       |
-| `campaigns/<campaignId>/`     | `pages/NN-<slug>.*`                   | Full comic pages, read panel by panel in the comic reader; `NN` is the page order. Built in step 5a                                                                                                                        |
-| `campaigns/<campaignId>/`     | `rulebook/page_NNN.jpg`               | The box's official, lettered rulebook comic pages (see its `SOURCE.md`); a one-off scenario's own intro reuses one (`scenario-intros.ts`), for `trors`/`gmw`/`mts`/`sm`/`mut_gen`/`next_evol`/`aoa`/`aos` only — see below |
+| Put it in                     | Named                                 | Shown                                                                                                                                                                                             |
+| ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `extras/`                     | `<title>.<ext>`                       | Extras ▸ Artwork shelf only, always open; name the file for its title (`psylocke-and-angel.png` is "Psylocke and Angel")                                                                          |
+| `title/`                      | anything                              | Title screen — one at random per visit, never the same twice running                                                                                                                              |
+| `scenarios/<scenarioId>/`     | `villain.<ext>`                       | The villain's artwork for that scenario                                                                                                                                                           |
+| `scenarios/<scenarioId>/`     | `villain-wins.<ext>`                  | Game Over, when the players lose to it                                                                                                                                                            |
+| `scenarios/<scenarioId>/`     | `villain-loses.<ext>`                 | Game Over, when the players beat it                                                                                                                                                               |
+| `scenarios/<scenarioId>/`     | `villain-loses-with-<identity>.<ext>` | Game Over, when the players beat it with that hero identity (card code, e.g. `60001a` Daredevil) seated; ahead of the plain scene; also `villain-wins-with-<identity>`                            |
+| `scenarios/<scenarioId>/`     | `intro.<ext>`                         | OPTIONAL: a one-off game's intro artboard, read beat by beat before the deal (`scenario-intros.ts`)                                                                                               |
+| `villains/<villainSetId>/`    | `villain-wins.<ext>`                  | Game Over when a chosen villain (Fear No Evil's underlings, by encounter set id: `hammerhead`, `typhoid_mary`) beats the players; ahead of the scenario's own scene                               |
+| `villains/<villainSetId>/`    | `villain-loses.<ext>`                 | Game Over when the players beat that chosen villain; see `villains/SOURCE.md`                                                                                                                     |
+| `outcomes/`                   | `defeat.<ext>`                        | Game Over for any loss with no scene of its own, and for a concession                                                                                                                             |
+| `outcomes/`                   | `victory.<ext>`                       | Game Over for any win with no scene of its own                                                                                                                                                    |
+| `heroes/<identityId>-<slug>/` | `hero.<ext>`                          | The hero's artwork on hero select (Take your seats), the way a villain's shows on Scenario select                                                                                                 |
+| `packs/<packCode>/`           | `cover.<ext>`                         | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves)                                                                                             |
+| `teamups/<pair-slug>/`        | `splash.<ext>`                        | OPTIONAL: the full picture, shown once over the Board the first time that Team-Up becomes active (`<pair-slug>` is the two names, lowercased and sorted: `gambit-rogue`)                          |
+| `teamups/<pair-slug>/`        | `badge.<ext>`                         | OPTIONAL: the closeup, shown in a circle on the Board's top bar while that Team-Up is active; a pair with neither gets neither                                                                    |
+| `side-stories/<story-id>/`    | `<page>.<ext>`                        | Extras ▸ Side Stories: a short comic's pages, read panel by panel in the comic reader; `content/side-stories.ts` lists each page (by file name), its panels and the achievement that opens it     |
+| `campaigns/<campaignId>/`     | `cover.<ext>`                         | The campaign's key art: the Saga tile and the Cover screen (`campaignCoverFor`); no file, the villain picture                                                                                     |
+| `campaigns/<campaignId>/`     | `artboards/<name>.*`                  | A story panel's picture, where the story file names it (`{ kind: "artboard", name }`); else its note                                                                                              |
+| `campaigns/<campaignId>/`     | `pages/NN-<slug>.*`                   | Full comic pages, read panel by panel in the comic reader; `NN` is the page order. Built in step 5a                                                                                               |
+| `campaigns/<campaignId>/`     | `rulebook/page_NNN.jpg`               | The box's official rulebook pages that are all art (see its `SOURCE.md`): the Extras rulebook reader shows them, and a one-off scenario's own intro reuses one (`scenario-intros.ts`) — see below |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
@@ -39,8 +39,8 @@ one (just the pack's name and a rule, no thumbnail).
 `<campaignId>` is the content package's `Campaign.id`, which is the campaign box's pack code, the same key
 `music/campaigns/` uses: `trors` (The Rise of Red Skull), `gmw` (The Galaxy's Most Wanted), `mts` (The Mad
 Titan's Shadow), `sm` (Sinister Motives), `mut_gen` (Mutant Genesis), `next_evol` (NeXt Evolution), `aoa` (Age of
-Apocalypse), `aos` (Agents of S.H.I.E.L.D.), `fne` (Fear No Evil) and `shadowland` (Shadowland: a cover, five panels as artboards and six lettered pages of Marvel's 2010 event as the Aftermath's read; see its `SOURCE.md`). Civil War has no campaign mode, so no folder.
-All eleven folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. A cover shows on the
+Apocalypse), `aos` (Agents of S.H.I.E.L.D.), `fne` (Fear No Evil) and `shadowland` (Shadowland: a cover, five panels as artboards and six lettered pages of Marvel's 2010 event as the Aftermath's read; see its `SOURCE.md`). Civil War has no campaign mode, so its folder, `civil_war`, holds only its `rulebook/` pages.
+All twelve folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. A cover shows on the
 Saga tile and the Cover screen. An artboard shows wherever a panel in `packages/client/src/campaign/stories/<campaignId>.ts` names it
 (`mountain-facility` → `artboards/mountain-facility.webp`); until the file exists the panel keeps its "Panel art: …"
 note. `packages/client/src/art/campaign-art.test.ts` fails if an artboard file matches no name a story uses.
@@ -71,11 +71,14 @@ is the reading area's own shape (2.04:1 wide, 0.574:1 phone) and each line's `pl
 A one-off (non-campaign) game's own scenario intro is different again: it shows the box's `rulebook/` page directly,
 un-copied — the page right before that scenario's own Setup instructions begin, already lettered around that
 scenario's own villain reveal (`campaign/scenario-intros.ts`, docs/phase7-wave5-handoff.md "Scenario intros from the
-rulebook art"). Only the boxes with scenario content in this build's pool read `rulebook/` at all
-(`packages/client/src/art/campaign-art.ts`'s `RULEBOOK_CAMPAIGN_IDS`: `trors`, `gmw`, `mts`, `sm`, `mut_gen`, `next_evol`, `aoa` today) — globbing
-every box's `rulebook/` would ship ~43 MB of pages no screen shows yet. A box outside that list, or a scenario whose
-own page wasn't captured (GMW's Ronan the Accuser: page 17 fell outside what got rendered), simply has no
-rulebook-page intro and falls back to whatever it already had (its own `art/scenarios/<id>/intro.*`, or none).
+rulebook art"). A scenario whose own page wasn't captured (GMW's Ronan the Accuser: page 17 fell outside what got
+rendered) simply has no rulebook-page intro and falls back to whatever it already had (its own
+`art/scenarios/<id>/intro.*`, or none).
+
+**The Extras rulebook reader shows every box's `rulebook/` pages** (issue #446): a page its Markdown conversion marks
+`*(Full-page graphic / illustration — no text on this page)*` shows `rulebook/page_NNN.jpg` for that page number, so
+each box carries one file per marked page, page 1 (the cover) included. A marked page with no file keeps the note.
+`packages/client/src/content/books.test.ts` fails if one is missing.
 
 `<identityId>` is the hero identity card's id (`01001a` Spider-Man, `51001a` Shuri's Black Panther). Only the part
 of the folder name before the first `-` is read; the rest is there so a person can tell the folders apart. Card ids

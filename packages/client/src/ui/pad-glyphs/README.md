@@ -17,7 +17,8 @@ All three sets are from Figma Community and licensed CC BY 4.0 (https://creative
 
 Changed from the originals: each icon is cut out of its sheet into its own SVG and trimmed to its bounds, layer names
 are dropped, and each set's two neutral colors are replaced with the placeholders `BODY` (the button) and `CUT` (the
-letter or mark cut into it), which `view/pad-glyph-art.ts` fills in with the game's palette. The colored Xbox A, B, X
+letter or mark cut into it), which `view/pad-glyph-art.ts` fills in with the game's palette (a white button with an ink mark, which
+`ui/pad-glyph-textures.ts` rings with an ink outline). The colored Xbox A, B, X
 and Y discs and the colored PlayStation face symbols keep their original colors.
 
 The controllers are Microsoft's, Sony's and Nintendo's designs and trademarks.
