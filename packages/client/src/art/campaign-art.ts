@@ -13,12 +13,12 @@
  * module started reading it; a box with no cover file simply has none (`campaignCoverFor` returns null), so the
  * Cover screen's existing villain-art/placeholder fallback is unaffected.
  *
- * `rulebook/page_NNN.jpg` (docs/phase7-wave5-handoff.md "Scenario intros from the rulebook art") is the box's own
- * official, already-lettered rulebook comic page: a one-off (non-campaign) game's scenario intro
- * (`campaign/scenario-intros.ts`) shows it instead of new art, since the page is already the villain's own reveal
- * beat. Read only for the boxes that actually wire a one-off intro to it (`RULEBOOK_CAMPAIGN_IDS` below) — globbing
- * every box's `rulebook/` would bundle all ~43 MB of every captured page, most of it for boxes with no scenario
- * intro pointed at it yet.
+ * `rulebook/page_NNN.jpg` (docs/phase7-wave5-handoff.md "Scenario intros from the rulebook art") is one of the box's
+ * own official rulebook pages that is all art (the cover, an already-lettered comic page). The Extras rulebook reader
+ * (`scenes/extras-reader.ts`) shows it where the book's text conversion has none (issue #446), and a one-off
+ * (non-campaign) game's scenario intro (`campaign/scenario-intros.ts`) shows it instead of new art, since the page is
+ * already the villain's own reveal beat. Every box's folder is read; the glob only resolves URLs, so a page is
+ * fetched the first time a screen draws it.
  *
  * Pure over a path → URL map, like `hero-art.ts`, so it is tested without the glob.
  */
@@ -35,8 +35,8 @@ export interface CampaignArtCatalog {
    */
   readonly pages: ReadonlyMap<string, Picture>;
   /**
-   * A box's own official rulebook comic page, by `<campaignId>/page_NNN` (`page_008`, matching the file on disk) —
-   * read only for `RULEBOOK_CAMPAIGN_IDS`. No variant convention, same as `pages`/`covers`.
+   * A box's own official rulebook page, by `<campaignId>/page_NNN` (`page_008`, matching the file on disk). No variant
+   * convention, same as `pages`/`covers`.
    */
   readonly rulebookPages: ReadonlyMap<string, Picture>;
   /** Files under `art/campaigns/` outside an `artboards/`/`pages/`/`rulebook/` folder that aren't a campaign's `cover.*`. */
@@ -114,32 +114,21 @@ const rulebookSlot = (campaignId: string, page: number): string =>
   `${campaignId}/page_${String(page).padStart(3, "0")}`;
 
 /**
- * A box's own official rulebook comic page by its printed page number (`campaign/scenario-intros.ts`), or null when
- * that box isn't in `RULEBOOK_CAMPAIGN_IDS` or hasn't captured that page yet — the scenario then falls back to its
- * own `art/scenarios/<id>/intro.*` (`scenario-art.ts`), same as a scenario with no intro art at all.
+ * A box's own official rulebook page by its printed page number (`campaign/scenario-intros.ts`, the Extras rulebook
+ * reader), or null when that page hasn't been captured — a scenario then falls back to its own
+ * `art/scenarios/<id>/intro.*` (`scenario-art.ts`), and the reader keeps the page's text note.
  */
 export function campaignRulebookPageFor(catalog: CampaignArtCatalog, campaignId: string, page: number): Picture | null {
   return catalog.rulebookPages.get(rulebookSlot(campaignId, page)) ?? null;
 }
 
-/**
- * The boxes whose `rulebook/` pages a one-off scenario intro actually points at (`scenario-intros.ts`) — every box
- * with scenario content in this build's pool today. Keep in step with that file's own intros: a fifth entry here
- * with no matching intro just bundles pages no screen shows. The glob below is a second copy of this same list
- * (`import.meta.glob`'s pattern must be a literal, never a variable — this module's own docblock note above), so a
- * change here needs updating there too; `campaign-art.test.ts` checks every id on this list actually got at least
- * one rulebook page.
- */
-export const RULEBOOK_CAMPAIGN_IDS = ["trors", "gmw", "mts", "sm", "mut_gen", "next_evol", "aoa", "aos"] as const;
-
-// Only the folders a screen reads, and only `rulebook/` for the boxes actually wired to it: globbing every box's
-// `rulebook/` would ship ~43 MB of pages no screen shows yet in every build (`RULEBOOK_CAMPAIGN_IDS` above).
+// Only the folders a screen reads.
 const files = import.meta.glob(
   [
     "../../../../art/campaigns/*/cover.{png,jpg,jpeg,webp,avif}",
     "../../../../art/campaigns/*/artboards/*.{png,jpg,jpeg,webp,avif}",
     "../../../../art/campaigns/*/pages/*.{png,jpg,jpeg,webp,avif}",
-    "../../../../art/campaigns/{trors,gmw,mts,sm,mut_gen,next_evol,aoa,aos}/rulebook/*.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/campaigns/*/rulebook/*.{png,jpg,jpeg,webp,avif}",
   ],
   {
     eager: true,
@@ -148,5 +137,5 @@ const files = import.meta.glob(
   },
 ) as Record<string, string>;
 
-/** Everything in `art/campaigns/` a screen reads: covers, artboards, comic pages, and `RULEBOOK_CAMPAIGN_IDS`' own rulebook pages. */
+/** Everything in `art/campaigns/` a screen reads: covers, artboards, comic pages, and every box's rulebook pages. */
 export const CAMPAIGN_ART: CampaignArtCatalog = parseCampaignArt(files);

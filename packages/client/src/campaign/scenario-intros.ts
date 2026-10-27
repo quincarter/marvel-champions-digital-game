@@ -10,7 +10,7 @@
  *   (`art/campaigns/<campaignId>/rulebook/page_NNN.jpg`, `art/campaign-art.ts`'s `campaignRulebookPageFor`),
  *   already lettered (captions and speech balloons are printed into it), so its beats carry no lines of our own —
  *   camera pans/zooms over the box's own page instead of new art (docs/phase7-wave5-handoff.md "Scenario intros
- *   from the rulebook art"). `rulebookIntro` below is `RULEBOOK_CAMPAIGN_IDS`' own builder for this.
+ *   from the rulebook art"). `rulebookIntro` below is the builder for this.
  *
  * **Flavor only**, like `story.ts`: nothing here is a rule, and a scenario with no intro (or no art for it) simply
  * goes straight to the deal. Hero lines use `StoryLine.fallback` the same way campaign lines do, so a table without

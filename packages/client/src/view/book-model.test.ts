@@ -62,6 +62,23 @@ describe("parseBook", () => {
     ]);
   });
 
+  it("marks an all-art page with its printed page number", () => {
+    const note = "(Full-page graphic / illustration — no text on this page)";
+    const art = [
+      "## Page 1: Cover & Title",
+      "*Source: book.pdf (Page 1 of 20)*",
+      "",
+      `*${note}*`,
+      "",
+      "## Page 6: Page 6 Rules",
+      `*${note}*`,
+    ].join("\n");
+    expect(parseBook(art, { splitAt: [2] }).map((s) => [s.title, s.blocks])).toEqual([
+      ["Page 1: Cover & Title", [{ kind: "illustration", text: note, page: 1 }]],
+      ["Page 6", [{ kind: "illustration", text: note, page: 6 }]],
+    ]);
+  });
+
   it("names the text before the first split heading", () => {
     expect(parseBook("Hello\n\n## One\nBody", { splitAt: [2], preamble: "Front" })[0]!.title).toBe("Front");
   });

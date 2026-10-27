@@ -1,7 +1,8 @@
 /**
  * The rulebooks Extras can open: the Rules Reference, FFG's rulings since RRG 1.7, and every campaign box's
- * rulebook. Each reads as plain text from the repo's markdown conversion (`view/book-model.ts`), and links out to
- * the original PDFs.
+ * rulebook. Each reads as plain text from the repo's markdown conversion (`view/book-model.ts`), shows a rulebook's
+ * all-art pages (its cover, its comic) as the box's own page pictures (`pageArtId`), and links out to the original
+ * PDFs.
  *
  * **The markdown is loaded on demand.** It is ~900 KB across the files, so each is its own lazily imported chunk
  * (`?raw`), fetched the first time that book is opened, never at startup.
@@ -32,6 +33,11 @@ export interface BookSpec {
   readonly pdfs: readonly BookPdf[];
   /** The campaign box (`Campaign.id`) a campaign rulebook belongs to, for its cover art. */
   readonly campaignId?: string;
+  /**
+   * The `art/campaigns/<id>/rulebook/` folder holding this book's all-art pages (its cover, its comic pages), which
+   * the reader shows where the text conversion has none. The box's `campaignId`, or its own for a box with no campaign.
+   */
+  readonly pageArtId?: string;
 }
 
 const CAMPAIGN_PARSE: BookParseOptions = {
@@ -46,6 +52,7 @@ const campaign = (
   rulebook: string,
   log: string | null,
   campaignId?: string,
+  pageArtId = campaignId,
 ): BookSpec => ({
   id: `book:${code.toLowerCase()}`,
   title: name,
@@ -57,6 +64,7 @@ const campaign = (
     ...(log ? [{ label: "Campaign log PDF", path: `docs/campaign-modes/log-sheets/${log}` }] : []),
   ],
   ...(campaignId ? { campaignId } : {}),
+  ...(pageArtId ? { pageArtId } : {}),
 });
 
 /** Every book, in the order the Rulebooks tab shows them: the rules first, then the boxes in release order. */
@@ -142,7 +150,7 @@ export const BOOKS: readonly BookSpec[] = [
     "aos",
   ),
   // Civil War has no campaign mode (MC56 p. 3), so no log sheet and no Saga volume.
-  campaign("MC56", "Civil War", "mc56_civil_war.md", "mc56_rulebook-web_1.pdf", null),
+  campaign("MC56", "Civil War", "mc56_civil_war.md", "mc56_rulebook-web_1.pdf", null, undefined, "civil_war"),
   campaign("MC60", "Fear No Evil", "mc60_fear_no_evil.md", "mc60_rulebook-web.pdf", "mc60_campaign_log.pdf", "fne"),
 ];
 

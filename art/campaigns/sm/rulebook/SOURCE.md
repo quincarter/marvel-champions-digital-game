@@ -5,5 +5,4 @@ Rendered from `docs/campaign-modes/mc27_sinister_motives_rules_v5-compressed.pdf
 `page_NNN.jpg` is the rulebook's own page number, so file order is story order.
 
 These are the box's official comic pages, lettered (captions and speech balloons are part of the art).
-Fantasy Flight Games / Marvel artwork. The client does not load this folder yet; unlettered pages the comic
-reader uses live in `../pages/`, single pictures in `../artboards/`.
+Fantasy Flight Games / Marvel artwork. The Extras rulebook reader shows these pages, page 1 (the cover) included; unlettered pages the comic reader uses live in `../pages/`, single pictures in `../artboards/`.
