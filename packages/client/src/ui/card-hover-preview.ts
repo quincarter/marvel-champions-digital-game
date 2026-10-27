@@ -472,7 +472,7 @@ export class HoverPreview {
     this.#coverFields();
   }
 
-  /** A DOM text field draws above the canvas, so one the popover overlaps steps aside while it shows (#308 feedback). */
+  /** A DOM text field draws above the canvas, so the popover cuts its own rect out of any field it overlaps (#308, #470). */
   #coverFields(): void {
     const rect = this.shownRect;
     for (const field of fieldsOf(this.scene)) field.coverWith(rect);

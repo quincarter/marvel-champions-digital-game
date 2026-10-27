@@ -3,6 +3,7 @@ import {
   HOVER_MARGIN,
   HOVER_BASE_LONG_SIDE,
   HOVER_MIN_GROWTH,
+  fieldClipPath,
   clipHoverRect,
   hoverCardIdAt,
   hoverKeyOfCardId,
@@ -293,5 +294,25 @@ describe("hoverCardIdAt", () => {
     const own = new Map([["b@1", { ...cell, cardId: "b" }]]);
     expect(hoverCardIdAt(50, 50, own, null)).toBeNull();
     expect(hoverCardIdAt(50, 50, own, cell)).toBe("b@1");
+  });
+});
+
+describe("fieldClipPath", () => {
+  const field: Rect = { x: 0, y: 100, width: 1000, height: 40 };
+
+  test("nothing to cut when the popover misses the field or is gone", () => {
+    expect(fieldClipPath(field, null)).toBe("");
+    expect(fieldClipPath(field, { x: 0, y: 200, width: 300, height: 400 })).toBe("");
+  });
+
+  test("cuts the popover's part of the field out, in percent of the field", () => {
+    const clip = fieldClipPath(field, { x: 400, y: 50, width: 200, height: 300 });
+    expect(clip).toBe(
+      "polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 40% 0%, 60% 0%, 60% 100%, 40% 100%, 40% 0%, 0% 0%)",
+    );
+  });
+
+  test("a popover over part of the field's height cuts only that part", () => {
+    expect(fieldClipPath(field, { x: 900, y: 120, width: 300, height: 300 })).toContain("90% 50%, 100% 50%");
   });
 });

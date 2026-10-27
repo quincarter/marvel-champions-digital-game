@@ -268,6 +268,25 @@ export function hoverPlacement(
   return { x, y };
 }
 
+/**
+ * The CSS `clip-path` that cuts a hover popover's rect out of a DOM text field, so the field stays in place and the
+ * card shows over it (a DOM element draws above the canvas). Empty when the popover misses the field. The hole is in
+ * percent of the field, so it holds whatever the canvas is scaled to.
+ */
+export function fieldClipPath(field: Rect, popover: Rect | null): string {
+  if (!popover || field.width <= 0 || field.height <= 0) return "";
+  const pct = (value: number, start: number, size: number): number =>
+    Math.round(Math.max(0, Math.min(100, ((value - start) / size) * 100)) * 100) / 100;
+  const left = pct(popover.x, field.x, field.width);
+  const right = pct(popover.x + popover.width, field.x, field.width);
+  const top = pct(popover.y, field.y, field.height);
+  const bottom = pct(popover.y + popover.height, field.y, field.height);
+  if (right <= left || bottom <= top) return "";
+  // The outer box, then back to its corner and round the hole: evenodd leaves the hole unpainted.
+  const hole = `${left}% ${top}%, ${right}% ${top}%, ${right}% ${bottom}%, ${left}% ${bottom}%, ${left}% ${top}%`;
+  return `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ${hole}, 0% 0%)`;
+}
+
 export interface HoverStateInput {
   readonly exhausted: boolean;
   /** `InspectModel.damageNote`: "3/5 damage" against a card's own threshold. */
