@@ -50,7 +50,9 @@ describe("the Agents of S.H.I.E.L.D. story", () => {
       .map((file) => file.slice(0, file.lastIndexOf(".")))
       .sort();
     expect(onDisk).toEqual(story.pages!.map((page) => page.file).sort());
-    expect(readdirSync(join(art, "rulebook")).filter((file) => file.endsWith(".jpg"))).toHaveLength(8);
+    // The comic's eight pages, besides the cover (page_001) the Extras rulebook reader shows.
+    const comic = readdirSync(join(art, "rulebook")).filter((file) => file.endsWith(".jpg") && file !== "page_001.jpg");
+    expect(comic).toHaveLength(8);
   });
 
   test("every panel rectangle sits inside its page", () => {
