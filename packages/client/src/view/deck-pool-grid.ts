@@ -25,7 +25,8 @@ export const POOL_GRID_GAP = 12;
 
 const TARGET_CELL_WIDTH = 150;
 const MIN_CELL_WIDTH = 110;
-const MAX_COLUMNS = 8;
+/** The default column cap; a pane that should keep adding columns as it widens (the deck builder) passes its own. */
+export const MAX_COLUMNS = 8;
 /** Room for the name line and the "Type · X of Y in deck" line under the art. */
 const CAPTION_HEIGHT = 46;
 /** The same two lines drawn a size up on desktop (`view/desktop-type.ts`): a wrapped caption needs the extra room. */
@@ -48,16 +49,22 @@ export interface PoolGridGeometry {
  * factor (1, 1.25 or 1.5): it scales the target and minimum cell width, so a larger setting gives fewer, bigger columns
  * (and taller rows, since `artHeight` follows the width). The minimum is clamped to the pane and the column count to
  * what fits at that minimum, so a cell is never wider than the pane and a row never spills past it. `columns` is always
- * at least 1.
+ * at least 1, and at most `maxColumns`.
  */
-export function poolGridGeometry(width: number, cardCount: number, onDesktop = false, cardScale = 1): PoolGridGeometry {
+export function poolGridGeometry(
+  width: number,
+  cardCount: number,
+  onDesktop = false,
+  cardScale = 1,
+  maxColumns = MAX_COLUMNS,
+): PoolGridGeometry {
   const usable = Math.max(1, width);
   const scale = cardScale > 0 ? cardScale : 1;
   const minCell = Math.min(MIN_CELL_WIDTH * scale, usable);
   const fitting = Math.max(1, Math.floor((usable + POOL_GRID_GAP) / (minCell + POOL_GRID_GAP)));
   const columns = Math.max(
     1,
-    Math.min(MAX_COLUMNS, fitting, Math.round((usable + POOL_GRID_GAP) / (TARGET_CELL_WIDTH * scale + POOL_GRID_GAP))),
+    Math.min(maxColumns, fitting, Math.round((usable + POOL_GRID_GAP) / (TARGET_CELL_WIDTH * scale + POOL_GRID_GAP))),
   );
   const cellWidth = Math.max(minCell, (usable - (columns - 1) * POOL_GRID_GAP) / columns);
   const artHeight = cellWidth * CARD_ASPECT;

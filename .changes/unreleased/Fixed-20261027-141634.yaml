@@ -1,0 +1,3 @@
+kind: Fixed
+body: Upgraded Drones and any other card attached to an environment now shows on the environment's tile, so its ability (Upgraded Drones' spend-to-discard) can be used (#462)
+time: 2026-10-27T14:16:34.1248992-04:00

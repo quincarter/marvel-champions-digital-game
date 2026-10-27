@@ -125,6 +125,8 @@ export default defineConfig({
         "qa-v0200-client.spec.ts",
         "card-size-scroll.spec.ts",
         "campaign-market-scroll.spec.ts",
+        "title-short-landscape.spec.ts",
+        "campaign-aftermath-scroll.spec.ts",
         "settings-close-after-card-size.spec.ts",
         "villain-phase-gate.spec.ts",
         "discard-stale-pick.spec.ts",

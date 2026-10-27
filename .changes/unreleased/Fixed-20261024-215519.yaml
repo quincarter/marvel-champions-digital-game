@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Card faces: art evicted from the bake cache stays open briefly, so tiles baked during a mass redraw no longer end up blank.'
-time: 2026-10-24T21:55:19.6692552-04:00

@@ -400,6 +400,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `&fixture=upgraded-drones`: Upgraded Drones attached to Ultron Drones, its discard action usable from the
+  // environment tile (`store/dev-upgraded-drones-game.ts`, issue #462).
+  if (screen === "board" && params.get("fixture") === "upgraded-drones") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startUpgradedDronesGame } = await import("../store/dev-upgraded-drones-game.js");
+      await startUpgradedDronesGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=tech-hand`: Iron Man in hero form with two Tech upgrades in play, for his hand size on the identity panel.
   if (screen === "board" && params.get("fixture") === "tech-hand") {
     const { store } = appSession();

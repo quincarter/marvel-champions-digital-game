@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Linux app: card tiles and pictures no longer come out garbled or blank (Bazzite, Steam Deck); the card-face memory budget now evicts old faces, never one just baked.'
-time: 2026-10-24T20:29:49.7529292-04:00

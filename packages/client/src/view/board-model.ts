@@ -584,6 +584,12 @@ export interface EnvironmentPanel {
   readonly tucked: readonly TuckedCardView[];
   /** `tucked.length`; the board's count badge. */
   readonly tuckedCount: number;
+  /**
+   * Cards attached to this environment: Upgraded Drones on Ultron Drones (`core` 01142). Its "Hero Action: Spend
+   * [energy] [mental] [physical] resources → discard this card" was legal all along, but with no chip on the tile there
+   * was nothing to tap to use it (issue #462).
+   */
+  readonly attachments: readonly AttachmentChip[];
 }
 
 /**
@@ -2093,7 +2099,8 @@ function neutralCard(state: GameState, id: InstanceId, deps: EngineDeps): Scenar
 
 export function environmentPanel(state: GameState, id: InstanceId, deps: EngineDeps): EnvironmentPanel {
   const card = cardOf(state, id);
-  const damage = getInstance(state, id)?.damage ?? 0;
+  const instance = getInstance(state, id);
+  const damage = instance?.damage ?? 0;
   const damageAt = breakPointOf(state, id, deps);
   // Damage leads the counter chips ("1/9 DAMAGE", the count drawn big) rather than riding in the subtitle's small
   // print: Avengers Tower's whole scenario is that number, on every board size (issue #356).
@@ -2138,6 +2145,7 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
     damage,
     tucked,
     tuckedCount: tucked.length,
+    attachments: instance ? attachmentChipsOf(state, instance, deps) : [],
   };
 }
 

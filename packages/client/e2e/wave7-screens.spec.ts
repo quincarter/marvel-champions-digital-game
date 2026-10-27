@@ -296,7 +296,16 @@ async function startPoolLesson(page: Page): Promise<void> {
     async () => {
       const r = await waitFor(tryIt, "the Try it button", 10000);
       await settle(page, { quietMs: 200, maxMs: 1500 });
-      const now = (await tryIt()) ?? r;
+      let now = (await tryIt()) ?? r;
+      // Mostly under the footer on a short page: a press lands only on the part that shows, so scroll it clear first.
+      const gotIt = await hook<Rect>(page, "__mcAspectLessonDebug", "gotItRect");
+      const hiddenBy = gotIt ? now.y + now.height + 16 - gotIt.y : 0;
+      if (hiddenBy > 0) {
+        await page.mouse.move(now.x + now.width / 2, gotIt!.y - 120);
+        await page.mouse.wheel(0, hiddenBy);
+        await settle(page, { quietMs: 200, maxMs: 1500 });
+        now = (await tryIt()) ?? now;
+      }
       await pressAt(page, now.x + now.width / 2, now.y + now.height / 2);
     },
     async () => (await on(page, "Board")) && (await guideStepId(page)) !== null,

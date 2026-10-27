@@ -180,6 +180,38 @@ export function environmentStripRoom(
   return { x: origin.x, y: origin.y, width, height: rows * tileHeight + (rows - 1) * ENVIRONMENT_GAP };
 }
 
+/** The height of one attachment strip on an environment tile, and the shortest that still reads one line. */
+export const ENVIRONMENT_ATTACHMENT_STRIP = 18;
+const ENVIRONMENT_ATTACHMENT_MIN = 14;
+const ENVIRONMENT_ATTACHMENT_GAP = 3;
+
+/**
+ * Where the cards attached to an environment sit on its tile (Upgraded Drones on Ultron Drones; issue #462): one strip
+ * each, stacked up from the foot of `room` (the band between the tile's title and its counter chips), at most `max`
+ * of them. When there are more cards than strips, the last strip stands for the rest ("+2 attached"). A band too short
+ * for even one strip still gets one, at the shortest readable height, overlapping whatever is under it: an attachment
+ * can carry an ability the player has to reach, so it is never left off the table.
+ */
+export function environmentAttachmentStrips(room: Rect, count: number, max = 2): Rect[] {
+  if (count <= 0 || room.width <= 0) return [];
+  const fit = Math.max(
+    1,
+    Math.floor((room.height + ENVIRONMENT_ATTACHMENT_GAP) / (ENVIRONMENT_ATTACHMENT_MIN + ENVIRONMENT_ATTACHMENT_GAP)),
+  );
+  const rows = Math.min(count, max, fit);
+  const height = Math.max(
+    ENVIRONMENT_ATTACHMENT_MIN,
+    Math.min(ENVIRONMENT_ATTACHMENT_STRIP, (room.height - ENVIRONMENT_ATTACHMENT_GAP * (rows - 1)) / rows),
+  );
+  const bottom = room.y + Math.max(room.height, height);
+  return Array.from({ length: rows }, (_unused, index) => ({
+    x: room.x,
+    y: bottom - (rows - index) * height - (rows - 1 - index) * ENVIRONMENT_ATTACHMENT_GAP,
+    width: room.width,
+    height,
+  }));
+}
+
 export interface TuckedFanLayout {
   /** The "UNDER n" count badge, at the left of the fan. */
   readonly badge: Rect;

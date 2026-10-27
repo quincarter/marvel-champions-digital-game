@@ -1,0 +1,17 @@
+# Card scans known to carry the FFG preview watermark, by git blob id, after they were replaced with clean ones.
+# packages/content/src/data/watermarked-scans.test.ts fails if any bundled scan has one of these ids, so a merge,
+# revert or stale branch cannot bring a replaced scan back. Add the old blob when you replace a watermarked scan:
+#   git rev-parse <commit-before-the-fix>:assets/card-art/bundles/cards/<file>
+# blob	file	replaced by
+6b6828aff786139f51b1116c0f249f7c88b1aea6	22004.png	owner scan, 2026-10-27
+1f16ac9b45d96f8fbd674b86921ec29ba6415ed7	22005.png	owner scan, 2026-10-27
+c59e942de36ce9df64c1ab541bdc97a97feda442	22006.png	owner scan, 2026-10-27
+8baf335c3428c596164c13d10d5c84b490276709	22007.png	owner scan, 2026-10-27
+0ad2860bf95aef490d3c7317eddd97e68f659d19	22008.png	owner scan, 2026-10-27
+2cb707507c8a207bbdd609f028065d4dcbac1097	22010.png	owner scan, 2026-10-27
+db06d50b5b3eb7eb484c12a52392bfa6f0bab707	22011.png	owner scan, 2026-10-27
+7deaec9e4419f518916fee3da5271b2891e0399e	22012.png	owner scan, 2026-10-27
+b5f17a7ec0f4719031767a146c7f6e901c7f96df	22013.png	owner scan, 2026-10-27
+35bdd68c6f2bee2d8c8b124566a5e73ff00ac462	22014.png	owner scan, 2026-10-27
+44bc041a2887239320f7a3d11dfe83392a289153	22018.png	owner scan, 2026-10-27
+a9c36b45d824157cb119e0064f37e2b0e02c2881	22035.png	owner scan, #401

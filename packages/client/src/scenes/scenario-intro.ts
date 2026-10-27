@@ -17,6 +17,7 @@ import { campaignFrame } from "../ui/campaign-chrome.js";
 import { drawComicLettering, drawComicReaderPicture, type ComicReaderTween } from "../ui/comic-reader.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
+import { onTap } from "../ui/tap.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McButton, fitText, label } from "../ui/widgets.js";
@@ -282,9 +283,10 @@ export class ScenarioIntroScene extends Phaser.Scene {
       stops.set("back", { rect: backRect, activate: () => this.#back() });
     }
 
-    // Tapping the picture advances too, under the buttons so it never steals their clicks.
+    // Tapping the picture advances too, under the buttons so it never steals their clicks: a tap, never the lift that
+    // ends a swipe.
     const tapZone = this.add.zone(0, 0, width, barY).setOrigin(0, 0).setInteractive();
-    tapZone.on("pointerup", () => this.#advance());
+    onTap(tapZone, () => this.#advance(), "scenario-intro:page");
     this.children.sendToBack(tapZone);
 
     this.#route =

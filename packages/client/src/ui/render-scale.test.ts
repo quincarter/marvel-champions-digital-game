@@ -1,5 +1,20 @@
 import { describe, expect, test } from "vitest";
-import { scaleWithinGpu, scaledBox } from "./render-scale.js";
+import { canvasBufferOf, scaleWithinGpu, scaledBox } from "./render-scale.js";
+
+describe("canvasBufferOf", () => {
+  test("past 1x the buffer is the game size times the scale, in either mode", () => {
+    expect(canvasBufferOf(1920, 1080, 2, true)).toEqual({ width: 3840, height: 2160 });
+    expect(canvasBufferOf(3840, 2160, 1.5, false)).toEqual({ width: 5760, height: 3240 });
+  });
+
+  test("at 1x RESIZE keeps the buffer Phaser set", () => {
+    expect(canvasBufferOf(1920, 1080, 1, true)).toBeNull();
+  });
+
+  test("at 1x FIT shrinks the buffer back to the game size, as couch mode turns off over a fixed resolution", () => {
+    expect(canvasBufferOf(3840, 2160, 1, false)).toEqual({ width: 3840, height: 2160 });
+  });
+});
 
 describe("scaleWithinGpu", () => {
   test("a scale the GPU can hold is kept", () => {

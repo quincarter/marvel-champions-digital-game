@@ -78,6 +78,22 @@ export function scaleWithinGpu(wanted: number, width: number, height: number, la
 }
 
 /**
+ * The drawing buffer a canvas of this game size needs at `scale`, or null to keep the one Phaser just set. RESIZE sets
+ * the buffer to the CSS size on every update, so 1x needs nothing more there. FIT sets it only when the game size
+ * changes, so dropping back to 1x has to shrink it here: couch mode turned off over a fixed resolution kept the 2x
+ * buffer and drew the game into its bottom-left quarter.
+ */
+export function canvasBufferOf(
+  width: number,
+  height: number,
+  scale: number,
+  resize: boolean,
+): { readonly width: number; readonly height: number } | null {
+  if (scale === 1 && resize) return null;
+  return { width: scaledEdge(width, scale), height: scaledEdge(height, scale) };
+}
+
+/**
  * Wraps a WebGL context so the renderer above it works in CSS pixels while it draws in device pixels. Idempotent per
  * context. While the scale is 1 every call passes straight through.
  */
@@ -185,10 +201,10 @@ function wrapScaleManager(target: Phaser.Game, resizeMode: number, restoreProtot
       canvas.style.width = next === 1 ? "" : `${width}px`;
       canvas.style.height = next === 1 ? "" : `${height}px`;
     }
-    if (next !== 1) {
-      canvas.width = scaledEdge(width, next);
-      canvas.height = scaledEdge(height, next);
-    }
+    const buffer = canvasBufferOf(width, height, next, resize);
+    // Only on a change: setting a canvas's size, even to the same value, clears it.
+    if (buffer !== null && canvas.width !== buffer.width) canvas.width = buffer.width;
+    if (buffer !== null && canvas.height !== buffer.height) canvas.height = buffer.height;
     if (next !== scale) {
       scale = next;
       reallocateRenderTargets(target);

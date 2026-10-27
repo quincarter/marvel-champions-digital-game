@@ -23,7 +23,7 @@ import type { CardId, CoreAspect } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
-import { unfoldedGameOf } from "../../campaign/unfolded-game.js";
+import { isAttemptGame, unfoldedGameOf } from "../../campaign/unfolded-game.js";
 import { CARDS_BY_ID, POOL_VERSION } from "../../content/pool.js";
 import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { cardDisplayName } from "../../view/hero-names.js";
@@ -39,6 +39,9 @@ import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { McVirtualList, type VirtualListRow } from "../../ui/virtual-list.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
+import { captureIntoRegion } from "../../ui/scroll-capture.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import {
   HoverPreview,
   hoverCardIdsOf,
@@ -164,6 +167,14 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #hover: HoverPreview | null = null;
   /** The picker grid's on-screen cells, computed on demand from its scroll (a scroll draws nothing). */
   #pickerHover: (() => readonly (readonly [string, HoverCardIdRect])[]) | null = null;
+  /**
+   * The heroes' option columns scroll (issue #448): three heroes' rewards stacked on a phone ran past the action bar
+   * with no way to reach the second and third. The offset is kept across redraws and reset with each new group.
+   */
+  #columnsScroll = new VariableListScroll();
+  #columnsRegion: McScrollRegion | null = null;
+  /** The option rows' cards drawn into the region this pass, in content space: what the hover popover reads. */
+  #regionCards: { readonly cardId: string; readonly rect: Rect; readonly region: McScrollRegion }[] = [];
 
   constructor() {
     super(SCENES.campaignAftermath);
@@ -217,15 +228,27 @@ export class CampaignAftermathScene extends Phaser.Scene {
       primary: () => this.#primaryKey(),
       // The collection picker: LB / RB step the aspect chips, the right stick and Page Up / Down scroll the grid.
       onTab: (direction) => this.#stepAspect(direction),
-      onScroll: (_dx, dy) => this.#pickerList?.scrollByPx(dy),
-      onPage: (direction) => this.#pickerList?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
+      // Elsewhere they scroll the heroes' columns.
+      onScroll: (_dx, dy) => (this.#pickerList ?? this.#columnsRegion)?.scrollByPx(dy),
+      onPage: (direction) =>
+        this.#pickerList
+          ? this.#pickerList.scrollByPage(direction)
+          : this.#columnsRegion?.scrollByPx(direction * this.#columnsRegion.rect.height * 0.85),
+      onHomeEnd: (edge) => {
+        if (!this.#pickerList) this.#columnsRegion?.scrollByPx(edge === "home" ? -1_000_000 : 1_000_000);
+        else if (edge === "home") this.#pickerList.scrollToStart();
+        else this.#pickerList.scrollToEnd();
+      },
     });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => {
         const all = new Map(hoverCardIdsOf(this));
         for (const [slot, rect] of this.#pickerHover?.() ?? []) all.set(slot, rect);
+        this.#regionCards.forEach(({ cardId, rect, region }, index) => {
+          const shown = clipHoverRect({ ...rect, y: rect.y + region.content.y }, region.rect);
+          if (shown) all.set(hoverSlotOf(cardId, `row${index}`), { ...shown, cardId, through: true });
+        });
         return all;
       },
       area: (pointer) => screenHoverArea(this, pointer),
@@ -238,6 +261,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
       this.#pickerList?.destroy();
       this.#pickerList = null;
     });
+    // Folding replays the finished game, which takes a phone a moment: say so rather than leave the screen black.
+    this.#draw();
     void this.#load();
     fadeScreenIn(this);
   }
@@ -263,6 +288,18 @@ export class CampaignAftermathScene extends Phaser.Scene {
       heroName: heroNameOfCard(seat.identityCardId as string) ?? `Seat ${seat.seatNumber}`,
     }));
     const { store } = appSession();
+    // Only the game this issue was dealt as is its result (#451). Anything else still on the table (an earlier game of
+    // an issue being retried, or none at all) is never scored: the issue's own finished game is picked up if there is
+    // one, and otherwise the issue was not played, so the Briefing opens it.
+    if (!store.state.game?.outcome || !isAttemptGame(record, store.state.config)) {
+      const own = unfoldedGameOf(record, await store.listSaves());
+      if (own) await store.resume(own.id);
+      if (!this.sys.isActive()) return;
+      if (!store.state.game?.outcome || !isAttemptGame(record, store.state.config)) {
+        goToScreen(this, SCENES.campaignBriefing, { runId: record.id });
+        return;
+      }
+    }
     // `campaignResultOf` (`packages/engine/src/campaign/result.ts`) treats anything but `"win"` as a campaign
     // loss — "RRG 1.8 has no 'conceded' campaign outcome: a conceded game is a game the players did not win" — so
     // this branch has to match that, not narrow itself to `"loss"` and let a conceded game fall through as a win.
@@ -271,6 +308,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#saved = await store.save();
     // The finished game itself: `latestSave` names only an active game, never this one, which has its result.
     this.#gameId = unfoldedGameOf(record, await store.listSaves())?.id ?? null;
+    // The first fold replays the whole game on this thread: let the screen finish fading in and paint the loading
+    // line before it starts, or the frame left up during the replay is the fade's dark first quarter.
+    await this.#afterFadeIn();
     if (!this.sys.isActive()) return;
     if (!won) {
       const result = await service.fold(record, this.#saved, [], this.#gameId);
@@ -287,6 +327,20 @@ export class CampaignAftermathScene extends Phaser.Scene {
     }
     this.#phase = "loss"; // placeholder, corrected immediately by #advance for the win path
     await this.#advance();
+  }
+
+  /** Resolves once the entrance fade has finished and a frame has been drawn (a timer stands in for a hidden tab's frame). */
+  #afterFadeIn(): Promise<void> {
+    const camera = this.cameras.main;
+    const faded = camera.fadeEffect.isRunning
+      ? new Promise<void>((resolve) => camera.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => resolve()))
+      : Promise.resolve();
+    const frame = (): Promise<void> =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => resolve());
+        setTimeout(resolve, 100);
+      });
+    return faded.then(frame).then(frame);
   }
 
   #optionOf = (cardId: Parameters<typeof aftermathOptionOf>[0]): ReturnType<typeof aftermathOptionOf> =>
@@ -326,6 +380,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#search.cancel();
     this.#pickerAspectFilter = null;
     this.#pickerListScroll = new ListScroll();
+    this.#columnsScroll = new VariableListScroll();
     return startAftermathGroup(pending, this.#seats, this.#optionOf);
   }
 
@@ -376,6 +431,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#comicSteps = comicSteps;
     this.#comicCurrent = 0;
     this.#cinematic.reset();
+    // The summary opens at the top, not wherever the last confirm left the columns.
+    this.#columnsScroll = new VariableListScroll();
     this.#phase = "summary";
     this.#draw();
   }
@@ -505,6 +562,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#hints?.reset();
     resetHoverCards(this);
     this.#pickerHover = null;
+    this.#columnsRegion = null;
+    this.#regionCards = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#pickerList?.destroy();
@@ -518,7 +577,12 @@ export class CampaignAftermathScene extends Phaser.Scene {
     for (const node of kept) this.children.add(node);
     const { width, height, phone } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
-    if (this.#phase === "loading") return;
+    if (this.#phase === "loading") {
+      label(this, width / 2, height / 2, "LOGGING THE ISSUE…", typeRole.label, surface.paper.hex, ink.meta).setOrigin(
+        0.5,
+      );
+      return;
+    }
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
 
@@ -759,8 +823,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     const actionBarHeight = 88;
     const rightRect: Rect = { x: leftWidth, y: 0, width: width - leftWidth, height: height - actionBarHeight };
-    if (this.#phase === "summary") this.#drawSummary(rightRect, order, stops, false);
-    else this.#drawColumns(rightRect, order, stops, false);
+    this.#scrolled(rightRect, stops, () =>
+      this.#phase === "summary"
+        ? this.#drawSummary(rightRect, order, stops, false)
+        : this.#drawColumns(rightRect, order, stops, false),
+    );
 
     this.#drawActionBar(
       { x: leftWidth, y: height - actionBarHeight, width: width - leftWidth, height: actionBarHeight },
@@ -782,26 +849,31 @@ export class CampaignAftermathScene extends Phaser.Scene {
     stops: Map<string, FocusStop>,
   ): void {
     const actionBarHeight = 72;
-    let y = 16;
-    this.#drawStamp(16, y, number, loggedTag);
-    y += 46;
-    if (story?.aftermathArt || story?.villain) {
-      const artRect: Rect = { x: 0, y, width, height: 110 };
-      this.#drawArt(story, nodeId, artRect);
-      y += 110 + 10;
-    }
-    if (story?.aftermath) {
-      const speaker = speakerNameOf(story.aftermath);
-      const { rect } = speechBubble(this, 16, y, width - 32, story.aftermath.text, {
-        ...(speaker ? { speaker } : {}),
-        tail: "bottom",
-        shadow: accent.heroRed.hex,
-      });
-      y = rect.y + rect.height + 14;
-    }
-    const listRect: Rect = { x: 0, y, width, height: Math.max(0, height - actionBarHeight - y) };
-    if (this.#phase === "summary") this.#drawSummary(listRect, order, stops, true);
-    else this.#drawColumns(listRect, order, stops, true);
+    this.#drawStamp(16, 16, number, loggedTag);
+    const top = 62;
+    const viewport: Rect = { x: 0, y: top, width, height: Math.max(0, height - actionBarHeight - top) };
+    // The art, the line and every hero's column scroll as one (issue #448); the stamp and the bar stay put.
+    this.#scrolled(viewport, stops, () => {
+      let y = top;
+      if (story?.aftermathArt || story?.villain) {
+        const artRect: Rect = { x: 0, y, width, height: 110 };
+        this.#drawArt(story, nodeId, artRect);
+        y += 110 + 10;
+      }
+      if (story?.aftermath) {
+        const speaker = speakerNameOf(story.aftermath);
+        const { rect } = speechBubble(this, 16, y, width - 32, story.aftermath.text, {
+          ...(speaker ? { speaker } : {}),
+          tail: "bottom",
+          shadow: accent.heroRed.hex,
+        });
+        y = rect.y + rect.height + 14;
+      }
+      const listRect: Rect = { x: 0, y, width, height: Math.max(0, height - actionBarHeight - y) };
+      return this.#phase === "summary"
+        ? this.#drawSummary(listRect, order, stops, true)
+        : this.#drawColumns(listRect, order, stops, true);
+    });
     this.#drawActionBar({ x: 0, y: height - actionBarHeight, width, height: actionBarHeight }, true, order, stops);
   }
 
@@ -859,13 +931,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
    * (MC10 has none, but the vocabulary allows one) has no group to show, so this falls back to a short line. The
    * CTA itself lives in the action bar (`#drawActionBar`), the same place the commit CTA does.
    */
-  #drawSummary(rect: Rect, order: string[], stops: Map<string, FocusStop>, phone: boolean): void {
-    if (this.#group) {
-      this.#drawColumns(rect, order, stops, phone);
-      return;
-    }
+  #drawSummary(rect: Rect, order: string[], stops: Map<string, FocusStop>, phone: boolean): number {
+    if (this.#group) return this.#drawColumns(rect, order, stops, phone);
     const pad = phone ? 16 : 24;
-    label(
+    return label(
       this,
       rect.x + pad,
       rect.y + pad,
@@ -873,7 +942,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       typeRole.body,
       surface.paper.hex,
       1,
-    );
+    ).getBounds().bottom;
   }
 
   /** "On to issue #N ▸" (or the Dossier, past the last issue) — the destination for the summary phase's CTA. */
@@ -899,13 +968,14 @@ export class CampaignAftermathScene extends Phaser.Scene {
     goToScreen(this, SCENES.campaignOpener, { runId: record.id });
   }
 
-  #drawColumns(rect: Rect, order: string[], stops: Map<string, FocusStop>, phone: boolean): void {
+  /** Returns the lowest edge drawn: what the scroll region sizes itself to. */
+  #drawColumns(rect: Rect, order: string[], stops: Map<string, FocusStop>, phone: boolean): number {
     const group = this.#group;
     const record = this.#record;
-    if (!group || !record) return;
+    if (!group || !record) return rect.y;
     if (group.collectionPick) {
       this.#drawCollectionPicker(group, rect, order, stops, phone);
-      return;
+      return rect.y + rect.height;
     }
     const columns = aftermathColumns(
       group,
@@ -924,19 +994,53 @@ export class CampaignAftermathScene extends Phaser.Scene {
         y = this.#drawColumn(column, { x: inner.x, y, width: inner.width, height: 0 }, order, stops, phone);
         y += 22;
       }
-    } else {
-      const gap = 24;
-      const colWidth = (inner.width - gap * (columns.length - 1)) / Math.max(1, columns.length);
-      columns.forEach((column, index) => {
-        this.#drawColumn(
-          column,
-          { x: inner.x + index * (colWidth + gap), y: inner.y, width: colWidth, height: 0 },
-          order,
-          stops,
-          phone,
-        );
-      });
+      return y;
     }
+    const gap = 24;
+    const colWidth = (inner.width - gap * (columns.length - 1)) / Math.max(1, columns.length);
+    let bottom = inner.y;
+    columns.forEach((column, index) => {
+      const columnBottom = this.#drawColumn(
+        column,
+        { x: inner.x + index * (colWidth + gap), y: inner.y, width: colWidth, height: 0 },
+        order,
+        stops,
+        phone,
+      );
+      bottom = Math.max(bottom, columnBottom);
+    });
+    return bottom;
+  }
+
+  /**
+   * Draws `draw`'s content into the columns' scroll region over `viewport` (the Market's `#scrolled`): drawn at the
+   * top level as it would be without scrolling, then moved into the region, sized to the bottom `draw` returns. The
+   * collection picker scrolls its own grid and keeps a DOM search field a mask cannot clip, so it is drawn as is.
+   */
+  #scrolled(viewport: Rect, stops: Map<string, FocusStop>, draw: () => number): void {
+    if (this.#group?.collectionPick) {
+      draw();
+      return;
+    }
+    // A placeholder until the content is drawn, so a kept offset survives the region's first layout.
+    const heights: number[] = [1_000_000];
+    const scroll = this.#columnsScroll;
+    const region = new McScrollRegion(this, { rect: viewport, heights, scroll, clipInteractive: true });
+    this.#columnsRegion = region;
+    const fromIndex = this.children.list.length;
+    const stopsBefore = new Set(stops.keys());
+    const bottom = draw();
+    captureIntoRegion(this, {
+      region,
+      heights,
+      scroll,
+      fromIndex,
+      stops,
+      stopsBefore,
+      viewportTop: viewport.y,
+      viewportBottom: viewport.y + viewport.height,
+      bottom,
+    });
   }
 
   /** "AGGRESSION" -> "AGG", the same short chip word the Decks & Collection pool filter already prints. */
@@ -1335,7 +1439,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
     const art = drawArt(this, artKey, artRect);
     // The row's own zone (when it is editable) holds the picture, so the card is `through` to it.
-    noteHoverCardId(this, row.option.cardId as string, artRect, true);
+    if (this.#columnsRegion)
+      this.#regionCards.push({ cardId: row.option.cardId as string, rect: artRect, region: this.#columnsRegion });
+    else noteHoverCardId(this, row.option.cardId as string, artRect, true);
     if (art) {
       art.setAlpha(taken ? 0.6 : 1);
     } else {

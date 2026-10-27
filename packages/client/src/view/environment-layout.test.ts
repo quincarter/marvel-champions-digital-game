@@ -3,7 +3,9 @@ import {
   ENVIRONMENT_GAP,
   ENVIRONMENT_MIN_HEIGHT,
   ENVIRONMENT_MIN_WIDTH,
+  ENVIRONMENT_ATTACHMENT_STRIP,
   compactCounterWidth,
+  environmentAttachmentStrips,
   environmentCompactLayout,
   environmentSlots,
   environmentStripRoom,
@@ -185,5 +187,32 @@ describe("minionRoomBesideEnvironments", () => {
     const room = minionRoomBesideEnvironments(zone, two, 90);
     const right = Math.max(...two.map((slot) => slot.x + slot.width));
     expect(room === null || room.x > right).toBe(true);
+  });
+});
+
+describe("environmentAttachmentStrips (issue #462)", () => {
+  it("stacks one strip per attachment up from the room's foot, inside it and none overlapping", () => {
+    const room: Rect = { x: 10, y: 40, width: 160, height: 80 };
+    const strips = environmentAttachmentStrips(room, 2);
+    expect(strips).toHaveLength(2);
+    expect(strips.every((strip) => inside(strip, room))).toBe(true);
+    expect(rectsOverlap(strips[0]!, strips[1]!)).toBe(false);
+    expect(strips[1]!.y + strips[1]!.height).toBe(room.y + room.height);
+    expect(strips[0]!.height).toBe(ENVIRONMENT_ATTACHMENT_STRIP);
+  });
+
+  it("gives more attachments than strips one last strip for the rest", () => {
+    expect(environmentAttachmentStrips({ x: 0, y: 0, width: 160, height: 80 }, 5)).toHaveLength(2);
+    expect(environmentAttachmentStrips({ x: 0, y: 0, width: 160, height: 20 }, 3)).toHaveLength(1);
+  });
+
+  it("never leaves an attachment off: a band too short for a strip still gets one", () => {
+    const strips = environmentAttachmentStrips({ x: 0, y: 50, width: 120, height: 4 }, 1);
+    expect(strips).toHaveLength(1);
+    expect(strips[0]!.height).toBeGreaterThanOrEqual(14);
+  });
+
+  it("draws nothing with nothing attached", () => {
+    expect(environmentAttachmentStrips({ x: 0, y: 0, width: 160, height: 80 }, 0)).toEqual([]);
   });
 });

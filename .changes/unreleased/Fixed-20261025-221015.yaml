@@ -1,3 +1,0 @@
-kind: Fixed
-body: On Linux, the desktop app restarts the game page if WebKit's page process stops responding (seen after the screen sleeps or a TV turns off), instead of staying frozen
-time: 2026-10-25T22:10:15.0185233-04:00

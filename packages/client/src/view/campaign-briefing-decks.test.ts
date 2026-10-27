@@ -2,15 +2,17 @@ import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
 import {
   CAMPAIGN_ACCEPT,
+  CAMPAIGN_NEXT_NODE_INSTRUCTION,
   cardLegalForIdentity,
   requiredIdentitySet,
   type CampaignAttempt,
+  type CampaignChoiceAnswer,
   type CampaignGameInput,
 } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { CampaignService } from "../campaign/campaign-service.js";
-import { seedDesignRun } from "../campaign/dev-fixtures.js";
+import { seedDesignRun, seedFneFresh } from "../campaign/dev-fixtures.js";
 import {
   answersOfAttempt,
   briefingViewOf,
@@ -131,6 +133,7 @@ describe("briefing deck legality, before the press", () => {
 
 describe("answered calls stick across a deck edit", () => {
   const attempt = {
+    nodeId: "crossbones",
     steps: [
       {
         instructionId: "role",
@@ -148,7 +151,35 @@ describe("answered calls stick across a deck edit", () => {
     expect(answersOfAttempt(attempt)).toEqual([
       { instructionId: "role", slot: "role", seatNumber: 2, picked: ["brawler"] },
       { instructionId: "upgrade", slot: "upgrade", seatNumber: 2, picked: [CAMPAIGN_ACCEPT] },
+      { instructionId: CAMPAIGN_NEXT_NODE_INSTRUCTION, slot: "node", seatNumber: null, picked: ["crossbones"] },
     ]);
+  });
+
+  test("a picked Fear No Evil scenario stays picked: the issue composes again without asking (#451)", async () => {
+    const svc = service();
+    let record = await seedFneFresh(svc);
+    const answers: CampaignChoiceAnswer[] = [];
+    let askedForScenario = false;
+    for (let guard = 0; guard < 20 && !record.attempt; guard++) {
+      const result = await svc.compose(record, answers);
+      if (result.kind === "done") {
+        record = result.record;
+        break;
+      }
+      const choice = result.choice;
+      // Not the first scenario offered, so a re-ask that fell back to the first option would show.
+      askedForScenario ||= choice.slot === "node";
+      const picked = choice.slot === "node" ? choice.options.at(-1)! : choice.options[0]!;
+      answers.push({ ...choice, picked: [picked] });
+    }
+    expect(askedForScenario, "the first issue is a pick among several scenarios").toBe(true);
+    const attempt = record.attempt!;
+    const reset = await svc.discardAttempt(record);
+    const again = await svc.compose(reset, answersOfAttempt(attempt));
+    expect(again.kind).toBe("done");
+    if (again.kind !== "done") return;
+    expect(again.record.attempt!.nodeId).toBe(attempt.nodeId);
+    expect(again.record.position).toEqual(record.position);
   });
 
   test("replaying them composes the same issue without asking again, with the same draw", async () => {

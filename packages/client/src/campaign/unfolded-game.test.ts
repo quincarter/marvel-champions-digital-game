@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { SaveMeta } from "../engine/game-storage.js";
-import { gameInProgressOf, unfoldedGameOf } from "./unfolded-game.js";
+import type { SessionConfig } from "../engine/host.js";
+import { gameInProgressOf, isAttemptGame, unfoldedGameOf } from "./unfolded-game.js";
 
 // Only the fields `unfoldedGameOf` reads; the rest of a record or save never matters to it.
 const recordOf = (
@@ -118,5 +119,29 @@ describe("two runs of one box at the same issue (#276)", () => {
     const older = saveWithSeed("older", 1, { status: "active", outcome: null, createdAt: 150 });
     const newerGone = { ...removed, createdAt: 500 };
     expect(gameInProgressOf(withSeed(1), [newerGone, older])?.id).toBe("older");
+  });
+});
+
+describe("isAttemptGame (issue #451)", () => {
+  const record = { ...recordOf(), attempt: { nodeId: "crossbones", input: { seed: 7 } } } as unknown as CampaignRecord;
+  const configOf = (campaign: { campaignId?: string; nodeId?: string; seed?: number } | null): SessionConfig =>
+    ({
+      ...(campaign ? { campaign: { campaignId: "trors", nodeId: "crossbones", seed: 7, ...campaign } } : {}),
+    }) as unknown as SessionConfig;
+
+  it("is the game dealt for the composed issue", () => {
+    expect(isAttemptGame(record, configOf({}))).toBe(true);
+  });
+
+  it("is not an earlier game of the same issue, another issue, another box, a plain game or no game", () => {
+    expect(isAttemptGame(record, configOf({ seed: 6 }))).toBe(false);
+    expect(isAttemptGame(record, configOf({ nodeId: "absorbing-man" }))).toBe(false);
+    expect(isAttemptGame(record, configOf({ campaignId: "gmw" }))).toBe(false);
+    expect(isAttemptGame(record, configOf(null))).toBe(false);
+    expect(isAttemptGame(record, null)).toBe(false);
+  });
+
+  it("is nothing when no issue is composed", () => {
+    expect(isAttemptGame(recordOf({ attempt: null }), configOf({}))).toBe(false);
   });
 });
