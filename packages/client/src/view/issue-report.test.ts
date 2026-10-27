@@ -17,6 +17,7 @@ import type { LogLine } from "./log-lines.js";
 const environment: ReportEnvironment = {
   version: "v0.21.1+9211646",
   platform: "web",
+  cardLanguage: "es",
   userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/129",
   viewport: { width: 390, height: 844 },
   formFactor: "phone",
@@ -38,6 +39,7 @@ describe("issueReportText", () => {
     const text = issueReportText({ environment, game: null, snapshot: { frame: 12 } });
     expect(text).toContain("Version: v0.21.1+9211646");
     expect(text).toContain("Platform: web (phone, 390x844)");
+    expect(text).toContain("Card language: Español (es)");
     expect(text).toContain("Screen: Board > ChoiceOverlay");
     expect(text).toContain("No game in progress.");
     expect(text).not.toContain("== Game log");
@@ -104,6 +106,7 @@ describe("newIssueUrl", () => {
     const details = url.searchParams.get("game-details") ?? "";
     expect(details).toContain("Version: v0.21.1+9211646");
     expect(details).toContain("Platform: Web browser (phone or tablet)");
+    expect(details).toContain("Card language: Español (es)");
     expect(details).toContain("Device: phone 390x844");
     expect(details).toContain("Browser: Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/129");
     expect(details).toContain("Screen: Board > ChoiceOverlay");
