@@ -412,6 +412,8 @@ export function titleMenuFocusOrder(input: {
   readonly civilWar?: boolean;
   /** The desktop app: "quit" follows Settings. */
   readonly quit?: boolean;
+  /** The footer's Discord link is drawn (it is dropped where the footer is too tight): it comes before Release notes. */
+  readonly discord?: boolean;
   /** The update banner's link buttons, when it is drawn; last, so the menu's own first stop stays first. Its close button follows them. */
   readonly updateActions?: readonly string[];
   /** The in-progress games drawn as a panel on this screen, newest first: each gets a row stop and a Remove stop after Continue. */
@@ -434,6 +436,7 @@ export function titleMenuFocusOrder(input: {
     "how-to-play",
     "settings",
     ...(input.quit ? ["quit"] : []),
+    ...(input.discord ? ["discord"] : []),
     "release-notes",
     ...(input.updateActions && input.updateActions.length > 0 ? [...input.updateActions, UPDATE_DISMISS_ID] : []),
   ];

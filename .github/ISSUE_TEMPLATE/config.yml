@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Community Discord
+    url: https://discord.gg/tCy5tqu46j
+    about: Chat about the game, ask questions and share decks. Bugs and feature ideas still belong in an issue here.
   - name: Official FFG rulings
     url: https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/
     about: Unsure how a card should work? Check the Rules Reference and FFG's rulings before filing a rules bug.

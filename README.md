@@ -38,7 +38,7 @@ to be a genuinely playable video game driven by a deterministic rules engine.
 </p>
 
 <p align="center">
-  <a href="#community"><img src=".github/assets/readme/discord.svg" alt="Discord (invite coming soon)" height="48"></a> <!-- TODO: point this at the Discord invite once the server exists. -->
+  <a href="https://discord.gg/tCy5tqu46j"><img src=".github/assets/readme/discord.svg" alt="Join the Discord" height="48"></a>
   <a href="CONTRIBUTING.md"><img src=".github/assets/readme/contributing.svg" alt="Contributing" height="48"></a>
 </p>
 
@@ -98,7 +98,8 @@ How the packages fit together, and how to run the game locally, is in [Architect
   icon in the top bar (or on the Title screen) opens Report an issue, which copies the game log for your report.
 - **Rules questions:** check the [Rules Reference](docs/rules/mc_rulesreference_v18_compressed.pdf) and
   [FFG's rulings](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/) before filing a rules bug.
-- **Discord:** _coming soon._ <!-- TODO: replace this line with the Discord invite link once the server exists. -->
+- **Discord:** [join the community Discord](https://discord.gg/tCy5tqu46j) to chat about the game, ask questions and share decks. Bugs and
+  feature ideas still go to GitHub issues, so they are tracked and credited.
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, conventions and the release flow.
 
 ## Roadmap

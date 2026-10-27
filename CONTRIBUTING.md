@@ -16,6 +16,9 @@ bug can be replayed exactly.
 Before filing a rules bug, check the [Rules Reference](docs/rules/mc_rulesreference_v18_compressed.pdf) and
 [FFG's rulings](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/).
 
+To talk about the game, ask a question or plan a change before you start on it, join the
+[community Discord](https://discord.gg/tCy5tqu46j). Bugs and feature ideas still go to an issue, so they are tracked and the reporter is credited.
+
 ## Setting up
 
 You need [Node.js](https://nodejs.org/) (>= 22) and [pnpm](https://pnpm.io/) (>= 11.24). [mise](https://mise.jdx.dev/)
