@@ -130,7 +130,7 @@ class SceneTaps {
       )
     )
       return undefined;
-    const rect = worldRect(entry.zone);
+    const rect = hitRect(entry.zone);
     return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height ? entry : undefined;
   }
 }
@@ -152,6 +152,20 @@ function worldRect(zone: Phaser.GameObjects.Zone): { x: number; y: number; width
   const width = zone.width * Math.abs(m.scaleX);
   const height = zone.height * Math.abs(m.scaleY);
   return { x: m.tx - zone.originX * width, y: m.ty - zone.originY * height, width, height };
+}
+
+/**
+ * The part of the zone that takes a press, on screen: its rectangular hit area, which a scroll region crops to the
+ * part of a row still showing (`ui/scroll-clip.ts`'s `clipToViewport`), else the whole zone.
+ */
+export function hitRect(zone: Phaser.GameObjects.Zone): { x: number; y: number; width: number; height: number } {
+  const rect = worldRect(zone);
+  const area = zone.input?.hitArea as Partial<Record<"x" | "y" | "width" | "height", number>> | undefined;
+  if (!area || typeof area.x !== "number" || typeof area.y !== "number" || !zone.width || !zone.height) return rect;
+  if (typeof area.width !== "number" || typeof area.height !== "number") return rect;
+  const sx = rect.width / zone.width;
+  const sy = rect.height / zone.height;
+  return { x: rect.x + area.x * sx, y: rect.y + area.y * sy, width: area.width * sx, height: area.height * sy };
 }
 
 /**

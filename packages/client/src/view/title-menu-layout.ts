@@ -204,6 +204,12 @@ export interface TitleMenuLayout {
   /** "Quit to desktop", under Settings; null outside the desktop app. */
   readonly quit: Rect | null;
   readonly footer: Rect;
+  /**
+   * Where the menu scrolls, or null when it fits. A window too short for every row even at the compact floors (a phone
+   * held landscape, about 1000 x 340) scrolls everything under the logo's rule, the footer included, inside the menu
+   * panel; the logo and the art panel stay put.
+   */
+  readonly menuScroll: Rect | null;
   /** The temporary notice bar across the top (`noticeBar`), or null. */
   readonly noticeBar: Rect | null;
 }
@@ -299,9 +305,10 @@ function titleMenuLayoutUnder(input: TitleMenuLayoutInput): TitleMenuLayout {
   let layout = tightened(false);
   if (!layout.fits && !layout.split) layout = tightened(true);
   if (!layout.fits) {
-    // Only taken when it makes everything fit: a menu too tall even so keeps the roomier layout.
+    // Taken when it makes everything fit. A split screen too tall even so scrolls (`menuScroll`), and the compact logo
+    // and gaps leave the scroll the most room; a phone keeps the roomier layout, whose rank badge clears the buttons.
     const compact = tightened(!layout.split, true);
-    if (compact.fits) layout = compact;
+    if (compact.fits || layout.split) layout = compact;
   }
   const { fits: _fits, ...rest } = layout;
   return { ...rest, noticeBar: null };
@@ -446,6 +453,10 @@ function titleMenuLayoutAt(
     : Math.max(rankBadgeY + RANK_BADGE_PHONE_HEIGHT + gap, menuBottom - pad - hit.target);
   const fits = footerY + hit.target <= menuBottom;
   const footer: Rect = { x: left, y: footerY, width: column, height: hit.target };
+  const scrollTop = rule.y + rule.height;
+  const menuScroll: Rect | null = fits
+    ? null
+    : { x: menuPanel.x, y: scrollTop, width: menuPanel.width, height: menuBottom - scrollTop };
 
   return {
     fits,
@@ -475,5 +486,6 @@ function titleMenuLayoutAt(
     rankBadge,
     quit,
     footer,
+    menuScroll,
   };
 }

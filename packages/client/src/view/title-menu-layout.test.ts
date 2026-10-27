@@ -387,3 +387,31 @@ describe("the temporary notice bar", () => {
     }
   });
 });
+
+describe("the menu on a window too short for it", () => {
+  // A phone held landscape (Edge on Android at 3x, about 997 x 336 under its toolbars).
+  const short = { width: 997, height: 336, continuable: true, civilWar: true, noticeBar: true };
+
+  test("scrolls under the logo's rule, inside the menu panel, to the panel's bottom", () => {
+    const layout = titleMenuLayout(short);
+    const scroll = layout.menuScroll!;
+    expect(scroll).not.toBeNull();
+    expect(scroll.y).toBe(layout.rule.y + layout.rule.height);
+    expect(scroll.x).toBe(layout.menuPanel.x);
+    expect(scroll.width).toBe(layout.menuPanel.width);
+    expect(scroll.y + scroll.height).toBe(short.height);
+  });
+
+  test("the rows below the rule run past it, which is what the scroll is for; the logo stays above it", () => {
+    const layout = titleMenuLayout(short);
+    const scroll = layout.menuScroll!;
+    expect(layout.footer.y + layout.footer.height).toBeGreaterThan(scroll.y + scroll.height);
+    expect(layout.newGame.y).toBeGreaterThanOrEqual(scroll.y);
+    expect(layout.eyebrow.y + layout.eyebrow.height).toBeLessThanOrEqual(scroll.y);
+  });
+
+  test("a menu that fits does not scroll", () => {
+    for (const size of SIZES) expect(titleMenuLayout({ ...size, continuable: true }).menuScroll).toBeNull();
+    expect(titleMenuLayout({ width: 1920, height: 1080, continuable: true, noticeBar: true }).menuScroll).toBeNull();
+  });
+});
