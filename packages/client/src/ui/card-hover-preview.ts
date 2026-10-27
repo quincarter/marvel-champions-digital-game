@@ -81,8 +81,9 @@ export interface HoverPreviewDeps {
    */
   readonly area: (pointer: Phaser.Input.Pointer) => Rect | null;
   /**
-   * Skip a card already drawn large (`hoverWorthShowing`). Off unless set: every popover is one size, so a large card
-   * on the table (the hero panel) still gets a readable, same-size copy.
+   * Skip a card already drawn large (`hoverWorthShowing`). Off unless set: the popover is the setting's size or 1.5x
+   * the card as drawn, whichever is larger (`hoverCardSize`), so a large card on the table (the hero panel) still gets
+   * a bigger copy.
    */
   readonly skipLarge?: boolean;
 }
