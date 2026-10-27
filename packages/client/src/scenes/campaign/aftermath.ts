@@ -23,7 +23,7 @@ import type { CardId, CoreAspect } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
-import { unfoldedGameOf } from "../../campaign/unfolded-game.js";
+import { isAttemptGame, unfoldedGameOf } from "../../campaign/unfolded-game.js";
 import { CARDS_BY_ID, POOL_VERSION } from "../../content/pool.js";
 import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { cardDisplayName } from "../../view/hero-names.js";
@@ -263,6 +263,18 @@ export class CampaignAftermathScene extends Phaser.Scene {
       heroName: heroNameOfCard(seat.identityCardId as string) ?? `Seat ${seat.seatNumber}`,
     }));
     const { store } = appSession();
+    // Only the game this issue was dealt as is its result (#451). Anything else still on the table (an earlier game of
+    // an issue being retried, or none at all) is never scored: the issue's own finished game is picked up if there is
+    // one, and otherwise the issue was not played, so the Briefing opens it.
+    if (!store.state.game?.outcome || !isAttemptGame(record, store.state.config)) {
+      const own = unfoldedGameOf(record, await store.listSaves());
+      if (own) await store.resume(own.id);
+      if (!this.sys.isActive()) return;
+      if (!store.state.game?.outcome || !isAttemptGame(record, store.state.config)) {
+        goToScreen(this, SCENES.campaignBriefing, { runId: record.id });
+        return;
+      }
+    }
     // `campaignResultOf` (`packages/engine/src/campaign/result.ts`) treats anything but `"win"` as a campaign
     // loss — "RRG 1.8 has no 'conceded' campaign outcome: a conceded game is a game the players did not win" — so
     // this branch has to match that, not narrow itself to `"loss"` and let a conceded game fall through as a win.
