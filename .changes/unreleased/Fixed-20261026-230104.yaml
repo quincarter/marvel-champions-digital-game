@@ -1,3 +1,0 @@
-kind: Fixed
-body: With a controller, the D-pad reaches START VILLAIN PHASE as soon as the villain phase opens, instead of sometimes only the top bar's buttons, and Down from the top bar always gets back to the panel (#442).
-time: 2026-10-26T23:01:04.7340655-04:00

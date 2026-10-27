@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Hero tiles that were blank in the Linux app (Thor, Hulk, Star-Lord and six more): their pictures are re-encoded as plain WebP, and a tile whose picture fails to load falls back to the printed card.'
-time: 2026-10-24T19:19:52.1260912-04:00

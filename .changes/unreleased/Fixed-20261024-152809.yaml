@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The Linux desktop app''s audio no longer crackles: the webview''s sound buffer is longer on PipeWire / PulseAudio'
-time: 2026-10-24T15:28:09.4900139-04:00
