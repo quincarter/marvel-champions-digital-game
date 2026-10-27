@@ -102,6 +102,12 @@ export class CampaignService {
   readonly #newId: () => string;
   readonly #definitionOf: (campaignId: string) => CampaignDefinition | undefined;
   readonly #games: CampaignGames | undefined;
+  /**
+   * The finished game's replay, once per save (issue #448): Aftermath folds again for every answer it sends, and
+   * replaying a whole game from its first command each time left a phone on a black screen for seconds. A
+   * `SavedGame` here is a snapshot of a finished game: a caller that dispatches more commands takes a new `save()`.
+   */
+  readonly #replays = new WeakMap<SavedGame, { readonly state: GameState; readonly events: readonly GameEvent[] }>();
 
   constructor(options: CampaignServiceOptions) {
     this.storage = options.storage;
@@ -273,8 +279,13 @@ export class CampaignService {
     answers: readonly CampaignChoiceAnswer[] = [],
     gameId: string | null = null,
   ): Promise<CampaignStepResult> {
-    const replayed = applyCommands(saved.initialState, saved.commands, this.#engineDeps);
-    if (!replayed.ok) throw new Error(`the finished game no longer replays: ${replayed.error.message}`);
+    let replayed = this.#replays.get(saved);
+    if (!replayed) {
+      const result = applyCommands(saved.initialState, saved.commands, this.#engineDeps);
+      if (!result.ok) throw new Error(`the finished game no longer replays: ${result.error.message}`);
+      replayed = { state: result.state, events: result.events };
+      this.#replays.set(saved, replayed);
+    }
     return this.foldState(record, replayed.state, replayed.events, answers, gameId);
   }
 
