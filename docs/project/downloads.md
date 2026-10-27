@@ -26,9 +26,11 @@ and Big Picture with a controller. The entry is named "Marvel Champions Digital 
 plugins such as Discord show. Running it again updates the entry instead of adding a second one, keeps its collections
 and play time, and also replaces an entry you added by hand (named after the AppImage or exe file). Steam has to be closed while it runs; the script offers to close it.
 
-- **Windows**: install the game, then download `-Windows-Install-for-Steam.ps1` and run, in PowerShell (`-File`
-  takes no wildcards, so this looks the file up first):
-  `powershell -ExecutionPolicy Bypass -File (Get-ChildItem ~\Downloads\MarvelChampions-*-Windows-Install-for-Steam.ps1 | Select-Object -Last 1).FullName`
+- **Windows**: install the game, then download `-Windows-Install-for-Steam.cmd` and double-click it. Windows may ask
+  first because the file came from the internet: choose **Run** (or **More info**, then **Run anyway**). It needs no
+  execution policy change: the `.cmd` carries the PowerShell script and runs it as text, because Windows won't run a
+  downloaded, unsigned `.ps1` under its default policy (#474). The window stays open at the end so you can read it.
+  From a terminal it takes the same options, e.g. `.\MarvelChampions-<version>-Windows-Install-for-Steam.cmd -Uninstall`.
 - **macOS**: drag the game into Applications from the `.dmg`, then download `-macOS-Install-for-Steam.sh` and run
   `bash ~/Downloads/MarvelChampions-*-macOS-Install-for-Steam.sh`.
 - **Linux, Steam Deck and Bazzite**: download the `.AppImage` and `-Linux-Install-for-Steam.sh` (on a Steam Deck, in

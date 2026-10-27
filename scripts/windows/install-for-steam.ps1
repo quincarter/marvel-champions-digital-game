@@ -10,6 +10,9 @@ be closed while its shortcut list is written; the script offers to close it. Run
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\install-for-steam.ps1
 
+A release ships this as -Windows-Install-for-Steam.cmd (install-for-steam-launcher.cmd in front of it), which runs on
+a double-click and takes the same options: MarvelChampions-<version>-Windows-Install-for-Steam.cmd -Uninstall
+
 .PARAMETER Path
 The game's marvel-champions.exe, when it isn't where the installer put it.
 .PARAMETER SteamPath
@@ -246,10 +249,14 @@ if ($Uninstall) {
 
 # --- The art ---------------------------------------------------------------------------------------------------------
 
-$artDir = Join-Path $PSScriptRoot "..\linux\steam-art"
-if (-not (Test-Path (Join-Path $artDir "hero.jpg"))) { $artDir = Join-Path $PSScriptRoot "steam-art" }
+# The release's .cmd runs this as a script block, which has no $PSScriptRoot; it downloads the art.
+$artDir = ""
+if ($PSScriptRoot) {
+  $artDir = Join-Path $PSScriptRoot "..\linux\steam-art"
+  if (-not (Test-Path (Join-Path $artDir "hero.jpg"))) { $artDir = Join-Path $PSScriptRoot "steam-art" }
+}
 $temp = $null
-if (-not (Test-Path (Join-Path $artDir "hero.jpg"))) {
+if (-not $artDir -or -not (Test-Path (Join-Path $artDir "hero.jpg"))) {
   $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("mc-steam-art-" + [guid]::NewGuid())
   New-Item -ItemType Directory -Path $temp | Out-Null
   $artDir = $temp
