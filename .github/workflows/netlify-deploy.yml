@@ -239,12 +239,21 @@ jobs:
           # Recreated on every push, so the tag sits on the commit the APK was built from.
           gh release delete "$TAG" --cleanup-tag --yes 2> /dev/null || true
           gh release create "$TAG" "$name" --prerelease --target "$HEAD_SHA"             --title "Android preview: PR #${PR}"             --notes "A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. It installs over the released app and keeps its saves; the next release installs over it. Deleted when the pull request closes."
+          # A pull request that closed while this built already had its cleanup run, before there was anything to
+          # delete (#472): take the preview down again rather than leave it on the Releases page.
+          # Only a confirmed close deletes it; a failed lookup keeps the preview and leaves it to the daily sweep.
+          state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || state=UNKNOWN
+          if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+            echo "PR #${PR} closed while the preview built; deleting it."
+            gh release delete "$TAG" --cleanup-tag --yes
+            exit 0
+          fi
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Android preview: $url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment the APK link
-        if: steps.publish.outcome == 'success'
+        if: steps.publish.outputs.url != ''
         env:
           GH_TOKEN: ${{ github.token }}
           URL: ${{ steps.publish.outputs.url }}
@@ -317,12 +326,20 @@ jobs:
           mv "$built" "$name"
           gh release delete "$TAG" --cleanup-tag --yes 2> /dev/null || true
           gh release create "$TAG" "$name" --prerelease --target "$HEAD_SHA"             --title "Linux preview: PR #${PR}"             --notes "A test build of #${PR} at ${HEAD_SHA:0:7} for Linux and the Steam Deck, not a release. Deleted when the pull request closes."
+          # As in android-preview: delete it again if the pull request closed while this built (#472).
+          # Only a confirmed close deletes it; a failed lookup keeps the preview and leaves it to the daily sweep.
+          state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || state=UNKNOWN
+          if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+            echo "PR #${PR} closed while the preview built; deleting it."
+            gh release delete "$TAG" --cleanup-tag --yes
+            exit 0
+          fi
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Linux preview: $url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment the AppImage link
-        if: steps.publish.outcome == 'success'
+        if: steps.publish.outputs.url != ''
         env:
           GH_TOKEN: ${{ github.token }}
           URL: ${{ steps.publish.outputs.url }}
