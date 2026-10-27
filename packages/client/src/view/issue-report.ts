@@ -19,6 +19,9 @@ export const ISSUE_REPO = "quincarter/marvel-champions-digital-game";
 export const FEATURE_REQUEST_URL = `https://github.com/${ISSUE_REPO}/issues/new?template=feature_request.yml`;
 export const DECK_REQUEST_URL = `https://github.com/${ISSUE_REPO}/issues/new?template=tested_deck_request.yml`;
 
+/** The community Discord, for chat and questions. Bugs and feature ideas still go to the issue forms above. */
+export const DISCORD_INVITE_URL = "https://discord.gg/tCy5tqu46j";
+
 /** Where the player is and what they are running, as the report's header and the issue's environment block. */
 export interface ReportEnvironment {
   /** `v0.21.1+9211646` (`view/app-version.ts`). */

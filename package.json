@@ -2,7 +2,15 @@
   "name": "marvel-champions-game",
   "version": "0.37.0",
   "private": true,
+  "homepage": "https://github.com/quincarter/marvel-champions-digital-game#readme",
+  "bugs": {
+    "url": "https://github.com/quincarter/marvel-champions-digital-game/issues"
+  },
   "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quincarter/marvel-champions-digital-game.git"
+  },
   "scripts": {
     "dev": "pnpm --filter @mc/client dev",
     "dev:sync": "pnpm --filter @mc/sync-worker dev",

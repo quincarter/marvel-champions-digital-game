@@ -4,7 +4,7 @@ version = "0.37.0"
 description = "Marvel Champions: Digital Edition (desktop shell)"
 authors = ["Quin Carter"]
 license = "AGPL-3.0-or-later"
-repository = ""
+repository = "https://github.com/quincarter/marvel-champions-digital-game"
 edition = "2021"
 rust-version = "1.90"
 
