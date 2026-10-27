@@ -1,19 +1,27 @@
 # Deletes a pull request's Android and Linux preview pre-releases and their tags (netlify-deploy.yml's android-preview
 # and linux-preview jobs) once the pull request closes, merged or not, so the Releases page only lists real releases
 # and the previews still open.
+#
+# The close can land while a preview is still building; the preview jobs delete their own release when they find the
+# pull request closed after publishing (#472). The daily sweep is the backstop: it deletes every preview release and
+# tag whose pull request isn't open, and can be run by hand from the Actions tab.
 name: Android preview cleanup
 
 on:
   pull_request:
     types: [closed]
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   cleanup:
     name: Delete the Android preview
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - env:
@@ -25,3 +33,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: linux-preview-pr-${{ github.event.pull_request.number }}
         run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || echo "No preview for $TAG."
+
+  sweep:
+    name: Sweep previews of closed pull requests
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: |
+          # Releases first (deleting one takes its tag), then any preview tag left without a release.
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name' \
+            | grep -E '^(android|linux)-preview-pr-[0-9]+$' | sort -u > releases.txt || true
+          while read -r tag; do
+            state=$(gh pr view "${tag##*-pr-}" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || continue
+            if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+              echo "Deleting release $tag (PR $state)."
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+            fi
+          done < releases.txt
+          gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/" --paginate --jq '.[].ref' \
+            | sed 's#^refs/tags/##' | grep -E '^(android|linux)-preview-pr-[0-9]+$' | sort -u > tags.txt || true
+          while read -r tag; do
+            state=$(gh pr view "${tag##*-pr-}" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || continue
+            if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+              echo "Deleting tag $tag (PR $state)."
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag"
+            fi
+          done < tags.txt
