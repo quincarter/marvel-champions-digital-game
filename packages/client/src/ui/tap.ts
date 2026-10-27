@@ -8,6 +8,7 @@
  * which zone instance existed at each moment.
  */
 import Phaser from "phaser";
+import { drawnAbove } from "../view/draw-order.js";
 import { PressArm, TapTracker, type PressTarget } from "../view/press-arm.js";
 
 interface TapEntry {
@@ -93,26 +94,44 @@ class SceneTaps {
     return false;
   }
 
+  /**
+   * The control drawn on top at the point. Registration order usually is draw order, but not always: a comic page's
+   * tap-to-turn zone covers the whole page, header included, and is registered after SKIP and then sent to the back.
+   * Picking by registration alone handed a SKIP press that straddled a redraw to the page, which turned it (#452).
+   */
   #entryAt(x: number, y: number, id: string | null): TapEntry | undefined {
+    // A redraw that added objects with a depth leaves the list unsorted until the next render; sort it now (a no-op
+    // when nothing is queued) so the index paths below read as drawn.
+    this.#scene.sys.displayList.depthSort();
+    let best: { entry: TapEntry; order: readonly number[] } | undefined;
     for (let i = this.entries.length - 1; i >= 0; i--) {
-      const entry = this.entries[i]!;
-      if (!usable(entry.zone)) continue;
-      if (id !== null && entry.id() !== id) continue;
-      if (
-        this.occluders.some(
-          (o) =>
-            i < o.after &&
-            x >= o.rect.x &&
-            x <= o.rect.x + o.rect.width &&
-            y >= o.rect.y &&
-            y <= o.rect.y + o.rect.height,
-        )
-      )
-        continue;
-      const rect = worldRect(entry.zone);
-      if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) return entry;
+      const entry = this.#entryHit(i, x, y, id);
+      if (!entry) continue;
+      const order = entry.zone.getIndexList();
+      // Walking from the last registered, a tie keeps the later one, as before.
+      if (!best || drawnAbove(order, best.order)) best = { entry, order };
     }
-    return undefined;
+    return best?.entry;
+  }
+
+  /** The entry at `i` when it is usable, has `id` (if given), is not occluded, and covers the point. */
+  #entryHit(i: number, x: number, y: number, id: string | null): TapEntry | undefined {
+    const entry = this.entries[i]!;
+    if (!usable(entry.zone)) return undefined;
+    if (id !== null && entry.id() !== id) return undefined;
+    if (
+      this.occluders.some(
+        (o) =>
+          i < o.after &&
+          x >= o.rect.x &&
+          x <= o.rect.x + o.rect.width &&
+          y >= o.rect.y &&
+          y <= o.rect.y + o.rect.height,
+      )
+    )
+      return undefined;
+    const rect = worldRect(entry.zone);
+    return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height ? entry : undefined;
   }
 }
 
