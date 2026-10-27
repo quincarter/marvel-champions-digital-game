@@ -45,6 +45,8 @@ import { drawScheme } from "./schemes.js";
 import { missionSlots, neutralRow, neutralStack } from "../../view/mission-area-layout.js";
 import type { ReferenceCardView } from "../../view/reference-cards.js";
 import {
+  attachmentChipDamageTag,
+  attachmentChipText,
   compactVillainNote,
   counterNote,
   scenarioAreaTag,
@@ -62,6 +64,7 @@ import {
 import {
   ENVIRONMENT_MIN_WIDTH,
   type CompactEnvironmentLayout,
+  environmentAttachmentStrips,
   tuckedFanLayout,
   minionRoomBesideEnvironments,
   MINION_BESIDE_TILE_MAX,
@@ -711,7 +714,15 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
     const top = layout.title.y + layout.title.height + 3;
     const bottom = (layout.counters[0]?.y ?? rect.y + rect.height - 3) - 3;
-    drawTuckedFan(ctx, { x: inner.x, y: top, width: inner.width, height: bottom - top }, environment, dim);
+    const attached = layOutEnvironmentAttachments(
+      ctx,
+      { x: inner.x, y: top, width: inner.width, height: bottom - top },
+      environment,
+      dim,
+    );
+    attached.draw();
+    const fanBottom = attached.top === null ? bottom : attached.top - 3;
+    drawTuckedFan(ctx, { x: inner.x, y: top, width: inner.width, height: fanBottom - top }, environment, dim);
     return;
   }
 
@@ -759,14 +770,25 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     scene.children.bringToTop(subtitleText);
   }
 
+  // The cards attached to it (Upgraded Drones) take the band over the counter chips first: an attachment's ability is
+  // only reachable through its strip, so the environment's own ability line and the tucked fan get what is left.
+  const bandTop = titleBox.y + titleBox.height + 4;
+  const attached = layOutEnvironmentAttachments(
+    ctx,
+    { x: inner.x, y: bandTop, width: inner.width, height: countersTop - 4 - bandTop },
+    environment,
+    dim,
+  );
+  const stripsTop = attached.top ?? countersTop;
+
   // A printed Hero/Alter-Ego Action or resource ability on the environment itself (Library Labyrinth's "This
   // way?"), the same `▶` affordance a character panel's own foot strip gives its usable ability — drawn only
   // where it fits between the title band and the counter chips.
   const abilityLine = ctx.controller.abilityLine(environment.instanceId);
-  const abilityTop = titleBox.y + titleBox.height + 4;
+  const abilityTop = bandTop;
   const wrappedHeight = abilityLine ? footStripLayout(abilityLine, inner.width).height : FOOT_STRIP_HEIGHT;
-  const abilityHeight = abilityTop + wrappedHeight <= countersTop - 4 ? wrappedHeight : FOOT_STRIP_HEIGHT;
-  if (abilityLine && abilityTop + abilityHeight <= countersTop - 4) {
+  const abilityHeight = abilityTop + wrappedHeight <= stripsTop - 4 ? wrappedHeight : FOOT_STRIP_HEIGHT;
+  if (abilityLine && abilityTop + abilityHeight <= stripsTop - 4) {
     drawFootStrip(
       scene,
       { x: inner.x, y: abilityTop, width: inner.width, height: abilityHeight },
@@ -816,9 +838,67 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   }
 
   ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
-  // Whatever is tucked under it, in the free band between the title (or its ability) and the counter chips.
+  attached.draw();
+  // Whatever is tucked under it, in the free band between the title (or its ability) and the attachment strips.
   const fanTop = (abilityLine ? abilityTop + abilityHeight : titleBox.y + titleBox.height) + 4;
-  drawTuckedFan(ctx, { x: inner.x, y: fanTop, width: inner.width, height: countersTop - 4 - fanTop }, environment, dim);
+  drawTuckedFan(ctx, { x: inner.x, y: fanTop, width: inner.width, height: stripsTop - 4 - fanTop }, environment, dim);
+}
+
+/**
+ * The cards attached to an environment (Upgraded Drones on Ultron Drones; issue #462), one strip each in `room`
+ * (`environmentAttachmentStrips`), the same chip text a character's attachments carry. A strip whose card has an
+ * ability usable right now is drawn with the `▶` affordance; a tap opens the card, whose sheet offers the ability, as
+ * an attachment chip on a character does. Before this an environment drew no attachments at all, so Upgraded Drones'
+ * "Spend [energy] [mental] [physical] resources → discard this card" could never be used.
+ *
+ * `top` is the first strip's top edge (null with nothing attached), so what sits above stops there. The strips are
+ * drawn and their tap targets registered by `draw`, called after the tile's counter chips and its own tap target: a
+ * strip pushed past a short band then paints over the chips rather than under them, and a later target sits on top
+ * where a strip registered first would be swallowed by the tile behind it.
+ */
+function layOutEnvironmentAttachments(
+  ctx: BoardDrawContext,
+  room: Rect,
+  environment: EnvironmentPanel,
+  dim: number,
+): { readonly top: number | null; readonly draw: () => void } {
+  const { attachments } = environment;
+  const strips = environmentAttachmentStrips(room, attachments.length);
+  if (strips.length === 0) return { top: null, draw: () => {} };
+  return { top: strips[0]!.y, draw: () => drawEnvironmentAttachments(ctx, strips, attachments, dim) };
+}
+
+function drawEnvironmentAttachments(
+  ctx: BoardDrawContext,
+  strips: readonly Rect[],
+  attachments: EnvironmentPanel["attachments"],
+  dim: number,
+): void {
+  const usable = (id: InstanceId): boolean =>
+    ctx.controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(id) ?? false);
+  strips.forEach((strip, index) => {
+    const summary = index === strips.length - 1 && attachments.length > strips.length;
+    const attachment = attachments[index]!;
+    if (summary) {
+      const rest = attachments.slice(index);
+      drawFootStrip(ctx.scene, strip, `${index === 0 ? "" : "+"}${rest.length} attached`, "note", dim);
+    } else {
+      const ready = usable(attachment.instanceId);
+      drawFootStrip(
+        ctx.scene,
+        strip,
+        `${ready ? "▶ " : ""}${attachmentChipText(attachment)}`,
+        ready ? "ability" : "note",
+        dim,
+        attachmentChipDamageTag(attachment),
+      );
+    }
+    // The "+N attached" strip opens the first of them, stepping through the rest (as the tucked fan does).
+    const rest = attachments.slice(index).map((chip) => chip.instanceId);
+    ctx.makeTapTarget(strip, attachment.instanceId, () =>
+      summary ? ctx.inspect(attachment.instanceId, rest) : ctx.controller.onCharacterTap(attachment.instanceId),
+    );
+  });
 }
 
 /**
