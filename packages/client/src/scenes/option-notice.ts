@@ -16,6 +16,7 @@ import type { OptionNotice } from "../view/option-notice.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { anyPadButtonHeld } from "./press-guard.js";
+import { appSession } from "../session.js";
 
 const buttonType = { ...typeRole.label, size: 13 };
 
@@ -76,7 +77,14 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     this.#hints = new GlyphHints(this);
     // A (or Enter) presses the focused OK, Start presses it from anywhere, B / Esc dismisses. A pad button still down
     // when it opens fires nothing here: Phaser builds a held Button as pressed.
-    this.#route = new FocusRoute(this, { onCancel: () => this.#dismiss(), primary: () => "ok" });
+    // X (G / H on the keyboard) presses "Don't show again" on a notice that offers it.
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#dismiss(),
+      primary: () => "ok",
+      onToggle: () => {
+        if (this.#notices[0]?.optOut) this.#optOut();
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hints.dispose();
       this.scale.off("resize", onResize, this);
@@ -91,6 +99,17 @@ export class OptionNoticeOverlay extends Phaser.Scene {
   queueNotices(notices: readonly OptionNotice[]): void {
     this.#notices = [...this.#notices, ...notices];
     this.#draw();
+  }
+
+  /**
+   * "Don't show again" (#431): turns the not-offered notices off in Settings (`notOfferedNotices`, where they can be
+   * turned back on), and drops the ones waiting; the rest are shown as before.
+   */
+  #optOut(): void {
+    const session = appSession();
+    session.settings = { ...session.settings, notOfferedNotices: false };
+    this.#notices = [this.#notices[0]!, ...this.#notices.slice(1).filter((notice) => !notice.optOut)];
+    this.#dismiss();
   }
 
   /** The next notice, or close when this was the last. */
@@ -122,7 +141,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       .text(
         0,
         0,
-        "The other options could not be chosen, so this one was taken.",
+        notice.lead ?? "The other options could not be chosen, so this one was taken.",
         textStyle(typeRole.body, surface.ink.hex, 0.9),
       )
       .setWordWrapWidth(textWidth);
@@ -162,12 +181,15 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       y += frame.height + rowGap;
     });
 
-    const okRect: Rect = {
-      x: box.x + 20,
-      y: box.y + box.height - 20 - buttonHeight,
-      width: textWidth,
-      height: buttonHeight,
-    };
+    const buttonY = box.y + box.height - 20 - buttonHeight;
+    // A notice that offers "Don't show again" splits the row: it on the left, OK on the right (`end-turn-confirm.ts`).
+    const half = (textWidth - 12) / 2;
+    const neverRect: Rect | null = notice.optOut
+      ? { x: box.x + 20, y: buttonY, width: half, height: buttonHeight }
+      : null;
+    const okRect: Rect = neverRect
+      ? { x: neverRect.x + half + 12, y: buttonY, width: half, height: buttonHeight }
+      : { x: box.x + 20, y: buttonY, width: textWidth, height: buttonHeight };
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
@@ -179,9 +201,33 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     );
     // A on the focused OK; on a pad, Start too (it presses OK from anywhere).
     this.#hints.button(this.#buttons[0]!, ["activate"], "ink", {
-      idsNow: (set) => (set === "pad" ? ["activate", "pause"] : ["activate"]),
+      idsNow: (set) =>
+        this.#route?.focused !== "ok"
+          ? set === "pad"
+            ? ["pause"]
+            : null
+          : set === "pad"
+            ? ["activate", "pause"]
+            : ["activate"],
     });
-    this.#route?.set(["ok"], new Map([["ok", { rect: okRect, activate: () => this.#dismiss() }]]));
+    const stops = new Map([["ok", { rect: okRect, activate: () => this.#dismiss() }]]);
+    if (neverRect) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: "Don't show again",
+          type: buttonType,
+          rect: neverRect,
+          onClick: () => this.#optOut(),
+        }),
+      );
+      // X (G / H) presses it from anywhere; A when it has the ring.
+      this.#hints.button(this.#buttons[1]!, ["guide"], "paper", {
+        idsNow: () => (this.#route?.focused === "never" ? ["activate"] : ["guide"]),
+      });
+      stops.set("never", { rect: neverRect, activate: () => this.#optOut() });
+    }
+    this.#route?.set(neverRect ? ["never", "ok"] : ["ok"], stops);
     // Opening (and each next notice) puts the ring on OK, so A answers at once.
     this.#route?.focusKey("ok");
   }

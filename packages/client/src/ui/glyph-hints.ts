@@ -39,7 +39,7 @@ import { glyphSetOf } from "../view/input-mode.js";
 import type { PadLayer, PickBumper, PickModifier } from "../view/pad-layer-bindings.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
 import type { Rect } from "../view/layout.js";
-import { McInputGlyph, type GlyphGround } from "./input-glyph.js";
+import { INPUT_GLYPH_RESIZED, McInputGlyph, type GlyphGround } from "./input-glyph.js";
 import { bindInputHints, type InputHints, type InputHintsSnapshot } from "./input-hints.js";
 import { textStyle } from "./theme.js";
 import type { McButton } from "./widgets.js";
@@ -399,7 +399,7 @@ export class GlyphHints {
     const specs = segments.map((segment) => glyphsForShortcut(segment.id, snapshot.state, snapshot.settings));
     const scale = snapshot.settings.glyphSize;
     const signature = `${set}/${target.cancelMeans}/${target.activateText}/${zoom}/${scale}/${specs.map(specsSignature).join(";")}`;
-    if (!this.#legend || this.#legend.signature !== signature || !this.#legend.container.active) {
+    if (!this.#legend || this.#legend.signature !== signature || this.#legend.stale || !this.#legend.container.active) {
       this.#legend?.destroy();
       this.#legend = new LegendStrip(
         this.#scene,
@@ -416,6 +416,8 @@ export class GlyphHints {
 class LegendStrip {
   readonly container: Phaser.GameObjects.Container;
   readonly size: { width: number; height: number };
+  /** A glyph's picture landed after the strip was laid out, so it is built again. */
+  stale = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -429,6 +431,7 @@ class LegendStrip {
     const glyphs = items.map((item) =>
       item.specs ? new McInputGlyph(scene, 0, 0, item.specs, { height: glyphHeight, ground: "ink" }) : null,
     );
+    for (const glyph of glyphs) glyph?.once(INPUT_GLYPH_RESIZED, () => (this.stale = true));
     const texts = items.map((item) => scene.add.text(0, 0, item.text, { ...style }).setOrigin(0, 0.5));
     const { slots, width } = legendLayout(
       items.map((_item, index) => ({ glyphWidth: glyphs[index]?.fullWidth ?? 0, textWidth: texts[index]!.width })),

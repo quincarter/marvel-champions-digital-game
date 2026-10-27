@@ -57,7 +57,7 @@ import {
   teamworkWouldActivate,
 } from "./enter-play.js";
 import { asksTraitGrants, hasCandidates, heard } from "./triggers.js";
-import { pushWindow } from "./window.js";
+import { noteUnoffered, pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import { hasPerPlayerMainSchemes, mainSchemesFor } from "../per-player-main-schemes.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, gameAbilityIds, pushEvent } from "./frames.js";
@@ -841,6 +841,7 @@ function releaseHeld(ctx: Ctx, frameId: FrameId, ignoring?: InstanceId): void {
   const last = events[events.length - 1];
   if (last && events.some((event) => hasCandidates(ctx.state, ctx.deps, event, "response")))
     pushWindow(ctx, last, "response", null, events.slice(0, -1));
+  else noteUnoffered(ctx, events, "response");
 }
 
 /**
@@ -924,6 +925,7 @@ function revealWhereFound(ctx: Ctx, frame: Frame<"reveal">): void {
   const engaging = engagementOf(ctx.state, frame.instanceId);
   if (engaging && hasCandidates(ctx.state, ctx.deps, engaging, "interrupt"))
     pushWindow(ctx, engaging, "interrupt", null);
+  else if (engaging) noteUnoffered(ctx, [engaging], "interrupt");
 }
 
 /**

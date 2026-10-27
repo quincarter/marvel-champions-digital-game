@@ -129,6 +129,17 @@ describe("controls rows", () => {
     expect(sections[1]!.rows[0]!.glyphs.map((g) => g.label)).toEqual(["RT", "A"]);
     expect(padRowsOf("xbox", false).some((r) => r.id === "undo" || r.id === "endTurn")).toBe(false);
   });
+
+  it("the D-pad and right stick rows wear the family's picture, where its set has one", () => {
+    const artOf = (family: "xbox" | "playstation" | "nintendo", id: string) => {
+      const glyph = padRowsOf(family, false).find((r) => r.id === id)!.glyphs[0]!;
+      return glyph.kind === "pad" ? glyph.art : undefined;
+    };
+    expect(artOf("xbox", "move")).toBe("xbox/dpad");
+    expect(artOf("nintendo", "move")).toBe("nintendo/dpad");
+    expect(artOf("playstation", "move")).toBeUndefined();
+    expect(artOf("playstation", "scroll")).toBe("playstation/rstick");
+  });
 });
 
 describe("hint size row", () => {

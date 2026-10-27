@@ -591,6 +591,12 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("the footer's Discord link, when drawn, sits just before Release notes", () => {
+    const order = titleMenuFocusOrder({ continuable: false, discord: true });
+    expect(order.slice(order.indexOf("discord"), order.indexOf("discord") + 2)).toEqual(["discord", "release-notes"]);
+    expect(titleMenuFocusOrder({ continuable: false })).not.toContain("discord");
+  });
+
   test("the desktop app's Quit to desktop follows Settings", () => {
     const order = titleMenuFocusOrder({ continuable: false, quit: true });
     expect(order.slice(order.indexOf("settings"), order.indexOf("settings") + 2)).toEqual(["settings", "quit"]);

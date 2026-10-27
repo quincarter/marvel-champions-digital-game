@@ -737,6 +737,40 @@ export function defenseBarredCandidates(
   });
 }
 
+/**
+ * Whether nothing of this timing can answer `event` at all, whatever is in play: an interrupt-only timing point asked
+ * for responses, nothing left to answer, a discarded card already moved (`gatherCandidates`, `unofferedAbilities`).
+ */
+function unanswerable(state: GameState, event: TriggerEvent, timing: WindowTiming): boolean {
+  // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
+  if (timing === "response" && event.kind === "villainStepStarting") return true;
+  // A change of form about to happen is interrupt-only: "after you change form" answers `formChanged`.
+  if (timing === "response" && event.kind === "formChanging") return true;
+  // A tuck about to happen is interrupt-only ("would", RRG 1.8 p. 48; docs/phase7-wave9.md §3.40).
+  if (timing === "response" && event.kind === "cardBeingTucked") return true;
+  // So is a discard from a hand or a deck about to happen (docs/phase7-wave9.md §4.1 Q20).
+  if (timing === "response" && event.kind === "cardBeingDiscarded") return true;
+  // And a status card about to be given ("after a status card is placed" answers `statusPlaced`; wave 9 §3.33).
+  if (timing === "response" && event.kind === "statusBeingGiven") return true;
+  // And an attach about to happen: the attach itself announces what answers it (docs/phase7-wave9.md §3.49).
+  if (timing === "response" && event.kind === "cardAttached" && event.imminent !== undefined) return true;
+  // And counters about to be placed: the placement announces what answers it (docs/phase7-wave9.md §3.55).
+  if (timing === "response" && event.kind === "countersPlaced" && event.imminent !== undefined) return true;
+  // And an encounter card about to be dealt ("after a player is dealt" answers `encounterCardDealt`; wave 9 §3.45).
+  if (timing === "response" && event.kind === "encounterCardBeingDealt") return true;
+  // And a boost card about to be given ("after … is given" answers `boostCardGiven`; wave 11 scenarios E23).
+  if (timing === "response" && event.kind === "boostCardBeingGiven") return true;
+  // And an encounter card about to be revealed ("after ... reveal" answers `cardRevealed`).
+  if (timing === "response" && event.kind === "encounterCardBeingRevealed") return true;
+  // And a boost card about to be turned faceup ("after … is turned faceup" answers `boostCardTurnedFaceup`).
+  if (timing === "response" && event.kind === "boostCardTurningFaceup") return true;
+  if (nothingToAnswer(event, timing)) return true;
+  // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
+  // its discard (docs/phase7-wave7.md §3.55).
+  if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return true;
+  return false;
+}
+
 function gatherCandidates(
   state: GameState,
   deps: EngineDeps,
@@ -744,32 +778,7 @@ function gatherCandidates(
   timing: WindowTiming,
   forced: boolean,
 ): readonly TriggerCandidate[] {
-  // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
-  if (timing === "response" && event.kind === "villainStepStarting") return [];
-  // A change of form about to happen is interrupt-only: "after you change form" answers `formChanged`.
-  if (timing === "response" && event.kind === "formChanging") return [];
-  // A tuck about to happen is interrupt-only ("would", RRG 1.8 p. 48; docs/phase7-wave9.md §3.40).
-  if (timing === "response" && event.kind === "cardBeingTucked") return [];
-  // So is a discard from a hand or a deck about to happen (docs/phase7-wave9.md §4.1 Q20).
-  if (timing === "response" && event.kind === "cardBeingDiscarded") return [];
-  // And a status card about to be given ("after a status card is placed" answers `statusPlaced`; wave 9 §3.33).
-  if (timing === "response" && event.kind === "statusBeingGiven") return [];
-  // And an attach about to happen: the attach itself announces what answers it (docs/phase7-wave9.md §3.49).
-  if (timing === "response" && event.kind === "cardAttached" && event.imminent !== undefined) return [];
-  // And counters about to be placed: the placement announces what answers it (docs/phase7-wave9.md §3.55).
-  if (timing === "response" && event.kind === "countersPlaced" && event.imminent !== undefined) return [];
-  // And an encounter card about to be dealt ("after a player is dealt" answers `encounterCardDealt`; wave 9 §3.45).
-  if (timing === "response" && event.kind === "encounterCardBeingDealt") return [];
-  // And a boost card about to be given ("after … is given" answers `boostCardGiven`; wave 11 scenarios E23).
-  if (timing === "response" && event.kind === "boostCardBeingGiven") return [];
-  // And an encounter card about to be revealed ("after ... reveal" answers `cardRevealed`).
-  if (timing === "response" && event.kind === "encounterCardBeingRevealed") return [];
-  // And a boost card about to be turned faceup ("after … is turned faceup" answers `boostCardTurnedFaceup`).
-  if (timing === "response" && event.kind === "boostCardTurningFaceup") return [];
-  if (nothingToAnswer(event, timing)) return [];
-  // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
-  // its discard (docs/phase7-wave7.md §3.55).
-  if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return [];
+  if (unanswerable(state, event, timing)) return [];
   const found: TriggerCandidate[] = [];
   // Read once per call, and only once some ability has the right timing.
   let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;
@@ -917,6 +926,78 @@ function offeredTo(
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, playerId, event)) return false;
   return costPayable(state, deps, id, playerId, definition, false, event);
+}
+
+/** Why an optional ability that answered an event was not offered (`unofferedAbilities`). */
+export type UnofferedReason = "noTarget" | "cannotPay";
+
+/** An optional interrupt or response that answered an event but could not be initiated (`unofferedAbilities`). */
+export interface UnofferedAbility {
+  readonly instanceId: InstanceId;
+  readonly abilityId: AbilityId;
+  readonly playerId: PlayerId;
+  readonly reason: UnofferedReason;
+}
+
+/**
+ * The optional interrupts and responses on player-controlled cards in play that this event's triggering condition met,
+ * with everything `candidatesFor` checks of them passing, but that are not offered because they have no valid target
+ * (RRG 1.8 "Target", pp. 42–43) or their cost cannot be paid (RRG 1.8 "Initiating Abilities", p. 24, step 2), so the
+ * client can say why nothing was asked (#431: Iron Lad with no other ready Avenger ally). Read only; it changes
+ * nothing about what is offered.
+ *
+ * Left out: an "exhaust [this card] →" ability on a card that is exhausted, which a player can see on the table and
+ * which would otherwise be reported on every event it hears; an ability that names who may trigger it
+ * (`triggerableBy`), a captive ally's, and one a rule forbids, as `gatherCandidates` gathers none of them for a
+ * controller either.
+ */
+export function unofferedAbilities(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+): readonly UnofferedAbility[] {
+  if (unanswerable(state, event, timing)) return [];
+  // No player card ability resolves during setup (RRG 1.8 "Ability", p. 4; `gatherCandidates`), so none is "not offered".
+  const setup = state.step.phase === "setup";
+  const found: UnofferedAbility[] = [];
+  let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;
+  for (const id of cardsInPlay(state)) {
+    if (timing === "response" && enteredPlaySince(event, id)) continue;
+    if (setup && isPlayerCard(state, id)) continue;
+    for (const ref of activeAbilityRefs(state, id, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (!definition) continue;
+      const trigger = definition.trigger;
+      if (trigger.kind !== timing || trigger.forced) continue;
+      if (definition.playCostReduction) continue;
+      // An exhausted card's "exhaust [this card] →" ability, whatever else stops it: the table shows why.
+      if (definition.cost?.exhaustSelf && getInstance(state, id)?.exhausted) continue;
+      if (definition.activeIn === "hand" || definition.activeIn === "discard" || definition.activeIn === "tucked")
+        continue;
+      if (triggeringPlayers(state, deps, id, trigger, event)) continue;
+      if (isCaptiveAlly(state, id)) continue;
+      const controllerId = controllerOf(state, id);
+      if (controllerId === null) continue;
+      if (trigger.firstPlayerOnly === true && controllerId !== state.firstPlayerId) continue;
+      noTriggers ??= activeRules(state, deps, "cannotResolveTriggeredAbilities");
+      if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) continue;
+      if (!formSatisfied(state, controllerId, trigger.form)) continue;
+      if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
+      if (trigger.notWhileResolving === true && abilityResolving(state, id, ref.id)) continue;
+      if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
+      if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
+      if (cancelHasNoTarget(state, deps, definition, event)) continue;
+      const reason: UnofferedReason | null = abilityLacksValidTarget(state, deps, definition, id, controllerId, event)
+        ? "noTarget"
+        : !costPayable(state, deps, id, controllerId, definition, false, event)
+          ? "cannotPay"
+          : null;
+      if (reason === null) continue;
+      found.push({ instanceId: id, abilityId: ref.id, playerId: controllerId, reason });
+    }
+  }
+  return found;
 }
 
 /**
@@ -1232,14 +1313,18 @@ export function hearersOf(
 }
 
 /**
- * Whether any ability could react to this event right now, in either window. Events on paths every game takes (a turn
- * ending, surge, an ability resolving, a minion engaging) go on the stack only when one could, so a game with nothing
- * listening resolves exactly as it did before those events existed.
+ * Whether any ability could react to this event right now, in either window, or answers it but cannot be used
+ * (`unofferedAbilities`, so the player is told why: #431). Events on paths every game takes (a turn ending, surge, an
+ * ability resolving, a minion engaging) go on the stack only when one does, so a game with nothing listening resolves
+ * exactly as it did before those events existed; a heard event nobody uses resolves as if every offer was declined.
  */
 export const heard = (state: GameState, deps: EngineDeps, event: TriggerEvent): boolean =>
   hasCandidates(state, deps, event, "interrupt") ||
   hasCandidates(state, deps, event, "response") ||
-  eachTimeEffectsFor(state, deps, event).length > 0;
+  eachTimeEffectsFor(state, deps, event).length > 0 ||
+  // An ability that answers it but cannot be used is still heard, so its event frame says why (#431).
+  unofferedAbilities(state, deps, event, "interrupt").length > 0 ||
+  unofferedAbilities(state, deps, event, "response").length > 0;
 
 /**
  * The lasting "each time …" effects this event sets off (`LastingEffectBody eachTime`, docs/phase7-wave3.md §3.17), in

@@ -71,6 +71,12 @@ export interface Settings {
    */
   readonly confirmBeforeEndTurn: boolean;
   /**
+   * Open a notice the first time in a game that one of your cards' interrupts or responses answered what happened but
+   * could not be used: no valid target, or a cost you cannot pay (#431, Iron Lad with no other ready Avenger ally). The
+   * notice's "Don't show again" turns it off. The game log and Inspect say it either way. Defaults on.
+   */
+  readonly notOfferedNotices: boolean;
+  /**
    * The table rule "a hero and an ally with the same name can't both be in play" (`TableRules.sameNameHeroAllyConflict`,
    * owner decision 2026-10-03). Unlike the rest of this file it reaches the engine, as the rule set a NEW game is created
    * with (`tableRulesOf`); a game already started or saved keeps the rules it was created with. Defaults on.
@@ -404,6 +410,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     musicVolume: MUSIC_VOLUME_MAX,
     effectsVolume: MUSIC_VOLUME_MAX,
     confirmBeforeEndTurn: true,
+    notOfferedNotices: true,
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,

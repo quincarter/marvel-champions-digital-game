@@ -433,6 +433,12 @@ export type StackFrame =
        */
       readonly optionalAtOpen?: readonly TriggerCandidate[];
       /**
+       * The optional abilities on players' cards that answered as the window opened but could not be used then
+       * (`unofferedAbilities`), by instance and ability id: those still unusable as it closes are said to be not
+       * offered then (`abilityNotOffered`, #431). Absent when there were none.
+       */
+      readonly unofferedAtOpen?: readonly string[];
+      /**
        * Set when a player picked an optional ability in the round of `chooseTriggers` prompts now resolving. RRG 1.8
        * "Response" (p. 36) and "Interrupt": several may be triggered from one triggering condition, each once, until
        * "all players decide they do not wish to resolve any (further)" ones; "In Player Order" (p. 24): the sequence

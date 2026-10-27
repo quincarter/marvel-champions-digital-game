@@ -12,7 +12,7 @@ import Phaser from "phaser";
 import { onInputDeviceChange, inputDevice } from "../platform/input-device.js";
 import { appSession } from "../session.js";
 import { ink, minType, signal, surface, typeRole } from "../tokens.js";
-import { McInputGlyph } from "../ui/input-glyph.js";
+import { INPUT_GLYPH_RESIZED, McInputGlyph } from "../ui/input-glyph.js";
 import { notifyHintSettingsChanged } from "../ui/input-hints.js";
 import { McStepSlider } from "../ui/slider.js";
 import { glyphHeightFor, scaledGlyphHeight } from "../view/glyph-placement.js";
@@ -617,7 +617,9 @@ export class ControlsOverlay extends Phaser.Scene {
         }),
     );
     for (const glyph of glyphs) glyph.setAlpha(alpha);
+    let previewPercent = info.percent;
     const layoutPreview = (percent: number): void => {
+      previewPercent = percent;
       let x = control.x;
       for (const glyph of glyphs) {
         glyph.setGlyphHeight(scaledGlyphHeight(baseHeight, percent));
@@ -626,6 +628,8 @@ export class ControlsOverlay extends Phaser.Scene {
       }
     };
     layoutPreview(info.percent);
+    // A button picture landing after this changes its width.
+    for (const glyph of glyphs) glyph.on(INPUT_GLYPH_RESIZED, () => layoutPreview(previewPercent));
     const slider = new McStepSlider(this, {
       rect: {
         x: control.x + previewWidth,

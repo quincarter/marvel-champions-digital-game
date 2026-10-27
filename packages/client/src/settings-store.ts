@@ -48,6 +48,7 @@ const BOOLEAN_FIELDS = [
   "sound",
   "musicShuffle",
   "confirmBeforeEndTurn",
+  "notOfferedNotices",
   "sameNameHeroAllyConflict",
   "holdEncounterCards",
   "flipEncounterCards",

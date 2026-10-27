@@ -23,6 +23,7 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 import { appVersionText, buildCommit } from "../view/app-version.js";
 import {
   DECK_REQUEST_URL,
+  DISCORD_INVITE_URL,
   FEATURE_REQUEST_URL,
   issueReportFileName,
   issueReportText,
@@ -52,7 +53,7 @@ type Disabled = { readonly scene: Phaser.Scene; readonly pointer: boolean; reado
  */
 let pendingRestore: { readonly cancel: () => void; readonly entries: readonly Disabled[] } | null = null;
 
-type StopId = "close" | "hide" | "copy" | "download" | "github" | "feature" | "deck";
+type StopId = "close" | "hide" | "copy" | "download" | "github" | "feature" | "deck" | "discord";
 
 export class ReportIssueOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -320,7 +321,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       },
       {
         title: "3 · Tell us about it",
-        body: "Report a bug opens GitHub's bug form with your device details filled in: add your screenshot and the log there.",
+        body: "Report a bug opens GitHub's bug form with your device details filled in: add your screenshot and the log there. Bugs and ideas go to GitHub; Discord is for chat and questions.",
         rows: [
           [{ id: "github", label: "Report a bug ↗", kind: "primary", run: () => this.#openIssue() }],
           [
@@ -331,6 +332,14 @@ export class ReportIssueOverlay extends Phaser.Scene {
               run: () => openExternal(FEATURE_REQUEST_URL),
             },
             { id: "deck", label: "Request a deck ↗", kind: "secondary", run: () => openExternal(DECK_REQUEST_URL) },
+          ],
+          [
+            {
+              id: "discord",
+              label: "Chat on Discord ↗",
+              kind: "secondary",
+              run: () => openExternal(DISCORD_INVITE_URL),
+            },
           ],
         ],
       },
@@ -400,7 +409,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       );
       placed.push({ id: button.id, rect: moved, activate: button.run });
     }
-    const order: StopId[] = ["hide", "copy", "download", "github", "feature", "deck", "close"];
+    const order: StopId[] = ["hide", "copy", "download", "github", "feature", "deck", "discord", "close"];
     const stops = new Map<string, FocusStop>(
       placed.map((stop) => [stop.id, { rect: stop.rect, activate: stop.activate }]),
     );

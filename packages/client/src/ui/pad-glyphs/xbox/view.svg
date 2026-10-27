@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24.5" height="24.5" viewBox="136.75 112.75 24.5 24.5" fill="none"><g>
+<g>
+<circle cx="149" cy="125" r="12" fill="BODY"/>
+<g>
+<g>
+<mask id="path-6-inside-1_0_1" fill="white">
+<rect x="146.5" y="123.5" width="10" height="8" rx="0.5"/>
+</mask>
+<rect x="146.5" y="123.5" width="10" height="8" rx="0.5" fill="BODY" stroke="CUT" stroke-width="3" mask="url(#path-6-inside-1_0_1)"/>
+</g>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M143.5 125.5V120.5H150.5V122.5H152V119.5C152 119.224 151.776 119 151.5 119H142.5C142.224 119 142 119.224 142 119.5V126.5C142 126.776 142.224 127 142.5 127H145.5V125.5H143.5Z" fill="CUT"/>
+</g>
+</g>
+</g></svg>

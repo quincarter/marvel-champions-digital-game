@@ -106,6 +106,7 @@ async function glyphIn(page: Page, sceneKey: string, text: string, rect: Rect): 
         visible?: boolean;
         alpha?: number;
         text?: string;
+        name?: string;
         list?: Node[];
         getBounds?: () => { x: number; y: number; width: number; height: number };
       };
@@ -114,7 +115,7 @@ async function glyphIn(page: Page, sceneKey: string, text: string, rect: Rect): 
       const walk = (nodes: Node[], shown: boolean): void => {
         for (const node of nodes) {
           const vis = shown && node.visible !== false && (node.alpha ?? 1) > 0.05;
-          if (node.text === wanted && vis && node.getBounds) {
+          if ((node.text === wanted || node.name === `glyph:${wanted}`) && vis && node.getBounds) {
             const b = node.getBounds();
             const cx = b.x + b.width / 2;
             const cy = b.y + b.height / 2;

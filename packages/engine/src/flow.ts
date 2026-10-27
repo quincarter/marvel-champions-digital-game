@@ -442,7 +442,7 @@ function clearDamageTakenThisPhase(ctx: Ctx): void {
   if (instances !== null) ctx.state = { ...ctx.state, instances };
 }
 
-/** Pushes a timing-point event only when an ability could react to it, so a game without one logs as before. */
+/** Pushes a timing-point event only when an ability hears it (`heard`), so a game without one logs as before. */
 function pushIfHeard(ctx: Ctx, event: TriggerEvent): boolean {
   if (!heard(ctx.state, ctx.deps, event)) return false;
   pushEvent(ctx, event);

@@ -31,6 +31,7 @@ import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, update
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
+import { DISCORD_INVITE_URL } from "../view/issue-report.js";
 import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
@@ -628,7 +629,7 @@ export class TitleScene extends Phaser.Scene {
     }
 
     const coverage = cardPoolCoverageOf(POOL_CARDS, POOL_DEPS);
-    this.add.text(
+    const coverageText = this.add.text(
       layout.footer.x,
       layout.footer.y,
       cardPoolCoverageText(coverage),
@@ -672,6 +673,33 @@ export class TitleScene extends Phaser.Scene {
     onTap(releaseZone, releaseNotes, "title:release-notes");
     this.#stops.set("release-notes", { rect: linkRect, activate: releaseNotes });
 
+    // The community Discord, left of Release notes in the same link style; dropped where the footer is too tight to
+    // keep it clear of the card-pool line (Report an issue carries it there too).
+    const openDiscord = (): void => openExternal(DISCORD_INVITE_URL);
+    const discordText = this.add.text(0, layout.footer.y, "Discord ↗", textStyle(typeRole.label, textColor));
+    discordText.setX(linkText.x - 24 - discordText.width);
+    const discord = discordText.x - 6 >= coverageText.x + coverageText.width + 8;
+    if (discord) {
+      this.add
+        .graphics()
+        .fillStyle(textColor, 0.6)
+        .fillRect(discordText.x, discordText.y + discordText.height, discordText.width, 1);
+      const discordRect: Rect = {
+        x: discordText.x - 6,
+        y: layout.footer.y,
+        width: discordText.width + 12,
+        height: hit.target,
+      };
+      const discordZone = this.add
+        .zone(discordRect.x, discordRect.y, discordRect.width, discordRect.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      onTap(discordZone, openDiscord, "title:discord");
+      this.#stops.set("discord", { rect: discordRect, activate: openDiscord });
+    } else {
+      discordText.destroy();
+    }
+
     this.#status = this.add
       .text(layout.left, layout.footer.y - 24, "", textStyle(typeRole.body, textColor))
       .setWordWrapWidth(layout.column);
@@ -692,6 +720,7 @@ export class TitleScene extends Phaser.Scene {
           continuable: this.#continuable !== null,
           civilWar: civilWar !== null,
           quit: layout.quit !== null,
+          discord,
           updateActions: bannerStops,
           gameIds: gameRows.map((row) => row.id),
           removeConfirm: this.#removing !== null && gameRows.some((row) => row.id === this.#removing),

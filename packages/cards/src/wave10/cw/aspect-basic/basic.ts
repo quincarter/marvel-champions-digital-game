@@ -44,7 +44,8 @@ const AVENGER = trait("AVENGER");
  * **56052.iron-lad-interrupt**: "Interrupt: When Iron Lad uses a basic power, exhaust another Avenger ally you control
  * -> add that ally's matching power to Iron Lad's power for this use." An ally has only ATK and THW, so the power is
  * the one powering this use (an attack adds the exhausted ally's ATK, a thwart its THW; the Thor Teamwork 06032 and
- * Magneto 49019 shape). The exhaust is the cost, so nothing is offered without a ready Avenger ally, and a stunned or
+ * Magneto 49019 shape). The exhaust is the cost, so nothing is offered without a ready Avenger ally other than Iron Lad
+ * himself ("another": `self: false`, so a ready Iron Lad cannot pay with himself either), and a stunned or
  * confused Iron Lad has not used a basic power (RRG FAQ "Quicksilver", p. 61).
  *
  * **56053.assess-the-situation-action** aliases 12033's script.
@@ -59,7 +60,7 @@ export const ASPECT_BASIC_BASIC: AbilityRegistry = defineAbilities({
 
   "56052.iron-lad-interrupt": interrupt(
     on.basicPowerUsing("self", { power: ["attack", "thwart"] }),
-    { cost: exhaustCardsCost(query("ally", { controller: "you", trait: AVENGER }), { slot: "ally" }) },
+    { cost: exhaustCardsCost(query("ally", { controller: "you", trait: AVENGER, self: false }), { slot: "ally" }) },
     ifThen(
       basicPowerStatIs("atk"),
       modifyBasicPower(statOf(chosen("ally"), "atk")),
