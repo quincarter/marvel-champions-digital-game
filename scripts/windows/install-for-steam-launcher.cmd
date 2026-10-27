@@ -2,11 +2,14 @@
 @echo off
 rem The release's -Windows-Install-for-Steam.cmd is this file followed by install-for-steam.ps1 (stage-release-assets
 rem stitches them). Windows marks a download as coming from the internet, and the default RemoteSigned policy won't
-rem run an unsigned .ps1 with that mark, so the script is read as text and run from -Command (#474).
+rem run an unsigned .ps1 with that mark, so a double-click .cmd runs it instead (#474). -File needs a .ps1, so it runs
+rem a copy of this file, which keeps quoted options with spaces in them (-Path "C:\Program Files\...") whole.
 setlocal
-set "MC_STEAM_SCRIPT=%~f0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create([IO.File]::ReadAllText($env:MC_STEAM_SCRIPT)))" %*
+set "MC_STEAM_SCRIPT=%TEMP%\mc-install-for-steam-%RANDOM%%RANDOM%.ps1"
+copy /y "%~f0" "%MC_STEAM_SCRIPT%" >nul || (echo Couldn't copy the script to %TEMP%. & pause & exit /b 1)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%MC_STEAM_SCRIPT%" %*
 set "MC_EXIT=%ERRORLEVEL%"
+del "%MC_STEAM_SCRIPT%" >nul 2>&1
 echo.
 pause
 exit /b %MC_EXIT%
