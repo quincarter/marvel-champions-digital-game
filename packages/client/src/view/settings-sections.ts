@@ -88,7 +88,7 @@ export function settingsSectionsOf(input: {
   readonly discord?: boolean;
 }): readonly SettingsSection[] {
   return [
-    { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
+    { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "not-offered-notices", "same-name-conflict"] },
     {
       id: "villain",
       title: "Villain phase",

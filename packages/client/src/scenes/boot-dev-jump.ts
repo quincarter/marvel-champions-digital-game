@@ -501,6 +501,18 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&fixture=iron-lad`: Hulkling's Iron Lad attacks with no other Avenger ally out, so his interrupt is not
+  // offered and the board says why (#431).
+  // `&fixture=aneka`: the same with Black Panther's Aneka and no other Dora Milaje ally to choose.
+  if (screen === "board" && (params.get("fixture") === "iron-lad" || params.get("fixture") === "aneka")) {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { playAllyAttack } = await import("../store/dev-iron-lad-game.js");
+      await playAllyAttack(store, params.get("fixture")!, false);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=board&fixture=make-the-call`: Captain Marvel with Make the Call in hand and an ally in her discard pile, so
   // playing it lists the allies in the discard piles and whose pile each is in (#419); `&tight=1` first spends down the
   // hand so the allies it cannot pay for are shown dimmed; `&many=1` moves every ally in the deck to the discard pile,
@@ -588,6 +600,19 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       key: SCENES.inspect,
       data: { instanceId, siblings: [instanceId] } satisfies InspectData,
     };
+  }
+
+  // `?screen=inspect&fixture=iron-lad`: Iron Lad's Inspect sheet after he attacked alone, so "Right now" says his
+  // interrupt has no other ready Avenger ally to exhaust (#431).
+  if (screen === "inspect" && (params.get("fixture") === "iron-lad" || params.get("fixture") === "aneka")) {
+    const { NOT_OFFERED_GAMES, playAllyAttack } = await import("../store/dev-iron-lad-game.js");
+    const { store } = appSession();
+    const fixture = params.get("fixture")!;
+    await playAllyAttack(store, fixture);
+    const code = NOT_OFFERED_GAMES[fixture]!.code;
+    const lad = Object.values(store.state.game?.instances ?? {}).find((i) => i.cardId === code)?.instanceId;
+    if (!lad) return { key: SCENES.board, data: {} };
+    return { key: SCENES.inspect, data: { instanceId: lad, siblings: [lad] } satisfies InspectData };
   }
 
   // `?screen=inspect[&card=N]`: the Inspect sheet over a live board, open on

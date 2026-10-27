@@ -47,6 +47,7 @@ const BASE: Settings = {
   musicVolume: 100,
   effectsVolume: 100,
   confirmBeforeEndTurn: true,
+  notOfferedNotices: true,
   sameNameHeroAllyConflict: true,
   villainAutoAdvance: "off",
   holdEncounterCards: true,
@@ -90,6 +91,7 @@ describe("settingsRowInfoOf", () => {
       musicVolume: 60,
       effectsVolume: 80,
       confirmBeforeEndTurn: false,
+      notOfferedNotices: false,
       sameNameHeroAllyConflict: false,
       villainAutoAdvance: "off",
       holdEncounterCards: true,
@@ -127,6 +129,7 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "sound")?.on).toBe(false);
     expect(rows.find((r) => r.id === "music-shuffle")?.on).toBe(true);
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(false);
+    expect(rows.find((r) => r.id === "not-offered-notices")?.on).toBe(false);
     expect(rows.find((r) => r.id === "same-name-conflict")?.on).toBe(false);
   });
 
@@ -137,6 +140,7 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(false);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(true);
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "not-offered-notices")?.on).toBe(true);
     expect(rows.find((r) => r.id === "same-name-conflict")?.on).toBe(true);
   });
 
@@ -279,6 +283,14 @@ describe("nextSettingsAfterToggle", () => {
     expect(nextSettingsAfterToggle(BASE, "confirm-end-turn", 1).confirmBeforeEndTurn).toBe(false);
     expect(
       nextSettingsAfterToggle({ ...BASE, confirmBeforeEndTurn: false }, "confirm-end-turn", 1).confirmBeforeEndTurn,
+    ).toBe(true);
+  });
+
+  test("not-offered-notices (#431) defaults on and toggles between on and off", () => {
+    expect(defaultSettings().notOfferedNotices).toBe(true);
+    expect(nextSettingsAfterToggle(BASE, "not-offered-notices", 1).notOfferedNotices).toBe(false);
+    expect(
+      nextSettingsAfterToggle({ ...BASE, notOfferedNotices: false }, "not-offered-notices", 1).notOfferedNotices,
     ).toBe(true);
   });
 

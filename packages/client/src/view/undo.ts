@@ -57,6 +57,7 @@ type Verdict = typeof ALLOWED | typeof STOPS | typeof CHECKED;
  */
 export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [Verdict, string]>> = {
   abilityIgnored: [ALLOWED, "rules bookkeeping, nothing hidden"],
+  abilityNotOffered: [ALLOWED, "rules bookkeeping, nothing hidden"],
   abilityResolved: [ALLOWED, "rules bookkeeping, nothing hidden"],
   abilityUseRecorded: [ALLOWED, "rules bookkeeping, nothing hidden"],
   accelerationTokenAdded: [ALLOWED, "counters, face up"],

@@ -50,6 +50,7 @@ import { candidateDefenseBar, windowDefenseBar } from "../defense-claim.js";
 import { EngineInvariantError } from "../errors.js";
 import { leaveReplaced } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
+import type { AbilityId } from "@mc/content";
 import { cardOf, deckDiscardStillThere, getInstance, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
@@ -62,7 +63,7 @@ import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
-import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered } from "./triggers.js";
+import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered, unofferedAbilities } from "./triggers.js";
 import { toughEndsDamageWindow } from "./event.js";
 import { holdResponsesForReveal } from "./reveal-hold.js";
 
@@ -79,6 +80,11 @@ export function pushWindow(
   // A response window triggered while an encounter card is being revealed waits for the end of that reveal (RRG 1.8
   // "Reveal", p. 38; owner decision 2026-10-16, audit finding 18; `reveal-hold.ts`). Interrupts never wait.
   if (timing === "response" && holdResponsesForReveal(ctx, [...alsoEvents, event])) return;
+  // The abilities that answer but cannot be used yet: said only as the window closes, of those still unusable then
+  // (`closeWindow`), as one may become usable while it is open (a forced interrupt giving it a target: `lateCandidates`).
+  const unofferedAtOpen = [...alsoEvents, event].flatMap((each) =>
+    unofferedAbilities(ctx.state, ctx.deps, each, timing).map((u) => unofferedKey(u.instanceId, u.abilityId)),
+  );
   pushFrames(ctx, [
     {
       ...base(ctx),
@@ -97,8 +103,60 @@ export function pushWindow(
       pending: [],
       awaiting: null,
       paying: null,
+      ...(unofferedAtOpen.length > 0 ? { unofferedAtOpen } : {}),
     },
   ]);
+}
+
+const unofferedKey = (instanceId: InstanceId, abilityId: AbilityId): string => `${instanceId}:${abilityId}`;
+
+/**
+ * `unofferedAtOpen` less the abilities among `offered`: one offered while the window is open had its opportunity,
+ * whatever its target or cost is by the time the window closes (Codex review of #431).
+ */
+function stillUnoffered(
+  frame: Frame<"window">,
+  offered: readonly TriggerCandidate[],
+): { readonly unofferedAtOpen?: readonly string[] } {
+  if (!frame.unofferedAtOpen) return {};
+  const keys = new Set(offered.map((c) => unofferedKey(c.instanceId, c.abilityId)));
+  const left = frame.unofferedAtOpen.filter((key) => !keys.has(key));
+  return { unofferedAtOpen: left };
+}
+
+/**
+ * The window has offered everything it will: those of the abilities that could not be used as it opened
+ * (`unofferedAtOpen`) that still cannot are said now (`noteUnoffered`). Not for a window a tough status card or a
+ * replacement closed early: those abilities never had their opportunity.
+ */
+function closeWindow(ctx: Ctx, frame: Frame<"window">): void {
+  if (frame.unofferedAtOpen) {
+    noteUnoffered(ctx, [...(frame.alsoEvents ?? []), frame.event], frame.timing, new Set(frame.unofferedAtOpen));
+  }
+  popFrame(ctx);
+}
+
+/**
+ * Says which optional abilities on players' cards answered these conditions but cannot be initiated, and why
+ * (`abilityNotOffered`, `unofferedAbilities`; #431): as their window closes (`closeWindow`), or where none opens
+ * because nothing could be offered. Once per ability, however many of the conditions it answers.
+ */
+export function noteUnoffered(
+  ctx: Ctx,
+  events: readonly TriggerEvent[],
+  timing: WindowTiming,
+  /** Only these (`unofferedKey`): a window's abilities that could not be used as it opened (`closeWindow`). */
+  only?: ReadonlySet<string>,
+): void {
+  const said = new Set<string>();
+  for (const event of events) {
+    for (const { instanceId, abilityId, playerId, reason } of unofferedAbilities(ctx.state, ctx.deps, event, timing)) {
+      const key = unofferedKey(instanceId, abilityId);
+      if (said.has(key) || (only && !only.has(key))) continue;
+      said.add(key);
+      emit(ctx, { type: "abilityNotOffered", instanceId, abilityId, playerId, timing, reason, event });
+    }
+  }
 }
 
 /** RRG "Ability — Simultaneous Timing Priority": forced abilities before non-forced. */
@@ -454,6 +512,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       });
       setFrame(ctx, {
         ...frame,
+        ...stillUnoffered(frame, late),
         pending: late,
         optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late],
         askingPlayerIds: controllersToAsk(ctx.state, late),
@@ -481,7 +540,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       setFrame(ctx, rest);
       return;
     }
-    popFrame(ctx);
+    closeWindow(ctx, frame);
     return;
   }
   // The window's candidates are those whose triggering condition this occurrence met, read once as it opens, forced
@@ -521,6 +580,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   const joined = [...late, ...turnedUp];
   const advanced = {
     ...frame,
+    ...stillUnoffered(frame, candidates),
     ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
     ...(atOpen ? { optionalAtOpen: atOpen } : {}),
