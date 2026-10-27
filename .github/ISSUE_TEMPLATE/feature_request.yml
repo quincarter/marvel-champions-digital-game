@@ -30,6 +30,13 @@ body:
     attributes:
       label: How you picture it working
       description: Optional. Sketches, screenshots or examples from other card games are welcome.
+  - type: input
+    id: version
+    attributes:
+      label: Game version and card language
+      description: >-
+        Optional. The version at the bottom of the Title screen, and whether you play with English or Spanish cards.
+      placeholder: "e.g. v0.38.1, Spanish cards"
   - type: checkboxes
     id: checks
     attributes:

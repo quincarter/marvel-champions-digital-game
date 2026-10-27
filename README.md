@@ -31,6 +31,29 @@ to be a genuinely playable video game driven by a deterministic rules engine.
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases"><img src=".github/assets/readme/all-releases.svg" alt="View all releases" height="48"></a>
 </p>
 
+<details>
+<summary><h3>Expand for Spanish installs · Descargas en español</h3></summary>
+
+<p align="center">Cards printed in Spanish, from <a href="https://github.com/alaintxu/mc-ocr">alaintxu's mc-ocr</a> scans. Each installer replaces the English app, and your saves carry over.<br>
+Cartas en español, con los escaneos de <a href="https://github.com/alaintxu/mc-ocr">mc-ocr</a> de alaintxu. Cada instalador reemplaza la versión en inglés y conserva tus partidas guardadas.</p>
+
+<p align="center">
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.38.1/MarvelChampions-0.38.1-ES-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows-es.svg" alt="Descargar para Windows (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.38.1/MarvelChampions-0.38.1-ES-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon-es.svg" alt="Descargar para Mac con Apple silicon (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.38.1/MarvelChampions-0.38.1-ES-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel-es.svg" alt="Descargar para Mac con Intel (español)" height="48"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.38.1/MarvelChampions-0.38.1-ES-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux-es.svg" alt="Descargar para Linux, AppImage (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.38.1/MarvelChampions-0.38.1-ES-Android.apk"><img src=".github/assets/readme/download-android-es.svg" alt="Descargar para Android (español)" height="48"></a>
+  <a href="https://marvel-champions-digital-game.netlify.app/"><img src=".github/assets/readme/play-in-browser-es.svg" alt="Jugar en el navegador" height="48"></a>
+</p>
+
+<p align="center"><sub>The web version carries both languages: it starts in your browser's language, and the globe button next to the music button switches it. For the Spanish <code>.msi</code>, <code>.deb</code> or <code>.rpm</code>, look for <code>-ES-</code> in <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>.<br>
+La versión web incluye los dos idiomas: empieza en el idioma de tu navegador y el botón del globo, junto al de la música, lo cambia. Para el <code>.msi</code>, <code>.deb</code> o <code>.rpm</code> en español, busca <code>-ES-</code> en <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">todas las versiones</a>.</sub></p>
+
+</details>
+
 <p align="center">
   <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=bug_report.yml"><img src=".github/assets/readme/report-a-bug.svg" alt="Report a bug" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=feature_request.yml"><img src=".github/assets/readme/request-a-feature.svg" alt="Request a feature" height="48"></a>
@@ -182,6 +205,17 @@ Everyone whose code is in the game.
 <tr><td align="center"><a href="https://github.com/quincarter"><img src="https://github.com/quincarter.png?size=128" width="64" height="64" alt="Quin Carter"><br><sub><b>Quin Carter</b></sub></a></td><td align="center"><a href="https://github.com/bluefireF5ran"><img src="https://github.com/bluefireF5ran.png?size=128" width="64" height="64" alt="Francisco Merchán Cordero"><br><sub><b>Francisco Merchán Cordero</b></sub></a></td></tr>
 </table>
 <!-- credits:contributors:end -->
+
+### Spanish card scans
+
+Every Spanish build shows the Spanish card scans that [alaintxu](https://github.com/alaintxu) collected and checked in
+[mc-ocr](https://github.com/alaintxu/mc-ocr), used here with their permission
+([#337](https://github.com/quincarter/marvel-champions-digital-game/issues/337)). Thanks also to
+[AntonioAPG](https://github.com/AntonioAPG), who asked for Spanish cards and pointed us to them.
+
+<table>
+<tr><td align="center"><a href="https://github.com/alaintxu"><img src="https://github.com/alaintxu.png?size=128" width="64" height="64" alt="alaintxu"><br><sub><b>alaintxu</b></sub></a><br><sub>mc-ocr</sub></td><td align="center"><a href="https://github.com/AntonioAPG"><img src="https://github.com/AntonioAPG.png?size=128" width="64" height="64" alt="AntonioAPG"><br><sub><b>AntonioAPG</b></sub></a><br><sub>Spanish cards request</sub></td></tr>
+</table>
 
 Reported something on Discord or through the in-game bug button and want to be listed? Add yourself to
 [`.github/credits.json`](.github/credits.json) or ask in an issue.

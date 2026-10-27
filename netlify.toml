@@ -33,6 +33,18 @@ for = "/card-art/*"
 [headers.values]
 Cache-Control = "public, max-age=31536000, immutable"
 
+# The other card languages the web build carries (issue #337)
+[[headers]]
+for = "/card-art-es/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# English, when a Spanish preview makes Spanish the build language
+[[headers]]
+for = "/card-art-en/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
 # Cache hashed Vite assets (JS, CSS, fonts, audio)
 [[headers]]
 for = "/assets/*"

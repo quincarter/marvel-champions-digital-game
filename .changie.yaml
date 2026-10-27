@@ -55,8 +55,14 @@ replacements:
     replace: "releases/tag/{{.Version}})"
   # The README's download buttons: each link names the release's files, and each button shows its version.
   - path: README.md
-    find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-'
-    replace: "releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-"
+    # The top buttons are the English downloads; names carry `-EN-` from the first release with Spanish builds (#337).
+    # The OS has to follow, so the Spanish buttons' `-ES-` names don't match and become `-EN-ES-`.
+    find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-(EN-)?(Windows|macOS|Linux|Android)'
+    replace: "releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-EN-$2"
+  - path: README.md
+    # The Spanish buttons, in the README's folded Spanish installs section.
+    find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-ES-'
+    replace: "releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-ES-"
   - path: .github/assets/readme/download-windows.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
     replace: "{{.Version}}"
@@ -70,5 +76,20 @@ replacements:
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
     replace: "{{.Version}}"
   - path: .github/assets/readme/download-android.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: "{{.Version}}"
+  - path: .github/assets/readme/download-windows-es.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: "{{.Version}}"
+  - path: .github/assets/readme/download-macos-apple-silicon-es.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: "{{.Version}}"
+  - path: .github/assets/readme/download-macos-intel-es.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: "{{.Version}}"
+  - path: .github/assets/readme/download-linux-es.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: "{{.Version}}"
+  - path: .github/assets/readme/download-android-es.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
     replace: "{{.Version}}"

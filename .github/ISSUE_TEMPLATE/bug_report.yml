@@ -41,11 +41,25 @@ body:
   - type: input
     id: environment
     attributes:
-      label: Browser, OS and game version
+      label: Game version, browser and OS
       description: >-
-        The game version is shown in the game's menu. For the web version, include the browser.
+        The game version is at the bottom of the Title screen (for example v0.38.1, or v0.38.1 · ES in a Spanish
+        install). For the web version, include the browser.
         Skip this if you opened the form from the game: Game details below already has it.
-      placeholder: "e.g. v0.19.0, Chrome 130 on Windows 11"
+      placeholder: "e.g. v0.38.1, Chrome 130 on Windows 11"
+  - type: dropdown
+    id: card-language
+    attributes:
+      label: Card language
+      description: >-
+        Which cards you were playing with: an English or Spanish (-ES-) download, or the language picked with the globe
+        button on the web.
+      options:
+        - English
+        - Español (Spanish)
+        - Not sure
+    validations:
+      required: true
   - type: input
     id: heroes
     attributes:

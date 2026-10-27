@@ -7,6 +7,7 @@
  */
 
 import type { TableRules } from "@mc/engine";
+import { preferredCardLanguage, type CardLanguage } from "./art/card-language.js";
 import type { KeyboardHand } from "./view/input-shortcuts.js";
 import type { GlyphSource } from "./view/input-mode.js";
 import type { PadFamilySetting } from "./view/pad-family.js";
@@ -169,6 +170,12 @@ export interface Settings {
   readonly achievementPopupPlace: AchievementPopupPlace;
   /** How large the "Achievement unlocked" popup is drawn. Defaults to small (the owner, 2026-10-20). Its opened list keeps one size. */
   readonly achievementPopupSize: AchievementPopupSize;
+  /**
+   * The language card faces are drawn in (issue #337), among the ones this bundle carries (`availableCardLanguages`):
+   * the web carries every language, a native installer only its own, so there this follows the build. Defaults to the
+   * browser's language when the bundle has it.
+   */
+  readonly cardLanguage: CardLanguage;
   /**
    * Which button labels the controller glyphs show (`view/pad-family.ts`): follow the detected pad, or a family the
    * player picks when detection is wrong. Defaults to auto.
@@ -428,6 +435,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",
+    cardLanguage: preferredCardLanguage(globalThis.navigator?.languages ?? []),
     padGlyphFamily: "auto",
     nintendoLayout: true,
     keyboardHand: "left",
