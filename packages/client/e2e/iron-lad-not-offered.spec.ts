@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { activeScenes, clickText, hasText, settle, waitFor } from "./helpers.js";
+import { activeScenes, clickText, hasText, pressKey, settle, waitFor } from "./helpers.js";
 import { installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
 import { PAD, glyphIn, installPad, padTap, padWake } from "./pad-e2e-helpers.js";
 import type { Rect } from "./wave6-helpers-b.js";
@@ -190,3 +190,61 @@ test("on a pad, Don't show again wears X and X presses it; OK keeps A", async ({
   expect((await engineSays(page)).setting).toBe(false);
   expect(errors).toEqual([]);
 });
+
+/** A stop's rect from a scene's own focus route. */
+const stopRect = (page: import("@playwright/test").Page, scene: string, key: string): Promise<Rect | null> =>
+  page.evaluate(
+    ({ scene, stop }) =>
+      (
+        window as unknown as { __mcFocusRoutes?: Record<string, () => { key: string; rect: Rect }[]> }
+      ).__mcFocusRoutes?.[scene]?.().find((each) => each.key === stop)?.rect ?? null,
+    { scene, stop: key },
+  );
+
+test("on a keyboard, Don't show again wears G and G presses it; OK wears Space", async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors = trackErrors(page);
+  await installWave6Helpers(page);
+  await page.goto("/?screen=board&fixture=iron-lad");
+  await waitFor(
+    async () => ((await activeScenes(page)).includes(NOTICE) ? true : null),
+    "the not-offered notice opens",
+    120_000,
+  );
+  await settle(page, { quietMs: 500, maxMs: 4000 });
+  // A key press that does nothing else makes it a keyboard screen.
+  await pressKey(page, "Shift");
+  await settle(page, { quietMs: 300, maxMs: 2000 });
+  const never = (await stopRect(page, NOTICE, "never"))!;
+  const ok = (await stopRect(page, NOTICE, "ok"))!;
+  expect(await glyphIn(page, NOTICE, "G", never), "G on Don't show again").toBe(true);
+  expect(await glyphIn(page, NOTICE, "Space", ok), "Space on OK").toBe(true);
+  await page.screenshot({ path: "../../artifacts/qa/431/notice-keyboard-glyphs.png" });
+  await pressKey(page, "g");
+  await waitFor(async () => ((await activeScenes(page)).includes(NOTICE) ? null : true), "G closes the notice", 10_000);
+  expect((await engineSays(page)).setting).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+for (const input of ["pad", "keyboard"] as const) {
+  test(`Iron Lad's Inspect sheet on a ${input}: the note, and Close wearing its ${input === "pad" ? "B" : "Esc"}`, async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    const errors = trackErrors(page);
+    if (input === "pad") await installPad(page);
+    await installWave6Helpers(page);
+    await page.goto("/?screen=inspect&fixture=iron-lad");
+    await waitFor(
+      async () => ((await hasText(page, "can't be used right now")) ? true : null),
+      "Inspect's Right now note",
+      120_000,
+    );
+    await settle(page, { quietMs: 500, maxMs: 4000 });
+    if (input === "pad") await padWake(page);
+    else await pressKey(page, "Shift");
+    await settle(page, { quietMs: 300, maxMs: 2000 });
+    await page.screenshot({ path: `../../artifacts/qa/431/iron-lad-inspect-${input}.png` });
+    expect(errors).toEqual([]);
+  });
+}
