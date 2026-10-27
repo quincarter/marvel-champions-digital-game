@@ -431,29 +431,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // The table takes no game action until the player starts the player phase (or skips).
     this.#boardScene()?.setVillainPhaseOpen(true);
-    const { store } = appSession();
-    // Before the subscribe, which runs the first draw (or closes at once, drawing nothing): the last run's cards go.
-    resetHoverCards(this);
-    this.#unsubscribe = store.subscribe((state) => this.#onState(state));
-    const onResize = (): void => this.#draw();
-    // A boost card's scan is requested lazily and may not have arrived on the
-    // first draw; without this the panel stays blank until something else
-    // happens to redraw the scene.
-    const artOff = cardArt(this).onArrived(() => this.#draw());
-    // A hero picture for a seat's avatar (`ui/seat-avatar.ts`) arrives the same way.
-    this.events.on(SEAT_AVATAR_READY, onResize);
-    /**
-     * The resize listener MUST be removed on shutdown.
-     *
-     * `this.scale` is the *game's* emitter, not the scene's, so it outlives
-     * every scene and keeps whatever is registered on it. An overlay that is
-     * launched and stopped on every decision therefore added a listener per
-     * open, each closure retaining a dead scene and, through it, the game
-     * state, the view models and the card-art textures — a heap that reached
-     * 3.5 GB in one session. It also crashed: a resize would eventually reach
-     * a torn-down scene and draw into systems that no longer exist.
-     */
-    this.scale.on("resize", onResize, this);
+    // The route before the subscribe, which runs the first draw: a route made after it missed that draw's stops, so
+    // until something else redrew the panel the pad could reach only the top bar's buttons, never START.
     // Keyboard and pad: Tab to Continue or Skip, Enter presses, Escape skips.
     // The choice sheet collects answers over this screen, and Inspect can open
     // over both; while either is up it owns input — Escape used to skip the
@@ -489,6 +468,29 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onView: () => this.padPeek(),
       onExpand: () => this.padExpand(),
     });
+    const { store } = appSession();
+    // Before the subscribe, which runs the first draw (or closes at once, drawing nothing): the last run's cards go.
+    resetHoverCards(this);
+    this.#unsubscribe = store.subscribe((state) => this.#onState(state));
+    const onResize = (): void => this.#draw();
+    // A boost card's scan is requested lazily and may not have arrived on the
+    // first draw; without this the panel stays blank until something else
+    // happens to redraw the scene.
+    const artOff = cardArt(this).onArrived(() => this.#draw());
+    // A hero picture for a seat's avatar (`ui/seat-avatar.ts`) arrives the same way.
+    this.events.on(SEAT_AVATAR_READY, onResize);
+    /**
+     * The resize listener MUST be removed on shutdown.
+     *
+     * `this.scale` is the *game's* emitter, not the scene's, so it outlives
+     * every scene and keeps whatever is registered on it. An overlay that is
+     * launched and stopped on every decision therefore added a listener per
+     * open, each closure retaining a dead scene and, through it, the game
+     * state, the view models and the card-art textures — a heap that reached
+     * 3.5 GB in one session. It also crashed: a resize would eventually reach
+     * a torn-down scene and draw into systems that no longer exist.
+     */
+    this.scale.on("resize", onResize, this);
 
     // The desktop hover popover over the phase's own cards (the enemy, the revealed card, the interrupt card, the
     // recap's thumbnails), as on the table: the cards' rects are noted as they are drawn (`noteHoverCard`). The first
