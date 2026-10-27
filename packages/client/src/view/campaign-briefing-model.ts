@@ -8,6 +8,7 @@
 import type { CardId } from "@mc/content";
 import {
   CAMPAIGN_ACCEPT,
+  CAMPAIGN_NEXT_NODE_INSTRUCTION,
   illegalDecksOf,
   type CampaignAttempt,
   type CampaignChoiceAnswer,
@@ -643,9 +644,13 @@ export function deckProblemsOf(
  * attempt away, `discardAttempt`) re-asks nothing the player already decided. A drawn `random` op comes back as its
  * accept token; the draw itself is the log's own RNG, restored with the attempt, so it reproduces and cannot be
  * rerolled by editing a deck and returning. An answer the recompose no longer asks is ignored by the engine.
+ *
+ * A `choice` graph's scenario pick (Fear No Evil, MC60 p. 9 step 4) is not one of the attempt's steps, so it rides
+ * along as the attempt's own node: without it a deck edit asked for the scenario again and replayed its opening
+ * comic (#451). A linear graph never asks for its node, so there the answer is simply unused.
  */
 export function answersOfAttempt(attempt: CampaignAttempt): readonly CampaignChoiceAnswer[] {
-  return attempt.steps.flatMap((step) =>
+  const answered = attempt.steps.flatMap((step) =>
     step.choices.map((choice) => ({
       instructionId: step.instructionId,
       slot: choice.slot,
@@ -653,6 +658,10 @@ export function answersOfAttempt(attempt: CampaignAttempt): readonly CampaignCho
       picked: choice.random ? [CAMPAIGN_ACCEPT] : choice.picked,
     })),
   );
+  return [
+    ...answered,
+    { instructionId: CAMPAIGN_NEXT_NODE_INSTRUCTION, slot: "node", seatNumber: null, picked: [attempt.nodeId] },
+  ];
 }
 
 export function deckRowsOf(

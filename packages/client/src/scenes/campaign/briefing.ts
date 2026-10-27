@@ -329,7 +329,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
       // A choice graph's issue was only just picked, so its opener never played: play its comic now, then come back
       // here (the composed issue is saved, so this screen reopens on it). An issue with no comic needs no detour.
       const picked = currentNodeIdOf(result.record);
-      if (this.#nodeAtLoad === null && picked !== null && (this.#story?.comicBeats?.length ?? 0) > 0) {
+      const unread = this.#nodeAtLoad === null && picked !== this.#data.openerReadNodeId;
+      if (unread && picked !== null && (this.#story?.comicBeats?.length ?? 0) > 0) {
         this.scale.off("resize", this.#draw, this);
         goToScreen(this, SCENES.campaignOpener, {
           runId: result.record.id,
@@ -429,7 +430,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
       seatNumber: target,
       returnTo: {
         key: SCENES.campaignBriefing,
-        data: { runId: this.#data.runId, ...(kept.length > 0 ? { answers: kept } : {}) },
+        data: {
+          runId: this.#data.runId,
+          ...(kept.length > 0 ? { answers: kept } : {}),
+          ...(record.attempt ? { openerReadNodeId: record.attempt.nodeId } : {}),
+        },
       },
     });
   }

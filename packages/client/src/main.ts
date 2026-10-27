@@ -108,6 +108,11 @@ const game = new Phaser.Game({
   type: rendererOptions.canvas ? Phaser.CANVAS : Phaser.WEBGL,
   ...(rendererOptions.transparent ? { transparent: true } : {}),
   render: {
+    // Text and pictures that are only moved (not scaled or turned) draw at whole game pixels. A label centred on an odd
+    // width lands on a half pixel, and at 1x (a 1440p monitor at 100% scaling) the GPU blended it across two pixel
+    // columns, so menu and settings text came out soft (#453). Scaled or rotated objects are left as they were.
+    // `?roundpixels=off` draws as before, to compare.
+    roundPixels: new URLSearchParams(window.location.search).get("roundpixels") !== "off",
     ...(rendererOptions.preserveDrawingBuffer ? { preserveDrawingBuffer: true } : {}),
     ...(rendererOptions.antialiasGL === false ? { antialiasGL: false } : {}),
     ...(rendererOptions.powerPreference ? { powerPreference: rendererOptions.powerPreference } : {}),

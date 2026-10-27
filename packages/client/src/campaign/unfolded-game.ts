@@ -5,6 +5,7 @@
  */
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { SaveMeta } from "../engine/game-storage.js";
+import type { SessionConfig } from "../engine/host.js";
 
 /**
  * The saved game the record's composed attempt was played as, when that game has ended and has not been folded:
@@ -51,10 +52,29 @@ function newestAttemptGameOf(
   return attemptGamesOf(record, saves).find(keep) ?? null;
 }
 
+/**
+ * Whether a game was dealt for the record's composed attempt: the same box, the same issue and the same run (issue
+ * #451). Aftermath folds only such a game; any other one still on the table (an earlier game of the issue being
+ * retried, say) would otherwise be scored as this issue's result without the issue ever being played.
+ */
+export function isAttemptGame(record: CampaignRecord, config: SessionConfig | null | undefined): boolean {
+  const attempt = record.attempt;
+  const campaign = config?.campaign;
+  if (!attempt || !campaign) return false;
+  return (
+    (campaign.campaignId as string) === (record.campaignId as string) &&
+    campaign.nodeId === attempt.nodeId &&
+    sameSeed(attempt, campaign.seed)
+  );
+}
+
 /** Whether a campaign save was dealt from this attempt's own input; a save or attempt without a recorded seed matches. */
 function sameRun(save: SaveMeta, attempt: NonNullable<CampaignRecord["attempt"]>): boolean {
+  return sameSeed(attempt, save.config?.campaign?.seed);
+}
+
+function sameSeed(attempt: NonNullable<CampaignRecord["attempt"]>, theirs: number | undefined): boolean {
   const mine = attempt.input?.seed;
-  const theirs = save.config?.campaign?.seed;
   return mine === undefined || theirs === undefined || mine === theirs;
 }
 

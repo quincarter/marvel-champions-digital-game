@@ -62,6 +62,11 @@ export interface CampaignBriefingData {
   readonly answers?: readonly CampaignChoiceAnswer[];
   /** Rewind's "Same hands": open the issue on this seed instead of the composed attempt's fresh one. */
   readonly replaySeed?: number;
+  /**
+   * The issue whose opener was already read: a deck edit threw the composed issue away and hands its pick back, so
+   * composing that issue again goes straight to the Briefing (#451). Another issue still plays its own opener.
+   */
+  readonly openerReadNodeId?: string;
 }
 
 /**

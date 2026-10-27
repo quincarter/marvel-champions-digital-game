@@ -130,6 +130,23 @@ describe("CampaignService", () => {
     expect(folded.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
   });
 
+  // Issue #448: Aftermath folds again for every answer it sends, and each fold used to replay the whole game.
+  test("folding the same save again reuses its first replay", async () => {
+    const campaigns = service();
+    const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const composed = await campaigns.compose(signed);
+    if (composed.kind !== "done") throw new Error("composing issue #1 asked a question");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(campaigns.launchConfig(composed.record));
+    core.dispatch({ type: "concede", playerId: started.snapshot.state.firstPlayerId });
+    const saved = core.save();
+    expect((await campaigns.fold(composed.record, saved)).kind).toBe("done");
+    // A command that cannot apply: a second replay of this save would throw.
+    (saved.commands as unknown[]).push({ type: "not-a-command" });
+    const again = await campaigns.fold(composed.record, saved);
+    expect(again.kind === "done" && again.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
+  });
+
   // A record with no `CampaignDefinition` yet is listed sealed, not playable (campaign-service.ts header).
   test.each(Object.keys(CAMPAIGN_RECORDS).filter((id) => campaignDefinitionOf(id)))(
     "%s: a rewound issue is dealt a fresh shuffle, not the lost attempt's decks again",
