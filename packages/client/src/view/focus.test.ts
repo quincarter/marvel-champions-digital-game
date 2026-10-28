@@ -171,6 +171,32 @@ describe("focus route and cards with no tile", () => {
   });
 });
 
+describe("the table's cards on the idle route", () => {
+  test("follow the hand and discard in table order, before the basics, each once and only while tiled", () => {
+    const marks: Highlights = { ...marksWith(["endTurn"]), usableAbilities: new Set([id("ally"), id("teammate")]) };
+    const order = focusOrder(
+      {
+        kind: "idle",
+        hand: [id("h")],
+        discard: true,
+        table: [id("villain"), id("ally"), id("offscreen"), id("scheme")],
+        tiled: (card) => card !== id("offscreen"),
+      },
+      marks,
+    );
+    expect(order).toEqual([
+      { kind: "card", instanceId: id("h") },
+      { kind: "discard" },
+      { kind: "card", instanceId: id("villain") },
+      { kind: "card", instanceId: id("ally") },
+      { kind: "card", instanceId: id("scheme") },
+      // A usable card the table list does not name still comes after it.
+      { kind: "card", instanceId: id("teammate") },
+      { kind: "basic", action: "endTurn" },
+    ]);
+  });
+});
+
 describe("the X picker's stops", () => {
   test("lead the paying route, before the sources", () => {
     const order = focusOrder({ kind: "paying", sources: [id("r1")], x: true }, marksWith(["attack"]));

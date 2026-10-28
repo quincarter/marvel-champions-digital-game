@@ -11,6 +11,7 @@
  */
 
 import type { InstanceId } from "@mc/engine";
+import type { AttachmentChip, BoardModel } from "./board-model.js";
 import type { FocusTarget } from "./focus.js";
 import type { PhoneTab } from "./layout.js";
 
@@ -26,6 +27,52 @@ export interface ZoneMembers {
   readonly villain: ReadonlySet<InstanceId>;
   /** The schemes among `villain`: on a phone they are on the Threat tab, the rest on Enemies. */
   readonly threat: ReadonlySet<InstanceId>;
+}
+
+/** The cards on the table a pad can focus, by zone, each in the order a player's eye reads it. */
+export interface TableCards {
+  /** Your identity and your cards in play, each followed by what is attached to it. */
+  readonly playArea: readonly InstanceId[];
+  /** The villain(s), minions, environments, schemes and scenario areas, each followed by its attachments. */
+  readonly villain: readonly InstanceId[];
+  /** The schemes among `villain` (and the pod's neutral area): on a phone they are on the Threat tab. */
+  readonly threat: readonly InstanceId[];
+  /** The other seats' identities, on their rows. */
+  readonly team: readonly InstanceId[];
+}
+
+/** A card and then each card attached to it, as the table draws them (the host, its chips under it). */
+function withAttachments(host: {
+  readonly instanceId: InstanceId;
+  readonly attachments: readonly AttachmentChip[];
+}): InstanceId[] {
+  return [host.instanceId, ...host.attachments.map((chip) => chip.instanceId)];
+}
+
+function areaCard(card: BoardModel["scenarioPlayAreas"][number]["cards"][number]): InstanceId[] {
+  return withAttachments({ instanceId: card.instanceId, attachments: card.panel.attachments });
+}
+
+export function tableCardsOf(model: BoardModel): TableCards {
+  const neutral = model.scenarioPlayAreas.filter((area) => area.neutral);
+  const threat = [
+    ...withAttachments(model.mainScheme),
+    ...model.extraMainSchemes.flatMap(withAttachments),
+    ...model.sideSchemes.flatMap(withAttachments),
+    ...neutral.flatMap((area) => area.cards.flatMap(areaCard)),
+  ];
+  return {
+    playArea: [...withAttachments(model.me), ...model.myPlayArea.flatMap(withAttachments)],
+    villain: [
+      ...model.villains.flatMap((villain) => withAttachments(villain.panel)),
+      ...model.minions.flatMap(withAttachments),
+      ...model.environments.flatMap(withAttachments),
+      ...threat,
+      ...model.scenarioPlayAreas.filter((area) => !area.neutral).flatMap((area) => area.cards.flatMap(areaCard)),
+    ],
+    threat,
+    team: model.team.map((seat) => seat.identityInstanceId),
+  };
 }
 
 /** Which zone a focus stop is in, or null for a stop that belongs to none (a teammate's card, a Team-Up ring). */

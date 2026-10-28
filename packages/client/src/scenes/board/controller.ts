@@ -144,6 +144,8 @@ export interface BoardControllerHost {
   teamUpKeys?(): readonly string[];
   /** True when the card has a tile or chip on screen right now (it has a focus rect). */
   hasTile?(id: InstanceId): boolean;
+  /** Every card on the table in reading order (`view/board-zones.ts#tableCardsOf`): idle stops a pad can inspect. */
+  tableCards?(): readonly InstanceId[];
   openTeamUp?(pairKey: string): void;
   /** How many mode-bar buttons the last draw made focus stops, and whether the bar has a Cancel; pressing one. */
   barStops?(): { readonly count: number; readonly cancel: boolean };
@@ -481,6 +483,7 @@ export class BoardController {
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
         undo: this.undoOffer() !== null,
+        table: this.#host.tableCards?.() ?? [],
         ...(this.#host.hasTile
           ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
           : {}),
@@ -527,6 +530,11 @@ export class BoardController {
     // Reading what a Team-Up gives the table sends nothing, so it works on a replayed board too.
     if (focus.kind === "teamUp") {
       this.#host.openTeamUp?.(focus.pairKey);
+      return;
+    }
+    // So does reading a card on the table: it opens on a replayed board, and past a guided step's gate, as a tap does.
+    if (focus.kind === "card" && this.#selection.kind === "idle" && this.opensOnActivate(focus.instanceId)) {
+      this.onCharacterTap(focus.instanceId);
       return;
     }
     if (this.#readOnly) return;
@@ -584,8 +592,16 @@ export class BoardController {
     // A card in play with a usable ability, not a hand card: `playCard` only
     // ever looks for a `playCard` entry, so a card that's on the focus route
     // solely because of `usableAbilities` opens the card, whose sheet offers the ability.
-    if (this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
+    // Any other card on the table (the villain, a scheme, an attachment) is on the route to be read: it opens too.
+    const inHand = this.#host.model()?.hand.some((card) => card.instanceId === focus.instanceId) ?? false;
+    if (!inHand || this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
     else void this.playCard(focus.instanceId, { confirmFree: true });
+  }
+
+  /** True when A on this idle card only opens it in Inspect: a card on the table with no ability to use now. */
+  opensOnActivate(id: InstanceId): boolean {
+    if (this.#host.model()?.hand.some((card) => card.instanceId === id) ?? true) return false;
+    return !(this.#host.marks()?.usableAbilities.has(id) ?? false);
   }
 
   /**

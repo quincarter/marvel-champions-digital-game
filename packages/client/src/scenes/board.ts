@@ -49,7 +49,14 @@ import { playerName } from "../view/names.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
 import { primaryPressOf, sameTarget, stepFocus, turnKeyOf, turnStartFocus, type FocusTarget } from "../view/focus.js";
-import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
+import {
+  rowScrollOf,
+  scrollTargetOf,
+  tabOfStop,
+  tableCardsOf,
+  zoneJump,
+  type ZoneMembers,
+} from "../view/board-zones.js";
 import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
 import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
 import { eventOnce } from "../view/event-once.js";
@@ -321,6 +328,11 @@ export class BoardScene extends Phaser.Scene {
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
     hasTile: (id) => this.#frame.focusRects.has(focusKey({ kind: "card", instanceId: id })),
+    tableCards: () => {
+      if (!this.#model) return [];
+      const table = tableCardsOf(this.#model);
+      return [...table.playArea, ...table.villain, ...table.team];
+    },
     // A ring on the tab being shown is a stop at the end of the focus route; Enter opens its panel.
     teamUpKeys: () =>
       [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("teamUp:")).map((key) => key.slice(7)),
@@ -1868,26 +1880,12 @@ export class BoardScene extends Phaser.Scene {
   #zoneMembers(): ZoneMembers | null {
     const model = this.#model;
     if (!model) return null;
-    const threat = new Set<InstanceId>([
-      model.mainScheme.instanceId,
-      ...model.extraMainSchemes.map((scheme) => scheme.instanceId),
-      ...model.sideSchemes.map((scheme) => scheme.instanceId),
-      // The pod's neutral area is on the phone's Threat tab, not Enemies (`splitNeutralTab`).
-      ...model.scenarioPlayAreas
-        .filter((area) => area.neutral)
-        .flatMap((area) => area.cards.map((card) => card.instanceId)),
-    ]);
+    const table = tableCardsOf(model);
     return {
       hand: new Set(model.hand.map((card) => card.instanceId)),
-      playArea: new Set([model.me.instanceId, ...model.myPlayArea.map((card) => card.instanceId)]),
-      villain: new Set<InstanceId>([
-        ...threat,
-        ...model.villains.map((villain) => villain.panel.instanceId),
-        ...model.minions.map((minion) => minion.instanceId),
-        ...model.environments.map((environment) => environment.instanceId),
-        ...model.scenarioPlayAreas.flatMap((area) => area.cards.map((card) => card.instanceId)),
-      ]),
-      threat,
+      playArea: new Set(table.playArea),
+      villain: new Set(table.villain),
+      threat: new Set(table.threat),
     };
   }
 
@@ -1898,7 +1896,9 @@ export class BoardScene extends Phaser.Scene {
     if (!members) return;
     // From the log, the jump starts over from the top (or bottom) of the table.
     const from = this.#logFocused ? null : this.#focus;
-    const stop = zoneJump(this.#controller.focusOrder(), members, from, step);
+    // A phone draws only the tab it shows, so the other tab's cards count as drawn here: the jump switches to that tab.
+    const onTable = (id: InstanceId): boolean => members.playArea.has(id) || members.villain.has(id);
+    const stop = zoneJump(this.#controller.focusOrder(onTable), members, from, step);
     if (!stop) return;
     const tab = tabOfStop(stop, members);
     if (this.#layout?.tabbed && tab) this.switchToTab(tab);
@@ -2508,12 +2508,19 @@ export class BoardScene extends Phaser.Scene {
     setTapOccluders(this, bands);
   }
 
+  /** What A does on the focused stop, for its legend: a card on the table with nothing to use there only opens. */
+  #activateMeaning(): "Select" | "Inspect" {
+    const focus = this.#focus;
+    if (focus?.kind !== "card" || this.#controller.selection.kind !== "idle") return "Select";
+    return this.#controller.opensOnActivate(focus.instanceId) ? "Inspect" : "Select";
+  }
+
   #drawFocusRing(): void {
     const card = this.#placeFocusRing();
     // The legend strip above a focused card: what Select / Inspect / Esc do with it. Moved, not rebuilt, as focus steps.
     const { width, height } = this.scale.gameSize;
     // While a hold layer's sheet is up the legend strip gives way to it (they would share the same strip of table).
-    this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning());
+    this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning(), this.#activateMeaning());
     // Whatever a hint's `when` reads (the Esc glyph under MENU) may have changed with the focus.
     this.#hints.refresh();
   }

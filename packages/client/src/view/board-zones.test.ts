@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceId } from "@mc/engine";
+import type { BoardModel } from "./board-model.js";
 import type { FocusTarget } from "./focus.js";
 import {
   rowScrollOf,
   scrollTargetOf,
   tabOfStop,
+  tableCardsOf,
   zoneJump,
   zoneOfTarget,
   type ZoneMembers,
@@ -127,5 +129,38 @@ describe("rowScrollOf", () => {
     expect(rowScrollOf(5, 2)).toBe(5);
     expect(rowScrollOf(-1, 4)).toBe(4);
     expect(rowScrollOf(0, 0)).toBe(0);
+  });
+});
+
+describe("tableCardsOf", () => {
+  const chip = (value: string) => ({ instanceId: id(value) });
+  const host = (value: string, attached: readonly string[] = []) => ({
+    instanceId: id(value),
+    attachments: attached.map(chip),
+  });
+  const model = {
+    me: host("me", ["armor"]),
+    myPlayArea: [host("ally", ["webs"])],
+    villains: [{ panel: host("rhino", ["tough"]) }],
+    minions: [host("goon", ["gun"])],
+    environments: [host("env")],
+    mainScheme: host("main", ["focused"]),
+    extraMainSchemes: [],
+    sideSchemes: [host("side")],
+    scenarioPlayAreas: [
+      { neutral: true, cards: [{ instanceId: id("pod"), panel: host("pod") }] },
+      { neutral: false, cards: [{ instanceId: id("area"), panel: host("area") }] },
+    ],
+    team: [{ identityInstanceId: id("mate") }],
+  } as unknown as BoardModel;
+
+  it("lists every card on the table, each host followed by what is attached to it", () => {
+    const table = tableCardsOf(model);
+    expect(table.playArea).toEqual([id("me"), id("armor"), id("ally"), id("webs")]);
+    expect(table.villain).toEqual(
+      ["rhino", "tough", "goon", "gun", "env", "main", "focused", "side", "pod", "area"].map(id),
+    );
+    expect(table.threat).toEqual(["main", "focused", "side", "pod"].map(id));
+    expect(table.team).toEqual([id("mate")]);
   });
 });
