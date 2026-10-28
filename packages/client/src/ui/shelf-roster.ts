@@ -597,16 +597,20 @@ export class McShelfRoster<T> {
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
+    // A second finger while one is down leaves the first press's own state alone.
+    if (this.#drag.isDragging) return;
     // A tap on a moving shelf stops it, as a native scroller does; it doesn't also pick whatever card slid under the
-    // finger (#478 made that likely: a sideways coast carries cards under a finger that never moved).
-    this.#pressStoppedCoast = this.#momentum.active;
+    // finger (#478 made that likely: a sideways coast carries cards under a finger that never moved). A sideways coast
+    // moves only its own shelf, so a tap on any other shelf, or on a header, still does its own thing.
+    const pressShelfIndex = this.#shelfIndexAtY(pointer.y);
+    const pressShelfId = pressShelfIndex === null ? null : (this.#shelves[pressShelfIndex]?.id ?? null);
+    this.#pressStoppedCoast =
+      this.#momentum.active && (this.#momentumShelfId === null || this.#momentumShelfId === pressShelfId);
     this.#momentum.stop();
     // Judged at the press: the chevron's own click (which runs before this roster's scene-level release) scrolls the
     // shelf and may remove the chevron, and the card that slid under it must not take the same click (#218).
     this.#pressOnChevron = this.#chevronAt(pointer.x, pointer.y);
-    this.#dragShelfId = null;
-    const shelfIndex = this.#shelfIndexAtY(pointer.y);
-    if (shelfIndex !== null) this.#dragShelfId = this.#shelves[shelfIndex]?.id ?? null;
+    this.#dragShelfId = pressShelfId;
     this.#drag.start(pointer.id, pointer.x, pointer.y, pointer.downTime);
   }
 

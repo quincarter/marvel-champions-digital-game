@@ -65,9 +65,9 @@ async function flick(
 
 /**
  * Opens `screen` and finds a shelf, its card row across the middle of the screen, whose cards run well past its right
- * edge: room for the flick and for the coast after it. Scrolls the column down until one shows.
+ * edge: room for the flick and `room` px more for the coast after it. Scrolls the column down until one shows.
  */
-async function overflowingShelf(page: Page, screen: Screen, phone: boolean) {
+async function overflowingShelf(page: Page, screen: Screen, phone: boolean, room = 100) {
   // A narrower desktop window than the project's 1440: a pack shelf there runs far enough past its edge for a flick.
   if (!phone) await page.setViewportSize({ width: 1024, height: 900 });
   await openApp(page, screen.query, { landing: screen.scene });
@@ -87,7 +87,7 @@ async function overflowingShelf(page: Page, screen: Screen, phone: boolean) {
       const found = [...rows.values()].find((cards) => {
         const middle = cards[0]!.y + cards[0]!.height / 2;
         const overflow = Math.max(...cards.map((c) => c.x + c.width)) - width;
-        return middle > height * 0.3 && middle < height * 0.85 && overflow > flickPx + 100;
+        return middle > height * 0.3 && middle < height * 0.85 && overflow > flickPx + room;
       });
       if (found) return found;
       await page.mouse.move(width / 2, height * 0.6);
@@ -149,7 +149,9 @@ for (const screen of SCREENS) {
     test.setTimeout(120_000);
     const phone = info.project.name === "phone";
     const errors = trackPageErrors(page);
-    const shelf = await overflowingShelf(page, screen, phone);
+    // Room for a long coast: one that reaches the row's end before the tap lands leaves nothing to stop, and the tap
+    // would then rightly pick a card.
+    const shelf = await overflowingShelf(page, screen, phone, 450);
     const scenesBefore = await activeScenes(page);
     const picksBefore = await picks(page, screen);
 

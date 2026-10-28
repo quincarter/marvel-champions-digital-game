@@ -194,6 +194,9 @@ export interface AxisDragEndResult {
   readonly velocityPxPerMs: number;
 }
 
+/** How long the pointer may rest before its release counts as a stop rather than a flick (`AxisDragGesture.end`). */
+const STILL_BEFORE_LIFT_MS = 100;
+
 /**
  * `DragGesture` generalized to two axes at once — the pack-shelf roster (W2b):
  * a vertical drag over the roster scrolls the shelves, a horizontal drag over
@@ -207,9 +210,6 @@ export interface AxisDragEndResult {
  * Before that decision, `move` reports nothing to apply (not a guess): the
  * caller simply hasn't started scrolling yet.
  */
-/** How long the pointer may rest before its release counts as a stop rather than a flick (`AxisDragGesture.end`). */
-const STILL_BEFORE_LIFT_MS = 100;
-
 export class AxisDragGesture {
   readonly #tapThresholdPx: number;
   #active = false;
