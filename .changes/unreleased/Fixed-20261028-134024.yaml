@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A cloud sync test no longer fails on a slow CI runner: Continue''s timeout is fired by hand once the conflict question is up.'
+time: 2026-10-28T13:40:24.6471622-04:00
