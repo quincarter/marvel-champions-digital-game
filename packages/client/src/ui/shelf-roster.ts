@@ -23,7 +23,8 @@
  * **Drag axis-locking** uses `view/drag-gesture.ts`'s `AxisDragGesture`: a
  * gesture starting inside the roster locks to whichever axis its first few
  * pixels favor, so a slightly diagonal swipe scrolls one axis, not both.
- * Momentum coasts along whichever axis was locked.
+ * Momentum coasts along whichever axis was locked: down the column for a vertical flick, along the flicked shelf
+ * alone for a horizontal one (#478).
  *
  * **Scrolling moves, it doesn't rebuild.** Every shelf and card is drawn once, in unscrolled *content* coordinates,
  * into a container: one `#content` container carries the vertical offset, and each live shelf's own card container
@@ -118,6 +119,8 @@ export class McShelfRoster<T> {
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #drag = new AxisDragGesture();
   readonly #momentum = new Momentum();
+  /** The shelf a horizontal flick is coasting along, or null while the momentum (if any) is vertical. */
+  #momentumShelfId: string | null = null;
   #dragShelfId: string | null = null;
   /** The press in progress went down on a shelf's chevron: its release is the chevron's click, never a card tap. */
   #pressOnChevron = false;
@@ -530,8 +533,18 @@ export class McShelfRoster<T> {
     const hs = this.#horizontalScrollFor(shelfId);
     const step = this.#metrics.cardWidth + this.#metrics.cardGap;
     const cardsPerPage = Math.max(1, Math.floor(this.#innerWidth() / step));
+    // A chevron or a pad page takes over from a flick still coasting along the shelf.
+    if (this.#momentumShelfId === shelfId) this.#momentum.stop();
     hs.scrollByRows(direction * cardsPerPage, shelf.items.length, step, this.#innerWidth());
     this.#sync();
+  }
+
+  /** Scrolls the coasting shelf sideways by `deltaPx`; false once it is at an end, or gone (filtered away). */
+  #scrollShelfByPx(deltaPx: number): boolean {
+    const shelf = this.#shelves.find((s) => s.id === this.#momentumShelfId);
+    if (!shelf || shelf.collapsed) return false;
+    const step = this.#metrics.cardWidth + this.#metrics.cardGap;
+    return this.#horizontalScrollFor(shelf.id).scrollByPx(deltaPx, shelf.items.length, step, this.#innerWidth());
   }
 
   #shelfIndexAtY(y: number): number | null {
@@ -640,13 +653,15 @@ export class McShelfRoster<T> {
       this.#onCardActivate(shelf.items[itemIndex]!, shelfIndex, itemIndex);
       return;
     }
+    // One momentum serves both axes: a new press stops it, so only the latest flick ever coasts. A horizontal flick
+    // coasts along the shelf it was dragging and nothing else (#478: the shelves used to stop dead on release).
     if (result.axis === "vertical") {
+      this.#momentumShelfId = null;
+      this.#momentum.start(result.velocityPxPerMs);
+    } else if (result.axis === "horizontal" && this.#dragShelfId) {
+      this.#momentumShelfId = this.#dragShelfId;
       this.#momentum.start(result.velocityPxPerMs);
     }
-    // Horizontal momentum is deliberately not carried past release: each shelf has its own scroll and its own
-    // clamp, and the common case (bringing the next couple of cards into view) is already well served by the
-    // drag itself plus the chevrons; adding a second momentum tracker per shelf id was more state than this
-    // pass's time budget could verify was correct in every combination with the vertical one.
     this.#dragShelfId = null;
   }
 
@@ -654,7 +669,7 @@ export class McShelfRoster<T> {
     if (!this.#momentum.active) return;
     const delta = this.#momentum.tick(deltaMs);
     if (delta === 0) return;
-    const moved = this.#scrollByPx(delta);
+    const moved = this.#momentumShelfId === null ? this.#scrollByPx(delta) : this.#scrollShelfByPx(delta);
     if (!moved) {
       this.#momentum.stop();
       return;
