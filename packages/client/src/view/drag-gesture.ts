@@ -202,6 +202,8 @@ const STILL_BEFORE_LIFT_MS = 100;
  * heavy); the distance over the last few events, by their own timestamps, is the finger's real speed.
  */
 const VELOCITY_WINDOW_MS = 80;
+/** A gap between two drag events this long is a pause, not motion: the window's anchor never reaches back past one. */
+const PAUSE_GAP_MS = 40;
 
 interface DragSample {
   readonly x: number;
@@ -288,6 +290,10 @@ export class AxisDragGesture {
     // A pointer held still before the lift (lining a card up, then letting go) releases with no speed: the last move's
     // velocity is stale by then, and coasting on it would jump the row away from where it was placed.
     const stale = timeMs - this.#lastTimeMs > STILL_BEFORE_LIFT_MS;
+    // A press that rested before the flick (no events while the finger sat still) leaves an anchor from before the
+    // rest; measured from there, a quick flick reads as a slow drag. Start from the first event after the pause.
+    if (this.#samples.length > 2 && this.#samples[1]!.timeMs - this.#samples[0]!.timeMs > PAUSE_GAP_MS)
+      this.#samples.shift();
     const first = this.#samples[0]!;
     const last = this.#samples[this.#samples.length - 1]!;
     const dt = Math.max(1, last.timeMs - first.timeMs);

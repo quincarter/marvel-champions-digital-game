@@ -651,6 +651,8 @@ export class McShelfRoster<T> {
   }
 
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
+    // A mouse's other button let go while the left is still held is not the end of the drag.
+    if (pointer.isDown) return;
     const result = this.#drag.end(pointer.id, pointer.upTime);
     if (!result) return;
     const onChevron = this.#pressOnChevron;

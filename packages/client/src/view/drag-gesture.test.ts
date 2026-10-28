@@ -241,6 +241,16 @@ describe("AxisDragGesture (the pack-shelf roster's 2-axis drag, W2b)", () => {
     expect(result!.velocityPxPerMs).toBeLessThan(3);
   });
 
+  test("a press that rests before its flick still releases at the flick's speed", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 300, 100, 0);
+    // No events while the finger rests, then 100px in 34ms.
+    g.move(1, 260, 100, 316);
+    g.move(1, 230, 100, 333);
+    g.move(1, 200, 100, 350);
+    expect(g.end(1, 352)!.velocityPxPerMs).toBeGreaterThan(1.5);
+  });
+
   test("a second pointer mid-drag is ignored", () => {
     const g = new AxisDragGesture();
     expect(g.start(1, 100, 100, 0)).toBe(true);
