@@ -110,7 +110,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm fmt:check
+      # A compile check: the media (#495) isn't fetched here, so skip the card art copy rather than warn about
+      # every scan. The desktop and Android jobs build with it.
       - run: pnpm build
+        env:
+          MC_CARD_ART: none
 
   tests:
     name: Tests
@@ -322,6 +326,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Card art in the build language (English too, its fallback), music and art: on the content repo's
+      # releases, not in git (#495).
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art${{ matrix.lang == 'es' && ' card-art-es' || '' }}
+
       # Signs and notarizes the macOS bundle once the Apple secrets exist (see
       # README, "macOS signing"). Only the secrets that are set are exported:
       # Tauri treats an empty APPLE_CERTIFICATE or APPLE_ID as present and
@@ -448,6 +459,11 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art${{ matrix.lang == 'es' && ' card-art-es' || '' }}
 
       # A supplied keystore needs its password: a missing secret fails here
       # rather than being guessed. With no keystore at all, CI signs with a
