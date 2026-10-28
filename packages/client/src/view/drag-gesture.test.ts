@@ -230,6 +230,17 @@ describe("AxisDragGesture (the pack-shelf roster's 2-axis drag, W2b)", () => {
     expect(result!.velocityPxPerMs).toBe(0);
   });
 
+  test("the release speed is the finger's over its last few moves, not one bunched-up step (#478)", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 300, 100, 0);
+    // 30px every 16ms, then two events 1ms apart (a bunched pair): the speed stays about 1.9 px/ms, not 30.
+    for (let i = 1; i <= 6; i++) g.move(1, 300 - 30 * i, 100, 16 * i);
+    g.move(1, 300 - 30 * 7, 100, 16 * 6 + 1);
+    const result = g.end(1, 16 * 6 + 5);
+    expect(result!.velocityPxPerMs).toBeGreaterThan(1.5);
+    expect(result!.velocityPxPerMs).toBeLessThan(3);
+  });
+
   test("a second pointer mid-drag is ignored", () => {
     const g = new AxisDragGesture();
     expect(g.start(1, 100, 100, 0)).toBe(true);

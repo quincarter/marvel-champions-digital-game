@@ -118,7 +118,11 @@ export class McShelfRoster<T> {
   readonly #content: Phaser.GameObjects.Container;
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #drag = new AxisDragGesture();
-  readonly #momentum = new Momentum();
+  /**
+   * Lighter than `Momentum`'s default, close to a phone's own scroll views (#478: a flick felt heavy and stopped
+   * short). Shared by both axes, so the column and its shelves coast alike.
+   */
+  readonly #momentum = new Momentum({ decayPerMs: 0.0025 });
   /** The shelf a horizontal flick is coasting along, or null while the momentum (if any) is vertical. */
   #momentumShelfId: string | null = null;
   #dragShelfId: string | null = null;
@@ -623,7 +627,9 @@ export class McShelfRoster<T> {
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (!pointer.isDown) return;
-    const move = this.#drag.move(pointer.id, pointer.x, pointer.y, this.#scene.time.now);
+    // Event timestamps, not the frame clock: a flick's speed is measured across the events themselves, and two events
+    // landing in one frame (or one long frame before the lift) would otherwise read as a spike or a stop.
+    const move = this.#drag.move(pointer.id, pointer.x, pointer.y, pointer.moveTime);
     if (!move) return;
     if (move.axis === "vertical") {
       if (this.#scrollByPx(move.delta)) this.#sync();
@@ -645,7 +651,7 @@ export class McShelfRoster<T> {
   }
 
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
-    const result = this.#drag.end(pointer.id, this.#scene.time.now);
+    const result = this.#drag.end(pointer.id, pointer.upTime);
     if (!result) return;
     const onChevron = this.#pressOnChevron;
     const stoppedCoast = this.#pressStoppedCoast;

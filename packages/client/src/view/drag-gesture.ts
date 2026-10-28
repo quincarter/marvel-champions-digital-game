@@ -196,6 +196,18 @@ export interface AxisDragEndResult {
 
 /** How long the pointer may rest before its release counts as a stop rather than a flick (`AxisDragGesture.end`). */
 const STILL_BEFORE_LIFT_MS = 100;
+/**
+ * The stretch of the drag, ending at its last move, that a release's velocity is measured over (`AxisDragGesture`).
+ * One move's own step is a noisy measure (touch events bunch up and spread out across frames, #478: the flick felt
+ * heavy); the distance over the last few events, by their own timestamps, is the finger's real speed.
+ */
+const VELOCITY_WINDOW_MS = 80;
+
+interface DragSample {
+  readonly x: number;
+  readonly y: number;
+  readonly timeMs: number;
+}
 
 /**
  * `DragGesture` generalized to two axes at once — the pack-shelf roster (W2b):
@@ -219,8 +231,8 @@ export class AxisDragGesture {
   #lastX = 0;
   #lastY = 0;
   #lastTimeMs = 0;
-  #velocityX = 0;
-  #velocityY = 0;
+  /** The recent points of the drag, oldest first: the last `VELOCITY_WINDOW_MS` plus one point before it. */
+  #samples: DragSample[] = [];
   #axis: "vertical" | "horizontal" | null = null;
 
   constructor(options: DragGestureOptions = {}) {
@@ -245,8 +257,7 @@ export class AxisDragGesture {
     this.#lastX = x;
     this.#lastY = y;
     this.#lastTimeMs = timeMs;
-    this.#velocityX = 0;
-    this.#velocityY = 0;
+    this.#samples = [{ x, y, timeMs }];
     this.#axis = null;
     return true;
   }
@@ -256,9 +267,8 @@ export class AxisDragGesture {
     if (!this.#active || pointerId !== this.#pointerId) return null;
     const dx = x - this.#lastX;
     const dy = y - this.#lastY;
-    const dt = Math.max(1, timeMs - this.#lastTimeMs);
-    this.#velocityX = dx / dt;
-    this.#velocityY = dy / dt;
+    this.#samples.push({ x, y, timeMs });
+    while (this.#samples.length > 2 && this.#samples[1]!.timeMs <= timeMs - VELOCITY_WINDOW_MS) this.#samples.shift();
     this.#lastX = x;
     this.#lastY = y;
     this.#lastTimeMs = timeMs;
@@ -278,7 +288,11 @@ export class AxisDragGesture {
     // A pointer held still before the lift (lining a card up, then letting go) releases with no speed: the last move's
     // velocity is stale by then, and coasting on it would jump the row away from where it was placed.
     const stale = timeMs - this.#lastTimeMs > STILL_BEFORE_LIFT_MS;
-    const velocityPxPerMs = stale || axis === null ? 0 : axis === "horizontal" ? -this.#velocityX : -this.#velocityY;
+    const first = this.#samples[0]!;
+    const last = this.#samples[this.#samples.length - 1]!;
+    const dt = Math.max(1, last.timeMs - first.timeMs);
+    const along = axis === "horizontal" ? last.x - first.x : last.y - first.y;
+    const velocityPxPerMs = stale || axis === null || this.#samples.length < 2 ? 0 : -along / dt;
     this.#active = false;
     this.#pointerId = null;
     this.#axis = null;
