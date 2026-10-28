@@ -41,6 +41,7 @@ describe("scene order and loader table", () => {
       SCENES.music,
       SCENES.powerSavingNotice,
       SCENES.achievementToast,
+      SCENES.themeButton,
       SCENES.languagePopup,
       SCENES.languageButton,
       SCENES.musicPlayer,

@@ -825,12 +825,17 @@ export class TitleScene extends Phaser.Scene {
     this.add
       .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
       .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.ink.hex);
+      .setStrokeStyle(2, surface.inkOnHue.hex);
     this.add
-      .text(parts.text.x, parts.text.y, "UPDATE AVAILABLE", textStyle(typeRole.label, surface.ink.hex))
+      .text(parts.text.x, parts.text.y, "UPDATE AVAILABLE", textStyle(typeRole.label, surface.inkOnHue.hex))
       .setLetterSpacing(1);
     this.add
-      .text(parts.text.x, parts.text.y + 16, `Version ${update.version}`, textStyle(typeRole.rowTitle, surface.ink.hex))
+      .text(
+        parts.text.x,
+        parts.text.y + 16,
+        `Version ${update.version}`,
+        textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+      )
       .setWordWrapWidth(parts.textWidth);
     actions.forEach((action, index) => {
       const rect = parts.buttons[index]!;

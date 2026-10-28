@@ -667,7 +667,7 @@ export class PauseOverlay extends Phaser.Scene {
         rect.width,
         rect.height,
       );
-      g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+      g.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
     } else {
       paintPanel(g, rect, "card", "rest");
     }
@@ -1324,7 +1324,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + cellRect.width / 2,
           cellRect.y + cellRect.height / 2,
           option.label,
-          textStyle(typeRole.label, selected ? surface.ink.hex : surface.paper.hex),
+          textStyle(typeRole.label, selected ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setOrigin(0.5);
       fitText(text, cellRect.width - 8, typeRole.label.size);
@@ -1390,7 +1390,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 8,
           option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.ink.hex : surface.paper.hex),
+          textStyle(typeRole.rowTitle, selected ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setFontSize(12);
       this.add
@@ -1398,7 +1398,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 26,
           option.detail,
-          textStyle(typeRole.body, selected ? surface.ink.hex : surface.paper.hex, selected ? 0.85 : 0.7),
+          textStyle(typeRole.body, selected ? surface.inkOnHue.hex : surface.paper.hex, selected ? 0.85 : 0.7),
         )
         .setFontSize(9)
         .setWordWrapWidth(cellWidth - 16);

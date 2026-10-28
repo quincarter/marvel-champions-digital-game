@@ -478,7 +478,10 @@ function tag(scene: Phaser.Scene, x: number, y: number, text: string, filled: bo
       x + 8,
       y + 3,
       text.toUpperCase(),
-      textStyle({ ...typeRole.label, size: 10 }, filled ? surface.ink.hex : color),
+      textStyle(
+        { ...typeRole.label, size: 10 },
+        filled ? (color === surface.paper.hex ? surface.ink.hex : surface.inkOnHue.hex) : color,
+      ),
     )
     .setOrigin(0, 0);
   const width = t.width + 16;

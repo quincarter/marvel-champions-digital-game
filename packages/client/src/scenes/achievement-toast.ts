@@ -319,9 +319,10 @@ export class AchievementToastScene extends Phaser.Scene {
     const radius = badge.r * badgeScale;
     if (radius > 0.5) {
       g.fillStyle(signal.caution.hex, alpha).fillCircle(badge.cx, badge.cy, radius);
-      g.lineStyle(3, surface.ink.hex, alpha).strokeCircle(badge.cx, badge.cy, radius - 1.5);
-      if (showing.toast.badge === "trophy") drawTrophy(g, badge.cx, badge.cy, radius, surface.ink.hex, alpha);
-      else if (showing.toast.badge === "music") drawMusicIcon(g, badge.cx, badge.cy, radius * 1.1, surface.ink.hex);
+      g.lineStyle(3, surface.inkOnHue.hex, alpha).strokeCircle(badge.cx, badge.cy, radius - 1.5);
+      if (showing.toast.badge === "trophy") drawTrophy(g, badge.cx, badge.cy, radius, surface.inkOnHue.hex, alpha);
+      else if (showing.toast.badge === "music")
+        drawMusicIcon(g, badge.cx, badge.cy, radius * 1.1, surface.inkOnHue.hex);
       else
         g.fillStyle(surface.ink.hex, alpha).fillPoints(
           starPoints(badge.cx, badge.cy, radius * 0.62, radius * 0.27),

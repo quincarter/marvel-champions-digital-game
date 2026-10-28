@@ -37,7 +37,7 @@ export function drawShadowlandNoticeBar(scene: Phaser.Scene, rect: Rect): () => 
   const midY = parts.midY - 1;
 
   const tagText = scene.add
-    .text(0, 0, SHADOWLAND_NOTICE_TAG, textStyle(typeRole.label, surface.ink.hex))
+    .text(0, 0, SHADOWLAND_NOTICE_TAG, textStyle(typeRole.label, surface.inkOnHue.hex))
     .setOrigin(0, 0.5)
     .setLetterSpacing(1);
   const tagWidth = tagText.width + 12;

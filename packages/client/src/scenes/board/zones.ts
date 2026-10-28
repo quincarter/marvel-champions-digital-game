@@ -2011,10 +2011,10 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   for (const { status: name } of seat.statuses) {
     const pip = scene.add.graphics();
     pip.fillStyle(status[name].hex, dim).fillRect(cursor, lineY, 16, 16);
-    pip.lineStyle(2, surface.ink.hex, dim).strokeRect(cursor, lineY, 16, 16);
+    pip.lineStyle(2, surface.inkOnHue.hex, dim).strokeRect(cursor, lineY, 16, 16);
     scene.add
       .text(cursor + 8, lineY + 8, name.charAt(0).toUpperCase(), {
-        ...textStyle(typeRole.statSmall, name === "confused" ? surface.paper.hex : surface.ink.hex, dim),
+        ...textStyle(typeRole.statSmall, name === "confused" ? surface.paper.hex : surface.inkOnHue.hex, dim),
         fontSize: "11px",
       })
       .setOrigin(0.5);

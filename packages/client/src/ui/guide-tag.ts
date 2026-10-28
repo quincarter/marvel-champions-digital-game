@@ -34,7 +34,7 @@ export class McGuideTag {
     this.#variant = variant;
     this.#box = scene.add.graphics();
     this.#label = scene.add
-      .text(0, 0, LABEL[variant], textStyle(STAMP_TYPE, surface.ink.hex))
+      .text(0, 0, LABEL[variant], textStyle(STAMP_TYPE, surface.inkOnHue.hex))
       .setOrigin(0.5, 0.5)
       .setVisible(false);
     this.#box.setVisible(false);
@@ -63,7 +63,7 @@ export class McGuideTag {
       .setVisible(true)
       .fillStyle(fill.hex, 1)
       .fillRect(x, y, width, height)
-      .lineStyle(border.object, surface.ink.hex, 1)
+      .lineStyle(border.object, surface.inkOnHue.hex, 1)
       .strokeRect(x, y, width, height);
     this.#label.setPosition(x + width / 2, y + height / 2).setVisible(true);
 

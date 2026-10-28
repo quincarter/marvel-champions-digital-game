@@ -178,7 +178,7 @@ export function captionBox(
       fontFamily: fontFamilyOf(typeRole.label),
       fontSize: `${size}px`,
       fontStyle: "italic 800",
-      color: cssOf(surface.ink.hex),
+      color: cssOf(surface.inkOnHue.hex),
       wordWrap: { width: maxWidth - pad * 2, useAdvancedWrap: true },
       lineSpacing: 2,
     })
@@ -186,7 +186,7 @@ export function captionBox(
   const rect: Rect = { x, y, width: Math.min(maxWidth, label.width + pad * 2), height: label.height + pad * 1.5 };
   const box = scene.add.graphics();
   box.fillStyle(options.ground ?? signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-  box.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  box.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
   scene.children.bringToTop(label);
   return { objects: [box, label], rect };
 }

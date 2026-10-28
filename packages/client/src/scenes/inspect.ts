@@ -1666,7 +1666,7 @@ export class InspectOverlay extends Phaser.Scene {
     const box = this.add.graphics();
     const heading = this.add.text(x + pad, y + pad, caseOf(typeRole.label, notice.heading), {
       ...textStyle(typeRole.label, signal.caution.hex),
-      color: cssOf(surface.ink.hex),
+      color: cssOf(surface.inkOnHue.hex),
       fontSize: "14px",
       fontStyle: "700",
     });
@@ -1674,7 +1674,7 @@ export class InspectOverlay extends Phaser.Scene {
     const body = this.add
       .text(x + pad, ty, notice.text, {
         ...textStyle(typeRole.body, signal.caution.hex),
-        color: cssOf(surface.ink.hex),
+        color: cssOf(surface.inkOnHue.hex),
       })
       .setFontSize(13)
       .setLineSpacing(4)
@@ -1683,14 +1683,14 @@ export class InspectOverlay extends Phaser.Scene {
     const link = this.add
       .text(x + pad, ty + 4, `${notice.linkLabel} →`, {
         ...textStyle(typeRole.body, signal.caution.hex),
-        color: cssOf(surface.ink.hex),
+        color: cssOf(surface.inkOnHue.hex),
         fontStyle: "700",
       })
       .setFontSize(12)
       .setWordWrapWidth(textWidth);
     const linkHeight = link.height + 8;
     const underline = this.add.graphics();
-    underline.lineStyle(1, surface.ink.hex, 1);
+    underline.lineStyle(1, surface.inkOnHue.hex, 1);
     underline.lineBetween(
       x + pad,
       ty + 4 + link.height + 1,
@@ -1700,7 +1700,7 @@ export class InspectOverlay extends Phaser.Scene {
     ty += linkHeight;
     const height = ty + pad - y;
     box.fillStyle(signal.caution.hex, 1).fillRect(x, y, width, height);
-    box.lineStyle(border.object, surface.ink.hex, 1).strokeRect(x, y, width, height);
+    box.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRect(x, y, width, height);
     for (const part of [heading, body, link, underline]) this.children.bringToTop(part);
 
     // The tap target is the full hit height, centred on the link and spilling into the box's padding, so the box

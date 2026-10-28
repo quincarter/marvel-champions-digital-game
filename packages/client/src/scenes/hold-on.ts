@@ -143,7 +143,7 @@ export class HoldOnOverlay extends Phaser.Scene {
     const stampWidth = stampLabel.width + STAMP_PAD * 2;
     const stampHeight = 20;
     const title = this.add
-      .text(0, 0, "HOLD ON!", textStyle(typeRole.barTitle, surface.ink.hex))
+      .text(0, 0, "HOLD ON!", textStyle(typeRole.barTitle, surface.inkOnHue.hex))
       .setWordWrapWidth(innerWidth, true);
     // The row's own height, not `stampHeight` alone: the title sits beside the stamp, not stacked under it, so
     // whichever is taller sets how far the next row starts (previously this measured `title.height` as if it
@@ -153,14 +153,14 @@ export class HoldOnOverlay extends Phaser.Scene {
 
     // --- Subtitle (the heuristic's own title) + body (McTermText markup). ---
     const subtitle = this.add
-      .text(0, 0, content.subtitle, { ...textStyle(typeRole.emphasis, surface.ink.hex) })
+      .text(0, 0, content.subtitle, { ...textStyle(typeRole.emphasis, surface.inkOnHue.hex) })
       .setWordWrapWidth(innerWidth, true);
     const body = new McTermText(this, {
       x: 0,
       y: 0,
       width: innerWidth,
       text: content.body,
-      color: surface.ink.hex,
+      color: surface.inkOnHue.hex,
       onTermOpen: (term, rect) => this.#openTooltip(term, rect, viewport),
       onTermClose: () => this.#tooltip?.hide(),
     });
@@ -194,11 +194,11 @@ export class HoldOnOverlay extends Phaser.Scene {
     const box = layout.box;
 
     ground.fillStyle(signal.caution.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    ground.lineStyle(border.object, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
+    ground.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
     if (layout.leader) {
       const { from, to } = layout.leader;
       ground.lineStyle(3, signal.caution.hex, 1).lineBetween(from.x, from.y, to.x, to.y);
-      ground.lineStyle(1.5, surface.ink.hex, 0.5).lineBetween(from.x, from.y, to.x, to.y);
+      ground.lineStyle(1.5, surface.inkOnHue.hex, 0.5).lineBetween(from.x, from.y, to.x, to.y);
     }
 
     let cy = box.y + BOX_PAD;
@@ -276,7 +276,7 @@ export class HoldOnOverlay extends Phaser.Scene {
     const checkboxGraphics = this.add.graphics();
     const checkboxRect: Rect = { x: box.x + BOX_PAD, y: cy, width: CHECKBOX_SIZE, height: CHECKBOX_SIZE };
     checkboxGraphics
-      .lineStyle(2, surface.ink.hex, 1)
+      .lineStyle(2, surface.inkOnHue.hex, 1)
       .strokeRect(checkboxRect.x, checkboxRect.y, CHECKBOX_SIZE, CHECKBOX_SIZE);
     if (this.#checked) {
       checkboxGraphics
@@ -285,7 +285,7 @@ export class HoldOnOverlay extends Phaser.Scene {
     }
     const checkboxLabel = this.add
       .text(checkboxRect.x + CHECKBOX_SIZE + 10, checkboxRect.y + CHECKBOX_SIZE / 2, content.checkboxLabel, {
-        ...textStyle(typeRole.body, surface.ink.hex),
+        ...textStyle(typeRole.body, surface.inkOnHue.hex),
       })
       .setOrigin(0, 0.5);
     const checkboxHit: Rect = {
@@ -419,7 +419,7 @@ export class HoldOnOverlay extends Phaser.Scene {
     }
 
     const stampFill = facts.stamp === "loses" ? accent.heroRed.hex : signal.caution.hex;
-    const stampTextColor = facts.stamp === "loses" ? surface.paper.hex : surface.ink.hex;
+    const stampTextColor = facts.stamp === "loses" ? surface.paper.hex : surface.inkOnHue.hex;
     const stampLabel = this.add
       .text(0, 0, facts.stamp === "loses" ? "YOU LOSE" : "COULD LOSE", {
         ...textStyle(STAMP_TYPE, stampTextColor),

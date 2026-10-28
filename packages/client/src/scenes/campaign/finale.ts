@@ -232,7 +232,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     const startSize = phone ? 44 : 64;
     const probe = this.add
       .text(-10000, -10000, (story?.headline ?? "The campaign is won.").split(" ").join("\n"), {
-        ...textStyle({ ...typeRole.barTitle, size: startSize }, surface.ink.hex),
+        ...textStyle({ ...typeRole.barTitle, size: startSize }, surface.inkOnHue.hex),
       })
       .setLineSpacing(-8);
     fitText(probe, width, startSize);
@@ -273,7 +273,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
       }
     }
     const border = this.add.graphics();
-    border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    border.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
 
     const seat = record?.seats[0];
     const rosterIds = record?.seats.map((s) => s.identityCardId as string) ?? [];
@@ -356,7 +356,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
   ): void {
     const record = this.#record;
     const border = this.add.graphics();
-    border.lineStyle(3, surface.ink.hex, 1);
+    border.lineStyle(3, surface.inkOnHue.hex, 1);
 
     // A thin yellow gutter between panels — the tile's own comic-grid gaps, not panels touching edge to edge.
     const gap = 8;
@@ -473,7 +473,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     const headline = add(
       this.add
         .text(rect.x, y, (story?.headline ?? "The campaign is won.").split(" ").join("\n"), {
-          ...textStyle({ ...typeRole.barTitle, size: phone ? 44 : 64 }, surface.ink.hex),
+          ...textStyle({ ...typeRole.barTitle, size: phone ? 44 : 64 }, surface.inkOnHue.hex),
         })
         .setOrigin(0, 0)
         .setLineSpacing(-8),
@@ -563,14 +563,14 @@ export class CampaignFinaleScene extends Phaser.Scene {
     add: <T extends Phaser.GameObjects.GameObject>(object: T) => T,
   ): void {
     const g = add(this.add.graphics());
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(2, surface.inkOnHue.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     add(
       this.add
         .text(
           rect.x + rect.width / 2,
           rect.y + rect.height / 2,
           text.toUpperCase(),
-          textStyle(typeRole.barTitle, surface.ink.hex),
+          textStyle(typeRole.barTitle, surface.inkOnHue.hex),
         )
         .setOrigin(0.5),
     );

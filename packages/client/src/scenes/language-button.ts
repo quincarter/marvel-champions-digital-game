@@ -28,6 +28,7 @@ import { SCENES } from "./keys.js";
 const ABOVE_SCREENS: ReadonlySet<string> = new Set([
   SCENES.languageButton,
   SCENES.languagePopup,
+  SCENES.themeButton,
   SCENES.musicButton,
   SCENES.musicPlayer,
   SCENES.reportButton,

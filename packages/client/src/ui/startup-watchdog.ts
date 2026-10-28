@@ -31,6 +31,7 @@ const BOOT_SCENES: ReadonlySet<string> = new Set([
   SCENES.reportButton,
   SCENES.musicButton,
   SCENES.languageButton,
+  SCENES.themeButton,
 ]);
 
 export interface WebglInfo {

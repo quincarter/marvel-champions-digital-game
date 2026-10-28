@@ -241,14 +241,14 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
     const height = this.#bannerHeight(rect, model);
     const g = this.add.graphics();
     g.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, height);
+    g.lineStyle(2, surface.inkOnHue.hex, 1).strokeRect(rect.x, rect.y, rect.width, height);
     this.add
       .text(rect.x + 16, rect.y + 14, `FROZEN SINCE ISSUE #${model.frozenSinceIssueNumber}`, {
-        ...textStyle(bangers(20), surface.ink.hex),
+        ...textStyle(bangers(20), surface.inkOnHue.hex),
       })
       .setOrigin(0, 0);
     this.add
-      .text(rect.x + 16, rect.y + 44, model.bannerReason, { ...textStyle(typeRole.body, surface.ink.hex, 0.85) })
+      .text(rect.x + 16, rect.y + 44, model.bannerReason, { ...textStyle(typeRole.body, surface.inkOnHue.hex, 0.85) })
       .setFontSize(13)
       .setWordWrapWidth(rect.width - 32);
   }

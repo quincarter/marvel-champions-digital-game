@@ -123,6 +123,8 @@ import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
+import { onColorSchemeChange } from "../view/color-scheme.js";
+import { setThemeSlot } from "../ui/theme-slot.js";
 import { detectPlatform } from "../platform/platform.js";
 import { padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
@@ -304,11 +306,15 @@ export class SettingsOverlay extends Phaser.Scene {
     const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
     // The hardware check finishing changes the Screen rows' recommendation.
     const unsubscribeHardware = onHardwareChange(() => this.#redrawIfOpen());
+    // The top-of-screen dark mode toggle (#459) flips the same setting as the Dark mode row: the row follows it.
+    const unsubscribeScheme = onColorSchemeChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
       unsubscribePowerSaving();
       unsubscribeHardware();
+      unsubscribeScheme();
+      setThemeSlot(this.scene.key, null);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -520,6 +526,14 @@ export class SettingsOverlay extends Phaser.Scene {
       }),
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
+    // The dark mode toggle (#459) sits in the header's middle, clear of the title on the left and the pad hints and
+    // close button on the right, rather than floating over the panel's top border.
+    setThemeSlot(this.scene.key, {
+      x: Math.round(layout.header.x + layout.header.width / 2 - 19),
+      y: Math.round(layout.header.y + (layout.header.height - 30) / 2),
+      width: 38,
+      height: 30,
+    });
     this.add
       .text(layout.header.x + 16, layout.header.y + layout.header.height / 2, caseOf(typeRole.barTitle, "Settings"), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
@@ -888,7 +902,7 @@ export class SettingsOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 8,
           option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.ink.hex : surface.paper.hex),
+          textStyle(typeRole.rowTitle, selected ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setFontSize(12);
       this.add
@@ -896,7 +910,7 @@ export class SettingsOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 26,
           option.detail,
-          textStyle(typeRole.body, selected ? surface.ink.hex : surface.paper.hex, selected ? 0.85 : 0.7),
+          textStyle(typeRole.body, selected ? surface.inkOnHue.hex : surface.paper.hex, selected ? 0.85 : 0.7),
         )
         .setFontSize(9)
         .setWordWrapWidth(cellWidth - 16);
@@ -945,7 +959,12 @@ export class SettingsOverlay extends Phaser.Scene {
       cell.width - 2,
       cell.height - 2,
     );
-    const ink_ = selected ? surface.ink.hex : surface.paper.hex;
+    // Ink on a hue (the caution-filled auto-advance pick) stays ink in dark mode; ink on paper follows the scheme.
+    const ink_ = selected
+      ? texts.fill === surface.paper.hex
+        ? surface.ink.hex
+        : surface.inkOnHue.hex
+      : surface.paper.hex;
     if (texts.detail === undefined) {
       const cellLabel = this.add
         .text(

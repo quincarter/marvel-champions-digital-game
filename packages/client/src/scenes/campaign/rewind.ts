@@ -540,7 +540,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     text: string,
   ): { readonly objects: readonly Phaser.GameObjects.GameObject[]; readonly rect: Rect } {
     const t = this.add
-      .text(0, 0, text.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 16 }, surface.ink.hex))
+      .text(0, 0, text.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 16 }, surface.inkOnHue.hex))
       .setOrigin(0, 0);
     const rect: Rect = { x, y, width: t.width + 16, height: t.height + 8 };
     const g = this.add.graphics();

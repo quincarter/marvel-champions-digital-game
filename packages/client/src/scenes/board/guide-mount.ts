@@ -812,7 +812,7 @@ export class BoardGuideMount {
     const container = scene.add.container(0, 0);
     const g = scene.add.graphics();
     g.fillStyle(signal.caution.hex, 1).fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 8);
-    g.lineStyle(border.object, surface.ink.hex, 1).strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, 8);
+    g.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, 8);
     container.add(g);
 
     const pad = 10;
@@ -835,7 +835,7 @@ export class BoardGuideMount {
     const closeSize = hit.target;
     const closeRect: Rect = { x: rect.x + rect.width - closeSize, y: rect.y, width: closeSize, height: rect.height };
     const closeLabel = scene.add
-      .text(0, 0, "×", { ...textStyle({ ...typeRole.label, size: 10 }, surface.ink.hex), fontSize: "20px" })
+      .text(0, 0, "×", { ...textStyle({ ...typeRole.label, size: 10 }, surface.inkOnHue.hex), fontSize: "20px" })
       .setOrigin(0.5, 0.5)
       .setPosition(closeRect.x + closeRect.width / 2, cy);
     const closeZone = scene.add
@@ -864,10 +864,15 @@ export class BoardGuideMount {
       if (filled) pillG.fillStyle(surface.ink.hex, 1).fillRoundedRect(x, cy - pillHeight / 2, width, pillHeight, 6);
       else
         pillG
-          .lineStyle(border.object, surface.ink.hex, 1)
+          .lineStyle(border.object, surface.inkOnHue.hex, 1)
           .strokeRoundedRect(x, cy - pillHeight / 2, width, pillHeight, 6);
       const pillText = scene.add
-        .text(0, 0, label, textStyle({ ...typeRole.label, size: 12 }, filled ? surface.paper.hex : surface.ink.hex))
+        .text(
+          0,
+          0,
+          label,
+          textStyle({ ...typeRole.label, size: 12 }, filled ? surface.paper.hex : surface.inkOnHue.hex),
+        )
         .setOrigin(0.5, 0.5)
         .setPosition(x + width / 2, cy);
       const zone = scene.add
@@ -897,7 +902,7 @@ export class BoardGuideMount {
     // Two buttons leave room for the title alone; the body ("Nice work. …") is in the rail and the callout.
     const text = panel.body && !panel.secondaryLabel ? `${panel.title} — ${panel.body}` : panel.title;
     const bodyText = scene.add
-      .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.ink.hex))
+      .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.inkOnHue.hex))
       .setOrigin(0, 0.5);
     // Two lines at most, the font stepping down until the whole sentence fits (a sentence cut at the strip's edge
     // lost "box, in How to play" on a phone).

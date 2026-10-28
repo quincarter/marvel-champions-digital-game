@@ -22,6 +22,7 @@ export const KEEPS_REPORT_SLOT: ReadonlySet<string> = new Set([
   "MusicButton",
   "MusicPlayerOverlay",
   "LanguageButton",
+  "ThemeButton",
   "LanguagePopupOverlay",
   "PowerSavingNotice",
   "SyncPrompt",

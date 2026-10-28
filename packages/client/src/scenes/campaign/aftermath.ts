@@ -1481,9 +1481,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (row.selected) {
       const { rect: tagRect } = stamp(this, rect.x + rect.width - 62, rect.y - 12, "Yours", {
         ground: signal.caution.hex,
-        color: surface.ink.hex,
+        color: surface.inkOnHue.hex,
         size: 11,
-        outline: surface.ink.hex,
+        outline: surface.inkOnHue.hex,
       });
       void tagRect;
     } else if (taken) {

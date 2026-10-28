@@ -1023,9 +1023,9 @@ function drawExhaustedBadge(scene: Phaser.Scene, x: number, y: number, maxWidth:
 
 /** Lettering on each status hue, as the design's token cards set it: ink on the light two, paper on violet. */
 const STATUS_TEXT: Record<CharacterPanel["statuses"][number]["status"], number> = {
-  stunned: surface.ink.hex,
+  stunned: surface.inkOnHue.hex,
   confused: surface.paper.hex,
-  tough: surface.ink.hex,
+  tough: surface.inkOnHue.hex,
 };
 
 /** A real status pip/tag, plus the ghosts of any just-removed ones not already among the real ones — the shared list both `drawStatusPips` and `drawStatusTags` lay out. */
@@ -1067,7 +1067,7 @@ function drawStatusPips(ctx: BoardDrawContext, rect: Rect, panel: CharacterPanel
     const firstDrawn = scene.children.list.length;
     const pg = scene.add.graphics();
     pg.fillStyle(statusTokens[status].hex, dim).fillRect(pip.x, pip.y, pip.width, pip.height);
-    pg.lineStyle(2.5, surface.ink.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
+    pg.lineStyle(2.5, surface.inkOnHue.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
     scene.add
       .text(pip.x + pip.width / 2, pip.y + pip.height / 2, status.charAt(0).toUpperCase(), {
         ...textStyle(typeRole.statSmall, STATUS_TEXT[status], dim),

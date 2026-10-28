@@ -581,7 +581,7 @@ function drawHandCard(
         slot.x + slot.width - 3,
         atBottom ? slot.y + slot.height - 4 : inside ? slot.y + 4 : slot.y + 6,
         caseOf(typeRole.label, tag.text),
-        textStyle(typeRole.label, tag.ground === signal.caution.hex ? surface.ink.hex : surface.paper.hex),
+        textStyle(typeRole.label, tag.ground === signal.caution.hex ? surface.inkOnHue.hex : surface.paper.hex),
       )
       .setOrigin(1, atBottom || !inside ? 1 : 0)
       .setAlign("right")

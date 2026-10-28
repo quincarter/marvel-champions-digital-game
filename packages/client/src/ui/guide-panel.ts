@@ -248,13 +248,13 @@ export class McGuidePanel {
     panel
       .fillStyle(signal.caution.hex, 1)
       .fillRect(tabRect.x, tabRect.y, tabRect.width, tabRect.height)
-      .lineStyle(border.object, surface.ink.hex, 1)
+      .lineStyle(border.object, surface.inkOnHue.hex, 1)
       .strokeRect(tabRect.x, tabRect.y, tabRect.width, tabRect.height);
     objects.push(panel);
 
     const label = scene.add
       .text(tabRect.x + tabRect.width / 2, tabRect.y + tabRect.height / 2, "GUIDE ▸", {
-        ...textStyle(STAMP_TYPE, surface.ink.hex),
+        ...textStyle(STAMP_TYPE, surface.inkOnHue.hex),
       })
       .setOrigin(0.5, 0.5)
       .setAngle(-90);
@@ -324,7 +324,7 @@ export class McGuidePanel {
     const collapseLabel = (content.collapseLabel ?? (side === "right" ? "Hide" : "Collapse")).toUpperCase();
     const collapseGlyphText = side === "right" ? `${collapseLabel} ▸` : `‹ ${collapseLabel}`;
     const collapseText = scene.add
-      .text(0, headerCy, collapseGlyphText, textStyle(STAMP_TYPE, surface.ink.hex))
+      .text(0, headerCy, collapseGlyphText, textStyle(STAMP_TYPE, surface.inkOnHue.hex))
       .setOrigin(1, 0.5);
     collapseText.setPosition(rect.x + rect.width - GUIDE_PANEL_PAD, headerCy);
     objects.push(collapseText);
@@ -339,7 +339,7 @@ export class McGuidePanel {
         rect.x + GUIDE_PANEL_PAD + stampWidth + 10,
         headerCy,
         content.contextLabel.toUpperCase(),
-        textStyle(STAMP_TYPE, surface.ink.hex),
+        textStyle(STAMP_TYPE, surface.inkOnHue.hex),
       )
       .setOrigin(0, 0.5);
     fitWrapped(contextLabel, Math.max(40, contextMaxWidth), 2, STAMP_TYPE.size);
@@ -383,7 +383,12 @@ export class McGuidePanel {
       const exitsRowCy = rect.y + GUIDE_PANEL_HEADER_HEIGHT + GUIDE_PANEL_EXITS_ROW_HEIGHT / 2;
       const skipMeasure = this.#options.onSkip
         ? scene.add
-            .text(0, 0, (content.skipLabel ?? "Skip this step").toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
+            .text(
+              0,
+              0,
+              (content.skipLabel ?? "Skip this step").toUpperCase(),
+              textStyle(STAMP_TYPE, surface.inkOnHue.hex),
+            )
             .setOrigin(0.5, 0.5)
         : null;
       // Spelled out, matching "SKIP THIS STEP" — the rail's own ~300px width has room for both (found in
@@ -391,7 +396,7 @@ export class McGuidePanel {
       // phone/tablet-portrait callout (`ui/guide-callout.ts`) keeps the × — that surface is already tight
       // with the `GUIDE` stamp, step label and "Skip this step" sharing one row at 390px.
       const stopMeasure = this.#options.onStop
-        ? scene.add.text(0, 0, "STOP TUTORIAL", textStyle(STAMP_TYPE, surface.ink.hex)).setOrigin(0.5, 0.5)
+        ? scene.add.text(0, 0, "STOP TUTORIAL", textStyle(STAMP_TYPE, surface.inkOnHue.hex)).setOrigin(0.5, 0.5)
         : null;
 
       const headerExits = guidePanelHeaderExitsLayoutOf({
@@ -437,7 +442,7 @@ export class McGuidePanel {
     }
 
     panel
-      .lineStyle(border.detail, surface.ink.hex, 1)
+      .lineStyle(border.detail, surface.inkOnHue.hex, 1)
       .lineBetween(rect.x, rect.y + headerHeight, rect.x + rect.width, rect.y + headerHeight);
 
     // --- Lesson list (optional). ---
@@ -449,11 +454,16 @@ export class McGuidePanel {
     let by = 0;
     let stepLabelText: Phaser.GameObjects.Text | null = null;
     if (content.stepLabel) {
-      stepLabelText = scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex));
+      stepLabelText = scene.add.text(
+        0,
+        0,
+        content.stepLabel.toUpperCase(),
+        textStyle(STAMP_TYPE, surface.inkOnHue.hex),
+      );
       by += stepLabelText.height + 8;
     }
     const title = scene.add
-      .text(0, 0, content.title.toUpperCase(), textStyle(TITLE_TYPE, surface.ink.hex))
+      .text(0, 0, content.title.toUpperCase(), textStyle(TITLE_TYPE, surface.inkOnHue.hex))
       .setWordWrapWidth(innerWidth, true);
     by += title.height + 10;
 
@@ -463,7 +473,7 @@ export class McGuidePanel {
       width: innerWidth,
       text: content.body,
       typeSpec: BODY_TYPE,
-      color: surface.ink.hex,
+      color: surface.inkOnHue.hex,
       onTermOpen: (term, termRect, block) => this.#openTooltip(term, termRect, block),
       onTermClose: () => this.#tooltip.hide(),
     });
@@ -476,7 +486,7 @@ export class McGuidePanel {
     if (content.tip) {
       by += 16;
       tipText = scene.add
-        .text(0, 0, content.tip, { ...textStyle(BODY_TYPE, surface.ink.hex) })
+        .text(0, 0, content.tip, { ...textStyle(BODY_TYPE, surface.inkOnHue.hex) })
         .setWordWrapWidth(innerWidth - TIP_TAG_WIDTH - 24, true);
       const tipHeight = Math.max(TIP_TAG_WIDTH, tipText.height + 16);
       by += tipHeight;
@@ -491,7 +501,7 @@ export class McGuidePanel {
           0,
           0,
           content.extraHeading.toUpperCase(),
-          textStyle(STAMP_TYPE, surface.ink.hex, ink.label),
+          textStyle(STAMP_TYPE, surface.inkOnHue.hex, ink.label),
         );
         by += extraHeadingText.height + 8;
       }
@@ -505,7 +515,9 @@ export class McGuidePanel {
     let nudgeText: Phaser.GameObjects.Text | null = null;
     if (content.nudge) {
       nudgeText = scene.add
-        .text(0, 0, content.nudge, { ...textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, ink.secondary) })
+        .text(0, 0, content.nudge, {
+          ...textStyle({ ...typeRole.body, size: 11 }, surface.inkOnHue.hex, ink.secondary),
+        })
         .setWordWrapWidth(innerWidth, true);
     }
     const nudgeHeight = nudgeText ? nudgeText.height + 8 : 0;
@@ -537,7 +549,7 @@ export class McGuidePanel {
         ly += GUIDE_PANEL_ROW_HEIGHT;
       }
       panel
-        .lineStyle(border.detail, surface.ink.hex, 1)
+        .lineStyle(border.detail, surface.inkOnHue.hex, 1)
         .lineBetween(
           rect.x,
           layout.lessonList.y + layout.lessonList.height,
@@ -569,7 +581,7 @@ export class McGuidePanel {
       cy += 16;
       const tipHeight = Math.max(TIP_TAG_WIDTH, tipText.height + 16);
       tipBox = scene.add.graphics();
-      tipBox.lineStyle(border.control, surface.ink.hex, 1).strokeRect(ox, oy + cy, innerWidth, tipHeight);
+      tipBox.lineStyle(border.control, surface.inkOnHue.hex, 1).strokeRect(ox, oy + cy, innerWidth, tipHeight);
       tipBox.fillStyle(surface.ink.hex, 1).fillRect(ox, oy + cy, TIP_TAG_WIDTH, tipHeight);
       bodyObjects.push(tipBox);
       tipTag = scene.add
@@ -608,7 +620,7 @@ export class McGuidePanel {
       const extraBoxHeight = extraRows.length * GUIDE_PANEL_ROW_HEIGHT + GUIDE_PANEL_PAD;
       const extraBox = scene.add.graphics();
       extraBox
-        .lineStyle(border.detail, surface.ink.hex, 1)
+        .lineStyle(border.detail, surface.inkOnHue.hex, 1)
         .strokeRect(ox, oy + extraBoxTop, innerWidth, extraBoxHeight);
       bodyObjects.unshift(extraBox);
       cy = extraBoxTop + extraBoxHeight;
@@ -696,11 +708,11 @@ export class McGuidePanel {
         focusables.push({ rect: slotRect, activate: () => this.#options.onPrimary?.() });
       } else if (content.continueHint) {
         const hintBox = scene.add.graphics();
-        dashedRect(hintBox, slotRect, border.control, surface.ink.hex);
+        dashedRect(hintBox, slotRect, border.control, surface.inkOnHue.hex);
         objects.push(hintBox);
         const hintText = scene.add
           .text(slotRect.x + slotRect.width / 2, slotRect.y + slotRect.height / 2, content.continueHint, {
-            ...textStyle({ ...typeRole.emphasis, size: 10 }, surface.ink.hex),
+            ...textStyle({ ...typeRole.emphasis, size: 10 }, surface.inkOnHue.hex),
             align: "center",
           })
           .setOrigin(0.5, 0.5)
@@ -760,14 +772,14 @@ export class McGuidePanel {
       objects.push(g);
     }
 
-    const textColor = current ? surface.paper.hex : surface.ink.hex;
+    const textColor = current ? surface.paper.hex : surface.inkOnHue.hex;
 
     if (opts.swatch != null) {
       const swatchBox = scene.add.graphics();
       swatchBox
         .fillStyle(opts.swatch, 1)
         .fillRect(x, boxY, boxSize, boxSize)
-        .lineStyle(border.detail, surface.ink.hex, 1)
+        .lineStyle(border.detail, surface.inkOnHue.hex, 1)
         .strokeRect(x, boxY, boxSize, boxSize);
       objects.push(swatchBox);
     } else if (opts.state === "done") {
@@ -775,7 +787,7 @@ export class McGuidePanel {
       box
         .fillStyle(surface.ink.hex, 1)
         .fillRect(x, boxY, boxSize, boxSize)
-        .lineStyle(border.detail, surface.ink.hex, 1)
+        .lineStyle(border.detail, surface.inkOnHue.hex, 1)
         .strokeRect(x, boxY, boxSize, boxSize);
       objects.push(box);
       const check = scene.add
@@ -785,7 +797,7 @@ export class McGuidePanel {
     } else {
       const box = scene.add.graphics();
       box
-        .lineStyle(border.detail, current ? surface.paper.hex : surface.ink.hex, 1)
+        .lineStyle(border.detail, current ? surface.paper.hex : surface.inkOnHue.hex, 1)
         .strokeRect(x, boxY, boxSize, boxSize);
       objects.push(box);
       const number = scene.add
@@ -913,7 +925,7 @@ export class McGuidePanel {
     const target = this.#focusables[this.#focusIndex];
     if (!target) return;
     this.#focusRing
-      .lineStyle(border.control, surface.ink.hex, 1)
+      .lineStyle(border.control, surface.inkOnHue.hex, 1)
       .strokeRect(target.rect.x - 3, target.rect.y - 3, target.rect.width + 6, target.rect.height + 6);
   }
 

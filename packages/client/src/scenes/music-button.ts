@@ -21,6 +21,7 @@ import { musicSlots, setShownMusicButton, shownMusicButton } from "../ui/music-s
 import { drawMusicIcon } from "../ui/music-icon.js";
 import { reportButtonSlot } from "../view/report-button.js";
 import { languageSlotBeside } from "../view/language-button.js";
+import { themeSlotBeside } from "../view/theme-button.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { lerp } from "../view/motion-math.js";
 import {
@@ -44,6 +45,7 @@ const ABOVE_SCREENS: ReadonlySet<string> = new Set([
   SCENES.musicPlayer,
   SCENES.languageButton,
   SCENES.languagePopup,
+  SCENES.themeButton,
   SCENES.reportButton,
   SCENES.reportIssue,
   SCENES.music,
@@ -313,10 +315,10 @@ export class MusicButtonScene extends Phaser.Scene {
       };
     } else {
       const textWidth = Math.max(label.width, name.width);
-      // The pill opens out to the left of the card language button (#337), which stays visible beside the note: its
-      // right edge is that button's left edge, so it grows from zero width there.
-      const lang = languageSlotBeside(icon);
-      const edge: Rect = { x: lang.x - 4, y: icon.y, width: 0, height: icon.height };
+      // The pill opens out to the left of the card language button (#337) and the dark mode toggle (#459), which stay
+      // visible beside the note: its right edge is the toggle's left edge, so it grows from zero width there.
+      const theme = themeSlotBeside(languageSlotBeside(icon));
+      const edge: Rect = { x: theme.x - 4, y: icon.y, width: 0, height: icon.height };
       const minX = Math.max(8, edge.x - PILL_MAX_WIDTH);
       const pill = nowPlayingPill(edge, textWidth, minX);
       const textX = pill.x + 12;

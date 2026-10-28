@@ -14,6 +14,7 @@ import type { BoardMotion, StatusStampState } from "./motion.js";
 import { setReportSlot } from "../../ui/report-slot.js";
 import { setMusicSlot } from "../../ui/music-slot.js";
 import { languageSlotBeside } from "../../view/language-button.js";
+import { themeSlotBeside } from "../../view/theme-button.js";
 import { musicSlotBeside } from "../../view/music-player.js";
 
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
@@ -116,8 +117,9 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
   setReportSlot(scene.scene.key, reportRect);
   const musicRect = musicSlotBeside(reportRect);
   setMusicSlot(scene.scene.key, musicRect);
-  // Where the standing chips on the right edge stop: the card language button's slot (#337), left of the music button's.
-  const anchorX = languageSlotBeside(musicRect).x - 2;
+  // Where the standing chips on the right edge stop: the dark mode toggle's slot (#459), left of the card language
+  // button's (#337), left of the music button's.
+  const anchorX = themeSlotBeside(languageSlotBeside(musicRect)).x - 2;
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
@@ -175,7 +177,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
   if (notSaving) {
     // A glyph as well as the hue, so the warning never rests on color alone.
     const warning = scene.add
-      .text(anchorX - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
+      .text(anchorX - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.inkOnHue.hex))
       .setOrigin(1, 0.5)
       .setPadding(6, 3, 6, 3)
       .setBackgroundColor(cssOf(signal.caution.hex));
