@@ -149,6 +149,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -570,6 +571,17 @@ def is_webp(path: Path) -> bool:
     return head[:4] == b"RIFF" and head[8:12] == b"WEBP"
 
 
+def replace_bytes(dest: Path, data: bytes) -> None:
+    """
+    Writes `data` to `dest` as a new file (a temporary name, then a rename), never through the old one. After
+    `pnpm assets:fetch` a scan is a hard link to the machine's shared asset cache (issue #495), so writing into the
+    existing file would change the cache and every other worktree's copy too.
+    """
+    tmp = dest.with_name(dest.name + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, dest)
+
+
 def save_like(img: Image.Image, dest: Path, max_edge: int | None = MAX_EDGE) -> None:
     """
     Writes a trimmed RGBA card to `dest` as WebP (`encode_webp`), scaled down to `max_edge`. A `.jpg` name gets its
@@ -580,7 +592,7 @@ def save_like(img: Image.Image, dest: Path, max_edge: int | None = MAX_EDGE) -> 
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
     if dest.suffix.lower() in (".jpg", ".jpeg"):
         img = flatten(img)
-    dest.write_bytes(encode_webp(img))
+    replace_bytes(dest, encode_webp(img))
 
 
 # --------------------------------------------------------------------------- scraping
@@ -1149,7 +1161,7 @@ def grab(args: argparse.Namespace) -> None:
             continue
         name = urlparse(url).path.rpartition("/")[2] or f"image-{saved}.jpg"
         dest = out / name
-        dest.write_bytes(data)
+        replace_bytes(dest, data)
         print(f"    + {dest} ({alt!r}) <- {url}")
         saved += 1
     print(f"\n[=] {saved}/{len(targets)} images saved to {out}")
@@ -1393,7 +1405,7 @@ def compress(args: argparse.Namespace) -> None:
             if args.verbose:
                 print(f"    + {path.name}: {size // 1024} KB -> {len(webp) // 1024} KB")
             if not args.dry_run:
-                path.write_bytes(webp)
+                replace_bytes(path, webp)
     verb = "would be " if args.dry_run else ""
     print(f"\n[=] {converted} scans {verb}converted: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB")
 
@@ -1856,7 +1868,7 @@ def localize(args: argparse.Namespace) -> None:
     with ProcessPoolExecutor() as pool:
         encoded = pool.map(_encode_locale, [(cache / f"{pair.scan}.webp", pair.turn) for _, pair in jobs], chunksize=8)
         for (e, pair), webp in zip(jobs, encoded):
-            (out_dir / e).write_bytes(webp)
+            replace_bytes(out_dir / e, webp)
             keep.add(e)
             rows.append(f"bundles/cards/{e}\t{pair.scan}\t{pair.distance}\t{pair.turn}")
     stale = [p for p in out_dir.iterdir() if p.name not in keep]
