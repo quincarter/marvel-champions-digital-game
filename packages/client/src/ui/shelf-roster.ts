@@ -23,7 +23,8 @@
  * **Drag axis-locking** uses `view/drag-gesture.ts`'s `AxisDragGesture`: a
  * gesture starting inside the roster locks to whichever axis its first few
  * pixels favor, so a slightly diagonal swipe scrolls one axis, not both.
- * Momentum coasts along whichever axis was locked.
+ * Momentum coasts along whichever axis was locked: down the column for a vertical flick, along the flicked shelf
+ * alone for a horizontal one (#478).
  *
  * **Scrolling moves, it doesn't rebuild.** Every shelf and card is drawn once, in unscrolled *content* coordinates,
  * into a container: one `#content` container carries the vertical offset, and each live shelf's own card container
@@ -117,10 +118,18 @@ export class McShelfRoster<T> {
   readonly #content: Phaser.GameObjects.Container;
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #drag = new AxisDragGesture();
-  readonly #momentum = new Momentum();
+  /**
+   * Lighter than `Momentum`'s default, close to a phone's own scroll views (#478: a flick felt heavy and stopped
+   * short). Shared by both axes, so the column and its shelves coast alike.
+   */
+  readonly #momentum = new Momentum({ decayPerMs: 0.0025 });
+  /** The shelf a horizontal flick is coasting along, or null while the momentum (if any) is vertical. */
+  #momentumShelfId: string | null = null;
   #dragShelfId: string | null = null;
   /** The press in progress went down on a shelf's chevron: its release is the chevron's click, never a card tap. */
   #pressOnChevron = false;
+  /** The press in progress went down while the roster was coasting: it only stops the coast, never picks a card. */
+  #pressStoppedCoast = false;
   #rect: Rect;
   #shelves: readonly Shelf<T>[];
   readonly #metrics: ShelfRosterMetrics;
@@ -304,6 +313,8 @@ export class McShelfRoster<T> {
 
   /** Scrolls both axes the minimum distance so the given card is fully on screen. */
   scrollIntoView(shelfIndex: number, itemIndex: number): void {
+    // Focus moving (a pad or a key) takes over from a coast, which would otherwise carry the focused card off again.
+    this.#momentum.stop();
     if (this.#scrollShelfIntoView(shelfIndex)) this.#sync();
     const shelf = this.#shelves[shelfIndex];
     if (!shelf) return;
@@ -530,8 +541,24 @@ export class McShelfRoster<T> {
     const hs = this.#horizontalScrollFor(shelfId);
     const step = this.#metrics.cardWidth + this.#metrics.cardGap;
     const cardsPerPage = Math.max(1, Math.floor(this.#innerWidth() / step));
+    // A chevron or a pad page takes over from a flick still coasting along the shelf.
+    if (this.#momentumShelfId === shelfId) this.#momentum.stop();
     hs.scrollByRows(direction * cardsPerPage, shelf.items.length, step, this.#innerWidth());
     this.#sync();
+  }
+
+  /** Scrolls the coasting shelf sideways by `deltaPx`; false once it is at an end, or gone (filtered away). */
+  #scrollShelfByPx(deltaPx: number): boolean {
+    const shelf = this.#shelves.find((s) => s.id === this.#momentumShelfId);
+    if (!shelf || shelf.collapsed) return false;
+    const step = this.#metrics.cardWidth + this.#metrics.cardGap;
+    return this.#horizontalScrollFor(shelf.id).scrollByPx(deltaPx, shelf.items.length, step, this.#innerWidth());
+  }
+
+  /** Whether screen `y` falls in a shelf's card row rather than its header band. */
+  #inCardRow(y: number): boolean {
+    const at = this.#shelfAt(y - this.#rect.y + this.#verticalScroll.offsetPx);
+    return at !== null && at.within > this.#metrics.headerHeight + this.#metrics.headerToCardsGap;
   }
 
   #shelfIndexAtY(y: number): number | null {
@@ -580,19 +607,29 @@ export class McShelfRoster<T> {
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
+    // A second finger while one is down leaves the first press's own state alone.
+    if (this.#drag.isDragging) return;
+    // A tap on a moving shelf stops it, as a native scroller does; it doesn't also pick whatever card slid under the
+    // finger (#478 made that likely: a sideways coast carries cards under a finger that never moved). A sideways coast
+    // moves only its own card row, so a tap on any other shelf, or on a header (its own included), still acts.
+    const pressShelfIndex = this.#shelfIndexAtY(pointer.y);
+    const pressShelfId = pressShelfIndex === null ? null : (this.#shelves[pressShelfIndex]?.id ?? null);
+    this.#pressStoppedCoast =
+      this.#momentum.active &&
+      (this.#momentumShelfId === null || (this.#momentumShelfId === pressShelfId && this.#inCardRow(pointer.y)));
     this.#momentum.stop();
     // Judged at the press: the chevron's own click (which runs before this roster's scene-level release) scrolls the
     // shelf and may remove the chevron, and the card that slid under it must not take the same click (#218).
     this.#pressOnChevron = this.#chevronAt(pointer.x, pointer.y);
-    this.#dragShelfId = null;
-    const shelfIndex = this.#shelfIndexAtY(pointer.y);
-    if (shelfIndex !== null) this.#dragShelfId = this.#shelves[shelfIndex]?.id ?? null;
+    this.#dragShelfId = pressShelfId;
     this.#drag.start(pointer.id, pointer.x, pointer.y, pointer.downTime);
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (!pointer.isDown) return;
-    const move = this.#drag.move(pointer.id, pointer.x, pointer.y, this.#scene.time.now);
+    // Event timestamps, not the frame clock: a flick's speed is measured across the events themselves, and two events
+    // landing in one frame (or one long frame before the lift) would otherwise read as a spike or a stop.
+    const move = this.#drag.move(pointer.id, pointer.x, pointer.y, pointer.moveTime);
     if (!move) return;
     if (move.axis === "vertical") {
       if (this.#scrollByPx(move.delta)) this.#sync();
@@ -614,12 +651,16 @@ export class McShelfRoster<T> {
   }
 
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
-    const result = this.#drag.end(pointer.id, this.#scene.time.now);
+    // A mouse's other button let go while the left is still held is not the end of the drag.
+    if (pointer.isDown) return;
+    const result = this.#drag.end(pointer.id, pointer.upTime);
     if (!result) return;
     const onChevron = this.#pressOnChevron;
+    const stoppedCoast = this.#pressStoppedCoast;
     this.#pressOnChevron = false;
+    this.#pressStoppedCoast = false;
     if (result.wasTap) {
-      if (onChevron || !pointInRect(pointer.x, pointer.y, this.#rect)) return;
+      if (onChevron || stoppedCoast || !pointInRect(pointer.x, pointer.y, this.#rect)) return;
       const at = this.#shelfAt(pointer.y - this.#rect.y + this.#verticalScroll.offsetPx);
       if (!at) return;
       const shelfIndex = at.index;
@@ -640,13 +681,15 @@ export class McShelfRoster<T> {
       this.#onCardActivate(shelf.items[itemIndex]!, shelfIndex, itemIndex);
       return;
     }
+    // One momentum serves both axes: a new press stops it, so only the latest flick ever coasts. A horizontal flick
+    // coasts along the shelf it was dragging and nothing else (#478: the shelves used to stop dead on release).
     if (result.axis === "vertical") {
+      this.#momentumShelfId = null;
+      this.#momentum.start(result.velocityPxPerMs);
+    } else if (result.axis === "horizontal" && this.#dragShelfId) {
+      this.#momentumShelfId = this.#dragShelfId;
       this.#momentum.start(result.velocityPxPerMs);
     }
-    // Horizontal momentum is deliberately not carried past release: each shelf has its own scroll and its own
-    // clamp, and the common case (bringing the next couple of cards into view) is already well served by the
-    // drag itself plus the chevrons; adding a second momentum tracker per shelf id was more state than this
-    // pass's time budget could verify was correct in every combination with the vertical one.
     this.#dragShelfId = null;
   }
 
@@ -654,7 +697,7 @@ export class McShelfRoster<T> {
     if (!this.#momentum.active) return;
     const delta = this.#momentum.tick(deltaMs);
     if (delta === 0) return;
-    const moved = this.#scrollByPx(delta);
+    const moved = this.#momentumShelfId === null ? this.#scrollByPx(delta) : this.#scrollShelfByPx(delta);
     if (!moved) {
       this.#momentum.stop();
       return;
