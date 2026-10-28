@@ -104,7 +104,9 @@ async function overflowingShelf(page: Page, screen: Screen, phone: boolean, room
     (await cardStops(page, screen.hook, screen.prefix)).find((s) => s.key === tracked)!.x;
   // From the second card of the row (inside the roster, clear of the desktop's detail panel on the right).
   const from = { x: Math.min(width * 0.7, row[0]!.x + row[0]!.width * 1.5), y: row[0]!.y + row[0]!.height / 2 };
-  return { flickPx, xOf, from, to: { x: from.x - flickPx, y: from.y } };
+  // Just above the card row: the shelf's header band (the cards sit 8px under it).
+  const header = { x: from.x, y: row[0]!.y - 16 };
+  return { flickPx, xOf, from, to: { x: from.x - flickPx, y: from.y }, header };
 }
 
 /** What the screen has picked so far: the chosen scenario, or every seat card's text. */
@@ -168,6 +170,29 @@ for (const screen of SCREENS) {
     expect(await shelf.xOf(), "the tap stopped the coast").toBe(stoppedAt);
     expect(await activeScenes(page)).toEqual(scenesBefore);
     expect(await picks(page, screen), "the tap picked no card").toEqual(picksBefore);
+    expect(errors).toEqual([]);
+  });
+
+  test(`issue #478: a tap on a coasting ${screen.scene} shelf's header still opens its pack`, async ({
+    page,
+  }, info) => {
+    test.setTimeout(120_000);
+    const phone = info.project.name === "phone";
+    const errors = trackPageErrors(page);
+    const shelf = await overflowingShelf(page, screen, phone, 450);
+    const drilledIn = async () =>
+      ((await hook<Stop[]>(page, screen.hook, "stops")) ?? []).some((s) => s.key === "drill-back");
+    expect(await drilledIn()).toBe(false);
+
+    await flick(page, phone, shelf.from, shelf.to, 20);
+    const a = await shelf.xOf();
+    await page.waitForTimeout(40);
+    expect(await shelf.xOf(), "the shelf is still coasting").toBeLessThan(a);
+    // The header never moved under the finger, so its tap is a tap: it drills into the pack, coast or no coast.
+    if (phone) await page.touchscreen.tap(shelf.header.x, shelf.header.y);
+    else await page.mouse.click(shelf.header.x, shelf.header.y);
+
+    await waitFor(async () => ((await drilledIn()) ? true : null), "the pack opens", 10_000);
     expect(errors).toEqual([]);
   });
 }

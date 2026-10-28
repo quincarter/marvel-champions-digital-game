@@ -551,6 +551,12 @@ export class McShelfRoster<T> {
     return this.#horizontalScrollFor(shelf.id).scrollByPx(deltaPx, shelf.items.length, step, this.#innerWidth());
   }
 
+  /** Whether screen `y` falls in a shelf's card row rather than its header band. */
+  #inCardRow(y: number): boolean {
+    const at = this.#shelfAt(y - this.#rect.y + this.#verticalScroll.offsetPx);
+    return at !== null && at.within > this.#metrics.headerHeight + this.#metrics.headerToCardsGap;
+  }
+
   #shelfIndexAtY(y: number): number | null {
     const at = this.#shelfAt(y - this.#rect.y + this.#verticalScroll.offsetPx);
     if (!at) return null;
@@ -601,11 +607,12 @@ export class McShelfRoster<T> {
     if (this.#drag.isDragging) return;
     // A tap on a moving shelf stops it, as a native scroller does; it doesn't also pick whatever card slid under the
     // finger (#478 made that likely: a sideways coast carries cards under a finger that never moved). A sideways coast
-    // moves only its own shelf, so a tap on any other shelf, or on a header, still does its own thing.
+    // moves only its own card row, so a tap on any other shelf, or on a header (its own included), still acts.
     const pressShelfIndex = this.#shelfIndexAtY(pointer.y);
     const pressShelfId = pressShelfIndex === null ? null : (this.#shelves[pressShelfIndex]?.id ?? null);
     this.#pressStoppedCoast =
-      this.#momentum.active && (this.#momentumShelfId === null || this.#momentumShelfId === pressShelfId);
+      this.#momentum.active &&
+      (this.#momentumShelfId === null || (this.#momentumShelfId === pressShelfId && this.#inCardRow(pointer.y)));
     this.#momentum.stop();
     // Judged at the press: the chevron's own click (which runs before this roster's scene-level release) scrolls the
     // shelf and may remove the chevron, and the card that slid under it must not take the same click (#218).
