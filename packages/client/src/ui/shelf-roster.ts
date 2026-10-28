@@ -124,6 +124,8 @@ export class McShelfRoster<T> {
   #dragShelfId: string | null = null;
   /** The press in progress went down on a shelf's chevron: its release is the chevron's click, never a card tap. */
   #pressOnChevron = false;
+  /** The press in progress went down while the roster was coasting: it only stops the coast, never picks a card. */
+  #pressStoppedCoast = false;
   #rect: Rect;
   #shelves: readonly Shelf<T>[];
   readonly #metrics: ShelfRosterMetrics;
@@ -307,6 +309,8 @@ export class McShelfRoster<T> {
 
   /** Scrolls both axes the minimum distance so the given card is fully on screen. */
   scrollIntoView(shelfIndex: number, itemIndex: number): void {
+    // Focus moving (a pad or a key) takes over from a coast, which would otherwise carry the focused card off again.
+    this.#momentum.stop();
     if (this.#scrollShelfIntoView(shelfIndex)) this.#sync();
     const shelf = this.#shelves[shelfIndex];
     if (!shelf) return;
@@ -593,6 +597,9 @@ export class McShelfRoster<T> {
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
+    // A tap on a moving shelf stops it, as a native scroller does; it doesn't also pick whatever card slid under the
+    // finger (#478 made that likely: a sideways coast carries cards under a finger that never moved).
+    this.#pressStoppedCoast = this.#momentum.active;
     this.#momentum.stop();
     // Judged at the press: the chevron's own click (which runs before this roster's scene-level release) scrolls the
     // shelf and may remove the chevron, and the card that slid under it must not take the same click (#218).
@@ -630,9 +637,11 @@ export class McShelfRoster<T> {
     const result = this.#drag.end(pointer.id, this.#scene.time.now);
     if (!result) return;
     const onChevron = this.#pressOnChevron;
+    const stoppedCoast = this.#pressStoppedCoast;
     this.#pressOnChevron = false;
+    this.#pressStoppedCoast = false;
     if (result.wasTap) {
-      if (onChevron || !pointInRect(pointer.x, pointer.y, this.#rect)) return;
+      if (onChevron || stoppedCoast || !pointInRect(pointer.x, pointer.y, this.#rect)) return;
       const at = this.#shelfAt(pointer.y - this.#rect.y + this.#verticalScroll.offsetPx);
       if (!at) return;
       const shelfIndex = at.index;

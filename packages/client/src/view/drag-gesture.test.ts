@@ -221,6 +221,15 @@ describe("AxisDragGesture (the pack-shelf roster's 2-axis drag, W2b)", () => {
     expect(result!.velocityPxPerMs).toBeGreaterThan(0);
   });
 
+  test("a pointer held still before the lift releases with no speed (#478: no jump after lining a card up)", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 100, 100, 0);
+    g.move(1, 70, 100, 16);
+    const result = g.end(1, 400);
+    expect(result!.axis).toBe("horizontal");
+    expect(result!.velocityPxPerMs).toBe(0);
+  });
+
   test("a second pointer mid-drag is ignored", () => {
     const g = new AxisDragGesture();
     expect(g.start(1, 100, 100, 0)).toBe(true);

@@ -207,6 +207,9 @@ export interface AxisDragEndResult {
  * Before that decision, `move` reports nothing to apply (not a guess): the
  * caller simply hasn't started scrolling yet.
  */
+/** How long the pointer may rest before its release counts as a stop rather than a flick (`AxisDragGesture.end`). */
+const STILL_BEFORE_LIFT_MS = 100;
+
 export class AxisDragGesture {
   readonly #tapThresholdPx: number;
   #active = false;
@@ -269,10 +272,13 @@ export class AxisDragGesture {
     return this.#axis === "horizontal" ? { axis: "horizontal", delta: -dx } : { axis: "vertical", delta: -dy };
   }
 
-  end(pointerId: number, _timeMs: number): AxisDragEndResult | null {
+  end(pointerId: number, timeMs: number): AxisDragEndResult | null {
     if (!this.#active || pointerId !== this.#pointerId) return null;
     const axis = this.#axis;
-    const velocityPxPerMs = axis === "horizontal" ? -this.#velocityX : axis === "vertical" ? -this.#velocityY : 0;
+    // A pointer held still before the lift (lining a card up, then letting go) releases with no speed: the last move's
+    // velocity is stale by then, and coasting on it would jump the row away from where it was placed.
+    const stale = timeMs - this.#lastTimeMs > STILL_BEFORE_LIFT_MS;
+    const velocityPxPerMs = stale || axis === null ? 0 : axis === "horizontal" ? -this.#velocityX : -this.#velocityY;
     this.#active = false;
     this.#pointerId = null;
     this.#axis = null;
