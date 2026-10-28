@@ -1,0 +1,33 @@
+# Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never
+# replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).
+code	pack	name	scan	saved
+01001a	core	Spider-Man	0_Spider Man_Hero_A.tif	2026-10-28
+01001b	core	Peter Parker	0_Spider Man_Alter-Ego_B.tif	2026-10-28
+01002	core	Black Cat	1_Black Cat_Ally.tif	2026-10-28
+01003	core	Backflip	2_Backflip_Event.tif	2026-10-28
+01004	core	Enhanced Spider-Sense	4_Enhanced Spider-Sense_Event.tif	2026-10-28
+01005	core	Swinging Web Kick	6_Swinging Web Kick_Event.tif	2026-10-28
+01006	core	Aunt May	9_Aunt May_Support.tif	2026-10-28
+01007	core	Spider-Tracer	10_Spider-Tracker_Upgrade.tif	2026-10-28
+01008	core	Web-Shooter	12_Web-Shooter_Upgrade.tif	2026-10-28
+01009	core	Webbed Up	14_Webbed Up_Upgrade.tif	2026-10-28
+01010a	core	Captain Marvel	0_Captain Marvel_Hero_A.tif	2026-10-28
+01010b	core	Carol Danvers	0_Captain Marvel_Alter-Ego_B.tif	2026-10-28
+01011	core	Spider-Woman	1_Spider-Woman_Ally.tif	2026-10-28
+01012	core	Crisis Interdiction	2_Crisis Interdiction_Event.tif	2026-10-28
+01013	core	Photonic Blast	5_Energy Channel_Upgrade.tif	2026-10-28
+01014	core	Energy Absorption	8_Absorption_Resource.tif	2026-10-28
+01015	core	Alpha Flight Station	10_Alpha Flight Station_Support.tif	2026-10-28
+01016	core	Captain Marvel's Helmet	11_Captain Marvel_sHelmet_Upgrade.tif	2026-10-28
+01017	core	Cosmic Flight	12_Cosmic Flight_Upgrade.tif	2026-10-28
+01018	core	Energy Channel	14_Energy Channel_Upgrade.tif	2026-10-28
+01165	core	Eviction Notice	0_Eviction Notice_Obligation.tif	2026-10-28
+01166	core	Highway Robbery	1_Highway Robbery_Side Scheme.tif	2026-10-28
+01167	core	Vulture	2_Vulture_Minion.tif	2026-10-28
+01168	core	Sweeping Swoop	3_Sweeping Swoop_Treachery.tif	2026-10-28
+01169	core	The Vulture's Plans	5_The Vulture_s Plans_Treachery.tif	2026-10-28
+01175	core	Family Emergency	0_Family Emergency_Obligation.tif	2026-10-28
+01176	core	The Psyche-Magnitron	1_The Psyche-Magnitron_Side Scheme.tif	2026-10-28
+01177	core	Yon-Rogg	2_Yon-Rogg_Minion.tif	2026-10-28
+01178	core	Kree Manipulator	3_Kree Manipulator_Treachery.tif	2026-10-28
+01179	core	Yon-Rogg's Treason	5_Yon-Rogg_s Treason_Treachery.tif	2026-10-28

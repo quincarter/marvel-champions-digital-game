@@ -1,0 +1,3 @@
+kind: Content
+body: A scans command in scripts/fetch_card_art.py turns the owner's card scans into bundled art, matched to cards by their art
+time: 2026-10-28T08:38:09.4463894-04:00
