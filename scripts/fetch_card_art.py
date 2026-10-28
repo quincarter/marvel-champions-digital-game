@@ -118,7 +118,9 @@ Seven commands:
           scanner bed at a corner is made transparent (nothing else is cropped:
           the scans are cut to the card edge already), and the result is scaled
           and encoded as `compress` does. Copies of one card save the closest
-          match. `--sheet` writes a before/after contact sheet for the PR.
+          match. Copies printed with different resources but the same art
+          (Wakanda Forever! a-d) are left for `--assign FILE=CODE`.
+          `--sheet` writes a before/after contact sheet for the PR.
           Each saved card is listed in assets/card-art/owner-scans.tsv, which
           `fetch` and `trim` then leave alone, and loses its Hall of Heroes
           manifest row. Offline.
@@ -1417,9 +1419,14 @@ def flat_grey(img: Image.Image) -> Image.Image:
 
 
 def scan_name(path: Path) -> str:
-    """The card name in an owner scan's file name, `<n>_<Name>_<Type>[_A|_B].tif` (`_s` stands for `'s`)."""
+    """
+    The card name in an owner scan's file name: `<n>_<Name>_<Type>[_A|_B].tif` for a hero's cards and
+    `<Aspect>_<Name>_<Type>[_<n>].tif` for an aspect's (`_s` stands for `'s`).
+    """
     parts = path.stem.split("_")
-    if len(parts) >= 3 and parts[0].isdigit():
+    if len(parts) >= 4 and parts[-1].isdigit():
+        parts = parts[:-1]
+    if len(parts) >= 3:
         parts = parts[1:-1]
         if parts and parts[-1].lower() in ("hero", "alter-ego", "a", "b"):
             parts = parts[:-1]
@@ -1478,6 +1485,7 @@ class ScanMatch:
     turn: int  # degrees counter-clockwise (PIL `rotate`) that put the scan in the local scan's orientation
     dist: int
     runner_up: int
+    rival: str  # the next-nearest card
 
 
 def match_scan(path: Path, local: dict[str, tuple[int, bool]]) -> ScanMatch:
@@ -1497,8 +1505,8 @@ def match_scan(path: Path, local: dict[str, tuple[int, bool]]) -> ScanMatch:
         scored.append(min((hamming(hashes[t], h), t, code) for t in turns))
     scored.sort()
     best, turn, code = scored[0]
-    runner_up = next((d for d, _, c in scored[1:] if c != code), 64)
-    return ScanMatch(path, code, turn, best, runner_up)
+    runner_up, rival = next(((d, c) for d, _, c in scored[1:] if c != code), (64, ""))
+    return ScanMatch(path, code, turn, best, runner_up, rival)
 
 
 def _local_hash(path: Path) -> tuple[int, bool]:
@@ -1523,6 +1531,9 @@ def scans(args: argparse.Namespace) -> None:
     }
     if not local:
         sys.exit(f"no local scans in packs {args.packs}")
+    bad = [a for a in args.assign or [] if "=" not in a]
+    if bad:
+        sys.exit(f"--assign takes FILE=CODE, not {bad}")
     with ProcessPoolExecutor() as pool:
         hashes = dict(zip(local, pool.map(_local_hash, local.values(), chunksize=16)))
     files = []
@@ -1534,9 +1545,18 @@ def scans(args: argparse.Namespace) -> None:
     with ProcessPoolExecutor() as pool:
         matches = list(pool.map(match_scan, files, [hashes] * len(files)))
 
+    assigned = dict(a.split("=", 1) for a in args.assign or [])
     best: dict[str, ScanMatch] = {}
     for m in matches:
         rel = f"{m.path.parent.name}/{m.path.name}"
+        if m.path.name in assigned:
+            code = assigned.pop(m.path.name)
+            if code not in local:
+                sys.exit(f"--assign {m.path.name}={code}: no local scan {code} in {args.packs or 'any pack'}")
+            print(f"    {code:>7} {card_for(code, cards).name}: {rel} (assigned; art nearest {m.code})")
+            # The art picks the turn among the scan's own orientations; an assigned card keeps the local one's shape.
+            best[code] = ScanMatch(m.path, code, m.turn, -1, m.runner_up, m.rival)
+            continue
         card = card_for(m.code, cards)
         name = card.name if card else "?"
         # A double-sided card's scans are named after either face.
@@ -1547,12 +1567,18 @@ def scans(args: argparse.Namespace) -> None:
         if m.dist > HASH_MAX_DISTANCE or (m.runner_up - m.dist < HASH_MARGIN and not named):
             print(f"    ? {rel}: no confident match (nearest {m.code} {name} at {m.dist}, next {m.runner_up})")
             continue
+        rival = card_for(m.rival, cards)
+        if m.runner_up - m.dist < HASH_MARGIN and rival and rival.name == name:
+            # Copies of one card printed with different resources or text (Wakanda Forever! 01043a-d) share their
+            # art, so neither the hash nor the name can tell them apart: a person looks and passes `--assign`.
+            print(f"    ? {rel}: same art and name as {m.code} and {m.rival}; pick one with --assign")
+            continue
         note = "" if named else f"  <- file says {scan_name(m.path)!r}"
         if m.runner_up - m.dist < HASH_MARGIN:
             note += "  (close art; confirmed by file name)"
         turned = f", turned {m.turn}" if m.turn else ""
         print(f"    {m.code:>7} {name}: {rel} (distance {m.dist}, next {m.runner_up}{turned}){note}")
-        if m.code not in best or m.dist < best[m.code].dist:
+        if m.code not in best or 0 <= m.dist < best[m.code].dist:
             best[m.code] = m
 
     # The owner's scan replaces any Hall of Heroes copy, so its manifest row goes and `owner-scans.tsv` records it.
@@ -1582,6 +1608,8 @@ def scans(args: argparse.Namespace) -> None:
         write_owner_scans(owner)
         write_manifest(manifest)
     print(f"\n[=] {len(best)} scans {'would be ' if args.dry_run else ''}replaced")
+    for name in assigned:
+        print(f"    ! --assign {name}: no such scan")
     if args.sheet:
         scan_sheet(before, after, Path(args.sheet))
         print(f"[=] before/after sheet: {args.sheet}")
@@ -1888,6 +1916,12 @@ def main() -> None:
     sc.add_argument("--packs", nargs="+", help="MarvelCDB pack codes the scans belong to (default: every pack)")
     sc.add_argument("--recursive", action="store_true", help="also read the folders' subfolders")
     sc.add_argument("--sheet", metavar="PATH", help="also write a before/after contact sheet here (JPEG)")
+    sc.add_argument(
+        "--assign",
+        nargs="+",
+        metavar="FILE=CODE",
+        help="save a scan (by file name) as this card, for copies the art can't tell apart (Wakanda Forever! a-d)",
+    )
     sc.add_argument("--dry-run", action="store_true", help="report the matches without writing")
     sc.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()

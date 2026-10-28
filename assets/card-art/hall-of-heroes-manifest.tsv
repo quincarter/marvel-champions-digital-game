@@ -12,15 +12,6 @@ code	pack	name	source_page	image_url	fetched
 01032	core	Supersonic Punch	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony6.jpg	2026-10-22
 01033	core	Pepper Potts	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony7.jpg	2026-10-22
 01037	core	Mark V Helmet	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony11.jpg	2026-10-22
-01040a	core	Black Panther	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc0b.jpg	2026-10-22
-01040b	core	T'Challa	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc0a.jpg	2026-10-22
-01041	core	Shuri	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc1.jpg	2026-10-22
-01044	core	Vibranium	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc9.jpg	2026-10-22
-01045	core	The Golden City	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc11.jpg	2026-10-22
-01046	core	Energy Daggers	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc12.jpg	2026-10-22
-01048	core	Tactical Genius	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tc14.jpg	2026-10-22
-01059	core	Jessica Jones	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/j59.jpg	2026-10-22
-01073	core	The Triskelion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/l73.jpg	2026-10-22
 01097b	core	The Break-In!	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino4a.jpg	2026-10-22
 01098	core	Armored Rhino Suit	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino5.jpg	2026-10-22
 01099	core	Charge	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino6.jpg	2026-10-22
@@ -50,9 +41,6 @@ code	pack	name	source_page	image_url	fetched
 01149	core	Invasive AI	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron24.jpg	2026-10-22
 01150	core	Ultron's Imperative	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron25.jpg	2026-10-22
 01153	core	Concussion Blasters	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/under3.jpg	2026-10-22
-01155	core	Affairs of State	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tcn0.jpg	2026-10-22
-01157	core	Killmonger	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tcn2.jpg	2026-10-22
-01158	core	Heart-Shaped Herb	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tcn3.jpg	2026-10-22
 01160	core	Legal Work	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern0.jpg	2026-10-22
 01161	core	Personal Challenge	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern1.jpg	2026-10-22
 01162	core	Titania	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern2.jpg	2026-10-22
@@ -86,7 +74,6 @@ code	pack	name	source_page	image_url	fetched
 03028	cap	Baron Zemo	https://hallofheroeslcg.com/captain-america/	https://hallofheroeslcg.com/wp-content/uploads/2020/08/c3.jpg	2026-10-22
 03030	cap	Hail Hydra!	https://hallofheroeslcg.com/captain-america/	https://hallofheroeslcg.com/wp-content/uploads/2020/08/c6.jpg	2026-10-22
 04003	trors	Hawkeye's Quiver	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/h2.jpg	2026-10-22
-04012	trors	Black Knight	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/08/blackknight.jpg	2026-10-22
 04031a	trors	Spider-Woman	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/j0b.jpg	2026-10-22
 04031b	trors	Jessica Drew	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/j0a.jpg	2026-10-22
 04053	trors	Uncertain Loyalties	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/z14-1.jpg	2026-10-22
