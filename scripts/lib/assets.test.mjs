@@ -11,7 +11,9 @@ import {
   extractZip,
   installBundle,
   isCurrent,
+  mapIncoming,
   parseManifest,
+  placeIncoming,
   readState,
   readUnpacked,
   releaseUrl,
@@ -361,5 +363,46 @@ describe("the shared cache's unpacked bundles", () => {
       ["a.png", "b.png"],
     ]);
     assert.deepEqual(await readUnpacked(dir), ["a.png", "b.png"]);
+  });
+});
+
+describe("incoming/", () => {
+  it("sends each file to the bundle that owns its path", () => {
+    const { files, errors } = mapIncoming(manifest, [
+      ".gitkeep",
+      "assets/card-art/bundles/cards/03001a.png",
+      "music/title/new-theme.mp3",
+    ]);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      files.map((f) => [f.rel, f.bundle.name]),
+      [
+        ["assets/card-art/bundles/cards/03001a.png", "card-art-wave1"],
+        ["music/title/new-theme.mp3", "music-title"],
+      ],
+    );
+  });
+
+  it("refuses what no bundle would take: other files, unknown folders, a pack prefix no bundle lists", () => {
+    const { files, errors } = mapIncoming(manifest, [
+      "music/title/notes.txt",
+      "sounds/boom.mp3",
+      "assets/card-art/bundles/cards/63001a.png",
+      "artifacts/qa/shot.png",
+    ]);
+    assert.equal(files.length, 0);
+    assert.equal(errors.length, 4);
+    assert.match(errors[0], /not a media file/);
+    assert.match(errors[2], /new pack prefix/);
+  });
+
+  it("copies a file into place without writing through a hard link", async () => {
+    const root = await temp();
+    await writeFiles(root, { "incoming/music/title/a.mp3": "new", "cache/a.mp3": "old" });
+    await fs.mkdir(path.join(root, "music", "title"), { recursive: true });
+    await fs.link(path.join(root, "cache", "a.mp3"), path.join(root, "music", "title", "a.mp3"));
+    await placeIncoming(root, mapIncoming(manifest, ["music/title/a.mp3"]).files);
+    assert.equal(await fs.readFile(path.join(root, "music", "title", "a.mp3"), "utf8"), "new");
+    assert.equal(await fs.readFile(path.join(root, "cache", "a.mp3"), "utf8"), "old");
   });
 });

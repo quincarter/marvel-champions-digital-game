@@ -15,7 +15,8 @@
  *                                     a worktree on another commit would download its bundles again)
  *
  * Environment: MC_ASSETS_CACHE (the shared cache folder), MC_ASSETS_LINK=copy (copy instead of hard-linking).
- * A bundle already installed at the manifest's checksum is skipped without reading a byte.
+ * A bundle already installed at the manifest's checksum is skipped without reading a byte. Files waiting in incoming/
+ * (a pull request's new media, scripts/assets-incoming.mjs) are then copied over the bundles they join.
  */
 import { createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
@@ -24,10 +25,14 @@ import { createHash } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import {
+  INCOMING_DIR,
   cacheDir,
   bundleOwns,
   installBundle,
   isCurrent,
+  listFiles,
+  mapIncoming,
+  placeIncoming,
   readManifest,
   readState,
   readUnpacked,
@@ -78,6 +83,29 @@ state.bundles ??= {};
 let stale = 0;
 let keptTotal = 0;
 
+// incoming/ (scripts/assets-incoming.mjs): a pull request's new media, laid over the bundles at the end. A file laid
+// there by an earlier fetch whose incoming copy is gone now (another branch checked out, or packed and merged) is
+// taken away again, if untouched since, and its bundle is installed again so the bundle's own file comes back.
+const incoming = mapIncoming(manifest, await listFiles(path.join(root, INCOMING_DIR)));
+const overlay = incoming.files.filter(({ bundle }) => bundles.includes(bundle));
+const overlaid = new Set(overlay.map((f) => f.rel));
+state.incoming ??= {};
+if (!check) {
+  for (const [rel, placed] of Object.entries(state.incoming)) {
+    if (overlaid.has(rel)) continue;
+    try {
+      const current = await fs.stat(path.join(root, ...rel.split("/")));
+      if (current.size === placed.size && current.mtimeMs === placed.mtimeMs)
+        await fs.rm(path.join(root, ...rel.split("/")));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    delete state.incoming[rel];
+    for (const b of manifest.bundles)
+      if (rel.startsWith(`${b.dir}/`) && state.bundles[b.name]) state.bundles[b.name].complete = false;
+  }
+}
+
 for (const bundle of bundles) {
   if (await isCurrent(root, bundle, state)) {
     console.log(`[assets] ${bundle.name}: up to date`);
@@ -92,7 +120,8 @@ for (const bundle of bundles) {
   const previous = state.bundles[bundle.name];
   const { record, counts } = await installBundle({
     sourceDir: dir,
-    files,
+    // A path incoming/ overrides is left to the overlay below, not reported as a local edit.
+    files: files.filter((rel) => !overlaid.has(`${bundle.dir}/${rel}`)),
     targetDir: path.join(root, bundle.dir),
     // What any bundle in this folder installed: a file whose pack prefix moved here was recorded by its old bundle.
     previousFiles: Object.assign(
@@ -130,6 +159,17 @@ if (check && stale > 0) {
   process.exit(1);
 }
 if (keptTotal > 0) console.warn(`[assets] done, keeping ${keptTotal} locally changed file(s)`);
+// The overlay: the game, its tests and the preview build show a pull request's media before it is packed.
+if (!check && overlay.length > 0) {
+  await placeIncoming(root, overlay);
+  for (const { rel } of overlay) {
+    const { size, mtimeMs } = await fs.stat(path.join(root, ...rel.split("/")));
+    state.incoming[rel] = { size, mtimeMs };
+  }
+  console.log(`[assets] placed ${overlay.length} file(s) from incoming/ over the bundles`);
+}
+if (!check) await writeState(root, state);
+if (incoming.errors.length > 0) console.warn(incoming.errors.map((e) => `[assets] ${e}`).join("\n"));
 if (prune) await pruneCache();
 
 /** The bundle's files in the shared cache, downloading and unpacking it first if it isn't there yet. */

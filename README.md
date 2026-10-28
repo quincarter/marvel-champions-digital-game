@@ -124,6 +124,12 @@ How the packages fit together, and how to run the game locally, is in [Architect
 - **Discord:** [join the community Discord](https://discord.gg/tCy5tqu46j) to chat about the game, ask questions and share decks. Bugs and
   feature ideas still go to GitHub issues, so they are tracked and credited.
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, conventions and the release flow.
+- **Contributing images and music:** card scans, music and art aren't stored in git; they are zip bundles on
+  [marvel-champions-content's releases](https://github.com/quincarter/marvel-champions-content/releases), fetched with
+  `pnpm assets:fetch`. To add or replace one, put the file in [`incoming/`](incoming/) at the path it belongs at (for
+  example `incoming/music/scenarios/rhino/battle.mp3`) and open a pull request; it is packed into the bundles after the
+  merge. Step by step:
+  [CONTRIBUTING.md, Contributing images and music](CONTRIBUTING.md#contributing-images-and-music).
 
 ## Roadmap
 

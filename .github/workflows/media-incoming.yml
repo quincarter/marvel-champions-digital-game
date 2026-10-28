@@ -1,0 +1,66 @@
+# The incoming/ folder (issue #495, scripts/assets-incoming.mjs): media a pull request adds under incoming/ at the
+# path it belongs at. Pull requests are checked by CI's lint job (netlify-deploy.yml), which runs
+# `node scripts/assets-incoming.mjs --check` under the required "All checks". After the merge, `pack` uploads the bundles those files join to quincarter/marvel-champions-content and opens a
+# pull request that points assets/manifest.json at them and empties incoming/ (its .gitkeep stays).
+#
+# The upload needs the CONTENT_REPO_TOKEN secret: a fine-grained token with access to marvel-champions-content only,
+# Contents read and write. The pull request is opened with MEDIA_PR_TOKEN if that secret exists (a token that can
+# open pull requests here, so CI runs on it), else with the workflow's own token, whose pull requests don't start
+# workflows: close and reopen that one to run CI. Either way the repository needs "Allow GitHub Actions to create
+# and approve pull requests" (Settings, Actions, General).
+name: Incoming media
+
+on:
+  push:
+    branches: [main]
+    paths: ["incoming/**"]
+  workflow_dispatch:
+
+jobs:
+  pack:
+    name: Pack incoming media
+    runs-on: ubuntu-latest
+    # One at a time: two runs packing the same bundle would race on the manifest.
+    concurrency:
+      group: media-incoming
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Pack and upload
+        env:
+          GH_TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+          MC_ASSETS_CACHE: ${{ runner.temp }}/mc-assets
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set the CONTENT_REPO_TOKEN secret (a fine-grained token for marvel-champions-content, Contents read and write)."
+            exit 1
+          fi
+          node scripts/assets-incoming.mjs --pack
+      - name: Open the manifest pull request
+        env:
+          GH_TOKEN: ${{ secrets.MEDIA_PR_TOKEN || github.token }}
+          BRANCH: media/incoming-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          if git diff --quiet && [ -z "$(git status --porcelain -- incoming)" ]; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add assets/manifest.json incoming
+          git commit -m "Pack the incoming media into the release bundles"
+          git push origin "$BRANCH"
+          bundles=$(git diff HEAD~1 -- assets/manifest.json | grep -oE '^\+ +"tag": "[^"]+"' | sed -E 's/.*"tag": "([^"]+)"/- \1/')
+          gh pr create --base main --head "$BRANCH" \
+            --title "Pack the incoming media into the release bundles" \
+            --body "$(printf 'Uploaded from incoming/ at %s by the Incoming media workflow, which empties incoming/ (its .gitkeep stays) and points assets/manifest.json at the new releases:\n\n%s\n\nIf CI has not started on this pull request, close and reopen it.\n\n- [ ] Merge once CI passes.' "${GITHUB_SHA:0:7}" "$bundles")"

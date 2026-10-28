@@ -54,6 +54,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm fmt:check
+      # Media a pull request adds under incoming/ must join a bundle, or it would block every later pack (#495).
+      - run: node scripts/assets-incoming.mjs --check
 
   # Every YAML file (workflows, issue templates, changie config and fragments) through yamllint (.yamllint.yaml).
   yaml:

@@ -222,8 +222,37 @@ without reading it. A file you changed locally is kept, with a warning, until yo
 `pnpm assets:fetch --force`.
 
 Each bundle is one folder, or for card scans one cycle's packs: a scan's name is its card code, and the code's first
-two digits are its pack, so `card-art-aoa` holds the scans whose names start `45` to `49`. To add or change media,
-put the files in place, then pack and upload the bundles they belong to:
+two digits are its pack, so `card-art-aoa` holds the scans whose names start `45` to `49`.
+
+### Contributing images and music
+
+Anyone can add or replace media through a normal pull request, from a fork too, without access to the content repo:
+
+1. Run `pnpm assets:fetch` so you have the current media.
+2. Put each new or changed file under [`incoming/`](incoming/) at the path it belongs at in the repo, keeping its file
+   name. A Spanish scan of card 45001a goes to `incoming/assets/card-art-locales/es/bundles/cards/45001a.png`, a battle
+   track for Rhino to `incoming/music/scenarios/rhino/battle.mp3`, a hero portrait to
+   `incoming/art/heroes/<folder>/<file>.png`. Replacing a file is the same: use the path of the one you are replacing.
+   Leave `incoming/.gitkeep` where it is.
+3. Run `pnpm assets:fetch` again: it lays the files in `incoming/` over the fetched media, so `pnpm dev` shows them.
+   `node scripts/assets-incoming.mjs` lists the bundle each file joins and names any file that has nowhere to go.
+4. Commit the files in `incoming/` and open a pull request. Reviewers see them in its diff (and in its preview build,
+   for a branch of this repository; fork pull requests get no preview), and CI's "Lint and format" job fails if one
+   has nowhere to go (not a media file, or a card scan of a pack
+   no bundle lists yet: add its two-digit prefix to a bundle's `prefixes` in `assets/manifest.json` in the same pull
+   request).
+5. Once it merges, the "Incoming media" workflow uploads the bundles those files joined and opens a pull request
+   that points `assets/manifest.json` at the new releases and empties `incoming/` (its `.gitkeep` stays). The owner
+   merges that one.
+
+Only media goes through `incoming/`: PNG, JPEG, WebP, AVIF, GIF, MP3, OGG, WAV, M4A, FLAC and Opus. Text next to the
+media (a `SOURCE.md`, `focus.json`, a README) is committed at its own path as before. Removing a file from a bundle is
+done by the owner with `assets:pack`.
+
+### Packing bundles yourself (the owner)
+
+With `gh` signed in with write access to the content repo, you can skip `incoming/`: put the files in place, then pack
+and upload the bundles they belong to.
 
 ```bash
 # Zip and hash without uploading; shows which bundles changed
@@ -233,11 +262,10 @@ pnpm assets:pack --all --dry-run
 pnpm assets:pack card-art-aoa
 ```
 
-`assets:pack` needs `gh` signed in with write access to the content repo, so a contributor from a fork leaves the
-files in their pull request's description or a linked issue and the owner packs them. A new release is tagged with
-the bundle's name and the start of its checksum; old releases are never deleted, so an old commit still fetches the
-media it was built with. A scan whose pack prefix no bundle lists is reported by `assets:pack`; add the prefix to its
-cycle's bundle (or a new bundle) in the manifest. Each bundle must stay under GitHub's 2 GiB limit per asset.
+A new release is tagged with the bundle's name and the start of its checksum; old releases are never deleted, so an
+old commit still fetches the media it was built with. A scan whose pack prefix no bundle lists is reported by
+`assets:pack`; add the prefix to its cycle's bundle (or a new bundle) in the manifest. Each bundle must stay under
+GitHub's 2 GiB limit per asset.
 
 The QA and design screenshots in `artifacts/` never ship. They are the `artifacts` archive bundle, fetched only by
 name: `pnpm assets:fetch artifacts`.

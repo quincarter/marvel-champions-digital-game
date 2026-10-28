@@ -546,3 +546,40 @@ export async function isCurrent(root, bundle, state) {
   }
   return true;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// incoming/: media a contributor adds in a pull request
+
+export const INCOMING_DIR = "incoming";
+/** Files in incoming/ that belong to the folder itself, not to a bundle. */
+const INCOMING_OWN = new Set([".gitkeep", "README.md"]);
+
+/**
+ * Maps the files under incoming/ (paths relative to it, mirroring the repo: incoming/music/title/x.mp3 is
+ * music/title/x.mp3) to the bundle each one joins. A file no media bundle would own is an error: not a media file,
+ * outside every bundle's folder, or a card scan whose pack prefix no bundle lists yet.
+ */
+export function mapIncoming(manifest, rels) {
+  const files = [];
+  const errors = [];
+  for (const rel of rels) {
+    if (INCOMING_OWN.has(rel)) continue;
+    const bundle = manifest.bundles.find(
+      (b) => b.kind === "media" && rel.startsWith(`${b.dir}/`) && bundleOwns(b, rel.slice(b.dir.length + 1)),
+    );
+    if (bundle) files.push({ rel, bundle });
+    else if (!MEDIA_FILE.test(rel)) errors.push(`${INCOMING_DIR}/${rel}: not a media file (${MEDIA_FILE.source})`);
+    else errors.push(`${INCOMING_DIR}/${rel}: no bundle in ${MANIFEST_PATH} takes this path (a new pack prefix?)`);
+  }
+  return { files, errors };
+}
+
+/** Copies incoming files into place as new files (never through a hard link into the cache). */
+export async function placeIncoming(root, files) {
+  for (const { rel } of files) {
+    const target = path.join(root, ...rel.split("/"));
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.rm(target, { force: true });
+    await fs.copyFile(path.join(root, INCOMING_DIR, ...rel.split("/")), target);
+  }
+}

@@ -16,12 +16,14 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  INCOMING_DIR,
   MANIFEST_PATH,
   MAX_BUNDLE_BYTES,
   MEDIA_FILE,
   bundleOwns,
   cacheDir,
   listFiles,
+  mapIncoming,
   readManifest,
   readState,
   tagFor,
@@ -33,6 +35,8 @@ import { pnpm, run } from "./lib/run.mjs";
 const root = path.resolve(import.meta.dirname, "..");
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
+// Set by scripts/assets-incoming.mjs, which has just laid incoming/ over the bundles on purpose.
+const withIncoming = args.includes("--with-incoming");
 const all = args.includes("--all");
 const names = args.filter((a) => !a.startsWith("--"));
 
@@ -54,6 +58,7 @@ const chosen = all
   : manifest.bundles.filter((b) => names.includes(b.name));
 
 await warnAboutOrphans();
+if (!withIncoming) await refuseIncoming();
 
 const work = await fs.mkdtemp(path.join(os.tmpdir(), "mc-assets-pack-"));
 const state = await readState(root);
@@ -153,4 +158,25 @@ async function warnAboutOrphans() {
       );
     }
   }
+}
+
+/**
+ * A bundle folder holding media laid over it from incoming/ (scripts/assets-incoming.mjs) isn't the bundle: packing
+ * it would publish a pull request's files, merged or not. Media still in incoming/ is packed by
+ * `node scripts/assets-incoming.mjs --pack`; files an earlier fetch laid over from a branch since left go away with
+ * the next `pnpm assets:fetch`.
+ */
+async function refuseIncoming() {
+  const state = await readState(root);
+  const waiting = mapIncoming(manifest, await listFiles(path.join(root, INCOMING_DIR))).files.map((f) => f.rel);
+  const overlaid = [...new Set([...waiting, ...Object.keys(state.incoming ?? {})])];
+  const hit = overlaid.filter((rel) => chosen.some((b) => rel.startsWith(`${b.dir}/`)));
+  if (hit.length === 0) return;
+  console.error(
+    `[assets] ${hit.length} file(s) in these bundles came from incoming/, not the bundles: ${hit.slice(0, 5).join(", ")}` +
+      `${hit.length > 5 ? ", …" : ""}
+[assets] pack them with node scripts/assets-incoming.mjs --pack, or run ` +
+      "pnpm assets:fetch first if their pull request isn't checked out any more",
+  );
+  process.exit(1);
 }
