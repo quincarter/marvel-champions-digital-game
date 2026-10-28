@@ -28,8 +28,3 @@ export function floatingThemeSlot(screen: { readonly width: number }): Rect {
 export function themeIconOf(scheme: ColorScheme): "moon" | "sun" {
   return scheme === "light" ? "moon" : "sun";
 }
-
-/** What a screen reader or the focus ring's tooltip would say for it. */
-export function themeButtonLabel(scheme: ColorScheme): string {
-  return scheme === "light" ? "Dark mode: off" : "Dark mode: on";
-}

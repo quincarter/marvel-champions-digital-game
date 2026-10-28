@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { languageSlotBeside } from "./language-button.js";
-import { floatingThemeSlot, themeButtonLabel, themeIconOf, themeSlotBeside } from "./theme-button.js";
+import { floatingThemeSlot, themeIconOf, themeSlotBeside } from "./theme-button.js";
 
 describe("the dark mode toggle", () => {
   it("joins the chrome cluster just left of the language button, square at its height", () => {
@@ -22,6 +22,5 @@ describe("the dark mode toggle", () => {
   it("shows where a tap takes you", () => {
     expect(themeIconOf("light")).toBe("moon");
     expect(themeIconOf("dark")).toBe("sun");
-    expect(themeButtonLabel("dark")).toContain("on");
   });
 });

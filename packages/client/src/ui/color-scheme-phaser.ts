@@ -17,16 +17,23 @@
 import Phaser from "phaser";
 import {
   colorScheme,
-  isSchemeColor,
   onColorSchemeChange,
   schemeColor,
   schemeCss,
   type ColorChannel,
   type ColorScheme,
 } from "../view/color-scheme.js";
+import {
+  FILL_STYLE_COLOR_AT,
+  GRADIENT_FILL_COLORS_AT,
+  LINE_STYLE_COLOR_AT,
+  recolorBuffer,
+  slotOf,
+  type ColorSlot,
+} from "../view/color-slots.js";
 
 /** Command-buffer indexes holding a scheme color, with their channel, per graphics object. */
-const slots = new WeakMap<Phaser.GameObjects.Graphics, Array<[number, ColorChannel]>>();
+const slots = new WeakMap<Phaser.GameObjects.Graphics, ColorSlot[]>();
 
 let installed = false;
 
@@ -44,30 +51,28 @@ export function installColorScheme(game: Phaser.Game): void {
 
 const now = (color: number, channel: ColorChannel): number => schemeColor(color, channel, colorScheme());
 
-function track(graphics: Phaser.GameObjects.Graphics, index: number, color: number, channel: ColorChannel): void {
-  if (!isSchemeColor(color, channel)) return;
+function track(graphics: Phaser.GameObjects.Graphics, slot: ColorSlot | null): void {
+  if (!slot) return;
   let list = slots.get(graphics);
   if (!list) slots.set(graphics, (list = []));
-  list.push([index, channel]);
+  list.push(slot);
 }
 
 function patchGraphics(): void {
   const proto = Phaser.GameObjects.Graphics.prototype;
   const { fillStyle, lineStyle, clear } = proto;
   proto.fillStyle = function (this: Phaser.GameObjects.Graphics, color: number, alpha?: number) {
-    // The color lands one after the command code (`Commands.FILL_STYLE, color, alpha`).
-    const at = this.commandBuffer.length + 1;
+    const start = this.commandBuffer.length;
     const drawn = now(color, "fill");
     fillStyle.call(this, drawn, alpha);
-    track(this, at, drawn, "fill");
+    track(this, slotOf(start, FILL_STYLE_COLOR_AT, drawn, "fill"));
     return this;
   };
   proto.lineStyle = function (this: Phaser.GameObjects.Graphics, width: number, color: number, alpha?: number) {
-    // `Commands.LINE_STYLE, width, color, alpha`.
-    const at = this.commandBuffer.length + 2;
+    const start = this.commandBuffer.length;
     const drawn = now(color, "line");
     lineStyle.call(this, width, drawn, alpha);
-    track(this, at, drawn, "line");
+    track(this, slotOf(start, LINE_STYLE_COLOR_AT, drawn, "line"));
     return this;
   };
   // A scroll list's fade (`ui/virtual-list.ts`): drawn to its own ground's color, so it takes that ground's scheme.
@@ -84,17 +89,21 @@ function patchGraphics(): void {
     alphaBottomLeft?: number,
     alphaBottomRight?: number,
   ) {
-    return fillGradientStyle.call(
+    const start = this.commandBuffer.length;
+    const corners = [topLeft, topRight, bottomLeft, bottomRight].map((color) => now(color, "fill"));
+    fillGradientStyle.call(
       this,
-      now(topLeft, "fill"),
-      now(topRight, "fill"),
-      now(bottomLeft, "fill"),
-      now(bottomRight, "fill"),
+      corners[0]!,
+      corners[1]!,
+      corners[2]!,
+      corners[3]!,
       alphaTopLeft,
       alphaTopRight,
       alphaBottomLeft,
       alphaBottomRight,
     );
+    corners.forEach((color, i) => track(this, slotOf(start, GRADIENT_FILL_COLORS_AT[i]!, color, "fill")));
+    return this;
   };
   proto.clear = function (this: Phaser.GameObjects.Graphics) {
     slots.delete(this);
@@ -169,10 +178,7 @@ function recolorGame(game: Phaser.Game, next: ColorScheme, previous: ColorScheme
 
 function recolorObject(object: Phaser.GameObjects.GameObject, next: ColorScheme, previous: ColorScheme): void {
   if (object instanceof Phaser.GameObjects.Graphics) {
-    const buffer = object.commandBuffer as number[];
-    for (const [index, channel] of slots.get(object) ?? []) {
-      buffer[index] = schemeColor(buffer[index]!, channel, next, previous);
-    }
+    recolorBuffer(object.commandBuffer as number[], slots.get(object) ?? [], next, previous);
   } else if (object instanceof Phaser.GameObjects.Text) {
     const style = object.style;
     if (typeof style.color === "string") {

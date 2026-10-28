@@ -36,6 +36,12 @@ const DARK: Readonly<Record<ColorChannel, ReadonlyMap<number, number>>> = {
     [PAPER, 0x3a342d],
     [PARCHMENT, 0x2e2924],
     [CARD, 0x48413a],
+    // The campaign book's own off-white grounds (Briefing, Dossier, Run, Market), drawn as raw hexes there.
+    [0xfffaf0, 0x443d36],
+    [0xf2ece0, 0x37312b],
+    [0xe4dcc9, 0x2c2722],
+    [0xe4dcc6, 0x2b2621],
+    [0xd9d2bd, 0x26221d],
   ]),
   line: new Map([[INK, 0xd8cfbd]]),
   text: new Map([[INK, 0xf0e9db]]),

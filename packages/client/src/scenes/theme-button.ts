@@ -8,7 +8,7 @@
  */
 import Phaser from "phaser";
 import { appSession } from "../session.js";
-import { surface } from "../tokens.js";
+import { hit, surface } from "../tokens.js";
 import { onTap } from "../ui/tap.js";
 import { musicSlots } from "../ui/music-slot.js";
 import { setShownThemeButton, themeSlots } from "../ui/theme-slot.js";
@@ -51,7 +51,7 @@ export class ThemeButtonScene extends Phaser.Scene {
       setShownThemeButton(null);
     });
     this.#place(null);
-    // Headless click-through hook only: where the button is and which scheme is up, for the e2e specs.
+    // Dev-only hook: where the button is and which scheme is up, for headless screenshots and click-throughs.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcThemeButtonDebug?: unknown }).__mcThemeButtonDebug = {
         rect: () => this.#rect,
@@ -135,9 +135,12 @@ export class ThemeButtonScene extends Phaser.Scene {
     const cy = rect.y + rect.height / 2;
     if (themeIconOf(this.#drawnScheme) === "moon") drawMoonIcon(graphics, cx, cy, size, ink, ground);
     else drawSunIcon(graphics, cx, cy, size, ink);
-    zone.setPosition(rect.x, rect.y).setSize(rect.width, rect.height);
+    // The phone's tab is drawn short to stay above the title line; its press area is a full touch target.
+    const hitWidth = Math.max(rect.width, hit.target);
+    const hitHeight = Math.max(rect.height, 32);
+    zone.setPosition(rect.x - (hitWidth - rect.width) / 2, rect.y).setSize(hitWidth, hitHeight);
     zone.setInteractive({ useHandCursor: true });
-    zone.input?.hitArea.setTo(0, 0, rect.width, rect.height);
+    zone.input?.hitArea.setTo(0, 0, hitWidth, hitHeight);
   }
 }
 

@@ -644,8 +644,11 @@ export function paintDotGrid(
   if (!scene.textures.exists(key)) {
     // `addToScene: false` keeps the stencil out of the display list.
     const stencil = scene.make.graphics(undefined, false);
-    stencil.fillStyle(on === "paper" ? surface.ink.hex : surface.paper.hex, spec.alpha);
-    stencil.fillCircle(spec.spacing / 2, spec.spacing / 2, spec.radius);
+    const c = spec.spacing / 2;
+    if (on === "paper") stencil.fillStyle(surface.ink.hex, spec.alpha).fillCircle(c, c, spec.radius);
+    // Paper dots on the ink felt, drawn as a ring as thick as the dot is wide: a paper *line* is the same in both color
+    // schemes (`view/color-scheme.ts`), where a paper *fill* would bake dark mode's charcoal into the shared texture.
+    else stencil.lineStyle(spec.radius, surface.paper.hex, spec.alpha).strokeCircle(c, c, spec.radius / 2);
     stencil.generateTexture(key, spec.spacing, spec.spacing);
     stencil.destroy();
   }
