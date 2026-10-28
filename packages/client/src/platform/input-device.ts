@@ -14,6 +14,7 @@ import {
 } from "../view/input-mode.js";
 import { PadModeTracker } from "../view/pad-filters.js";
 import type { PadIdentity } from "../view/pad-family.js";
+import { isPlatformBack } from "./back-gesture.js";
 
 type Listener = (state: InputModeState) => void;
 
@@ -73,7 +74,10 @@ export function notePadInput(pad: PadIdentity): void {
 export function installInputDeviceTracking(target: Window = window): void {
   if (installed) return;
   installed = true;
-  target.addEventListener("keydown", () => dispatch({ kind: "key" }), { capture: true });
+  // The Escape a phone's back gesture sends is not the keyboard coming into use: the touch glyphs stay.
+  target.addEventListener("keydown", (event) => !isPlatformBack(event) && dispatch({ kind: "key" }), {
+    capture: true,
+  });
   target.addEventListener(
     "pointermove",
     (event: PointerEvent) => {
