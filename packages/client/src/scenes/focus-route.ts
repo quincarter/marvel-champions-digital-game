@@ -19,7 +19,6 @@ import type Phaser from "phaser";
 import { onInputDeviceChange } from "../platform/input-device.js";
 import { shownReportButton } from "../ui/report-slot.js";
 import { shownMusicButton } from "../ui/music-slot.js";
-import { shownThemeButton } from "../ui/theme-slot.js";
 import { chromeStopsOf } from "../view/chrome-stops.js";
 import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
@@ -32,16 +31,10 @@ import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { bindExtraInput } from "./extra-input.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 import type { MusicButtonScene } from "./music-button.js";
-import type { ThemeButtonScene } from "./theme-button.js";
 
 /** The focus keys of the two top-bar chrome buttons, added to every route while they are on screen. */
 export const CHROME_MUSIC_STOP = "chrome:music";
 export const CHROME_REPORT_STOP = "chrome:report";
-/** The dark mode toggle's (#459), on every screen. */
-export const CHROME_THEME_STOP = "chrome:theme";
-
-const isChromeStop = (key: string | null): boolean =>
-  key === CHROME_MUSIC_STOP || key === CHROME_REPORT_STOP || key === CHROME_THEME_STOP;
 
 export interface FocusStop {
   /**
@@ -203,13 +196,8 @@ export class FocusRoute {
     const follow = (): void => {
       if (!this.#ring || this.#focus === null) return;
       // Chrome rects are static: only a hidden one (the pad toast covers the bar for a moment) needs a look.
-      if (isChromeStop(this.#focus)) {
-        const shown =
-          this.#focus === CHROME_MUSIC_STOP
-            ? shownMusicButton()
-            : this.#focus === CHROME_THEME_STOP
-              ? shownThemeButton()
-              : shownReportButton();
+      if (this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP) {
+        const shown = this.#focus === CHROME_MUSIC_STOP ? shownMusicButton() : shownReportButton();
         if (shown === null) this.#drawRing();
         return;
       }
@@ -361,14 +349,9 @@ export class FocusRoute {
       .at(-1);
     const found = chromeStopsOf({
       isTop: top === this.#scene,
-      excluded:
-        key === SCENES.reportIssue ||
-        key === SCENES.musicButton ||
-        key === SCENES.reportButton ||
-        key === SCENES.themeButton,
+      excluded: key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton,
       music: shownMusicButton(),
       report: shownReportButton(),
-      theme: shownThemeButton(),
       own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
     });
     const out = new Map<string, FocusStop>();
@@ -376,12 +359,6 @@ export class FocusRoute {
       out.set(CHROME_MUSIC_STOP, {
         rect: found.music,
         activate: () => (manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
-      });
-    }
-    if (found.theme) {
-      out.set(CHROME_THEME_STOP, {
-        rect: found.theme,
-        activate: () => (manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle(),
       });
     }
     if (found.report) {
@@ -469,7 +446,7 @@ export class FocusRoute {
         }
         // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow
         // that finds nothing in its cone still reaches the screen below, so focus there is never stranded.
-        const fromChrome = isChromeStop(this.#focus);
+        const fromChrome = this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP;
         this.#moveTo(
           spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross || fromChrome),
         );

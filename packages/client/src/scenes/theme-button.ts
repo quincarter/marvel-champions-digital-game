@@ -3,15 +3,17 @@
  * flips Settings' "Dark mode" and every screen on the table recolors in place (`ui/color-scheme-phaser.ts`).
  *
  * Like the music, language and Report buttons it runs for the whole session from Boot as chrome, above every screen
- * (see `CHROME_SCENES`), and follows its slot every frame. A keyboard or pad reaches it as a focus stop on the screens
- * whose route takes the chrome buttons (`scenes/focus-route.ts`); Settings > Display carries the same switch as a row.
+ * (see `CHROME_SCENES`), and follows its slot every frame. It sits below the notices and popups that drop over the top
+ * bar (an achievement, power saving), so a tap on one of those never lands here. It is deliberately not a focus stop:
+ * a stop at the top centre of every screen pulled the d-pad and Tab off each screen's own controls. A keyboard or pad
+ * flips the same switch from Settings > Display > Dark mode, a row like any other.
  */
 import Phaser from "phaser";
 import { appSession } from "../session.js";
 import { hit, surface } from "../tokens.js";
 import { onTap } from "../ui/tap.js";
 import { musicSlots } from "../ui/music-slot.js";
-import { setShownThemeButton, themeSlots } from "../ui/theme-slot.js";
+import { themeSlots } from "../ui/theme-slot.js";
 import { colorScheme, onColorSchemeChange, type ColorScheme } from "../view/color-scheme.js";
 import { languageSlotBeside } from "../view/language-button.js";
 import type { Rect } from "../view/layout.js";
@@ -46,10 +48,7 @@ export class ThemeButtonScene extends Phaser.Scene {
     this.#zone.on("pointerout", () => this.#setHovered(false));
     onTap(this.#zone, () => this.toggle(), "theme-button");
     const off = onColorSchemeChange(() => this.#draw());
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      off();
-      setShownThemeButton(null);
-    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
     this.#place(null);
     // Dev-only hook: where the button is and which scheme is up, for headless screenshots and click-throughs.
     if (import.meta.env.DEV) {
@@ -87,7 +86,7 @@ export class ThemeButtonScene extends Phaser.Scene {
     return { rect: this.#rect, scheme: colorScheme() };
   }
 
-  /** What a tap does; pad and keyboard focus call it too (`scenes/focus-route.ts`). */
+  /** What a tap does. */
   toggle(): void {
     const session = appSession();
     session.settings = { ...session.settings, darkMode: !session.settings.darkMode };
@@ -104,7 +103,6 @@ export class ThemeButtonScene extends Phaser.Scene {
         rect.height === this.#rect.height);
     if (same) return;
     this.#rect = rect;
-    setShownThemeButton(rect);
     this.#draw();
   }
 

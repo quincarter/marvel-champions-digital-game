@@ -82,6 +82,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.pileView,
   SCENES.extrasViewer,
   SCENES.music,
+  // The dark mode toggle (#459): above every screen, below the notices and popups that drop over the top bar.
+  SCENES.themeButton,
   // Above every screen and overlay, below the chrome that takes input.
   SCENES.powerSavingNotice,
   // Device sync's prompt over everything but the music and report chrome, and the watcher that opens it.
@@ -95,7 +97,6 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.syncSetupNotice,
   // Last, so they draw above every screen and overlay (#176, #191): the music player and its button, then the report
   // panel and the tab that opens it above that.
-  SCENES.themeButton,
   SCENES.languagePopup,
   SCENES.languageButton,
   SCENES.musicPlayer,
@@ -109,9 +110,9 @@ export const EAGER_SCENES: readonly string[] = [
   SCENES.boot,
   SCENES.title,
   SCENES.music,
+  SCENES.themeButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
-  SCENES.themeButton,
   SCENES.languagePopup,
   SCENES.languageButton,
   SCENES.musicPlayer,
