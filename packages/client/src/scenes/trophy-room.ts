@@ -3,20 +3,26 @@
  * a header that shows the player's rank, lifetime points and the way to the next rank. Reached from Title and from
  * Extras; Back returns to Title.
  *
- * Read-only. A pad or keyboard walks the achievement rows (each a focus stop, the list follows the ring); A opens one
- * in a sheet that spells out the whole line, B closes it, then B leaves. LB / RB jump between the families. A tap on a
- * row opens the same sheet through the list's own tap path (a drag or a swipe that lifts over a row opens nothing).
+ * Read-only. Each family is a heading that folds and opens with a tap or A (#479); every one starts folded and the
+ * room remembers which the player opened. A Filters bar under the header folds away too (Y on a pad): it sorts the
+ * families and the achievements in them by category, completion, points or name, either way, and Expand all / Collapse
+ * all (R3) opens or folds every family. A pad or keyboard walks the headings and achievement rows (each a focus stop,
+ * the list follows the ring); A on an achievement opens it in a sheet that spells out the whole line, B closes it,
+ * then B leaves. LB / RB jump between the headings. A tap on a row works through the list's own tap path (a drag or a
+ * swipe that lifts over a row presses nothing).
  * Rows and wording come from `view/trophy-room-model.ts`; this scene draws them. State is a word as well as a look:
  * EARNED, LOCKED or SOON.
  */
 import Phaser from "phaser";
-import { accent, ink, surface, typeRole } from "../tokens.js";
+import { accent, hit, ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { onTap } from "../ui/tap.js";
 import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
+import { rememberTrophyRoomView, trophyRoomView } from "../platform/trophy-room-view.js";
+import { drawChoiceRow } from "./roster-panel.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { clipToView, familyTarget, pageTarget } from "../view/focus-list.js";
@@ -26,16 +32,32 @@ import {
   trophyHeaderOf,
   trophyRowHeightsOf,
   trophyRowsOf,
+  trophySortLabel,
+  TROPHY_SORTS,
   type TrophyHeader,
   type TrophyRow,
+  type TrophySort,
+  type TrophyView,
 } from "../view/trophy-room-model.js";
-import { achievementStatuses } from "../progression/achievements.js";
+import {
+  ACHIEVEMENTS,
+  ACHIEVEMENT_FAMILIES,
+  achievementStatuses,
+  type AchievementFamily,
+} from "../progression/achievements.js";
 import { achievementHistory, lifetimeChampionPoints, refreshUnlocks } from "../progression/progression.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
+/** Between the filter bar's rows. */
+const BAR_GAP = 6;
+
+/** An achievement's stop, by its id: the same achievement keeps it however the list folds or sorts. */
+const keyOfAchievement = (id: string): string => `row:${id}`;
+
+const keyOfRow = (row: TrophyRow): string => (row.kind === "section" ? `sec:${row.id}` : keyOfAchievement(row.id));
 
 export class TrophyRoomScene extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -44,8 +66,8 @@ export class TrophyRoomScene extends Phaser.Scene {
   #alive = false;
   #hints!: GlyphHints;
   #rows: readonly TrophyRow[] = [];
-  /** The achievement row whose sheet is open, or null. */
-  #open: number | null = null;
+  /** The achievement whose sheet is open (its id, so a redraw that re-sorts the list keeps it), or null. */
+  #open: string | null = null;
   /** The row that had focus, to give it back when the sheet closes. */
   #lastRow: string | null = null;
   #listHeight = 0;
@@ -53,6 +75,10 @@ export class TrophyRoomScene extends Phaser.Scene {
   #focusOnClose = false;
   /** Kept across redraws and visits (Phaser reuses this scene instance). */
   readonly #scroll = new ListScroll();
+  /** The sort and the open families, read at each visit and saved on each change. */
+  #view: TrophyView = trophyRoomView();
+  /** The sort chips are showing; folded at each visit. */
+  #filtersOpen = false;
 
   constructor() {
     super(SCENES.trophyRoom);
@@ -64,18 +90,29 @@ export class TrophyRoomScene extends Phaser.Scene {
     this.scale.on("resize", this.#draw, this);
     this.#open = null;
     this.#lastRow = null;
+    this.#view = trophyRoomView();
+    this.#filtersOpen = false;
     this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       onCancel: () => (this.#open !== null ? this.#closeSheet() : this.#back()),
       onPage: (direction) => this.#pageFocus(direction),
       onTab: (direction) => this.#jumpFamily(direction),
       onHomeEnd: (edge) => {
-        const all = this.#achievementIndexes();
+        const all = this.#rowIndexes();
         this.#focusRow(edge === "home" ? all[0] : all.at(-1));
       },
       onScroll: (_dx, dy) => (this.#open === null ? this.#list?.scrollByPx(dy) : undefined),
       onFocusChange: (key) => {
         if (key?.startsWith("row:")) this.#lastRow = key;
+      },
+      // Y (and the Inspect key) shows or folds the filters: no row here has anything else to inspect.
+      onInspect: () => {
+        if (this.#open === null) this.#toggleFilters();
+        return true;
+      },
+      // R3 (and the Expand key) opens every family, or folds them all once every one is open.
+      onExpand: () => {
+        if (this.#open === null) this.#expandAll();
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -97,36 +134,83 @@ export class TrophyRoomScene extends Phaser.Scene {
     goToScreen(this, SCENES.title);
   }
 
-  #achievementIndexes(): number[] {
-    const out: number[] = [];
-    this.#rows.forEach((row, index) => {
-      if (row.kind === "achievement") out.push(index);
-    });
-    return out;
+  #setView(view: TrophyView): void {
+    this.#view = view;
+    rememberTrophyRoomView(view);
+    this.#draw();
+  }
+
+  /**
+   * Opens or folds families. Stops are keyed by what they show, so focus stays on its row while others come and go;
+   * a focused achievement folded away hands focus to its family's heading.
+   */
+  #setExpanded(expanded: ReadonlySet<AchievementFamily>): void {
+    const focused = this.#route?.focused ?? null;
+    const family = focused === null ? undefined : ACHIEVEMENTS.find((a) => keyOfAchievement(a.id) === focused)?.family;
+    this.#setView({ ...this.#view, expanded });
+    if (family !== undefined && !expanded.has(family)) this.#route?.focusKey(`sec:${family}`);
+  }
+
+  #toggleFamily(id: AchievementFamily): void {
+    const expanded = new Set(this.#view.expanded);
+    if (!expanded.delete(id)) expanded.add(id);
+    this.#setExpanded(expanded);
+  }
+
+  /** Whether every family is open, so the button folds them all instead. */
+  #allExpanded(): boolean {
+    return ACHIEVEMENT_FAMILIES.every((f) => this.#view.expanded.has(f.id));
+  }
+
+  #expandAll(): void {
+    this.#setExpanded(this.#allExpanded() ? new Set() : new Set(ACHIEVEMENT_FAMILIES.map((f) => f.id)));
+  }
+
+  #setSort(sort: TrophySort): void {
+    this.#setView({ ...this.#view, sort });
+  }
+
+  #setDescending(descending: boolean): void {
+    this.#setView({ ...this.#view, descending });
+  }
+
+  #toggleFilters(): void {
+    this.#filtersOpen = !this.#filtersOpen;
+    this.#draw();
+  }
+
+  /** Every list row's index: headings and achievements, all of them stops. */
+  #rowIndexes(): number[] {
+    return this.#rows.map((_, index) => index);
   }
 
   #focusRow(index: number | undefined): void {
-    if (index !== undefined && this.#open === null) this.#route?.focusKey(`row:${index}`);
+    const row = index === undefined ? undefined : this.#rows[index];
+    if (row && this.#open === null) this.#route?.focusKey(keyOfRow(row));
   }
 
-  /** The row index of the focused stop, or null when focus is on Back or nowhere. */
+  /** The list index of the focused stop, or null when focus is on the bar, Back or nowhere. */
   #focusedIndex(): number | null {
-    const key = this.#route?.focused;
-    return key?.startsWith("row:") ? Number(key.slice(4)) : null;
+    const key = this.#route?.focused ?? null;
+    const index = this.#rows.findIndex((row) => keyOfRow(row) === key);
+    return index === -1 ? null : index;
   }
 
   /** PageUp / PageDown: focus moves a screenful of rows. */
   #pageFocus(direction: 1 | -1): void {
     if (this.#open !== null) return;
     const step = Math.max(1, Math.floor((this.#listHeight || 300) / 70) - 1);
-    this.#focusRow(pageTarget(this.#achievementIndexes(), this.#focusedIndex(), direction, step));
+    this.#focusRow(pageTarget(this.#rowIndexes(), this.#focusedIndex(), direction, step));
   }
 
-  /** LB / RB: the first row of the next family; back, the start of this one, then the previous. */
+  /** LB / RB: the next family's heading; back, this family's heading, then the previous. */
   #jumpFamily(direction: 1 | -1): void {
     if (this.#open !== null) return;
-    const starts = this.#achievementIndexes().filter((i) => this.#rows[i - 1]?.kind === "section");
-    this.#focusRow(familyTarget(starts, this.#focusedIndex(), direction));
+    const headings: number[] = [];
+    this.#rows.forEach((row, index) => {
+      if (row.kind === "section") headings.push(index);
+    });
+    this.#focusRow(familyTarget(headings, this.#focusedIndex(), direction));
   }
 
   #closeSheet(): void {
@@ -135,11 +219,11 @@ export class TrophyRoomScene extends Phaser.Scene {
     if (this.#focusOnClose && this.#lastRow) this.#route?.focusKey(this.#lastRow);
   }
 
-  #openSheet(index: number): void {
-    if (this.#rows[index]?.kind !== "achievement") return;
-    this.#focusOnClose = this.#route?.focused === `row:${index}`;
-    this.#lastRow = `row:${index}`;
-    this.#open = index;
+  #openSheet(id: string): void {
+    const key = keyOfAchievement(id);
+    this.#focusOnClose = this.#route?.focused === key;
+    this.#lastRow = key;
+    this.#open = id;
     this.#draw();
   }
 
@@ -159,7 +243,7 @@ export class TrophyRoomScene extends Phaser.Scene {
     const { width, height, phone, gutter } = frame;
     const statuses = achievementStatuses(achievementHistory());
     const header = trophyHeaderOf(lifetimeChampionPoints(), statuses);
-    const rows = trophyRowsOf(statuses);
+    const rows = trophyRowsOf(statuses, this.#view);
     this.#rows = rows;
     this.#hints.reset();
     const heights = trophyRowHeightsOf(phone);
@@ -183,8 +267,10 @@ export class TrophyRoomScene extends Phaser.Scene {
       height: phone ? 120 : 118,
     };
     this.#drawHeader(headerRect, header, phone);
+    const filterOrder: string[] = [];
+    const barBottom = this.#drawFilterBar(headerRect.y + headerRect.height + 10, gutter, width, stops, filterOrder);
 
-    const listTop = headerRect.y + headerRect.height + 12;
+    const listTop = barBottom + 10;
     const listRect: Rect = {
       x: gutter,
       y: listTop,
@@ -199,15 +285,19 @@ export class TrophyRoomScene extends Phaser.Scene {
       scroll: this.#scroll,
       background: false,
       renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, phone),
-      onRowActivate: (index) => (this.#open === null ? this.#openSheet(index) : undefined),
+      onRowActivate: (index) => {
+        if (this.#open !== null) return;
+        const row = rows[index];
+        if (row?.kind === "section") this.#toggleFamily(row.id);
+        else if (row) this.#openSheet(row.id);
+      },
     });
     this.#list = list;
     this.#listHeight = listRect.height;
 
-    const order: string[] = bar.backRect ? ["back"] : [];
+    const order: string[] = [...(bar.backRect ? ["back"] : []), ...filterOrder];
     rows.forEach((row, index) => {
-      if (row.kind !== "achievement") return;
-      const key = `row:${index}`;
+      const key = keyOfRow(row);
       order.push(key);
       stops.set(key, {
         rect: () => {
@@ -215,17 +305,85 @@ export class TrophyRoomScene extends Phaser.Scene {
           const r = list.rectFor(index);
           return clipToView({ ...r, width: r.width - GUTTER }, listRect);
         },
-        activate: () => this.#openSheet(index),
+        activate: () => (row.kind === "section" ? this.#toggleFamily(row.id) : this.#openSheet(row.id)),
         ensureVisible: () => list.scrollIntoView(index),
       });
     });
 
-    if (this.#open !== null) {
-      const row = rows[this.#open] as Extract<TrophyRow, { kind: "achievement" }>;
-      const closeStop = this.#drawSheet(row, width, height, phone);
+    const sheetRow = rows.find((row) => row.kind === "achievement" && row.id === this.#open);
+    if (!sheetRow) this.#open = null;
+    if (sheetRow?.kind === "achievement") {
+      const closeStop = this.#drawSheet(sheetRow, width, height, phone);
       this.#route?.set(["close"], new Map([["close", closeStop]]));
       this.#route?.focusKey("close");
     } else this.#route?.set(order, stops);
+  }
+
+  /**
+   * The filter bar, from `top`: the Filters button (the sort in force on it, Y on a pad) and Expand all / Collapse all
+   * (R3) side by side, then, while the filters are open, the four sorts and the two directions as chips. Adds its
+   * stops in reading order and returns where it ends.
+   */
+  #drawFilterBar(top: number, gutter: number, width: number, stops: Map<string, FocusStop>, order: string[]): number {
+    const inner = width - gutter * 2;
+    const h = hit.target;
+    const expandWidth = Math.min(160, Math.floor(inner * 0.4));
+    const filtersRect: Rect = { x: gutter, y: top, width: inner - expandWidth - BAR_GAP, height: h };
+    // Not `drawFiltersControl`: its Y glyph is the pad's alone, and here the keyboard's Inspect key opens it too.
+    const filters = new McButton(this, {
+      kind: "secondary",
+      label: `${this.#filtersOpen ? "▾" : "▸"} Sort: ${trophySortLabel(this.#view)}`,
+      type: typeRole.rowTitle,
+      rect: filtersRect,
+      onClick: () => this.#toggleFilters(),
+    });
+    this.#buttons.push(filters);
+    if (this.#open === null) this.#hints.button(filters, ["inspect"], "paper");
+    stops.set("filters-toggle", { rect: filtersRect, activate: () => this.#toggleFilters() });
+    order.push("filters-toggle");
+    const expandRect: Rect = { x: filtersRect.x + filtersRect.width + BAR_GAP, y: top, width: expandWidth, height: h };
+    const expand = new McButton(this, {
+      kind: "secondary",
+      label: this.#allExpanded() ? "Collapse all" : "Expand all",
+      type: typeRole.rowTitle,
+      rect: expandRect,
+      onClick: () => this.#expandAll(),
+    });
+    this.#buttons.push(expand);
+    if (this.#open === null) this.#hints.button(expand, ["expand"], "paper");
+    stops.set("expand-all", { rect: expandRect, activate: () => this.#expandAll() });
+    order.push("expand-all");
+    if (!this.#filtersOpen) return top + h;
+
+    const sortRect: Rect = { x: gutter, y: top + h + BAR_GAP, width: inner, height: h };
+    drawChoiceRow(
+      this,
+      sortRect,
+      TROPHY_SORTS.map((sort) => ({
+        id: sort.id,
+        text: sort.label,
+        selected: this.#view.sort === sort.id,
+        onClick: () => this.#setSort(sort.id),
+      })),
+      "sort",
+      this.#buttons,
+      stops,
+    );
+    order.push(...TROPHY_SORTS.map((sort) => `sort:${sort.id}`));
+    const dirRect: Rect = { x: gutter, y: sortRect.y + h + BAR_GAP, width: inner, height: h };
+    drawChoiceRow(
+      this,
+      dirRect,
+      [
+        { id: "asc", text: "Ascending ▲", selected: !this.#view.descending, onClick: () => this.#setDescending(false) },
+        { id: "desc", text: "Descending ▼", selected: this.#view.descending, onClick: () => this.#setDescending(true) },
+      ],
+      "dir",
+      this.#buttons,
+      stops,
+    );
+    order.push("dir:asc", "dir:desc");
+    return dirRect.y + h;
   }
 
   /** The sheet for one achievement: the whole line, unclipped. Returns its Close stop. */
@@ -370,12 +528,13 @@ export class TrophyRoomScene extends Phaser.Scene {
         .text(
           rect.x,
           rect.y + rect.height - 12,
-          row.title.toUpperCase(),
+          // The chevron says whether the family is open; the count says what is under it.
+          `${row.expanded ? "▾" : "▸"} ${row.title.toUpperCase()}`,
           textStyle(bangers(phone ? 20 : 24), surface.ink.hex),
         )
         .setOrigin(0, 1)
         .setLetterSpacing(1);
-      fitText(title, innerWidth - 70, phone ? 20 : 24);
+      fitText(title, innerWidth - 120, phone ? 20 : 24);
       const count = this.add
         .text(
           rect.x + innerWidth,
