@@ -132,6 +132,7 @@ export default defineConfig({
         "discard-stale-pick.spec.ts",
         "villain-review-handle.spec.ts",
         "roster-picker-drag.spec.ts",
+        "shelf-flick-momentum.spec.ts",
         "roster-picker-row-text.spec.ts",
         "villain-decision-dock.spec.ts",
         "villain-threat-interrupt.spec.ts",

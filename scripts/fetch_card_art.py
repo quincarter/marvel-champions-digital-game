@@ -13,7 +13,7 @@
 Card art upgrader: replaces scans in assets/card-art/bundles/cards/ with better
 copies from Hall of Heroes (hallofheroeslcg.com).
 
-Six commands:
+Seven commands:
 
   audit   Score every local scan for the Fantasy Flight Games diamond watermark
           (the "FF stamp" on the preview images some sets were first scanned
@@ -109,6 +109,22 @@ Six commands:
           no padding to remove. A second run downloads only what is new;
           `--refresh` downloads everything again.
 
+  scans   (`uv run scripts/fetch_card_art.py scans <folder>... --packs core`)
+          Replaces local scans with the owner's own scans (TIFF from the
+          scanner, or any image). Each scan is matched to a card by its art
+          against the existing local scans of `--packs`, not by its file name,
+          which can be wrong; a name that disagrees is reported. A sideways
+          card scanned upright is turned to its local scan's orientation, white
+          scanner bed at a corner is made transparent (nothing else is cropped:
+          the scans are cut to the card edge already), and the result is scaled
+          and encoded as `compress` does. Copies of one card save the closest
+          match. Copies printed with different resources but the same art
+          (Wakanda Forever! a-d) are left for `--assign FILE=CODE`.
+          `--sheet` writes a before/after contact sheet for the PR.
+          Each saved card is listed in assets/card-art/owner-scans.tsv, which
+          `fetch` and `trim` then leave alone, and loses its Hall of Heroes
+          manifest row. Offline.
+
 A replacement or an addition keeps the exact local path a card record names
 (`/bundles/cards/<code>.png` or `.jpg`), since that is what `imageRef()` points
 at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
@@ -125,6 +141,7 @@ at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
   uv run scripts/fetch_card_art.py missing --dry-run -v
   uv run scripts/fetch_card_art.py compress --dry-run
   uv run scripts/fetch_card_art.py localize --lang es --dry-run
+  uv run scripts/fetch_card_art.py scans "~/Scans/3. Spider Man" --packs core --recursive --dry-run
 """
 
 from __future__ import annotations
@@ -152,6 +169,7 @@ from scipy.optimize import linear_sum_assignment
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CARDS_DIR = REPO_ROOT / "assets" / "card-art" / "bundles" / "cards"
 MANIFEST = REPO_ROOT / "assets" / "card-art" / "hall-of-heroes-manifest.tsv"
+OWNER_SCANS = REPO_ROOT / "assets" / "card-art" / "owner-scans.tsv"
 RAW_DIR = REPO_ROOT / "packages" / "content" / "raw" / "marvelcdb"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "card-art"
 
@@ -480,6 +498,18 @@ def self_test() -> None:
     holed = np.array(trim(card(False))[0])
     holed[300:380, 100:300, 3] = 0
     assert interior_transparency(Image.fromarray(holed, "RGBA")) > INTERIOR_MAX, "interior hole not detected"
+
+    # An owner scan: scanner bed in the top-left corner, a white wall running into the top-right one.
+    scan = Image.new("RGB", (500, 700), (120, 30, 40))
+    d = ImageDraw.Draw(scan)
+    d.polygon([(0, 0), (12, 0), (0, 12)], fill=(252, 252, 252))
+    d.rectangle((420, 0, 499, 200), fill=(250, 250, 250))
+    cleared, n = clear_white_corners(scan)
+    a = np.asarray(cleared)[..., 3]
+    assert n and a[0, 0] == 0 and a[20, 20] == 255, "scanner bed in a corner not cleared"
+    assert a[0, -1] == 255 and a[5, -5] == 255, "white art reaching a corner was cleared"
+    cream = Image.new("RGB", (500, 700), (230, 228, 215))
+    assert clear_white_corners(cream)[1] == 0, "cream paper taken for scanner bed"
     print("self-test passed")
 
 
@@ -863,6 +893,27 @@ def read_manifest() -> tuple[list[str], dict[str, list[str]]]:
     return header, rows
 
 
+def read_owner_scans() -> dict[str, list[str]]:
+    """The cards whose local scan is the owner's own (`scans`), by code. `fetch` and `trim` leave these alone."""
+    rows = {}
+    if OWNER_SCANS.exists():
+        for line in OWNER_SCANS.read_text(encoding="utf-8").splitlines():
+            if line.strip() and not line.startswith("#") and not line.startswith("code\t"):
+                cols = line.split("\t")
+                rows[cols[0]] = cols
+    return rows
+
+
+def write_owner_scans(rows: dict[str, list[str]]) -> None:
+    lines = [
+        "# Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never",
+        "# replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).",
+        "code\tpack\tname\tscan\tsaved",
+    ]
+    lines += ["\t".join(rows[code]) for code in sorted(rows)]
+    OWNER_SCANS.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
 def write_manifest(rows: dict[str, list[str]]) -> None:
     lines = [
         "# Card images fetched from Hall of Heroes (hallofheroeslcg.com) by scripts/fetch_card_art.py: scans MarvelCDB",
@@ -875,7 +926,7 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
     for code in sorted(rows):
         cols = rows[code] + [""] * (6 - len(rows[code]))
         lines.append("\t".join(cols[:6]))
-    MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 # --------------------------------------------------------------------------- commands
@@ -944,7 +995,11 @@ def fetch(args: argparse.Namespace) -> None:
                     small_codes.add(code)
         print(f"    {len(small_codes)} local scans with a long edge of {args.max_local_edge}px or less")
 
+    owner = read_owner_scans()
+
     def targeted(code: str) -> bool:
+        if code in owner:
+            return False
         if args.stamped_only and code not in stamped_codes:
             return False
         return small_codes is None or code in small_codes
@@ -1281,7 +1336,10 @@ def _fetch_one(
 def trim_local(args: argparse.Namespace) -> None:
     """Crops white padding off the local scans in place (the photographed ones carry it)."""
     changed = 0
+    owner = read_owner_scans()
     for code, path in local_scans().items():
+        if code in owner:
+            continue
         with Image.open(path) as img:
             img.load()
         trimmed = trim(img)
@@ -1338,6 +1396,242 @@ def compress(args: argparse.Namespace) -> None:
                 path.write_bytes(webp)
     verb = "would be " if args.dry_run else ""
     print(f"\n[=] {converted} scans {verb}converted: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB")
+
+
+# --------------------------------------------------------------------------- owner scans
+
+SCAN_SUFFIXES = (".tif", ".tiff", ".png", ".jpg", ".jpeg", ".webp")
+# A white speck at a scan's corner is the scanner bed showing past the card's rounded edge; only light pixels joined to
+# the corner inside a square of this fraction of the short side are cleared, so white art near a corner is untouched.
+SCAN_CORNER = 0.06
+# Scanner-bed white is brighter and more neutral than any printed white: the card's cream paper, a pale sky, measure
+# 215-235 on their darkest channel on the owner's scans, the bed 245 and up. `PAD_WHITE` (web images) would take both.
+SCAN_WHITE = 245
+
+
+def flat_grey(img: Image.Image) -> Image.Image:
+    """`img` on mid grey, so a trimmed scan's transparent corners hash the same whatever RGB they happen to hold."""
+    if "A" not in img.getbands():
+        return img.convert("RGB")
+    base = Image.new("RGB", img.size, (128, 128, 128))
+    base.paste(img.convert("RGBA"), mask=img.convert("RGBA").getchannel("A"))
+    return base
+
+
+def scan_name(path: Path) -> str:
+    """
+    The card name in an owner scan's file name: `<n>_<Name>_<Type>[_A|_B].tif` for a hero's cards and
+    `<Aspect>_<Name>_<Type>[_<n>].tif` for an aspect's (`_s` stands for `'s`).
+    """
+    parts = path.stem.split("_")
+    if len(parts) >= 4 and parts[-1].isdigit():
+        parts = parts[:-1]
+    if len(parts) >= 3:
+        parts = parts[1:-1]
+        if parts and parts[-1].lower() in ("hero", "alter-ego", "a", "b"):
+            parts = parts[:-1]
+    return "_".join(parts).replace("_s", "s").replace("_", " ")
+
+
+def names_agree(a: str, b: str) -> bool:
+    """Whether a scan's file name names card `b`: one contains the other (`Absorption`), or a typo away (`Tracker`)."""
+    from difflib import SequenceMatcher
+
+    norm = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())  # noqa: E731
+    a, b = norm(a), norm(b)
+    return bool(a and b) and (a in b or b in a or SequenceMatcher(None, a, b).ratio() >= 0.9)
+
+
+def clear_white_corners(img: Image.Image) -> tuple[Image.Image, int]:
+    """
+    Makes the scanner-bed white at a scan's four corners transparent: light pixels flood-filled from each corner pixel,
+    within a corner square only (`SCAN_CORNER`) and only where they stay a wedge in that corner, grown by one pixel to
+    take the light fringe with them. Returns the
+    image (RGBA when anything was cleared, otherwise unchanged) and the number of pixels cleared.
+    """
+    rgb = np.asarray(img.convert("RGB")).astype(np.int16)
+    h, w = rgb.shape[:2]
+    k = max(4, round(SCAN_CORNER * min(h, w)))
+    light = (rgb.min(axis=2) >= SCAN_WHITE) & (np.ptp(rgb, axis=2) <= 12)
+    clear = np.zeros((h, w), bool)
+    for ys, xs, (cy, cx) in (
+        (slice(0, k), slice(0, k), (0, 0)),
+        (slice(0, k), slice(w - k, w), (0, k - 1)),
+        (slice(h - k, h), slice(0, k), (k - 1, 0)),
+        (slice(h - k, h), slice(w - k, w), (k - 1, k - 1)),
+    ):
+        square = light[ys, xs]
+        if not square[cy, cx]:
+            continue
+        labels, _ = ndimage.label(square)
+        corner = labels == labels[cy, cx]
+        # Scanner bed past a rounded corner is a small wedge in the corner. Light art that reaches the corner (a white
+        # wall, a pale sky) runs on across the square to its far side, and is left alone.
+        if corner[k - 1 - cy].any() or corner[:, k - 1 - cx].any():
+            continue
+        clear[ys, xs] |= ndimage.binary_dilation(corner)
+    cleared = int(clear.sum())
+    if not cleared:
+        return img, 0
+    rgba = np.array(img.convert("RGBA"))
+    rgba[..., 3] = np.where(clear, 0, rgba[..., 3])
+    return Image.fromarray(rgba, "RGBA"), cleared
+
+
+@dataclass
+class ScanMatch:
+    path: Path
+    code: str  # the nearest local scan, whether or not the match is confident
+    turn: int  # degrees counter-clockwise (PIL `rotate`) that put the scan in the local scan's orientation
+    dist: int
+    runner_up: int
+    rival: str  # the next-nearest card
+
+
+def match_scan(path: Path, local: dict[str, tuple[int, bool]]) -> ScanMatch:
+    """
+    The local card code an owner scan shows, by art: the local scan whose hash is nearest the scan's, turned to the
+    local scan's orientation (a side scheme scanned upright is tried both ways round), with the distance to the
+    next-nearest card for the caller's confidence check (`scans`).
+    """
+    with Image.open(path) as raw:
+        img = raw.convert("RGB")
+    img.thumbnail((256, 256))
+    portrait = img.height >= img.width
+    hashes = {turn: phash(img.rotate(turn, expand=True)) for turn in (0, 90, 270)}
+    scored = []
+    for code, (h, local_portrait) in local.items():
+        turns = (0,) if local_portrait == portrait else (90, 270)
+        scored.append(min((hamming(hashes[t], h), t, code) for t in turns))
+    scored.sort()
+    best, turn, code = scored[0]
+    runner_up, rival = next(((d, c) for d, _, c in scored[1:] if c != code), (64, ""))
+    return ScanMatch(path, code, turn, best, runner_up, rival)
+
+
+def _local_hash(path: Path) -> tuple[int, bool]:
+    with Image.open(path) as img:
+        img.load()
+    return phash(flat_grey(img)), img.height >= img.width
+
+
+def scans(args: argparse.Namespace) -> None:
+    """
+    Replaces local scans with the owner's own scans. Each image in the given folders is matched to a card by art
+    against the existing local scans of `--packs` (not by its file name, which can be wrong: a batch has labelled
+    Photonic Blast as Energy Channel), turned to that scan's orientation, given transparent corners where the
+    scanner bed shows white, scaled to `MAX_EDGE` and saved as WebP under the local scan's own path. Several scans
+    of one card (its copies) save the closest match. A file name that disagrees with the matched card is reported.
+    """
+    cards = load_cards()
+    local = {
+        code: path
+        for code, path in local_scans().items()
+        if not args.packs or pack_of(code, cards) in args.packs
+    }
+    if not local:
+        sys.exit(f"no local scans in packs {args.packs}")
+    bad = [a for a in args.assign or [] if "=" not in a]
+    if bad:
+        sys.exit(f"--assign takes FILE=CODE, not {bad}")
+    with ProcessPoolExecutor() as pool:
+        hashes = dict(zip(local, pool.map(_local_hash, local.values(), chunksize=16)))
+    files = []
+    for folder in args.folders:
+        folder = Path(folder)
+        found = folder.rglob("*") if args.recursive else folder.iterdir()
+        files += sorted(p for p in found if p.is_file() and p.suffix.lower() in SCAN_SUFFIXES)
+    print(f"[*] matching {len(files)} scans against {len(local)} local scans in {args.packs or 'every pack'}")
+    with ProcessPoolExecutor() as pool:
+        matches = list(pool.map(match_scan, files, [hashes] * len(files)))
+
+    assigned = dict(a.split("=", 1) for a in args.assign or [])
+    best: dict[str, ScanMatch] = {}
+    for m in matches:
+        rel = f"{m.path.parent.name}/{m.path.name}"
+        if m.path.name in assigned:
+            code = assigned.pop(m.path.name)
+            if code not in local:
+                sys.exit(f"--assign {m.path.name}={code}: no local scan {code} in {args.packs or 'any pack'}")
+            print(f"    {code:>7} {card_for(code, cards).name}: {rel} (assigned; art nearest {m.code})")
+            # The art picks the turn among the scan's own orientations; an assigned card keeps the local one's shape.
+            best[code] = ScanMatch(m.path, code, m.turn, -1, m.runner_up, m.rival)
+            continue
+        card = card_for(m.code, cards)
+        name = card.name if card else "?"
+        # A double-sided card's scans are named after either face.
+        faces = [c.name for f in "ab" if (c := cards.get(m.code[:5] + f))] if m.code[5:] in ("a", "b") else [name]
+        named = any(names_agree(scan_name(m.path), face) for face in faces)
+        # The art alone settles a match that clears `HASH_MARGIN`, as in `match_by_art`. One that doesn't (a card
+        # whose art is close to another's at hash size) is still taken when its file name names the same card.
+        if m.dist > HASH_MAX_DISTANCE or (m.runner_up - m.dist < HASH_MARGIN and not named):
+            print(f"    ? {rel}: no confident match (nearest {m.code} {name} at {m.dist}, next {m.runner_up})")
+            continue
+        rival = card_for(m.rival, cards)
+        if m.runner_up - m.dist < HASH_MARGIN and rival and rival.name == name:
+            # Copies of one card printed with different resources or text (Wakanda Forever! 01043a-d) share their
+            # art, so neither the hash nor the name can tell them apart: a person looks and passes `--assign`.
+            print(f"    ? {rel}: same art and name as {m.code} and {m.rival}; pick one with --assign")
+            continue
+        note = "" if named else f"  <- file says {scan_name(m.path)!r}"
+        if m.runner_up - m.dist < HASH_MARGIN:
+            note += "  (close art; confirmed by file name)"
+        turned = f", turned {m.turn}" if m.turn else ""
+        print(f"    {m.code:>7} {name}: {rel} (distance {m.dist}, next {m.runner_up}{turned}){note}")
+        if m.code not in best or 0 <= m.dist < best[m.code].dist:
+            best[m.code] = m
+
+    # The owner's scan replaces any Hall of Heroes copy, so its manifest row goes and `owner-scans.tsv` records it.
+    owner, (_, manifest), today = read_owner_scans(), read_manifest(), date.today().isoformat()
+    before: list[tuple[str, Image.Image]] = []
+    after: list[tuple[str, Image.Image]] = []
+    for code, m in sorted(best.items()):
+        with Image.open(m.path) as raw:
+            img = raw.convert("RGB")
+        if m.turn:
+            img = img.rotate(m.turn, expand=True)
+        img, cleared = clear_white_corners(img)
+        if cleared and args.verbose:
+            print(f"    {code}: cleared {cleared} white corner pixels")
+        dest = local[code]
+        if args.sheet:
+            with Image.open(dest) as old:
+                old.load()
+            before.append((code, old))
+            after.append((code, img))
+        if not args.dry_run:
+            save_like(img, dest)
+            card = card_for(code, cards)
+            owner[code] = [code, pack_of(code, cards), card.name if card else "?", m.path.name, today]
+            manifest.pop(code, None)
+    if not args.dry_run and best:
+        write_owner_scans(owner)
+        write_manifest(manifest)
+    print(f"\n[=] {len(best)} scans {'would be ' if args.dry_run else ''}replaced")
+    for name in assigned:
+        print(f"    ! --assign {name}: no such scan")
+    if args.sheet:
+        scan_sheet(before, after, Path(args.sheet))
+        print(f"[=] before/after sheet: {args.sheet}")
+
+
+def scan_sheet(before: list[tuple[str, Image.Image]], after: list[tuple[str, Image.Image]], out: Path) -> None:
+    """A before/after contact sheet for a PR: each card's old scan above its new one, on a dark ground."""
+    from PIL import ImageDraw
+
+    cell, cols = 220, 8
+    rows = (len(before) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * cell, rows * (2 * cell + 24)), (40, 40, 48))
+    draw = ImageDraw.Draw(sheet)
+    for i, ((code, old), (_, new)) in enumerate(zip(before, after)):
+        x, y = (i % cols) * cell, (i // cols) * (2 * cell + 24)
+        for j, img in enumerate((old, new)):
+            thumb = img.convert("RGBA")
+            thumb.thumbnail((cell - 10, cell - 10), Image.Resampling.LANCZOS)
+            sheet.paste(thumb, (x + (cell - thumb.width) // 2, y + 18 + j * cell), thumb)
+        draw.text((x + 6, y + 3), f"{code}  before / after", fill=(230, 230, 230))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out, quality=85)
 
 
 BASE_CODE = re.compile(r"^(\d{5})")
@@ -1617,6 +1911,19 @@ def main() -> None:
     lo.add_argument("--lang", required=True, choices=sorted(LOCALE_SOURCES), help="language code")
     lo.add_argument("--refresh", action="store_true", help="download every scan again, not only new ones")
     lo.add_argument("--dry-run", action="store_true", help="report the pairing without writing the set")
+    sc = sub.add_parser("scans", help="replace local scans with the owner's own scans, matched by art")
+    sc.add_argument("folders", nargs="+", help="folders of scans (TIFF, PNG, JPEG or WebP)")
+    sc.add_argument("--packs", nargs="+", help="MarvelCDB pack codes the scans belong to (default: every pack)")
+    sc.add_argument("--recursive", action="store_true", help="also read the folders' subfolders")
+    sc.add_argument("--sheet", metavar="PATH", help="also write a before/after contact sheet here (JPEG)")
+    sc.add_argument(
+        "--assign",
+        nargs="+",
+        metavar="FILE=CODE",
+        help="save a scan (by file name) as this card, for copies the art can't tell apart (Wakanda Forever! a-d)",
+    )
+    sc.add_argument("--dry-run", action="store_true", help="report the matches without writing")
+    sc.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         self_test()
@@ -1631,6 +1938,7 @@ def main() -> None:
         "missing": missing,
         "compress": compress,
         "localize": localize,
+        "scans": scans,
     }
     commands[args.command](args)
 
