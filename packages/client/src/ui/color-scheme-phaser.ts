@@ -49,7 +49,20 @@ export function installColorScheme(game: Phaser.Game): void {
   onColorSchemeChange((next, previous) => recolorGame(game, next, previous));
 }
 
-const now = (color: number, channel: ColorChannel): number => schemeColor(color, channel, colorScheme());
+/**
+ * The top-bar chrome buttons (Report, music, language, this toggle) are ink chrome in both schemes: their paper icons
+ * and hover fills are the "lit" color on an ink button, not a panel's ground, so dark mode leaves them as drawn.
+ */
+const ALWAYS_LIGHT: ReadonlySet<string> = new Set(["ReportButton", "MusicButton", "LanguageButton", "ThemeButton"]);
+
+/** The scheme a drawing call on `owner` (a game object or a camera) takes. */
+function schemeOf(owner: { readonly scene?: Phaser.Scene } | null | undefined): ColorScheme {
+  const key = owner?.scene?.sys?.settings?.key;
+  return key !== undefined && ALWAYS_LIGHT.has(key) ? "light" : colorScheme();
+}
+
+const now = (owner: { readonly scene?: Phaser.Scene }, color: number, channel: ColorChannel): number =>
+  schemeColor(color, channel, schemeOf(owner));
 
 function track(graphics: Phaser.GameObjects.Graphics, slot: ColorSlot | null): void {
   if (!slot) return;
@@ -63,14 +76,14 @@ function patchGraphics(): void {
   const { fillStyle, lineStyle, clear } = proto;
   proto.fillStyle = function (this: Phaser.GameObjects.Graphics, color: number, alpha?: number) {
     const start = this.commandBuffer.length;
-    const drawn = now(color, "fill");
+    const drawn = now(this, color, "fill");
     fillStyle.call(this, drawn, alpha);
     track(this, slotOf(start, FILL_STYLE_COLOR_AT, drawn, "fill"));
     return this;
   };
   proto.lineStyle = function (this: Phaser.GameObjects.Graphics, width: number, color: number, alpha?: number) {
     const start = this.commandBuffer.length;
-    const drawn = now(color, "line");
+    const drawn = now(this, color, "line");
     lineStyle.call(this, width, drawn, alpha);
     track(this, slotOf(start, LINE_STYLE_COLOR_AT, drawn, "line"));
     return this;
@@ -90,7 +103,7 @@ function patchGraphics(): void {
     alphaBottomRight?: number,
   ) {
     const start = this.commandBuffer.length;
-    const corners = [topLeft, topRight, bottomLeft, bottomRight].map((color) => now(color, "fill"));
+    const corners = [topLeft, topRight, bottomLeft, bottomRight].map((color) => now(this, color, "fill"));
     fillGradientStyle.call(
       this,
       corners[0]!,
@@ -115,10 +128,10 @@ function patchShapes(): void {
   const proto = Phaser.GameObjects.Shape.prototype;
   const { setFillStyle, setStrokeStyle } = proto;
   proto.setFillStyle = function (this: Phaser.GameObjects.Shape, color?: number, alpha?: number) {
-    return setFillStyle.call(this, color === undefined ? color : now(color, "fill"), alpha);
+    return setFillStyle.call(this, color === undefined ? color : now(this, color, "fill"), alpha);
   };
   proto.setStrokeStyle = function (this: Phaser.GameObjects.Shape, width?: number, color?: number, alpha?: number) {
-    return setStrokeStyle.call(this, width, color === undefined ? color : now(color, "line"), alpha);
+    return setStrokeStyle.call(this, width, color === undefined ? color : now(this, color, "line"), alpha);
   };
 }
 
@@ -127,29 +140,31 @@ type StyleRecord = Record<string, unknown>;
 function patchText(): void {
   const proto = Phaser.GameObjects.TextStyle.prototype;
   const { setStyle, setColor, setBackgroundColor } = proto;
-  const scheme = colorScheme;
   proto.setStyle = function (
     this: Phaser.GameObjects.TextStyle,
     style: Phaser.Types.GameObjects.Text.TextStyle,
     updateText?: boolean,
     setDefaults?: boolean,
   ) {
-    if (!style || scheme() === "light") return setStyle.call(this, style, updateText, setDefaults);
+    if (!style || schemeOf(this.parent) === "light") return setStyle.call(this, style, updateText, setDefaults);
     const record = { ...(style as StyleRecord) };
     for (const key of ["color", "fill"]) {
       const value = record[key];
-      if (typeof value === "string") record[key] = schemeCss(value, "text", scheme());
+      if (typeof value === "string") record[key] = schemeCss(value, "text", schemeOf(this.parent));
     }
     if (typeof record["backgroundColor"] === "string") {
-      record["backgroundColor"] = schemeCss(record["backgroundColor"] as string, "fill", scheme());
+      record["backgroundColor"] = schemeCss(record["backgroundColor"] as string, "fill", schemeOf(this.parent));
     }
     return setStyle.call(this, record as Phaser.Types.GameObjects.Text.TextStyle, updateText, setDefaults);
   };
   proto.setColor = function (this: Phaser.GameObjects.TextStyle, color: string | CanvasGradient | CanvasPattern) {
-    return setColor.call(this, typeof color === "string" ? schemeCss(color, "text", scheme()) : color);
+    return setColor.call(this, typeof color === "string" ? schemeCss(color, "text", schemeOf(this.parent)) : color);
   };
   proto.setBackgroundColor = function (this: Phaser.GameObjects.TextStyle, color: string) {
-    return setBackgroundColor.call(this, typeof color === "string" ? schemeCss(color, "fill", scheme()) : color);
+    return setBackgroundColor.call(
+      this,
+      typeof color === "string" ? schemeCss(color, "fill", schemeOf(this.parent)) : color,
+    );
   };
 }
 
@@ -160,8 +175,8 @@ function patchCameras(): void {
     this: Phaser.Cameras.Scene2D.BaseCamera,
     color?: string | number | Phaser.Types.Display.InputColorObject,
   ) {
-    if (typeof color === "string") return setBackgroundColor.call(this, schemeCss(color, "fill", colorScheme()));
-    if (typeof color === "number") return setBackgroundColor.call(this, now(color, "fill"));
+    if (typeof color === "string") return setBackgroundColor.call(this, schemeCss(color, "fill", schemeOf(this)));
+    if (typeof color === "number") return setBackgroundColor.call(this, now(this, color, "fill"));
     return setBackgroundColor.call(this, color);
   };
 }
@@ -170,7 +185,7 @@ function patchCameras(): void {
 function recolorGame(game: Phaser.Game, next: ColorScheme, previous: ColorScheme): void {
   for (const scene of game.scene.scenes) {
     const sys = scene.sys;
-    if (!sys?.displayList) continue;
+    if (!sys?.displayList || ALWAYS_LIGHT.has(sys.settings.key)) continue;
     for (const object of sys.displayList.list) recolorObject(object, next, previous);
     for (const camera of sys.cameras?.cameras ?? []) recolorCamera(camera, next, previous);
   }
