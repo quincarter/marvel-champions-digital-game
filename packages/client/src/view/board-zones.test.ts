@@ -122,6 +122,17 @@ describe("scrollTargetOf", () => {
     expect(scrollTargetOf(false, basic("attack"), members, both)).toBe("table");
     expect(scrollTargetOf(false, null, members, both)).toBe("table");
   });
+
+  it("scrolls a full play area row on a sideways push the focused region cannot take", () => {
+    expect(scrollTargetOf(false, card("rhino"), members, both, true)).toBe("playArea");
+    expect(scrollTargetOf(false, basic("attack"), members, both, true)).toBe("playArea");
+    expect(scrollTargetOf(false, null, members, both, true)).toBe("playArea");
+    expect(scrollTargetOf(false, card("h1"), members, { hand: false, playArea: true }, true)).toBe("playArea");
+    // The hand row and the log keep the stick while they hold focus, and a row that fits leaves it to the table.
+    expect(scrollTargetOf(false, card("h1"), members, both, true)).toBe("hand");
+    expect(scrollTargetOf(true, card("rhino"), members, both, true)).toBe("log");
+    expect(scrollTargetOf(false, card("rhino"), members, { hand: true, playArea: false }, true)).toBe("table");
+  });
 });
 
 describe("rowScrollOf", () => {

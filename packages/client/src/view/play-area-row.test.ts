@@ -136,6 +136,18 @@ describe("PlayAreaScroll", () => {
     expect(scroll.revealCard("elsewhere" as InstanceId)).toBe(false);
   });
 
+  test("neighbor names the card beside one in the row, scrolled into view or not, and none past either end", () => {
+    const scroll = new PlayAreaScroll(() => {});
+    settle(scroll, 13);
+    const [first, second] = ids(13);
+    expect(scroll.neighbor(first!, 1)).toBe(second);
+    expect(scroll.neighbor(second!, -1)).toBe(first);
+    expect(scroll.neighbor(ids(13)[11]!, 1)).toBe(ids(13)[12]);
+    expect(scroll.neighbor(first!, -1)).toBeNull();
+    expect(scroll.neighbor(ids(13)[12]!, 1)).toBeNull();
+    expect(scroll.neighbor("elsewhere" as InstanceId, 1)).toBeNull();
+  });
+
   test("a wheel scroll is kept by the next redraw of the same cards", () => {
     const scroll = new PlayAreaScroll(() => {});
     settle(scroll, 13);

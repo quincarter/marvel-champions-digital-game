@@ -150,17 +150,21 @@ export type ScrollTarget = "hand" | "playArea" | "log" | "table";
 /**
  * The right stick scrolls the region that holds focus: the log once it has been focused (View), else the hand row or the
  * play area row when focus is on a card in one and that row has more than fits, else the table itself (the villain side, the action bar, nothing).
+ * A `sideways` push the focused region cannot take scrolls a play area row that has more than fits: the table itself
+ * only scrolls up and down, so a full row of supports and allies is never out of the stick's reach.
  */
 export function scrollTargetOf(
   logFocused: boolean,
   focus: FocusTarget | null,
   members: ZoneMembers,
   canScroll: { readonly hand: boolean; readonly playArea: boolean },
+  sideways = false,
 ): ScrollTarget {
   if (logFocused) return "log";
   const zone = focus ? zoneOfTarget(focus, members) : null;
   if (zone === "hand" && canScroll.hand) return "hand";
   if (zone === "playArea" && canScroll.playArea) return "playArea";
+  if (sideways && canScroll.playArea) return "playArea";
   return "table";
 }
 
