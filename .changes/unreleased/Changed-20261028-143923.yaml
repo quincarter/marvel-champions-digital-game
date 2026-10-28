@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Card art, music and art moved out of git into versioned zip bundles on the content repo''s releases: `pnpm assets:fetch` downloads them into a cache shared by every checkout, and `pnpm assets:pack` uploads a changed bundle (#495)'
-time: 2026-10-28T14:39:23.7192654-04:00

@@ -1,3 +1,0 @@
-kind: Added
-body: Contributors can add or replace card scans, music and art from a pull request by putting the files in incoming/ at their usual paths; after the merge a workflow packs them into the release bundles and opens the manifest pull request (#495)
-time: 2026-10-28T15:24:00.976975-04:00
