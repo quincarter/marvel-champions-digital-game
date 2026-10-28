@@ -3,7 +3,7 @@
  * Synthetic cards shaped like Schadenfreude (`gmw` 16032): "Hero Action: Until the end of the turn, heal 2 damage from
  * Rocket Raccoon each time you deal any amount of damage to an enemy."
  *
- * Sources: RRG 1.8 "Lasting Effects" (p. 26), "Delayed Effect" (p. 15).
+ * Sources: RRG 1.8 "Lasting Effects" (p. 26), "Delayed Effect" (p. 16).
  */
 
 import { describe, expect, it } from "vitest";

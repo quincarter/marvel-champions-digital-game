@@ -1132,7 +1132,10 @@ export function handCardResources(
     return multiplier && "thisCardGenerates" in multiplier ? multiplyPool(state, sum, multiplier, context) : sum;
   }, generated);
   if (!payingFor) return pool;
+  // A card overpaid when played (`overpaidWhenPlayed`, ruling #87) is not "paid for", so no "while paying for" doubling.
+  const overpaid = printedConstants(state, deps, payingFor).some((trigger) => trigger.overpaidWhenPlayed);
   const own = printedConstants(state, deps, cardInstanceId).find((trigger) => {
+    if (overpaid) return false;
     const multiplier = trigger.resourceMultiplier;
     return (
       multiplier && "whilePayingFor" in multiplier && matchesQuery(state, payingFor, multiplier.whilePayingFor, context)

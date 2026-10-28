@@ -29,6 +29,7 @@ import type { AbilityId } from "@mc/content";
 import type { CardId } from "@mc/content";
 import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phase.js";
+import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from "../view/villain-end-of-turn.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
@@ -235,7 +236,10 @@ export class BoardScene extends Phaser.Scene {
    * The table log and card history as they stood at each command version, so a Back out (`SessionStore.rewindTo`)
    * restores them exactly instead of keeping lines for the play it undid.
    */
-  #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
+  #logAt = new Map<
+    number,
+    { readonly log: LogState; readonly cardHistory: CardHistoryLog; readonly refill: RefillTracker }
+  >();
   #choiceOpen = false;
   /** The hold layer LT / RT has the pad in (`view/pad-layers.ts`), its ability page, and the sheet drawn for it. */
   #padLayer: PadLayer | null = null;
@@ -246,6 +250,13 @@ export class BoardScene extends Phaser.Scene {
   #pageWord: Phaser.GameObjects.Text | null = null;
   /** Set by `#openVillainWalkthrough`'s launch until the walkthrough is actually running (`#tableCoveredForBand`). */
   #walkthroughLaunching = false;
+  /**
+   * The draw up to hand size that ends the player phase, folded across commands: it stops for a drawn card's ability
+   * and resumes once that resolves (`view/villain-end-of-turn.ts`). `#refillEnded` is the whole refill when this
+   * command began the villain phase, for the walkthrough's launch.
+   */
+  #refill: RefillTracker = NO_REFILL;
+  #refillEnded: EndOfTurnDraws | null = null;
   #saveFailureAnnounced = false;
   /** Which zone the phone board is showing. Ignored on wider layouts. */
   #activeTab: PhoneTab = "me";
@@ -467,6 +478,8 @@ export class BoardScene extends Phaser.Scene {
     this.#soundTrail = -1;
     this.#previousGame = null;
     this.#logAt.clear();
+    this.#refill = NO_REFILL;
+    this.#refillEnded = null;
     this.#tabBadges.clear();
     this.#tabChanged.clear();
     this.#focus = null;
@@ -775,6 +788,9 @@ export class BoardScene extends Phaser.Scene {
       this.#tabChanged.clear();
       this.#tabBadges.clear();
       this.#logBeforePhase = null;
+      // Back out may land inside a refill that waits on a drawn card's ability: its cards so far come back with it.
+      this.#refill = rewound.refill;
+      this.#refillEnded = null;
     } else if (fresh) {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
@@ -792,6 +808,11 @@ export class BoardScene extends Phaser.Scene {
       logBefore = this.#log;
       this.#log = appendEvents(this.#log, latest, state.game, state.perspectiveId, POOL_DEPS);
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
+      // A game resumed mid-refill has the refill's earlier draws only in its history.
+      if (state.resumedHistory.length > 0) this.#refill = trackRefill(NO_REFILL, state.resumedHistory).tracker;
+      const refill = trackRefill(this.#refill, state.lastEvents);
+      this.#refill = refill.tracker;
+      this.#refillEnded = refill.ended;
       // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`). `#logBeforePhase` is set
       // by `#openVillainWalkthrough` below, so the mirror is repeated there: while the rail holds the phase back the
       // engine's lines about it stay out of Pause and the report.
@@ -826,7 +847,7 @@ export class BoardScene extends Phaser.Scene {
         this.#motion.announce("Game not saving", "It may not survive a refresh");
       }
       this.#version = state.version;
-      this.#logAt.set(state.version, { log: this.#log, cardHistory: this.#cardHistory });
+      this.#logAt.set(state.version, { log: this.#log, cardHistory: this.#cardHistory, refill: this.#refill });
       // A new state invalidates any half-made selection: the engine may have
       // changed what is legal, and a stale target would just be rejected.
       this.#controller.reset();
@@ -1171,8 +1192,8 @@ export class BoardScene extends Phaser.Scene {
    * Opens the villain-phase walkthrough when a villain phase begins.
    *
    * This is the whole of the Board's side of the contract documented at the top
-   * of `scenes/villain-phase.ts`: one launch carrying only the game as it stood before the command that began the
-   * phase (the recap's "what changed" tiles read it). The overlay subscribes to the store itself, accumulates the
+   * of `scenes/villain-phase.ts`: one launch carrying the game as it stood before the command that began the
+   * phase (the recap's "what changed" tiles read it) and who drew what as the player phase ended (`#refill`). The overlay subscribes to the store itself, accumulates the
    * phase's beats across the several commands one phase can span, and shows its recap when the phase ends.
    *
    * `placeThreat` is villain-phase step one, so this fires exactly once per
@@ -1194,7 +1215,7 @@ export class BoardScene extends Phaser.Scene {
     if (!begins) return;
     this.#logBeforePhase = logBefore;
     appSession().gameLog = this.#tableLog();
-    this.scene.launch(SCENES.villainPhase, { before } satisfies VillainPhaseLaunchData);
+    this.scene.launch(SCENES.villainPhase, { before, endOfTurn: this.#refillEnded } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
     // does not run while the walkthrough is up, so on a slow machine no draw may have seen it, and the flag then

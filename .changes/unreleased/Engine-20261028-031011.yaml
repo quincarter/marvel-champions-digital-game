@@ -1,0 +1,3 @@
+kind: Engine
+body: 'An ability that starts an enemy activation while another one resolves now waits with it: its later instructions read what that activation did, and resume as soon as it finishes (RRG 1.8 p. 6)'
+time: 2026-10-28T03:10:11.2018049+01:00

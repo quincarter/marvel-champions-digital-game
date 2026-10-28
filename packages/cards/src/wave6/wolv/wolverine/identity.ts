@@ -38,7 +38,9 @@ const ATTACK = trait("ATTACK");
  *   (§3.42). The choice and the damage are the cost: the event is picked in the cost (`chooseCardCost`, only one that
  *   can be played ignoring its cost, RRG 1.8 "Cost", p. 13), the damage is its printed cost, taken (not dealt by a
  *   card, §3.41). The play records the Claws (`via`) for Lunging Strike's "If you exhausted Wolverine's Claws to play
- *   this card", and "that attack gains piercing" lasts only while that event resolves (`whileResolving`).
+ *   this card", and "that attack gains piercing" lasts only while that event resolves (`whileResolving`), and only
+ *   for its first attack (`firstAttackOnly`; FFG ruling 190, May 16, 2024: with Slice and Dice "only the first attack
+ *   gains piercing", unless a stun replaced the first, when the second does).
  */
 export const WOLVERINE_IDENTITY = defineAbilities({
   // The damage is the ability's own `while`, so a Wolverine with none is not asked: an optional response that would
@@ -65,6 +67,7 @@ export const WOLVERINE_IDENTITY = defineAbilities({
       card: chosen("event"),
       via: self,
       whileResolving: [{ kind: "attackKeywords", keywords: ["piercing"], via: { inSlot: "event" } }],
+      firstAttackOnly: true,
     }),
   ),
 

@@ -1893,7 +1893,7 @@ export type TriggerEventBody =
    * "End of Player Phase" (p. 18) step 5 and "Villain Phase" (p. 47) step 6b: "Resolve any 'when/after the [villain]
    * phase ends' or 'when/after the round ends' effects" — so the villain phase's end **is** the round's end, one timing
    * point, after "until the end of the phase/round" effects have ended (steps 4 and 6a). Its apply step resolves the
-   * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 15) places "immediately after
+   * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 16) places "immediately after
    * their specified timing point [...] and before responses". The Collector's and Hela's ∞ faces, Rogue Vessel (`gmw`),
    * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
    *

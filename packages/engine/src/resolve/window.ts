@@ -66,6 +66,7 @@ import { keywordAbilityOf } from "../keyword-abilities.js";
 import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered, unofferedAbilities } from "./triggers.js";
 import { toughEndsDamageWindow } from "./event.js";
 import { holdResponsesForReveal } from "./reveal-hold.js";
+import { holdResponsesForSentence } from "./sentence-hold.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -76,10 +77,15 @@ export function pushWindow(
   alsoEvents: readonly TriggerEvent[] = [],
   /** Their event frames, by index, when they are still to apply (a shared interrupt window). */
   alsoEventFrameIds: readonly (FrameId | null)[] = [],
+  /** Response windows: the occurrence each condition belongs to, `alsoEvents` first (`Frame<"window">.conditionGroups`). */
+  conditionGroups?: readonly number[],
 ): void {
   // A response window triggered while an encounter card is being revealed waits for the end of that reveal (RRG 1.8
   // "Reveal", p. 38; owner decision 2026-10-16, audit finding 18; `reveal-hold.ts`). Interrupts never wait.
   if (timing === "response" && holdResponsesForReveal(ctx, [...alsoEvents, event])) return;
+  // One raised while a sentence resolves waits for the whole sentence (FFG rulings 126, Dec 8, 2023 and 137, Jan 11,
+  // 2024; `sentence-hold.ts`). A reveal in progress, inner or outer, already holds it until later.
+  if (timing === "response" && holdResponsesForSentence(ctx, [...alsoEvents, event], eventFrameId)) return;
   // The abilities that answer but cannot be used yet: said only as the window closes, of those still unusable then
   // (`closeWindow`), as one may become usable while it is open (a forced interrupt giving it a target: `lateCandidates`).
   const unofferedAtOpen = [...alsoEvents, event].flatMap((each) =>
@@ -92,6 +98,7 @@ export function pushWindow(
       event,
       ...(alsoEvents.length > 0 ? { alsoEvents } : {}),
       ...(alsoEventFrameIds.some((id) => id !== null) ? { alsoEventFrameIds } : {}),
+      ...(timing === "response" && conditionGroups && new Set(conditionGroups).size > 1 ? { conditionGroups } : {}),
       timing,
       eventFrameId,
       tierIndex: 0,
@@ -549,7 +556,11 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   // the forced tier switched on is not offered for an occurrence it did not hear. The "would" tiers and the ordinary
   // ones are each read as they open. One exception, in an interrupt window only, whose event is still to resolve: an
   // interrupt on the face of a card in play that the forced tier turned faceup (`turnedFaceupCandidates`).
-  const atOpen = tierIndex === 0 ? windowCandidates(ctx, frame, false, would) : undefined;
+  // Several triggering condition groups: the optional responses to a group no forced response answers may go first.
+  if (!would && tierIndex === 0 && frame.earlyOptional === undefined && offerEarlyOptional(ctx, frame)) return;
+  // Read once as it opens: by the early round, when there was one (`earlyOptional`).
+  const atOpen =
+    tierIndex === 0 && frame.earlyOptional === undefined ? windowCandidates(ctx, frame, false, would) : undefined;
   // Interrupt windows: who was listening as it opened (`heardAtOpen`), so a listener whose condition is completed
   // while the window is open can still be offered.
   const heard =
@@ -580,6 +591,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   const joined = [...late, ...turnedUp];
   const advanced = {
     ...frame,
+    ...(frame.earlyOptional === "offering" ? { earlyOptional: "done" as const } : {}),
     ...stillUnoffered(frame, candidates),
     ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
@@ -622,6 +634,54 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   }
   const askingPlayerIds = controllersToAsk(ctx.state, candidates);
   setFrame(ctx, { ...advanced, askingPlayerIds });
+}
+
+/** The triggering condition group of a candidate in a window with `conditionGroups`, `alsoEvents` first. */
+const groupOf = (groups: readonly number[], candidate: TriggerCandidate): number | undefined =>
+  groups[candidate.sharedEvent ? candidate.sharedEvent.index : groups.length - 1];
+
+/** A candidate as one use of its ability for one condition, by one player: what the early round has used. */
+const useKey = (candidate: TriggerCandidate): string =>
+  `${hearerKey(candidate.instanceId, candidate.abilityId, candidate.sharedEvent?.index)}|${candidate.controllerId ?? ""}`;
+
+/**
+ * A response window with several triggering condition groups (`Frame<"window">.conditionGroups`, the one a sentence's
+ * held responses open; `sentence-hold.ts`) and forced responses to resolve: first offers the optional responses to the
+ * groups no forced response answers. RRG 1.8 p. 5 chart: forced before optional among "abilities with the same
+ * triggering condition"; "Forced" (p. 20): "for any given triggering condition"; "Triggering Condition" (p. 45): the
+ * abilities of one window "may be used in any order". One picked here resolves before the forced tier and is not
+ * offered again; one declined here is offered again after it, with the rest. False, with nothing done, when there is no
+ * such round (`earlyOptional` stays absent and the window tiers as any other).
+ */
+function offerEarlyOptional(ctx: Ctx, frame: Frame<"window">): boolean {
+  const groups = frame.conditionGroups;
+  if (!groups || frame.timing !== "response") return false;
+  // Read here only to know which groups have forced responses. The forced tier itself is read again after this round,
+  // on purpose: an optional response picked here may have changed what can be initiated (a forced ability's card left
+  // play), as the forced tier of any window is read as it begins.
+  const forced = windowCandidates(ctx, frame, true);
+  if (forced.length === 0) return false;
+  const answered = new Set(forced.map((candidate) => groupOf(groups, candidate)));
+  const atOpen = windowCandidates(ctx, frame, false);
+  const early = atOpen.filter((candidate) => !answered.has(groupOf(groups, candidate)));
+  if (early.length === 0) return false;
+  emit(ctx, {
+    type: "windowOpened",
+    event: frame.event,
+    ...(frame.alsoEvents && frame.alsoEvents.length > 0 ? { alsoEvents: frame.alsoEvents } : {}),
+    timing: frame.timing,
+    candidates: early.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
+  });
+  setFrame(ctx, {
+    ...frame,
+    // Offered here, it had its opportunity, as one offered at a tier (`stillUnoffered`).
+    ...stillUnoffered(frame, early),
+    earlyOptional: "offering",
+    optionalAtOpen: atOpen,
+    pending: early,
+    askingPlayerIds: controllersToAsk(ctx.state, early),
+  });
+  return true;
 }
 
 /**
@@ -1265,8 +1325,13 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
     return;
   }
   const [, ...rest] = frame.askingPlayerIds;
+  // Picked in the early round (`offerEarlyOptional`): used, so the optional tier does not offer it again.
+  const used = new Set(picked.map(useKey));
   setFrame(ctx, {
     ...frame,
+    ...(frame.earlyOptional === "offering" && picked.length > 0
+      ? { optionalAtOpen: (frame.optionalAtOpen ?? []).filter((candidate) => !used.has(useKey(candidate))) }
+      : {}),
     answer: null,
     awaiting: null,
     queue: [...frame.queue, ...picked],

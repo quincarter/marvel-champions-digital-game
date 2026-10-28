@@ -3,6 +3,7 @@ import {
   action,
   allOf,
   attackAnEnemy,
+  canChangeForm,
   changeForm,
   chooseCards,
   chooseOneBy,
@@ -12,11 +13,9 @@ import {
   encounterCards,
   forEachPlayer,
   heroAction,
-  inForm,
   isAlterEgo,
   isHero,
   moveCards,
-  not,
   option,
   otherPlayers,
   query,
@@ -36,7 +35,8 @@ const SIDE_SCHEMES_IN_VICTORY_DISPLAY = victoryDisplayCount(query("sideScheme"))
  *
  * - **Bodyslide (40002), Action**: change form, then each other player may change to the form Cable is now in. The
  *   change is an effect, not the once-per-round change (RRG "Form, Change Form", p. 21). A player already in that
- *   form is not asked.
+ *   form, or who cannot change form, is not asked, except that one in a hero form with another hero face may change
+ *   to it (FFG ruling June 8, 2023, #22: a Tiny Ant-Man may change to Giant).
  * - **Mind Scan (40003), Hero Action (thwart)**: remove 3 threat from a scheme, +1 per side scheme in the victory
  *   display. It is a thwart by Cable, so "after Cable defeats a scheme" hears it (RRG "You, Your", p. 49).
  * - **Precognition (40004), Hero Action**: look at the top X cards of the encounter deck (X = side schemes in the
@@ -53,12 +53,12 @@ export const CABLE_EVENTS: AbilityRegistry = defineAbilities({
         thatPlayer,
         option(
           "Change to hero form",
-          { when: allOf(isHero(), not(inForm("hero", thatPlayer))) },
+          { when: allOf(isHero(), canChangeForm("hero", thatPlayer)) },
           changeForm(thatPlayer, "hero"),
         ),
         option(
           "Change to alter-ego form",
-          { when: allOf(isAlterEgo(), not(inForm("alterEgo", thatPlayer))) },
+          { when: allOf(isAlterEgo(), canChangeForm("alterEgo", thatPlayer)) },
           changeForm(thatPlayer, "alterEgo"),
         ),
         option("Do not change form"),

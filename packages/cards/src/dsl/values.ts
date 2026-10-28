@@ -1301,6 +1301,13 @@ export const paidType = (resource: TypedResource, of?: TargetRef): Predicate => 
   ...(of !== undefined ? { of } : {}),
 });
 /**
+ * `player` would change form if told to change to `to` right now (engine `canChangeForm`): they can change form and are
+ * not in that form already, a hero form counting as changeable to hero form for an identity with another hero face
+ * (FFG ruling June 8, 2023, #22). Gates a "may change to … form" option: `option("Change to hero form", { when:
+ * canChangeForm("hero", thatPlayer) }, changeForm(thatPlayer, "hero"))`.
+ */
+export const canChangeForm = (to: Form, player: PlayerRef = you): Predicate => ({ kind: "canChangeForm", player, to });
+/**
  * Some player `player` names could make a basic attack or thwart among `powers` right now on a card's instruction
  * (engine `canUseBasicPower`, docs/phase7-wave8.md §3.64): a ready hero-form identity or ally of theirs has a legal
  * target, read as `basicPowerBy` will offer it. `canUseBasicPower(["attack", "thwart"], eachPlayer)` is the condition

@@ -1,16 +1,21 @@
-import { cardOf, type GameState, type InstanceId, type TriggerEvent } from "@mc/engine";
+import { cardOf, type GameState, type InstanceId, type PlayerId, type TriggerEvent } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { GIANT_WASP_DEV_CONFIG } from "../store/dev-giant-wasp-game.js";
 import { playToJackpotWindow } from "../store/dev-jackpot-game.js";
 import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
 import {
+  answeredEventsOf,
+  declineLabelOf,
   deckDiscardWarningOf,
   effectLineOf,
+  triggerChoiceHeadlineOf,
   triggerHeadlineOf,
   triggerWhyNowOf,
   triggerWindowContextOf,
+  type TriggerChoiceLike,
 } from "./trigger-window-context.js";
 
 describe("effectLineOf", () => {
@@ -252,4 +257,101 @@ describe("the real Jackpot! window after Luck Be a Lady (issue #222)", () => {
     expect(context.headline).toBe("Jackpot! was discarded from the top of your deck by Luck Be a Lady");
     expect(context.warning).toBeNull();
   }, 60_000);
+});
+
+describe("a sentence's combined response window (Gamma Blast's shape: a form change, then an attack)", () => {
+  let game: GameState;
+  let me: PlayerId;
+  let wasp: InstanceId;
+  let other: InstanceId;
+  beforeAll(async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start(GIANT_WASP_DEV_CONFIG);
+    game = store.state.game!;
+    me = game.players[0]!.playerId;
+    wasp = game.players[0]!.identity.instanceId;
+    other = game.mainScheme.instanceId;
+  }, 30_000);
+
+  const formEvent = (): TriggerEvent =>
+    ({
+      kind: "formChanged",
+      playerId: me,
+      to: "hero",
+      change: "identity",
+      fromHeroForm: 0,
+      toHeroForm: 1,
+      identityInstanceId: wasp,
+    }) as TriggerEvent;
+  const attackEvent = (): TriggerEvent => ({ kind: "attack", attackerInstanceId: wasp }) as unknown as TriggerEvent;
+  /** The window: the attack is its own event, the form change one of its `alsoEvents`. */
+  const withWindow = (earlyOptional: "offering" | "done" = "offering"): GameState => {
+    const frame = {
+      kind: "window",
+      frameId: "f-window",
+      event: attackEvent(),
+      alsoEvents: [formEvent()],
+      conditionGroups: [0, 1],
+      earlyOptional,
+      timing: "response",
+      pending: [
+        {
+          instanceId: wasp,
+          abilityId: "form.response",
+          controllerId: me,
+          forced: false,
+          fromHand: false,
+          sharedEvent: { index: 0, event: formEvent() },
+        },
+        { instanceId: other, abilityId: "attack.response", controllerId: me, forced: false, fromHand: false },
+      ],
+    };
+    return { ...game, stack: [frame] } as unknown as GameState;
+  };
+  const option = (instanceId: InstanceId, abilityId: string) =>
+    ({ optionId: abilityId, label: "", ref: { kind: "ability", instanceId, abilityId } }) as const;
+  const choiceOf = (options: ReturnType<typeof option>[], frameId = "f-window") =>
+    ({
+      prompt: { kind: "chooseTriggers", event: attackEvent(), timing: "response" },
+      options,
+      frameId,
+    }) as unknown as TriggerChoiceLike;
+
+  test("a response to the form change is headed by the form change, not the attack the prompt names", () => {
+    const state = withWindow();
+    const choice = choiceOf([option(wasp, "form.response")]);
+    expect(answeredEventsOf(state, choice).map((e) => e.kind)).toEqual(["formChanged"]);
+    expect(triggerChoiceHeadlineOf(state, choice, "response", me)).toBe("You changed to Giant Wasp");
+  });
+
+  test("responses to both conditions name both, in the order they happened", () => {
+    const state = withWindow();
+    const choice = choiceOf([option(other, "attack.response"), option(wasp, "form.response")]);
+    expect(triggerChoiceHeadlineOf(state, choice, "response", me)).toBe(
+      `You changed to Giant Wasp, then ${cardName(state, wasp)} attacked`,
+    );
+  });
+
+  test("without the window's frame, the prompt's own event stands", () => {
+    const choice = choiceOf([option(wasp, "form.response")], "f-gone");
+    expect(triggerChoiceHeadlineOf(withWindow(), choice, "response", me)).toBe(`${cardName(game, wasp)} attacked`);
+  });
+
+  test("declining in the early round is Not now; once the forced responses are done it is Decline", () => {
+    const choice = choiceOf([option(wasp, "form.response")]);
+    expect(declineLabelOf(withWindow("offering"), choice)).toBe("Not now");
+    expect(declineLabelOf(withWindow("done"), choice)).toBe("Decline");
+    expect(declineLabelOf(null, choice)).toBe("Decline");
+  });
+
+  test("the sheet's context says the early round's responses come back, and heads by the answered condition", () => {
+    const pending = () =>
+      ({ ...choiceOf([option(wasp, "form.response")]), playerId: me, choiceId: "c1" }) as unknown as Parameters<
+        typeof triggerWindowContextOf
+      >[1];
+    const early = triggerWindowContextOf(withWindow("offering"), pending(), me, POOL_DEPS)!;
+    expect(early.headline).toBe("You changed to Giant Wasp");
+    expect(early.later).toMatch(/offered these again after the forced responses/);
+    expect(triggerWindowContextOf(withWindow("done"), pending(), me, POOL_DEPS)!.later).toBeNull();
+  });
 });

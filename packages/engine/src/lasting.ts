@@ -42,7 +42,16 @@ export type LastingDuration =
   /** "Until the end of this turn" / "this turn": the active player's turn (docs/phase7-wave2.md §13). */
   | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
-  | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
+  | {
+      readonly kind: "endOfEvent";
+      readonly frameId: FrameId;
+      /**
+       * Set on an effect claimed by a played card's first attack (`startFirstAttackEffects`): what it waited on before.
+       * If that attack is cancelled, it was not made (RRG 1.8 "Cancel", p. 11; FFG ruling 190), so the effect goes back
+       * to waiting for the card's next attack instead of ending (`expireEventLastingEffects`).
+       */
+      readonly ifCancelled?: LastingDuration;
+    }
   /**
    * "Until after that attack resolves", before the attack exists (`applyRuleUntil` with `attack: "initiated"`,
    * spec.ts): waits on the effects frame `frameId`. That frame's next `enemyAttack` retimes it to `endOfEvent` on the
@@ -63,7 +72,16 @@ export type LastingDuration =
    * popped, so as it resolves the effect is retimed to that effects frame (`lastingEffectRetimed`). It ends when that
    * frame finishes — or at once if the ability is not initiated — so a later use of the same ability is untouched.
    */
-  | { readonly kind: "endOfPaidFor"; readonly frameId: FrameId }
+  | {
+      readonly kind: "endOfPaidFor";
+      readonly frameId: FrameId;
+      /**
+       * "That attack" as the first attack of a played card (`playFromHand.firstAttackOnly`; FFG ruling 190, May 16,
+       * 2024): the first `attack` event this card is the source of, as it is initiated, retimes the effect to
+       * `endOfEvent` on that attack (`startFirstAttackEffects`), so a later attack of the same card is untouched.
+       */
+      readonly firstAttackVia?: InstanceId;
+    }
   /**
    * **No time bound at all**: "The next event you play costs 3 additional resources. Discard this obligation after
    * you play an event." (Physical Toll, `drs` pack). It ends when `playerId` finishes playing a card `cardFilter`
@@ -230,7 +248,7 @@ export type LastingEffectBody =
   /**
    * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."
    * (Schadenfreude, `gmw` 16032): every event matching `on` while this lasts resolves `effects`, automatically, after the
-   * event and before its responses — a delayed effect that repeats (RRG 1.8 "Delayed Effect", p. 15: delayed effects
+   * event and before its responses — a delayed effect that repeats (RRG 1.8 "Delayed Effect", p. 16: delayed effects
    * "resolve automatically and immediately after their specified timing point … and before responses", and are "not
    * treated as a new triggered ability"). `on` is matched with the scope's card as "self" and its controller as "you".
    * docs/phase7-wave3.md §3.17.

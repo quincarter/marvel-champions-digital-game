@@ -128,7 +128,7 @@ describe("June 13, 2024 - Ruling 214 answer 1 (post-RRG 1.5), RRG 1.8 p. 6 'Acti
   // RRG 1.8 p. 6: "If an effect initiates an activation during the resolution of another activation, the newly
   // initiated activation resolves after the current activation has finished resolving." Ruling 214: I've Been Waiting
   // For This! (07014) boost "That villain schemes" does not interrupt the attack it boosts.
-  it.fails("I've Been Waiting For This! as a boost: the scheme it causes resolves after the boosted attack deals its damage", () => {
+  it("I've Been Waiting For This! as a boost: the scheme it causes resolves after the boosted attack deals its damage", () => {
     const base = rhino(5, "core-spider-man-justice", "breakout");
     const start = patchInstance(base, base.mainScheme.instanceId, { threat: 0 });
     const top = activeEncounterDeck(start).deck[0]!;

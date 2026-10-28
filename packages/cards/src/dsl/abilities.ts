@@ -485,6 +485,8 @@ export interface ConstantPart {
   readonly costModifiers?: readonly CostModifierSpec[];
   /** "You can only spend [physical] resources to pay for this card." (Crushing Blow). */
   readonly paymentOnly?: readonly TypedResource[];
+  /** Resources spent on this card are overpaid, not paid (Ant-Man 12011, Wasp 13012; ruling #87, Sep 21, 2023). */
+  readonly overpaidWhenPlayed?: true;
   /** "Spend this card only in hero form." (Limitless Strength). */
   readonly spendableIn?: Form;
   /** "This card can be spent for any player" (Everyday Hero, `nova` 28019; docs/phase7-wave5.md §3.17). */
@@ -596,6 +598,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(handGeneratesList[0] !== undefined ? { handGenerates: handGeneratesList[0] } : {}),
       ...(costModifiers.length ? { costModifiers } : {}),
       ...(paymentOnly.length ? { paymentOnly } : {}),
+      ...(parts.some((p) => p.overpaidWhenPlayed) ? { overpaidWhenPlayed: true as const } : {}),
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
       ...(anyPlayerList[0] ? { spendableForAnyPlayer: anyPlayerList[0] } : {}),
       ...(parts.some((p) => p.notCountedTowardHandSize) ? { notCountedTowardHandSize: true as const } : {}),
@@ -651,6 +654,12 @@ export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
  * draw back up, and "draw up to your hand size"; every other hand count still counts it.
  */
 export const notCountedTowardHandSize: ConstantPart = { notCountedTowardHandSize: true };
+/**
+ * A card you overpay for when you play it ("for each resource you overpaid for Ant-Man's cost"): read from the card
+ * paid for, it keeps a "while paying for" doubling (The Power of X) off its payment. FFG ruling Sep 21, 2023 (post-RRG
+ * 1.5 #87): "The Power Of cards will only generate one resource for these allies." `constant(overpaidWhenPlayed)`.
+ */
+export const overpaidWhenPlayed: ConstantPart = { overpaidWhenPlayed: true };
 /** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
 export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /**

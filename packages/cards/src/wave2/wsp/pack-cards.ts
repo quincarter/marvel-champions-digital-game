@@ -28,6 +28,7 @@ import {
   modifyStat,
   on,
   option,
+  overpaidWhenPlayed,
   paidWith,
   query,
   removeStatus,
@@ -67,7 +68,11 @@ export const WSP_PACK_CARDS = defineAbilities({
   // Wasp (Janet Van Dyne) — Wasp gets +1 hit point for each pym counter on her (safe: a plain counter-scaled stat
   // modifier, no `while`). Interrupt: when Wasp enters play, place 1 pym counter on her (to a maximum of 3) for
   // each [energy] resource overpaid for her cost (module docblock).
-  "13012.wasp-constant": constant(gets("hp", countersOn(self, "pym"), query("ally", { self: true }))),
+  // Overpaid, not paid, when played: no "while paying for" doubling (ruling #87, Sep 21, 2023).
+  "13012.wasp-constant": constant(
+    gets("hp", countersOn(self, "pym"), query("ally", { self: true })),
+    overpaidWhenPlayed,
+  ),
   "13012.wasp-interrupt": forcedInterrupt(
     on.entersPlay("self"),
     addCounters("pym", scaled(varOf("overpaid.energy"), { max: 3 }), self),

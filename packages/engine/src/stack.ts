@@ -150,6 +150,11 @@ export interface BoostInProgress {
   readonly appliedAsBoost?: readonly { readonly instanceId: InstanceId; readonly iconsCancelled: boolean }[];
 }
 
+/** `Frame<"effects">.resolvedCount.from` of a suspended ability whose effects had changed the game before it waited. */
+export const RESOLVED_SO_FAR_CHANGED = "suspended:changed";
+/** The same, for one whose effects had changed nothing yet: its digest is taken again as it resumes. */
+export const RESOLVED_SO_FAR_UNCHANGED = "suspended:unchanged";
+
 /** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */
 export interface DeferredEffects {
   readonly effects: readonly EffectSpec[];
@@ -160,10 +165,18 @@ export interface DeferredEffects {
   /**
    * An "at the end of this attack" delayed effect (`atEndOfAttack`): it resolves as the attack finishes, before the
    * attack's step 6 responses (RRG 1.8 "Delayed Effect", p. 16; `pushDelayedEndEffects`). Unset for an effect queued
-   * behind the activation (an "after this activation ends" effect, or an activation queued behind this one), which
+   * behind the activation (an "after this activation ends" effect, or an ability suspended behind this one), which
    * waits for those responses.
    */
   readonly delayed?: true;
+  /**
+   * The rest of an ability that initiated an activation behind this one (RRG 1.8 "Activation", p. 6: "An effect that
+   * initiates an enemy activation is considered resolved after that activation has fully resolved"): the ability's
+   * frames, top first, taken off the stack as they were, the top one holding the initiating effect
+   * (`Frame<"effects">.resumeActivation`). They are put back as they were in place of `effects`, which is empty
+   * (`pushEndEffects`), so the ability initiates its activation and then goes on with its later instructions.
+   */
+  readonly suspended?: readonly StackFrame[];
 }
 
 /**
@@ -239,6 +252,11 @@ export type StackFrame =
        */
       readonly endEffects: readonly DeferredEffects[];
       /**
+       * The activation has finished and its `endEffects` are resolving (`pushEndEffects`): an activation initiated now
+       * does not wait behind it (`activationToQueueBehind`).
+       */
+      readonly endEffectsDraining?: true;
+      /**
        * An enemy activation or attack that began and then ended before resolving: its enemy left play (RRG 1.8
        * "Activation", p. 6; ruling January 11, 2026 - Ruling 1, answer 3), or a cancel effect cancelled the enemy
        * attack in its interrupt window (FFG ruling Feb 15, 2024, Ruling 148: "the attack is still considered to 'end'").
@@ -284,6 +302,13 @@ export type StackFrame =
       readonly responsesLater?: true;
       /** Events handed over by frames whose `responsesWith` is this one; this frame's response window gathers them. */
       readonly joinedResponses?: readonly TriggerEvent[];
+      /**
+       * The response windows a sentence held (`Frame<"effects">.heldSentenceResponses`, one entry per occurrence) and
+       * handed to this event, the attack or thwart of the "(attack)"/"(thwart)" ability that sentence ended: they join
+       * this event's own response window, each as a triggering condition group of its own (`Frame<"window">
+       * .conditionGroups`; `resolve/sentence-hold.ts`).
+       */
+      readonly sentenceResponses?: readonly (readonly TriggerEvent[])[];
       /**
        * Announcements of moves made during this event's own interrupt window, pushed once this frame finishes, after
        * its "cancelled" line if it was cancelled (docs/phase7-wave5.md §4.1 Q34): a replacement ("tuck it here
@@ -413,6 +438,20 @@ export type StackFrame =
        * one of them can cancel or replace that one. Absent (or null) for a condition whose frame has finished.
        */
       readonly alsoEventFrameIds?: readonly (FrameId | null)[];
+      /**
+       * Response windows only: which occurrence each condition belongs to, by index, `alsoEvents` first and `event`
+       * last. Absent when they are all one occurrence's (every window but the one a sentence's held responses open,
+       * `resolve/sentence-hold.ts`). RRG 1.8 p. 5 puts forced before optional only among "abilities with the same
+       * triggering condition" ("Forced", p. 20: "for any given triggering condition"), so with several groups an
+       * optional response to a group no forced response answers is offered before the forced tier too
+       * (`earlyOptional`), as well as after it.
+       */
+      readonly conditionGroups?: readonly number[];
+      /**
+       * With `conditionGroups`: `"offering"` while the optional responses to groups no forced response answers are
+       * offered ahead of the forced tier, `"done"` once that round has ended. Absent when there was no such round.
+       */
+      readonly earlyOptional?: "offering" | "done";
       readonly timing: WindowTiming;
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
@@ -560,7 +599,9 @@ export type StackFrame =
        * (`gameFingerprint`). When they finish with the game changed, the ability resolved: each var in `to` (its
        * `Frame<"ability">.resolvedCounts`) goes up by 1, a Special is listed in `<prefix>.resolved` and
        * `abilityResolved` is announced; when nothing changed, none of them (RRG 1.8 "Resolve", p. 37). Absent when
-       * nothing reads it, which reads as changed.
+       * nothing reads it, which reads as changed. While the ability waits behind an activation
+       * (`DeferredEffects.suspended`), `RESOLVED_SO_FAR_CHANGED` or `RESOLVED_SO_FAR_UNCHANGED`: the frames beneath it
+       * are not the same when it resumes, so the digest is taken again then, unless the game had already changed.
        */
       readonly resolvedCount?: { readonly from: string; readonly to: readonly ResolvedCountVar[] };
       /**
@@ -666,6 +707,30 @@ export type StackFrame =
       readonly costEffectsPending?: number;
       /** With `costEffects`: the cursor at which the effect began, once the cost has been paid (step 6). */
       readonly effectBeganAt?: number;
+      /**
+       * The frame of an `EffectSpec sentence`: one printed sentence, whose responses wait for all of it (FFG rulings
+       * 126, Dec 8, 2023 and 137, Jan 11, 2024; `resolve/sentence-hold.ts`).
+       */
+      readonly sentence?: true;
+      /**
+       * On a `sentence` frame: the response windows raised while it resolves, oldest first, each the conditions of one
+       * occurrence in the order `pushWindow` lists them (the window's own event last). Opened together, as one window,
+       * once the sentence has resolved (`resolve/sentence-hold.ts`). On the root frame of a "(thwart)" ability: the ones
+       * its last sentence handed over, for the window of its one thwart (`announceAbilityThwart`).
+       */
+      readonly heldSentenceResponses?: readonly (readonly TriggerEvent[])[];
+      /**
+       * An enemy activation this frame's ability initiated while another was resolving, waiting behind it with the rest
+       * of the ability (`DeferredEffects.suspended`): resolved first when the frame is back on the stack, and not
+       * queued again. The frame's cursor is already past it. Absent on every other frame.
+       */
+      readonly resumeActivation?: EffectSpec;
+      /**
+       * On the root frame of an ability that initiated an enemy activation: the abilities that waited behind that
+       * activation (`DeferredEffects.suspended`), resumed as this frame finishes, so this ability's remaining sentences
+       * resolve first (`resolve/suspend.ts`, `releaseWaitingAbilities`). Absent on every other frame.
+       */
+      readonly waitingAbilities?: readonly DeferredEffects[];
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

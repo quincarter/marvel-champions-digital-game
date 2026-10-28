@@ -21,6 +21,69 @@ code	pack	name	scan	saved
 01016	core	Captain Marvel's Helmet	11_Captain Marvel_sHelmet_Upgrade.tif	2026-10-28
 01017	core	Cosmic Flight	12_Cosmic Flight_Upgrade.tif	2026-10-28
 01018	core	Energy Channel	14_Energy Channel_Upgrade.tif	2026-10-28
+01040a	core	Black Panther	0_Black Panter_Hero_A.tif	2026-10-28
+01040b	core	T'Challa	0_Black Panter_Alter-Ego_B.tif	2026-10-28
+01041	core	Shuri	1_Shuri_Ally.tif	2026-10-28
+01042	core	Ancestral Knowledge	2_Ancestral Knowledge_Event.tif	2026-10-28
+01043a	core	Wakanda Forever!	3_Wakanda Forever_Event.tif	2026-10-28
+01043b	core	Wakanda Forever!	4_Wakanda Forever_Event.tif	2026-10-28
+01043c	core	Wakanda Forever!	5_Wakanda Forever_Event.tif	2026-10-28
+01043d	core	Wakanda Forever!	6_Wakanda Forever_Event.tif	2026-10-28
+01044	core	Vibranium	10_Vibranium_Resource.tif	2026-10-28
+01045	core	The Golden City	11_The Golden City_Support.tif	2026-10-28
+01046	core	Energy Daggers	12_Energy Dagger_Upgade.tif	2026-10-28
+01047	core	Panther Claws	13_Panther Claws_Upgrade.tif	2026-10-28
+01048	core	Tactical Genius	14_Tactical Genius_Upgrade.tif	2026-10-28
+01049	core	Vibranium Suit	15_Vibranium Suit_Upgrade.tif	2026-10-28
+01050	core	Hulk	Aggression_Hulk_Ally.tif	2026-10-28
+01051	core	Tigra	Aggression_Tigra_Ally.tif	2026-10-28
+01052	core	Chase Them Down	Aggression_Chase Them Down_Event.tif	2026-10-28
+01053	core	Relentless Assault	Aggression_Relentless Assault_Event.tif	2026-10-28
+01054	core	Uppercut	Aggression_Uppercut_Event.tif	2026-10-28
+01055	core	The Power of Aggression	Aggression_The Power of Aggression_Resource.tif	2026-10-28
+01056	core	Tac Team	Aggression_Tac Team_Support.tif	2026-10-28
+01057	core	Combat Training	Aggression_Combat Training_Upgrade.tif	2026-10-28
+01058	core	Daredevil	Justice_Daredevil_Ally.tif	2026-10-28
+01059	core	Jessica Jones	Justice_Jessica Jones_Ally.tif	2026-10-28
+01060	core	For Justice!	Jutice_For Justice!_Event.tif	2026-10-28
+01061	core	Great Responsibility	Justice_Great Responsibility_Event.tif	2026-10-28
+01062	core	The Power of Justice	Justice_The ower of Justice_Resource.tif	2026-10-28
+01063	core	Interrogation Room	Justice_Interegation Room_Support.tif	2026-10-28
+01064	core	Surveillance Team	Justice_Surveillance Team_Support.tif	2026-10-28
+01065	core	Heroic Intuition	Justice_Heroic Intuition_Upgrade.tif	2026-10-28
+01066	core	Hawkeye	Leadership_Hawkeye_Ally.tif	2026-10-28
+01067	core	Maria Hill	Leadership_Maria Hill_Ally.tif	2026-10-28
+01068	core	Vision	Leadership_Vision_Ally.tif	2026-10-28
+01069	core	Get Ready	Leadership_Get Ready_Event.tif	2026-10-28
+01070	core	Lead from the Front	Leadership_Lead from the Front_Event.tif	2026-10-28
+01071	core	Make the Call	Leadership_Make the Call_Event.tif	2026-10-28
+01072	core	The Power of Leadership	Leadership_The Power of Leadership_Resource.tif	2026-10-28
+01073	core	The Triskelion	Leadership_The Triskelion_Support.tif	2026-10-28
+01074	core	Inspired	Leadership_Inspired_Upgrade.tif	2026-10-28
+01075	core	Black Widow	Protection_Black Widow_Ally.tif	2026-10-28
+01076	core	Luke Cage	Protection_Luke Cage_Ally.tif	2026-10-28
+01077	core	Counter-Punch	Protection_Counter-punch_Event.tif	2026-10-28
+01078	core	Get Behind Me!	Protection_Get Behind Me!_Event.tif	2026-10-28
+01079	core	The Power of Protection	Protection_The Power of Protection_Resource.tif	2026-10-28
+01080	core	Med Team	Protection_Med Team_Support.tif	2026-10-28
+01081	core	Armored Vest	Protection_Armored Vest_Upgrade.tif	2026-10-28
+01082	core	Indomitable	Protection_Indomitable_Upgrade.tif	2026-10-28
+01083	core	Mockingbird	Basic_Mockingbird_Ally.tif	2026-10-28
+01084	core	Nick Fury	Basic_Nick Fury_Ally.tif	2026-10-28
+01085	core	Emergency	Basic_Emergency_Event.tif	2026-10-28
+01086	core	First Aid	Basic_First Aid_Event.tif	2026-10-28
+01087	core	Haymaker	Basic_Haymaker_Event.tif	2026-10-28
+01088	core	Energy	Basic_Energy_Resource.tif	2026-10-28
+01089	core	Genius	Basic_Genius_Resource.tif	2026-10-28
+01090	core	Strength	Basic_Strength_Resource.tif	2026-10-28
+01091	core	Avengers Mansion	Basic_Avengers Mansion_Support.tif	2026-10-28
+01092	core	Helicarrier	Basic_Helicarrier_Support.tif	2026-10-28
+01093	core	Tenacity	Basic_Tenacity_Upgrade.tif	2026-10-28
+01155	core	Affairs of State	0_Affairs of State_Obligation.tif	2026-10-28
+01156	core	Usurp The Throne	1_Usurp the Throne_Side Scheme.tif	2026-10-28
+01157	core	Killmonger	2_Killmonger_Minion.tif	2026-10-28
+01158	core	Heart-Shaped Herb	3_Heart-Shaped Herb_Treachery.tif	2026-10-28
+01159	core	Ritual Combat	4_Ritual Combat_Treachery.tif	2026-10-28
 01165	core	Eviction Notice	0_Eviction Notice_Obligation.tif	2026-10-28
 01166	core	Highway Robbery	1_Highway Robbery_Side Scheme.tif	2026-10-28
 01167	core	Vulture	2_Vulture_Minion.tif	2026-10-28
@@ -31,3 +94,17 @@ code	pack	name	scan	saved
 01177	core	Yon-Rogg	2_Yon-Rogg_Minion.tif	2026-10-28
 01178	core	Kree Manipulator	3_Kree Manipulator_Treachery.tif	2026-10-28
 01179	core	Yon-Rogg's Treason	5_Yon-Rogg_s Treason_Treachery.tif	2026-10-28
+04011	trors	Hawkeye	Leadership_Hawkeye (Kate Bishop)_Ally.tiff	2026-10-28
+04012	trors	Black Knight	Leadership_Black Knight_Ally.tif	2026-10-28
+04013	trors	Goliath	Leadership_Goliath_Ally.tif	2026-10-28
+04014	trors	U.S. Agent	Leadership_U.S. Agent_Ally.tif	2026-10-28
+04015	trors	Sky Cycle	Leadership_Sky Cycle_Upgrade.tiff	2026-10-28
+04016	trors	Team Training	Leadership_Team Training_Support.tiff	2026-10-28
+04017	trors	Ready for Action	Leadership_Ready for Action_Event.tiff	2026-10-28
+04020	trors	War Machine	Basic_War Mashine_Ally.tiff	2026-10-28
+04022	trors	Earth's Mightiest Heroes	Basic_Earth_s Mightiest Heroes_Event.tiff	2026-10-28
+04040	trors	Spider-Girl	Aggression_Spider-Girl_Ally_40.tiff	2026-10-28
+04043	trors	Press the Advantage	Aggression_Press the Advantage_Event_43.tiff	2026-10-28
+04044	trors	Piercing Strike	Aggression_Piercing Strike_Event_44.tiff	2026-10-28
+04047	trors	Skilled Investigator	Justice_Skilled Investigator_Upgrade_47.tiff	2026-10-28
+04049	trors	Clear the Area	Justice_Clear the Area_Event_49.tiff	2026-10-28

@@ -875,6 +875,8 @@ function attackAhead(
       }
       // Post-"then" text resolves unless the text before it fails to (RRG 1.8 "'Then'", p. 44), which is not known yet.
       case "then":
+      // A sentence's effects resolve inline, in order (spec.ts `sentence`).
+      case "sentence":
         attackAhead(state, instruction.effects, context, identity, ahead);
         break;
       case "chooseOne": {

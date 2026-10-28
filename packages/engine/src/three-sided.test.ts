@@ -209,6 +209,17 @@ describe("three-sided identities (docs/phase7-wave2.md §3.2)", () => {
     expect(counters(answered)).toEqual({ giant: 1 });
   });
 
+  it("'change to hero form' from one hero form goes to the other, unasked (FFG ruling June 17, 2025)", () => {
+    const tiny = apply(game(), toHero(0));
+    const suited = playEvent(tiny, "suit-up");
+    expect(mustPlayer(suited, p1).identity).toMatchObject({
+      form: "hero",
+      heroFormIndex: 1,
+      changedFormThisRound: true,
+    });
+    expect(counters(suited)).toEqual({ tiny: 1, giant: 1 });
+  });
+
   it("'your other hero form' does nothing in alter-ego form", () => {
     const start = game();
     const resized = playEvent(start, "resize");

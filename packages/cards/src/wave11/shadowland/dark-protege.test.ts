@@ -25,7 +25,7 @@ import {
 } from "../../testing/harness.js";
 import { driveEventsPicking, driveStepwise, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
-import { BLACK_CAT, CAPTAIN_MARVEL, SHE_HULK, SPIDER_MAN } from "../../wave9/testing.js";
+import { BLACK_CAT, BLACK_PANTHER_CORE, CAPTAIN_MARVEL, SHE_HULK, SPIDER_MAN } from "../../wave9/testing.js";
 import { WAVE11_CARDS } from "../cards.js";
 import {
   ADVANCE,
@@ -579,6 +579,51 @@ describe("Krahllak's Blessing 65019", () => {
     expect(villainAttacks(run.events, run.state)).toHaveLength(1);
     expect(villainAttacks(run.events, run.state)[0]!.targetInstanceId).toBe(staged.id);
     expect(inst(run.state, id).attachedTo).toBeNull();
+  });
+});
+
+// With a Retaliate hero (RRG 1.8 "Activation", p. 6; owner decision, 2026-10-28, reading A, `resolve/suspend.ts`): each
+// Blessing attack is retaliated, and the Blessing (still attached: its ability has not finished) answers that damage
+// again, the new use waiting behind the attack. The first use's "Discard this card" resolves as soon as its own attack
+// has finished, then the waiting use's attack is made (it was initiated), its own discard finding the card gone. No loop.
+describe("Krahllak's Blessing 65019 with a Retaliate hero", () => {
+  const blessedPanther = () => {
+    const base = withForm(shadowGame({ seats: [BLACK_PANTHER_CORE], encounter: [BLESSING] }), { heroForm: 0 });
+    return attachEncounterCard(base, BLESSING, base.activeVillainId!);
+  };
+  const attacksOf = (run: { events: readonly GameEvent[]; state: GameState }) =>
+    run.events.flatMap((e, i) =>
+      e.type === "attackResolved" && e.enemyInstanceId === run.state.activeVillainId ? [i] : [],
+    );
+  const discardsOf = (run: { events: readonly GameEvent[] }, id: InstanceId) =>
+    run.events.flatMap((e, i) => (e.type === "cardDiscardedFromPlay" && e.instanceId === id ? [i] : []));
+
+  it("player phase: the basic attack's damage makes the villain attack once more, then the Blessing is discarded", () => {
+    const { state, id } = blessedPanther();
+    const run = driveEventsPicking(DEPS, state, firstLegal, basicAttack(state));
+    const attacks = attacksOf(run);
+    const discards = discardsOf(run, id);
+    // The Blessing's attack, retaliated; that damage's use waits behind it, then attacks after the first use's discard.
+    expect(attacks).toHaveLength(2);
+    expect(discards).toHaveLength(1);
+    expect(discards[0]!).toBeGreaterThan(attacks[0]!);
+    expect(discards[0]!).toBeLessThan(attacks[1]!);
+    expect(discardCodes(run.state)).toContain(BLESSING);
+    expect(playerOf(run.state, P1).eliminated).toBe(false);
+  });
+
+  it("villain phase: the phase's attack and two Blessing attacks, the Blessing discarded between the second and the third", () => {
+    const { state, id } = blessedPanther();
+    const run = villainPhase(state, [FILLER_A, FILLER_B]);
+    const attacks = attacksOf(run);
+    const discards = discardsOf(run, id);
+    expect(attacks).toHaveLength(3);
+    expect(discards).toHaveLength(1);
+    expect(discards[0]!).toBeGreaterThan(attacks[1]!);
+    expect(discards[0]!).toBeLessThan(attacks[2]!);
+    expect(inst(run.state, id).attachedTo).toBeNull();
+    expect(discardCodes(run.state)).toContain(BLESSING);
+    expect(playerOf(run.state, P1).eliminated).toBe(false);
   });
 });
 

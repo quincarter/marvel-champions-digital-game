@@ -554,6 +554,21 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&fixture=gamma-blast`: Spectrum's Gamma Blast, stopped on the response window its sentence holds (#410):
+  // the Gamma form's response is headed by the form change it answers, not by the attack.
+  if (screen === "board" && params.get("fixture") === "gamma-blast") {
+    const { startGammaBlastDevGame } = await import("../store/dev-gamma-blast-game.js");
+    await startGammaBlastDevGame(appSession().store);
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&fixture=giant-wasp`: Wasp in her Giant face; the log names the face ("You changed to Giant Wasp.").
+  if (screen === "board" && params.get("fixture") === "giant-wasp") {
+    const { startGiantWaspDevGame } = await import("../store/dev-giant-wasp-game.js");
+    await startGiantWaspDevGame(appSession().store);
+    return { key: SCENES.board, data: {} };
+  }
+
   if (screen === "board" && params.get("fixture") === "grounded") {
     const { startDevGroundedGame } = await import("../store/dev-mission-game.js");
     await startDevGroundedGame();

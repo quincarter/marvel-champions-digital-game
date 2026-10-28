@@ -19,13 +19,14 @@
  * BOARD CONTRACT (read this before wiring the launch call)
  * ---------------------------------------------------------------------------
  * The Board scene launches this overlay exactly once per villain phase, passing the game from before the
- * command that began it as `VillainPhaseLaunchData`:
+ * command that began it, and who drew what as the player phase ended (`endOfTurn`, which the Board folds across the
+ * commands a refill can span: `view/villain-end-of-turn.ts`), as `VillainPhaseLaunchData`:
  *
  *   if (
  *     !this.scene.isActive(SCENES.villainPhase) &&
  *     state.lastEvents.some((e) => e.type === "stepChanged" && e.to.phase === "villain" && e.to.kind === "placeThreat")
  *   ) {
- *     this.scene.launch(SCENES.villainPhase, { before });
+ *     this.scene.launch(SCENES.villainPhase, { before, endOfTurn });
  *   }
  *
  * That is the *only* thing Board needs to do. Why this exact condition:
@@ -256,7 +257,7 @@ import { villainBandLayout, villainRailLayout, villainTabLayout } from "../view/
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
-import { endOfTurnDrawsOf, endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
+import { endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
 import { gateTakebackOf } from "../view/end-turn-takeback.js";
 import {
   abilityName,
@@ -271,6 +272,11 @@ import {
 /** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
 export interface VillainPhaseLaunchData {
   readonly before: GameState | null;
+  /**
+   * Who drew what as the player phase ended (the draw up to hand size), which the Board folds across the commands a
+   * refill can span (`view/villain-end-of-turn.ts`). Absent for a review.
+   */
+  readonly endOfTurn?: EndOfTurnDraws | null;
   /** Reopen a finished phase's recap for review from the Board's drawer handle (`view/villain-review.ts`). */
   readonly review?: VillainReview;
 }
@@ -420,7 +426,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#soleAnswered = new Set();
     this.#noticeShownAt = new Map();
     this.#inlineShown = null;
-    this.#endOfTurn = null;
+    this.#endOfTurn = data?.review ? null : (data?.endOfTurn ?? null);
     this.#review = data?.review ?? null;
     if (this.#review) {
       // A finished phase, read back: everything shown, nothing paced, nothing more to collect.
@@ -743,8 +749,6 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     if (state.version !== this.#version) {
       this.#version = state.version;
-      // The command that began the phase also ended the player phase: keep who drew what (the draw up to hand size).
-      if (!this.#review) this.#endOfTurn = endOfTurnDrawsOf(state.lastEvents) ?? this.#endOfTurn;
       const before = totalBeatsOf(this.#walkthrough);
       this.#walkthrough = appendWalkthrough(
         this.#walkthrough,

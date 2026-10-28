@@ -211,7 +211,7 @@ describe("Bodyslide (40002)", () => {
 
 describe("Bodyslide (40002) with a player already in a hero form (FFG ruling June 8, 2023 - Ruling 22)", () => {
   const ANGEL = { starterDeckId: "angel-protection" } as const; // two hero forms, like Ant-Man (Tiny/Giant)
-  it.fails("Cable changes to hero form: Angel (hero form 0) is asked and can change to his other hero form (Archangel), as Ant-Man could from Tiny to Giant", () => {
+  it("Cable changes to hero form: Angel (hero form 0) is asked and can change to his other hero form (Archangel), as Ant-Man could from Tiny to Giant", () => {
     const config = wave7Scenario("juggernaut", {
       players: [CABLE, ANGEL],
       seed: 1,

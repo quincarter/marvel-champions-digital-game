@@ -2,6 +2,7 @@ import {
   activeEncounterDeckId,
   applyCommand,
   createGame,
+  type AbilityDefinition,
   type EngineDeps,
   type Command,
   type GameEvent,
@@ -12,6 +13,7 @@ import {
 import { cardId } from "@mc/content";
 import type { CardInstance } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
+import { forcedResponse, placeThreat, theMainScheme } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -40,7 +42,7 @@ import {
 import { characterProfile } from "@mc/engine";
 import { drive as benchDrive, intoPlay, rhino, withPatrolMinion } from "../../testing/qa-bench.js";
 import { WAVE7_CARDS } from "../cards.js";
-import { WAVE7_DEPS, wave7Scenario } from "../index.js";
+import { WAVE7_ABILITIES, WAVE7_DEPS, wave7Scenario } from "../index.js";
 import { WAR_MACHINE_PACK_CARDS } from "../../wave4/warm/war-machine-pack-cards.js";
 import { NEXT_EVOL_PRECON_CABLE_DECK } from "./precon-cable-deck.js";
 
@@ -989,23 +991,25 @@ describe("Ruling 150, Mar 15, 2024: Deadpool ally healing 3 from excess conseque
   });
 });
 
+/** Answers the target prompts with `ids` in turn when offered; anything else takes the first option. */
+const targetsInOrder = (...ids: InstanceId[]): Picker => {
+  let next = 0;
+  return (s) => {
+    const c = s.pendingChoice;
+    if (
+      c?.prompt.kind === "chooseTarget" &&
+      ids[next] !== undefined &&
+      c.options.some((o) => o.optionId === ids[next])
+    ) {
+      return [ids[next++]!];
+    }
+    return firstLegal(s);
+  };
+};
+
 describe("Frenemies (40026)", () => {
   /** Cable and Deadpool in play (Deadpool paid for from the hand), main scheme 20, Technovirus Purge 5. */
   const withDeadpool = () => put(heroGame(), "40024", 3);
-  const targetsInOrder = (...ids: InstanceId[]): Picker => {
-    let next = 0;
-    return (s) => {
-      const c = s.pendingChoice;
-      if (
-        c?.prompt.kind === "chooseTarget" &&
-        ids[next] !== undefined &&
-        c.options.some((o) => o.optionId === ids[next])
-      ) {
-        return [ids[next++]!];
-      }
-      return firstLegal(s);
-    };
-  };
 
   it("is Team-Up (Cable and Deadpool): it cannot be played unless Deadpool is in play", () => {
     expect(playRefused(heroGame(), "40026", 1)).toBe(true);
@@ -1077,7 +1081,7 @@ describe("Frenemies (40026): the two threat removals are simultaneous (FFG rulin
     return { ...encounterCardInVillainArea(swapped, "01108", 3), main: swapped.mainScheme.instanceId };
   }
 
-  it.fails("a crisis icon side scheme thwarted by the first removal still bars the main scheme from the second (RRG p. 43 'Target'; Ruling 127 answer 2)", () => {
+  it("a crisis icon side scheme thwarted by the first removal still bars the main scheme from the second (RRG p. 43 'Target'; Ruling 127 answer 2)", () => {
     const { state, id: crowd, main } = stage();
     const offers: string[][] = [];
     const pick: Picker = (s) => {
@@ -1095,6 +1099,46 @@ describe("Frenemies (40026): the two threat removals are simultaneous (FFG rulin
     expect(inst(after, crowd).threat).toBe(0);
     // Ruling: the two instances are simultaneous, so the main scheme was still barred for the second; it loses nothing.
     expect(inst(after, main).threat).toBe(mainBefore);
+  });
+
+  it("a response to the first removal resolves only after both removals have happened (Ruling 127 answer 2; RRG p. 7 'And')", () => {
+    const { state: base } = put(heroGame(), "40024", 3);
+    const purge = schemeOf(base, PURGE);
+    const main = mainOf(base);
+    // Deadpool's slot is swapped for a "Forced Response: after threat is removed from a scheme, place 1 threat on the
+    // main scheme", so any state change in the window between the two removals shows in the log's order.
+    const responder: AbilityDefinition = forcedResponse({ on: "removeThreat" }, placeThreat(1, theMainScheme));
+    const deps: EngineDeps = { abilities: { ...WAVE7_ABILITIES, [DEADPOOL]: responder } };
+    const given = moveToHand(base, P1, "40026");
+    const [id] = given.ids as [InstanceId];
+    const { events } = driveEventsPicking(
+      deps,
+      given.state,
+      targetsInOrder(main, purge),
+      play(P1, id, payWith(given.state, P1, 1, [id])),
+    );
+    const log = events.flatMap((e) =>
+      e.type === "threatRemoved" ? ["removed"] : e.type === "threatPlaced" ? ["placed"] : [],
+    );
+    // Frenemies' two removals come first; the responder's placement (answering the first) follows both of them.
+    expect(log.slice(0, 3)).toEqual(["removed", "removed", "placed"]);
+  });
+
+  it("the second scheme cannot be skipped when another scheme can be targeted (Ruling 127 answer 1)", () => {
+    const { state: base } = put(heroGame(), "40024", 3);
+    const purge = schemeOf(base, PURGE);
+    const second: GameState[] = [];
+    const pick: Picker = (s) => {
+      if (
+        s.pendingChoice?.prompt.kind === "chooseTarget" &&
+        s.pendingChoice.options.every((o) => o.optionId !== mainOf(base))
+      )
+        second.push(s);
+      return targetsInOrder(mainOf(base), purge)(s);
+    };
+    put(base, "40026", 1, { pick });
+    expect(second).toHaveLength(1);
+    expect(second[0]!.pendingChoice!.minSelections).toBe(1);
   });
 });
 

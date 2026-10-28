@@ -568,7 +568,7 @@ function partCanAffect(
   id: InstanceId,
   context: EffectContext,
 ): boolean | null {
-  if (effect.kind !== "if" && effect.kind !== "then" && effect.kind !== "chooseOne")
+  if (effect.kind !== "if" && effect.kind !== "then" && effect.kind !== "sentence" && effect.kind !== "chooseOne")
     return effectCanAffect(state, deps, effect, slot, id, context) ?? true;
   // A branch that names the slot some other way than in its condition or its effects is not judged.
   const outside = Object.entries(effect).filter(([key]) => !BRANCH_KEYS.includes(key));
@@ -1049,6 +1049,50 @@ function effectsTargetFault(
   playerId: PlayerId | null,
   costEffects = 0,
 ): TargetFault | null {
+  // A sentence (spec.ts `sentence`) is its effects, inline: it changes only when its responses open.
+  const leading = costEffects > 0 ? inlineSentences(effects.slice(0, costEffects)).length : 0;
+  return inlinedTargetFault(state, deps, inlineSentences(effects), context, playerId, leading);
+}
+
+/**
+ * `effects` with every `sentence` replaced by its effects, in place, at the top level and inside `if` branches and
+ * post-"then" text: what the ability does, read as one list.
+ */
+function inlineSentences(effects: readonly EffectSpec[]): readonly EffectSpec[] {
+  if (!effects.some(holdsSentence)) return effects;
+  return effects.flatMap((effect): readonly EffectSpec[] => {
+    if (effect.kind === "sentence") return inlineSentences(effect.effects);
+    if (effect.kind === "then") return [{ ...effect, effects: inlineSentences(effect.effects) }];
+    if (effect.kind === "if") {
+      return [
+        {
+          ...effect,
+          then: inlineSentences(effect.then),
+          ...(effect.otherwise ? { otherwise: inlineSentences(effect.otherwise) } : {}),
+        },
+      ];
+    }
+    return [effect];
+  });
+}
+
+/** Whether this effect is a sentence or holds one where `inlineSentences` looks. */
+function holdsSentence(effect: EffectSpec): boolean {
+  if (effect.kind === "sentence") return true;
+  if (effect.kind === "then") return effect.effects.some(holdsSentence);
+  if (effect.kind === "if") return effect.then.some(holdsSentence) || (effect.otherwise ?? []).some(holdsSentence);
+  return false;
+}
+
+/** `effectsTargetFault` once its sentences are inline (`inlineSentences`). */
+function inlinedTargetFault(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+  playerId: PlayerId | null,
+  costEffects: number,
+): TargetFault | null {
   // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
   // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
   // docs/phase7-wave5.md §4.1 Q48, Q50).
@@ -1214,6 +1258,7 @@ export function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec
     case "if":
       return [effect.then, effect.otherwise ?? []];
     case "then":
+    case "sentence":
     case "repeatWhile":
     case "repeatTimes":
     case "forEachPlayer":

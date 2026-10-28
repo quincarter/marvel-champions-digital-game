@@ -13,7 +13,8 @@
  * How it is recorded. Nothing is stamped on a card or an event until the rule has something to say: the moment a card
  * moves from out of play into play (`relocateCard`), every condition that has already occurred and whose response
  * window is still to open, or is open now, gets that card's id appended (`noteEnteredPlay`). The list travels with the
- * event wherever it waits (its event frame, a list of deferred, joined or held conditions, an open window), and
+ * event wherever it waits (its event frame, a list of deferred, joined or held conditions, a sentence's held windows
+ * (`heldSentenceResponses`, `sentenceResponses`), an open window), and
  * appears on the event in the log's `resolved` line and in the state, so a trace shows why a card in play was not
  * offered a response. `resolve/triggers.ts` reads it for the Response timing only.
  *
@@ -132,6 +133,9 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
     return { ...event, enteredPlaySince: [...(event.enteredPlaySince ?? []), id] };
   };
   const markAll = (events: readonly TriggerEvent[]): readonly TriggerEvent[] => events.map(mark);
+  /** A sentence's held windows, one entry per occurrence (`resolve/sentence-hold.ts`). */
+  const markHeld = (held: readonly (readonly TriggerEvent[])[]): readonly (readonly TriggerEvent[])[] =>
+    held.map(markAll);
 
   const stack = state.stack.map((frame): StackFrame => {
     switch (frame.kind) {
@@ -147,6 +151,7 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
           frame.joinedResponses !== undefined ||
           frame.announceAfter !== undefined ||
           frame.keywordsIgnored !== undefined ||
+          frame.sentenceResponses !== undefined ||
           (held !== undefined && held.length > 0);
         if (!occurred && !lists) return frame;
         return {
@@ -158,6 +163,7 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
           ...(frame.joinedResponses !== undefined ? { joinedResponses: markAll(frame.joinedResponses) } : {}),
           ...(frame.announceAfter !== undefined ? { announceAfter: markAll(frame.announceAfter) } : {}),
           ...(frame.keywordsIgnored !== undefined ? { keywordsIgnored: markAll(frame.keywordsIgnored) } : {}),
+          ...(frame.sentenceResponses !== undefined ? { sentenceResponses: markHeld(frame.sentenceResponses) } : {}),
         };
       }
       case "window": {
@@ -189,9 +195,14 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
           session.instances.some((instance) => instance.schemeInstanceId === id) &&
           !session.enteredPlaySince?.includes(id);
         if (thwarted) changed = true;
-        const marked: typeof frame = thwarted
+        const sessionMarked: typeof frame = thwarted
           ? { ...frame, thwart: { ...session, enteredPlaySince: [...(session.enteredPlaySince ?? []), id] } }
           : frame;
+        // The windows a sentence (or a "(thwart)" ability's root, for its thwart) holds: occurred, still to open.
+        const marked: typeof frame =
+          sessionMarked.heldSentenceResponses !== undefined
+            ? { ...sessionMarked, heldSentenceResponses: markHeld(sessionMarked.heldSentenceResponses) }
+            : sessionMarked;
         // Characters defeated together (`resolve/defeated-together.ts`): each defeat that has happened.
         const step = marked.effects[marked.cursor];
         if (step?.kind !== "defeatedTogether" || step.stage === "apply") return marked;
