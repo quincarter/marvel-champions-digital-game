@@ -1,0 +1,3 @@
+kind: Fixed
+body: The release workflow clones blobless and times out after 30 minutes, so a slow clone no longer holds every later release run in the queue.
+time: 2026-10-28T13:34:04.3242304-04:00

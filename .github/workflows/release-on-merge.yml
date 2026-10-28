@@ -41,13 +41,19 @@ jobs:
   decide:
     name: Check Changes
     runs-on: ubuntu-latest
+    # A hung clone would otherwise hold the release-on-merge concurrency group for GitHub's six-hour default, queueing
+    # every later merge's release run behind it.
+    timeout-minutes: 30
     outputs:
       mode: ${{ steps.check_changes.outputs.mode }}
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
     steps:
+      # Full history for the tags, without every old blob: the repo's history is several GB, mostly images, and a full
+      # clone of it once hung this step. Nothing here reads an old commit's files (git describe, git log and changie).
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: blob:none
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fetch all git tags
@@ -116,15 +122,18 @@ jobs:
     name: Cut Release
     needs: [decide, checks, tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       should_release: ${{ steps.cut.outputs.should_release }}
       version: ${{ steps.cut.outputs.version }}
       tag: ${{ steps.cut.outputs.tag }}
       publish: ${{ steps.cut.outputs.publish }}
     steps:
+      # Blobless for the same reason as in `decide`.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: blob:none
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fetch all git tags
