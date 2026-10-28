@@ -70,7 +70,9 @@ const CLIENT_SHARDS = 2;
 const shards = (count) => Array.from({ length: count }, (_, index) => index + 1);
 const capitalized = (text) => text[0].toUpperCase() + text.slice(1);
 
-// `name` is the job's name in the checks list; `title` heads its test report on the run's summary page.
+// `name` is the job's name in the checks list; `title` heads its test report on the run's summary page. `media` asks
+// tests.yml for a full checkout: the client's art tests and the card data tests read the image files, which every
+// other job leaves out.
 
 const include = [
   ...(lower.length > 0
@@ -79,6 +81,7 @@ const include = [
           name: lower.join(" and "),
           title: capitalized(`${lower.map((project) => LOWER_TITLE[project]).join(" and ")} tests`),
           args: lower.map((project) => `--project @mc/${project}`).join(" "),
+          ...(has("content") ? { media: true } : {}),
         },
       ]
     : []),
@@ -92,11 +95,13 @@ const include = [
           name: `client (${part}/${CLIENT_SHARDS})`,
           title: `Game client tests, part ${part} of ${CLIENT_SHARDS}`,
           args: `--project @mc/client --exclude "**/${CLIENT_SOAK.replace(/^packages\/client\//, "")}" --shard=${part}/${CLIENT_SHARDS}`,
+          media: true,
         })),
         {
           name: "client (Breakout soak)",
           title: "Breakout two-hero soak",
           args: `--project @mc/client ${CLIENT_SOAK}`,
+          media: true,
         },
       ]
     : []),

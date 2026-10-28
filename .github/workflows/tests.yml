@@ -15,12 +15,31 @@ name: Tests
 on:
   workflow_call:
 
+env:
+  # A checkout without the media: the repository's current files are about 3.7 GB, all but about 270 MB of it images,
+  # audio and PDFs, and a full checkout took 6 to 8 minutes a job. Only the client's tests and the card data tests read
+  # those files (the matrix marks those jobs `media`); typecheck and the cards, engine and sync-worker tests never do.
+  # A sparse checkout also clones blobless, so the files left out are never downloaded.
+  CODE_ONLY: |
+    /*
+    !/assets/
+    !/art/
+    !/artifacts/
+    !/music/
+    !/Marvel Champions game screens/
+    !/docs/screenshots/
+    !/docs/**/*.pdf
+    !/docs/**/*.png
+
 jobs:
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ${{ env.CODE_ONLY }}
+          sparse-checkout-cone-mode: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -67,7 +86,11 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
+      # An empty sparse-checkout is a full checkout.
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ${{ !matrix.media && env.CODE_ONLY || '' }}
+          sparse-checkout-cone-mode: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
