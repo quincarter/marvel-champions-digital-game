@@ -399,8 +399,11 @@ describe("TRORS_CAMPAIGN_DEFINITION's between-games instructions, all five scena
   });
 
   it("replaces the taker's \u201CBasic\u201D upgrade with its \u201CImproved\u201D side, and no one else's (MC10 p. 12)", () => {
-    const { log } = walk();
+    const { log, asked } = walk();
 
+    // Only the upgrade recorded for this seat is offered: Hawkeye's starter deck also holds Team Training (04016),
+    // a CONDITION card of its own, which offering "the CONDITION cards in the deck" put up for a flip (#496).
+    expect(asked.find((choice) => choice.slot === "improve")?.options).toEqual([BASIC_IDS[0]]);
     expect(log.seats[0]?.grants.find((grant) => grant.cardId === BASIC_IDS[0])?.face).toBe("Improved Thwart Upgrade");
     expect(log.seats[1]?.grants.every((grant) => grant.face === undefined)).toBe(true);
   });

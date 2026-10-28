@@ -38,7 +38,14 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import type { CampaignService, CampaignStepResult } from "./campaign-service.js";
 
-export type DesignRunStop = "fresh" | "issue1Composed" | "afterIssue1" | "afterIssue2" | "lostIssue3" | "finished";
+export type DesignRunStop =
+  | "fresh"
+  | "issue1Composed"
+  | "afterIssue1"
+  | "afterIssue2"
+  | "lostIssue3"
+  | "afterIssue3"
+  | "finished";
 
 /** MC10's TECH (p. 5) and "Basic" Condition (p. 7) upgrades, by what the design's heroes took. */
 const DESIGN_PICKS: Readonly<Record<string, Readonly<Record<number, readonly string[]>>>> = {
@@ -272,6 +279,8 @@ export async function seedDesignRun(
   record = await playIssue(service, record, "win");
   if (stop === "afterIssue2") return record;
   if (stop === "lostIssue3") return playIssue(service, record, "loss");
+  record = await playIssue(service, record, "win");
+  if (stop === "afterIssue3") return record;
   while (record.status === "active") record = await playIssue(service, record, "win");
   return record;
 }
@@ -292,17 +301,40 @@ export interface WonGame {
   readonly won: GameState;
 }
 
+/** How a fabricated win's table looked when it ended, for a victory step that reads it. Unchanged by default. */
+export interface WinPose {
+  readonly heroForm?: boolean;
+  readonly clearSideSchemes?: boolean;
+}
+
 /** Composes `record`'s own next issue for real, then fabricates its win the same way `playIssueWith` does. */
 async function composeAndFabricateWin(
   service: CampaignService,
   record: CampaignRecord,
   answerFor: (choice: CampaignPendingChoice) => CampaignChoiceAnswer,
+  win: WinPose = {},
 ): Promise<WonGame> {
   const composed = await settleWith((answers) => service.compose(record, answers), answerFor);
   const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
   const started = await core.start(service.launchConfig(composed));
+  const state = started.snapshot.state;
   const won: GameState = {
-    ...started.snapshot.state,
+    ...state,
+    // Every hero won in hero form, for a victory that reads it (MC10 p. 12's "each player in hero form").
+    players: win.heroForm
+      ? state.players.map((player) => ({
+          ...player,
+          identity: { ...player.identity, form: "hero" as const, heroFormIndex: 0 },
+        }))
+      : state.players,
+    // No side scheme left in play, for a victory that reads one (MC10 p. 12's "If the Hydra Prison side scheme is
+    // not in play").
+    villainArea: win.clearSideSchemes
+      ? state.villainArea.filter((id) => {
+          const cardId = state.instances[id]?.cardId as string | undefined;
+          return CARDS_BY_ID.get(cardId ?? "")?.type !== "side_scheme";
+        })
+      : state.villainArea,
     cardPool: started.cardPool,
     outcome: { result: "win", reason: "villainDefeated" },
   };
@@ -337,10 +369,10 @@ export async function seedGmwWonGame(
 export async function seedDesignWonGame(
   service: CampaignService,
   stop: DesignRunStop = "afterIssue2",
-  options: { readonly expertCampaign?: boolean } = {},
+  options: { readonly expertCampaign?: boolean } & WinPose = {},
 ): Promise<WonGame> {
   const record = await seedDesignRun(service, stop, options);
-  return composeAndFabricateWin(service, record, autoAnswer);
+  return composeAndFabricateWin(service, record, autoAnswer, options);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

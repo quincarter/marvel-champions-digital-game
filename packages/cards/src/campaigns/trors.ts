@@ -670,14 +670,16 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
                         ],
                       },
                       then: [
-                        // "May": the seat is offered its own upgrade — the only CONDITION card in its deck — and
-                        // may decline. Nothing below runs unless it took the offer.
+                        // "May": the seat is offered its own recorded upgrade and nothing else, and may decline.
+                        // Not "the CONDITION cards in its deck": hero and aspect cards carry that trait too
+                        // (Innate Reflexes, Defensive Conditioning), and offering them flipped nothing (#496).
+                        // Nothing below runs unless it took the offer.
                         {
                           kind: "choose",
                           slot: "improve",
                           chooser: "eachSeat",
                           optional: true,
-                          from: { kind: "ownDeck", filter: { traits: [CONDITION] } },
+                          from: { kind: "values", of: { kind: "field", field: "basicUpgrade", seat: "self" } },
                         },
                         {
                           kind: "if",

@@ -350,7 +350,7 @@ if (import.meta.env.DEV) {
         seedWon(() => fixtures.seedGmwWonGame(session.campaignService(), stop, options)),
       seedDesignWon: (
         stop?: Parameters<typeof fixtures.seedDesignWonGame>[1],
-        options?: { expertCampaign?: boolean },
+        options?: Parameters<typeof fixtures.seedDesignWonGame>[2],
       ) => seedWon(() => fixtures.seedDesignWonGame(session.campaignService(), stop, options)),
       seedMts: (stop?: Parameters<typeof fixtures.seedMtsRun>[1]) =>
         fixtures.seedMtsRun(session.campaignService(), stop),

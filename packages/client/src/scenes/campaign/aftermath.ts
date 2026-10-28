@@ -1565,7 +1565,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       if (!phone) {
         const note =
           group.copy?.note ??
-          (group.dealtPerSeat
+          (group.dealtAtRandom
             ? "Dealt at random, one player at a time. A kept card is yours for the rest of the campaign."
             : "One player at a time. A kept card is yours for the rest of the campaign.");
         this.add
