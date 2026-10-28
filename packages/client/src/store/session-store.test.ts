@@ -144,6 +144,16 @@ describe("SessionStore", () => {
     expect(store.state.version).toBe(1);
   });
 
+  test("republish hands every subscriber the same state again (a language switch)", async () => {
+    await store.start(RHINO_SOLO);
+    const seen: unknown[] = [];
+    store.subscribe((state) => seen.push(state));
+    store.republish();
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toBe(store.state);
+    expect(seen[1]).toBe(seen[0]);
+  });
+
   /** Walks a real game forward: answers choices with the minimum, otherwise ends the turn. */
   const advance = async (target: SessionStore, steps: number): Promise<void> => {
     for (let step = 0; step < steps && !target.state.game!.outcome; step++) {

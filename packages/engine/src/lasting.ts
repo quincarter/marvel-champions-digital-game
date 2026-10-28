@@ -42,7 +42,16 @@ export type LastingDuration =
   /** "Until the end of this turn" / "this turn": the active player's turn (docs/phase7-wave2.md §13). */
   | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
-  | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
+  | {
+      readonly kind: "endOfEvent";
+      readonly frameId: FrameId;
+      /**
+       * Set on an effect claimed by a played card's first attack (`startFirstAttackEffects`): what it waited on before.
+       * If that attack is cancelled, it was not made (RRG 1.8 "Cancel", p. 11; FFG ruling 190), so the effect goes back
+       * to waiting for the card's next attack instead of ending (`expireEventLastingEffects`).
+       */
+      readonly ifCancelled?: LastingDuration;
+    }
   /**
    * "Until after that attack resolves", before the attack exists (`applyRuleUntil` with `attack: "initiated"`,
    * spec.ts): waits on the effects frame `frameId`. That frame's next `enemyAttack` retimes it to `endOfEvent` on the

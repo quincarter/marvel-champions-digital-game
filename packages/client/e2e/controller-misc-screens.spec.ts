@@ -137,6 +137,14 @@ async function warmTitle(page: Page): Promise<void> {
   await page.evaluate(() => import(/* @vite-ignore */ "/src/scenes/title.ts").then(() => true));
 }
 
+/** Every Trophy Room family open (they start folded, #479), so the rows are there to walk. Mirrors `ACHIEVEMENT_FAMILIES`. */
+async function openEveryFamily(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const expanded = ["wins", "villains", "campaigns", "heroes", "expert", "feats", "decks", "teamups", "funny"];
+    localStorage.setItem("mc-trophy-room-view", JSON.stringify({ sort: "category", descending: false, expanded }));
+  });
+}
+
 async function openScreen(page: Page, query: string, landing: string): Promise<void> {
   await installPad(page);
   await openApp(page, query, { landing });
@@ -149,6 +157,7 @@ async function openScreen(page: Page, query: string, landing: string): Promise<v
 test("the Trophy Room: D-pad walks the rows, A opens one, B closes the sheet", async ({ page }) => {
   test.setTimeout(300_000);
   const errors = trackPageErrors(page);
+  await openEveryFamily(page);
   await openScreen(page, "screen=trophies&unlock=all", "TrophyRoom");
   await waitFor(async () => (await stopsOf(page, "TrophyRoom")).length > 3, "rows are stops", 30_000);
   const stops = await stopsOf(page, "TrophyRoom");
@@ -159,7 +168,7 @@ test("the Trophy Room: D-pad walks the rows, A opens one, B closes the sheet", a
   const first = await focusOf(page, "TrophyRoom");
   expect(first, "the D-pad lands on something").not.toBeNull();
   // Walk down until a row is focused, then one more row (the keyboard's arrows step exactly once, however slow the page).
-  for (let i = 0; i < 4 && !(await focusOf(page, "TrophyRoom"))?.startsWith("row:"); i += 1) {
+  for (let i = 0; i < 6 && !(await focusOf(page, "TrophyRoom"))?.startsWith("row:"); i += 1) {
     await page.keyboard.press("ArrowDown");
     await page.waitForTimeout(400);
   }
@@ -173,15 +182,17 @@ test("the Trophy Room: D-pad walks the rows, A opens one, B closes the sheet", a
   await waitFor(async () => (await focusOf(page, "TrophyRoom")) === row, "ArrowUp moves back", 10_000);
   expect(await focusOf(page, "TrophyRoom")).toBe(row);
 
-  // RB jumps a family ahead, LB comes back to this family's start.
+  // RB jumps to the next family's heading, LB comes back to this family's heading.
   await press(page, RB, async () => (await focusOf(page, "TrophyRoom")) !== row);
   const family = await focusOf(page, "TrophyRoom");
   // The keyboard walk above made the pad the "new" device again, so this first pad press raised the "Controller connected" note, which takes a B: let it go.
   await waitFor(sceneGone(page, "PadToast"), "the pad note is gone", 30_000);
-  expect(Number(family!.slice(4))).toBeGreaterThan(Number(row!.slice(4)));
+  expect(family).toMatch(/^sec:/);
+  expect(family).not.toBe("sec:wins");
   await press(page, LB, async () => (await focusOf(page, "TrophyRoom")) !== family);
-  // LB lands on the start of the family it was in (the first row under the first heading), not somewhere in between.
-  expect(await focusOf(page, "TrophyRoom")).toBe("row:1");
+  // LB lands on the heading of the family it was in, not somewhere in between.
+  expect(await focusOf(page, "TrophyRoom")).toBe("sec:wins");
+  await press(page, DOWN, async () => (await focusOf(page, "TrophyRoom")) === "row:wins-1");
 
   // A opens the sheet, B closes it and focus returns to the row it was opened from.
   const before = await focusOf(page, "TrophyRoom");
@@ -196,9 +207,11 @@ test("the Trophy Room: D-pad walks the rows, A opens one, B closes the sheet", a
 test("the Trophy Room on a phone: the sheet fits and Close works", async ({ page }) => {
   test.setTimeout(300_000);
   await page.setViewportSize({ width: 390, height: 780 });
+  await openEveryFamily(page);
   await openScreen(page, "screen=trophies&unlock=all", "TrophyRoom");
   await waitFor(async () => (await stopsOf(page, "TrophyRoom")).length > 3, "rows are stops", 30_000);
-  await press(page, RB, async () => ((await focusOf(page, "TrophyRoom")) ?? "").startsWith("row:"));
+  await press(page, RB, async () => ((await focusOf(page, "TrophyRoom")) ?? "").startsWith("sec:"));
+  await press(page, DOWN, async () => ((await focusOf(page, "TrophyRoom")) ?? "").startsWith("row:"));
   await press(page, A, async () => (await stopsOf(page, "TrophyRoom")).join() === "close");
   const close = await page.evaluate(
     () =>
@@ -268,6 +281,7 @@ test("Report an issue over the Trophy Room: B closes the panel only, the screen 
 test("Trophy Room on a phone: a swipe that lifts over a row opens no sheet", async ({ page }) => {
   test.setTimeout(300_000);
   await page.setViewportSize({ width: 390, height: 780 });
+  await openEveryFamily(page);
   await openScreen(page, "screen=trophies&unlock=all", "TrophyRoom");
   await waitFor(async () => (await stopsOf(page, "TrophyRoom")).length > 3, "rows are stops", 30_000);
   const rects = await page.evaluate(() =>

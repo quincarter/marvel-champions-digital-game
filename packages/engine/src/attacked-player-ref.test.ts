@@ -20,8 +20,10 @@ import { flat, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
+import { createCtx } from "./ctx.js";
 import { replay, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
+import { runFlow } from "./flow.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { characterProfile, mustInstance, mustPlayer } from "./query.js";
 import { evaluate, resolvePlayers, resolveValue, type EffectContext } from "./select.js";
@@ -450,22 +452,58 @@ describe("PlayerRef attackedPlayer: each attacker reads its own attack", () => {
     expect(damageTo(result.events, heroOf(result.state, P2))).toEqual([1 + HAND.p2]);
   });
 
-  it("a nested attack: inside the villain's attack on P1, a minion's attack on P2 reads P2, and the villain still P1", () => {
+  it("a minion's attack started during the villain's attack on P1: made after it, it reads P2, the villain no attack", () => {
     const engaged = minionEngagedWith(table(), HOUND.id, P2);
     const result = use(engaged.state, ATTACK_ME);
-    // The minion's attack waits for the villain's (RRG 1.8 "Activation", p. 6) and is made at its end, while the
-    // villain's attack is still on the stack: the villain's ATK is its 1 + 2.
+    // Changed with reading A (RRG 1.8 p. 6; owner decision 2026-10-28): the Hound's attack now waits for ATTACK_ME's
+    // ability to finish, so the villain's attack is over when it is made and the villain's ATK is its own 1. The reading
+    // during an attack still on the stack is the villain-phase test below.
     expect(recorded(result.state, "probed")).toBe(1);
-    expect(recorded(result.state, "villainAtk")).toBe(1 + HAND.p1);
-    // No attacker named: the innermost attack, the minion's on P2. Named: that attacker's own.
+    expect(recorded(result.state, "villainAtk")).toBe(1);
+    // No attacker named: the innermost attack, the minion's on P2. Named: that attacker's own; the villain has none.
     expect(recorded(result.state, "innermost")).toBe(HAND.p2);
     expect(recorded(result.state, "bySelf")).toBe(HAND.p2);
-    expect(recorded(result.state, "byVillain")).toBe(HAND.p1);
+    expect(recorded(result.state, "byVillain")).toBe(0);
     // The villain's attack resolves first, then the minion's it initiated, each with its own target's hand.
     expect(damageTo(result.events, heroOf(result.state, P2))).toEqual([1 + HAND.p2]);
     expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([1 + HAND.p1]);
     const order = result.events.flatMap((e) => (e.type === "damageDealt" ? [e.targetInstanceId] : []));
     expect(order).toEqual([heroOf(result.state, P1), heroOf(result.state, P2)]);
+  });
+
+  it("a nested attack: inside the villain phase's attack on P1, a minion's attack on P2 reads P2, and the villain still P1", () => {
+    const engaged = minionEngagedWith(table(), HOUND.id, P2);
+    // The villain phase's own activation against P1 (step surgery): no ability initiated it, so the Hound's attack that
+    // waits behind it is made at its end, while the villain's attack is still on the stack (RRG 1.8 "Activation", p. 6).
+    const activating: GameState = {
+      ...engaged.state,
+      step: {
+        phase: "villain",
+        kind: "enemyActivations",
+        currentPlayerId: null,
+        remainingPlayerIds: [P1],
+        villainActivated: false,
+        activatedMinionIds: [],
+      },
+    };
+    // The flow runs the step from here, as it would after the last player's turn; then every choice is answered.
+    const ctx = createCtx(activating, deps);
+    runFlow(ctx);
+    const driven = driveSession(startSession(ctx.state), deps, [], defaultPick);
+    const state = driven.session.state;
+    const events = [...ctx.events, ...driven.events];
+    expect(recorded(state, "probed")).toBe(1);
+    // The villain's ATK is its 1 + 2 (P1's hand) while its attack on P1 is on the stack.
+    expect(recorded(state, "villainAtk")).toBe(1 + HAND.p1);
+    // No attacker named: the innermost attack, the minion's on P2. Named: that attacker's own.
+    expect(recorded(state, "innermost")).toBe(HAND.p2);
+    expect(recorded(state, "bySelf")).toBe(HAND.p2);
+    expect(recorded(state, "byVillain")).toBe(HAND.p1);
+    // The villain's attack resolves first, then the minion's it set off, each with its own target's hand.
+    const order = events.flatMap((e) => (e.type === "damageDealt" ? [e.targetInstanceId] : []));
+    expect(order.slice(0, 2)).toEqual([heroOf(state, P1), heroOf(state, P2)]);
+    expect(damageTo(events, heroOf(state, P1))[0]).toBe(1 + HAND.p1);
+    expect(damageTo(events, heroOf(state, P2))[0]).toBe(1 + HAND.p2);
   });
 
   it("in a `while` condition: '+2 ATK while attacking a player with at least 4 cards in hand'", () => {

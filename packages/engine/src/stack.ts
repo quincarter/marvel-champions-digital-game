@@ -150,6 +150,11 @@ export interface BoostInProgress {
   readonly appliedAsBoost?: readonly { readonly instanceId: InstanceId; readonly iconsCancelled: boolean }[];
 }
 
+/** `Frame<"effects">.resolvedCount.from` of a suspended ability whose effects had changed the game before it waited. */
+export const RESOLVED_SO_FAR_CHANGED = "suspended:changed";
+/** The same, for one whose effects had changed nothing yet: its digest is taken again as it resumes. */
+export const RESOLVED_SO_FAR_UNCHANGED = "suspended:unchanged";
+
 /** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */
 export interface DeferredEffects {
   readonly effects: readonly EffectSpec[];
@@ -160,17 +165,18 @@ export interface DeferredEffects {
   /**
    * An "at the end of this attack" delayed effect (`atEndOfAttack`): it resolves as the attack finishes, before the
    * attack's step 6 responses (RRG 1.8 "Delayed Effect", p. 16; `pushDelayedEndEffects`). Unset for an effect queued
-   * behind the activation (an "after this activation ends" effect, or an activation queued behind this one), which
+   * behind the activation (an "after this activation ends" effect, or an ability suspended behind this one), which
    * waits for those responses.
    */
   readonly delayed?: true;
   /**
-   * An activation queued behind this one (RRG 1.8 "Activation", p. 6) keeps the scope of the effect that initiated it:
-   * the player of its `forEachPlayer` pass ("attacks each player": `thatPlayer`) and the event that effect answered
-   * ("that damage"). Unset for the other held effects, which run in the activation's own scope (`pushEndEffects`).
+   * The rest of an ability that initiated an activation behind this one (RRG 1.8 "Activation", p. 6: "An effect that
+   * initiates an enemy activation is considered resolved after that activation has fully resolved"): the ability's
+   * frames, top first, taken off the stack as they were, the top one holding the initiating effect
+   * (`Frame<"effects">.resumeActivation`). They are put back as they were in place of `effects`, which is empty
+   * (`pushEndEffects`), so the ability initiates its activation and then goes on with its later instructions.
    */
-  readonly scopedPlayerId?: PlayerId | null;
-  readonly event?: TriggerEvent | null;
+  readonly suspended?: readonly StackFrame[];
 }
 
 /**
@@ -245,6 +251,11 @@ export type StackFrame =
        * step 6 response window, the rest after it.
        */
       readonly endEffects: readonly DeferredEffects[];
+      /**
+       * The activation has finished and its `endEffects` are resolving (`pushEndEffects`): an activation initiated now
+       * does not wait behind it (`activationToQueueBehind`).
+       */
+      readonly endEffectsDraining?: true;
       /**
        * An enemy activation or attack that began and then ended before resolving: its enemy left play (RRG 1.8
        * "Activation", p. 6; ruling January 11, 2026 - Ruling 1, answer 3), or a cancel effect cancelled the enemy
@@ -588,7 +599,9 @@ export type StackFrame =
        * (`gameFingerprint`). When they finish with the game changed, the ability resolved: each var in `to` (its
        * `Frame<"ability">.resolvedCounts`) goes up by 1, a Special is listed in `<prefix>.resolved` and
        * `abilityResolved` is announced; when nothing changed, none of them (RRG 1.8 "Resolve", p. 37). Absent when
-       * nothing reads it, which reads as changed.
+       * nothing reads it, which reads as changed. While the ability waits behind an activation
+       * (`DeferredEffects.suspended`), `RESOLVED_SO_FAR_CHANGED` or `RESOLVED_SO_FAR_UNCHANGED`: the frames beneath it
+       * are not the same when it resumes, so the digest is taken again then, unless the game had already changed.
        */
       readonly resolvedCount?: { readonly from: string; readonly to: readonly ResolvedCountVar[] };
       /**
@@ -706,6 +719,18 @@ export type StackFrame =
        * its last sentence handed over, for the window of its one thwart (`announceAbilityThwart`).
        */
       readonly heldSentenceResponses?: readonly (readonly TriggerEvent[])[];
+      /**
+       * An enemy activation this frame's ability initiated while another was resolving, waiting behind it with the rest
+       * of the ability (`DeferredEffects.suspended`): resolved first when the frame is back on the stack, and not
+       * queued again. The frame's cursor is already past it. Absent on every other frame.
+       */
+      readonly resumeActivation?: EffectSpec;
+      /**
+       * On the root frame of an ability that initiated an enemy activation: the abilities that waited behind that
+       * activation (`DeferredEffects.suspended`), resumed as this frame finishes, so this ability's remaining sentences
+       * resolve first (`resolve/suspend.ts`, `releaseWaitingAbilities`). Absent on every other frame.
+       */
+      readonly waitingAbilities?: readonly DeferredEffects[];
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

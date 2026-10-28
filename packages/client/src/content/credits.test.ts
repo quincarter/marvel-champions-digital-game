@@ -27,11 +27,14 @@ describe("credits cover the art folders", () => {
     expect(folders.filter((folder) => !covered(folder))).toEqual([]);
   });
 
-  it("has an entry for every top-level art folder, the card scans and the music", () => {
+  it("has an entry for every top-level art folder, the card scans in every language and the music", () => {
     const tops = readdirSync(join(root, "art"))
       .filter((name) => statSync(join(root, "art", name)).isDirectory())
       .map((name) => `art/${name}`);
-    expect([...tops, "assets/card-art", "music"].filter((folder) => !covered(folder))).toEqual([]);
+    const locales = readdirSync(join(root, "assets/card-art-locales"))
+      .filter((name) => statSync(join(root, "assets/card-art-locales", name)).isDirectory())
+      .map((name) => `assets/card-art-locales/${name}`);
+    expect([...tops, "assets/card-art", ...locales, "music"].filter((folder) => !covered(folder))).toEqual([]);
   });
 
   it("points only at folders that exist", () => {

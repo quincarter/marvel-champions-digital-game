@@ -11,6 +11,7 @@ export type SettingsItemId =
   | SettingsRowId
   | "card-size"
   | "card-hover"
+  | "card-language"
   | "inspect-card"
   | "game-volume"
   | "music-volume"
@@ -69,6 +70,8 @@ export function settingsSectionsOf(input: {
   readonly cardHover: boolean;
   /** A phone: the "Inspect card" row, which picks the portrait Inspect layout (#358). */
   readonly inspectCard?: boolean;
+  /** A bundle that carries more than one card language (the web): the "Card art language" row. */
+  readonly cardLanguage?: boolean;
   readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
   /** The Couch mode row, first under Animation and display: shown where a choice besides Off fits, or while on. */
@@ -99,6 +102,7 @@ export function settingsSectionsOf(input: {
       title: "Cards",
       items: [
         "card-size",
+        ...(input.cardLanguage ? (["card-language"] as const) : []),
         ...(input.cardHover ? (["card-hover"] as const) : []),
         ...(input.inspectCard ? (["inspect-card"] as const) : []),
         "hover-hero",

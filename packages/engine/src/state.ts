@@ -507,6 +507,14 @@ export interface EncounterFromDeck {
 }
 
 /**
+ * An encounter card a paused refill to hand size holds (`GameState.refillHeldEncounterFromDeck`). `refill` names that
+ * refill: `endPhase:<player>` for the end-of-phase draw, `frame:<frameId>:<player>` for a "draw up to" effect.
+ */
+export interface RefillHeldEncounterCard extends EncounterFromDeck {
+  readonly refill: string;
+}
+
+/**
  * A card discarded from a player's deck (`TriggerEvent cardDiscardedFromDeck`, docs/phase7-wave7.md §3.55), whose
  * fields these are. `boundOn`: the discarding ability's set of the cards "discarded this way", as the slot `slot` of
  * frame `frameId` (the effects frame of a `moveCards` or `discardDeckUntil` with a `bind`, the frame a
@@ -1115,7 +1123,7 @@ export interface GameState {
    * (`drawUpTo`), held back from `pendingEncounterFromDeck` until that refill finishes, so they are still dealt after
    * the whole draw (MC27 p. 21 FAQ). Absent when no refill is paused.
    */
-  readonly refillHeldEncounterFromDeck?: readonly EncounterFromDeck[];
+  readonly refillHeldEncounterFromDeck?: readonly RefillHeldEncounterCard[];
   /**
    * Cards that entered a player's hand since the flow last looked, oldest first, recorded only when some ability in the
    * registry triggers on it: the flow announces each as `cardEntersHand` between frames and empties the list. Absent

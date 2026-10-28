@@ -13,6 +13,7 @@
  * HTTP scope to widen. Unauthenticated calls are limited to 60 an hour per IP; one per launch is far inside that.
  */
 
+import { assetLanguage, cardLanguage, type CardLanguage } from "../art/card-language.js";
 import { detectPlatform, type Platform } from "./platform.js";
 import { CLIENT_VERSION } from "../version.js";
 
@@ -134,16 +135,22 @@ function isRepoUrl(url: unknown): url is string {
   return typeof url === "string" && url.startsWith(`${REPO_URL}/`);
 }
 
-/** The update to offer, or null: not newer, or published without an installer for the target's platform. */
+/**
+ * The update to offer, or null: not newer, or published without an installer for the target's platform. Only
+ * installers built in this app's card language count (`assetLanguage`), so a Spanish install is offered the Spanish
+ * download and an English one never is.
+ */
 export function updateFor(
   release: LatestRelease,
   currentVersion: string,
   target: InstallTarget,
+  language: CardLanguage = cardLanguage(),
 ): AvailableUpdate | null {
   if (!isNewerVersion(release.version, currentVersion)) return null;
-  if (!release.assets.some((asset) => OS_INSTALLERS[target.os].test(asset.name))) return null;
+  const assets = release.assets.filter((asset) => assetLanguage(asset.name) === language);
+  if (!assets.some((asset) => OS_INSTALLERS[target.os].test(asset.name))) return null;
   const file = target.kind === null ? null : KIND_INSTALLER[target.kind].file;
-  const installer = file === null ? undefined : release.assets.find((asset) => file.test(asset.name));
+  const installer = file === null ? undefined : assets.find((asset) => file.test(asset.name));
   return { version: release.version, downloadUrl: installer?.url ?? null, notesUrl: release.url };
 }
 

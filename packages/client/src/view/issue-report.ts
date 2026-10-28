@@ -10,6 +10,7 @@
  * The GitHub link opens the repo's Bug report form with the device details in its Game details box. It carries no log: a URL has a
  * length limit and a full game's commands do not fit, so the form asks the player to paste or attach it instead.
  */
+import { CARD_LANGUAGE_NAMES, type CardLanguage } from "../art/card-language.js";
 import type { LogLine } from "./log-lines.js";
 import { logLineWords } from "./pause-log-window.js";
 
@@ -27,6 +28,11 @@ export interface ReportEnvironment {
   /** `v0.21.1+9211646` (`view/app-version.ts`). */
   readonly version: string;
   readonly platform: string;
+  /**
+   * The card art language on screen (`art-source.ts`'s `artLanguageNow`): a native build's own language, or the one
+   * picked on the web, which the version stamp can't show.
+   */
+  readonly cardLanguage: CardLanguage;
   readonly userAgent: string;
   readonly viewport: { readonly width: number; readonly height: number };
   readonly formFactor: string;
@@ -60,10 +66,16 @@ export interface ReportInput {
   readonly snapshot: unknown;
 }
 
+/** `Español (es)`: the name a player knows the language by, and the code the build and asset names use. */
+function cardLanguageLine(lang: CardLanguage): string {
+  return `${CARD_LANGUAGE_NAMES[lang]} (${lang})`;
+}
+
 function environmentLines(environment: ReportEnvironment): string[] {
   return [
     `Version: ${environment.version}`,
     `Platform: ${environment.platform} (${environment.formFactor}, ${environment.viewport.width}x${environment.viewport.height})`,
+    `Card language: ${cardLanguageLine(environment.cardLanguage)}`,
     ...(environment.display ? [`Display: ${environment.display}`] : []),
     `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
     `Browser: ${environment.userAgent}`,
@@ -147,6 +159,7 @@ export function newIssueUrl(environment: ReportEnvironment): string {
     "game-details": [
       `Version: ${environment.version}`,
       `Platform: ${issuePlatformOf(environment)}`,
+      `Card language: ${cardLanguageLine(environment.cardLanguage)}`,
       `Device: ${environment.formFactor} ${viewport.width}x${viewport.height}`,
       `Browser: ${environment.userAgent}`,
       `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,

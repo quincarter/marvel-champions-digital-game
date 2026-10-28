@@ -183,3 +183,78 @@ describe("§3.42 play a card chosen in the cost, and remember how", () => {
     expect(use?.targets).toEqual([start().strike]);
   });
 });
+
+describe("'that attack' as the first attack made (FFG ruling 190): a cancelled first attack is not one", () => {
+  const FIRST_CLAWS_ACTION = stubAbility("first-claws.action", {
+    trigger: { kind: "action" },
+    cost: CLAWS_ACTION.definition.cost!,
+    effects: [
+      {
+        kind: "playFromHand",
+        player: { kind: "controller" },
+        ignoreCost: true,
+        card: { kind: "slot", slot: "event" },
+        via: { kind: "self" },
+        whileResolving: [{ kind: "attackKeywords", keywords: ["piercing"], via: { inSlot: "event" } }],
+        firstAttackOnly: true,
+      },
+    ],
+  });
+  const FIRST_CLAWS = stubUpgrade({ id: "first-claws", cost: 0, abilities: [FIRST_CLAWS_ACTION.ref] });
+  /** Slice and Dice's shape, unlabeled (FAQ "Dance of Death (#4)", RRG 1.8 p. 59: each damage effect is an attack). */
+  const DOUBLE_ACTION = stubAbility("double.action", {
+    trigger: { kind: "action" },
+    effects: [strike(3), strike(3)],
+  });
+  const DOUBLE = { ...stubEvent({ id: "double", cost: 1, abilities: [DOUBLE_ACTION.ref] }), traits: [ATTACK] };
+  /** "Forced Interrupt: When a hero attacks, cancel that attack." Once per round. */
+  const PARRY_ACTION = stubAbility("parry.interrupt", {
+    trigger: { kind: "interrupt", forced: true, on: { on: "attack" } },
+    limit: { count: 1, period: "round" },
+    effects: [{ kind: "cancelTriggeringEvent" }],
+  });
+  const PARRY = stubUpgrade({ id: "parry", cost: 0, abilities: [PARRY_ACTION.ref] });
+  const firstDeps: EngineDeps = depsOf(FIRST_CLAWS_ACTION, DOUBLE_ACTION, PARRY_ACTION);
+
+  function play(parry: boolean): GameState {
+    const base = gameAtFirstTurn({
+      cards: [FIRST_CLAWS, DOUBLE, PARRY, VILLAIN],
+      deps: firstDeps,
+      villain: VILLAIN,
+      deck: [FIRST_CLAWS.id, DOUBLE.id, PARRY.id],
+    });
+    let placed = playerCardIntoPlay(base, FIRST_CLAWS.id);
+    const claws = placed.id;
+    if (parry) placed = playerCardIntoPlay(placed.state, PARRY.id);
+    const state =
+      mustPlayer(placed.state, P1).identity.form === "hero"
+        ? placed.state
+        : driveSession(startSession(placed.state), firstDeps, [{ type: "changeForm", playerId: P1 }]).session.state;
+    const given = giveCard(state, P1, DOUBLE.id);
+    const { session } = driveSession(startSession(withTough(given.state)), firstDeps, [
+      {
+        type: "useAbility",
+        playerId: P1,
+        cardInstanceId: claws,
+        abilityId: FIRST_CLAWS_ACTION.ref.id,
+        payment: [],
+        costChoices: { event: [given.id] },
+      },
+    ]);
+    return session.state;
+  }
+
+  it("unopposed, only the first attack pierces: it takes the tough card, the second deals 3", () => {
+    const after = play(false);
+    expect(mustInstance(after, villainOf(after)).statuses.tough ?? 0).toBe(0);
+    expect(mustInstance(after, villainOf(after)).damage).toBe(6);
+  });
+
+  it("the first attack cancelled, the second is the first made and pierces: tough is discarded and it deals 3", () => {
+    // RRG 1.8 "Cancel" (p. 11): the cancelled effect "is not considered to have occurred"; ruling 190 gives piercing
+    // to the first attack made, as when a stun replaces the first ("no attack is made"; RRG 1.8 "Stun", p. 41).
+    const after = play(true);
+    expect(mustInstance(after, villainOf(after)).statuses.tough ?? 0).toBe(0);
+    expect(mustInstance(after, villainOf(after)).damage).toBe(3);
+  });
+});

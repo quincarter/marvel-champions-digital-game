@@ -610,6 +610,9 @@ export function afterDiscardChoice(ctx: Ctx, playerId: PlayerId): void {
  * the cards drawn so far, and the flow runs it again once the stack is empty: that player finishes before the next
  * draws, and `handRefilled` counts every card of the refill.
  */
+/** The end-of-phase refill of `playerId` (`RefillHeldEncounterCard.refill`). */
+const endPhaseRefill = (playerId: PlayerId): string => `endPhase:${playerId}`;
+
 function executeEndPhaseDraw(ctx: Ctx, step: Extract<GameStep, { kind: "endPhaseDraw" }>): void {
   const resumed = step.remainingPlayerIds;
   const order = resumed ?? playerOrder(ctx.state).map((player) => player.playerId);
@@ -617,12 +620,12 @@ function executeEndPhaseDraw(ctx: Ctx, step: Extract<GameStep, { kind: "endPhase
   for (const [index, playerId] of order.entries()) {
     if (resumed && getPlayer(ctx.state, playerId)?.eliminated !== false) {
       // Eliminated while its refill waited: nothing more is drawn, and what it held is dealt.
-      releaseRefillEncounterCards(ctx, playerId);
+      releaseRefillEncounterCards(ctx, endPhaseRefill(playerId));
       drawnSoFar = 0;
       continue;
     }
     const before = ctx.events.length;
-    const finished = drawUpTo(ctx, playerId, () => handSize(ctx.state, playerId, ctx.deps));
+    const finished = drawUpTo(ctx, playerId, () => handSize(ctx.state, playerId, ctx.deps), endPhaseRefill(playerId));
     const drawn =
       drawnSoFar +
       ctx.events.slice(before).filter((event) => event.type === "cardDrawn" && event.playerId === playerId).length;

@@ -8,12 +8,15 @@ import {
   type AchievementHistory,
 } from "../progression/achievements.js";
 import {
+  DEFAULT_TROPHY_VIEW,
   TRACKED_LATER,
   formatTrophyNumber,
   trophyHeaderOf,
   trophyRowHeightsOf,
   trophyRowsOf,
+  trophySortLabel,
   type TrophyRow,
+  type TrophyView,
 } from "./trophy-room-model.js";
 
 const won = (scenarioId: string) => ({
@@ -46,7 +49,72 @@ describe("trophyRowsOf", () => {
 
   it("counts earned against the family total on the heading", () => {
     const wins = rows.find((r) => r.kind === "section" && r.id === "wins");
-    expect(wins).toMatchObject({ count: "1 of 7" });
+    expect(wins).toMatchObject({ count: "1 of 7 · 14%", expanded: true });
+  });
+
+  it("folds a family to its heading alone, and starts with every family folded (#479)", () => {
+    const statuses = achievementStatuses(history);
+    const folded = trophyRowsOf(statuses, DEFAULT_TROPHY_VIEW);
+    expect(folded.every((r) => r.kind === "section" && !r.expanded)).toBe(true);
+    expect(folded).toHaveLength(ACHIEVEMENT_FAMILIES.length);
+    const one = trophyRowsOf(statuses, { ...DEFAULT_TROPHY_VIEW, expanded: new Set(["wins"]) });
+    const wins = ACHIEVEMENTS.filter((a) => a.family === "wins").length;
+    expect(one).toHaveLength(ACHIEVEMENT_FAMILIES.length + wins);
+    expect(one[0]).toMatchObject({ kind: "section", id: "wins", expanded: true });
+    expect(one.slice(1, 1 + wins).every((r) => r.kind === "achievement")).toBe(true);
+  });
+
+  describe("sorting", () => {
+    const statuses = achievementStatuses(history);
+    const all = new Set(ACHIEVEMENT_FAMILIES.map((f) => f.id));
+    const headings = (view: Partial<TrophyView>) =>
+      trophyRowsOf(statuses, { ...DEFAULT_TROPHY_VIEW, expanded: all, ...view }).flatMap((r) =>
+        r.kind === "section" ? [r.title] : [],
+      );
+    const names = (family: string, view: Partial<TrophyView>) => {
+      const rows = trophyRowsOf(statuses, { ...DEFAULT_TROPHY_VIEW, expanded: new Set([family]) as never, ...view });
+      return rows.flatMap((r) => (r.kind === "achievement" ? [r.name] : []));
+    };
+
+    it("by category keeps the book's order, and reverses it descending", () => {
+      const labels = ACHIEVEMENT_FAMILIES.map((f) => f.label);
+      expect(headings({})).toEqual(labels);
+      expect(headings({ descending: true })).toEqual([...labels].reverse());
+    });
+
+    it("by name sorts families and achievements alphabetically, either way", () => {
+      const asc = headings({ sort: "name" });
+      expect(asc).toEqual([...asc].sort((a, b) => a.localeCompare(b)));
+      expect(headings({ sort: "name", descending: true })).toEqual([...asc].reverse());
+      const inWins = names("wins", { sort: "name" });
+      expect(inWins).toEqual([...inWins].sort((a, b) => a.localeCompare(b)));
+    });
+
+    it("by completion puts the most-finished first descending, earned ones ahead of ones in progress", () => {
+      const desc = headings({ sort: "completion", descending: true });
+      expect(desc[0]).toBe("Battles won");
+      const inWins = names("wins", { sort: "completion", descending: true });
+      const first = ACHIEVEMENTS.find((a) => a.id === "wins-1")!.name;
+      expect(inWins[0]).toBe(first);
+    });
+
+    it("by points orders achievements by what they are worth, ties in the book's order", () => {
+      const rows = trophyRowsOf(statuses, { sort: "points", descending: true, expanded: all });
+      const worth = new Map(ACHIEVEMENTS.map((a) => [a.id, a.points]));
+      let last = Infinity;
+      for (const row of rows) {
+        if (row.kind === "section") last = Infinity;
+        else {
+          expect(worth.get(row.id)!).toBeLessThanOrEqual(last);
+          last = worth.get(row.id)!;
+        }
+      }
+    });
+  });
+
+  it("labels the sort for the Filters button", () => {
+    expect(trophySortLabel({ sort: "completion", descending: true })).toBe("Complete % ▼");
+    expect(trophySortLabel({ sort: "category", descending: false })).toBe("Category ▲");
   });
 
   it("marks earned and locked with a word, and gives a locked one its how-to", () => {

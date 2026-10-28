@@ -11,6 +11,12 @@ describe("appVersionText", () => {
     expect(appVersionText("0.7.0", "capacitor", "a1b2c3d")).toBe("v0.7.0");
   });
 
+  test("a build in another card language names it", () => {
+    expect(appVersionText("0.7.0", "tauri", "a1b2c3d", "es")).toBe("v0.7.0 · ES");
+    expect(appVersionText("0.7.0", "web", "a1b2c3d", "es")).toBe("v0.7.0+a1b2c3d · ES");
+    expect(appVersionText("0.7.0", "tauri", "a1b2c3d", "en")).toBe("v0.7.0");
+  });
+
   test("no commit known: the release alone", () => {
     expect(appVersionText("0.7.0", "web", "")).toBe("v0.7.0");
   });

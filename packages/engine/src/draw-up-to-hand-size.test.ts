@@ -48,16 +48,24 @@ const DRAW_UP_ACTION = stubAbility("draw-up.action", {
 } satisfies AbilityDefinition);
 const DRAW_UP = stubEvent({ id: "draw-up", cost: 0, abilities: [DRAW_UP_ACTION.ref] });
 
+/** "Forced Response: After this card enters your hand, draw up to your hand size.": a refill nested in a refill. */
+const NESTS = stubAbility("nester.forced-response", {
+  trigger: { kind: "response", forced: true, on: { on: "cardEntersHand", selfIs: "target" } },
+  activeIn: "hand",
+  effects: [{ kind: "drawUpTo", player: you, amount: { kind: "handSize", player: you } }],
+} satisfies AbilityDefinition);
+const NESTER = stubEvent({ id: "nester", cost: 0, abilities: [NESTS.ref] });
+
 const FILL: CardId = RESOURCE.id;
-const deps: EngineDeps = depsOf(ENTERS_HAND, ENTERS_PLAY, DRAW_UP_ACTION);
+const deps: EngineDeps = depsOf(ENTERS_HAND, ENTERS_PLAY, DRAW_UP_ACTION, NESTS);
 
 const start = (players: 1 | 2 = 1): GameState =>
   gameAtFirstTurn({
-    cards: [SURPRISE, OBLIGATION, PHANTOM, DRAW_UP],
+    cards: [SURPRISE, OBLIGATION, PHANTOM, DRAW_UP, NESTER],
     deps,
     players,
     encounter: copiesOf(PHANTOM.id, 20),
-    deck: [DRAW_UP.id, ...copiesOf(SURPRISE.id, 2), ...copiesOf(OBLIGATION.id, 2), ...copiesOf(FILL, 8)],
+    deck: [DRAW_UP.id, NESTER.id, ...copiesOf(SURPRISE.id, 2), ...copiesOf(OBLIGATION.id, 2), ...copiesOf(FILL, 8)],
   });
 
 /**
@@ -143,6 +151,22 @@ describe("the end-of-phase refill draws one card at a time (RRG 1.8 p. 21; rulin
     );
     const refilled = indexOf(events, (e) => e.type === "handRefilled" && e.playerId === P1);
     expect(resolvedAt(events, ENTERS_HAND.ref.id)).toBeLessThan(refilled);
+    expect(dealt).toBeGreaterThan(refilled);
+  });
+
+  it("a refill nested in the paused one (same player) deals only its own encounter cards when it finishes", () => {
+    // The end-of-phase refill draws the phantom, then the nester, and pauses for its "draw up to your hand size",
+    // which fills the hand. That inner refill finishing must not deal the outer refill's phantom: it is dealt after
+    // the outer refill, as MC27 p. 21's "Afterward" asks.
+    const set = arrange(start(), [PHANTOM.id, NESTER.id, FILL, FILL, FILL, FILL, FILL, FILL, FILL, FILL]);
+    const { events } = driveSession(startSession(set.state), deps, [{ type: "endTurn", playerId: P1 }]);
+    const phantom = set.deck[0]!;
+    const dealt = indexOf(
+      events,
+      (e) => e.type === "cardMoved" && e.instanceId === phantom && e.to.kind === "dealtEncounter",
+    );
+    const refilled = indexOf(events, (e) => e.type === "handRefilled" && e.playerId === P1);
+    expect(resolvedAt(events, NESTS.ref.id)).toBeLessThan(refilled);
     expect(dealt).toBeGreaterThan(refilled);
   });
 

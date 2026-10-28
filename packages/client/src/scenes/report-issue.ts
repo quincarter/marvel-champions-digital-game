@@ -11,6 +11,8 @@
  * same rule the confirm overlays follow for the scene that opened them.
  */
 import Phaser from "phaser";
+import { cardLanguage } from "../art/card-language.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
@@ -149,8 +151,9 @@ export class ReportIssueOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const platform = detectPlatform();
     return {
-      version: appVersionText(CLIENT_VERSION, platform, buildCommit()),
+      version: appVersionText(CLIENT_VERSION, platform, buildCommit(), cardLanguage()),
       platform,
+      cardLanguage: artLanguageNow(),
       userAgent: navigator.userAgent,
       viewport: { width, height },
       formFactor: formFactorFor(width, height),

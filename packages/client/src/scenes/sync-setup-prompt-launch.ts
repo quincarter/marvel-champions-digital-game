@@ -70,6 +70,7 @@ const ALWAYS_UP: ReadonlySet<string> = new Set([
   SCENES.music,
   SCENES.reportButton,
   SCENES.musicButton,
+  SCENES.languageButton,
 ]);
 
 /**

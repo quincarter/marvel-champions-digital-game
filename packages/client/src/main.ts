@@ -31,6 +31,8 @@ import { MusicButtonScene } from "./scenes/music-button.js";
 import { MusicPlayerOverlay } from "./scenes/music-player.js";
 import { ReportIssueOverlay } from "./scenes/report-issue.js";
 import { ReportButtonScene } from "./scenes/report-button.js";
+import { LanguageButtonScene } from "./scenes/language-button.js";
+import { LanguagePopupOverlay } from "./scenes/language-popup.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installInputDeviceTracking } from "./platform/input-device.js";
 import { installVisibleArea } from "./platform/visible-area.js";
@@ -38,6 +40,7 @@ import { installGamepadLive } from "./platform/gamepad-live.js";
 import { linuxAudioContext } from "./platform/linux-audio.js";
 import { startNativeAudio } from "./audio/native-audio.js";
 import { startNativeGamepad } from "./platform/native-gamepad.js";
+import { installBackGesture } from "./platform/back-gesture.js";
 import { startHangWatchdogHeartbeat } from "./platform/hang-watchdog.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
@@ -145,6 +148,8 @@ const game = new Phaser.Game({
     MusicScene,
     PowerSavingNoticeScene,
     AchievementToastScene,
+    LanguagePopupOverlay,
+    LanguageButtonScene,
     MusicPlayerOverlay,
     MusicButtonScene,
     ReportIssueOverlay,
@@ -256,6 +261,9 @@ installDebugDump(game);
 installGamepadLive(Phaser);
 // On Linux the desktop app reads controllers itself, in place of the webview's (`platform/native-gamepad.ts`).
 startNativeGamepad(game);
+// Android's back gesture, a browser's Back and a mouse's back button step back a screen, as Escape does
+// (`platform/back-gesture.ts`).
+installBackGesture(game);
 // On Linux the desktop app reloads the page if WebKit's web process hangs; this is the page's heartbeat for it
 // (`platform/hang-watchdog.ts`).
 startHangWatchdogHeartbeat();

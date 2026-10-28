@@ -36,6 +36,8 @@ import {
   nextSettingsAfterEffectsVolume,
   nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
+  cardLanguageRowInfoOf,
+  nextSettingsAfterCardLanguage,
   displayModeRowInfoOf,
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
@@ -73,6 +75,7 @@ import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { glyphRightInRow } from "../view/glyph-placement.js";
 import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
+import { availableCardLanguages, type CardLanguage } from "../art/card-language.js";
 import type {
   CardHoverScale,
   InspectCard,
@@ -451,6 +454,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
+      cardLanguage: availableCardLanguages().length > 1,
       inspectCard: formFactorFor(width, height) === "phone",
       gameVolume: followsWindowsMixer(),
       // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
@@ -611,6 +615,7 @@ export class SettingsOverlay extends Phaser.Scene {
       // A sample at the new level.
       appSession().music?.playEffect("basic-attack");
     });
+    segmented("card-language", cardLanguageRowInfoOf(settings), SPEED_CONTROL_WIDTH, (v) => this.#setCardLanguage(v));
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     // The achievement popup: picking a time or a position shows a sample there (`scenes/achievement-toast.ts`).
@@ -993,6 +998,12 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #setInspectCard(value: InspectCard): void {
     appSession().settings = nextSettingsAfterInspectCard(appSession().settings, value);
+    this.#draw();
+  }
+
+  #setCardLanguage(value: CardLanguage): void {
+    // session.ts applies it to the art when the settings are assigned.
+    appSession().settings = nextSettingsAfterCardLanguage(appSession().settings, value);
     this.#draw();
   }
 

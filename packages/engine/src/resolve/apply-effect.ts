@@ -265,6 +265,7 @@ import {
   teamworkFrame,
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
+import { suspendBehindActivation } from "./suspend.js";
 import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
 import { hostOnlyReleaseZone, takeControlAsOwnAlly, treatAsAlly } from "../treat-as.js";
 import {
@@ -532,11 +533,6 @@ function redirectMovedThreat(ctx: Ctx, frame: Frame<"effects">, placed: number):
 }
 
 /**
- * Set on the effects frame of an `enemyAttack` / `enemyScheme` / `enemyActivation` queued behind the activation in
- * progress (pushed from that activation's `endEffects`, while its frame is still on the stack): it runs now.
- */
-const QUEUED_BEHIND_ACTIVATION_VAR = "$queuedBehindActivation";
-/**
  * The activation frame a newly initiated enemy activation waits behind (RRG 1.8 "Activation", p. 6), or null to run it
  * now.
  * - `afterCurrent` (`after: "currentActivation"`, "after this attack"): the topmost attack, activation or thwart in
@@ -546,21 +542,33 @@ const QUEUED_BEHIND_ACTIVATION_VAR = "$queuedBehindActivation";
  *   2026 (1) answer 2). One waiting beneath its "(attack)" ability (`attackWaiting`) is passed over.
  * - If that innermost one was replaced ("would attack … schemes instead") or cancelled outright, null: the
  *   replacement resolves in place of the event it replaces (RRG 1.8 "Replacement Effect", p. 36), not behind an outer
- *   activation, and a replaced activation drops what it held (`pushEndEffects`).
+ *   activation; the abilities waiting behind a replaced activation resume then (`resumeSuspendedOnCancel`).
  * - One that ended early (`endedEarly`: its enemy left play, or a cancel effect cancelled the attack) is still
  *   regarded as initiated and then ended (RRG 1.8 "Cancel", p. 11), and what it triggered resolves before a new
  *   activation begins (p. 6), so a new one queues behind what is left of it; its end effects still drain.
+ * - One whose end effects are resolving (`endEffectsDraining`) has finished resolving, everything it triggered included:
+ *   it is passed over, so an ability resumed from there (its second "attacks you", the next `forEachPlayer` pass)
+ *   initiates its next activation at once.
  * With none (the villain phase's own activations, a treachery's "the villain attacks you") it runs at once.
  */
 function activationToQueueBehind(state: GameState, afterCurrent: boolean): FrameId | null {
   if (afterCurrent) return currentActivationFrameId(state.stack);
   for (const f of state.stack) {
-    if (f.kind !== "event" || f.attackWaiting) continue;
+    if (f.kind !== "event" || f.attackWaiting || f.endEffectsDraining) continue;
     if (f.event.kind !== "enemyAttack" && f.event.kind !== "enemyScheme") continue;
     return f.cancelled && !f.endedEarly ? null : f.frameId;
   }
   return null;
 }
+/** Zones a card leaves the game for: a `discardFromPlay` finds nothing to discard there. */
+const OUT_OF_THE_GAME_ZONES: ReadonlySet<string> = new Set([
+  "discard",
+  "encounterDiscard",
+  "separateDiscard",
+  "scenarioDiscard",
+  "removedFromGame",
+  "victoryDisplay",
+]);
 /** How many of its players a paused `drawUpTo` effect has finished refilling; absent when it is not paused. */
 const REFILL_PLAYERS_DONE_VAR = "$refillPlayersDone";
 /**
@@ -2185,6 +2193,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "discardFromPlay": {
       const source = leaveSourceOf(ctx, frame);
       for (const id of targets(effect.target)) {
+        // A card already discarded, or out of the game, is not in play to be discarded from (RRG 1.8 "In Play and Out
+        // of Play", p. 23): "Discard this card" of an ability that resumed after its card left ("Krahllak's Blessing").
+        if (OUT_OF_THE_GAME_ZONES.has(locateCard(ctx.state, id)?.kind ?? "")) continue;
         if (effect.defeated === true) defeatFromPlay(ctx, id, effect.insteadTo, source);
         // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
         else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
@@ -3856,7 +3867,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
         for (let index = done ?? 0; index < players.length; index++) {
           const playerId = players[index]!;
-          if (drawUpTo(ctx, playerId, () => value(effect.amount)) || ctx.state.outcome) continue;
+          const refill = `frame:${frame.frameId}:${playerId}`;
+          if (drawUpTo(ctx, playerId, () => value(effect.amount), refill) || ctx.state.outcome) continue;
           updateFrame(ctx, frame.frameId, (f) =>
             f.kind === "effects"
               ? {
@@ -3881,37 +3893,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // An activation initiated while an enemy activation resolves waits for it, whatever started it: a Boost ability,
       // a response to its damage, or a forced response to an effect of either (RRG 1.8 "Activation", p. 6: "the newly
       // initiated activation resolves after the current activation has finished resolving"; ruling 214, Jun 13, 2024:
-      // "a new activation cannot interrupt an activation currently resolving"). See `activationToQueueBehind`.
-      // The queued effect itself runs from that activation's end effects, with the activation still on the stack beneath
-      // it, so it is marked (`QUEUED_BEHIND_ACTIVATION_VAR`) and runs then rather than queueing again.
-      if (frame.vars[QUEUED_BEHIND_ACTIVATION_VAR] === undefined) {
+      // "a new activation cannot interrupt an activation currently resolving"). See `activationToQueueBehind`. The rest
+      // of the ability waits with it (`suspendBehindActivation`); resumed, the frame resolves this effect first
+      // (`resumeActivation`) and it is not queued again.
+      if (frame.resumeActivation === undefined) {
         const activation = activationToQueueBehind(ctx.state, effect.after === "currentActivation");
         if (activation) {
-          // Queued behind the activation in progress: its end-of-event effects run after its response window, so its
-          // Retaliate and responses resolve first. RRG 1.8 "Activation", p. 6 (a nested activation waits, including one
-          // started by an interrupt that does not replace the activation); ruling Feb 28, 2026 (1) answer 2; ruling
-          // May 16, 2024 #191.
-          // Several activations queued behind one are appended, and resolve, in the order they were initiated. RRG 1.8
-          // p. 6 has the first player choose the order of activations initiated at once: not asked yet (follow-up).
-          const { after, ...now } = effect;
-          void after;
-          const deferred: DeferredEffects = {
-            effects: [now],
-            selfInstanceId: frame.selfInstanceId,
-            controllerId: frame.controllerId,
-            bindings: frame.bindings,
-            vars: { ...frame.vars, [QUEUED_BEHIND_ACTIVATION_VAR]: 1 },
-            scopedPlayerId: frame.scopedPlayerId,
-            event: frame.event,
-          };
-          updateFrame(ctx, activation, (f) =>
-            f.kind === "event" ? { ...f, endEffects: [...f.endEffects, deferred] } : f,
-          );
+          const { after: _after, ...now } = effect;
+          suspendBehindActivation(ctx, frame, now, activation);
           return;
         }
       }
-      // The scope the activation's own deferred parts carry, without the queue marker.
-      const { [QUEUED_BEHIND_ACTIVATION_VAR]: _queued, ...scopeVars } = frame.vars;
       // "X activates against you" (§4.1 Q67): attack or scheme by the player's form now, as the villain phase does
       // (`activateEnemy`, RRG 1.8 "Activation", p. 6).
       const attacksAgainst = (player: { readonly identity: { readonly form: string } }): boolean =>
@@ -3946,7 +3938,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                 selfInstanceId: frame.selfInstanceId,
                 controllerId: frame.controllerId,
                 bindings: frame.bindings,
-                vars: scopeVars,
+                vars: frame.vars,
               },
             }
           : {};
@@ -3961,7 +3953,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                 controllerId: frame.controllerId,
                 ...(frame.abilityId !== undefined ? { abilityId: frame.abilityId } : {}),
                 bindings: frame.bindings,
-                vars: scopeVars,
+                vars: frame.vars,
               },
             }
           : {};
@@ -3977,7 +3969,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               selfInstanceId: frame.selfInstanceId,
               controllerId: frame.controllerId,
               bindings: frame.bindings,
-              vars: scopeVars,
+              vars: frame.vars,
               ...(effect.kind === "enemyAttack" && effect.additionalResolution
                 ? { shared: `${frame.frameId}#${frame.cursor}` }
                 : {}),
