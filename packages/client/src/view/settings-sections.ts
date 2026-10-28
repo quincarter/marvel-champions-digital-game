@@ -128,6 +128,7 @@ export function settingsSectionsOf(input: {
       items: [
         ...(input.couchMode ? (["couch-mode"] as const) : []),
         ...(input.powerSaving ? (["power-saving"] as const) : []),
+        "dark-mode",
         "reduced-motion",
         "token-motion",
         "sharper-text",

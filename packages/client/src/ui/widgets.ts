@@ -44,6 +44,7 @@ import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
 import { inputDevice } from "../platform/input-device.js";
+import { colorScheme, onColorSchemeChange, schemeCss } from "../view/color-scheme.js";
 
 /** Draws a rect with the design's border model into an existing Graphics. */
 export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: WidgetKind, state: WidgetState): void {
@@ -521,14 +522,17 @@ export class McButton {
     const { rect, type } = this.#options;
     const dim = state === "unavailable" ? ink.disabled : 1;
     const g = this.#graphics;
+    // Ink on a hue stays ink in dark mode (`surface.inkOnHue`): the stamp's own color is the ground here, not paper.
+    const inkOnHue = surface.inkOnHue.hex;
+    const tintInk = tint.ink === surface.ink.hex ? inkOnHue : tint.ink;
     g.clear();
     g.fillStyle(tint.fill, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
     if (state === "selected") {
-      g.lineStyle(4, surface.ink.hex, dim).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
+      g.lineStyle(4, inkOnHue, dim).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
       g.lineStyle(2, surface.paper.hex, dim).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
     } else {
       const weight = state === "hover" ? 3 : 1.5;
-      g.lineStyle(weight, surface.ink.hex, dim).strokeRect(
+      g.lineStyle(weight, inkOnHue, dim).strokeRect(
         rect.x + weight / 2,
         rect.y + weight / 2,
         rect.width - weight,
@@ -538,10 +542,10 @@ export class McButton {
     const hasValue = this.#value !== null;
     this.#label
       .setText(caseOf(type, this.#options.label))
-      .setColor(cssOf(tint.ink, dim))
+      .setColor(cssOf(tintInk, dim))
       .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0) + this.#labelShift, rect.y + rect.height / 2);
     fitText(this.#label, rect.width - (hasValue ? 40 : rect.width <= 44 ? 4 : 20), type.size);
-    this.#value?.setColor(cssOf(tint.ink, dim)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
+    this.#value?.setColor(cssOf(tintInk, dim)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
   }
 
   destroy(): void {
@@ -1248,9 +1252,10 @@ export class McTextInput {
       align: "left",
       fontFamily: fontFamilyOf(type),
       fontSize: `${type.size}px`,
-      color: cssOf(s.text, 1),
-      backgroundColor: cssOf(s.fill, 1),
-      borderColor: cssOf(s.stroke, 1),
+      // A DOM field, so outside the canvas's own color scheme (`ui/color-scheme-phaser.ts`): mapped here instead.
+      color: schemeCss(cssOf(s.text, 1), "text", colorScheme()),
+      backgroundColor: schemeCss(cssOf(s.fill, 1), "fill", colorScheme()),
+      borderColor: schemeCss(cssOf(s.stroke, 1), "line", colorScheme()),
       borderWidth: `${s.strokeWidth}px`,
       borderStyle: "solid",
       borderRadius: "0px",
@@ -1270,6 +1275,15 @@ export class McTextInput {
      * top-left rects, so the origin has to be set on the object itself.
      */
     this.#input.setOrigin(0, 0);
+
+    const recolor = (): void => {
+      const style = (this.#input.node as HTMLInputElement).style;
+      style.color = schemeCss(cssOf(s.text, 1), "text", colorScheme());
+      style.backgroundColor = schemeCss(cssOf(s.fill, 1), "fill", colorScheme());
+      style.borderColor = schemeCss(cssOf(s.stroke, 1), "line", colorScheme());
+    };
+    const stopRecolor = onColorSchemeChange(recolor);
+    this.#input.once("destroy", stopRecolor);
 
     // A controller can't type. Under Steam (the Steam Deck) Steam + X opens Steam's own on-screen keyboard, so an empty
     // field focused from the pad says so in its placeholder (`docs/controller-support.md`, owner decision 7).
@@ -1486,11 +1500,12 @@ export class McMultilineInput {
         style: {
           fontFamily: fontFamilyOf(type),
           fontSize: `${type.size}px`,
-          color: cssOf(s.text, 1),
+          color: schemeCss(cssOf(s.text, 1), "text", colorScheme()),
         },
+        // Painted by rexUI on its own canvas, so mapped here; a field already open keeps its scheme until it is rebuilt.
         background: {
-          color: cssOf(s.fill, 1),
-          stroke: cssOf(s.stroke, 1),
+          color: schemeCss(cssOf(s.fill, 1), "fill", colorScheme()),
+          stroke: schemeCss(cssOf(s.stroke, 1), "line", colorScheme()),
           strokeThickness: s.strokeWidth,
         },
         wrap: { mode: "word" },

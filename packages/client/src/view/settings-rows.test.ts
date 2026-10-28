@@ -44,6 +44,7 @@ const BASE: Settings = {
   reducedMotion: false,
   textResolution: 1,
   largeCardText: false,
+  darkMode: false,
   sound: true,
   musicShuffle: false,
   musicVolume: 100,
@@ -89,6 +90,7 @@ describe("settingsRowInfoOf", () => {
       reducedMotion: true,
       textResolution: 2,
       largeCardText: true,
+      darkMode: true,
       sound: false,
       musicShuffle: true,
       musicVolume: 60,
@@ -130,6 +132,7 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "dark-mode")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(false);
     expect(rows.find((r) => r.id === "music-shuffle")?.on).toBe(true);
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(false);
@@ -271,6 +274,7 @@ describe("nextSettingsAfterToggle", () => {
     expect(nextSettingsAfterToggle(BASE, "reduced-motion", 1).reducedMotion).toBe(true);
     expect(nextSettingsAfterToggle({ ...BASE, reducedMotion: true }, "reduced-motion", 1).reducedMotion).toBe(false);
     expect(nextSettingsAfterToggle(BASE, "large-card-text", 1).largeCardText).toBe(true);
+    expect(nextSettingsAfterToggle(BASE, "dark-mode", 1).darkMode).toBe(true);
   });
 
   test("sharper text toggles between 1 and the device's own sharp resolution", () => {

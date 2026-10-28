@@ -45,6 +45,7 @@ export type SettingsOverrides = Partial<Settings>;
 const BOOLEAN_FIELDS = [
   "reducedMotion",
   "largeCardText",
+  "darkMode",
   "sound",
   "musicShuffle",
   "confirmBeforeEndTurn",

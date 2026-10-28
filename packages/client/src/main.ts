@@ -19,6 +19,7 @@ import { surface } from "./tokens.js";
 import { cssOf, setTextResolution } from "./ui/theme.js";
 import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
 import { installLazyText } from "./ui/lazy-text.js";
+import { installColorScheme } from "./ui/color-scheme-phaser.js";
 import { appSession } from "./session.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
@@ -156,6 +157,8 @@ const game = new Phaser.Game({
     ReportButtonScene,
   ],
 });
+// Dark mode (#459): before Boot draws anything, so the first frame is already in the player's scheme.
+installColorScheme(game);
 
 // Every other screen is added the first time something starts it (`scenes/scene-loader.ts`), and the rest in idle
 // time once Title has drawn its first frame.

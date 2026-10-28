@@ -49,6 +49,11 @@ export interface Settings {
    */
   readonly largeCardText: boolean;
   /**
+   * Dark mode (#459): the light paper grounds of every screen draw in warm charcoal, with cream text and borders. Card
+   * art is never recolored (`view/color-scheme.ts`). Defaults off.
+   */
+  readonly darkMode: boolean;
+  /**
    * Background music and audio across menus and games.
    */
   readonly sound: boolean;
@@ -405,6 +410,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
           Math.max(1, globalThis.devicePixelRatio || 1, couchModeFactor(device.couchMode ?? "off")),
         ),
     largeCardText: false,
+    darkMode: false,
     sound: true,
     musicShuffle: false,
     musicVolume: MUSIC_VOLUME_MAX,

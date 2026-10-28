@@ -36,6 +36,11 @@ export const surface = {
   parchment: token(0xeae3d3),
   /** Anything liftable off the paper: cards, rows, stat tiles. */
   card: token(0xffffff),
+  /**
+   * Ink text or an ink icon on a hue (caution yellow, an aspect color): ink to the eye, but one step off `ink` so dark
+   * mode (`view/color-scheme.ts`), which turns ink text light, leaves it dark on its bright ground.
+   */
+  inkOnHue: token(0x14110f),
 } as const;
 
 /** Section 01 — the accent. Hero Red has exactly one job per screen. */

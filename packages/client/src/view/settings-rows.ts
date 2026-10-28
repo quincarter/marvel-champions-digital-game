@@ -64,6 +64,7 @@ export type SettingsRowId =
   | "reduced-motion"
   | "sharper-text"
   | "large-card-text"
+  | "dark-mode"
   | "not-offered-notices"
   | "sound"
   | "music-shuffle"
@@ -102,6 +103,12 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
         "Renders text at the screen's own pixel density. Off trades a little crispness for less texture memory.",
       ),
       on: settings.textResolution > 1,
+    },
+    {
+      id: "dark-mode",
+      title: "Dark mode",
+      detail: "Draws the light screens and popups dark, with light text. Card art stays exactly as printed.",
+      on: settings.darkMode,
     },
     {
       id: "large-card-text",
@@ -208,6 +215,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       };
     case "large-card-text":
       return { ...settings, largeCardText: !settings.largeCardText };
+    case "dark-mode":
+      return { ...settings, darkMode: !settings.darkMode };
     case "sound":
       return { ...settings, sound: !settings.sound };
     case "music-shuffle":
