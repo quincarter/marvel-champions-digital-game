@@ -58,8 +58,8 @@ export interface PoolSort {
   readonly secondary: PoolSortKey | null;
 }
 
-/** Alphabetical by name — what the list has always shown. */
-export const DEFAULT_POOL_SORT: PoolSort = { primary: "name", secondary: null };
+/** Best search match first, so a typed name lands on top; with no search typed that is alphabetical by name. */
+export const DEFAULT_POOL_SORT: PoolSort = { primary: "match", secondary: null };
 
 /** A pack's display facts, in release order — the client's `POOL_PACKS` joined to its cycle (`POOL_HERO_SHELF_PACKS`). */
 export interface PackInfo {
@@ -270,6 +270,9 @@ function aspectRank(card: AnyCard): number {
 
 const typeLabelOf = (card: AnyCard): string => card.type.replace(/_/g, " ");
 
+/** `a - b`, but 0 when they are equal: two costless cards (Infinity each) tie rather than compare NaN. */
+const byNumber = (a: number, b: number): number => (a === b ? 0 : a - b);
+
 /** How two cards compare on one key, 0 for a tie. */
 function compareBy(
   key: PoolSortKey,
@@ -282,15 +285,15 @@ function compareBy(
     case "name":
       return (a, b) => a.name.localeCompare(b.name);
     case "cost":
-      return (a, b) => costOf(a) - costOf(b);
+      return (a, b) => byNumber(costOf(a), costOf(b));
     case "type":
       return (a, b) => typeLabelOf(a).localeCompare(typeLabelOf(b));
     case "aspect":
-      return (a, b) => aspectRank(a) - aspectRank(b);
+      return (a, b) => byNumber(aspectRank(a), aspectRank(b));
     case "pack": {
       const rank = (card: AnyCard): number => packOrder.get(card.setCode as string) ?? Infinity;
       return (a, b) =>
-        rank(a) - rank(b) ||
+        byNumber(rank(a), rank(b)) ||
         (a.setCode as string).localeCompare(b.setCode as string) ||
         a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true });
     }

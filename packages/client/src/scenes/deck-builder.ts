@@ -224,8 +224,8 @@ const PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
 
 /** The Sort button's cycle (the primary key); the Then button cycles "None" and the rest but `match` and the primary. */
 const SORT_CYCLE: readonly { readonly sort: PoolSortKey; readonly label: string }[] = [
-  { sort: "name", label: "Name" },
   { sort: "match", label: "Match" },
+  { sort: "name", label: "Name" },
   { sort: "aspect", label: "Aspect" },
   { sort: "type", label: "Type" },
   { sort: "cost", label: "Cost" },

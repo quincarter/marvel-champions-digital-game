@@ -203,6 +203,16 @@ describe("pack/cycle filter and sort", () => {
       "Justice Event",
       "Hero Upgrade",
     ]);
+    // Costless cards tie on cost, so the secondary key and then the name still order them.
+    const costless = (name: string, aspect: string) =>
+      ({ id: name, name, aspect, type: "resource", setCode: "core", collectorNumber: "1" }) as never as AnyCard;
+    const resources = [costless("Zeta", "basic"), costless("Gamma", "justice"), costless("Alpha", "basic")];
+    expect(sortPool(resources, { primary: "cost", secondary: "aspect" }, PACKS).map((c) => c.name)).toEqual([
+      "Gamma",
+      "Alpha",
+      "Zeta",
+    ]);
+    expect(sortPool(resources, "cost", PACKS).map((c) => c.name)).toEqual(["Alpha", "Gamma", "Zeta"]);
     // A secondary equal to the primary adds nothing.
     expect(names({ primary: "cost", secondary: "cost" })).toEqual(names("cost"));
   });
