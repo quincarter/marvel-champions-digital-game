@@ -179,6 +179,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     horsemanSides: null,
     easierStart: false,
     villainId: null,
+    mainSchemePicks: null,
     setAsideModularSetIds: null,
     extraModularSetIds: [],
     towerDefenseSetupDamage: false,

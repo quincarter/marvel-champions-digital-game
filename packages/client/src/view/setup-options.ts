@@ -99,7 +99,10 @@ export function reconcileWithOffer(draft: SetupDraft, offer: PlayableScenarioOff
     villainId:
       offer.villains && villainStepIds(offer.villains).includes(draft.villainId ?? "") ? draft.villainId : null,
     easierStart: offer.easierStart ? draft.easierStart : false,
-    mainSchemePicks: offer.mainSchemePicks ? (draft.mainSchemePicks ?? null) : null,
+    // Absent stays absent, so reconciling a draft that never had picks changes nothing (the builder's idempotence).
+    ...(draft.mainSchemePicks !== undefined
+      ? { mainSchemePicks: offer.mainSchemePicks ? draft.mainSchemePicks : null }
+      : {}),
   };
 }
 
