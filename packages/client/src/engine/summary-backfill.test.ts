@@ -4,6 +4,7 @@ import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { MemoryGameStorage, SAVE_SCHEMA, type SaveMeta } from "./game-storage.js";
 import { backfillSummaries, filledSummary, needsBackfill } from "./summary-backfill.js";
+import { SUMMARY_VERSION, type GameSummary, type SeatSummary } from "./game-summary.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -48,9 +49,18 @@ describe("backfillSummaries (#529)", () => {
     const live = await finishedGame(storage);
     expect(live.status).toBe("lost");
     expect(live.summary?.seats).toBeDefined();
-    // As an older build left it: the summary without the per-seat card numbers.
-    const { seats: _seats, villains: _villains, sideSchemes: _side, ...older } = live.summary!;
-    await storage.setSummary(live.id, older, live.updatedAt);
+    // As an older build left it: the summary without the per-seat card numbers or anything version 2 added.
+    const {
+      seats: _seats,
+      villains: _villains,
+      sideSchemes: _side,
+      version: _version,
+      encounterRevealed: _revealed,
+      hurtBy: _hurtBy,
+      finalBlowCardId: _finalBlowCardId,
+      ...older
+    } = live.summary!;
+    await storage.setSummary(live.id, older, live.updatedAt, live.updatedAt);
 
     const written = await new LocalEngineHost(storage).backfillSummaries();
     expect(written).toBe(1);
@@ -92,12 +102,70 @@ describe("needsBackfill", () => {
     expect(needsBackfill(meta({ guided: { kind: "tutorial" } as never }), WRITER)).toBe(false);
     expect(
       needsBackfill(
-        meta({ summary: { lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 0, seats: [] } }),
+        meta({
+          summary: { lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 0, seats: [], version: 2 },
+        }),
         WRITER,
       ),
     ).toBe(false);
     expect(needsBackfill(meta({ schema: SAVE_SCHEMA - 1 }), WRITER)).toBe(false);
     expect(needsBackfill(meta({ lastPlayedOn: { appVersion: "9.0.0" } }), WRITER)).toBe(false);
+  });
+});
+
+describe("summary version 2", () => {
+  const meta = (summary: GameSummary): SaveMeta => ({
+    id: "g",
+    schema: SAVE_SCHEMA,
+    config: RHINO_SOLO,
+    createdAt: 1,
+    updatedAt: 2,
+    status: "won",
+    round: 3,
+    commandCount: 10,
+    outcome: { result: "win", reason: "villainDefeated" },
+    campaignId: null,
+    campaignNodeId: null,
+    summary,
+  });
+  const seat = (extra: Partial<SeatSummary> = {}): SeatSummary => ({
+    identityCardId: "01001a",
+    aspects: ["justice"],
+    deck: ["01010"],
+    plays: { "01010": 1 },
+    activations: {},
+    entered: {},
+    damage: 4,
+    thwart: 2,
+    defeated: false,
+    ...extra,
+  });
+  const v1: GameSummary = { lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 1, seats: [seat()] };
+
+  test("a summary with card numbers but before version 2 needs the backfill", () => {
+    expect(needsBackfill(meta(v1), WRITER)).toBe(true);
+    expect(needsBackfill(meta({ ...v1, version: SUMMARY_VERSION }), WRITER)).toBe(false);
+  });
+
+  test("filling a version 1 summary takes the replay's seats and new numbers, and keeps the live ones", () => {
+    const replayed: GameSummary = {
+      lossReason: null,
+      heroesDefeated: 1,
+      winners: [],
+      alliesPlayed: 0,
+      seats: [seat({ drawn: 12, bestTurn: { damage: 6, thwart: 3 } })],
+      version: SUMMARY_VERSION,
+      encounterRevealed: { "01107": 2 },
+      hurtBy: { "01094": 5 },
+      finalBlowCardId: "01001a",
+    };
+    const filled = filledSummary({ ...v1, finalBlowBy: undefined } as unknown as GameSummary, replayed);
+    expect(filled).toEqual({
+      ...replayed,
+      // What an achievement may already have read stays the live game's.
+      heroesDefeated: 0,
+      alliesPlayed: 1,
+    });
   });
 });
 
@@ -162,5 +230,24 @@ describe("backfillSummaries: what it never writes", () => {
     // The live numbers stand (an achievement may have read them); the card numbers come from the replay.
     expect(row.summary).toEqual({ lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 2, seats: [] });
     expect(filledSummary(undefined, replayed)).toBe(replayed);
+  });
+
+  test("a row that changed while it replayed (sync, or play) is not written, and is tried again next time", async () => {
+    const storage = new MemoryGameStorage();
+    await storage.create(base(), {} as never);
+    const written = await backfillSummaries(
+      storage,
+      WRITER,
+      async () => {
+        // Sync lands a newer revision of the row meanwhile.
+        await storage.setStatus("g", "won", 20);
+        return { state: ending(5, WIN), summary: replayed };
+      },
+      async () => undefined,
+    );
+    expect(written).toBe(0);
+    const [row] = await storage.list();
+    expect(row!.updatedAt).toBe(20);
+    expect(row!.summary?.seats).toBeUndefined();
   });
 });

@@ -182,16 +182,25 @@ export class IdbGameStorage implements GameStorage {
     notifySaveDataChanged("game");
   }
 
-  async setSummary(gameId: string, summary: GameSummary, updatedAt: number): Promise<void> {
+  async setSummary(
+    gameId: string,
+    summary: GameSummary,
+    updatedAt: number,
+    expectedUpdatedAt: number,
+  ): Promise<boolean> {
     const db = await this.#open();
     const transaction = db.transaction("games", "readwrite");
     const done = committed(transaction);
     const games = transaction.objectStore("games");
     const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
+    // Checked in this transaction, so a sync or a move landing between the backfill's load and this write is never
+    // overwritten by a summary of the older revision.
+    const current = !!meta && meta.updatedAt === expectedUpdatedAt;
     // Not `stampedPlayedOn`: the game was played where its stamp says, not on the device that filled in its numbers.
-    if (meta) games.put({ ...meta, summary, updatedAt });
+    if (current) games.put({ ...meta, summary, updatedAt: Math.max(updatedAt, meta.updatedAt) });
     await done;
-    notifySaveDataChanged("game");
+    if (current) notifySaveDataChanged("game");
+    return current;
   }
 
   async #allGames(): Promise<SaveMeta[]> {

@@ -126,6 +126,12 @@ export interface SaveMeta {
    * `device` is room for a device name; nothing fills it yet.
    */
   readonly lastPlayedOn?: LastPlayedOn;
+  /**
+   * Time spent playing this game, in milliseconds (`EngineSessionCore`): each command adds the time since the session's
+   * last one, at most five minutes, so a table left idle is not counted, and a resumed game counts from its resume.
+   * Absent on a save from before it existed (a purely additive field, no `SAVE_SCHEMA` bump).
+   */
+  readonly playedMs?: number;
 }
 
 /**
@@ -174,7 +180,7 @@ export const writtenByNewerApp = (meta: Pick<SaveMeta, "lastPlayedOn">, appVersi
 
 /** What a command's arrival changes about a game's summary row. */
 export type SaveProgress = Pick<SaveMeta, "round" | "commandCount" | "updatedAt" | "status" | "outcome"> &
-  Partial<Pick<SaveMeta, "summary">>;
+  Partial<Pick<SaveMeta, "summary" | "playedMs">>;
 
 export interface StoredGame {
   readonly meta: SaveMeta;
@@ -211,9 +217,12 @@ export interface GameStorage {
   /**
    * Replaces a finished game's summary (`SaveMeta.summary`) and stamps the row with `updatedAt`, leaving its status,
    * log and device stamp as they are: the stats backfill (`engine/summary-backfill.ts`) filling in a game finished
-   * before the summary carried card numbers. A game not stored is left alone.
+   * before the summary carried card numbers. Written only while the row is still the revision the summary was made
+   * from (`expectedUpdatedAt`, the stamp of the save the backfill replayed), checked in the same write: a row that sync
+   * or play changed meanwhile, or a game not stored, is left alone, and the answer is false. The stamp never moves
+   * backwards.
    */
-  setSummary(gameId: string, summary: GameSummary, updatedAt: number): Promise<void>;
+  setSummary(gameId: string, summary: GameSummary, updatedAt: number, expectedUpdatedAt: number): Promise<boolean>;
 }
 
 /** `meta` marked as written on this device: unchanged when the device's platform is not known. */
@@ -287,9 +296,20 @@ export class MemoryGameStorage implements GameStorage {
     if (meta) this.#games.set(gameId, { ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
   }
 
-  async setSummary(gameId: string, summary: GameSummary, updatedAt: number): Promise<void> {
+  async setSummary(
+    gameId: string,
+    summary: GameSummary,
+    updatedAt: number,
+    expectedUpdatedAt: number,
+  ): Promise<boolean> {
     const meta = this.#games.get(gameId);
-    if (meta) this.#games.set(gameId, { ...meta, summary, updatedAt });
+    if (!meta || meta.updatedAt !== expectedUpdatedAt) return false;
+    this.#games.set(gameId, {
+      ...meta,
+      summary: structuredClone(summary),
+      updatedAt: Math.max(updatedAt, meta.updatedAt),
+    });
+    return true;
   }
 }
 

@@ -62,6 +62,8 @@ import { BACKFILL_BUSY, backfillSummaries } from "./summary-backfill.js";
 
 /** Commands a backfill replay runs between yields. */
 const BACKFILL_YIELD_EVERY = 40;
+/** The most one gap between commands adds to a game's time played (`SaveMeta.playedMs`): longer is time away. */
+export const PLAY_GAP_CAP_MS = 5 * 60 * 1000;
 import {
   isCurrentSchema,
   isNewerSchema,
@@ -316,6 +318,10 @@ export class EngineSessionCore {
   #writes: Promise<void> = Promise.resolve();
   #saveError: string | null = null;
   #config: SessionConfig | null = null;
+  /** Time played in this game so far (`SaveMeta.playedMs`), this session's and every earlier one's. */
+  #playedMs = 0;
+  /** When this session last took a command (or started or resumed the game); null with no game. */
+  #activeAt: number | null = null;
 
   constructor(options: CoreOptions = {}) {
     this.#storage = options.storage ?? null;
@@ -359,10 +365,13 @@ export class EngineSessionCore {
     this.#writes = Promise.resolve();
     this.#saveError = null;
     this.#gameId = null;
+    this.#playedMs = 0;
+    const startedAt = this.#now();
+    this.#activeAt = startedAt;
 
     if (this.#storage) {
       const id = this.#newId();
-      const at = this.#now();
+      const at = startedAt;
       const meta: SaveMeta = {
         id,
         schema: SAVE_SCHEMA,
@@ -475,7 +484,7 @@ export class EngineSessionCore {
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
       state = result.state;
-      record = recordEvents(record, result.events, state, POOL_DEPS);
+      record = recordEvents(record, result.events, state, POOL_DEPS, command);
       history.push(...result.events);
     }
 
@@ -486,6 +495,9 @@ export class EngineSessionCore {
     this.#gameId = gameId;
     this.#writes = Promise.resolve();
     this.#saveError = null;
+    // A new session counts from now: the time since the game was last played, however short, is not play.
+    this.#playedMs = stored.meta.playedMs ?? 0;
+    this.#activeAt = this.#now();
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
   }
@@ -517,7 +529,7 @@ export class EngineSessionCore {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
       state = result.state;
-      record = recordEvents(record, result.events, state, POOL_DEPS);
+      record = recordEvents(record, result.events, state, POOL_DEPS, command);
     }
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
     this.#version = truncated.length;
@@ -529,7 +541,8 @@ export class EngineSessionCore {
       const progress = {
         round: state.round,
         commandCount: truncated.length,
-        updatedAt: this.#now(),
+        updatedAt: this.#played(),
+        playedMs: this.#playedMs,
         status: statusOf(state),
         outcome: state.outcome,
         summary: summarizeGame(state, record, POOL_DEPS),
@@ -554,8 +567,8 @@ export class EngineSessionCore {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
-    this.#record = recordEvents(this.#record, result.events, result.session.state, POOL_DEPS);
-    this.#persist(command, this.#version - 1, result.session.state);
+    this.#record = recordEvents(this.#record, result.events, result.session.state, POOL_DEPS, command);
+    this.#persist(command, this.#version - 1, result.session.state, this.#played());
     const states = sealedEventStates(result.states ?? []);
     return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };
   }
@@ -652,7 +665,7 @@ export class EngineSessionCore {
           const result = applyCommand(state, command, POOL_DEPS);
           if (!result.ok) return null;
           state = result.state;
-          record = recordEvents(record, result.events, state, POOL_DEPS);
+          record = recordEvents(record, result.events, state, POOL_DEPS, command);
         }
         const summary = summarizeGame(state, record, POOL_DEPS);
         return summary ? { state, summary } : null;
@@ -676,7 +689,18 @@ export class EngineSessionCore {
     return this.#version;
   }
 
-  #persist(command: Command, seq: number, state: GameState): void {
+  /**
+   * Adds the time since this session's last command to the time played, at most `PLAY_GAP_CAP_MS` (a player away from
+   * the table is not playing), and returns now.
+   */
+  #played(): number {
+    const at = this.#now();
+    if (this.#activeAt !== null) this.#playedMs += Math.min(Math.max(0, at - this.#activeAt), PLAY_GAP_CAP_MS);
+    this.#activeAt = at;
+    return at;
+  }
+
+  #persist(command: Command, seq: number, state: GameState, at: number): void {
     const storage = this.#storage;
     const gameId = this.#gameId;
     // After a failed write every later command would be out of order, so stop.
@@ -684,7 +708,8 @@ export class EngineSessionCore {
     const progress = {
       round: state.round,
       commandCount: seq + 1,
-      updatedAt: this.#now(),
+      updatedAt: at,
+      playedMs: this.#playedMs,
       status: statusOf(state),
       outcome: state.outcome,
       summary: summarizeGame(state, this.#record, POOL_DEPS),

@@ -15,8 +15,19 @@ import {
   type EngineDeps,
   type GameState,
   type PlayerId,
+  type ResourcePool,
 } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
+
+/**
+ * The summary's shape version (`GameSummary.version`), bumped when a summary gains numbers a backfill should fill in
+ * on games finished before them (`engine/summary-backfill.ts`):
+ *
+ * - 1 (absent): up to the per-seat card numbers, the villains and the side schemes.
+ * - 2: draws, resources, the cards paid with, best turns, the allies' numbers, the encounter cards revealed, what hurt
+ *   the heroes and the card that dealt the final blow.
+ */
+export const SUMMARY_VERSION = 2;
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
 export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";
@@ -41,6 +52,19 @@ export interface SeatSummary {
   readonly defeated: boolean;
   /** The seat sat the scenario out (`SeatRecord.satOut`). */
   readonly satOut?: true;
+  /** Cards drawn (`SeatRecord.drawn`). This and the fields below are absent on a summary before version 2. */
+  readonly drawn?: number;
+  /** Resources generated paying costs, by type (`SeatRecord.resources`). */
+  readonly resources?: ResourcePool;
+  /** Cards paid with, by card id, and how many of those were spent from hand (`SeatRecord.paidWith`). */
+  readonly paidWith?: Readonly<Record<string, number>>;
+  readonly discardedToPay?: number;
+  /** The most damage and the most thwart in one of the seat's turns (`SeatRecord.bestTurn`). */
+  readonly bestTurn?: { readonly damage: number; readonly thwart: number };
+  /** By ally card id: damage to enemies, defenses, and defeats while defending (`SeatRecord.allyDamage` and on). */
+  readonly allyDamage?: Readonly<Record<string, number>>;
+  readonly allyBlocks?: Readonly<Record<string, number>>;
+  readonly allyDiedBlocking?: Readonly<Record<string, number>>;
 }
 
 /** A seat standing when the game was won. */
@@ -82,6 +106,17 @@ export interface GameSummary {
     readonly seen: Readonly<Record<string, number>>;
     readonly defeated: Readonly<Record<string, number>>;
   };
+  /** `SUMMARY_VERSION` when it was written; absent on a version 1 summary. */
+  readonly version?: number;
+  /** Encounter cards revealed, by card id (`GameRecord.encounterRevealed`). Absent before version 2. */
+  readonly encounterRevealed?: Readonly<Record<string, number>>;
+  /** Damage to the heroes and their allies by encounter cards, by card id (`GameRecord.hurtBy`). Absent before version 2. */
+  readonly hurtBy?: Readonly<Record<string, number>>;
+  /**
+   * At a win, the card id of the card that dealt the villain its last damage (the source `finalBlowBy` names the seat
+   * of); null when the engine named none or for any other result. Absent before version 2.
+   */
+  readonly finalBlowCardId?: string | null;
 }
 
 /** The four aspects and 'Pool, as a deck's aspect cards name them (`Aspect`); basic and hero cards are neither. */
@@ -129,6 +164,14 @@ function seatSummariesOf(state: GameState, record: GameRecord): SeatSummary[] {
       thwart: seat?.thwart ?? 0,
       defeated: (seat?.defeatedInRound ?? null) !== null,
       ...(seat?.satOut ? { satOut: true as const } : {}),
+      drawn: seat?.drawn ?? 0,
+      resources: seat?.resources ?? { physical: 0, mental: 0, energy: 0, wild: 0 },
+      paidWith: seat?.paidWith ?? {},
+      discardedToPay: seat?.discardedToPay ?? 0,
+      bestTurn: seat?.bestTurn ?? { damage: 0, thwart: 0 },
+      allyDamage: seat?.allyDamage ?? {},
+      allyBlocks: seat?.allyBlocks ?? {},
+      allyDiedBlocking: seat?.allyDiedBlocking ?? {},
     };
   });
 }
@@ -160,6 +203,11 @@ function finalBlowIdentityOf(state: GameState, record: GameRecord): string | nul
   return player ? (player.identity.cardId as string) : null;
 }
 
+function finalBlowCardOf(state: GameState, record: GameRecord): string | null {
+  const source = record.lastVillainDamage?.sourceInstanceId ?? null;
+  return source ? ((getInstance(state, source)?.cardId as string | undefined) ?? null) : null;
+}
+
 /** The summary of a finished game, or null while the game is still being played. */
 export function summarizeGame(state: GameState, record: GameRecord, deps?: EngineDeps): GameSummary | null {
   const outcome = state.outcome;
@@ -183,5 +231,9 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
     seats: seatSummariesOf(state, record),
     villains: villainsOf(state),
     sideSchemes: { seen: record.sideSchemesSeen ?? {}, defeated: record.sideSchemesDefeated ?? {} },
+    version: SUMMARY_VERSION,
+    encounterRevealed: record.encounterRevealed ?? {},
+    hurtBy: record.hurtBy ?? {},
+    finalBlowCardId: won ? finalBlowCardOf(state, record) : null,
   };
 }

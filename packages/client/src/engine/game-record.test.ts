@@ -5,7 +5,14 @@
  */
 
 import { describe, expect, test } from "vitest";
-import { activeVillain, type EngineDeps, type GameEvent, type GameState } from "@mc/engine";
+import {
+  activeVillain,
+  printedResources,
+  type Command,
+  type EngineDeps,
+  type GameEvent,
+  type GameState,
+} from "@mc/engine";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -305,5 +312,187 @@ describe("game record: a side scheme that comes back (Codex review on #530)", ()
     const record = recordEvents(emptyRecord(), [reveal, enter, defeat, toDeck, reveal, enter], state);
     expect(record.sideSchemesSeen).toEqual({ [side.id]: 2 });
     expect(record.sideSchemesDefeated).toEqual({ [side.id]: 1 });
+  });
+});
+
+describe("game record: the stats screen's per-seat numbers (#529)", () => {
+  async function table() {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const player = state.players[0]!;
+    const typed = (type: string, owned: boolean) =>
+      Object.values(state.instances).find(
+        (instance) => state.cardPool[instance.cardId]?.type === type && (instance.ownerId !== null) === owned,
+      )!;
+    return {
+      state,
+      me: player.playerId,
+      hero: player.identity.instanceId,
+      villain: activeVillain(state).instanceId,
+      ally: typed("ally", true),
+      minion: typed("minion", false),
+      support: typed("support", true),
+    };
+  }
+  const hit = (target: string, amount: number, source: string | null): GameEvent => ({
+    type: "damageDealt",
+    targetInstanceId: target as never,
+    amount,
+    sourceInstanceId: source as never,
+  });
+
+  test("cards drawn are counted per seat", async () => {
+    const { state, me } = await table();
+    const drawn: GameEvent = { type: "cardDrawn", playerId: me, instanceId: "x" as never };
+    expect(recordEvents(emptyRecord(), [drawn, drawn], state).seats[0]!.drawn).toBe(2);
+  });
+
+  test("resources by type, and the cards paid with: a card spent from hand and a resource ability in play", async () => {
+    const { state, me, support } = await table();
+    const handCard = state.players[0]!.hand[0]!;
+    const handCardId = state.instances[handCard]!.cardId;
+    const generated: GameEvent = {
+      type: "resourcesGenerated",
+      playerId: me,
+      instanceId: support.instanceId,
+      abilityId: "res" as never,
+      amount: 1,
+      pool: { physical: 0, mental: 1, energy: 0, wild: 0 },
+    };
+    const command = {
+      type: "playCard",
+      playerId: me,
+      instanceId: "played",
+      payment: [{ fromHand: handCard }, { ability: { instanceId: support.instanceId, abilityId: "res" } }],
+    } as unknown as Command;
+    const seat = recordEvents(emptyRecord(), [generated], state, undefined, command).seats[0]!;
+    expect(seat.paidWith).toEqual({ [handCardId]: 1, [support.cardId]: 1 });
+    expect(seat.discardedToPay).toBe(1);
+    const printed = printedResources(state.cardPool[handCardId]!);
+    expect(seat.resources).toEqual({ ...printed, mental: printed.mental + 1 });
+  });
+
+  test("a seat's best turn is its own turn's damage and thwart, not another phase's", async () => {
+    const { state, me, hero, villain } = await table();
+    const removed = (amount: number): GameEvent => ({
+      type: "threatRemoved",
+      schemeInstanceId: state.mainScheme.instanceId,
+      amount,
+      sourceInstanceId: hero,
+    });
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        { type: "turnStarted", playerId: me },
+        hit(villain, 3, hero),
+        removed(1),
+        { type: "turnEnded", playerId: me },
+        // The villain phase: the hero's damage is the seat's (a retaliate), but no turn's.
+        hit(villain, 5, hero),
+        { type: "turnStarted", playerId: me },
+        hit(villain, 1, hero),
+        removed(2),
+      ],
+      state,
+    );
+    // The second turn is still going: what it has so far already counts.
+    expect(record.seats[0]!.bestTurn).toEqual({ damage: 3, thwart: 2 });
+    expect(record.turn).toEqual({ playerId: me, damage: 1, thwart: 2 });
+    expect(record.seats[0]!.damage).toBe(9);
+  });
+
+  test("an ally's damage to enemies is its own, and an Overkill excess counts where it lands", async () => {
+    const { state, ally, minion, villain } = await table();
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        hit(minion.instanceId, 5, ally.instanceId),
+        { type: "overkillSpilled", fromInstanceId: minion.instanceId, toInstanceId: villain, amount: 2 },
+        hit(villain, 2, ally.instanceId),
+      ],
+      state,
+    );
+    expect(record.seats[0]!.allyDamage).toEqual({ [ally.cardId]: 5 });
+    expect(record.damageToEnemies).toBe(5);
+  });
+
+  test("an ally's defenses count, and so does its defeat by the attack it defended, but not a later one", async () => {
+    const { state, me, ally, villain } = await table();
+    const declared: GameEvent = {
+      type: "defenderDeclared",
+      attackInstanceId: villain,
+      defenderInstanceId: ally.instanceId,
+      playerId: me,
+    };
+    const resolved: GameEvent = {
+      type: "attackResolved",
+      enemyInstanceId: villain,
+      targetInstanceId: ally.instanceId,
+      baseAtk: 3,
+      boostIcons: 0,
+      defenseReduction: 0,
+      damageDealt: 3,
+    };
+    const defeated: GameEvent = { type: "characterDefeated", instanceId: ally.instanceId, cardId: ally.cardId };
+    const activated: GameEvent = {
+      type: "enemyActivated",
+      enemyInstanceId: villain,
+      activation: "attack",
+      playerId: me,
+    };
+    // Defended, hit by the attack and defeated by it.
+    const died = recordEvents(emptyRecord(), [declared, resolved, hit(ally.instanceId, 3, villain), defeated], state);
+    expect(died.seats[0]!.allyBlocks).toEqual({ [ally.cardId]: 1 });
+    expect(died.seats[0]!.allyDiedBlocking).toEqual({ [ally.cardId]: 1 });
+    expect(died.allyDefending).toBeUndefined();
+    // Defended across commands (a choice between), survived, then defeated after the next attack began.
+    const first = recordEvents(emptyRecord(), [declared], state);
+    expect(first.allyDefending?.[villain]).toBeDefined();
+    const survived = recordEvents(first, [resolved, hit(ally.instanceId, 1, villain), activated, defeated], state);
+    expect(survived.seats[0]!.allyBlocks).toEqual({ [ally.cardId]: 1 });
+    expect(survived.seats[0]!.allyDiedBlocking).toBeUndefined();
+  });
+});
+
+describe("game record: the encounter side (#529)", () => {
+  test("encounter cards revealed are counted by card id", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const minion = Object.values(state.instances).find(
+      (instance) => state.cardPool[instance.cardId]?.type === "minion",
+    )!;
+    const reveal: GameEvent = {
+      type: "encounterCardRevealed",
+      instanceId: minion.instanceId,
+      cardId: minion.cardId,
+      playerId: state.players[0]!.playerId,
+    };
+    expect(recordEvents(emptyRecord(), [reveal, reveal], state).encounterRevealed).toEqual({ [minion.cardId]: 2 });
+  });
+
+  test("damage to the heroes and their allies is counted by the encounter card that dealt it", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const hero = state.players[0]!.identity.instanceId;
+    const villain = activeVillain(state);
+    const ally = Object.values(state.instances).find((instance) => state.cardPool[instance.cardId]?.type === "ally")!;
+    const hurt = (target: string, amount: number, source: string | null): GameEvent => ({
+      type: "damageDealt",
+      targetInstanceId: target as never,
+      amount,
+      sourceInstanceId: source as never,
+    });
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        hurt(hero, 3, villain.instanceId),
+        hurt(ally.instanceId, 2, villain.instanceId),
+        // A player card (consequential damage) and a hit with no source are no encounter card's.
+        hurt(ally.instanceId, 1, ally.instanceId),
+        hurt(hero, 1, null),
+      ],
+      state,
+    );
+    expect(record.hurtBy).toEqual({ [villain.cardId]: 5 });
   });
 });

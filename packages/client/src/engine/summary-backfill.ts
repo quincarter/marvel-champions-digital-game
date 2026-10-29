@@ -22,7 +22,7 @@ import {
   type StoredGame,
   type WriterStamp,
 } from "./game-storage.js";
-import type { GameSummary } from "./game-summary.js";
+import { SUMMARY_VERSION, type GameSummary } from "./game-summary.js";
 
 /** What `backfillSummaries` answers instead of a count while a game is being played: try again later. */
 export const BACKFILL_BUSY = -1;
@@ -31,7 +31,8 @@ export const BACKFILL_BUSY = -1;
 export function needsBackfill(meta: SaveMeta, writer: WriterStamp): boolean {
   if (meta.status !== "won" && meta.status !== "lost") return false;
   if (meta.guided) return false;
-  if (meta.summary?.seats !== undefined) return false;
+  // Card numbers kept, and every number this build's summary has (`SUMMARY_VERSION`).
+  if (meta.summary?.seats !== undefined && (meta.summary.version ?? 1) >= SUMMARY_VERSION) return false;
   // An older build's game is the point (it finished before the numbers were kept); a newer app's may hold commands this
   // build cannot read.
   return isCurrentSchema(meta) && !writtenByNewerApp(meta, writer.appVersion);
@@ -51,22 +52,22 @@ function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boo
 }
 
 /**
- * The summary to write: the one the game recorded live, with only the fields it lacks taken from the replay (the
- * per-seat card numbers, the villains, the side schemes), so nothing an achievement already read changes. A save with
- * no summary at all takes the replay's whole.
+ * The summary to write: the one the game recorded live, with the fields it lacks taken from the replay (the villains,
+ * the side schemes, everything a later summary version added), so nothing an achievement already read changes. The
+ * seats are the replay's whole when it has them: a replay's seat holds every number the live one does, and those added
+ * since. A save with no summary at all takes the replay's whole.
  */
 export function filledSummary(live: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
   if (!live) return replayed;
   // Field by field: a key stored as undefined (IndexedDB keeps those) is a missing field, not a value.
-  const seats = live.seats ?? replayed.seats;
-  const villains = live.villains ?? replayed.villains;
-  const sideSchemes = live.sideSchemes ?? replayed.sideSchemes;
+  const kept = Object.fromEntries(Object.entries(live).filter(([, value]) => value !== undefined));
+  const seats = replayed.seats ?? live.seats;
   return {
-    ...live,
+    ...replayed,
+    ...kept,
     ...(seats ? { seats } : {}),
-    ...(villains ? { villains } : {}),
-    ...(sideSchemes ? { sideSchemes } : {}),
-  };
+    ...(replayed.version !== undefined ? { version: replayed.version } : {}),
+  } as GameSummary;
 }
 
 /**
@@ -99,8 +100,11 @@ export async function backfillSummaries(
       result = null;
     }
     if (!result || !sameEnding(meta, result.state, result.summary)) continue;
-    await storage.setSummary(meta.id, filledSummary(meta.summary, result.summary), meta.updatedAt + 1);
-    written++;
+    // Changed while it replayed (sync or play): not written, and tried again next time.
+    if (
+      await storage.setSummary(meta.id, filledSummary(meta.summary, result.summary), meta.updatedAt + 1, meta.updatedAt)
+    )
+      written++;
   }
   return written;
 }
