@@ -246,6 +246,27 @@ test("over Pause: a press on empty stats space reaches nothing underneath, and B
   await settle(page);
   expect(await page.evaluate(() => (window as unknown as { __heard: { n: number } }).__heard.n)).toBe(0);
   expect(await activeScenes(page)).toContain("PlayerStats");
+
+  // Card hover works over Pause too: rest the mouse on a card picture on Cards by hero.
+  const cardsTab = (await stopsOf(page)).find((s) => s.key === "tab:cards")!;
+  await press(page, false, cardsTab.rect);
+  const card = await waitFor(
+    async () => (await stopsOf(page)).find((s) => s.key.startsWith("card:")) ?? null,
+    "a card picture",
+    10_000,
+  );
+  await page.mouse.move(card.rect.x + card.rect.width / 2, card.rect.y + card.rect.height / 2);
+  await page.mouse.move(card.rect.x + card.rect.width / 2 + 2, card.rect.y + card.rect.height / 2 + 2);
+  await waitFor(
+    () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __mcStatsDebug?: { hoverShown(): string | null } }).__mcStatsDebug?.hoverShown() ??
+          null,
+      ),
+    "the card hover popover",
+    10_000,
+  );
   await page.keyboard.press("Escape");
   await waitFor(async () => ((await activeScenes(page)).includes("PlayerStats") ? null : true), "closed", 10_000);
   expect(await activeScenes(page)).toContain("PauseOverlay");

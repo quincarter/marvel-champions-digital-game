@@ -70,6 +70,25 @@ const BACK_LABELS: Readonly<Record<string, string>> = {
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
 const CHIP_GAP = 8;
+/** The "Other" part of How you lose: a warm grey (the Basic aspect's), with ink text, apart from Wiped's ink. */
+const MUTED_PART = 0x9a948a;
+
+/** Covering scenes that can be running under the stats overlay, never over it (`screenHoverArea`'s `beneath`). */
+const UNDER_STATS: readonly string[] = [
+  SCENES.pause,
+  SCENES.settings,
+  SCENES.choice,
+  SCENES.inspect,
+  SCENES.villainPhase,
+  SCENES.roundDebrief,
+  SCENES.rules,
+  SCENES.endTurnConfirm,
+  SCENES.pileView,
+  SCENES.evidence,
+  SCENES.campaignBeat,
+  SCENES.teamUpInfo,
+  SCENES.holdOn,
+];
 
 /** The tab and hero the player last looked at, kept while the app runs. */
 let lastTab: StatsTab = "overview";
@@ -129,7 +148,9 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#hints = new GlyphHints(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
-      area: (pointer) => screenHoverArea(this, pointer),
+      // Over Pause or Settings, those, and whatever they were open over (the table's decision sheet, the villain phase),
+      // run under the stats; none of them is over it.
+      area: (pointer) => screenHoverArea(this, pointer, { beneath: UNDER_STATS }),
     });
     // Pictures arrive after the first draw: draw again, once per batch.
     const redraw = (): void => {
@@ -163,6 +184,12 @@ export class PlayerStatsScene extends Phaser.Scene {
         if (under.input.keyboard) under.input.keyboard.enabled = true;
       }
     });
+    // Dev e2e hook (never referenced by product code): which card the hover popover shows.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcStatsDebug?: unknown }).__mcStatsDebug = {
+        hoverShown: () => this.#hover?.shownKey ?? null,
+      };
+    }
     this.#draw();
     if (!under) fadeScreenIn(this);
     void appSession()
@@ -205,17 +232,18 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#setTab(tabs[(at + direction + tabs.length) % tabs.length]!);
   }
 
-  #stepHero(direction: 1 | -1): void {
+  /** `keep`: the arrow that was pressed keeps focus, so A pressed again steps again. */
+  #stepHero(direction: 1 | -1, keep?: string): void {
     if (lastTab !== "cards" || !this.#stats || this.#stats.heroCards.length < 2) return;
-    this.#setHero(lastHero + direction);
+    this.#setHero(lastHero + direction, keep);
   }
 
-  #setHero(index: number): void {
+  #setHero(index: number, keep?: string): void {
     const count = this.#stats?.heroCards.length ?? 0;
     if (count === 0) return;
     lastHero = ((index % count) + count) % count;
     this.#draw();
-    this.#route?.focusKey(`hero:${heroAt(this.#stats!, lastHero)!.identityCardId}`);
+    this.#route?.focusKey(keep ?? `hero:${heroAt(this.#stats!, lastHero)!.identityCardId}`);
   }
 
   #scrollOf(tab: string): ListScroll {
@@ -294,6 +322,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       selected: boolean;
       onClick: () => void;
       glyph?: CustomSpecs | null;
+      /** A fixed width, in place of the label's own. */
+      width?: number;
     }[],
     stops: Map<string, FocusStop>,
     order: string[],
@@ -304,7 +334,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     let y = top;
     for (const chip of chips) {
       const probe = this.add.text(0, 0, chip.label.toUpperCase(), textStyle(bangers(phone ? 17 : 20), surface.ink.hex));
-      const chipWidth = Math.min(width, Math.ceil(probe.width) + (chip.glyph ? 64 : 30));
+      const chipWidth = Math.min(width, chip.width ?? Math.ceil(probe.width) + (chip.glyph ? 64 : 30));
       probe.destroy();
       if (x > left && x + chipWidth > left + width) {
         x = left;
@@ -403,6 +433,11 @@ export class PlayerStatsScene extends Phaser.Scene {
       const heroes = stats.heroCards;
       const current = heroAt(stats, lastHero)!;
       const several = heroes.length > 1;
+      // The arrows are a fixed width, and the hero's chip takes the rest of the row, so the three never wrap.
+      const arrow = 78;
+      const middle = several ? inner - (arrow + CHIP_GAP) * 2 : undefined;
+      const heroName = current.name.replace(/ \(.*\)$/, "");
+      const games = current.games.split(" ")[0];
       y = this.#drawChips(
         y + 10,
         gutter,
@@ -414,16 +449,21 @@ export class PlayerStatsScene extends Phaser.Scene {
                   key: "hero:previous",
                   label: "◂",
                   selected: false,
-                  onClick: () => this.#stepHero(-1),
+                  onClick: () => this.#stepHero(-1, "hero:previous"),
                   glyph: triggerSpecs("lt"),
+                  width: arrow,
                 },
               ]
             : []),
           {
             key: `hero:${current.identityCardId}`,
-            label: `${current.name.replace(/ \(.*\)$/, "")} · ${current.games}${several ? ` · ${heroes.indexOf(current) + 1} of ${heroes.length}` : ""}`,
+            label:
+              phone || !several
+                ? `${heroName} · ${games}`
+                : `${heroName} · ${current.games} · ${heroes.indexOf(current) + 1} of ${heroes.length}`,
             selected: true,
             onClick: () => undefined,
+            ...(middle !== undefined ? { width: middle } : {}),
           },
           ...(several
             ? [
@@ -431,8 +471,9 @@ export class PlayerStatsScene extends Phaser.Scene {
                   key: "hero:next",
                   label: "▸",
                   selected: false,
-                  onClick: () => this.#stepHero(1),
+                  onClick: () => this.#stepHero(1, "hero:next"),
                   glyph: triggerSpecs("rt"),
+                  width: arrow,
                 },
               ]
             : []),
@@ -726,17 +767,20 @@ export class PlayerStatsScene extends Phaser.Scene {
         for (const part of tile.parts) {
           const w = (barRect.width * part.count) / total;
           if (w <= 0) continue;
-          const tone = part.tone === "caution" ? signal.caution.hex : surface.ink.hex;
+          const tone =
+            part.tone === "caution" ? signal.caution.hex : part.tone === "muted" ? MUTED_PART : surface.ink.hex;
           g.fillStyle(tone, 1).fillRect(x, barRect.y, w, barRect.height);
           const label = this.add
             .text(
               x + 6,
               barRect.y + 7,
               `${part.label.toUpperCase()} ${part.count}`,
-              textStyle(typeRole.label, part.tone === "caution" ? surface.ink.hex : surface.paper.hex, 1),
+              textStyle(typeRole.label, part.tone === "ink" ? surface.paper.hex : surface.ink.hex, 1),
             )
             .setFontSize(11);
           fitText(label, Math.max(10, w - 8), 11);
+          // A paper edge between parts, so two dark parts side by side still read as two.
+          if (x > barRect.x) g.fillStyle(surface.paper.hex, 1).fillRect(x - 1, barRect.y, 2, barRect.height);
           objects.push(label);
           x += w;
         }

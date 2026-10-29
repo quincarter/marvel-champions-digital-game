@@ -82,7 +82,11 @@ export type OverviewTile =
       readonly kind: "split";
       readonly id: string;
       readonly label: string;
-      readonly parts: readonly { readonly label: string; readonly count: number; readonly tone: "caution" | "ink" }[];
+      readonly parts: readonly {
+        readonly label: string;
+        readonly count: number;
+        readonly tone: "caution" | "ink" | "muted";
+      }[];
       readonly detail: string;
     }
   | {
@@ -826,7 +830,7 @@ function overviewTilesOf(
       { label: "Scheme", count: scheme, tone: "caution" as const },
       { label: "Wiped", count: wiped, tone: "ink" as const },
       // A scenario's own loss, or an older save that names neither.
-      { label: "Other", count: other, tone: "ink" as const },
+      { label: "Other", count: other, tone: "muted" as const },
     ].filter((part) => part.count > 0);
     const top = [...parts].sort((a, b) => b.count - a.count)[0]!;
     const what: Record<string, string> = {
