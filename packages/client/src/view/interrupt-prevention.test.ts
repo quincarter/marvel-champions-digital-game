@@ -8,7 +8,14 @@ import { preventedAmountLine, preventionPreviewOf } from "./interrupt-prevention
 import { inlineInterruptFor } from "./villain-walkthrough.js";
 
 /** The window's damage event changed on its own stack frame, and on the prompt, as one copy of the game. */
-function withWindowEvent(game: GameState, change: { readonly amount?: number; readonly unpreventable?: true }) {
+function withWindowEvent(
+  game: GameState,
+  change: {
+    readonly amount?: number;
+    readonly unpreventable?: true;
+    readonly constantsApplied?: { readonly removed: number };
+  },
+) {
   const choice = game.pendingChoice!;
   const window = game.stack.find((f) => f.frameId === choice.frameId);
   const eventFrameId = window?.kind === "window" ? window.eventFrameId : null;
@@ -71,6 +78,17 @@ describe("preventionPreviewOf (#394)", () => {
       prevented: 1,
       hp: { now: 10, ifResolves: 9, withInterrupt: 10 },
     });
+  }, 60_000);
+
+  test("damage a constant modifier already reduced is shown at that amount, and the hit points follow it", async () => {
+    // As the engine leaves it at a "would take" window since PR #498 (`damageConstantsBeforeWouldTake`, ruling 205): a
+    // constant took 1 of Rhino's 2 off before the window opened, so the window's event says 1, marked
+    // `constantsApplied`. The preview must neither take the 1 off again nor add it back.
+    const { game, option } = await backflipWindow();
+    const reduced = withWindowEvent(game, { amount: 1, constantsApplied: { removed: 1 } });
+    const preview = preventionPreviewOf(reduced, POOL_DEPS, option)!;
+    expect(preview).toMatchObject({ incoming: 1, prevented: 1, hp: { now: 10, ifResolves: 9, withInterrupt: 10 } });
+    expect(preventedAmountLine(preview)).toBe("1 damage");
   }, 60_000);
 
   test("nothing outside a damage window", async () => {

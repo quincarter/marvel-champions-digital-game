@@ -20,6 +20,8 @@ describe("TRIGGER_EVENT_WORDS", () => {
 });
 
 describe("stackRowLabel for an event frame", () => {
+  // The label reads the stack only to tell a keyword's attack waiting for its ability apart (PR #498): none here.
+  const NO_STACK = { stack: [] } as unknown as GameState;
   const entry = (eventKind: TriggerEventKind, stage: string | null): StackEntry =>
     ({
       frameId: "f1",
@@ -36,13 +38,13 @@ describe("stackRowLabel for an event frame", () => {
   test("no kind at any stage prints a raw engine id", () => {
     for (const kind of kinds) {
       for (const stage of ["interrupts", "responses", "apply", null]) {
-        const label = stackRowLabel({} as GameState, entry(kind, stage));
+        const label = stackRowLabel(NO_STACK, entry(kind, stage));
         expect(label, `${kind}/${stage}`).not.toMatch(/[a-z][A-Z]/);
       }
     }
   });
 
   test("the stack panel's own example reads in words", () => {
-    expect(stackRowLabel({} as GameState, entry("enemyAttack", "responses"))).toBe("Response window — an enemy attack");
+    expect(stackRowLabel(NO_STACK, entry("enemyAttack", "responses"))).toBe("Response window — an enemy attack");
   });
 });
