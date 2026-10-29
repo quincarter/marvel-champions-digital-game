@@ -590,7 +590,8 @@ def save_like(img: Image.Image, dest: Path, max_edge: int | None = MAX_EDGE) -> 
     if max_edge and max(img.size) > max_edge:
         img = img.copy()
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
-    if dest.suffix.lower() in (".jpg", ".jpeg"):
+    # An owner scan with no scanner-white corners to clear stays RGB and has nothing to flatten.
+    if dest.suffix.lower() in (".jpg", ".jpeg") and "A" in img.getbands():
         img = flatten(img)
     replace_bytes(dest, encode_webp(img))
 

@@ -21,6 +21,29 @@ code	pack	name	scan	saved
 01016	core	Captain Marvel's Helmet	11_Captain Marvel_sHelmet_Upgrade.tif	2026-10-28
 01017	core	Cosmic Flight	12_Cosmic Flight_Upgrade.tif	2026-10-28
 01018	core	Energy Channel	14_Energy Channel_Upgrade.tif	2026-10-28
+01019a	core	She-Hulk	0_She-Hulk_Hero_A.tif	2026-10-28
+01019b	core	Jennifer Walters	0_She-Hulk_Alter-Ego_B.tif	2026-10-28
+01020	core	Hellcat	1_Hellcat_Ally.tif	2026-10-28
+01021	core	Gamma Slam	2_Gamma Slam_Event.tif	2026-10-28
+01022	core	Ground Stomp	3_Ground Stomp_Event.tif	2026-10-28
+01023	core	Legal Practice	5_Legal Practice_Event.tif	2026-10-28
+01024	core	One-Two Punch	7_One-Two Punch_Event.tif	2026-10-28
+01025	core	Split Personality	10_Split Personality_Event.tif	2026-10-28
+01026	core	Superhuman Law Division	11_Superhuman Law Division_Support.tif	2026-10-28
+01027	core	Focused Rage	12_Focused Rage_Upgrade.tif	2026-10-28
+01028	core	Superhuman Strength	14_Superhuman Strength_Upgrade.tif	2026-10-28
+01029a	core	Iron Man	0_Iron Man_Hero_A.tif	2026-10-28
+01029b	core	Tony Stark	0_Iron Man_Alter-Ego_B.tif	2026-10-28
+01030	core	War Machine	1_War Machine_Ally.tif	2026-10-28
+01031	core	Repulsor Blast	2_Repulsor Blast_Event.tif	2026-10-28
+01032	core	Supersonic Punch	5_Supersonic Punch_Event.tif	2026-10-28
+01033	core	Pepper Potts	7_Pepper Potts_Support.tif	2026-10-28
+01034	core	Stark Tower	8_Stark Tower_Support.tif	2026-10-28
+01035	core	Arc Reactor	9_Arc Reactor_Upgrade.tif	2026-10-28
+01036	core	Mark V Armor	10_Mark V Armour_Upgrade.tif	2026-10-28
+01037	core	Mark V Helmet	11_Mark V Helmet_Upgrade.tif	2026-10-28
+01038	core	Powered Gauntlets	12_Powered Gauntlets_Upgrade.tif	2026-10-28
+01039	core	Rocket Boots	14_Rocket Boots_Upgrade.tif	2026-10-28
 01040a	core	Black Panther	0_Black Panter_Hero_A.tif	2026-10-28
 01040b	core	T'Challa	0_Black Panter_Alter-Ego_B.tif	2026-10-28
 01041	core	Shuri	1_Shuri_Ally.tif	2026-10-28
@@ -79,21 +102,112 @@ code	pack	name	scan	saved
 01091	core	Avengers Mansion	Basic_Avengers Mansion_Support.tif	2026-10-28
 01092	core	Helicarrier	Basic_Helicarrier_Support.tif	2026-10-28
 01093	core	Tenacity	Basic_Tenacity_Upgrade.tif	2026-10-28
+01094	core	Rhino	1_Rhino_Stage I_Villain.tif	2026-10-28
+01095	core	Rhino	2_Rhino_Stage II_Villain.tif	2026-10-28
+01096	core	Rhino	3_Rhino_Stage III_Villain.tif	2026-10-28
+01097	core	The Break-In!	4_The Break-In!_Main Scheme_1B.tif	2026-10-28
+01097b	core	The Break-In!	4_The Break-In!_Main Scheme_1A.tif	2026-10-28
+01098	core	Armored Rhino Suit	5_Armored Rhino Suit_Attachment.tif	2026-10-28
+01099	core	Charge	6_Charge_Attachment.tif	2026-10-28
+01100	core	Enhanced Ivory Horn	8_Enhanced Ivory Horn_Attachment.tif	2026-10-28
+01101	core	Hydra Mercenary	10_Hydra Mercenary_Minion.tif	2026-10-28
+01102	core	Sandman	11_Sandman_Minion.tif	2026-10-28
+01103	core	Shocker	12_Shocker_Minion.tif	2026-10-28
+01104	core	Hard to Keep Down	13_Hard to Keep Down_Treachery.tif	2026-10-28
+01105	core	"I'm Tough"	15_I_m Tough!_Treachery.tif	2026-10-28
+01106	core	Stampede	17_Stampede_Treachery.tif	2026-10-28
+01107	core	Breakin' & Takin'	20_Breaking and Taking_Side Scheme.tif	2026-10-28
+01108	core	Crowd Control	21_Crowd Control_Side Scheme.tif	2026-10-28
+01109	core	Bomb Scare	1_Bomb Scare_Side Scheme.tif	2026-10-28
+01110	core	Hydra Bomber	2_Hydra Bomber_Minion.tif	2026-10-28
+01111	core	Explosion	4_Exposion_Treachery.tif	2026-10-28
+01112	core	False Alarm	5_False Alarm_Treachery.tif	2026-10-28
+01113	core	Klaw	1_Klaw_Stage I_Villain.tif	2026-10-28
+01114	core	Klaw	2_Klaw_Stage II_Villain.tif	2026-10-28
+01115	core	Klaw	3_Klaw_Stage III_Villain.tif	2026-10-28
+01116	core	Underground Distribution	4_Underground Distribution_Main Scheme_1B.tif	2026-10-28
+01116b	core	Underground Distribution	4_Underground Distribution_Main Scheme_1A.tif	2026-10-28
+01117	core	Secret Rendezvous	5_Secret Rendezvous_Main Scheme_2B.tif	2026-10-28
+01117b	core	Secret Rendezvous	5_Secret Rendezvous_Main Scheme_2A.tif	2026-10-28
+01118	core	Sonic Converter	6_Sonic Converter_Attachment.tif	2026-10-28
+01119	core	Solid-Sound Body	7_Solid-Sound Body_Attachment.tif	2026-10-28
+01120	core	Armored Guard	10_Armored Guard_Minion.tif	2026-10-28
+01121	core	Weapons Runner	11_Weapons Runner_Minion.tif	2026-10-28
+01122	core	Klaw's Vengeance	13_Klaw_s Vengeance_Treachery.tif	2026-10-28
+01123	core	Sonic Boom	15_Sonic Boom_Treachery.tif	2026-10-28
+01124	core	Sound Manipulation	17_Sound Manipulation_Treachery.tif	2026-10-28
+01125	core	Defense Network	19_Defence Network_Side Scheme.tif	2026-10-28
+01126	core	Illegal Arms Factory	20_Illegal Arms Factory_Side Scheme.tif	2026-10-28
+01127	core	The "Immortal" Klaw	21_The Immortal Klaw_Side Scheme.tif	2026-10-28
+01128	core	The Masters of Evil	1_The Masters of Evil_Side Scheme.tif	2026-10-28
+01129	core	Radioactive Man	2_Radioactive Man_Minion.tif	2026-10-28
+01130	core	Whirlwind	3_Whirwind_Minion.tif	2026-10-28
+01131	core	Tiger Shark	4_Tiger Shark_Minion.tif	2026-10-28
+01132	core	Melter	5_Melter_Minion.tif	2026-10-28
+01133	core	Masters of Mayhem	6_Masters of Mayhem_Treachery.tif	2026-10-28
+01134	core	Ultron	1_Utron_Stage I_Villain.tif	2026-10-28
+01135	core	Ultron	2_Utron_Stage II_Villain.tif	2026-10-28
+01136	core	Ultron	3_Utron_Stage III_Villain.tif	2026-10-28
+01137	core	The Crimson Cowl	4_The Crimson Cowl_Main Scheme_1B.tif	2026-10-28
+01137b	core	The Crimson Cowl	4_The Crimson Cowl_Main Scheme_1A.tif	2026-10-28
+01138	core	Assault on NORAD	5_Assault on NORAD_Main Scheme_2B.tif	2026-10-28
+01138b	core	Assault on NORAD	5_Assault on NORAD_Main Scheme_2A.tif	2026-10-28
+01139	core	Countdown to Oblivion	6_Countdown to  Oblivion_Main Scheme_3B.tif	2026-10-28
+01139b	core	Countdown to Oblivion	6_Countdown to  Oblivion_Main Scheme_3A.tif	2026-10-28
+01140	core	Ultron Drones	7_Ultron Drones_Environment.tif	2026-10-28
+01141	core	Program Transmitter	8_Program Transmiter_Attachment.tif	2026-10-28
+01142	core	Upgraded Drones	10_Upgraded Drones_Attachment.tif	2026-10-28
+01143	core	Advanced Ultron Drone	11_Advanced Ultron Drones_Minion.tif	2026-10-28
+01144b	core	Android Efficiency	14_Android Efficiency_Treachery.tif	2026-10-28
+01145	core	Rage of Ultron	17_Rage of Ultron_Treachery.tif	2026-10-28
+01146	core	Repair Sequence	19_Repair Sequence_Treachery.tif	2026-10-28
+01147	core	Swarm Attack	21_Swarm Attack_Treachery.tif	2026-10-28
+01148	core	Drone Factory	23_Drone Factory_Side Scheme.tif	2026-10-28
+01149	core	Invasive AI	24_Invasive AI_Side Scheme.tif	2026-10-28
+01150	core	Ultron's Imperative	25_Utron_s Imperative_Side Scheme.tif	2026-10-28
+01151	core	Under Attack	1_Under Attack_Side Scheme.tif	2026-10-28
+01152	core	Vibranium Armor	2_Vibranium Armor_Attachment.tif	2026-10-28
+01153	core	Concussion Blasters	3_Concussion Blaster_Attachment.tif	2026-10-28
+01154	core	Concussive Blast	4_Concussive Blast_Treachery.tif	2026-10-28
 01155	core	Affairs of State	0_Affairs of State_Obligation.tif	2026-10-28
 01156	core	Usurp The Throne	1_Usurp the Throne_Side Scheme.tif	2026-10-28
 01157	core	Killmonger	2_Killmonger_Minion.tif	2026-10-28
 01158	core	Heart-Shaped Herb	3_Heart-Shaped Herb_Treachery.tif	2026-10-28
 01159	core	Ritual Combat	4_Ritual Combat_Treachery.tif	2026-10-28
+01160	core	Legal Work	0_Legal Work_Obligation.tif	2026-10-28
+01161	core	Personal Challenge	1_Personal Challenge_Side Scheme.tif	2026-10-28
+01162	core	Titania	2_Titania_Minion.tif	2026-10-28
+01163	core	Genetically Enhanced	3_Genetically Enhanced_Attachment.tif	2026-10-28
+01164	core	Titania's Fury	4_Titania_s Fury_Treachery.tif	2026-10-28
 01165	core	Eviction Notice	0_Eviction Notice_Obligation.tif	2026-10-28
 01166	core	Highway Robbery	1_Highway Robbery_Side Scheme.tif	2026-10-28
 01167	core	Vulture	2_Vulture_Minion.tif	2026-10-28
 01168	core	Sweeping Swoop	3_Sweeping Swoop_Treachery.tif	2026-10-28
 01169	core	The Vulture's Plans	5_The Vulture_s Plans_Treachery.tif	2026-10-28
+01170	core	Business Problems	0_Business Problems_Oligation.tif	2026-10-28
+01171	core	Imminent Overload	1_Imminent Overload_Side Scheme.tif	2026-10-28
+01172	core	Whiplash	2_Whiplash_Minion.tif	2026-10-28
+01173	core	Electric Whip Attack	3_Electric Whip Attack_Treachery.tif	2026-10-28
+01174	core	Electromagnetic Backlash	5_Elecromagnetic Backlash_Treachery.tif	2026-10-28
 01175	core	Family Emergency	0_Family Emergency_Obligation.tif	2026-10-28
 01176	core	The Psyche-Magnitron	1_The Psyche-Magnitron_Side Scheme.tif	2026-10-28
 01177	core	Yon-Rogg	2_Yon-Rogg_Minion.tif	2026-10-28
 01178	core	Kree Manipulator	3_Kree Manipulator_Treachery.tif	2026-10-28
 01179	core	Yon-Rogg's Treason	5_Yon-Rogg_s Treason_Treachery.tif	2026-10-28
+01180	core	Legions of Hydra	1_Legions Of Hydra_Side Scheme.tif	2026-10-28
+01181	core	Madame Hydra	3_Madame Hydra_Minion.tif	2026-10-28
+01182	core	Hydra Soldier	4_Hydra Soldier_Minion.tif	2026-10-28
+01183	core	The Doomsday Chair	1_The Doomsday Chair_Side Scheme.tif	2026-10-28
+01184	core	M.O.D.O.K.	3_MODOK_Minion.tif	2026-10-28
+01185	core	Biomechanical Upgrades	4_Biomechanical Upgrades_Attachment.tif	2026-10-28
+01186	core	Advance	1_Advance_Treachery.tif	2026-10-28
+01187	core	Assault	3_Assault_Treachery.tif	2026-10-28
+01188	core	Caught Off Guard	5_Caught Off Guard_Treachery.tif	2026-10-28
+01189	core	Gang-Up	6_Gang-Up_Treachery.tif	2026-10-28
+01190	core	Shadow of the Past	7_Shadow of the Past_Treachery.tif	2026-10-28
+01191	core	Exhaustion	1_Exhaustion_Treachery.tif	2026-10-28
+01192	core	Masterplan	2_Masterplan_Treachery.tif	2026-10-28
+01193	core	Under Fire	3_Under Fire_Treachery.tif	2026-10-28
 04011	trors	Hawkeye	Leadership_Hawkeye (Kate Bishop)_Ally.tiff	2026-10-28
 04012	trors	Black Knight	Leadership_Black Knight_Ally.tif	2026-10-28
 04013	trors	Goliath	Leadership_Goliath_Ally.tif	2026-10-28
