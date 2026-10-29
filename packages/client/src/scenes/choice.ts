@@ -539,8 +539,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (this.#hoverScrolled.size === 0) return noted;
     const offset = this.#optionScroll.offsetPx;
     const onScreen = new Map<InstanceId, Rect>();
-    for (const [id, rect] of noted)
-      onScreen.set(id, this.#hoverScrolled.has(id) ? { ...rect, y: rect.y - offset } : rect);
+    const viewport = this.#optionRegion?.rect ?? null;
+    for (const [id, rect] of noted) {
+      if (!this.#hoverScrolled.has(id)) {
+        onScreen.set(id, rect);
+        continue;
+      }
+      // Only the part still inside the list: a card scrolled under the header or Confirm opens no popover there.
+      const moved = { ...rect, y: rect.y - offset };
+      const shown = viewport ? clipHoverRect(moved, viewport) : moved;
+      if (shown) onScreen.set(id, shown);
+    }
     return onScreen;
   }
 
@@ -1197,6 +1206,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const rowButtons: McButton[] = [];
     /** The rows' pictures, which scroll with them. */
     const rowArt: Phaser.GameObjects.GameObject[] = [];
+    const rowHovers = new Set<InstanceId>();
     rows.forEach((row, index) => {
       const rect: Rect = { x: sheet.x + 12, y: tops[index]!, width: rowWidth, height: heights[index]! };
       if (row.kind === "unavailable") {
@@ -1267,8 +1277,14 @@ export class ChoiceOverlay extends Phaser.Scene {
       rowButtons.push(button);
       if (state.game) {
         rowArt.push(
-          ...this.#drawRowArt(state.game, option.ref, optionRect, rowsLayout.scrolls, () =>
-            this.#toggle(option.optionId, choice.maxSelections),
+          ...this.#drawRowArt(
+            state.game,
+            option.ref,
+            optionRect,
+            rowsLayout.scrolls,
+            () => this.#toggle(option.optionId, choice.maxSelections),
+            option.optionId,
+            rowHovers,
           ),
         );
       }
@@ -2113,6 +2129,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     row: Rect,
     scrolls: boolean,
     pick: () => void,
+    optionKey: string,
+    /** The cards this list's rows have noted for the hover so far. */
+    hovered: Set<InstanceId>,
   ): Phaser.GameObjects.GameObject[] {
     const source = optionArtOf(game, ref);
     const id = optionArtInstance(game, ref);
@@ -2120,14 +2139,18 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The picture, not the whole card shrunk to a stamp: a square crop of the scan's upper part, where the art is.
     const side = Math.max(0, Math.min(ROW_ART_WIDTH, row.height - 8));
     const thumb: Rect = { x: row.x + 6, y: row.y + (row.height - side) / 2, width: side, height: side };
-    noteHoverCard(this, id, thumb);
-    if (scrolls) this.#hoverScrolled.add(id);
+    // Two rows can name one card (two abilities on it): the hover map holds one rect per card, so the first row keeps it.
+    if (!hovered.has(id)) {
+      hovered.add(id);
+      noteHoverCard(this, id, thumb);
+      if (scrolls) this.#hoverScrolled.add(id);
+    }
     const zone = this.add.zone(thumb.x, thumb.y, thumb.width, thumb.height).setOrigin(0, 0).setInteractive();
     const inspect = (): void => {
       this.scene.launch(SCENES.inspect, { instanceId: id });
       this.scene.bringToTop(SCENES.inspect);
     };
-    bindHoldTarget(this, zone, { key: `row-art:${id}`, onTap: pick, onInspect: inspect });
+    bindHoldTarget(this, zone, { key: `row-art:${optionKey}`, onTap: pick, onInspect: inspect });
     const key = cardArt(this).request(this, source);
     if (!key || !this.textures.exists(key)) return [zone];
     const { width: w, height: h } = this.textures.get(key).getSourceImage();

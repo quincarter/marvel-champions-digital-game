@@ -1,8 +1,8 @@
 /**
  * The picture a text-row decision draws beside an option (the owner, 2026-10-29: "Choose a player" read as a list of
  * names): the hero's identity card for a player, the card itself for a villain, minion, scheme or any card in play, and
- * the card an ability belongs to. An option with nothing on the table to show (a number, "Let it resolve", a facedown
- * card) has none.
+ * the card an ability belongs to. A card that is facedown shows its back, as the table does. An option with no card
+ * on the table (a number, "Let it resolve", a facedown card from a hidden hand) has none.
  *
  * Pure: `scenes/choice.ts` requests and draws the art.
  */
