@@ -39,6 +39,9 @@ export interface HeroUsage extends Readonly<Tally> {
   readonly wonWith: Readonly<Record<string, number>>;
   readonly damage: number;
   readonly thwart: number;
+  /** Card id to times played (`SeatSummary.plays`), and to abilities used (`SeatSummary.activations`). */
+  readonly plays: Readonly<Record<string, number>>;
+  readonly activations: Readonly<Record<string, number>>;
 }
 
 /** One deck's games and what its cards did in them. */
@@ -61,6 +64,8 @@ const blank = (): {
   wonWith: Record<string, number>;
   damage: number;
   thwart: number;
+  plays: Record<string, number>;
+  activations: Record<string, number>;
 } => ({
   games: 0,
   wins: 0,
@@ -73,6 +78,8 @@ const blank = (): {
   wonWith: {},
   damage: 0,
   thwart: 0,
+  plays: {},
+  activations: {},
 });
 
 type Mutable = ReturnType<typeof blank>;
@@ -100,6 +107,8 @@ function addGame(into: Mutable, won: boolean, lossReason: string | null, seat: S
   into.damage += seat.damage;
   into.thwart += seat.thwart;
   for (const id of seat.deck) bump(into.inDeck, id);
+  for (const [id, n] of Object.entries(seat.plays)) into.plays[id] = (into.plays[id] ?? 0) + n;
+  for (const [id, n] of Object.entries(seat.activations)) into.activations[id] = (into.activations[id] ?? 0) + n;
   for (const id of new Set([...Object.keys(seat.plays), ...Object.keys(seat.entered ?? {})])) {
     bump(into.usedIn, id);
     if (won) bump(into.wonWith, id);
@@ -257,4 +266,56 @@ export function fromYourGamesOf(
     keep,
     note: empty ? "Nothing stands out yet: play a few more games with this deck." : null,
   };
+}
+
+export interface CardPlayLine {
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * One card's "Your play" (#529): the Decks screen's card pane and Inspect. With a hero, that hero's games only (the
+ * card in a game, or in that hero's deck); without one, every hero's together. Null when the card was never in a deck
+ * in a game with card numbers.
+ */
+export function cardPlayOf(
+  insights: DeckInsights,
+  cardId: string,
+  identityCardId: string | null,
+  names: StatsNames,
+): readonly CardPlayLine[] | null {
+  const heroes = identityCardId
+    ? [[identityCardId, insights.heroes[identityCardId]] as const].filter(([, usage]) => usage !== undefined)
+    : Object.entries(insights.heroes);
+  let inDeck = 0;
+  let usedIn = 0;
+  let wonWith = 0;
+  let plays = 0;
+  let activations = 0;
+  const playedBy: string[] = [];
+  for (const [hero, usage] of heroes) {
+    if (!usage) continue;
+    const used = usage.usedIn[cardId] ?? 0;
+    inDeck += usage.inDeck[cardId] ?? 0;
+    usedIn += used;
+    wonWith += usage.wonWith[cardId] ?? 0;
+    plays += usage.plays[cardId] ?? 0;
+    activations += usage.activations[cardId] ?? 0;
+    if (used > 0) playedBy.push((names.cardName(hero) ?? hero).replace(/ \(.*\)$/, ""));
+  }
+  if (inDeck === 0 && usedIn === 0) return null;
+  const lines: CardPlayLine[] = [
+    { label: "In your deck", value: plural(inDeck, "game") },
+    { label: "Came out", value: inDeck > 0 ? `${usedIn} of ${plural(inDeck, "game")}` : plural(usedIn, "game") },
+  ];
+  if (plays > 0) lines.push({ label: "Played", value: `${plays}×` });
+  if (activations > 0) lines.push({ label: "Abilities used", value: `${activations}×` });
+  if (usedIn > 0) {
+    lines.push({
+      label: "Won when it came out",
+      value: `${Math.round((wonWith / usedIn) * 100)}% (${wonWith} of ${usedIn})`,
+    });
+  }
+  if (!identityCardId && playedBy.length > 0) lines.push({ label: "Played with", value: playedBy.sort().join(", ") });
+  return lines;
 }

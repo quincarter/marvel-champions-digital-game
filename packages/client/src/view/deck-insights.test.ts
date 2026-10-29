@@ -3,7 +3,7 @@ import type { SessionConfig } from "../engine/host.js";
 import { SAVE_SCHEMA, type SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import type { StatsNames } from "./player-stats-model.js";
-import { deckInsightsOf, fromYourGamesOf } from "./deck-insights.js";
+import { cardPlayOf, deckInsightsOf, fromYourGamesOf } from "./deck-insights.js";
 
 const CARDS: Record<string, { name: string; type: string; aspect?: string }> = {
   spidey: { name: "Spider-Man (Peter Parker)", type: "hero_identity" },
@@ -123,5 +123,32 @@ describe("fromYourGamesOf", () => {
     const view = fromYourGamesOf(deckInsightsOf([], NAMES), "spidey", ["webs"], ["justice"], NAMES);
     expect(view.headline).toBeNull();
     expect(view.note).toContain("Play Spider-Man");
+  });
+});
+
+describe("cardPlayOf", () => {
+  const insights = deckInsightsOf(
+    [
+      game(true, seat({ plays: { webs: 2 }, activations: { webs: 3 } })),
+      game(false, seat({ plays: {}, activations: {} })),
+    ],
+    NAMES,
+  );
+
+  test("a card's games, plays, abilities used and win rate when it came out", () => {
+    expect(cardPlayOf(insights, "webs", null, NAMES)).toEqual([
+      { label: "In your deck", value: "2 games" },
+      { label: "Came out", value: "1 of 2 games" },
+      { label: "Played", value: "2×" },
+      { label: "Abilities used", value: "3×" },
+      { label: "Won when it came out", value: "100% (1 of 1)" },
+      { label: "Played with", value: "Spider-Man" },
+    ]);
+  });
+
+  test("for one hero, without the Played with line; nothing for a card never in a deck", () => {
+    expect(cardPlayOf(insights, "webs", "spidey", NAMES)?.map((l) => l.label)).not.toContain("Played with");
+    expect(cardPlayOf(insights, "tac", null, NAMES)).toBeNull();
+    expect(cardPlayOf(insights, "webs", "cap", NAMES)).toBeNull();
   });
 });

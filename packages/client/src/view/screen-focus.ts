@@ -124,6 +124,9 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
       : [
           // The pane's two tabs, then the tab showing: the deck's own actions, or From your games' one button (the
           // route drops whichever is not drawn).
+          // A pool card shown in the pane: its way back and Inspect (the route drops them while the deck shows).
+          "card-back",
+          "card-inspect",
           "pane:deck",
           "pane:games",
           "stats-check",

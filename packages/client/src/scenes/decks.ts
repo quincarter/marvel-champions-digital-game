@@ -165,7 +165,7 @@ import {
   resetHoverCards,
   screenHoverArea,
 } from "../ui/card-hover-preview.js";
-import { fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
+import { cardPlayOf, fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
 import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
@@ -376,6 +376,11 @@ export class DecksScene extends Phaser.Scene {
   #insights: DeckInsights | null = null;
   /** The stats pane's tab: the deck's own numbers, or what your games say about it (#529). LT / RT switch them. */
   #paneTab: "deck" | "games" = "deck";
+  /**
+   * The pool card shown in the stats pane (#529): a tap or A on a pool card puts it there with what your games say
+   * about it, in place of opening Inspect; "◂ Deck stats" (or B) goes back to the deck. Null: the deck's stats.
+   */
+  #paneCard: AnyCard | null = null;
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
@@ -498,6 +503,11 @@ export class DecksScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, {
       // B leaves for Title, as the Back button does (a field being typed in owns the keys, so this is not reached then).
       onCancel: () => {
+        // A card in the stats pane goes back to the deck's stats first.
+        if (this.#paneCard) {
+          this.#closePaneCard();
+          return;
+        }
         // An open Paste / CDB link box closes first; the next B leaves.
         if (this.#importExportOpen !== null) {
           this.#importExportOpen = null;
@@ -1165,6 +1175,7 @@ export class DecksScene extends Phaser.Scene {
         return;
       }
       this.#selectedDeckId = row.option.deck.id as string;
+      this.#paneCard = null;
       this.#rebuild();
     };
     this.#list = new McVirtualList(this, {
@@ -1217,6 +1228,7 @@ export class DecksScene extends Phaser.Scene {
       const ensureVisible = (): void => list.scrollIntoView(index);
       const select = (): void => {
         this.#selectedDeckId = deckId;
+        this.#paneCard = null;
         this.#rebuild();
       };
       const doInspect = (): void => this.#inspectDeck(row.option);
@@ -1877,7 +1889,10 @@ export class DecksScene extends Phaser.Scene {
       const column2 = poolColumnAt(geometry, list.rectFor(rowIndex), pointer.x, countInRow);
       if (column2 === null) return;
       const card = cards[startIndex + column2];
-      if (card) this.#inspectCard(card);
+      if (!card) return;
+      // Right-click still inspects; a tap or a hold reads it in the stats pane.
+      if (pointer.rightButtonReleased()) this.#inspectCard(card);
+      else this.#showPaneCard(card);
     };
     this.#poolList = new McVirtualList(this, {
       rect: gridRect,
@@ -1920,7 +1935,7 @@ export class DecksScene extends Phaser.Scene {
       const col = index % geometry.columns;
       this.#stops.set(`pool-card:${card.id as string}`, {
         rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
-        activate: () => this.#inspectCard(card),
+        activate: () => this.#showPaneCard(card),
         inspect: () => this.#inspectCard(card),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
@@ -2161,6 +2176,135 @@ export class DecksScene extends Phaser.Scene {
     return { objects };
   }
 
+  /** Puts `card` in the stats pane (the narrow layout's Stats tab) and the focus on its way back. */
+  #showPaneCard(card: AnyCard): void {
+    this.#paneCard = card;
+    if (this.#tabs !== null && this.#activeTab !== "stats") this.#activeTab = "stats";
+    this.#rebuild();
+    this.#route?.focusKey("card-back");
+  }
+
+  #closePaneCard(): void {
+    const card = this.#paneCard;
+    this.#paneCard = null;
+    this.#rebuild();
+    if (card) this.#route?.focusKey(`pool-card:${card.id as string}`);
+  }
+
+  /** The stats pane's card view: the card, what your games say about it, the decks that hold it, and Inspect. */
+  #drawPaneCard(rect: Rect, left: number, column: number, top: number, card: AnyCard, deck: Deck): void {
+    let y = top;
+    const backRect: Rect = { x: left, y, width: column, height: this.#row };
+    const back = (): void => this.#closePaneCard();
+    const backButton = new McButton(this, {
+      kind: "onInk",
+      label: "◂ Deck stats",
+      type: typeRole.label,
+      rect: backRect,
+      onClick: back,
+    });
+    this.#buttons.push(backButton);
+    this.#hints.button(backButton, ["cancel"], "ink");
+    this.#stops.set("card-back", { rect: backRect, activate: back });
+    y += this.#row + 12;
+    const footerTop = rect.y + rect.height - hit.primary - 16 - 13 - 12;
+    const inspectRect: Rect = { x: left, y: footerTop - this.#row, width: column, height: this.#row };
+    // The picture on the left, the facts beside it.
+    const pic: Rect = {
+      x: left,
+      y,
+      width: Math.min(130, column * 0.42),
+      height: Math.min(130, column * 0.42) * (88 / 63),
+    };
+    this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
+    drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+    noteHoverCardId(this, card.id as string, pic, true);
+    const textX = pic.x + pic.width + 10;
+    const textWidth = left + column - textX;
+    const name = this.add.text(textX, y, card.name, {
+      ...textStyle(typeRole.barTitle, surface.paper.hex),
+      fontSize: "20px",
+    });
+    fitWrapped(name, textWidth, 2, 14);
+    const kind = label(
+      this,
+      textX,
+      y + name.height + 4,
+      card.type.replace(/_/g, " ").toUpperCase(),
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
+    fitText(kind, textWidth, typeRole.label.size);
+    let factY = y + name.height + 24;
+    const heroId = deck.identityCardId as string;
+    const hero = this.#insights ? cardPlayOf(this.#insights, card.id as string, heroId, POOL_STATS_NAMES) : null;
+    const all = this.#insights ? cardPlayOf(this.#insights, card.id as string, null, POOL_STATS_NAMES) : null;
+    y = Math.max(pic.y + pic.height, factY) + 12;
+    const block = (title: string, lines: readonly { label: string; value: string }[] | null, empty: string): void => {
+      if (y + 20 > inspectRect.y - 8) return;
+      label(this, left, y, title.toUpperCase(), typeRole.label, signal.caution.hex, 1);
+      y += 18;
+      if (!lines) {
+        const none = this.add
+          .text(left, y, empty, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+          .setFontSize(12);
+        none.setWordWrapWidth(column);
+        y += none.height + 10;
+        return;
+      }
+      for (const line of lines) {
+        if (y + 16 > inspectRect.y - 8) return;
+        const l = this.add
+          .text(left, y, line.label, textStyle(typeRole.body, surface.paper.hex, ink.body))
+          .setFontSize(12);
+        const v = this.add
+          .text(left + column, y, line.value, textStyle(typeRole.rowTitle, surface.paper.hex, 1))
+          .setOrigin(1, 0)
+          .setFontSize(12);
+        fitText(v, column - l.width - 10, 12);
+        y += 18;
+      }
+      y += 8;
+    };
+    if (!this.#insights) block("Your play", null, "Reading your games…");
+    else {
+      const heroName = (CARDS_BY_ID.get(heroId)?.name ?? heroId).replace(/ \(.*\)$/, "");
+      block(`With ${heroName}`, hero, `Not in a ${heroName} deck in a finished game yet.`);
+      block("Every hero", all, "Not in a deck in a finished game yet.");
+    }
+    // Your decks that hold it.
+    const holding = this.#deckOptions()
+      .filter((option) => option.deck.cards.some((line) => line.cardId === card.id))
+      .map((option) => option.deck.name);
+    if (holding.length > 0 && y + 36 < inspectRect.y - 8) {
+      label(this, left, y, "IN YOUR DECKS", typeRole.label, signal.caution.hex, 1);
+      y += 18;
+      const list = this.add
+        .text(
+          left,
+          y,
+          holding.slice(0, 4).join("\n") + (holding.length > 4 ? `\n+${holding.length - 4} more` : ""),
+          textStyle(typeRole.body, surface.paper.hex, ink.body),
+        )
+        .setFontSize(12);
+      list.setWordWrapWidth(column);
+      const room = inspectRect.y - 8 - y;
+      if (list.height > room) list.setCrop(0, 0, column, room);
+    }
+    const inspect = (): void => this.#inspectCard(card);
+    const inspectButton = new McButton(this, {
+      kind: "onInk",
+      label: "Inspect",
+      type: typeRole.label,
+      rect: inspectRect,
+      onClick: inspect,
+    });
+    this.#buttons.push(inspectButton);
+    this.#hints.button(inspectButton, ["inspect"], "ink");
+    this.#stops.set("card-inspect", { rect: inspectRect, activate: inspect });
+  }
+
   #inspectCard(card: AnyCard): void {
     this.scene.launch(SCENES.inspect, { card: { cardId: card.id, face: { kind: "front" } } });
   }
@@ -2229,6 +2373,12 @@ export class DecksScene extends Phaser.Scene {
     const ruleG = this.add.graphics();
     ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
     y += 12;
+
+    if (this.#paneCard) {
+      this.#drawPaneCard(rect, left, column, y, this.#paneCard, deck);
+      this.#drawStatsFooter(rect, left, column, option);
+      return;
+    }
 
     // This deck / From your games (#529): LT / RT, with the trigger that reaches the other tab on it.
     const tabWidth = (column - CHIP_GAP) / 2;
