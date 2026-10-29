@@ -304,10 +304,13 @@ test("Decks & Collection: From your games on a precon builds a deck of your own 
     "Build my own from this",
     10_000,
   );
-  expect(
-    (await stopsIn(page, "Decks")).some((s) => s.key.startsWith("games:")),
-    "no Cut on a precon",
-  ).toBe(false);
+  // A precon is never cut in place: Tenacity, never played, is under a note, not a Cut.
+  await waitFor(
+    async () => ((await findText(page, "RARELY COMES OUT", "Decks")).length > 0 ? true : null),
+    "the precon's Rarely comes out",
+    10_000,
+  );
+  expect((await findText(page, "CUT?", "Decks")).length, "no Cut on a precon").toBe(0);
   await settle(page);
   await pressStop(page, "Decks", "games-open", "Build my own from this");
   await waitFor(isActive(page, "DeckBuilder"), "the deck builder", 30_000);

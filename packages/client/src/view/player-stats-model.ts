@@ -959,6 +959,8 @@ function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsVi
   if (used.length === 0) return null;
   const plays = new Map<string, number>();
   const activations = new Map<string, number>();
+  // Games a card's abilities were used in: an identity's own (never "comes out" of a deck) count too.
+  const activatedIn = new Map<string, number>();
   const inDeck = new Map<string, number>();
   const cameOut = new Map<string, number>();
   const wonOut = new Map<string, number>();
@@ -966,7 +968,10 @@ function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsVi
   const add = (map: Map<string, number>, id: string, n = 1): void => void map.set(id, (map.get(id) ?? 0) + n);
   for (const { won, seat } of used) {
     for (const [id, n] of Object.entries(seat.plays)) add(plays, id, n);
-    for (const [id, n] of Object.entries(seat.activations)) add(activations, id, n);
+    for (const [id, n] of Object.entries(seat.activations)) {
+      add(activations, id, n);
+      add(activatedIn, id);
+    }
     for (const id of seat.deck) add(inDeck, id);
     for (const id of new Set([...Object.keys(seat.plays), ...Object.keys(seat.entered ?? {})])) {
       add(cameOut, id);
@@ -1003,7 +1008,11 @@ function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsVi
     [...activations.entries()]
       .sort(([a, x], [b, y]) => y - x || byName(a, b))
       .slice(0, ALL_TOP)
-      .map(([id, n]) => ({ cardId: id, value: `${n}×`, detail: `Used in ${plural(cameOut.get(id) ?? 0, "game")}` })),
+      .map(([id, n]) => ({
+        cardId: id,
+        value: `${n}×`,
+        detail: `Used in ${plural(activatedIn.get(id) ?? 0, "game")}`,
+      })),
   );
   group(
     "all:wins",

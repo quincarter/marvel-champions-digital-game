@@ -365,6 +365,14 @@ describe("playerStatsOf: the Cards tab, every hero together", () => {
     expect(groups.get("all:played")!.cards[0]).toMatchObject({ cardId: "aunt", value: "4×" });
     expect(groups.get("all:played")!.cards.find((c) => c.cardId === "webs")!.detail).toBe("In 3 games · 2 heroes");
     expect(groups.get("all:activated")!.cards[0]).toMatchObject({ cardId: "webs", value: "9×" });
+
+    // An identity's own abilities count the games they were used in, though it never comes out of a deck.
+    const withIdentity = playerStatsOf(
+      [meta({ summary: summary({ seats: [seat({ activations: { spidey: 2 } })] }) })],
+      NAMES,
+    );
+    const identity = withIdentity.allCards!.groups.find((g) => g.id === "all:activated")!.cards;
+    expect(identity.find((c) => c.cardId === "spidey")).toMatchObject({ value: "2×", detail: "Used in 1 game" });
     expect(groups.get("all:wins")!.cards.find((c) => c.cardId === "webs")).toMatchObject({ value: "67%" });
     expect(groups.get("all:unplayed")!.cards.map((c) => c.cardId)).toEqual(["bot", "tac"]);
   });
