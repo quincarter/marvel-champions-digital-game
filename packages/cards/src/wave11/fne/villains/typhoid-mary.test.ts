@@ -5,6 +5,7 @@ import {
   characterProfile,
   keywordTotal,
   createGame,
+  selfDamageThreshold,
   type GameEvent,
   type GameState,
   type InstanceId,
@@ -750,6 +751,13 @@ describe("Assembled Armor 60117", () => {
     expect(inst(at(5 - atk), villainOf(at(5 - atk))).attachments).toEqual([placed.id]);
     expect(inst(at(7 - atk), villainOf(at(7 - atk))).attachments).toEqual([placed.id]);
     expect(inst(at(8 - atk), villainOf(at(8 - atk))).attachments).toEqual([]);
+  });
+
+  it("the break point the board shows is 5 in standard mode and 8 in expert (#517)", () => {
+    const standard = armored();
+    const expert = armored({ expert: true });
+    expect(selfDamageThreshold(standard.state, standard.id, WAVE11_DEPS)).toBe(5);
+    expect(selfDamageThreshold(expert.state, expert.id, WAVE11_DEPS)).toBe(8);
   });
 
   it("60117.assembled-armor-forced-interrupt: 'would take': a tough status card goes first, so the armor takes nothing", () => {

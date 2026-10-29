@@ -18,7 +18,7 @@ import { colorScheme, onColorSchemeChange, type ColorScheme } from "../view/colo
 import { languageSlotBeside } from "../view/language-button.js";
 import type { Rect } from "../view/layout.js";
 import { reportButtonSlot } from "../view/report-button.js";
-import { floatingThemeSlot, themeIconOf, themeSlotBeside } from "../view/theme-button.js";
+import { floatingThemeSlot, floatsOver, themeIconOf, themeSlotBeside } from "../view/theme-button.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 
 /** The scenes that sort themselves above the screens (the chrome, its popups and the music scene). */
@@ -78,7 +78,8 @@ export class ThemeButtonScene extends Phaser.Scene {
       .getScenes(true)
       .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
     const slot = reportButtonSlot(running, musicSlots());
-    this.#place(slot ? themeSlotBeside(languageSlotBeside(slot.rect)) : floatingThemeSlot(this.scale.gameSize));
+    if (slot) this.#place(themeSlotBeside(languageSlotBeside(slot.rect)));
+    else this.#place(floatsOver(top) ? floatingThemeSlot(this.scale.gameSize) : null);
   }
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`). */

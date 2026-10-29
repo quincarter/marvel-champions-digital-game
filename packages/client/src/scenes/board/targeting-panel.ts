@@ -51,16 +51,18 @@ export function drawTargetingPanel(
   panel: TargetingPanel,
   hover: TargetingHover,
   focused: InstanceId | null,
+  top = 0,
 ): void {
   const { scene } = ctx;
   // A panel that picks several tiles keeps a strip at the bottom for the count and Confirm; the tiles lay out above it.
   const bounds: Rect = panel.multi ? { ...viewport, height: viewport.height - FOOTER_HEIGHT } : viewport;
   // Tiles are as tall as their own text needs: measure it at the width a tile will have, then lay out again.
-  const probe = targetingLayout(bounds, panel.options.length);
+  const probe = targetingLayout(bounds, panel.options.length, undefined, top);
   const layout = targetingLayout(
     bounds,
     panel.options.length,
     measureTileText(scene, panel, probe.tileSize.width, !panel.multi),
+    top,
   );
   // The tile that reads as the default answer (the asking seat) until something else is hovered or focused.
   const active = hover.hoveredId ?? focused ?? panel.defaultId ?? null;

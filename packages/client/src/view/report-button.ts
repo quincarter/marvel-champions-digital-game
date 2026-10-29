@@ -51,3 +51,23 @@ export function reportButtonSlot(
   }
   return null;
 }
+
+/** The top bar's own padding below the chrome buttons in it (`scenes/board/chrome.ts` insets them 5 px). */
+const BAR_PADDING = 5;
+
+/**
+ * Where an overlay that keeps the slot showing has to start its own content (#514): the bottom of the top bar the
+ * chrome buttons stay on, or 0 while they are hidden. A sheet drawn higher has its title covered by the buttons.
+ */
+export function chromeBarBottom(running: readonly RunningScene[], slots: ReadonlyMap<string, Rect>): number {
+  const slot = reportButtonSlot(running, slots);
+  return slot ? slot.rect.y + slot.rect.height + BAR_PADDING : 0;
+}
+
+/**
+ * Where a sheet that cannot scroll starts in `height` px: below the bar (`barBottom`), but only as far down as still
+ * leaves `needed` px for it. On a short phone it keeps the old top rather than push its own controls off screen.
+ */
+export function topClearOfBar(barBottom: number, height: number, needed: number): number {
+  return Math.min(barBottom, Math.max(0, height - needed));
+}

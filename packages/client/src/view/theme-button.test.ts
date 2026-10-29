@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { languageSlotBeside } from "./language-button.js";
-import { floatingThemeSlot, themeIconOf, themeSlotBeside } from "./theme-button.js";
+import { floatingThemeSlot, floatsOver, themeIconOf, themeSlotBeside } from "./theme-button.js";
 
 describe("the dark mode toggle", () => {
   it("joins the chrome cluster just left of the language button, square at its height", () => {
@@ -22,5 +22,14 @@ describe("the dark mode toggle", () => {
   it("shows where a tap takes you", () => {
     expect(themeIconOf("light")).toBe("moon");
     expect(themeIconOf("dark")).toBe("sun");
+  });
+
+  it("floats over screens and whole-page overlays, never over a popup (#514)", () => {
+    for (const key of ["Decks", "ScenarioSelect", "GameOver", "RulesOverlay", "SetCardsOverlay"]) {
+      expect(floatsOver(key)).toBe(true);
+    }
+    for (const key of ["PauseOverlay", "InspectOverlay", "ChoiceOverlay", "UnlockConfirmOverlay", "HeroDecksSheet"]) {
+      expect(floatsOver(key)).toBe(false);
+    }
   });
 });
