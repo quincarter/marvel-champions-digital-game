@@ -1,5 +1,5 @@
 import type { EngineDeps } from "./abilities.js";
-import { activeAbilityRefs, resolveValue, type EffectContext } from "./select.js";
+import { activeAbilityRefs, evaluate, resolveValue, type EffectContext } from "./select.js";
 import type { EffectSpec, Predicate } from "./spec.js";
 import type { InstanceId } from "./ids.js";
 import type { GameState } from "./state.js";
@@ -34,6 +34,14 @@ export function selfDamageThreshold(state: GameState, id: InstanceId, deps: Engi
       if (effect.kind === "if") {
         const found = thresholdOf(effect.condition);
         if (found !== null) return found;
+        // "5 or more damage here (8 or more in expert mode)" (Assembled Armor, `fne` 60117) branches on the mode of
+        // play first: only the branch this game takes holds its threshold, so the other is never read.
+        if (MODE_PREDICATES.has(effect.condition.kind)) {
+          const taken = evaluate(state, effect.condition, context) ? effect.then : (effect.otherwise ?? []);
+          const inBranch = search(taken);
+          if (inBranch !== null) return inBranch;
+          continue;
+        }
       }
       // Nested programs: "instead" (`replaceTriggeringEvent.with`), "then", either branch of an "if", and so on.
       const nested = Object.values(effect).flatMap((field) =>
@@ -51,6 +59,9 @@ export function selfDamageThreshold(state: GameState, id: InstanceId, deps: Engi
   }
   return null;
 }
+
+/** Conditions that read only the game's settings, so they can be judged for the display with no event in hand. */
+const MODE_PREDICATES: ReadonlySet<Predicate["kind"]> = new Set(["inMode", "gameMode"]);
 
 const isEffect = (value: unknown): value is EffectSpec =>
   typeof value === "object" && value !== null && typeof (value as { kind?: unknown }).kind === "string";
