@@ -204,7 +204,10 @@ function finalBlowIdentityOf(state: GameState, record: GameRecord): string | nul
 }
 
 function finalBlowCardOf(state: GameState, record: GameRecord): string | null {
-  const source = record.lastVillainDamage?.sourceInstanceId ?? null;
+  const blow = record.lastVillainDamage;
+  if (blow?.sourceCardId) return blow.sourceCardId;
+  // A record from before the mark kept the card: read it from the instance.
+  const source = blow?.sourceInstanceId ?? null;
   return source ? ((getInstance(state, source)?.cardId as string | undefined) ?? null) : null;
 }
 

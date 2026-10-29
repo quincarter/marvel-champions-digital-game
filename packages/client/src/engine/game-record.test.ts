@@ -395,10 +395,91 @@ describe("game record: the stats screen's per-seat numbers (#529)", () => {
       ],
       state,
     );
-    // The second turn is still going: what it has so far already counts.
-    expect(record.seats[0]!.bestTurn).toEqual({ damage: 3, thwart: 2 });
+    // The second turn is still going: it counts once it ends, or once the game ends during it.
+    expect(record.seats[0]!.bestTurn).toEqual({ damage: 3, thwart: 1 });
     expect(record.turn).toEqual({ playerId: me, damage: 1, thwart: 2 });
     expect(record.seats[0]!.damage).toBe(9);
+    const won = { ...state, outcome: { result: "win", reason: "villainDefeated" } } as GameState;
+    expect(recordEvents(record, [], won).seats[0]!.bestTurn).toEqual({ damage: 3, thwart: 2 });
+  });
+
+  test("an Overkill spill dealt in a later command (after a defeat's interrupt window) still counts once", async () => {
+    const { state, me, ally, minion, villain } = await table();
+    const hitCommand = recordEvents(
+      emptyRecord(),
+      [{ type: "turnStarted", playerId: me }, hit(minion.instanceId, 5, ally.instanceId)],
+      state,
+    );
+    const spilled = recordEvents(
+      hitCommand,
+      [
+        { type: "overkillSpilled", fromInstanceId: minion.instanceId, toInstanceId: villain, amount: 2 },
+        // Toughness on the villain stopped the spilled damage: nothing lands.
+        { type: "turnEnded", playerId: me },
+      ],
+      state,
+    );
+    expect(spilled.seats[0]!.allyDamage).toEqual({ [ally.cardId]: 3 });
+    expect(spilled.seats[0]!.damage).toBe(3);
+    expect(spilled.seats[0]!.bestTurn).toEqual({ damage: 3, thwart: 0 });
+    expect(spilled.damageToEnemies).toBe(3);
+    expect(spilled.lastHits).toBeUndefined();
+  });
+
+  test("an enemy's Overkill through a defending ally counts on the identity, once, across commands", async () => {
+    const { state, ally, villain, hero } = await table();
+    const villainCardId = state.instances[villain]!.cardId;
+    const first = recordEvents(emptyRecord(), [hit(ally.instanceId, 6, villain)], state);
+    const record = recordEvents(
+      first,
+      [
+        { type: "overkillSpilled", fromInstanceId: ally.instanceId, toInstanceId: hero, amount: 4 },
+        hit(hero, 4, villain),
+      ],
+      state,
+    );
+    expect(record.hurtBy).toEqual({ [villainCardId]: 6 });
+  });
+
+  test("a hit names its source's card as it was then, though the card flips later in the command", async () => {
+    const { state, hero, villain } = await table();
+    const villainCardId = state.instances[villain]!.cardId;
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        hit(hero, 2, villain),
+        hit(villain, 1, hero),
+        {
+          type: "cardFlippedToOtherFace",
+          instanceId: villain,
+          from: "other-face" as never,
+          to: villainCardId,
+          typeChanged: false,
+        },
+        hit(hero, 1, villain),
+      ],
+      state,
+    );
+    expect(record.hurtBy).toEqual({ "other-face": 2, [villainCardId]: 1 });
+    expect(record.lastVillainDamage?.sourceCardId).toBe(state.instances[hero]!.cardId);
+  });
+
+  test("a counter spent as if it were a resource pays, but adds no resources", async () => {
+    const { state, me, support } = await table();
+    const deps = {
+      abilities: { asIf: { trigger: { kind: "resource", spentAsIfResource: true } } },
+    } as unknown as EngineDeps;
+    const spent: GameEvent = {
+      type: "resourcesGenerated",
+      playerId: me,
+      instanceId: support.instanceId,
+      abilityId: "asIf" as never,
+      amount: 1,
+      pool: { physical: 1, mental: 0, energy: 0, wild: 0 },
+    };
+    const seat = recordEvents(emptyRecord(), [spent], state, deps).seats[0]!;
+    expect(seat.paidWith).toEqual({ [support.cardId]: 1 });
+    expect(seat.resources).toBeUndefined();
   });
 
   test("an ally's damage to enemies is its own, and an Overkill excess counts where it lands", async () => {
@@ -451,6 +532,16 @@ describe("game record: the stats screen's per-seat numbers (#529)", () => {
     const survived = recordEvents(first, [resolved, hit(ally.instanceId, 1, villain), activated, defeated], state);
     expect(survived.seats[0]!.allyBlocks).toEqual({ [ally.cardId]: 1 });
     expect(survived.seats[0]!.allyDiedBlocking).toBeUndefined();
+    // An attack that never resolved (canceled) is over once an encounter card is revealed.
+    const reveal: GameEvent = {
+      type: "encounterCardRevealed",
+      instanceId: "e" as never,
+      cardId: "x" as never,
+      playerId: me,
+    };
+    const canceled = recordEvents(first, [reveal, defeated], state);
+    expect(canceled.allyDefending).toBeUndefined();
+    expect(canceled.seats[0]!.allyDiedBlocking).toBeUndefined();
   });
 });
 

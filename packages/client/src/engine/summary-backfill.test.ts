@@ -160,6 +160,9 @@ describe("summary version 2", () => {
       finalBlowCardId: "01001a",
     };
     const filled = filledSummary({ ...v1, finalBlowBy: undefined } as unknown as GameSummary, replayed);
+    // The replay's seat read 5 damage where the live game recorded 4: the live number stands, the new ones are added.
+    const replayedSeat = { ...replayed.seats![0]!, damage: 5 };
+    expect(filledSummary(v1, { ...replayed, seats: [replayedSeat] }).seats).toEqual([{ ...replayedSeat, damage: 4 }]);
     expect(filled).toEqual({
       ...replayed,
       // What an achievement may already have read stays the live game's.

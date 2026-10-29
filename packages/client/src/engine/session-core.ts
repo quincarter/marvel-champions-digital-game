@@ -318,8 +318,11 @@ export class EngineSessionCore {
   #writes: Promise<void> = Promise.resolve();
   #saveError: string | null = null;
   #config: SessionConfig | null = null;
-  /** Time played in this game so far (`SaveMeta.playedMs`), this session's and every earlier one's. */
-  #playedMs = 0;
+  /**
+   * Time played in this game so far (`SaveMeta.playedMs`), this session's and every earlier one's. Undefined for a game
+   * resumed from a save made before the field existed: a part of its time would read as all of it.
+   */
+  #playedMs: number | undefined = 0;
   /** When this session last took a command (or started or resumed the game); null with no game. */
   #activeAt: number | null = null;
 
@@ -384,6 +387,8 @@ export class EngineSessionCore {
         outcome: null,
         campaignId: config.campaign?.campaignId ?? null,
         campaignNodeId: config.campaign?.nodeId ?? null,
+        // A new game keeps its time from the start; a save without the field predates it (`#playedMs`).
+        playedMs: 0,
         // `exactOptionalPropertyTypes`: `guided` is absent, not `undefined`, on a plain game (`SaveMeta.guided`'s
         // own doc comment — additive, no `SAVE_SCHEMA` bump).
         ...(config.guided ? { guided: config.guided } : {}),
@@ -496,7 +501,7 @@ export class EngineSessionCore {
     this.#writes = Promise.resolve();
     this.#saveError = null;
     // A new session counts from now: the time since the game was last played, however short, is not play.
-    this.#playedMs = stored.meta.playedMs ?? 0;
+    this.#playedMs = stored.meta.playedMs;
     this.#activeAt = this.#now();
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
@@ -542,7 +547,7 @@ export class EngineSessionCore {
         round: state.round,
         commandCount: truncated.length,
         updatedAt: this.#played(),
-        playedMs: this.#playedMs,
+        ...this.#playedField(),
         status: statusOf(state),
         outcome: state.outcome,
         summary: summarizeGame(state, record, POOL_DEPS),
@@ -695,9 +700,16 @@ export class EngineSessionCore {
    */
   #played(): number {
     const at = this.#now();
-    if (this.#activeAt !== null) this.#playedMs += Math.min(Math.max(0, at - this.#activeAt), PLAY_GAP_CAP_MS);
+    if (this.#activeAt !== null && this.#playedMs !== undefined) {
+      this.#playedMs += Math.min(Math.max(0, at - this.#activeAt), PLAY_GAP_CAP_MS);
+    }
     this.#activeAt = at;
     return at;
+  }
+
+  /** `playedMs` for a progress write, absent while the game's time is not known. */
+  #playedField(): { readonly playedMs?: number } {
+    return this.#playedMs === undefined ? {} : { playedMs: this.#playedMs };
   }
 
   #persist(command: Command, seq: number, state: GameState, at: number): void {
@@ -709,7 +721,7 @@ export class EngineSessionCore {
       round: state.round,
       commandCount: seq + 1,
       updatedAt: at,
-      playedMs: this.#playedMs,
+      ...this.#playedField(),
       status: statusOf(state),
       outcome: state.outcome,
       summary: summarizeGame(state, this.#record, POOL_DEPS),

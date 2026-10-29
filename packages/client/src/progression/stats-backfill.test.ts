@@ -91,6 +91,25 @@ describe("runStatsBackfill: games it cannot fill in, and a game started meanwhil
     expect(asked).toEqual(["a", "b", "b"]);
   });
 
+  test("a game whose row changed while it replayed is not skipped: it is asked about again", async () => {
+    const storage = new MapStorage();
+    const asked: string[] = [];
+    let stamp = 2;
+    const store = {
+      listSaves: async () => [meta("a", { updatedAt: stamp })],
+      backfillSummaries: async (ids?: readonly string[]) => {
+        asked.push(ids![0]!);
+        // Sync landed a newer revision during the replay, so nothing was written.
+        stamp++;
+        return 0;
+      },
+    };
+    await runStatsBackfill(store, storage);
+    expect(JSON.parse(storage.map.get(BACKFILL_SKIP_KEY)!).ids).toEqual([]);
+    await runStatsBackfill(store, storage);
+    expect(asked).toEqual(["a", "a"]);
+  });
+
   test("a game being played stops the run, and nothing is remembered as failed", async () => {
     const storage = new MapStorage();
     const asked: string[] = [];

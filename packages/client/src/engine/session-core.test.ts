@@ -366,4 +366,22 @@ describe("EngineSessionCore time played (#529)", () => {
     clock += 30_000;
     expect(await step(second)).toBe(60_000 + PLAY_GAP_CAP_MS + 30_000);
   });
+
+  test("a game saved before time played was kept stays without it: part of its time is not all of it", async () => {
+    const storage = new MemoryGameStorage();
+    const core = new EngineSessionCore({ storage });
+    await core.start(CORE_CONFIG);
+    const { meta, initialState } = (await storage.load((await storage.latestActive())!.id))!;
+    expect(meta.playedMs).toBe(0);
+    // The same game as an older build stored it.
+    const older = new MemoryGameStorage();
+    const { playedMs: _playedMs, ...withoutTime } = meta;
+    await older.create(withoutTime, initialState);
+    const resumed = new EngineSessionCore({ storage: older });
+    const toAct = (await resumed.resume(meta.id)).snapshot.legal!.playerId;
+    const dispatched = resumed.dispatch(anyLegalCommand(resumed.legalActions(toAct), toAct));
+    expect(dispatched.ok).toBe(true);
+    await resumed.flushed();
+    expect((await older.latestActive())!.playedMs).toBeUndefined();
+  });
 });

@@ -3,8 +3,8 @@
  * far the engine worker has got, and a signal when it is done. The replay itself is the engine worker's
  * (`engine/summary-backfill.ts`); this asks it one game at a time so Your stats can say "12 of 40" while it runs.
  *
- * Runs once per launch (`main.ts`). Games it cannot fill in (one that no longer replays) are skipped this launch and
- * asked about again on the next.
+ * Runs once per launch (`main.ts`). Games it cannot fill in (one that no longer replays) are skipped on this build
+ * (`BACKFILL_SKIP_KEY`); a game whose row changed while it replayed is asked about again on the next launch.
  */
 import type { SaveMeta } from "../engine/game-storage.js";
 import { BACKFILL_BUSY, needsBackfill } from "../engine/summary-backfill.js";
@@ -91,9 +91,18 @@ export async function runStatsBackfill(
   // Only the app version decides whether this build may replay a game (`needsBackfill`).
   const writer = { appVersion: CLIENT_VERSION, contentVersion: "", build: "" };
   const skipped = skippedOf(storage);
-  const ids = (await store.listSaves())
-    .filter((meta) => needsBackfill(meta, writer) && !skipped.has(meta.id))
-    .map((meta) => meta.id);
+  const listed = (await store.listSaves()).filter((meta) => needsBackfill(meta, writer) && !skipped.has(meta.id));
+  const ids = listed.map((meta) => meta.id);
+  const stampOf = new Map(listed.map((meta) => [meta.id, meta.updatedAt]));
+  /**
+   * Whether a game that was not written is the same row it was when listed: then its replay failed, and it is skipped
+   * on this build. A row that changed meanwhile (sync, or play) was not written for that reason only, and is asked
+   * about again next launch.
+   */
+  const unchanged = async (id: string): Promise<boolean> => {
+    const now = (await store.listSaves()).find((meta) => meta.id === id);
+    return !now || now.updatedAt === stampOf.get(id);
+  };
   if (ids.length === 0) return;
   let written = 0;
   let done = 0;
@@ -107,7 +116,7 @@ export async function runStatsBackfill(
         break;
       }
       if (result > 0) written += result;
-      else skipped.add(id);
+      else if (await unchanged(id)) skipped.add(id);
       done++;
       // Running is announced with the first answer, so a run a game stops at once never shows at all.
       set({ running: true, done, total: ids.length, written });

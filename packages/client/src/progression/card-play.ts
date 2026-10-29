@@ -17,9 +17,10 @@ let cached: { readonly at: number; readonly insights: Promise<DeckInsights> } | 
 export function deckInsightsNow(
   listSaves: () => Promise<readonly SaveMeta[]>,
   now = Date.now(),
+  load: (saves: readonly SaveMeta[]) => Promise<DeckInsights> = loadDeckInsights,
 ): Promise<DeckInsights> {
   if (!cached || now - cached.at > KEEP_MS) {
-    const insights = listSaves().then((saves) => loadDeckInsights(saves));
+    const insights = listSaves().then((saves) => load(saves));
     cached = { at: now, insights };
     // A failed read is not kept.
     insights.catch(() => {

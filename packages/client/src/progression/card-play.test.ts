@@ -46,16 +46,18 @@ describe("cardPlaySectionOf", () => {
 });
 
 describe("deckInsightsNow", () => {
+  // A stand-in fold: the real one loads the whole pool, which is slow under a full parallel run.
+  const fold = async (): Promise<DeckInsights> => ({ heroes: {}, decks: {} });
   test("reuses the fold for 30 s, then reads the saves again", async () => {
     let reads = 0;
     const listSaves = async () => {
       reads++;
       return [];
     };
-    await deckInsightsNow(listSaves, 1_000);
-    await deckInsightsNow(listSaves, 20_000);
+    await deckInsightsNow(listSaves, 1_000, fold);
+    await deckInsightsNow(listSaves, 20_000, fold);
     expect(reads).toBe(1);
-    await deckInsightsNow(listSaves, 40_000);
+    await deckInsightsNow(listSaves, 40_000, fold);
     expect(reads).toBe(2);
   });
 
@@ -65,8 +67,8 @@ describe("deckInsightsNow", () => {
       reads++;
       throw new Error("no storage");
     };
-    await expect(deckInsightsNow(failing, 1_000_000)).rejects.toThrow("no storage");
-    await expect(deckInsightsNow(failing, 1_000_001)).rejects.toThrow("no storage");
+    await expect(deckInsightsNow(failing, 1_000_000, fold)).rejects.toThrow("no storage");
+    await expect(deckInsightsNow(failing, 1_000_001, fold)).rejects.toThrow("no storage");
     expect(reads).toBe(2);
   });
 });

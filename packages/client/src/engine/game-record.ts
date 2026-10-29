@@ -90,8 +90,9 @@ export interface SeatRecord {
   readonly discardedToPay?: number;
   /**
    * The seat's best single turn (between its `turnStarted` and `turnEnded`): the most damage to enemies, and the most
-   * threat removed, counted as `damage` and `thwart` are. Each is its own best, not one turn's pair. Absent until the
-   * seat has had a turn.
+   * threat removed, counted as `damage` and `thwart` are. Each is its own best, not one turn's pair. Folded in as a
+   * turn ends, or as the game ends during one (not after each command, so an Overkill excess taken back in a later
+   * command never stands as a best). Absent until the seat has finished a turn.
    */
   readonly bestTurn?: { readonly damage: number; readonly thwart: number };
   /** Damage each of this seat's allies dealt to the villain and minions, by ally card id (Overkill as `damage`). */
@@ -147,7 +148,21 @@ export interface DamageMark {
   readonly targetInstanceId: InstanceId;
   readonly amount: number;
   readonly sourceInstanceId: InstanceId | null;
+  /** The source's card as it was at the hit (a double-sided card can flip later in the same command). */
+  readonly sourceCardId?: string;
   readonly round: number;
+}
+
+/**
+ * The last hit on a character, kept until an Overkill spill from it is dealt: the spill waits for the defeat's
+ * interrupt window (`beginDefeat`, engine `resolve/event.ts`), so it can land in a later command than the hit.
+ */
+export interface HitMark {
+  readonly sourceInstanceId: InstanceId | null;
+  /** The source's card at the hit. */
+  readonly sourceCardId?: string;
+  /** The hit counted in `GameRecord.hurtBy` (an encounter card's on a player character). */
+  readonly hurt?: true;
 }
 
 /**
@@ -212,6 +227,8 @@ export interface GameRecord {
    * attachments: a source no player owns), by the source's card id. Absent while none.
    */
   readonly hurtBy?: Readonly<Record<string, number>>;
+  /** The last hit on each character this round (`HitMark`), by the character's instance. Absent while none. */
+  readonly lastHits?: Readonly<Record<string, HitMark>>;
 }
 
 export const emptyRecord = (): GameRecord => ({
@@ -359,7 +376,18 @@ export function recordEvents(
   } = record;
   let schemeSwaps = record.schemeSwaps ?? [];
   let { sideSchemesSeen, sideSchemesDefeated, sideSchemesInPlay } = record;
-  let { turn, allyDefending, encounterRevealed, hurtBy } = record;
+  let { turn, allyDefending, encounterRevealed, hurtBy, lastHits } = record;
+  /**
+   * Each instance's card as the events reach it: a card that flips to its other face in this command
+   * (`cardFlippedToOtherFace`) was its `from` face until then, whatever `state` (after the command) says.
+   */
+  const faceNow = new Map<InstanceId, CardId>();
+  for (const event of events) {
+    if (event.type === "cardFlippedToOtherFace" && !faceNow.has(event.instanceId)) {
+      faceNow.set(event.instanceId, event.from);
+    }
+  }
+  const cardIdAt = (id: InstanceId): string | undefined => faceNow.get(id) ?? getInstance(state, id)?.cardId;
   /** A side scheme is in play: a new appearance unless this one is already counted. */
   const sideScheme = (instanceId: InstanceId, cardId: CardId): void => {
     if (sideSchemesInPlay?.[instanceId] !== undefined) return;
@@ -381,13 +409,22 @@ export function recordEvents(
     if (seat) seats.set(playerId, patch(seat));
   };
 
-  /** Who last hit each target in this command, so an Overkill spill can take its excess back off the first hit. */
-  const lastHitBy = new Map<InstanceId, InstanceId | null>();
+  const markHit = (target: InstanceId, mark: HitMark): void => {
+    lastHits = { ...lastHits, [target]: mark };
+  };
+  /** The hit an Overkill spill from `target` came from, taken off the record: one hit spills once. */
+  const takeHit = (target: InstanceId): HitMark | undefined => {
+    const mark = lastHits?.[target];
+    if (!lastHits || !mark) return undefined;
+    const { [target]: _taken, ...rest } = lastHits;
+    lastHits = rest;
+    return mark;
+  };
 
   /** Damage to an enemy from `source` (negative: an Overkill excess taken back), on its seat, its ally and its turn. */
   const enemyDamage = (source: InstanceId | null, amount: number): void => {
     const playerId = seatFor(state, source);
-    const allyCardId = source && isAlly(state, source) ? getInstance(state, source)?.cardId : undefined;
+    const allyCardId = source && isAlly(state, source) ? cardIdAt(source) : undefined;
     onSeat(playerId, (seat) => ({
       ...seat,
       damage: seat.damage + amount,
@@ -395,7 +432,7 @@ export function recordEvents(
     }));
     if (turn && playerId === turn.playerId) turn = { ...turn, damage: turn.damage + amount };
   };
-  /** Folds the turn so far into its seat's best: at the turn's end, and after each command (a game can end mid-turn). */
+  /** Folds the turn so far into its seat's best: at the turn's end, and at a game's end during one. */
   const foldTurn = (): void => {
     const current = turn;
     if (!current) return;
@@ -407,12 +444,16 @@ export function recordEvents(
       },
     }));
   };
-  /** Ends every ally defense whose attack has resolved: the next attack or encounter reveal means it is over. */
+  /** Ends every ally defense whose attack has resolved: the next attack means it is over. */
   const endResolvedDefenses = (): void => {
     if (!allyDefending) return;
     allyDefending = Object.fromEntries(Object.entries(allyDefending).filter(([, defense]) => !defense.resolved));
   };
-  /** No attack is in progress as a turn or round begins: one that never resolved (canceled) is over too. */
+  /**
+   * No attack is in progress as a turn or round begins, or as an encounter card is revealed: one that never resolved
+   * (canceled) is over too. (Engine-specific reading: an effect revealing an encounter card in the middle of an attack
+   * would end that attack's defense here early.)
+   */
   const endAllDefenses = (): void => {
     allyDefending = undefined;
   };
@@ -426,11 +467,14 @@ export function recordEvents(
   /** Damage to a player character: an encounter source's hurt, and the hit a defending ally takes from its attack. */
   const playerCharacterHurt = (event: Extract<GameEvent, { type: "damageDealt" }>): void => {
     const source = event.sourceInstanceId;
-    const sourceCardId = source ? getInstance(state, source)?.cardId : undefined;
-    if (source && sourceCardId && !playerCardOwnerOf(state, source)) {
-      hurtBy = bump(hurtBy, sourceCardId, event.amount);
-      lastHitBy.set(event.targetInstanceId, source);
-    }
+    const sourceCardId = source ? cardIdAt(source) : undefined;
+    const hurt = !!source && !!sourceCardId && !playerCardOwnerOf(state, source);
+    if (hurt) hurtBy = bump(hurtBy, sourceCardId!, event.amount);
+    markHit(event.targetInstanceId, {
+      sourceInstanceId: source,
+      ...(sourceCardId ? { sourceCardId } : {}),
+      ...(hurt ? { hurt: true as const } : {}),
+    });
     for (const [enemy, defense] of Object.entries(allyDefending ?? {})) {
       // Damage before the attack resolved is not its damage (RRG 1.8 "Attack (Enemy Activation)" step 5, p. 9, comes
       // after step 4's `attackResolved`); after it, the attacker's damage is, and any other damage ends the defense.
@@ -450,7 +494,9 @@ export function recordEvents(
       ...seat,
       paidWith: bump(seat.paidWith, instance.cardId),
       discardedToPay: (seat.discardedToPay ?? 0) + 1,
-      // Its printed icons: what multiplies a hand card's resources ("double … while paying for") is not logged.
+      // Engine-specific simplification: the printed icons. What changes a hand card's resources as it pays (Haywire's
+      // "treat as [energy]", "double … while paying for", `handCardResources`) is read in hand before the payment, and
+      // the state here is after it, so it is not counted.
       resources: addPool(seat.resources, printedResources(card)),
     }));
   }
@@ -460,20 +506,24 @@ export function recordEvents(
       case "roundStarted":
         round = event.round;
         endAllDefenses();
+        // No spill waits across a round's start.
+        lastHits = undefined;
+        break;
+      case "cardFlippedToOtherFace":
+        faceNow.set(event.instanceId, event.to);
         break;
       // Overkill (RRG 1.8, p. 31): the defeated enemy took the whole hit, excess included, and the excess then lands
       // again where it spills. It counts where it lands, not twice, so it comes back off the first target here.
       case "overkillSpilled": {
+        const hit = takeHit(event.fromInstanceId);
         // An enemy's Overkill through a defending ally: the excess counts where it lands (the identity), not twice.
-        const hitter = lastHitBy.get(event.fromInstanceId) ?? null;
-        const hitterCardId = hitter ? getInstance(state, hitter)?.cardId : undefined;
-        if (isPlayerCharacter(state, event.fromInstanceId) && hitterCardId && hurtBy?.[hitterCardId] !== undefined) {
-          hurtBy = bump(hurtBy, hitterCardId, -event.amount);
+        if (hit?.hurt && hit.sourceCardId && isPlayerCharacter(state, event.fromInstanceId)) {
+          hurtBy = bump(hurtBy, hit.sourceCardId, -event.amount);
         }
         const countedFirst = isVillain(state, event.fromInstanceId) || isMinion(state, event.fromInstanceId);
         if (!countedFirst) break;
         damageToEnemies -= event.amount;
-        enemyDamage(hitter, -event.amount);
+        enemyDamage(hit?.sourceInstanceId ?? null, -event.amount);
         if (isVillain(state, event.fromInstanceId)) {
           damageToVillain -= event.amount;
           onRound((entry) => ({ ...entry, damageToVillain: entry.damageToVillain - event.amount }));
@@ -491,7 +541,11 @@ export function recordEvents(
           break;
         }
         damageToEnemies += event.amount;
-        lastHitBy.set(event.targetInstanceId, event.sourceInstanceId);
+        const sourceCardId = event.sourceInstanceId ? cardIdAt(event.sourceInstanceId) : undefined;
+        markHit(event.targetInstanceId, {
+          sourceInstanceId: event.sourceInstanceId,
+          ...(sourceCardId ? { sourceCardId } : {}),
+        });
         enemyDamage(event.sourceInstanceId, event.amount);
         if (villain) {
           damageToVillain += event.amount;
@@ -499,6 +553,7 @@ export function recordEvents(
             targetInstanceId: event.targetInstanceId,
             amount: event.amount,
             sourceInstanceId: event.sourceInstanceId,
+            ...(sourceCardId ? { sourceCardId } : {}),
             round,
           };
           onRound((entry) => ({ ...entry, damageToVillain: entry.damageToVillain + event.amount }));
@@ -563,7 +618,7 @@ export function recordEvents(
         if (state.cardPool[event.cardId]?.type === "side_scheme") sideScheme(event.instanceId, event.cardId);
         // A player card revealed as if it were an encounter card is not one.
         if (!playerCardOwnerOf(state, event.instanceId)) encounterRevealed = bump(encounterRevealed, event.cardId);
-        endResolvedDefenses();
+        endAllDefenses();
         break;
       case "turnStarted":
         foldTurn();
@@ -579,18 +634,20 @@ export function recordEvents(
         break;
       case "resourcesGenerated": {
         // A card spent from hand with its own "when you spend this card" ability is already counted, as a hand card.
-        const cardId = getInstance(state, event.instanceId)?.cardId;
+        const cardId = cardIdAt(event.instanceId);
+        // A counter spent as if it were a resource pays but generates nothing (RRG 1.8 "Cost", p. 13). Without the
+        // ability registry it cannot be told apart, and counts.
+        const trigger = deps?.abilities[event.abilityId]?.trigger;
+        const generates = !(trigger?.kind === "resource" && trigger.spentAsIfResource === true);
         onSeat(event.playerId, (seat) => ({
           ...seat,
-          resources: addPool(seat.resources, event.pool),
+          ...(generates ? { resources: addPool(seat.resources, event.pool) } : {}),
           ...(cardId && !handSpent.includes(event.instanceId) ? { paidWith: bump(seat.paidWith, cardId) } : {}),
         }));
         break;
       }
       case "defenderDeclared": {
-        const allyCardId = isAlly(state, event.defenderInstanceId)
-          ? getInstance(state, event.defenderInstanceId)?.cardId
-          : undefined;
+        const allyCardId = isAlly(state, event.defenderInstanceId) ? cardIdAt(event.defenderInstanceId) : undefined;
         if (!allyCardId) break;
         const playerId = seatFor(state, event.defenderInstanceId) ?? event.playerId;
         onSeat(playerId, (seat) => ({ ...seat, allyBlocks: bump(seat.allyBlocks, allyCardId) }));
@@ -658,7 +715,7 @@ export function recordEvents(
         break;
     }
   }
-  foldTurn();
+  if (state.outcome) foldTurn();
 
   return {
     round,
@@ -680,5 +737,6 @@ export function recordEvents(
     ...(allyDefending && Object.keys(allyDefending).length > 0 ? { allyDefending } : {}),
     ...(encounterRevealed ? { encounterRevealed } : {}),
     ...(hurtBy ? { hurtBy } : {}),
+    ...(lastHits && Object.keys(lastHits).length > 0 ? { lastHits } : {}),
   };
 }

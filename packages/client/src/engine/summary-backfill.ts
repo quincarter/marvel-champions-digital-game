@@ -22,7 +22,7 @@ import {
   type StoredGame,
   type WriterStamp,
 } from "./game-storage.js";
-import { SUMMARY_VERSION, type GameSummary } from "./game-summary.js";
+import { SUMMARY_VERSION, type GameSummary, type SeatSummary } from "./game-summary.js";
 
 /** What `backfillSummaries` answers instead of a count while a game is being played: try again later. */
 export const BACKFILL_BUSY = -1;
@@ -53,15 +53,26 @@ function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boo
 
 /**
  * The summary to write: the one the game recorded live, with the fields it lacks taken from the replay (the villains,
- * the side schemes, everything a later summary version added), so nothing an achievement already read changes. The
- * seats are the replay's whole when it has them: a replay's seat holds every number the live one does, and those added
- * since. A save with no summary at all takes the replay's whole.
+ * the side schemes, everything a later summary version added), so nothing an achievement already read changes. Each
+ * seat is merged the same way: the replay's seat, with the live seat's numbers over it. A save with no summary at all
+ * takes the replay's whole.
  */
+/** The fields that hold a value: a key stored as undefined (IndexedDB keeps those) is a missing field, not a value. */
+const definedFieldsOf = (value: object): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined));
+
 export function filledSummary(live: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
   if (!live) return replayed;
-  // Field by field: a key stored as undefined (IndexedDB keeps those) is a missing field, not a value.
-  const kept = Object.fromEntries(Object.entries(live).filter(([, value]) => value !== undefined));
-  const seats = replayed.seats ?? live.seats;
+  const seats = replayed.seats
+    ? replayed.seats.map((seat, index) => {
+        const liveSeat = live.seats?.[index];
+        // The same seat (seat order is the game's); a live seat for another hero is not this one's.
+        return liveSeat && liveSeat.identityCardId === seat.identityCardId
+          ? ({ ...seat, ...definedFieldsOf(liveSeat) } as SeatSummary)
+          : seat;
+      })
+    : live.seats;
+  const kept = definedFieldsOf(live);
   return {
     ...replayed,
     ...kept,
