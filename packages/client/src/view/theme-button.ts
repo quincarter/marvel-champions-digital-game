@@ -4,7 +4,8 @@
  *
  * It is on every screen. Where a screen's top bar keeps the chrome cluster (the table and Title: Report, music,
  * language), it joins that cluster just left of the language button. Every other screen gets it at the top centre,
- * which the screens' own top bars leave clear (their titles sit left, their step counts and actions right).
+ * which the screens' own top bars leave clear (their titles sit left, their step counts and actions right). Popups
+ * (Pause, Inspect, a confirm) cover their screen's top bar, so it hides under them (`floatsOver`).
  */
 import type { ColorScheme } from "./color-scheme.js";
 import type { Rect } from "./layout.js";
@@ -22,6 +23,18 @@ export function themeSlotBeside(language: Rect, gap = 8): Rect {
 export function floatingThemeSlot(screen: { readonly width: number }): Rect {
   if (screen.width < 600) return { x: Math.round(screen.width / 2 - 17), y: 0, width: 34, height: 20 };
   return { x: Math.round(screen.width / 2 - 19), y: 6, width: 38, height: 30 };
+}
+
+/** Overlays that are a whole page of their own, with their own top bar: the toggle floats on them as on a screen. */
+const PAGE_OVERLAYS: ReadonlySet<string> = new Set(["RulesOverlay", "SetCardsOverlay"]);
+
+/**
+ * Whether the toggle floats over `key`, the topmost running screen or overlay. Every other overlay is a popup over its
+ * screen, and the toggle hides under it rather than sit on the popup's scrim or its title (#514); dark mode is still a
+ * row in Settings.
+ */
+export function floatsOver(key: string): boolean {
+  return PAGE_OVERLAYS.has(key) || !/(Overlay|Sheet)$/.test(key);
 }
 
 /** Which icon it draws: where a tap goes. */

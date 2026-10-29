@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { reportButtonSlot, type RunningScene } from "./report-button.js";
+import { chromeBarBottom, reportButtonSlot, type RunningScene } from "./report-button.js";
 
 const slot = { x: 300, y: 5, width: 40, height: 26 };
 const slots = new Map([["Board", slot]]);
@@ -40,5 +40,17 @@ describe("reportButtonSlot", () => {
     const title = { x: 0, y: 0, width: 44, height: 44 };
     const both = new Map([...slots, ["Title", title]]);
     expect(reportButtonSlot([scene("Board"), scene("Title")], both)).toEqual({ key: "Title", rect: title });
+  });
+});
+
+describe("chromeBarBottom", () => {
+  test("the bottom of the Board's top bar while a choice keeps the buttons on it (#514)", () => {
+    const running = [scene("Board"), scene("ChoiceOverlay"), scene("ReportButton")];
+    expect(chromeBarBottom(running, slots)).toBe(36);
+  });
+
+  test("0 where the buttons are hidden: over a screen with no slot, or under Pause", () => {
+    expect(chromeBarBottom([scene("SetupDeal"), scene("ChoiceOverlay")], slots)).toBe(0);
+    expect(chromeBarBottom([scene("Board"), scene("PauseOverlay"), scene("ChoiceOverlay")], slots)).toBe(0);
   });
 });

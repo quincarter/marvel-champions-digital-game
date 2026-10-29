@@ -1,0 +1,3 @@
+kind: Fixed
+body: The top-bar buttons no longer cover a choice popup's title on a phone, and the dark mode button no longer floats over Pause, Inspect and other popups (#514).
+time: 2026-10-28T22:42:31.602718-04:00
