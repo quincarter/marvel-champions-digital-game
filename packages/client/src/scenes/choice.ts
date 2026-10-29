@@ -45,6 +45,7 @@ import {
   setChoicePeeking,
 } from "../view/choice-peek.js";
 import { flipPeekEdge, peekMoveLabel } from "../view/peek-banner.js";
+import { seatIndexOfSlot, seatPeekChips, seatPeekLabel, seatPeekQuestionPrefix } from "../view/seat-peek.js";
 import { declineLabelOf, triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
@@ -110,7 +111,7 @@ import {
 } from "../view/choice-source-panel-layout.js";
 import { drawInstructionSourcePanel, drawSourceCardPanel, instructionStripHeight } from "../ui/source-card-panel.js";
 import { aosOptionLabelOf, secretTargetNotesOf, wrapOptionLabel } from "../view/board-secret-notes.js";
-import { optionLabelOf, seatIdentityName } from "../view/names.js";
+import { optionLabelOf, playerName, seatIdentityName, shortSeatName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
 import {
   defendChoiceLayout,
@@ -656,7 +657,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         POOL_DEPS,
         promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game),
       ).title;
-      this.#drawPeekBanner(question, width, height, formFactor);
+      this.#drawPeekBanner(state.game, question, width, height, formFactor);
       return;
     }
     const panelMode = docked
@@ -1213,6 +1214,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** PEEK AT TABLE, or back to the decision (null). */
   #setPeek(choiceKey: string | null): void {
     this.#peekingAt = choiceKey;
+    // Back from any seat: the table beneath goes back to the seat deciding, and the sheet comes back over it.
+    if (choiceKey === null) appSession().store.endSeatPeek();
     this.#rebuild();
   }
 
@@ -1220,8 +1223,13 @@ export class ChoiceOverlay extends Phaser.Scene {
    * The sheet stepped aside (PEEK AT TABLE): a banner at the foot of the screen with the question and BACK TO DECISION,
    * and nothing else of this scene, so the table above it takes the presses (its tabs, Inspect) and the mouse's hover.
    */
-  #drawPeekBanner(question: string, width: number, height: number, formFactor: FormFactor): void {
-    const layout = choicePeekBannerLayout({ x: 0, y: 0, width, height }, formFactor);
+  #drawPeekBanner(game: GameState, question: string, width: number, height: number, formFactor: FormFactor): void {
+    const { store } = appSession();
+    const home = store.state.perspectiveId;
+    const viewing = store.state.peekSeat ?? home;
+    // A multi-seat game: one button per seat switches whose side of the table shows, hand and all (`view/seat-peek.ts`).
+    const seats = seatPeekChips(game, viewing, home, (id) => shortSeatName(game, id, null));
+    const layout = choicePeekBannerLayout({ x: 0, y: 0, width, height }, formFactor, undefined, seats.length);
     this.add
       .zone(layout.banner.x, layout.banner.y, layout.banner.width, layout.banner.height)
       .setOrigin(0, 0)
@@ -1246,7 +1254,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .text(
         layout.text.x,
         layout.text.y + layout.text.height / 2,
-        `Your decision: ${question}`,
+        `${seatPeekQuestionPrefix(store.state.peekSeat !== null ? playerName(game, store.state.peekSeat) : null)}: ${question}`,
         textStyle({ ...typeRole.rowTitle, size: 14 }, surface.paper.hex),
       )
       .setOrigin(0, 0.5);
@@ -1281,8 +1289,28 @@ export class ChoiceOverlay extends Phaser.Scene {
     );
     this.#focusRects.set("peek-move", layout.move);
     this.#focusRects.set("peek-back", layout.back);
+    seats.forEach((seat, index) => {
+      const rect = layout.seats[index];
+      if (!rect) return;
+      const look = (): void => {
+        store.peekAtSeat(seat.playerId);
+      };
+      const button = new McButton(this, {
+        kind: "onInk",
+        label: seatPeekLabel(seat),
+        type: typeRole.label,
+        rect,
+        selected: seat.viewing,
+        onClick: look,
+      });
+      this.#buttons.push(button);
+      const key = `peek-seat:${seat.playerId}`;
+      this.#focusRects.set(key, rect);
+      this.#registerSeatPick(rect, seat.slot, look);
+    });
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
+        seatRects: () => layout.seats,
         peeking: () => true,
         backRect: () => layout.back,
         moveRect: () => layout.move,
@@ -2700,6 +2728,23 @@ export class ChoiceOverlay extends Phaser.Scene {
     return slot === undefined || slot < 0 || padPickBinding(slot) === null ? null : slot;
   }
 
+  /**
+   * A seat button on the peek banner wears its seat's combo, LB + a face button (`view/seat-peek.ts`), and the combo
+   * presses it. There are no option tiles while the sheet is aside, so the slots are free.
+   */
+  #registerSeatPick(rect: Rect, slot: number | null, tap: () => void): void {
+    if (slot === null || seatIndexOfSlot(slot) === null) return;
+    this.#pickTaps.set(slot, tap);
+    this.#hints.custom(
+      (set, snapshot, _layer, held) =>
+        set === "pad" && !this.#covered() ? pickGlyphSpecs(slot, snapshot.state, snapshot.settings, held) : null,
+      18,
+      ({ width: glyphWidth, height: glyphHeight }) =>
+        rect.height < glyphHeight + 4 ? null : { x: rect.x + rect.width - glyphWidth - 6, y: rect.y + rect.height / 2 },
+      { ground: "ink" },
+    );
+  }
+
   #pickGlyphFits(optionId: string): boolean {
     return this.#pickSlotOf(optionId) !== null;
   }
@@ -2996,6 +3041,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         break;
       case "cancel":
         // B on the end-of-phase discard sheet is Nevermind (`#takebackOf`); anywhere else it only drops focus.
+        // Peeking at a teammate's side, B first puts the table back on the seat deciding (the action bar's Back).
+        if (this.#peekingAt !== null && appSession().store.state.peekSeat !== null) {
+          appSession().store.endSeatPeek();
+          break;
+        }
         {
           // With a control focused, B first drops that focus; the next press takes the turn back.
           const takeback = backOutOnCancel(this.#focus ? choiceFocusKey(this.#focus) : null, this.#drawnBackOut);

@@ -4,6 +4,7 @@ import { boardLayout, formFactorFor, type FormFactor, type Rect } from "./layout
 import { choicePeekBannerLayout } from "./choice-peek.js";
 import {
   PEEK_BANNER_HEIGHT,
+  PEEK_SEAT_ROW_HEIGHT,
   flipPeekEdge,
   peekBannerLayout,
   peekEdge,
@@ -114,4 +115,33 @@ describe("the villain phase's peek band on the tabbed board", () => {
       expect(banner.y).toBeGreaterThan(tabs!.y + tabs!.height + 120);
     });
   }
+});
+
+describe("the seat row (multi-seat solo play): one button per seat under the question line", () => {
+  for (const [name, width, height] of SIZES) {
+    for (const count of [2, 3, 4]) {
+      it(`${name}, ${count} seats: inside the banner, apart, touch-sized, clear of MOVE and BACK`, () => {
+        const viewport: Rect = { x: 0, y: 0, width, height };
+        const formFactor: FormFactor = formFactorFor(width, height);
+        const layout = choicePeekBannerLayout(viewport, formFactor, "bottom", count);
+        expect(layout.seats).toHaveLength(count);
+        expect(layout.banner.height).toBe(PEEK_BANNER_HEIGHT + PEEK_SEAT_ROW_HEIGHT);
+        expect(inside(layout.banner, viewport)).toBe(true);
+        for (const [index, seat] of layout.seats.entries()) {
+          expect(inside(seat, layout.banner)).toBe(true);
+          expect(seat.height).toBeGreaterThanOrEqual(hit.target);
+          expect(seat.width).toBeGreaterThanOrEqual(hit.target);
+          for (const part of [layout.text, layout.move, layout.back]) expect(overlaps(seat, part)).toBe(false);
+          const next = layout.seats[index + 1];
+          if (next) expect(overlaps(seat, next)).toBe(false);
+        }
+      });
+    }
+  }
+
+  it("a one-seat game keeps the one-line banner", () => {
+    const layout = choicePeekBannerLayout({ x: 0, y: 0, width: 426, height: 860 }, "phone", "bottom", 1);
+    expect(layout.seats).toEqual([]);
+    expect(layout.banner.height).toBe(PEEK_BANNER_HEIGHT);
+  });
 });
