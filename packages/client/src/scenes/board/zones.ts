@@ -1428,8 +1428,9 @@ export function drawPlayArea(
         scene,
         rect.x + 8,
         rect.y + 6,
-        // A looked-at teammate's side names whose it is (`SessionState.peekSeat`).
-        appSession().store.state.peekSeat !== null ? `${model.me.name}'s play area` : "your play area",
+        // A looked-at teammate's side is not yours (`SessionState.peekSeat`); the bar names whose it is. The caption keeps
+        // its width: the RT layer marker sits right after it (`view/layer-marker.ts`).
+        appSession().store.state.peekSeat !== null ? "their play area" : "your play area",
         typeRole.label,
         surface.ink.hex,
         ink.label,
