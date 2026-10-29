@@ -216,8 +216,11 @@ export function fromYourGamesOf(
   const rate = (id: string): number => (usage.usedIn[id] ?? 0) / (usage.inDeck[id] ?? 1);
   const nameOf = (id: string): string => names.cardName(id) ?? id;
   const mine = [...inDeckNow].filter((id) => played(id) && (usage.inDeck[id] ?? 0) >= 2);
+  // The hero's own cards are never offered to cut: a deck must include each of them (RRG 1.8 Appendix I, "Deck
+  // Customization", p. 50).
+  const required = (id: string): boolean => names.cardAspect(id) === `hero:${identityCardId}`;
   const cut = mine
-    .filter((id) => rate(id) < 0.25)
+    .filter((id) => rate(id) < 0.25 && !required(id))
     .sort(
       (a, b) =>
         rate(a) - rate(b) || (usage.inDeck[b] ?? 0) - (usage.inDeck[a] ?? 0) || nameOf(a).localeCompare(nameOf(b)),
@@ -269,7 +272,12 @@ export interface DeckPlaySummary {
 }
 
 /** The Decks screen's "How this deck plays" box for one deck, or null when it has no finished games. */
-export function deckPlayOf(insights: DeckInsights, key: DeckKeyString, names: StatsNames): DeckPlaySummary | null {
+export function deckPlayOf(
+  insights: DeckInsights,
+  key: DeckKeyString,
+  identityCardId: string,
+  names: StatsNames,
+): DeckPlaySummary | null {
   const play = insights.decks[key];
   if (!play || play.games === 0) return null;
   const played = (id: string): boolean => PLAYED_TYPES.has(names.cardType(id) ?? "");
@@ -279,8 +287,9 @@ export function deckPlayOf(insights: DeckInsights, key: DeckKeyString, names: St
   const staple = [...cards].sort(
     (a, b) => rate(b) - rate(a) || (play.usedIn[b] ?? 0) - (play.usedIn[a] ?? 0) || nameOf(a).localeCompare(nameOf(b)),
   )[0];
+  // Never the hero's own cards, which the deck must keep (RRG 1.8 p. 50): a nudge the player could not act on.
   const idle = [...cards]
-    .filter((id) => rate(id) < 0.5)
+    .filter((id) => rate(id) < 0.5 && names.cardAspect(id) !== `hero:${identityCardId}`)
     .sort(
       (a, b) =>
         rate(a) - rate(b) || (play.inDeck[b] ?? 0) - (play.inDeck[a] ?? 0) || nameOf(a).localeCompare(nameOf(b)),

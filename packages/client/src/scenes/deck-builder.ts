@@ -55,7 +55,14 @@ import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import type { CardId } from "@mc/content";
-import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
+import {
+  CARDS_BY_ID,
+  POOL_CARDS,
+  POOL_HERO_SHELF_PACKS,
+  POOL_PACKS,
+  POOL_STARTER_DECKS,
+  POOL_VERSION,
+} from "../content/pool.js";
 import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -326,6 +333,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The rail tabs' and the From your games rows' stops, in the order drawn, for the focus route. */
   #railStops: string[] = [];
   #hints: GlyphHints | null = null;
+  /** From your games' card scans not loaded at its last draw: an arrival redraws the builder only while one is. */
+  #railArtMissing = 0;
   /** Each scrolling list's on-screen card rects, computed on demand from its scroll (a scroll draws nothing). */
   #hoverLists: (() => readonly (readonly [string, HoverCardIdRect])[])[] = [];
   /** The "Your deck" lines as drawn at zero scroll, and the scroll region (if any) that moves them. */
@@ -407,7 +416,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     // From your games draws card scans; they arrive after its first draw (in batches, `art/card-art.ts`).
     const offArt = cardArt(this).onArrived(() => {
-      if (this.#railTab === "games" && this.scene.isActive()) this.#rebuild();
+      if (this.#railTab === "games" && this.#railArtMissing > 0 && this.scene.isActive()) this.#rebuild();
     });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
@@ -1312,6 +1321,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       label(this, left, y, "Reading your games…", typeRole.label, fg, ink.meta);
       return y + 24;
     }
+    this.#railArtMissing = 0;
     const pool = new Set(this.#browsablePool(deck).map((card) => card.id as string));
     const view = fromYourGamesOf(
       this.#insights,
@@ -1351,13 +1361,13 @@ export class DeckBuilderScene extends Phaser.Scene {
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > bottom) return;
-        const card = POOL.find((c) => (c.id as string) === entry.cardId);
+        const card = CARDS_BY_ID.get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         const frame = this.add.graphics();
         frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-        drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
-        // The wide rail does not scroll, so its pictures are noted where they are drawn.
-        if (onDark) noteHoverCardId(this, entry.cardId, pic, true);
+        if (!drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic)) this.#railArtMissing++;
+        // With the deck lines, so the narrow layout's pictures follow its scrolling deck region.
+        this.#deckLines.push({ cardId: entry.cardId, rect: pic, region: onDark ? "none" : "narrow" });
         const buttonWidth = action ? 70 : 0;
         const text = this.add
           .text(

@@ -2070,8 +2070,16 @@ export class DecksScene extends Phaser.Scene {
   // ------------------------------------------------------------------------------------------------------------
   /** The deck's record, how it lost, its staple and its idle card, and a way into Your stats; down to `bottom`. */
   #drawDeckPlay(left: number, top: number, column: number, bottom: number, deck: Deck): void {
-    const play = this.#insights ? deckPlayOf(this.#insights, deckKeyToString(keyOf(deck)), POOL_STATS_NAMES) : null;
+    const key = deckKeyToString(keyOf(deck));
+    const play = this.#insights
+      ? deckPlayOf(this.#insights, key, deck.identityCardId as string, POOL_STATS_NAMES)
+      : null;
     if (!play) return;
+    // The record is the one the deck row shows (`view/results-history.ts`), so the two never disagree; the insights
+    // give the card lines.
+    const history = this.#history?.decks.find((r) => deckKeyToString(r.key) === key) ?? null;
+    const record = history ? `${history.wins}–${history.losses}` : play.record;
+    const games = history ? history.wins + history.losses : play.games;
     const linkHeight = this.#row;
     // The caption, the record and the link are the least it shows; the two cards come when they fit.
     if (bottom - top < 16 + 34 + linkHeight + 8) return;
@@ -2080,24 +2088,24 @@ export class DecksScene extends Phaser.Scene {
       this,
       left,
       y,
-      `HOW THIS DECK PLAYS · ${play.games} GAME${play.games === 1 ? "" : "S"}`,
+      `HOW THIS DECK PLAYS · ${games} GAME${games === 1 ? "" : "S"}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,
     );
     y += 18;
-    const record = this.add.text(left, y, play.record, {
+    const recordText = this.add.text(left, y, record, {
       ...textStyle(typeRole.barTitle, surface.paper.hex),
       fontSize: "26px",
     });
     if (play.losses) {
       const lost = this.add.text(
-        left + record.width + 10,
+        left + recordText.width + 10,
         y + 8,
         play.losses,
         textStyle(typeRole.body, surface.paper.hex, ink.secondary),
       );
-      fitText(lost, column - record.width - 10, typeRole.body.size);
+      fitText(lost, column - recordText.width - 10, typeRole.body.size);
     }
     y += 34;
     const thumb = { width: 30, height: 42 };
@@ -2106,7 +2114,7 @@ export class DecksScene extends Phaser.Scene {
       ...(play.idle ? [{ ...play.idle, what: "Sits idle" }] : []),
     ]) {
       if (y + thumb.height + 6 + linkHeight + 8 > bottom) break;
-      const card = POOL_CARDS.find((c) => (c.id as string) === entry.cardId);
+      const card = CARDS_BY_ID.get(entry.cardId);
       const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
       const frame = this.add.graphics();
       frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
@@ -2129,6 +2137,8 @@ export class DecksScene extends Phaser.Scene {
         from: SCENES.decks,
         tab: "cards",
         heroId: deck.identityCardId as string,
+        // Back from the stats comes back to this deck.
+        backData: { focusDeckId: deck.id as string } satisfies DecksSceneData,
       } satisfies PlayerStatsData);
     this.#buttons.push(
       new McButton(this, {

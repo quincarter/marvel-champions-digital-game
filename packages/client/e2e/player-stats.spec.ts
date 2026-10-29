@@ -63,7 +63,7 @@ async function seedGames(page: Page): Promise<void> {
               {
                 identityCardId: "01001a",
                 aspects: ["justice"],
-                deck: ["01002", "01008"],
+                deck: ["01002", "01008", "01093"],
                 plays: { "01008": 2 },
                 activations: { "01008": 1 },
                 entered: {},
@@ -308,10 +308,12 @@ test("the deck builder's From your games: Cut takes a copy of a card that never 
     30_000,
   );
   await press(page, false, tab.rect);
-  // Black Cat (01002) sat in every seeded game's deck and was never played.
+  // Tenacity (01093, basic) sat in every seeded game's deck and was never played. Black Cat (01002) never came out
+  // either, but it is Spider-Man's own card, which the deck must keep (RRG 1.8 p. 50): it is never offered.
   await waitFor(
-    async () => (await stopsIn(page, "DeckBuilder")).find((s) => s.key.endsWith(":01002")) ?? null,
-    "Cut on Black Cat",
+    async () =>
+      (await stopsIn(page, "DeckBuilder")).find((s) => s.key.startsWith("games:") && s.key.endsWith(":01093")) ?? null,
+    "Cut on Tenacity",
     30_000,
   );
   // Cut takes one copy, the same as the deck list's −: the deck drops from 40 cards to 39.
@@ -321,9 +323,15 @@ test("the deck builder's From your games: Cut takes a copy of a card that never 
   const cutDown = async () => ((await findText(page, "39 cards", "DeckBuilder")).length > 0 ? true : null);
   for (let attempt = 0; attempt < 3 && !(await cutDown()); attempt++) {
     await settle(page);
-    const now = (await stopsIn(page, "DeckBuilder")).find((s) => s.key.endsWith(":01002"));
+    const now = (await stopsIn(page, "DeckBuilder")).find(
+      (s) => s.key.startsWith("games:") && s.key.endsWith(":01093"),
+    );
     if (now) await press(page, false, now.rect);
     await page.waitForTimeout(800);
   }
   await waitFor(cutDown, "the deck is one card smaller", 10_000);
+  expect(
+    (await stopsIn(page, "DeckBuilder")).some((s) => s.key.startsWith("games:") && s.key.endsWith(":01002")),
+    "no Cut on Black Cat",
+  ).toBe(false);
 });

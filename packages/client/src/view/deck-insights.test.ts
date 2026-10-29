@@ -97,10 +97,11 @@ describe("fromYourGamesOf", () => {
   ];
   const insights = deckInsightsOf(four, NAMES);
 
-  test("cut: cards in this deck that rarely come out; keep: the ones that nearly always do", () => {
+  test("cut: cards in this deck that rarely come out, never the hero's own; keep: the ones that nearly always do", () => {
     const view = fromYourGamesOf(insights, "spidey", ["webs", "aunt", "bot", "energy"], ["justice"], NAMES);
     expect(view.headline).toBe("Spider-Man · 4 games · 3–1");
-    expect(view.cut.map((c) => c.cardId)).toEqual(["aunt", "bot"]);
+    // Aunt May never came out either, but she is Spider-Man's own: a deck must include her (RRG 1.8 p. 50).
+    expect(view.cut.map((c) => c.cardId)).toEqual(["bot"]);
     expect(view.cut[0]!.detail).toBe("Never played in 4 games");
     expect(view.keep.map((c) => c.cardId)).toEqual(["webs"]);
   });
@@ -128,14 +129,15 @@ describe("fromYourGamesOf", () => {
 describe("deckPlayOf", () => {
   test("the record, how it lost, its staple and the card that sits idle", () => {
     const insights = deckInsightsOf([game(true), game(true), game(false)], NAMES);
-    const play = deckPlayOf(insights, "starter:spidey-justice", NAMES)!;
+    const play = deckPlayOf(insights, "starter:spidey-justice", "spidey", NAMES)!;
     expect(play.record).toBe("2–1");
     expect(play.losses).toBe("Lost 1 to the scheme");
     expect(play.staple).toEqual({ cardId: "webs", detail: "played in 3 of 3" });
-    expect(play.idle?.cardId).toBe("aunt");
+    // Aunt May sits idle too, but the deck must keep her (RRG 1.8 p. 50); the support is the one to name.
+    expect(play.idle?.cardId).toBe("bot");
   });
 
   test("a deck with no finished games has no box", () => {
-    expect(deckPlayOf(deckInsightsOf([], NAMES), "starter:spidey-justice", NAMES)).toBeNull();
+    expect(deckPlayOf(deckInsightsOf([], NAMES), "starter:spidey-justice", "spidey", NAMES)).toBeNull();
   });
 });

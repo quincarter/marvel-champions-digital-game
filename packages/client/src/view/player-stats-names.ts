@@ -1,6 +1,7 @@
 /**
- * The pool's names for the Stats screen (`player-stats-model.ts`). Imported only by the stats worker and its fallback,
- * so the pool's evaluation stays off the main thread wherever a worker runs.
+ * The pool's names for the Stats screen (`player-stats-model.ts`) and the deck-building insights (`deck-insights.ts`):
+ * read in the stats worker for the folds, and on the main thread by the deck builder and the Decks screen, which have
+ * the pool loaded already.
  */
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { cardDisplayName } from "./hero-names.js";

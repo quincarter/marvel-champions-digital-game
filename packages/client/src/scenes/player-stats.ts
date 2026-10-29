@@ -62,6 +62,8 @@ export interface PlayerStatsData {
   readonly tab?: StatsTab;
   /** On Cards by hero, the hero to show (an identity card id). */
   readonly heroId?: string;
+  /** What Back hands the screen it returns to (the Decks screen's selected deck). */
+  readonly backData?: object;
 }
 
 /** What Back says, by the screen it goes to. */
@@ -221,7 +223,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, this.#data.from ?? SCENES.trophyRoom);
+    goToScreen(this, this.#data.from ?? SCENES.trophyRoom, this.#data.backData ?? {});
   }
 
   #tabs(): readonly StatsTab[] {
