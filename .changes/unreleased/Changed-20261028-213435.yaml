@@ -1,0 +1,3 @@
+kind: Changed
+body: The owner scan list no longer records each scan's source file name
+time: 2026-10-28T21:34:35.5988453-04:00

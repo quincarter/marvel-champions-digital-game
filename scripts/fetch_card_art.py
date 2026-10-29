@@ -590,7 +590,8 @@ def save_like(img: Image.Image, dest: Path, max_edge: int | None = MAX_EDGE) -> 
     if max_edge and max(img.size) > max_edge:
         img = img.copy()
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
-    if dest.suffix.lower() in (".jpg", ".jpeg"):
+    # An owner scan with no scanner-white corners to clear stays RGB and has nothing to flatten.
+    if dest.suffix.lower() in (".jpg", ".jpeg") and "A" in img.getbands():
         img = flatten(img)
     replace_bytes(dest, encode_webp(img))
 
@@ -912,7 +913,8 @@ def read_owner_scans() -> dict[str, list[str]]:
         for line in OWNER_SCANS.read_text(encoding="utf-8").splitlines():
             if line.strip() and not line.startswith("#") and not line.startswith("code\t"):
                 cols = line.split("\t")
-                rows[cols[0]] = cols
+                # Rows saved before 2026-10-29 also named the owner's scan file; it isn't kept any more.
+                rows[cols[0]] = cols[:3] + cols[4:] if len(cols) == 5 else cols
     return rows
 
 
@@ -920,7 +922,7 @@ def write_owner_scans(rows: dict[str, list[str]]) -> None:
     lines = [
         "# Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never",
         "# replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).",
-        "code\tpack\tname\tscan\tsaved",
+        "code\tpack\tname\tsaved",
     ]
     lines += ["\t".join(rows[code]) for code in sorted(rows)]
     OWNER_SCANS.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
@@ -1614,7 +1616,7 @@ def scans(args: argparse.Namespace) -> None:
         if not args.dry_run:
             save_like(img, dest)
             card = card_for(code, cards)
-            owner[code] = [code, pack_of(code, cards), card.name if card else "?", m.path.name, today]
+            owner[code] = [code, pack_of(code, cards), card.name if card else "?", today]
             manifest.pop(code, None)
     if not args.dry_run and best:
         write_owner_scans(owner)

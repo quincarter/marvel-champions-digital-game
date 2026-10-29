@@ -4,54 +4,6 @@
 # Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.
 # The Shadowland (65xxx) rows are Hall of Heroes' 300 x 426 preview images at their own size; its other faces have no scan.
 code	pack	name	source_page	image_url	fetched
-01019b	core	Jennifer Walters	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifer0a.jpg	2026-10-22
-01020	core	Hellcat	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifer1.jpg	2026-10-22
-01025	core	Split Personality	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifer10.jpg	2026-10-22
-01029b	core	Tony Stark	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony0a.jpg	2026-10-22
-01030	core	War Machine	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony1.jpg	2026-10-22
-01032	core	Supersonic Punch	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony6.jpg	2026-10-22
-01033	core	Pepper Potts	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony7.jpg	2026-10-22
-01037	core	Mark V Helmet	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tony11.jpg	2026-10-22
-01097b	core	The Break-In!	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino4a.jpg	2026-10-22
-01098	core	Armored Rhino Suit	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino5.jpg	2026-10-22
-01099	core	Charge	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino6.jpg	2026-10-22
-01103	core	Shocker	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino12.jpg	2026-10-22
-01107	core	Breakin' & Takin'	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/rhino20.jpg	2026-10-22
-01112	core	False Alarm	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/bomb6.jpg	2026-10-22
-01116b	core	Underground Distribution	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw4a.jpg	2026-10-22
-01117	core	Secret Rendezvous	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw5b.jpg	2026-10-22
-01117b	core	Secret Rendezvous	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw5a.jpg	2026-10-20
-01118	core	Sonic Converter	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw6.jpg	2026-10-22
-01119	core	Solid-Sound Body	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw7.jpg	2026-10-22
-01125	core	Defense Network	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw19.jpg	2026-10-22
-01126	core	Illegal Arms Factory	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw20.jpg	2026-10-22
-01128	core	The Masters of Evil	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/masters1.jpg	2026-10-22
-01129	core	Radioactive Man	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/masters2.jpg	2026-10-22
-01130	core	Whirlwind	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/masters3.jpg	2026-10-22
-01132	core	Melter	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/masters5.jpg	2026-10-22
-01137	core	The Crimson Cowl	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron4b.jpg	2026-10-22
-01137b	core	The Crimson Cowl	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron4a.jpg	2026-10-22
-01138b	core	Assault on NORAD	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron5a.jpg	2026-10-20
-01139	core	Countdown to Oblivion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron6b.jpg	2026-10-22
-01139b	core	Countdown to Oblivion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron6a.jpg	2026-10-20
-01140	core	Ultron Drones	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron7.jpg	2026-10-22
-01141	core	Program Transmitter	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron8.jpg	2026-10-22
-01142	core	Upgraded Drones	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron9.jpg	2026-10-22
-01145	core	Rage of Ultron	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron17.jpg	2026-10-22
-01149	core	Invasive AI	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron24.jpg	2026-10-22
-01150	core	Ultron's Imperative	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron25.jpg	2026-10-22
-01153	core	Concussion Blasters	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/under3.jpg	2026-10-22
-01160	core	Legal Work	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern0.jpg	2026-10-22
-01161	core	Personal Challenge	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern1.jpg	2026-10-22
-01162	core	Titania	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern2.jpg	2026-10-22
-01163	core	Genetically Enhanced	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/jennifern3.jpg	2026-10-22
-01170	core	Business Problems	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tonyn0.jpg	2026-10-22
-01171	core	Imminent Overload	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tonyn1.jpg	2026-10-22
-01172	core	Whiplash	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tonyn2.jpg	2026-10-22
-01174	core	Electromagnetic Backlash	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/tonyn5.jpg	2026-10-22
-01188	core	Caught Off Guard	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/standard5.jpg	2026-10-22
-01191	core	Exhaustion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/expert1.jpg	2026-10-22
-01193	core	Under Fire	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/expert3.jpg	2026-10-22
 02002a	gob	Norman Osborn	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky2a.jpg	2026-09-26
 02003a	gob	Norman Osborn	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky3a.jpg	2026-09-26
 02004b	gob	Hostile Takeover	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky4b.jpg	2026-10-22
