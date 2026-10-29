@@ -381,6 +381,8 @@ export class DecksScene extends Phaser.Scene {
    * about it, in place of opening Inspect; "◂ Deck stats" (or B) goes back to the deck. Null: the deck's stats.
    */
   #paneCard: AnyCard | null = null;
+  /** The deck `#paneCard` was opened on: a different selection (a copy, an import) shows that deck's stats instead. */
+  #paneCardDeckId: string | null = null;
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
@@ -504,7 +506,7 @@ export class DecksScene extends Phaser.Scene {
       // B leaves for Title, as the Back button does (a field being typed in owns the keys, so this is not reached then).
       onCancel: () => {
         // A card in the stats pane goes back to the deck's stats first.
-        if (this.#paneCard) {
+        if (this.#paneCard && this.#stops.has("card-back")) {
           this.#closePaneCard();
           return;
         }
@@ -956,7 +958,8 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #setPaneTab(tab: "deck" | "games"): void {
-    if (this.#paneTab === tab) return;
+    // Only while the tabs are on screen (not under a card, a community deck, or another narrow tab).
+    if (this.#paneTab === tab || !this.#stops.has(`pane:${tab}`)) return;
     this.#paneTab = tab;
     this.#rebuild();
     this.#route?.focusKey(`pane:${tab}`);
@@ -1028,8 +1031,16 @@ export class DecksScene extends Phaser.Scene {
       }
       y += 6;
     };
-    section("Cut? Sits in your deck", view.cut);
-    section("Try: cards you won with", view.tryCards);
+    section(deck.source.kind === "precon" ? "Rarely comes out" : "Cut? Sits in your deck", view.cut);
+    // Only cards this deck's pool lists, as the builder's rail shows them.
+    const identity = this.#identityOf(deck);
+    const listed = identity
+      ? new Set(browsablePool(POOL_CARDS, identity, deck.aspects, {}).map((card) => card.id as string))
+      : new Set<string>();
+    section(
+      "Try: cards you won with",
+      view.tryCards.filter((entry) => listed.has(entry.cardId)),
+    );
     section("Keep: your staples", view.keep);
     if (view.note && y + 30 < buttonTop) {
       this.add
@@ -2179,14 +2190,26 @@ export class DecksScene extends Phaser.Scene {
   /** Puts `card` in the stats pane (the narrow layout's Stats tab) and the focus on its way back. */
   #showPaneCard(card: AnyCard): void {
     this.#paneCard = card;
+    this.#paneCardDeckId = this.#selectedDeckId;
+    const tab = this.#activeTab;
     if (this.#tabs !== null && this.#activeTab !== "stats") this.#activeTab = "stats";
     this.#rebuild();
+    // A community deck's pane has no card view: the card opens in Inspect, as it did before.
+    if (!this.#stops.has("card-back")) {
+      this.#paneCard = null;
+      this.#activeTab = tab;
+      this.#rebuild();
+      this.#inspectCard(card);
+      return;
+    }
     this.#route?.focusKey("card-back");
   }
 
   #closePaneCard(): void {
     const card = this.#paneCard;
     this.#paneCard = null;
+    // On the narrow layout the card came from the Cards tab: back there, on it.
+    if (this.#tabs !== null) this.#activeTab = "cards";
     this.#rebuild();
     if (card) this.#route?.focusKey(`pool-card:${card.id as string}`);
   }
@@ -2205,7 +2228,7 @@ export class DecksScene extends Phaser.Scene {
     });
     this.#buttons.push(backButton);
     this.#hints.button(backButton, ["cancel"], "ink");
-    this.#stops.set("card-back", { rect: backRect, activate: back });
+    this.#stops.set("card-back", { rect: backRect, activate: back, inspect: () => this.#inspectCard(card) });
     y += this.#row + 12;
     const footerTop = rect.y + rect.height - hit.primary - 16 - 13 - 12;
     const inspectRect: Rect = { x: left, y: footerTop - this.#row, width: column, height: this.#row };
@@ -2236,7 +2259,7 @@ export class DecksScene extends Phaser.Scene {
       ink.label,
     );
     fitText(kind, textWidth, typeRole.label.size);
-    let factY = y + name.height + 24;
+    const factY = y + name.height + 24;
     const heroId = deck.identityCardId as string;
     const hero = this.#insights ? cardPlayOf(this.#insights, card.id as string, heroId, POOL_STATS_NAMES) : null;
     const all = this.#insights ? cardPlayOf(this.#insights, card.id as string, null, POOL_STATS_NAMES) : null;
@@ -2302,7 +2325,7 @@ export class DecksScene extends Phaser.Scene {
     });
     this.#buttons.push(inspectButton);
     this.#hints.button(inspectButton, ["inspect"], "ink");
-    this.#stops.set("card-inspect", { rect: inspectRect, activate: inspect });
+    this.#stops.set("card-inspect", { rect: inspectRect, activate: inspect, inspect });
   }
 
   #inspectCard(card: AnyCard): void {
@@ -2374,6 +2397,7 @@ export class DecksScene extends Phaser.Scene {
     ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
     y += 12;
 
+    if (this.#paneCard && this.#paneCardDeckId !== (deck.id as string)) this.#paneCard = null;
     if (this.#paneCard) {
       this.#drawPaneCard(rect, left, column, y, this.#paneCard, deck);
       this.#drawStatsFooter(rect, left, column, option);

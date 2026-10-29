@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { DeckInsights } from "../view/deck-insights.js";
 import type { StatsNames } from "../view/player-stats-model.js";
-import { cardPlaySectionOf } from "./card-play.js";
+import { cardPlaySectionOf, deckInsightsNow } from "./card-play.js";
 
 const NAMES: StatsNames = {
   cardName: (id) => ({ spidey: "Spider-Man (Peter Parker)", webs: "Web-Shooter" })[id],
@@ -42,5 +42,31 @@ describe("cardPlaySectionOf", () => {
     expect(cardPlaySectionOf(INSIGHTS, "minion", null, NAMES)).toBeNull();
     expect(cardPlaySectionOf(INSIGHTS, "spidey", null, NAMES)).toBeNull();
     expect(cardPlaySectionOf({ heroes: {}, decks: {} }, "webs", null, NAMES)).toBeNull();
+  });
+});
+
+describe("deckInsightsNow", () => {
+  test("reuses the fold for 30 s, then reads the saves again", async () => {
+    let reads = 0;
+    const listSaves = async () => {
+      reads++;
+      return [];
+    };
+    await deckInsightsNow(listSaves, 1_000);
+    await deckInsightsNow(listSaves, 20_000);
+    expect(reads).toBe(1);
+    await deckInsightsNow(listSaves, 40_000);
+    expect(reads).toBe(2);
+  });
+
+  test("a failed read is not kept: the next ask reads again", async () => {
+    let reads = 0;
+    const failing = async (): Promise<never> => {
+      reads++;
+      throw new Error("no storage");
+    };
+    await expect(deckInsightsNow(failing, 1_000_000)).rejects.toThrow("no storage");
+    await expect(deckInsightsNow(failing, 1_000_001)).rejects.toThrow("no storage");
+    expect(reads).toBe(2);
   });
 });

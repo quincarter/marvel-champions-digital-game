@@ -128,10 +128,10 @@ import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { tableGame } from "../view/table-game.js";
 
-/** What the caller hands over when it launches this overlay. */
 /** One "Your play" line's height. */
 const YOUR_PLAY_LINE = 18;
 
+/** What the caller hands over when it launches this overlay. */
 export interface InspectData {
   /** A card in play or in hand. Omitted before a game exists. */
   readonly instanceId?: InstanceId;

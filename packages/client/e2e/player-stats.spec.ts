@@ -278,22 +278,204 @@ const stopsIn = (page: Page, scene: string): Promise<Stop[]> =>
     scene,
   );
 
-test("Decks & Collection: How this deck plays opens Your stats on the hero's cards", async ({ page }, info) => {
+const pressStop = async (page: Page, scene: string, key: string, label: string): Promise<void> => {
+  const stop = await waitFor(
+    async () => (await stopsIn(page, scene)).find((s) => s.key === key) ?? null,
+    label,
+    30_000,
+  );
+  await press(page, false, stop.rect);
+};
+
+test("Decks & Collection: From your games on a precon builds a deck of your own from it", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "the wide stats pane");
   test.setTimeout(120_000);
   await seeded(page, "decks", "Decks");
-  const open = await waitFor(
-    async () => (await stopsIn(page, "Decks")).find((s) => s.key === "stats-your-stats") ?? null,
-    "Open in Your stats",
-    30_000,
-  );
-  expect((await findText(page, "HOW THIS DECK PLAYS", "Decks")).length).toBeGreaterThan(0);
-  await press(page, false, open.rect);
+  // This deck first: the resource curve and Check, with no Cut anywhere on a precon.
   await waitFor(
-    async () => ((await keys(page)).some((k) => k.startsWith("card:")) ? true : null),
-    "Cards by hero, with card pictures",
+    async () => ((await stopsIn(page, "Decks")).some((s) => s.key === "stats-check") ? true : null),
+    "This deck's Check",
     30_000,
   );
+  await settle(page);
+  await pressStop(page, "Decks", "pane:games", "the From your games tab");
+  await waitFor(
+    async () => ((await findText(page, "Build my own from this", "Decks")).length > 0 ? true : null),
+    "Build my own from this",
+    10_000,
+  );
+  expect(
+    (await stopsIn(page, "Decks")).some((s) => s.key.startsWith("games:")),
+    "no Cut on a precon",
+  ).toBe(false);
+  await settle(page);
+  await pressStop(page, "Decks", "games-open", "Build my own from this");
+  await waitFor(isActive(page, "DeckBuilder"), "the deck builder", 30_000);
+  // It opens on the builder's From your games, where the hero's suggestions are.
+  await waitFor(
+    async () => ((await stopsIn(page, "DeckBuilder")).some((s) => s.key.startsWith("games:")) ? true : null),
+    "From your games in the builder",
+    30_000,
+  );
+});
+
+test("Decks & Collection: a pool card opens in the stats pane, Inspect shows Your play, and B goes back", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the wide stats pane");
+  test.setTimeout(150_000);
+  await seeded(page, "decks", "Decks");
+  // The pool's search field (a text field over the canvas).
+  await page.getByPlaceholder("Search cards: name, trait, text").fill("Tenacity");
+  // Tenacity (01093) sat in every seeded Spider-Man deck.
+  // Once the search has narrowed the pool (it answers from a worker), Tenacity sits in the first row.
+  const tenacity = () =>
+    waitFor(
+      async () => (await stopsIn(page, "Decks")).find((s) => s.key === "pool-card:01093" && s.rect.y < 400) ?? null,
+      "Tenacity at the top of the pool",
+      15_000,
+    );
+  // The first press may only take the focus off the search field, and a press that straddles a redraw (a scan
+  // arriving) is dropped by design: press again until the card is in the pane.
+  const inPane = async () => ((await stopsIn(page, "Decks")).some((s) => s.key === "card-back") ? true : null);
+  for (let attempt = 0; attempt < 3 && !(await inPane()); attempt++) {
+    await settle(page);
+    await press(page, false, (await tenacity()).rect);
+    await page.waitForTimeout(800);
+  }
+  await waitFor(inPane, "the card in the stats pane", 10_000);
+  await waitFor(
+    async () => ((await findText(page, "In your deck", "Decks")).length > 0 ? true : null),
+    "what your games say about it",
+    15_000,
+  );
+  expect((await findText(page, "WITH SPIDER-MAN", "Decks")).length, "the selected deck's hero").toBeGreaterThan(0);
+
+  // Inspect from the pane: the overlay has the same numbers in its Your play section.
+  await settle(page);
+  await pressStop(page, "Decks", "card-inspect", "Inspect");
+  await waitFor(isActive(page, "InspectOverlay"), "Inspect", 15_000);
+  await waitFor(
+    async () => ((await findText(page, "YOUR PLAY", "InspectOverlay")).length > 0 ? true : null),
+    "Your play in Inspect",
+    15_000,
+  );
+  expect((await findText(page, "6 games", "InspectOverlay")).length, "in the deck all six games").toBeGreaterThan(0);
+  await page.keyboard.press("Escape");
+  await waitFor(async () => ((await activeScenes(page)).includes("InspectOverlay") ? null : true), "closed", 10_000);
+
+  // B (Escape) goes back to the deck's stats.
+  await settle(page);
+  await page.keyboard.press("Escape");
+  await waitFor(
+    async () => ((await stopsIn(page, "Decks")).some((s) => s.key === "pane:deck") ? true : null),
+    "the deck's stats again",
+    10_000,
+  );
+  expect(await activeScenes(page)).toContain("Decks");
+});
+
+test("Your stats' Cards tab: every hero's cards together", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const tab = (await stopsOf(page)).find((s) => s.key === "tab:all-cards")!;
+  await press(page, phone, tab.rect);
+  await waitFor(
+    async () => ((await keys(page)).some((k) => k.startsWith("card:all:played:")) ? true : null),
+    "the most played cards",
+    10_000,
+  );
+});
+
+/** Starts a backfill run of three games over a stand-in store; each game waits for `__releaseBackfill()`. */
+async function startHeldBackfill(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const { runStatsBackfill } = (await import("/src/progression/stats-backfill.ts")) as never as {
+      runStatsBackfill(store: unknown, storage: null): Promise<void>;
+    };
+    const { SAVE_SCHEMA } = (await import("/src/engine/game-storage.ts")) as never as { SAVE_SCHEMA: number };
+    const waiting: (() => void)[] = [];
+    const w = window as unknown as { __releaseBackfill: () => boolean; __backfillDone: boolean };
+    w.__releaseBackfill = () => {
+      const next = waiting.shift();
+      next?.();
+      return next !== undefined;
+    };
+    w.__backfillDone = false;
+    const saves = [0, 1, 2].map((i) => ({ id: `e2e-backfill-${i}`, schema: SAVE_SCHEMA, status: "won" }));
+    void runStatsBackfill(
+      {
+        listSaves: async () => saves,
+        backfillSummaries: () => new Promise<number>((resolve) => waiting.push(() => resolve(1))),
+      },
+      null,
+    ).then(() => (w.__backfillDone = true));
+  });
+}
+
+/** Lets the held run's next game finish, once it has asked for it. */
+const release = async (page: Page): Promise<void> => {
+  await waitFor(
+    () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __releaseBackfill: () => boolean };
+        return w.__releaseBackfill() ? true : null;
+      }),
+    "the run asks for the next game",
+    10_000,
+  );
+};
+
+test("the Building your stats toast: shows on the Title, hides off it, and closing it keeps the run going", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await openApp(page, "unlock=all");
+  await waitFor(isActive(page, "Title"), "the Title", 30_000);
+  await startHeldBackfill(page);
+  await release(page);
+  await waitFor(isActive(page, "BackfillToast"), "the toast", 15_000);
+  await waitFor(
+    async () => ((await findText(page, "1 of 3", "BackfillToast")).length > 0 ? true : null),
+    "1 of 3 games",
+    10_000,
+  );
+  expect((await findText(page, "keeps going in the background", "BackfillToast")).length).toBeGreaterThan(0);
+
+  if (!phone) {
+    // Off the Title it hides (it would sit on another screen's controls), and back on the Title it shows again.
+    await settle(page);
+    const decks = (await stopsIn(page, "Title")).find((s) => s.key === "decks")!;
+    await press(page, false, decks.rect);
+    await waitFor(isActive(page, "Decks"), "Decks & Collection", 30_000);
+    expect(await activeScenes(page)).not.toContain("BackfillToast");
+    await settle(page);
+    await page.keyboard.press("Escape");
+    await waitFor(isActive(page, "Title"), "the Title again", 30_000);
+    await waitFor(isActive(page, "BackfillToast"), "the toast again", 15_000);
+  }
+
+  // ✕ closes it; the run goes on to the end without it.
+  await settle(page);
+  const close = await waitFor(
+    async () => (await findText(page, "✕", "BackfillToast"))[0] ?? null,
+    "the toast's close button",
+    10_000,
+  );
+  await press(page, phone, { x: close.x - 10, y: close.y - 10, width: 20, height: 20 });
+  await waitFor(async () => ((await activeScenes(page)).includes("BackfillToast") ? null : true), "closed", 10_000);
+  await release(page);
+  await release(page);
+  await waitFor(
+    () => page.evaluate(() => ((window as unknown as { __backfillDone: boolean }).__backfillDone ? true : null)),
+    "the run finishes",
+    10_000,
+  );
+  expect(await activeScenes(page)).not.toContain("BackfillToast");
 });
 
 test("the deck builder's From your games: Cut takes a copy of a card that never comes out of the deck", async ({
