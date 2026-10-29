@@ -395,7 +395,7 @@ describe("playerStatsOf: Bluefiref5ran's categories from what the saves hold", (
 
   test("the best hero pair, by win rate over 2 games or more", () => {
     const stats = playerStatsOf(
-      [meta({ config: two() }), meta({ config: two() }), loss("schemeCompleted", { config: two(), summary: undefined })],
+      [meta({ config: two() }), meta({ config: two() }), loss("schemeCompleted", { config: two(), summary: null })],
       NAMES,
     );
     expect(row(section(stats.sections, "heroes"), "hero:pair")).toMatchObject({
@@ -411,7 +411,7 @@ describe("playerStatsOf: Bluefiref5ran's categories from what the saves hold", (
     const stats = playerStatsOf(
       [
         ...[0, 1, 2].map(() => meta(expert("rhino"))),
-        ...[0, 1, 2].map(() => loss("schemeCompleted", { ...expert("klaw"), summary: undefined })),
+        ...[0, 1, 2].map(() => loss("schemeCompleted", { ...expert("klaw"), summary: null })),
       ],
       NAMES,
     );
@@ -469,5 +469,24 @@ describe("playerStatsOf: Bluefiref5ran's categories from what the saves hold", (
     const encounter = section(stats.sections, "encounter");
     expect(row(encounter, "enc:worst").value).toBe("Hydra Patrol");
     expect(row(encounter, "enc:set:bomb")).toMatchObject({ value: "3–0", detail: "3 games" });
+  });
+});
+
+describe("playerStatsOf: the filter chips", () => {
+  test("a hero, a villain or a difficulty narrows every tab; the options come from every game", () => {
+    const klaw = (extra: Partial<SaveMeta> = {}): SaveMeta =>
+      meta({ config: { ...CONFIG, scenarioId: "klaw", difficulty: "expert" }, summary: null, ...extra });
+    const saves = [meta({ summary: summary() }), klaw(), klaw({ status: "lost" })];
+    const all = playerStatsOf(saves, NAMES);
+    expect(all.filterOptions).toEqual({
+      heroes: [{ id: "spidey", name: "Spider-Man" }],
+      villains: ["Klaw", "Rhino"],
+      difficulties: ["standard", "expert"],
+    });
+    expect(playerStatsOf(saves, NAMES, { villain: "Klaw" }).header.record).toBe("1–1");
+    expect(playerStatsOf(saves, NAMES, { difficulty: "standard" }).header.record).toBe("1–0");
+    const none = playerStatsOf(saves, NAMES, { hero: "cap" });
+    expect(none.header.rate).toBe("No games yet");
+    expect(none.filterOptions.villains).toEqual(["Klaw", "Rhino"]);
   });
 });

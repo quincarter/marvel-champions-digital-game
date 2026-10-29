@@ -9,6 +9,8 @@ const ANSWER: PlayerStats = {
   heroCards: [],
   allCards: null,
   aspects: [],
+  filter: {},
+  filterOptions: { heroes: [], villains: [], difficulties: [] },
 };
 
 function fakeWorker(reply: "answer" | "error"): StatsWorkerLike & { terminated: boolean } {

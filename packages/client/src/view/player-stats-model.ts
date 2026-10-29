@@ -154,6 +154,25 @@ export interface PlayerStats {
   readonly allCards: HeroCardsView | null;
   /** The Aspects tab's donut: each aspect's share of your games, most played first. */
   readonly aspects: readonly AspectShare[];
+  /** The filter these stats were folded with, and what else it could be (from every game, not just the filtered). */
+  readonly filter: StatsFilter;
+  readonly filterOptions: StatsFilterOptions;
+}
+
+/** Narrows every tab to some games (the chips under the tabs): one hero's, one villain's, one difficulty's. */
+export interface StatsFilter {
+  /** An identity card id: games it sat at. */
+  readonly hero?: string | undefined;
+  /** A villain's name as the Villains tab gives it. */
+  readonly villain?: string | undefined;
+  readonly difficulty?: "standard" | "expert" | "extreme" | undefined;
+}
+
+/** What the filter chips step through: every hero, villain and difficulty in your games, most played first. */
+export interface StatsFilterOptions {
+  readonly heroes: readonly { readonly id: string; readonly name: string }[];
+  readonly villains: readonly string[];
+  readonly difficulties: readonly ("standard" | "expert" | "extreme")[];
 }
 
 /** One finished game, reduced to what the stats read. */
@@ -423,7 +442,7 @@ function overviewOf(games: readonly GameFacts[], concessions: number, older: num
     rows.push({
       kind: "note",
       id: "ov:older",
-      text: `${plural(older, "game")} finished before this update count toward wins and losses, but not toward card, side scheme, damage or thwart stats.`,
+      text: `${plural(older, "game")} finished before this update ${older === 1 ? "counts" : "count"} toward wins and losses, but not toward card, side scheme, damage or thwart stats.`,
     });
   }
   return { id: "overview", title: "Overview", count: plural(games.length, "game"), rows };
@@ -1316,7 +1335,7 @@ function encounterOf(games: readonly GameFacts[], names: StatsNames): StatsSecti
   return { id: "encounter", title: "Encounter", count: plural(groups.length, "modular set"), rows };
 }
 
-export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): PlayerStats {
+export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, filter: StatsFilter = {}): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
   // its villains) land in the same row.
@@ -1325,8 +1344,27 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
     const known = villainNames.get(game.villainKey);
     if (!known || game.at > known.at) villainNames.set(game.villainKey, { at: game.at, name: game.villain });
   }
-  const games = facts.map((game) => ({ ...game, villain: villainNames.get(game.villainKey)!.name }));
-  const concessions = saves.filter(isConcession).length;
+  const every = facts.map((game) => ({ ...game, villain: villainNames.get(game.villainKey)!.name }));
+  const filterOptions: StatsFilterOptions = {
+    heroes: byPlayed(
+      groupBy(every, (g) => g.seats.map((s) => s.identityCardId)),
+      (id) => names.cardName(id) ?? id,
+    ).map(([id]) => ({ id, name: names.cardName(id) ?? id })),
+    villains: byPlayed(
+      groupBy(every, (g) => [g.villain]),
+      (v) => v,
+    ).map(([name]) => name),
+    difficulties: (["standard", "expert", "extreme"] as const).filter((d) => every.some((g) => g.difficulty === d)),
+  };
+  const games = every.filter(
+    (g) =>
+      (filter.hero === undefined || g.seats.some((s) => s.identityCardId === filter.hero)) &&
+      (filter.villain === undefined || g.villain === filter.villain) &&
+      (filter.difficulty === undefined || g.difficulty === filter.difficulty),
+  );
+  const filtered = filter.hero !== undefined || filter.villain !== undefined || filter.difficulty !== undefined;
+  // Concessions have no villain or result to filter by: they count only with no filter on.
+  const concessions = filtered ? 0 : saves.filter(isConcession).length;
   const older = games.filter((g) => !g.detailed).length;
   const heroes = byPlayed(
     groupBy(games, (g) => g.seats.map((s) => s.identityCardId)),
@@ -1343,6 +1381,8 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
       heroCards: [],
       allCards: null,
       aspects: [],
+      filter,
+      filterOptions,
     };
   const heroSection = heroesOf(games, names);
   const villainSection = villainsOf(games);
@@ -1374,6 +1414,8 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
     heroCards,
     allCards: allCardsOf(games, names),
     aspects,
+    filter,
+    filterOptions,
   };
 }
 

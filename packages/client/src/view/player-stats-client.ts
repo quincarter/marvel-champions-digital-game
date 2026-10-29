@@ -6,12 +6,14 @@
  */
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { DeckInsights } from "./deck-insights.js";
-import type { PlayerStats } from "./player-stats-model.js";
+import type { PlayerStats, StatsFilter } from "./player-stats-model.js";
 
 export interface StatsRequest {
   readonly saves: readonly SaveMeta[];
   /** Absent: the Stats screen's rows. */
   readonly kind?: "stats" | "insights";
+  /** The Stats screen's filter chips. */
+  readonly filter?: StatsFilter;
 }
 
 export type StatsResponse = { readonly stats: PlayerStats } | { readonly insights: DeckInsights };
@@ -38,12 +40,12 @@ export const spawnStatsWorker: StatsWorkerFactory = () => {
   }
 };
 
-async function statsHere(saves: readonly SaveMeta[]): Promise<PlayerStats> {
+async function statsHere(saves: readonly SaveMeta[], filter: StatsFilter = {}): Promise<PlayerStats> {
   const [{ playerStatsOf }, { POOL_STATS_NAMES }] = await Promise.all([
     import("./player-stats-model.js"),
     import("./player-stats-names.js"),
   ]);
-  return playerStatsOf(saves, POOL_STATS_NAMES);
+  return playerStatsOf(saves, POOL_STATS_NAMES, filter);
 }
 
 async function insightsHere(saves: readonly SaveMeta[]): Promise<DeckInsights> {
@@ -85,11 +87,12 @@ function ask<T>(
 export function loadPlayerStats(
   saves: readonly SaveMeta[],
   factory: StatsWorkerFactory = spawnStatsWorker,
+  filter: StatsFilter = {},
 ): Promise<PlayerStats> {
   return ask(
-    { saves },
+    { saves, filter },
     (response) => ("stats" in response ? response.stats : undefined),
-    () => statsHere(saves),
+    () => statsHere(saves, filter),
     factory,
   );
 }

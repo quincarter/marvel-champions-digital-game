@@ -47,7 +47,7 @@ import {
   type PlacedTile,
   type StatsTab,
 } from "../view/player-stats-layout.js";
-import type { OverviewTile, PlayerStats } from "../view/player-stats-model.js";
+import type { OverviewTile, PlayerStats, StatsFilter } from "../view/player-stats-model.js";
 import { appSession } from "../session.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -100,6 +100,16 @@ const UNDER_STATS: readonly string[] = [
 /** The tab and hero the player last looked at, kept while the app runs. */
 let lastTab: StatsTab = "overview";
 let lastHero = 0;
+/** The filter chips' choice, kept across visits like the tab. */
+let lastFilter: StatsFilter = {};
+/** On a phone the filter chips fold behind one "Filters" chip, so the tabs and the stats keep the screen. */
+let filtersOpen = false;
+
+const DIFFICULTY_CHIP: Readonly<Record<NonNullable<StatsFilter["difficulty"]>, string>> = {
+  standard: "Standard",
+  expert: "Expert",
+  extreme: "Extreme",
+};
 
 /** A shortcut's glyph (LB, RB, or their keys). */
 const shortcutSpecs =
@@ -213,7 +223,7 @@ export class PlayerStatsScene extends Phaser.Scene {
   /** Reads the saves and folds them; `first`: the visit's first read, which applies the tab and hero it opened on. */
   async #load(first = false): Promise<void> {
     try {
-      const stats = await loadPlayerStats(await appSession().store.listSaves());
+      const stats = await loadPlayerStats(await appSession().store.listSaves(), undefined, lastFilter);
       if (!this.#alive) return;
       this.#stats = stats;
       if (first && this.#data.tab) lastTab = this.#data.tab;
@@ -332,6 +342,88 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   /** A row of chip buttons from `top`, wrapping to more rows; returns where they end. */
+  /**
+   * The filter chips (Bluefiref5ran's "all / per hero / per villain / per difficulty"): each steps through what your
+   * games hold, from All, and Clear puts every one back. A change folds the games again with the new filter.
+   */
+  #drawFilters(
+    stats: PlayerStats,
+    top: number,
+    left: number,
+    width: number,
+    stops: Map<string, FocusStop>,
+    order: string[],
+    phone: boolean,
+  ): number {
+    const { heroes, villains, difficulties } = stats.filterOptions;
+    const filter = stats.filter;
+    const step = <T>(options: readonly T[], current: T | undefined): T | undefined => {
+      const at = current === undefined ? -1 : options.indexOf(current);
+      return at + 1 < options.length ? options[at + 1] : undefined;
+    };
+    const apply = (next: StatsFilter, key: string): void => {
+      lastFilter = next;
+      lastHero = 0;
+      void this.#load().then(() => this.#route?.focusKey(key));
+    };
+    const heroName = heroes.find((h) => h.id === filter.hero)?.name.replace(/ \(.*\)$/, "");
+    const set = filter.hero !== undefined || filter.villain !== undefined || filter.difficulty !== undefined;
+    const chips = [
+      {
+        key: "filter:hero",
+        label: heroName ?? (phone ? "Heroes" : "All heroes"),
+        selected: filter.hero !== undefined,
+        onClick: () =>
+          apply(
+            {
+              ...filter,
+              hero: step(
+                heroes.map((h) => h.id),
+                filter.hero,
+              ),
+            },
+            "filter:hero",
+          ),
+      },
+      {
+        key: "filter:villain",
+        label: filter.villain ?? (phone ? "Villains" : "All villains"),
+        selected: filter.villain !== undefined,
+        onClick: () => apply({ ...filter, villain: step(villains, filter.villain) }, "filter:villain"),
+      },
+      ...(difficulties.length > 1 || filter.difficulty !== undefined
+        ? [
+            {
+              key: "filter:difficulty",
+              label: filter.difficulty ? DIFFICULTY_CHIP[filter.difficulty] : phone ? "Difficulty" : "All difficulties",
+              selected: filter.difficulty !== undefined,
+              onClick: () =>
+                apply({ ...filter, difficulty: step(difficulties, filter.difficulty) }, "filter:difficulty"),
+            },
+          ]
+        : []),
+      ...(set
+        ? [{ key: "filter:clear", label: "✕ Clear", selected: false, onClick: () => apply({}, "filter:hero") }]
+        : []),
+    ];
+    if (heroes.length <= 1 && villains.length <= 1 && !set) return top - 10;
+    if (phone) {
+      const count = [filter.hero, filter.villain, filter.difficulty].filter((v) => v !== undefined).length;
+      const toggle = {
+        key: "filter:toggle",
+        label: `${filtersOpen ? "▾" : "▸"} Filters${count > 0 ? ` · ${count}` : ""}`,
+        selected: count > 0,
+        onClick: () => {
+          filtersOpen = !filtersOpen;
+          this.#draw();
+          this.#route?.focusKey("filter:toggle");
+        },
+      };
+      return this.#drawChips(top, left, width, filtersOpen ? [toggle, ...chips] : [toggle], stops, order, phone);
+    }
+    return this.#drawChips(top, left, width, chips, stops, order, phone);
+  }
+
   #drawChips(
     top: number,
     left: number,
@@ -447,6 +539,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       order,
       phone,
     );
+
+    y = this.#drawFilters(stats, y + 10, gutter, inner, stops, order, phone);
 
     if (lastTab === "cards") {
       // One row however many heroes: the previous hero, this one, the next (LT / RT step them too).

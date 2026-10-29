@@ -17,10 +17,10 @@ interface WorkerGlobal {
 const worker = self as unknown as WorkerGlobal;
 
 worker.onmessage = (event: MessageEvent<StatsRequest>) => {
-  const { saves, kind } = event.data;
+  const { saves, kind, filter } = event.data;
   worker.postMessage(
     kind === "insights"
       ? { insights: deckInsightsOf(saves, POOL_STATS_NAMES) }
-      : { stats: playerStatsOf(saves, POOL_STATS_NAMES) },
+      : { stats: playerStatsOf(saves, POOL_STATS_NAMES, filter) },
   );
 };
