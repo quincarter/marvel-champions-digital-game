@@ -103,7 +103,9 @@ const SHELTER = supportWith("shelter", interruptOn("shelter", YOUR_ALLIES, [{ ki
 const ARMOR = supportWith("armor", constantRule("armor", { kind: "reduceDamageTaken", target: YOUR_HERO, amount: 5 }));
 /** "Your hero cannot take damage." */
 const WARD = supportWith("ward", constantRule("ward", { kind: "cannotTakeDamage", target: YOUR_HERO }));
-const OPTIONAL = [EVACUATE, PATCH, AMP, SHELTER, ARMOR, WARD];
+/** "Reduce the amount of damage your hero takes by 1." */
+const SCUFF = supportWith("scuff", constantRule("scuff", { kind: "reduceDamageTaken", target: YOUR_HERO, amount: 1 }));
+const OPTIONAL = [EVACUATE, PATCH, AMP, SHELTER, ARMOR, WARD, SCUFF];
 
 const POT_CARD = stubSupport({ id: "pot", cost: 0 });
 const PAL = stubAlly({ id: "pal", cost: 0, atk: 1, thw: 1, hp: 5, resources: 1 });
@@ -323,7 +325,9 @@ describe("damage dealt and not taken: 'is dealt damage' answers, 'takes damage' 
     const s = setup({ x: 3, tough: 1, also: [ARMOR] });
     const { state, events, session } = play(s, HIT_X);
     expect(of(events, "damagePrevented")).toMatchObject([{ targetInstanceId: s.hero, amount: 3, reason: "reduced" }]);
-    expect(seen(state, s.hero)).toEqual({ would: 1, ...DEALT_NOT_TAKEN });
+    // The constant applies before "would take" interrupts (FFG ruling June 6, 2024, Ruling 205; RRG 1.8 p. 5): 0 is
+    // left to take, which no "would take any amount of damage" interrupt answers.
+    expect(seen(state, s.hero)).toEqual({ would: 0, ...DEALT_NOT_TAKEN });
     expect(resolved(events)).toEqual([{ target: s.hero, amount: 3, dealt: 3, taken: 0, result: 0 }]);
     expect(mustInstance(state, s.hero)).toMatchObject({ damage: 0, statuses: { tough: 1 } });
     expectReplays(session);
@@ -380,6 +384,21 @@ describe("the two amounts when only part of the damage is taken", () => {
     expect(seen(state, s.hero)).toEqual({ would: 1, dealt: 1, dealt3: 1, took: 1, took3: 1, taken: 1 });
     expect(mustInstance(state, s.hero).damage).toBe(3);
     expectReplays(session);
+  });
+
+  it("a constant -1, then an interrupt that prevents all of it: 3 dealt, 1 reduced, the other 2 prevented, 0 taken", () => {
+    // The constant applies before the "would take" interrupt (FFG ruling June 6, 2024, Ruling 205), so the interrupt
+    // prevents the 2 left. The resolved `amount` is the amount before the constants less what interrupts prevented
+    // (3 - 2 = 1; `TriggerEvent dealDamage.constantsApplied`), `dealt` stays 3 and nothing is taken.
+    const s = setup({ x: 3, also: [SCUFF, EVACUATE] });
+    const { state, events } = play(s, HIT_X);
+    expect(of(events, "damagePrevented")).toMatchObject([
+      { targetInstanceId: s.hero, amount: 1, reason: "reduced" },
+      { targetInstanceId: s.hero, amount: 2, reason: "effect" },
+    ]);
+    expect(resolved(events)).toEqual([{ target: s.hero, amount: 1, dealt: 3, taken: 0, result: 0 }]);
+    expect(seen(state, s.hero)).toEqual({ would: 1, ...DEALT_NOT_TAKEN });
+    expect(mustInstance(state, s.hero).damage).toBe(0);
   });
 
   it("a constant reduction that leaves some: 6 dealt, 1 taken", () => {

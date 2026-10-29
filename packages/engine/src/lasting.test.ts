@@ -658,9 +658,14 @@ test("lasting and delayed effects replay to an identical state", () => {
 /**
  * RRG 1.8 "Leaves Play" (p. 27): "When a card leaves play, there is no memory of its previous state and it is
  * considered to be a new copy of the card." A delayed effect "At the end of the phase, discard Goliath" (Goliath 23015;
- * To Me, My X-Men! 36020 "return it to hand") is bound to the copy that was in play when it was created. The engine
- * keeps the delayed effect on the instance id, which survives the trip.
- * No FFG ruling in the transcripts covers it; the RRG sentence above is the authority.
+ * To Me, My X-Men! 36020 "return it to hand") is bound to the copy that was in play when it was created, so it stops
+ * naming the card once a new copy enters play under the same instance id (`noteLeftPlayInDelayedEffects`,
+ * `forgetReturnedInDelayedEffects`).
+ * FFG ruling January 26, 2026 - Ruling 6 (marvel-champions-rulings-post-rrg-1-7.md) applies the same rule to limits:
+ * they "do not apply to 'new copies' of a card, which is what a card becomes when it leaves and re-enters play".
+ * Special Funding 50007's card named while in hand and still named as it enters play is covered by
+ * `packages/cards/src/wave9/aos/maria-hill/events.test.ts` ("Support Staff (cost 1) paid with Special Funding: enters
+ * with 3 staff counters and gains one more").
  */
 describe("a delayed 'discard this at the end of the phase' and a copy that left play and came back", () => {
   const controller = { kind: "controller" } as const;
@@ -689,9 +694,97 @@ describe("a delayed 'discard this at the end of the phase' and a copy that left 
     },
     { kind: "putIntoPlay", card: { kind: "slot", slot: "taken" }, controller },
   );
-  const deps = depsOf(GOLIATH_ACTION, OUT.ability, BACK.ability);
+  // Sneak Attack (23017)'s shape: the delayed effect names a chosen card (a binding), not its own card.
+  const SNEAK = action(
+    "sneak",
+    {
+      kind: "chooseCards",
+      slot: "ally",
+      from: { kind: "zone", zone: "hand", player: controller, filter: { categories: ["ally"], name: GOLIATH.name } },
+      chooser: controller,
+      min: 1,
+      max: 1,
+    },
+    { kind: "putIntoPlay", card: { kind: "slot", slot: "ally" }, controller },
+    {
+      kind: "atEndOfPhase",
+      effects: [
+        {
+          kind: "if",
+          condition: { kind: "refMatches", ref: { kind: "slot", slot: "ally" }, query: { categories: ["ally"] } },
+          then: [{ kind: "discardFromPlay", target: { kind: "slot", slot: "ally" } }],
+        },
+      ],
+    },
+  );
+  const BOUNCE = action("bounce", {
+    kind: "moveCards",
+    cards: { kind: "ref", ref: { kind: "each", query: { categories: ["ally"], name: GOLIATH.name } } },
+    to: "hand",
+  });
+  // "At the end of the phase, return this card to your hand", acted on while the card is in the discard pile.
+  const RECALL_ACTION = stubAbility("recall.action", {
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "atEndOfPhase",
+        effects: [{ kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "hand" }],
+      },
+    ],
+  });
+  const RECALLED = stubAlly({ id: "recalled", cost: 0, atk: 1, thw: 1, hp: 3, abilities: [RECALL_ACTION.ref] });
+  const OUT_RECALLED = action("out-recalled", {
+    kind: "discardFromPlay",
+    target: { kind: "each", query: { categories: ["ally"], name: RECALLED.name } },
+  });
+  // Goliath 23015's "Goliath gets +4 ATK until the end of the phase": a lasting effect with a fixed target, itself.
+  const GROWN_ACTION = stubAbility("grown.action", {
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "modifyStatUntil",
+        stat: "atk",
+        amount: { kind: "const", value: 4 },
+        target: { kind: "self" },
+        until: "endOfPhase",
+      },
+    ],
+  });
+  const GROWN = stubAlly({ id: "grown", cost: 0, atk: 1, thw: 1, hp: 5, abilities: [GROWN_ACTION.ref] });
+  const OUT_GROWN = action("out-grown", {
+    kind: "discardFromPlay",
+    target: { kind: "each", query: { categories: ["ally"], name: GROWN.name } },
+  });
+  const deps = depsOf(
+    GOLIATH_ACTION,
+    OUT.ability,
+    BACK.ability,
+    SNEAK.ability,
+    BOUNCE.ability,
+    RECALL_ACTION,
+    OUT_RECALLED.ability,
+    GROWN_ACTION,
+    OUT_GROWN.ability,
+  );
+  const startWith = (cards: readonly AnyCard[], deck: readonly CardId[]): GameState => {
+    const base = gameAtFirstTurn({
+      cards: [...cards, BLANK],
+      deps,
+      villain: stubVillain({ id: "v", stages: [{ hp: flat(40), atk: 0, sch: 0 }] }),
+      encounter: copies(BLANK.id, 20),
+      deck,
+    });
+    return { ...base, players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })) };
+  };
+  const playFromHand = (s: GameState, id: InstanceId): GameState =>
+    runCommands(s, deps, { type: "playCard", playerId: P1, cardInstanceId: id, payment: [], attachToInstanceId: null })
+      .state;
+  const playEvent = (s: GameState, card: AnyCard): GameState => {
+    const given = giveCard(s, P1, card.id);
+    return playFromHand(given.state, given.id);
+  };
 
-  it.fails("the copy that returned is a new card: the old delayed discard does not touch it", () => {
+  it("the copy that returned is a new card: the old delayed discard does not touch it", () => {
     const base = gameAtFirstTurn({
       cards: [GOLIATH, OUT.card, BACK.card, BLANK],
       deps,
@@ -728,7 +821,62 @@ describe("a delayed 'discard this at the end of the phase' and a copy that left 
     expect(mustPlayer(returned, P1).playArea).toContain(put.id);
     // End of the player phase: the delayed effect of the first copy fires.
     const ended = runCommands(returned, deps, { type: "endTurn", playerId: P1 }).state;
-    // Actual: the returned copy is discarded by the old delayed effect (same instance id).
     expect(mustPlayer(ended, P1).playArea).toContain(put.id);
+  });
+
+  it("a chosen card (Sneak Attack's shape) bounced to hand and played again is not discarded by the old effect", () => {
+    let state = startWith([GOLIATH, SNEAK.card, BOUNCE.card], [GOLIATH.id, SNEAK.card.id, BOUNCE.card.id]);
+    state = playEvent(giveCard(state, P1, GOLIATH.id).state, SNEAK.card);
+    const goliathId = mustPlayer(state, P1).playArea.find((i) => mustInstance(state, i).cardId === GOLIATH.id)!;
+    expect(state.lastingEffects.some((e) => e.kind === "delayedEffects")).toBe(true);
+    state = playEvent(state, BOUNCE.card);
+    expect(mustPlayer(state, P1).hand).toContain(goliathId);
+    state = playFromHand(state, goliathId);
+    expect(mustPlayer(state, P1).playArea).toContain(goliathId);
+    const delayed = state.lastingEffects.find((e) => e.kind === "delayedEffects");
+    expect(delayed?.kind === "delayedEffects" && delayed.scope.bindings["ally"]).toEqual([]);
+    const ended = runCommands(state, deps, { type: "endTurn", playerId: P1 }).state;
+    expect(mustPlayer(ended, P1).playArea).toContain(goliathId);
+  });
+
+  /**
+   * Known limit, tracked for follow-up: only delayed effects forget a copy that left play and came back
+   * (`forgetReturnedInDelayedEffects`); a lasting effect with fixed targets still names the instance id, so the copy that
+   * returned keeps the +4 ATK. RRG 1.8 "Leaves Play" (p. 27): "there is no memory of its previous state and it is
+   * considered to be a new copy of the card"; FFG ruling January 26, 2026 - Ruling 6.
+   */
+  it.fails("a lasting '+4 ATK until the end of the phase' on itself (Goliath's shape) does not follow the copy that returned", () => {
+    let state = startWith([GROWN, OUT_GROWN.card, BACK.card], [GROWN.id, OUT_GROWN.card.id, BACK.card.id]);
+    const put = playerCardIntoPlay(state, GROWN.id);
+    state = runCommands(put.state, deps, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: put.id,
+      abilityId: GROWN_ACTION.ref.id,
+      payment: [],
+    }).state;
+    expect(characterProfile(state, put.id, deps)?.atk).toBe(5);
+    state = playEvent(state, OUT_GROWN.card);
+    expect(mustPlayer(state, P1).discard).toContain(put.id);
+    state = playEvent(state, BACK.card);
+    expect(mustPlayer(state, P1).playArea).toContain(put.id);
+    // Still the same phase: the effect has not expired, but the returned copy is a new card.
+    expect(characterProfile(state, put.id, deps)?.atk).toBe(1);
+  });
+
+  it("a card that left play and has not come back is still named: the delayed effect acts on it out of play", () => {
+    let state = startWith([RECALLED, OUT_RECALLED.card], [RECALLED.id, OUT_RECALLED.card.id]);
+    const put = playerCardIntoPlay(state, RECALLED.id);
+    state = runCommands(put.state, deps, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: put.id,
+      abilityId: RECALL_ACTION.ref.id,
+      payment: [],
+    }).state;
+    state = playEvent(state, OUT_RECALLED.card);
+    expect(mustPlayer(state, P1).discard).toContain(put.id);
+    const ended = runCommands(state, deps, { type: "endTurn", playerId: P1 }).state;
+    expect(mustPlayer(ended, P1).hand).toContain(put.id);
   });
 });

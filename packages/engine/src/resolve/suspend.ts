@@ -114,9 +114,10 @@ function abilityEffectsFrames(state: GameState, frameId: FrameId, stopAt: FrameI
 
 /**
  * The frames suspended with the ability resolving `frameId` (`abilityEffectsFrames`), and beneath its root what holds
- * the ability open: the attack of an "(attack)" ability waiting for it (`attackOf`), the play of the event card whose
- * ability it is, and the reveal of the encounter card whose When Revealed it is (with that card's other abilities still
- * to resolve). Never the activation waited for.
+ * the ability open: the attack of an "(attack)" ability waiting for it (`attackOf`), a keyword's activation it initiated
+ * waiting for it with the announcements held after that (`awaitingAbility`, `heldForAbility`), the play of the event
+ * card whose ability it is, and the reveal of the encounter card whose When Revealed it is (with that card's other
+ * abilities still to resolve). Never the activation waited for.
  */
 function suspendedFramesOf(state: GameState, frameId: FrameId, activation: FrameId): StackFrame[] {
   const effects = abilityEffectsFrames(state, frameId, activation);
@@ -134,8 +135,14 @@ function suspendedFramesOf(state: GameState, frameId: FrameId, activation: Frame
   let index = state.stack.findIndex((f) => f.frameId === root.frameId) + 1;
   for (let below = state.stack[index]; below && below.frameId !== activation; below = state.stack[++index]) {
     const carriesAttack = below.kind === "event" && below.attackOf !== undefined && ids.has(below.attackOf);
+    // A quickstrike attack this ability initiated, waiting for it, resolves after the whole ability (ruling 194, May 23,
+    // 2024), so it waits with it rather than resolving on top of the outer activation; so do the responses held after it.
+    const awaitsAbility =
+      below.kind === "event" &&
+      ((below.awaitingAbility === true && below.stepsAfterAbility !== undefined && ids.has(below.stepsAfterAbility)) ||
+        (below.heldForAbility !== undefined && ids.has(below.heldForAbility)));
     const playsCard = below.kind === "playCard" && below.stage === "effects" && below.instanceId === self;
-    if (reveal.length === 0 && (carriesAttack || playsCard)) {
+    if (reveal.length === 0 && (carriesAttack || awaitsAbility || playsCard)) {
       run.push(below);
       continue;
     }

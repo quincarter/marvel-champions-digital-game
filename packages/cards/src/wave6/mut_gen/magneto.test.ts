@@ -1051,11 +1051,11 @@ describe("Seized! (32158)", () => {
  * card remains on him unless he gains Stalwart." RRG 1.8 agrees: "Confuse, Confused" (p. 13) says only that
  * "confused status cards cannot be placed on that character", and "Status Cards" (p. 41) lists no rule that removes a
  * status card already held. RRG 1.8 "Stalwart" (p. 40) removes held stunned and confused cards only when a character
- * gains the stalwart keyword. The engine (`clearForbiddenStatuses`, `resolve/state-checks.ts`) sheds the held card as
- * soon as the helmet applies.
+ * gains the stalwart keyword. The owner applied this on 2026-10-28 (PR #498), overriding docs/phase7-wave3.md §3.7:
+ * `clearForbiddenStatuses` (`resolve/state-checks.ts`) reads `heldStatusCapacity`, which the helmet does not lower.
  */
 describe("'Cannot be confused' stops new status cards only (FFG ruling Feb 15, 2024 #145; RRG 1.8 'Confuse', p. 13)", () => {
-  it.fails("Magneto's Helmet (32147) attaching to a confused Magneto leaves the confused status card on him", () => {
+  it("Magneto's Helmet (32147) attaching to a confused Magneto leaves the confused status card on him", () => {
     const base = runWith(WAVE6_DEPS, magnetoGame(), toHero(P1));
     const magneto = base.activeVillainId!;
     const confused = patchInstance(base, magneto, { statuses: { ...inst(base, magneto).statuses, confused: 1 } });
@@ -1077,7 +1077,7 @@ describe("'Cannot be confused' stops new status cards only (FFG ruling Feb 15, 2
 // Titanium Exoskeleton (cap 2) and Boarding Party (sustained cap) reduce the damage taken first, then Magnetic Bubble
 // places what is left.
 describe("Constant damage limits come before 'would take' interrupts (rulings June 6, 2024, Rulings 205 and 206)", () => {
-  it.fails("Boarding Party's remaining allowance (3) is what Magnetic Bubble receives, not the full 8", () => {
+  it("Boarding Party's remaining allowance (3) is what Magnetic Bubble receives, not the full 8", () => {
     const base = withoutDealtCards(finish(run(magnetoGame(), toHero(P1)), firstLegal));
     const v = base.villains[0]!.instanceId;
     const armed = attachToHost(base, "32149", v);
@@ -1093,10 +1093,31 @@ describe("Constant damage limits come before 'would take' interrupts (rulings Ju
       play(P1, kick.ids[0]!, payWith(kick.state, P1, 3, kick.ids)),
     );
     const placed = result.events.filter((e) => e.type === "damagePlaced").map((e) => (e as { amount: number }).amount);
-    expect(placed).toEqual([3]); // actual: [8], and the Bubble is discarded
+    expect(placed).toEqual([3]);
   });
 
-  it.fails("Titanium Exoskeleton's cap (2) is what Magnetic Bubble receives from an 8-damage attack", () => {
+  it("at Boarding Party's cap, the capped damage is 0 and Magnetic Bubble does not trigger", () => {
+    const base = withoutDealtCards(finish(run(magnetoGame(), toHero(P1)), firstLegal));
+    const v = base.villains[0]!.instanceId;
+    const armed = attachToHost(base, "32149", v);
+    const full = patchInstance(armed.state, v, {
+      damage: 6,
+      statuses: { ...inst(armed.state, v).statuses, tough: 0 },
+    });
+    const kick = moveToHand(full, P1, "01005");
+    const result = driveEventsPicking(
+      WAVE6_DEPS,
+      kick.state,
+      firstLegal,
+      play(P1, kick.ids[0]!, payWith(kick.state, P1, 3, kick.ids)),
+    );
+    expect(result.events.filter((e) => e.type === "damagePlaced")).toEqual([]);
+    expect(result.events.some((e) => e.type === "damageCapped" && e.amount === 8)).toBe(true);
+    expect(inst(result.state, v).damage).toBe(6);
+    expect(inst(result.state, armed.id).damage).toBe(0);
+  });
+
+  it("Titanium Exoskeleton's cap (2) is what Magnetic Bubble receives from an 8-damage attack", () => {
     let s = rhino();
     const v = s.activeVillainId as InstanceId;
     s = patchInstance(s, v, { statuses: { ...inst(s, v).statuses, tough: 0 } });
@@ -1122,6 +1143,40 @@ describe("Constant damage limits come before 'would take' interrupts (rulings Ju
       play(P1, kick.ids[0]!, payWith(kick.state, P1, 3, kick.ids)),
     );
     const placed = result.events.filter((e) => e.type === "damagePlaced").map((e) => (e as { amount: number }).amount);
-    expect(placed).toEqual([2]); // actual: [8]
+    expect(placed).toEqual([2]);
+  });
+
+  it("Titanium Exoskeleton's cap (2) comes before Jetpack's interrupt: a 3-boost discard reduces the 2 to 0", () => {
+    // FFG ruling June 6, 2024, Ruling 205 (2): "TE reduces the damage taken to 2, then Jetpack's interrupt triggers,
+    // and in your example the enemy takes 0 damage." Jetpack's host (a minion in print) does not change the timing.
+    let s = rhino();
+    const v = s.activeVillainId as InstanceId;
+    s = patchInstance(s, v, { statuses: { ...inst(s, v).statuses, tough: 0 } });
+    const attach = (state: GameState, code: string, from: number) => {
+      const pile = activeEncounterDeck(state);
+      const id = pile.deck[from]!;
+      const next: GameState = {
+        ...patchInstance(state, id, { cardId: cardId(code), faceup: true, attachedTo: v }),
+        encounterDecks: {
+          ...state.encounterDecks,
+          [activeEncounterDeckId(state)]: { deck: pile.deck.filter((i) => i !== id), discard: pile.discard },
+        },
+      };
+      return { state: patchInstance(next, v, { attachments: [...inst(next, v).attachments, id] }), id };
+    };
+    s = attach(s, "40091", 26).state;
+    s = attach(s, "24039", 25).state;
+    // The top card of the encounter deck has 3 boost icons (Sonic Converter, 01118).
+    const top = activeEncounterDeck(s).deck[0]!;
+    s = patchInstance(s, top, { cardId: cardId("01118") });
+    const kick = moveToHand(s, P1, "01005"); // Swinging Web Kick, 8 damage
+    const result = driveEventsPicking(
+      DEPS,
+      kick.state,
+      firstLegal,
+      play(P1, kick.ids[0]!, payWith(kick.state, P1, 3, kick.ids)),
+    );
+    expect(activeEncounterDeck(result.state).discard).toContain(top);
+    expect(inst(result.state, v).damage).toBe(0);
   });
 });

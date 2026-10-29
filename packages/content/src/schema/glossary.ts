@@ -1727,10 +1727,11 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Defenders an effect declares",
     definition:
-      "When an ability declares a character as the defender, as Bamf! does, that character makes a basic defense, so responses to a basic defense apply to it. Playing a (defense)-labeled event is not by itself a basic defense.",
+      "When an ability declares a hero as the defender, as Bamf! does, that hero makes a basic defense, so responses to a basic defense apply to it. An ally declared the defender uses no basic power: allies have no DEF. Playing a (defense)-labeled event is not by itself a basic defense.",
     sources: [
       { kind: "rrg", page: 15 },
       { kind: "owner-ruling", date: "Oct 8, 2026" },
+      { kind: "owner-ruling", date: "Oct 28, 2026" },
     ],
   },
   mainSchemeBSide: {

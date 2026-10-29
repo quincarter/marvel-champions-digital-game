@@ -1,10 +1,11 @@
 /**
- * docs/phase7-wave3.md §3.7: a character that cannot have a status card sheds the ones it holds the moment that
- * becomes true — the stalwart keyword gained from an attachment (Drang's Spear, Nebula's Technique attachments,
- * Universal Weapon: "gains stalwart") — and `RuleSpec cannotHaveStatus` ("Ronan the Accuser cannot be stunned", Kree
- * Fanatic 90001).
+ * docs/phase7-wave3.md §3.7: a character that gains stalwart sheds the stunned and confused cards it holds the moment
+ * it does — the keyword gained from an attachment (Drang's Spear, Nebula's Technique attachments, Universal Weapon:
+ * "gains stalwart"). `RuleSpec cannotHaveStatus` ("Ronan the Accuser cannot be stunned", Kree Fanatic 90001) only
+ * refuses new cards: one already held stays (FFG ruling Feb 15, 2024, #145; the owner, 2026-10-28, PR #498, overriding
+ * §3.7, which shed it too).
  *
- * Sources: RRG 1.8 "Stalwart" (p. 40), "Status Cards" (p. 41), "Steady" (p. 41).
+ * Sources: RRG 1.8 "Stalwart" (p. 40), "Status Cards" (p. 41), "Steady" (p. 41), "Confuse, Confused" (p. 13).
  */
 
 import type { CardId } from "@mc/content";
@@ -105,6 +106,20 @@ describe("§3.7 stalwart gained, and cannotHaveStatus", () => {
     expect(statusesOf(stunned, ronan.id).stunned).toBe(0);
     const confused = playFree(ronan.state, deps, CONFUSE_MINIONS.card.id).state;
     expect(statusesOf(confused, ronan.id).confused).toBe(1);
+  });
+
+  it("'cannot be stunned' keeps a stunned card already held: nothing is shed (ruling Feb 15, 2024, #145)", () => {
+    const ronan = minionEngagedWith(start(), RONAN.id);
+    const held = {
+      ...ronan.state,
+      instances: {
+        ...ronan.state.instances,
+        [ronan.id]: { ...mustInstance(ronan.state, ronan.id), statuses: { stunned: 1, confused: 0, tough: 0 } },
+      },
+    };
+    const { state, events } = playFree(held, deps, NOTHING.card.id);
+    expect(statusesOf(state, ronan.id).stunned).toBe(1);
+    expect(removals(events)).toEqual([]);
   });
 
   it("a board with no status cards emits nothing", () => {

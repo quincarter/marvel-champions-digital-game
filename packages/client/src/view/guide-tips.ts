@@ -720,7 +720,10 @@ function wildDeclaredTip({ lastEvents, perspectiveId }: LessonObservation): Tip 
   };
 }
 
-/** An ability (Bamf!, Shieldmaiden) declared a defender for the perspective player: Q55, a basic defense. */
+/**
+ * An ability (Bamf!, Shieldmaiden) declared a defender for the perspective player: Q55, a basic defense for a hero; an
+ * ally uses no basic power (ruling Mar 16, 2025; owner, 2026-10-28, PR #498).
+ */
 function effectDefenderTip({ lastEvents, perspectiveId }: LessonObservation): Tip | null {
   const declared = lastEvents.some(
     (event) => event.type === "defenderDeclared" && event.byEffect === true && event.playerId === perspectiveId,
@@ -730,8 +733,8 @@ function effectDefenderTip({ lastEvents, perspectiveId }: LessonObservation): Ti
     id: "situation:effectDefender",
     title: "A defender was declared for you",
     body:
-      "A card declared your defender. That character makes a basic [[effectDefender|defense]], so responses to a " +
-      "basic defense can trigger.",
+      "A card declared your defender. A hero declared this way makes a basic [[effectDefender|defense]], so " +
+      "responses to a basic defense can trigger. An ally does not.",
   };
 }
 

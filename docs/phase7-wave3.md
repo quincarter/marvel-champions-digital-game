@@ -355,6 +355,7 @@ The client shows reason `"patrol"` as "a rule" until it learns the word (`log-li
 
 - RRG 1.8 "Stalwart" (p. 40): "If a character gains the stalwart keyword while they have a stunned and/or confused status card, each stunned and/or confused status card is removed from that character." Cycle 2 grants stalwart with attachments (Drang's Spear, Evasive Maneuvering, Unyielding Persistence, Universal Weapon). The engine already refused to _give_ a stalwart character either status (`statusCapacity`); now `checkStateTriggers` trims any status a character holds beyond what it may have, the moment that becomes true (log: `statusRemoved`, reason `"cannotHave"`). It only looks at characters already holding a status.
 - **`RuleSpec cannotHaveStatus { target, statuses, while? }`**: "Ronan the Accuser cannot be stunned." (Kree Fanatic 90001). `statusCapacity` reads it for every status, so the same trim applies.
+- **Changed by the owner on 2026-10-28 (PR #498):** `cannotHaveStatus` no longer sheds a card already held; it only stops new ones being placed (`statusCapacity`), and the trim reads `heldStatusCapacity`, which leaves the rule out. FFG ruling Feb 15, 2024 (#145): "If a Steady Magneto has 1 confused status card on him when Magneto's Helmet attaches to him, the confused status card remains on him unless he gains Stalwart" (RRG 1.8 "Confuse, Confused", p. 13; "Stalwart", p. 40). Gaining stalwart still sheds held stunned and confused cards.
 
 ### 3.8 "The first … revealed each round/phase gains surge": `firstRevealGainsSurge`
 

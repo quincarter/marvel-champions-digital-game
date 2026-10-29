@@ -253,7 +253,10 @@ describe(`${MOON_KNIGHT}: search the encounter deck and discard pile for a minio
     expect(ofType(events, "deckShuffled")).toHaveLength(1);
   });
 
-  it("a quickstrike minion attacks you first in hero form (ATK 3 damage), and is then stunned and confused", () => {
+  // Quickstrike initiates on engagement; the stun/confuse sentence resolves; the attack steps resolve after the ability
+  // (ruling May 23, 2024 #194; Jan 11, 2024 #137); a stun placed after initiation does not cancel it (RRG 1.8 p. 41,
+  // p. 24). Owner Q18 = A's outcome is unchanged.
+  it("a quickstrike minion's attack initiates first in hero form, it is stunned and confused, then the attack deals ATK 3 damage", () => {
     const seeded = withEncounterMinions(tigraHeroGame(), [VULTURE]);
     const [vulture] = seeded.deckIds as [InstanceId];
     const { state, command } = staged(seeded.state, MK, 1);
@@ -264,11 +267,20 @@ describe(`${MOON_KNIGHT}: search the encounter deck and discard pile for a minio
     expect(inst(after, vulture).engagedWith).toBe(P1);
     expect(stunnedOf(after, vulture)).toBe(1);
     expect(confusedOf(after, vulture)).toBe(1);
-    const order = events.map((e) => e.type);
-    const attacked = order.indexOf("damageDealt");
+    const initiated = events.findIndex(
+      (e) =>
+        e.type === "triggerEvent" &&
+        e.phase === "initiated" &&
+        e.event.kind === "enemyAttack" &&
+        e.event.enemyInstanceId === vulture,
+    );
+    const attacked = events.findIndex((e) => e.type === "damageDealt");
     const stunnedAt = events.findIndex((e) => e.type === "statusGiven" && e.instanceId === vulture);
+    const confusedAt = events.findLastIndex((e) => e.type === "statusGiven" && e.instanceId === vulture);
+    expect(initiated).toBeGreaterThan(-1);
     expect(attacked).toBeGreaterThan(-1);
-    expect(stunnedAt).toBeGreaterThan(attacked);
+    expect(initiated).toBeLessThan(stunnedAt);
+    expect(confusedAt).toBeLessThan(attacked);
   });
 
   it("in alter-ego form a quickstrike minion does not attack (it engages the alter-ego, not the hero)", () => {
