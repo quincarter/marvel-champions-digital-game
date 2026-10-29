@@ -1,4 +1,4 @@
-import { AOA_CARDS, AOA_STARTER_DECKS, CORE_CARDS, GAM_CARDS, HLK_CARDS, cardId } from "@mc/content";
+import { AOA_CARDS, AOA_STARTER_DECKS, CORE_CARDS, GAM_CARDS, HLK_CARDS, QSV_CARDS, cardId } from "@mc/content";
 import {
   applyCommand,
   createGame,
@@ -89,7 +89,8 @@ type Seat = "bishop" | "spider";
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(WAVE7_ABILITIES, BISHOP_IDENTITY, BISHOP_EVENTS, BISHOP_SUPPORT_UPGRADES_ALLIES),
 };
-const POOL = [...CORE_CARDS, ...AOA_CARDS, ...HLK_CARDS, ...GAM_CARDS];
+// QSV for Side Step (14015), played after Energy Conversion.
+const POOL = [...CORE_CARDS, ...AOA_CARDS, ...HLK_CARDS, ...GAM_CARDS, ...QSV_CARDS];
 
 const codeOf = (s: GameState, id: InstanceId): string => (getInstance(s, id)?.cardId as string | undefined) ?? "?";
 const codes = (s: GameState, ids: readonly InstanceId[]): string[] => ids.map((id) => codeOf(s, id));
@@ -727,6 +728,20 @@ describe("Energy Conversion (45009)", () => {
     const run = round(base, { boosts: [BOOST_0, BOOST_0], pick: picker({ take: TAKE, takeFor: P1 }) });
     expect(deckOf(run.state, P1)).toContain(ENERGY);
     expect(deckOf(run.state, P2)).toEqual(spiderDeck);
+  });
+
+  it("then Side Step: Energy Conversion's cap applies first, so Side Step prevents the capped 3 and Bishop takes 0 (FFG rulings June 6, 2024, 205-206)", () => {
+    // Rulings 205 (4) and 206: Energy Conversion's lasting effect has a constant's timing priority over interrupts that
+    // reduce the damage taken, so 4 dealt is held to 3 before Side Step ("prevent 3 of that damage") answers it.
+    const SIDE_STEP = "14015";
+    const s = arrange(withCards(heroGame(), P1, SIDE_STEP), P1, { hand: [CONVERSION, SIDE_STEP], size: 5 });
+    const take = picker({ take: [REF.conversion, "14015.side-step-interrupt"] });
+    // Side Step's cost of 1 is paid with one filler card from the hand.
+    const pay: Picker = (st) =>
+      st.pendingChoice?.prompt.kind === "payForCard" ? [st.pendingChoice.options[0]!.optionId] : take(st);
+    const run = round(s, { boosts: [BOOST_2], pick: pay });
+    expect(sorted(discardOf(run.state))).toEqual(expect.arrayContaining([CONVERSION, SIDE_STEP]));
+    expect(damageOf(run.state)).toBe(0);
   });
 
   it("from a Core hero's seat (Spider-Man, Core's Energy and Strength in his discard pile): shuffled into his deck, 3 damage", () => {

@@ -843,6 +843,7 @@ function describe(
       };
     // Bookkeeping: the attack's own damage line and its "after the attack" lines say everything a player reads.
     case "attackAwaitsAbility":
+    case "activationAwaitsAbility":
       return null;
     // An "(attack)" ability's damage instruction took over the attack its ability began (the attack takes its target
     // and amount now); the damage itself has its own line right after.

@@ -31,14 +31,25 @@ export function firstSentence(text: string): string {
  *   paragraph of the card's text (the n-th "When Revealed" paragraph for the n-th printed option), when `state` is given.
  * - `orderSpecials`: only its incite and surge options (`<instance>:incite`, `<instance>:surge`), which would otherwise
  *   repeat the face of the card whose printed abilities are offered beside them; those keep their faces.
+ * - `orderLoopKeywords` (FFG ruling 38, Drang III): the quickstrikes and teamworks of the minions an "each time" loop
+ *   put into play. Each option is labelled "<Keyword>: <minion>", so the keyword's line is read from the label's head,
+ *   and a minion with both keywords is not drawn as two identical faces.
  */
 export function keywordOrderTilesOf(
   choice: PendingChoice,
   state?: GameState,
 ): ReadonlyMap<string, KeywordOrderTile> | null {
   const kind = choice.prompt.kind;
-  if (kind !== "orderKeywords" && kind !== "orderWhenRevealed" && kind !== "orderSpecials") return null;
+  if (
+    kind !== "orderKeywords" &&
+    kind !== "orderWhenRevealed" &&
+    kind !== "orderSpecials" &&
+    kind !== "orderLoopKeywords"
+  )
+    return null;
+  const labels = new Map(choice.options.map((option) => [option.optionId, option.label ?? ""]));
   const keywordOf = (optionId: string): string | null => {
+    if (kind === "orderLoopKeywords") return (labels.get(optionId) ?? "").split(":")[0]!.trim().toLowerCase() || null;
     if (kind !== "orderSpecials") return optionId;
     const match = /:(incite|surge)$/.exec(optionId);
     return match ? match[1]! : null;

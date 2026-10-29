@@ -415,7 +415,11 @@ describe("Cruel Experiment (45124)", () => {
 
   // docs/phase7-wave8.md §3.25, ruling February 20, 2026 – Ruling 4: the card prints no "attach to", so it is turned
   // faceup out of play and its own When Revealed attaches it.
-  it("§3.25 test 1: a treachery and a side scheme are discarded, Velociraptor is revealed and attacks at its own ATK, then the card attaches", () => {
+  // "Reveal that minion and attach Cruel Experiment to it": the attach resolves with the reveal ("And", RRG 1.8 p. 7),
+  // and Velociraptor's quickstrike attack, initiated in its reveal, resolves its steps after it (FFG ruling January 11,
+  // 2024 - Ruling 137; RRG 1.8 "Reveal", p. 38). This corrects the "As read" of docs/phase7-wave8.md §3.25 (attack
+  // first, at printed ATK 1).
+  it("§3.25 test 1: a treachery and a side scheme are discarded, Velociraptor is revealed, the card attaches, then it attacks at ATK 1 + 1", () => {
     const s = setupGame({ sets: ["savage_land"] });
     const run = round(s, { boosts: [BLANK], reveals: [EXPERIMENT, BLANK_2, SIDE_SCHEME, RAPTOR], hero: true });
     const raptor = inPlayCards(run.state, RAPTOR)[0]!;
@@ -428,14 +432,14 @@ describe("Cruel Experiment (45124)", () => {
       RAPTOR,
     ]);
     expect(inst(run.state, raptor).engagedWith).toBe(P1);
-    // Its quickstrike attack: printed ATK 1 (the card's +1 is not on it yet), plus its own discard's icons.
+    // Its quickstrike attack: printed ATK 1 plus the card's +1, already attached, plus its own discard's icons.
     const attack = types(run.events, "attackResolved").filter((e) => e.enemyInstanceId === raptor);
     expect(attack).toHaveLength(1);
     const attackAt = run.events.indexOf(attack[0]!);
     const attachedAt = run.events.findIndex(
       (e) => e.type === "cardMoved" && e.instanceId === experiment && e.to.kind === "attachment",
     );
-    expect(attachedAt).toBeGreaterThan(attackAt);
+    expect(attachedAt).toBeLessThan(attackAt);
     const mill = run.events
       .slice(0, attackAt)
       .filter((e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard");
@@ -444,8 +448,8 @@ describe("Cruel Experiment (45124)", () => {
     const discarded = (mill[3] as { instanceId: InstanceId }).instanceId;
     const icons = Object.values(showingResources(run.state, discarded)).reduce((n, v) => n + (v ?? 0), 0);
     expect(printedProfile(run.state, raptor)!.atk).toBe(1);
-    expect(attack[0]!.baseAtk).toBe(1 + icons);
-    // Then attached: 3 + 2 hit points, guard, SCH 1 + 1, ATK 1 + 1.
+    expect(attack[0]!.baseAtk).toBe(1 + 1 + icons);
+    // Attached: 3 + 2 hit points, guard, SCH 1 + 1, ATK 1 + 1.
     expect(inst(run.state, experiment).attachedTo).toBe(raptor);
     expect(maxHitPoints(run.state, raptor, DEPS)).toBe(5);
     expect(hasKeyword(run.state, raptor, "guard", DEPS)).toBe(true);

@@ -18,7 +18,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEvents } from "../../testing/staging.js";
+import { driveEvents, driveEventsPicking } from "../../testing/staging.js";
 import { wave3Scenario } from "../setup.js";
 import { revealFromEncounterDeck, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 
@@ -123,7 +123,7 @@ describe("Planetary Invasion (16057): a Quickstrike attack only initiates in the
    * sentence as the reveal effect". RRG 1.8 p. 4 ("resolve the ability one sentence at a time") does not say otherwise.
    * Teamwork ruling December 8, 2023 - Ruling 129 gives the same "initiates, resolves later" model.
    */
-  it.fails("Vulture (quickstrike, ATK 3) revealed by Planetary Invasion gets its tough status card before its attack deals damage", () => {
+  it("Vulture (quickstrike, ATK 3) revealed by Planetary Invasion gets its tough status card before its attack deals damage", () => {
     const base = runWave3(rocketVsRhino(), toHero());
     const invasion = base.players[0]!.setAside.find((id) => inst(base, id).cardId === "16057")!;
     const deckId = activeEncounterDeckId(base);
@@ -148,7 +148,90 @@ describe("Planetary Invasion (16057): a Quickstrike attack only initiates in the
     const next = events.slice(after + 1).find((e) => e.type === "statusGiven" || e.type === "damageDealt");
     // Staging sanity: the revealed minion's step produced one of the two events at all.
     expect(next).toBeDefined();
-    // Actual: damageDealt (3) first, then statusGiven tough.
+    // The attack was initiated in the reveal sentence; its damage follows the tough status card.
     expect(next!.type).toBe("statusGiven");
+  });
+});
+
+describe("Planetary Invasion (16057) with Hawkeye (01066): the keyword initiates, then the enters-play Response, then the attack's steps", () => {
+  /**
+   * FFG ruling January 11, 2024 - Ruling 137: "The minion is revealed, and its Quickstrike keyword resolves, initiating
+   * its attack... Hawkeye's Response may be resolved at this time, after the attack initiates but before the steps of
+   * the attack resolve. The minion resolves its attack." RRG 1.8 FAQ "Widow's Bite (#10)" (p. 60): keywords have timing
+   * priority over Response abilities; ruling February 15, 2024 - Ruling 147.
+   */
+  it("Vulture's attack initiates, it gets its tough status card, Hawkeye's Response resolves, then the attack deals its damage", () => {
+    const base = runWave3(rocketVsRhino(), toHero());
+    // Hawkeye staged straight into P1's play area with his 4 arrow counters (surgery: no cost, no enter-play).
+    const spare = playerOf(base, P1).deck.at(-2)!;
+    const withHawkeye: GameState = {
+      ...base,
+      players: base.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== spare), playArea: [...p.playArea, spare] } : p,
+      ),
+      instances: {
+        ...base.instances,
+        [spare]: {
+          ...base.instances[spare]!,
+          cardId: cardId("01066"),
+          faceup: true,
+          controllerId: P1,
+          counters: { arrow: 4 },
+        },
+      },
+    };
+    const invasion = withHawkeye.players[0]!.setAside.find((id) => inst(withHawkeye, id).cardId === "16057")!;
+    const deckId = activeEncounterDeckId(withHawkeye);
+    const stacked = stackEncounterDeck(withHawkeye, "01186", "01101");
+    const mercenary = activeEncounterDeck(stacked).deck.find((i) => inst(stacked, i).cardId === cardId("01101"))!;
+    // The Hydra Mercenary stands in for Vulture (01167, quickstrike, ATK 3, HP 4): same instance, other printing.
+    const swapped = patchInstance(stacked, mercenary, { cardId: cardId("01167") });
+    const piles = activeEncounterDeck(swapped);
+    const state: GameState = {
+      ...swapped,
+      players: swapped.players.map((p) =>
+        p.playerId === P1 ? { ...p, setAside: p.setAside.filter((i) => i !== invasion) } : p,
+      ),
+      encounterDecks: {
+        ...swapped.encounterDecks,
+        [deckId]: { ...piles, deck: [piles.deck[0]!, invasion, ...piles.deck.slice(1)] },
+      },
+    };
+    const acceptHawkeye: Picker = (s) => {
+      const hit = s.pendingChoice?.options.find((o) => o.optionId.includes("01066.hawkeye-response"));
+      if (hit) return [hit.optionId];
+      // Take no damage on a defense prompt: the hero does not defend, so the attack's damage lands on the hero.
+      if (s.pendingChoice?.prompt.kind === "declareDefender") return ["decline"];
+      return firstLegal(s);
+    };
+    const { state: after, events } = driveEventsPicking(WAVE3_DEPS, state, acceptHawkeye, endTurn());
+    const initiated = events.findIndex(
+      (e) =>
+        e.type === "triggerEvent" &&
+        e.phase === "initiated" &&
+        e.event.kind === "enemyAttack" &&
+        e.event.enemyInstanceId === mercenary,
+    );
+    const resolved = events.findIndex(
+      (e) =>
+        e.type === "triggerEvent" &&
+        e.phase === "resolved" &&
+        e.event.kind === "enemyAttack" &&
+        e.event.enemyInstanceId === mercenary,
+    );
+    const arrows = events.findIndex(
+      (e) => e.type === "counterRemoved" && e.instanceId === spare && e.counterType === "arrow",
+    );
+    const tough = events.findIndex((e) => e.type === "statusGiven" && e.instanceId === mercenary);
+    const heroDamage = events.findIndex((e) => e.type === "damageDealt" && e.sourceInstanceId === mercenary);
+    expect(initiated, "Vulture's attack initiated").toBeGreaterThan(-1);
+    expect(tough, "the tough status card follows the initiation, in the reveal sentence").toBeGreaterThan(initiated);
+    expect(arrows, "Hawkeye's Response resolves after the tough status card").toBeGreaterThan(tough);
+    expect(heroDamage, "the attack's steps resolve after Hawkeye's Response").toBeGreaterThan(arrows);
+    expect(resolved).toBeGreaterThan(heroDamage);
+    expect(inst(after, spare).counters.arrow).toBe(3);
+    // The tough status card took Hawkeye's 2 damage.
+    expect(inst(after, mercenary).damage).toBe(0);
+    expect(inst(after, mercenary).statuses.tough).toBe(0);
   });
 });

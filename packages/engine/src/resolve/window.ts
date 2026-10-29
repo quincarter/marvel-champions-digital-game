@@ -64,7 +64,7 @@ import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
 import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered, unofferedAbilities } from "./triggers.js";
-import { toughEndsDamageWindow } from "./event.js";
+import { damageConstantsBeforeWouldTake, toughEndsDamageWindow } from "./event.js";
 import { holdResponsesForReveal } from "./reveal-hold.js";
 import { holdResponsesForSentence } from "./sentence-hold.js";
 
@@ -544,7 +544,13 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
         facesAtOpen: _wouldFaces,
         ...rest
       } = frame;
-      setFrame(ctx, rest);
+      // Step 3's "would take" interrupts answer the damage as the constant modifiers to the damage taken leave it
+      // (`damageConstantsBeforeWouldTake`; RRG 1.8 p. 5 and FAQ p. 57, FFG rulings June 6, 2024, Rulings 205 and 206).
+      const capped =
+        frame.timing === "interrupt" && frame.event.kind === "dealDamage"
+          ? damageConstantsBeforeWouldTake(ctx, frame.eventFrameId)
+          : null;
+      setFrame(ctx, capped ? { ...rest, event: capped } : rest);
       return;
     }
     closeWindow(ctx, frame);

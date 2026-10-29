@@ -1685,13 +1685,29 @@ export function damageTakenBreakdown(
       doubledBy.push(context.selfInstanceId);
     }
   }
-  if (fromAttack) {
-    for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
-      if (rule.per === "phase") continue;
-      if (matchesQuery(state, targetId, rule.target, context)) taken = Math.min(taken, rule.amount);
-    }
-  }
+  const cap = perAttackDamageCap(state, deps, targetId, fromAttack);
+  if (cap !== null) taken = Math.min(taken, cap);
   return { taken: Math.max(0, taken), beforeDoubling, doubledBy };
+}
+
+/**
+ * The lowest per-attack `maxDamageTakenPerAttack` cap on this character for damage from an attack ("cannot take more
+ * than 2 damage from a single attack"), or null (none, or not attack damage).
+ */
+export function perAttackDamageCap(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  fromAttack: boolean,
+): number | null {
+  if (!fromAttack) return null;
+  let cap: number | null = null;
+  for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
+    if (rule.per === "phase") continue;
+    if (matchesQuery(state, targetId, rule.target, context))
+      cap = cap === null ? rule.amount : Math.min(cap, rule.amount);
+  }
+  return cap;
 }
 
 /** Whether this enemy's attacks deal indirect damage (`attacksDealIndirectDamage`; docs/phase7-wave3.md §3.16). */

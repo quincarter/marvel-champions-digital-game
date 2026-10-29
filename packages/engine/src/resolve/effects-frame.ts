@@ -197,6 +197,7 @@ import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import { thwartBlockedOn } from "./event.js";
 import { abilityRootFrameId, announceAbilityThwart } from "./thwart-session.js";
+import { releaseLoopFrames } from "./initiated-activation.js";
 import {
   abilityAttackDamage,
   abilityAttackOf,
@@ -255,6 +256,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     applyEffect(ctx, frame.resumeActivation, contextOf(rest, ctx.deps), frame);
     return;
   }
+  // Every pass of its "each time" loop has resolved: the keywords of the minions they put into play now initiate, then
+  // those minions' engagements are announced (FFG ruling 38; `resolve/initiated-activation.ts`).
+  if (releaseLoopFrames(ctx, frame)) return;
   const effect = frame.effects[frame.cursor];
   if (!effect) {
     // A "(thwart)" ability is one thwart: "after you thwart" answers it here, once, after its last effect (RRG 1.8

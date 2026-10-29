@@ -476,6 +476,8 @@ export function promptTitleOf(
     orderTriggers: "Order these effects",
     // A revealed minion with both Quickstrike and Teamwork: the first player picks which resolves first.
     orderKeywords: "Choose which keyword resolves first",
+    // The quickstrikes and teamworks of the minions an "each time" loop put into play (ruling 38): the first player orders them.
+    orderLoopKeywords: "Order the keywords",
     // Incite, printed When Revealed and surge share a timing (FFG ruling, Sep 22, 2026): the first player orders them.
     orderWhenRevealed: "Order the When Revealed abilities",
     chooseTriggers: "Trigger an ability?",

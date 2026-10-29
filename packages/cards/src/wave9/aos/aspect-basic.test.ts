@@ -1199,7 +1199,7 @@ describe("50023.melinda-may-response: after she uses a basic power, look at the 
 
 describe("Melinda May defending (ruling Mar 16, 2025)", () => {
   // "allies don't have a DEF stat, they aren't considered to 'use a basic power' when they defend attacks."
-  it.fails("an ally defending an attack is not a basic power: Melinda May's response is not offered", () => {
+  it("an ally defending an attack is not a basic power: Melinda May's response is not offered", () => {
     const base = withForm(aspectGame(), { heroForm: 0 });
     const may = placed(base, "50023");
     const offered: string[] = [];
@@ -1211,7 +1211,6 @@ describe("Melinda May defending (ruling Mar 16, 2025)", () => {
       return firstLegal(s);
     };
     settle(runWith(DEPS, stackEncounterDeck(may.state, "01186", "01186"), endTurn(P1)), pick, undefined, DEPS);
-    // Actual: `announceBasicDefense` announces `basicPowerUsed` (power defense) for any defender, ally included.
     expect(offered).toEqual([]);
   });
 });
