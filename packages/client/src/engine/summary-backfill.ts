@@ -47,10 +47,13 @@ export async function backfillSummaries(
   writer: WriterStamp,
   replay: ReplaySummary,
   pause: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 0)),
+  /** Only these games (the main thread asks one at a time, to show its progress); absent, every one that needs it. */
+  ids?: readonly string[],
 ): Promise<number> {
   const saves = await storage.list();
   let written = 0;
   for (const meta of saves) {
+    if (ids && !ids.includes(meta.id)) continue;
     if (!needsBackfill(meta, writer)) continue;
     await pause();
     const stored = await storage.load(meta.id);

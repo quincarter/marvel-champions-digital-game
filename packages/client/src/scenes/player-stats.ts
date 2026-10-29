@@ -38,6 +38,7 @@ import type { ShortcutId } from "../view/input-shortcuts.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { loadPlayerStats } from "../view/player-stats-client.js";
+import { backfillProgress, onBackfillProgress } from "../progression/stats-backfill.js";
 import {
   dashboardRowsOf,
   heroAt,
@@ -167,7 +168,15 @@ export class PlayerStatsScene extends Phaser.Scene {
         this.#draw();
       });
     };
-    this.#offArt = [cardArt(this).onArrived(redraw), cardFaces(this).onBaked(redraw)];
+    this.#offArt = [
+      cardArt(this).onArrived(redraw),
+      cardFaces(this).onBaked(redraw),
+      // Older games being filled in (#529): the Overview says how far it has got, and the stats reload when it ends.
+      onBackfillProgress((progress) => {
+        if (progress.running) redraw();
+        else void this.#load();
+      }),
+    ];
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       onTab: (direction) => this.#stepTab(direction),
@@ -198,23 +207,23 @@ export class PlayerStatsScene extends Phaser.Scene {
     }
     this.#draw();
     if (!under) fadeScreenIn(this);
-    void appSession()
-      .store.listSaves()
-      .then((saves) => loadPlayerStats(saves))
-      .then(
-        (stats) => {
-          this.#stats = stats;
-          if (this.#data.tab) lastTab = this.#data.tab;
-          const hero = this.#data.heroId
-            ? stats.heroCards.findIndex((h) => h.identityCardId === this.#data.heroId)
-            : -1;
-          if (hero >= 0) lastHero = hero;
-        },
-        () => {
-          this.#failed = true;
-        },
-      )
-      .then(() => this.#draw());
+    void this.#load(true);
+  }
+
+  /** Reads the saves and folds them; `first`: the visit's first read, which applies the tab and hero it opened on. */
+  async #load(first = false): Promise<void> {
+    try {
+      const stats = await loadPlayerStats(await appSession().store.listSaves());
+      if (!this.#alive) return;
+      this.#stats = stats;
+      if (first && this.#data.tab) lastTab = this.#data.tab;
+      const hero =
+        first && this.#data.heroId ? stats.heroCards.findIndex((h) => h.identityCardId === this.#data.heroId) : -1;
+      if (hero >= 0) lastHero = hero;
+    } catch {
+      this.#failed = true;
+    }
+    this.#draw();
   }
 
   #back(): void {
@@ -498,7 +507,20 @@ export class PlayerStatsScene extends Phaser.Scene {
     const listTop = y + 12;
     const listRect: Rect = { x: gutter, y: listTop, width: inner, height: Math.max(60, height - listTop - gutter) };
     const rowWidth = inner - GUTTER;
-    const rows = dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone);
+    const backfill = backfillProgress();
+    const rows: DashRow[] = [
+      ...(lastTab === "overview" && backfill.running
+        ? [
+            {
+              kind: "note" as const,
+              id: "ov:backfill",
+              height: phone ? 52 : 40,
+              text: `Filling in your older games from their saved logs: ${backfill.done} of ${backfill.total}. Their card numbers appear here when it is done.`,
+            },
+          ]
+        : []),
+      ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone),
+    ];
     this.#rows = rows;
     const list = new McVirtualList(this, {
       rect: listRect,

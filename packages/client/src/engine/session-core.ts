@@ -631,22 +631,28 @@ export class EngineSessionCore {
    * Fills in the card numbers of games finished before the save summary had them (`engine/summary-backfill.ts`), by
    * replaying each one's stored log the way `resume` does. Returns how many games it wrote.
    */
-  async backfillSummaries(): Promise<number> {
+  async backfillSummaries(ids?: readonly string[]): Promise<number> {
     const storage = this.#storage;
     if (!storage) return 0;
-    return backfillSummaries(storage, this.#writer, (stored) => {
-      const baseline = rebuildBaseline(stored.meta.config, stored.initialState);
-      let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, POOL_DEPS);
-      let state = baseline.initialState;
-      for (const command of stored.commands) {
-        const result = applyCommand(state, command, POOL_DEPS);
-        if (!result.ok) return null;
-        state = result.state;
-        record = recordEvents(record, result.events, state, POOL_DEPS);
-      }
-      const summary = summarizeGame(state, record, POOL_DEPS);
-      return summary ? { state, summary } : null;
-    });
+    return backfillSummaries(
+      storage,
+      this.#writer,
+      (stored) => {
+        const baseline = rebuildBaseline(stored.meta.config, stored.initialState);
+        let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, POOL_DEPS);
+        let state = baseline.initialState;
+        for (const command of stored.commands) {
+          const result = applyCommand(state, command, POOL_DEPS);
+          if (!result.ok) return null;
+          state = result.state;
+          record = recordEvents(record, result.events, state, POOL_DEPS);
+        }
+        const summary = summarizeGame(state, record, POOL_DEPS);
+        return summary ? { state, summary } : null;
+      },
+      undefined,
+      ids,
+    );
   }
 
   save(): SavedGame {

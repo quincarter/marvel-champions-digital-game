@@ -329,6 +329,6 @@ export interface EngineHost {
    * Fills in the card numbers of games finished before the save summary had them, by replaying their logs
    * (`engine/summary-backfill.ts`); resolves to how many games were written.
    */
-  backfillSummaries(): Promise<number>;
+  backfillSummaries(ids?: readonly string[]): Promise<number>;
   dispose(): void;
 }

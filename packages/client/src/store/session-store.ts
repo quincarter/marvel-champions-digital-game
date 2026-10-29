@@ -207,9 +207,9 @@ export class SessionStore {
    * Fills in the card numbers of games finished before this build recorded them (`engine/summary-backfill.ts`), in
    * the engine worker. Resolves to how many games were written; a failure writes nothing and resolves to 0.
    */
-  async backfillSummaries(): Promise<number> {
+  async backfillSummaries(ids?: readonly string[]): Promise<number> {
     try {
-      return await this.#host.backfillSummaries();
+      return await this.#host.backfillSummaries(ids);
     } catch {
       return 0;
     }

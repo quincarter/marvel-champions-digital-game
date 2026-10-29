@@ -129,8 +129,8 @@ export class WorkerEngineHost implements EngineHost {
     return response.saves;
   }
 
-  async backfillSummaries(): Promise<number> {
-    const response = await this.#request({ kind: "backfillSummaries", id: this.#id() });
+  async backfillSummaries(ids?: readonly string[]): Promise<number> {
+    const response = await this.#request({ kind: "backfillSummaries", id: this.#id(), ...(ids ? { ids } : {}) });
     if (response.kind !== "backfilled") throw new Error(`unexpected reply ${response.kind}`);
     return response.written;
   }

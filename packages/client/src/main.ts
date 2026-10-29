@@ -21,7 +21,7 @@ import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
 import { installLazyText } from "./ui/lazy-text.js";
 import { installColorScheme } from "./ui/color-scheme-phaser.js";
 import { appSession } from "./session.js";
-import { notifySaveDataChanged } from "./sync/save-data-changed.js";
+import { runStatsBackfill } from "./progression/stats-backfill.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
@@ -173,14 +173,8 @@ const preloadAfterTitle = (): void => {
     game.events.once(Phaser.Core.Events.POST_RENDER, () => {
       startIdlePreload(sceneLoader);
       // Games finished before the save summary kept card numbers get them filled in, once, in the engine worker
-      // (`engine/summary-backfill.ts`, #529). Its writes happen in the worker, so sync here hears of them from this.
-      setTimeout(() => {
-        void appSession()
-          .store.backfillSummaries()
-          .then((written) => {
-            if (written > 0) notifySaveDataChanged("game");
-          });
-      }, BACKFILL_DELAY_MS);
+      // (`engine/summary-backfill.ts`, #529); Your stats shows how far it has got (`progression/stats-backfill.ts`).
+      setTimeout(() => void runStatsBackfill(appSession().store).catch(() => undefined), BACKFILL_DELAY_MS);
     });
   });
 };

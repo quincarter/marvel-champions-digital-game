@@ -148,7 +148,7 @@ async function handle(request: HostRequest): Promise<void> {
         return;
       }
       case "backfillSummaries": {
-        reply({ kind: "backfilled", id: request.id, written: await core.backfillSummaries() });
+        reply({ kind: "backfilled", id: request.id, written: await core.backfillSummaries(request.ids) });
         return;
       }
     }
