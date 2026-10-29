@@ -45,6 +45,21 @@ describe("runStatsBackfill", () => {
     expect(backfillProgress()).toMatchObject({ running: false, written: 1 });
   });
 
+  test("a request that fails part way ends the run as stopped, so nothing is left waiting on it", async () => {
+    let asked = 0;
+    await runStatsBackfill(
+      {
+        listSaves: async () => [meta("a"), meta("b"), meta("c")],
+        backfillSummaries: async () => {
+          if (++asked === 2) throw new Error("write refused");
+          return 1;
+        },
+      },
+      null,
+    );
+    expect(backfillProgress()).toEqual({ running: false, done: 1, total: 3, written: 1, stopped: true });
+  });
+
   test("nothing to fill in: no progress at all", async () => {
     const seen: BackfillProgress[] = [];
     const off = onBackfillProgress((p) => seen.push(p));

@@ -98,22 +98,29 @@ export async function runStatsBackfill(
   let written = 0;
   let done = 0;
   let stopped = false;
-  for (const id of ids) {
-    const result = await store.backfillSummaries([id]);
-    // A game started meanwhile: stop here, and pick up the rest next launch.
-    if (result === BACKFILL_BUSY) {
-      stopped = true;
-      break;
+  try {
+    for (const id of ids) {
+      const result = await store.backfillSummaries([id]);
+      // A game started meanwhile: stop here, and pick up the rest next launch.
+      if (result === BACKFILL_BUSY) {
+        stopped = true;
+        break;
+      }
+      if (result > 0) written += result;
+      else skipped.add(id);
+      done++;
+      // Running is announced with the first answer, so a run a game stops at once never shows at all.
+      set({ running: true, done, total: ids.length, written });
     }
-    if (result > 0) written += result;
-    else skipped.add(id);
-    done++;
-    // Running is announced with the first answer, so a run a game stops at once never shows at all.
-    set({ running: true, done, total: ids.length, written });
+  } catch {
+    // A failed request (a storage write refused) ends the run as stopped: the rest are asked about next launch.
+    stopped = true;
+  } finally {
+    rememberSkipped(storage, skipped);
+    // Even a run that failed part way publishes its end, so the toast closes and achievements are heard again.
+    if (done > 0)
+      set({ running: false, done, total: ids.length, written, ...(stopped ? { stopped: true as const } : {}) });
+    // The writes happened in the engine worker; sync listens here.
+    if (written > 0) notifySaveDataChanged("game");
   }
-  rememberSkipped(storage, skipped);
-  if (done === 0) return;
-  set({ running: false, done, total: ids.length, written, ...(stopped ? { stopped: true as const } : {}) });
-  // The writes happened in the engine worker; sync listens here.
-  if (written > 0) notifySaveDataChanged("game");
 }
