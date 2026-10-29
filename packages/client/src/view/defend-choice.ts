@@ -306,8 +306,29 @@ const STAGE_WORDS: Readonly<Record<string, string>> = {
   done: "resolved",
 };
 
+/**
+ * A keyword's activation initiated during an ability and waiting beneath it for the ability to finish
+ * (`Frame<"event">.awaitingAbility`, PR #498; rulings 137 and 194): the engine's defense lookups skip it, and so does
+ * this sheet.
+ */
+const awaitsAbility = (state: GameState, frameId: string): boolean => waitingEnemyOf(state, frameId) !== null;
+
+/**
+ * The enemy whose attack the frame `frameId` is, when that attack is waiting for its ability; else null. Only a
+ * quickstrike's attack waits this way: a teamwork activation waits as an effects frame, which has no defense to read.
+ */
+function waitingEnemyOf(state: GameState, frameId: string): InstanceId | null {
+  const frame = state.stack.find((candidate) => candidate.frameId === frameId);
+  if (frame?.kind !== "event" || frame.awaitingAbility !== true) return null;
+  const event = frame.event;
+  return event.kind === "enemyAttack" ? event.enemyInstanceId : null;
+}
+
 /** One stack row, worded from exactly the fields `stackEntries` reports — no new engine state. */
 export function stackRowLabel(state: GameState, entry: StackEntry): string {
+  // Waiting, not resolving: its steps begin only once the ability above it is done.
+  const waiting = entry.kind === "event" ? waitingEnemyOf(state, entry.frameId) : null;
+  if (waiting) return `${faceUpName(state, waiting)}'s attack waits for the ability to finish`;
   switch (entry.kind) {
     case "enemyAttack":
     case "enemyScheme": {
@@ -456,7 +477,10 @@ export function defendChoiceViewOf(
 
   const attackerInstanceId = choice.prompt.attack.enemyInstanceId;
   const targetCharacterInstanceId = choice.prompt.attack.targetCharacterInstanceId;
-  const forcedEntry = stackEntries(state).find((entry) => entry.kind === "event" && entry.eventKind === "enemyAttack");
+  // The attack being defended, never a keyword's attack waiting for its ability (`awaitsAbility`).
+  const forcedEntry = stackEntries(state).find(
+    (entry) => entry.kind === "event" && entry.eventKind === "enemyAttack" && !awaitsAbility(state, entry.frameId),
+  );
 
   const targetSeat = shortSeatName(state, choice.prompt.attack.targetPlayerId, viewerId);
   const targetCardName = shortFaceUpName(state, targetCharacterInstanceId);

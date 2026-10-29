@@ -123,6 +123,7 @@ import {
 } from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
+  toggledSelection,
   canDeclineChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
@@ -2802,10 +2803,23 @@ export class ChoiceOverlay extends Phaser.Scene {
         .text(inner.x + pad, inner.y + pad + 22, keywordTile.name, textStyle(typeRole.rowTitle, surface.ink.hex))
         .setFontSize(20);
       fitText(name, inner.width - pad * 2, 20);
+      // The minion a loop's keyword belongs to, on its own line: no source card shows it (`orderLoopKeywords`).
+      const subject = keywordTile.subject
+        ? this.add
+            .text(
+              inner.x + pad,
+              name.y + name.height + 4,
+              keywordTile.subject,
+              textStyle(typeRole.rowTitle, surface.ink.hex, ink.secondary),
+            )
+            .setFontSize(14)
+            .setLineSpacing(2)
+        : null;
+      if (subject) fitWrapped(subject, inner.width - pad * 2, 2, 14);
       const line = this.add
         .text(
           inner.x + pad,
-          name.y + name.height + 8,
+          (subject ?? name).y + (subject ?? name).height + 8,
           keywordTile.line,
           textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
@@ -2943,8 +2957,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
-    // A keyword tile is words, not a picture of the card: nothing to blow up.
-    if (instanceId && !keywordTile) noteHoverCard(this, instanceId, slot);
+    // A keyword tile is words, not a picture of the card: nothing to blow up, unless it names a minion no source card
+    // shows (`orderLoopKeywords`), whose face its hover then shows.
+    if (instanceId && (!keywordTile || keywordTile.instanceId)) noteHoverCard(this, instanceId, slot);
     // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the
     // read is plain: Inspect gets no Select button.
     const tap = (): void => {
@@ -3261,10 +3276,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   #toggle(optionId: string, max: number): void {
     if (this.#motion.leaving) return;
-    const at = this.#selected.indexOf(optionId);
-    if (at >= 0) this.#selected = this.#selected.filter((id) => id !== optionId);
-    else if (max === 1) this.#selected = [optionId];
-    else if (this.#selected.length < max) this.#selected = [...this.#selected, optionId];
+    this.#selected = [...toggledSelection(this.#selected, optionId, max)];
     this.#rebuild();
   }
 

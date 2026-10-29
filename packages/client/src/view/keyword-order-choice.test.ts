@@ -98,7 +98,9 @@ describe("the keyword-order choice tiles", () => {
     };
     const tiles = keywordOrderTilesOf(loop)!;
     expect([...tiles.keys()]).toEqual(["0", "1"]);
-    expect([...tiles.values()].map((t) => t.name)).toEqual(["Quickstrike: Hydra Bomber", "Teamwork: Hydra Bomber"]);
+    // The keyword is the tile's name and the minion its own line; one minion's two keywords share that line.
+    expect([...tiles.values()].map((t) => t.name)).toEqual(["Quickstrike", "Teamwork"]);
+    expect([...tiles.values()].map((t) => t.subject)).toEqual(["Hydra Bomber", "Hydra Bomber"]);
     expect(tiles.get("0")!.line).toBe(firstSentence(glossaryEntry("quickstrike")!.definition));
     expect(tiles.get("1")!.line).toBe(firstSentence(glossaryEntry("teamwork")!.definition));
   });

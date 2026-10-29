@@ -40,10 +40,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["16", "17", "18", "19", "20"],
-      "tag": "card-art-gmw-22b38e8fcae1",
+      "tag": "card-art-gmw-b65fb612272b",
       "file": "card-art-gmw.zip",
-      "size": 18553640,
-      "sha256": "22b38e8fcae17de2539cc52e80e135a0aa30cdf08ed4338933330bcc27137f7e",
+      "size": 18529698,
+      "sha256": "b65fb612272bff4b26fa9a35406e8f5f567d653ee0b9368495bf039f79e2d38c",
       "files": 302
     },
     {

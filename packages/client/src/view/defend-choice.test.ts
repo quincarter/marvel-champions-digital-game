@@ -21,6 +21,7 @@ import {
   defendChoiceViewOf,
   forcedNotesOf,
   hpLineFrom,
+  stackRowLabel,
 } from "./defend-choice.js";
 
 async function playToDeclareDefender(): Promise<{ state: GameState; choice: PendingChoice; viewer: PlayerId }> {
@@ -149,6 +150,26 @@ const band = (over: Partial<DefendBand>): DefendBand => ({
   overkillAmount: 0,
   retaliateToAttacker: 0,
   ...over,
+});
+
+describe("a keyword's attack waiting for its ability (PR #498)", () => {
+  test("reads as waiting on the stack, and its forced interrupts are not the defended attack's", async () => {
+    const { state, choice, viewer } = await playToDeclareDefender();
+    // Rhino's own attack, copied as a quickstrike attack initiated during an ability and parked above it
+    // (`awaitingAbility`), carrying a forced interrupt's +2 ATK that belongs to it alone.
+    const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack")!;
+    const parked = { ...attack, frameId: "parked", awaitingAbility: true, vars: { atkBonus: 2 } } as never;
+    const withParked = { ...state, stack: [parked, ...state.stack] } as GameState;
+    const view = defendChoiceViewOf(withParked, choice, POOL_DEPS, viewer, [])!;
+    expect(view.stack[0]!.label).toBe("Rhino's attack waits for the ability to finish");
+    expect(view.summary.forcedNotes).toEqual(
+      defendChoiceViewOf(state, choice, POOL_DEPS, viewer, [])!.summary.forcedNotes,
+    );
+    expect(view.summary.forcedNotes.join(" ")).not.toContain("+2 ATK");
+    // The same frame not waiting reads as before.
+    const entry = { frameId: attack.frameId, kind: "event", subjectInstanceId: null, eventKind: "enemyAttack" };
+    expect(stackRowLabel(state, entry as never)).not.toContain("waits");
+  }, 60_000);
 });
 
 describe("damageHeadline", () => {
