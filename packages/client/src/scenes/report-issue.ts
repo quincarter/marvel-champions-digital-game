@@ -196,12 +196,14 @@ export class ReportIssueOverlay extends Phaser.Scene {
 
   #download(): void {
     const fileName = issueReportFileName(new Date());
-    try {
-      downloadText(issueReportText(this.#report()), fileName);
-      this.#say(`Saved ${fileName}. Attach it to the issue.`);
-    } catch {
-      this.#say("This device would not save the file. Use Copy log.");
-    }
+    void downloadText(issueReportText(this.#report()), fileName).then(
+      (saved) => {
+        if (saved && this.sys.isActive()) this.#say(`Saved ${fileName}. Attach it to the issue.`);
+      },
+      () => {
+        if (this.sys.isActive()) this.#say("This device would not save the file. Use Copy log.");
+      },
+    );
   }
 
   #openIssue(): void {

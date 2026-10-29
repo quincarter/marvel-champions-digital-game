@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DisplayRatePlugin.class);
         registerPlugin(DeviceHardwarePlugin.class);
         registerPlugin(BackGesturePlugin.class);
+        registerPlugin(SaveFilePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
