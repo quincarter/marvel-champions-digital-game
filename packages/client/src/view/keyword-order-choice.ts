@@ -15,8 +15,8 @@ export interface KeywordOrderTile {
   readonly name: string;
   /**
    * `orderLoopKeywords` only: the minion the keyword belongs to, which no source card shows (several minions can be
-   * ordered at once). Two minions sharing a name read apart by the order they entered play ("Kree Private, 2nd to
-   * enter play"); one minion's two keywords share the line.
+   * ordered at once). Two minions sharing a name read apart by the order the loop discarded them ("Kree Private, 2nd
+   * of 2 discarded"); one minion's two keywords share the line.
    */
   readonly subject?: string;
   /** `orderLoopKeywords` only: that minion, for the tile's hover and press-and-hold read. */
@@ -80,7 +80,7 @@ export function keywordOrderTilesOf(
     const line = firstSentence(glossaryEntry(keyword as GlossaryId)?.definition ?? "");
     const subject = subjects?.get(option.optionId);
     if (subject) {
-      const name = option.label.split(":")[0]!.trim();
+      const name = keyword.charAt(0).toUpperCase() + keyword.slice(1);
       tiles.push([option.optionId, { optionId: option.optionId, name, line, ...subject }]);
       continue;
     }
@@ -94,9 +94,10 @@ const ordinal = (n: number): string => ORDINALS[n - 1] ?? `${n}th`;
 
 /**
  * Each `orderLoopKeywords` option's minion: its name (the face in play when `state` is given, else the label's tail),
- * and, where two minions in the prompt share it, the order they entered play. The engine lists the options in the
- * order the minions were discarded (`releaseLoopFrames`), and each entered play in its own pass of the loop, so the
- * first minion of a name met in the options is the first of that name to enter play.
+ * and, where two minions in the prompt share it, their order among them. The engine lists the options in the order
+ * the loop discarded the minions (`releaseLoopFrames`). Counted among this prompt's options only: a copy already in
+ * play, or one whose keyword would do nothing now (not offered), is not counted, so the words say "of 2 discarded",
+ * never "2nd to enter play".
  */
 function loopSubjects(
   choice: PendingChoice,
@@ -117,7 +118,8 @@ function loopSubjects(
   return new Map(
     minions.map(({ optionId, instanceId, name }) => {
       const twins = byName.get(name)!;
-      const subject = twins.length > 1 ? `${name}, ${ordinal(twins.indexOf(instanceId) + 1)} to enter play` : name;
+      const at = twins.indexOf(instanceId) + 1;
+      const subject = twins.length > 1 ? `${name}, ${ordinal(at)} of ${twins.length} discarded` : name;
       return [optionId, instanceId ? { subject, instanceId } : { subject }];
     }),
   );

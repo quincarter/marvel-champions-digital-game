@@ -49,6 +49,8 @@ const minionsOf = (state: GameState): InstanceId[] =>
   state.pendingChoice!.options.map((o) => (o.ref.kind === "card" ? o.ref.instanceId : ("" as InstanceId)));
 
 let asked: GameState;
+/** The two Kree Privates, in the order they sit on the deck: the order the loop discards them. */
+let discardOrder: InstanceId[];
 
 beforeAll(async () => {
   const core = new EngineSessionCore();
@@ -70,6 +72,7 @@ beforeAll(async () => {
   const typeOf = (id: InstanceId) => state.cardPool[state.instances[id]!.cardId]?.type;
   const privates = piles.deck.filter((id) => state.instances[id]!.cardId === KREE_PRIVATE).slice(0, 2);
   const fillers = piles.deck.filter((id) => typeOf(id) === "treachery").slice(0, 2);
+  discardOrder = privates;
   const top = [...privates, ...fillers];
   state = {
     ...state,
@@ -96,16 +99,17 @@ describe("ordering the keywords of minions an 'each time' loop put into play", (
     expect(choice.options.map((o) => o.label)).toEqual(["Quickstrike: Kree Private", "Quickstrike: Kree Private"]);
     const minions = minionsOf(asked);
     expect(new Set(minions).size).toBe(2);
+    expect(minions).toEqual(discardOrder);
     expect(minions.every((id) => asked.instances[id]?.cardId === KREE_PRIVATE)).toBe(true);
   });
 
-  test("each tile names its keyword, then its minion, which the order it entered play tells apart", () => {
+  test("each tile names its keyword, then its minion, which the order it was discarded tells apart", () => {
     const tiles = keywordOrderTilesOf(asked.pendingChoice!, asked)!;
     expect([...tiles.keys()]).toEqual(["0", "1"]);
     expect([...tiles.values()].map((t) => t.name)).toEqual(["Quickstrike", "Quickstrike"]);
     expect([...tiles.values()].map((t) => t.subject)).toEqual([
-      "Kree Private, 1st to enter play",
-      "Kree Private, 2nd to enter play",
+      "Kree Private, 1st of 2 discarded",
+      "Kree Private, 2nd of 2 discarded",
     ]);
     // The hover and press-and-hold read show the minion each tile is about.
     expect([...tiles.values()].map((t) => t.instanceId)).toEqual(minionsOf(asked));

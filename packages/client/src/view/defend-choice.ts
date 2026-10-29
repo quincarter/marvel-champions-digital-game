@@ -313,22 +313,22 @@ const STAGE_WORDS: Readonly<Record<string, string>> = {
  */
 const awaitsAbility = (state: GameState, frameId: string): boolean => waitingEnemyOf(state, frameId) !== null;
 
-/** The enemy whose activation the frame `frameId` is, when that activation is waiting for its ability; else null. */
+/**
+ * The enemy whose attack the frame `frameId` is, when that attack is waiting for its ability; else null. Only a
+ * quickstrike's attack waits this way: a teamwork activation waits as an effects frame, which has no defense to read.
+ */
 function waitingEnemyOf(state: GameState, frameId: string): InstanceId | null {
   const frame = state.stack.find((candidate) => candidate.frameId === frameId);
   if (frame?.kind !== "event" || frame.awaitingAbility !== true) return null;
   const event = frame.event;
-  return event.kind === "enemyAttack" || event.kind === "enemyScheme" ? event.enemyInstanceId : null;
+  return event.kind === "enemyAttack" ? event.enemyInstanceId : null;
 }
 
 /** One stack row, worded from exactly the fields `stackEntries` reports — no new engine state. */
 export function stackRowLabel(state: GameState, entry: StackEntry): string {
   // Waiting, not resolving: its steps begin only once the ability above it is done.
   const waiting = entry.kind === "event" ? waitingEnemyOf(state, entry.frameId) : null;
-  if (waiting) {
-    const what = entry.eventKind === "enemyScheme" ? "scheme" : "attack";
-    return `${faceUpName(state, waiting)}'s ${what} waits for the ability to finish`;
-  }
+  if (waiting) return `${faceUpName(state, waiting)}'s attack waits for the ability to finish`;
   switch (entry.kind) {
     case "enemyAttack":
     case "enemyScheme": {
