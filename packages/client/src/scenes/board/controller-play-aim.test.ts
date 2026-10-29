@@ -115,7 +115,7 @@ function host(
 beforeEach(async () => {
   await rogueTurn();
   const actions = legalActions(game, me, POOL_DEPS);
-  stub = new StubStore({ game, perspectiveId: me, legal: { playerId: me, actions } });
+  stub = new StubStore({ game, perspectiveId: me, legal: { playerId: me, actions }, peekSeat: null });
   (appSession() as unknown as { store: StubStore }).store = stub;
   // Guided mode's "Hold on!" is its own tested layer (`controller.test.ts`); here the payment goes straight through.
   appSession().settings = defaultSettings();
