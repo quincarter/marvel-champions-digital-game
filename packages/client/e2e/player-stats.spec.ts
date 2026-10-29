@@ -23,7 +23,10 @@ const keys = async (page: Page): Promise<string[]> => (await stopsOf(page)).map(
 
 const isActive = (page: Page, scene: string) => async () => ((await activeScenes(page)).includes(scene) ? true : null);
 
-/** Six finished games: four Spider-Man wins over Rhino, two losses, every one with the summary the stats read. */
+/**
+ * Six finished games: four Spider-Man wins over Rhino, two losses (the last to Klaw), every one with the summary the
+ * stats read (version 2, so the launch's backfill leaves them alone).
+ */
 async function seedGames(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const { IdbGameStorage } = (await import("/src/engine/idb-game-storage.ts")) as never as {
@@ -38,7 +41,7 @@ async function seedGames(page: Page): Promise<void> {
           id: `e2e-stats-${i}`,
           schema: SAVE_SCHEMA,
           config: {
-            scenarioId: "rhino",
+            scenarioId: i === 5 ? "klaw" : "rhino",
             difficulty: "standard",
             players: [{ starterDeckId: "core-spider-man-justice" }],
             seed: i,
@@ -72,7 +75,8 @@ async function seedGames(page: Page): Promise<void> {
                 defeated: false,
               },
             ],
-            villains: ["Rhino"],
+            villains: [i === 5 ? "Klaw" : "Rhino"],
+            version: 2,
             sideSchemes: { seen: {}, defeated: {} },
           },
         },
@@ -143,6 +147,100 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
       "card pictures",
       10_000,
     );
+  }
+});
+
+test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  expect((await findText(page, "4–2", "PlayerStats")).length, "every game").toBeGreaterThan(0);
+  await settle(page);
+  if (phone) {
+    // On a phone the chips fold behind one Filters chip.
+    const toggle = (await stopsOf(page)).find((s) => s.key === "filter:toggle")!;
+    await press(page, phone, toggle.rect);
+  }
+  const villain = await waitFor(
+    async () => (await stopsOf(page)).find((s) => s.key === "filter:villain") ?? null,
+    "the villain chip",
+    10_000,
+  );
+  await settle(page);
+  await press(page, phone, villain.rect);
+  // The most faced villain first.
+  await waitFor(
+    async () => ((await findText(page, "4–1", "PlayerStats")).length > 0 ? true : null),
+    "Rhino's games only",
+    15_000,
+  );
+  expect((await findText(page, "RHINO", "PlayerStats")).length, "the chip names it").toBeGreaterThan(0);
+  const clear = await waitFor(
+    async () => (await stopsOf(page)).find((s) => s.key === "filter:clear") ?? null,
+    "Clear",
+    10_000,
+  );
+  await settle(page);
+  await press(page, phone, clear.rect);
+  await waitFor(
+    async () => ((await findText(page, "4–2", "PlayerStats")).length > 0 ? true : null),
+    "all again",
+    15_000,
+  );
+});
+
+test("on the keyboard or a pad: X jumps to the filters, and A on a card opens it in Inspect", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "keyboard");
+  test.setTimeout(120_000);
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  const focused = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __mcFocusState: Record<string, () => { focus: string | null }> }).__mcFocusState
+          .PlayerStats!().focus,
+    );
+  await settle(page);
+  // G is X on the left-handed keyboard.
+  await page.keyboard.press("g");
+  await waitFor(async () => ((await focused()) === "filter:hero" ? true : null), "X on the hero filter", 10_000);
+  const cards = (await stopsOf(page)).find((s) => s.key === "tab:all-cards")!;
+  await press(page, false, cards.rect);
+  const card = await waitFor(
+    async () => (await stopsOf(page)).find((s) => s.key.startsWith("card:all:played:")) ?? null,
+    "a card picture",
+    10_000,
+  );
+  // Walk the ring onto the card with the arrows from the tab, then A (Enter).
+  // From the filter chips (X again), down the strip of cards.
+  await page.keyboard.press("g");
+  const seen: (string | null)[] = [];
+  for (let i = 0; i < 12 && (await focused()) !== card.key; i++) {
+    await page.keyboard.press("ArrowDown");
+    seen.push(await focused());
+  }
+  expect(await focused(), seen.join(" > ")).toBe(card.key);
+  await page.keyboard.press("Enter");
+  await waitFor(isActive(page, "InspectOverlay"), "Inspect", 10_000);
+});
+
+test("Aspects, Encounter and Records: the donut and their rows", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  for (const [tab, row] of [
+    ["aspects", "row:aspect:favorite"],
+    ["encounter", "row:enc:modular"],
+    ["records", "row:rec:fastest"],
+  ] as const) {
+    await settle(page);
+    const stop = (await stopsOf(page)).find((s) => s.key === `tab:${tab}`)!;
+    await press(page, phone, stop.rect);
+    await waitFor(async () => ((await keys(page)).includes(row) ? true : null), `${tab} opens`, 10_000);
   }
 });
 
