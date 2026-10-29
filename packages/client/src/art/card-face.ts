@@ -311,6 +311,28 @@ export function wrapLines(
 }
 
 /**
+ * `wrapLines` that also fits `maxHeight`: the lines plus 2px between each. The footer band reserves only
+ * `SUBTITLE_EXTRA_LINE` for a second line, less than a line at the starting size, so two lines at that size ran off the
+ * card's bottom (issue #521, the Fear No Evil scenario tiles); the size steps down until they fit, to the floor.
+ */
+export function wrapLinesToFit(
+  measure: (text: string, size: number) => { readonly width: number; readonly height: number },
+  text: string,
+  maxWidth: number,
+  startSize: number,
+  floor: number,
+  maxLines: number,
+  maxHeight: number,
+): { readonly lines: readonly string[]; readonly size: number } {
+  const heightOf = (lines: readonly string[], size: number): number =>
+    lines.reduce((sum, line) => sum + measure(line, size).height + 2, -2);
+  let wrapped = wrapLines(measure, text, maxWidth, startSize, floor, maxLines);
+  for (let start = wrapped.size - 1; heightOf(wrapped.lines, wrapped.size) > maxHeight && start >= floor; start--)
+    wrapped = wrapLines(measure, text, maxWidth, start, floor, maxLines);
+  return wrapped;
+}
+
+/**
  * Paints `spec` at (0, 0), in game pixels (the caller scales the context by `spec.resolution`). `art` is the
  * decoded art, at any size: it is cropped in its own pixels, so a bitmap already downscaled for this card crops the
  * same as the full picture would.
@@ -356,15 +378,16 @@ export function paintCardFace(
   const subtitleColor = withAlpha(spec.subtitleColor, spec.subtitleAlpha);
   if ((spec.subtitleLines ?? 1) > 1) {
     const measure = (t: string, size: number): TextBox => measureBox(ctx, t, spec.subtitleFont, size, spec.desktop);
-    const wrapped = wrapLines(
+    let lineY = textY + title.height + 3;
+    const wrapped = wrapLinesToFit(
       measure,
       subtitleText,
       textWidth,
       spec.subtitleFitStart,
       spec.captionFloor,
       spec.subtitleLines ?? 1,
+      height - lineY - 2,
     );
-    let lineY = textY + title.height + 3;
     for (const line of wrapped.lines) {
       const box = measure(line, wrapped.size);
       drawBox(ctx, box, textX, lineY, subtitleColor);
