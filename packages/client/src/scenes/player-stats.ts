@@ -845,22 +845,29 @@ export class PlayerStatsScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(filled ? surface.ink.hex : surface.parchment.hex, 1).fillRect(box.x, box.y, box.width, box.height);
     g.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+    const objects: Phaser.GameObjects.GameObject[] = [g];
+    // A row about a card leads with its picture (the hover popover shows it large).
+    let left = box.x + 12;
+    const card = row.cardId ? CARDS_BY_ID.get(row.cardId) : undefined;
+    if (card) {
+      const height = box.height - 10;
+      const pic: Rect = { x: box.x + 6, y: box.y + 5, width: Math.round((height * 63) / 88), height };
+      g.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
+      const art = drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+      if (art) objects.push(art);
+      left = pic.x + pic.width + 10;
+    }
     const value = this.add
       .text(box.x + box.width - 12, box.y + 8, row.value, textStyle(typeRole.rowTitle, fg, 1))
       .setOrigin(1, 0)
       .setFontSize(15);
     fitText(value, box.width * 0.45, 15);
-    const label = this.add.text(box.x + 12, box.y + 8, row.label, textStyle(typeRole.rowTitle, fg, 1)).setFontSize(15);
-    fitText(label, box.width - 24 - value.width - 12, 15);
-    const objects: Phaser.GameObjects.GameObject[] = [g, value, label];
+    const label = this.add.text(left, box.y + 8, row.label, textStyle(typeRole.rowTitle, fg, 1)).setFontSize(15);
+    fitText(label, box.x + box.width - 12 - left - value.width - 12, 15);
+    objects.push(value, label);
     if (row.detail) {
-      const detail = this.add.text(
-        box.x + 12,
-        box.y + 30,
-        row.detail,
-        textStyle(typeRole.body, fg, filled ? 0.85 : 0.75),
-      );
-      fitWrapped(detail, box.width - 24, phone ? 2 : 1, 12);
+      const detail = this.add.text(left, box.y + 30, row.detail, textStyle(typeRole.body, fg, filled ? 0.85 : 0.75));
+      fitWrapped(detail, box.x + box.width - 12 - left, phone ? 2 : 1, 12);
       objects.push(detail);
     }
     return objects;
