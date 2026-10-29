@@ -18,6 +18,7 @@ import {
   cardOf,
   controllerOf,
   getInstance,
+  handCardResources,
   isMinion,
   playerCardOwnerOf,
   printedResources,
@@ -336,6 +337,10 @@ const isPlayerCharacter = (state: GameState, id: InstanceId): boolean =>
   isAlly(state, id) || state.players.some((player) => player.identity.instanceId === id);
 
 /** The hand cards a command spent paying (`Payment.fromHand`), in payment order; none for a command without one. */
+/** The card a command's payment pays for, as the engine passes it to `payPayment` (`payingFor`); null for the rest. */
+const payingForOf = (command: Command): InstanceId | null =>
+  command.type === "playCard" || command.type === "useAbility" ? command.cardInstanceId : null;
+
 function spentFromHand(command: Command | undefined): InstanceId[] {
   const payment = command && "payment" in command ? command.payment : undefined;
   return (payment ?? []).flatMap((entry) => ("fromHand" in entry ? [entry.fromHand] : []));
@@ -356,6 +361,12 @@ export function recordEvents(
    * its payment, which no event names as a payment (a spent card logs only its discard).
    */
   command?: Command,
+  /**
+   * The state before `command`, where the caller has it: a hand card's resources are priced in the hand, as the
+   * engine priced them (`handCardResources`: "double … while paying for", a rule that treats hand icons as one type).
+   * Absent, a hand card counts its printed icons.
+   */
+  before?: GameState,
 ): GameRecord {
   let round = record.round;
   const seats = new Map<PlayerId, SeatRecord>(
@@ -489,15 +500,20 @@ export function recordEvents(
     const instance = getInstance(state, id);
     const card = instance ? state.cardPool[instance.cardId] : undefined;
     if (!instance || !card || !command) continue;
-    // Its owner's hand, or (a card with no player owner held in a hand) the commanding player's.
-    onSeat(playerCardOwnerOf(state, id) ?? command.playerId, (seat) => ({
+    // The hand it was spent from (another player's helping pay for an alliance card), else its owner's, else the
+    // commanding player's.
+    const spender =
+      before?.players.find((player) => player.hand.includes(id))?.playerId ??
+      playerCardOwnerOf(state, id) ??
+      command.playerId;
+    // Priced in hand before the payment, as `payPayment` priced it; without that state, its printed icons.
+    const pool =
+      before && deps ? handCardResources(before, deps, id, spender, payingForOf(command)) : printedResources(card);
+    onSeat(spender, (seat) => ({
       ...seat,
       paidWith: bump(seat.paidWith, instance.cardId),
       discardedToPay: (seat.discardedToPay ?? 0) + 1,
-      // Engine-specific simplification: the printed icons. What changes a hand card's resources as it pays (Haywire's
-      // "treat as [energy]", "double … while paying for", `handCardResources`) is read in hand before the payment, and
-      // the state here is after it, so it is not counted.
-      resources: addPool(seat.resources, printedResources(card)),
+      resources: addPool(seat.resources, pool),
     }));
   }
 

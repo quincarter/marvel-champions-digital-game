@@ -103,7 +103,14 @@ describe("needsBackfill", () => {
     expect(
       needsBackfill(
         meta({
-          summary: { lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 0, seats: [], version: 2 },
+          summary: {
+            lossReason: null,
+            heroesDefeated: 0,
+            winners: [],
+            alliesPlayed: 0,
+            seats: [],
+            version: SUMMARY_VERSION,
+          },
         }),
         WRITER,
       ),
@@ -169,6 +176,33 @@ describe("summary version 2", () => {
       heroesDefeated: 0,
       alliesPlayed: 1,
     });
+  });
+
+  test("a version 2 summary is replayed again, and takes the replay's version 2 numbers over its own", () => {
+    const stale = { physical: 0, mental: 0, energy: 0, wild: 1 };
+    const v2: GameSummary = {
+      ...v1,
+      version: 2,
+      seats: [seat({ resources: stale, drawn: 9 })],
+      hurtBy: { "01094": 4 },
+    };
+    expect(SUMMARY_VERSION).toBe(3);
+    expect(needsBackfill(meta(v2), WRITER)).toBe(true);
+    const replayed: GameSummary = {
+      ...v1,
+      heroesDefeated: 1,
+      seats: [seat({ resources: { ...stale, wild: 2 }, drawn: 9, damage: 5 })],
+      version: SUMMARY_VERSION,
+      hurtBy: { "01094": 5 },
+    };
+    const filled = filledSummary(v2, replayed);
+    expect(filled.version).toBe(SUMMARY_VERSION);
+    // The Power of Aggression's doubling, counted now.
+    expect(filled.seats![0]!.resources).toEqual({ ...stale, wild: 2 });
+    expect(filled.hurtBy).toEqual({ "01094": 5 });
+    // The numbers older summaries had stay the live game's.
+    expect(filled.seats![0]!.damage).toBe(4);
+    expect(filled.heroesDefeated).toBe(0);
   });
 });
 

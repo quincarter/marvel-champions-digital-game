@@ -12,7 +12,10 @@ import {
   type EngineDeps,
   type GameEvent,
   type GameState,
+  type InstanceId,
+  type ResourcePool,
 } from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -586,4 +589,38 @@ describe("game record: the encounter side (#529)", () => {
     );
     expect(record.hurtBy).toEqual({ [villain.cardId]: 5 });
   });
+});
+
+describe("game record: a hand card's resources, priced as the engine priced them (Codex review on #530)", () => {
+  test("The Power of Aggression spent on an Aggression card counts double; without the state before, its icons", async () => {
+    const game = await recordedGame({ ...RHINO_SOLO, players: [{ starterDeckId: "core-she-hulk-aggression" }] });
+    const state = game.state();
+    const player = state.players[0]!;
+    const instanceOf = (id: string) => Object.values(state.instances).find((instance) => instance.cardId === id)!;
+    // The Power of Aggression (01055) paying for Uppercut (01054), an Aggression card.
+    const power = instanceOf("01055").instanceId;
+    const uppercut = instanceOf("01054").instanceId;
+    const others = (ids: readonly InstanceId[]): InstanceId[] => ids.filter((id) => id !== power && id !== uppercut);
+    const before: GameState = {
+      ...state,
+      players: [{ ...player, hand: [power, uppercut, ...others(player.hand)], deck: others(player.deck) }],
+    };
+    const command = {
+      type: "playCard",
+      playerId: player.playerId,
+      cardInstanceId: uppercut,
+      payment: [{ fromHand: power }],
+    } as unknown as Command;
+    const printed = printedResources(state.cardPool["01055"]!);
+    const total = (pool: ResourcePool | undefined) =>
+      pool ? pool.physical + pool.mental + pool.energy + pool.wild : 0;
+
+    const priced = recordEvents(emptyRecord(), [], state, POOL_DEPS, command, before).seats[0]!;
+    expect(total(printed)).toBeGreaterThan(0);
+    expect(total(priced.resources)).toBe(2 * total(printed));
+    // No state before the command (an older caller): the printed icons.
+    const fallback = recordEvents(emptyRecord(), [], state, POOL_DEPS, command).seats[0]!;
+    expect(fallback.resources).toEqual(printed);
+    expect(fallback.paidWith).toEqual(priced.paidWith);
+  }, 60_000);
 });

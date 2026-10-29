@@ -57,12 +57,37 @@ function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boo
  * seat is merged the same way: the replay's seat, with the live seat's numbers over it. A save with no summary at all
  * takes the replay's whole.
  */
+/** The fields version 2 added, which a later version's replay recounts (`SUMMARY_VERSION`). */
+const V2_FIELDS: readonly string[] = ["encounterRevealed", "hurtBy", "finalBlowCardId"];
+const V2_SEAT_FIELDS: readonly string[] = [
+  "drawn",
+  "resources",
+  "paidWith",
+  "discardedToPay",
+  "bestTurn",
+  "allyDamage",
+  "allyBlocks",
+  "allyDiedBlocking",
+];
+
+const withoutFields = <T extends object>(value: T, fields: readonly string[]): T =>
+  Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key))) as T;
+
 /** The fields that hold a value: a key stored as undefined (IndexedDB keeps those) is a missing field, not a value. */
 const definedFieldsOf = (value: object): Record<string, unknown> =>
   Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined));
 
-export function filledSummary(live: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
-  if (!live) return replayed;
+export function filledSummary(given: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
+  if (!given) return replayed;
+  // A live summary of version 2 or later but older than the replay: the fields version 2 brought may have been counted
+  // wrong (version 3 reprices hand cards' resources), so those come from the replay; the older fields stay live.
+  const recount = (given.version ?? 1) >= 2 && (given.version ?? 1) < (replayed.version ?? 1);
+  const live: GameSummary = recount
+    ? {
+        ...withoutFields(given, V2_FIELDS),
+        ...(given.seats ? { seats: given.seats.map((seat) => withoutFields(seat, V2_SEAT_FIELDS)) } : {}),
+      }
+    : given;
   const seats = replayed.seats
     ? replayed.seats.map((seat, index) => {
         const liveSeat = live.seats?.[index];

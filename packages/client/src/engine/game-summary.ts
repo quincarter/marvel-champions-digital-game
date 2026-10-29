@@ -26,8 +26,10 @@ import type { GameRecord } from "./game-record.js";
  * - 1 (absent): up to the per-seat card numbers, the villains and the side schemes.
  * - 2: draws, resources, the cards paid with, best turns, the allies' numbers, the encounter cards revealed, what hurt
  *   the heroes and the card that dealt the final blow.
+ * - 3: the same fields, a hand card's resources priced as the engine priced them (a doubling or a conversion counted),
+ *   so a version 2 summary is replayed again for them.
  */
-export const SUMMARY_VERSION = 2;
+export const SUMMARY_VERSION = 3;
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
 export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";
