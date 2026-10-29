@@ -716,7 +716,7 @@ export class DecksScene extends Phaser.Scene {
     this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
 
     // "Your stats" at the header's right end: what you play, the other side of what you build.
-    const statsWidth = layout.formFactor === "phone" ? 96 : 150;
+    const statsWidth = layout.formFactor === "phone" ? 112 : 150;
     const statsRect: Rect = {
       x: layout.header.x + layout.header.width - statsWidth,
       y: layout.header.y,
@@ -728,7 +728,8 @@ export class DecksScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
-        label: layout.formFactor === "phone" ? "Stats" : "Your stats",
+        // Never just "Stats": the narrow layout's own Stats tab is this deck's numbers.
+        label: "Your stats",
         type: typeRole.rowTitle,
         rect: statsRect,
         onClick: openStats,

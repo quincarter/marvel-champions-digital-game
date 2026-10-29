@@ -329,3 +329,24 @@ describe("playerStatsOf: devices", () => {
     expect(playerStatsOf([meta()], NAMES).sections.find((s) => s.id === "devices")).toBeUndefined();
   });
 });
+
+describe("playerStatsOf: How you lose with other losses", () => {
+  test("losses that are neither the scheme nor a wiped table get their own part and sentence", () => {
+    const other = (): SaveMeta =>
+      meta({
+        status: "lost",
+        outcome: { result: "loss", reason: "scenarioLoss" } as never,
+        summary: summary({ lossReason: "other" }),
+      });
+    const stats = playerStatsOf([other(), other(), loss("schemeCompleted")], NAMES);
+    const lose = stats.overview.tiles.find((t) => t.id === "lose");
+    expect(lose).toMatchObject({
+      kind: "split",
+      parts: [
+        { label: "Scheme", count: 1 },
+        { label: "Other", count: 2 },
+      ],
+      detail: "67% of losses are another way the scenario ends.",
+    });
+  });
+});

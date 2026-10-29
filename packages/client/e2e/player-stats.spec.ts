@@ -125,6 +125,8 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   expect((await findText(page, "4–2", "PlayerStats")).length, "the record").toBeGreaterThan(0);
 
+  // Once the screen has settled (art arriving redraws it, and a tap that straddles a redraw is dropped by design).
+  await settle(page);
   const heroes = (await stopsOf(page)).find((s) => s.key === "tab:heroes")!;
   await press(page, phone, heroes.rect);
   await waitFor(async () => ((await keys(page)).includes("row:hero:favorite") ? true : null), "Heroes opens", 10_000);
@@ -201,4 +203,50 @@ test("a swipe of the dashboard that lifts over a tab switches nothing", async ({
   // A tap on it still switches.
   await page.touchscreen.tap(tab.rect.x + tab.rect.width / 2, tab.rect.y + tab.rect.height / 2);
   await waitFor(async () => ((await keys(page)).includes("row:villain:favorite") ? true : null), "Villains", 10_000);
+});
+
+test("over Pause: a press on empty stats space reaches nothing underneath, and Back returns to Pause", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the wide Pause menu");
+  test.setTimeout(120_000);
+  await seeded(page, "pause", "PauseOverlay");
+  const pauseStops = (): Promise<Stop[]> =>
+    page.evaluate(() =>
+      (window as unknown as { __mcFocusRoutes: Record<string, () => Stop[]> }).__mcFocusRoutes.PauseOverlay!(),
+    );
+  const stats = await waitFor(
+    async () => (await pauseStops()).find((s) => s.key === "stats") ?? null,
+    "Your stats on the Pause menu",
+    15_000,
+  );
+  await press(page, false, stats.rect);
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  // Count every press the scenes under the stats hear from here on.
+  await page.evaluate(() => {
+    const game = (
+      window as unknown as {
+        __mcGame: { scene: { getScene(key: string): { input: { on(event: string, fn: () => void): void } } } };
+      }
+    ).__mcGame;
+    const heard = { n: 0 };
+    (window as unknown as { __heard: typeof heard }).__heard = heard;
+    for (const key of ["Board", "PauseOverlay"]) game.scene.getScene(key).input.on("pointerdown", () => heard.n++);
+  });
+  const tabs = (await stopsOf(page)).filter((s) => s.key.startsWith("tab:"));
+  const last = tabs.at(-1)!;
+  // The top bar's title, the space right of the tabs, and the bottom of the screen: none of them is a control.
+  for (const [x, y] of [
+    [400, 30],
+    [last.rect.x + last.rect.width + 60, last.rect.y + last.rect.height / 2],
+    [640, 880],
+  ] as const) {
+    await page.mouse.click(x, y);
+  }
+  await settle(page);
+  expect(await page.evaluate(() => (window as unknown as { __heard: { n: number } }).__heard.n)).toBe(0);
+  expect(await activeScenes(page)).toContain("PlayerStats");
+  await page.keyboard.press("Escape");
+  await waitFor(async () => ((await activeScenes(page)).includes("PlayerStats") ? null : true), "closed", 10_000);
+  expect(await activeScenes(page)).toContain("PauseOverlay");
 });

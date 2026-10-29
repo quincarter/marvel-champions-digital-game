@@ -24,6 +24,7 @@ import { accent, ink, signal, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { addPressShield } from "../ui/press-shield.js";
 import { GlyphHints, specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -122,7 +123,6 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (under) {
       under.input.enabled = false;
       if (under.input.keyboard) under.input.keyboard.enabled = false;
-      this.scene.bringToTop();
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
@@ -339,6 +339,9 @@ export class PlayerStatsScene extends Phaser.Scene {
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
 
+    // A press on empty space here stops here: over Pause or Settings, whose own shields are off while their input is,
+    // it would otherwise reach the Board or the Title underneath.
+    addPressShield(this, { x: 0, y: 0, width, height });
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     const backWord = this.#data.overlay ? "BACK" : (BACK_LABELS[this.#data.from ?? SCENES.trophyRoom] ?? "BACK");
     const bar = drawTopBar(this, {
@@ -396,25 +399,44 @@ export class PlayerStatsScene extends Phaser.Scene {
     );
 
     if (lastTab === "cards") {
+      // One row however many heroes: the previous hero, this one, the next (LT / RT step them too).
       const heroes = stats.heroCards;
       const current = heroAt(stats, lastHero)!;
-      const index = heroes.indexOf(current);
+      const several = heroes.length > 1;
       y = this.#drawChips(
         y + 10,
         gutter,
         inner,
-        heroes.map((hero, i) => ({
-          key: `hero:${hero.identityCardId}`,
-          label: `${hero.name.replace(/ \(.*\)$/, "")} · ${hero.games.split(" ")[0]}`,
-          selected: i === index,
-          onClick: () => this.#setHero(i),
-          glyph:
-            heroes.length > 1 && i === (index - 1 + heroes.length) % heroes.length
-              ? triggerSpecs("lt")
-              : heroes.length > 1 && i === (index + 1) % heroes.length
-                ? triggerSpecs("rt")
-                : null,
-        })),
+        [
+          ...(several
+            ? [
+                {
+                  key: "hero:previous",
+                  label: "◂",
+                  selected: false,
+                  onClick: () => this.#stepHero(-1),
+                  glyph: triggerSpecs("lt"),
+                },
+              ]
+            : []),
+          {
+            key: `hero:${current.identityCardId}`,
+            label: `${current.name.replace(/ \(.*\)$/, "")} · ${current.games}${several ? ` · ${heroes.indexOf(current) + 1} of ${heroes.length}` : ""}`,
+            selected: true,
+            onClick: () => undefined,
+          },
+          ...(several
+            ? [
+                {
+                  key: "hero:next",
+                  label: "▸",
+                  selected: false,
+                  onClick: () => this.#stepHero(1),
+                  glyph: triggerSpecs("rt"),
+                },
+              ]
+            : []),
+        ],
         stops,
         order,
         phone,

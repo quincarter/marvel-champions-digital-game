@@ -821,18 +821,25 @@ function overviewTilesOf(
   if (lost.length > 0) {
     const scheme = lost.filter((g) => g.lossReason === "schemeCompleted").length;
     const wiped = lost.filter((g) => g.lossReason === "playersDefeated").length;
+    const other = lost.length - scheme - wiped;
+    const parts = [
+      { label: "Scheme", count: scheme, tone: "caution" as const },
+      { label: "Wiped", count: wiped, tone: "ink" as const },
+      // A scenario's own loss, or an older save that names neither.
+      { label: "Other", count: other, tone: "ink" as const },
+    ].filter((part) => part.count > 0);
+    const top = [...parts].sort((a, b) => b.count - a.count)[0]!;
+    const what: Record<string, string> = {
+      Scheme: "the main scheme completing",
+      Wiped: "every hero falling",
+      Other: "another way the scenario ends",
+    };
     tiles.push({
       kind: "split",
       id: "lose",
       label: "How you lose",
-      parts: [
-        { label: "Scheme", count: scheme, tone: "caution" },
-        { label: "Wiped", count: wiped, tone: "ink" },
-      ],
-      detail:
-        scheme >= wiped
-          ? `${percent(scheme, lost.length)} of losses are the main scheme completing.`
-          : `${percent(wiped, lost.length)} of losses are every hero falling.`,
+      parts,
+      detail: `${percent(top.count, lost.length)} of losses are ${what[top.label]}.`,
     });
   }
   const lines: { label: string; value: string }[] = [];
@@ -840,12 +847,12 @@ function overviewTilesOf(
     const row = byId.get(id);
     if (row) lines.push({ label, value: row.detail.split(" ")[0]! });
   };
-  perGame("ov:damage", "Damage");
-  perGame("ov:thwart", "Threat removed");
-  perGame("ov:plays", "Cards played");
+  perGame("ov:damage", "Damage per hero");
+  perGame("ov:thwart", "Thwart per hero");
+  perGame("ov:plays", "Cards per hero");
   const length = byId.get("ov:length");
-  if (length) lines.push({ label: "Average game", value: length.value });
-  if (lines.length > 0) tiles.push({ kind: "figures", id: "per-game", label: "Per hero, per game", lines });
+  if (length) lines.push({ label: "Length", value: length.value });
+  if (lines.length > 0) tiles.push({ kind: "figures", id: "per-game", label: "Each game", lines });
 
   const heroRows = heroes ? statRowsOf(heroes) : [];
   const favorite = heroRows.find((row) => row.id === "hero:favorite");
@@ -876,7 +883,8 @@ function overviewTilesOf(
       label,
       name: row.value,
       detail: own ? `${own.detail.split(" · ")[0]} · ${own.value}` : row.detail,
-      extra: row.detail,
+      // The row's own line, unless it only says the game count again (Most faced).
+      extra: own && own.detail.startsWith(row.detail) ? "" : row.detail,
       art: { scenario },
       wide: false,
     });
