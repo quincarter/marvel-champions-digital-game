@@ -20,6 +20,7 @@ import {
   getInstance,
   handCardResources,
   isMinion,
+  locateCard,
   playerCardOwnerOf,
   printedResources,
   type Command,
@@ -336,11 +337,20 @@ const isAlly = (state: GameState, id: InstanceId | null): boolean => !!id && car
 const isPlayerCharacter = (state: GameState, id: InstanceId): boolean =>
   isAlly(state, id) || state.players.some((player) => player.identity.instanceId === id);
 
-/** The hand cards a command spent paying (`Payment.fromHand`), in payment order; none for a command without one. */
-/** The card a command's payment pays for, as the engine passes it to `payPayment` (`payingFor`); null for the rest. */
-const payingForOf = (command: Command): InstanceId | null =>
-  command.type === "playCard" || command.type === "useAbility" ? command.cardInstanceId : null;
+/**
+ * The card a command's payment pays for, as the engine passes it to `payPayment` (`payingFor`); null for the rest. An
+ * ability whose cost pays another card's printed cost (`AbilityCost.payPrintedCostOf`, Spell Mastery) pays for the card
+ * picked in its cost choices. Engine-specific simplification: the ability's printed cost is read, not a cost a rule
+ * replaced it with as the engine planned the use (`plan.cost`).
+ */
+function payingForOf(command: Command, deps: EngineDeps | undefined): InstanceId | null {
+  if (command.type === "playCard") return command.cardInstanceId;
+  if (command.type !== "useAbility") return null;
+  const slot = deps?.abilities[command.abilityId]?.cost?.payPrintedCostOf?.slot;
+  return (slot ? command.costChoices?.[slot]?.[0] : undefined) ?? command.cardInstanceId;
+}
 
+/** The hand cards a command spent paying (`Payment.fromHand`), in payment order; none for a command without one. */
 function spentFromHand(command: Command | undefined): InstanceId[] {
   const payment = command && "payment" in command ? command.payment : undefined;
   return (payment ?? []).flatMap((entry) => ("fromHand" in entry ? [entry.fromHand] : []));
@@ -500,15 +510,20 @@ export function recordEvents(
     const instance = getInstance(state, id);
     const card = instance ? state.cardPool[instance.cardId] : undefined;
     if (!instance || !card || !command) continue;
-    // The hand it was spent from (another player's helping pay for an alliance card), else its owner's, else the
-    // commanding player's.
+    // Who spent it, as the engine's `spentFromHandOf` reads it before the payment: the hand it was in (another player's
+    // helping pay for an alliance card), or, for a card tucked under a `spendableFromTucked` host, the paying player
+    // (a command's payment is one player's, so the group payment's "any player the rule names" does not arise). Without
+    // that state, its owner, else the commanding player.
+    const zone = before ? locateCard(before, id) : null;
     const spender =
-      before?.players.find((player) => player.hand.includes(id))?.playerId ??
+      (zone?.kind === "hand" ? zone.playerId : zone?.kind === "tucked" ? command.playerId : null) ??
       playerCardOwnerOf(state, id) ??
       command.playerId;
     // Priced in hand before the payment, as `payPayment` priced it; without that state, its printed icons.
     const pool =
-      before && deps ? handCardResources(before, deps, id, spender, payingForOf(command)) : printedResources(card);
+      before && deps
+        ? handCardResources(before, deps, id, spender, payingForOf(command, deps))
+        : printedResources(card);
     onSeat(spender, (seat) => ({
       ...seat,
       paidWith: bump(seat.paidWith, instance.cardId),

@@ -178,7 +178,7 @@ describe("summary version 2", () => {
     });
   });
 
-  test("a version 2 summary is replayed again, and takes the replay's version 2 numbers over its own", () => {
+  test("a version 2 summary is replayed again, and takes only its recounted resources from the replay", () => {
     const stale = { physical: 0, mental: 0, energy: 0, wild: 1 };
     const v2: GameSummary = {
       ...v1,
@@ -191,18 +191,22 @@ describe("summary version 2", () => {
     const replayed: GameSummary = {
       ...v1,
       heroesDefeated: 1,
-      seats: [seat({ resources: { ...stale, wild: 2 }, drawn: 9, damage: 5 })],
+      seats: [seat({ resources: { ...stale, wild: 2 }, drawn: 10, damage: 5 })],
       version: SUMMARY_VERSION,
       hurtBy: { "01094": 5 },
+      encounterRevealed: { "01107": 2 },
     };
     const filled = filledSummary(v2, replayed);
     expect(filled.version).toBe(SUMMARY_VERSION);
     // The Power of Aggression's doubling, counted now.
     expect(filled.seats![0]!.resources).toEqual({ ...stale, wild: 2 });
-    expect(filled.hurtBy).toEqual({ "01094": 5 });
-    // The numbers older summaries had stay the live game's.
+    // Every other number the live summary had stays the live game's (an achievement may have read it)...
+    expect(filled.hurtBy).toEqual({ "01094": 4 });
+    expect(filled.seats![0]!.drawn).toBe(9);
     expect(filled.seats![0]!.damage).toBe(4);
     expect(filled.heroesDefeated).toBe(0);
+    // ...and a field it lacks comes from the replay.
+    expect(filled.encounterRevealed).toEqual({ "01107": 2 });
   });
 });
 

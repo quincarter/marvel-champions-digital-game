@@ -52,40 +52,34 @@ function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boo
 }
 
 /**
- * The summary to write: the one the game recorded live, with the fields it lacks taken from the replay (the villains,
- * the side schemes, everything a later summary version added), so nothing an achievement already read changes. Each
- * seat is merged the same way: the replay's seat, with the live seat's numbers over it. A save with no summary at all
- * takes the replay's whole.
+ * What version 3 recounts (`SUMMARY_VERSION`): a hand card's resources, now priced as the engine priced them. A live
+ * summary of version 2 takes these from the replay; every other version 2 number stays live, since an achievement may
+ * have read it.
  */
-/** The fields version 2 added, which a later version's replay recounts (`SUMMARY_VERSION`). */
-const V2_FIELDS: readonly string[] = ["encounterRevealed", "hurtBy", "finalBlowCardId"];
-const V2_SEAT_FIELDS: readonly string[] = [
-  "drawn",
-  "resources",
-  "paidWith",
-  "discardedToPay",
-  "bestTurn",
-  "allyDamage",
-  "allyBlocks",
-  "allyDiedBlocking",
-];
+const RECOUNTED_IN_V3: readonly (keyof GameSummary)[] = [];
+const RECOUNTED_SEAT_FIELDS_IN_V3: readonly (keyof SeatSummary)[] = ["resources"];
 
-const withoutFields = <T extends object>(value: T, fields: readonly string[]): T =>
-  Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key))) as T;
+const withoutFields = <T extends object>(value: T, fields: readonly (keyof T)[]): T =>
+  Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key as keyof T))) as T;
 
 /** The fields that hold a value: a key stored as undefined (IndexedDB keeps those) is a missing field, not a value. */
 const definedFieldsOf = (value: object): Record<string, unknown> =>
   Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined));
 
+/**
+ * The summary to write: the one the game recorded live, with the fields it lacks taken from the replay (the villains,
+ * the side schemes, everything a later summary version added), so nothing an achievement already read changes. Each
+ * seat is merged the same way: the replay's seat, with the live seat's numbers over it. A version 2 summary also takes
+ * the replay's count of what version 3 recounts (`RECOUNTED_SEAT_FIELDS_IN_V3`). A save with no summary at all takes
+ * the replay's whole.
+ */
 export function filledSummary(given: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
   if (!given) return replayed;
-  // A live summary of version 2 or later but older than the replay: the fields version 2 brought may have been counted
-  // wrong (version 3 reprices hand cards' resources), so those come from the replay; the older fields stay live.
-  const recount = (given.version ?? 1) >= 2 && (given.version ?? 1) < (replayed.version ?? 1);
+  const recount = given.version === 2 && (replayed.version ?? 1) >= 3;
   const live: GameSummary = recount
     ? {
-        ...withoutFields(given, V2_FIELDS),
-        ...(given.seats ? { seats: given.seats.map((seat) => withoutFields(seat, V2_SEAT_FIELDS)) } : {}),
+        ...withoutFields(given, RECOUNTED_IN_V3),
+        ...(given.seats ? { seats: given.seats.map((seat) => withoutFields(seat, RECOUNTED_SEAT_FIELDS_IN_V3)) } : {}),
       }
     : given;
   const seats = replayed.seats
