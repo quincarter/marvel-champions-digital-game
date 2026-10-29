@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { cardId, cycleId, encounterSetId, setCode, unerrataedText, type MinionCard } from "@mc/content";
 import {
   activeVillain,
+  getPlayer,
   instanceId,
   type CardInstance,
   type GameEvent,
@@ -265,6 +266,30 @@ describe("wave 8 tips", () => {
       }) as never;
     expect(firedId(base, [defender(true)])).toBe("situation:effectDefender");
     expect(firedId(base, [defender(false)])).not.toBe("situation:effectDefender");
+  });
+
+  test("situation:effectDefender tells a declared hero from a declared ally (ruling Mar 16, 2025; PR #498)", () => {
+    const declaredAs = (game: GameState, defenderInstanceId: InstanceId) =>
+      tipsFor(
+        observe(game, [
+          {
+            type: "defenderDeclared",
+            attackInstanceId: instanceId("a"),
+            defenderInstanceId,
+            playerId: me,
+            byEffect: true,
+          } as never,
+        ]),
+        POOL_DEPS,
+        { ...prefs, seenTips: [...EARLIER] },
+      ).find((tip) => tip.id === "situation:effectDefender")!.body;
+    const hero = declaredAs(base, getPlayer(base, me)!.identity.instanceId);
+    expect(hero).toMatch(/your hero the defender\. That is a basic/);
+    // An ally has no basic power, so nothing says it made a basic defense.
+    const withAlly = withPrintedCard(base, "45002", { area: "player", cardType: "ally" });
+    const ally = declaredAs(withAlly, instanceId("wave8-tip-45002"));
+    expect(ally).toMatch(/An ally uses no basic power/);
+    expect(ally).not.toMatch(/makes a basic/);
   });
 
   test("situation:missionArea needs a card in the mission area, and a mission attempt shows its own tip", () => {

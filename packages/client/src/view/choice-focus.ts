@@ -115,6 +115,17 @@ export function confirmMinimum(choice: Pick<PendingChoice, "options" | "minSelec
   return choice.minSelections === 0 && choice.options.length > 0 ? 1 : choice.minSelections;
 }
 
+/**
+ * The picks after pressing `optionId`: a picked option is dropped, a single pick is replaced, and otherwise the option
+ * joins the end while there is room. For an `ordered` choice the list's order is the answer's order, so the n-th press
+ * is the n-th to resolve (the sheet's number chips read this list).
+ */
+export function toggledSelection(selected: readonly string[], optionId: string, max: number): readonly string[] {
+  if (selected.includes(optionId)) return selected.filter((id) => id !== optionId);
+  if (max === 1) return [optionId];
+  return selected.length < max ? [...selected, optionId] : selected;
+}
+
 /** True when Confirm can be pressed with `selectedCount` picks. */
 export function canConfirmChoice(
   choice: Pick<PendingChoice, "options" | "minSelections" | "maxSelections">,
