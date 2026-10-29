@@ -196,6 +196,11 @@ const VILLAIN_DOCK_TWEEN_MS = 280;
 /** The form cards' fan-out and fold beside the play area (issue #308). */
 const FORM_FAN_TWEEN_MS = 280;
 
+/** The seat whose side the table draws: a looked-at teammate's (`SessionState.peekSeat`), else the board's own. */
+function shownSeat(state: SessionState): PlayerId | null {
+  return state.peekSeat ?? state.perspectiveId;
+}
+
 /** A card's name and traits, for its sound (`view/sound-effects.ts`). An identity's traits sit on its faces and never count. */
 function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
   const card = CARDS_BY_ID.get(cardId as string) as
@@ -595,11 +600,15 @@ export class BoardScene extends Phaser.Scene {
       zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
       onLayerPress: (layer, index) => this.#pressLayer(layer, index),
       // While a direct pick is open LB / RB are modifiers too, and a quick tap of one keeps its zone jump on release.
-      pickModifiers: () => this.#controller.pickIds() !== null,
+      // The team rail's View buttons make LB one as well: LB + a face button views that seat (`view/seat-peek.ts`).
+      pickModifiers: (bumper) =>
+        this.#controller.pickIds() !== null || (this.#frame.seatViews.size > 0 && bumper !== "rb"),
       onBumper: (bumper) => this.#hints.setBumper(bumper),
       onBumperPick: (bumper, index) => {
         const slot = padPickSlotOf(bumper, index);
-        if (slot !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
+        if (slot === null) return;
+        if (this.#controller.pickIds() !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
+        else this.#frame.seatViews.get(slot)?.();
       },
     };
     bindKeyboard(this, binding);
@@ -865,21 +874,26 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    const mine = state.legal?.playerId === state.perspectiveId ? state.legal.actions : null;
-    this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS, mine));
-    this.#marks = state.legal
-      ? withDefenseLockout(
-          withForcedActions(
-            withAttackBarWording(highlights(state.legal.actions), state.legal.actions, state.game, POOL_DEPS),
-            state.legal.actions,
+    // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
+    const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
+    this.#model = this.#withDebugSideSchemes(
+      boardModel(state.game, state.peekSeat ?? state.perspectiveId, POOL_DEPS, mine),
+    );
+    // A looked-at seat (`peekSeat`) is read-only: the acting seat's legal moves light nothing on its side of the table.
+    this.#marks =
+      state.legal && state.peekSeat === null
+        ? withDefenseLockout(
+            withForcedActions(
+              withAttackBarWording(highlights(state.legal.actions), state.legal.actions, state.game, POOL_DEPS),
+              state.legal.actions,
+              state.game,
+              POOL_DEPS,
+            ),
             state.game,
+            state.perspectiveId,
             POOL_DEPS,
-          ),
-          state.game,
-          state.perspectiveId,
-          POOL_DEPS,
-        )
-      : null;
+          )
+        : null;
     this.#focusTurnStart(turnKeyOf(state.game));
     const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
     this.#teamUps = present.map((entry) => entry.pair);
@@ -1293,7 +1307,7 @@ export class BoardScene extends Phaser.Scene {
     this.#debugPad = pad;
     const state = appSession().store.state;
     if (state.game && state.perspectiveId) {
-      this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
+      this.#model = this.#withDebugSideSchemes(boardModel(state.game, shownSeat(state)!, POOL_DEPS));
     }
     this.#draw();
   }
@@ -1839,6 +1853,8 @@ export class BoardScene extends Phaser.Scene {
         // open"). `binding.blocked()` already keeps this from firing while an
         // overlay owns input, so reaching here means the board itself is idle.
         if (this.#controller.selection.kind !== "idle") this.#controller.cancel();
+        // Looking at a teammate's side (the team rail's View): back to the seat that acts.
+        else if (appSession().store.state.peekSeat !== null) appSession().store.endSeatPeek();
         else this.#openPause();
         break;
     }
@@ -2575,6 +2591,7 @@ export class BoardScene extends Phaser.Scene {
       logFocused: this.#logFocused,
       tipShown: this.#tip?.escapeActs() ?? false,
       selectionIdle: this.#controller.selection.kind === "idle",
+      seatPeek: appSession().store.state.peekSeat !== null,
     });
   }
 
@@ -2924,7 +2941,7 @@ export class BoardScene extends Phaser.Scene {
     const cached = this.#heldModelCache;
     if (cached && cached.base === live && cached.game === game && cached.key === key) return cached.model;
     const model = this.#withDebugSideSchemes(
-      boardModel(withFacedownHeld(game, facedown), state.perspectiveId, POOL_DEPS),
+      boardModel(withFacedownHeld(game, facedown), shownSeat(state)!, POOL_DEPS),
     );
     this.#heldModelCache = { base: live, game, key, model };
     return model;

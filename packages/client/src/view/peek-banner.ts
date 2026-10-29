@@ -20,12 +20,19 @@ export interface PeekBannerLayout {
   /** MOVE: flips the banner to the other edge. */
   readonly move: Rect;
   readonly back: Rect;
+  /**
+   * One button per seat under the question line, in seat order, to switch whose side of the table shows (a multi-seat
+   * game, `view/seat-peek.ts`); empty for one seat, and the banner is then its one line.
+   */
+  readonly seats: readonly Rect[];
 }
 
 const PAD = 4;
 const GAP = 8;
 /** One line of question and a full-size control, so no taller than a touch target and its padding. */
 export const PEEK_BANNER_HEIGHT = hit.target + PAD * 2;
+/** The seat row's height under the question line, when the banner offers seats. */
+export const PEEK_SEAT_ROW_HEIGHT = hit.target + PAD;
 
 let edge: PeekEdge = "bottom";
 
@@ -59,20 +66,28 @@ export function peekTopClear(formFactor: FormFactor): number {
  * The banner pinned to `edge` of `area` (the band it may use: under the title bar and tab rail at the top, above
  * whatever must stay clear at the bottom), at most `maxWidth` wide, centered.
  */
-export function peekBannerLayout(area: Rect, edgeOf: PeekEdge, phone: boolean, maxWidth = 720): PeekBannerLayout {
+export function peekBannerLayout(
+  area: Rect,
+  edgeOf: PeekEdge,
+  phone: boolean,
+  maxWidth = 720,
+  seatCount = 0,
+): PeekBannerLayout {
   const width = Math.min(area.width, maxWidth);
   const x = area.x + (area.width - width) / 2;
-  const height = Math.min(PEEK_BANNER_HEIGHT, area.height);
+  const seatRow = seatCount > 1 ? PEEK_SEAT_ROW_HEIGHT : 0;
+  const height = Math.min(PEEK_BANNER_HEIGHT + seatRow, area.height);
+  const lineHeight = Math.max(0, height - seatRow);
   const banner: Rect = {
     x,
     y: edgeOf === "top" ? area.y : area.y + area.height - height,
     width,
     height,
   };
-  const buttonHeight = Math.max(0, height - PAD * 2);
+  const buttonHeight = Math.max(0, lineHeight - PAD * 2);
   const backWidth = phone ? 80 : 120;
   const moveWidth = phone ? 76 : 100;
-  const y = banner.y + (height - buttonHeight) / 2;
+  const y = banner.y + (lineHeight - buttonHeight) / 2;
   const back: Rect = { x: banner.x + banner.width - PAD - backWidth, y, width: backWidth, height: buttonHeight };
   const move: Rect = { x: back.x - GAP / 2 - moveWidth, y, width: moveWidth, height: buttonHeight };
   const textX = banner.x + GAP + 2;
@@ -80,7 +95,18 @@ export function peekBannerLayout(area: Rect, edgeOf: PeekEdge, phone: boolean, m
     x: textX,
     y: banner.y,
     width: Math.max(0, move.x - GAP - textX),
-    height: banner.height,
+    height: lineHeight,
   };
-  return { edge: edgeOf, banner, text, move, back };
+  const seats: Rect[] = [];
+  if (seatRow > 0) {
+    const rowX = banner.x + PAD;
+    const rowWidth = banner.width - PAD * 2;
+    const seatWidth = (rowWidth - (GAP / 2) * (seatCount - 1)) / seatCount;
+    const seatY = banner.y + lineHeight;
+    const seatHeight = Math.max(0, height - lineHeight - PAD);
+    for (let index = 0; index < seatCount; index++) {
+      seats.push({ x: rowX + index * (seatWidth + GAP / 2), y: seatY, width: seatWidth, height: seatHeight });
+    }
+  }
+  return { edge: edgeOf, banner, text, move, back, seats };
 }

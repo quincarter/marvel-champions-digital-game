@@ -83,6 +83,33 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     return;
   }
 
+  // Looking at a teammate's side of the table (the team rail's View, or PEEK AT TABLE's seat picker): nothing here is
+  // this seat's to do, so the bar names whose side it is and offers the way back to the seat that acts (Esc / B too).
+  if (appSession().store.state.peekSeat !== null) {
+    const back: Rect = { x: rect.x + rect.width - 110, y: rect.y + 4, width: 100, height: hit.target - 8 };
+    scene.add
+      .text(
+        rect.x + 10,
+        rect.y + hit.target / 2,
+        `Looking at ${model.me.name} · read only`,
+        textStyle(typeRole.barTitle, signal.caution.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setWordWrapWidth(Math.max(1, back.x - rect.x - 20))
+      .setMaxLines(1);
+    const backButton = new McButton(scene, {
+      kind: "primary",
+      label: "Back",
+      type: typeRole.label,
+      rect: back,
+      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+      onClick: () => appSession().store.endSeatPeek(),
+    });
+    ctx.frame.buttons.push(backButton);
+    ctx.hints.button(backButton, ["back"], "ink");
+    return;
+  }
+
   // A seat that is out has no Actions and no turn to end: say so instead of a row of greyed controls.
   if (model.meOut) {
     scene.add
