@@ -203,6 +203,18 @@ export class SessionStore {
     return this.#host.retireSave(gameId);
   }
 
+  /**
+   * Fills in the card numbers of games finished before this build recorded them (`engine/summary-backfill.ts`), in
+   * the engine worker. Resolves to how many games were written; a failure writes nothing and resolves to 0.
+   */
+  async backfillSummaries(): Promise<number> {
+    try {
+      return await this.#host.backfillSummaries();
+    } catch {
+      return 0;
+    }
+  }
+
   /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). A storage failure is treated as "none recorded". */
   async listSaves(): Promise<readonly SaveMeta[]> {
     try {

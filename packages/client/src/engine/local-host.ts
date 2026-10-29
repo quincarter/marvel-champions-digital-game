@@ -94,6 +94,10 @@ export class LocalEngineHost implements EngineHost {
     return this.#core.listSaves();
   }
 
+  backfillSummaries(): Promise<number> {
+    return this.#core.backfillSummaries();
+  }
+
   /** Resolves once every queued write has settled — so a test can "refresh" after it. */
   flushed(): Promise<void> {
     return this.#core.flushed();

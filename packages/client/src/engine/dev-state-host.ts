@@ -103,6 +103,10 @@ export class DevStateHost implements EngineHost {
     return [];
   }
 
+  async backfillSummaries(): Promise<number> {
+    return 0;
+  }
+
   dispose(): void {
     this.#listeners.clear();
   }

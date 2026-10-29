@@ -147,6 +147,10 @@ async function handle(request: HostRequest): Promise<void> {
         reply({ kind: "listSaves", id: request.id, saves: await core.listSaves() });
         return;
       }
+      case "backfillSummaries": {
+        reply({ kind: "backfilled", id: request.id, written: await core.backfillSummaries() });
+        return;
+      }
     }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

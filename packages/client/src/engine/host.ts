@@ -325,5 +325,10 @@ export interface EngineHost {
   retireSave(gameId: string): Promise<void>;
   /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). */
   listSaves(): Promise<readonly SaveMeta[]>;
+  /**
+   * Fills in the card numbers of games finished before the save summary had them, by replaying their logs
+   * (`engine/summary-backfill.ts`); resolves to how many games were written.
+   */
+  backfillSummaries(): Promise<number>;
   dispose(): void;
 }

@@ -208,6 +208,12 @@ export interface GameStorage {
    * row's stamp is untouched (an incompatible mark is not a play).
    */
   setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void>;
+  /**
+   * Replaces a finished game's summary (`SaveMeta.summary`) and stamps the row with `updatedAt`, leaving its status,
+   * log and device stamp as they are: the stats backfill (`engine/summary-backfill.ts`) filling in a game finished
+   * before the summary carried card numbers. A game not stored is left alone.
+   */
+  setSummary(gameId: string, summary: GameSummary, updatedAt: number): Promise<void>;
 }
 
 /** `meta` marked as written on this device: unchanged when the device's platform is not known. */
@@ -279,6 +285,11 @@ export class MemoryGameStorage implements GameStorage {
   async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {
     const meta = this.#games.get(gameId);
     if (meta) this.#games.set(gameId, { ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
+  }
+
+  async setSummary(gameId: string, summary: GameSummary, updatedAt: number): Promise<void> {
+    const meta = this.#games.get(gameId);
+    if (meta) this.#games.set(gameId, { ...meta, summary, updatedAt });
   }
 }
 

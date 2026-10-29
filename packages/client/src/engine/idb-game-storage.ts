@@ -20,6 +20,7 @@
 import type { Command } from "@mc/engine";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import type { StateWithoutPool } from "./host.js";
+import type { GameSummary } from "./game-summary.js";
 import {
   migrateSaveMeta,
   newestActive,
@@ -177,6 +178,18 @@ export class IdbGameStorage implements GameStorage {
     const games = transaction.objectStore("games");
     const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
     if (meta) games.put({ ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
+    await done;
+    notifySaveDataChanged("game");
+  }
+
+  async setSummary(gameId: string, summary: GameSummary, updatedAt: number): Promise<void> {
+    const db = await this.#open();
+    const transaction = db.transaction("games", "readwrite");
+    const done = committed(transaction);
+    const games = transaction.objectStore("games");
+    const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
+    // Not `stampedPlayedOn`: the game was played where its stamp says, not on the device that filled in its numbers.
+    if (meta) games.put({ ...meta, summary, updatedAt });
     await done;
     notifySaveDataChanged("game");
   }
