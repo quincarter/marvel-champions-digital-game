@@ -168,7 +168,7 @@ const viewTableRects = (page: Page): Promise<Rect[]> =>
     const dbg = (window as unknown as { __mcChoiceDebug?: { allRects(): (readonly [string, Rect | null])[] } })
       .__mcChoiceDebug;
     return (dbg?.allRects() ?? [])
-      .filter(([key, rect]) => key.startsWith("view-table:") && rect !== null)
+      .filter(([key, rect]) => key.startsWith("option:view-table:") && rect !== null)
       .map(([, rect]) => rect!);
   });
 
@@ -210,6 +210,14 @@ test("VIEW TABLE answers its seat's number key and its LB combo", async ({ page 
   const errors = trackErrors(page);
   await installPad(page);
   await openCommander(page);
+  await settle(page);
+
+  // Tab reaches it too: the first row, its VIEW TABLE, the second row, its VIEW TABLE.
+  for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await waitFor(async () => ((await peekedSeat(page)) === 1 ? true : null), "Tab to the second VIEW TABLE", 10_000);
+  await page.keyboard.press("KeyR");
+  await waitFor(async () => ((await peekDebug(page, "peeking")) ? null : true), "back to the decision", 10_000);
   await settle(page);
 
   await page.keyboard.press("Digit2");

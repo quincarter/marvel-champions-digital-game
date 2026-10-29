@@ -228,6 +228,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #pickTaps = new Map<number, () => void>();
   /** The seat buttons' number keys this draw (1 to 4 by seat order, `view/seat-peek.ts`), by seat index. */
   #seatKeys = new Map<number, () => void>();
+  /** The VIEW TABLE buttons this draw, by their focus stop's option id. */
+  #viewTables = new Map<string, () => void>();
   /** The target tiles' bars for the sheet being drawn (`view/choice-tile-bars.ts`), rebuilt with every draw. */
   #tileBars: ReadonlyMap<string, TileBar> = new Map();
   /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
@@ -450,8 +452,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // 1 to 4: a seat's look-at button (View table on a choose-a-player row, a seat on the peek banner), by seat order.
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (binding.blocked() || this.#motion.leaving || this.#covered()) return;
-      if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-      const match = /^Digit([1-4])$/.exec(event.code);
+      if (event.repeat || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      const match = /^(?:Digit|Numpad)([1-4])$/.exec(event.code);
       if (match) this.#seatKeys.get(Number(match[1]) - 1)?.();
     });
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
@@ -598,6 +600,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRects.clear();
     this.#pickTaps.clear();
     this.#seatKeys.clear();
+    this.#viewTables.clear();
     this.#scrolledRows.clear();
     this.#optionRegion = null;
     this.#guideOptionRects.clear();
@@ -1179,6 +1182,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     const viewport: Rect = { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: listHeight };
     const rowWidth = sheet.width - 24 - (rowsLayout.scrolls ? 10 : 0);
     const sheetKey = key;
+    /** Each player row's VIEW TABLE stop, by the row's option id, for the focus route. */
+    const viewStops = new Map<string, string>();
     this.#route = choiceFocusOrder(
       choice.options.map((option) => option.optionId),
       canDeclineChoice(choice),
@@ -1219,7 +1224,9 @@ export class ChoiceOverlay extends Phaser.Scene {
         const viewRect: Rect = { x: rect.x + rect.width - viewWidth, y: rect.y, width: viewWidth, height: rect.height };
         const look = (): void => {
           appSession().store.peekAtSeat(playerId);
-          this.#setPeek(sheetKey);
+          // Over the docked villain phase the phase tucks itself away (its own banner has the seats and Back).
+          if (host?.peek) host.peek();
+          else this.#setPeek(sheetKey);
         };
         const view = new McButton(this, {
           kind: "secondary",
@@ -1231,8 +1238,13 @@ export class ChoiceOverlay extends Phaser.Scene {
         });
         this.#buttons.push(view);
         rowButtons.push(view);
-        this.#focusRects.set(`view-table:${playerId}`, viewRect);
-        this.#registerSeatPick(viewRect, seatIndex, seatPeekSlot(seatIndex), look);
+        // A stop of its own right after its row, so Tab, the arrows and the D-pad reach it too (`#activate`).
+        const viewKey = choiceFocusKey({ kind: "option", optionId: `${VIEW_STOP}${playerId}` });
+        this.#focusRects.set(viewKey, viewRect);
+        if (rowsLayout.scrolls) this.#scrolledRows.set(viewKey, index);
+        this.#viewTables.set(`${VIEW_STOP}${playerId}`, look);
+        viewStops.set(option.optionId, `${VIEW_STOP}${playerId}`);
+        this.#registerSeatPick(viewRect, seatIndex, seatPeekSlot(seatIndex), look, viewKey);
       }
       const button = new McButton(this, {
         kind: "secondary",
@@ -1256,6 +1268,12 @@ export class ChoiceOverlay extends Phaser.Scene {
         "row",
       );
     });
+    if (viewStops.size > 0) {
+      this.#route = this.#route.flatMap((target): ChoiceFocusTarget[] => {
+        const view = target.kind === "option" ? viewStops.get(target.optionId) : undefined;
+        return view ? [target, { kind: "option", optionId: view }] : [target];
+      });
+    }
     if (rowsLayout.scrolls) {
       const region = new McScrollRegion(this, {
         rect: viewport,
@@ -2813,16 +2831,27 @@ export class ChoiceOverlay extends Phaser.Scene {
    * A seat button on the peek banner wears its seat's combo, LB + a face button (`view/seat-peek.ts`), and the combo
    * presses it. There are no option tiles while the sheet is aside, so the slots are free.
    */
-  #registerSeatPick(rect: Rect, seatIndex: number, slot: number | null, tap: () => void): void {
+  #registerSeatPick(rect: Rect, seatIndex: number, slot: number | null, tap: () => void, focusKey?: string): void {
     if (slot === null || seatIndexOfSlot(slot) === null) return;
     this.#pickTaps.set(slot, tap);
     this.#seatKeys.set(seatIndex, tap);
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
     this.#hints.custom(
       (_set, snapshot, _layer, held) =>
         this.#covered() ? null : seatPeekGlyphSpecs(seatIndex, slot, snapshot.state, snapshot.settings, held),
       18,
-      ({ width: glyphWidth, height: glyphHeight }) =>
-        rect.height < glyphHeight + 4 ? null : { x: rect.x + rect.width - glyphWidth - 6, y: rect.y + rect.height / 2 },
+      ({ width: glyphWidth, height: glyphHeight }) => {
+        // Inside a scrolling list the button moves: the glyph follows it, and one scrolled out of view has none.
+        const shown =
+          focusKey === undefined
+            ? rect
+            : this.#optionRegion
+              ? clipHoverRect(this.#screenRect(focusKey) ?? rect, this.#optionRegion.rect)
+              : (this.#screenRect(focusKey) ?? rect);
+        if (!shown || shown.height < glyphHeight + 4) return null;
+        return { x: shown.x + shown.width - glyphWidth - 6, y: shown.y + shown.height / 2 };
+      },
       { ground: "ink" },
     );
   }
@@ -3248,6 +3277,10 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#rebuild();
       return;
     }
+    if (focus.kind === "option" && focus.optionId.startsWith(VIEW_STOP)) {
+      this.#viewTables.get(focus.optionId)?.();
+      return;
+    }
     if (focus.kind === "option" && focus.optionId.startsWith(INSPECT_STOP)) {
       this.#inspectCardId(focus.optionId.slice(INSPECT_STOP.length));
       return;
@@ -3431,6 +3464,8 @@ export class ChoiceOverlay extends Phaser.Scene {
 
 /** The accuse sheet's read-only stops (a Board Member key or a chip of the picked row): Enter or I opens that card. */
 const INSPECT_STOP = "inspect:";
+/** A choose-a-player row's VIEW TABLE, as a focus stop (`#activate`). */
+const VIEW_STOP = "view-table:";
 /** A collection search page button's focus stop: `page:-1` and `page:1`. */
 const PAGE_STOP = "page:";
 
