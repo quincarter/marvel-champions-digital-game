@@ -16,11 +16,19 @@ const STATS: PlayerStats = {
     { identityCardId: "x", name: "X", games: "1", aspects: [], groups: [], note: null },
     { identityCardId: "y", name: "Y", games: "1", aspects: [], groups: [], note: null },
   ],
+  allCards: {
+    identityCardId: "",
+    name: "Every hero",
+    games: "2",
+    aspects: [],
+    groups: [{ id: "all:played", title: "Most played", cards: [{ cardId: "c", value: "2×", detail: "" }] }],
+    note: null,
+  },
 };
 
 describe("statsTabsOf", () => {
   test("Overview always; a tab per section the stats have, then Cards by hero", () => {
-    expect(statsTabsOf(STATS).map((t) => t.id)).toEqual(["overview", "heroes", "cards"]);
+    expect(statsTabsOf(STATS).map((t) => t.id)).toEqual(["overview", "heroes", "all-cards", "cards"]);
   });
 });
 
@@ -60,6 +68,10 @@ describe("dashboardRowsOf", () => {
   test("Overview is its tile rows and the older-games note", () => {
     const rows = dashboardRowsOf(STATS, "overview", 0, 1000, false);
     expect(rows.at(-1)).toMatchObject({ kind: "note", text: "older" });
+  });
+
+  test("Cards is a heading and a strip of pictures per group", () => {
+    expect(dashboardRowsOf(STATS, "all-cards", 0, 1000, false).map((r) => r.kind)).toEqual(["heading", "cards"]);
   });
 
   test("a list tab is its section's rows", () => {

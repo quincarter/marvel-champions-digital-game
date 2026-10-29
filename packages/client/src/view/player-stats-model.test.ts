@@ -350,3 +350,26 @@ describe("playerStatsOf: How you lose with other losses", () => {
     });
   });
 });
+
+describe("playerStatsOf: the Cards tab, every hero together", () => {
+  test("most played, most activated, best win rate when it comes out, and rarely played", () => {
+    const stats = playerStatsOf(
+      [
+        meta({ summary: summary() }),
+        meta({ summary: summary({ seats: [seat({ identityCardId: "cap", plays: { webs: 1 } })] }) }),
+        loss("schemeCompleted", { summary: summary({ lossReason: "schemeCompleted" }) }),
+      ],
+      NAMES,
+    );
+    const groups = new Map(stats.allCards!.groups.map((g) => [g.id, g]));
+    expect(groups.get("all:played")!.cards[0]).toMatchObject({ cardId: "aunt", value: "4×" });
+    expect(groups.get("all:played")!.cards.find((c) => c.cardId === "webs")!.detail).toBe("In 3 games · 2 heroes");
+    expect(groups.get("all:activated")!.cards[0]).toMatchObject({ cardId: "webs", value: "9×" });
+    expect(groups.get("all:wins")!.cards.find((c) => c.cardId === "webs")).toMatchObject({ value: "67%" });
+    expect(groups.get("all:unplayed")!.cards.map((c) => c.cardId)).toEqual(["bot", "tac"]);
+  });
+
+  test("no game with card numbers: no Cards tab", () => {
+    expect(playerStatsOf([meta()], NAMES).allCards).toBeNull();
+  });
+});

@@ -5,7 +5,7 @@
  */
 import type { HeroCardsView, OverviewTile, PlayerStats, StatRow } from "./player-stats-model.js";
 
-export type StatsTab = "overview" | "heroes" | "villains" | "side-schemes" | "devices" | "cards";
+export type StatsTab = "overview" | "heroes" | "villains" | "side-schemes" | "devices" | "all-cards" | "cards";
 
 export interface StatsTabEntry {
   readonly id: StatsTab;
@@ -21,6 +21,7 @@ export function statsTabsOf(stats: PlayerStats): readonly StatsTabEntry[] {
     ...(has("villains") ? [{ id: "villains" as const, label: "Villains" }] : []),
     ...(has("side-schemes") ? [{ id: "side-schemes" as const, label: "Side schemes" }] : []),
     ...(has("devices") ? [{ id: "devices" as const, label: "Devices" }] : []),
+    ...(stats.allCards ? [{ id: "all-cards" as const, label: "Cards" }] : []),
     ...(stats.heroCards.length > 0 ? [{ id: "cards" as const, label: "Cards by hero" }] : []),
   ];
 }
@@ -166,6 +167,14 @@ export function dashboardRowsOf(
     const rows = tileRowsOf(stats.overview.tiles, width, phone);
     if (stats.overview.note)
       rows.push({ kind: "note", id: "ov:note", height: noteHeight(phone) + 12, text: stats.overview.note });
+    return rows;
+  }
+  if (tab === "all-cards") {
+    const rows: DashRow[] = [];
+    for (const group of stats.allCards?.groups ?? []) {
+      rows.push({ kind: "heading", id: `${group.id}:head`, height: phone ? 40 : 44, title: group.title });
+      rows.push(...cardRowsOf(group.id, group.cards, width, phone));
+    }
     return rows;
   }
   if (tab === "cards") {

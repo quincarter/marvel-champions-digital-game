@@ -146,6 +146,8 @@ export interface PlayerStats {
   readonly overview: OverviewTiles;
   /** Most played hero first. */
   readonly heroCards: readonly HeroCardsView[];
+  /** The Cards tab: every hero's games together (no aspects), or null before any game has card numbers. */
+  readonly allCards: HeroCardsView | null;
 }
 
 /** One finished game, reduced to what the stats read. */
@@ -941,6 +943,104 @@ function heroCardsViewOf(section: StatsSection, identityCardId: string, name: st
   return { identityCardId, name, games: section.count, aspects, groups, note };
 }
 
+/** How many cards a list on the Cards tab shows. */
+const ALL_TOP = 8;
+
+/**
+ * The Cards tab (#529): every seat's cards across every hero. Most played, most activated, the best win rate when a
+ * card comes out (3 games or more), and the cards that sit in decks. A card "comes out" in a game it was played in or
+ * came into play in.
+ */
+function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsView | null {
+  const nameOf = (id: string): string => names.cardName(id) ?? id;
+  const used = games.flatMap((game) =>
+    game.seats.flatMap((seat) => (seat.summary ? [{ won: game.result === "won", seat: seat.summary }] : [])),
+  );
+  if (used.length === 0) return null;
+  const plays = new Map<string, number>();
+  const activations = new Map<string, number>();
+  const inDeck = new Map<string, number>();
+  const cameOut = new Map<string, number>();
+  const wonOut = new Map<string, number>();
+  const heroes = new Map<string, Set<string>>();
+  const add = (map: Map<string, number>, id: string, n = 1): void => void map.set(id, (map.get(id) ?? 0) + n);
+  for (const { won, seat } of used) {
+    for (const [id, n] of Object.entries(seat.plays)) add(plays, id, n);
+    for (const [id, n] of Object.entries(seat.activations)) add(activations, id, n);
+    for (const id of seat.deck) add(inDeck, id);
+    for (const id of new Set([...Object.keys(seat.plays), ...Object.keys(seat.entered ?? {})])) {
+      add(cameOut, id);
+      if (won) add(wonOut, id);
+      (heroes.get(id) ?? heroes.set(id, new Set()).get(id)!).add(seat.identityCardId);
+    }
+  }
+  const played = (id: string): boolean => UNPLAYED_TYPES.has(names.cardType(id) ?? "");
+  const heroCount = (id: string): string => {
+    const n = heroes.get(id)?.size ?? 0;
+    return n > 1 ? ` · ${n} heroes` : "";
+  };
+  const byName = (a: string, b: string): number => nameOf(a).localeCompare(nameOf(b));
+  const groups: HeroCardsView["groups"][number][] = [];
+  const group = (id: string, title: string, cards: HeroCardsView["groups"][number]["cards"]): void => {
+    if (cards.length > 0) groups.push({ id, title, cards });
+  };
+  group(
+    "all:played",
+    "Most played",
+    [...plays.entries()]
+      .filter(([id]) => played(id))
+      .sort(([a, x], [b, y]) => y - x || byName(a, b))
+      .slice(0, ALL_TOP)
+      .map(([id, n]) => ({
+        cardId: id,
+        value: `${n}×`,
+        detail: `In ${plural(cameOut.get(id) ?? 0, "game")}${heroCount(id)}`,
+      })),
+  );
+  group(
+    "all:activated",
+    "Most activated",
+    [...activations.entries()]
+      .sort(([a, x], [b, y]) => y - x || byName(a, b))
+      .slice(0, ALL_TOP)
+      .map(([id, n]) => ({ cardId: id, value: `${n}×`, detail: `Used in ${plural(cameOut.get(id) ?? 0, "game")}` })),
+  );
+  group(
+    "all:wins",
+    "Best win rate when it comes out",
+    [...cameOut.entries()]
+      .filter(([id, n]) => played(id) && n >= MIN_SAMPLE)
+      .sort(([a, x], [b, y]) => (wonOut.get(b) ?? 0) / y - (wonOut.get(a) ?? 0) / x || y - x || byName(a, b))
+      .slice(0, ALL_TOP)
+      .map(([id, n]) => ({
+        cardId: id,
+        value: percent(wonOut.get(id) ?? 0, n),
+        detail: `Won ${wonOut.get(id) ?? 0} of the ${n} games it came out`,
+      })),
+  );
+  group(
+    "all:unplayed",
+    "Rarely played (not counting resources)",
+    [...inDeck.entries()]
+      .filter(([id, n]) => played(id) && n >= 2 && (cameOut.get(id) ?? 0) / n < 0.5)
+      .sort(([a, x], [b, y]) => (cameOut.get(a) ?? 0) / x - (cameOut.get(b) ?? 0) / y || y - x || byName(a, b))
+      .slice(0, ALL_TOP)
+      .map(([id, n]) => ({
+        cardId: id,
+        value: (cameOut.get(id) ?? 0) === 0 ? "never" : `${cameOut.get(id)} of ${n}`,
+        detail: `In a deck for ${plural(n, "game")}`,
+      })),
+  );
+  return {
+    identityCardId: "",
+    name: "Every hero",
+    games: plural(used.length, "game"),
+    aspects: [],
+    groups,
+    note: null,
+  };
+}
+
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
@@ -966,6 +1066,7 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
       sections,
       overview: overviewTilesOf(games, header, overview, null, null, null, () => undefined),
       heroCards: [],
+      allCards: null,
     };
   const heroSection = heroesOf(games, names);
   const villainSection = villainsOf(games);
@@ -985,6 +1086,7 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
     sections,
     overview: overviewTilesOf(games, header, overview, heroSection, villainSection, sideSection, villainScenario),
     heroCards,
+    allCards: allCardsOf(games, names),
   };
 }
 
