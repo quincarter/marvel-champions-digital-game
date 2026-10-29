@@ -106,7 +106,7 @@ import {
   type InspectPayment,
 } from "../view/inspect-model.js";
 import { tuckedSiblings, type CardLink } from "../view/inspect-notes.js";
-import { schemeSideToggle, type SchemeSideToggle } from "../view/scheme-side-toggle.js";
+import { cardSideToggle, type CardSideToggle } from "../view/card-side-toggle.js";
 import { faceOf } from "../view/board-model.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { PressArm } from "../view/press-arm.js";
@@ -276,8 +276,11 @@ export class InspectOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   /** Phone only — "Full rules text" grows the sheet to the full viewport (P14's own instruction). Resets on step/reopen. */
   #expanded = false;
-  /** A main scheme shown on its other side (the "Show A side" / "Show B side" toggle, issue #295). Resets on step/reopen. */
-  #flipped = false;
+  /**
+   * Presses of the side toggle since the sheet opened: a main scheme's A/B sides (issue #295), an identity's Hero,
+   * Alter-Ego and extra forms (issue #532). Resets on step/reopen.
+   */
+  #sideStep = 0;
   /**
    * Phone only — the sheet's own scroll position (`ui/scroll-region.ts`'s convention: caller-owned, persisted
    * across rebuilds so an ordinary store-driven redraw doesn't snap the sheet back to the top). Reset on step/reopen,
@@ -334,7 +337,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.#reference = data.reference;
     this.#note = data.note;
     this.#expanded = false;
-    this.#flipped = false;
+    this.#sideStep = 0;
     this.#sheetScroll = new VariableListScroll();
     this.#motion = new OverlayMotion();
     this.#hints = createHints(this);
@@ -421,7 +424,8 @@ export class InspectOverlay extends Phaser.Scene {
   /**
    * ◂ ▸ (and Tab) step through the list the sheet was opened from, Enter or
    * Space presses the primary button — Select, the first ability, or Play it —
-   * and Escape closes. `inspect` means nothing here: this already is Inspect.
+   * and Escape closes. `inspect` steps the side toggle (a scheme's A/B sides, an identity's forms) when the sheet has
+   * one, and means nothing otherwise: this already is Inspect.
    */
   #onIntent(intent: GamepadIntent): void {
     // The overlay is on its way out — a second Escape, or a stray Enter during the fade, does nothing.
@@ -439,6 +443,9 @@ export class InspectOverlay extends Phaser.Scene {
         break;
       case "cancel":
         this.#close();
+        break;
+      case "inspect":
+        if (this.#sideToggle()) this.#stepSide();
         break;
       default:
         break;
@@ -466,7 +473,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (!this.#siblings.includes(id) && game) this.#siblings = [...tuckedSiblings(game, id)];
     this.#instanceId = id;
     this.#expanded = false;
-    this.#flipped = false;
+    this.#sideStep = 0;
     this.#sheetScroll = new VariableListScroll();
     this.#rebuild();
   }
@@ -480,7 +487,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (next) {
       this.#instanceId = next;
       this.#expanded = false;
-      this.#flipped = false;
+      this.#sideStep = 0;
       this.#sheetScroll = new VariableListScroll();
       this.#rebuild();
     }
@@ -660,38 +667,45 @@ export class InspectOverlay extends Phaser.Scene {
           ),
         }
       : null;
+    const game = tableGame(state.game)!;
+    // An identity read on a side it is not on offers none of its live side's abilities (issue #532): a "Use" button
+    // under Scott Lang's text for Ant-Man's ability would read as Scott Lang's. A scheme's other side keeps them.
+    const readingOtherIdentitySide =
+      this.#sideStep > 0 &&
+      cardOf(game, this.#instanceId)?.type === "hero_identity" &&
+      JSON.stringify(this.#sideToggle()?.face) !== JSON.stringify(faceOf(game, this.#instanceId));
     return inspectModel(
-      tableGame(state.game)!,
+      game,
       this.#instanceId,
-      state.legal?.actions ?? null,
+      readingOtherIdentitySide ? null : (state.legal?.actions ?? null),
       state.perspectiveId,
       POOL_DEPS,
       {
         history: board?.cardHistory() ?? emptyCardHistoryLog(),
         payment,
-        ...(this.#flipped ? this.#flippedFace() : {}),
+        ...(this.#sideStep > 0 ? this.#steppedFace() : {}),
       },
     );
   }
 
-  /** The "Show A side" / "Show B side" toggle for this sheet's subject, or null when it is not a main scheme stage. */
-  #sideToggle(): SchemeSideToggle | null {
+  /** The side toggle for this sheet's subject (a main scheme stage, a hero identity), or null when it has none. */
+  #sideToggle(): CardSideToggle | null {
     if (this.#reference) return null;
     if (this.#card)
-      return schemeSideToggle(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face, this.#flipped);
+      return cardSideToggle(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face, this.#sideStep);
     const game = tableGame(appSession().store.state.game);
     if (!game || !this.#instanceId) return null;
-    return schemeSideToggle(cardOf(game, this.#instanceId), faceOf(game, this.#instanceId), this.#flipped);
+    return cardSideToggle(cardOf(game, this.#instanceId), faceOf(game, this.#instanceId), this.#sideStep);
   }
 
-  /** The face an in-game scheme shows once flipped, as `inspectModel`'s `face` option; nothing without a toggle. */
-  #flippedFace(): { readonly face?: CardFace } {
+  /** The face an in-game card shows once its side is stepped, as `inspectModel`'s `face` option; nothing without a toggle. */
+  #steppedFace(): { readonly face?: CardFace } {
     const toggle = this.#sideToggle();
     return toggle ? { face: toggle.face } : {};
   }
 
-  #flipSide(): void {
-    this.#flipped = !this.#flipped;
+  #stepSide(): void {
+    this.#sideStep += 1;
     this.#rebuild();
   }
 
@@ -1258,18 +1272,19 @@ export class InspectOverlay extends Phaser.Scene {
         })
         .setWordWrapWidth(inner);
 
-    // A main scheme's other side (issue #295): a secondary button, never the Enter default (`#primaryAction` below).
+    // A main scheme's other side (issue #295), an identity's other sides (issue #532): a secondary button, never the
+    // Enter default (`#primaryAction` below). A pad steps it with the Inspect button, whose glyph it wears.
     const sideToggle = this.#sideToggle();
     if (sideToggle) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: sideToggle.label,
-          type: typeRole.label,
-          rect: { x: rect.x + pad, y, width: inner, height: hit.target },
-          onClick: () => this.#flipSide(),
-        }),
-      );
+      const sideButton = new McButton(this, {
+        kind: "onInk",
+        label: sideToggle.label,
+        type: typeRole.label,
+        rect: { x: rect.x + pad, y, width: inner, height: hit.target },
+        onClick: () => this.#stepSide(),
+      });
+      this.#buttons.push(sideButton);
+      this.#hints.button(sideButton, ["inspect"], "ink", { when: (set) => set === "pad" });
       y += hit.target + RULES_SECTION_GAP;
     }
 
@@ -2225,21 +2240,21 @@ export class InspectOverlay extends Phaser.Scene {
       );
       return;
     }
-    // A main scheme's other side (issue #295) takes a third of the quiet row; it is never the primary action.
+    // The side toggle (issues #295, #532) takes a third of the quiet row; it is never the primary action.
     const sideToggle = this.#sideToggle();
     const quietCount = sideToggle ? 3 : 2;
     const quietWidth = (quietRow.width - 6 * (quietCount - 1)) / quietCount;
     if (sideToggle) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: sideToggle.label,
-          type: typeRole.label,
-          rect: { x: quietRow.x + quietWidth * 2 + 12, y: quietRow.y, width: quietWidth, height: quietRow.height },
-          onClick: () => this.#flipSide(),
-          wrap: true,
-        }),
-      );
+      const sideButton = new McButton(this, {
+        kind: "onInk",
+        label: sideToggle.label,
+        type: typeRole.label,
+        rect: { x: quietRow.x + quietWidth * 2 + 12, y: quietRow.y, width: quietWidth, height: quietRow.height },
+        onClick: () => this.#stepSide(),
+        wrap: true,
+      });
+      this.#buttons.push(sideButton);
+      this.#hints.button(sideButton, ["inspect"], "ink", { when: (set) => set === "pad" });
     }
     this.#buttons.push(
       new McButton(this, {

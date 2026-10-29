@@ -122,6 +122,7 @@ export default defineConfig({
         "wonder-man-overpay.spec.ts",
         "payment-order.spec.ts",
         "scheme-other-side.spec.ts",
+        "identity-sides-inspect.spec.ts",
         "qa-v0200-client.spec.ts",
         "card-size-scroll.spec.ts",
         "campaign-market-scroll.spec.ts",
