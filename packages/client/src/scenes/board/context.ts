@@ -61,6 +61,11 @@ export interface BoardFrame {
   readonly barStops: BarStop[];
   /** Each pile of facedown encounter cards dealt to a player, drawn this draw: where the hover popover opens on the card back. */
   readonly facedownHovers: FacedownHover[];
+  /**
+   * The team rail's View buttons this draw, by the pick slot whose combo presses them (LB + a face button by seat,
+   * `view/seat-peek.ts`). Empty while none is drawn, and LB then keeps its plain meaning.
+   */
+  readonly seatViews: Map<number, () => void>;
 }
 
 /**
@@ -98,6 +103,7 @@ export const emptyFrame = (): BoardFrame => ({
   pileRects: new Map(),
   handStrip: [],
   facedownHovers: [],
+  seatViews: new Map(),
   barStops: [],
   buttons: [],
   rings: [],

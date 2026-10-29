@@ -975,7 +975,12 @@ export class BoardController {
   tapHandCard(instanceId: InstanceId): void {
     // Read-only: a tap can still open the card to read it, same as the
     // tabbed layout's own idle behavior below, but never offers to play it.
-    if (this.#readOnly || (this.#host.tabbed() && this.#selection.kind === "idle")) {
+    // A teammate's hand being looked at (`peekSeat`) is read-only the same way.
+    if (
+      this.#readOnly ||
+      appSession().store.state.peekSeat !== null ||
+      (this.#host.tabbed() && this.#selection.kind === "idle")
+    ) {
       this.#host.inspect(instanceId);
       return;
     }
@@ -1226,7 +1231,8 @@ export class BoardController {
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
   usableAbilitiesFor(instanceId: InstanceId): readonly UsableAbilityAction[] {
-    const actions = appSession().store.state.legal?.actions;
+    const { legal, peekSeat } = appSession().store.state;
+    const actions = peekSeat === null ? legal?.actions : undefined;
     return actions ? abilityActionsFor(actions, instanceId) : [];
   }
 
@@ -2129,7 +2135,8 @@ export class BoardController {
 
   #legalEntries(): readonly LegalAction[] {
     const { store } = appSession();
-    const actions = store.state.legal?.actions;
+    // While a teammate's side is only being looked at (`peekSeat`), the table offers nothing to do.
+    const actions = store.state.peekSeat === null ? store.state.legal?.actions : undefined;
     return actions ? legalEntriesOf(actions) : [];
   }
 

@@ -75,6 +75,13 @@ export interface SessionState {
    */
   readonly offTurnSeat: PlayerId | null;
   /**
+   * The seat the board is showing only to be looked at (PEEK AT TABLE's seat picker, a teammate's View in the team
+   * rail), or null. One person plays every seat, so a teammate's hand is theirs to read. Nothing else moves:
+   * `perspectiveId` and `legal` stay the acting seat's, and nothing is sent as the looked-at seat. Cleared by
+   * `endSeatPeek` and by every update.
+   */
+  readonly peekSeat: PlayerId | null;
+  /**
    * True while a command is in flight. The game is turn-based, so locking board
    * input here is invisible, and tweens keep running on the free main thread.
    */
@@ -122,6 +129,7 @@ const INITIAL: SessionState = {
   perspectiveId: null,
   offTurnSeats: [],
   offTurnSeat: null,
+  peekSeat: null,
   inFlight: false,
   error: null,
   setupError: null,
@@ -319,8 +327,35 @@ export class SessionStore {
     if (!game || this.#state.inFlight || !this.#state.offTurnSeats.includes(playerId)) return false;
     const actions = await this.#host.legalActions(playerId);
     if (this.#state.version !== version || !hasOffTurnAction(actions)) return false;
-    this.#set({ ...this.#state, offTurnSeat: playerId, perspectiveId: playerId, legal: { playerId, actions } });
+    this.#set({
+      ...this.#state,
+      offTurnSeat: playerId,
+      peekSeat: null,
+      perspectiveId: playerId,
+      legal: { playerId, actions },
+    });
     return true;
+  }
+
+  /**
+   * Shows another seat's side of the table to look at, hand and all, without acting for it (`peekSeat`). The seat the
+   * board belongs to (`perspectiveId`) is the way back: peeking at it ends the peek.
+   */
+  peekAtSeat(playerId: PlayerId): boolean {
+    const { game, perspectiveId } = this.#state;
+    if (!game || !game.players.some((player) => player.playerId === playerId)) return false;
+    if (playerId === perspectiveId) {
+      this.endSeatPeek();
+      return true;
+    }
+    if (this.#state.peekSeat !== playerId) this.#set({ ...this.#state, peekSeat: playerId });
+    return true;
+  }
+
+  /** Back to the seat the board belongs to, from any looked-at seat. */
+  endSeatPeek(): void {
+    if (this.#state.peekSeat === null) return;
+    this.#set({ ...this.#state, peekSeat: null });
   }
 
   /**
@@ -343,6 +378,7 @@ export class SessionStore {
     this.#set({
       ...this.#state,
       offTurnSeat: null,
+      peekSeat: null,
       perspectiveId: actingPlayer(game) ?? game.firstPlayerId,
       legal: this.#activeLegal,
     });
@@ -380,6 +416,7 @@ export class SessionStore {
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
       offTurnSeats: [],
       offTurnSeat: null,
+      peekSeat: null,
       inFlight: false,
       error: null,
       setupError: null,

@@ -20,6 +20,7 @@ describe("escapeMeaning", () => {
     ["log focus", { logFocused: true }],
     ["a tip toast", { tipShown: true }],
     ["a selection in progress", { selectionIdle: false }],
+    ["a teammate's side of the table", { seatPeek: true }],
   ] as const)("backs out of %s first", (_name, patch) => {
     expect(escapeMeaning({ ...idle, ...patch })).toBe("back");
   });
