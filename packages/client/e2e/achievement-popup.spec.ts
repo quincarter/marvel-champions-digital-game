@@ -140,7 +140,10 @@ test("the popup position changes on a tap, never on a swipe's lift, and shows a 
   const viewport = page.viewportSize()!;
   expect(state.rect!.y, "the sample sits along the bottom edge").toBeGreaterThan(viewport.height / 2);
 
-  // Popup size: Large on a tap draws the sample taller than the medium one.
+  // Popup size: Large on a tap draws the sample taller than the medium one. Its row can sit under the fold on a phone
+  // (More lists Your stats above it), so the body scrolls it into view first.
+  await touchSwipe(page, x, Math.min(y, viewport.height - 120), Math.max(160, y - 260));
+  await settle(page, { quietMs: 400, maxMs: 2000 });
   const large = await stopRect(page, "row:achievement-popup-size:large");
   await page.touchscreen.tap(large.x + large.width / 2, large.y + large.height / 2);
   await settle(page, { quietMs: 400, maxMs: 2000 });
