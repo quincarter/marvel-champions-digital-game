@@ -1890,9 +1890,10 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       ctx.controller.selection.kind === "idle" &&
       appSession().store.state.offTurnSeat === null;
     // The row's text keeps clear of the chips at its right end, and of View's combo glyph left of it.
-    const chipReserve = (acts ? 70 : 0) + (views ? 70 + (glyphsFitLayout(ctx.tabbed) ? 46 : 0) : 0);
+    const chips = (acts ? 70 : 0) + (views ? 70 : 0);
+    const chipReserve = chips + (views && glyphsFitLayout(ctx.tabbed) ? 46 : 0);
     if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat, layout.rowStyle);
-    else drawLiveSeat(ctx, drawn, seat, layout.rowStyle, chipReserve);
+    else drawLiveSeat(ctx, drawn, seat, layout.rowStyle, chipReserve, chips);
     ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
     if (!seat.eliminated)
       drawDealtPile(ctx, drawn, "seat", seat.playerId, seat.dealtFacedown, layout.rowStyle === "one-line");
@@ -1999,8 +2000,13 @@ function drawLiveSeat(
   row: Rect,
   seat: SeatRow,
   rowStyle: TeamLayout["rowStyle"],
-  /** Width the Act and View chips take at the row's right end, which the text on their lines keeps clear of. */
+  /** Width the Act and View chips take at the row's right end, and View's combo glyph, which text on their lines keeps clear of. */
   chipReserve = 0,
+  /**
+   * The chips alone: the yellow Team-Up blurb wraps to two short lines and keeps clear of only these, since View's
+   * glyph (shown only with a pad in hand) would leave it too narrow to read.
+   */
+  chipsOnly = chipReserve,
 ): void {
   const { scene } = ctx;
   const rg = scene.add.graphics();
@@ -2100,7 +2106,7 @@ function drawLiveSeat(
   if (ctx.teamUpRings?.waiting.has(seat.playerId) && blurbTop + 14 <= row.y + row.height) {
     // Clear of the Act button that sits at the row's bottom right while this seat holds an Action for the turn.
     // And clear of View beside it (`drawSeatView`).
-    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12 - chipReserve, dim);
+    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12 - chipsOnly, dim);
   }
   if (notes.length > 0) {
     const room = Math.max(0, row.x + row.width - 6 - cursor - chipReserve);
