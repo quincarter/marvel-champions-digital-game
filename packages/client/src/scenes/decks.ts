@@ -165,7 +165,8 @@ import {
   resetHoverCards,
   screenHoverArea,
 } from "../ui/card-hover-preview.js";
-import { deckPlayOf, type DeckInsights } from "../view/deck-insights.js";
+import { fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
+import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
@@ -373,6 +374,8 @@ export class DecksScene extends Phaser.Scene {
   #history: ResultsHistory | null = null;
   /** What each deck's finished games say (`view/deck-insights.ts`), folded in the stats worker; null until it answers. */
   #insights: DeckInsights | null = null;
+  /** The stats pane's tab: the deck's own numbers, or what your games say about it (#529). LT / RT switch them. */
+  #paneTab: "deck" | "games" = "deck";
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
@@ -503,6 +506,8 @@ export class DecksScene extends Phaser.Scene {
       },
       // LB / RB step Decks, Cards and Stats on a narrow screen; on the three-pane layout there is no strip, so they page.
       onTab: (direction) => this.#stepTab(direction),
+      // LT / RT: the stats pane's two tabs (LB / RB already step the narrow layout's tabs).
+      onTrigger: (trigger) => this.#setPaneTab(trigger === "lt" ? "deck" : "games"),
       // X (G / H on the keyboard) opens Your stats.
       onToggle: () => this.#stops.get("player-stats")?.activate(),
       blocked: () =>
@@ -938,6 +943,105 @@ export class DecksScene extends Phaser.Scene {
     const order: readonly DecksTab[] = ["decks", "cards", "stats"];
     const next = order[order.indexOf(this.#activeTab) + direction];
     if (next) this.#setTab(next);
+  }
+
+  #setPaneTab(tab: "deck" | "games"): void {
+    if (this.#paneTab === tab) return;
+    this.#paneTab = tab;
+    this.#rebuild();
+    this.#route?.focusKey(`pane:${tab}`);
+  }
+
+  /**
+   * The stats pane's From your games tab (#529): how this hero's games go and what they say about this deck's cards,
+   * to read. Changing the deck happens in the builder, which the one button at the bottom opens on the same tab: a
+   * precon as a new deck of your own, one of your decks as itself.
+   */
+  #drawPaneGames(left: number, top: number, column: number, bottom: number, deck: Deck): void {
+    let y = top;
+    if (!this.#insights) {
+      label(this, left, y, "Reading your games…", typeRole.label, surface.paper.hex, ink.meta);
+      return;
+    }
+    const view = fromYourGamesOf(
+      this.#insights,
+      deck.identityCardId as string,
+      deck.cards.map((line) => line.cardId as string),
+      deck.aspects,
+      POOL_STATS_NAMES,
+    );
+    const buttonTop = bottom - this.#row;
+    if (view.headline) {
+      label(this, left, y, view.headline.toUpperCase(), typeRole.label, signal.caution.hex, 1);
+      y += 18;
+    }
+    if (view.insight) {
+      const text = this.add
+        .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
+        .setFontSize(12)
+        .setWordWrapWidth(column - 16);
+      const box = this.add.graphics();
+      box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
+      this.children.bringToTop(text);
+      y += text.height + 20;
+    }
+    const thumb = { width: 30, height: 42 };
+    const section = (title: string, cards: readonly SuggestedCard[]): void => {
+      if (cards.length === 0 || y + 20 + thumb.height > buttonTop - 8) return;
+      const head = this.add.text(left, y, title.toUpperCase(), {
+        ...textStyle(typeRole.barTitle, surface.paper.hex),
+        fontSize: "17px",
+      });
+      fitText(head, column, 17);
+      this.add
+        .graphics()
+        .fillStyle(surface.paper.hex, 1)
+        .fillRect(left, y + head.height + 2, column, 2);
+      y += head.height + 10;
+      for (const entry of cards) {
+        if (y + thumb.height > buttonTop - 8) return;
+        const card = CARDS_BY_ID.get(entry.cardId);
+        const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
+        this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
+        drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+        noteHoverCardId(this, entry.cardId, pic, true);
+        const text = this.add
+          .text(
+            left + thumb.width + 8,
+            y + 4,
+            `${card?.name ?? entry.cardId}\n${entry.detail}`,
+            textStyle(typeRole.body, surface.paper.hex, ink.body),
+          )
+          .setFontSize(12);
+        fitWrapped(text, column - thumb.width - 8, 2, 10);
+        y += thumb.height + 6;
+      }
+      y += 6;
+    };
+    section("Cut? Sits in your deck", view.cut);
+    section("Try: cards you won with", view.tryCards);
+    section("Keep: your staples", view.keep);
+    if (view.note && y + 30 < buttonTop) {
+      this.add
+        .text(left, y, view.note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .setFontSize(12)
+        .setWordWrapWidth(column);
+    }
+    // Decks reads; the builder changes. A precon is never changed in place: it starts a deck of your own.
+    const precon = deck.source.kind === "precon";
+    const rect: Rect = { x: left, y: buttonTop, width: column, height: this.#row };
+    const open = (): void =>
+      goToScreen(this, SCENES.deckBuilder, { deck, railTab: "games" } satisfies DeckBuilderSceneData);
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: precon ? "Build my own from this ▸" : "Edit with these ▸",
+        type: typeRole.label,
+        rect,
+        onClick: open,
+      }),
+    );
+    this.#stops.set("games-open", { rect, activate: open });
   }
 
   #setTab(tab: DecksTab): void {
@@ -2068,90 +2172,6 @@ export class DecksScene extends Phaser.Scene {
   // as a row of small buttons, "Recently changed", then the footer D14 itself draws: DUPLICATE beside the single
   // red "PLAY THIS DECK ▸".
   // ------------------------------------------------------------------------------------------------------------
-  /** The deck's record, how it lost, its staple and its idle card, and a way into Your stats; down to `bottom`. */
-  #drawDeckPlay(left: number, top: number, column: number, bottom: number, deck: Deck): void {
-    const key = deckKeyToString(keyOf(deck));
-    const play = this.#insights
-      ? deckPlayOf(this.#insights, key, deck.identityCardId as string, POOL_STATS_NAMES)
-      : null;
-    if (!play) return;
-    // The record is the one the deck row shows (`view/results-history.ts`), so the two never disagree; the insights
-    // give the card lines.
-    const history = this.#history?.decks.find((r) => deckKeyToString(r.key) === key) ?? null;
-    const record = history ? `${history.wins}–${history.losses}` : play.record;
-    const games = history ? history.wins + history.losses : play.games;
-    const linkHeight = this.#row;
-    // The caption, the record and the link are the least it shows; the two cards come when they fit.
-    if (bottom - top < 16 + 34 + linkHeight + 8) return;
-    let y = top;
-    label(
-      this,
-      left,
-      y,
-      `HOW THIS DECK PLAYS · ${games} GAME${games === 1 ? "" : "S"}`,
-      typeRole.label,
-      surface.paper.hex,
-      ink.label,
-    );
-    y += 18;
-    const recordText = this.add.text(left, y, record, {
-      ...textStyle(typeRole.barTitle, surface.paper.hex),
-      fontSize: "26px",
-    });
-    if (play.losses) {
-      const lost = this.add.text(
-        left + recordText.width + 10,
-        y + 8,
-        play.losses,
-        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
-      );
-      fitText(lost, column - recordText.width - 10, typeRole.body.size);
-    }
-    y += 34;
-    const thumb = { width: 30, height: 42 };
-    for (const entry of [
-      ...(play.staple ? [{ ...play.staple, what: "Staple" }] : []),
-      ...(play.idle ? [{ ...play.idle, what: "Sits idle" }] : []),
-    ]) {
-      if (y + thumb.height + 6 + linkHeight + 8 > bottom) break;
-      const card = CARDS_BY_ID.get(entry.cardId);
-      const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
-      const frame = this.add.graphics();
-      frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-      drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
-      noteHoverCardId(this, entry.cardId, pic, true);
-      const line = this.add
-        .text(
-          left + thumb.width + 8,
-          y + 4,
-          `${entry.what}: ${card?.name ?? entry.cardId}\n${entry.detail}`,
-          textStyle(typeRole.body, surface.paper.hex, ink.body),
-        )
-        .setFontSize(12);
-      fitWrapped(line, column - thumb.width - 8, 2, 10);
-      y += thumb.height + 6;
-    }
-    const linkRect: Rect = { x: left, y, width: column, height: linkHeight };
-    const open = (): void =>
-      goToScreen(this, SCENES.playerStats, {
-        from: SCENES.decks,
-        tab: "cards",
-        heroId: deck.identityCardId as string,
-        // Back from the stats comes back to this deck.
-        backData: { focusDeckId: deck.id as string } satisfies DecksSceneData,
-      } satisfies PlayerStatsData);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "Open in Your stats ▸",
-        type: typeRole.label,
-        rect: linkRect,
-        onClick: open,
-      }),
-    );
-    this.#stops.set("stats-your-stats", { rect: linkRect, activate: open });
-  }
-
   #drawStatsPane(rect: Rect, option: DeckOption | null): void {
     const bg = this.add.graphics();
     paintPanel(bg, rect, "onInk", "rest");
@@ -2208,7 +2228,41 @@ export class DecksScene extends Phaser.Scene {
 
     const ruleG = this.add.graphics();
     ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
-    y += 16;
+    y += 12;
+
+    // This deck / From your games (#529): LT / RT, with the trigger that reaches the other tab on it.
+    const tabWidth = (column - CHIP_GAP) / 2;
+    for (const [index, tab] of (["deck", "games"] as const).entries()) {
+      const tabRect: Rect = { x: left + index * (tabWidth + CHIP_GAP), y, width: tabWidth, height: this.#row };
+      const selected = this.#paneTab === tab;
+      const choose = (): void => this.#setPaneTab(tab);
+      const button = new McButton(this, {
+        kind: selected ? "primary" : "onInk",
+        label: tab === "deck" ? "This deck" : "From your games",
+        type: typeRole.label,
+        rect: tabRect,
+        onClick: choose,
+      });
+      this.#buttons.push(button);
+      if (!selected) {
+        const trigger = tab === "deck" ? "lt" : "rt";
+        this.#hints.button(button, [], "ink", {
+          specs: (set, snapshot) => {
+            if (set !== "pad") return null;
+            const glyph = layerTriggerGlyph(trigger, snapshot.state, snapshot.settings);
+            return glyph ? [glyph] : null;
+          },
+        });
+      }
+      this.#stops.set(`pane:${tab}`, { rect: tabRect, activate: choose });
+    }
+    y += this.#row + 14;
+
+    if (this.#paneTab === "games") {
+      this.#drawPaneGames(left, y, column, rect.y + rect.height - hit.primary - 16 - 13 - 12, deck);
+      this.#drawStatsFooter(rect, left, column, option);
+      return;
+    }
 
     const avgText = stats.averageCost === null ? "" : ` · avg ${stats.averageCost.toFixed(1)}`;
     label(this, left, y, `RESOURCE CURVE${avgText}`, typeRole.label, surface.paper.hex, ink.label);
@@ -2279,12 +2333,13 @@ export class DecksScene extends Phaser.Scene {
     } else {
       label(this, left, y, "No change history recorded for this deck.", typeRole.label, surface.paper.hex, ink.meta);
     }
-    y += 26;
 
-    // "How this deck plays" (issue #529, C3): the deck's finished games, when there are any and the pane has room.
-    const footerTop = rect.y + rect.height - hit.primary - 16 - 13;
-    this.#drawDeckPlay(left, y, column, footerTop - 12, deck);
+    this.#drawStatsFooter(rect, left, column, option);
+  }
 
+  /** The pane's footer, on either tab. */
+  #drawStatsFooter(rect: Rect, left: number, column: number, option: DeckOption): void {
+    const deck = option.deck;
     // Footer, pinned to the bottom of the pane regardless of how much the body above used — D14's own two bottom
     // controls, Duplicate beside the single red Play.
     const footerHeight = hit.primary;

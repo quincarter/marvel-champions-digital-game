@@ -122,10 +122,13 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     : input.community
       ? [...(input.wide ? [] : ["stats-preview"]), "stats-copy-link", "stats-open-link", "stats-check", "stats-add"]
       : [
+          // The pane's two tabs, then the tab showing: the deck's own actions, or From your games' one button (the
+          // route drops whichever is not drawn).
+          "pane:deck",
+          "pane:games",
           "stats-check",
           ...(input.editable ? ["stats-edit", "stats-delete"] : []),
-          // "Open in Your stats" in How this deck plays: the route drops it while the deck has no finished games.
-          "stats-your-stats",
+          "games-open",
           "stats-duplicate",
           "stats-play",
         ];

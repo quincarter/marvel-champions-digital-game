@@ -1,6 +1,6 @@
 /**
- * Your stats in deck building: what the player's finished games say about one hero's cards and one deck, for the deck
- * builder's "From your games" tab (`fromYourGamesOf`) and the Decks screen's "How this deck plays" box (`deckPlayOf`).
+ * Your stats in deck building: what the player's finished games say about one hero's cards, for the "From your games"
+ * tab of the deck builder's rail and of the Decks screen's stats pane (`fromYourGamesOf`).
  *
  * Folded from the saved games' rows, like the Stats screen (`player-stats-model.ts`), and by the same rules: a game that
  * finished as a win or a loss counts, a guided game does not, and card numbers come only from games whose summary has
@@ -256,57 +256,5 @@ export function fromYourGamesOf(
     tryCards,
     keep,
     note: empty ? "Nothing stands out yet: play a few more games with this deck." : null,
-  };
-}
-
-export interface DeckPlaySummary {
-  readonly games: number;
-  /** "5–2". */
-  readonly record: string;
-  /** "Lost 2 to the scheme", or null with no losses or no reason to name. */
-  readonly losses: string | null;
-  /** The card that comes out the most, with how often. */
-  readonly staple: SuggestedCard | null;
-  /** The card that comes out the least (under half its games), with how often. */
-  readonly idle: SuggestedCard | null;
-}
-
-/** The Decks screen's "How this deck plays" box for one deck, or null when it has no finished games. */
-export function deckPlayOf(
-  insights: DeckInsights,
-  key: DeckKeyString,
-  identityCardId: string,
-  names: StatsNames,
-): DeckPlaySummary | null {
-  const play = insights.decks[key];
-  if (!play || play.games === 0) return null;
-  const played = (id: string): boolean => PLAYED_TYPES.has(names.cardType(id) ?? "");
-  const nameOf = (id: string): string => names.cardName(id) ?? id;
-  const cards = Object.keys(play.inDeck).filter(played);
-  const rate = (id: string): number => (play.usedIn[id] ?? 0) / (play.inDeck[id] ?? 1);
-  const staple = [...cards].sort(
-    (a, b) => rate(b) - rate(a) || (play.usedIn[b] ?? 0) - (play.usedIn[a] ?? 0) || nameOf(a).localeCompare(nameOf(b)),
-  )[0];
-  // Never the hero's own cards, which the deck must keep (RRG 1.8 p. 50): a nudge the player could not act on.
-  const idle = [...cards]
-    .filter((id) => rate(id) < 0.5 && names.cardAspect(id) !== `hero:${identityCardId}`)
-    .sort(
-      (a, b) =>
-        rate(a) - rate(b) || (play.inDeck[b] ?? 0) - (play.inDeck[a] ?? 0) || nameOf(a).localeCompare(nameOf(b)),
-    )[0];
-  const lossParts = [
-    ...(play.lostToScheme > 0 ? [`${play.lostToScheme} to the scheme`] : []),
-    ...(play.lostToWipe > 0 ? [`${play.lostToWipe} to every hero falling`] : []),
-  ];
-  const used = (id: string): string => {
-    const n = play.usedIn[id] ?? 0;
-    return n === 0 ? `never played in ${plural(play.inDeck[id] ?? 0, "game")}` : `played in ${n} of ${play.inDeck[id]}`;
-  };
-  return {
-    games: play.games,
-    record: `${play.wins}–${play.losses}`,
-    losses: lossParts.length > 0 ? `Lost ${lossParts.join(", ")}` : null,
-    staple: staple && (play.usedIn[staple] ?? 0) > 0 ? { cardId: staple, detail: used(staple) } : null,
-    idle: idle && idle !== staple ? { cardId: idle, detail: used(idle) } : null,
   };
 }

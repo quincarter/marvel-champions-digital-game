@@ -3,7 +3,7 @@ import type { SessionConfig } from "../engine/host.js";
 import { SAVE_SCHEMA, type SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import type { StatsNames } from "./player-stats-model.js";
-import { deckInsightsOf, deckPlayOf, fromYourGamesOf } from "./deck-insights.js";
+import { deckInsightsOf, fromYourGamesOf } from "./deck-insights.js";
 
 const CARDS: Record<string, { name: string; type: string; aspect?: string }> = {
   spidey: { name: "Spider-Man (Peter Parker)", type: "hero_identity" },
@@ -123,21 +123,5 @@ describe("fromYourGamesOf", () => {
     const view = fromYourGamesOf(deckInsightsOf([], NAMES), "spidey", ["webs"], ["justice"], NAMES);
     expect(view.headline).toBeNull();
     expect(view.note).toContain("Play Spider-Man");
-  });
-});
-
-describe("deckPlayOf", () => {
-  test("the record, how it lost, its staple and the card that sits idle", () => {
-    const insights = deckInsightsOf([game(true), game(true), game(false)], NAMES);
-    const play = deckPlayOf(insights, "starter:spidey-justice", "spidey", NAMES)!;
-    expect(play.record).toBe("2–1");
-    expect(play.losses).toBe("Lost 1 to the scheme");
-    expect(play.staple).toEqual({ cardId: "webs", detail: "played in 3 of 3" });
-    // Aunt May sits idle too, but the deck must keep her (RRG 1.8 p. 50); the support is the one to name.
-    expect(play.idle?.cardId).toBe("bot");
-  });
-
-  test("a deck with no finished games has no box", () => {
-    expect(deckPlayOf(deckInsightsOf([], NAMES), "starter:spidey-justice", "spidey", NAMES)).toBeNull();
   });
 });

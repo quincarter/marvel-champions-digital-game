@@ -187,6 +187,8 @@ export interface DeckBuilderCampaignData {
 export interface DeckBuilderSceneData {
   readonly deck?: Deck;
   readonly campaign?: DeckBuilderCampaignData;
+  /** Open on the deck rail's From your games tab (Decks & Collection's "Build my own from this" / "Edit with these"). */
+  readonly railTab?: "deck" | "games";
 }
 
 /** The identity row's art window, wide for its height: a cover crop of the hero's face and shoulders. */
@@ -398,7 +400,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     this.#deckScroll = new VariableListScroll();
     this.#insights = null;
-    this.#railTab = "deck";
+    this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
     this.#hints = new GlyphHints(this);
     if (!this.#campaign) {
       void appSession()
