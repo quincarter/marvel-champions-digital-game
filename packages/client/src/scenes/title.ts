@@ -79,6 +79,7 @@ import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
 import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
 import type { Deck } from "@mc/content";
@@ -593,6 +594,21 @@ export class TitleScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("trophies", { rect: layout.trophies, activate: openTrophies });
+
+    const openStats = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.playerStats, { from: SCENES.title } satisfies PlayerStatsData);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: "Your stats",
+        type: typeRole.menuButton,
+        rect: layout.stats,
+        onClick: openStats,
+      }),
+    );
+    this.#stops.set("stats", { rect: layout.stats, activate: openStats });
 
     // "How to play" (guided mode G6c, `docs/guided-mode.md` §4): the learning hub. Not a guided run by itself —
     // starting a lesson from inside the hub is what sets `appSession().guidedRun` (`guide/start-tutorial.ts`).

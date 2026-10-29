@@ -49,6 +49,7 @@ import {
 import { achievementHistory, lifetimeChampionPoints, refreshUnlocks } from "../progression/progression.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
@@ -140,7 +141,7 @@ export class TrophyRoomScene extends Phaser.Scene {
   #openStats(): void {
     if (this.#open !== null) return;
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.playerStats);
+    goToScreen(this, SCENES.playerStats, { from: SCENES.trophyRoom } satisfies PlayerStatsData);
   }
 
   #setView(view: TrophyView): void {

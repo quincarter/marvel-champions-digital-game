@@ -89,6 +89,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
 import type { RulesTab } from "../view/rules-layout.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
@@ -153,6 +154,7 @@ export class PauseOverlay extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.playerStats) ||
         this.scene.isActive(SCENES.controls) ||
         this.scene.isActive(SCENES.inspect) ||
         (this.#searchInput?.focused ?? false),
@@ -226,6 +228,12 @@ export class PauseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Your stats, over this sheet: Back there closes it and Pause takes input again. */
+  #openStats(): void {
+    if (this.scene.isActive(SCENES.playerStats)) return;
+    this.scene.launch(SCENES.playerStats, { from: SCENES.pause, overlay: true } satisfies PlayerStatsData);
+  }
+
   /** Saves are continuous (every command is written as it lands), so "quitting" is just leaving — nothing to flush. */
   #saveAndQuit(): void {
     // Fade this sheet first; the existing stop/start sequence runs once that's
@@ -235,6 +243,7 @@ export class PauseOverlay extends Phaser.Scene {
       for (const overlay of [
         SCENES.rules,
         SCENES.settings,
+        SCENES.playerStats,
         SCENES.controls,
         SCENES.choice,
         SCENES.inspect,
@@ -313,6 +322,12 @@ export class PauseOverlay extends Phaser.Scene {
         title: "Show all settings",
         detail: "Sound, card size, villain phase and more.",
         open: () => this.scene.launch(SCENES.settings),
+      },
+      {
+        id: "stats",
+        title: "Your stats",
+        detail: "Your record, heroes, villains and the cards you play.",
+        open: () => this.#openStats(),
       },
       {
         id: "music",
@@ -517,6 +532,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
       this.scene.launch(SCENES.settings),
     );
+    this.#menuButton(stops, "stats", "onInk", "Your stats", layout.menu.stats, () => this.#openStats());
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
     this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
     // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
@@ -1475,6 +1491,7 @@ export class PauseOverlay extends Phaser.Scene {
       for (const overlay of [
         SCENES.rules,
         SCENES.settings,
+        SCENES.playerStats,
         SCENES.controls,
         SCENES.choice,
         SCENES.inspect,

@@ -5,6 +5,8 @@ import type { PlayerStats } from "./player-stats-model.js";
 const ANSWER: PlayerStats = {
   header: { record: "1–0", rate: "100% win rate", played: "1 game played", streak: "", fraction: 1 },
   sections: [],
+  overview: { tiles: [], note: null },
+  heroCards: [],
 };
 
 function fakeWorker(reply: "answer" | "error"): StatsWorkerLike & { terminated: boolean } {

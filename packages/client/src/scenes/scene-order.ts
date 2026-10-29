@@ -41,7 +41,6 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.extrasReader,
   SCENES.sideStoryReader,
   SCENES.trophyRoom,
-  SCENES.playerStats,
   SCENES.credits,
   // Dev-only demo scenes: reachable only through `?screen=…` jumps (`scenes/boot-dev-jump.ts`).
   SCENES.termTextDemo,
@@ -64,6 +63,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.rules,
   SCENES.settings,
   SCENES.controls,
+  // Above Settings and Pause: Your stats opens over either as an overlay (and as a screen of its own elsewhere).
+  SCENES.playerStats,
   SCENES.unlocks,
   SCENES.unlockConfirm,
   SCENES.nameConflict,

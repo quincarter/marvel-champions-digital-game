@@ -2,14 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { SessionConfig } from "../engine/host.js";
 import { SAVE_SCHEMA, type SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
-import {
-  DEFAULT_OPEN_SECTIONS,
-  playerStatsOf,
-  statsListOf,
-  type StatRow,
-  type StatsNames,
-  type StatsSection,
-} from "./player-stats-model.js";
+import { playerStatsOf, type StatRow, type StatsNames, type StatsSection } from "./player-stats-model.js";
 
 const CARDS: Record<string, { name: string; type: string; aspect?: string }> = {
   spidey: { name: "Spider-Man", type: "hero_identity" },
@@ -257,15 +250,82 @@ describe("playerStatsOf: cards by hero", () => {
   });
 });
 
-describe("statsListOf", () => {
-  test("every heading shows; only open sections list their rows", () => {
-    const stats = playerStatsOf([meta({ summary: summary() })], NAMES);
-    const folded = statsListOf(stats, new Set());
-    expect(folded.every((r) => r.kind === "section")).toBe(true);
-    expect(folded).toHaveLength(stats.sections.length);
-    const open = statsListOf(stats, DEFAULT_OPEN_SECTIONS);
-    const overview = stats.sections[0]!;
-    expect(open).toHaveLength(stats.sections.length + overview.rows.length);
-    expect(open[1]).toMatchObject({ sectionId: "overview" });
+describe("playerStatsOf: the dashboard's Overview tiles", () => {
+  test("the record, how you lose, per-game figures, the favorite hero and the villains with their art", () => {
+    const klaw = { ...CONFIG, scenarioId: "klaw" };
+    const stats = playerStatsOf(
+      [
+        meta({ summary: summary() }),
+        meta({ summary: summary() }),
+        loss("schemeCompleted"),
+        loss("playersDefeated", {
+          config: klaw,
+          summary: summary({ lossReason: "playersDefeated", villains: ["Klaw"] }),
+        }),
+      ],
+      NAMES,
+    );
+    const tiles = new Map(stats.overview.tiles.map((t) => [t.id, t]));
+    expect(tiles.get("record")).toMatchObject({ kind: "record", record: "2–2" });
+    expect(tiles.get("lose")).toMatchObject({
+      kind: "split",
+      parts: [
+        { label: "Scheme", count: 1 },
+        { label: "Wiped", count: 1 },
+      ],
+    });
+    expect(tiles.get("per-game")).toMatchObject({ kind: "figures" });
+    expect(tiles.get("hero")).toMatchObject({ kind: "portrait", name: "Spider-Man", art: { hero: "spidey" } });
+    // Klaw is also the one that wiped the table: a villain gets one tile.
+    expect(tiles.get("villain:nemesis")).toMatchObject({ kind: "portrait", name: "Klaw", art: { scenario: "klaw" } });
+    expect(tiles.get("villain:wiped")).toBeUndefined();
+    expect(tiles.get("aspect")).toMatchObject({ kind: "small", value: "Justice" });
+  });
+});
+
+describe("playerStatsOf: the Cards by hero tab", () => {
+  test("each hero's aspects and card groups, most played hero first", () => {
+    const stats = playerStatsOf(
+      [
+        meta({ summary: summary() }),
+        meta({ summary: summary({ seats: [seat({ identityCardId: "cap", aspects: ["leadership"] })] }) }),
+        meta({ summary: summary() }),
+      ],
+      NAMES,
+    );
+    expect(stats.heroCards.map((h) => h.identityCardId)).toEqual(["spidey", "cap"]);
+    const spidey = stats.heroCards[0]!;
+    expect(spidey.aspects[0]).toMatchObject({ aspect: "justice", label: "Justice" });
+    const su = spidey.groups.find((g) => g.id === "spidey:su")!;
+    expect(su.title).toBe("Most played supports and upgrades");
+    expect(su.cards[0]).toMatchObject({ cardId: "webs", value: "2×" });
+    expect(spidey.groups.find((g) => g.id === "spidey:unplayed")?.cards.map((c) => c.cardId)).toEqual(["bot", "tac"]);
+  });
+
+  test("a hero with only older games has a note and no groups", () => {
+    const stats = playerStatsOf([meta()], NAMES);
+    expect(stats.heroCards[0]!.groups).toEqual([]);
+    expect(stats.heroCards[0]!.note).toContain("next game");
+  });
+});
+
+describe("playerStatsOf: devices", () => {
+  test("games by the device they were last played on, when any save says", () => {
+    const on = (platform: "windows" | "android", status: "won" | "lost" = "won") =>
+      meta({
+        status,
+        lastPlayedOn: { platform },
+        ...(status === "lost" ? { outcome: { result: "loss", reason: "mainSchemeCompleted" } } : {}),
+      });
+    const stats = playerStatsOf([on("windows"), on("windows", "lost"), on("android"), meta()], NAMES);
+    const devices = section(stats.sections, "devices");
+    expect(row(devices, "device:most").value).toBe("Windows");
+    expect(row(devices, "device:windows").value).toBe("1–1");
+    expect(row(devices, "device:android").value).toBe("1–0");
+    expect(devices.rows.find((r) => r.id === "device:unstamped")).toBeDefined();
+  });
+
+  test("no Devices section when no save says where it was played", () => {
+    expect(playerStatsOf([meta()], NAMES).sections.find((s) => s.id === "devices")).toBeUndefined();
   });
 });

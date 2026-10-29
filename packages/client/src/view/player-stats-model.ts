@@ -65,9 +65,83 @@ export interface StatsHeader {
   readonly fraction: number;
 }
 
+/**
+ * One Overview tile (the dashboard's first tab). `art` names the picture a portrait tile shows: a hero's by identity,
+ * a villain's by scenario.
+ */
+export type OverviewTile =
+  | {
+      readonly kind: "record";
+      readonly id: string;
+      readonly record: string;
+      readonly rate: string;
+      readonly fraction: number;
+      readonly detail: string;
+    }
+  | {
+      readonly kind: "split";
+      readonly id: string;
+      readonly label: string;
+      readonly parts: readonly { readonly label: string; readonly count: number; readonly tone: "caution" | "ink" }[];
+      readonly detail: string;
+    }
+  | {
+      readonly kind: "figures";
+      readonly id: string;
+      readonly label: string;
+      readonly lines: readonly { readonly label: string; readonly value: string }[];
+    }
+  | {
+      readonly kind: "portrait";
+      readonly id: string;
+      readonly label: string;
+      readonly name: string;
+      readonly detail: string;
+      readonly extra: string;
+      readonly art: { readonly hero: string } | { readonly scenario: string };
+      /** Filled ink: the headline tile of its row. */
+      readonly wide: boolean;
+    }
+  | {
+      readonly kind: "small";
+      readonly id: string;
+      readonly label: string;
+      readonly value: string;
+      readonly detail: string;
+    };
+
+export interface OverviewTiles {
+  readonly tiles: readonly OverviewTile[];
+  /** The "older games" note, or null. */
+  readonly note: string | null;
+}
+
+/** The Cards by hero tab for one hero: aspects, then groups of card pictures with their counts. */
+export interface HeroCardsView {
+  readonly identityCardId: string;
+  readonly name: string;
+  readonly games: string;
+  readonly aspects: readonly { readonly aspect: string; readonly label: string; readonly detail: string }[];
+  readonly groups: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly cards: readonly { readonly cardId: string; readonly value: string; readonly detail: string }[];
+  }[];
+  /** Why there are no card groups yet, or null. */
+  readonly note: string | null;
+}
+
 export interface PlayerStats {
   readonly header: StatsHeader;
+  /**
+   * Every section as rows: Overview, Heroes, Villains, Side schemes, Devices (when any game says where it was played),
+   * then one cards section per hero. The dashboard shows the Overview as `overview` and the cards as `heroCards`; the
+   * rows are the same facts as a list.
+   */
   readonly sections: readonly StatsSection[];
+  readonly overview: OverviewTiles;
+  /** Most played hero first. */
+  readonly heroCards: readonly HeroCardsView[];
 }
 
 /** One finished game, reduced to what the stats read. */
@@ -87,6 +161,8 @@ interface GameFacts {
   /** The summary carried per-seat card numbers (a game finished since `SeatSummary` existed). */
   readonly detailed: boolean;
   readonly sideSchemes: GameSummarySideSchemes | null;
+  /** Where the game was last played (`SaveMeta.lastPlayedOn`, device sync), or null when the save does not say. */
+  readonly platform: string | null;
 }
 
 type GameSummarySideSchemes = NonNullable<NonNullable<SaveMeta["summary"]>["sideSchemes"]>;
@@ -157,6 +233,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     seats: seatsOf(meta, names),
     detailed: summary?.seats !== undefined,
     sideSchemes: summary?.sideSchemes ?? null,
+    platform: meta.lastPlayedOn?.platform ?? null,
   };
 }
 
@@ -658,6 +735,200 @@ function heroCardsOf(identityCardId: string, games: readonly GameFacts[], names:
   };
 }
 
+const PLATFORM_LABELS: Readonly<Record<string, string>> = {
+  web: "Web browser",
+  windows: "Windows",
+  macos: "macOS",
+  linux: "Linux",
+  android: "Android",
+  ios: "iPhone and iPad",
+};
+
+/**
+ * Devices: where each game was last played (device sync stamps every save it writes). Null when no game says, which
+ * is every game played before the stamp existed.
+ */
+function devicesOf(games: readonly GameFacts[]): StatsSection | null {
+  const stamped = games.filter((g) => g.platform !== null);
+  if (stamped.length === 0) return null;
+  const labelOf = (platform: string): string => PLATFORM_LABELS[platform] ?? platform;
+  const groups = byPlayed(
+    groupBy(stamped, (g) => [g.platform!]),
+    labelOf,
+  );
+  const rows: StatRow[] = [];
+  const most = groups[0]!;
+  rows.push(
+    stat("device:most", "Played most on", labelOf(most[0]), plural(most[1].length, "game"), { highlight: true }),
+  );
+  for (const [platform, list] of groups) {
+    const t = tallyOf(list);
+    const avg = list.reduce((sum, g) => sum + g.round, 0) / list.length;
+    rows.push(
+      stat(
+        `device:${platform}`,
+        labelOf(platform),
+        record(t.wins, t.losses),
+        `${plural(list.length, "game")} · ${percent(t.wins, list.length)} won · ${avg.toFixed(1)} rounds a game`,
+      ),
+    );
+  }
+  if (stamped.length < games.length) {
+    rows.push({
+      kind: "note",
+      id: "device:unstamped",
+      text: `${plural(games.length - stamped.length, "game")} from before devices were recorded are not counted here.`,
+    });
+  }
+  rows.push({
+    kind: "note",
+    id: "device:last",
+    text: "A game counts for the device it was last played on.",
+  });
+  return { id: "devices", title: "Devices", count: plural(groups.length, "device"), rows };
+}
+
+const statRowsOf = (section: StatsSection) =>
+  section.rows.filter((row): row is Extract<StatRow, { kind: "stat" }> => row.kind === "stat");
+
+/** The Overview tab's tiles, from the same facts the sections give. */
+function overviewTilesOf(
+  games: readonly GameFacts[],
+  header: StatsHeader,
+  overview: StatsSection,
+  heroes: StatsSection | null,
+  villains: StatsSection | null,
+  sideSchemes: StatsSection | null,
+  villainScenario: (name: string) => string | undefined,
+): OverviewTiles {
+  const byId = new Map(statRowsOf(overview).map((row) => [row.id, row]));
+  const tiles: OverviewTile[] = [];
+  const fastest = byId.get("ov:fastest");
+  tiles.push({
+    kind: "record",
+    id: "record",
+    record: header.record,
+    rate: header.rate,
+    fraction: header.fraction,
+    detail: [
+      header.streak,
+      ...(fastest
+        ? [`Fastest win round ${fastest.value.replace("Round ", "")} (${fastest.detail.replace("Against ", "")})`]
+        : []),
+    ].join(" · "),
+  });
+  const lost = games.filter((g) => g.result === "lost");
+  if (lost.length > 0) {
+    const scheme = lost.filter((g) => g.lossReason === "schemeCompleted").length;
+    const wiped = lost.filter((g) => g.lossReason === "playersDefeated").length;
+    tiles.push({
+      kind: "split",
+      id: "lose",
+      label: "How you lose",
+      parts: [
+        { label: "Scheme", count: scheme, tone: "caution" },
+        { label: "Wiped", count: wiped, tone: "ink" },
+      ],
+      detail:
+        scheme >= wiped
+          ? `${percent(scheme, lost.length)} of losses are the main scheme completing.`
+          : `${percent(wiped, lost.length)} of losses are every hero falling.`,
+    });
+  }
+  const lines: { label: string; value: string }[] = [];
+  const perGame = (id: string, label: string) => {
+    const row = byId.get(id);
+    if (row) lines.push({ label, value: row.detail.split(" ")[0]! });
+  };
+  perGame("ov:damage", "Damage");
+  perGame("ov:thwart", "Threat removed");
+  perGame("ov:plays", "Cards played");
+  const length = byId.get("ov:length");
+  if (length) lines.push({ label: "Average game", value: length.value });
+  if (lines.length > 0) tiles.push({ kind: "figures", id: "per-game", label: "Per hero, per game", lines });
+
+  const heroRows = heroes ? statRowsOf(heroes) : [];
+  const favorite = heroRows.find((row) => row.id === "hero:favorite");
+  if (favorite?.cardId) {
+    const own = heroRows.find((row) => row.id === `hero:${favorite.cardId}`);
+    const best = heroRows.find((row) => row.id === "hero:best");
+    tiles.push({
+      kind: "portrait",
+      id: "hero",
+      label: "Favorite hero",
+      name: favorite.value,
+      detail: own ? `${own.detail.split(" · ").slice(0, 2).join(" · ")} · ${own.value}` : favorite.detail,
+      extra: best ? `Best win rate: ${best.value}, ${best.detail.split(" · ")[0]}` : "",
+      art: { hero: favorite.cardId },
+      wide: true,
+    });
+  }
+  const villainRows = villains ? statRowsOf(villains) : [];
+  const villainTile = (id: string, label: string): void => {
+    const row = villainRows.find((r) => r.id === id);
+    const scenario = row ? villainScenario(row.value) : undefined;
+    if (!row || !scenario || tiles.some((t) => t.kind === "portrait" && t.name === row.value && t.id !== "hero"))
+      return;
+    const own = villainRows.find((r) => r.id === `villain:${row.value}`);
+    tiles.push({
+      kind: "portrait",
+      id,
+      label,
+      name: row.value,
+      detail: own ? `${own.detail.split(" · ")[0]} · ${own.value}` : row.detail,
+      extra: row.detail,
+      art: { scenario },
+      wide: false,
+    });
+  };
+  villainTile("villain:nemesis", "Beaten by most");
+  villainTile("villain:wiped", "Wiped the table most");
+  villainTile("villain:favorite", "Most faced");
+
+  const small = (row: Extract<StatRow, { kind: "stat" }> | undefined, id: string, label = row?.label ?? ""): void => {
+    if (row) tiles.push({ kind: "small", id, label, value: row.value, detail: row.detail });
+  };
+  small(byId.get("ov:aspect"), "aspect");
+  const side = sideSchemes ? statRowsOf(sideSchemes) : [];
+  const total = side.find((row) => row.id === "side:total");
+  const hardest = side.find((row) => row.id === "side:hardest");
+  if (total) {
+    tiles.push({
+      kind: "small",
+      id: "side",
+      label: "Side schemes",
+      value: `${total.detail.split(" ")[0]} a game`,
+      detail: hardest ? `Hardest to clear: ${hardest.value}` : total.detail,
+    });
+  }
+  small(byId.get("ov:expert"), "expert");
+  small(byId.get("ov:seats"), "seats");
+  small(byId.get("ov:fallen"), "fallen");
+  small(byId.get("ov:conceded"), "conceded");
+  const note = overview.rows.find((row) => row.kind === "note");
+  return { tiles, note: note?.kind === "note" ? note.text : null };
+}
+
+/** A hero's cards section, as the Cards by hero tab draws it: aspect rows, then each group's cards. */
+function heroCardsViewOf(section: StatsSection, identityCardId: string, name: string): HeroCardsView {
+  const aspects: { aspect: string; label: string; detail: string }[] = [];
+  const groups: { id: string; title: string; cards: { cardId: string; value: string; detail: string }[] }[] = [];
+  let note: string | null = null;
+  for (const row of section.rows) {
+    if (row.kind === "note") {
+      if (row.id.endsWith(":head")) groups.push({ id: row.id.replace(/:head$/, ""), title: row.text, cards: [] });
+      else note = row.text;
+      continue;
+    }
+    if (row.id.includes(":aspect:")) {
+      aspects.push({ aspect: row.id.split(":aspect:")[1]!, label: row.value, detail: row.detail });
+      continue;
+    }
+    if (row.cardId) groups.at(-1)?.cards.push({ cardId: row.cardId, value: row.value, detail: row.detail });
+  }
+  return { identityCardId, name, games: section.count, aspects, groups, note };
+}
+
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
@@ -674,37 +945,35 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
     groupBy(games, (g) => g.seats.map((s) => s.identityCardId)),
     (id) => names.cardName(id) ?? id,
   ).map(([id]) => id);
-  const sections: StatsSection[] = [overviewOf(games, concessions, older)];
-  if (games.length > 0) {
-    sections.push(heroesOf(games, names), villainsOf(games), sideSchemesOf(games, names));
-    for (const id of heroes) sections.push(heroCardsOf(id, games, names));
+  const overview = overviewOf(games, concessions, older);
+  const header = headerOf(games);
+  const sections: StatsSection[] = [overview];
+  if (games.length === 0)
+    return {
+      header,
+      sections,
+      overview: overviewTilesOf(games, header, overview, null, null, null, () => undefined),
+      heroCards: [],
+    };
+  const heroSection = heroesOf(games, names);
+  const villainSection = villainsOf(games);
+  const sideSection = sideSchemesOf(games, names);
+  const devices = devicesOf(games);
+  sections.push(heroSection, villainSection, sideSection, ...(devices ? [devices] : []));
+  const heroCards: HeroCardsView[] = [];
+  for (const id of heroes) {
+    const cards = heroCardsOf(id, games, names);
+    sections.push(cards);
+    heroCards.push(heroCardsViewOf(cards, id, names.cardName(id) ?? id));
   }
-  return { header: headerOf(games), sections };
-}
-
-/** One line of the screen's list: a section's heading, or a row under an open section. */
-export type StatsListRow =
-  | {
-      readonly kind: "section";
-      readonly id: string;
-      readonly title: string;
-      readonly count: string;
-      readonly expanded: boolean;
-    }
-  | (StatRow & { readonly sectionId: string });
-
-/** The Overview starts open; every other section starts folded. */
-export const DEFAULT_OPEN_SECTIONS: ReadonlySet<string> = new Set(["overview"]);
-
-/** The list the screen draws: every heading, and the rows of each open section under it. */
-export function statsListOf(stats: PlayerStats, expanded: ReadonlySet<string>): StatsListRow[] {
-  return stats.sections.flatMap((section): StatsListRow[] => {
-    const open = expanded.has(section.id);
-    return [
-      { kind: "section", id: section.id, title: section.title, count: section.count, expanded: open },
-      ...(open ? section.rows.map((row) => ({ ...row, sectionId: section.id })) : []),
-    ];
-  });
+  const villainScenario = (name: string): string | undefined =>
+    [...games].sort((a, b) => b.at - a.at).find((g) => g.villain === name)?.scenarioId;
+  return {
+    header,
+    sections,
+    overview: overviewTilesOf(games, header, overview, heroSection, villainSection, sideSection, villainScenario),
+    heroCards,
+  };
 }
 
 export function statsRowHeightsOf(phone: boolean): {

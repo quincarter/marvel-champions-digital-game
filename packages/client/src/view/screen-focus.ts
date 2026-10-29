@@ -122,10 +122,11 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     : input.community
       ? [...(input.wide ? [] : ["stats-preview"]), "stats-copy-link", "stats-open-link", "stats-check", "stats-add"]
       : ["stats-check", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-duplicate", "stats-play"];
-  if (input.wide) return ["back", ...listGroup, ...poolGroup, ...statsGroup];
+  // "Your stats" sits on the header bar beside Back.
+  if (input.wide) return ["back", "player-stats", ...listGroup, ...poolGroup, ...statsGroup];
   const tabs = ["tab:decks", "tab:cards", "tab:stats"];
   const activeGroup = input.activeTab === "decks" ? listGroup : input.activeTab === "cards" ? poolGroup : statsGroup;
-  return ["back", ...tabs, ...activeGroup];
+  return ["back", "player-stats", ...tabs, ...activeGroup];
 }
 
 export interface DeckBuilderFocusInput {
@@ -347,6 +348,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "full-game-log",
       "rules-reference",
       "settings",
+      "stats",
       "save-quit",
       "music",
       "report",
@@ -433,6 +435,7 @@ export function titleMenuFocusOrder(input: {
     ...(input.civilWar ? ["civil-war"] : []),
     "extras",
     "trophies",
+    "stats",
     "how-to-play",
     "settings",
     ...(input.quit ? ["quit"] : []),

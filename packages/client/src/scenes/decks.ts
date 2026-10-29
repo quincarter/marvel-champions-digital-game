@@ -184,6 +184,7 @@ import type { TitleSceneData } from "./title.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import { fetchMarvelCdbDeck } from "../platform/deck-fetch.js";
 import { openExternal } from "../platform/platform.js";
 import { refreshUnlocks, unlocks } from "../progression/progression.js";
@@ -490,6 +491,8 @@ export class DecksScene extends Phaser.Scene {
       },
       // LB / RB step Decks, Cards and Stats on a narrow screen; on the three-pane layout there is no strip, so they page.
       onTab: (direction) => this.#stepTab(direction),
+      // X (G / H on the keyboard) opens Your stats.
+      onToggle: () => this.#stops.get("player-stats")?.activate(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         (this.#pasteInput?.focused ?? false) ||
@@ -712,6 +715,28 @@ export class DecksScene extends Phaser.Scene {
     this.#stops.set("back", { rect: backRect, activate: goBack });
     this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
 
+    // "Your stats" at the header's right end: what you play, the other side of what you build.
+    const statsWidth = layout.formFactor === "phone" ? 96 : 150;
+    const statsRect: Rect = {
+      x: layout.header.x + layout.header.width - statsWidth,
+      y: layout.header.y,
+      width: statsWidth,
+      height: layout.header.height,
+    };
+    const openStats = (): void =>
+      goToScreen(this, SCENES.playerStats, { from: SCENES.decks } satisfies PlayerStatsData);
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: layout.formFactor === "phone" ? "Stats" : "Your stats",
+        type: typeRole.rowTitle,
+        rect: statsRect,
+        onClick: openStats,
+      }),
+    );
+    this.#stops.set("player-stats", { rect: statsRect, activate: openStats });
+    this.#hints.button(this.#buttons.at(-1)!, ["guide"], "paper");
+
     // The header's right-aligned meta label: the real pool size, never an owned-card claim (docs/phase4-screen-gaps.md
     // §4/§5) — worded "CARD POOL", not the mock's "Core Set", since this pool already spans Core and wave 1. Skipped
     // at phone width: it isn't essential there, and crowding the actual screen title into truncating for its sake
@@ -721,7 +746,7 @@ export class DecksScene extends Phaser.Scene {
         ? null
         : label(
             this,
-            layout.header.x + layout.header.width,
+            statsRect.x - 16,
             layout.header.y + layout.header.height / 2,
             `Card pool · ${POOL_CARDS.length} cards`,
             typeRole.label,
@@ -738,7 +763,11 @@ export class DecksScene extends Phaser.Scene {
       { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" },
     );
     title.setOrigin(0, 0.5);
-    fitText(title, layout.header.width - backRect.width - 24 - (poolMeta ? poolMeta.width + 16 : 0), 28);
+    fitText(
+      title,
+      layout.header.width - backRect.width - 24 - statsWidth - 16 - (poolMeta ? poolMeta.width + 16 : 0),
+      28,
+    );
 
     // The player's own list (precons and saved decks), then the community decks: recommendations that can be
     // selected and previewed like any deck, and added as an editable copy rather than played or edited in place.
