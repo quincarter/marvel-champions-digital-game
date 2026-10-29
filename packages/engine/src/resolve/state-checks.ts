@@ -36,7 +36,7 @@ import {
 } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateFrame, updateInstance } from "../ctx.js";
 import { announceDeckTops } from "../deck-top.js";
-import { statusCapacity } from "../keywords.js";
+import { heldStatusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
 import {
   activeAbilityRefs,
@@ -124,8 +124,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // …and so does the player side scheme limit: RRG 1.8 p. 34, "If there are **ever** more player side schemes in play
   // than the limit, the first player chooses and discards" (docs/phase7-wave7.md §3.2).
   if (checkPlayerSideSchemeLimit(ctx, null)) return true;
-  // The same kind of rule: a character that cannot have a status card sheds the ones it holds (stalwart; docs/phase7-
-  // wave3.md §3.7). Nothing to put on the stack, so the flow carries on.
+  // The same kind of rule: a character that gains stalwart sheds the status cards it holds (RRG 1.8 p. 40). Nothing to
+  // put on the stack, so the flow carries on.
   clearForbiddenStatuses(ctx);
   // …and a constant "you are confused" keeps its character holding the status (White Queen; docs/phase7-wave6.md §3.9).
   applyKeptStatuses(ctx);
@@ -256,10 +256,12 @@ function withUsesCounters(ctx: Ctx, id: InstanceId): GameState {
 
 /**
  * RRG 1.8 "Stalwart" (p. 40): "If a character gains the stalwart keyword while they have a stunned and/or confused
- * status card, each stunned and/or confused status card is removed from that character." The same holds for a
- * `cannotHaveStatus` rule ("Ronan the Accuser cannot be stunned") that starts to apply. `statusCapacity` is what both
- * read, so a character holding more of a status than it may is trimmed to that. Only characters already holding a
- * status are looked at, so a board with none costs one pass over the instances in play.
+ * status card, each stunned and/or confused status card is removed from that character." `heldStatusCapacity` is what
+ * this reads, so a character holding more of a status than it may is trimmed to that. A `cannotHaveStatus` rule
+ * ("Ronan the Accuser cannot be stunned") that starts to apply sheds nothing: it only stops new cards being placed (FFG
+ * ruling Feb 15, 2024, #145, Magneto's Helmet; the owner, 2026-10-28, PR #498, overriding docs/phase7-wave3.md §3.7).
+ * Only characters already holding a status are looked at, so a board with none costs one pass over the instances in
+ * play.
  */
 function clearForbiddenStatuses(ctx: Ctx): void {
   const discarded: StatusDiscarded[] = [];
@@ -267,7 +269,7 @@ function clearForbiddenStatuses(ctx: Ctx): void {
     const held = ctx.state.instances[id]?.statuses;
     if (!held || held.stunned + held.confused + held.tough === 0) continue;
     for (const status of ["stunned", "confused", "tough"] as const) {
-      const allowed = statusCapacity(ctx.state, id, status, ctx.deps);
+      const allowed = heldStatusCapacity(ctx.state, id, status, ctx.deps);
       if ((ctx.state.instances[id]?.statuses[status] ?? 0) <= allowed) continue;
       discarded.push(...discardStatusCards(ctx, id, status, "cannotHave", allowed));
     }

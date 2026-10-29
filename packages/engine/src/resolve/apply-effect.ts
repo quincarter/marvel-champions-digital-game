@@ -122,6 +122,7 @@ import {
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
 import {
+  awaitingAbility,
   basicPowerUseFrameId,
   currentActivationFrameId,
   currentThwartFrameId,
@@ -235,6 +236,7 @@ import {
   skipUnattackable,
   withMovedAttackTarget,
 } from "./attack-ability.js";
+import { keywordFramesFor } from "./initiated-activation.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck, replacesStatusOn } from "./target-validity.js";
 import { isUnpreventableDamage } from "./unpreventable.js";
@@ -539,7 +541,10 @@ function redirectMovedThreat(ctx: Ctx, frame: Frame<"effects">, placed: number):
  *   progress (`currentActivationFrameId`), a hero's included.
  * - Otherwise the innermost enemy attack or scheme anywhere on the stack: p. 6 is about enemy activations, and one is
  *   still resolving beneath a hero's attack or thwart made during it (its responses are part of it: ruling Feb 28,
- *   2026 (1) answer 2). One waiting beneath its "(attack)" ability (`attackWaiting`) is passed over.
+ *   2026 (1) answer 2). One waiting beneath its "(attack)" ability (`attackWaiting`) is passed over, and so is a
+ *   keyword's activation initiated by an ability and waiting for it to finish (`awaitingAbility`): it has not begun
+ *   its steps. Inside an outer activation the ability waits behind that one, with the keyword's activation
+ *   (`suspendedFramesOf`).
  * - If that innermost one was replaced ("would attack … schemes instead") or cancelled outright, null: the
  *   replacement resolves in place of the event it replaces (RRG 1.8 "Replacement Effect", p. 36), not behind an outer
  *   activation; the abilities waiting behind a replaced activation resume then (`resumeSuspendedOnCancel`).
@@ -554,7 +559,11 @@ function redirectMovedThreat(ctx: Ctx, frame: Frame<"effects">, placed: number):
 function activationToQueueBehind(state: GameState, afterCurrent: boolean): FrameId | null {
   if (afterCurrent) return currentActivationFrameId(state.stack);
   for (const f of state.stack) {
-    if (f.kind !== "event" || f.attackWaiting || f.endEffectsDraining) continue;
+    // RRG 1.8 "Activation" p. 6: an initiated-but-unresolved quickstrike attack is not "resolving" (RRG 1.8 FAQ
+    // "Spider-Man (#1A)": initiation precedes the attack's steps), so the ability's own "the villain attacks you"
+    // resolves in place; the quickstrike attack resolves after the whole ability (ruling 194, May 23, 2024). Inside an
+    // outer activation both queue behind it.
+    if (f.kind !== "event" || f.attackWaiting || f.endEffectsDraining || awaitingAbility(f)) continue;
     if (f.event.kind !== "enemyAttack" && f.event.kind !== "enemyScheme") continue;
     return f.cancelled && !f.endedEarly ? null : f.frameId;
   }
@@ -2380,18 +2389,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           instanceId: id,
           playerId: attached.includes(id) ? (controllerOf(ctx.state, id) ?? underOf(id)) : underOf(id),
         }));
-      const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const enteredFrames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const keywords: StackFrame[] = [];
       for (const id of entering) {
         const quickstrike = quickstrikeFrame(ctx, id);
-        if (quickstrike) frames.push(quickstrike);
+        if (quickstrike) keywords.push(quickstrike);
       }
       // Teamwork (trait) after quickstrike, checked as it resolves (docs/phase7-wave6.md §3.1, `resolveTeamwork`).
       for (const id of entering) {
         const teamwork = teamworkFrame(ctx, id);
-        if (teamwork) frames.push(teamwork);
+        if (teamwork) keywords.push(teamwork);
       }
-      // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2).
-      for (const id of entering) frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
+      // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2). In a pass of an "each
+      // time" loop the keywords and every response to the minions entering play or engaging wait for the whole loop
+      // (ruling 38, Drang III; `keywordFramesFor`).
+      const engagements = entering.flatMap((id) => engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
+      const frames = [...keywordFramesFor(ctx, keywords, engagements, enteredFrames)];
       // "If no minion was put into play this way" (docs/phase7-wave4.md §3.59): only what is in play now entered.
       if (effect.bind) {
         const inPlay = cardsInPlay(ctx.state);
@@ -2469,12 +2482,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       bound([id]);
       // Announced as the minion it now is (§4.1 Q43 = A), in the order `putIntoPlay` announces a minion.
       const entered: TriggerEvent[] = [{ kind: "cardEntersPlay", instanceId: id, playerId }];
-      const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
-      const quickstrike = quickstrikeFrame(ctx, id);
-      if (quickstrike) frames.push(quickstrike);
-      const teamwork = teamworkFrame(ctx, id);
-      if (teamwork) frames.push(teamwork);
-      frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
+      const enteredFrames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const keywords = [quickstrikeFrame(ctx, id), teamworkFrame(ctx, id)].filter((f): f is StackFrame => f !== null);
+      const engagements = engagedEvent(ctx, id).map((event) => eventFrame(ctx, event));
+      const frames = [...keywordFramesFor(ctx, keywords, engagements, enteredFrames)];
       frames.push(
         ...attached
           .filter((event) => announcesAttaching(event, (e) => heard(ctx.state, ctx.deps, e)))
@@ -4378,6 +4389,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             bindings: { ...frame.bindings, [each.slot]: [id] },
             vars: frame.vars,
             scopedPlayerId: frame.scopedPlayerId,
+            eachTimePass: true,
           });
         }
       }

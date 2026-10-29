@@ -455,7 +455,7 @@ describe("Gambit's obligation and nemesis set (37025-37029)", () => {
 // has resolved, so the nemesis side scheme is in play first. RRG 1.8 p. 38 "Reveal": responses to any step of a reveal
 // wait until all steps are done.
 describe("Shadow of the Past (01190) and Belladonna's Quickstrike (ruling May 23, 2024, Ruling 194)", () => {
-  it.fails("the nemesis side scheme enters play before Belladonna's attack resolves", () => {
+  it("the nemesis side scheme enters play before Belladonna's attack resolves", () => {
     const g0 = withForm(gambitGame(), { heroForm: 0 });
     const v = g0.villains[0]!.instanceId;
     const base = patchInstance(g0, v, { statuses: { ...inst(g0, v).statuses, stunned: 1 } });

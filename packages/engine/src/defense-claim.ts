@@ -22,7 +22,7 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "./select.js";
-import type { StackFrame, TriggerCandidate } from "./stack.js";
+import { awaitingAbility, type StackFrame, type TriggerCandidate } from "./stack.js";
 import type { GameState } from "./state.js";
 
 /** Why a player may not defend the attack in progress, by a "(defense)" ability or as the declared defender. */
@@ -40,9 +40,15 @@ export const DEFENSE_BAR_MESSAGE: Readonly<Record<DefenseBar, string>> = {
 
 type EventFrame = Extract<StackFrame, { kind: "event" }>;
 
-/** The innermost enemy attack on the stack: its event frame, from its initiation to its last response. */
+/**
+ * The innermost enemy attack on the stack: its event frame, from its initiation to its last response. A keyword's
+ * attack waiting for its ability (`awaitingAbility`) has no procedure yet and is skipped: the attack around it, if any,
+ * is the one being defended.
+ */
 export const currentEnemyAttackFrame = (state: GameState): EventFrame | null =>
-  state.stack.find((f): f is EventFrame => f.kind === "event" && f.event.kind === "enemyAttack") ?? null;
+  state.stack.find(
+    (f): f is EventFrame => f.kind === "event" && f.event.kind === "enemyAttack" && !awaitingAbility(f),
+  ) ?? null;
 
 /** The cross-player record of the enemy attack in progress, or null outside one. */
 export interface DefenseClaim {

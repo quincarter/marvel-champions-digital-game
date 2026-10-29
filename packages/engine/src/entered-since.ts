@@ -204,12 +204,34 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
             ? { ...sessionMarked, heldSentenceResponses: markHeld(sessionMarked.heldSentenceResponses) }
             : sessionMarked;
         // Characters defeated together (`resolve/defeated-together.ts`): each defeat that has happened.
-        const step = marked.effects[marked.cursor];
-        if (step?.kind !== "defeatedTogether" || step.stage === "apply") return marked;
+        // The responses an "each time" loop holds (`heldLoopFrames`, `resolve/initiated-activation.ts`) for events that
+        // have occurred: an announcement held whole, or a split frame whose event has applied (`heldOccurred`).
+        const loop = marked.heldLoopFrames;
+        // A minion whose split frame has not applied yet: nothing held for it has occurred, its whole-held announcements
+        // (its engagement) included.
+        const pending = new Set(
+          (loop?.after ?? []).flatMap((f) =>
+            f.kind === "event" && f.responsesFor !== undefined && f.heldOccurred !== true
+              ? eventSubjects(f.event).targets
+              : [],
+          ),
+        );
+        const after = loop?.after.map((f): StackFrame => {
+          if (f.kind !== "event" || (f.responsesFor !== undefined && f.heldOccurred !== true)) return f;
+          if (f.responsesFor === undefined && eventSubjects(f.event).targets.some((t) => pending.has(t))) return f;
+          const event = mark(f.event);
+          return event === f.event ? f : { ...f, event };
+        });
+        const held: typeof frame =
+          loop && after && after.some((f, i) => f !== loop.after[i])
+            ? { ...marked, heldLoopFrames: { ...loop, after } }
+            : marked;
+        const step = held.effects[held.cursor];
+        if (step?.kind !== "defeatedTogether" || step.stage === "apply") return held;
         const members = step.members.map((member) =>
           member.defeated && !member.cancelled ? { ...member, event: mark(member.event) } : member,
         );
-        return { ...marked, effects: marked.effects.map((e, i) => (i === marked.cursor ? { ...step, members } : e)) };
+        return { ...held, effects: held.effects.map((e, i) => (i === held.cursor ? { ...step, members } : e)) };
       }
       default:
         return frame;

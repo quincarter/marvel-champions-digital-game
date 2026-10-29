@@ -10,6 +10,8 @@
  * not a basic defense and does not cause a hero to reduce the amount of damage dealt by that hero's DEF. That hero can
  * still be declared the defender of the attack during the 'Declare Defender' step or by another card ability."
  *
+ * An ally made the defender uses no basic power (FFG ruling Mar 16, 2025; the owner, 2026-10-28, PR #498).
+ *
  * Synthetic cards. The stub hero has DEF 2; the villain attacks for 3 (ATK 2 and a 1-icon boost card).
  */
 
@@ -310,11 +312,13 @@ describe("what is not a basic defense", () => {
   });
 });
 
+// FFG ruling Mar 16, 2025: "Because allies don't have a DEF stat, they aren't considered to 'use a basic power' when
+// they defend attacks" (the owner, 2026-10-28, PR #498: Q55 holds for heroes only).
 describe("an ally declared the defender by a card ability", () => {
-  it("'declare this ally the defender without exhausting it' announces its defense as the step's declaration of an ally does, once", () => {
+  it("'declare this ally the defender without exhausting it': the ally defends, and no basic power is announced", () => {
     const run = villainAttack([SENTRY]);
     const sentry = run.inPlay(SENTRY.id);
-    expect(run.heard).toEqual({ using: 1, used: 1 });
+    expect(run.heard).toEqual({});
     expect(mustInstance(run.state, sentry).damage).toBe(3);
     expect(mustInstance(run.state, sentry).exhausted).toBe(false);
     expect(run.heroDamage).toBe(0);
