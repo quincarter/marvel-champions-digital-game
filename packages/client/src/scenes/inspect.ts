@@ -65,7 +65,9 @@
 
 import type { PerPlayerCost } from "../view/per-player-cost.js";
 import Phaser from "phaser";
-import { cardOf, type InstanceId } from "@mc/engine";
+import { cardOf, getInstance, type InstanceId } from "@mc/engine";
+import { cardPlaySectionOf, deckInsightsNow, type CardPlaySection } from "../progression/card-play.js";
+import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import type { AnyCard, CardId, ResourceIconType } from "@mc/content";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -127,6 +129,9 @@ import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { tableGame } from "../view/table-game.js";
 
 /** What the caller hands over when it launches this overlay. */
+/** One "Your play" line's height. */
+const YOUR_PLAY_LINE = 18;
+
 export interface InspectData {
   /** A card in play or in hand. Omitted before a game exists. */
   readonly instanceId?: InstanceId;
@@ -322,6 +327,63 @@ export class InspectOverlay extends Phaser.Scene {
     super({ key: SCENES.inspect });
   }
 
+  /** "Your play" for this card (#529): what your finished games say about it, once the stats worker has answered. */
+  #yourPlay: CardPlaySection | null = null;
+
+  /** The card and hero "Your play" is about: a player card, with its owner's hero in a game. Null for anything else. */
+  #playSubject(): { readonly cardId: string; readonly identityCardId: string | null } | null {
+    if (this.#reference) return null;
+    if (this.#card) return { cardId: this.#card.cardId as string, identityCardId: null };
+    const game = tableGame(appSession().store.state.game);
+    if (!game || !this.#instanceId) return null;
+    const instance = getInstance(game, this.#instanceId);
+    if (!instance?.ownerId) return null;
+    const owner = game.players.find((player) => player.playerId === instance.ownerId);
+    return {
+      cardId: instance.cardId as string,
+      identityCardId: (owner?.identity.cardId as string | undefined) ?? null,
+    };
+  }
+
+  /** Reads "Your play" for the card now shown, and draws it in when it arrives (the sheet may have moved on). */
+  #loadYourPlay(): void {
+    this.#yourPlay = null;
+    const subject = this.#playSubject();
+    if (!subject) return;
+    void deckInsightsNow(() => appSession().store.listSaves()).then(
+      (insights) => {
+        const now = this.#playSubject();
+        if (!this.sys.isActive() || now?.cardId !== subject.cardId) return;
+        this.#yourPlay = cardPlaySectionOf(insights, subject.cardId, subject.identityCardId, POOL_STATS_NAMES);
+        if (this.#yourPlay) this.#rebuild();
+      },
+      () => undefined,
+    );
+  }
+
+  /** The "Your play" section's height in the rules panel. */
+  #yourPlayHeight(): number {
+    return this.#yourPlay ? 16 + this.#yourPlay.lines.length * YOUR_PLAY_LINE : 0;
+  }
+
+  /** Draws "Your play" at `y` in `color`, label left and value right; returns where it ends. */
+  #drawYourPlay(x: number, y: number, width: number, color: number, labelAlpha: number): number {
+    const play = this.#yourPlay;
+    if (!play) return y;
+    label(this, x, y, play.title, typeRole.label, color, labelAlpha);
+    let ty = y + 16;
+    for (const line of play.lines) {
+      const name = this.add.text(x, ty, line.label, textStyle(typeRole.body, color, 0.85)).setFontSize(12);
+      const value = this.add
+        .text(x + width, ty, line.value, textStyle(typeRole.rowTitle, color, 1))
+        .setOrigin(1, 0)
+        .setFontSize(12);
+      fitText(value, Math.max(40, width - name.width - 10), 12);
+      ty += YOUR_PLAY_LINE;
+    }
+    return ty;
+  }
+
   create(data: InspectData): void {
     this.#instanceId = data.instanceId ?? null;
     // Opened on a card with cards under it (or on one of those): ◂ ▸ step through the host and what is tucked under it.
@@ -405,6 +467,7 @@ export class InspectOverlay extends Phaser.Scene {
       };
     }
 
+    this.#loadYourPlay();
     this.#rebuild();
   }
 
@@ -468,6 +531,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.#expanded = false;
     this.#flipped = false;
     this.#sheetScroll = new VariableListScroll();
+    this.#loadYourPlay();
     this.#rebuild();
   }
 
@@ -482,6 +546,7 @@ export class InspectOverlay extends Phaser.Scene {
       this.#expanded = false;
       this.#flipped = false;
       this.#sheetScroll = new VariableListScroll();
+      this.#loadYourPlay();
       this.#rebuild();
     }
   }
@@ -1046,6 +1111,7 @@ export class InspectOverlay extends Phaser.Scene {
             28,
       );
     if (model.traits.length > 0) heights.push(16 + estimateChipRows(model.traits, inner) * 28);
+    if (this.#yourPlay) heights.push(this.#yourPlayHeight());
     return heights;
   }
 
@@ -1379,6 +1445,11 @@ export class InspectOverlay extends Phaser.Scene {
           "traits",
           model.traits.map((trait) => ({ text: trait, glossaryId: null })),
         ) + RULES_SECTION_GAP;
+    }
+
+    // "Your play" (#529): this card in your finished games, when there is room above the history.
+    if (this.#yourPlay && y + this.#yourPlayHeight() <= buttonsTop - RULES_SECTION_GAP) {
+      y = this.#drawYourPlay(rect.x + pad, y, inner, surface.paper.hex, ink.meta) + RULES_SECTION_GAP;
     }
 
     if (model.history.length > 0) {
@@ -1940,6 +2011,10 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (model.keywordDefinitions.length > 0) {
       y = this.#drawSheetKeywords(rect.x + pad, y, rect.width - pad * 2, model) + SHEET_ROW_GAP;
+    }
+
+    if (this.#yourPlay) {
+      y = this.#drawYourPlay(rect.x + pad, y, rect.width - pad * 2, surface.ink.hex, ink.meta) + SHEET_ROW_GAP;
     }
 
     if (model.history.length > 0) {
