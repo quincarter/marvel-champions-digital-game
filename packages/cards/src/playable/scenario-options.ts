@@ -247,6 +247,22 @@ export interface VillainChoiceOffer {
   readonly options: readonly VillainChoice[];
 }
 
+/** One main scheme a player may choose at a scenario with a main scheme per player (`Scenario.mainSchemeChoice`). */
+export interface MainSchemePickOption {
+  /** The card id, what `mainSchemePicks` names. */
+  readonly cardId: string;
+  /** Its stage 1B title, the side it is played on ("Battle in the Bodega"); the 1A side is shared by all of them. */
+  readonly name: string;
+}
+
+/**
+ * Protection Racket 1A, Setup: "Each player chooses a single Protection Racket main scheme (at random in expert mode)"
+ * (MC60 p. 13). Offered on standard only: expert draws each player's at random in the engine.
+ */
+export interface MainSchemePicksOffer {
+  readonly options: readonly MainSchemePickOption[];
+}
+
 export interface PlayableScenarioChoices {
   /** `"extreme"` (Breakout) is not expert as far as these options go, as in `resolveModes`. */
   readonly difficulty?: string;
@@ -274,6 +290,8 @@ export interface PlayableScenarioOffer {
   readonly gameModes: readonly GameModeOption[] | null;
   /** The villains to choose among (MC60 p. 5); null at a scenario whose villain is fixed. */
   readonly villains: VillainChoiceOffer | null;
+  /** Each player's main scheme to choose among (Protection Racket, standard); null everywhere else and on expert. */
+  readonly mainSchemePicks: MainSchemePicksOffer | null;
 }
 
 const SIDE_NAMES: Readonly<Record<CivilWarSide, string>> = { registration: "Registration", resistance: "Resistance" };
@@ -380,6 +398,19 @@ export function villainChoiceOffer(
   };
 }
 
+/** The main schemes each player chooses among (`Scenario.mainSchemeChoice`), or null when none are chosen on `expert`. */
+export function mainSchemePicksOffer(scenario: Scenario, expert: boolean): MainSchemePicksOffer | null {
+  const choice = scenario.mainSchemeChoice;
+  if (!choice || expert) return null;
+  return {
+    options: choice.cardIds.map((id) => {
+      const card = PLAYABLE_CARDS.find((candidate) => candidate.id === id) ?? WAVE11_CARDS.find((c) => c.id === id);
+      const stage = card?.type === "main_scheme" ? card.stages[0] : undefined;
+      return { cardId: id as string, name: stage?.name ?? card?.name ?? (id as string) };
+    }),
+  };
+}
+
 /** Cooperative and competitive (MC56 pp. 4, 14); the engine does not play a competitive game yet and says so. */
 export function civilWarGameModes(): readonly GameModeOption[] {
   return [
@@ -426,5 +457,6 @@ export function playableScenarioOffer(
     modularSets: civilWar ? civilWarModularSets(scenario) : null,
     gameModes: civilWar ? civilWarGameModes() : null,
     villains: villainChoiceOffer(scenario),
+    mainSchemePicks: mainSchemePicksOffer(scenario, modes.expert === true),
   };
 }

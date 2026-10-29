@@ -130,6 +130,7 @@ import {
   COMPACT_SET_CHOICE_HEIGHT,
   GAME_SUMMARY_ROW_COUNT,
   compactOptionHeight,
+  COMPACT_NAMED_STEPPER_HEIGHT,
   PANEL_HEADER_HEIGHT,
   PANEL_PAD,
   PANEL_ROW_HEIGHT,
@@ -936,7 +937,9 @@ export class TableSetupScene extends Phaser.Scene {
         id: row.id,
         height: isSetChoiceRow(row)
           ? COMPACT_SET_CHOICE_HEIGHT
-          : compactOptionHeight(row.control.kind, row.control.kind === "groups" ? row.control.groups.length : 1),
+          : row.control.kind === "stepper" && row.control.wide
+            ? COMPACT_NAMED_STEPPER_HEIGHT
+            : compactOptionHeight(row.control.kind, row.control.kind === "groups" ? row.control.groups.length : 1),
       })),
       hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
       hoodSetIds: hoodOptions.map((o) => o.id),
@@ -1834,7 +1837,9 @@ export class TableSetupScene extends Phaser.Scene {
 
     this.#cardFrame(rect, row.active);
     // Name zone, then control zone: side by side when there is room (a stepper and the wide cards), stacked on a phone.
-    const stacked = compact && control.kind === "groups";
+    // A stepper whose value is a name (a villain, a main scheme) stacks too, so the name gets the row's whole width
+    // instead of being cut ("Battle in the Bo…").
+    const stacked = compact && (control.kind === "groups" || (control.kind === "stepper" && control.wide === true));
     const nameWidth = stacked
       ? rect.width - 20
       : control.kind === "groups" && control.groups.length > 1

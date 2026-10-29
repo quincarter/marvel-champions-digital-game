@@ -299,8 +299,9 @@ export function modularPicksOf(
 
 /**
  * Protection Racket's "each player chooses a main scheme" (MC60, standard mode) for a campaign issue: seat N takes the
- * Nth of the scenario's schemes, all different, as quick play's setup does (`setup-draft.ts`) until the Briefing has a
- * picker. Expert draws them at random in the engine, and every other scenario has one main scheme: none are sent.
+ * Nth of the scenario's schemes, all different (quick play's Table setup has a picker, `effectiveMainSchemePicks`; the
+ * Briefing has none yet). Expert draws them at random in the engine, and every other scenario has one main scheme:
+ * none are sent.
  */
 function campaignMainSchemePicks(
   scenarioId: string,
