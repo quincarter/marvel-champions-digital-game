@@ -199,6 +199,8 @@ interface GameFacts {
   readonly sideSchemes: GameSummarySideSchemes | null;
   /** Where the game was last played (`SaveMeta.lastPlayedOn`, device sync), or null when the save does not say. */
   readonly platform: string | null;
+  /** Time spent playing it (`SaveMeta.playedMs`), or null for a game from before it was kept. */
+  readonly playedMs: number | null;
 }
 
 type GameSummarySideSchemes = NonNullable<NonNullable<SaveMeta["summary"]>["sideSchemes"]>;
@@ -273,6 +275,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     detailed: summary?.seats !== undefined,
     sideSchemes: summary?.sideSchemes ?? null,
     platform: meta.lastPlayedOn?.platform ?? null,
+    playedMs: meta.playedMs ?? null,
   };
 }
 
@@ -1064,6 +1067,43 @@ function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsVi
         detail: `Won ${wonOut.get(id) ?? 0} of the ${n} games it came out`,
       })),
   );
+  // Allies (Bluefiref5ran's list): the hardest hitters, the most defenses, and the "martyr" that falls defending most.
+  for (const [id, title, pick, unit] of [
+    ["all:ally-damage", "Allies: most damage", (seat: SeatSummary) => seat.allyDamage, "damage"],
+    ["all:ally-blocks", "Allies: most defenses", (seat: SeatSummary) => seat.allyBlocks, "defense"],
+    ["all:ally-martyr", "Allies: fell defending most", (seat: SeatSummary) => seat.allyDiedBlocking, "time"],
+  ] as const) {
+    const totals = new Map<string, number>();
+    for (const { seat } of used) for (const [card, n] of Object.entries(pick(seat) ?? {})) add(totals, card, n);
+    group(
+      id,
+      title,
+      [...totals.entries()]
+        .filter(([, n]) => n > 0)
+        .sort(([a, x], [b, y]) => y - x || byName(a, b))
+        .slice(0, ALL_TOP)
+        .map(([card, n]) => ({
+          cardId: card,
+          value: unit === "damage" ? `${n}` : `${n}×`,
+          detail:
+            unit === "damage"
+              ? `damage in ${plural(cameOut.get(card) ?? 0, "game")}`
+              : plural(n, unit === "defense" ? "defense" : "time"),
+        })),
+    );
+  }
+  // The cards paid with most that are not resource cards: played as a resource instead of for what they do.
+  const paid = new Map<string, number>();
+  for (const { seat } of used) for (const [card, n] of Object.entries(seat.paidWith ?? {})) add(paid, card, n);
+  group(
+    "all:paid",
+    "Paid with most (not counting resources)",
+    [...paid.entries()]
+      .filter(([card]) => played(card))
+      .sort(([a, x], [b, y]) => y - x || byName(a, b))
+      .slice(0, ALL_TOP)
+      .map(([card, n]) => ({ cardId: card, value: `${n}×`, detail: `Played ${plays.get(card) ?? 0}×` })),
+  );
   group(
     "all:unplayed",
     "Rarely played (not counting resources)",
@@ -1286,7 +1326,55 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
         },
       ),
     );
+  const turns = games.flatMap((g) =>
+    g.seats.flatMap((s) => (s.summary?.bestTurn ? [{ g, id: s.identityCardId, turn: s.summary.bestTurn }] : [])),
+  );
+  for (const [key, label] of [
+    ["damage", "Most damage in a turn"],
+    ["thwart", "Most threat removed in a turn"],
+  ] as const) {
+    const best = [...turns].sort((a, b) => b.turn[key] - a.turn[key] || a.g.at - b.g.at)[0];
+    if (best && best.turn[key] > 0)
+      rows.push(
+        stat(`rec:turn:${key}`, label, String(best.turn[key]), `${name(best.id)} against ${best.g.villain}`, {
+          highlight: true,
+          cardId: best.id,
+        }),
+      );
+  }
+  const draws = games.flatMap((g) =>
+    g.seats.flatMap((s) => (s.summary?.drawn !== undefined ? [{ g, id: s.identityCardId, n: s.summary.drawn }] : [])),
+  );
+  const mostDrawn = [...draws].sort((a, b) => b.n - a.n || a.g.at - b.g.at)[0];
+  if (mostDrawn && mostDrawn.n > 0)
+    rows.push(
+      stat(
+        "rec:drawn",
+        "Most cards drawn in a game",
+        String(mostDrawn.n),
+        `${name(mostDrawn.id)} against ${mostDrawn.g.villain}`,
+        {
+          cardId: mostDrawn.id,
+        },
+      ),
+    );
+  rows.push(...finalBlowRowsOf(games, names));
   rows.push(...whenRowsOf(games));
+  const timed = games.filter((g) => g.playedMs !== null);
+  if (timed.length > 0) {
+    const hours = timed.reduce((sum, g) => sum + g.playedMs!, 0) / 3_600_000;
+    const untimed = games.length - timed.length;
+    rows.push(
+      stat(
+        "fun:hours",
+        "Hours played",
+        hours < 10 ? hours.toFixed(1) : Math.round(hours).toLocaleString("en-US"),
+        untimed > 0
+          ? `${plural(timed.length, "game")} · ${plural(untimed, "older game")} not counted`
+          : plural(timed.length, "game"),
+      ),
+    );
+  }
   const rounds = games.reduce((sum, g) => sum + g.round, 0);
   rows.push(stat("fun:rounds", "Rounds played", rounds.toLocaleString("en-US"), plural(games.length, "game")));
   const seats = games.flatMap((g) => g.seats.flatMap((s) => (s.summary ? [s.summary] : [])));
@@ -1295,6 +1383,34 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
     const thwart = seats.reduce((sum, s) => sum + s.thwart, 0);
     rows.push(stat("fun:damage", "Damage dealt", damage.toLocaleString("en-US"), "Every hero, every game"));
     rows.push(stat("fun:thwart", "Threat removed", thwart.toLocaleString("en-US"), "Every hero, every game"));
+    const drawn = seats.filter((s) => s.drawn !== undefined);
+    if (drawn.length > 0)
+      rows.push(
+        stat(
+          "fun:drawn",
+          "Cards drawn",
+          drawn.reduce((sum, s) => sum + s.drawn!, 0).toLocaleString("en-US"),
+          "Every hero, every game",
+        ),
+      );
+    const pools = seats.flatMap((s) => (s.resources ? [s.resources] : []));
+    if (pools.length > 0) {
+      const sum = (key: "physical" | "mental" | "energy" | "wild"): number =>
+        pools.reduce((n, pool) => n + pool[key], 0);
+      const total = sum("physical") + sum("mental") + sum("energy") + sum("wild");
+      rows.push(
+        stat(
+          "fun:resources",
+          "Resources made",
+          total.toLocaleString("en-US"),
+          `Physical ${sum("physical")} · Mental ${sum("mental")} · Energy ${sum("energy")} · Wild ${sum("wild")}`,
+        ),
+      );
+      const discarded = seats.reduce((n, s) => n + (s.discardedToPay ?? 0), 0);
+      rows.push(
+        stat("fun:discarded", "Cards discarded to pay", discarded.toLocaleString("en-US"), "From hand, every game"),
+      );
+    }
   }
   return { id: "records", title: "Records", count: plural(rows.length, "record"), rows };
 }
@@ -1306,8 +1422,25 @@ function encounterOf(games: readonly GameFacts[], names: StatsNames): StatsSecti
     groupBy(games, (g) => g.modulars),
     setName,
   );
-  if (groups.length === 0) return null;
-  const rows: StatRow[] = [];
+  const rows: StatRow[] = [
+    ...encounterCardRowsOf(
+      games,
+      names,
+      (summary) => summary.hurtBy,
+      "enc:hurt",
+      "Hit you hardest",
+      (n, g) => `${n} damage over ${plural(g, "game")}`,
+    ),
+    ...encounterCardRowsOf(
+      games,
+      names,
+      (summary) => summary.encounterRevealed,
+      "enc:revealed",
+      "Revealed most",
+      (n, g) => `Shown up ${plural(n, "time")} in ${plural(g, "game")}`,
+    ),
+  ];
+  if (groups.length === 0) return rows.length > 0 ? { id: "encounter", title: "Encounter", count: "", rows } : null;
   const [most, mostList] = groups[0]!;
   rows.push(
     stat("enc:modular", "Most played modular", setName(most), `Shown up in ${plural(mostList.length, "game")}`, {
@@ -1333,6 +1466,93 @@ function encounterOf(games: readonly GameFacts[], names: StatsNames): StatsSecti
     rows.push(stat(`enc:set:${id}`, setName(id), record(t.wins, t.losses), plural(list.length, "game")));
   }
   return { id: "encounter", title: "Encounter", count: plural(groups.length, "modular set"), rows };
+}
+
+/** Card types a final blow is put down to: the hero, an ally, an event, or anything else (a support, an upgrade…). */
+function blowKindOf(cardId: string, names: StatsNames): "hero" | "ally" | "event" | "other" {
+  const type = names.cardType(cardId);
+  if (type === "hero_identity" || type === "alter_ego_identity" || type === "hero" || type === "alter_ego")
+    return "hero";
+  if (type === "ally" || type === "event") return type;
+  return "other";
+}
+
+const BLOW_LABELS = { hero: "The hero", ally: "An ally", event: "An event", other: "Another card" } as const;
+
+/** Who finishes the villain: the hero whose card it was, what kind of card, and the card that did it most. */
+function finalBlowRowsOf(games: readonly GameFacts[], names: StatsNames): StatRow[] {
+  const name = (id: string): string => names.cardName(id) ?? id;
+  const wins = games.filter((g) => g.result === "won" && g.summary);
+  const rows: StatRow[] = [];
+  const by = new Map<string, number>();
+  const cards = new Map<string, number>();
+  const kinds = new Map<string, number>();
+  for (const game of wins) {
+    const hero = game.summary!.finalBlowBy;
+    if (hero) by.set(hero, (by.get(hero) ?? 0) + 1);
+    const card = game.summary!.finalBlowCardId;
+    if (card) {
+      cards.set(card, (cards.get(card) ?? 0) + 1);
+      const kind = blowKindOf(card, names);
+      kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+    }
+  }
+  const top = (map: Map<string, number>) =>
+    [...map.entries()].sort(([a, x], [b, y]) => y - x || name(a).localeCompare(name(b)))[0];
+  const hero = top(by);
+  if (hero)
+    rows.push(
+      stat("blow:hero", "Finishes the villain most", name(hero[0]), plural(hero[1], "final blow"), { cardId: hero[0] }),
+    );
+  if (kinds.size > 0) {
+    const total = [...kinds.values()].reduce((a, b) => a + b, 0);
+    const parts = (["hero", "ally", "event", "other"] as const)
+      .filter((kind) => kinds.has(kind))
+      .map((kind) => `${BLOW_LABELS[kind]} ${percent(kinds.get(kind)!, total)}`);
+    const [most] = [...kinds.entries()].sort(([, x], [, y]) => y - x)[0]!;
+    rows.push(stat("blow:kind", "Final blow by", BLOW_LABELS[most as keyof typeof BLOW_LABELS], parts.join(" · ")));
+  }
+  const card = top(cards);
+  if (card)
+    rows.push(stat("blow:card", "Final blow card", name(card[0]), plural(card[1], "time"), { cardId: card[0] }));
+  return rows;
+}
+
+/** Top encounter cards in `pick` across games, as rows with the card for the hover popover. */
+function encounterCardRowsOf(
+  games: readonly GameFacts[],
+  names: StatsNames,
+  pick: (summary: GameSummary) => Readonly<Record<string, number>> | undefined,
+  id: string,
+  title: string,
+  detail: (n: number, games: number) => string,
+): StatRow[] {
+  const totals = new Map<string, { n: number; games: number }>();
+  for (const game of games) {
+    const counts = game.summary ? pick(game.summary) : undefined;
+    for (const [cardId, n] of Object.entries(counts ?? {})) {
+      const entry = totals.get(cardId) ?? { n: 0, games: 0 };
+      entry.n += n;
+      entry.games++;
+      totals.set(cardId, entry);
+    }
+  }
+  const name = (cardId: string): string => names.cardName(cardId) ?? cardId;
+  return [...totals.entries()]
+    .sort(([a, x], [b, y]) => y.n - x.n || name(a).localeCompare(name(b)))
+    .slice(0, TOP)
+    .map(([cardId, t], index) =>
+      stat(
+        `${id}:${cardId}`,
+        index === 0 ? title : name(cardId),
+        index === 0 ? name(cardId) : String(t.n),
+        detail(t.n, t.games),
+        {
+          cardId,
+          ...(index === 0 ? { highlight: true as const } : {}),
+        },
+      ),
+    );
 }
 
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, filter: StatsFilter = {}): PlayerStats {

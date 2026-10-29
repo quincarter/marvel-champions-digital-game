@@ -490,3 +490,73 @@ describe("playerStatsOf: the filter chips", () => {
     expect(none.filterOptions.villains).toEqual(["Klaw", "Rhino"]);
   });
 });
+
+describe("playerStatsOf: the numbers a version 2 summary carries", () => {
+  const CARDS2: Record<string, { name: string; type: string }> = {
+    ...CARDS,
+    hydra: { name: "Hydra Soldier", type: "minion" },
+    charge: { name: "Charge", type: "treachery" },
+  };
+  const names: StatsNames = { ...NAMES, cardName: (id) => CARDS2[id]?.name, cardType: (id) => CARDS2[id]?.type };
+  const v2 = (extra: Partial<SeatSummary> = {}, game: Partial<GameSummary> = {}): SaveMeta =>
+    meta({
+      playedMs: 30 * 60 * 1000,
+      summary: summary({
+        seats: [
+          seat({
+            drawn: 20,
+            resources: { physical: 3, mental: 2, energy: 1, wild: 0 },
+            paidWith: { tac: 2, energy: 4 },
+            discardedToPay: 2,
+            bestTurn: { damage: 7, thwart: 3 },
+            allyDamage: { aunt: 4 },
+            allyBlocks: { aunt: 2 },
+            allyDiedBlocking: { aunt: 1 },
+            ...extra,
+          }),
+        ],
+        finalBlowBy: "spidey",
+        finalBlowCardId: "aunt",
+        hurtBy: { hydra: 5, charge: 2 },
+        encounterRevealed: { charge: 2 },
+        ...game,
+      }),
+    });
+
+  test("records: best turns, most drawn, hours played (older games not counted), resources and the final blow", () => {
+    const stats = playerStatsOf([v2(), v2({ bestTurn: { damage: 9, thwart: 1 } }), meta()], names);
+    const records = section(stats.sections, "records");
+    expect(row(records, "rec:turn:damage")).toMatchObject({ value: "9", cardId: "spidey" });
+    expect(row(records, "rec:turn:thwart").value).toBe("3");
+    expect(row(records, "rec:drawn").value).toBe("20");
+    expect(row(records, "fun:hours")).toMatchObject({ value: "1.0", detail: "2 games · 1 older game not counted" });
+    expect(row(records, "fun:resources")).toMatchObject({
+      value: "12",
+      detail: "Physical 6 · Mental 4 · Energy 2 · Wild 0",
+    });
+    expect(row(records, "fun:discarded").value).toBe("4");
+    expect(row(records, "blow:hero").value).toBe("Spider-Man");
+    expect(row(records, "blow:kind")).toMatchObject({ value: "An ally", detail: "An ally 100%" });
+    expect(row(records, "blow:card")).toMatchObject({ value: "Aunt May", detail: "2 times" });
+  });
+
+  test("encounter: the cards that hit hardest and showed up most, with their pictures", () => {
+    const stats = playerStatsOf([v2(), v2()], names);
+    const encounter = section(stats.sections, "encounter");
+    expect(row(encounter, "enc:hurt:hydra")).toMatchObject({
+      label: "Hit you hardest",
+      value: "Hydra Soldier",
+      cardId: "hydra",
+    });
+    expect(row(encounter, "enc:hurt:charge")).toMatchObject({ value: "4" });
+    expect(row(encounter, "enc:revealed:charge").detail).toBe("Shown up 4 times in 2 games");
+  });
+
+  test("Cards: allies' damage, defenses and falls, and the cards paid with most (not resource cards)", () => {
+    const groups = new Map(playerStatsOf([v2(), v2()], names).allCards!.groups.map((g) => [g.id, g]));
+    expect(groups.get("all:ally-damage")!.cards[0]).toMatchObject({ cardId: "aunt", value: "8" });
+    expect(groups.get("all:ally-blocks")!.cards[0]).toMatchObject({ value: "4×" });
+    expect(groups.get("all:ally-martyr")!.cards[0]).toMatchObject({ value: "2×" });
+    expect(groups.get("all:paid")!.cards.map((c) => c.cardId)).toEqual(["tac"]);
+  });
+});
