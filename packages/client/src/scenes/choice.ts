@@ -68,6 +68,7 @@ import {
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { unavailableOptionReasons } from "../view/ability-refusal.js";
 import { choiceRowsOf } from "../view/choice-option-rows.js";
+import { optionArtInstance, optionArtOf } from "../view/choice-option-art.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -1155,8 +1156,12 @@ export class ChoiceOverlay extends Phaser.Scene {
       canPeek && state.game && state.game.players.length > 1 && choice.options.some((o) => o.ref.kind === "player")
         ? viewTableWidth(phone)
         : 0;
+    // Each row that names a hero or a card shows its picture at the row's left (the identity, the villain, the minion,
+    // the scheme), and its label centres in the rest (`labelInset`).
+    const withArt = state.game !== null && choice.options.some((o) => optionArtOf(state.game!, o.ref) !== null);
+    const artRoom = withArt ? ROW_ART_INSET : 0;
     const maxChars = Math.floor(
-      (sheet.width - 48 - glyphRoom - (viewWidth > 0 ? viewWidth + 8 : 0)) / (typeRole.rowTitle.size * 0.62),
+      (sheet.width - 48 - glyphRoom - artRoom - (viewWidth > 0 ? viewWidth + 8 : 0)) / (typeRole.rowTitle.size * 0.62),
     );
     // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
     const rows = choiceRowsOf(
@@ -1190,6 +1195,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     );
 
     const rowButtons: McButton[] = [];
+    /** The rows' pictures, which scroll with them. */
+    const rowArt: Phaser.GameObjects.GameObject[] = [];
     rows.forEach((row, index) => {
       const rect: Rect = { x: sheet.x + 12, y: tops[index]!, width: rowWidth, height: heights[index]! };
       if (row.kind === "unavailable") {
@@ -1251,12 +1258,20 @@ export class ChoiceOverlay extends Phaser.Scene {
         label: rowLabel,
         type: typeRole.rowTitle,
         rect: optionRect,
+        ...(state.game && optionArtOf(state.game, option.ref) ? { labelInset: ROW_ART_INSET } : {}),
         selected: order >= 0,
         ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
         onClick: () => this.#toggle(option.optionId, choice.maxSelections),
       });
       this.#buttons.push(button);
       rowButtons.push(button);
+      if (state.game) {
+        rowArt.push(
+          ...this.#drawRowArt(state.game, option.ref, optionRect, rowsLayout.scrolls, () =>
+            this.#toggle(option.optionId, choice.maxSelections),
+          ),
+        );
+      }
       const key = choiceFocusKey({ kind: "option", optionId: option.optionId });
       this.#focusRects.set(key, optionRect);
       if (rowsLayout.scrolls) this.#scrolledRows.set(key, index);
@@ -1282,7 +1297,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         clipInteractive: true,
         onScroll: () => this.#drawFocusRing(),
       });
-      region.content.add(rowButtons.map((button) => button.container));
+      region.content.add([...rowButtons.map((button) => button.container), ...rowArt]);
       region.refresh();
       this.#optionRegion = region;
     }
@@ -2084,6 +2099,50 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     bindHoldTarget(this, zone, { key: `scan:${instanceId}`, onTap: inspect, onInspect: inspect });
     noteHoverCard(this, instanceId, rect);
+  }
+
+  /**
+   * A text row's picture (`view/choice-option-art.ts`): the hero, villain, minion or scheme the option names, at the
+   * row's left, with the card hover over it on a desktop (inside a scrolling list it follows the scroll). The picture
+   * takes presses of its own, so the popover finds it over the row: a tap picks the row as the row does, and a hold
+   * or right-click opens the card in Inspect. Returns what it drew, for a scrolling list to carry.
+   */
+  #drawRowArt(
+    game: GameState,
+    ref: ChoiceRef,
+    row: Rect,
+    scrolls: boolean,
+    pick: () => void,
+  ): Phaser.GameObjects.GameObject[] {
+    const source = optionArtOf(game, ref);
+    const id = optionArtInstance(game, ref);
+    if (!source || id === null) return [];
+    // The picture, not the whole card shrunk to a stamp: a square crop of the scan's upper part, where the art is.
+    const side = Math.max(0, Math.min(ROW_ART_WIDTH, row.height - 8));
+    const thumb: Rect = { x: row.x + 6, y: row.y + (row.height - side) / 2, width: side, height: side };
+    noteHoverCard(this, id, thumb);
+    if (scrolls) this.#hoverScrolled.add(id);
+    const zone = this.add.zone(thumb.x, thumb.y, thumb.width, thumb.height).setOrigin(0, 0).setInteractive();
+    const inspect = (): void => {
+      this.scene.launch(SCENES.inspect, { instanceId: id });
+      this.scene.bringToTop(SCENES.inspect);
+    };
+    bindHoldTarget(this, zone, { key: `row-art:${id}`, onTap: pick, onInspect: inspect });
+    const key = cardArt(this).request(this, source);
+    if (!key || !this.textures.exists(key)) return [zone];
+    const { width: w, height: h } = this.textures.get(key).getSourceImage();
+    if (!w || !h) return [zone];
+    // About the middle half of the card's width, from just under its title bar: the portrait, at a size that reads.
+    const visible = Math.min(w, h) * ROW_ART_ZOOM;
+    const scale = side / visible;
+    const cropX = (w - visible) / 2;
+    const cropY = Math.min(h - visible, h * 0.1);
+    const image = this.add
+      .image(thumb.x - cropX * scale, thumb.y - cropY * scale, key)
+      .setOrigin(0, 0)
+      .setScale(scale)
+      .setCrop(cropX, cropY, visible, visible);
+    return [image, zone];
   }
 
   #drawScan(game: GameState, instanceId: InstanceId, rect: Rect): void {
@@ -3464,6 +3523,12 @@ export class ChoiceOverlay extends Phaser.Scene {
 
 /** The accuse sheet's read-only stops (a Board Member key or a chip of the picked row): Enter or I opens that card. */
 const INSPECT_STOP = "inspect:";
+/** A text row's picture (`#drawRowArt`): at most a square of the row's height. */
+const ROW_ART_WIDTH = 48;
+/** How much of the card's width a row's picture shows (`#drawRowArt`). */
+const ROW_ART_ZOOM = 0.55;
+/** The room a row's label keeps clear of its picture. */
+const ROW_ART_INSET = ROW_ART_WIDTH + 12;
 /** A choose-a-player row's VIEW TABLE, as a focus stop (`#activate`). */
 const VIEW_STOP = "view-table:";
 /** A collection search page button's focus stop: `page:-1` and `page:1`. */

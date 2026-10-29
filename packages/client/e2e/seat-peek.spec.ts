@@ -236,3 +236,36 @@ test("VIEW TABLE answers its seat's number key and its LB combo", async ({ page 
   expect(await peekDebug(page, "peeking")).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test("each player row shows the hero's picture, and hovering it opens the card popover", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the hover popover is a desktop's");
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  const views = await openCommander(page);
+  await settle(page);
+  const rects = await page.evaluate(
+    () =>
+      (window as unknown as { __mcChoiceDebug?: { hoverRects(): [string, Rect][] } }).__mcChoiceDebug?.hoverRects() ??
+      [],
+  );
+  // The pictures sit at the left of the rows, which start left of VIEW TABLE.
+  const pictures = rects.filter(([, rect]) => rect.x < views[0]!.x - 200 && rect.y >= views[0]!.y - 4);
+  expect(pictures.length, "a picture on each player row").toBe(2);
+  const [id, picture] = pictures.sort((a, b) => a[1].y - b[1].y)[1]!;
+  await page.mouse.move(picture.x + picture.width / 2, picture.y + picture.height / 2, { steps: 6 });
+  await page.mouse.move(picture.x + picture.width / 2 + 3, picture.y + picture.height / 2 + 3, { steps: 2 });
+  await waitFor(
+    async () =>
+      (await page.evaluate(
+        () =>
+          (window as unknown as { __mcChoiceDebug?: { hoverShown(): string | null } }).__mcChoiceDebug?.hoverShown() ??
+          null,
+      )) === id
+        ? true
+        : null,
+    "the popover on the second row's hero",
+    10_000,
+  );
+  if (SHOT) await page.screenshot({ path: `${SHOT}/seat-peek-row-art-hover-${info.project.name}.png` });
+  expect(errors).toEqual([]);
+});
