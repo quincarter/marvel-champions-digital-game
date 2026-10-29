@@ -41,8 +41,25 @@ export interface PoolFilter {
   readonly cycleId?: string | null;
 }
 
-/** The pool list's order. `default` is alphabetical by name — what the list has always shown. */
-export type PoolSort = "default" | "name" | "cost" | "pack";
+/** One key the pool list can be ordered by. */
+/**
+ * One key the pool list can be ordered by. `match` is the text search's relevance, best first (only as a primary key;
+ * with no search typed every card ties on it, so the list falls through to the next key).
+ */
+export type PoolSortKey = "match" | "name" | "cost" | "type" | "aspect" | "pack";
+
+/**
+ * The pool list's order (issue #531): a primary key, an optional secondary key for its ties, then always the name. A
+ * text search only narrows the list and reorders it only under `match`, so any other order a player picked holds
+ * while they type.
+ */
+export interface PoolSort {
+  readonly primary: PoolSortKey;
+  readonly secondary: PoolSortKey | null;
+}
+
+/** Alphabetical by name — what the list has always shown. */
+export const DEFAULT_POOL_SORT: PoolSort = { primary: "name", secondary: null };
 
 /** A pack's display facts, in release order — the client's `POOL_PACKS` joined to its cycle (`POOL_HERO_SHELF_PACKS`). */
 export interface PackInfo {
@@ -199,9 +216,10 @@ export function browsablePool(
   identity: HeroIdentityCard,
   chosenAspects: readonly CoreAspect[],
   filter: PoolFilter = {},
-  sort: PoolSort = "default",
+  sort: PoolSort | PoolSortKey = DEFAULT_POOL_SORT,
   packs: readonly PackInfo[] = [],
   held: ReadonlySet<string> = new Set(),
+  relevance?: ReadonlyMap<string, number>,
 ): readonly AnyCard[] {
   // `held` is the ids the deck already contains: they stay listed even when the deck's rules now refuse them, so each
   // can still be removed from the list (the legality line says why it is refused).
@@ -227,41 +245,82 @@ export function browsablePool(
     const have = seen.get(key);
     if (!have || (held.has(card.id as string) && !held.has(have.id as string))) seen.set(key, card);
   }
-  return nameMatchesFirst(sortPool([...seen.values()], sort, packs), filter.text);
+  return sortPool([...seen.values()], sort, packs, relevance ?? nameMatchRelevance([...seen.values()], filter.text));
 }
 
-/** With a text search, cards whose name matches come before cards matching only by trait or type (order kept within each). */
-function nameMatchesFirst(cards: readonly AnyCard[], text: string | undefined): readonly AnyCard[] {
+/** With no ranked search to go by, a text search's relevance is whether a card's name matches every word (1) or not (0). */
+function nameMatchRelevance(cards: readonly AnyCard[], text: string | undefined): ReadonlyMap<string, number> {
   const terms = searchTermsOf(text);
-  if (terms.length === 0) return cards;
+  if (terms.length === 0) return new Map();
   const nameMatches = (card: AnyCard): boolean => terms.every((term) => card.name.toLowerCase().includes(term));
-  return [...cards.filter(nameMatches), ...cards.filter((card) => !nameMatches(card))];
+  return new Map(cards.map((card) => [card.id as string, nameMatches(card) ? 1 : 0]));
 }
 
 const costOf = (card: AnyCard): number => ("cost" in card && typeof card.cost === "number" ? card.cost : Infinity);
 
-/**
- * `cards` in `sort` order, always ending ties by name. `cost` puts a card with no printed cost last; `pack` is
- * release order (`packs`' own order; a pack it doesn't list sorts after every listed one), then collector number
- * compared numerically ("2" before "10", "12a" after "12").
- */
-export function sortPool(cards: readonly AnyCard[], sort: PoolSort, packs: readonly PackInfo[]): readonly AnyCard[] {
-  const byName = (a: AnyCard, b: AnyCard): number => a.name.localeCompare(b.name);
-  if (sort === "cost") return cards.slice().sort((a, b) => costOf(a) - costOf(b) || byName(a, b));
-  if (sort === "pack") {
-    const order = new Map(packs.map((p, i) => [p.code, i]));
-    const rank = (card: AnyCard): number => order.get(card.setCode as string) ?? Infinity;
-    return cards
-      .slice()
-      .sort(
-        (a, b) =>
-          rank(a) - rank(b) ||
-          (a.setCode as string).localeCompare(b.setCode as string) ||
-          a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true }) ||
-          byName(a, b),
-      );
+/** A hero's own cards ("hero:<id>") first, then the four aspects, then pool, then basic. */
+const ASPECT_ORDER = ["aggression", "justice", "leadership", "protection", "pool", "basic"];
+
+function aspectRank(card: AnyCard): number {
+  const aspect = "aspect" in card && typeof card.aspect === "string" ? card.aspect : null;
+  if (aspect?.startsWith("hero:")) return 0;
+  const at = aspect === null ? -1 : ASPECT_ORDER.indexOf(aspect);
+  return at === -1 ? ASPECT_ORDER.length + 1 : at + 1;
+}
+
+const typeLabelOf = (card: AnyCard): string => card.type.replace(/_/g, " ");
+
+/** How two cards compare on one key, 0 for a tie. */
+function compareBy(
+  key: PoolSortKey,
+  packOrder: ReadonlyMap<string, number>,
+  relevance: ReadonlyMap<string, number>,
+): (a: AnyCard, b: AnyCard) => number {
+  switch (key) {
+    case "match":
+      return (a, b) => (relevance.get(b.id as string) ?? 0) - (relevance.get(a.id as string) ?? 0);
+    case "name":
+      return (a, b) => a.name.localeCompare(b.name);
+    case "cost":
+      return (a, b) => costOf(a) - costOf(b);
+    case "type":
+      return (a, b) => typeLabelOf(a).localeCompare(typeLabelOf(b));
+    case "aspect":
+      return (a, b) => aspectRank(a) - aspectRank(b);
+    case "pack": {
+      const rank = (card: AnyCard): number => packOrder.get(card.setCode as string) ?? Infinity;
+      return (a, b) =>
+        rank(a) - rank(b) ||
+        (a.setCode as string).localeCompare(b.setCode as string) ||
+        a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true });
+    }
   }
-  return cards.slice().sort(byName);
+}
+
+/**
+ * `cards` in `sort` order: the primary key, then the secondary, always ending ties by name. `cost` puts a card with no
+ * printed cost last; `type` is alphabetical by type; `aspect` is the hero's own cards, then aggression, justice,
+ * leadership, protection, pool and basic; `pack` is release order (`packs`' own order; a pack it doesn't list sorts
+ * after every listed one), then collector number compared numerically ("2" before "10", "12a" after "12"); `match` is
+ * `relevance` by card id, highest first. A bare key is that key alone.
+ */
+export function sortPool(
+  cards: readonly AnyCard[],
+  sort: PoolSort | PoolSortKey,
+  packs: readonly PackInfo[],
+  relevance: ReadonlyMap<string, number> = new Map(),
+): readonly AnyCard[] {
+  const { primary, secondary } = typeof sort === "string" ? { primary: sort, secondary: null } : sort;
+  const packOrder = new Map(packs.map((p, i) => [p.code, i]));
+  const keys = [primary, ...(secondary && secondary !== primary ? [secondary] : []), "name" as const];
+  const comparers = keys.map((key) => compareBy(key, packOrder, relevance));
+  return cards.slice().sort((a, b) => {
+    for (const compare of comparers) {
+      const order = compare(a, b);
+      if (order !== 0) return order;
+    }
+    return 0;
+  });
 }
 
 /**

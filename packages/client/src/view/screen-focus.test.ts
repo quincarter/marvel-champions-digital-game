@@ -273,6 +273,7 @@ describe("screen focus routes", () => {
       "pack:next",
       "pack:cycle",
       "pack:sort",
+      "pack:then",
       "name",
       "preconstructed",
       "clear",
@@ -295,7 +296,7 @@ describe("screen focus routes", () => {
       showPreconClear: false,
       rewardIds: ["0:45173"],
     });
-    expect(order.slice(order.indexOf("pack:sort") + 1)).toEqual(["reward:0:45173", "save", "filter-text", "card:c1"]);
+    expect(order.slice(order.indexOf("pack:then") + 1)).toEqual(["reward:0:45173", "save", "filter-text", "card:c1"]);
   });
 
   test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {

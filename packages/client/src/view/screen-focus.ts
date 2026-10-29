@@ -171,12 +171,13 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
     ...input.typeFilterIds.map((id) => `type:${id}`),
-    // The pack stepper (both arrows and its name), the wave button and the sort button, in the order they are drawn.
+    // The pack stepper (both arrows and its name), the wave button and the two sort buttons, in the order they are drawn.
     "pack:prev",
     "pack:name",
     "pack:next",
     "pack:cycle",
     "pack:sort",
+    "pack:then",
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     ...(input.showDelete ? ["delete"] : []),

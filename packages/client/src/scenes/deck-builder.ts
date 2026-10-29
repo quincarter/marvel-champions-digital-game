@@ -87,6 +87,8 @@ import {
   type PackInfo,
   type PoolFilter,
   type PoolSort,
+  type PoolSortKey,
+  DEFAULT_POOL_SORT,
 } from "../view/deck-builder-model.js";
 import { costCurveBars, deckCountText, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
@@ -220,11 +222,20 @@ const PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
   cycleName: POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string))?.cycleName ?? (pack.cycleId as string),
 }));
 
-/** The pool-sort button's cycle; `default` (alphabetical) shows as "Name". */
-const SORT_CYCLE: readonly { readonly sort: PoolSort; readonly label: string }[] = [
-  { sort: "default", label: "Name" },
+/** The Sort button's cycle (the primary key); the Then button cycles "None" and the rest but `match` and the primary. */
+const SORT_CYCLE: readonly { readonly sort: PoolSortKey; readonly label: string }[] = [
+  { sort: "name", label: "Name" },
+  { sort: "match", label: "Match" },
+  { sort: "aspect", label: "Aspect" },
+  { sort: "type", label: "Type" },
   { sort: "cost", label: "Cost" },
   { sort: "pack", label: "Pack" },
+];
+
+/** The Then button's choices under `primary`: none first, then every key but `match` and the primary itself. */
+const thenChoicesFor = (primary: PoolSortKey): readonly (PoolSortKey | null)[] => [
+  null,
+  ...SORT_CYCLE.map((o) => o.sort).filter((key) => key !== "match" && key !== primary),
 ];
 
 /** Below this, the three-column desktop split doesn't have room to breathe and the scene stacks into one column instead. */
@@ -263,7 +274,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #deck: Deck | null = null;
   #filter: PoolFilter = {};
   #filterText = "";
-  #sort: PoolSort = "default";
+  #sort: PoolSort = DEFAULT_POOL_SORT;
   #status: string | null = null;
   /** The id of the deck this visit last saved, so Back can hand it to Decks to select. */
   #savedDeckId: string | null = null;
@@ -605,6 +616,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
+    const ranking = this.#filterText.trim() ? this.#poolRanking : null;
     const listed = browsablePool(
       POOL,
       this.#identity!,
@@ -613,14 +625,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#sort,
       PACK_INFOS,
       held,
+      ranking ?? undefined,
     );
-    // The text search is ranked by the search worker: only its matches, best first.
-    const ranking = this.#filterText.trim() ? this.#poolRanking : null;
-    const pool = ranking
-      ? listed
-          .filter((card) => ranking.has(card.id as string))
-          .sort((a, b) => ranking.get(b.id as string)! - ranking.get(a.id as string)!)
-      : listed;
+    // The search worker answers the text search: only its matches stay, in the chosen sort (its ranking orders them
+    // only under the Match sort, issue #531).
+    const pool = ranking ? listed.filter((card) => ranking.has(card.id as string)) : listed;
     const removed = this.#removedFromCampaignIds();
     const prohibited = this.#prohibitedCampaignIds();
     if (!removed && !prohibited) return pool;
@@ -985,29 +994,46 @@ export class DeckBuilderScene extends Phaser.Scene {
     add("pack:next", nextRect, ">", stepPack(1));
     y += hit.target + CHIP_GAP;
 
-    const half = (column - CHIP_GAP) / 2;
     const cycleName = choices.cycles.find((c) => c.id === this.#filter.cycleId)?.name ?? "All waves";
     add(
       "pack:cycle",
-      { x: left, y, width: half, height: hit.target },
+      { x: left, y, width: column, height: hit.target },
       cycleName,
       () => apply(withCycle(this.#filter, stepChoice(choices.cycles, this.#filter.cycleId, 1), PACK_INFOS)),
       this.#filter.cycleId != null,
     );
+    y += hit.target + CHIP_GAP;
+
+    // Sort, then a second key for its ties (issue #531): "Sort: Aspect" "Then: Type" lists by aspect, type, then name.
+    const half = (column - CHIP_GAP) / 2;
+    const resort = (next: PoolSort): void => {
+      this.#sort = next;
+      this.#listScroll.reset();
+      this.#rebuild();
+    };
+    const { primary, secondary } = this.#sort;
     const sortAt = Math.max(
       0,
-      SORT_CYCLE.findIndex((o) => o.sort === this.#sort),
+      SORT_CYCLE.findIndex((o) => o.sort === primary),
     );
     add(
       "pack:sort",
-      { x: left + half + CHIP_GAP, y, width: half, height: hit.target },
+      { x: left, y, width: half, height: hit.target },
       `Sort: ${SORT_CYCLE[sortAt]!.label}`,
       () => {
-        this.#sort = SORT_CYCLE[(sortAt + 1) % SORT_CYCLE.length]!.sort;
-        this.#listScroll.reset();
-        this.#rebuild();
+        const next = SORT_CYCLE[(sortAt + 1) % SORT_CYCLE.length]!.sort;
+        resort({ primary: next, secondary: secondary === next ? null : secondary });
       },
-      this.#sort !== "default",
+      primary !== DEFAULT_POOL_SORT.primary,
+    );
+    const thenChoices = thenChoicesFor(primary);
+    const thenAt = Math.max(0, thenChoices.indexOf(secondary));
+    add(
+      "pack:then",
+      { x: left + half + CHIP_GAP, y, width: half, height: hit.target },
+      `Then: ${SORT_CYCLE.find((o) => o.sort === secondary)?.label ?? "None"}`,
+      () => resort({ primary, secondary: thenChoices[(thenAt + 1) % thenChoices.length] ?? null }),
+      secondary !== null,
     );
     return y + hit.target + 16;
   }
