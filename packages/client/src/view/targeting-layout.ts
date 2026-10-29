@@ -78,13 +78,17 @@ const TILE_PAD = 8;
 const PHONE_ART = 56;
 const MIN_TILE_HEIGHT = 72;
 
-export function targetingLayout(bounds: Rect, targetCount: number, text?: TileText): TargetingLayout {
+/**
+ * `top` is how far down `bounds` the panel itself starts: over the table it is the bottom of the top bar, which the
+ * chrome buttons stay drawn on (#515). The form factor still comes from the whole of `bounds`.
+ */
+export function targetingLayout(bounds: Rect, targetCount: number, text?: TileText, top = 0): TargetingLayout {
   const formFactor = formFactorFor(bounds.width, bounds.height);
   const margin = MARGIN[formFactor];
   const titleBarHeight = TITLE_BAR_HEIGHT[formFactor];
 
   const cancelWidth = CANCEL_WIDTH[formFactor];
-  const titleBar: Rect = { x: bounds.x, y: bounds.y, width: bounds.width, height: titleBarHeight };
+  const titleBar: Rect = { x: bounds.x, y: bounds.y + top, width: bounds.width, height: titleBarHeight };
   const cancelButton: Rect = {
     x: titleBar.x + titleBar.width - cancelWidth - margin,
     y: titleBar.y + (titleBarHeight - 36) / 2,

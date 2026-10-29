@@ -16,9 +16,11 @@ import { searchedPickLayout } from "../../view/searched-pick-layout.js";
 import { SCENES } from "../keys.js";
 import type { BoardDrawContext } from "./context.js";
 
-export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pick: SearchedPickView): void {
+export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pick: SearchedPickView, top = 0): void {
   const { scene, controller } = ctx;
-  const layout = searchedPickLayout(viewport, pick.options.length, pick.confirm, pick.page ?? 0);
+  // The sheet starts below `top`, the table's top bar, where the chrome buttons stay drawn (#515); the scrim covers all.
+  const below: Rect = { ...viewport, y: viewport.y + top, height: viewport.height - top };
+  const layout = searchedPickLayout(below, pick.options.length, pick.confirm, pick.page ?? 0);
 
   // The scrim also swallows taps, so nothing on the table underneath answers while the sheet is up.
   scene.add

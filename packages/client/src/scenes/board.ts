@@ -1531,12 +1531,16 @@ export class BoardScene extends Phaser.Scene {
     drawActionBar(ctx, zones.actionBar!, model);
     this.#layerAssign = null;
     this.#registerLayerHints(layout);
-    this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
+    // Both sheets lay out below the top bar, where the chrome buttons (Report, music, language, dark mode) stay drawn
+    // over them (#515).
+    const barBottom = layout.zones.chrome ? layout.zones.chrome.y + layout.zones.chrome.height : 0;
+    const sheetUp = this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height }, barBottom);
     const searchedPick = this.#controller.searchedPick();
-    if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
+    if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick, barBottom);
     this.#drawTargetRings();
     this.#drawFocusRing();
-    this.#drawFirstPlayerToken(model, layout);
+    // The token draws above the table's panels, so it would sit on top of a sheet over the table: it waits under one.
+    if (!sheetUp && !searchedPick) this.#drawFirstPlayerToken(model, layout);
     this.#revealTargets();
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
@@ -1671,7 +1675,8 @@ export class BoardScene extends Phaser.Scene {
    * in target-select mode, so the "Choose a target" title bar, each option's outcome, "why not the others?" and the
    * tablet inspector rail sit over the same board a plain pulsing ring used to be the only affordance for.
    */
-  #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
+  /** Whether it drew the panel. */
+  #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
     const kind = this.#controller.selection.kind;
     // The same panel carries two more questions: which cards pay a cost with a range, and whose play area a card goes to.
     if (
@@ -1680,12 +1685,13 @@ export class BoardScene extends Phaser.Scene {
       kind !== "choosingController" &&
       kind !== "dividingPower"
     ) {
-      return;
+      return false;
     }
     const panel = this.#controller.targetingPanel();
-    if (!panel) return;
+    if (!panel) return false;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
-    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused);
+    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top);
+    return true;
   }
 
   /** Pulsing rings on the valid targets while a target is being chosen. */

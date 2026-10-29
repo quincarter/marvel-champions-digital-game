@@ -170,6 +170,8 @@ import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
 import type { VillainPhaseOverlay } from "./villain-phase.js";
 import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
+import { reportSlots } from "../ui/report-slot.js";
+import { chromeBarBottom, topClearOfBar } from "../view/report-button.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import {
   HoverPreview,
@@ -497,6 +499,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     return this.scene.get(SCENES.board) as BoardScene;
   }
 
+  /** The bottom of the top bar the chrome buttons stay on over this sheet, or 0 while they are hidden (#514). */
+  #chromeBarBottom(): number {
+    const running = this.scene.manager
+      .getScenes(true)
+      .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
+    return chromeBarBottom(running, reportSlots());
+  }
+
   /** A screen that hosts the sheet (the setup screen's dock) asks for a redraw after it moves the dock. */
   refresh(): void {
     this.#rebuild();
@@ -712,9 +722,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     // toast slides in, which covered it there.
     // Portrait only: a phone on its side has no height to spare under the sheet, so it keeps the title bar's control.
     const peekStrip = canPeek && (formFactor === "phone" || formFactor === "tabletPortrait") ? CHOICE_PEEK_STRIP : 0;
+    // Over the table the chrome buttons stay on its top bar (`view/report-button.ts`), so the sheet starts below the
+    // bar: on a phone it used to reach the top edge, and the buttons covered its title (#514).
+    const margin = phone ? 8 : 40;
+    const topEdge = docked ? 0 : Math.max(margin, this.#chromeBarBottom() + (phone ? 4 : 8));
     const sheetHeight = docked
       ? docked.height - DOCK_INSET * 2
-      : Math.min(areaHeight - (phone ? 16 : 80) - peekStrip, (asCards ? 620 : 560) + extraHeight + contextHeight);
+      : Math.min(areaHeight - topEdge - margin - peekStrip, (asCards ? 620 : 560) + extraHeight + contextHeight);
     // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centered and the rail hanging off whichever side has room.
@@ -723,7 +737,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       ? { x: docked.x + DOCK_INSET, y: docked.y + DOCK_INSET, width: sheetWidth, height: sheetHeight }
       : {
           x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
-          y: (areaHeight - peekStrip - sheetHeight) / 2,
+          y: Math.max(topEdge, (areaHeight - peekStrip - sheetHeight) / 2),
           width: sheetWidth,
           height: sheetHeight,
         };
@@ -1483,12 +1497,14 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setInteractive();
     const panelsFrom = this.children.list.length;
 
+    // Clear of the top bar the chrome buttons stay on (#514), as the generic sheet is.
+    const barBottom = this.#chromeBarBottom();
     const layout = defendChoiceLayout(
       {
         x: guideRailWidth,
-        y: 0,
+        y: barBottom,
         width: width - guideRailWidth,
-        height: height - stripHeight,
+        height: height - stripHeight - barBottom,
       },
       view.options.length,
     );
@@ -1805,11 +1821,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     const COMMIT = hit.primary;
     const fixed = BAR + pad + HINT + 6 + LEGEND + 6 + CHIPS + 4 + SUMMARY + 8 + COMMIT + pad;
     const wantedGrid = evidenceGridWantedHeight(innerWidth);
-    const gridHeight = Math.max(innerWidth < 600 ? 394 : 126, Math.min(wantedGrid, areaHeight - margin * 2 - fixed));
-    const sheetHeight = Math.min(areaHeight - margin * 2, fixed + gridHeight);
+    const minGrid = innerWidth < 600 ? 394 : 126;
+    // Clear of the top bar the chrome buttons stay on (#514), as the generic sheet is, but only as far as the grid's
+    // least height still leaves ACCUSE on screen: this sheet does not scroll, so a short phone keeps the old top.
+    const top = topClearOfBar(this.#chromeBarBottom(), areaHeight, margin * 2 + fixed + minGrid);
+    const room = areaHeight - top;
+    const gridHeight = Math.max(minGrid, Math.min(wantedGrid, room - margin * 2 - fixed));
+    const sheetHeight = Math.min(room - margin * 2, fixed + gridHeight);
     const sheet: Rect = {
       x: areaX + (areaWidth - sheetWidth) / 2,
-      y: Math.max(margin / 2, (areaHeight - sheetHeight) / 2),
+      y: top + Math.max(margin / 2, (room - sheetHeight) / 2),
       width: sheetWidth,
       height: sheetHeight,
     };
