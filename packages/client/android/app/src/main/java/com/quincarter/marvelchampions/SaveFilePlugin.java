@@ -1,6 +1,7 @@
 package com.quincarter.marvelchampions;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -50,6 +51,11 @@ public class SaveFilePlugin extends Plugin {
             call.reject("A file name and contents are needed");
             return;
         }
+        // One Save dialog at a time: a second save would replace the first one's text and strand its promise.
+        if (pending != null) {
+            call.reject("A Save dialog is already open");
+            return;
+        }
         pending = contents.getBytes(StandardCharsets.UTF_8);
         call.getData().remove("contents");
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -59,7 +65,12 @@ public class SaveFilePlugin extends Plugin {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, DOWNLOADS);
         }
-        startActivityForResult(call, intent, "picked");
+        try {
+            startActivityForResult(call, intent, "picked");
+        } catch (ActivityNotFoundException e) {
+            pending = null;
+            call.reject("This device has no Save dialog");
+        }
     }
 
     @ActivityCallback

@@ -66,6 +66,8 @@ export class ReportIssueOverlay extends Phaser.Scene {
    */
   #disabled: { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[] = [];
   #feedback = "";
+  /** A Download log save is under way; another press waits for it. */
+  #saving = false;
   #hideTimer: Phaser.Time.TimerEvent | null = null;
   /** Brings the panel back while it is hidden for a screenshot (a tap does it; so does any pad button or key). */
   #restore: (() => void) | null = null;
@@ -196,14 +198,21 @@ export class ReportIssueOverlay extends Phaser.Scene {
 
   #download(): void {
     const fileName = issueReportFileName(new Date());
-    void downloadText(issueReportText(this.#report()), fileName).then(
-      (saved) => {
-        if (saved && this.sys.isActive()) this.#say(`Saved ${fileName}. Attach it to the issue.`);
-      },
-      () => {
-        if (this.sys.isActive()) this.#say("This device would not save the file. Use Copy log.");
-      },
-    );
+    // One save at a time: Android's Save dialog takes a moment to cover the panel.
+    if (this.#saving) return;
+    this.#saving = true;
+    void downloadText(issueReportText(this.#report()), fileName)
+      .then(
+        (saved) => {
+          if (saved && this.sys.isActive()) this.#say(`Saved ${fileName}. Attach it to the issue.`);
+        },
+        () => {
+          if (this.sys.isActive()) this.#say("This device would not save the file. Use Copy log.");
+        },
+      )
+      .finally(() => {
+        this.#saving = false;
+      });
   }
 
   #openIssue(): void {
