@@ -1,7 +1,8 @@
 /**
  * The Trophy Room: every achievement (`progression/achievements.ts`, docs/achievements.md) in one scrolling list under
  * a header that shows the player's rank, lifetime points and the way to the next rank. Reached from Title and from
- * Extras; Back returns to Title.
+ * Extras; Back returns to Title. "Your stats" at the top bar's right (X on a pad) opens the Stats screen
+ * (`scenes/player-stats.ts`).
  *
  * Read-only. Each family is a heading that folds and opens with a tap or A (#479); every one starts folded and the
  * room remembers which the player opened. A Filters bar under the header folds away too (Y on a pad): it sorts the
@@ -114,6 +115,8 @@ export class TrophyRoomScene extends Phaser.Scene {
       onExpand: () => {
         if (this.#open === null) this.#expandAll();
       },
+      // X (G / H on the keyboard) opens Your stats.
+      onToggle: () => this.#openStats(),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
@@ -132,6 +135,12 @@ export class TrophyRoomScene extends Phaser.Scene {
   #back(): void {
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.title);
+  }
+
+  #openStats(): void {
+    if (this.#open !== null) return;
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.playerStats);
   }
 
   #setView(view: TrophyView): void {
@@ -255,10 +264,27 @@ export class TrophyRoomScene extends Phaser.Scene {
       onBack: () => this.#back(),
       hints: this.#open === null ? this.#hints : null,
       title: "Trophy Room",
-      ...(phone ? {} : { right: header.earnedLabel }),
     });
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
+    // "Your stats" (X on a pad) at the bar's right; the earned count it displaced sits over the rank bar instead.
+    const statsWidth = phone ? 92 : 150;
+    const statsRect: Rect = {
+      x: width - (phone ? 12 : 22) - statsWidth,
+      y: (bar.height - hit.target) / 2,
+      width: statsWidth,
+      height: hit.target,
+    };
+    const statsButton = new McButton(this, {
+      kind: "onInk",
+      label: phone ? "Stats" : "Your stats",
+      type: typeRole.backLabel,
+      rect: statsRect,
+      onClick: () => this.#openStats(),
+    });
+    this.#buttons.push(statsButton);
+    if (this.#open === null) this.#hints.button(statsButton, ["guide"], "ink");
+    stops.set("stats", { rect: statsRect, activate: () => this.#openStats() });
 
     const headerRect: Rect = {
       x: gutter,
@@ -295,7 +321,7 @@ export class TrophyRoomScene extends Phaser.Scene {
     this.#list = list;
     this.#listHeight = listRect.height;
 
-    const order: string[] = [...(bar.backRect ? ["back"] : []), ...filterOrder];
+    const order: string[] = [...(bar.backRect ? ["back"] : []), "stats", ...filterOrder];
     rows.forEach((row, index) => {
       const key = keyOfRow(row);
       order.push(key);
@@ -497,13 +523,13 @@ export class TrophyRoomScene extends Phaser.Scene {
       textStyle(typeRole.body, surface.paper.hex, 0.9),
     );
     next.setFontSize(12);
-    if (phone) {
+    {
       const earned = this.add
         .text(rect.x + rect.width - pad, captionY, header.earnedLabel, textStyle(typeRole.body, surface.paper.hex, 0.9))
         .setOrigin(1, 0)
         .setFontSize(12);
       fitText(next, inner - earned.width - 12, 12);
-    } else fitText(next, inner, 12);
+    }
 
     const track: Rect = { x: rect.x + pad, y: rect.y + rect.height - 24, width: inner, height: 12 };
     g.lineStyle(2, surface.paper.hex, 1).strokeRect(track.x, track.y, track.width, track.height);

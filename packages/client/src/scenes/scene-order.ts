@@ -41,6 +41,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.extrasReader,
   SCENES.sideStoryReader,
   SCENES.trophyRoom,
+  SCENES.playerStats,
   SCENES.credits,
   // Dev-only demo scenes: reachable only through `?screen=…` jumps (`scenes/boot-dev-jump.ts`).
   SCENES.termTextDemo,

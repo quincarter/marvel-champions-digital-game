@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from "vitest";
-import { activeVillain, type GameEvent, type GameState } from "@mc/engine";
+import { activeVillain, type EngineDeps, type GameEvent, type GameState } from "@mc/engine";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -153,5 +153,122 @@ describe("game record: main scheme swaps (issue #518)", () => {
       { outgoing: "old", incoming: scheme, outgoingCardId: state.mainScheme.cardId, round: 3 },
     ]);
     expect(recordEvents(emptyRecord(), [], state).schemeSwaps).toBeUndefined();
+  });
+});
+
+describe("game record: what each seat did with its cards", () => {
+  test("a card played from hand is counted by its card id", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    for (let step = 0; step < 10 && game.state().pendingChoice; step++) {
+      const choice = game.state().pendingChoice!;
+      await game.host.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: choice.options.slice(0, choice.minSelections).map((option) => option.optionId),
+      });
+    }
+    const me = game.state().players[0]!.playerId;
+    const legal = await game.host.legalActions(me);
+    const play = legal.kind === "turn" ? legal.legal.find((entry) => entry.action.kind === "playCard") : undefined;
+    expect(play).toBeDefined();
+    const instanceId = (play!.action as { readonly instanceId: string }).instanceId;
+    const cardId = game.state().instances[instanceId]!.cardId;
+    await game.host.dispatch(play!.example);
+    const seat = game.record().seats.find((entry) => entry.playerId === me)!;
+    expect(seat.plays?.[cardId]).toBe(1);
+  }, 60_000);
+
+  test("abilities count on the seat's own cards, not on encounter cards or played events", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const player = state.players[0]!;
+    const hero = player.identity.instanceId;
+    const event = player.deck.find((id) => state.cardPool[state.instances[id]!.cardId]?.type === "event");
+    const villain = activeVillain(state).instanceId;
+    const resolved = (instanceId: string): GameEvent => ({
+      type: "abilityResolved",
+      instanceId: instanceId as typeof hero,
+      abilityId: "x" as never,
+      controllerId: player.playerId,
+    });
+    const record = recordEvents(
+      emptyRecord(),
+      [resolved(hero), resolved(hero), resolved(villain), ...(event ? [resolved(event)] : [])],
+      state,
+    );
+    expect(record.seats[0]!.activations).toEqual({ [state.instances[hero]!.cardId]: 2 });
+  });
+
+  test("with the ability registry, only abilities the player chose count, and a granted one counts for its granter", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const player = state.players[0]!;
+    const hero = player.identity.instanceId;
+    const support = player.deck.find((id) => state.cardPool[state.instances[id]!.cardId]?.type === "support")!;
+    const deps = {
+      abilities: {
+        act: { trigger: { kind: "action" } },
+        res: { trigger: { kind: "resource" } },
+        choose: { trigger: { kind: "response" } },
+        forced: { trigger: { kind: "interrupt", forced: true } },
+        setup: { trigger: { kind: "setup" } },
+      },
+    } as unknown as EngineDeps;
+    const resolved = (abilityId: string, extra: Partial<GameEvent> = {}): GameEvent =>
+      ({ type: "abilityResolved", instanceId: hero, abilityId, controllerId: player.playerId, ...extra }) as GameEvent;
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        resolved("act"),
+        resolved("res"),
+        resolved("choose"),
+        resolved("forced"),
+        resolved("setup"),
+        resolved("keyword:temporary"),
+        resolved("act", { grantedByInstanceId: support } as Partial<GameEvent>),
+      ],
+      state,
+      deps,
+    );
+    expect(record.seats[0]!.activations).toEqual({
+      [state.instances[hero]!.cardId]: 3,
+      [state.instances[support]!.cardId]: 1,
+    });
+  });
+
+  test("the seat's deck is kept as it stood when the record began", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const player = game.state().players[0]!;
+    const deck = game.record().seats[0]!.deck!;
+    const inDeck = [...player.deck, ...player.hand].map((id) => game.state().instances[id]!.cardId);
+    expect(new Set(deck)).toEqual(new Set(inDeck));
+  });
+
+  test("side schemes in play and defeated are kept by instance; a scheme put into play counts too", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const side = Object.values(state.cardPool).find((card) => card.type === "side_scheme")!;
+    const minion = Object.values(state.cardPool).find((card) => card.type === "minion")!;
+    const me = state.players[0]!.playerId;
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        { type: "encounterCardRevealed", instanceId: "a" as never, cardId: side.id, playerId: me },
+        { type: "encounterCardRevealed", instanceId: "b" as never, cardId: minion.id, playerId: me },
+        { type: "schemeDefeated", instanceId: "a" as never, cardId: side.id },
+        {
+          type: "cardMoved",
+          instanceId: "c" as never,
+          cardId: side.id,
+          from: { kind: "encounterSetAside" },
+          to: { kind: "villainArea" },
+        },
+      ],
+      state,
+    );
+    expect(record.sideSchemesSeen).toEqual({ a: side.id, c: side.id });
+    expect(record.sideSchemesDefeated).toEqual({ a: side.id });
+    expect(recordEvents(emptyRecord(), [], state).sideSchemesSeen).toBeUndefined();
   });
 });

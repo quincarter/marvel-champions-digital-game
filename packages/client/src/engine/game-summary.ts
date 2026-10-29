@@ -8,11 +8,40 @@
  *
  * Pure: no storage, no Phaser. A game still being played has no summary (null).
  */
-import { controllerOf, getInstance, remainingHitPoints, type EngineDeps, type GameState } from "@mc/engine";
+import {
+  controllerOf,
+  getInstance,
+  remainingHitPoints,
+  type EngineDeps,
+  type GameState,
+  type PlayerId,
+} from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
 export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";
+
+/**
+ * One seat's game, for the stats screen (`view/player-stats-model.ts`): who they played, what was in their deck and
+ * what they did with it. Every count is the game record's.
+ */
+export interface SeatSummary {
+  readonly identityCardId: string;
+  /** The deck's aspects, read from the aspect cards in it (a starter deck's included); empty for a deck of none. */
+  readonly aspects: readonly string[];
+  /** Each card the seat brought in its deck, once, whatever its copies (identity and encounter cards are not). */
+  readonly deck: readonly string[];
+  readonly plays: Readonly<Record<string, number>>;
+  readonly activations: Readonly<Record<string, number>>;
+  /** Cards of the seat's that came into play, played or put into play (`SeatRecord.entered`). */
+  readonly entered: Readonly<Record<string, number>>;
+  readonly damage: number;
+  readonly thwart: number;
+  /** The seat's hero was defeated during the game. */
+  readonly defeated: boolean;
+  /** The seat sat the scenario out (`SeatRecord.satOut`). */
+  readonly satOut?: true;
+}
 
 /** A seat standing when the game was won. */
 export interface WinningSeat {
@@ -41,6 +70,84 @@ export interface GameSummary {
   readonly finalBlowBy?: string | null;
   /** Team-Up cards played by any seat, over the whole game. Absent on a summary written before the field existed. */
   readonly teamUpsPlayed?: number;
+  /** Each seat's game, in seat order. Absent on a summary written before the field existed. */
+  readonly seats?: readonly SeatSummary[];
+  /**
+   * The scenario's villains by name (a villain's stage cards share one), in the order the game built them. Absent on an
+   * older summary.
+   */
+  readonly villains?: readonly string[];
+  /** Side schemes that came into play, and those defeated, by card id. Absent on an older summary. */
+  readonly sideSchemes?: {
+    readonly seen: Readonly<Record<string, number>>;
+    readonly defeated: Readonly<Record<string, number>>;
+  };
+}
+
+/** The four aspects and 'Pool, as a deck's aspect cards name them (`Aspect`); basic and hero cards are neither. */
+const DECK_ASPECTS: ReadonlySet<string> = new Set(["aggression", "justice", "leadership", "protection", "pool"]);
+const DECK_TYPES: ReadonlySet<string> = new Set([
+  "ally",
+  "event",
+  "support",
+  "upgrade",
+  "resource",
+  "player_side_scheme",
+]);
+
+/**
+ * The cards a seat could play (its deck at the start, `SeatRecord.deck`, else every instance it owns of a player deck
+ * card type), and the aspects among every card it brought.
+ */
+function deckOf(
+  state: GameState,
+  playerId: PlayerId,
+  atStart: readonly string[] | undefined,
+): { readonly deck: string[]; readonly aspects: string[] } {
+  const deck = new Set<string>();
+  const aspects = new Set<string>();
+  for (const instance of Object.values(state.instances)) {
+    if (instance.ownerId !== playerId) continue;
+    const card = state.cardPool[instance.cardId];
+    if (!card || !DECK_TYPES.has(card.type)) continue;
+    deck.add(instance.cardId);
+    if ("aspect" in card && DECK_ASPECTS.has(card.aspect)) aspects.add(card.aspect);
+  }
+  return { deck: atStart ? [...atStart] : [...deck].sort(), aspects: [...aspects].sort() };
+}
+
+/** Instance-keyed card ids, counted by card id. */
+const countByCard = (byInstance: Readonly<Record<string, string>> | undefined): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  for (const cardId of Object.values(byInstance ?? {})) counts[cardId] = (counts[cardId] ?? 0) + 1;
+  return counts;
+};
+
+function seatSummariesOf(state: GameState, record: GameRecord): SeatSummary[] {
+  return state.players.map((player) => {
+    const seat = record.seats.find((s) => s.playerId === player.playerId);
+    return {
+      identityCardId: player.identity.cardId as string,
+      ...deckOf(state, player.playerId, seat?.deck),
+      plays: seat?.plays ?? {},
+      entered: seat?.entered ?? {},
+      activations: seat?.activations ?? {},
+      damage: seat?.damage ?? 0,
+      thwart: seat?.thwart ?? 0,
+      defeated: (seat?.defeatedInRound ?? null) !== null,
+      ...(seat?.satOut ? { satOut: true as const } : {}),
+    };
+  });
+}
+
+/** Every villain the game built, by name: each one's stages count once. */
+function villainsOf(state: GameState): string[] {
+  const names = new Set<string>();
+  for (const instance of Object.values(state.instances)) {
+    const card = state.cardPool[instance.cardId];
+    if (card?.type === "villain") names.add(card.name);
+  }
+  return [...names];
 }
 
 const lossReasonOf = (outcome: NonNullable<GameState["outcome"]>): LossReason | null => {
@@ -80,5 +187,8 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
     alliesPlayed: record.seats.reduce((sum, seat) => sum + (seat.alliesPlayed ?? 0), 0),
     finalBlowBy: won ? finalBlowIdentityOf(state, record) : null,
     teamUpsPlayed: record.seats.reduce((sum, seat) => sum + (seat.teamUpsPlayed ?? 0), 0),
+    seats: seatSummariesOf(state, record),
+    villains: villainsOf(state),
+    sideSchemes: { seen: countByCard(record.sideSchemesSeen), defeated: countByCard(record.sideSchemesDefeated) },
   };
 }

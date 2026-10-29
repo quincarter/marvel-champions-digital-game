@@ -108,3 +108,19 @@ describe("summarizeGame", () => {
     expect(summarizeGame(conceded, record)!.lossReason).toBe("conceded");
   });
 });
+
+describe("summarizeGame: what the stats screen reads", () => {
+  test("each seat has its hero, its deck without resources double-counted, aspects and counts", async () => {
+    const { state, record } = await passiveLoss();
+    const summary = summarizeGame(state, record)!;
+    const seat = summary.seats![0]!;
+    expect(seat.identityCardId).toBe(state.players[0]!.identity.cardId);
+    expect(seat.deck.length).toBeGreaterThan(5);
+    expect(new Set(seat.deck).size).toBe(seat.deck.length);
+    expect(seat.deck).not.toContain(seat.identityCardId);
+    // Spider-Man's Justice starter deck.
+    expect(seat.aspects).toEqual(["justice"]);
+    expect(summary.villains).toEqual(["Rhino"]);
+    expect(summary.sideSchemes).toBeDefined();
+  }, 120_000);
+});

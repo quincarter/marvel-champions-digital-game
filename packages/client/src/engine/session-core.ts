@@ -351,7 +351,7 @@ export class EngineSessionCore {
     this.#session = startSession(setup.state);
     this.#config = config;
     this.#version = 0;
-    this.#record = recordEvents(emptyRecord(), setup.events, setup.state);
+    this.#record = recordEvents(emptyRecord(), setup.events, setup.state, POOL_DEPS);
     this.#writes = Promise.resolve();
     this.#saveError = null;
     this.#gameId = null;
@@ -451,7 +451,7 @@ export class EngineSessionCore {
     const { initialState } = baseline;
     // Setup's own events aren't stored; setup is deterministic from the config,
     // so a fresh setup emits the same ones (the scheme's starting threat among them).
-    let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState);
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState, POOL_DEPS);
     let state = initialState;
     const history: GameEvent[] = [...baseline.setupEvents];
     const trail: BackOutTrailEntry[] = [];
@@ -471,7 +471,7 @@ export class EngineSessionCore {
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
       state = result.state;
-      record = recordEvents(record, result.events, state);
+      record = recordEvents(record, result.events, state, POOL_DEPS);
       history.push(...result.events);
     }
 
@@ -507,13 +507,13 @@ export class EngineSessionCore {
     }
     const truncated = session.log.commands.slice(0, commandCount);
     const baseline = rebuildBaseline(config, stripPool(session.log.initialState));
-    let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState);
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, POOL_DEPS);
     let state = baseline.initialState;
     for (const command of truncated) {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
       state = result.state;
-      record = recordEvents(record, result.events, state);
+      record = recordEvents(record, result.events, state, POOL_DEPS);
     }
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
     this.#version = truncated.length;
@@ -550,7 +550,7 @@ export class EngineSessionCore {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
-    this.#record = recordEvents(this.#record, result.events, result.session.state);
+    this.#record = recordEvents(this.#record, result.events, result.session.state, POOL_DEPS);
     this.#persist(command, this.#version - 1, result.session.state);
     const states = sealedEventStates(result.states ?? []);
     return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };

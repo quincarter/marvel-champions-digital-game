@@ -19,6 +19,8 @@ import {
   controllerOf,
   getInstance,
   isMinion,
+  playerCardOwnerOf,
+  type EngineDeps,
   type GameEvent,
   type GameState,
   type InstanceId,
@@ -47,6 +49,27 @@ export interface SeatRecord {
    * the table's per-player numbers. Absent on a record written before the field existed, which reads as false.
    */
   readonly satOut?: true;
+  /**
+   * Plays by card id (each `cardPlayed` this seat made), for the stats screen's "most played" lists. Absent on a record
+   * written before the field existed, and while the seat has played nothing.
+   */
+  readonly plays?: Readonly<Record<string, number>>;
+  /**
+   * Abilities this seat chose to use, by the card whose text they are (`abilityResolved`; a granted ability counts for
+   * the granting card): actions, resource abilities, and interrupts and responses that are not forced, on player cards
+   * (identity abilities, supports, upgrades and allies alike). Forced and setup abilities, state checks and keyword
+   * abilities (Temporary, Villainous) are the game's, not the player's, and are left out; so is an event's own play,
+   * which is a play. Counted for the seat that controls the ability, so a card from one seat's deck another seat
+   * controls counts for the seat using it. Absent while there are none.
+   */
+  readonly activations?: Readonly<Record<string, number>>;
+  /** Cards of this seat's that came into play (any `cardMoved` into a play area), played or put. Absent while none. */
+  readonly entered?: Readonly<Record<string, number>>;
+  /**
+   * The seat's deck when the record began (its deck and hand after setup), by card id once each: the cards it could
+   * have played. A card set aside or put into play by setup is not in it. Absent on a record written before it existed.
+   */
+  readonly deck?: readonly string[];
 }
 
 export interface RoundRecord {
@@ -110,6 +133,13 @@ export interface GameRecord {
   /** Main scheme swaps, oldest first. Absent on a record written before the field existed, which reads as none. */
   readonly schemeSwaps?: readonly SchemeSwapMark[];
   /**
+   * Each side scheme that came into play (revealed, or put into play by setup or an effect), by instance, with its
+   * card id. Absent while there are none.
+   */
+  readonly sideSchemesSeen?: Readonly<Record<string, string>>;
+  /** Side schemes defeated (`schemeDefeated` of a side scheme), by instance, with its card id. Absent while none. */
+  readonly sideSchemesDefeated?: Readonly<Record<string, string>>;
+  /**
    * The enemy activation in progress. Threat an activation places carries the
    * activating enemy as its source, so matching the two is how a placement
    * learns which player it was scheming against.
@@ -131,8 +161,9 @@ export const emptyRecord = (): GameRecord => ({
   activation: null,
 });
 
-const blankSeat = (playerId: PlayerId): SeatRecord => ({
+const blankSeat = (state: GameState, playerId: PlayerId): SeatRecord => ({
   playerId,
+  deck: deckAtStart(state, playerId),
   damage: 0,
   thwart: 0,
   cardsPlayed: 0,
@@ -169,18 +200,56 @@ function seatFor(state: GameState, id: InstanceId | null): PlayerId | null {
  */
 const isVillain = (state: GameState, id: InstanceId): boolean => cardOf(state, id)?.type === "villain";
 
+/** Every card in the seat's deck and hand, once each. */
+function deckAtStart(state: GameState, playerId: PlayerId): string[] {
+  const player = state.players.find((p) => p.playerId === playerId);
+  if (!player) return [];
+  const ids = new Set<string>();
+  for (const id of [...player.deck, ...player.hand]) {
+    const instance = getInstance(state, id);
+    if (instance) ids.add(instance.cardId);
+  }
+  return [...ids].sort();
+}
+
+/** In-play zones a side scheme can enter. */
+const IN_PLAY: ReadonlySet<string> = new Set(["villainArea", "playArea", "scenarioPlayArea"]);
+
+/**
+ * Whether the player chose to use this ability (RRG 1.8 "Abilities", p. 9): an action, a resource ability, or an
+ * interrupt or response that is not forced. The same reading as the engine's `byPlayer` (`resolve/ability.ts`).
+ * Without the ability registry only a forced action and a keyword ability can be told apart, so the rest count.
+ */
+function playerChose(event: Extract<GameEvent, { type: "abilityResolved" }>, deps: EngineDeps | undefined): boolean {
+  if ((event.abilityId as string).startsWith("keyword:") || event.forced) return false;
+  if (!deps) return true;
+  const trigger = deps.abilities[event.abilityId]?.trigger;
+  if (!trigger) return false;
+  if (trigger.kind === "action" || trigger.kind === "resource") return true;
+  return (trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced;
+}
+
+const bump = (counts: Readonly<Record<string, number>> | undefined, key: string): Readonly<Record<string, number>> => ({
+  ...counts,
+  [key]: (counts?.[key] ?? 0) + 1,
+});
+
 /**
  * Folds one command's events onto the record. `state` is the state *after*
  * those events — what a host publishes — and is only read for ownership and
  * card types, which don't change within a command in any way that matters here.
  */
-export function recordEvents(record: GameRecord, events: readonly GameEvent[], state: GameState): GameRecord {
+export function recordEvents(
+  record: GameRecord,
+  events: readonly GameEvent[],
+  state: GameState,
+  deps?: EngineDeps,
+): GameRecord {
   let round = record.round;
   const seats = new Map<PlayerId, SeatRecord>(
-    (record.seats.length > 0 ? record.seats : state.players.map((player) => blankSeat(player.playerId))).map((seat) => [
-      seat.playerId,
-      seat,
-    ]),
+    (record.seats.length > 0 ? record.seats : state.players.map((player) => blankSeat(state, player.playerId))).map(
+      (seat) => [seat.playerId, seat],
+    ),
   );
   const rounds = new Map<number, RoundRecord>(record.rounds.map((entry) => [entry.round, entry]));
   let {
@@ -194,6 +263,10 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     activation,
   } = record;
   let schemeSwaps = record.schemeSwaps ?? [];
+  let { sideSchemesSeen, sideSchemesDefeated } = record;
+  const sideScheme = (instanceId: InstanceId, cardId: CardId): void => {
+    if (sideSchemesSeen?.[instanceId] === undefined) sideSchemesSeen = { ...sideSchemesSeen, [instanceId]: cardId };
+  };
 
   const onRound = (patch: (entry: RoundRecord) => RoundRecord): void => {
     rounds.set(round, patch(rounds.get(round) ?? blankRound(round)));
@@ -276,7 +349,36 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
           cardsPlayed: seat.cardsPlayed + 1,
           alliesPlayed: (seat.alliesPlayed ?? 0) + (state.cardPool[event.cardId]?.type === "ally" ? 1 : 0),
           teamUpsPlayed: (seat.teamUpsPlayed ?? 0) + (isTeamUpCard(state.cardPool[event.cardId]) ? 1 : 0),
+          plays: bump(seat.plays, event.cardId),
         }));
+        break;
+      case "abilityResolved": {
+        const source = event.grantedByInstanceId ?? event.instanceId;
+        // Player cards only (an owned Labor encounter card is not one): an encounter card's ability is the villain side's.
+        const owner = playerCardOwnerOf(state, source);
+        const cardId = getInstance(state, source)?.cardId;
+        if (!owner || !cardId || state.cardPool[cardId]?.type === "event" || !playerChose(event, deps)) break;
+        onSeat(event.controllerId ?? owner, (seat) => ({ ...seat, activations: bump(seat.activations, cardId) }));
+        break;
+      }
+      case "cardMoved": {
+        if (state.cardPool[event.cardId]?.type === "side_scheme" && IN_PLAY.has(event.to.kind)) {
+          sideScheme(event.instanceId, event.cardId);
+        }
+        if (event.to.kind === "playArea") {
+          const owner = playerCardOwnerOf(state, event.instanceId);
+          if (owner) onSeat(owner, (seat) => ({ ...seat, entered: bump(seat.entered, event.cardId) }));
+        }
+        break;
+      }
+      case "encounterCardRevealed":
+        if (state.cardPool[event.cardId]?.type === "side_scheme") sideScheme(event.instanceId, event.cardId);
+        break;
+      case "schemeDefeated":
+        if (state.cardPool[event.cardId]?.type === "side_scheme") {
+          sideScheme(event.instanceId, event.cardId);
+          sideSchemesDefeated = { ...sideSchemesDefeated, [event.instanceId]: event.cardId };
+        }
         break;
       case "playerEliminated":
         onSeat(event.playerId, (seat) => ({ ...seat, defeatedInRound: seat.defeatedInRound ?? round }));
@@ -323,6 +425,8 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     lastVillainDamage,
     lastEliminated,
     ...(schemeSwaps.length > 0 ? { schemeSwaps } : {}),
+    ...(sideSchemesSeen ? { sideSchemesSeen } : {}),
+    ...(sideSchemesDefeated ? { sideSchemesDefeated } : {}),
     activation,
   };
 }
