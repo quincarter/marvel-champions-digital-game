@@ -1,0 +1,3 @@
+kind: Fixed
+body: The scenario tiles' two-line captions (the Fear No Evil ones) fit on the tile instead of running off its bottom edge (#521, thanks @zackburnley).
+time: 2026-10-29T00:09:55.4793371-04:00

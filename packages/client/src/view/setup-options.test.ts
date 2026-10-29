@@ -397,6 +397,64 @@ describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", (
   });
 });
 
+// Issue #522: Protection Racket 1A, "Each player chooses a single Protection Racket main scheme (at random in expert
+// mode)" (MC60 p. 13). Standard always sent the first scheme with no way to choose another.
+describe("Protection Racket: each player chooses a main scheme", () => {
+  const RACKET = POOL_SCENARIOS.find((s) => s.id === "protection-racket")!;
+  const twoSeats = (draft: SetupDraft): SetupDraft => ({ ...draft, seats: [...draft.seats, ...draft.seats] });
+  const schemeRows = (draft: SetupDraft) => rowsOf(draft).filter((row) => row.id.startsWith("mainScheme:"));
+
+  test("standard offers a stepper per seat over the five schemes by their 1B titles; expert and other scenarios offer none", () => {
+    const offer = offerOf(draftFor("protection-racket")).mainSchemePicks!;
+    expect(offer.options.map((o) => o.name)).toEqual([
+      "Battle in the Bodega",
+      "Bull in a China Shop",
+      "Hung Out to Dry",
+      "Pawn Shop Showdown",
+      "A Slice of the Pizza Dough",
+    ]);
+    const [row] = schemeRows(draftFor("protection-racket"));
+    expect(row).toMatchObject({ id: "mainScheme:0", name: "Main scheme", meta: "1 of 5", active: false });
+    expect(row!.control).toMatchObject({ kind: "stepper", wide: true, valueLabel: "Battle in the Bodega" });
+    expect(schemeRows(twoSeats(draftFor("protection-racket"))).map((r) => r.name)).toEqual([
+      "Player 1's main scheme",
+      "Player 2's main scheme",
+    ]);
+    expect(schemeRows(setDifficulty(draftFor("protection-racket"), "expert"))).toEqual([]);
+    expect(schemeRows(draftFor("the-getaway"))).toEqual([]);
+  });
+
+  test("stepping picks another scheme, wraps, and the pick reaches the session config", () => {
+    const next = apply(draftFor("protection-racket"), "mainScheme:0:next");
+    expect(schemeRows(next)[0]!.control).toMatchObject({ valueLabel: "Bull in a China Shop" });
+    expect(schemeRows(next)[0]!.active).toBe(true);
+    expect(toSessionConfig(next, PLAYERS as never, RACKET).mainSchemePicks).toEqual(["60135a"]);
+    const wrapped = apply(draftFor("protection-racket"), "mainScheme:0:prev");
+    expect(toSessionConfig(wrapped, PLAYERS as never, RACKET).mainSchemePicks).toEqual(["60138a"]);
+  });
+
+  test("a seat steps past the scheme another seat holds, so no two players share one", () => {
+    // Seat 1 starts on Battle in the Bodega and seat 2 on Bull in a China Shop: seat 1's next skips to Hung Out to Dry.
+    const draft = apply(twoSeats(draftFor("protection-racket")), "mainScheme:0:next");
+    expect(toSessionConfig(draft, [...PLAYERS, ...PLAYERS] as never, RACKET).mainSchemePicks).toEqual([
+      "60136a",
+      "60135a",
+    ]);
+  });
+
+  test("the picks reset with the scenario and are not sent on expert", () => {
+    const draft = apply(draftFor("protection-racket"), "mainScheme:0:next");
+    expect(setScenario(draft, RACKET, "the-getaway").mainSchemePicks).toBeNull();
+    expect(toSessionConfig(setDifficulty(draft, "expert"), PLAYERS as never, RACKET).mainSchemePicks).toBeUndefined();
+  });
+
+  test("the chosen scheme is the one the game puts in play", async () => {
+    const draft = apply(draftFor("protection-racket"), "mainScheme:0:next", "mainScheme:0:next", "mainScheme:0:next");
+    const { state } = (await new EngineSessionCore().start(toSessionConfig(draft, PLAYERS as never, RACKET))).snapshot;
+    expect(state.mainScheme.cardId).toBe("60137a");
+  });
+});
+
 describe("Shadowland's card-keyed villain choice (docs/phase7-shadowland.md section 4.1)", () => {
   // The offer is built straight from the content record.
   const offerFor = (scenarioId: string) => {

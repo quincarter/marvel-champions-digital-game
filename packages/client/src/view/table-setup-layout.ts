@@ -937,6 +937,8 @@ export function compactOptionHeight(kind: "groups" | "toggle" | "stepper", group
   if (kind !== "groups") return 64;
   return groupCount > 1 ? 28 + Math.ceil(groupCount / 2) * COMPACT_GROUP_CELL_HEIGHT : 28 + 48;
 }
+/** A stepper whose value is a name (villain, main scheme) on the phone: the name over a full-width stepper a full target tall. */
+export const COMPACT_NAMED_STEPPER_HEIGHT = 38 + hit.target;
 /** A Standard / Expert set row on the phone: the name at the left, a full 44px chip row at the right (4px of padding each side). */
 export const COMPACT_SET_CHOICE_HEIGHT = hit.target + 8;
 /** One Horseman's cell on the phone: a 14px label, then A/B chips a full `hit.target` tall. */

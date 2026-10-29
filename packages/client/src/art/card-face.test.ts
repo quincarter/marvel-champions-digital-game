@@ -8,6 +8,7 @@ import {
   measureBox,
   withAlpha,
   wrapLines,
+  wrapLinesToFit,
   type FaceContext,
   type FaceFont,
 } from "./card-face.js";
@@ -175,5 +176,27 @@ describe("wrapLines", () => {
     expect(cut.size).toBe(8);
     expect(cut.lines).toHaveLength(2);
     expect(cut.lines[1]!.endsWith("…")).toBe(true);
+  });
+});
+
+describe("wrapLinesToFit", () => {
+  // Each character is `size` wide and each line `size * 1.5` tall.
+  const measure = (text: string, size: number) => ({ width: text.length * size, height: size * 1.5 });
+
+  it("issue #521: two lines too tall for the band step down until they fit its height", () => {
+    // At 10px the text wraps to two lines 15px tall (32px with the gap); 24px of room takes 7px lines (2 × 10.5 + 2).
+    const fitted = wrapLinesToFit(measure, "CHOICE OF 5 VILLAINS STAGES", 160, 10, 4, 2, 24);
+    expect(fitted.lines.length).toBeLessThanOrEqual(2);
+    expect(fitted.size).toBe(7);
+    const height = fitted.lines.reduce((sum) => sum + fitted.size * 1.5 + 2, -2);
+    expect(height).toBeLessThanOrEqual(24);
+  });
+
+  it("keeps the starting size when the lines already fit", () => {
+    expect(wrapLinesToFit(measure, "SHORT", 160, 10, 4, 2, 40)).toEqual({ lines: ["SHORT"], size: 10 });
+  });
+
+  it("stops at the floor", () => {
+    expect(wrapLinesToFit(measure, "CHOICE OF 5 VILLAINS STAGES", 160, 10, 9, 2, 5).size).toBe(9);
   });
 });

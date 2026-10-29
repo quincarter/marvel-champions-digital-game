@@ -44,7 +44,7 @@ import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSwap, KeptConflict } from "./name-conflicts.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
-import { offerOf, reconcileWithOffer, villainSessionFields } from "./setup-options.js";
+import { effectiveMainSchemePicks, offerOf, reconcileWithOffer, villainSessionFields } from "./setup-options.js";
 
 export type SetupDifficulty = "standard" | "expert" | "extreme";
 
@@ -99,6 +99,11 @@ export interface SetupDraft {
    * (`reconcileWithOffer`).
    */
   readonly villainId: string | null;
+  /**
+   * Each seat's main scheme at a scenario with a main scheme per player (Protection Racket on standard), in seat order;
+   * absent or `null` is seat N on the Nth (`effectiveMainSchemePicks`). Only ever sent as the offer allows.
+   */
+  readonly mainSchemePicks?: readonly string[] | null;
   /**
    * The Hood's own seven-of-nine modular set choice (docs/phase7-wave4.md §2.3, §3.18). `null` means the scenario
    * builder's own default (the pack's first seven in declaration order) — never a random draw the client makes
@@ -174,6 +179,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     horsemanSides: null,
     easierStart: false,
     villainId: null,
+    mainSchemePicks: null,
     setAsideModularSetIds: null,
     extraModularSetIds: [],
     towerDefenseSetupDamage: false,
@@ -249,6 +255,7 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     horsemanSides: null,
     easierStart: false,
     villainId: null,
+    mainSchemePicks: null,
     setAsideModularSetIds: null,
     towerDefenseSetupDamage: false,
     // A different leader's stage picks never carry over (they may be the other side's); the same leader keeps its own.
@@ -284,20 +291,6 @@ function reconcileKeepingEasierStart(next: SetupDraft): SetupDraft {
   return next.easierStart && !reconciled.easierStart && offerOf({ ...next, difficulty: "standard" }).easierStart
     ? { ...reconciled, easierStart: true }
     : reconciled;
-}
-
-/**
- * Protection Racket's "each player chooses a main scheme" (standard mode): until the table has a picker, seat N takes the
- * Nth of the scenario's schemes, which are all different. Expert draws them at random in the engine, so none are sent.
- */
-function defaultMainSchemePicks(
-  scenario: Scenario | undefined,
-  difficulty: SetupDifficulty,
-  seats: number,
-): readonly string[] | undefined {
-  const choice = scenario?.mainSchemeChoice;
-  if (!choice || difficulty === "expert") return undefined;
-  return choice.cardIds.slice(0, seats).map((id) => id as string);
 }
 
 /** Picking modular sets; a Gene Pool amount stops applying when Infinites leaves the game. */
@@ -608,7 +601,8 @@ export function toSessionConfig(
       : draft.setAsideModularSetIds;
   // Only what the scenario offers goes out (`reconcileWithOffer`): a stale choice never reaches a builder that refuses it.
   const options = reconcileWithOffer(draft);
-  const mainSchemePicks = defaultMainSchemePicks(scenario, draft.difficulty, players.length);
+  const schemes = offerOf(draft).mainSchemePicks;
+  const mainSchemePicks = schemes ? effectiveMainSchemePicks(options, schemes, players.length) : undefined;
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
