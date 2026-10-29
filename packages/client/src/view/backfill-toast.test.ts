@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { backfillToastRect, backfillToastTextOf } from "./backfill-toast.js";
+import { backfillToastRect, backfillToastShows, backfillToastTextOf } from "./backfill-toast.js";
 
 describe("backfillToastTextOf", () => {
   test("while it runs: the count, the percentage, and that closing it does not stop it", () => {
@@ -28,5 +28,14 @@ describe("backfillToastRect", () => {
       expect(rect.y + rect.height).toBeLessThanOrEqual(h);
       expect(rect.y).toBeGreaterThan(h / 2);
     }
+  });
+});
+
+describe("backfillToastShows", () => {
+  test("while running; after a run that added games; never after one a game stopped or one that added nothing", () => {
+    expect(backfillToastShows({ running: true, done: 1, total: 4, written: 1 })).toBe(true);
+    expect(backfillToastShows({ running: false, done: 4, total: 4, written: 3 })).toBe(true);
+    expect(backfillToastShows({ running: false, done: 2, total: 4, written: 2, stopped: true })).toBe(false);
+    expect(backfillToastShows({ running: false, done: 4, total: 4, written: 0 })).toBe(false);
   });
 });

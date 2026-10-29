@@ -38,7 +38,6 @@ describe("runStatsBackfill", () => {
     off();
     expect(asked).toEqual([["a"], ["c"]]);
     expect(seen.map((p) => [p.running, p.done, p.total])).toEqual([
-      [true, 0, 2],
       [true, 1, 2],
       [true, 2, 2],
       [false, 2, 2],
@@ -80,6 +79,8 @@ describe("runStatsBackfill: games it cannot fill in, and a game started meanwhil
   test("a game being played stops the run, and nothing is remembered as failed", async () => {
     const storage = new MapStorage();
     const asked: string[] = [];
+    const seen: BackfillProgress[] = [];
+    const off = onBackfillProgress((p) => seen.push(p));
     await runStatsBackfill(
       {
         listSaves: async () => [meta("a"), meta("b")],
@@ -90,8 +91,27 @@ describe("runStatsBackfill: games it cannot fill in, and a game started meanwhil
       },
       storage,
     );
+    off();
     expect(asked).toEqual(["a"]);
-    expect(backfillProgress()).toMatchObject({ running: false, done: 0 });
+    // Stopped before anything was done: it never showed at all.
+    expect(seen).toEqual([]);
     expect(JSON.parse(storage.map.get(BACKFILL_SKIP_KEY)!).ids).toEqual([]);
+  });
+});
+
+describe("runStatsBackfill: stopped part-way", () => {
+  test("a game started part-way ends the run as stopped, never as up to date", async () => {
+    const seen: BackfillProgress[] = [];
+    const off = onBackfillProgress((p) => seen.push(p));
+    let calls = 0;
+    await runStatsBackfill(
+      {
+        listSaves: async () => [meta("a"), meta("b"), meta("c")],
+        backfillSummaries: async () => (calls++ === 0 ? 1 : -1),
+      },
+      null,
+    );
+    off();
+    expect(seen.at(-1)).toMatchObject({ running: false, done: 1, stopped: true });
   });
 });

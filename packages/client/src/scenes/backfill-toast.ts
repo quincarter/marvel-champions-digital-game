@@ -10,7 +10,13 @@ import { signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText } from "../ui/widgets.js";
 import { backfillProgress, onBackfillProgress } from "../progression/stats-backfill.js";
-import { BACKFILL_DONE_HOLD_MS, backfillToastRect, backfillToastTextOf } from "../view/backfill-toast.js";
+import { addPressShield } from "../ui/press-shield.js";
+import {
+  BACKFILL_DONE_HOLD_MS,
+  backfillToastRect,
+  backfillToastShows,
+  backfillToastTextOf,
+} from "../view/backfill-toast.js";
 import { SCENES } from "./keys.js";
 
 /** Closed by the player: not shown again until the next launch's run. */
@@ -30,6 +36,10 @@ export class BackfillToastScene extends Phaser.Scene {
   create(): void {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.#draw, this);
     this.#off = onBackfillProgress((progress) => {
+      if (!backfillToastShows(progress)) {
+        this.scene.stop();
+        return;
+      }
       this.#draw();
       if (!progress.running) this.time.delayedCall(BACKFILL_DONE_HOLD_MS, () => this.scene.stop());
     });
@@ -63,7 +73,7 @@ export class BackfillToastScene extends Phaser.Scene {
     const closeSize = 44;
     const inner = rect.width - pad * 2 - closeSize - 8;
     // The panel takes a press on itself, so one meant for it never reaches what it covers (the rank badge).
-    const shield = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    const shield = addPressShield(this, rect);
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 0.96).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);

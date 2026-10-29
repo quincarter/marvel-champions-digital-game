@@ -636,7 +636,8 @@ export class EngineSessionCore {
    */
   async backfillSummaries(ids?: readonly string[]): Promise<number> {
     const storage = this.#storage;
-    // A game being played comes first: the backfill waits for a quiet moment (the next launch).
+    // A game being played comes first: the backfill waits for a quiet moment (the next launch). `#session` stays set
+    // once a game has been played this launch, so a later run here also waits for the next launch.
     if (!storage || this.#session) return BACKFILL_BUSY;
     return backfillSummaries(
       storage,

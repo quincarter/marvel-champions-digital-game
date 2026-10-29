@@ -21,6 +21,11 @@ export interface BackfillToastText {
 /** How long the "up to date" line stays before the toast closes itself. */
 export const BACKFILL_DONE_HOLD_MS = 3500;
 
+/** Whether the toast has anything to say: not for a run a game stopped, nor one that added nothing. */
+export function backfillToastShows(progress: BackfillProgress): boolean {
+  return progress.running || (!progress.stopped && progress.written > 0);
+}
+
 export function backfillToastTextOf(progress: BackfillProgress): BackfillToastText {
   const fraction = progress.total > 0 ? progress.done / progress.total : 1;
   const percent = Math.round(fraction * 100);

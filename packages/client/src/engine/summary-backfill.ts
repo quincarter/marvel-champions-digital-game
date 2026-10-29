@@ -56,7 +56,17 @@ function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boo
  * no summary at all takes the replay's whole.
  */
 export function filledSummary(live: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
-  return live ? { ...replayed, ...live, ...(live.seats === undefined ? { seats: replayed.seats } : {}) } : replayed;
+  if (!live) return replayed;
+  // Field by field: a key stored as undefined (IndexedDB keeps those) is a missing field, not a value.
+  const seats = live.seats ?? replayed.seats;
+  const villains = live.villains ?? replayed.villains;
+  const sideSchemes = live.sideSchemes ?? replayed.sideSchemes;
+  return {
+    ...live,
+    ...(seats ? { seats } : {}),
+    ...(villains ? { villains } : {}),
+    ...(sideSchemes ? { sideSchemes } : {}),
+  };
 }
 
 /**
@@ -72,14 +82,16 @@ export async function backfillSummaries(
   /** Only these games (the main thread asks one at a time, to show its progress); absent, every one that needs it. */
   ids?: readonly string[],
 ): Promise<number> {
-  const saves = await storage.list();
+  // Asked for named games, read only those; else every save.
+  const saves = ids ? [] : await storage.list();
+  const targets: readonly string[] = ids ?? saves.map((meta) => meta.id);
   let written = 0;
-  for (const meta of saves) {
-    if (ids && !ids.includes(meta.id)) continue;
-    if (!needsBackfill(meta, writer)) continue;
+  for (const id of targets) {
     await pause();
-    const stored = await storage.load(meta.id);
-    if (!stored || stored.commands.length !== meta.commandCount) continue;
+    const stored = await storage.load(id);
+    const meta = stored?.meta;
+    if (!stored || !meta || !needsBackfill(meta, writer)) continue;
+    if (stored.commands.length !== meta.commandCount) continue;
     let result: Awaited<ReturnType<ReplaySummary>>;
     try {
       result = await replay(stored);

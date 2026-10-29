@@ -19,6 +19,8 @@ export interface BackfillProgress {
   readonly total: number;
   /** Games whose numbers were filled in. */
   readonly written: number;
+  /** The run ended early: a game was started (it picks up again next launch). Never "up to date". */
+  readonly stopped?: true;
 }
 
 let progress: BackfillProgress = { running: false, done: 0, total: 0, written: 0 };
@@ -94,17 +96,24 @@ export async function runStatsBackfill(
     .map((meta) => meta.id);
   if (ids.length === 0) return;
   let written = 0;
-  set({ running: true, done: 0, total: ids.length, written });
-  for (const [index, id] of ids.entries()) {
+  let done = 0;
+  let stopped = false;
+  for (const id of ids) {
     const result = await store.backfillSummaries([id]);
     // A game started meanwhile: stop here, and pick up the rest next launch.
-    if (result === BACKFILL_BUSY) break;
+    if (result === BACKFILL_BUSY) {
+      stopped = true;
+      break;
+    }
     if (result > 0) written += result;
     else skipped.add(id);
-    set({ running: true, done: index + 1, total: ids.length, written });
+    done++;
+    // Running is announced with the first answer, so a run a game stops at once never shows at all.
+    set({ running: true, done, total: ids.length, written });
   }
   rememberSkipped(storage, skipped);
-  set({ running: false, done: progress.done, total: ids.length, written });
+  if (done === 0) return;
+  set({ running: false, done, total: ids.length, written, ...(stopped ? { stopped: true as const } : {}) });
   // The writes happened in the engine worker; sync listens here.
   if (written > 0) notifySaveDataChanged("game");
 }
