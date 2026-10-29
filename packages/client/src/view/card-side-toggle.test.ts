@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CORE_CARDS, type AnyCard, type HeroIdentityCard, type MainSchemeCard } from "@mc/content";
 import { POOL_CARDS } from "../content/pool-cards.js";
-import { cardSideToggle } from "./card-side-toggle.js";
+import { cardSideToggle, printedIdentitySide } from "./card-side-toggle.js";
 
 const scheme = CORE_CARDS.find((card): card is MainSchemeCard => card.type === "main_scheme")!;
 const stageB = { kind: "mainSchemeStage", stageIndex: 0, side: "B" } as const;
@@ -85,5 +85,24 @@ describe("cardSideToggle on a hero identity (issue #532)", () => {
   it("starts an in-game identity in an extra form on that form", () => {
     const antMan = identity("12001a");
     expect(cardSideToggle(antMan, { kind: "heroForm", index: 1 }, 1)?.face).toEqual({ kind: "hero" });
+  });
+});
+
+describe("printedIdentitySide (issue #532)", () => {
+  const antMan = identity("12001a");
+
+  it("reads another side as printed once the toggle leaves the side in play", () => {
+    expect(printedIdentitySide(antMan, { kind: "hero" }, 1)).toEqual({ kind: "alterEgo" });
+    expect(printedIdentitySide(antMan, { kind: "alterEgo" }, 2)).toEqual({ kind: "hero" });
+  });
+
+  it("keeps the live sheet on the side in play, including after a wrap", () => {
+    expect(printedIdentitySide(antMan, { kind: "hero" }, 0)).toBeNull();
+    expect(printedIdentitySide(antMan, { kind: "hero" }, 3)).toBeNull();
+    expect(printedIdentitySide(antMan, { kind: "heroForm", index: 1 }, 3)).toBeNull();
+  });
+
+  it("keeps the live sheet for a scheme's other side", () => {
+    expect(printedIdentitySide(scheme, stageB, 1)).toBeNull();
   });
 });

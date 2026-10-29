@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { findText, settle, waitFor } from "./helpers.js";
-import { trackErrors, visibleTexts } from "./wave6-helpers-a.js";
+import { installWave6Helpers, trackErrors, visibleTexts } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import { press } from "./x-men-helpers.js";
 
@@ -43,6 +43,7 @@ test("issue #532: Inspect on a hero in the picker steps through Hero, Alter-Ego 
   test.setTimeout(180_000);
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
+  await installWave6Helpers(page);
   await openApp(page, "screen=seats&unlock=all", { landing: "Seats" });
   await settle(page);
 
@@ -60,6 +61,8 @@ test("issue #532: Inspect on a hero in the picker steps through Hero, Alter-Ego 
     });
   });
   await toggleAt(page, "Show Alter-Ego");
+  // Read once the scan is in (a "No scan" placeholder stands in while it loads).
+  await settle(page, { quietMs: 500, maxMs: 4000 });
   const tiny = await inspectTexts(page);
   expect(tiny, "the sheet opens on Ant-Man's Tiny side").toContain("punypest");
 

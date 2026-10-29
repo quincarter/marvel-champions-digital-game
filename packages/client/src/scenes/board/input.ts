@@ -204,6 +204,8 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
       if (inspectHoldOf(scene, binding).press("key", scene.time.now)) inspectKey = event.code;
       return;
     }
+    // A held Inspect key inspects once: Inspect's side toggle (issue #532) would otherwise spin at the repeat rate.
+    if (intent === "inspect" && event.repeat) return;
     binding.onIntent(intent, "key");
   });
 }

@@ -106,7 +106,7 @@ import {
   type InspectPayment,
 } from "../view/inspect-model.js";
 import { tuckedSiblings, type CardLink } from "../view/inspect-notes.js";
-import { cardSideToggle, type CardSideToggle } from "../view/card-side-toggle.js";
+import { cardSideToggle, printedIdentitySide, type CardSideToggle } from "../view/card-side-toggle.js";
 import { faceOf } from "../view/board-model.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { PressArm } from "../view/press-arm.js";
@@ -668,24 +668,16 @@ export class InspectOverlay extends Phaser.Scene {
         }
       : null;
     const game = tableGame(state.game)!;
-    // An identity read on a side it is not on offers none of its live side's abilities (issue #532): a "Use" button
-    // under Scott Lang's text for Ant-Man's ability would read as Scott Lang's. A scheme's other side keeps them.
-    const readingOtherIdentitySide =
-      this.#sideStep > 0 &&
-      cardOf(game, this.#instanceId)?.type === "hero_identity" &&
-      JSON.stringify(this.#sideToggle()?.face) !== JSON.stringify(faceOf(game, this.#instanceId));
-    return inspectModel(
-      game,
-      this.#instanceId,
-      readingOtherIdentitySide ? null : (state.legal?.actions ?? null),
-      state.perspectiveId,
-      POOL_DEPS,
-      {
-        history: board?.cardHistory() ?? emptyCardHistoryLog(),
-        payment,
-        ...(this.#sideStep > 0 ? this.#steppedFace() : {}),
-      },
-    );
+    // An identity stepped to a side it is not on reads that side as printed (issue #532): the live sheet's stats,
+    // traits and "Use" buttons are the side in play's, and would read as the other side's.
+    const card = cardOf(game, this.#instanceId);
+    const printedSide = printedIdentitySide(card, faceOf(game, this.#instanceId), this.#sideStep);
+    if (printedSide) return cardInspectModel(card, printedSide);
+    return inspectModel(game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS, {
+      history: board?.cardHistory() ?? emptyCardHistoryLog(),
+      payment,
+      ...(this.#sideStep > 0 ? this.#steppedFace() : {}),
+    });
   }
 
   /** The side toggle for this sheet's subject (a main scheme stage, a hero identity), or null when it has none. */

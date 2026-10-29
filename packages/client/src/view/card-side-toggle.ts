@@ -39,6 +39,18 @@ export function cardSideToggle(card: AnyCard | undefined, face: CardFace, step: 
   };
 }
 
+/**
+ * In a game: the side to read as printed, when the toggle has stepped an identity off the side it is on. The live
+ * sheet's stats, traits, keywords, timing and usable abilities all belong to the side in play, so another side is
+ * read from the card alone (`cardInspectModel`), as the hero picker reads it. Null on the live side, after the toggle
+ * wraps back to it, and for anything but an identity (a scheme's other side keeps the live sheet).
+ */
+export function printedIdentitySide(card: AnyCard | undefined, liveFace: CardFace, step: number): CardFace | null {
+  if (card?.type !== "hero_identity" || step === 0) return null;
+  const face = identityToggle(card, liveFace, step).face;
+  return heroFormIndexOf(face) === heroFormIndexOf(liveFace) ? null : face;
+}
+
 /** Every face of an identity, in the order the toggle steps through them. */
 export function identityFaces(card: HeroIdentityCard): readonly CardFace[] {
   return [
