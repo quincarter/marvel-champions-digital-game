@@ -161,3 +161,70 @@ test("outside a decision, the team rail's LB combo shows a teammate's side and B
   await waitFor(async () => ((await peekedSeat(page)) === -1 ? true : null), "back on the seat that acts", 10_000);
   expect(errors).toEqual([]);
 });
+
+/** The VIEW TABLE buttons beside a choose-a-player sheet's rows, in row order. */
+const viewTableRects = (page: Page): Promise<Rect[]> =>
+  page.evaluate(() => {
+    const dbg = (window as unknown as { __mcChoiceDebug?: { allRects(): (readonly [string, Rect | null])[] } })
+      .__mcChoiceDebug;
+    return (dbg?.allRects() ?? [])
+      .filter(([key, rect]) => key.startsWith("view-table:") && rect !== null)
+      .map(([, rect]) => rect!);
+  });
+
+async function openCommander(page: Page): Promise<Rect[]> {
+  await page.goto("/?screen=board&fixture=commander");
+  return waitFor(
+    async () => {
+      const rects = await viewTableRects(page);
+      return rects.length === 2 ? rects : null;
+    },
+    "VIEW TABLE beside both player rows",
+    30_000,
+  );
+}
+
+test("a choose-a-player sheet has VIEW TABLE beside each row, and Back returns to the same question", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  const errors = trackErrors(page);
+  const views = await openCommander(page);
+  if (SHOT) await page.screenshot({ path: `${SHOT}/seat-peek-view-table-${info.project.name}.png` });
+
+  await press(page, phone, views[1]!);
+  await waitFor(async () => ((await peekDebug(page, "peeking")) ? true : null), "peeking at the table", 10_000);
+  expect(await peekedSeat(page), "the table shows the row's seat").toBe(1);
+
+  await press(page, phone, (await peekDebug(page, "backRect"))!);
+  await waitFor(async () => ((await peekDebug(page, "peeking")) ? null : true), "back to the decision", 10_000);
+  expect(await peekedSeat(page)).toBe(-1);
+  expect(await viewTableRects(page), "the same question, VIEW TABLE and all").toHaveLength(2);
+  expect(errors).toEqual([]);
+});
+
+test("VIEW TABLE answers its seat's number key and its LB combo", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "keys and a controller are a desktop's");
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  await installPad(page);
+  await openCommander(page);
+  await settle(page);
+
+  await page.keyboard.press("Digit2");
+  await waitFor(async () => ((await peekedSeat(page)) === 1 ? true : null), "2 shows the second seat", 10_000);
+  // On the banner the number keys keep picking seats: 1 is the deciding seat's own side.
+  await page.keyboard.press("Digit1");
+  await waitFor(async () => ((await peekedSeat(page)) === -1 ? true : null), "1 shows the deciding seat", 10_000);
+  await padWake(page);
+  await padTap(page, PAD.view);
+  await waitFor(async () => ((await peekDebug(page, "peeking")) ? null : true), "back to the decision", 10_000);
+
+  await padHold(page, PAD.lb);
+  await padTap(page, PAD.b);
+  await padRelease(page, PAD.lb);
+  await waitFor(async () => ((await peekedSeat(page)) === 1 ? true : null), "LB + B shows the second seat", 10_000);
+  expect(await peekDebug(page, "peeking")).toBe(true);
+  expect(errors).toEqual([]);
+});

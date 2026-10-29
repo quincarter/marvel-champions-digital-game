@@ -70,3 +70,11 @@ export function seatPeekLabel(chip: SeatPeekChip): string {
 export function seatPeekQuestionPrefix(viewingName: string | null): string {
   return viewingName === null ? "Your decision" : `Looking at ${viewingName} · your decision`;
 }
+
+/** The button beside a choose-a-player row that peeks at that seat's side of the table. */
+export const VIEW_TABLE_LABEL = "View table";
+
+/** VIEW TABLE's width: room for its words, and on a desktop for its combo glyph (LB + a face button) beside them. */
+export function viewTableWidth(phone: boolean): number {
+  return phone ? 96 : 156;
+}

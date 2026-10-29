@@ -402,6 +402,30 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `&fixture=commander`: Captain Marvel (alter-ego) and Spider-Man at the first turn, with Carol's Commander ("Action:
+  // Choose a player to draw 1 card") used, so the sheet asks which player: VIEW TABLE beside each row (`view/seat-peek.ts`).
+  if (screen === "board" && params.get("fixture") === "commander") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      await store.start({
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players: [{ starterDeckId: "core-captain-marvel-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+        seed: 1,
+      });
+      for (let step = 0; step < 24 && store.state.legal?.actions.kind === "choice"; step++) {
+        const { choice } = store.state.legal.actions;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+      }
+      const turn = store.state.legal?.actions;
+      const commander =
+        turn?.kind === "turn"
+          ? turn.legal.find((entry) => entry.action.kind === "useAbility" && /commander/.test(entry.action.abilityId))
+          : undefined;
+      if (commander) await store.dispatch(commander.example);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=upgraded-drones`: Upgraded Drones attached to Ultron Drones, its discard action usable from the
   // environment tile (`store/dev-upgraded-drones-game.ts`, issue #462).
   if (screen === "board" && params.get("fixture") === "upgraded-drones") {

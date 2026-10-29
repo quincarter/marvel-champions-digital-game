@@ -28,7 +28,7 @@ import {
   type DeclineKeyState,
 } from "../view/choice-glyphs.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
-import { pickGlyphSpecs } from "../view/input-glyph-model.js";
+import { pickGlyphSpecs, seatPeekGlyphSpecs } from "../view/input-glyph-model.js";
 import type { PadLayer, PickBumper } from "../view/pad-layer-bindings.js";
 import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
 import { clipHoverRect } from "../view/card-hover.js";
@@ -45,7 +45,15 @@ import {
   setChoicePeeking,
 } from "../view/choice-peek.js";
 import { flipPeekEdge, peekMoveLabel } from "../view/peek-banner.js";
-import { seatIndexOfSlot, seatPeekChips, seatPeekLabel, seatPeekQuestionPrefix } from "../view/seat-peek.js";
+import {
+  seatIndexOfSlot,
+  seatPeekChips,
+  seatPeekLabel,
+  seatPeekQuestionPrefix,
+  seatPeekSlot,
+  VIEW_TABLE_LABEL,
+  viewTableWidth,
+} from "../view/seat-peek.js";
 import { declineLabelOf, triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
@@ -218,6 +226,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #collectionPage = { choiceId: "", page: 0 };
   /** The taps of the card tiles drawn now by pick slot (`view/pick-assign.ts`): a modifier + a face button. */
   #pickTaps = new Map<number, () => void>();
+  /** The seat buttons' number keys this draw (1 to 4 by seat order, `view/seat-peek.ts`), by seat index. */
+  #seatKeys = new Map<number, () => void>();
   /** The target tiles' bars for the sheet being drawn (`view/choice-tile-bars.ts`), rebuilt with every draw. */
   #tileBars: ReadonlyMap<string, TileBar> = new Map();
   /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
@@ -437,6 +447,13 @@ export class ChoiceOverlay extends Phaser.Scene {
       blocked: binding.blocked,
       peekExpand: { peek: () => this.#padAction("peek"), expand: () => this.#padAction("expand") },
     });
+    // 1 to 4: a seat's look-at button (View table on a choose-a-player row, a seat on the peek banner), by seat order.
+    this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
+      if (binding.blocked() || this.#motion.leaving || this.#covered()) return;
+      if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      const match = /^Digit([1-4])$/.exec(event.code);
+      if (match) this.#seatKeys.get(Number(match[1]) - 1)?.();
+    });
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
     // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.
     // The cards it reads were noted by the first draw, which `store.subscribe` above already ran: a reset here emptied
@@ -580,6 +597,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing = null;
     this.#focusRects.clear();
     this.#pickTaps.clear();
+    this.#seatKeys.clear();
     this.#scrolledRows.clear();
     this.#optionRegion = null;
     this.#guideOptionRects.clear();
@@ -1127,7 +1145,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
     // (never cut): the text stays clear of the glyph on either side.
     const glyphRoom = choice.options.some((o) => this.#pickGlyphFits(o.optionId)) ? DEFEND_PICK_RESERVE * 2 : 0;
-    const maxChars = Math.floor((sheet.width - 48 - glyphRoom) / (typeRole.rowTitle.size * 0.62));
+    // A choose-a-player row in a multi-seat game: VIEW TABLE beside it peeks at that seat's side, hand and all, so a
+    // card that turns on what a teammate holds can be decided with it read (`view/seat-peek.ts`). Only where the sheet
+    // can step aside for PEEK AT TABLE's banner, which is where Back lands.
+    const viewWidth =
+      canPeek && state.game && state.game.players.length > 1 && choice.options.some((o) => o.ref.kind === "player")
+        ? viewTableWidth(phone)
+        : 0;
+    const maxChars = Math.floor(
+      (sheet.width - 48 - glyphRoom - (viewWidth > 0 ? viewWidth + 8 : 0)) / (typeRole.rowTitle.size * 0.62),
+    );
     // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
     const rows = choiceRowsOf(
       choice,
@@ -1151,6 +1178,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const tops = rowsLayout.tops;
     const viewport: Rect = { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: listHeight };
     const rowWidth = sheet.width - 24 - (rowsLayout.scrolls ? 10 : 0);
+    const sheetKey = key;
     this.#route = choiceFocusOrder(
       choice.options.map((option) => option.optionId),
       canDeclineChoice(choice),
@@ -1179,11 +1207,38 @@ export class ChoiceOverlay extends Phaser.Scene {
       const order = this.#selected.indexOf(option.optionId);
       const text = texts[index]!;
       const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${text}` : text;
+      const seatIndex =
+        option.ref.kind === "player" && viewWidth > 0
+          ? state.game!.players.findIndex(
+              (player) => option.ref.kind === "player" && player.playerId === option.ref.playerId,
+            )
+          : -1;
+      const optionRect = seatIndex >= 0 ? { ...rect, width: rect.width - viewWidth - 8 } : rect;
+      if (seatIndex >= 0) {
+        const playerId = state.game!.players[seatIndex]!.playerId;
+        const viewRect: Rect = { x: rect.x + rect.width - viewWidth, y: rect.y, width: viewWidth, height: rect.height };
+        const look = (): void => {
+          appSession().store.peekAtSeat(playerId);
+          this.#setPeek(sheetKey);
+        };
+        const view = new McButton(this, {
+          kind: "secondary",
+          label: VIEW_TABLE_LABEL,
+          type: typeRole.label,
+          rect: viewRect,
+          ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
+          onClick: look,
+        });
+        this.#buttons.push(view);
+        rowButtons.push(view);
+        this.#focusRects.set(`view-table:${playerId}`, viewRect);
+        this.#registerSeatPick(viewRect, seatIndex, seatPeekSlot(seatIndex), look);
+      }
       const button = new McButton(this, {
         kind: "secondary",
         label: rowLabel,
         type: typeRole.rowTitle,
-        rect,
+        rect: optionRect,
         selected: order >= 0,
         ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
         onClick: () => this.#toggle(option.optionId, choice.maxSelections),
@@ -1191,10 +1246,15 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(button);
       rowButtons.push(button);
       const key = choiceFocusKey({ kind: "option", optionId: option.optionId });
-      this.#focusRects.set(key, rect);
+      this.#focusRects.set(key, optionRect);
       if (rowsLayout.scrolls) this.#scrolledRows.set(key, index);
       // RT + A, RT + B, ... press this row as a tap does; the combo hangs at the row's right end.
-      this.#registerTilePick(rect, option.optionId, () => this.#toggle(option.optionId, choice.maxSelections), "row");
+      this.#registerTilePick(
+        optionRect,
+        option.optionId,
+        () => this.#toggle(option.optionId, choice.maxSelections),
+        "row",
+      );
     });
     if (rowsLayout.scrolls) {
       const region = new McScrollRegion(this, {
@@ -1320,7 +1380,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(button);
       const key = `peek-seat:${seat.playerId}`;
       this.#focusRects.set(key, rect);
-      this.#registerSeatPick(rect, seat.slot, look);
+      this.#registerSeatPick(rect, index, seat.slot, look);
     });
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
@@ -2753,12 +2813,13 @@ export class ChoiceOverlay extends Phaser.Scene {
    * A seat button on the peek banner wears its seat's combo, LB + a face button (`view/seat-peek.ts`), and the combo
    * presses it. There are no option tiles while the sheet is aside, so the slots are free.
    */
-  #registerSeatPick(rect: Rect, slot: number | null, tap: () => void): void {
+  #registerSeatPick(rect: Rect, seatIndex: number, slot: number | null, tap: () => void): void {
     if (slot === null || seatIndexOfSlot(slot) === null) return;
     this.#pickTaps.set(slot, tap);
+    this.#seatKeys.set(seatIndex, tap);
     this.#hints.custom(
-      (set, snapshot, _layer, held) =>
-        set === "pad" && !this.#covered() ? pickGlyphSpecs(slot, snapshot.state, snapshot.settings, held) : null,
+      (_set, snapshot, _layer, held) =>
+        this.#covered() ? null : seatPeekGlyphSpecs(seatIndex, slot, snapshot.state, snapshot.settings, held),
       18,
       ({ width: glyphWidth, height: glyphHeight }) =>
         rect.height < glyphHeight + 4 ? null : { x: rect.x + rect.width - glyphWidth - 6, y: rect.y + rect.height / 2 },
