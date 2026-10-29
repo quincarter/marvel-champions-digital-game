@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pressAt, settle, waitFor } from "./helpers.js";
+import { getBoardDebug, pressAt, settle, waitFor } from "./helpers.js";
 import { PAD, installPad, padHold, padRelease, padTap, padWake } from "./pad-e2e-helpers.js";
 import { trackErrors } from "./wave6-helpers-a.js";
 import type { Rect } from "./wave6-helpers-b.js";
@@ -137,8 +137,20 @@ test("outside a decision, the team rail's LB combo shows a teammate's side and B
   const errors = trackErrors(page);
   await installPad(page);
   await page.goto("/?screen=board&fixture=drones&seats=3");
-  await waitFor(async () => ((await peekedSeat(page)) === -1 ? true : null), "the board", 30_000);
-  await settle(page);
+  // The fixture plays its setup out first: wait for the first player's turn and a board that has drawn it.
+  await waitFor(
+    () =>
+      page.evaluate(async () => {
+        const mod = await import("/src/session.ts");
+        const state = (mod as unknown as { appSession: () => { store: { state: unknown } } }).appSession().store
+          .state as { game: { step: { kind: string } } | null; inFlight: boolean };
+        return state.game?.step.kind === "turn" && !state.inFlight ? true : null;
+      }),
+    "the first player's turn",
+    30_000,
+  );
+  await waitFor(() => getBoardDebug(page), "the board", 30_000);
+  await settle(page, { quietMs: 1500 });
   await padWake(page);
   await padHold(page, PAD.lb);
   await padTap(page, PAD.b);
