@@ -137,6 +137,8 @@ interface StatsChip {
 }
 
 export class PlayerStatsScene extends Phaser.Scene {
+  /** The stops the last draw made, for X's jump to the filter chips. */
+  #stops = new Map<string, FocusStop>();
   #data: PlayerStatsData = {};
   #buttons: McButton[] = [];
   #list: McVirtualList | null = null;
@@ -204,6 +206,10 @@ export class PlayerStatsScene extends Phaser.Scene {
       onPage: (direction) => this.#pageFocus(direction),
       onHomeEnd: (edge) => this.#focusEdge(edge),
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      // X (G / H): to the filter chips, opening them on a phone; the chip it lands on wears the glyph. (View is not
+      // bound here: its key, R / P, is LB's on the keyboard.)
+      onToggle: () => this.#focusFilters(),
+      blocked: () => this.scene.isActive(SCENES.inspect),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
@@ -356,6 +362,20 @@ export class PlayerStatsScene extends Phaser.Scene {
    * The filter chips (Bluefiref5ran's "all / per hero / per villain / per difficulty"): each steps through what your
    * games hold, from All, and Clear puts every one back. A change folds the games again with the new filter.
    */
+  #focusFilters(): void {
+    if (this.#stops.has("filter:toggle") && !filtersOpen) {
+      filtersOpen = true;
+      this.#draw();
+    }
+    if (this.#stops.has("filter:hero")) this.#route?.focusKey("filter:hero");
+  }
+
+  /** A card the stats name, opened in Inspect (A or Y on its picture or its row): the pad's way to read it large. */
+  #inspectCard(cardId: string): void {
+    if (!CARDS_BY_ID.has(cardId)) return;
+    this.scene.launch(SCENES.inspect, { card: { cardId, face: { kind: "front" } } });
+  }
+
   #filterChips(stats: PlayerStats, phone: boolean): readonly StatsChip[] {
     const { heroes, villains, difficulties } = stats.filterOptions;
     const filter = stats.filter;
@@ -374,6 +394,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       {
         key: "filter:hero",
         label: heroName ?? (phone ? "Heroes" : "All heroes"),
+        glyph: phone ? null : shortcutSpecs("guide"),
         selected: filter.hero !== undefined,
         onClick: () =>
           apply(
@@ -405,7 +426,14 @@ export class PlayerStatsScene extends Phaser.Scene {
           ]
         : []),
       ...(set
-        ? [{ key: "filter:clear", label: "✕ Clear", selected: false, onClick: () => apply({}, "filter:hero") }]
+        ? [
+            {
+              key: "filter:clear",
+              label: "✕ Clear",
+              selected: false,
+              onClick: () => apply({}, "filter:hero"),
+            },
+          ]
         : []),
     ];
     if (heroes.length <= 1 && villains.length <= 1 && !set) return [];
@@ -414,6 +442,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       const toggle = {
         key: "filter:toggle",
         label: `${filtersOpen ? "▾" : "▸"} Filters${count > 0 ? ` · ${count}` : ""}`,
+        glyph: shortcutSpecs("guide"),
         selected: count > 0,
         onClick: () => {
           filtersOpen = !filtersOpen;
@@ -504,6 +533,7 @@ export class PlayerStatsScene extends Phaser.Scene {
           textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
         .setOrigin(0.5, 0);
+      this.#stops = stops;
       this.#route?.set(order, stops);
       return;
     }
@@ -628,11 +658,12 @@ export class PlayerStatsScene extends Phaser.Scene {
 
     // Every tile, stat row and card picture is a stop, so a pad or keyboard can walk the whole tab.
     const listKeys: string[] = [];
-    const addStop = (key: string, index: number, part: (r: Rect) => Rect): void => {
+    const addStop = (key: string, index: number, part: (r: Rect) => Rect, cardId?: string): void => {
       listKeys.push(key);
       stops.set(key, {
         rect: () => clipToView(part(list.rectFor(index)), listRect),
-        activate: () => undefined,
+        activate: cardId ? () => this.#inspectCard(cardId) : () => undefined,
+        ...(cardId ? { inspect: () => this.#inspectCard(cardId) } : {}),
         ensureVisible: () => list.scrollIntoView(index),
       });
     };
@@ -647,20 +678,26 @@ export class PlayerStatsScene extends Phaser.Scene {
           }));
         }
       } else if (row.kind === "stat") {
-        addStop(`row:${row.id}`, index, (r) => ({ ...r, width: r.width - GUTTER }));
+        addStop(`row:${row.id}`, index, (r) => ({ ...r, width: r.width - GUTTER }), row.row.cardId);
       } else if (row.kind === "cards") {
         for (const card of row.cards) {
-          addStop(`card:${row.id}:${card.cardId}`, index, (r) => ({
-            x: r.x + card.x,
-            y: r.y + 4,
-            width: row.cardWidth,
-            height: row.cardHeight,
-          }));
+          addStop(
+            `card:${row.id}:${card.cardId}`,
+            index,
+            (r) => ({
+              x: r.x + card.x,
+              y: r.y + 4,
+              width: row.cardWidth,
+              height: row.cardHeight,
+            }),
+            card.cardId,
+          );
         }
       }
     });
     this.#listKeys = listKeys;
     order.push(...listKeys);
+    this.#stops = stops;
     this.#route?.set(order, stops);
     this.#hover?.onDraw();
   }

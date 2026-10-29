@@ -9,6 +9,7 @@ import Phaser from "phaser";
 import { signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText } from "../ui/widgets.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { backfillProgress, onBackfillProgress } from "../progression/stats-backfill.js";
 import { addPressShield } from "../ui/press-shield.js";
 import {
@@ -28,12 +29,14 @@ export class BackfillToastScene extends Phaser.Scene {
   #close: McButton | null = null;
   #panel: Phaser.GameObjects.Container | null = null;
   #off: (() => void) | null = null;
+  #hints: GlyphHints | null = null;
 
   constructor() {
     super(SCENES.backfillToast);
   }
 
   create(): void {
+    this.#hints = new GlyphHints(this);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.#draw, this);
     this.#off = onBackfillProgress((progress) => {
       if (!backfillToastShows(progress)) {
@@ -48,11 +51,14 @@ export class BackfillToastScene extends Phaser.Scene {
       this.#off = null;
       this.scale.off(Phaser.Scale.Events.RESIZE, this.#draw, this);
       this.#clear();
+      this.#hints?.dispose();
+      this.#hints = null;
     });
     this.#draw();
   }
 
-  #dismiss(): void {
+  /** The ✕, and X on the Title (the Title's route hands it here while the toast shows). */
+  dismiss(): void {
     dismissed = true;
     this.scene.stop();
   }
@@ -109,7 +115,9 @@ export class BackfillToastScene extends Phaser.Scene {
       label: "✕",
       type: typeRole.rowTitle,
       rect: { x: rect.x + rect.width - pad - closeSize + 6, y: rect.y + 4, width: closeSize, height: closeSize },
-      onClick: () => this.#dismiss(),
+      onClick: () => this.dismiss(),
     });
+    this.#hints?.reset();
+    this.#hints?.button(this.#close, ["guide"], "ink");
   }
 }

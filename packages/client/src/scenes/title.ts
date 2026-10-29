@@ -201,6 +201,11 @@ export class TitleScene extends Phaser.Scene {
           ["games-row", "remove-keep"].find((key) => this.#stops.has(key));
         if (stop) this.#route?.focusKey(stop);
       },
+      // X (G / H) closes the Building your stats toast while it shows; its ✕ wears the glyph.
+      onToggle: () => {
+        if (this.scene.isActive(SCENES.backfillToast))
+          (this.scene.get(SCENES.backfillToast) as unknown as { dismiss(): void }).dismiss();
+      },
       // View / Back (and the Peek key) is the Trophy Room, the same as its button.
       onView: () => {
         if (!this.#starting) this.#openTrophies?.();
