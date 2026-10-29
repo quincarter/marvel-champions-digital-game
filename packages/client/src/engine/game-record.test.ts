@@ -134,3 +134,24 @@ describe("game record: Overkill counts where the excess lands", () => {
     expect(recordEvents(emptyRecord(), [hit], state).damageToEnemies).toBe(2);
   });
 });
+
+describe("game record: main scheme swaps (issue #518)", () => {
+  test("a swap is kept with the scheme it replaced and its round", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const scheme = state.mainScheme.instanceId;
+    const swap: GameEvent = {
+      type: "mainSchemeSwapped",
+      outgoing: "old" as typeof scheme,
+      incoming: scheme,
+      cardIds: [state.mainScheme.cardId, state.mainScheme.cardId],
+      playArea: null,
+      threat: 3,
+    };
+    const record = recordEvents({ ...emptyRecord(), round: 3 }, [swap], state);
+    expect(record.schemeSwaps).toEqual([
+      { outgoing: "old", incoming: scheme, outgoingCardId: state.mainScheme.cardId, round: 3 },
+    ]);
+    expect(recordEvents(emptyRecord(), [], state).schemeSwaps).toBeUndefined();
+  });
+});

@@ -6,12 +6,13 @@
 
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
+import { cardId } from "@mc/content";
 import { activeVillain, cardOf, type GameState, type InstanceId } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { emptyRecord } from "../engine/game-record.js";
+import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import { gameOverModel, newsParts, turningPoints } from "./game-over-model.js";
 import { cardName } from "./names.js";
 
@@ -73,6 +74,98 @@ describe("game over model", () => {
     } else {
       expect(model.kicker).toBe("Every hero is defeated");
     }
+  });
+
+  // Issue #518: Change of Venue swapped Battle in the Bodega out for A Slice of the Pizza Dough, which then won; the
+  // screen named the Pizza Dough with no word of the swap, so it read as the wrong scheme.
+  describe("a main scheme swapped in mid-game (Protection Racket's Change of Venue)", () => {
+    const BODEGA = cardId("60134a");
+    const PIZZA = cardId("60138a");
+    const titleOf = (id: string): string => {
+      const card = CARDS_BY_ID.get(id)!;
+      return (card.type === "main_scheme" ? card.stages[0]!.name : undefined) ?? card.name;
+    };
+    /** The fixture's loss, with the central scheme now `PIZZA`, swapped in for `BODEGA` in round 2. */
+    function swappedLoss() {
+      const { game, record, config } = store.state;
+      const pool = { ...game!.cardPool, [BODEGA]: CARDS_BY_ID.get(BODEGA)!, [PIZZA]: CARDS_BY_ID.get(PIZZA)! };
+      const central = { ...game!.mainScheme, cardId: PIZZA, stageIndex: 0, completed: true };
+      const lost = {
+        ...game!,
+        cardPool: pool,
+        mainScheme: central,
+        outcome: { result: "loss", reason: "mainSchemeCompleted" } as const,
+      } as unknown as GameState;
+      const swapped = {
+        ...record,
+        schemeSwaps: [
+          { outgoing: "old" as InstanceId, incoming: central.instanceId, outgoingCardId: BODEGA, round: 2 },
+        ],
+      } satisfies GameRecord;
+      return { lost, swapped, config };
+    }
+
+    test("the loss names the scheme that won and the one it replaced", () => {
+      const { lost, swapped, config } = swappedLoss();
+      const model = gameOverModel(lost, swapped, config, CORE_DEPS);
+
+      expect(model.headline).toBe("The scheme wins");
+      expect(model.summary).toContain(`${titleOf(PIZZA)} reached`);
+      expect(model.summary).toContain(`It replaced ${titleOf(BODEGA)} in round 2.`);
+      // The desktop layout shows the final blow, not the summary.
+      expect(model.finalBlow?.body).toContain(`It replaced ${titleOf(BODEGA)} in round 2.`);
+    });
+
+    test("after two swaps it names the scheme it directly replaced, in that swap's round", () => {
+      const { lost, swapped, config } = swappedLoss();
+      const chain = {
+        ...swapped,
+        schemeSwaps: [
+          { outgoing: "first" as InstanceId, incoming: "old" as InstanceId, outgoingCardId: BODEGA, round: 1 },
+          { ...swapped.schemeSwaps[0]!, outgoingCardId: cardId("60135a"), round: 4 },
+        ],
+      } satisfies GameRecord;
+      const model = gameOverModel(lost, chain, config, CORE_DEPS);
+
+      expect(model.summary).toContain(`It replaced ${titleOf("60135a")} in round 4.`);
+    });
+
+    test("a scheme swapped back in names the scheme it replaced, never itself", () => {
+      const { lost, swapped, config } = swappedLoss();
+      const winner = lost.mainScheme.instanceId;
+      const back = {
+        ...swapped,
+        schemeSwaps: [
+          { outgoing: winner, incoming: "other" as InstanceId, outgoingCardId: PIZZA, round: 2 },
+          { outgoing: "other" as InstanceId, incoming: winner, outgoingCardId: BODEGA, round: 4 },
+        ],
+      } satisfies GameRecord;
+      const model = gameOverModel(lost, back, config, CORE_DEPS);
+
+      expect(model.summary).toContain(`It replaced ${titleOf(BODEGA)} in round 4.`);
+      expect(model.summary).not.toContain(`It replaced ${titleOf(PIZZA)}`);
+    });
+
+    test("a scheme never swapped says nothing of a swap", () => {
+      const { game, record, config } = store.state;
+      const lost = { ...game!, outcome: { result: "loss", reason: "mainSchemeCompleted" } as const };
+      expect(gameOverModel(lost, record, config, CORE_DEPS).summary).not.toContain("replaced");
+    });
+
+    test("with a main scheme per player, the completed one is named, not the first seat's", () => {
+      const { game, record, config } = store.state;
+      const other = { instanceId: "p2-scheme" as InstanceId, cardId: PIZZA, stageIndex: 0, completed: true };
+      const lost = {
+        ...game!,
+        cardPool: { ...game!.cardPool, [PIZZA]: CARDS_BY_ID.get(PIZZA)! },
+        mainScheme: { ...game!.mainScheme, completed: false },
+        extraMainSchemes: [{ ...other, accelerationTokens: 0 }],
+        outcome: { result: "loss", reason: "mainSchemeCompleted" } as const,
+      } as unknown as GameState;
+      const model = gameOverModel(lost, record, config, CORE_DEPS);
+
+      expect(model.summary).toContain(`${titleOf(PIZZA)} reached`);
+    });
   });
 
   test("a game lost to an empty encounter deck and discard pile says so (RRG 1.8 p. 17), not that the scheme won", () => {
