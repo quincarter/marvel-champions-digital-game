@@ -577,7 +577,7 @@ function pickedFromDeck(state: GameState, choice: PendingChoice): string | null 
 }
 
 /** `orderLoopKeywords`' subtitle: why the first player is ordering keywords at all. */
-export const LOOP_KEYWORDS_SUBTITLE = "These minions entered play together: pick the order their keywords resolve in";
+export const LOOP_KEYWORDS_SUBTITLE = "These minions entered play together: pick the order";
 
 /**
  * The sheet's header as two lines. A card pick out of a deck is titled by what the player is doing ("Choose cards from
