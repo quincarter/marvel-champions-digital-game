@@ -724,18 +724,23 @@ function wildDeclaredTip({ lastEvents, perspectiveId }: LessonObservation): Tip 
  * An ability (Bamf!, Shieldmaiden) declared a defender for the perspective player: Q55, a basic defense for a hero; an
  * ally uses no basic power (ruling Mar 16, 2025; owner, 2026-10-28, PR #498).
  */
-function effectDefenderTip({ lastEvents, perspectiveId }: LessonObservation): Tip | null {
-  const declared = lastEvents.some(
+function effectDefenderTip({ game, lastEvents, perspectiveId }: LessonObservation): Tip | null {
+  const declared = lastEvents.find(
     (event) => event.type === "defenderDeclared" && event.byEffect === true && event.playerId === perspectiveId,
   );
-  if (!declared) return null;
-  return {
-    id: "situation:effectDefender",
-    title: "A defender was declared for you",
-    body:
-      "A card declared your defender. A hero declared this way makes a basic [[effectDefender|defense]], so " +
-      "responses to a basic defense can trigger. An ally does not.",
-  };
+  if (declared?.type !== "defenderDeclared") return null;
+  // Worded for the defender this declaration named, so an ally is never told it made a basic defense.
+  const type = cardOf(game, declared.defenderInstanceId)?.type;
+  const body =
+    type === "ally"
+      ? "A card declared your ally the defender. An ally uses no basic power when it [[effectDefender|defends]], " +
+        "so responses to a basic defense do not trigger."
+      : type === "hero_identity"
+        ? "A card declared your hero the defender. That is a basic [[effectDefender|defense]], so responses to a " +
+          "basic defense can trigger."
+        : "A card declared your defender. A hero declared this way makes a basic [[effectDefender|defense]], so " +
+          "responses to a basic defense can trigger. An ally does not.";
+  return { id: "situation:effectDefender", title: "A defender was declared for you", body };
 }
 
 /** Cards in the mission area (MC45 p. 5), which `tableInstances` does not reach: it is not a player or villain zone. */
