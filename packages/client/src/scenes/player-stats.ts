@@ -615,6 +615,59 @@ export class PlayerStatsScene extends Phaser.Scene {
         objects.push(text);
         break;
       }
+      case "donut": {
+        // A ring of each aspect's share of your games, in its stamp color, and a legend beside it (under it on a phone).
+        const total = row.shares.reduce((sum, share) => sum + share.games, 0);
+        const radius = phone ? 62 : 78;
+        const thickness = phone ? 26 : 32;
+        const cx = rect.x + radius + 8;
+        const cy = rect.y + 12 + radius;
+        const g = this.add.graphics();
+        let at = -Math.PI / 2;
+        for (const share of row.shares) {
+          const sweep = (share.games / Math.max(1, total)) * Math.PI * 2;
+          const stamp = aspectStampOf(share.aspect as Parameters<typeof aspectStampOf>[0]);
+          g.lineStyle(thickness, stamp.fill, 1)
+            .beginPath()
+            .arc(cx, cy, radius - thickness / 2, at, at + sweep)
+            .strokePath();
+          at += sweep;
+        }
+        g.lineStyle(2, surface.ink.hex, 1)
+          .strokeCircle(cx, cy, radius)
+          .strokeCircle(cx, cy, radius - thickness);
+        const middle = this.add
+          .text(cx, cy, "ASPECTS", textStyle(typeRole.label, surface.ink.hex, 1))
+          .setOrigin(0.5)
+          .setLetterSpacing(1);
+        objects.push(g, middle);
+        let ly = phone ? rect.y + radius * 2 + 30 : rect.y + 18;
+        const lx = phone ? rect.x + 4 : cx + radius + 32;
+        for (const share of row.shares) {
+          const stamp = aspectStampOf(share.aspect as Parameters<typeof aspectStampOf>[0]);
+          const swatch = this.add.graphics();
+          swatch.fillStyle(stamp.fill, 1).fillRect(lx, ly + 2, 18, 18);
+          swatch.lineStyle(2, surface.ink.hex, 1).strokeRect(lx, ly + 2, 18, 18);
+          const name = this.add.text(
+            lx + 28,
+            ly + 2,
+            share.label.toUpperCase(),
+            textStyle(typeRole.label, surface.ink.hex, 1),
+          );
+          const facts = this.add
+            .text(
+              lx + 150,
+              ly + 2,
+              `${Math.round((share.games / Math.max(1, total)) * 100)}% · ${share.games} games · ${Math.round((share.wins / Math.max(1, share.games)) * 100)}% won`,
+              textStyle(typeRole.body, surface.ink.hex, 0.85),
+            )
+            .setFontSize(12);
+          fitText(facts, rect.x + width - facts.x, 12);
+          objects.push(swatch, name, facts);
+          ly += 26;
+        }
+        break;
+      }
       case "aspects": {
         let x = rect.x;
         let y = rect.y;

@@ -3,9 +3,18 @@
  * of a scrolling list. The Overview packs its tiles into rows of a column grid (four across, two on a phone); a hero's
  * cards come as strips of card pictures, as many across as fit. Pure: sizes and positions only, no Phaser.
  */
-import type { HeroCardsView, OverviewTile, PlayerStats, StatRow } from "./player-stats-model.js";
+import type { AspectShare, HeroCardsView, OverviewTile, PlayerStats, StatRow } from "./player-stats-model.js";
 
-export type StatsTab = "overview" | "heroes" | "villains" | "side-schemes" | "devices" | "all-cards" | "cards";
+export type StatsTab = "overview" | "heroes" | "villains" | "aspects" | "encounter" | "records" | "all-cards" | "cards";
+
+/** The sections a list tab shows, in order; a tab with more than one heads each. */
+const TAB_SECTIONS: Partial<Record<StatsTab, readonly string[]>> = {
+  heroes: ["heroes"],
+  villains: ["villains"],
+  aspects: ["aspects"],
+  encounter: ["encounter", "side-schemes"],
+  records: ["records", "devices"],
+};
 
 export interface StatsTabEntry {
   readonly id: StatsTab;
@@ -19,8 +28,10 @@ export function statsTabsOf(stats: PlayerStats): readonly StatsTabEntry[] {
     { id: "overview", label: "Overview" },
     ...(has("heroes") ? [{ id: "heroes" as const, label: "Heroes" }] : []),
     ...(has("villains") ? [{ id: "villains" as const, label: "Villains" }] : []),
-    ...(has("side-schemes") ? [{ id: "side-schemes" as const, label: "Side schemes" }] : []),
-    ...(has("devices") ? [{ id: "devices" as const, label: "Devices" }] : []),
+    ...(has("aspects") ? [{ id: "aspects" as const, label: "Aspects" }] : []),
+    // Side schemes and modular sets share Encounter; devices sit under Records.
+    ...(has("side-schemes") || has("encounter") ? [{ id: "encounter" as const, label: "Encounter" }] : []),
+    ...(has("records") || has("devices") ? [{ id: "records" as const, label: "Records" }] : []),
     ...(stats.allCards ? [{ id: "all-cards" as const, label: "Cards" }] : []),
     ...(stats.heroCards.length > 0 ? [{ id: "cards" as const, label: "Cards by hero" }] : []),
   ];
@@ -50,6 +61,8 @@ export type DashRow =
       readonly height: number;
       readonly row: Extract<StatRow, { kind: "stat" }>;
     }
+  /** The Aspects tab's donut: each aspect's share of your games, in its own color, with a legend. */
+  | { readonly kind: "donut"; readonly id: string; readonly height: number; readonly shares: readonly AspectShare[] }
   | {
       readonly kind: "aspects";
       readonly id: string;
@@ -196,13 +209,29 @@ export function dashboardRowsOf(
     }
     return rows;
   }
-  const section = stats.sections.find((s) => s.id === tab);
-  if (!section) return [];
-  return section.rows.map((row): DashRow =>
-    row.kind === "note"
-      ? { kind: "note", id: row.id, height: noteHeight(phone), text: row.text }
-      : { kind: "stat", id: row.id, height: statHeight(phone), row },
-  );
+  const sections = (TAB_SECTIONS[tab] ?? []).flatMap((id) => stats.sections.filter((s) => s.id === id));
+  const rows: DashRow[] =
+    tab === "aspects" && stats.aspects.length > 0
+      ? [
+          {
+            kind: "donut",
+            id: "aspects:donut",
+            height: phone ? 40 + 26 * stats.aspects.length + 150 : 220,
+            shares: stats.aspects,
+          },
+        ]
+      : [];
+  for (const section of sections) {
+    if (sections.length > 1)
+      rows.push({ kind: "heading", id: `${section.id}:head`, height: phone ? 40 : 44, title: section.title });
+    for (const row of section.rows)
+      rows.push(
+        row.kind === "note"
+          ? { kind: "note", id: row.id, height: noteHeight(phone), text: row.text }
+          : { kind: "stat", id: row.id, height: statHeight(phone), row },
+      );
+  }
+  return rows;
 }
 
 /** The hero at `index`, wrapped into range; undefined with no heroes. */

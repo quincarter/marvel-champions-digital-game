@@ -15,7 +15,7 @@
  */
 import type { CorePlayer } from "@mc/cards";
 import type { SaveMeta } from "../engine/game-storage.js";
-import type { SeatSummary } from "../engine/game-summary.js";
+import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 
 export interface StatsNames {
   readonly cardName: (cardId: string) => string | undefined;
@@ -27,6 +27,10 @@ export interface StatsNames {
   readonly starterDeck: (
     starterDeckId: string,
   ) => { readonly identityCardId: string; readonly aspects: readonly string[] } | undefined;
+  /** The modular sets a scenario uses when a game names none (its recommended ones). */
+  readonly scenarioModulars?: (scenarioId: string) => readonly string[];
+  /** An encounter set's name. */
+  readonly setName?: (setId: string) => string | undefined;
 }
 
 export type StatRow =
@@ -148,6 +152,8 @@ export interface PlayerStats {
   readonly heroCards: readonly HeroCardsView[];
   /** The Cards tab: every hero's games together (no aspects), or null before any game has card numbers. */
   readonly allCards: HeroCardsView | null;
+  /** The Aspects tab's donut: each aspect's share of your games, most played first. */
+  readonly aspects: readonly AspectShare[];
 }
 
 /** One finished game, reduced to what the stats read. */
@@ -161,6 +167,11 @@ interface GameFacts {
   /** The villain's name as the newest game with the same `villainKey` gives it. */
   readonly villain: string;
   readonly expert: boolean;
+  readonly difficulty: "standard" | "expert" | "extreme";
+  /** The modular encounter sets the game was built with. */
+  readonly modulars: readonly string[];
+  /** The save's summary, for the numbers only it holds (records, the final blow); null on an older save. */
+  readonly summary: GameSummary | null;
   readonly lossReason: "schemeCompleted" | "playersDefeated" | "other" | null;
   readonly heroesDefeated: number | null;
   readonly seats: readonly SeatFacts[];
@@ -234,6 +245,9 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     villainKey: [meta.config.scenarioId, meta.config.villainSetId ?? "", meta.config.villainCardId ?? ""].join("|"),
     villain: villainOf(meta, names),
     expert: meta.config.difficulty !== "standard",
+    difficulty: meta.config.difficulty,
+    modulars: meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? [],
+    summary,
     lossReason: lossReason === "conceded" ? "other" : lossReason,
     heroesDefeated: summary ? summary.heroesDefeated : null,
     seats: seatsOf(meta, names),
@@ -459,8 +473,11 @@ function heroesOf(games: readonly GameFacts[], names: StatsNames): StatsSection 
       const fell = seats.filter((s) => s.defeated).length;
       if (fell > 0) detailParts.push(`fell in ${plural(fell, "game")}`);
     }
+    const fastest = list.filter((g) => g.result === "won").sort((a, b) => a.round - b.round)[0];
+    if (fastest) detailParts.push(`fastest win round ${fastest.round}`);
     rows.push(stat(`hero:${id}`, heroName(id), record(t.wins, t.losses), detailParts.join(" · "), { cardId: id }));
   }
+  rows.splice(Math.min(rows.length, best && groups.length > 1 ? 2 : 1), 0, ...pairRowsOf(games, heroName));
   return { id: "heroes", title: "Heroes", count: plural(groups.length, "hero", "heroes"), rows };
 }
 
@@ -517,6 +534,7 @@ function villainsOf(games: readonly GameFacts[]): StatsSection {
       ),
     );
   }
+  rows.push(...nemesisByDifficultyOf(games));
   for (const [name, list] of groups) {
     const t = tallyOf(list);
     const lost = list.filter((g) => g.result === "lost");
@@ -1050,6 +1068,254 @@ function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsVi
   };
 }
 
+const DIFFICULTY_LABELS: Readonly<Record<GameFacts["difficulty"], string>> = {
+  standard: "Standard",
+  expert: "Expert",
+  extreme: "Extreme",
+};
+
+/** Two or more heroes at one table: each pair's record, the best by win rate (2 games or more). */
+function pairRowsOf(games: readonly GameFacts[], heroName: (id: string) => string): StatRow[] {
+  const pairs = new Map<string, { ids: [string, string]; list: GameFacts[] }>();
+  for (const game of games) {
+    const ids = [...new Set(game.seats.map((s) => s.identityCardId))].sort();
+    for (let i = 0; i < ids.length; i++)
+      for (let j = i + 1; j < ids.length; j++) {
+        const key = `${ids[i]}+${ids[j]}`;
+        const entry = pairs.get(key) ?? { ids: [ids[i]!, ids[j]!] as [string, string], list: [] };
+        entry.list.push(game);
+        pairs.set(key, entry);
+      }
+  }
+  const best = [...pairs.values()]
+    .filter((entry) => entry.list.length >= 2)
+    .sort(
+      (a, b) =>
+        tallyOf(b.list).wins / b.list.length - tallyOf(a.list).wins / a.list.length ||
+        b.list.length - a.list.length ||
+        heroName(a.ids[0]).localeCompare(heroName(b.ids[0])),
+    )[0];
+  if (!best) return [];
+  const t = tallyOf(best.list);
+  return [
+    stat(
+      "hero:pair",
+      "Best hero pair",
+      `${heroName(best.ids[0])} & ${heroName(best.ids[1])}`,
+      `${percent(t.wins, best.list.length)} won · ${record(t.wins, t.losses)}`,
+      { cardId: best.ids[0] },
+    ),
+  ];
+}
+
+/** The personal nemesis on each difficulty: the villain with the worst win rate there (3 games or more). */
+function nemesisByDifficultyOf(games: readonly GameFacts[]): StatRow[] {
+  const rows: StatRow[] = [];
+  for (const difficulty of ["standard", "expert", "extreme"] as const) {
+    const played = byPlayed(
+      groupBy(
+        games.filter((g) => g.difficulty === difficulty),
+        (g) => [g.villain],
+      ),
+      (v) => v,
+    ).filter(([, list]) => list.length >= MIN_SAMPLE);
+    if (played.length < 2) continue;
+    const [name, list] = played.sort(
+      ([, a], [, b]) => tallyOf(a).wins / a.length - tallyOf(b).wins / b.length || b.length - a.length,
+    )[0]!;
+    const t = tallyOf(list);
+    rows.push(
+      stat(
+        `villain:nemesis:${difficulty}`,
+        `Nemesis on ${DIFFICULTY_LABELS[difficulty]}`,
+        name,
+        `${percent(t.wins, list.length)} won · ${record(t.wins, t.losses)}`,
+      ),
+    );
+  }
+  return rows;
+}
+
+/** Each aspect's games and win rate; a seat counts toward each aspect it brought. */
+export interface AspectShare {
+  readonly aspect: string;
+  readonly label: string;
+  readonly games: number;
+  readonly wins: number;
+}
+
+function aspectSharesOf(games: readonly GameFacts[]): AspectShare[] {
+  const tally = new Map<string, { games: number; wins: number }>();
+  for (const game of games)
+    for (const aspect of new Set(game.seats.flatMap((seat) => seat.aspects.filter((a) => ASPECTS.has(a))))) {
+      const entry = tally.get(aspect) ?? { games: 0, wins: 0 };
+      entry.games++;
+      if (game.result === "won") entry.wins++;
+      tally.set(aspect, entry);
+    }
+  return [...tally.entries()]
+    .map(([aspect, t]) => ({ aspect, label: aspectLabel(aspect), ...t }))
+    .sort((a, b) => b.games - a.games || a.label.localeCompare(b.label));
+}
+
+function aspectsSectionOf(shares: readonly AspectShare[]): StatsSection {
+  const rows: StatRow[] = [];
+  const best = shares.filter((s) => s.games >= MIN_SAMPLE).sort((a, b) => b.wins / b.games - a.wins / a.games)[0];
+  if (shares[0]) rows.push(stat("aspect:favorite", "Most played", shares[0].label, plural(shares[0].games, "game")));
+  if (best && shares.length > 1)
+    rows.push(
+      stat(
+        "aspect:best",
+        "Best win rate",
+        best.label,
+        `${percent(best.wins, best.games)} · ${record(best.wins, best.games - best.wins)}`,
+        {
+          highlight: true,
+        },
+      ),
+    );
+  for (const share of shares)
+    rows.push(
+      stat(
+        `aspect:${share.aspect}`,
+        share.label,
+        record(share.wins, share.games - share.wins),
+        `${plural(share.games, "game")} · ${percent(share.wins, share.games)} won`,
+      ),
+    );
+  return { id: "aspects", title: "Aspects", count: plural(shares.length, "aspect"), rows };
+}
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** When you play: games a week since the first, the busiest month, the favorite day (by when each game finished). */
+function whenRowsOf(games: readonly GameFacts[]): StatRow[] {
+  const dated = games.filter((g) => g.at > 1_000_000_000_000);
+  if (dated.length === 0) return [];
+  const first = Math.min(...dated.map((g) => g.at));
+  const last = Math.max(...dated.map((g) => g.at));
+  const weeks = Math.max(1, (last - first) / WEEK_MS);
+  const days = new Map<number, number>();
+  const months = new Map<string, number>();
+  for (const game of dated) {
+    const at = new Date(game.at);
+    days.set(at.getDay(), (days.get(at.getDay()) ?? 0) + 1);
+    const month = `${at.getFullYear()}-${at.getMonth()}`;
+    months.set(month, (months.get(month) ?? 0) + 1);
+  }
+  const [day, dayN] = [...days.entries()].sort(([a, x], [b, y]) => y - x || a - b)[0]!;
+  const [month, monthN] = [...months.entries()].sort(([a, x], [b, y]) => y - x || b.localeCompare(a))[0]!;
+  const [year, monthIndex] = month.split("-").map(Number) as [number, number];
+  return [
+    stat(
+      "when:week",
+      "Games a week",
+      (dated.length / weeks).toFixed(1),
+      `Since ${MONTHS[new Date(first).getMonth()]} ${new Date(first).getFullYear()}`,
+    ),
+    stat("when:month", "Busiest month", `${MONTHS[monthIndex]} ${year}`, plural(monthN, "game")),
+    stat("when:day", "Favorite day", DAYS[day]!, plural(dayN, "game")),
+  ];
+}
+
+/** Records: the fastest and longest games, the closest win, and (from the summary) the best turns and the final blow. */
+function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection {
+  const rows: StatRow[] = [];
+  const name = (id: string): string => names.cardName(id) ?? id;
+  const wins = games.filter((g) => g.result === "won");
+  const fastest = [...wins].sort((a, b) => a.round - b.round || a.at - b.at)[0];
+  if (fastest)
+    rows.push(stat("rec:fastest", "Fastest win", `Round ${fastest.round}`, fastest.villain, { highlight: true }));
+  const longest = [...games].sort((a, b) => b.round - a.round || a.at - b.at)[0];
+  if (longest)
+    rows.push(
+      stat(
+        "rec:longest",
+        "Longest game",
+        plural(longest.round, "round"),
+        `${longest.villain} · ${longest.result === "won" ? "won" : "lost"}`,
+      ),
+    );
+  const closest = wins
+    .flatMap((g) => (g.summary?.winners ?? []).map((w) => ({ g, w })))
+    .filter(({ w }) => w.hitPoints !== null && w.hitPoints > 0)
+    .sort((a, b) => a.w.hitPoints! - b.w.hitPoints! || a.g.at - b.g.at)[0];
+  if (closest)
+    rows.push(
+      stat(
+        "rec:closest",
+        "Closest win",
+        plural(closest.w.hitPoints!, "hit point"),
+        `${name(closest.w.identityCardId)} against ${closest.g.villain}`,
+        {
+          cardId: closest.w.identityCardId,
+        },
+      ),
+    );
+  rows.push(...whenRowsOf(games));
+  const rounds = games.reduce((sum, g) => sum + g.round, 0);
+  rows.push(stat("fun:rounds", "Rounds played", rounds.toLocaleString("en-US"), plural(games.length, "game")));
+  const seats = games.flatMap((g) => g.seats.flatMap((s) => (s.summary ? [s.summary] : [])));
+  if (seats.length > 0) {
+    const damage = seats.reduce((sum, s) => sum + s.damage, 0);
+    const thwart = seats.reduce((sum, s) => sum + s.thwart, 0);
+    rows.push(stat("fun:damage", "Damage dealt", damage.toLocaleString("en-US"), "Every hero, every game"));
+    rows.push(stat("fun:thwart", "Threat removed", thwart.toLocaleString("en-US"), "Every hero, every game"));
+  }
+  return { id: "records", title: "Records", count: plural(rows.length, "record"), rows };
+}
+
+/** Modular sets: how often each was in a game, and the one you win least against (3 games or more). */
+function encounterOf(games: readonly GameFacts[], names: StatsNames): StatsSection | null {
+  const setName = (id: string): string => names.setName?.(id) ?? id;
+  const groups = byPlayed(
+    groupBy(games, (g) => g.modulars),
+    setName,
+  );
+  if (groups.length === 0) return null;
+  const rows: StatRow[] = [];
+  const [most, mostList] = groups[0]!;
+  rows.push(
+    stat("enc:modular", "Most played modular", setName(most), `Shown up in ${plural(mostList.length, "game")}`, {
+      highlight: true,
+    }),
+  );
+  const worst = groups
+    .filter(([, list]) => list.length >= MIN_SAMPLE)
+    .sort(([, a], [, b]) => tallyOf(a).wins / a.length - tallyOf(b).wins / b.length || b.length - a.length)[0];
+  if (worst && groups.length > 1) {
+    const t = tallyOf(worst[1]);
+    rows.push(
+      stat(
+        "enc:worst",
+        "Toughest modular",
+        setName(worst[0]),
+        `${percent(t.wins, worst[1].length)} won · ${record(t.wins, t.losses)}`,
+      ),
+    );
+  }
+  for (const [id, list] of groups) {
+    const t = tallyOf(list);
+    rows.push(stat(`enc:set:${id}`, setName(id), record(t.wins, t.losses), plural(list.length, "game")));
+  }
+  return { id: "encounter", title: "Encounter", count: plural(groups.length, "modular set"), rows };
+}
+
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
@@ -1076,12 +1342,23 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
       overview: overviewTilesOf(games, header, overview, null, null, null, () => undefined),
       heroCards: [],
       allCards: null,
+      aspects: [],
     };
   const heroSection = heroesOf(games, names);
   const villainSection = villainsOf(games);
   const sideSection = sideSchemesOf(games, names);
   const devices = devicesOf(games);
-  sections.push(heroSection, villainSection, sideSection, ...(devices ? [devices] : []));
+  const aspects = aspectSharesOf(games);
+  const encounter = encounterOf(games, names);
+  sections.push(
+    heroSection,
+    villainSection,
+    sideSection,
+    ...(aspects.length > 0 ? [aspectsSectionOf(aspects)] : []),
+    recordsOf(games, names),
+    ...(encounter ? [encounter] : []),
+    ...(devices ? [devices] : []),
+  );
   const heroCards: HeroCardsView[] = [];
   for (const id of heroes) {
     const cards = heroCardsOf(id, games, names);
@@ -1096,6 +1373,7 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames): Pl
     overview: overviewTilesOf(games, header, overview, heroSection, villainSection, sideSection, villainScenario),
     heroCards,
     allCards: allCardsOf(games, names),
+    aspects,
   };
 }
 

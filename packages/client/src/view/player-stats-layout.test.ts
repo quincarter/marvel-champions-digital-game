@@ -24,6 +24,7 @@ const STATS: PlayerStats = {
     groups: [{ id: "all:played", title: "Most played", cards: [{ cardId: "c", value: "2×", detail: "" }] }],
     note: null,
   },
+  aspects: [{ aspect: "justice", label: "Justice", games: 2, wins: 1 }],
 };
 
 describe("statsTabsOf", () => {
@@ -81,5 +82,33 @@ describe("dashboardRowsOf", () => {
   test("the hero index wraps both ways", () => {
     expect(heroAt(STATS, 2)?.identityCardId).toBe("x");
     expect(heroAt(STATS, -1)?.identityCardId).toBe("y");
+  });
+});
+
+describe("the merged list tabs", () => {
+  const withSections = (ids: string[]): PlayerStats => ({
+    ...STATS,
+    sections: ids.map((id) => ({
+      id,
+      title: id,
+      count: "",
+      rows: [{ kind: "stat" as const, id: `${id}:row`, label: id, value: "1", detail: "" }],
+    })),
+  });
+
+  test("Encounter holds modular sets and side schemes, Records holds records and devices, each headed", () => {
+    const stats = withSections(["overview", "encounter", "side-schemes", "records", "devices"]);
+    expect(statsTabsOf(stats).map((t) => t.id)).toEqual(["overview", "encounter", "records", "all-cards", "cards"]);
+    expect(dashboardRowsOf(stats, "encounter", 0, 1000, false).map((r) => r.id)).toEqual([
+      "encounter:head",
+      "encounter:row",
+      "side-schemes:head",
+      "side-schemes:row",
+    ]);
+  });
+
+  test("Aspects opens with the donut", () => {
+    const rows = dashboardRowsOf(withSections(["overview", "aspects"]), "aspects", 0, 1000, false);
+    expect(rows.map((r) => r.kind)).toEqual(["donut", "stat"]);
   });
 });

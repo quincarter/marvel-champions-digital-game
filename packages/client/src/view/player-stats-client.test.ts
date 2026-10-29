@@ -8,6 +8,7 @@ const ANSWER: PlayerStats = {
   overview: { tiles: [], note: null },
   heroCards: [],
   allCards: null,
+  aspects: [],
 };
 
 function fakeWorker(reply: "answer" | "error"): StatsWorkerLike & { terminated: boolean } {

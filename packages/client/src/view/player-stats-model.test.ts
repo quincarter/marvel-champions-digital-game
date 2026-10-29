@@ -381,3 +381,93 @@ describe("playerStatsOf: the Cards tab, every hero together", () => {
     expect(playerStatsOf([meta()], NAMES).allCards).toBeNull();
   });
 });
+
+describe("playerStatsOf: Bluefiref5ran's categories from what the saves hold", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  // A Monday in October 2026, then days after it.
+  const MONDAY = Date.UTC(2026, 9, 5, 12);
+  const at = (days: number): number => MONDAY + days * DAY;
+  const two = (extra: Partial<SessionConfig> = {}): SessionConfig => ({
+    ...CONFIG,
+    players: [{ starterDeckId: "spidey-justice" }, { identityCardId: "cap", aspects: ["aggression"] } as never],
+    ...extra,
+  });
+
+  test("the best hero pair, by win rate over 2 games or more", () => {
+    const stats = playerStatsOf(
+      [meta({ config: two() }), meta({ config: two() }), loss("schemeCompleted", { config: two(), summary: undefined })],
+      NAMES,
+    );
+    expect(row(section(stats.sections, "heroes"), "hero:pair")).toMatchObject({
+      value: "Captain America & Spider-Man",
+      detail: "67% won · 2–1",
+    });
+  });
+
+  test("the personal nemesis on each difficulty, among villains with 3 games or more there", () => {
+    const expert = (scenarioId: string): Partial<SaveMeta> => ({
+      config: { ...CONFIG, scenarioId, difficulty: "expert" },
+    });
+    const stats = playerStatsOf(
+      [
+        ...[0, 1, 2].map(() => meta(expert("rhino"))),
+        ...[0, 1, 2].map(() => loss("schemeCompleted", { ...expert("klaw"), summary: undefined })),
+      ],
+      NAMES,
+    );
+    const villains = section(stats.sections, "villains");
+    expect(row(villains, "villain:nemesis:expert")).toMatchObject({ label: "Nemesis on Expert", value: "Klaw" });
+    expect(villains.rows.some((r) => r.id === "villain:nemesis:standard")).toBe(false);
+  });
+
+  test("aspects: each one's games and win rate, for the donut and the rows", () => {
+    const stats = playerStatsOf([meta({ config: two() }), loss("schemeCompleted")], NAMES);
+    expect(stats.aspects).toEqual([
+      { aspect: "justice", label: "Justice", games: 2, wins: 1 },
+      { aspect: "aggression", label: "Aggression", games: 1, wins: 1 },
+    ]);
+    expect(row(section(stats.sections, "aspects"), "aspect:justice").value).toBe("1–1");
+  });
+
+  test("records: fastest and longest games, the closest win, when you play, and totals", () => {
+    const stats = playerStatsOf(
+      [
+        meta({
+          round: 4,
+          updatedAt: at(0),
+          summary: summary({ winners: [{ identityCardId: "spidey", hitPoints: 2, inHeroForm: true }] }),
+        }),
+        meta({ round: 9, updatedAt: at(7), summary: summary() }),
+        loss("playersDefeated", { round: 12, updatedAt: at(14) }),
+      ],
+      NAMES,
+    );
+    const records = section(stats.sections, "records");
+    expect(row(records, "rec:fastest").value).toBe("Round 4");
+    expect(row(records, "rec:longest")).toMatchObject({ value: "12 rounds", detail: "Rhino · lost" });
+    expect(row(records, "rec:closest")).toMatchObject({ value: "2 hit points", cardId: "spidey" });
+    expect(row(records, "when:day").value).toBe("Monday");
+    expect(row(records, "when:week").value).toBe("1.5");
+    expect(row(records, "fun:rounds").value).toBe("25");
+  });
+
+  test("modular sets: from the game, else the scenario's own, and the one you win least against", () => {
+    const names: StatsNames = {
+      ...NAMES,
+      scenarioModulars: () => ["bomb"],
+      setName: (id) => ({ bomb: "Bomb Scare", hydra: "Hydra Patrol" })[id],
+    };
+    const stats = playerStatsOf(
+      [
+        meta(),
+        meta(),
+        meta(),
+        ...[0, 1, 2].map(() => loss("schemeCompleted", { config: { ...CONFIG, modularSetIds: ["hydra"] } })),
+      ],
+      names,
+    );
+    const encounter = section(stats.sections, "encounter");
+    expect(row(encounter, "enc:worst").value).toBe("Hydra Patrol");
+    expect(row(encounter, "enc:set:bomb")).toMatchObject({ value: "3–0", detail: "3 games" });
+  });
+});
