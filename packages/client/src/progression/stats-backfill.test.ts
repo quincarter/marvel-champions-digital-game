@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { SAVE_SCHEMA, type SaveMeta } from "../engine/game-storage.js";
-import { backfillProgress, onBackfillProgress, runStatsBackfill, type BackfillProgress } from "./stats-backfill.js";
+import {
+  BACKFILL_SKIP_KEY,
+  backfillProgress,
+  onBackfillProgress,
+  runStatsBackfill,
+  type BackfillProgress,
+} from "./stats-backfill.js";
 
 const meta = (id: string, overrides: Partial<SaveMeta> = {}): SaveMeta => ({
   id,
@@ -46,5 +52,46 @@ describe("runStatsBackfill", () => {
     await runStatsBackfill({ listSaves: async () => [], backfillSummaries: async () => 0 });
     off();
     expect(seen).toEqual([]);
+  });
+});
+
+describe("runStatsBackfill: games it cannot fill in, and a game started meanwhile", () => {
+  class MapStorage {
+    readonly map = new Map<string, string>();
+    getItem = (key: string) => this.map.get(key) ?? null;
+    setItem = (key: string, value: string) => void this.map.set(key, value);
+  }
+
+  test("a game that did not fill in is not asked about again on this build", async () => {
+    const storage = new MapStorage();
+    const asked: string[] = [];
+    const store = {
+      listSaves: async () => [meta("a"), meta("b")],
+      backfillSummaries: async (ids?: readonly string[]) => {
+        asked.push(ids![0]!);
+        return ids![0] === "a" ? 0 : 1;
+      },
+    };
+    await runStatsBackfill(store, storage);
+    await runStatsBackfill(store, storage);
+    expect(asked).toEqual(["a", "b", "b"]);
+  });
+
+  test("a game being played stops the run, and nothing is remembered as failed", async () => {
+    const storage = new MapStorage();
+    const asked: string[] = [];
+    await runStatsBackfill(
+      {
+        listSaves: async () => [meta("a"), meta("b")],
+        backfillSummaries: async (ids) => {
+          asked.push(ids![0]!);
+          return -1;
+        },
+      },
+      storage,
+    );
+    expect(asked).toEqual(["a"]);
+    expect(backfillProgress()).toMatchObject({ running: false, done: 0 });
+    expect(JSON.parse(storage.map.get(BACKFILL_SKIP_KEY)!).ids).toEqual([]);
   });
 });

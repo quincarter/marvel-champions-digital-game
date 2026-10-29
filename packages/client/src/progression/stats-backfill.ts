@@ -7,7 +7,8 @@
  * asked about again on the next.
  */
 import type { SaveMeta } from "../engine/game-storage.js";
-import { needsBackfill } from "../engine/summary-backfill.js";
+import { BACKFILL_BUSY, needsBackfill } from "../engine/summary-backfill.js";
+import { buildCommit } from "../view/app-version.js";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import { CLIENT_VERSION } from "../version.js";
 
@@ -36,6 +37,43 @@ function set(next: BackfillProgress): void {
   for (const listener of [...listeners]) listener(next);
 }
 
+/**
+ * Games this build could not fill in (their logs no longer replay to the same ending), so a launch does not replay them
+ * again. Kept per build: a new build may read them. Not an `mc-` key, so it stays on this device (sync sends only those).
+ */
+export const BACKFILL_SKIP_KEY = "stats-backfill-skipped";
+
+type SkipStorage = Pick<Storage, "getItem" | "setItem">;
+
+const browserStorage = (): SkipStorage | null => {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+};
+
+const buildKey = (): string => `${CLIENT_VERSION}+${buildCommit() ?? ""}`;
+
+function skippedOf(storage: SkipStorage | null): Set<string> {
+  try {
+    const raw = storage?.getItem(BACKFILL_SKIP_KEY);
+    const parsed = raw ? (JSON.parse(raw) as { build?: unknown; ids?: unknown }) : null;
+    if (!parsed || parsed.build !== buildKey() || !Array.isArray(parsed.ids)) return new Set();
+    return new Set(parsed.ids.filter((id): id is string => typeof id === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberSkipped(storage: SkipStorage | null, ids: ReadonlySet<string>): void {
+  try {
+    storage?.setItem(BACKFILL_SKIP_KEY, JSON.stringify({ build: buildKey(), ids: [...ids] }));
+  } catch {
+    // Private mode or a full quota: they are tried again next launch.
+  }
+}
+
 /** The part of the session store the backfill uses, so a test can stand in for it. */
 export interface BackfillStore {
   listSaves(): Promise<readonly SaveMeta[]>;
@@ -43,19 +81,30 @@ export interface BackfillStore {
 }
 
 /** Fills in every finished game that needs it, one at a time; resolves when done. Does nothing while one runs. */
-export async function runStatsBackfill(store: BackfillStore): Promise<void> {
+export async function runStatsBackfill(
+  store: BackfillStore,
+  storage: SkipStorage | null = browserStorage(),
+): Promise<void> {
   if (progress.running) return;
   // Only the app version decides whether this build may replay a game (`needsBackfill`).
   const writer = { appVersion: CLIENT_VERSION, contentVersion: "", build: "" };
-  const ids = (await store.listSaves()).filter((meta) => needsBackfill(meta, writer)).map((meta) => meta.id);
+  const skipped = skippedOf(storage);
+  const ids = (await store.listSaves())
+    .filter((meta) => needsBackfill(meta, writer) && !skipped.has(meta.id))
+    .map((meta) => meta.id);
   if (ids.length === 0) return;
   let written = 0;
   set({ running: true, done: 0, total: ids.length, written });
   for (const [index, id] of ids.entries()) {
-    written += await store.backfillSummaries([id]);
+    const result = await store.backfillSummaries([id]);
+    // A game started meanwhile: stop here, and pick up the rest next launch.
+    if (result === BACKFILL_BUSY) break;
+    if (result > 0) written += result;
+    else skipped.add(id);
     set({ running: true, done: index + 1, total: ids.length, written });
   }
-  set({ running: false, done: ids.length, total: ids.length, written });
+  rememberSkipped(storage, skipped);
+  set({ running: false, done: progress.done, total: ids.length, written });
   // The writes happened in the engine worker; sync listens here.
   if (written > 0) notifySaveDataChanged("game");
 }

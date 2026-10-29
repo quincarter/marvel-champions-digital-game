@@ -58,7 +58,10 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
-import { backfillSummaries } from "./summary-backfill.js";
+import { BACKFILL_BUSY, backfillSummaries } from "./summary-backfill.js";
+
+/** Commands a backfill replay runs between yields. */
+const BACKFILL_YIELD_EVERY = 40;
 import {
   isCurrentSchema,
   isNewerSchema,
@@ -633,15 +636,18 @@ export class EngineSessionCore {
    */
   async backfillSummaries(ids?: readonly string[]): Promise<number> {
     const storage = this.#storage;
-    if (!storage) return 0;
+    // A game being played comes first: the backfill waits for a quiet moment (the next launch).
+    if (!storage || this.#session) return BACKFILL_BUSY;
     return backfillSummaries(
       storage,
       this.#writer,
-      (stored) => {
+      async (stored) => {
         const baseline = rebuildBaseline(stored.meta.config, stored.initialState);
         let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, POOL_DEPS);
         let state = baseline.initialState;
-        for (const command of stored.commands) {
+        for (const [index, command] of stored.commands.entries()) {
+          // A long log yields now and then, so a game started meanwhile is answered between steps.
+          if (index > 0 && index % BACKFILL_YIELD_EVERY === 0) await new Promise((resolve) => setTimeout(resolve, 0));
           const result = applyCommand(state, command, POOL_DEPS);
           if (!result.ok) return null;
           state = result.state;

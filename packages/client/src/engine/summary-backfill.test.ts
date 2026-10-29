@@ -3,7 +3,7 @@ import type { GameState } from "@mc/engine";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { MemoryGameStorage, SAVE_SCHEMA, type SaveMeta } from "./game-storage.js";
-import { needsBackfill } from "./summary-backfill.js";
+import { backfillSummaries, filledSummary, needsBackfill } from "./summary-backfill.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -98,5 +98,69 @@ describe("needsBackfill", () => {
     ).toBe(false);
     expect(needsBackfill(meta({ schema: SAVE_SCHEMA - 1 }), WRITER)).toBe(false);
     expect(needsBackfill(meta({ lastPlayedOn: { appVersion: "9.0.0" } }), WRITER)).toBe(false);
+  });
+});
+
+describe("backfillSummaries: what it never writes", () => {
+  const WIN = { result: "win", reason: "villainDefeated" } as const;
+  const base = (overrides: Partial<SaveMeta> = {}): SaveMeta => ({
+    id: "g",
+    schema: SAVE_SCHEMA,
+    config: RHINO_SOLO,
+    createdAt: 1,
+    updatedAt: 10,
+    status: "won",
+    round: 5,
+    commandCount: 0,
+    outcome: WIN,
+    campaignId: null,
+    campaignNodeId: null,
+    summary: { lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 2 },
+    ...overrides,
+  });
+  const replayed = { lossReason: null, heroesDefeated: 1, winners: [], alliesPlayed: 0, seats: [] };
+  const ending = (round: number, outcome: GameState["outcome"]) => ({ round, outcome }) as unknown as GameState;
+
+  async function run(
+    meta: SaveMeta,
+    replay: Parameters<typeof backfillSummaries>[2],
+  ): Promise<{ written: number; row: SaveMeta }> {
+    const storage = new MemoryGameStorage();
+    await storage.create(meta, {} as never);
+    const written = await backfillSummaries(storage, WRITER, replay, async () => undefined);
+    return { written, row: (await storage.list())[0]! };
+  }
+
+  test("a replay that fails, throws or ends another way is skipped and the row is untouched", async () => {
+    for (const replay of [
+      async () => null,
+      async () => {
+        throw new Error("no longer replays");
+      },
+      async () => ({ state: ending(5, { result: "loss", reason: "mainSchemeCompleted" }), summary: replayed }),
+      async () => ({ state: ending(4, WIN), summary: replayed }),
+      async () => ({ state: ending(5, { result: "win", reason: "otherReason" } as never), summary: replayed }),
+    ] as Parameters<typeof backfillSummaries>[2][]) {
+      const { written, row } = await run(base(), replay);
+      expect(written).toBe(0);
+      expect(row.updatedAt).toBe(10);
+      expect(row.summary?.seats).toBeUndefined();
+    }
+  });
+
+  test("a log shorter than the save says is skipped", async () => {
+    const { written } = await run(base({ commandCount: 3 }), async () => ({
+      state: ending(5, WIN),
+      summary: replayed,
+    }));
+    expect(written).toBe(0);
+  });
+
+  test("a matching replay adds only what the live summary lacked", async () => {
+    const { written, row } = await run(base(), async () => ({ state: ending(5, WIN), summary: replayed }));
+    expect(written).toBe(1);
+    // The live numbers stand (an achievement may have read them); the card numbers come from the replay.
+    expect(row.summary).toEqual({ lossReason: null, heroesDefeated: 0, winners: [], alliesPlayed: 2, seats: [] });
+    expect(filledSummary(undefined, replayed)).toBe(replayed);
   });
 });

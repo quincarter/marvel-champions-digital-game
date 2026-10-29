@@ -63,6 +63,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
   [SCENES.controls]: () => import("./controls.js").then((m) => m.ControlsOverlay),
   [SCENES.padToast]: () => import("./pad-toast.js").then((m) => m.PadToastScene),
+  [SCENES.backfillToast]: () => import("./backfill-toast.js").then((m) => m.BackfillToastScene),
   [SCENES.saveData]: () => import("./save-data.js").then((m) => m.SaveDataOverlay),
   [SCENES.syncData]: () => import("./sync-data.js").then((m) => m.SyncDataOverlay),
   [SCENES.syncConflict]: () => import("./sync-conflict.js").then((m) => m.SyncConflictOverlay),

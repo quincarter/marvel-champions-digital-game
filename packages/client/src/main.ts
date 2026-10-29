@@ -22,6 +22,7 @@ import { installLazyText } from "./ui/lazy-text.js";
 import { installColorScheme } from "./ui/color-scheme-phaser.js";
 import { appSession } from "./session.js";
 import { runStatsBackfill } from "./progression/stats-backfill.js";
+import { startBackfillToastWatch } from "./scenes/backfill-toast-watch.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
@@ -174,7 +175,11 @@ const preloadAfterTitle = (): void => {
       startIdlePreload(sceneLoader);
       // Games finished before the save summary kept card numbers get them filled in, once, in the engine worker
       // (`engine/summary-backfill.ts`, #529); Your stats shows how far it has got (`progression/stats-backfill.ts`).
-      setTimeout(() => void runStatsBackfill(appSession().store).catch(() => undefined), BACKFILL_DELAY_MS);
+      // Only with the engine worker: the in-thread fallback would replay on the main thread.
+      if (typeof Worker !== "undefined") {
+        startBackfillToastWatch(game);
+        setTimeout(() => void runStatsBackfill(appSession().store).catch(() => undefined), BACKFILL_DELAY_MS);
+      }
     });
   });
 };

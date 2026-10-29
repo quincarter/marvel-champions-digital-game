@@ -24,6 +24,9 @@ import {
 } from "./game-storage.js";
 import type { GameSummary } from "./game-summary.js";
 
+/** What `backfillSummaries` answers instead of a count while a game is being played: try again later. */
+export const BACKFILL_BUSY = -1;
+
 /** Whether a saved game needs its card numbers filled in. */
 export function needsBackfill(meta: SaveMeta, writer: WriterStamp): boolean {
   if (meta.status !== "won" && meta.status !== "lost") return false;
@@ -35,7 +38,26 @@ export function needsBackfill(meta: SaveMeta, writer: WriterStamp): boolean {
 }
 
 /** Replays a stored game to its end and summarizes it, or null when it does not replay or does not finish. */
-export type ReplaySummary = (stored: StoredGame) => { readonly state: GameState; readonly summary: GameSummary } | null;
+export type ReplaySummary = (
+  stored: StoredGame,
+) => Promise<{ readonly state: GameState; readonly summary: GameSummary } | null>;
+
+/** Why a replay is not this game's story: it must end the way the save says, in the same round, for the same reason. */
+function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boolean {
+  if ((state.outcome?.result === "win") !== (meta.status === "won")) return false;
+  if (state.round !== meta.round) return false;
+  if (meta.outcome && state.outcome?.reason !== meta.outcome.reason) return false;
+  return meta.summary ? summary.lossReason === meta.summary.lossReason : true;
+}
+
+/**
+ * The summary to write: the one the game recorded live, with only the fields it lacks taken from the replay (the
+ * per-seat card numbers, the villains, the side schemes), so nothing an achievement already read changes. A save with
+ * no summary at all takes the replay's whole.
+ */
+export function filledSummary(live: GameSummary | null | undefined, replayed: GameSummary): GameSummary {
+  return live ? { ...replayed, ...live, ...(live.seats === undefined ? { seats: replayed.seats } : {}) } : replayed;
+}
 
 /**
  * Fills in every finished game that needs it; returns how many were written. `pause` yields between games (the
@@ -58,16 +80,14 @@ export async function backfillSummaries(
     await pause();
     const stored = await storage.load(meta.id);
     if (!stored || stored.commands.length !== meta.commandCount) continue;
-    let result: ReturnType<ReplaySummary>;
+    let result: Awaited<ReturnType<ReplaySummary>>;
     try {
-      result = replay(stored);
+      result = await replay(stored);
     } catch {
       result = null;
     }
-    // The replay must end where the save says it did: the same result, or it is not this game's story.
-    const won = result?.state.outcome?.result === "win";
-    if (!result || won !== (meta.status === "won")) continue;
-    await storage.setSummary(meta.id, result.summary, meta.updatedAt + 1);
+    if (!result || !sameEnding(meta, result.state, result.summary)) continue;
+    await storage.setSummary(meta.id, filledSummary(meta.summary, result.summary), meta.updatedAt + 1);
     written++;
   }
   return written;
