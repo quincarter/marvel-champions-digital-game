@@ -126,6 +126,16 @@ const triggerSpecs =
     return glyph ? [glyph] : null;
   };
 
+interface StatsChip {
+  key: string;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  glyph?: CustomSpecs | null;
+  /** A fixed width, in place of the label's own. */
+  width?: number;
+}
+
 export class PlayerStatsScene extends Phaser.Scene {
   #data: PlayerStatsData = {};
   #buttons: McButton[] = [];
@@ -346,15 +356,7 @@ export class PlayerStatsScene extends Phaser.Scene {
    * The filter chips (Bluefiref5ran's "all / per hero / per villain / per difficulty"): each steps through what your
    * games hold, from All, and Clear puts every one back. A change folds the games again with the new filter.
    */
-  #drawFilters(
-    stats: PlayerStats,
-    top: number,
-    left: number,
-    width: number,
-    stops: Map<string, FocusStop>,
-    order: string[],
-    phone: boolean,
-  ): number {
+  #filterChips(stats: PlayerStats, phone: boolean): readonly StatsChip[] {
     const { heroes, villains, difficulties } = stats.filterOptions;
     const filter = stats.filter;
     const step = <T>(options: readonly T[], current: T | undefined): T | undefined => {
@@ -406,7 +408,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         ? [{ key: "filter:clear", label: "✕ Clear", selected: false, onClick: () => apply({}, "filter:hero") }]
         : []),
     ];
-    if (heroes.length <= 1 && villains.length <= 1 && !set) return top - 10;
+    if (heroes.length <= 1 && villains.length <= 1 && !set) return [];
     if (phone) {
       const count = [filter.hero, filter.villain, filter.difficulty].filter((v) => v !== undefined).length;
       const toggle = {
@@ -419,24 +421,16 @@ export class PlayerStatsScene extends Phaser.Scene {
           this.#route?.focusKey("filter:toggle");
         },
       };
-      return this.#drawChips(top, left, width, filtersOpen ? [toggle, ...chips] : [toggle], stops, order, phone);
+      return filtersOpen ? [toggle, ...chips] : [toggle];
     }
-    return this.#drawChips(top, left, width, chips, stops, order, phone);
+    return chips;
   }
 
   #drawChips(
     top: number,
     left: number,
     width: number,
-    chips: readonly {
-      key: string;
-      label: string;
-      selected: boolean;
-      onClick: () => void;
-      glyph?: CustomSpecs | null;
-      /** A fixed width, in place of the label's own. */
-      width?: number;
-    }[],
+    chips: readonly StatsChip[],
     stops: Map<string, FocusStop>,
     order: string[],
     phone: boolean,
@@ -519,28 +513,32 @@ export class PlayerStatsScene extends Phaser.Scene {
     const at = tabs.findIndex((t) => t.id === lastTab);
     const inner = width - gutter * 2;
     // LB on the tab before this one and RB on the tab after it: the glyphs say where the bumpers go.
+    // On a phone the Filters chip follows the tabs in their own rows, so it takes no row of its own.
+    const filters = this.#filterChips(stats, phone);
     let y = this.#drawChips(
       bar.height + 12,
       gutter,
       inner,
-      tabs.map((tab, index) => ({
-        key: `tab:${tab.id}`,
-        label: tab.label,
-        selected: tab.id === lastTab,
-        onClick: () => this.#setTab(tab.id),
-        glyph:
-          tabs.length > 1 && index === (at - 1 + tabs.length) % tabs.length
-            ? shortcutSpecs("zonePrevious")
-            : tabs.length > 1 && index === (at + 1) % tabs.length
-              ? shortcutSpecs("zoneNext")
-              : null,
-      })),
+      [
+        ...tabs.map((tab, index) => ({
+          key: `tab:${tab.id}`,
+          label: tab.label,
+          selected: tab.id === lastTab,
+          onClick: () => this.#setTab(tab.id),
+          glyph:
+            tabs.length > 1 && index === (at - 1 + tabs.length) % tabs.length
+              ? shortcutSpecs("zonePrevious")
+              : tabs.length > 1 && index === (at + 1) % tabs.length
+                ? shortcutSpecs("zoneNext")
+                : null,
+        })),
+        ...(phone ? filters : []),
+      ],
       stops,
       order,
       phone,
     );
-
-    y = this.#drawFilters(stats, y + 10, gutter, inner, stops, order, phone);
+    if (!phone && filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
 
     if (lastTab === "cards") {
       // One row however many heroes: the previous hero, this one, the next (LT / RT step them too).
