@@ -171,7 +171,7 @@ import type { VillainPhaseOverlay } from "./villain-phase.js";
 import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { reportSlots } from "../ui/report-slot.js";
-import { chromeBarBottom } from "../view/report-button.js";
+import { chromeBarBottom, topClearOfBar } from "../view/report-button.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import {
   HoverPreview,
@@ -1810,9 +1810,6 @@ export class ChoiceOverlay extends Phaser.Scene {
     const panelsFrom = this.children.list.length;
 
     const margin = phone ? 8 : 24;
-    // Clear of the top bar the chrome buttons stay on (#514), as the generic sheet is.
-    const top = this.#chromeBarBottom();
-    const room = areaHeight - top;
     const sheetWidth = Math.min(areaWidth - margin * 2, 1040);
     const pad = 12;
     const innerWidth = sheetWidth - pad * 2;
@@ -1824,7 +1821,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const COMMIT = hit.primary;
     const fixed = BAR + pad + HINT + 6 + LEGEND + 6 + CHIPS + 4 + SUMMARY + 8 + COMMIT + pad;
     const wantedGrid = evidenceGridWantedHeight(innerWidth);
-    const gridHeight = Math.max(innerWidth < 600 ? 394 : 126, Math.min(wantedGrid, room - margin * 2 - fixed));
+    const minGrid = innerWidth < 600 ? 394 : 126;
+    // Clear of the top bar the chrome buttons stay on (#514), as the generic sheet is, but only as far as the grid's
+    // least height still leaves ACCUSE on screen: this sheet does not scroll, so a short phone keeps the old top.
+    const top = topClearOfBar(this.#chromeBarBottom(), areaHeight, margin * 2 + fixed + minGrid);
+    const room = areaHeight - top;
+    const gridHeight = Math.max(minGrid, Math.min(wantedGrid, room - margin * 2 - fixed));
     const sheetHeight = Math.min(room - margin * 2, fixed + gridHeight);
     const sheet: Rect = {
       x: areaX + (areaWidth - sheetWidth) / 2,

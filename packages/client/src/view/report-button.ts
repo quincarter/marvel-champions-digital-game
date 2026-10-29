@@ -63,3 +63,11 @@ export function chromeBarBottom(running: readonly RunningScene[], slots: Readonl
   const slot = reportButtonSlot(running, slots);
   return slot ? slot.rect.y + slot.rect.height + BAR_PADDING : 0;
 }
+
+/**
+ * Where a sheet that cannot scroll starts in `height` px: below the bar (`barBottom`), but only as far down as still
+ * leaves `needed` px for it. On a short phone it keeps the old top rather than push its own controls off screen.
+ */
+export function topClearOfBar(barBottom: number, height: number, needed: number): number {
+  return Math.min(barBottom, Math.max(0, height - needed));
+}
