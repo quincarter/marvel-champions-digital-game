@@ -107,4 +107,15 @@ describe("targetingLayout", () => {
     expect(crowded.artHeight).toBe(0);
     expect(roomy.titleBar.height).toBeGreaterThanOrEqual(60);
   });
+
+  test("starts below the table's top bar, where the chrome buttons stay drawn (#515)", () => {
+    for (const { name, width, height } of SIZES) {
+      const flush = targetingLayout({ x: 0, y: 0, width, height }, 3);
+      const below = targetingLayout({ x: 0, y: 0, width, height }, 3, undefined, 36);
+      expect(below.formFactor, name).toBe(flush.formFactor);
+      expect(below.titleBar.y, name).toBe(36);
+      expect(below.targets.y, name).toBeGreaterThan(flush.targets.y);
+      expect(below.targets.y + below.targets.height, name).toBeLessThanOrEqual(height);
+    }
+  });
 });
