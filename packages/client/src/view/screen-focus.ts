@@ -121,7 +121,14 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     ? []
     : input.community
       ? [...(input.wide ? [] : ["stats-preview"]), "stats-copy-link", "stats-open-link", "stats-check", "stats-add"]
-      : ["stats-check", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-duplicate", "stats-play"];
+      : [
+          "stats-check",
+          ...(input.editable ? ["stats-edit", "stats-delete"] : []),
+          // "Open in Your stats" in How this deck plays: the route drops it while the deck has no finished games.
+          "stats-your-stats",
+          "stats-duplicate",
+          "stats-play",
+        ];
   // "Your stats" sits on the header bar beside Back.
   if (input.wide) return ["back", "player-stats", ...listGroup, ...poolGroup, ...statsGroup];
   const tabs = ["tab:decks", "tab:cards", "tab:stats"];
@@ -148,6 +155,8 @@ export interface DeckBuilderFocusInput {
   readonly showPreconClear?: boolean;
   /** Campaign deck-edit mode's rewards strip: one stop per reward's in/out toggle, by the id the scene registers it under. */
   readonly rewardIds?: readonly string[];
+  /** The deck rail's Your deck / From your games tabs and the From your games rows' Cut and Add, in the order drawn. */
+  readonly railIds?: readonly string[];
   /** Before an identity is chosen: stops drawn ahead of the hero rows (the hero search, a "Start from" step's choices). */
   readonly identityExtraIds?: readonly string[];
   /** A deck already saved can be deleted from the builder: its Delete button follows Clear. */
@@ -182,6 +191,7 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     ...(input.showDelete ? ["delete"] : []),
     ...(input.rewardIds ?? []).map((id) => `reward:${id}`),
+    ...(input.railIds ?? []),
     "save",
     "filter-text",
     ...(input.filterExtraIds ?? []),

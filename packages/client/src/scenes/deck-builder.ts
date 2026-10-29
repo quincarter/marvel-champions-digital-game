@@ -118,6 +118,11 @@ import {
   paintPanel,
 } from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
+import { cardArt, drawArt } from "../art/card-art.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
+import { loadDeckInsights } from "../view/player-stats-client.js";
+import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { noteDeckFeat } from "../progression/deck-feats.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
@@ -311,6 +316,16 @@ export class DeckBuilderScene extends Phaser.Scene {
   #yourDeckScroll = new VariableListScroll();
   /** The desktop hover popover over the pool rows, the identity picker and the "Your deck" lines. */
   #hover: HoverPreview | null = null;
+  /**
+   * What the player's finished games say about this hero's cards (`view/deck-insights.ts`, issue #529 C2), folded in
+   * the stats worker when the screen opens; null until it answers.
+   */
+  #insights: DeckInsights | null = null;
+  /** Which of the deck rail's two tabs shows: the deck list, or "From your games" (LB / RB). Not in campaign mode. */
+  #railTab: "deck" | "games" = "deck";
+  /** The rail tabs' and the From your games rows' stops, in the order drawn, for the focus route. */
+  #railStops: string[] = [];
+  #hints: GlyphHints | null = null;
   /** Each scrolling list's on-screen card rects, computed on demand from its scroll (a scroll draws nothing). */
   #hoverLists: (() => readonly (readonly [string, HoverCardIdRect])[])[] = [];
   /** The "Your deck" lines as drawn at zero scroll, and the scroll region (if any) that moves them. */
@@ -373,9 +388,27 @@ export class DeckBuilderScene extends Phaser.Scene {
         });
     }
     this.#deckScroll = new VariableListScroll();
+    this.#insights = null;
+    this.#railTab = "deck";
+    this.#hints = new GlyphHints(this);
+    if (!this.#campaign) {
+      void appSession()
+        .store.listSaves()
+        .then((saves) => loadDeckInsights(saves))
+        .then((insights) => {
+          if (!this.scene.isActive()) return;
+          this.#insights = insights;
+          if (this.#railTab === "games") this.#rebuild();
+        })
+        .catch(() => undefined);
+    }
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
+    // From your games draws card scans; they arrive after its first draw (in batches, `art/card-art.ts`).
+    const offArt = cardArt(this).onArrived(() => {
+      if (this.#railTab === "games" && this.scene.isActive()) this.#rebuild();
+    });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
@@ -383,8 +416,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      offArt();
       this.#hover?.destroy();
       this.#hover = null;
+      this.#hints?.dispose();
+      this.#hints = null;
       this.#nameInput?.destroy();
       this.#nameInput = null;
       this.#filterInput?.destroy();
@@ -414,6 +450,11 @@ export class DeckBuilderScene extends Phaser.Scene {
         (this.#filterInput?.focused ?? false) ||
         (this.#identityInput?.focused ?? false),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      // LB / RB: the deck rail's two tabs, Your deck and From your games.
+      onTab: (direction) => {
+        if (this.#campaign || !this.#identity) return;
+        this.#setRailTab(direction > 0 ? "games" : "deck");
+      },
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
@@ -441,6 +482,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#hoverLists = [];
     this.#deckLines = [];
     this.#yourDeckRect = null;
+    this.#railStops = [];
+    this.#hints?.reset();
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -577,6 +620,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
         showDelete: !this.#campaign && this.#savedDeck !== null,
+        railIds: this.#railStops,
         filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "pool-view"],
         rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
       }),
@@ -692,7 +736,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     y = this.#drawLegalityLine(left, y, inner, deck);
     y = this.#drawRewardsStrip(left, y, inner, false);
     y = this.#drawCostCurve(left, y, inner, deck, false);
-    y = this.#drawYourDeckList(left, y, inner, deck, false);
+    if (!this.#campaign) y = this.#drawRailTabs(left, y, inner, false);
+    y =
+      this.#railTab === "games" && !this.#campaign
+        ? this.#drawFromYourGames(left, y, inner, deck, false)
+        : this.#drawYourDeckList(left, y, inner, deck, false);
     y = this.#drawPreconClearSave(left, y, inner, deck);
     const nameNode = this.#nameInput?.gameObject;
     const added = this.children.list.slice(before).filter((node) => node !== nameNode);
@@ -779,7 +827,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     rightY = this.#drawRewardsStrip(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, true);
     rightY += 4;
     const actionsTop = bottom - hit.target * 2 - 24;
-    rightY = this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8 - rightY);
+    if (!this.#campaign) rightY = this.#drawRailTabs(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, true);
+    rightY =
+      this.#railTab === "games" && !this.#campaign
+        ? this.#drawFromYourGames(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8)
+        : this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8 - rightY);
     this.#drawPreconClearSave(rightX + 12, actionsTop, RIGHT_RAIL_WIDTH - 24, deck, true);
 
     // Middle: the pool, search field above it.
@@ -1206,6 +1258,163 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /** "Your deck", grouped Hero / aspect / Basic with a "+ N more" overflow (D04's right rail; the narrow layout's own stats panel). */
+  #setRailTab(tab: "deck" | "games"): void {
+    if (this.#railTab === tab) return;
+    this.#railTab = tab;
+    this.#rebuild();
+    this.#route?.focusKey(`rail:${tab}`);
+  }
+
+  /** The deck rail's two tabs: Your deck (LB) and From your games (RB). Returns where they end. */
+  #drawRailTabs(left: number, top: number, column: number, onDark: boolean): number {
+    const gap = 6;
+    const width = (column - gap) / 2;
+    const tabs = [
+      { id: "deck" as const, label: "Your deck", glyph: "zonePrevious" as const },
+      { id: "games" as const, label: "From your games", glyph: "zoneNext" as const },
+    ];
+    tabs.forEach((tab, index) => {
+      const rect: Rect = { x: left + index * (width + gap), y: top, width, height: hit.target };
+      const selected = this.#railTab === tab.id;
+      const open = (): void => this.#setRailTab(tab.id);
+      const button = new McButton(this, {
+        kind: selected ? "primary" : onDark ? "onInk" : "secondary",
+        label: tab.label,
+        type: typeRole.label,
+        rect,
+        onClick: open,
+      });
+      this.#buttons.push(button);
+      // The bumper that reaches the other tab, on the tab it reaches.
+      if (!selected) this.#hints?.button(button, [tab.glyph], onDark ? "ink" : "paper");
+      this.#stops.set(`rail:${tab.id}`, { rect, activate: open });
+      this.#railStops.push(`rail:${tab.id}`);
+    });
+    return top + hit.target + 10;
+  }
+
+  /**
+   * "From your games" (issue #529, C2): how this hero's finished games go, cards in this deck that rarely come out
+   * (Cut), cards won with on this hero that the deck may take (Add), and the staples. Suggestions only: a press on Cut
+   * or Add is the same as the deck list's − or the pool's +. Drawn down to `bottom` when given (the wide rail).
+   */
+  #drawFromYourGames(
+    left: number,
+    top: number,
+    column: number,
+    deck: Deck,
+    onDark: boolean,
+    bottom = Number.POSITIVE_INFINITY,
+  ): number {
+    const fg = onDark ? surface.paper.hex : surface.ink.hex;
+    let y = top;
+    if (!this.#insights) {
+      label(this, left, y, "Reading your games…", typeRole.label, fg, ink.meta);
+      return y + 24;
+    }
+    const pool = new Set(this.#browsablePool(deck).map((card) => card.id as string));
+    const view = fromYourGamesOf(
+      this.#insights,
+      deck.identityCardId as string,
+      deck.cards.map((line) => line.cardId as string),
+      deck.aspects,
+      POOL_STATS_NAMES,
+    );
+    if (view.headline) {
+      label(this, left, y, view.headline.toUpperCase(), typeRole.label, onDark ? signal.caution.hex : fg, 1);
+      y += 18;
+    }
+    if (view.insight) {
+      const text = this.add
+        .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
+        .setFontSize(12)
+        .setWordWrapWidth(column - 16);
+      const box = this.add.graphics();
+      box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
+      this.children.bringToTop(text);
+      y += text.height + 20;
+    }
+    const thumb = { width: 30, height: 42 };
+    const section = (
+      title: string,
+      cards: readonly SuggestedCard[],
+      action: { readonly label: string; readonly run: (cardId: string) => void } | null,
+    ): void => {
+      if (cards.length === 0 || y + 20 + thumb.height > bottom) return;
+      const head = this.add.text(left, y, title.toUpperCase(), {
+        ...textStyle(typeRole.barTitle, fg),
+        fontSize: "17px",
+      });
+      fitText(head, column, 17);
+      const rule = this.add.graphics();
+      rule.fillStyle(fg, 1).fillRect(left, y + head.height + 2, column, 2);
+      y += head.height + 10;
+      for (const entry of cards) {
+        if (y + thumb.height > bottom) return;
+        const card = POOL.find((c) => (c.id as string) === entry.cardId);
+        const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
+        const frame = this.add.graphics();
+        frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
+        drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+        // The wide rail does not scroll, so its pictures are noted where they are drawn.
+        if (onDark) noteHoverCardId(this, entry.cardId, pic, true);
+        const buttonWidth = action ? 70 : 0;
+        const text = this.add
+          .text(
+            left + thumb.width + 8,
+            y + 2,
+            `${card?.name ?? entry.cardId}
+${entry.detail}`,
+            textStyle(typeRole.body, fg, onDark ? ink.body : 1),
+          )
+          .setFontSize(12)
+          .setWordWrapWidth(column - thumb.width - 16 - buttonWidth);
+        clampLines(text, 2);
+        if (action) {
+          const rect: Rect = {
+            x: left + column - buttonWidth,
+            y: y + (thumb.height - hit.target) / 2,
+            width: buttonWidth,
+            height: hit.target,
+          };
+          const key = `games:${action.label}:${entry.cardId}`;
+          const run = (): void => action.run(entry.cardId);
+          this.#buttons.push(
+            new McButton(this, {
+              kind: onDark ? "onInk" : "secondary",
+              label: action.label,
+              type: typeRole.label,
+              rect,
+              onClick: run,
+            }),
+          );
+          this.#stops.set(key, { rect, activate: run });
+          this.#railStops.push(key);
+        }
+        y += Math.max(thumb.height, hit.target) + 6;
+      }
+      y += 6;
+    };
+    section("Cut? Sits in your deck", view.cut, {
+      label: "− Cut",
+      run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)),
+    });
+    section(
+      "Try: cards you won with",
+      view.tryCards.filter((entry) => pool.has(entry.cardId)),
+      { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
+    );
+    section("Keep: your staples", view.keep, null);
+    if (view.note && y + 30 < bottom) {
+      const note = this.add
+        .text(left, y, view.note, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
+        .setFontSize(12)
+        .setWordWrapWidth(column);
+      y += note.height + 8;
+    }
+    return y;
+  }
+
   #drawYourDeckList(
     left: number,
     top: number,

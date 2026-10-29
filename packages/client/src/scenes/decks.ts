@@ -158,7 +158,16 @@ import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } 
 import { CHIP_GAP, chipsFitBesideHeading, minChipCellWidth } from "../view/chip-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
-import { HoverPreview, hoverCardIdsOf, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import {
+  HoverPreview,
+  hoverCardIdsOf,
+  noteHoverCardId,
+  resetHoverCards,
+  screenHoverArea,
+} from "../ui/card-hover-preview.js";
+import { deckPlayOf, type DeckInsights } from "../view/deck-insights.js";
+import { loadDeckInsights } from "../view/player-stats-client.js";
+import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
@@ -362,6 +371,8 @@ export class DecksScene extends Phaser.Scene {
   readonly #deckArt = new Map<string, { url: string | null; focus?: PictureFocus }>();
   #activeTab: DecksTab = "decks";
   #history: ResultsHistory | null = null;
+  /** What each deck's finished games say (`view/deck-insights.ts`), folded in the stats worker; null until it answers. */
+  #insights: DeckInsights | null = null;
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
@@ -426,6 +437,7 @@ export class DecksScene extends Phaser.Scene {
     this.#selectedDeckId = data.focusDeckId ?? null;
     this.#activeTab = "decks";
     this.#history = null;
+    this.#insights = null;
     this.#listScroll = new ListScroll();
     this.#poolListScroll = new ListScroll();
     this.#notesScroll = new ListScroll();
@@ -528,7 +540,13 @@ export class DecksScene extends Phaser.Scene {
         if (!this.sys.isActive()) return;
         this.#history = resultsHistoryOf(saves);
         this.#queueRebuild();
-      });
+        return loadDeckInsights(saves).then((insights) => {
+          if (!this.sys.isActive()) return;
+          this.#insights = insights;
+          this.#queueRebuild();
+        });
+      })
+      .catch(() => undefined);
   }
 
   /**
@@ -1470,6 +1488,28 @@ export class DecksScene extends Phaser.Scene {
     }
     objects.push(meta);
 
+    // Every other deck that has been played carries its W–L at its bottom-right corner (issue #529, C3); the
+    // selected row says it in full below.
+    if (!selected && !row.offer) {
+      const played =
+        this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(option.deck))) ?? null;
+      if (played && played.wins + played.losses > 0) {
+        const chip = this.add
+          .text(0, 0, `${played.wins}–${played.losses}`, textStyle(typeRole.label, surface.paper.hex, 1))
+          .setFontSize(10);
+        const chipRect: Rect = {
+          x: card.x + card.width - chip.width - 14,
+          y: card.y + card.height - chip.height - 10,
+          width: chip.width + 8,
+          height: chip.height + 4,
+        };
+        const chipBg = this.add.graphics();
+        chipBg.fillStyle(surface.ink.hex, 1).fillRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
+        chip.setPosition(chipRect.x + 4, chipRect.y + 2);
+        objects.push(chipBg, chip);
+      }
+    }
+
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
     // inside the deck row, not the stats rail).
     if (showRecord) {
@@ -2028,6 +2068,80 @@ export class DecksScene extends Phaser.Scene {
   // as a row of small buttons, "Recently changed", then the footer D14 itself draws: DUPLICATE beside the single
   // red "PLAY THIS DECK ▸".
   // ------------------------------------------------------------------------------------------------------------
+  /** The deck's record, how it lost, its staple and its idle card, and a way into Your stats; down to `bottom`. */
+  #drawDeckPlay(left: number, top: number, column: number, bottom: number, deck: Deck): void {
+    const play = this.#insights ? deckPlayOf(this.#insights, deckKeyToString(keyOf(deck)), POOL_STATS_NAMES) : null;
+    if (!play) return;
+    const linkHeight = this.#row;
+    // The caption, the record and the link are the least it shows; the two cards come when they fit.
+    if (bottom - top < 16 + 34 + linkHeight + 8) return;
+    let y = top;
+    label(
+      this,
+      left,
+      y,
+      `HOW THIS DECK PLAYS · ${play.games} GAME${play.games === 1 ? "" : "S"}`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
+    y += 18;
+    const record = this.add.text(left, y, play.record, {
+      ...textStyle(typeRole.barTitle, surface.paper.hex),
+      fontSize: "26px",
+    });
+    if (play.losses) {
+      const lost = this.add.text(
+        left + record.width + 10,
+        y + 8,
+        play.losses,
+        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      );
+      fitText(lost, column - record.width - 10, typeRole.body.size);
+    }
+    y += 34;
+    const thumb = { width: 30, height: 42 };
+    for (const entry of [
+      ...(play.staple ? [{ ...play.staple, what: "Staple" }] : []),
+      ...(play.idle ? [{ ...play.idle, what: "Sits idle" }] : []),
+    ]) {
+      if (y + thumb.height + 6 + linkHeight + 8 > bottom) break;
+      const card = POOL_CARDS.find((c) => (c.id as string) === entry.cardId);
+      const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
+      const frame = this.add.graphics();
+      frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
+      drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+      noteHoverCardId(this, entry.cardId, pic, true);
+      const line = this.add
+        .text(
+          left + thumb.width + 8,
+          y + 4,
+          `${entry.what}: ${card?.name ?? entry.cardId}\n${entry.detail}`,
+          textStyle(typeRole.body, surface.paper.hex, ink.body),
+        )
+        .setFontSize(12);
+      fitWrapped(line, column - thumb.width - 8, 2, 10);
+      y += thumb.height + 6;
+    }
+    const linkRect: Rect = { x: left, y, width: column, height: linkHeight };
+    const open = (): void =>
+      goToScreen(this, SCENES.playerStats, {
+        from: SCENES.decks,
+        tab: "cards",
+        heroId: deck.identityCardId as string,
+      } satisfies PlayerStatsData);
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "Open in Your stats ▸",
+        type: typeRole.label,
+        rect: linkRect,
+        onClick: open,
+      }),
+    );
+    this.#stops.set("stats-your-stats", { rect: linkRect, activate: open });
+  }
+
   #drawStatsPane(rect: Rect, option: DeckOption | null): void {
     const bg = this.add.graphics();
     paintPanel(bg, rect, "onInk", "rest");
@@ -2155,6 +2269,11 @@ export class DecksScene extends Phaser.Scene {
     } else {
       label(this, left, y, "No change history recorded for this deck.", typeRole.label, surface.paper.hex, ink.meta);
     }
+    y += 26;
+
+    // "How this deck plays" (issue #529, C3): the deck's finished games, when there are any and the pane has room.
+    const footerTop = rect.y + rect.height - hit.primary - 16 - 13;
+    this.#drawDeckPlay(left, y, column, footerTop - 12, deck);
 
     // Footer, pinned to the bottom of the pane regardless of how much the body above used — D14's own two bottom
     // controls, Duplicate beside the single red Play.

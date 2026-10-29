@@ -45,3 +45,10 @@ describe("loadPlayerStats", () => {
     expect(stats.sections.map((s) => s.id)).toEqual(["overview"]);
   });
 });
+
+describe("loadDeckInsights", () => {
+  test("with no worker, the insights are worked out here", async () => {
+    const { loadDeckInsights } = await import("./player-stats-client.js");
+    await expect(loadDeckInsights([], () => null)).resolves.toEqual({ heroes: {}, decks: {} });
+  });
+});

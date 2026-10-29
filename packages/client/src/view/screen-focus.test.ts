@@ -157,6 +157,7 @@ describe("screen focus routes", () => {
       "stats-check",
       "stats-edit",
       "stats-delete",
+      "stats-your-stats",
       "stats-duplicate",
       "stats-play",
     ]);
@@ -240,6 +241,7 @@ describe("screen focus routes", () => {
       "player-stats",
       ...tabs,
       "stats-check",
+      "stats-your-stats",
       "stats-duplicate",
       "stats-play",
     ]);
@@ -889,5 +891,20 @@ describe("villainDefendFocusOrder", () => {
       "tuck",
       "expand",
     ]);
+  });
+});
+
+describe("the deck builder's rail tabs", () => {
+  test("Your deck, From your games and their Cut / Add rows come after the rewards, before Save", () => {
+    const order = deckBuilderFocusOrder({
+      identityChosen: true,
+      identityIds: [],
+      aspectIds: [],
+      typeFilterIds: [],
+      poolCardIds: [],
+      railIds: ["rail:deck", "rail:games", "games:− Cut:01009"],
+    });
+    const save = order.indexOf("save");
+    expect(order.slice(save - 3, save)).toEqual(["rail:deck", "rail:games", "games:− Cut:01009"]);
   });
 });

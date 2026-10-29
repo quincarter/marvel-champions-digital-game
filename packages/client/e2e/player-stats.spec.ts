@@ -271,3 +271,59 @@ test("over Pause: a press on empty stats space reaches nothing underneath, and B
   await waitFor(async () => ((await activeScenes(page)).includes("PlayerStats") ? null : true), "closed", 10_000);
   expect(await activeScenes(page)).toContain("PauseOverlay");
 });
+
+const stopsIn = (page: Page, scene: string): Promise<Stop[]> =>
+  page.evaluate(
+    (key) => (window as unknown as { __mcFocusRoutes?: Record<string, () => Stop[]> }).__mcFocusRoutes?.[key]?.() ?? [],
+    scene,
+  );
+
+test("Decks & Collection: How this deck plays opens Your stats on the hero's cards", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the wide stats pane");
+  test.setTimeout(120_000);
+  await seeded(page, "decks", "Decks");
+  const open = await waitFor(
+    async () => (await stopsIn(page, "Decks")).find((s) => s.key === "stats-your-stats") ?? null,
+    "Open in Your stats",
+    30_000,
+  );
+  expect((await findText(page, "HOW THIS DECK PLAYS", "Decks")).length).toBeGreaterThan(0);
+  await press(page, false, open.rect);
+  await waitFor(
+    async () => ((await keys(page)).some((k) => k.startsWith("card:")) ? true : null),
+    "Cards by hero, with card pictures",
+    30_000,
+  );
+});
+
+test("the deck builder's From your games: Cut takes a copy of a card that never comes out of the deck", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the wide deck rail");
+  test.setTimeout(120_000);
+  await seeded(page, "deck-builder", "DeckBuilder");
+  const tab = await waitFor(
+    async () => (await stopsIn(page, "DeckBuilder")).find((s) => s.key === "rail:games") ?? null,
+    "the From your games tab",
+    30_000,
+  );
+  await press(page, false, tab.rect);
+  // Black Cat (01002) sat in every seeded game's deck and was never played.
+  await waitFor(
+    async () => (await stopsIn(page, "DeckBuilder")).find((s) => s.key.endsWith(":01002")) ?? null,
+    "Cut on Black Cat",
+    30_000,
+  );
+  // Cut takes one copy, the same as the deck list's −: the deck drops from 40 cards to 39.
+  expect((await findText(page, "40 cards", "DeckBuilder")).length).toBeGreaterThan(0);
+  // Card scans arriving redraw the rail, and a press that straddles a redraw is dropped by design: settle first, and
+  // press again if one was.
+  const cutDown = async () => ((await findText(page, "39 cards", "DeckBuilder")).length > 0 ? true : null);
+  for (let attempt = 0; attempt < 3 && !(await cutDown()); attempt++) {
+    await settle(page);
+    const now = (await stopsIn(page, "DeckBuilder")).find((s) => s.key.endsWith(":01002"));
+    if (now) await press(page, false, now.rect);
+    await page.waitForTimeout(800);
+  }
+  await waitFor(cutDown, "the deck is one card smaller", 10_000);
+});

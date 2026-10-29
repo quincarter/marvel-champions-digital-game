@@ -58,6 +58,10 @@ export interface PlayerStatsData {
   readonly from?: string;
   /** Opened over `from` (Settings, Pause): Back closes the stats instead of changing screen. */
   readonly overlay?: boolean;
+  /** The tab to open on (a deck's "Open in Your stats" opens Cards by hero). Absent: the last one looked at. */
+  readonly tab?: StatsTab;
+  /** On Cards by hero, the hero to show (an identity card id). */
+  readonly heroId?: string;
 }
 
 /** What Back says, by the screen it goes to. */
@@ -198,6 +202,11 @@ export class PlayerStatsScene extends Phaser.Scene {
       .then(
         (stats) => {
           this.#stats = stats;
+          if (this.#data.tab) lastTab = this.#data.tab;
+          const hero = this.#data.heroId
+            ? stats.heroCards.findIndex((h) => h.identityCardId === this.#data.heroId)
+            : -1;
+          if (hero >= 0) lastHero = hero;
         },
         () => {
           this.#failed = true;

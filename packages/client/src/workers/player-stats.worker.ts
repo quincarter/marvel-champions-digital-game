@@ -1,7 +1,9 @@
 /**
- * The stats worker (`view/player-stats-client.ts` owns it): folds the saved games into the Stats screen's rows, with the
- * pool's names, off the main thread. All the logic is `view/player-stats-model.ts`'s, which the tests call directly.
+ * The stats worker (`view/player-stats-client.ts` owns it): folds the saved games into the Stats screen's rows, or into
+ * the deck-building insights, with the pool's names, off the main thread. All the logic is
+ * `view/player-stats-model.ts`'s and `view/deck-insights.ts`'s, which the tests call directly.
  */
+import { deckInsightsOf } from "../view/deck-insights.js";
 import { playerStatsOf } from "../view/player-stats-model.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import type { StatsRequest, StatsResponse } from "../view/player-stats-client.js";
@@ -15,5 +17,10 @@ interface WorkerGlobal {
 const worker = self as unknown as WorkerGlobal;
 
 worker.onmessage = (event: MessageEvent<StatsRequest>) => {
-  worker.postMessage({ stats: playerStatsOf(event.data.saves, POOL_STATS_NAMES) });
+  const { saves, kind } = event.data;
+  worker.postMessage(
+    kind === "insights"
+      ? { insights: deckInsightsOf(saves, POOL_STATS_NAMES) }
+      : { stats: playerStatsOf(saves, POOL_STATS_NAMES) },
+  );
 };
