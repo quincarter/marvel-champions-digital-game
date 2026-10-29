@@ -23,6 +23,8 @@ export function choicePeekBannerLayout(
   viewport: Rect,
   formFactor: FormFactor,
   edge: PeekEdge = peekEdge(),
+  /** Seats in a multi-seat game: the banner adds a row to switch whose side of the table shows (`view/seat-peek.ts`). */
+  seatCount = 0,
 ): ChoicePeekBannerLayout {
   const phone = formFactor === "phone" || formFactor === "phoneLandscape";
   const top = viewport.y + peekTopClear(formFactor);
@@ -33,7 +35,7 @@ export function choicePeekBannerLayout(
     width: Math.max(0, viewport.width - INSET * 2),
     height: Math.max(0, bottom - top),
   };
-  return peekBannerLayout(area, edge, phone);
+  return peekBannerLayout(area, edge, phone, 720, seatCount);
 }
 
 /** The thumb strip PEEK AT TABLE takes under the sheet on a tabbed layout: a full-size control and its gap. */

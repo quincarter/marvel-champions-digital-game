@@ -235,6 +235,27 @@ export function pickGlyphSpecs(
   return modifier ? [modifier, button] : [button];
 }
 
+/**
+ * The glyphs on a seat's look-at button (`view/seat-peek.ts`): LB + a face button by seat order on a pad, the seat's
+ * number key (1 to 4) on the keyboard. Null past the fourth seat, or with no glyphs in use.
+ */
+export function seatPeekGlyphSpecs(
+  seatIndex: number,
+  slot: number | null,
+  state: InputModeState,
+  settings: GlyphSettings,
+  held: PickModifier | null,
+): readonly GlyphSpec[] | null {
+  const set = glyphSetOf(state, settings.inputGlyphs, settings.glyphSource ?? "auto");
+  if (set === null || slot === null) return null;
+  if (set === "keyboard") {
+    return seatIndex >= 0 && seatIndex < 4
+      ? [{ kind: "key", label: String(seatIndex + 1), name: `${seatIndex + 1} key` }]
+      : null;
+  }
+  return pickGlyphSpecs(slot, state, settings, held);
+}
+
 /** The glyphs of the "more" hint on a keyboard's paged pick: the zone key. A pad never pages its picks (null). */
 export function pickMoreGlyphSpecs(state: InputModeState, settings: GlyphSettings): readonly GlyphSpec[] | null {
   const set = glyphSetOf(state, settings.inputGlyphs, settings.glyphSource ?? "auto");

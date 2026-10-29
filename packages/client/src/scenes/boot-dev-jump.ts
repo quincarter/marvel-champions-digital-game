@@ -376,6 +376,7 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `&fixture=drones[&seats=N]`: a two-seat Ultron game at the first turn (up to four with `seats`), each seat with its own
   // facedown Drone, in hero form (the attack target picker's Drone labels, issue #357; `view/targeting-panel.test.ts`
   // plays the same game). Four seats give an attack five targets, one more than a page of the pad's direct picks.
+  // `&choice=1` stops at the first setup decision instead, for PEEK AT TABLE's seat row (`view/seat-peek.ts`).
   if (screen === "board" && params.get("fixture") === "drones") {
     const { store } = appSession();
     if (!gameRunning(store)) {
@@ -390,13 +391,38 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
         ].slice(0, Math.min(4, Math.max(2, intParam(params.get("seats"), 2)))),
         seed: 1,
       });
-      for (let step = 0; step < 24 && store.state.legal?.actions.kind === "choice"; step++) {
+      const stop = params.get("choice") === "1" ? 0 : 24;
+      for (let step = 0; step < stop && store.state.legal?.actions.kind === "choice"; step++) {
         const { choice } = store.state.legal.actions;
         await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
       }
       const turn = store.state.legal?.actions;
       const flip = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "changeForm") : undefined;
-      if (flip) await store.dispatch(flip.example);
+      if (flip && stop > 0) await store.dispatch(flip.example);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+  // `&fixture=commander`: Captain Marvel (alter-ego) and Spider-Man at the first turn, with Carol's Commander ("Action:
+  // Choose a player to draw 1 card") used, so the sheet asks which player: VIEW TABLE beside each row (`view/seat-peek.ts`).
+  if (screen === "board" && params.get("fixture") === "commander") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      await store.start({
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players: [{ starterDeckId: "core-captain-marvel-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+        seed: 1,
+      });
+      for (let step = 0; step < 24 && store.state.legal?.actions.kind === "choice"; step++) {
+        const { choice } = store.state.legal.actions;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+      }
+      const turn = store.state.legal?.actions;
+      const commander =
+        turn?.kind === "turn"
+          ? turn.legal.find((entry) => entry.action.kind === "useAbility" && /commander/.test(entry.action.abilityId))
+          : undefined;
+      if (commander) await store.dispatch(commander.example);
     }
     return { key: SCENES.board, data: {} };
   }

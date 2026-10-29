@@ -63,7 +63,7 @@ export interface IntentBinding {
    * face button pressed under it calls `onBumperPick`, and the bumper's own meaning (a zone jump) fires on its release
    * only when no face button was used, so a quick tap keeps its old meaning and a held one never also jumps.
    */
-  pickModifiers?(): boolean;
+  pickModifiers?(bumper?: PickBumper): boolean;
   /** The bumper held as a pick modifier, or null once it is let go (the glyphs drop its half of the combo). */
   onBumper?(bumper: PickBumper | null): void;
   /** A face button (standard-layout index 0-3) pressed under a held pick bumper. */
@@ -369,7 +369,8 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     }
     if (binding.pickModifiers?.()) {
       const bumper = pickBumperOf(meaning);
-      if (bumper !== null) {
+      // Asked per bumper: a screen may make only one of them a modifier (the Board's seat combos are LB's alone).
+      if (bumper !== null && binding.pickModifiers(bumper)) {
         // The first bumper down is the modifier; a second is swallowed (it would be a zone jump under a combo).
         if (bumperHold.press(pad.index, meaning, bumper, scene.time.now) === "held") binding.onBumper?.(bumper);
         return;
