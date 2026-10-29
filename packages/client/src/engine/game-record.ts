@@ -13,6 +13,7 @@
  * owns, the card the engine named as the source".
  */
 
+import type { CardId } from "@mc/content";
 import {
   cardOf,
   controllerOf,
@@ -82,6 +83,17 @@ export interface DamageMark {
   readonly round: number;
 }
 
+/**
+ * One main scheme swap (`mainSchemeSwapped`: Change of Venue), kept so "the scheme wins" can say the scheme that won is
+ * not the one the game started with (issue #518).
+ */
+export interface SchemeSwapMark {
+  readonly outgoing: InstanceId;
+  readonly incoming: InstanceId;
+  readonly outgoingCardId: CardId;
+  readonly round: number;
+}
+
 export interface GameRecord {
   readonly round: number;
   /** In seat order. */
@@ -95,6 +107,8 @@ export interface GameRecord {
   readonly lastThreat: ThreatMark | null;
   readonly lastVillainDamage: DamageMark | null;
   readonly lastEliminated: { readonly playerId: PlayerId; readonly round: number } | null;
+  /** Main scheme swaps, oldest first. Absent on a record written before the field existed, which reads as none. */
+  readonly schemeSwaps?: readonly SchemeSwapMark[];
   /**
    * The enemy activation in progress. Threat an activation places carries the
    * activating enemy as its source, so matching the two is how a placement
@@ -179,6 +193,7 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     lastEliminated,
     activation,
   } = record;
+  let schemeSwaps = record.schemeSwaps ?? [];
 
   const onRound = (patch: (entry: RoundRecord) => RoundRecord): void => {
     rounds.set(round, patch(rounds.get(round) ?? blankRound(round)));
@@ -285,6 +300,12 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
       case "villainStageRevealed":
         onRound((entry) => ({ ...entry, villainStageRevealed: true }));
         break;
+      case "mainSchemeSwapped":
+        schemeSwaps = [
+          ...schemeSwaps,
+          { outgoing: event.outgoing, incoming: event.incoming, outgoingCardId: event.cardIds[0], round },
+        ];
+        break;
       default:
         break;
     }
@@ -301,6 +322,7 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     lastThreat,
     lastVillainDamage,
     lastEliminated,
+    ...(schemeSwaps.length > 0 ? { schemeSwaps } : {}),
     activation,
   };
 }

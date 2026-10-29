@@ -1,7 +1,7 @@
 /**
  * The optional setup choices Table setup offers for the scenario in the draft (docs/phase7-wave8.md section 4.1 Q1,
  * Q9, Q10, Q12): which Standard and Expert encounter set to use, threat on Gene Pool, a side per Horseman, and the
- * easier Apocalypse start.
+ * easier Apocalypse start, and each player's Protection Racket main scheme.
  *
  * **The client never decides what is offered.** `playableScenarioOffer` (`@mc/cards`) does, and is asked again after
  * every change that can alter the answer (`offerOf`): the difficulty, the modular picks. This module turns the offer
@@ -20,6 +20,7 @@ import {
   RANDOM_VILLAIN,
   scenarioWithVillain,
   type HorsemanSide,
+  type MainSchemePicksOffer,
   type PlayableScenarioOffer,
   type VillainChoiceOffer,
 } from "@mc/cards";
@@ -38,6 +39,7 @@ const NO_OFFER: PlayableScenarioOffer = {
   modularSets: null,
   gameModes: null,
   villains: null,
+  mainSchemePicks: null,
 };
 
 /** The offer for the draft's scenario under its difficulty and modular picks; nothing is offered for an unknown id. */
@@ -97,6 +99,10 @@ export function reconcileWithOffer(draft: SetupDraft, offer: PlayableScenarioOff
     villainId:
       offer.villains && villainStepIds(offer.villains).includes(draft.villainId ?? "") ? draft.villainId : null,
     easierStart: offer.easierStart ? draft.easierStart : false,
+    // Absent stays absent, so reconciling a draft that never had picks changes nothing (the builder's idempotence).
+    ...(draft.mainSchemePicks !== undefined
+      ? { mainSchemePicks: offer.mainSchemePicks ? draft.mainSchemePicks : null }
+      : {}),
   };
 }
 
@@ -178,7 +184,15 @@ export type OptionControl =
     };
 
 export interface SetupOptionRow {
-  readonly id: "standardSet" | "expertSet" | "genePool" | "horsemanSides" | "easierStart" | "villain";
+  readonly id:
+    | "standardSet"
+    | "expertSet"
+    | "genePool"
+    | "horsemanSides"
+    | "easierStart"
+    | "villain"
+    /** One per seat, `mainScheme:<seat index>`. */
+    | `mainScheme:${number}`;
   /** The card's name: a few words. */
   readonly name: string;
   /** One short line of state under the name; empty when the name and the chips say it all. */
@@ -334,6 +348,40 @@ export function setupOptionRowsOf(
     });
   }
 
+  const schemes = offer.mainSchemePicks;
+  if (schemes) {
+    const seats = Math.max(1, draft.seats.length);
+    const picks = effectiveMainSchemePicks(draft, schemes, seats);
+    picks.forEach((cardId, seat) => {
+      const index = schemes.options.findIndex((option) => option.cardId === cardId);
+      rows.push({
+        id: `mainScheme:${seat}`,
+        name: seats === 1 ? "Main scheme" : `Player ${seat + 1}'s main scheme`,
+        meta: `${index + 1} of ${schemes.options.length}`,
+        span: 2,
+        active: cardId !== schemes.options[seat]?.cardId,
+        help: "Protection Racket: each player chooses one of the five main schemes for their play area (MC60 p. 13). In expert mode each is drawn at random instead. Two players cannot choose the same one.",
+        control: {
+          kind: "stepper",
+          down: {
+            action: `mainScheme:${seat}:prev`,
+            label: "‹",
+            selected: false,
+            enabled: seats < schemes.options.length,
+          },
+          up: {
+            action: `mainScheme:${seat}:next`,
+            label: "›",
+            selected: false,
+            enabled: seats < schemes.options.length,
+          },
+          valueLabel: schemes.options[index]?.name ?? cardId,
+          wide: true,
+        },
+      });
+    });
+  }
+
   if (offer.easierStart) {
     rows.push({
       id: "easierStart",
@@ -346,6 +394,30 @@ export function setupOptionRowsOf(
     });
   }
   return rows;
+}
+
+/**
+ * Each seat's main scheme at a scenario with a main scheme per player: the draft's pick where it is one of the options
+ * and no earlier seat holds it, else the first option no other seat holds (seat N starts on the Nth). Always `seats`
+ * distinct card ids (the scenario offers one per player at most).
+ */
+export function effectiveMainSchemePicks(
+  draft: Pick<SetupDraft, "mainSchemePicks">,
+  offer: MainSchemePicksOffer,
+  seats: number,
+): readonly string[] {
+  const ids = offer.options.map((option) => option.cardId);
+  const picks: string[] = [];
+  for (let seat = 0; seat < Math.min(seats, ids.length); seat++) {
+    const wanted = draft.mainSchemePicks?.[seat];
+    picks.push(wanted && ids.includes(wanted) && !picks.includes(wanted) ? wanted : "");
+  }
+  for (let seat = 0; seat < picks.length; seat++) {
+    if (picks[seat]) continue;
+    const preferred = ids[seat]!;
+    picks[seat] = !picks.includes(preferred) ? preferred : ids.find((id) => !picks.includes(id))!;
+  }
+  return picks;
 }
 
 /** The ids the villain stepper walks, in order: "random" first when the setup draws the villain, then each option. */
@@ -476,6 +548,25 @@ export function applySetupOption(
     const at = ids.indexOf(villainChosenOf(draft, villains));
     const next = ids[(at + (first === "next" ? 1 : ids.length - 1)) % ids.length]!;
     return { ...draft, villainId: next === villains.defaultId ? null : next };
+  }
+
+  if (kind === "mainScheme") {
+    const schemes = offer.mainSchemePicks;
+    const seat = Number(first);
+    const seats = Math.max(1, draft.seats.length);
+    if (!schemes || (second !== "next" && second !== "prev") || !Number.isInteger(seat) || seat < 0 || seat >= seats)
+      return draft;
+    const picks = [...effectiveMainSchemePicks(draft, schemes, seats)];
+    const ids = schemes.options.map((option) => option.cardId);
+    const step = second === "next" ? 1 : ids.length - 1;
+    // Step past the schemes the other seats hold: each card is in play for one player only.
+    let at = ids.indexOf(picks[seat]!);
+    for (let tries = 0; tries < ids.length; tries++) {
+      at = (at + step) % ids.length;
+      if (!picks.some((id, other) => other !== seat && id === ids[at])) break;
+    }
+    picks[seat] = ids[at]!;
+    return { ...draft, mainSchemePicks: picks };
   }
 
   if (kind === "easierStart") {

@@ -18,6 +18,7 @@ import {
   controllerOf,
   getInstance,
   mainSchemeStage,
+  mainSchemeStageOf,
   maxHitPoints,
   remainingHitPoints,
   scaleIn,
@@ -152,6 +153,25 @@ function consequenceOf(sentence: string): string {
   return /\blose the game\b/i.test(clause) ? sentenceCase(clause) : "The players lose the game.";
 }
 
+/**
+ * The scheme a main scheme in play directly replaced, when a swap brought it in (`mainSchemeSwapped`), and the round of
+ * that swap. Only the direct predecessor: a swapped-out card keeps its instance and can be swapped back in, so walking
+ * further back could name the winner itself. A swapped-out card is titled by its first stage, the side it is set aside
+ * on (`resolve/swap-main-scheme.ts`).
+ */
+function swapOrigin(
+  state: GameState,
+  record: GameRecord,
+  schemeId: InstanceId,
+): { readonly name: string; readonly round: number } | null {
+  const swap = [...(record.schemeSwaps ?? [])].reverse().find((entry) => entry.incoming === schemeId);
+  if (!swap) return null;
+  const card = state.cardPool[swap.outgoingCardId];
+  const first = card?.type === "main_scheme" ? card.stages[0] : undefined;
+  const name = first?.name ?? card?.name;
+  return name ? { name, round: swap.round } : null;
+}
+
 export function gameOverModel(
   state: GameState,
   record: GameRecord,
@@ -180,9 +200,15 @@ export function gameOverModel(
   const foe = foeWord(cardOf(state, villainState.instanceId), { lower: true });
   const round = state.round;
 
-  const scheme = mainSchemeStage(state);
-  const schemeName = scheme.name ?? cardName(state, state.mainScheme.instanceId);
-  const schemeTarget = scaleIn(state, scheme.targetThreat);
+  // The scheme that won: with a main scheme per player (Protection Racket), the completed one, not always the first
+  // seat's central scheme. Assumes no shared main scheme stays completed while the game goes on (the "alternatives"
+  // branch of `completeMainScheme` could, but no shared-area scheme in the pool reaches it).
+  const losingScheme =
+    [state.mainScheme, ...(state.extraMainSchemes ?? [])].find((entry) => entry.completed) ?? state.mainScheme;
+  const scheme = mainSchemeStageOf(state, losingScheme);
+  const schemeName = scheme.name ?? cardName(state, losingScheme.instanceId);
+  const schemeTarget = scaleIn(state, scheme.targetThreat, losingScheme.instanceId);
+  const swappedFrom = swapOrigin(state, record, losingScheme.instanceId);
 
   const villainHp = hpNumber(
     dial && lokiId ? dial.remaining : (remainingHitPoints(state, villainState.instanceId, deps) ?? 0),
@@ -321,6 +347,9 @@ export function gameOverModel(
       kicker = "The scheme succeeded";
       headline = "The scheme wins";
       summary = `${schemeName} reached ${schemeTarget} threat in round ${round}.`;
+      // Change of Venue swapped the scheme out mid-game: say so, or the loss names a scheme the table never started on.
+      const replaced = swappedFrom ? ` It replaced ${swappedFrom.name} in round ${swappedFrom.round}.` : "";
+      summary += replaced;
       const last = record.lastThreat;
       if (last) {
         const source = last.sourceInstanceId ? cardName(state, last.sourceInstanceId) : null;
@@ -331,7 +360,7 @@ export function gameOverModel(
             : source
               ? `The last ${last.amount} threat came from ${source}.`
               : `The last ${last.amount} threat went on in round ${last.round}.`;
-        finalBlow = { title: `${schemeName} hit ${schemeTarget} threat`, body };
+        finalBlow = { title: `${schemeName} hit ${schemeTarget} threat`, body: body + replaced };
       }
       break;
     }
