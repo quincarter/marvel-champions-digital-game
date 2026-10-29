@@ -576,6 +576,9 @@ function pickedFromDeck(state: GameState, choice: PendingChoice): string | null 
   return found;
 }
 
+/** `orderLoopKeywords`' subtitle: why the first player is ordering keywords at all. */
+export const LOOP_KEYWORDS_SUBTITLE = "These minions entered play together: pick the order their keywords resolve in";
+
 /**
  * The sheet's header as two lines. A card pick out of a deck is titled by what the player is doing ("Choose cards from
  * the encounter deck") with the card or setup instruction that asks as the subtitle, rather than "Iron Man: choose
@@ -588,6 +591,11 @@ export function choiceHeaderOf(
   deps: EngineDeps,
   genericTitle: string,
 ): ChoiceHeader {
+  // Minions an "each time" loop put into play (ruling 38): their keywords wait for the loop, and the player is asked
+  // for an order they may not expect, so the subtitle says why.
+  if (choice.prompt.kind === "orderLoopKeywords") {
+    return { title: choiceHeaderText(state, choice, deps, genericTitle), subtitle: LOOP_KEYWORDS_SUBTITLE };
+  }
   const deck = pickedFromDeck(state, choice);
   if (deck === null) return { title: choiceHeaderText(state, choice, deps, genericTitle), subtitle: null };
   const source = choiceSourceOf(state, choice);
