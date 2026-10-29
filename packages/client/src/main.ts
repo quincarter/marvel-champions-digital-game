@@ -21,7 +21,8 @@ import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
 import { installLazyText } from "./ui/lazy-text.js";
 import { installColorScheme } from "./ui/color-scheme-phaser.js";
 import { appSession } from "./session.js";
-import { runStatsBackfill } from "./progression/stats-backfill.js";
+import { backfillProgress, runStatsBackfill } from "./progression/stats-backfill.js";
+import { refreshUnlocks } from "./progression/progression.js";
 import { startBackfillToastWatch } from "./scenes/backfill-toast-watch.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
@@ -178,7 +179,17 @@ const preloadAfterTitle = (): void => {
       // Only with the engine worker: the in-thread fallback would replay on the main thread.
       if (typeof Worker !== "undefined") {
         startBackfillToastWatch(game);
-        setTimeout(() => void runStatsBackfill(appSession().store).catch(() => undefined), BACKFILL_DELAY_MS);
+        setTimeout(
+          () =>
+            void runStatsBackfill(appSession().store)
+              .then(() => {
+                // What the filled-in games earned is read now, so it comes up as one grouped popup.
+                if (backfillProgress().written > 0) return refreshUnlocks();
+                return undefined;
+              })
+              .catch(() => undefined),
+          BACKFILL_DELAY_MS,
+        );
       }
     });
   });

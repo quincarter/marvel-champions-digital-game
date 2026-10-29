@@ -25,6 +25,7 @@ import { appSession } from "../session.js";
 import { achievementPopupHoldMs, achievementPopupScale } from "../settings.js";
 import { ACHIEVEMENTS } from "../progression/achievements.js";
 import { earnedAchievementIds, refreshUnlocks } from "../progression/progression.js";
+import { backfillProgress } from "../progression/stats-backfill.js";
 import { onGuidePrefsChange } from "../guide/guide-store.js";
 import { achievementsSeen, rememberAchievementsSeen } from "../platform/achievements-seen.js";
 import {
@@ -209,6 +210,8 @@ export class AchievementToastScene extends Phaser.Scene {
   }
 
   #check(): void {
+    // Older games being filled in (#529) earn quietly: what they unlock is announced together when it ends.
+    if (backfillProgress().running) return;
     const earned = earnedAchievementIds();
     if (earned === null) return;
     const seen = achievementsSeen();
