@@ -116,13 +116,6 @@ function deckOf(
   return { deck: atStart ? [...atStart] : [...deck].sort(), aspects: [...aspects].sort() };
 }
 
-/** Instance-keyed card ids, counted by card id. */
-const countByCard = (byInstance: Readonly<Record<string, string>> | undefined): Record<string, number> => {
-  const counts: Record<string, number> = {};
-  for (const cardId of Object.values(byInstance ?? {})) counts[cardId] = (counts[cardId] ?? 0) + 1;
-  return counts;
-};
-
 function seatSummariesOf(state: GameState, record: GameRecord): SeatSummary[] {
   return state.players.map((player) => {
     const seat = record.seats.find((s) => s.playerId === player.playerId);
@@ -189,6 +182,6 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
     teamUpsPlayed: record.seats.reduce((sum, seat) => sum + (seat.teamUpsPlayed ?? 0), 0),
     seats: seatSummariesOf(state, record),
     villains: villainsOf(state),
-    sideSchemes: { seen: countByCard(record.sideSchemesSeen), defeated: countByCard(record.sideSchemesDefeated) },
+    sideSchemes: { seen: record.sideSchemesSeen ?? {}, defeated: record.sideSchemesDefeated ?? {} },
   };
 }

@@ -245,7 +245,7 @@ describe("game record: what each seat did with its cards", () => {
     expect(new Set(deck)).toEqual(new Set(inDeck));
   });
 
-  test("side schemes in play and defeated are kept by instance; a scheme put into play counts too", async () => {
+  test("side schemes in play and defeated are counted by card; a scheme put into play counts too", async () => {
     const game = await recordedGame(RHINO_SOLO);
     const state = game.state();
     const side = Object.values(state.cardPool).find((card) => card.type === "side_scheme")!;
@@ -267,8 +267,43 @@ describe("game record: what each seat did with its cards", () => {
       ],
       state,
     );
-    expect(record.sideSchemesSeen).toEqual({ a: side.id, c: side.id });
-    expect(record.sideSchemesDefeated).toEqual({ a: side.id });
+    expect(record.sideSchemesSeen).toEqual({ [side.id]: 2 });
+    expect(record.sideSchemesDefeated).toEqual({ [side.id]: 1 });
+    expect(record.sideSchemesInPlay).toEqual({ c: side.id });
     expect(recordEvents(emptyRecord(), [], state).sideSchemesSeen).toBeUndefined();
+  });
+});
+
+describe("game record: a side scheme that comes back (Codex review on #530)", () => {
+  test("revealed, defeated, shuffled back and revealed again: two appearances, one defeat", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    const side = Object.values(state.cardPool).find((card) => card.type === "side_scheme")!;
+    const me = state.players[0]!.playerId;
+    const reveal: GameEvent = {
+      type: "encounterCardRevealed",
+      instanceId: "s" as never,
+      cardId: side.id,
+      playerId: me,
+    };
+    const enter: GameEvent = {
+      type: "cardMoved",
+      instanceId: "s" as never,
+      cardId: side.id,
+      from: { kind: "encounterDeck", deckId: "main" as never },
+      to: { kind: "villainArea" },
+    };
+    const defeat: GameEvent = { type: "schemeDefeated", instanceId: "s" as never, cardId: side.id };
+    const toDeck: GameEvent = {
+      type: "cardMoved",
+      instanceId: "s" as never,
+      cardId: side.id,
+      from: { kind: "encounterDiscard", deckId: "main" as never },
+      to: { kind: "encounterDeck", deckId: "main" as never },
+    };
+    // One appearance reported twice (the reveal, then its move into play) still counts once.
+    const record = recordEvents(emptyRecord(), [reveal, enter, defeat, toDeck, reveal, enter], state);
+    expect(record.sideSchemesSeen).toEqual({ [side.id]: 2 });
+    expect(record.sideSchemesDefeated).toEqual({ [side.id]: 1 });
   });
 });

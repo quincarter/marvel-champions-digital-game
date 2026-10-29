@@ -133,12 +133,17 @@ export interface GameRecord {
   /** Main scheme swaps, oldest first. Absent on a record written before the field existed, which reads as none. */
   readonly schemeSwaps?: readonly SchemeSwapMark[];
   /**
-   * Each side scheme that came into play (revealed, or put into play by setup or an effect), by instance, with its
-   * card id. Absent while there are none.
+   * Times a side scheme came into play (revealed, or put into play by setup or an effect), by card id: a scheme
+   * defeated, shuffled back and revealed again counts twice. Absent while there are none.
    */
-  readonly sideSchemesSeen?: Readonly<Record<string, string>>;
-  /** Side schemes defeated (`schemeDefeated` of a side scheme), by instance, with its card id. Absent while none. */
-  readonly sideSchemesDefeated?: Readonly<Record<string, string>>;
+  readonly sideSchemesSeen?: Readonly<Record<string, number>>;
+  /** Times a side scheme was defeated (`schemeDefeated` of a side scheme), by card id. Absent while none. */
+  readonly sideSchemesDefeated?: Readonly<Record<string, number>>;
+  /**
+   * The side schemes in play now, by instance, with their card ids: one appearance is counted once however many
+   * events report it (the reveal, then its move into play), and a scheme that leaves play can appear again.
+   */
+  readonly sideSchemesInPlay?: Readonly<Record<string, string>>;
   /**
    * The enemy activation in progress. Threat an activation places carries the
    * activating enemy as its source, so matching the two is how a placement
@@ -263,9 +268,17 @@ export function recordEvents(
     activation,
   } = record;
   let schemeSwaps = record.schemeSwaps ?? [];
-  let { sideSchemesSeen, sideSchemesDefeated } = record;
+  let { sideSchemesSeen, sideSchemesDefeated, sideSchemesInPlay } = record;
+  /** A side scheme is in play: a new appearance unless this one is already counted. */
   const sideScheme = (instanceId: InstanceId, cardId: CardId): void => {
-    if (sideSchemesSeen?.[instanceId] === undefined) sideSchemesSeen = { ...sideSchemesSeen, [instanceId]: cardId };
+    if (sideSchemesInPlay?.[instanceId] !== undefined) return;
+    sideSchemesInPlay = { ...sideSchemesInPlay, [instanceId]: cardId };
+    sideSchemesSeen = bump(sideSchemesSeen, cardId);
+  };
+  const sideSchemeGone = (instanceId: InstanceId): void => {
+    if (sideSchemesInPlay?.[instanceId] === undefined) return;
+    const { [instanceId]: _left, ...rest } = sideSchemesInPlay;
+    sideSchemesInPlay = rest;
   };
 
   const onRound = (patch: (entry: RoundRecord) => RoundRecord): void => {
@@ -362,8 +375,9 @@ export function recordEvents(
         break;
       }
       case "cardMoved": {
-        if (state.cardPool[event.cardId]?.type === "side_scheme" && IN_PLAY.has(event.to.kind)) {
-          sideScheme(event.instanceId, event.cardId);
+        if (state.cardPool[event.cardId]?.type === "side_scheme") {
+          if (IN_PLAY.has(event.to.kind)) sideScheme(event.instanceId, event.cardId);
+          else sideSchemeGone(event.instanceId);
         }
         if (event.to.kind === "playArea") {
           const owner = playerCardOwnerOf(state, event.instanceId);
@@ -377,7 +391,8 @@ export function recordEvents(
       case "schemeDefeated":
         if (state.cardPool[event.cardId]?.type === "side_scheme") {
           sideScheme(event.instanceId, event.cardId);
-          sideSchemesDefeated = { ...sideSchemesDefeated, [event.instanceId]: event.cardId };
+          sideSchemesDefeated = bump(sideSchemesDefeated, event.cardId);
+          sideSchemeGone(event.instanceId);
         }
         break;
       case "playerEliminated":
@@ -427,6 +442,7 @@ export function recordEvents(
     ...(schemeSwaps.length > 0 ? { schemeSwaps } : {}),
     ...(sideSchemesSeen ? { sideSchemesSeen } : {}),
     ...(sideSchemesDefeated ? { sideSchemesDefeated } : {}),
+    ...(sideSchemesInPlay && Object.keys(sideSchemesInPlay).length > 0 ? { sideSchemesInPlay } : {}),
     activation,
   };
 }
