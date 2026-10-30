@@ -1,9 +1,15 @@
 import { describe, expect, test } from "vitest";
 import type { OverviewTile, PlayerStats } from "./player-stats-model.js";
-import { cardRowsOf, dashboardRowsOf, heroAt, statsTabsOf, tileRowsOf } from "./player-stats-layout.js";
+import { cardRowsOf, dashboardRowsOf, heroAt, statRowPicture, statsTabsOf, tileRowsOf } from "./player-stats-layout.js";
 
 const small = (id: string): OverviewTile => ({ kind: "small", id, label: id, value: "1", detail: "" });
 const record: OverviewTile = { kind: "record", id: "record", record: "1–0", rate: "", fraction: 1, detail: "" };
+
+test("a stat row's picture is a card-shaped thumbnail at the row's left, whatever the row's width", () => {
+  const wide = statRowPicture({ x: 24, y: 100, width: 1378, height: 52 });
+  expect(wide).toEqual({ x: 30, y: 105, width: 30, height: 42 });
+  expect(statRowPicture({ x: 24, y: 100, width: 300, height: 52 })).toEqual(wide);
+});
 
 const STATS: PlayerStats = {
   header: { record: "1–0", rate: "", played: "", streak: "", fraction: 1 },

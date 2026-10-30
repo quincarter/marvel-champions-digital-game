@@ -5,9 +5,9 @@
  * Tabs: Overview (tiles: the record, how you lose, per-game figures, the favorite hero and the villains with their
  * art), Heroes, Villains, Side schemes, Devices (once a synced game says where it was played) and Cards by hero (each
  * hero's most played, most used and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes; a
- * pad or keyboard walks every tile, row and card, and the list follows the ring. Each card picture, and each row about
- * a card, opens the card hover popover under a resting mouse. Read-only: only the tabs, the hero chips and Back press
- * anything, and none of them sits over the scrolling list.
+ * pad or keyboard walks every tile, row and card, and the list follows the ring. Each card picture, in a strip or
+ * leading a row, opens the card hover popover under a resting mouse. Read-only: only the tabs, the hero chips and Back
+ * press anything, and none of them sits over the scrolling list.
  *
  * Opened two ways (`PlayerStatsData`): as a screen from the Title, Decks & Collection or the Trophy Room (Back goes to
  * that screen), or as an overlay over Settings or Pause (Back closes it, and the scene under it takes input again).
@@ -42,6 +42,7 @@ import { backfillProgress, onBackfillProgress } from "../progression/stats-backf
 import {
   dashboardRowsOf,
   heroAt,
+  statRowPicture,
   statsTabsOf,
   type DashRow,
   type PlacedTile,
@@ -77,6 +78,13 @@ const BACK_LABELS: Readonly<Record<string, string>> = {
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
 const CHIP_GAP = 8;
+/** A stat row's box inside its list row. */
+const statBox = (rect: Rect): Rect => ({
+  x: rect.x,
+  y: rect.y + 3,
+  width: rect.width - GUTTER,
+  height: rect.height - 6,
+});
 /** The "Other" part of How you lose: a warm grey (the Basic aspect's), with ink text, apart from Wiped's ink. */
 const MUTED_PART = 0x9a948a;
 
@@ -232,10 +240,11 @@ export class PlayerStatsScene extends Phaser.Scene {
         if (under.input.keyboard) under.input.keyboard.enabled = true;
       }
     });
-    // Dev e2e hook (never referenced by product code): which card the hover popover shows.
+    // Dev e2e hook (never referenced by product code): which card the hover popover shows, and where.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcStatsDebug?: unknown }).__mcStatsDebug = {
         hoverShown: () => this.#hover?.shownKey ?? null,
+        hoverRect: () => this.#hover?.shownRect ?? null,
       };
     }
     this.#draw();
@@ -334,7 +343,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (key) this.#route?.focusKey(key);
   }
 
-  /** The card pictures and card rows on screen now, each clipped to the list. */
+  /** The card pictures on screen now, in strips and leading stat rows, each clipped to the list. */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
     const list = this.#list;
@@ -343,8 +352,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#rows.forEach((row, index) => {
       const r = list.rectFor(index);
       // `through`: the list takes taps by position, so nothing in a row is an interactive object of its own.
-      if (row.kind === "stat" && row.row.cardId) {
-        const shown = clipHoverRect({ ...r, width: r.width - GUTTER }, view);
+      if (row.kind === "stat" && row.row.cardId && CARDS_BY_ID.has(row.row.cardId)) {
+        const shown = clipHoverRect(statRowPicture(statBox(r)), view);
         if (shown) found.set(hoverSlotOf(row.row.cardId, index), { ...shown, cardId: row.row.cardId, through: true });
       }
       if (row.kind === "cards") {
@@ -883,7 +892,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         break;
       }
       case "stat": {
-        objects.push(...this.#renderStat(row.row, { x: rect.x, y: rect.y + 3, width, height: rect.height - 6 }, phone));
+        objects.push(...this.#renderStat(row.row, statBox(rect), phone));
         break;
       }
       case "cards":
@@ -937,8 +946,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     let left = box.x + 12;
     const card = row.cardId ? CARDS_BY_ID.get(row.cardId) : undefined;
     if (card) {
-      const height = box.height - 10;
-      const pic: Rect = { x: box.x + 6, y: box.y + 5, width: Math.round((height * 63) / 88), height };
+      const pic = statRowPicture(box);
       g.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
       const art = drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
       if (art) objects.push(art);

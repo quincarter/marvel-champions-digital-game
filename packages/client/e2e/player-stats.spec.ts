@@ -391,6 +391,44 @@ test("over Pause: a press on empty stats space reaches nothing underneath, and B
   expect(await activeScenes(page)).toContain("PauseOverlay");
 });
 
+test("a stat row's card hover opens on its picture, at a card's size beside the pointer", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "a mouse hover");
+  test.setTimeout(120_000);
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  await press(page, false, (await stopsOf(page)).find((s) => s.key === "tab:heroes")!.rect);
+  const row = await waitFor(
+    async () => (await stopsOf(page)).find((s) => s.key === "row:hero:01001a") ?? null,
+    "Spider-Man's row",
+    10_000,
+  );
+  const debug = () =>
+    page.evaluate(() => {
+      const stats = (window as unknown as { __mcStatsDebug: { hoverShown(): string | null; hoverRect(): Rect | null } })
+        .__mcStatsDebug;
+      return { shown: stats.hoverShown(), rect: stats.hoverRect() };
+    });
+  const rest = async (x: number, y: number): Promise<void> => {
+    await page.mouse.move(x, y);
+    await page.mouse.move(x + 2, y + 1);
+  };
+  const middle = row.rect.y + row.rect.height / 2;
+
+  // Resting on the row's words opens nothing: they stay readable.
+  await rest(row.rect.x + row.rect.width / 2, middle);
+  await page.waitForTimeout(800);
+  expect((await debug()).shown).toBeNull();
+
+  // Its picture does, and the card is the size of any other popover, not one grown from the row's width.
+  await rest(row.rect.x + 20, middle);
+  const open = await waitFor(async () => (await debug()).rect, "the card hover popover");
+  const screen = page.viewportSize()!;
+  expect(open.height).toBeLessThan(screen.height * 0.6);
+  expect(open.width).toBeLessThan(screen.width * 0.4);
+  expect(open.x, "beside the pointer").toBeGreaterThan(row.rect.x + 20);
+});
+
 const stopsIn = (page: Page, scene: string): Promise<Stop[]> =>
   page.evaluate(
     (key) => (window as unknown as { __mcFocusRoutes?: Record<string, () => Stop[]> }).__mcFocusRoutes?.[key]?.() ?? [],
