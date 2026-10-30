@@ -213,17 +213,14 @@ export function drawAspectTipPanel(
       .setInteractive({ useHandCursor: true });
     // The panel floats near the segment (`drawAspectTipPanel`'s own placement above), which on a narrow chip row
     // can land over a hero/card tile's own zone underneath (`scenes/seats.ts`'s grid) — stop the event here so
-    // that tap only ever opens the lesson, never also fires whatever's drawn beneath the panel.
-    zone.on(
-      "pointerup",
-      (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
-        event.stopPropagation();
-        scene.scene.launch(SCENES.aspectLesson, {
-          aspect: content.aspect,
-          backTo: "previous",
-        } satisfies AspectLessonSceneData);
-      },
-    );
+    // the top zone takes the press, so that tap only ever opens the lesson. `onTap`, as the deck builder's tip sits
+    // over a scrolling region and a swipe's lift must not open it.
+    onTap(zone, () => {
+      scene.scene.launch(SCENES.aspectLesson, {
+        aspect: content.aspect,
+        backTo: "previous",
+      } satisfies AspectLessonSceneData);
+    });
     containerChildren.push(zone);
   }
 

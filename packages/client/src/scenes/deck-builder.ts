@@ -52,8 +52,8 @@
 
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
-import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck } from "@mc/content";
-import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
+import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
+import { DECK_MIN_CARDS, requiredIdentitySet, type CampaignDeckContext, type CampaignGrant } from "@mc/engine";
 import type { CardId } from "@mc/content";
 import {
   CARDS_BY_ID,
@@ -74,6 +74,11 @@ import {
   addCard,
   aspectCountFor,
   packFilterChoices,
+  traitFilterChoices,
+  traitLabelOf,
+  deckRuleRefusals,
+  type DeckBuildingRules,
+  QUICK_COST_MAX,
   stepChoice,
   withCycle,
   browsablePool,
@@ -94,10 +99,22 @@ import {
   type PackInfo,
   type PoolFilter,
   type PoolSort,
+  type PoolSortKey,
+  DEFAULT_POOL_SORT,
 } from "../view/deck-builder-model.js";
 import { costCurveBars, deckCountText, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
+import {
+  activeDeckFilterCount,
+  deckBuilderNarrowFocusOrder,
+  deckBuilderTabLabel,
+  deckBuilderTabRects,
+  deckBuilderTabs,
+  startTab,
+  stepDeckBuilderTab,
+  type DeckBuilderTab,
+} from "../view/deck-builder-tabs.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -131,6 +148,7 @@ import {
   NOTHING_STANDS_OUT,
   againstVillainOf,
   fromYourGamesOf,
+  fromYourGamesType,
   villainsFacedOf,
   type DeckInsights,
   type SuggestedCard,
@@ -175,12 +193,16 @@ import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
+import { parsePoolQuery } from "../view/pool-query.js";
+import { isDesktopType } from "../ui/desktop-type.js";
+import type { SearchHelpSheetData } from "./search-help-sheet.js";
+import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
+import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 
-/** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept for the app session. */
+/** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
 type PoolView = "grid" | "list";
-let lastPoolView: PoolView = "grid";
 
 /**
  * Between-issue deck editing (`scenes/campaign/deck-edit.ts`), a campaign mode over this same screen rather than a
@@ -217,18 +239,22 @@ const POOL_ROW_CONTROLS_WIDTH = 146;
 const GRID_CONTROLS_HEIGHT = hit.target + 8;
 /** Lines of rules text a pool row shows before the ellipsis; Inspect has the rest. */
 const CARD_TEXT_LINES = 3;
-/** How many pool rows the narrow layout keeps on screen below its scrolling deck half (`#rebuildNarrow`). */
-const NARROW_POOL_MIN_ROWS = 3;
-/** Room left at the narrow deck region's right edge for its scrollbar (`ui/scroll-region.ts`), so no control sits under it. */
+/** Room left at the narrow region's right edge for its scrollbar (`ui/scroll-region.ts`), so no control sits under it. */
 const NARROW_SCROLLBAR_GUTTER = 10;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
 
-/** `filter` with its text dropped: the search worker answers the text part. */
-function withoutText(filter: PoolFilter): PoolFilter {
-  const { text: _text, ...rest } = filter;
-  return rest;
+/**
+ * `filter` plus the search's `field:value` terms (`pool-query.ts`) as clauses this side applies; the search worker
+ * answers the search's free words.
+ */
+function withSearchClauses(filter: PoolFilter, search: string): PoolFilter {
+  const clauses = parsePoolQuery(search).clauses;
+  return clauses.length > 0 ? { ...filter, clauses } : filter;
 }
+
+/** The free words of a search, for the search worker; its `field:value` terms filter without it. */
+const freeTextOf = (text: string): string => parsePoolQuery(text).text.trim();
 
 /** Built on first search and kept: the documents the search worker ranks (every card; every hero). */
 let poolSearchDocuments: readonly SearchDocument[] | null = null;
@@ -252,11 +278,20 @@ const PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
   cycleName: POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string))?.cycleName ?? (pack.cycleId as string),
 }));
 
-/** The pool-sort button's cycle; `default` (alphabetical) shows as "Name". */
-const SORT_CYCLE: readonly { readonly sort: PoolSort; readonly label: string }[] = [
-  { sort: "default", label: "Name" },
+/** The Sort button's cycle (the primary key); the Then button cycles "None" and the rest but `match` and the primary. */
+const SORT_CYCLE: readonly { readonly sort: PoolSortKey; readonly label: string }[] = [
+  { sort: "match", label: "Match" },
+  { sort: "name", label: "Name" },
+  { sort: "aspect", label: "Aspect" },
+  { sort: "type", label: "Type" },
   { sort: "cost", label: "Cost" },
   { sort: "pack", label: "Pack" },
+];
+
+/** The Then button's choices under `primary`: none first, then every key but `match` and the primary itself. */
+const thenChoicesFor = (primary: PoolSortKey): readonly (PoolSortKey | null)[] => [
+  null,
+  ...SORT_CYCLE.map((o) => o.sort).filter((key) => key !== "match" && key !== primary),
 ];
 
 /** Below this, the three-column desktop split doesn't have room to breathe and the scene stacks into one column instead. */
@@ -288,14 +323,56 @@ const TYPE_FILTERS: readonly {
   ] as const
 ).map((chip) => ({ ...chip, text: chip.label }));
 
+/** The quick Cost and Icon chips (issue #531): one tap filters, a second tap on the same chip clears it. */
+const QUICK_FILTERS: readonly {
+  readonly id: string;
+  readonly text: string;
+  readonly apply: (filter: PoolFilter, on: boolean) => PoolFilter;
+  readonly isOn: (filter: PoolFilter) => boolean;
+}[] = [
+  ...Array.from({ length: QUICK_COST_MAX + 1 }, (_, cost) => ({
+    id: `cost:${cost}`,
+    text: cost === QUICK_COST_MAX ? `${cost}+` : `${cost}`,
+    apply: (filter: PoolFilter, on: boolean): PoolFilter => ({ ...filter, cost: on ? cost : null }),
+    isOn: (filter: PoolFilter): boolean => filter.cost === cost,
+  })),
+  ...(["physical", "mental", "energy", "wild"] as const).map((icon) => ({
+    id: `icon:${icon}`,
+    text: `${icon.charAt(0).toUpperCase()}${icon.slice(1)}`,
+    apply: (filter: PoolFilter, on: boolean): PoolFilter => ({ ...filter, resource: on ? icon : null }),
+    isOn: (filter: PoolFilter): boolean => filter.resource === icon,
+  })),
+];
+
+/** Under this height the narrow layout folds the pool's filters behind the Filters chip, as a phone does. */
+const FOLD_FILTERS_BELOW_HEIGHT = 700;
+/** The wide left rail's Cost curve / Odds tabs: shorter than a touch target, as only a mouse reaches them there. */
+const CHART_TAB_HEIGHT = 30;
+const CARD_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL.map((card) => [card.id as string, card]));
+
+/** From this column width the quick filters fit one row: ten chips, then a trait stepper `QUICK_TRAIT_WIDTH` wide. */
+const QUICK_ONE_ROW_MIN = 720;
+const QUICK_TRAIT_WIDTH = 200;
+
 export class DeckBuilderScene extends Phaser.Scene {
   /** Row sizes for the global Card size setting, read in `create()`. */
   #rows: DeckBuilderRowSizes = deckBuilderRowSizes(1);
   #identity: HeroIdentityCard | null = null;
   #deck: Deck | null = null;
   #filter: PoolFilter = {};
+  /** The left rail's chart on a wide screen: the cost curve, or the draw odds (issue #531). */
+  #chartTab: "curve" | "odds" = "curve";
+  /** The odds' group (`deck-odds.ts`) and how many cards are drawn; null is the first group / the opening hand. */
+  #oddsGroup: string | null = null;
+  #oddsDraws: number | null = null;
+  /** The rule settings' verdicts for the deck last drawn (`#ruleRefusal`). */
+  #refusals: {
+    readonly deck: Deck;
+    readonly rules: string;
+    readonly refusal: (cardId: CardId, step: 1 | -1) => string | null;
+  } | null = null;
   #filterText = "";
-  #sort: PoolSort = "default";
+  #sort: PoolSort = DEFAULT_POOL_SORT;
   #status: string | null = null;
   /** The id of the deck this visit last saved, so Back can hand it to Decks to select. */
   #savedDeckId: string | null = null;
@@ -305,7 +382,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #leaveArmed = false;
   /** Delete was pressed once: the next press deletes the saved deck. */
   #deleteArmed = false;
-  #poolView: PoolView = lastPoolView;
+  #poolView: PoolView = "grid";
   /** New deck's "Start from" step: the hero picked, while the player chooses an empty deck or one of its precons. */
   #startFor: HeroIdentityCard | null = null;
   #identitySearch = "";
@@ -332,12 +409,23 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
-  /** The narrow layout's scrolling deck half (`#drawNarrowDeckRegion`), recreated every rebuild; its offset persists. */
+  /** The narrow layout's one scrolling region (`#drawNarrowRegion`), recreated every rebuild; each tab's offset persists. */
   #deckRegion: McScrollRegion | null = null;
-  /** The narrow deck region's on-screen rect, and what else follows its scroll (the open aspect tip). */
+  /** The narrow region's on-screen rect, and what else follows its scroll (the open aspect tip). */
   #deckRegionRect: Rect | null = null;
   #onDeckScroll: (() => void) | null = null;
+  /** The Deck tab's, the From your games tab's and the open Filters panel's scroll offsets (the pool list keeps `#listScroll`). */
   #deckScroll = new VariableListScroll();
+  #gamesScroll = new VariableListScroll();
+  #filtersScroll = new VariableListScroll();
+  /** Which of those the drawn narrow region follows (hover rects and the aspect tip read its offset). */
+  #narrowScroll = this.#deckScroll;
+  /** The narrow layout's tab (issue #544). The wide layout's rail tab is `#railTab`; `#setTab` keeps the two in step. */
+  #tab: DeckBuilderTab = "pool";
+  /** A phone folds the pool's filters behind a Filters chip; whether it is open. */
+  #filtersOpen = false;
+  /** The last narrow draw's tab-row facts the focus order reads. */
+  #narrowFolded = false;
   /** The wide rail's "Your deck" list scrolls in its own region once it outgrows the rail; its offset persists. */
   #yourDeckRegion: McScrollRegion | null = null;
   #yourDeckScroll = new VariableListScroll();
@@ -394,7 +482,6 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#savedDeck = this.#campaign ? given : null;
     this.#leaveArmed = false;
     this.#deleteArmed = false;
-    this.#poolView = lastPoolView;
     this.#startFor = null;
     this.#identitySearch = "";
     this.#poolRanking = null;
@@ -402,7 +489,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#poolSearch = new DeckSearchClient();
     this.#heroSearch = new DeckSearchClient();
     this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
-    this.#filter = {};
+    // The sort, kept filters and card/list view the player last left (issue #531).
+    const view = deckBuilderView();
+    this.#filter = { ...view.filter };
+    this.#sort = view.sort;
+    this.#poolView = view.poolView;
     this.#filterText = "";
     this.#status =
       given && this.#deck !== given
@@ -423,12 +514,17 @@ export class DeckBuilderScene extends Phaser.Scene {
         });
     }
     this.#deckScroll = new VariableListScroll();
+    this.#gamesScroll = new VariableListScroll();
+    this.#filtersScroll = new VariableListScroll();
+    this.#narrowScroll = this.#deckScroll;
+    this.#filtersOpen = false;
     this.#insights = null;
     // Each visit starts on your own decks: a remembered Everyone, or a remembered "unavailable", does not outlive it.
     this.#againstSource = "yours";
     this.#againstVillain = null;
     this.#againstGlobal.clear();
     this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
+    this.#tab = startTab(data.railTab, this.#campaign !== null);
     this.#hints = new GlyphHints(this);
     if (!this.#campaign) {
       void appSession()
@@ -437,7 +533,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         .then((insights) => {
           if (!this.scene.isActive()) return;
           this.#insights = insights;
-          if (this.#railTab === "games") this.#rebuild();
+          if (this.#showsGames()) this.#rebuild();
         })
         .catch(() => undefined);
     }
@@ -445,9 +541,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
     // From your games draws card scans; they arrive after its first draw (in batches, `art/card-art.ts`).
-    const offArt = cardArt(this).onArrived(() => {
-      if (this.#railTab === "games" && this.#railArtMissing > 0 && this.scene.isActive()) this.#rebuild();
-    });
+    const redrawForArt = (): void => {
+      if (!this.#showsGames() || this.#railArtMissing === 0 || !this.scene.isActive()) return;
+      // A redraw replaces the scrolling region under a finger, which would end the swipe: wait for the lift.
+      if (this.#deckRegion?.isDragSuppressingClick) this.time.delayedCall(250, redrawForArt);
+      else this.#rebuild();
+    };
+    const offArt = cardArt(this).onArrived(redrawForArt);
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
@@ -485,17 +585,27 @@ export class DeckBuilderScene extends Phaser.Scene {
       onCancel: () => this.#stops.get("back")?.activate(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.searchHelp) ||
         (this.#nameInput?.focused ?? false) ||
         (this.#filterInput?.focused ?? false) ||
         (this.#identityInput?.focused ?? false),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
-      // LB / RB: the deck rail's two tabs, Your deck and From your games.
-      onTab: (direction) => {
-        if (this.#campaign || !this.#identity) return;
-        this.#setRailTab(direction > 0 ? "games" : "deck");
+      onPage: (direction) => {
+        if (this.#deckRegion) this.#deckRegion.scrollByPx(direction * this.#deckRegion.rect.height * 0.9);
+        else this.#list?.scrollByPage(direction);
       },
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
-      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
+      // LB / RB: the narrow layout's tabs (Pool, Deck, From your games); the wide layout's deck rail has two.
+      onTab: (direction) => {
+        if (!this.#identity) return;
+        if (!this.#isWide())
+          this.#setTab(stepDeckBuilderTab(deckBuilderTabs(this.#campaign !== null), this.#tab, direction));
+        else if (!this.#campaign) this.#setRailTab(direction > 0 ? "games" : "deck");
+      },
+      onScroll: (_dx, dy) => (this.#deckRegion ? this.#deckRegion.scrollByPx(dy) : this.#list?.scrollByPx(dy)),
+      onHomeEnd: (edge) => {
+        if (this.#deckRegion) this.#deckRegion.scrollByPx(edge === "home" ? -1e9 : 1e9);
+        else if (edge === "home") this.#list?.scrollToStart();
+        else this.#list?.scrollToEnd();
+      },
     });
     this.#rebuild();
     fadeScreenIn(this);
@@ -508,7 +618,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#deckLines.forEach(({ cardId, rect, region }, index) => {
       const view = region === "narrow" ? this.#deckRegionRect : region === "rail" ? this.#yourDeckRect : null;
       const offset =
-        region === "narrow" ? this.#deckScroll.offsetPx : region === "rail" ? this.#yourDeckScroll.offsetPx : 0;
+        region === "narrow" ? this.#narrowScroll.offsetPx : region === "rail" ? this.#yourDeckScroll.offsetPx : 0;
       const at = { ...rect, y: rect.y - offset };
       const shown = view ? clipHoverRect(at, view) : at;
       if (shown) all.set(hoverSlotOf(cardId, `line${index}`), { ...shown, cardId, through: true });
@@ -649,18 +759,44 @@ export class DeckBuilderScene extends Phaser.Scene {
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
     this.#drawOpenAspectTip();
 
+    if (!wide) {
+      this.#route?.set(
+        deckBuilderNarrowFocusOrder({
+          tab: this.#tab,
+          tabs: deckBuilderTabs(this.#campaign !== null),
+          campaign: this.#campaign !== null,
+          filtersFolded: this.#narrowFolded,
+          filtersOpen: this.#filtersOpen,
+          filterTextEntered: this.#filterText !== "",
+          aspectIds: [...SELECTABLE_ASPECTS],
+          typeFilterIds: TYPE_FILTERS.map((f) => f.id),
+          quickFilterIds: QUICK_FILTERS.map((f) => f.id),
+          oddsIds: [...this.#stops.keys()].filter((key) => key.startsWith("odds:")),
+          poolCardIds: pool.map((card) => card.id as string),
+          rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
+          showDelete: !this.#campaign && this.#savedDeck !== null,
+          showFreeze: this.#campaign?.optionalFreeze?.eligible === true,
+          gamesIds: this.#railStops,
+        }),
+        this.#stops,
+      );
+      this.#hover?.onDraw();
+      return;
+    }
     this.#route?.set(
       deckBuilderFocusOrder({
         identityChosen: true,
         identityIds: [],
         aspectIds: [...SELECTABLE_ASPECTS],
         typeFilterIds: TYPE_FILTERS.map((f) => f.id),
+        quickFilterIds: QUICK_FILTERS.map((f) => f.id),
+        chartIds: [...this.#stops.keys()].filter((key) => key.startsWith("chart:") || key.startsWith("odds:")),
         poolCardIds: pool.map((card) => card.id as string),
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
         showDelete: !this.#campaign && this.#savedDeck !== null,
         railIds: this.#railStops,
-        filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "pool-view"],
+        filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "filter-help", "pool-view"],
         rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
       }),
       this.#stops,
@@ -678,6 +814,33 @@ export class DeckBuilderScene extends Phaser.Scene {
     return this.#campaign ? new Set([...prohibitedCampaignCardIds(this.#campaign.context)].map(String)) : null;
   }
 
+  /** The deck-building rule settings (Settings › Gameplay, issue #531). Campaign decks follow their campaign's rules. */
+  #rules(): DeckBuildingRules {
+    const settings = appSession().settings;
+    return this.#campaign
+      ? { signature: "free", copyLimits: false }
+      : { signature: settings.deckSignatureCards, copyLimits: settings.deckCopyLimits };
+  }
+
+  /** Why the rule settings refuse adding (`1`) or removing (`-1`) one `cardId`, or null; built once per deck. */
+  #ruleRefusal(deck: Deck, cardId: CardId, step: 1 | -1): string | null {
+    if (!this.#identity) return null;
+    const rules = this.#rules();
+    const cached = this.#refusals;
+    if (!cached || cached.deck !== deck || cached.rules !== rules.signature + rules.copyLimits)
+      this.#refusals = {
+        deck,
+        rules: rules.signature + rules.copyLimits,
+        refusal: deckRuleRefusals(deck, this.#identity, POOL, rules),
+      };
+    return this.#refusals!.refusal(cardId, step);
+  }
+
+  /** Keeps the pool's sort, filters and view for the next visit (`platform/deck-builder-view.ts`). */
+  #rememberView(): void {
+    rememberDeckBuilderView({ sort: this.#sort, filter: this.#filter, poolView: this.#poolView });
+  }
+
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
     return this.#campaignModel?.rows.find((row) => (row.cardId as string) === cardId) ?? null;
@@ -688,22 +851,31 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
+    const ranking = freeTextOf(this.#filterText) ? this.#poolRanking : null;
     const listed = browsablePool(
       POOL,
       this.#identity!,
       deck.aspects,
-      withoutText(this.#filter),
+      withSearchClauses(this.#filter, this.#filterText),
       this.#sort,
       PACK_INFOS,
       held,
+      ranking ?? undefined,
     );
-    // The text search is ranked by the search worker: only its matches, best first.
-    const ranking = this.#filterText.trim() ? this.#poolRanking : null;
-    const pool = ranking
-      ? listed
-          .filter((card) => ranking.has(card.id as string))
-          .sort((a, b) => ranking.get(b.id as string)! - ranking.get(a.id as string)!)
-      : listed;
+    // The search worker answers the text search: only its matches stay, in the chosen sort (its ranking orders them
+    // only under the Match sort, issue #531).
+    const searched = ranking ? listed.filter((card) => ranking.has(card.id as string)) : listed;
+    // "Hidden" signature cards stay in the deck but leave the pool list (Settings › Gameplay, issue #531), except one
+    // the deck holds fewer of than its set's count, so it can be put back.
+    const hidden =
+      this.#rules().signature === "hidden"
+        ? new Set(
+            requiredIdentitySet(this.#identity!, POOL)
+              .filter((line) => (deck.cards.find((c) => c.cardId === line.cardId)?.quantity ?? 0) >= line.quantity)
+              .map((line) => line.cardId as string),
+          )
+        : null;
+    const pool = hidden ? searched.filter((card) => !hidden.has(card.id as string)) : searched;
     const removed = this.#removedFromCampaignIds();
     const prohibited = this.#prohibitedCampaignIds();
     if (!removed && !prohibited) return pool;
@@ -716,88 +888,189 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
   }
 
+  /** True from `WIDE_MIN_WIDTH` up on a non-phone: the three-column desktop layout. Below it, the tabbed narrow one. */
+  #isWide(): boolean {
+    const { width, height } = this.scale.gameSize;
+    return formFactorFor(width, height) !== "phone" && width >= WIDE_MIN_WIDTH;
+  }
+
+  /** From your games is on screen: its narrow tab, or the wide rail's second tab. */
+  #showsGames(): boolean {
+    return this.#isWide() ? this.#railTab === "games" : this.#tab === "games";
+  }
+
+  /** The narrow layout's tab press (a tap, Enter, or LB / RB). Each tab keeps its own scroll; the aspect tip closes. */
+  #setTab(tab: DeckBuilderTab): void {
+    if (this.#tab === tab) return;
+    this.#tab = tab;
+    this.#railTab = tab === "games" ? "games" : "deck";
+    this.#aspectTipOpen = null;
+    this.#rebuild();
+    this.#route?.focusKey(`tab:${tab}`);
+  }
+
   /**
-   * The narrow (phone/tablet) layout: everything in the one column D04's own
-   * canvas doesn't have room for below `WIDE_MIN_WIDTH` — aspect, filter
-   * chips, name, legality, the stats panel, Preconstructed/Clear, Save, the
-   * pool search, then the pool list filling whatever height is left. Returns
-   * the browsable pool, for the caller's focus order.
+   * The narrow (phone and tablet portrait) layout (issue #544): a fixed tab row under the header — Pool, Deck, From
+   * your games — and one tab's content filling the rest of the screen, so only one thing ever scrolls. Returns the
+   * browsable pool (the Pool tab's cards; empty on the other tabs), for the caller's focus order.
    */
   #rebuildNarrow(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
-    const { height } = this.scale.gameSize;
+    const { width, height } = this.scale.gameSize;
     const pad = 16;
-    // Everything above the pool search scrolls in its own region (`#drawNarrowDeckRegion`), capped so the pool
-    // keeps `POOL_RESERVE` of the screen below it. A phone's column runs far taller than its screen, and drawn
-    // flat the pool list started below the bottom edge with no way to scroll to it.
-    const poolRows =
-      this.#poolView === "grid"
-        ? this.#gridGeometry(column, 1).cellHeight * 1.2
-        : this.#rows.cardRowHeight * NARROW_POOL_MIN_ROWS;
-    const poolReserve = 16 + hit.target + 16 + 16 + poolRows;
-    const maxRegionHeight = Math.max(hit.target * 3, height - top - pad - poolReserve);
-    let y = this.#drawNarrowDeckRegion(left, top, column, maxRegionHeight, deck);
+    const tabs = deckBuilderTabs(this.#campaign !== null);
+    if (!tabs.includes(this.#tab)) this.#tab = "pool";
+    let y = this.#drawTabRow(left, top, column, tabs, deck);
 
-    label(this, left, y, "search the pool", typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
+    // A DOM field is not clipped by the canvas: only the tab that shows it leaves it visible.
+    if (this.#tab !== "deck") this.#nameInput?.setVisible(false);
+    if (this.#tab !== "pool") this.#filterInput?.setVisible(false);
+
+    if (this.#tab === "games") {
+      const rect: Rect = { x: left, y, width: column, height: Math.max(hit.target * 2, height - y - pad) };
+      this.#drawNarrowRegion(rect, this.#gamesScroll, (at) =>
+        this.#drawFromYourGames(left, at, column - NARROW_SCROLLBAR_GUTTER, deck, false),
+      );
+      return [];
+    }
+
+    if (this.#tab === "deck") {
+      // Save is pinned under the region so it stays reachable however far the deck list runs.
+      const saveHeight = hit.primary + 8;
+      const rect: Rect = {
+        x: left,
+        y,
+        width: column,
+        height: Math.max(hit.target * 2, height - y - pad - saveHeight),
+      };
+      const inner = column - NARROW_SCROLLBAR_GUTTER;
+      this.#drawNarrowRegion(rect, this.#deckScroll, (at) => {
+        let next = at;
+        next = this.#drawAspectPicker(left, next, inner, deck, true);
+        if (!this.#campaign) next = this.#drawNameField(left, next, inner, deck);
+        next = this.#drawLegalityLine(left, next, inner, deck);
+        next = this.#drawRewardsStrip(left, next, inner, false);
+        label(this, left, next, "cost curve — cards at each cost", typeRole.label, surface.ink.hex, ink.label);
+        next = this.#drawCostCurve(left, next + 16, inner, deck, false);
+        label(this, left, next, "odds", typeRole.label, surface.ink.hex, ink.label);
+        next = this.#drawOdds(left, next + 16, inner, deck, hit.target);
+        next = this.#drawYourDeckList(left, next, inner, deck, false);
+        return this.#drawPreconClearSave(left, next, inner, deck, false, "actions");
+      });
+      this.#drawPreconClearSave(left, rect.y + rect.height + 8, column, deck, false, "save");
+      return [];
+    }
+
+    // Pool: the search row, the filters (behind a chip on a phone), and the list filling what is left.
     y = this.#drawFilterInput(left, y, column);
     const pool = this.#browsablePool(deck);
-    label(
-      this,
-      left,
-      y,
-      `pool — ${pool.length} card${pool.length === 1 ? "" : "s"}`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.label,
-    );
-    y += 16;
+    // Anything short folds the filters too: drawn open on a landscape phone they would push the list off the screen.
+    const form = formFactorFor(width, height);
+    const folded = form === "phone" || form === "phoneLandscape" || height < FOLD_FILTERS_BELOW_HEIGHT;
+    this.#narrowFolded = folded;
+    const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
+    if (folded) {
+      const active = activeDeckFilterCount(this.#filter, this.#sort);
+      const chip: Rect = { x: left, y, width: Math.min(column * 0.55, 200), height: hit.target };
+      const toggle = (): void => {
+        this.#filtersOpen = !this.#filtersOpen;
+        this.#rebuild();
+        if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey("filters-toggle");
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${this.#filtersOpen ? "▾" : "▸"} Filters${active > 0 ? ` · ${active}` : ""}`,
+          type: typeRole.label,
+          rect: chip,
+          selected: active > 0,
+          onClick: toggle,
+        }),
+      );
+      this.#stops.set("filters-toggle", { rect: chip, activate: toggle });
+      label(this, left + column, y + hit.target / 2, countText, typeRole.label, surface.ink.hex, ink.meta).setOrigin(
+        1,
+        0.5,
+      );
+      y += hit.target + 12;
+      if (this.#filtersOpen) {
+        // The panel takes the list's place; the count above updates as the chips are pressed.
+        const rect: Rect = { x: left, y, width: column, height: Math.max(hit.target * 2, height - y - pad) };
+        const inner = column - NARROW_SCROLLBAR_GUTTER;
+        this.#drawNarrowRegion(rect, this.#filtersScroll, (at) => {
+          let next = this.#drawTypeFilters(left, at, inner);
+          next = this.#drawQuickFilters(left, next, inner, deck);
+          return this.#drawPackAndSort(left, next, inner, deck);
+        });
+        return pool;
+      }
+    } else {
+      y = this.#drawTypeFilters(left, y, column);
+      y = this.#drawQuickFilters(left, y, column, deck);
+      y = this.#drawPackAndSort(left, y, column, deck);
+      label(this, left, y, `pool — ${countText}`, typeRole.label, surface.ink.hex, ink.label);
+      y += 16;
+    }
     const listRect: Rect = { x: left, y, width: column, height: Math.max(this.#rows.cardRowHeight, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
   }
 
+  /** The fixed tab row: Pool, Deck with its live count, and From your games. Returns the y below it. */
+  #drawTabRow(left: number, top: number, column: number, tabs: readonly DeckBuilderTab[], deck: Deck): number {
+    const counted = this.#campaignModel
+      ? campaignDeckSizeSplit(this.#campaignModel).counted
+      : deckStatsOf(deck, POOL).countedCards;
+    const labels = tabs.map((tab) => deckBuilderTabLabel(tab, counted, DECK_MIN_CARDS));
+    const rects = deckBuilderTabRects(labels, { x: left, y: top, width: column, height: hit.target }, 6);
+    const current = tabs.indexOf(this.#tab);
+    tabs.forEach((tab, index) => {
+      const rect = rects[index]!;
+      const selected = tab === this.#tab;
+      const open = (): void => this.#setTab(tab);
+      const button = new McButton(this, {
+        kind: selected ? "primary" : "secondary",
+        label: labels[index]!,
+        type: typeRole.label,
+        rect,
+        onClick: open,
+      });
+      this.#buttons.push(button);
+      // LB / RB reach the neighbouring tab: its glyph sits on that tab.
+      if (index === current - 1) this.#hints?.button(button, ["zonePrevious"], "paper");
+      if (index === current + 1) this.#hints?.button(button, ["zoneNext"], "paper");
+      this.#stops.set(`tab:${tab}`, { rect, activate: open });
+    });
+    return top + hit.target + 12;
+  }
+
   /**
-   * The narrow layout's deck half — aspect, filter chips, pack and sort, name, legality, the stats panel,
-   * Preconstructed/Clear and Save — drawn at its natural height, then moved into a `McScrollRegion` no taller than
-   * `maxHeight`. Its controls are clipped to the region (`clipInteractive`), its focus stops follow the scroll, and
-   * the DOM name field (which a Phaser mask can't hide) is placed and shown by hand. Returns the y below it.
+   * The narrow layout's one scrolling region: `draw` puts the tab's content down from the region's top at its natural
+   * height, and it is then moved into a `McScrollRegion` the size of `rect`. Its controls are clipped to the region
+   * (`clipInteractive`), its focus stops follow the scroll, and the DOM name field (which a Phaser mask can't hide) is
+   * placed and shown by hand.
    */
-  #drawNarrowDeckRegion(left: number, top: number, column: number, maxHeight: number, deck: Deck): number {
+  #drawNarrowRegion(rect: Rect, scroll: VariableListScroll, draw: (top: number) => number): void {
     const before = this.children.list.length;
     const stopsBefore = new Set(this.#stops.keys());
-    // The region's scrollbar runs down its right edge, so the controls stop short of it.
-    const inner = column - NARROW_SCROLLBAR_GUTTER;
-    let y = top;
-    y = this.#drawAspectPicker(left, y, inner, deck, true);
-    y = this.#drawTypeFilters(left, y, inner);
-    y = this.#drawPackAndSort(left, y, inner, deck);
-    if (!this.#campaign) y = this.#drawNameField(left, y, inner, deck);
-    y = this.#drawLegalityLine(left, y, inner, deck);
-    y = this.#drawRewardsStrip(left, y, inner, false);
-    y = this.#drawCostCurve(left, y, inner, deck, false);
-    if (!this.#campaign) y = this.#drawRailTabs(left, y, inner, false);
-    y =
-      this.#railTab === "games" && !this.#campaign
-        ? this.#drawFromYourGames(left, y, inner, deck, false)
-        : this.#drawYourDeckList(left, y, inner, deck, false);
-    y = this.#drawPreconClearSave(left, y, inner, deck);
+    const bottom = draw(rect.y);
     const nameNode = this.#nameInput?.gameObject;
     const added = this.children.list.slice(before).filter((node) => node !== nameNode);
 
-    const contentHeight = y - top;
-    const rect: Rect = { x: left, y: top, width: column, height: Math.min(contentHeight, maxHeight) };
-    const heights = [contentHeight];
+    const heights = [bottom - rect.y];
     const nameRect = this.#nameFieldRect;
     const syncName = (): void => {
       if (!this.#nameInput || !nameRect) return;
-      const screenY = nameRect.y - this.#deckScroll.offsetPx;
+      const screenY = nameRect.y - scroll.offsetPx;
       this.#nameInput.layout({ ...nameRect, y: screenY });
-      this.#nameInput.setVisible(screenY >= rect.y && screenY + nameRect.height <= rect.y + rect.height);
+      // The aspect tip opens over the name field, and a DOM field would draw on top of it.
+      const inView = screenY >= rect.y && screenY + nameRect.height <= rect.y + rect.height;
+      this.#nameInput.setVisible(inView && this.#aspectTipOpen === null);
     };
+    this.#narrowScroll = scroll;
     this.#deckRegion = new McScrollRegion(this, {
       rect,
       heights,
-      scroll: this.#deckScroll,
+      scroll,
       clipInteractive: true,
       onScroll: () => {
         syncName();
@@ -815,17 +1088,17 @@ export class DeckBuilderScene extends Phaser.Scene {
       const at = stop.rect;
       this.#stops.set(key, {
         ...stop,
-        rect: () => ({ ...at, y: at.y - this.#deckScroll.offsetPx }),
+        rect: () => ({ ...at, y: at.y - scroll.offsetPx }),
+        view: rect,
         ensureVisible: () => {
           const rowTop = at.y - rect.y;
-          const offset = this.#deckScroll.offsetPx;
+          const offset = scroll.offsetPx;
           if (rowTop < offset) region.scrollByPx(rowTop - offset);
           else if (rowTop + at.height > offset + rect.height)
             region.scrollByPx(rowTop + at.height - offset - rect.height);
         },
       });
     }
-    return top + rect.height + 12;
   }
 
   /**
@@ -848,9 +1121,29 @@ export class DeckBuilderScene extends Phaser.Scene {
     leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
     leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
     leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
-    label(this, leftX, leftY, "cost curve", typeRole.label, surface.ink.hex, ink.label);
-    leftY += 16;
-    this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
+    // The cost curve and the odds share the rail's last room behind two tabs (issue #531).
+    const tabWidth = (LEFT_RAIL_WIDTH - CHIP_GAP) / 2;
+    for (const [i, tab] of (["curve", "odds"] as const).entries()) {
+      const rect: Rect = { x: leftX + i * (tabWidth + CHIP_GAP), y: leftY, width: tabWidth, height: CHART_TAB_HEIGHT };
+      const pick = (): void => {
+        this.#chartTab = tab;
+        this.#rebuild();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: tab === "curve" ? "Cost curve" : "Odds",
+          type: typeRole.label,
+          rect,
+          selected: this.#chartTab === tab,
+          onClick: pick,
+        }),
+      );
+      this.#stops.set(`chart:${tab}`, { rect, activate: pick });
+    }
+    leftY += CHART_TAB_HEIGHT + CHIP_GAP;
+    if (this.#chartTab === "curve") this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
+    else this.#drawOdds(leftX, leftY, LEFT_RAIL_WIDTH, deck, CHART_TAB_HEIGHT);
 
     // Right rail: name, legality, Your deck, Preconstructed/Clear, Save — one ink ground panel behind all of it.
     const rightPanel = this.add.graphics();
@@ -878,6 +1171,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
     midY += 16;
     midY = this.#drawFilterInput(midX, midY, midWidth);
+    // The quick filters sit under the search here: the left rail has no room left for them.
+    midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
     const pool = this.#browsablePool(deck);
     label(
       this,
@@ -987,12 +1282,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (!open) return;
     const { width, height } = this.scale.gameSize;
     const region = open.scrolls ? this.#deckRegionRect : null;
-    const drawnAt = open.scrolls ? this.#deckScroll.offsetPx : 0;
+    const drawnAt = open.scrolls ? this.#narrowScroll.offsetPx : 0;
     const anchor = { ...open.anchor, y: open.anchor.y - drawnAt };
     const panel = drawAspectTipPanel(this, anchor, open.content, { x: 0, y: 0, width, height });
     if (!region) return;
     const place = (): void => {
-      const shift = drawnAt - this.#deckScroll.offsetPx;
+      const shift = drawnAt - this.#narrowScroll.offsetPx;
       const top = anchor.y + shift;
       panel.setY(shift).setVisible(top >= region.y && top + anchor.height <= region.y + region.height);
     };
@@ -1018,6 +1313,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         const selected = chip.id === activeTypeFilterId;
         const applyFilter = (): void => {
           this.#filter = { ...this.#filter, type: chip.type };
+          this.#rememberView();
           this.#listScroll.reset();
           this.#rebuild();
         };
@@ -1038,6 +1334,81 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /**
+   * The quick filters under the type chips (issue #531): cost chips 0 to 5+, resource icon chips, and a trait stepper
+   * (◂ name ▸, wrapping through "All traits") over the traits the pool holds under the other filters. Built for a tap
+   * on a phone, where typing `o:2` is slow; each chip toggles.
+   */
+  #drawQuickFilters(left: number, top: number, column: number, deck: Deck): number {
+    let y = top;
+    label(this, left, y, "cost · icon · trait", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const apply = (next: PoolFilter): void => {
+      this.#filter = next;
+      this.#rememberView();
+      this.#listScroll.reset();
+      this.#rebuild();
+    };
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, selected, onClick }),
+      );
+      this.#stops.set(id, { rect, activate: onClick });
+    };
+    // A wide column takes every chip on one row with the trait stepper at its end; a narrow one stacks cost, icons
+    // and the stepper.
+    const oneRow = column >= QUICK_ONE_ROW_MIN;
+    const stepperWidth = oneRow ? QUICK_TRAIT_WIDTH : column;
+    const rows = oneRow
+      ? [QUICK_FILTERS]
+      : [QUICK_FILTERS.filter((f) => f.id.startsWith("cost:")), QUICK_FILTERS.filter((f) => f.id.startsWith("icon:"))];
+    const chipsWidth = oneRow ? column - stepperWidth - CHIP_GAP : column;
+    rows.forEach((row, rowIndex) => {
+      // On one row the cost chips ("0" to "5+") take a square each and the icon names share what is left; elsewhere
+      // a row's chips share it evenly.
+      const isCost = (chip: (typeof row)[number]): boolean => oneRow && chip.id.startsWith("cost:");
+      const costs = row.filter(isCost).length;
+      const named = row.filter((chip) => !isCost(chip));
+      const nameSpace = chipsWidth - costs * hit.target - (row.length - 1) * CHIP_GAP;
+      // Names share their space by length, so "Physical" gets more than "Wild".
+      const weight = (chip: (typeof row)[number]): number => (oneRow ? chip.text.length + 3 : 1);
+      const totalWeight = named.reduce((sum, chip) => sum + weight(chip), 0);
+      let x = left;
+      row.forEach((chip) => {
+        const width = isCost(chip) ? hit.target : (nameSpace * weight(chip)) / totalWeight;
+        const rect: Rect = { x, y: y + rowIndex * (hit.target + CHIP_GAP), width, height: hit.target };
+        x += width + CHIP_GAP;
+        const on = chip.isOn(this.#filter);
+        add(`quick:${chip.id}`, rect, chip.text, () => apply(chip.apply(this.#filter, !on)), on);
+      });
+    });
+    if (!oneRow) y += chipStripHeight(rows.length) + CHIP_GAP;
+    const stepperLeft = left + column - stepperWidth;
+
+    const traits = traitFilterChoices(
+      POOL,
+      this.#identity!,
+      deck.aspects,
+      withSearchClauses(this.#filter, this.#filterText),
+      PACK_INFOS,
+    );
+    const arrow = hit.target;
+    // A kept trait no card shows under the other filters still names itself, so an empty pool says why.
+    const traitName = this.#filter.trait ? traitLabelOf(this.#filter.trait) : "All traits";
+    const stepTrait = (dir: 1 | -1) => (): void =>
+      apply({ ...this.#filter, trait: stepChoice(traits, this.#filter.trait, dir) as Trait | null });
+    add("trait:prev", { x: stepperLeft, y, width: arrow, height: hit.target }, "<", stepTrait(-1));
+    add(
+      "trait:name",
+      { x: stepperLeft + arrow + CHIP_GAP, y, width: stepperWidth - 2 * (arrow + CHIP_GAP), height: hit.target },
+      traitName,
+      stepTrait(1),
+      this.#filter.trait != null,
+    );
+    add("trait:next", { x: left + column - arrow, y, width: arrow, height: hit.target }, ">", stepTrait(1));
+    return y + hit.target + 16;
+  }
+
+  /**
    * The pool's Pack control, Cycle button and Sort button (PR #88 step 5). One combined control would have hidden
    * which wave a pack belongs to, so: a full-width pack stepper (◂ name ▸, wrapping through "All packs") over a
    * half-width cycle button and a half-width sort button — two rows, which is what fits a 375px column. Cycle narrows
@@ -1047,9 +1418,16 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     label(this, left, y, "pack", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const choices = packFilterChoices(POOL, this.#identity!, deck.aspects, this.#filter, PACK_INFOS);
+    const choices = packFilterChoices(
+      POOL,
+      this.#identity!,
+      deck.aspects,
+      withSearchClauses(this.#filter, this.#filterText),
+      PACK_INFOS,
+    );
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
+      this.#rememberView();
       this.#listScroll.reset();
       this.#rebuild();
     };
@@ -1076,29 +1454,47 @@ export class DeckBuilderScene extends Phaser.Scene {
     add("pack:next", nextRect, ">", stepPack(1));
     y += hit.target + CHIP_GAP;
 
-    const half = (column - CHIP_GAP) / 2;
     const cycleName = choices.cycles.find((c) => c.id === this.#filter.cycleId)?.name ?? "All waves";
     add(
       "pack:cycle",
-      { x: left, y, width: half, height: hit.target },
+      { x: left, y, width: column, height: hit.target },
       cycleName,
       () => apply(withCycle(this.#filter, stepChoice(choices.cycles, this.#filter.cycleId, 1), PACK_INFOS)),
       this.#filter.cycleId != null,
     );
+    y += hit.target + CHIP_GAP;
+
+    // Sort, then a second key for its ties (issue #531): "Sort: Aspect" "Then: Type" lists by aspect, type, then name.
+    const half = (column - CHIP_GAP) / 2;
+    const resort = (next: PoolSort): void => {
+      this.#sort = next;
+      this.#rememberView();
+      this.#listScroll.reset();
+      this.#rebuild();
+    };
+    const { primary, secondary } = this.#sort;
     const sortAt = Math.max(
       0,
-      SORT_CYCLE.findIndex((o) => o.sort === this.#sort),
+      SORT_CYCLE.findIndex((o) => o.sort === primary),
     );
     add(
       "pack:sort",
-      { x: left + half + CHIP_GAP, y, width: half, height: hit.target },
+      { x: left, y, width: half, height: hit.target },
       `Sort: ${SORT_CYCLE[sortAt]!.label}`,
       () => {
-        this.#sort = SORT_CYCLE[(sortAt + 1) % SORT_CYCLE.length]!.sort;
-        this.#listScroll.reset();
-        this.#rebuild();
+        const next = SORT_CYCLE[(sortAt + 1) % SORT_CYCLE.length]!.sort;
+        resort({ primary: next, secondary: secondary === next ? null : secondary });
       },
-      this.#sort !== "default",
+      primary !== DEFAULT_POOL_SORT.primary,
+    );
+    const thenChoices = thenChoicesFor(primary);
+    const thenAt = Math.max(0, thenChoices.indexOf(secondary));
+    add(
+      "pack:then",
+      { x: left + half + CHIP_GAP, y, width: half, height: hit.target },
+      `Then: ${SORT_CYCLE.find((o) => o.sort === secondary)?.label ?? "None"}`,
+      () => resort({ primary, secondary: thenChoices[(thenAt + 1) % thenChoices.length] ?? null }),
+      secondary !== null,
     );
     return y + hit.target + 16;
   }
@@ -1289,10 +1685,87 @@ export class DeckBuilderScene extends Phaser.Scene {
    * goes in the right one; the narrow layout still calls both back to back,
    * in the same order as before.
    */
+  /**
+   * The draw odds (issue #531, `view/deck-odds.ts`): a group stepper (◂ Gives physical ▸, Resource cards, a trait, a
+   * title ...), a draw count stepper starting at the alter ego's hand size (the opening hand), then the chance of
+   * drawing 0, 1, 2 and 3+ of the group and of at least one. Black Cat's top 2 is "Resource cards", draw 2.
+   */
+  #drawOdds(left: number, top: number, column: number, deck: Deck, rowHeight: number): number {
+    let y = top;
+    const copies = deckCopiesOf(deck, (id) => CARD_BY_ID.get(id));
+    const groups = oddsGroupsOf(copies);
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, enabled = true): void => {
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, enabled, onClick }),
+      );
+      this.#stops.set(id, { rect, activate: () => enabled && onClick() });
+    };
+    if (groups.length === 0) {
+      label(this, left, y, "Add cards to see their odds.", typeRole.body, surface.ink.hex, ink.meta);
+      return y + 24;
+    }
+    const at = Math.max(
+      0,
+      groups.findIndex((g) => g.id === this.#oddsGroup),
+    );
+    const group = groups[at]!;
+    const step = (dir: 1 | -1) => (): void => {
+      this.#oddsGroup = groups[(at + dir + groups.length) % groups.length]!.id;
+      this.#rebuild();
+    };
+    const arrow = rowHeight;
+    add("odds:prev", { x: left, y, width: arrow, height: rowHeight }, "<", step(-1));
+    add(
+      "odds:group",
+      { x: left + arrow + CHIP_GAP, y, width: column - 2 * (arrow + CHIP_GAP), height: rowHeight },
+      `${group.label} · ${group.count}`,
+      step(1),
+    );
+    add("odds:next", { x: left + column - arrow, y, width: arrow, height: rowHeight }, ">", step(1));
+    y += rowHeight + CHIP_GAP;
+
+    const hand = this.#identity?.alterEgo.handSize ?? 6;
+    const draws = Math.min(this.#oddsDraws ?? hand, copies.length);
+    const setDraws = (next: number) => (): void => {
+      this.#oddsDraws = Math.max(1, Math.min(copies.length, next));
+      this.#rebuild();
+    };
+    add("odds:fewer", { x: left, y, width: arrow, height: rowHeight }, "−", setDraws(draws - 1), draws > 1);
+    add(
+      "odds:draws",
+      { x: left + arrow + CHIP_GAP, y, width: column - 2 * (arrow + CHIP_GAP), height: rowHeight },
+      draws === hand ? `Draw ${draws} (opening hand)` : `Draw ${draws}`,
+      setDraws(hand),
+    );
+    add(
+      "odds:more",
+      { x: left + column - arrow, y, width: arrow, height: rowHeight },
+      "+",
+      setDraws(draws + 1),
+      draws < copies.length,
+    );
+    y += rowHeight + 8;
+
+    const { rows, atLeastOne } = oddsRowsOf(drawOdds(copies.length, group.count, draws));
+    const line = rows.map((row) => `${row.label}: ${percentText(row.p)}`).join("   ");
+    label(this, left, y, line, typeRole.body, surface.ink.hex, ink.label);
+    y += 18;
+    label(this, left, y, `At least one: ${percentText(atLeastOne)}`, typeRole.body, surface.ink.hex, ink.label);
+    return y + 26;
+  }
+
   #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
     const stats = deckStatsOf(deck, POOL);
-    const chartHeight = 74;
-    drawCostCurveBars(this, { x: left, y: top, width: column, height: chartHeight }, costCurveBars(stats), onDark);
+    // On a phone each bar carries its count above it (the cost is on the axis), so the chart reads as numbers, not
+    // buttons. The desktop rail (`onDark`) has no room for it.
+    const chartHeight = onDark ? 74 : 90;
+    drawCostCurveBars(
+      this,
+      { x: left, y: top, width: column, height: chartHeight },
+      costCurveBars(stats),
+      onDark,
+      !onDark,
+    );
     return top + chartHeight + 16;
   }
 
@@ -1300,6 +1773,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #setRailTab(tab: "deck" | "games"): void {
     if (this.#railTab === tab) return;
     this.#railTab = tab;
+    this.#tab = tab === "games" ? "games" : this.#tab === "games" ? "deck" : this.#tab;
     this.#rebuild();
     this.#route?.focusKey(`rail:${tab}`);
   }
@@ -1353,6 +1827,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     this.#railArtMissing = 0;
     const pool = new Set(this.#browsablePool(deck).map((card) => card.id as string));
+    const type = fromYourGamesType(isDesktopType());
     const view = fromYourGamesOf(
       this.#insights,
       deck.identityCardId as string,
@@ -1361,20 +1836,21 @@ export class DeckBuilderScene extends Phaser.Scene {
       POOL_STATS_NAMES,
     );
     if (view.headline) {
-      label(this, left, y, view.headline.toUpperCase(), typeRole.label, onDark ? signal.caution.hex : fg, 1);
-      y += 18;
+      const headType = { ...typeRole.label, size: type.label };
+      label(this, left, y, view.headline.toUpperCase(), headType, onDark ? signal.caution.hex : fg, 1);
+      y += type.label + 9;
     }
     if (view.insight) {
       const text = this.add
         .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column - 16);
       const box = this.add.graphics();
       box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
       this.children.bringToTop(text);
       y += text.height + 20;
     }
-    const thumb = { width: 30, height: 42 };
+    const { thumb } = type;
     const faced = villainsFacedOf(this.#insights);
     // The Cut and Try lists leave room for the Against stepper and a first card under it: the rail does not scroll.
     // The room is the stepper's, the You / Everyone toggle's under it, and a first card.
@@ -1411,9 +1887,9 @@ export class DeckBuilderScene extends Phaser.Scene {
 ${entry.detail}`,
             textStyle(typeRole.body, fg, onDark ? ink.body : 1),
           )
-          .setFontSize(12)
+          .setFontSize(type.text)
           .setWordWrapWidth(column - thumb.width - 16 - buttonWidth);
-        clampLines(text, 2);
+        clampLines(text, type.lines);
         if (action) {
           const rect: Rect = {
             x: left + column - buttonWidth,
@@ -1530,7 +2006,7 @@ ${entry.detail}`,
       if (sourceNote && y + 30 < bottom) {
         const note = this.add
           .text(left, y, sourceNote, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-          .setFontSize(12)
+          .setFontSize(type.note)
           .setWordWrapWidth(column);
         y += note.height + 8;
       }
@@ -1551,7 +2027,7 @@ ${entry.detail}`,
         if (nothing && y + 30 < bottom) {
           const note = this.add
             .text(left, y, nothing, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-            .setFontSize(12)
+            .setFontSize(type.note)
             .setWordWrapWidth(column);
           y += note.height + 8;
         }
@@ -1561,7 +2037,7 @@ ${entry.detail}`,
     if (view.note && y + 30 < bottom) {
       const note = this.add
         .text(left, y, view.note, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column);
       y += note.height + 8;
     }
@@ -1623,18 +2099,21 @@ ${entry.detail}`,
     const drawRemove = (entry: DeckListEntry, rect: Rect): void => {
       const row = this.#campaignRowFor(entry.cardId as string);
       const locked = row?.locked ?? false;
+      const refused = this.#ruleRefusal(deck, entry.cardId, -1);
       this.#buttons.push(
         new McButton(this, {
           kind: onDark ? "onInk" : "secondary",
           label: "−",
           type: typeRole.rowTitle,
           rect,
-          enabled: !locked && !frozen,
+          enabled: !locked && !frozen && refused === null,
           ...(frozen
             ? { reason: this.#campaignModel?.editingDisabledReason ?? "" }
             : locked && row?.lockedReason
               ? { reason: row.lockedReason }
-              : {}),
+              : refused
+                ? { reason: refused }
+                : {}),
           onClick: () => this.#setDeck(removeCard(deck, entry.cardId)),
         }),
       );
@@ -1674,8 +2153,20 @@ ${entry.detail}`,
     return rect.y + rect.height + 8;
   }
 
-  #drawPreconClearSave(left: number, top: number, column: number, deck: Deck, onDark = false): number {
+  /**
+   * Precon / Clear / Delete, the campaign freeze, and Save. `part` splits them for the narrow layout, which scrolls the
+   * first group with the deck and pins Save under the region; the wide rail draws all of it at once.
+   */
+  #drawPreconClearSave(
+    left: number,
+    top: number,
+    column: number,
+    deck: Deck,
+    onDark = false,
+    part: "all" | "actions" | "save" = "all",
+  ): number {
     let y = top;
+    if (part === "save") return this.#drawSaveButton(left, y, column);
     // Campaign mode (MC10 p. 3): Preconstructed and Clear both replace `deck.cards` wholesale, which would drop
     // the campaign's own granted lines — a player can never remove those by hand, so the screen never offers a
     // control that would do it as a side effect. `showPreconClear: false` already keeps them out of the focus
@@ -1777,6 +2268,11 @@ ${entry.detail}`,
       y += hit.target + 16;
     }
 
+    if (part === "actions") return y;
+    return this.#drawSaveButton(left, y, column);
+  }
+
+  #drawSaveButton(left: number, y: number, column: number): number {
     const frozen = this.#campaignModel?.editingDisabled ?? false;
     const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
     const doSave = (): void => void this.#save();
@@ -1803,20 +2299,24 @@ ${entry.detail}`,
    */
   #drawFilterInput(left: number, top: number, column: number): number {
     const toggleWidth = 92;
+    const helpWidth = hit.target;
     const clearWidth = this.#filterText ? hit.target : 0;
-    const fieldWidth = column - toggleWidth - CHIP_GAP - (clearWidth ? clearWidth + CHIP_GAP : 0);
+    const fieldWidth =
+      column - toggleWidth - CHIP_GAP - helpWidth - CHIP_GAP - (clearWidth ? clearWidth + CHIP_GAP : 0);
     const filterRect: Rect = { x: left, y: top, width: fieldWidth, height: hit.target };
     const applyText = (value: string): void => {
       this.#filterText = value;
       this.#listScroll.reset();
       this.#requestPoolSearch(value);
     };
-    if (this.#filterInput) this.#filterInput.layout(filterRect);
-    else {
+    if (this.#filterInput) {
+      this.#filterInput.layout(filterRect);
+      this.#filterInput.setVisible(true);
+    } else {
       this.#filterInput = new McTextInput(this, {
         rect: filterRect,
         value: this.#filterText,
-        placeholder: "Search name, trait or card text",
+        placeholder: "Search, or o:2 t:ally",
         onChange: applyText,
       });
     }
@@ -1832,10 +2332,21 @@ ${entry.detail}`,
       );
       this.#stops.set("filter-clear", { rect: clearRect, activate: clear });
     }
+    const helpRect: Rect = {
+      x: left + column - toggleWidth - CHIP_GAP - helpWidth,
+      y: top,
+      width: helpWidth,
+      height: hit.target,
+    };
+    const openHelp = (): void => this.#openSearchHelp(applyText);
+    this.#buttons.push(
+      new McButton(this, { kind: "secondary", label: "?", type: typeRole.rowTitle, rect: helpRect, onClick: openHelp }),
+    );
+    this.#stops.set("filter-help", { rect: helpRect, activate: openHelp });
     const toggleRect: Rect = { x: left + column - toggleWidth, y: top, width: toggleWidth, height: hit.target };
     const toggle = (): void => {
       this.#poolView = this.#poolView === "grid" ? "list" : "grid";
-      lastPoolView = this.#poolView;
+      this.#rememberView();
       this.#listScroll.reset();
       this.#rebuild();
     };
@@ -1850,6 +2361,25 @@ ${entry.detail}`,
     );
     this.#stops.set("pool-view", { rect: toggleRect, activate: toggle });
     return top + hit.target + 16;
+  }
+
+  /** The search cheat sheet (issue #531). The DOM text fields sit over the canvas, so they hide while it is up. */
+  #openSearchHelp(applyText: (value: string) => void): void {
+    if (this.scene.isActive(SCENES.searchHelp)) return;
+    this.#filterInput?.setVisible(false);
+    this.#nameInput?.setVisible(false);
+    this.scene.launch(SCENES.searchHelp, {
+      from: this.scene.key,
+      onUse: (query) => {
+        this.#filterInput?.setValue(query);
+        applyText(query);
+      },
+      onClose: () => {
+        if (!this.sys.isActive()) return;
+        this.#filterInput?.setVisible(true);
+        this.#rebuild();
+      },
+    } satisfies SearchHelpSheetData);
   }
 
   /** The pool, virtualized: `McVirtualList` owns which rows are live game objects; every card still gets a focus stop regardless of whether it's currently drawn. */
@@ -1914,7 +2444,7 @@ ${entry.detail}`,
         activate: () => {
           const row = this.#campaignRowFor(cardId);
           const frozen = this.#campaignModel?.editingDisabled ?? false;
-          if (frozen || (row?.refused ?? false)) return;
+          if (frozen || (row?.refused ?? false) || this.#ruleRefusal(deck, card.id, 1)) return;
           this.#setDeck(addCard(deck, card.id));
         },
         inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
@@ -1994,6 +2524,7 @@ ${entry.detail}`,
         activate: () => {
           const row = this.#campaignRowFor(cardId);
           if ((this.#campaignModel?.editingDisabled ?? false) || (row?.refused ?? false)) return;
+          if (this.#ruleRefusal(deck, card.id, 1)) return;
           this.#setDeck(addCard(deck, card.id));
         },
         inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
@@ -2073,15 +2604,18 @@ ${entry.detail}`,
         width: buttonWidth,
         height: hit.target,
       };
+      // The rule settings (issue #531) only matter where nothing else already disables the button.
+      const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
+      const plusRefused = this.#ruleRefusal(deck, card.id, 1);
       const minusReason = frozen
         ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-        : campaignRow?.lockedReason;
+        : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
       const minus = new McButton(this, {
         kind: "secondary",
         label: "−",
         type: typeRole.rowTitle,
         rect: minusRect,
-        enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen,
+        enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
         ...(minusReason ? { reason: minusReason } : {}),
         onClick: () => this.#setDeck(removeCard(deck, card.id)),
         clip,
@@ -2089,13 +2623,13 @@ ${entry.detail}`,
       });
       const plusReason = frozen
         ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-        : (campaignRow?.refusedReason ?? undefined);
+        : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
       const plus = new McButton(this, {
         kind: "secondary",
         label: "+",
         type: typeRole.rowTitle,
         rect: plusRect,
-        enabled: !(campaignRow?.refused ?? false) && !frozen,
+        enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
         ...(plusReason ? { reason: plusReason } : {}),
         onClick: () => this.#setDeck(addCard(deck, card.id)),
         clip,
@@ -2284,7 +2818,8 @@ ${entry.detail}`,
   #requestPoolSearch(text: string): void {
     const search = this.#poolSearch;
     if (!search) return;
-    if (text.trim() === "") {
+    text = freeTextOf(text);
+    if (text === "") {
       search.cancel();
       this.#poolRanking = null;
       this.#rebuild();
@@ -2519,16 +3054,18 @@ ${entry.detail}`,
     // Campaign mode: a granted line can't be removed by the player (MC10 p. 3) and nothing is added while the
     // deck is frozen (MC16 p. 5 / MC27 p. 6) — both disable with the row's own reason, read the same way any
     // other unavailable control's reason reads (`McButton.reason`).
+    const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
+    const plusRefused = this.#ruleRefusal(deck, card.id, 1);
     const minusDisabledReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-      : campaignRow?.lockedReason;
+      : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
     const doRemove = (): void => this.#setDeck(removeCard(deck, card.id));
     const minusButton = new McButton(this, {
       kind: "secondary",
       label: "−",
       type: typeRole.rowTitle,
       rect: minusRect,
-      enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen,
+      enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
       ...(minusDisabledReason ? { reason: minusDisabledReason } : {}),
       onClick: doRemove,
       clip,
@@ -2538,7 +3075,7 @@ ${entry.detail}`,
 
     const plusDisabledReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-      : (campaignRow?.refusedReason ?? undefined);
+      : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
     const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
     const doAdd = (): void => this.#setDeck(addCard(deck, card.id));
     const plusButton = new McButton(this, {
@@ -2546,7 +3083,7 @@ ${entry.detail}`,
       label: "+",
       type: typeRole.rowTitle,
       rect: plusRect,
-      enabled: !(campaignRow?.refused ?? false) && !frozen,
+      enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
       ...(plusDisabledReason ? { reason: plusDisabledReason } : {}),
       onClick: doAdd,
       clip,
