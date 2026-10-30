@@ -137,6 +137,8 @@ interface StatsChip {
 }
 
 export class PlayerStatsScene extends Phaser.Scene {
+  /** Counts reads of the saves, so a fold that answers after a newer one began is dropped (`#load`). */
+  #loads = 0;
   /** The stops the last draw made, for X's jump to the filter chips. */
   #stops = new Map<string, FocusStop>();
   #data: PlayerStatsData = {};
@@ -238,18 +240,21 @@ export class PlayerStatsScene extends Phaser.Scene {
 
   /** Reads the saves and folds them; `first`: the visit's first read, which applies the tab and hero it opened on. */
   async #load(first = false): Promise<void> {
+    // Only the latest read may publish: an older fold (an earlier filter) that answers last is dropped.
+    const token = ++this.#loads;
     try {
       const stats = await loadPlayerStats(await appSession().store.listSaves(), undefined, lastFilter);
-      if (!this.#alive) return;
+      if (!this.#alive || token !== this.#loads) return;
       this.#stats = stats;
       if (first && this.#data.tab) lastTab = this.#data.tab;
       const hero =
         first && this.#data.heroId ? stats.heroCards.findIndex((h) => h.identityCardId === this.#data.heroId) : -1;
       if (hero >= 0) lastHero = hero;
     } catch {
+      if (token !== this.#loads) return;
       this.#failed = true;
     }
-    this.#draw();
+    if (token === this.#loads) this.#draw();
   }
 
   #back(): void {
@@ -378,7 +383,8 @@ export class PlayerStatsScene extends Phaser.Scene {
 
   #filterChips(stats: PlayerStats, phone: boolean): readonly StatsChip[] {
     const { heroes, villains, difficulties } = stats.filterOptions;
-    const filter = stats.filter;
+    // The filter asked for, not the last one folded: a second chip pressed before the first fold answers builds on it.
+    const filter = lastFilter;
     const step = <T>(options: readonly T[], current: T | undefined): T | undefined => {
       const at = current === undefined ? -1 : options.indexOf(current);
       return at + 1 < options.length ? options[at + 1] : undefined;
@@ -386,6 +392,9 @@ export class PlayerStatsScene extends Phaser.Scene {
     const apply = (next: StatsFilter, key: string): void => {
       lastFilter = next;
       lastHero = 0;
+      // The chips show the new choice at once; the stats follow when the fold answers.
+      this.#draw();
+      this.#route?.focusKey(key);
       void this.#load().then(() => this.#route?.focusKey(key));
     };
     const heroName = heroes.find((h) => h.id === filter.hero)?.name.replace(/ \(.*\)$/, "");

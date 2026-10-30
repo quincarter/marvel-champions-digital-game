@@ -227,6 +227,27 @@ test("on the keyboard or a pad: X jumps to the filters, and A on a card opens it
   await waitFor(isActive(page, "InspectOverlay"), "Inspect", 10_000);
 });
 
+test("two filter chips pressed back to back both hold, whichever fold answers last", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the chips in a row");
+  test.setTimeout(120_000);
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const hero = (await stopsOf(page)).find((s) => s.key === "filter:hero")!;
+  const villain = (await stopsOf(page)).find((s) => s.key === "filter:villain")!;
+  // No wait between them: the second press lands before the first fold answers.
+  await press(page, false, hero.rect);
+  await press(page, false, villain.rect);
+  await waitFor(
+    async () => ((await findText(page, "4–1", "PlayerStats")).length > 0 ? true : null),
+    "Spider-Man against Rhino",
+    15_000,
+  );
+  await settle(page);
+  expect((await findText(page, "SPIDER-MAN", "PlayerStats")).length, "the hero chip kept").toBeGreaterThan(0);
+  expect((await findText(page, "4–1", "PlayerStats")).length, "still both").toBeGreaterThan(0);
+});
+
 test("Aspects, Encounter and Records: the donut and their rows", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";
