@@ -14,7 +14,8 @@
  * Two kinds of card are counted, never named, in one row of their own, because the players did not choose them: a
  * modular set no card of which has turned up in a Civil War game played blind (docs/phase7-wave10-client.md 2.6), and
  * the cards of Shadow Labyrinth's drawn villain while it waits facedown (docs/phase7-shadowland.md, question 2: it
- * "stays facedown until Whisper in the Dark or 2A reveals it"), whose linked cards would name it.
+ * "stays facedown until Whisper in the Dark or 2A reveals it"), whose linked cards would name it. That villain's set
+ * holds only it and its linked cards; back in the set-aside area facedown, it is masked again.
  */
 import type { AnyCard } from "@mc/content";
 import {

@@ -229,6 +229,14 @@ describe("the encounter deck", () => {
     const instance = dealt.instances[top as string]!;
     const flipped = { ...dealt, instances: { ...dealt.instances, [top as string]: { ...instance, faceup: true } } };
     expect(revealedSetsIn(flipped, [setId]).has(setId)).toBe(true);
+
+    const rest = deck.filter((id) => id !== top);
+    const villainId = state.villains[0]!.instanceId as string;
+    const boosted = {
+      ...withEncounterDeck(state, rest),
+      instances: { ...state.instances, [villainId]: { ...state.instances[villainId]!, boostCards: [top] } },
+    };
+    expect(revealedSetsIn(boosted, [setId]).has(setId)).toBe(false);
   });
 
   test("Shadow Labyrinth: the cards of the villain waiting facedown are counted, never named, until it is in play", () => {

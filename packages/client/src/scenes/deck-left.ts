@@ -386,10 +386,17 @@ export class DeckLeftOverlay extends Phaser.Scene {
         .setOrigin(0.5, 0)
         .setWordWrapWidth(caption.width - 8, true);
       objects.push(name);
-      const zone = this.add
-        .zone(art.x, art.y, art.width, art.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: row.face !== null });
+      // A mask hides what is past the list's window but not its presses: a row half scrolled out sits under the tabs.
+      const zone = this.add.zone(art.x, art.y, art.width, art.height).setOrigin(0, 0);
+      zone.setInteractive({
+        hitArea: new Phaser.Geom.Rectangle(0, 0, art.width, art.height),
+        hitAreaCallback: (area: Phaser.Geom.Rectangle, x: number, y: number) => {
+          if (!Phaser.Geom.Rectangle.Contains(area, x, y)) return false;
+          const worldY = zone.getWorldTransformMatrix().ty + y;
+          return worldY >= layout.list.y && worldY <= layout.list.y + layout.list.height;
+        },
+        useHandCursor: row.face !== null,
+      });
       bindHoldTarget(this, zone, {
         key: `deck-left:${row.key}`,
         onTap: () => this.#inspect(row),

@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, pressUntil, settle, waitFor } from "./helpers.js";
 import { PAD, installPad, setButton } from "./pad-e2e-helpers.js";
 import { installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
-import { declineMulligans, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
+import { declineMulligans, findVisibleText, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 import { facts, press } from "./x-men-helpers.js";
 
 /**
@@ -41,6 +41,12 @@ const pileRect = (page: Page, prefix: string): Promise<Rect | null> =>
 const center = (rect: Rect) => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
 
 async function tapPile(page: Page, phone: boolean, prefix: string): Promise<void> {
+  // The phone board shows one tab at a time, and the encounter deck rides on Enemies.
+  if (phone && prefix === "encounterDeck" && (await pileRect(page, prefix)) === null) {
+    const tab = await waitFor(async () => (await findVisibleText(page, "ENEMIES"))[0] ?? null, "the Enemies tab");
+    await press(page, phone, tab!.x, tab!.y);
+    await settle(page, { quietMs: 300, maxMs: 3000 });
+  }
   const rect = (await waitFor(() => pileRect(page, prefix), `the ${prefix} pile`))!;
   const { x, y } = center(rect);
   await press(page, phone, x, y);

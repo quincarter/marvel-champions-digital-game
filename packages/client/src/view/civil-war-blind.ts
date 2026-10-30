@@ -9,7 +9,8 @@
  * - **a modular set** has turned up once any card of it has left the encounter deck and the set-aside pile (revealed,
  *   in play, discarded). A card found some other way also counts, so this errs towards revealing a set early, never
  *   towards hiding one that is on the table. A card dealt or given as a boost is still facedown, so it has not turned
- *   up (RRG 1.8 p. 15 "Dealt": "This card is not revealed at this time"; p. 11 "Boost").
+ *   up (RRG 1.8 p. 15 "Dealt": "This card is not revealed at this time"; p. 11 "Boost"). Nothing here remembers a card
+ *   already seen, so one put facedown again (a defeated minion given as a boost) hides its set until it next turns up.
  * Counts are never masked.
  */
 import type { AnyCard, EncounterSet } from "@mc/content";
