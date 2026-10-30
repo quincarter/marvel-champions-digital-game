@@ -15,6 +15,7 @@ const query = (text: string, meaning: string): SearchHelpRow => ({ kind: "query"
 
 export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = [
   heading("How it works"),
+  note("This looks familiar, or it should! We tried to bring in all the filtering you know and love from MarvelCDB."),
   note("Words search names, traits and card text, and forgive a typo. Terms like o:2 filter exactly."),
   note("Mix as many of both as you like, split by spaces. A card has to match every one."),
 
