@@ -69,6 +69,8 @@ const SILENT: ReadonlySet<string> = new Set([
   "mainSchemeFlippedToOtherFace",
   "mainSchemeStageRemoved",
   "mainSchemeStageRevealed",
+  // The cards spent already have their discard lines; this is the payment's bookkeeping for the stats.
+  "paymentCommitted",
   "playDestinationSet",
   "playNoted",
   "playedEventReturned",

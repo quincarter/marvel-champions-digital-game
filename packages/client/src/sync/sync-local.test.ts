@@ -457,3 +457,55 @@ describe("row stamps", () => {
     expect(records.get("db:mc-decks:decks:d2")?.stamp).toBe(0);
   });
 });
+
+describe("Your stats travel with sync (#529)", () => {
+  test("a finished game's summary, card numbers and device stamp arrive whole on a linked device", async () => {
+    const from = device();
+    const summary = {
+      lossReason: null,
+      heroesDefeated: 0,
+      winners: [],
+      alliesPlayed: 1,
+      seats: [
+        {
+          identityCardId: "01001a",
+          aspects: ["justice"],
+          deck: ["01002", "01008"],
+          plays: { "01008": 3 },
+          activations: { "01008": 2 },
+          entered: { "01008": 3 },
+          damage: 9,
+          thwart: 5,
+          defeated: false,
+        },
+      ],
+      villains: ["Rhino"],
+      sideSchemes: { seen: { "01107": 1 }, defeated: { "01107": 1 } },
+    };
+    // Played on a phone: the phone's storage stamps the game as it writes it.
+    await new IdbGameStorage(from.factory, { platform: "android" }).create(
+      {
+        id: "won",
+        schema: 4,
+        config: { scenario: "x" },
+        createdAt: 1,
+        updatedAt: 5000,
+        status: "won",
+        round: 6,
+        commandCount: 0,
+        outcome: { result: "win", reason: "villainDefeated" },
+        campaignId: null,
+        campaignNodeId: null,
+        summary,
+      } as never,
+      { marker: "baseline-won" } as never,
+    );
+    const to = device();
+    await to.local.apply(toWrite(await from.local.snapshot()), []);
+    const [meta] = await new IdbGameStorage(to.factory).list();
+    expect(meta?.status).toBe("won");
+    expect(meta?.summary).toEqual(summary);
+    // Where it was last played comes along unchanged, so Devices names the device that played it, not this one.
+    expect(meta?.lastPlayedOn).toEqual({ platform: "android" });
+  });
+});

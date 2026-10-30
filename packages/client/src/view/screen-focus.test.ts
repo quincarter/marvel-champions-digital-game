@@ -136,6 +136,7 @@ describe("screen focus routes", () => {
     };
     expect(decksFocusOrder(base)).toEqual([
       "back",
+      "player-stats",
       "new-deck",
       "deck-search",
       "filters-toggle",
@@ -153,9 +154,14 @@ describe("screen focus routes", () => {
       "pool-chip:cost",
       "pool-card:c1",
       "pool-card:c2",
+      "card-back",
+      "card-inspect",
+      "pane:deck",
+      "pane:games",
       "stats-check",
       "stats-edit",
       "stats-delete",
+      "games-open",
       "stats-duplicate",
       "stats-play",
     ]);
@@ -217,6 +223,7 @@ describe("screen focus routes", () => {
     const tabs = ["tab:decks", "tab:cards", "tab:stats"];
     expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual([
       "back",
+      "player-stats",
       ...tabs,
       "new-deck",
       "deck-search",
@@ -228,14 +235,21 @@ describe("screen focus routes", () => {
     ]);
     expect(decksFocusOrder({ ...base, activeTab: "cards" })).toEqual([
       "back",
+      "player-stats",
       ...tabs,
       "pool-chip:cost",
       "pool-card:c1",
     ]);
     expect(decksFocusOrder({ ...base, activeTab: "stats" })).toEqual([
       "back",
+      "player-stats",
       ...tabs,
+      "card-back",
+      "card-inspect",
+      "pane:deck",
+      "pane:games",
       "stats-check",
+      "games-open",
       "stats-duplicate",
       "stats-play",
     ]);
@@ -453,6 +467,7 @@ describe("screen focus routes", () => {
       "full-game-log",
       "rules-reference",
       "settings",
+      "stats",
       "save-quit",
       "music",
       "report",
@@ -463,6 +478,7 @@ describe("screen focus routes", () => {
       "full-game-log",
       "rules-reference",
       "settings",
+      "stats",
       "save-quit",
       "music",
       "report",
@@ -480,6 +496,7 @@ describe("screen focus routes", () => {
       "full-game-log",
       "rules-reference",
       "settings",
+      "stats",
       "save-quit",
       "music",
       "report",
@@ -497,7 +514,7 @@ describe("screen focus routes", () => {
     const order = pauseFocusOrder({ kind: "wide", keywordIds: ["guard"], confirmingConcede: true });
     expect(order).not.toContain("concede");
     expect(order).toContain("resume");
-    expect(order.slice(7, 9)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+    expect(order.slice(8, 10)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
     expect(order[order.length - 1]).toBe("keyword:guard");
   });
 
@@ -574,6 +591,7 @@ describe("screen focus routes", () => {
       "campaign",
       "extras",
       "trophies",
+      "stats",
       "how-to-play",
       "settings",
       "release-notes",
@@ -585,6 +603,7 @@ describe("screen focus routes", () => {
       "campaign",
       "extras",
       "trophies",
+      "stats",
       "how-to-play",
       "settings",
       "release-notes",
@@ -630,6 +649,7 @@ describe("screen focus routes", () => {
       "campaign",
       "extras",
       "trophies",
+      "stats",
       "how-to-play",
       "settings",
       "release-notes",
@@ -879,5 +899,20 @@ describe("villainDefendFocusOrder", () => {
       "tuck",
       "expand",
     ]);
+  });
+});
+
+describe("the deck builder's rail tabs", () => {
+  test("Your deck, From your games and their Cut / Add rows come after the rewards, before Save", () => {
+    const order = deckBuilderFocusOrder({
+      identityChosen: true,
+      identityIds: [],
+      aspectIds: [],
+      typeFilterIds: [],
+      poolCardIds: [],
+      railIds: ["rail:deck", "rail:games", "games:− Cut:01009"],
+    });
+    const save = order.indexOf("save");
+    expect(order.slice(save - 3, save)).toEqual(["rail:deck", "rail:games", "games:− Cut:01009"]);
   });
 });

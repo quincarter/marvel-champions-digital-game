@@ -3,7 +3,7 @@ import type { GameState } from "@mc/engine";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
-import { summarizeGame } from "./game-summary.js";
+import { SUMMARY_VERSION, summarizeGame } from "./game-summary.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -107,4 +107,48 @@ describe("summarizeGame", () => {
     };
     expect(summarizeGame(conceded, record)!.lossReason).toBe("conceded");
   });
+});
+
+describe("summarizeGame: what the stats screen reads", () => {
+  test("each seat has its hero, its deck without resources double-counted, aspects and counts", async () => {
+    const { state, record } = await passiveLoss();
+    const summary = summarizeGame(state, record)!;
+    const seat = summary.seats![0]!;
+    expect(seat.identityCardId).toBe(state.players[0]!.identity.cardId);
+    expect(seat.deck.length).toBeGreaterThan(5);
+    expect(new Set(seat.deck).size).toBe(seat.deck.length);
+    expect(seat.deck).not.toContain(seat.identityCardId);
+    // Spider-Man's Justice starter deck.
+    expect(seat.aspects).toEqual(["justice"]);
+    expect(summary.villains).toEqual(["Rhino"]);
+    expect(summary.sideSchemes).toBeDefined();
+  }, 120_000);
+});
+
+describe("summarizeGame: version 2 numbers (#529)", () => {
+  test("a real game's summary carries draws, the encounter cards revealed and what hurt the hero", async () => {
+    const { state, record } = await passiveLoss();
+    const summary = summarizeGame(state, record)!;
+    expect(summary.version).toBe(SUMMARY_VERSION);
+    const seat = summary.seats![0]!;
+    // Every hero phase ends with drawing back up to the hand size.
+    expect(seat.drawn).toBeGreaterThan(0);
+    expect(seat.drawn).toBe(record.seats[0]!.drawn);
+    expect(seat.bestTurn).toEqual(record.seats[0]!.bestTurn ?? { damage: 0, thwart: 0 });
+    expect(seat.allyBlocks).toEqual(record.seats[0]!.allyBlocks ?? {});
+    expect(Object.values(summary.encounterRevealed!).reduce((sum, n) => sum + n, 0)).toBeGreaterThan(0);
+    expect(summary.hurtBy).toEqual(record.hurtBy ?? {});
+    expect(summary.finalBlowCardId, "only a win names one").toBeNull();
+  }, 120_000);
+
+  test("a win names the card that dealt the villain its last damage", async () => {
+    const { state, record } = await passiveLoss();
+    const player = state.players[0]!;
+    const won: GameState = { ...state, outcome: { result: "win", reason: "villainDefeated" } };
+    const blow = { targetInstanceId: player.identity.instanceId, amount: 3, round: 4 };
+    const byHero = { ...record, lastVillainDamage: { ...blow, sourceInstanceId: player.identity.instanceId } };
+    expect(summarizeGame(won, byHero)!.finalBlowCardId).toBe(player.identity.cardId);
+    const byNobody = { ...record, lastVillainDamage: { ...blow, sourceInstanceId: null } };
+    expect(summarizeGame(won, byNobody)!.finalBlowCardId).toBeNull();
+  }, 120_000);
 });

@@ -23,7 +23,7 @@ import { describe, expect, test } from "vitest";
 import { CORE_STARTER_DECKS, cardId, campaignId } from "@mc/content";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import { MemoryGameStorage, type SaveMeta } from "./game-storage.js";
-import { EngineSessionCore, rebuildBaseline } from "./session-core.js";
+import { EngineSessionCore, PLAY_GAP_CAP_MS, rebuildBaseline } from "./session-core.js";
 import type { SessionConfig } from "./host.js";
 
 /** The Avengers Tower environment's own card id (MC21 21100a), as `docs/phase7-wave4.md` §4 Q4's own tests use. */
@@ -335,5 +335,53 @@ describe("SessionConfig.guided (docs/guided-mode.md §3.12)", () => {
     await plainCore.start(CORE_CONFIG);
     const plainMeta = (await storage.latestActive()) as SaveMeta;
     expect(plainMeta.guided).toBeUndefined();
+  });
+});
+
+describe("EngineSessionCore time played (#529)", () => {
+  test("each command adds the time since the last, at most five minutes; a resumed game counts from its resume", async () => {
+    const storage = new MemoryGameStorage();
+    let clock = 1_000;
+    const now = () => clock;
+    const first = new EngineSessionCore({ storage, now });
+    let toAct = (await first.start(CORE_CONFIG)).snapshot.legal!.playerId;
+    const step = async (core: EngineSessionCore): Promise<number | undefined> => {
+      const dispatched = core.dispatch(anyLegalCommand(core.legalActions(toAct), toAct));
+      if (!dispatched.ok) throw new Error(dispatched.error.message);
+      toAct = dispatched.snapshot.legal!.playerId;
+      await core.flushed();
+      return (await storage.latestActive())?.playedMs;
+    };
+
+    clock += 60_000;
+    expect(await step(first)).toBe(60_000);
+    // Twenty minutes away from the table count as five.
+    clock += 20 * 60_000;
+    expect(await step(first)).toBe(60_000 + PLAY_GAP_CAP_MS);
+
+    // A day later the game is resumed: the day is not counted, the 30 seconds after the resume are.
+    clock += 24 * 60 * 60_000;
+    const second = new EngineSessionCore({ storage, now });
+    toAct = (await second.resume((await storage.latestActive())!.id)).snapshot.legal!.playerId;
+    clock += 30_000;
+    expect(await step(second)).toBe(60_000 + PLAY_GAP_CAP_MS + 30_000);
+  });
+
+  test("a game saved before time played was kept stays without it: part of its time is not all of it", async () => {
+    const storage = new MemoryGameStorage();
+    const core = new EngineSessionCore({ storage });
+    await core.start(CORE_CONFIG);
+    const { meta, initialState } = (await storage.load((await storage.latestActive())!.id))!;
+    expect(meta.playedMs).toBe(0);
+    // The same game as an older build stored it.
+    const older = new MemoryGameStorage();
+    const { playedMs: _playedMs, ...withoutTime } = meta;
+    await older.create(withoutTime, initialState);
+    const resumed = new EngineSessionCore({ storage: older });
+    const toAct = (await resumed.resume(meta.id)).snapshot.legal!.playerId;
+    const dispatched = resumed.dispatch(anyLegalCommand(resumed.legalActions(toAct), toAct));
+    expect(dispatched.ok).toBe(true);
+    await resumed.flushed();
+    expect((await older.latestActive())!.playedMs).toBeUndefined();
   });
 });

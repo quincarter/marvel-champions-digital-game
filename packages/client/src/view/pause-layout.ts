@@ -90,7 +90,9 @@ export interface PauseMenuLayout {
   readonly resume: Rect;
   readonly fullGameLog: Rect;
   readonly rulesReference: Rect;
+  /** Settings and Your stats share a row, side by side. */
   readonly settings: Rect;
+  readonly stats: Rect;
   /** Not in D13, which has no way to leave a game without conceding it; the phone footer has always had one. */
   readonly saveQuit: Rect;
   /** Music and Report a problem, side by side on one row under Save & quit: the chrome buttons' menu entries. */
@@ -185,7 +187,8 @@ function wideLayout(
     resume: menuRect(0),
     fullGameLog: menuRect(1),
     rulesReference: menuRect(2),
-    settings: menuRect(3),
+    settings: { ...menuRect(3), width: (menuWidth - MENU_GAP) / 2 },
+    stats: { ...menuRect(3), x: title.x + (menuWidth + MENU_GAP) / 2, width: (menuWidth - MENU_GAP) / 2 },
     saveQuit: menuRect(4),
     music: { ...menuRect(5), width: (menuWidth - MENU_GAP) / 2 },
     report: { ...menuRect(5), x: title.x + (menuWidth + MENU_GAP) / 2, width: (menuWidth - MENU_GAP) / 2 },
