@@ -168,6 +168,7 @@ import {
 import { cardPlayOf, fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
 import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
+import { clipToView } from "../view/focus-list.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
@@ -507,7 +508,7 @@ export class DecksScene extends Phaser.Scene {
       onCancel: () => {
         // A card in the stats pane goes back to the deck's stats first.
         if (this.#paneCard && this.#stops.has("card-back")) {
-          this.#closePaneCard();
+          this.#closePaneCard(true);
           return;
         }
         // An open Paste / CDB link box closes first; the next B leaves.
@@ -1945,8 +1946,10 @@ export class DecksScene extends Phaser.Scene {
       const rowIndex = Math.floor(index / geometry.columns);
       const col = index % geometry.columns;
       this.#stops.set(`pool-card:${card.id as string}`, {
-        rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
-        activate: () => this.#showPaneCard(card),
+        // Clipped to the grid, so the ring on a card scrolled half out of view never draws over the search or chips.
+        rect: () => clipToView(poolCellRect(geometry, list.rectFor(rowIndex), col), gridRect),
+        view: gridRect,
+        activate: () => this.#showPaneCard(card, true),
         inspect: () => this.#inspectCard(card),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
@@ -2187,8 +2190,11 @@ export class DecksScene extends Phaser.Scene {
     return { objects };
   }
 
-  /** Puts `card` in the stats pane (the narrow layout's Stats tab) and the focus on its way back. */
-  #showPaneCard(card: AnyCard): void {
+  /**
+   * Puts `card` in the stats pane (the narrow layout's Stats tab). From a pad or the keyboard (`byFocus`) the focus goes
+   * to its way back; a tap moves no focus, so no ring shows on a touch screen.
+   */
+  #showPaneCard(card: AnyCard, byFocus = false): void {
     this.#paneCard = card;
     this.#paneCardDeckId = this.#selectedDeckId;
     const tab = this.#activeTab;
@@ -2202,33 +2208,37 @@ export class DecksScene extends Phaser.Scene {
       this.#inspectCard(card);
       return;
     }
-    this.#route?.focusKey("card-back");
+    if (byFocus) this.#route?.focusKey("card-back");
   }
 
-  #closePaneCard(): void {
+  #closePaneCard(byFocus = false): void {
     const card = this.#paneCard;
     this.#paneCard = null;
     // On the narrow layout the card came from the Cards tab: back there, on it.
     if (this.#tabs !== null) this.#activeTab = "cards";
     this.#rebuild();
-    if (card) this.#route?.focusKey(`pool-card:${card.id as string}`);
+    if (card && byFocus) this.#route?.focusKey(`pool-card:${card.id as string}`);
   }
 
   /** The stats pane's card view: the card, what your games say about it, the decks that hold it, and Inspect. */
   #drawPaneCard(rect: Rect, left: number, column: number, top: number, card: AnyCard, deck: Deck): void {
     let y = top;
     const backRect: Rect = { x: left, y, width: column, height: this.#row };
-    const back = (): void => this.#closePaneCard();
+    const back = (byFocus = false): void => this.#closePaneCard(byFocus);
     const backButton = new McButton(this, {
       kind: "onInk",
       label: "◂ Deck stats",
       type: typeRole.label,
       rect: backRect,
-      onClick: back,
+      onClick: () => back(),
     });
     this.#buttons.push(backButton);
     this.#hints.button(backButton, ["cancel"], "ink");
-    this.#stops.set("card-back", { rect: backRect, activate: back, inspect: () => this.#inspectCard(card) });
+    this.#stops.set("card-back", {
+      rect: backRect,
+      activate: () => back(true),
+      inspect: () => this.#inspectCard(card),
+    });
     y += this.#row + 12;
     const footerTop = rect.y + rect.height - hit.primary - 16 - 13 - 12;
     const inspectRect: Rect = { x: left, y: footerTop - this.#row, width: column, height: this.#row };

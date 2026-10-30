@@ -50,6 +50,11 @@ export interface FocusStop {
   /** What `I` does, when the stop shows a card. */
   readonly inspect?: () => void;
   /**
+   * The scrolling region a stop inside a list is seen through: while the stop lies wholly outside it (scrolled away
+   * by a touch, a wheel or the stick) the ring hides, and it comes back when the stop scrolls into view.
+   */
+  readonly view?: Rect | (() => Rect);
+  /**
    * Called right after this stop takes focus, before the ring is drawn — a
    * row inside a virtualized list scrolls itself fully into view here
    * (`McVirtualList.scrollIntoView`), so arrowing onto an off-screen row
@@ -64,6 +69,13 @@ export interface FocusStop {
    * false (at its end, or nothing to scroll) hands the stick on to the screen's `onScroll`.
    */
   readonly scroll?: (dx: number, dy: number, dtMs: number) => boolean;
+}
+
+/** Whether `rect` overlaps the stop's `view` at all (no view: always). */
+function inView(rect: Rect, view: FocusStop["view"]): boolean {
+  if (!view) return true;
+  const v = typeof view === "function" ? view() : view;
+  return rect.y < v.y + v.height && rect.y + rect.height > v.y && rect.x < v.x + v.width && rect.x + rect.width > v.x;
 }
 
 export interface FocusRouteOptions {
@@ -209,7 +221,8 @@ export class FocusRoute {
         return;
       // Move the ring where it stands; no new graphics each frame while a list scrolls.
       this.#ringRect = rect;
-      this.#ring.show(rect, "static", true);
+      if (inView(rect, stop.view)) this.#ring.show(rect, "static", true);
+      else this.#ring.hide();
     };
     scene.events.on("update", follow);
     const release = (): void => {
@@ -322,7 +335,7 @@ export class FocusRoute {
     state.__mcFocusState ??= {};
     state.__mcFocusState[this.#scene.sys.settings.key] = () => ({
       focus: this.#focus,
-      ringShown: this.#ring !== null,
+      ringShown: this.#ring !== null && this.#ring.graphics.visible,
       ringRect: this.#ringRect,
     });
     w.__mcFocusRoutes[this.#scene.sys.settings.key] = () =>
@@ -533,6 +546,7 @@ export class FocusRoute {
     const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
     this.#ringRect = rect;
     this.#ring = new McSelectionRing(this.#scene, this.#ringColor, true);
-    this.#ring.show(rect, "static", true);
+    if (inView(rect, stop.view)) this.#ring.show(rect, "static", true);
+    else this.#ring.hide();
   }
 }

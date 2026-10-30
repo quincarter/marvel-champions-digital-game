@@ -502,6 +502,40 @@ test("Decks & Collection: a pool card opens in the stats pane, Inspect shows You
   expect(await activeScenes(page)).toContain("Decks");
 });
 
+test("on a phone, a pool card tapped into the stats pane and back leaves no focus ring", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a touch screen");
+  test.setTimeout(120_000);
+  await seeded(page, "decks", "Decks");
+  const ring = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __mcFocusState: Record<string, () => { ringShown: boolean }> }).__mcFocusState.Decks!()
+          .ringShown,
+    );
+  await pressStop(page, "Decks", "tab:cards", "the Cards tab");
+  const card = await waitFor(
+    async () => (await stopsIn(page, "Decks")).find((s) => s.key.startsWith("pool-card:")) ?? null,
+    "a pool card",
+    15_000,
+  );
+  await settle(page);
+  await page.touchscreen.tap(card.rect.x + card.rect.width / 2, card.rect.y + card.rect.height / 3);
+  const back = await waitFor(
+    async () => (await stopsIn(page, "Decks")).find((s) => s.key === "card-back") ?? null,
+    "the card in the stats pane",
+    15_000,
+  );
+  expect(await ring(), "no ring after a tap").toBe(false);
+  await settle(page);
+  await page.touchscreen.tap(back.rect.x + back.rect.width / 2, back.rect.y + back.rect.height / 2);
+  await waitFor(
+    async () => ((await stopsIn(page, "Decks")).some((s) => s.key.startsWith("pool-card:")) ? true : null),
+    "back on the Cards tab",
+    15_000,
+  );
+  expect(await ring(), "no ring after going back").toBe(false);
+});
+
 test("Your stats' Cards tab: every hero's cards together", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";

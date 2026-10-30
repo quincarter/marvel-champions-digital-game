@@ -671,6 +671,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       listKeys.push(key);
       stops.set(key, {
         rect: () => clipToView(part(list.rectFor(index)), listRect),
+        view: listRect,
         activate: cardId ? () => this.#inspectCard(cardId) : () => undefined,
         ...(cardId ? { inspect: () => this.#inspectCard(cardId) } : {}),
         ensureVisible: () => list.scrollIntoView(index),
