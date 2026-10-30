@@ -1,0 +1,3 @@
+kind: Fixed
+body: Export save data and Download log now open Android's own Save dialog in the Android app, where they did nothing before (#534).
+time: 2026-10-29T18:59:52.9958103-04:00
