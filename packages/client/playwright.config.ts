@@ -161,6 +161,7 @@ export default defineConfig({
         "sync-setup-prompt.spec.ts",
         "controls-hint-slider.spec.ts",
         "chip-info-swipe.spec.ts",
+        "deck-builder-tabs.spec.ts",
       ],
     },
   ],
