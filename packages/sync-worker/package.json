@@ -7,7 +7,8 @@
   "type": "module",
   "exports": {
     "./protocol": "./src/protocol.ts",
-    "./sync-protocol": "./src/sync-protocol.ts"
+    "./sync-protocol": "./src/sync-protocol.ts",
+    "./global-protocol": "./src/global-protocol.ts"
   },
   "scripts": {
     "dev": "wrangler dev",

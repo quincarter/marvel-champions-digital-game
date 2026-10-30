@@ -92,7 +92,8 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 Settings → More → Save data → **Send to another device** uploads an encrypted save to a small Cloudflare Worker
 (`packages/sync-worker`) and shows a code and a QR code; **Receive** on the other device fetches it once. **Sync across
 devices** in the same screen keeps a player's devices in step through the same Worker (`/sync`, one `SyncSpace`
-Durable Object per player). The Worker runs on Cloudflare's free plan, apart from the Netlify site, so it can never
+Durable Object per player). Opt-in, anonymous global win rates use the same Worker (`/global`, one `GlobalStats`
+Durable Object). The Worker runs on Cloudflare's free plan, apart from the Netlify site, so it can never
 bill or take down the game. The design is in [docs/cloud-sync-plan.md](docs/cloud-sync-plan.md) and the format in
 [docs/save-data.md](docs/save-data.md).
 
@@ -136,7 +137,11 @@ client side lands.
 `SYNC_ENABLED` does the same for device sync: the game then says online sync is unavailable and keeps saving on the
 device. Each switch leaves the other feature running, with one overlap: "Link another device" (QR or short code) moves
 the recovery code through transfer rooms, so `TRANSFERS_ENABLED=false` stops that linking too (typing the recovery
-code on the other device still works).
+code on the other device still works). `GLOBAL_STATS_ENABLED` does the same for global win rates: uploads wait and the
+stats screens say the numbers are unavailable.
+
+The `GLOBAL_STATS` Durable Object needs no setup of its own: its binding and migration are in `wrangler.jsonc` and go
+out with the next deploy.
 
 ## Conventions
 

@@ -285,7 +285,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     modulars: meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? [],
     summary,
     lossReason: lossReason === "conceded" ? "other" : lossReason,
-    lossCause: meta.status === "won" ? null : lossCauseOf(lossReason, summary),
+    lossCause: lossCauseOfMeta(meta),
     heroesDefeated: summary ? summary.heroesDefeated : null,
     seats: seatsOf(meta, names),
     detailed: summary?.seats !== undefined,
@@ -303,6 +303,13 @@ function lossReasonOfOutcome(meta: SaveMeta): "schemeCompleted" | "playersDefeat
   return "other";
 }
 
+/** Why a save was lost, as Your stats breaks it down; null for anything but a loss. Shared with the global win rates. */
+export function lossCauseOfMeta(meta: SaveMeta): LossCause | null {
+  if (meta.status !== "lost") return null;
+  const summary = meta.summary ?? null;
+  return lossCauseOf(summary?.lossReason ?? lossReasonOfOutcome(meta), summary);
+}
+
 const DEFEAT_CAUSES: Readonly<Record<NonNullable<GameSummary["defeatedBy"]>, LossCause>> = {
   villainAttack: "villain",
   minionAttack: "minions",
@@ -311,13 +318,13 @@ const DEFEAT_CAUSES: Readonly<Record<NonNullable<GameSummary["defeatedBy"]>, Los
 };
 
 /** "unknown": every hero fell in a game the backfill could not replay, so nothing says what dealt the last blow. */
-function lossCauseOf(reason: GameSummary["lossReason"], summary: GameSummary | null): LossCause {
+export function lossCauseOf(reason: GameSummary["lossReason"], summary: GameSummary | null): LossCause {
   if (reason === "schemeCompleted") return "scheme";
   if (reason !== "playersDefeated") return "other";
   return summary?.defeatedBy ? DEFEAT_CAUSES[summary.defeatedBy] : "unknown";
 }
 
-const LOSS_LABELS: Readonly<Record<LossCause, string>> = {
+export const LOSS_LABELS: Readonly<Record<LossCause, string>> = {
   scheme: "Scheme",
   villain: "Villain",
   minions: "Minions",

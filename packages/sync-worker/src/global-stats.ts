@@ -1,0 +1,224 @@
+/**
+ * The global win rate store, one Durable Object named "global" (`GlobalStats`), over a plain storage interface for
+ * tests. Nothing about the caller is kept: no IP, no per-game timestamp; a game is only counted into totals.
+ *
+ * Rows:
+ *   `meta`            totals and bookkeeping: games, distinct aggregate keys, today's count, the next alarm.
+ *   `g:<yyyymm>:<id>` "this game was counted": the dedupe row, in a month bucket the alarm drops once it is two months old.
+ *   `v:<villain>`, `m:<modular>`, `h:<hero>`   `{games, wins, causes}`.
+ *   `c:<villain>`     `{wins, losses, inWins, inLosses}`: the deck cards brought against a villain, counted per seat.
+ *   `s:summary`       the served `GET /global/stats` body, rebuilt at most once an hour on read.
+ *
+ * Rows written per game, all in one `put` call so a game counts whole or not at all: 1 dedupe row, 1 villain, 1 per
+ * modular set, 1 per distinct hero, 1 card row, 1 meta. A solo game with one modular set is 6 rows, a four-hero game
+ * with two modular sets is 10; the usual game is about 7. A retry (a seen id) writes none. Rows read per game: the
+ * two dedupe lookups, meta, the card row and the villain, modular and hero rows, in one `get`.
+ */
+
+import type { KeyValueStorage } from "./env.js";
+import {
+  GLOBAL_MIN_GAMES,
+  type GlobalLossCause,
+  type GlobalResult,
+  type GlobalRow,
+  type GlobalStats,
+  type GlobalVillainCards,
+} from "./global-protocol.js";
+
+/** Results the whole store takes per UTC day. */
+export const GLOBAL_RESULTS_PER_DAY = 5000;
+/** Distinct v/m/h/c rows; past it a game that needs a new one answers `full`. */
+export const GLOBAL_MAX_KEYS = 3000;
+/** A `c:` row's size as JSON; past it a game still counts, but cards the row does not already hold are left out. */
+export const GLOBAL_MAX_CARD_ROW_BYTES = 100 * 1024;
+/** A card in fewer decks than this is left out of `GET /global/cards`. */
+export const GLOBAL_MIN_CARD_DECKS = 3;
+export const GLOBAL_SUMMARY_TTL_MS = 60 * 60 * 1000;
+const DEDUPE_BATCH = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+interface Meta {
+  games: number;
+  keys: number;
+  /** UTC day number (ms / DAY_MS) of `dayCount`. */
+  day: number;
+  dayCount: number;
+  /** When the alarm is set for; 0 or absent when none is. */
+  alarmAt?: number;
+}
+
+interface AggregateRow {
+  games: number;
+  wins: number;
+  causes: Partial<Record<GlobalLossCause, number>>;
+}
+
+interface CardRow {
+  wins: number;
+  losses: number;
+  inWins: Record<string, number>;
+  inLosses: Record<string, number>;
+}
+
+export type RecordOutcome =
+  | { ok: true; counted: boolean }
+  | { ok: false; reason: "full" | "rate-limited"; retryAfterMs: number };
+
+const monthOf = (t: number): string => {
+  const d = new Date(t);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+const previousMonthOf = (t: number): string => {
+  const d = new Date(t);
+  return monthOf(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+};
+/** One hour past the first moment of the next month. */
+const nextMonthAlarm = (t: number): number => {
+  const d = new Date(t);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 1);
+};
+
+function bump(row: AggregateRow, won: boolean, cause: GlobalLossCause | null): void {
+  row.games += 1;
+  if (won) row.wins += 1;
+  else if (cause) row.causes[cause] = (row.causes[cause] ?? 0) + 1;
+}
+
+const emptyAggregate = (): AggregateRow => ({ games: 0, wins: 0, causes: {} });
+
+export class GlobalStatsLogic {
+  constructor(private readonly storage: KeyValueStorage) {}
+
+  /** Counts one validated game, once per `id`. */
+  async record(result: GlobalResult, now: number): Promise<RecordOutcome> {
+    const month = monthOf(now);
+    const dedupeKey = `g:${month}:${result.id}`;
+    const previousKey = `g:${previousMonthOf(now)}:${result.id}`;
+
+    const heroes = [...new Set(result.seats.map((s) => s.hero))];
+    const aggregateKeys = [
+      `v:${result.villain}`,
+      ...result.modulars.map((m) => `m:${m}`),
+      ...heroes.map((h) => `h:${h}`),
+    ];
+    const cardKey = `c:${result.villain}`;
+
+    const found = await this.storage.get<unknown>([dedupeKey, previousKey, "meta", cardKey, ...aggregateKeys]);
+    if (found.has(dedupeKey) || found.has(previousKey)) return { ok: true, counted: false };
+
+    const meta: Meta = (found.get("meta") as Meta | undefined) ?? { games: 0, keys: 0, day: 0, dayCount: 0 };
+    const today = Math.floor(now / DAY_MS);
+    if (meta.day !== today) {
+      meta.day = today;
+      meta.dayCount = 0;
+    }
+    if (meta.dayCount >= GLOBAL_RESULTS_PER_DAY) {
+      return { ok: false, reason: "rate-limited", retryAfterMs: (today + 1) * DAY_MS - now };
+    }
+
+    // The card row counts as one key too, so a new villain name costs two.
+    const newKeys = aggregateKeys.filter((k) => !found.has(k)).length + (found.has(cardKey) ? 0 : 1);
+    if (meta.keys + newKeys > GLOBAL_MAX_KEYS) return { ok: false, reason: "full", retryAfterMs: 0 };
+
+    const writes: Record<string, unknown> = {};
+    for (const key of aggregateKeys) {
+      const row = (found.get(key) as AggregateRow | undefined) ?? emptyAggregate();
+      bump(row, result.won, result.cause);
+      writes[key] = row;
+    }
+
+    const cards = (found.get(cardKey) as CardRow | undefined) ?? { wins: 0, losses: 0, inWins: {}, inLosses: {} };
+    const bucket = result.won ? cards.inWins : cards.inLosses;
+    let size = JSON.stringify(cards).length;
+    for (const seat of result.seats) {
+      if (result.won) cards.wins += 1;
+      else cards.losses += 1;
+      for (const card of seat.deck) {
+        if (!(card in bucket)) {
+          // A new card name adds its key, quotes, colon, comma and a count.
+          size += card.length + 8;
+          if (size > GLOBAL_MAX_CARD_ROW_BYTES) continue;
+          bucket[card] = 0;
+        }
+        bucket[card]! += 1;
+      }
+    }
+    writes[cardKey] = cards;
+
+    meta.games += 1;
+    meta.keys += newKeys;
+    meta.dayCount += 1;
+    writes[dedupeKey] = 1;
+    if (!meta.alarmAt || meta.alarmAt <= now) {
+      meta.alarmAt = nextMonthAlarm(now);
+      await this.storage.setAlarm(meta.alarmAt);
+    }
+    writes.meta = meta;
+    await this.storage.put(writes);
+    return { ok: true, counted: true };
+  }
+
+  /** `GET /global/stats`: the stored summary, rebuilt when it is over an hour old. */
+  async stats(now: number): Promise<GlobalStats> {
+    const stored = await this.storage.get<GlobalStats>("s:summary");
+    if (stored && stored.updatedAt <= now && now - stored.updatedAt < GLOBAL_SUMMARY_TTL_MS) return stored;
+    const meta = await this.storage.get<Meta>("meta");
+    const rows = async (prefix: string): Promise<GlobalRow[]> => {
+      const listed = await this.storage.list<AggregateRow>({ prefix });
+      return [...listed]
+        .filter(([, row]) => row.games >= GLOBAL_MIN_GAMES)
+        .map(([key, row]) => ({
+          key: key.slice(prefix.length),
+          games: row.games,
+          wins: row.wins,
+          causes: { ...row.causes },
+        }))
+        .sort((a, b) => b.games - a.games || (a.key < b.key ? -1 : 1));
+    };
+    const summary: GlobalStats = {
+      updatedAt: now,
+      games: meta?.games ?? 0,
+      villains: await rows("v:"),
+      modulars: await rows("m:"),
+      heroes: await rows("h:"),
+    };
+    await this.storage.put("s:summary", summary);
+    return summary;
+  }
+
+  /** `GET /global/cards`: null when the villain is unknown or has fewer than GLOBAL_MIN_GAMES decks. */
+  async cards(villain: string): Promise<GlobalVillainCards | null> {
+    const row = await this.storage.get<CardRow>(`c:${villain}`);
+    if (!row || row.wins + row.losses < GLOBAL_MIN_GAMES) return null;
+    const inWins: Record<string, number> = {};
+    const inLosses: Record<string, number> = {};
+    for (const card of new Set([...Object.keys(row.inWins), ...Object.keys(row.inLosses)])) {
+      const w = row.inWins[card] ?? 0;
+      const l = row.inLosses[card] ?? 0;
+      if (w + l < GLOBAL_MIN_CARD_DECKS) continue;
+      if (w > 0) inWins[card] = w;
+      if (l > 0) inLosses[card] = l;
+    }
+    return { villain, wins: row.wins, losses: row.losses, inWins, inLosses };
+  }
+
+  /** The alarm: drops dedupe buckets older than the previous month, a small batch at a time. */
+  async expire(now: number): Promise<void> {
+    const keep = previousMonthOf(now);
+    const listed = await this.storage.list<unknown>({ prefix: "g:", limit: DEDUPE_BATCH });
+    const old = [...listed.keys()].filter((key) => key.slice(2, 8) < keep);
+    if (old.length > 0) await this.storage.delete(old);
+    const meta = await this.storage.get<Meta>("meta");
+    if (!meta) return;
+    if (old.length === DEDUPE_BATCH) {
+      // The whole batch was old, so there may be more.
+      meta.alarmAt = now + 60_000;
+    } else if (listed.size > old.length) {
+      meta.alarmAt = nextMonthAlarm(now);
+    } else {
+      meta.alarmAt = 0;
+    }
+    await this.storage.put("meta", meta);
+    if (meta.alarmAt) await this.storage.setAlarm(meta.alarmAt);
+  }
+}

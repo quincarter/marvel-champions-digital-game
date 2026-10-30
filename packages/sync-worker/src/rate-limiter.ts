@@ -36,6 +36,10 @@ export const SYNC_ROWS_PER_DAY = 5000;
 export const SYNC_LIMITER_ROWS = 2;
 const HOUR_MS = 60 * 60 * 1000;
 
+/** Global win rate results one IP may send per 24 hours, and reads per hour. Each is a fixed window in one small counter. */
+export const GLOBAL_RESULTS_PER_IP_PER_DAY = 60;
+export const GLOBAL_READS_PER_IP_PER_HOUR = 120;
+
 interface LimiterState {
   uploads: number[];
   failures: number[];
@@ -49,6 +53,9 @@ interface LimiterState {
   syncCreates: number[];
   /** Rows written by spaces for this IP, in hourly buckets (h = hour start). */
   syncRows: { h: number; n: number }[];
+  /** Global win rate counters: a window start and the count in it; absent when no window is open. */
+  globalResults?: { s: number; n: number };
+  globalReads?: { s: number; n: number };
 }
 
 export class RateLimiterLogic {
@@ -65,6 +72,8 @@ export class RateLimiterLogic {
       syncBlockedUntil: saved && (saved.syncBlockedUntil ?? 0) > now ? saved.syncBlockedUntil : 0,
       syncCreates: (saved?.syncCreates ?? []).filter((t) => t > now - DAY_MS),
       syncRows: (saved?.syncRows ?? []).filter((b) => b.h > now - DAY_MS),
+      ...(saved?.globalResults && saved.globalResults.s > now - DAY_MS ? { globalResults: saved.globalResults } : {}),
+      ...(saved?.globalReads && saved.globalReads.s > now - HOUR_MS ? { globalReads: saved.globalReads } : {}),
     };
   }
 
@@ -79,6 +88,8 @@ export class RateLimiterLogic {
       state.syncBlockedUntil,
       ...state.syncCreates.map((t) => t + DAY_MS),
       ...state.syncRows.map((b) => b.h + DAY_MS),
+      ...(state.globalResults ? [state.globalResults.s + DAY_MS] : []),
+      ...(state.globalReads ? [state.globalReads.s + HOUR_MS] : []),
     ].filter((t) => t > 0);
     if (ends.length === 0) {
       await this.storage.deleteAll();
@@ -203,6 +214,30 @@ export class RateLimiterLogic {
     const index = state.syncCreates.indexOf(reservedAt);
     if (index >= 0) state.syncCreates.splice(index, 1);
     await this.save(state);
+  }
+
+  private async takeGlobal(
+    now: number,
+    field: "globalResults" | "globalReads",
+    limit: number,
+    windowMs: number,
+  ): Promise<{ ok: true } | { ok: false; retryAfterMs: number }> {
+    const state = await this.load(now);
+    const window = state[field];
+    if (window && window.n >= limit) return { ok: false, retryAfterMs: window.s + windowMs - now };
+    state[field] = window ? { s: window.s, n: window.n + 1 } : { s: now, n: 1 };
+    await this.save(state);
+    return { ok: true };
+  }
+
+  /** Takes one of the IP's GLOBAL_RESULTS_PER_IP_PER_DAY result slots; a refusal writes nothing. */
+  takeGlobalResult(now: number) {
+    return this.takeGlobal(now, "globalResults", GLOBAL_RESULTS_PER_IP_PER_DAY, DAY_MS);
+  }
+
+  /** Takes one of the IP's GLOBAL_READS_PER_IP_PER_HOUR reads; a refusal writes nothing. */
+  takeGlobalRead(now: number) {
+    return this.takeGlobal(now, "globalReads", GLOBAL_READS_PER_IP_PER_HOUR, HOUR_MS);
   }
 
   /** Milliseconds left on a block, 0 when not blocked. */
