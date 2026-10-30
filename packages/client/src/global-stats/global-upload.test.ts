@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import { SENT_CAP, markSent, readConsent, readSent, turnOffGlobalStats, turnOnGlobalStats } from "./global-consent.js";
-import { MAX_PER_RUN, resetGlobalUploadBackoff, runGlobalUpload, startGlobalUploads } from "./global-upload.js";
+import {
+  MAX_AGE_MS,
+  MAX_PER_RUN,
+  resetGlobalUploadBackoff,
+  runGlobalUpload,
+  startGlobalUploads,
+} from "./global-upload.js";
 import { NAMES, jsonResponse, memoryStorage, meta } from "./fixtures.js";
 
 const BASE = "https://w.test";
@@ -17,7 +23,7 @@ function setup(status: number | Error = 200, headers: Record<string, string> = {
     for (const [k, v] of Object.entries(headers)) response.headers.set(k, v);
     return response;
   });
-  const deps = { baseUrl: BASE, fetch: fetchFn as unknown as typeof fetch, storage, names: NAMES };
+  const deps = { baseUrl: BASE, fetch: fetchFn as unknown as typeof fetch, storage, names: NAMES, now: () => 10_000 };
   return { storage, fetched, fetchFn, deps };
 }
 
@@ -127,6 +133,14 @@ describe("runGlobalUpload", () => {
     expect(readSent(storage).has("first")).toBe(false);
     await runGlobalUpload({ listSaves: async () => [first, second] }, deps);
     expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  test("a game over 30 days old is never sent: the Worker may have forgotten its id", async () => {
+    const { deps, storage, fetchFn } = setup();
+    turnOnGlobalStats([], storage, 5000);
+    const old = meta({ id: "old", updatedAt: 9000 });
+    await runGlobalUpload({ listSaves: async () => [old] }, { ...deps, now: () => 9000 + MAX_AGE_MS + 1 });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   test("a game synced in late with an older stamp still goes", async () => {

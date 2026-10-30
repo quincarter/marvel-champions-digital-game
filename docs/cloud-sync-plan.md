@@ -126,8 +126,8 @@ player or deck names, no save id, no seed, no timestamps. The contract is
 
 **Counted once.** A result's id is a SHA-256 of a fixed prefix and the game's save id, cut to 32 hex characters. The same
 game synced to two devices counts once, and the id cannot be tied back to the save. The Worker keeps seen ids in monthly
-buckets and drops any older than the month before, so a device that sends the same game two months later counts it
-again, and a conflict resolved by "keep both" makes a new game. The rate limiter holds an IP for a day, as it does for
+buckets and drops any older than the month before, and the client never sends a game over 30 days old, so a late retry
+cannot count twice. A conflict resolved by "keep both" does make a new game. The rate limiter holds an IP for a day, as it does for
 sync. The Worker stores no IP with a result and no time per game beyond the month bucket, and logs nothing from a request.
 
 **How it works** (client in `packages/client/src/global-stats/`, server in `packages/sync-worker/src/global-*.ts`). One

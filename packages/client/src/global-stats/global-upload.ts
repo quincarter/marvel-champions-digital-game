@@ -28,6 +28,8 @@ import { globalIdOf, globalResultOf } from "./global-result.js";
 
 export const MAX_PER_RUN = 5;
 export const UPLOAD_TIMEOUT_MS = 10_000;
+/** The Worker remembers ids for a month at the least, so an older game is never sent: it might count twice. */
+export const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 /** After a save signal, how long play must be quiet before a run starts. */
 export const RUN_DEBOUNCE_MS = 10_000;
 
@@ -81,7 +83,8 @@ export async function runGlobalUpload(store: UploadStore, overrides: Partial<Upl
           !meta.guided &&
           (meta.status === "won" || meta.status === "lost") &&
           !sent.has(meta.id) &&
-          meta.updatedAt >= since,
+          meta.updatedAt >= since &&
+          meta.updatedAt >= deps.now() - MAX_AGE_MS,
       )
       .sort((a, b) => a.updatedAt - b.updatedAt);
     let done = 0;
