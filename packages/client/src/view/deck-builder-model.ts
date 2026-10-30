@@ -28,6 +28,7 @@ import {
   type DeckValidation,
 } from "@mc/engine";
 import { perPlayerCostOf } from "./per-player-cost.js";
+import { matchesClauses, parsePoolQuery, type QueryClause } from "./pool-query.js";
 
 export interface PoolFilter {
   readonly text?: string;
@@ -39,6 +40,8 @@ export interface PoolFilter {
   readonly packCode?: string | null;
   /** One release wave/cycle, by `Cycle.id` (the card's `cycleId`). */
   readonly cycleId?: string | null;
+  /** Search terms such as `o:2` or `kw:guard` (`pool-query.ts`), each of which a card must meet. */
+  readonly clauses?: readonly QueryClause[];
 }
 
 /** One key the pool list can be ordered by. */
@@ -189,9 +192,10 @@ const textMatch = (card: AnyCard, text: string): boolean => {
   return searchTermsOf(text).every((term) => haystack.includes(term));
 };
 
-const matchesFilter = (card: AnyCard, filter: PoolFilter): boolean => {
+const matchesFilter = (card: AnyCard, filter: PoolFilter, packs: readonly PackInfo[]): boolean => {
   if (filter.type && card.type !== filter.type) return false;
   if (filter.text && !textMatch(card, filter.text)) return false;
+  if (filter.clauses?.length && !matchesClauses(card, filter.clauses, packs)) return false;
   if ("traits" in card && filter.trait && !(card.traits as readonly Trait[]).includes(filter.trait)) return false;
   if ("cost" in card && typeof filter.maxCost === "number" && (card as { cost: number }).cost > filter.maxCost)
     return false;
@@ -221,11 +225,16 @@ export function browsablePool(
   held: ReadonlySet<string> = new Set(),
   relevance?: ReadonlyMap<string, number>,
 ): readonly AnyCard[] {
+  // A search's `field:value` terms filter exactly; only its other words are text to match (`pool-query.ts`).
+  if (filter.text) {
+    const query = parsePoolQuery(filter.text);
+    filter = { ...filter, text: query.text, clauses: [...(filter.clauses ?? []), ...query.clauses] };
+  }
   // `held` is the ids the deck already contains: they stay listed even when the deck's rules now refuse them, so each
   // can still be removed from the list (the legality line says why it is refused).
   const filtered = cardsOf(pool)
     .filter((card) => held.has(card.id as string) || cardOfferedToDeck(card, identity, chosenAspects).offered)
-    .filter((card) => matchesFilter(card, filter));
+    .filter((card) => matchesFilter(card, filter, packs));
 
   // Wave 1 reprints the same basic/aspect card (by title) across several packs
   // under a different card id each time — Energy, For Justice!, and so on —
@@ -338,7 +347,9 @@ export function packFilterChoices(
   packs: readonly PackInfo[],
 ): { readonly cycles: readonly FilterChoice[]; readonly packs: readonly FilterChoice[] } {
   const { packCode: _p, cycleId: _c, ...rest } = filter;
-  const present = new Set(browsablePool(pool, identity, chosenAspects, rest).map((c) => c.setCode as string));
+  const present = new Set(
+    browsablePool(pool, identity, chosenAspects, rest, DEFAULT_POOL_SORT, packs).map((c) => c.setCode as string),
+  );
   const have = packs.filter((p) => present.has(p.code));
   const cycles: FilterChoice[] = [];
   for (const p of have) if (!cycles.some((c) => c.id === p.cycleId)) cycles.push({ id: p.cycleId, name: p.cycleName });

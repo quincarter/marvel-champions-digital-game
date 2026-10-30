@@ -147,6 +147,7 @@ import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
+import { parsePoolQuery } from "../view/pool-query.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 
@@ -194,11 +195,17 @@ const NARROW_SCROLLBAR_GUTTER = 10;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
 
-/** `filter` with its text dropped: the search worker answers the text part. */
-function withoutText(filter: PoolFilter): PoolFilter {
-  const { text: _text, ...rest } = filter;
-  return rest;
+/**
+ * `filter` plus the search's `field:value` terms (`pool-query.ts`) as clauses this side applies; the search worker
+ * answers the search's free words.
+ */
+function withSearchClauses(filter: PoolFilter, search: string): PoolFilter {
+  const clauses = parsePoolQuery(search).clauses;
+  return clauses.length > 0 ? { ...filter, clauses } : filter;
 }
+
+/** The free words of a search, for the search worker; its `field:value` terms filter without it. */
+const freeTextOf = (text: string): string => parsePoolQuery(text).text.trim();
 
 /** Built on first search and kept: the documents the search worker ranks (every card; every hero). */
 let poolSearchDocuments: readonly SearchDocument[] | null = null;
@@ -616,12 +623,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
-    const ranking = this.#filterText.trim() ? this.#poolRanking : null;
+    const ranking = freeTextOf(this.#filterText) ? this.#poolRanking : null;
     const listed = browsablePool(
       POOL,
       this.#identity!,
       deck.aspects,
-      withoutText(this.#filter),
+      withSearchClauses(this.#filter, this.#filterText),
       this.#sort,
       PACK_INFOS,
       held,
@@ -965,7 +972,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     label(this, left, y, "pack", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const choices = packFilterChoices(POOL, this.#identity!, deck.aspects, this.#filter, PACK_INFOS);
+    const choices = packFilterChoices(
+      POOL,
+      this.#identity!,
+      deck.aspects,
+      withSearchClauses(this.#filter, this.#filterText),
+      PACK_INFOS,
+    );
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
       this.#listScroll.reset();
@@ -1469,7 +1482,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#filterInput = new McTextInput(this, {
         rect: filterRect,
         value: this.#filterText,
-        placeholder: "Search name, trait or card text",
+        placeholder: "Search, or o:2 t:ally k:spy rp:1 kw:guard",
         onChange: applyText,
       });
     }
@@ -1937,7 +1950,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #requestPoolSearch(text: string): void {
     const search = this.#poolSearch;
     if (!search) return;
-    if (text.trim() === "") {
+    text = freeTextOf(text);
+    if (text === "") {
       search.cancel();
       this.#poolRanking = null;
       this.#rebuild();
