@@ -78,6 +78,10 @@ where the engine's choice or ordering machinery does something the rules do not 
 - The game: no ordering prompt; the tough card always resolves first (tough 1 to 0, nothing on the Armor, Iron Man
   undamaged). Pinned by a passing test.
 - Proof: `it.fails` expects an `orderTriggers` prompt during the attack.
+- **Retired (issue #525, item 5):** RRG 1.8 "Simultaneous Timing Priority" (p. 5, revised in v1.8) resolves status-card
+  Forced Interrupts (2a) before other Forced Interrupts (2b), and "Damage" (p. 14) takes tough status cards (step 2)
+  before "would take any amount of damage" abilities (step 3). "Forced" (p. 20) orders only abilities of equal priority,
+  so the game's order is right; the `it.fails` is removed and the pinning test kept.
 - Owner: `game-rules-architect` (status cards as forced interrupts for ordering). This may be a deliberate engine
   choice (tough as a prevention, not a trigger); then the RRG sentence "resolves like" is what to decide on. Severity
   "wrong prompt" (the choice is missing, the engine has picked the order that is worse for the enemy).
