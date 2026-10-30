@@ -219,6 +219,9 @@ export function villainsFacedOf(insights: DeckInsights): readonly string[] {
     .map(([name]) => name);
 }
 
+/** The note under the "Against" stepper when no card is left to show, here or once a screen's own lists have theirs. */
+export const NOTHING_STANDS_OUT = "No card stands out against this villain yet.";
+
 export interface AgainstVillain {
   /** "Against Klaw · 4 wins, 2 losses", counting decks. */
   readonly headline: string;
@@ -273,7 +276,7 @@ export function againstVillainOf(
     .slice(0, LIST)
     .map((id) => ({ cardId: id, detail: detail(id) }));
   const empty = tryCards.length === 0 && cutCards.length === 0;
-  return { headline, tryCards, cutCards, note: empty ? "No card stands out against this villain yet." : null };
+  return { headline, tryCards, cutCards, note: empty ? NOTHING_STANDS_OUT : null };
 }
 
 /**

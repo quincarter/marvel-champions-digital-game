@@ -166,6 +166,7 @@ import {
   screenHoverArea,
 } from "../ui/card-hover-preview.js";
 import {
+  NOTHING_STANDS_OUT,
   againstVillainOf,
   cardPlayOf,
   fromYourGamesOf,
@@ -1082,17 +1083,14 @@ export class DecksScene extends Phaser.Scene {
       y += this.#row + 8;
       if (against) {
         const shown = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
-        section(
-          "Try: in your wins here",
-          against.tryCards.filter((entry) => listed.has(entry.cardId) && !shown.has(entry.cardId)),
-        );
-        section(
-          "Cut? In your losses here",
-          against.cutCards.filter((entry) => !shown.has(entry.cardId)),
-        );
-        if (against.note && y + 30 < buttonTop) {
+        const wins = against.tryCards.filter((entry) => listed.has(entry.cardId) && !shown.has(entry.cardId));
+        const losses = against.cutCards.filter((entry) => !shown.has(entry.cardId));
+        section("Try: in your wins here", wins);
+        section("Cut? In your losses here", losses);
+        const nothing = against.note ?? (wins.length + losses.length === 0 ? NOTHING_STANDS_OUT : null);
+        if (nothing && y + 30 < buttonTop) {
           const note = this.add
-            .text(left, y, against.note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+            .text(left, y, nothing, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
             .setFontSize(12)
             .setWordWrapWidth(column);
           y += note.height + 8;

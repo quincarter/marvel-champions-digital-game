@@ -128,6 +128,7 @@ import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets
 import { cardArt, drawArt } from "../art/card-art.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import {
+  NOTHING_STANDS_OUT,
   againstVillainOf,
   fromYourGamesOf,
   villainsFacedOf,
@@ -1459,19 +1460,20 @@ ${entry.detail}`,
       if (against) {
         // A card the lists above already offer keeps its one button (and its one stop).
         const offered = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
-        section(
-          "Try: in your wins here",
-          against.tryCards.filter((entry) => pool.has(entry.cardId) && !offered.has(entry.cardId)),
-          { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
-        );
-        section(
-          "Cut? In your losses here",
-          against.cutCards.filter((entry) => !offered.has(entry.cardId)),
-          { label: "− Cut", run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)) },
-        );
-        if (against.note && y + 30 < bottom) {
+        const wins = against.tryCards.filter((entry) => pool.has(entry.cardId) && !offered.has(entry.cardId));
+        const losses = against.cutCards.filter((entry) => !offered.has(entry.cardId));
+        section("Try: in your wins here", wins, {
+          label: "+ Add",
+          run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)),
+        });
+        section("Cut? In your losses here", losses, {
+          label: "− Cut",
+          run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)),
+        });
+        const nothing = against.note ?? (wins.length + losses.length === 0 ? NOTHING_STANDS_OUT : null);
+        if (nothing && y + 30 < bottom) {
           const note = this.add
-            .text(left, y, against.note, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
+            .text(left, y, nothing, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
             .setFontSize(12)
             .setWordWrapWidth(column);
           y += note.height + 8;
