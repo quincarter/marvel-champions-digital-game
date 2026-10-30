@@ -89,7 +89,7 @@
  * This scene watches the same store Board does. Once the walkthrough reports `complete` and every beat it knows
  * about has been revealed, it draws the recap instead of the walkthrough panel (`ui/villain-recap-panel.ts`,
  * `view/villain-recap.ts`; mockups D3/T3/P4): what changed, then every card of the five steps in the order it
- * happened, with an AUTO-ADVANCE toggle, FULL LOG (opens Pause, which holds the game log) and START PLAYER PHASE.
+ * happened, with an AUTO-ADVANCE toggle, FULL LOG (the game log in this panel, `#drawLogView`) and START PLAYER PHASE.
  * What happens next is `settings.villainAutoAdvance` (`#syncTiming`):
  *  - "off" (default): nothing closes the recap on a timer; the player presses Start player phase (or Hide/Esc).
  *  - "afterPause": the recap closes itself after `VILLAIN_RECAP_PAUSE_MS`.
@@ -254,6 +254,8 @@ import { defendChoiceViewOf, type DefendChoiceView } from "../view/defend-choice
 import type { VillainSeatNote } from "../view/villain-seat-note.js";
 import { villainDefendLayout } from "../view/villain-defend-layout.js";
 import { drawVillainDefendPanel } from "../ui/villain-defend-panel.js";
+import { logTypeFor, logWithShownBeats, shownBeatsOf } from "../view/log-dock.js";
+import { LogPanel } from "./board/log.js";
 import { villainBandLayout, villainRailLayout, villainTabLayout } from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
@@ -393,6 +395,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #recapExpanded = false;
   /** The game frame EXPAND / COLLAPSE / PEEK last changed the decision's shape (`view/press-settle.ts`). */
   #lastToggleFrame: number | null = null;
+  /**
+   * The player toggled to the game log (issue #550): it takes the phase's panel, and the phase waits where it was until
+   * they toggle back, so nothing plays past them unread. Any decision they left stays open, tucked away.
+   */
+  #logView = false;
+  readonly #logPanel = new LogPanel(() => this.#draw());
 
   constructor() {
     super({ key: SCENES.villainPhase });
@@ -419,6 +427,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#defendPick = null;
     this.#recapExpanded = false;
     this.#peeking = false;
+    this.#logView = false;
+    this.#logPanel.reset();
     this.#slideStartedAt = null;
     this.#recapShownAt = null;
     this.#started = false;
@@ -455,7 +465,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.pileView) ||
         this.scene.isActive(SCENES.deckLeft),
       // Esc / B on the START gate is Nevermind when End turn can still be taken back; otherwise it hides the phase.
-      onCancel: () => (this.#nevermindTarget() !== null ? void this.#nevermind() : this.#skip()),
+      onCancel: () => {
+        if (this.#logView) this.toggleLog();
+        else if (this.#nevermindTarget() !== null) void this.#nevermind();
+        else this.#skip();
+      },
       primary: () => this.#primaryStop,
       onToggle: () => {
         if (this.#secondaryStop !== null) this.#route?.pressStop(this.#secondaryStop);
@@ -476,8 +490,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         openPauseOverBoard(this);
       },
       onView: () => this.padPeek(),
+      onLog: () => this.toggleLog(),
       onExpand: () => this.padExpand(),
+      onScroll: (_dx, dy) => this.#logPanel.onPadScroll(dy),
     });
+    this.input.on("wheel", this.#logPanel.onWheel, this.#logPanel);
     const { store } = appSession();
     // Before the subscribe, which runs the first draw (or closes at once, drawing nothing): the last run's cards go.
     resetHoverCards(this);
@@ -625,6 +642,36 @@ export class VillainPhaseOverlay extends Phaser.Scene {
             slideOut(this, slideOffset(edge, { x: 0, y: 0, width, height }, { x: 0, y: 0, width, height }), done)
         : undefined,
     );
+  }
+
+  /** The log is showing in the phase's panel, for the title bar's line. */
+  logShown(): boolean {
+    return this.#logView;
+  }
+
+  /** A lesson keeps the log locked: no way in from the phase either. */
+  #logLocked(): boolean {
+    return this.#boardScene()?.logLocked() === true;
+  }
+
+  /** FULL LOG on the recap: the log in this panel, or Pause's, which a lesson's lock does not reach. */
+  #openFullLog(): void {
+    if (!this.#logLocked()) this.toggleLog();
+    else if (!this.scene.isActive(SCENES.pause)) this.scene.launch(SCENES.pause);
+  }
+
+  /** LOG, the log's key, a hold of View or the title bar's line: the game log in this panel, or back to the phase. */
+  toggleLog(): void {
+    if (this.#motion.leaving || (!this.#logView && this.#logLocked())) return;
+    this.#logView = !this.#logView;
+    if (this.#logView) {
+      this.#hidden = false;
+      this.#leavePeek();
+    } else this.#logPanel.hide();
+    this.#orderAgainstChoice();
+    this.#syncTiming();
+    this.#draw();
+    this.#boardScene()?.refreshChrome();
   }
 
   /** A finished phase, closing: kept for review on the Board's drawer handle through the next player phase. */
@@ -832,7 +879,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    */
   #autoAnswerSole(): void {
     const choice = this.#latest?.game?.pendingChoice;
-    if (!choice || this.#review || this.#soleAnswered.has(choice.choiceId)) return;
+    if (!choice || this.#review || this.#logView || this.#soleAnswered.has(choice.choiceId)) return;
     if (this.#waitingToStart() || !this.#decisionDue() || this.#guideActive()) return;
     const game = this.#latest?.game;
     if (!game) return;
@@ -927,7 +974,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** A docked decision tucked away (HIDE on the rail, PEEK AT TABLE on a phone): its sheet stays hidden under the phase. */
   #decisionTucked(): boolean {
-    if (!(this.#hidden || this.#peeking)) return false;
+    if (!(this.#hidden || this.#peeking || this.#logView)) return false;
     const state = this.#latest;
     const choice = state?.game?.pendingChoice;
     if (!state || !choice || choice.playerId !== state.perspectiveId) return false;
@@ -1031,7 +1078,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       return null;
     if (!this.#gateEligible() || state.game.outcome) return null;
     // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
-    if (this.scene.isActive(SCENES.pause)) return null;
+    if (this.scene.isActive(SCENES.pause) || this.#logView) return null;
     if (state.inFlight || state.version !== state.commandTrail.length) return null;
     return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
   }
@@ -1133,6 +1180,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #syncTiming(): void {
     // A review never paces or closes itself: the player opened it and closes it.
     if (this.#review) return;
+    // Nothing plays past a player reading the log, and nothing closes under them.
+    if (this.#logView) {
+      this.#revealTimer?.remove();
+      this.#revealTimer = null;
+      this.#closeTimer?.remove();
+      this.#closeTimer = null;
+      return;
+    }
     // Nothing plays before START VILLAIN PHASE.
     if (this.#waitingToStart()) {
       this.#revealTimer?.remove();
@@ -1357,12 +1412,6 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  /** FULL LOG: the board's full game log lives in Pause, so this opens Pause over the recap. */
-  #openFullLog(): void {
-    if (this.scene.isActive(SCENES.pause)) return;
-    this.scene.launch(SCENES.pause);
-  }
-
   #drawing = false;
   /** When the docked defend first found its panel too small for the options (`#drawDefend`). */
   #unfitSince: number | null = null;
@@ -1514,6 +1563,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       );
       const panel = boardScene.villainDockRects()?.panel;
       if (panel) {
+        if (this.#logView) {
+          this.#drawLogView(kind, panel, formFactor);
+          return;
+        }
         if (this.#drawDockedAnswer(kind, panel, null, dockedDefendId, dockedDecisionId, dockedRecap, game, viewer))
           return;
         this.#drawRail(kind, panel, reveal, game, viewer, viewerId);
@@ -1524,6 +1577,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       boardScene.setVillainDock(kind);
       const rects = boardScene.villainDockRects();
       if (rects?.footer && kind === "tab" && rects.panel) {
+        if (this.#logView) {
+          this.#drawLogView(kind, rects.panel, formFactor);
+          return;
+        }
         if (
           this.#drawDockedAnswer(
             "tab",
@@ -1558,6 +1615,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     addPressShield(this, { x: bounds.x, y: 0, width: bounds.width, height });
     const panelsFrom = this.children.list.length;
 
+    if (this.#logView) {
+      this.#drawLogView("full", layout.panel, formFactor);
+      return;
+    }
+
     if (recapNow) {
       // A review shows the phase as it ended, not the table as it is now.
       if (this.#review) this.#drawRecap(bounds, formFactor, this.#review.after, this.#review.viewer);
@@ -1590,7 +1652,6 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       )
       .setOrigin(0, 0)
       .setLetterSpacing(1);
-    fitText(title, layout.title.width, phone ? 22 : 34);
 
     this.#pushHinted(
       ["cancel"],
@@ -1604,6 +1665,25 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         onClick: () => this.#skip(),
       }),
     );
+    // Full screen covers the title bar's line, so the log's way in is here.
+    const logRect: Rect | null = this.#logLocked()
+      ? null
+      : { x: layout.skip.x - 8 - 64, y: layout.skip.y, width: 64, height: layout.skip.height };
+    if (logRect) {
+      this.#pushHinted(
+        ["log"],
+        "ink",
+        null,
+        new McButton(this, {
+          kind: "onInk",
+          label: "Log",
+          type: typeRole.label,
+          rect: logRect,
+          onClick: () => this.toggleLog(),
+        }),
+      );
+    }
+    fitText(title, Math.min(layout.title.width, (logRect ?? layout.skip).x - 12 - layout.title.x), phone ? 22 : 34);
 
     label(
       this,
@@ -1631,6 +1711,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
 
     const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
+    if (logRect) stops.set("log", { rect: logRect, activate: () => this.toggleLog() });
     let finished: boolean;
 
     if (inline) {
@@ -1710,6 +1791,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           inline?.map((o) => o.optionId) ?? [],
           guideStrip ? { hasPrimary: Boolean(guideStrip.onPrimary) } : undefined,
         ),
+        "log",
       ],
       stops,
     );
@@ -3083,12 +3165,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       onSkip: () => this.#skip(),
       onHide: hide,
+      onLog: this.#logLocked() ? null : () => this.toggleLog(),
       onToggle: () => this.#toggleAutoAdvance(),
       onInspect: (instanceId) => this.scene.launch(SCENES.inspect, { instanceId }),
     });
 
     this.#route?.set(
-      ["flip", ...villainRailFocusOrder(inline?.map((o) => o.optionId) ?? [], stops.has("next"))],
+      ["flip", ...villainRailFocusOrder(inline?.map((o) => o.optionId) ?? [], stops.has("next")), "log"],
       stops,
     );
     if (import.meta.env.DEV) {
@@ -3393,6 +3476,47 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const shownAt = this.#noticeShownAt.get(id) ?? this.time.now;
     this.#noticeShownAt.set(id, shownAt);
     slideIn(this, objects, { dx: panel.width, dy: 0 }, this.time.now - shownAt);
+  }
+
+  /**
+   * The game log in the phase's panel (issue #550). It reads what the table's log reads, and while that waits where the
+   * phase began, the beats the phase has shown follow it (`logWithShownBeats`).
+   */
+  #drawLogView(kind: VillainDockKind, panel: Rect, formFactor: FormFactor): void {
+    const board = this.#boardScene();
+    if (!board) return;
+    this.#presentation = kind;
+    addPressShield(this, panel);
+    const beats = board.logHeldBehindPhase()
+      ? shownBeatsOf(
+          revealOf(this.#walkthrough, this.#revealed).steps.flatMap((step) =>
+            step.beats.map((beat) => ({ step: step.number, text: beat.text })),
+          ),
+          (this.#flipGate() ?? this.#flipTurning()) !== null,
+        )
+      : [];
+    const back = (): void => this.toggleLog();
+    let backRect: Rect | null = null;
+    this.#logPanel.draw(this, panel, logWithShownBeats(board.tableLog(), this.#walkthrough.round, beats), {
+      type: logTypeFor(formFactor),
+      closeLabel: "◂ Villain phase",
+      onClose: back,
+      onCloseButton: (button, rect) => {
+        this.#buttons.push(button);
+        this.#hintButton(button, ["cancel"], "paper");
+        backRect = rect;
+      },
+    });
+    if (backRect) this.#route?.set(["back"], new Map([["back", { rect: backRect, activate: back }]]));
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
+        continueRect: () => null,
+        skipRect: () => null,
+        logBackRect: () => backRect,
+        logView: () => this.#logView,
+        presentation: () => this.#presentation,
+      };
+    }
   }
 
   /** The rail while hidden: a handle at the table's right edge that brings it back. */

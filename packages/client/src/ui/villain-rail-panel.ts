@@ -167,6 +167,8 @@ export interface RailPanelArgs {
   readonly hintSecondary?: (button: McButton, stop: string) => void;
   readonly onSkip: () => void;
   readonly onHide: () => void;
+  /** The game log in this panel, and back (issue #550); null while a lesson keeps the log locked. */
+  readonly onLog: (() => void) | null;
   readonly onToggle: () => void;
   readonly onInspect: (instanceId: InstanceId) => void;
 }
@@ -224,6 +226,7 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
   const takesBack = args.gate?.kind === "start" && args.gate.onNevermind !== undefined;
   button("skip", "Skip", layout.skip, args.onSkip, takesBack ? null : "cancel");
   button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide, "peek");
+  if (args.onLog && layout.logButton.width > 0) button("log", "Log", layout.logButton, args.onLog, "log");
 
   if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
 
