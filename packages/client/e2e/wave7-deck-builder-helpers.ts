@@ -217,7 +217,8 @@ export async function startNewDeck(page: Page, identityId: string): Promise<void
   );
   if (await stopOf(page, "DeckBuilder", "start:empty")) await press(page, "DeckBuilder", "start:empty");
   await waitFor(
-    async () => ((await stopOf(page, "DeckBuilder", "save")) || (await stopOf(page, "DeckBuilder", "tab:deck")) ? true : null),
+    async () =>
+      (await stopOf(page, "DeckBuilder", "save")) || (await stopOf(page, "DeckBuilder", "tab:deck")) ? true : null,
     "builder opens",
     15000,
   );
