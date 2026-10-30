@@ -458,6 +458,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=victory`: Specialized Training defeated and in the victory display (`store/dev-victory-game.ts`).
+  if (screen === "board" && params.get("fixture") === "victory") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startVictoryDevGame } = await import("../store/dev-victory-game.js");
+      await startVictoryDevGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=attackers`: Captain Marvel's turn in hero form with three ready allies, so "Who attacks?" offers four characters
   // (`store/dev-attackers-game.ts`).
   if (screen === "board" && params.get("fixture") === "attackers") {

@@ -320,6 +320,7 @@ const TYPE_FILTERS: readonly {
     { id: "upgrade", label: "Upgrade", type: "upgrade" },
     { id: "support", label: "Support", type: "support" },
     { id: "resource", label: "Resource", type: "resource" },
+    { id: "scheme", label: "Side scheme", type: "player_side_scheme" },
   ] as const
 ).map((chip) => ({ ...chip, text: chip.label }));
 
