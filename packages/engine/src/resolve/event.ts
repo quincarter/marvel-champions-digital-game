@@ -1236,7 +1236,7 @@ function beginOneDefeat(
   // here means no interrupt replaced the defeat ("set his hit point dial to 1 instead", Captain America's Helmet).
   const player = ctx.state.players.find((seat) => seat.identity.instanceId === id);
   if (player) {
-    recordIdentityDefeat(ctx, id, event.parentFrameId, event.reportFrameId, event.spilledFromFrameId);
+    recordIdentityDefeat(ctx, id, event.parentFrameId, event.reportFrameId, event.spilledFromFrameId, event);
     eliminatePlayer(ctx, player.playerId);
     return true;
   }

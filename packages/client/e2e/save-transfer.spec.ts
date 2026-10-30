@@ -60,7 +60,8 @@ test("Receive: a typed code fetches the save and lands on the replace confirm", 
 
   await clickStop(page, "row:receive", SAVE_DATA);
   await waitForStop(page, "receive");
-  // Typing starts in the field (desktop focuses it); lower case and a space are fine.
+  // Pressing the field focuses it on any machine (a touch-capable desktop gets no auto-focus); lower case and a space are fine.
+  await clickStop(page, "code", SAVE_DATA);
   await page.keyboard.type(`${ROOM.toLowerCase()} ${KEY_PART.toLowerCase()}`);
   await page.keyboard.press("Enter");
   await waitForSaveText(page, "Replace everything on this device?");
@@ -102,6 +103,7 @@ test("an unreachable service says so and points at Export, on Send and on Receiv
   const unavailable = "Online transfer is unavailable right now. You can still export a save file.";
   await clickStop(page, "row:receive", SAVE_DATA);
   await waitForStop(page, "receive");
+  await clickStop(page, "code", SAVE_DATA);
   await page.keyboard.type(`${ROOM}${KEY_PART}`);
   await clickStop(page, "receive", SAVE_DATA);
   await waitForSaveText(page, unavailable);

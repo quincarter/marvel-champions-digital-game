@@ -53,6 +53,9 @@ import {
 import { syncService } from "../sync/sync-wiring.js";
 import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
+import { finishedIdsOf, readConsent, turnOffGlobalStats, turnOnGlobalStats } from "../global-stats/global-consent.js";
+import { GLOBAL_ROW_FAILED, GLOBAL_ROW_TITLE, globalRowButton, globalRowDetail } from "../view/global-stats-ui.js";
+import { appSession } from "../session.js";
 import type { SyncDataSceneData } from "./sync-data.js";
 import { drawBetaTagBeside } from "../ui/beta-tag.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
@@ -67,6 +70,8 @@ const codeFieldType = { ...typeRole.mono, size: 18 };
 /** Past this width the Send screen puts the QR code beside the text instead of under it. */
 const WIDE_ROW = 520;
 const WIDE_QR = 220;
+/** What six full action rows need (measured at about 692 px), so a shorter body goes two by two or compact. */
+const ROWS_ROOM = 700;
 
 export interface SaveDataSceneData {
   /** Opened from a `#receive=` link: land on Receive with this code typed in (the player presses Receive). */
@@ -150,6 +155,25 @@ export class SaveDataOverlay extends Phaser.Scene {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
     });
+  }
+
+  /**
+   * Share anonymous game results (global win rates): on or off, on this device only, with no network. Turning it on
+   * hands the finished games so far to `turnOnGlobalStats`, which marks them sent so none of them ever is.
+   */
+  async #toggleGlobal(): Promise<void> {
+    if (this.#step.kind !== "menu" || this.#working) return;
+    let saved: boolean;
+    if (readConsent() === "on") saved = turnOffGlobalStats();
+    else {
+      try {
+        saved = turnOnGlobalStats(finishedIdsOf(await appSession().store.listSaves()));
+      } catch {
+        saved = false;
+      }
+    }
+    if (!this.sys.isActive() || this.#step.kind !== "menu") return;
+    this.#set({ kind: "menu" }, saved ? NO_STATUS : { tone: "error", text: GLOBAL_ROW_FAILED });
   }
 
   #close(): void {
@@ -394,7 +418,11 @@ export class SaveDataOverlay extends Phaser.Scene {
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
-  /** The four action rows: a column, or two by two when the panel is wide and the screen short (a landscape phone). */
+  /**
+   * The action rows (six, one per way to move or share your data): a column, two by two when the panel is wide and the
+   * screen short, and on a narrow short screen (a phone) a compact column with each button beside its text. The body does
+   * not scroll, so every row must fit: a full column of six needs about ROWS_ROOM px.
+   */
   #drawMenu(
     x: number,
     top: number,
@@ -434,8 +462,16 @@ export class SaveDataOverlay extends Phaser.Scene {
         run: () => this.#openSync(),
         id: "sync",
       },
+      {
+        title: GLOBAL_ROW_TITLE,
+        detail: globalRowDetail(readConsent()),
+        label: globalRowButton(readConsent()),
+        run: () => void this.#toggleGlobal(),
+        id: "global",
+      },
     ];
-    const per = rowWidth >= WIDE_ROW && room < 560 ? 2 : 1;
+    const per = rowWidth >= WIDE_ROW && room < ROWS_ROOM ? 2 : 1;
+    const compact = per === 1 && room < ROWS_ROOM;
     const cell = per === 2 ? (rowWidth - 16) / 2 : rowWidth;
     let y = top;
     for (let i = 0; i < rows.length; i += per) {
@@ -451,10 +487,11 @@ export class SaveDataOverlay extends Phaser.Scene {
           stops,
           order,
           !working,
+          compact,
         );
         rowBottom = Math.max(rowBottom, bottom);
       }
-      y = rowBottom + (i + per < rows.length ? 16 : 0);
+      y = rowBottom + (i + per < rows.length ? (compact ? 10 : 16) : 0);
     }
     return y;
   }
@@ -470,27 +507,34 @@ export class SaveDataOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
     enabled: boolean,
+    compact = false,
   ): number {
+    // Compact: the button sits at the right of its text, centred on the row, instead of under it.
+    const buttonWidth = compact ? 104 : Math.min(at.width, 200);
+    const textWidth = compact ? at.width - buttonWidth - 12 : at.width;
     const titleText = this.add
       .text(at.x, at.y, caseOf(typeRole.sectionHeader, title), textStyle(typeRole.sectionHeader, surface.paper.hex))
-      .setWordWrapWidth(at.width);
-    if (id === "sync") drawBetaTagBeside(this, titleText, at.x + at.width);
+      .setWordWrapWidth(textWidth);
+    if (id === "sync") drawBetaTagBeside(this, titleText, at.x + textWidth);
     const detailText = this.add
       .text(at.x, titleText.y + titleText.height + 4, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(11)
-      .setWordWrapWidth(at.width);
-    const rect: Rect = {
-      x: at.x,
-      y: detailText.y + detailText.height + 10,
-      width: Math.min(at.width, 200),
-      height: hit.primary,
-    };
+      .setWordWrapWidth(textWidth);
+    const textBottom = detailText.y + detailText.height;
+    const rect: Rect = compact
+      ? {
+          x: at.x + at.width - buttonWidth,
+          y: Math.round(at.y + Math.max(0, (textBottom - at.y - hit.primary) / 2)),
+          width: buttonWidth,
+          height: hit.primary,
+        }
+      : { x: at.x, y: textBottom + 10, width: buttonWidth, height: hit.primary };
     this.#buttons.push(
       new McButton(this, { kind: "secondary", label: buttonLabel, type: buttonType, rect, enabled, onClick }),
     );
     stops.set(`row:${id}`, { rect, activate: onClick });
     order.push(`row:${id}`);
-    return rect.y + rect.height;
+    return compact ? Math.max(textBottom, rect.y + rect.height) : rect.y + rect.height;
   }
 
   /** Two equal buttons side by side (Cancel / Replace's shape); returns the y below them. */

@@ -1256,6 +1256,19 @@ export type GameEvent =
        * would name its earlier moments ("Drone attacks you") by the card underneath (#291).
        */
       readonly facedownAs?: FacedownRole;
+      /**
+       * An identity's defeat only: the card that defeated it, the source of the defeating damage or the card whose
+       * ability says "defeat" (`TriggerEvent characterDefeated.sourceInstanceId`). Absent when nothing named one (damage
+       * placed on it, a "cannot be defeated" rule ending), and always on an ally, minion or villain.
+       */
+      readonly sourceInstanceId?: InstanceId;
+      /** An identity's defeat only: the defeating damage was an attack's (`TriggerEvent characterDefeated.fromAttack`). */
+      readonly fromAttack?: true;
+      /**
+       * An identity's defeat only: `sourceInstanceId` was a villain or a minion as it defeated the hero, read then, since
+       * a facedown Drone or a card treated as a minion is not one by its card, and the elimination can move it from play.
+       */
+      readonly sourceRole?: "villain" | "minion";
     }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   /**

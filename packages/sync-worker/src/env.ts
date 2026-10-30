@@ -39,11 +39,14 @@ export interface Env {
   TRANSFER_ROOM: DurableObjectNamespaceLike;
   RATE_LIMITER: DurableObjectNamespaceLike;
   SYNC_SPACE: DurableObjectNamespaceLike;
+  GLOBAL_STATS: DurableObjectNamespaceLike;
   /** Anything other than "true" is the kill switch. */
   TRANSFERS_ENABLED?: string;
   MAX_UPLOAD_BYTES?: string;
   /** Anything other than "true" turns every /sync route off. */
   SYNC_ENABLED?: string;
+  /** Anything other than "true" turns every /global route off. */
+  GLOBAL_STATS_ENABLED?: string;
   /** Live bytes one sync space may hold; defaults to DEFAULT_MAX_SPACE_BYTES. */
   MAX_SPACE_BYTES?: string;
   ALLOWED_ORIGINS?: string;

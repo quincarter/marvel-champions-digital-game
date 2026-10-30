@@ -165,7 +165,15 @@ import {
   resetHoverCards,
   screenHoverArea,
 } from "../ui/card-hover-preview.js";
-import { cardPlayOf, fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
+import {
+  NOTHING_STANDS_OUT,
+  againstVillainOf,
+  cardPlayOf,
+  fromYourGamesOf,
+  villainsFacedOf,
+  type DeckInsights,
+  type SuggestedCard,
+} from "../view/deck-insights.js";
 import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { clipToView } from "../view/focus-list.js";
@@ -375,6 +383,8 @@ export class DecksScene extends Phaser.Scene {
   #history: ResultsHistory | null = null;
   /** What each deck's finished games say (`view/deck-insights.ts`), folded in the stats worker; null until it answers. */
   #insights: DeckInsights | null = null;
+  /** The villain the games pane reads your winning decks against (a stepper); null: the most faced. */
+  #againstVillain: string | null = null;
   /** The stats pane's tab: the deck's own numbers, or what your games say about it (#529). LT / RT switch them. */
   #paneTab: "deck" | "games" = "deck";
   /**
@@ -1000,8 +1010,11 @@ export class DecksScene extends Phaser.Scene {
       y += text.height + 20;
     }
     const thumb = { width: 30, height: 42 };
+    const faced = villainsFacedOf(this.#insights);
+    // The Cut and Try lists leave room for the Against stepper and a first card under it: the pane does not scroll.
+    let limit = buttonTop - 8 - (faced.length > 0 ? this.#row + 8 + 20 + thumb.height + 16 : 0);
     const section = (title: string, cards: readonly SuggestedCard[]): void => {
-      if (cards.length === 0 || y + 20 + thumb.height > buttonTop - 8) return;
+      if (cards.length === 0 || y + 20 + thumb.height > limit) return;
       const head = this.add.text(left, y, title.toUpperCase(), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "17px",
@@ -1013,7 +1026,7 @@ export class DecksScene extends Phaser.Scene {
         .fillRect(left, y + head.height + 2, column, 2);
       y += head.height + 10;
       for (const entry of cards) {
-        if (y + thumb.height > buttonTop - 8) return;
+        if (y + thumb.height > limit) return;
         const card = CARDS_BY_ID.get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
@@ -1042,6 +1055,51 @@ export class DecksScene extends Phaser.Scene {
       "Try: cards you won with",
       view.tryCards.filter((entry) => listed.has(entry.cardId)),
     );
+    limit = buttonTop - 8;
+    if (faced.length > 0 && y + this.#row <= buttonTop - 8) {
+      const villain = faced.includes(this.#againstVillain ?? "") ? this.#againstVillain! : faced[0]!;
+      const against = againstVillainOf(
+        this.#insights,
+        villain,
+        deck.identityCardId as string,
+        deck.cards.map((line) => line.cardId as string),
+        deck.aspects,
+        POOL_STATS_NAMES,
+      );
+      const stepRect: Rect = { x: left, y, width: column, height: this.#row };
+      const step = (): void => {
+        this.#againstVillain = faced[(faced.indexOf(villain) + 1) % faced.length]!;
+        this.#rebuild();
+        this.#route?.focusKey("games-against");
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: `${against?.headline ?? villain}${faced.length > 1 ? " ▸" : ""}`,
+          type: typeRole.label,
+          rect: stepRect,
+          onClick: step,
+          enabled: faced.length > 1,
+        }),
+      );
+      if (faced.length > 1) this.#stops.set("games-against", { rect: stepRect, activate: step });
+      y += this.#row + 8;
+      if (against) {
+        const shown = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
+        const wins = against.tryCards.filter((entry) => listed.has(entry.cardId) && !shown.has(entry.cardId));
+        const losses = against.cutCards.filter((entry) => !shown.has(entry.cardId));
+        section("Try: in your wins here", wins);
+        section("Cut? In your losses here", losses);
+        const nothing = against.note ?? (wins.length + losses.length === 0 ? NOTHING_STANDS_OUT : null);
+        if (nothing && y + 30 < buttonTop) {
+          const note = this.add
+            .text(left, y, nothing, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+            .setFontSize(12)
+            .setWordWrapWidth(column);
+          y += note.height + 8;
+        }
+      }
+    }
     section("Keep: your staples", view.keep);
     if (view.note && y + 30 < buttonTop) {
       this.add

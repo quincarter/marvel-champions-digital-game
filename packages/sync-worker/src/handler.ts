@@ -20,6 +20,7 @@ import {
   type TransferError,
   type TransferErrorReason,
 } from "./protocol.js";
+import { GLOBAL_PATH, handleGlobal } from "./global-handler.js";
 import { handleSync, SYNC_PATH } from "./sync-handler.js";
 import { turnstileOk } from "./turnstile.js";
 import { defaultRandomBytes, generateRoomCode, type RandomBytes } from "./room-code.js";
@@ -127,6 +128,9 @@ export async function handleRequest(request: Request, env: Env, deps: HandlerDep
 
   const syncMatch = SYNC_PATH.exec(url.pathname);
   if (syncMatch) return handleSync(request, env, deps, cors, origin, syncMatch);
+
+  const globalMatch = GLOBAL_PATH.exec(url.pathname);
+  if (globalMatch) return handleGlobal(request, env, deps, cors, origin, globalMatch);
 
   const roomMatch = /^\/transfer\/([^/]+)$/.exec(url.pathname);
   const isUpload = url.pathname === "/transfer";

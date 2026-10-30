@@ -30,6 +30,7 @@ import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay } from "./engine.js";
+import type { GameEvent } from "./events.js";
 import { mustInstance } from "./query.js";
 import type { GameState } from "./state.js";
 import { defaultPick, giveCard } from "./testing/scenario.js";
@@ -80,22 +81,48 @@ const ZAP_ACTION = stubAbility("zap.action", {
 });
 const ZAP = stubEvent({ id: "zap", cost: 0, abilities: [ZAP_ACTION.ref] });
 
+/** "You are defeated", with no damage (the shape of Creeping Corruption's 65072b). */
+const DOOM_ACTION = stubAbility("doom.action", {
+  trigger: { kind: "action" },
+  effects: [{ kind: "defeat", target: { kind: "identityOf", player: { kind: "controller" } } }],
+});
+const DOOM = stubEvent({ id: "doom", cost: 0, abilities: [DOOM_ACTION.ref] });
+
+/** Damage placed rather than dealt: nothing names a card for the defeat that follows. */
+const PLACE_ACTION = stubAbility("place.action", {
+  trigger: { kind: "action" },
+  effects: [
+    {
+      kind: "placeDamage",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      amount: { kind: "const", value: 99 },
+    },
+  ],
+});
+const PLACE = stubEvent({ id: "place", cost: 0, abilities: [PLACE_ACTION.ref] });
+
 const RECRUIT = stubAlly({ id: "recruit", cost: 0, atk: 1, thw: 1, hp: 1 });
 
-const deps: EngineDeps = depsOf(JJE_RESPONSE, SMITE_ACTION, ZAP_ACTION);
-const CARDS = [JJE, SMITE, ZAP, RECRUIT];
-const DECK: readonly CardId[] = [SMITE.id, ZAP.id, RECRUIT.id];
+const deps: EngineDeps = depsOf(JJE_RESPONSE, SMITE_ACTION, ZAP_ACTION, DOOM_ACTION, PLACE_ACTION);
+const CARDS = [JJE, SMITE, ZAP, DOOM, PLACE, RECRUIT];
+const DECK: readonly CardId[] = [SMITE.id, ZAP.id, DOOM.id, PLACE.id, RECRUIT.id];
 const ENCOUNTER: readonly CardId[] = copiesOf(JJE.id, 1);
 
 /** A two-player game with Judge, Jury, Executioner already in the villain area (a side scheme, unowned by either
  * player — module docblock), both players in hero form. */
 function table(): GameState {
-  const base = gameAtFirstTurn({ cards: CARDS, deps, deck: DECK, encounter: ENCOUNTER, players: 2 });
-  const hero: GameState = {
+  return encounterCardInVillainArea(heroes(ENCOUNTER), JJE.id).state;
+}
+
+/** The same table with nothing in play that hears a defeat, so an identity's falls inline in the sweep. */
+const quietTable = (): GameState => heroes(copiesOf(JJE.id, 5));
+
+function heroes(encounter: readonly CardId[]): GameState {
+  const base = gameAtFirstTurn({ cards: CARDS, deps, deck: DECK, encounter, players: 2 });
+  return {
     ...base,
     players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
   };
-  return encounterCardInVillainArea(hero, JJE.id).state;
 }
 
 describe("an identity's own defeat carries the same fromAttack hint an ally's already does", () => {
@@ -143,5 +170,87 @@ describe("an identity's own defeat carries the same fromAttack hint an ally's al
       attachToInstanceId: null,
     });
     expect(mustInstance(after, after.mainScheme.instanceId).threat).toBe(2);
+  });
+});
+
+describe("the logged identity defeat says what defeated it", () => {
+  /** Plays `card` from p1's hand at no cost, on `state`; the instance is the card that was played. */
+  function play(state: GameState, card: CardId) {
+    const given = giveCard(state, P1, card);
+    const { state: after, events } = runCommandsPicking(given.state, deps, defaultPick, {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
+    return { after, events, played: given.id };
+  }
+  const identityOf = (state: GameState) => state.players[0]!.identity.instanceId;
+  const logged = (events: readonly GameEvent[]) => events.filter((e) => e.type === "characterDefeated");
+  const announced = (events: readonly GameEvent[]) =>
+    events.some((e) => e.type === "triggerEvent" && e.event.kind === "characterDefeated");
+  /** p1's identity one hit point from defeat. */
+  const primed = (state: GameState): GameState => {
+    const identity = identityOf(state);
+    return { ...state, instances: { ...state.instances, [identity]: { ...mustInstance(state, identity), damage: 9 } } };
+  };
+
+  it.each([
+    ["inline in the sweep", quietTable, false],
+    ["through its event, when an ability hears the defeat", table, true],
+  ])("attack damage names the attacker and fromAttack, %s", (_, start, heard) => {
+    const state = primed(start());
+    const { after, events } = play(state, SMITE.id);
+    expect(announced(events)).toBe(heard);
+    expect(logged(events)).toEqual([
+      {
+        type: "characterDefeated",
+        instanceId: identityOf(state),
+        cardId: mustInstance(state, identityOf(state)).cardId,
+        sourceInstanceId: after.villains[0]!.instanceId,
+        fromAttack: true,
+        sourceRole: "villain",
+      },
+    ]);
+  });
+
+  it("a card effect's damage names that card, and no fromAttack", () => {
+    const state = quietTable();
+    const { events, played } = play(state, ZAP.id);
+    expect(logged(events)).toEqual([
+      {
+        type: "characterDefeated",
+        instanceId: identityOf(state),
+        cardId: mustInstance(state, identityOf(state)).cardId,
+        sourceInstanceId: played,
+      },
+    ]);
+  });
+
+  it("a `defeat` effect names the card whose ability defeats the hero, and no fromAttack", () => {
+    const state = quietTable();
+    const { events, played } = play(state, DOOM.id);
+    expect(events.some((e) => e.type === "damageDealt")).toBe(false);
+    expect(logged(events)).toEqual([
+      {
+        type: "characterDefeated",
+        instanceId: identityOf(state),
+        cardId: mustInstance(state, identityOf(state)).cardId,
+        sourceInstanceId: played,
+      },
+    ]);
+  });
+
+  it("damage placed names nothing: no damage event told the sweep what it was", () => {
+    const state = quietTable();
+    const { events } = play(state, PLACE.id);
+    expect(logged(events)).toEqual([
+      {
+        type: "characterDefeated",
+        instanceId: identityOf(state),
+        cardId: mustInstance(state, identityOf(state)).cardId,
+      },
+    ]);
   });
 });

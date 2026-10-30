@@ -161,7 +161,9 @@ export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
   // The one-time "Set up cross-device sync?" question owns them the same way. The sync screen it opens is its own, and
   // so is a conflict prompt raised meanwhile (a Join can end in one): neither is held by it.
   if (key === SCENES.syncSetupPrompt || key === SCENES.syncData || key === SCENES.syncConflict) return false;
-  return manager.isActive(SCENES.syncSetupPrompt) === true;
+  // The global win rates question is held the same way (it opens no screen of its own).
+  if (key === SCENES.globalStatsPrompt) return false;
+  return manager.isActive(SCENES.syncSetupPrompt) === true || manager.isActive(SCENES.globalStatsPrompt) === true;
 }
 
 /** The keyboard hand in use now, read live so a change on the Controls screen applies without a restart. */

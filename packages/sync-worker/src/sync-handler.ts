@@ -8,6 +8,7 @@
 import type { HandlerDeps } from "./handler.js";
 import { clientKey } from "./client-key.js";
 import { preflightHeaders } from "./cors.js";
+import { readCappedText } from "./read-capped.js";
 import type { DurableObjectNamespaceLike, Env } from "./env.js";
 import { TURNSTILE_HEADER, type TransferErrorReason } from "./protocol.js";
 import { turnstileOk } from "./turnstile.js";
@@ -78,25 +79,6 @@ function maxSpaceBytes(env: Env): number {
 
 /** Room for a batch at MAX_BATCH_BYTES of data: base64 is 4/3 of the bytes, plus the JSON around each op. */
 const MAX_BODY_BYTES = Math.ceil((MAX_BATCH_BYTES * 4) / 3) + 64 * 1024;
-
-async function readCappedText(body: ReadableStream<Uint8Array> | null, cap: number): Promise<string | null> {
-  if (!body) return "";
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let total = 0;
-  let text = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    if (total > cap) {
-      await reader.cancel();
-      return null;
-    }
-    text += decoder.decode(value, { stream: true });
-  }
-  return text + decoder.decode();
-}
 
 export async function handleSync(
   request: Request,

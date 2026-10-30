@@ -16,6 +16,7 @@
 import type { CorePlayer } from "@mc/cards";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
+import { villainNameOf } from "./deck-insights.js";
 
 export interface StatsNames {
   readonly cardName: (cardId: string) => string | undefined;
@@ -31,6 +32,8 @@ export interface StatsNames {
   readonly scenarioModulars?: (scenarioId: string) => readonly string[];
   /** An encounter set's name. */
   readonly setName?: (setId: string) => string | undefined;
+  /** Whether a villain name (one part of a " & " join) is one this build's pool has; the global lists keep only those. */
+  readonly isVillain?: (name: string) => boolean;
 }
 
 export type StatRow =
@@ -45,8 +48,20 @@ export type StatRow =
       readonly highlight?: true;
       /** The card the row is about, for the hover popover; absent on a row about no one card. */
       readonly cardId?: string;
+      /** Why the row's games were lost, for its small stacked bar; absent on a row with no losses to show. */
+      readonly losses?: readonly LossPart[];
     }
   | { readonly kind: "note"; readonly id: string; readonly text: string };
+
+/** Why games were lost: the completed scheme, or what dealt the last hero's defeating blow (`GameSummary.defeatedBy`). */
+export type LossCause = "scheme" | "villain" | "minions" | "encounter" | "other" | "unknown";
+
+/** One cause's share of a row's losses. */
+export interface LossPart {
+  readonly cause: LossCause;
+  readonly label: string;
+  readonly count: number;
+}
 
 export interface StatsSection {
   readonly id: string;
@@ -198,6 +213,8 @@ interface GameFacts {
   /** The save's summary, for the numbers only it holds (records, the final blow); null on an older save. */
   readonly summary: GameSummary | null;
   readonly lossReason: "schemeCompleted" | "playersDefeated" | "other" | null;
+  /** Why a lost game was lost, finer than `lossReason`; null for a win. */
+  readonly lossCause: LossCause | null;
   readonly heroesDefeated: number | null;
   readonly seats: readonly SeatFacts[];
   /** The summary carried per-seat card numbers (a game finished since `SeatSummary` existed). */
@@ -253,12 +270,6 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
   });
 }
 
-function villainOf(meta: SaveMeta, names: StatsNames): string {
-  const villains = meta.summary?.villains;
-  if (villains && villains.length > 0) return villains.join(" & ");
-  return names.scenarioName(meta.config.scenarioId) ?? meta.config.scenarioId;
-}
-
 function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
   if (meta.guided) return null;
   if (meta.status !== "won" && meta.status !== "lost") return null;
@@ -270,12 +281,13 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     round: meta.round,
     scenarioId: meta.config.scenarioId,
     villainKey: [meta.config.scenarioId, meta.config.villainSetId ?? "", meta.config.villainCardId ?? ""].join("|"),
-    villain: villainOf(meta, names),
+    villain: villainNameOf(meta, names),
     expert: meta.config.difficulty !== "standard",
     difficulty: meta.config.difficulty,
     modulars: meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? [],
     summary,
     lossReason: lossReason === "conceded" ? "other" : lossReason,
+    lossCause: lossCauseOfMeta(meta),
     heroesDefeated: summary ? summary.heroesDefeated : null,
     seats: seatsOf(meta, names),
     detailed: summary?.seats !== undefined,
@@ -291,6 +303,62 @@ function lossReasonOfOutcome(meta: SaveMeta): "schemeCompleted" | "playersDefeat
   if (reason === "mainSchemeCompleted") return "schemeCompleted";
   if (reason === "allPlayersDefeated") return "playersDefeated";
   return "other";
+}
+
+/** Why a save was lost, as Your stats breaks it down; null for anything but a loss. Shared with the global win rates. */
+export function lossCauseOfMeta(meta: SaveMeta): LossCause | null {
+  if (meta.status !== "lost") return null;
+  const summary = meta.summary ?? null;
+  return lossCauseOf(summary?.lossReason ?? lossReasonOfOutcome(meta), summary);
+}
+
+const DEFEAT_CAUSES: Readonly<Record<NonNullable<GameSummary["defeatedBy"]>, LossCause>> = {
+  villainAttack: "villain",
+  minionAttack: "minions",
+  encounterCard: "encounter",
+  other: "other",
+};
+
+/** "unknown": every hero fell in a game the backfill could not replay, so nothing says what dealt the last blow. */
+export function lossCauseOf(reason: GameSummary["lossReason"], summary: GameSummary | null): LossCause {
+  if (reason === "schemeCompleted") return "scheme";
+  if (reason !== "playersDefeated") return "other";
+  return summary?.defeatedBy ? DEFEAT_CAUSES[summary.defeatedBy] : "unknown";
+}
+
+export const LOSS_LABELS: Readonly<Record<LossCause, string>> = {
+  scheme: "Scheme",
+  villain: "Villain",
+  minions: "Minions",
+  encounter: "Encounter cards",
+  other: "Other",
+  unknown: "Unknown",
+};
+
+const LOSS_PHRASES: Readonly<Record<LossCause, string>> = {
+  scheme: "The main scheme",
+  villain: "Villain attacks",
+  minions: "Minion attacks",
+  encounter: "Encounter cards",
+  other: "Something else",
+  unknown: "Not recorded",
+};
+
+/** The causes of these games' losses in a fixed order, so bars read the same from row to row. */
+function lossPartsOf(games: readonly GameFacts[]): LossPart[] {
+  const counts = new Map<LossCause, number>();
+  for (const game of games) {
+    if (game.lossCause) counts.set(game.lossCause, (counts.get(game.lossCause) ?? 0) + 1);
+  }
+  return (Object.keys(LOSS_LABELS) as LossCause[])
+    .filter((cause) => counts.has(cause))
+    .map((cause) => ({ cause, label: LOSS_LABELS[cause], count: counts.get(cause)! }));
+}
+
+/** The row extra for `stat`: the loss bar, when these games have losses. */
+function lossesOf(games: readonly GameFacts[]): { losses?: readonly LossPart[] } {
+  const losses = lossPartsOf(games);
+  return losses.length > 0 ? { losses } : {};
 }
 
 const isConcession = (meta: SaveMeta): boolean =>
@@ -363,7 +431,7 @@ const stat = (
   label: string,
   value: string,
   detail = "",
-  extra: { highlight?: true; cardId?: string } = {},
+  extra: { highlight?: true; cardId?: string; losses?: readonly LossPart[] } = {},
 ): StatRow => ({ kind: "stat", id, label, value, detail, ...extra });
 
 function overviewOf(games: readonly GameFacts[], concessions: number, older: number): StatsSection {
@@ -503,7 +571,12 @@ function heroesOf(games: readonly GameFacts[], names: StatsNames): StatsSection 
     }
     const fastest = list.filter((g) => g.result === "won").sort((a, b) => a.round - b.round)[0];
     if (fastest) detailParts.push(`fastest win round ${fastest.round}`);
-    rows.push(stat(`hero:${id}`, heroName(id), record(t.wins, t.losses), detailParts.join(" · "), { cardId: id }));
+    rows.push(
+      stat(`hero:${id}`, heroName(id), record(t.wins, t.losses), detailParts.join(" · "), {
+        cardId: id,
+        ...lossesOf(list),
+      }),
+    );
   }
   rows.splice(Math.min(rows.length, best && groups.length > 1 ? 2 : 1), 0, ...pairRowsOf(games, heroName));
   return { id: "heroes", title: "Heroes", count: plural(groups.length, "hero", "heroes"), rows };
@@ -520,6 +593,23 @@ function villainsOf(games: readonly GameFacts[]): StatsSection {
     rows.push(
       stat("villain:favorite", "Most faced", favorite[0], plural(favorite[1].length, "game"), { highlight: true }),
     );
+  const causes = lossPartsOf(games);
+  // A game nothing is recorded for says nothing about why you lose: it never headlines while a known cause is there.
+  const worstCause = [...causes].sort(
+    (a, b) => Number(a.cause === "unknown") - Number(b.cause === "unknown") || b.count - a.count,
+  )[0];
+  if (worstCause) {
+    const total = causes.reduce((sum, part) => sum + part.count, 0);
+    rows.push(
+      stat(
+        "villain:why",
+        "Why you lose",
+        LOSS_PHRASES[worstCause.cause],
+        `${percent(worstCause.count, total)} of ${plural(total, "loss", "losses")}`,
+        { losses: causes },
+      ),
+    );
+  }
   const lossesBy = (reason: GameFacts["lossReason"] | "any") =>
     groups
       .map(([name, list]) => ({
@@ -565,14 +655,10 @@ function villainsOf(games: readonly GameFacts[]): StatsSection {
   rows.push(...nemesisByDifficultyOf(games));
   for (const [name, list] of groups) {
     const t = tallyOf(list);
-    const lost = list.filter((g) => g.result === "lost");
-    const scheme = lost.filter((g) => g.lossReason === "schemeCompleted").length;
-    const wiped = lost.filter((g) => g.lossReason === "playersDefeated").length;
     const fastest = list.filter((g) => g.result === "won").sort((a, b) => a.round - b.round)[0];
-    const parts = [plural(list.length, "game")];
-    if (lost.length > 0) parts.push(`lost ${scheme} to the scheme, ${wiped} to a wiped table`);
+    const parts = [plural(list.length, "game"), `${percent(t.wins, list.length)} won`];
     if (fastest) parts.push(`fastest win round ${fastest.round}`);
-    rows.push(stat(`villain:${name}`, name, record(t.wins, t.losses), parts.join(" · ")));
+    rows.push(stat(`villain:${name}`, name, record(t.wins, t.losses), parts.join(" · "), lossesOf(list)));
   }
   return { id: "villains", title: "Villains", count: plural(groups.length, "villain"), rows };
 }
@@ -1469,7 +1555,15 @@ function encounterOf(games: readonly GameFacts[], names: StatsNames): StatsSecti
   }
   for (const [id, list] of groups) {
     const t = tallyOf(list);
-    rows.push(stat(`enc:set:${id}`, setName(id), record(t.wins, t.losses), plural(list.length, "game")));
+    rows.push(
+      stat(
+        `enc:set:${id}`,
+        setName(id),
+        record(t.wins, t.losses),
+        `${plural(list.length, "game")} · ${percent(t.wins, list.length)} won`,
+        lossesOf(list),
+      ),
+    );
   }
   return { id: "encounter", title: "Encounter", count: plural(groups.length, "modular set"), rows };
 }
