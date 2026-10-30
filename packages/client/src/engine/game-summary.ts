@@ -28,8 +28,10 @@ import type { GameRecord } from "./game-record.js";
  *   the heroes and the card that dealt the final blow.
  * - 3: the same fields, a hand card's resources priced as the engine priced them (a doubling or a conversion counted),
  *   so a version 2 summary is replayed again for them.
+ * - 4: the cards spent from hand counted for every payment, a prompted or an effect's too (the engine's
+ *   `paymentCommitted`), so the resources, the cards paid with and the cards discarded to pay are recounted.
  */
-export const SUMMARY_VERSION = 3;
+export const SUMMARY_VERSION = 4;
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
 export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";

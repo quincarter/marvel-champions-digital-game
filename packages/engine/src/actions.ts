@@ -1,4 +1,4 @@
-import { abilityId as asAbilityId, requirementResources, type AbilityId, type AnyCard } from "@mc/content";
+import { abilityId as asAbilityId, requirementResources, type AbilityId, type AnyCard, type CardId } from "@mc/content";
 import { displayNameOf } from "./visibility.js";
 import { outstandingForcedActions } from "./legal.js";
 import {
@@ -2581,11 +2581,15 @@ export function payPayment(
   const discardTopBefore = new Map(ctx.state.players.map((p) => [p.playerId, p.discard[0] ?? null] as const));
   // What each hand card generates, read before any is discarded (docs/phase7-wave5.md §3.25).
   const handGenerated = new Map<InstanceId, GeneratedByPlayer>();
+  // The same, by type and with the card, for the log's `paymentCommitted`.
+  const handSpent: { instanceId: InstanceId; cardId: CardId; spenderId: PlayerId; resources: ResourcePool }[] = [];
   for (const entry of payment) {
     if (!("fromHand" in entry)) continue;
     const ownerId = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, true) ?? playerId;
     const pool = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
     handGenerated.set(entry.fromHand, { playerId: ownerId, amount: poolTotal(pool) });
+    const cardId = getInstance(ctx.state, entry.fromHand)?.cardId;
+    if (cardId) handSpent.push({ instanceId: entry.fromHand, cardId, spenderId: ownerId, resources: pool });
   }
   for (const entry of payment) {
     if ("fromHand" in entry) {
@@ -2673,6 +2677,9 @@ export function payPayment(
     const spentAsIf = definition.trigger.kind === "resource" && definition.trigger.spentAsIfResource === true;
     if (!spentAsIf) generatedBy = addGenerated(generatedBy, spender, poolTotal(generated));
     if (definition.effects.length > 0) used.push({ instanceId, abilityId, spender });
+  }
+  if (handSpent.length > 0) {
+    emit(ctx, { type: "paymentCommitted", playerId, payingForInstanceId: payingFor, fromHand: handSpent });
   }
   return {
     cards: spent,

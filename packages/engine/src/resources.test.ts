@@ -90,6 +90,10 @@ const rejected = (deps: EngineDeps, state: GameState, command: Command): string 
   return result.error.code;
 };
 const def = (definition: AbilityDefinition) => definition;
+const eventsOf = (result: ReturnType<typeof applyCommand>) => {
+  if (!result.ok) throw new Error(`expected ok, got ${result.error.code}: ${result.error.message}`);
+  return result.events;
+};
 
 describe("resource pools (RRG 'Cost', wild resources)", () => {
   it("fills typed slots first and lets wilds cover any typed shortfall", () => {
@@ -615,11 +619,57 @@ describe("paying for optional triggered abilities in a window", () => {
     expect(mustInstance(paid, widowId).exhausted).toBe(true);
   });
 
+  it("the prompted payment logs the hand card it spent, as a direct payment does (`paymentCommitted`)", () => {
+    const { deps, paying, widowId, mentalId } = atPayment();
+    const result = applyCommand(
+      paying,
+      {
+        type: "resolveChoice",
+        playerId: p1,
+        choiceId: paying.pendingChoice!.choiceId,
+        selectedOptionIds: [`hand:${mentalId}`],
+      },
+      deps,
+    );
+    const committed = eventsOf(result).filter((event) => event.type === "paymentCommitted");
+    expect(committed).toEqual([
+      {
+        type: "paymentCommitted",
+        playerId: p1,
+        payingForInstanceId: widowId,
+        fromHand: [{ instanceId: mentalId, cardId: "mental", spenderId: p1, resources: poolOf({ mental: 1 }) }],
+      },
+    ]);
+  });
+
   it("paying nothing declines, and nothing is paid", () => {
     const { deps, paying, widowId, mentalId } = atPayment();
     const declined = resolvePending(paying, [], deps);
     expect(mustPlayer(declined, p1).hand).toContain(mentalId);
     expect(mustInstance(declined, widowId).exhausted).toBe(false);
+  });
+});
+
+describe("paymentCommitted", () => {
+  it("a direct payment logs each hand card it spent, priced as the payment priced it; an empty one logs none", () => {
+    const { deps, state } = setup([]);
+    const given = giveCards(state, p1, "cheap", "mental");
+    const [cheapId, mentalId] = given.ids as [InstanceId, InstanceId];
+    const events = eventsOf(applyCommand(given.state, play(cheapId, hand(mentalId)), deps));
+    expect(events.filter((event) => event.type === "paymentCommitted")).toEqual([
+      {
+        type: "paymentCommitted",
+        playerId: p1,
+        payingForInstanceId: cheapId,
+        fromHand: [{ instanceId: mentalId, cardId: "mental", spenderId: p1, resources: poolOf({ mental: 1 }) }],
+      },
+    ]);
+    // An empty payment spends no card from hand.
+    const zeroCost = stubEvent({ id: "free", cost: 0 });
+    const free = setup([zeroCost]);
+    const freeGiven = giveCards(free.state, p1, "free");
+    const freeEvents = eventsOf(applyCommand(freeGiven.state, play(freeGiven.ids[0]!, []), free.deps));
+    expect(freeEvents.some((event) => event.type === "paymentCommitted")).toBe(false);
   });
 });
 

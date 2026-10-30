@@ -178,28 +178,38 @@ describe("summary version 2", () => {
     });
   });
 
-  test("a version 2 summary is replayed again, and takes only its recounted resources from the replay", () => {
+  test("a version 2 or 3 summary is replayed again, and takes only its recounted payment numbers from the replay", () => {
     const stale = { physical: 0, mental: 0, energy: 0, wild: 1 };
     const v2: GameSummary = {
       ...v1,
       version: 2,
-      seats: [seat({ resources: stale, drawn: 9 })],
+      seats: [seat({ resources: stale, paidWith: {}, discardedToPay: 0, drawn: 9 })],
       hurtBy: { "01094": 4 },
     };
-    expect(SUMMARY_VERSION).toBe(3);
+    expect(SUMMARY_VERSION).toBe(4);
     expect(needsBackfill(meta(v2), WRITER)).toBe(true);
+    expect(needsBackfill(meta({ ...v2, version: 3 }), WRITER)).toBe(true);
     const replayed: GameSummary = {
       ...v1,
       heroesDefeated: 1,
-      seats: [seat({ resources: { ...stale, wild: 2 }, drawn: 10, damage: 5 })],
+      seats: [
+        seat({ resources: { ...stale, wild: 2 }, paidWith: { "01055": 1 }, discardedToPay: 1, drawn: 10, damage: 5 }),
+      ],
       version: SUMMARY_VERSION,
       hurtBy: { "01094": 5 },
       encounterRevealed: { "01107": 2 },
     };
+    for (const version of [2, 3]) {
+      const filled = filledSummary({ ...v2, version }, replayed);
+      expect(filled.version).toBe(SUMMARY_VERSION);
+      // The Power of Aggression's doubling, and a card spent by a prompted payment, counted now.
+      expect(filled.seats![0]!).toMatchObject({
+        resources: { ...stale, wild: 2 },
+        paidWith: { "01055": 1 },
+        discardedToPay: 1,
+      });
+    }
     const filled = filledSummary(v2, replayed);
-    expect(filled.version).toBe(SUMMARY_VERSION);
-    // The Power of Aggression's doubling, counted now.
-    expect(filled.seats![0]!.resources).toEqual({ ...stale, wild: 2 });
     // Every other number the live summary had stays the live game's (an achievement may have read it)...
     expect(filled.hurtBy).toEqual({ "01094": 4 });
     expect(filled.seats![0]!.drawn).toBe(9);

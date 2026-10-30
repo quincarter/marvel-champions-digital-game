@@ -18,12 +18,8 @@ import {
   cardOf,
   controllerOf,
   getInstance,
-  handCardResources,
   isMinion,
-  locateCard,
   playerCardOwnerOf,
-  printedResources,
-  type Command,
   type EngineDeps,
   type GameEvent,
   type GameState,
@@ -78,14 +74,14 @@ export interface SeatRecord {
   /** Cards this seat drew (`cardDrawn`). Absent on a record written before the field existed. */
   readonly drawn?: number;
   /**
-   * Resources this seat generated paying costs, by type: each resource ability's (`resourcesGenerated`), and the
-   * printed icons of each card it spent from hand (a hand card's spending logs no resources of its own, so they are
-   * read from the command's payment). Absent while there are none.
+   * Resources this seat generated paying costs, by type: each resource ability's (`resourcesGenerated`), and each card
+   * it spent from hand as the payment priced it (`paymentCommitted`). Absent while there are none.
    */
   readonly resources?: ResourcePool;
   /**
-   * The cards this seat paid costs with, by card id: a card spent from hand (the command's `payment`), or a card in
-   * play whose resource ability the payment used (`resourcesGenerated`). Absent while there are none.
+   * The cards this seat paid costs with, by card id: a card spent from hand (`paymentCommitted`, whichever payment
+   * spent it: a play's, an ability's, a prompt's or an effect's), or a card in play whose resource ability the payment
+   * used (`resourcesGenerated`). Absent while there are none.
    */
   readonly paidWith?: Readonly<Record<string, number>>;
   /** How many of `paidWith` were cards spent from hand (discarded to pay), not cards in play. Absent while none. */
@@ -338,25 +334,6 @@ const isPlayerCharacter = (state: GameState, id: InstanceId): boolean =>
   isAlly(state, id) || state.players.some((player) => player.identity.instanceId === id);
 
 /**
- * The card a command's payment pays for, as the engine passes it to `payPayment` (`payingFor`); null for the rest. An
- * ability whose cost pays another card's printed cost (`AbilityCost.payPrintedCostOf`, Spell Mastery) pays for the card
- * picked in its cost choices. Engine-specific simplification: the ability's printed cost is read, not a cost a rule
- * replaced it with as the engine planned the use (`plan.cost`).
- */
-function payingForOf(command: Command, deps: EngineDeps | undefined): InstanceId | null {
-  if (command.type === "playCard") return command.cardInstanceId;
-  if (command.type !== "useAbility") return null;
-  const slot = deps?.abilities[command.abilityId]?.cost?.payPrintedCostOf?.slot;
-  return (slot ? command.costChoices?.[slot]?.[0] : undefined) ?? command.cardInstanceId;
-}
-
-/** The hand cards a command spent paying (`Payment.fromHand`), in payment order; none for a command without one. */
-function spentFromHand(command: Command | undefined): InstanceId[] {
-  const payment = command && "payment" in command ? command.payment : undefined;
-  return (payment ?? []).flatMap((entry) => ("fromHand" in entry ? [entry.fromHand] : []));
-}
-
-/**
  * Folds one command's events onto the record. `state` is the state *after*
  * those events — what a host publishes — and is only read for ownership and
  * card types, which don't change within a command in any way that matters here.
@@ -366,17 +343,6 @@ export function recordEvents(
   events: readonly GameEvent[],
   state: GameState,
   deps?: EngineDeps,
-  /**
-   * The command that produced `events`, when there was one (not for setup): the cards it spent from hand are read from
-   * its payment, which no event names as a payment (a spent card logs only its discard).
-   */
-  command?: Command,
-  /**
-   * The state before `command`, where the caller has it: a hand card's resources are priced in the hand, as the
-   * engine priced them (`handCardResources`: "double … while paying for", a rule that treats hand icons as one type).
-   * Absent, a hand card counts its printed icons.
-   */
-  before?: GameState,
 ): GameRecord {
   let round = record.round;
   const seats = new Map<PlayerId, SeatRecord>(
@@ -504,33 +470,13 @@ export function recordEvents(
     }
   };
 
-  // A hand card spent paying is logged only as its discard, so the payment is read from the command (`Payment.fromHand`).
-  const handSpent = spentFromHand(command);
-  for (const id of handSpent) {
-    const instance = getInstance(state, id);
-    const card = instance ? state.cardPool[instance.cardId] : undefined;
-    if (!instance || !card || !command) continue;
-    // Who spent it, as the engine's `spentFromHandOf` reads it before the payment: the hand it was in (another player's
-    // helping pay for an alliance card), or, for a card tucked under a `spendableFromTucked` host, the paying player
-    // (a command's payment is one player's, so the group payment's "any player the rule names" does not arise). Without
-    // that state, its owner, else the commanding player.
-    const zone = before ? locateCard(before, id) : null;
-    const spender =
-      (zone?.kind === "hand" ? zone.playerId : zone?.kind === "tucked" ? command.playerId : null) ??
-      playerCardOwnerOf(state, id) ??
-      command.playerId;
-    // Priced in hand before the payment, as `payPayment` priced it; without that state, its printed icons.
-    const pool =
-      before && deps
-        ? handCardResources(before, deps, id, spender, payingForOf(command, deps))
-        : printedResources(card);
-    onSeat(spender, (seat) => ({
-      ...seat,
-      paidWith: bump(seat.paidWith, instance.cardId),
-      discardedToPay: (seat.discardedToPay ?? 0) + 1,
-      resources: addPool(seat.resources, pool),
-    }));
-  }
+  /**
+   * The cards this command's payments spent from hand (`paymentCommitted`): a card's own "when you spend this card"
+   * ability logs a `resourcesGenerated` too (before the payment's event), and the card is counted once, as a hand card.
+   */
+  const handSpent = new Set(
+    events.flatMap((event) => (event.type === "paymentCommitted" ? event.fromHand.map((card) => card.instanceId) : [])),
+  );
 
   for (const event of events) {
     switch (event.type) {
@@ -663,8 +609,19 @@ export function recordEvents(
       case "cardDrawn":
         onSeat(event.playerId, (seat) => ({ ...seat, drawn: (seat.drawn ?? 0) + 1 }));
         break;
+      case "paymentCommitted":
+        // Each card as the payment priced it, for the player who spent it (the engine's `spentFromHandOf`).
+        for (const spent of event.fromHand) {
+          onSeat(spent.spenderId, (seat) => ({
+            ...seat,
+            paidWith: bump(seat.paidWith, spent.cardId),
+            discardedToPay: (seat.discardedToPay ?? 0) + 1,
+            resources: addPool(seat.resources, spent.resources),
+          }));
+        }
+        break;
       case "resourcesGenerated": {
-        // A card spent from hand with its own "when you spend this card" ability is already counted, as a hand card.
+        // A card spent from hand with its own "when you spend this card" ability is counted as a hand card.
         const cardId = cardIdAt(event.instanceId);
         // A counter spent as if it were a resource pays but generates nothing (RRG 1.8 "Cost", p. 13). Without the
         // ability registry it cannot be told apart, and counts.
@@ -673,7 +630,7 @@ export function recordEvents(
         onSeat(event.playerId, (seat) => ({
           ...seat,
           ...(generates ? { resources: addPool(seat.resources, event.pool) } : {}),
-          ...(cardId && !handSpent.includes(event.instanceId) ? { paidWith: bump(seat.paidWith, cardId) } : {}),
+          ...(cardId && !handSpent.has(event.instanceId) ? { paidWith: bump(seat.paidWith, cardId) } : {}),
         }));
         break;
       }

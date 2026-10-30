@@ -795,7 +795,8 @@ describe("§3.62 (b) an ability with an ordinary fixed resource cost is unchange
     // 5 damage; two resources paid of the three generated, one overpaid.
     expect(villainDamage(run.state) - before).toBe(5 + 20000 + 1000000);
     expect(ofType(run.events, "wildTypesDeclared")).toHaveLength(0);
-    // Paying, then the ability, then its three damage effects: no declaration step and no new event.
+    // Paying (the cards spent, then the payment's own log line, `paymentCommitted`), then the ability, then its three
+    // damage effects: no declaration step.
     const quiet = new Set(["framePushed", "framePopped", "triggerEvent"]);
     expect(run.events.map((e) => e.type).filter((type) => !quiet.has(type))).toEqual([
       "cardMoved",
@@ -804,6 +805,7 @@ describe("§3.62 (b) an ability with an ordinary fixed resource cost is unchange
       "cardDiscardedFromHand",
       "cardMoved",
       "cardDiscardedFromHand",
+      "paymentCommitted",
       "abilityResolved",
       "damageDealt",
       "damageDealt",

@@ -488,7 +488,7 @@ export class EngineSessionCore {
         events: result.events,
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
-      record = recordEvents(record, result.events, result.state, POOL_DEPS, command, state);
+      record = recordEvents(record, result.events, result.state, POOL_DEPS);
       state = result.state;
       history.push(...result.events);
     }
@@ -533,7 +533,7 @@ export class EngineSessionCore {
     for (const command of truncated) {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
-      record = recordEvents(record, result.events, result.state, POOL_DEPS, command, state);
+      record = recordEvents(record, result.events, result.state, POOL_DEPS);
       state = result.state;
     }
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
@@ -572,7 +572,7 @@ export class EngineSessionCore {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
-    this.#record = recordEvents(this.#record, result.events, result.session.state, POOL_DEPS, command, session.state);
+    this.#record = recordEvents(this.#record, result.events, result.session.state, POOL_DEPS);
     this.#persist(command, this.#version - 1, result.session.state, this.#played());
     const states = sealedEventStates(result.states ?? []);
     return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };
@@ -669,7 +669,7 @@ export class EngineSessionCore {
           if (index > 0 && index % BACKFILL_YIELD_EVERY === 0) await new Promise((resolve) => setTimeout(resolve, 0));
           const result = applyCommand(state, command, POOL_DEPS);
           if (!result.ok) return null;
-          record = recordEvents(record, result.events, result.state, POOL_DEPS, command, state);
+          record = recordEvents(record, result.events, result.state, POOL_DEPS);
           state = result.state;
         }
         const summary = summarizeGame(state, record, POOL_DEPS);

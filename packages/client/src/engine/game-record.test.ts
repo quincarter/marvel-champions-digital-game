@@ -7,7 +7,6 @@
 import { describe, expect, test } from "vitest";
 import {
   activeVillain,
-  printedResources,
   type Command,
   type EngineDeps,
   type GameEvent,
@@ -15,7 +14,6 @@ import {
   type InstanceId,
   type ResourcePool,
 } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -350,29 +348,52 @@ describe("game record: the stats screen's per-seat numbers (#529)", () => {
     expect(recordEvents(emptyRecord(), [drawn, drawn], state).seats[0]!.drawn).toBe(2);
   });
 
-  test("resources by type, and the cards paid with: a card spent from hand and a resource ability in play", async () => {
+  test("resources by type, and the cards paid with: cards spent from hand and a resource ability in play", async () => {
     const { state, me, support } = await table();
-    const handCard = state.players[0]!.hand[0]!;
+    const [handCard, whenSpent] = state.players[0]!.hand as [InstanceId, InstanceId];
     const handCardId = state.instances[handCard]!.cardId;
-    const generated: GameEvent = {
+    const whenSpentId = state.instances[whenSpent]!.cardId;
+    const generated = (instanceId: InstanceId, mental: number): GameEvent => ({
       type: "resourcesGenerated",
       playerId: me,
-      instanceId: support.instanceId,
+      instanceId,
       abilityId: "res" as never,
-      amount: 1,
-      pool: { physical: 0, mental: 1, energy: 0, wild: 0 },
-    };
-    const command = {
-      type: "playCard",
+      amount: mental,
+      pool: { physical: 0, mental, energy: 0, wild: 0 },
+    });
+    // A payment from a prompt (an interrupt's, an effect's) logs the same event as a play's: no command is read.
+    const committed: GameEvent = {
+      type: "paymentCommitted",
       playerId: me,
-      instanceId: "played",
-      payment: [{ fromHand: handCard }, { ability: { instanceId: support.instanceId, abilityId: "res" } }],
-    } as unknown as Command;
-    const seat = recordEvents(emptyRecord(), [generated], state, undefined, command).seats[0]!;
-    expect(seat.paidWith).toEqual({ [handCardId]: 1, [support.cardId]: 1 });
-    expect(seat.discardedToPay).toBe(1);
-    const printed = printedResources(state.cardPool[handCardId]!);
-    expect(seat.resources).toEqual({ ...printed, mental: printed.mental + 1 });
+      payingForInstanceId: null,
+      fromHand: [
+        {
+          instanceId: handCard,
+          cardId: handCardId,
+          spenderId: me,
+          resources: { physical: 0, mental: 0, energy: 0, wild: 2 },
+        },
+        {
+          instanceId: whenSpent,
+          cardId: whenSpentId,
+          spenderId: me,
+          resources: { physical: 1, mental: 0, energy: 0, wild: 0 },
+        },
+      ],
+    };
+    // `whenSpent`'s own "when you spend this card" ability generates 1 more: the card still counts once.
+    const seat = recordEvents(
+      emptyRecord(),
+      [generated(support.instanceId, 1), generated(whenSpent, 1), committed],
+      state,
+    ).seats[0]!;
+    expect(seat.paidWith).toEqual(
+      handCardId === whenSpentId
+        ? { [handCardId]: 2, [support.cardId]: 1 }
+        : { [handCardId]: 1, [whenSpentId]: 1, [support.cardId]: 1 },
+    );
+    expect(seat.discardedToPay).toBe(2);
+    expect(seat.resources).toEqual({ physical: 1, mental: 2, energy: 0, wild: 2 });
   });
 
   test("a seat's best turn is its own turn's damage and thwart, not another phase's", async () => {
@@ -591,36 +612,33 @@ describe("game record: the encounter side (#529)", () => {
   });
 });
 
-describe("game record: a hand card's resources, priced as the engine priced them (Codex review on #530)", () => {
-  test("The Power of Aggression spent on an Aggression card counts double; without the state before, its icons", async () => {
-    const game = await recordedGame({ ...RHINO_SOLO, players: [{ starterDeckId: "core-she-hulk-aggression" }] });
-    const state = game.state();
-    const player = state.players[0]!;
-    const instanceOf = (id: string) => Object.values(state.instances).find((instance) => instance.cardId === id)!;
-    // The Power of Aggression (01055) paying for Uppercut (01054), an Aggression card.
-    const power = instanceOf("01055").instanceId;
-    const uppercut = instanceOf("01054").instanceId;
-    const others = (ids: readonly InstanceId[]): InstanceId[] => ids.filter((id) => id !== power && id !== uppercut);
-    const before: GameState = {
-      ...state,
-      players: [{ ...player, hand: [power, uppercut, ...others(player.hand)], deck: others(player.deck) }],
-    };
-    const command = {
-      type: "playCard",
-      playerId: player.playerId,
-      cardInstanceId: uppercut,
-      payment: [{ fromHand: power }],
-    } as unknown as Command;
-    const printed = printedResources(state.cardPool["01055"]!);
+describe("game record: the engine's own payment log (Codex review on #530)", () => {
+  test("a card played from hand with cards spent from hand counts them for the seat, as the engine priced them", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    for (let step = 0; step < 10 && game.state().pendingChoice; step++) {
+      const choice = game.state().pendingChoice!;
+      await game.host.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: choice.options.slice(0, choice.minSelections).map((option) => option.optionId),
+      });
+    }
+    const me = game.state().players[0]!.playerId;
+    const legal = await game.host.legalActions(me);
+    const paid = (legal.kind === "turn" ? legal.legal : []).find(
+      (entry) => entry.example.type === "playCard" && entry.example.payment.some((payment) => "fromHand" in payment),
+    );
+    expect(paid).toBeDefined();
+    const example = paid!.example as Extract<Command, { type: "playCard" }>;
+    const spent = example.payment.flatMap((payment) => ("fromHand" in payment ? [payment.fromHand] : []));
+    const cardIds = spent.map((id) => game.state().instances[id]!.cardId);
+    await game.host.dispatch(example);
+    const seat = game.record().seats.find((entry) => entry.playerId === me)!;
+    expect(seat.discardedToPay).toBe(spent.length);
+    for (const cardId of cardIds) expect(seat.paidWith?.[cardId]).toBeGreaterThan(0);
     const total = (pool: ResourcePool | undefined) =>
       pool ? pool.physical + pool.mental + pool.energy + pool.wild : 0;
-
-    const priced = recordEvents(emptyRecord(), [], state, POOL_DEPS, command, before).seats[0]!;
-    expect(total(printed)).toBeGreaterThan(0);
-    expect(total(priced.resources)).toBe(2 * total(printed));
-    // No state before the command (an older caller): the printed icons.
-    const fallback = recordEvents(emptyRecord(), [], state, POOL_DEPS, command).seats[0]!;
-    expect(fallback.resources).toEqual(printed);
-    expect(fallback.paidWith).toEqual(priced.paidWith);
+    expect(total(seat.resources)).toBeGreaterThan(0);
   }, 60_000);
 });

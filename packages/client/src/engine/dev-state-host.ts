@@ -59,7 +59,7 @@ export class DevStateHost implements EngineHost {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
-    this.#record = recordEvents(this.#record, result.events, result.session.state, this.#deps, command, session.state);
+    this.#record = recordEvents(this.#record, result.events, result.session.state, this.#deps);
     return { ok: true, update: this.#publish(result.events, null) };
   }
 
