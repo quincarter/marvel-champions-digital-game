@@ -717,6 +717,13 @@ export interface ScenarioRules {
    * docs/phase7-wave5.md §3.1.
    */
   readonly activeCounter?: "nextInActivationOrder";
+  /**
+   * `activeVillain`: a player card that names "the villain" means the active villain too, with no choice (The Wrecking
+   * Crew insert, "The Active Villain": "Any card effect that refers to 'the villain' only refers to the active villain";
+   * FFG ruling Jun 13, 2024, #212). Absent, with several villains: a player card asks its player which villain
+   * (`needsVillainChoice`; owner, 2026-10-04, matrix Q-M2). Basic attacks and "enemy" targets are not affected.
+   */
+  readonly theVillain?: "activeVillain";
   /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
   readonly victoryCondition?: number;
   /**

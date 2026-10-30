@@ -45,6 +45,7 @@ export const TWC_SCENARIOS: readonly Scenario[] = [
       encounterDecks: "perVillain",
       activation: "activeVillainOnly",
       winCondition: "allVillainsDefeated",
+      theVillain: "activeVillain",
     },
     usesIdentityEncounterSets: false,
     nemesisSetsSetAside: true,

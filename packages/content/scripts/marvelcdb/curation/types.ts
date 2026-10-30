@@ -337,6 +337,12 @@ export interface MultipleVillainsCuration {
    * `Scenario.setAsideVillainCardCodes`, shape).
    */
   readonly atSetup?: "setAside";
+  /**
+   * `MultipleVillains.theVillain`: "the villain" on every card, a player card's too, is the active villain (The
+   * Wrecking Crew insert, "The Active Villain"; FFG ruling Jun 13, 2024, #212). Absent = a player card asks its
+   * player which villain (Tower Defense, The Sinister Six, the Four Horsemen).
+   */
+  readonly theVillain?: "activeVillain";
 }
 
 /**

@@ -311,6 +311,10 @@ describe("§1.5 The Sinister Six: villains that start set aside, and a win by ca
     const multi = sinisterSix.multipleVillains!;
     const odd = { ...sinisterSix, multipleVillains: { ...multi, atSetup: "inPlay" as never } };
     expect(validateScenario(odd).errors).toContain("scenario multipleVillains.atSetup must be 'setAside' when present");
+    const villain = { ...sinisterSix, multipleVillains: { ...multi, theVillain: "anyVillain" as never } };
+    expect(validateScenario(villain).errors).toContain(
+      "scenario multipleVillains.theVillain must be 'activeVillain' when present",
+    );
     const win = { ...sinisterSix, multipleVillains: { ...multi, winCondition: "escape" as never } };
     expect(validateScenario(win).errors).toContain(
       "scenario multipleVillains.winCondition must be 'allVillainsDefeated' or 'cardAbility'",

@@ -347,8 +347,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
-  // Two or more villains (Tower Defense, Breakout, The Sinister Six): a player card that names "the villain" asks which
-  // (owner, 2026-10-04, matrix Q-M2), once per ability, just before the first effect that names it.
+  // Two or more villains (Tower Defense, The Sinister Six, the Four Horsemen): a player card that names "the villain"
+  // asks which (owner, 2026-10-04, matrix Q-M2), once per ability, just before the first effect that names it. Not where
+  // the scenario makes "the villain" the active one for every card (`ScenarioRules.theVillain`, Breakout).
   if (needsVillainChoice(ctx, frame, effect, context)) {
     const choose: EffectSpec = {
       kind: "chooseTarget",
@@ -658,11 +659,13 @@ function askPutIntoPlayHost(
 /**
  * Whether a player card's effect about to resolve names "the villain" while more than one villain is in play and the
  * player has not yet chosen one for this ability (owner, 2026-10-04, matrix Q-M2). Not in a separate game area, where
- * the area's own villain is meant.
+ * the area's own villain is meant, nor in a scenario whose rules make "the villain" the active villain for every card
+ * (`ScenarioRules.theVillain`: The Wrecking Crew insert, "The Active Villain"; FFG ruling Jun 13, 2024, #212).
  */
 function needsVillainChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec, context: EffectContext): boolean {
   if (frame.bindings[VILLAIN_CHOICE] || frame.controllerId === null) return false;
   if (!isPlayerCard(ctx.state, frame.selfInstanceId) || contextArea(ctx.state, context)) return false;
+  if (ctx.state.scenarioRules.theVillain === "activeVillain") return false;
   if (undefeatedVillains(ctx.state).length < 2) return false;
   return JSON.stringify(effect).includes('{"kind":"villain"}');
 }
