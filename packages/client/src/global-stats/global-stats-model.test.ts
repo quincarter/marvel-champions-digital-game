@@ -54,6 +54,23 @@ describe("globalSectionsOf", () => {
     expect(sections[1]!.rows[0]).not.toHaveProperty("losses");
   });
 
+  test("hero rows carry the hero's card for the picture and hover; villain and set rows do not", () => {
+    expect(sections[0]!.rows.map((r) => (r.kind === "stat" ? r.cardId : null))).toEqual(["spidey", "cap"]);
+    expect(sections[1]!.rows[0]).not.toHaveProperty("cardId");
+    expect(sections[2]!.rows[0]).not.toHaveProperty("cardId");
+  });
+
+  test("only villains this build knows, each part of a join; none without a lookup", () => {
+    const villains = (names: typeof NAMES, rows: string[]) =>
+      globalSectionsOf(
+        { ...STATS, heroes: [], modulars: [], villains: rows.map((key) => ({ key, games: 30, wins: 1, causes: {} })) },
+        names,
+      ).flatMap((s) => labels(s.rows));
+    expect(villains(NAMES, ["Rhino", "Rhino & Klaw", "Forged", "Rhino & Forged"])).toEqual(["Rhino", "Rhino & Klaw"]);
+    const { isVillain: _drop, ...without } = NAMES;
+    expect(villains(without, ["Rhino"])).toEqual([]);
+  });
+
   test("a section with nothing nameable is left out", () => {
     expect(globalSectionsOf({ ...STATS, heroes: [], modulars: [] }, NAMES).map((s) => s.id)).toEqual([
       "global:villains",

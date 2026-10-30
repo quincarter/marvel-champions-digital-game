@@ -36,6 +36,8 @@ function sectionOf(
   rows: readonly GlobalRow[],
   nameOf: (key: string) => string | undefined,
   rowId: string,
+  /** The key is a card id: the row leads with that card's picture and gets the card hover, like your own hero rows. */
+  keyIsCard = false,
 ): StatsSection | null {
   const named = rows
     .flatMap((row) => {
@@ -50,15 +52,39 @@ function sectionOf(
     label: name,
     value: percent(row.wins, row.games),
     detail: plural(row.games, "game"),
+    ...(keyIsCard ? { cardId: row.key } : {}),
     ...lossesOf(row),
   }));
   return { id, title, count: plural(stats.length, noun, many), rows: stats };
 }
 
+/** A villain name this build knows, each part of a " & " join checked; with no lookup nothing is kept. */
+const knownVillain =
+  (names: StatsNames) =>
+  (name: string): string | undefined =>
+    names.isVillain && name.split(" & ").every((part) => names.isVillain!(part)) ? name : undefined;
+
 export function globalSectionsOf(stats: GlobalStats, names: StatsNames): StatsSection[] {
   return [
-    sectionOf("global:heroes", "Heroes", "hero", "heroes", stats.heroes, (id) => names.cardName(id), "global:hero"),
-    sectionOf("global:villains", "Villains", "villain", "villains", stats.villains, (name) => name, "global:villain"),
+    sectionOf(
+      "global:heroes",
+      "Heroes",
+      "hero",
+      "heroes",
+      stats.heroes,
+      (id) => names.cardName(id),
+      "global:hero",
+      true,
+    ),
+    sectionOf(
+      "global:villains",
+      "Villains",
+      "villain",
+      "villains",
+      stats.villains,
+      knownVillain(names),
+      "global:villain",
+    ),
     sectionOf(
       "global:encounter",
       "Encounter",

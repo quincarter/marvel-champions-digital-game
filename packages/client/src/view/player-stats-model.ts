@@ -32,6 +32,8 @@ export interface StatsNames {
   readonly scenarioModulars?: (scenarioId: string) => readonly string[];
   /** An encounter set's name. */
   readonly setName?: (setId: string) => string | undefined;
+  /** Whether a villain name (one part of a " & " join) is one this build's pool has; the global lists keep only those. */
+  readonly isVillain?: (name: string) => boolean;
 }
 
 export type StatRow =

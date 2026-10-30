@@ -53,6 +53,9 @@ import {
 import { syncService } from "../sync/sync-wiring.js";
 import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
+import { finishedIdsOf, readConsent, turnOffGlobalStats, turnOnGlobalStats } from "../global-stats/global-consent.js";
+import { GLOBAL_ROW_FAILED, GLOBAL_ROW_TITLE, globalRowButton, globalRowDetail } from "../view/global-stats-ui.js";
+import { appSession } from "../session.js";
 import type { SyncDataSceneData } from "./sync-data.js";
 import { drawBetaTagBeside } from "../ui/beta-tag.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
@@ -150,6 +153,25 @@ export class SaveDataOverlay extends Phaser.Scene {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
     });
+  }
+
+  /**
+   * Share anonymous game results (global win rates): on or off, on this device only, with no network. Turning it on
+   * hands the finished games so far to `turnOnGlobalStats`, which marks them sent so none of them ever is.
+   */
+  async #toggleGlobal(): Promise<void> {
+    if (this.#step.kind !== "menu" || this.#working) return;
+    let saved: boolean;
+    if (readConsent() === "on") saved = turnOffGlobalStats();
+    else {
+      try {
+        saved = turnOnGlobalStats(finishedIdsOf(await appSession().store.listSaves()));
+      } catch {
+        saved = false;
+      }
+    }
+    if (!this.sys.isActive()) return;
+    this.#set({ kind: "menu" }, saved ? NO_STATUS : { tone: "error", text: GLOBAL_ROW_FAILED });
   }
 
   #close(): void {
@@ -433,6 +455,13 @@ export class SaveDataOverlay extends Phaser.Scene {
         label: "Sync",
         run: () => this.#openSync(),
         id: "sync",
+      },
+      {
+        title: GLOBAL_ROW_TITLE,
+        detail: globalRowDetail(readConsent()),
+        label: globalRowButton(readConsent()),
+        run: () => void this.#toggleGlobal(),
+        id: "global",
       },
     ];
     const per = rowWidth >= WIDE_ROW && room < 560 ? 2 : 1;

@@ -15,6 +15,8 @@ export const GLOBAL_SENT_KEY = "global-stats-sent";
 export const GLOBAL_SINCE_KEY = "global-stats-since";
 /** How many sent ids are remembered; the oldest go first. */
 export const SENT_CAP = 2000;
+/** The newest `updatedAt` of any game sent: a game at or below it is never due, even once evicted from the sent set. */
+export const GLOBAL_HIGH_KEY = "global-stats-high";
 
 export type GlobalConsent = "unset" | "on" | "off";
 export type ConsentStorage = Pick<Storage, "getItem" | "setItem">;
@@ -65,7 +67,28 @@ function writeSent(storage: ConsentStorage | null, ids: Iterable<string>): boole
   }
 }
 
-export function markSent(ids: readonly string[], storage: ConsentStorage | null = browserStorage()): boolean {
+export function highWater(storage: ConsentStorage | null = browserStorage()): number {
+  try {
+    const n = Number(storage?.getItem(GLOBAL_HIGH_KEY));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Marks games sent; `updatedAt` (when given) raises the high-water mark past them. */
+export function markSent(
+  ids: readonly string[],
+  storage: ConsentStorage | null = browserStorage(),
+  updatedAt?: number,
+): boolean {
+  if (updatedAt !== undefined && updatedAt > highWater(storage)) {
+    try {
+      storage?.setItem(GLOBAL_HIGH_KEY, String(updatedAt));
+    } catch {
+      // The sent set still holds the id.
+    }
+  }
   const sent = readSent(storage);
   for (const id of ids) {
     sent.delete(id);

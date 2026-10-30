@@ -11,6 +11,7 @@
  */
 import {
   GLOBAL_KEY_PATTERN,
+  GLOBAL_MAX_ASPECTS,
   GLOBAL_MAX_DECK_CARDS,
   GLOBAL_MAX_MODULARS,
   GLOBAL_MAX_SEATS,
@@ -45,14 +46,18 @@ export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): G
   const villain = villainNameOf(meta, names);
   if (!GLOBAL_VILLAIN_PATTERN.test(villain)) return null;
   const modulars = once(meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? []);
-  if (!modulars.every(isKey)) return null;
+  // Over the cap is null, not trimmed: a cut list would count the game against the wrong sets.
+  if (!modulars.every(isKey) || modulars.length > GLOBAL_MAX_MODULARS) return null;
   const seated = summary.seats.filter((seat) => !seat.satOut);
   if (seated.length === 0) return null;
   const seats: GlobalSeat[] = [];
+  const heroes = new Set<string>();
   for (const seat of seated) {
     const aspects = once(seat.aspects);
     const deck = once(seat.deck);
     // An id outside the pool's plain keys is content this build cannot vouch for: the game is not sent.
+    if (heroes.has(seat.identityCardId) || aspects.length > GLOBAL_MAX_ASPECTS) return null;
+    heroes.add(seat.identityCardId);
     if (!isKey(seat.identityCardId) || !aspects.every(isKey) || !deck.every(isKey)) return null;
     seats.push({ hero: seat.identityCardId, aspects, deck: deck.slice(0, GLOBAL_MAX_DECK_CARDS) });
   }
@@ -62,7 +67,7 @@ export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): G
     id,
     villain,
     difficulty: meta.config.difficulty,
-    modulars: modulars.slice(0, GLOBAL_MAX_MODULARS),
+    modulars,
     seats: seats.slice(0, GLOBAL_MAX_SEATS),
     won,
     cause: won ? null : lossCauseOfMeta(meta),

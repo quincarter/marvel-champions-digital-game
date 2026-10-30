@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { GLOBAL_ID_PATTERN } from "@mc/sync-worker/global-protocol";
+import { GLOBAL_ID_PATTERN, GLOBAL_MAX_ASPECTS, GLOBAL_MAX_MODULARS } from "@mc/sync-worker/global-protocol";
 import { globalIdOf, globalResultOf } from "./global-result.js";
 import { NAMES, meta } from "./fixtures.js";
 
@@ -70,19 +70,28 @@ describe("globalResultOf", () => {
     expect(globalResultOf(meta({}, { villains: ["Rh<ino>"] }), NAMES, ID)).toBeNull();
   });
 
+  test("more modulars or aspects than the caps is null, not trimmed", () => {
+    const m = meta();
+    const modulars = Array.from({ length: GLOBAL_MAX_MODULARS + 1 }, (_, i) => `m${i}`);
+    expect(globalResultOf({ ...m, config: { ...m.config, modularSetIds: modulars } }, NAMES, ID)).toBeNull();
+    const base = m.summary!.seats![0]!;
+    const aspects = Array.from({ length: GLOBAL_MAX_ASPECTS + 1 }, (_, i) => `a${i}`);
+    expect(globalResultOf(meta({}, { seats: [{ ...base, aspects }] }), NAMES, ID)).toBeNull();
+  });
+
+  test("two seats of one hero is null (the Worker would refuse it)", () => {
+    const base = meta().summary!.seats![0]!;
+    expect(globalResultOf(meta({}, { seats: [base, base] }), NAMES, ID)).toBeNull();
+  });
+
   test("trims to the protocol's caps", () => {
     const base = meta().summary!.seats![0]!;
     const deck = Array.from({ length: 100 }, (_, i) => `c${i}`);
-    const seats = Array.from({ length: 6 }, () => ({ ...base, deck }));
+    const seats = Array.from({ length: 6 }, (_, i) => ({ ...base, identityCardId: `h${i}`, deck }));
     const m = meta({}, { seats });
-    const result = globalResultOf(
-      { ...m, config: { ...m.config, modularSetIds: Array.from({ length: 12 }, (_, i) => `m${i}`) } },
-      NAMES,
-      ID,
-    )!;
+    const result = globalResultOf(m, NAMES, ID)!;
     expect(result.seats).toHaveLength(4);
     expect(result.seats[0]!.deck).toHaveLength(80);
-    expect(result.modulars).toHaveLength(8);
   });
 });
 

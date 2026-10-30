@@ -7,6 +7,16 @@ import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, POOL_STARTER_DECKS } 
 import { cardDisplayName } from "./hero-names.js";
 import type { StatsNames } from "./player-stats-model.js";
 
+let villains: ReadonlySet<string> | undefined;
+/** Villain card names (what a summary's `villains` holds), plus scenario names, which stand in on an older save. */
+function villainNames(): ReadonlySet<string> {
+  villains ??= new Set([
+    ...[...CARDS_BY_ID.values()].filter((card) => card.type === "villain").map((card) => card.name),
+    ...POOL_SCENARIOS.map((scenario) => scenario.name),
+  ]);
+  return villains;
+}
+
 export const POOL_STATS_NAMES: StatsNames = {
   cardName: (id) => {
     const card = CARDS_BY_ID.get(id);
@@ -26,5 +36,6 @@ export const POOL_STATS_NAMES: StatsNames = {
     POOL_SCENARIOS.find((scenario) => (scenario.id as string) === id)?.recommendedModularSetIds.map(
       (set) => set as string,
     ) ?? [],
+  isVillain: (name) => villainNames().has(name),
   setName: (id) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name,
 };

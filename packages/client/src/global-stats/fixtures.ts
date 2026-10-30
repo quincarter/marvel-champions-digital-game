@@ -11,6 +11,7 @@ export const NAMES: StatsNames = {
   scenarioName: (id) => ({ rhino: "Rhino" })[id],
   starterDeck: () => undefined,
   scenarioModulars: () => ["bomb_scare"],
+  isVillain: (name) => name === "Rhino" || name === "Klaw",
   setName: (id) => ({ bomb_scare: "Bomb Scare", ambush: "Ambush" })[id],
 };
 

@@ -38,9 +38,19 @@ import type { ShortcutId } from "../view/input-shortcuts.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { loadPlayerStats } from "../view/player-stats-client.js";
+import { loadGlobalStats } from "../global-stats/global-stats-client.js";
+import {
+  globalTabViewOf,
+  hasGlobalSource,
+  SOURCE_LABELS,
+  type GlobalState,
+  type StatsSource,
+} from "../view/global-stats-ui.js";
+import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { backfillProgress, onBackfillProgress } from "../progression/stats-backfill.js";
 import {
   dashboardRowsOf,
+  globalRowsOf,
   heroAt,
   statRowPicture,
   statsTabsOf,
@@ -119,6 +129,8 @@ let lastTab: StatsTab = "overview";
 let lastHero = 0;
 /** The filter chips' choice, kept across visits like the tab. */
 let lastFilter: StatsFilter = {};
+/** Whose numbers the Heroes, Villains and Encounter tabs show, kept across visits like `lastFilter`. */
+let lastSource: StatsSource = "you";
 /** Cards and Cards by hero without each hero's own cards (kept across visits, like the tab). */
 let hideSignature = false;
 /** On a phone the filter chips fold behind one "Filters" chip, so the tabs and the stats keep the screen. */
@@ -178,6 +190,8 @@ export class PlayerStatsScene extends Phaser.Scene {
   readonly #scrolls = new Map<string, ListScroll>();
   #offArt: (() => void)[] = [];
   #redrawQueued = false;
+  /** Everyone's numbers: read on first use (Everyone shown), never at launch; once per visit unless it failed. */
+  #global: GlobalState = { kind: "idle" };
 
   constructor() {
     super(SCENES.playerStats);
@@ -191,6 +205,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#alive = true;
     this.#stats = null;
     this.#failed = false;
+    this.#global = { kind: "idle" };
     const under = this.#data.overlay && this.#data.from ? this.scene.get(this.#data.from) : null;
     if (under) {
       under.input.enabled = false;
@@ -398,6 +413,34 @@ export class PlayerStatsScene extends Phaser.Scene {
       this.#draw();
     }
     if (this.#stops.has("filter:hero")) this.#route?.focusKey("filter:hero");
+    // Everyone has no filters: X lands on the You / Everyone chips instead.
+    else if (this.#stops.has(`source:${lastSource}`)) this.#route?.focusKey(`source:${lastSource}`);
+  }
+
+  /** Reads everyone's numbers (the first time Everyone is shown) and draws again when they arrive. */
+  async #fetchGlobal(): Promise<void> {
+    this.#global = { kind: "reading" };
+    const answer = await loadGlobalStats();
+    if (!this.#alive) return;
+    this.#global = answer;
+    this.#draw();
+  }
+
+  /** The You / Everyone pair: one source at a time, drawn with the same chips as the filters. */
+  #sourceChips(): readonly StatsChip[] {
+    return (["you", "everyone"] as const).map((source) => ({
+      key: `source:${source}`,
+      label: SOURCE_LABELS[source],
+      selected: lastSource === source,
+      width: 140,
+      onClick: (byFocus: boolean) => {
+        lastSource = source;
+        // A failed read is tried again each time Everyone is chosen.
+        if (source === "everyone" && this.#global.kind === "unavailable") this.#global = { kind: "idle" };
+        this.#draw();
+        if (byFocus) this.#route?.focusKey(`source:${source}`);
+      },
+    }));
   }
 
   /** A card the stats name, opened in Inspect (A or Y on its picture or its row): the pad's way to read it large. */
@@ -590,7 +633,10 @@ export class PlayerStatsScene extends Phaser.Scene {
     const inner = width - gutter * 2;
     // LB on the tab before this one and RB on the tab after it: the glyphs say where the bumpers go.
     // On a phone the Filters chip follows the tabs in their own rows, so it takes no row of its own.
-    const filters = this.#filterChips(stats, phone);
+    const sourceTab = hasGlobalSource(lastTab);
+    const everyone = sourceTab && lastSource === "everyone";
+    // The hero / villain / difficulty filters fold your games only: they are not offered on Everyone.
+    const filters = everyone ? [] : this.#filterChips(stats, phone);
     let y = this.#drawChips(
       bar.height + 12,
       gutter,
@@ -614,6 +660,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       order,
       phone,
     );
+    if (sourceTab) y = this.#drawChips(y + 10, gutter, inner, this.#sourceChips(), stops, order, phone);
     if (!phone && filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
 
     if (lastTab === "cards") {
@@ -699,26 +746,33 @@ export class PlayerStatsScene extends Phaser.Scene {
     const listRect: Rect = { x: gutter, y: listTop, width: inner, height: Math.max(60, height - listTop - gutter) };
     const rowWidth = inner - GUTTER;
     const backfill = backfillProgress();
-    const rows: DashRow[] = [
-      ...(lastTab === "overview" && backfill.running
-        ? [
-            {
-              kind: "note" as const,
-              id: "ov:backfill",
-              height: phone ? 52 : 40,
-              text: `Filling in your older games from their saved logs: ${backfill.done} of ${backfill.total}. Their card numbers appear here when it is done.`,
-            },
-          ]
-        : []),
-      ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone, hideSignature),
-    ];
+    if (everyone && this.#global.kind === "idle") void this.#fetchGlobal();
+    const filtered =
+      lastFilter.hero !== undefined || lastFilter.villain !== undefined || lastFilter.difficulty !== undefined;
+    const globalView = everyone ? globalTabViewOf(this.#global, lastTab, POOL_STATS_NAMES, filtered) : null;
+    const rows: DashRow[] = globalView
+      ? globalRowsOf(globalView.notes, globalView.section, phone)
+      : [
+          ...(lastTab === "overview" && backfill.running
+            ? [
+                {
+                  kind: "note" as const,
+                  id: "ov:backfill",
+                  height: phone ? 52 : 40,
+                  text: `Filling in your older games from their saved logs: ${backfill.done} of ${backfill.total}. Their card numbers appear here when it is done.`,
+                },
+              ]
+            : []),
+          ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone, hideSignature),
+        ];
     this.#rows = rows;
     const list = new McVirtualList(this, {
       rect: listRect,
       rowHeight: rows[0]?.height ?? 60,
       rowHeightOf: (index) => rows[index]!.height,
       count: rows.length,
-      scroll: this.#scrollOf(lastTab === "cards" ? `cards:${lastHero}` : lastTab),
+      // Everyone's list keeps its own scroll, apart from You's on the same tab.
+      scroll: this.#scrollOf(everyone ? `global:${lastTab}` : lastTab === "cards" ? `cards:${lastHero}` : lastTab),
       background: false,
       renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, phone),
     });

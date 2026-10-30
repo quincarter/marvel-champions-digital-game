@@ -18,6 +18,7 @@ import type { StatsNames } from "../view/player-stats-model.js";
 import {
   browserStorage,
   consentSince,
+  highWater,
   markSent,
   readConsent,
   readSent,
@@ -32,7 +33,12 @@ export const RUN_DEBOUNCE_MS = 10_000;
 
 export interface UploadStore {
   listSaves(): Promise<readonly SaveMeta[]>;
+  /** The session store's state, when the caller has one: a game still being played holds the listener back. */
+  readonly state?: { readonly game: { readonly outcome?: unknown } | null };
 }
+
+/** The longest a `Retry-After` is honoured (seconds). */
+const MAX_RETRY_AFTER_S = 3600;
 
 export interface UploadDeps {
   readonly baseUrl: string | null;
@@ -41,6 +47,7 @@ export interface UploadDeps {
   readonly names: StatsNames;
   readonly maxPerRun: number;
   readonly timeoutMs: number;
+  readonly now: () => number;
 }
 
 const defaultDeps = (): UploadDeps => ({
@@ -50,17 +57,23 @@ const defaultDeps = (): UploadDeps => ({
   names: POOL_STATS_NAMES,
   maxPerRun: MAX_PER_RUN,
   timeoutMs: UPLOAD_TIMEOUT_MS,
+  now: () => Date.now(),
 });
 
 let running = false;
+/** Nothing is sent before this time (ms), set by a 429's `Retry-After`; this page load only. */
+let nextTryAt = 0;
+export const resetGlobalUploadBackoff = (): void => {
+  nextTryAt = 0;
+};
 
 /** Sends what is due; resolves to how many games were accepted or refused for good. Never throws. */
 export async function runGlobalUpload(store: UploadStore, overrides: Partial<UploadDeps> = {}): Promise<number> {
   const deps = { ...defaultDeps(), ...overrides };
-  if (running || !deps.baseUrl || readConsent(deps.storage) !== "on") return 0;
+  if (running || !deps.baseUrl || readConsent(deps.storage) !== "on" || deps.now() < nextTryAt) return 0;
   running = true;
   try {
-    const since = consentSince(deps.storage) ?? Number.POSITIVE_INFINITY;
+    const since = Math.max(consentSince(deps.storage) ?? Number.POSITIVE_INFINITY, highWater(deps.storage) + 1);
     const sent = readSent(deps.storage);
     const due = (await store.listSaves())
       .filter(
@@ -79,6 +92,7 @@ export async function runGlobalUpload(store: UploadStore, overrides: Partial<Upl
       const result = globalResultOf(meta, deps.names, await globalIdOf(meta.id));
       if (!result) continue;
       let status: number;
+      let retryAfter = 0;
       try {
         const response = await deps.fetch(`${deps.baseUrl}/global/result`, {
           method: "POST",
@@ -87,12 +101,20 @@ export async function runGlobalUpload(store: UploadStore, overrides: Partial<Upl
           signal: AbortSignal.timeout(deps.timeoutMs),
         });
         status = response.status;
+        retryAfter = Number(response.headers.get("Retry-After"));
       } catch {
         break;
       }
-      if (status !== 200 && status !== 400) break;
-      markSent([meta.id], deps.storage);
+      if (status === 429) {
+        if (Number.isFinite(retryAfter) && retryAfter > 0)
+          nextTryAt = deps.now() + Math.min(retryAfter, MAX_RETRY_AFTER_S) * 1000;
+        break;
+      }
+      // 507: the Worker is full for this game and would be again on every run, so it is let go and the run ends.
+      if (status !== 200 && status !== 400 && status !== 507) break;
+      markSent([meta.id], deps.storage, meta.updatedAt);
       done++;
+      if (status === 507) break;
     }
     return done;
   } catch {
@@ -117,6 +139,9 @@ export function startGlobalUploads(
     if (reason !== "game" && reason !== "turn") return;
     // Sharing off: no timer, no listing.
     if (readConsent(overrides.storage ?? browserStorage()) !== "on") return;
+    // A game still being played has not finished; the listing waits for its end (outcome) or for no game on the table.
+    const game = store.state?.game;
+    if (game && !game.outcome) return;
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(run, debounceMs);
   });
