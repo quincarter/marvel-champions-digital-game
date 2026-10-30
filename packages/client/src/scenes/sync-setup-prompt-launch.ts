@@ -76,23 +76,25 @@ const ALWAYS_UP: ReadonlySet<string> = new Set([
 /**
  * Decides and launches. Safe to call on every Title visit: it does nothing once the player has answered, while sync is
  * on, with no online sync on offer (then it neither shows nor remembers anything, so a later launch asks), or while
- * another check or the prompt itself is running.
+ * another check or the prompt itself is running. Resolves true when the question is up or is being decided by another
+ * call, so the global-stats ask (`global-ask-launch.ts`) waits for a later visit.
  */
-export function maybeShowSyncSetupPrompt(scene: Phaser.Scene): void {
-  if (checking) return;
+export function maybeShowSyncSetupPrompt(scene: Phaser.Scene): Promise<boolean> {
+  // A check already under way is the sync question's: it counts as asked this visit.
+  if (checking) return Promise.resolve(true);
   checking = true;
-  void run(scene)
-    .catch(() => undefined)
+  return run(scene)
+    .catch(() => false)
     .finally(() => {
       // The prompt, once launched, stays up on its own; a later call finds it active.
       checking = false;
     });
 }
 
-async function run(scene: Phaser.Scene): Promise<void> {
+async function run(scene: Phaser.Scene): Promise<boolean> {
   const local = storage();
-  if (syncPromptAnswered(local)) return;
-  if (scene.scene.manager.isActive(SCENES.syncSetupPrompt)) return;
+  if (syncPromptAnswered(local)) return false;
+  if (scene.scene.manager.isActive(SCENES.syncSetupPrompt)) return true;
 
   const inputs: SyncSetupPromptInputs = {
     syncOn: local ? loadSyncCode(local) !== null : false,
@@ -101,14 +103,15 @@ async function run(scene: Phaser.Scene): Promise<void> {
     firstLaunchSinceUpdate: !syncPromptSeen(local),
     hasOtherSaveData: await hasOtherSaveData(local),
   };
-  if (!shouldShowSyncSetupPrompt(inputs)) return;
+  if (!shouldShowSyncSetupPrompt(inputs)) return false;
   // Online sync must be on offer, or the invitation would only lead to "unavailable". Nothing is remembered otherwise.
-  if (!(await syncIsAvailable())) return;
+  if (!(await syncIsAvailable())) return false;
   // Title must still be the top screen: the games list, Settings, a link's join question or anything else over it
   // means the moment has passed. The chance is not spent (`mcsync.seen` is written only once the prompt launches).
   const manager = scene.scene.manager;
   const running = manager.getScenes(true).map((other) => other.sys.settings.key);
-  if (!scene.sys.isActive() || !titleIsTopScene(running, scene.sys.settings.key, ALWAYS_UP)) return;
+  if (!scene.sys.isActive() || !titleIsTopScene(running, scene.sys.settings.key, ALWAYS_UP)) return false;
   markSyncPromptSeen(local);
   scene.scene.launch(SCENES.syncSetupPrompt);
+  return true;
 }

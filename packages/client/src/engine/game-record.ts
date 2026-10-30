@@ -161,6 +161,10 @@ export interface HitMark {
   readonly sourceCardId?: string;
   /** The hit counted in `GameRecord.hurtBy` (an encounter card's on a player character). */
   readonly hurt?: true;
+  /** The blow was an attack's (`characterDefeated.fromAttack`). */
+  readonly attack?: true;
+  /** What the blow's source was as it fell (`characterDefeated.sourceRole`), whatever its card is. */
+  readonly role?: "villain" | "minion";
 }
 
 /**
@@ -186,7 +190,12 @@ export interface GameRecord {
   readonly damageToVillain: number;
   readonly lastThreat: ThreatMark | null;
   readonly lastVillainDamage: DamageMark | null;
-  readonly lastEliminated: { readonly playerId: PlayerId; readonly round: number } | null;
+  readonly lastEliminated: {
+    readonly playerId: PlayerId;
+    readonly round: number;
+    /** What defeated the seat's identity (`defeatBlowOf`): the stats' defeating blow. Absent when nothing is known. */
+    readonly hit?: HitMark;
+  } | null;
   /** Main scheme swaps, oldest first. Absent on a record written before the field existed, which reads as none. */
   readonly schemeSwaps?: readonly SchemeSwapMark[];
   /**
@@ -396,6 +405,29 @@ export function recordEvents(
     if (seat) seats.set(playerId, patch(seat));
   };
 
+  const identityOf = (id: InstanceId): boolean => state.players.some((player) => player.identity.instanceId === id);
+  /** Damage placed on an identity in this command, by what placed it (`damagePlaced`). */
+  const placed = new Map<InstanceId, InstanceId | null>();
+  /** What defeated an identity in this command: its `characterDefeated` comes just before its `playerEliminated`. */
+  const identityBlows = new Map<InstanceId, Pick<HitMark, "sourceInstanceId" | "attack" | "role">>();
+  /**
+   * A defeat's source as a `HitMark`: `hurt` for an enemy or a card no player owns. Never an earlier hit: a defeat needs
+   * no damage. A facedown Drone is a player's card underneath, and that card is hidden, so it goes unnamed.
+   */
+  const defeatBlowOf = (blow: Pick<HitMark, "sourceInstanceId" | "attack" | "role">): HitMark | undefined => {
+    const source = blow.sourceInstanceId;
+    const sourceCardId = source ? cardIdAt(source) : undefined;
+    if (!source || !sourceCardId) return undefined;
+    const owned = !!playerCardOwnerOf(state, source);
+    return {
+      sourceInstanceId: source,
+      ...(owned && blow.role ? {} : { sourceCardId }),
+      ...(owned && !blow.role ? {} : { hurt: true as const }),
+      ...(blow.attack ? { attack: true as const } : {}),
+      ...(blow.role ? { role: blow.role } : {}),
+    };
+  };
+
   const markHit = (target: InstanceId, mark: HitMark): void => {
     lastHits = { ...lastHits, [target]: mark };
   };
@@ -537,6 +569,12 @@ export function recordEvents(
         }
         break;
       }
+      // Engine reading: `hurtBy` counts dealt damage only, but placed damage can still end a hero. The defeat it causes
+      // names no source (`characterDefeated`), so what placed it is kept here for that defeat, this command only: a
+      // defeat that waits on a later command's interrupt reads as having no source.
+      case "damagePlaced":
+        if (identityOf(event.targetInstanceId)) placed.set(event.targetInstanceId, event.sourceInstanceId);
+        break;
       case "threatPlaced": {
         threatPlaced += event.amount;
         const against =
@@ -652,6 +690,13 @@ export function recordEvents(
         patchDefense(event.enemyInstanceId, () => null);
         break;
       case "characterDefeated": {
+        if (identityOf(event.instanceId)) {
+          identityBlows.set(event.instanceId, {
+            sourceInstanceId: event.sourceInstanceId ?? placed.get(event.instanceId) ?? null,
+            ...(event.fromAttack ? { attack: true as const } : {}),
+            ...(event.sourceRole ? { role: event.sourceRole } : {}),
+          });
+        }
         const found = Object.entries(allyDefending ?? {}).find(
           ([, defense]) => defense.allyInstanceId === event.instanceId && (!defense.resolved || defense.hit),
         );
@@ -671,11 +716,15 @@ export function recordEvents(
           sideSchemeGone(event.instanceId);
         }
         break;
-      case "playerEliminated":
+      case "playerEliminated": {
         onSeat(event.playerId, (seat) => ({ ...seat, defeatedInRound: seat.defeatedInRound ?? round }));
-        lastEliminated = { playerId: event.playerId, round };
+        const identity = state.players.find((player) => player.playerId === event.playerId)?.identity.instanceId;
+        const blow = identity ? identityBlows.get(identity) : undefined;
+        const hit = blow ? defeatBlowOf(blow) : undefined;
+        lastEliminated = { playerId: event.playerId, round, ...(hit ? { hit } : {}) };
         onRound((entry) => ({ ...entry, heroesDefeated: [...entry.heroesDefeated, event.playerId] }));
         break;
+      }
       case "playerSatOut": {
         // Always follows the seat's `playerEliminated` (sit-out is an elimination with no defeat window): take that
         // defeat back, so the debrief reads a seat that sat out as neither a loss nor a hero down.

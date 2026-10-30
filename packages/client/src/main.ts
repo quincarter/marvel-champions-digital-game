@@ -187,7 +187,15 @@ const preloadAfterTitle = (): void => {
                 if (backfillProgress().written > 0) return refreshUnlocks();
                 return undefined;
               })
-              .catch(() => undefined),
+              .catch(() => undefined)
+              // Opt-in global win rates (`global-stats/`): sends only while the player has turned it on, and again
+              // after each save signal. The Worker being down changes nothing for the game.
+              .finally(
+                () =>
+                  void import("./global-stats/global-upload.js")
+                    .then((m) => m.startGlobalUploads(appSession().store))
+                    .catch(() => undefined),
+              ),
           BACKFILL_DELAY_MS,
         );
       }

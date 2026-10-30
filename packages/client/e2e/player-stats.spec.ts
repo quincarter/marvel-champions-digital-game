@@ -704,6 +704,52 @@ test("the Building your stats toast: shows on the Title, hides off it, and closi
   expect(await activeScenes(page)).not.toContain("BackfillToast");
 });
 
+test("the Villains tab says why you lose, and the deck builder reads your decks against each villain", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "deck-builder", "DeckBuilder");
+  if (!phone) {
+    const tab = await waitFor(
+      async () => (await stopsIn(page, "DeckBuilder")).find((s) => s.key === "rail:games") ?? null,
+      "the From your games tab",
+      30_000,
+    );
+    await press(page, false, tab.rect);
+    // Rhino is the most faced of the two villains the seeded games hold, and the stepper walks to Klaw.
+    const stepper = await waitFor(
+      async () => (await stopsIn(page, "DeckBuilder")).find((s) => s.key === "games:against") ?? null,
+      "the Against stepper",
+      30_000,
+    );
+    expect((await findText(page, "Against Rhino", "DeckBuilder")).length).toBeGreaterThan(0);
+    const onKlaw = async () => ((await findText(page, "Against Klaw", "DeckBuilder")).length > 0 ? true : null);
+    for (let attempt = 0; attempt < 3 && !(await onKlaw()); attempt++) {
+      await settle(page);
+      await press(page, false, stepper.rect);
+      await page.waitForTimeout(800);
+    }
+    await waitFor(onKlaw, "the stepper reaches Klaw", 10_000);
+  }
+
+  await page.goto("/?screen=trophies&unlock=all");
+  await waitFor(isActive(page, "TrophyRoom"), "the Trophy Room", 30_000);
+  await settle(page);
+  await clickText(page, phone ? "Stats" : "Your stats", {
+    sceneKey: "TrophyRoom",
+    until: isActive(page, "PlayerStats"),
+    untilLabel: "the Stats screen",
+  });
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const villains = (await stopsOf(page)).find((s) => s.key === "tab:villains")!;
+  await press(page, phone, villains.rect);
+  await waitFor(async () => ((await keys(page)).includes("row:villain:why") ? true : null), "Why you lose", 10_000);
+  // Both seeded losses were to the main scheme.
+  expect((await findText(page, "Scheme 2", "PlayerStats")).length).toBeGreaterThan(0);
+});
+
 test("the deck builder's From your games: Cut takes a copy of a card that never comes out of the deck", async ({
   page,
 }, info) => {
