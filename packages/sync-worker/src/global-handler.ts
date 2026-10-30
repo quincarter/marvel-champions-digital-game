@@ -14,9 +14,29 @@ import {
   GLOBAL_VILLAIN_PATTERN,
   parseGlobalResult,
   type GlobalError,
+  type GlobalResult,
   type GlobalErrorReason,
 } from "./global-protocol.js";
+import { GLOBAL_ALLOWED_HEROES, GLOBAL_ALLOWED_MODULARS, GLOBAL_ALLOWED_VILLAINS } from "./global-allowlist.js";
 import { readCappedText } from "./read-capped.js";
+
+const KNOWN_VILLAINS: ReadonlySet<string> = new Set(GLOBAL_ALLOWED_VILLAINS);
+const KNOWN_MODULARS: ReadonlySet<string> = new Set(GLOBAL_ALLOWED_MODULARS);
+const KNOWN_HEROES: ReadonlySet<string> = new Set(GLOBAL_ALLOWED_HEROES);
+
+/**
+ * Whether every key the game would create a row for is known content: the villain (each part of a two-villain
+ * `A & B`), each modular set and each hero. This bounds the store to the pool, so invented ids cannot take rows. Deck
+ * cards are not checked: they make no keys, and a card row has its own byte cap. Here and not in `parseGlobalResult`,
+ * which the client imports and must not bundle the list with.
+ */
+export function isKnownContent(result: GlobalResult): boolean {
+  return (
+    (KNOWN_VILLAINS.has(result.villain) || result.villain.split(" & ").every((part) => KNOWN_VILLAINS.has(part))) &&
+    result.modulars.every((id) => KNOWN_MODULARS.has(id)) &&
+    result.seats.every((seat) => KNOWN_HEROES.has(seat.hero))
+  );
+}
 
 /** `/global/result`, `/global/stats`, `/global/cards`, `/global/status`. */
 export const GLOBAL_PATH = /^\/global\/([^/]+)$/;
@@ -94,7 +114,7 @@ export async function handleGlobal(
       } catch {
         // Not JSON.
       }
-      if (!parsed) return fail("bad-request", cors);
+      if (!parsed || !isKnownContent(parsed)) return fail("bad-request", cors);
       body = JSON.stringify(parsed);
     } else if (isCards) {
       villain = new URL(request.url).searchParams.get("villain") ?? "";

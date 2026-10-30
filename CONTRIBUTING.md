@@ -141,7 +141,9 @@ code on the other device still works). `GLOBAL_STATS_ENABLED` does the same for 
 stats screens say the numbers are unavailable.
 
 The `GLOBAL_STATS` Durable Object needs no setup of its own: its binding and migration are in `wrangler.jsonc` and go
-out with the next deploy.
+out with the next deploy. A new pack's villains, modular sets and heroes count only once they are in
+`packages/sync-worker/src/global-allowlist.ts`: the `global-pool` client test fails until it is regenerated and prints
+the command.
 
 ## Conventions
 

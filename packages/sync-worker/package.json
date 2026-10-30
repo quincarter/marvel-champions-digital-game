@@ -8,7 +8,8 @@
   "exports": {
     "./protocol": "./src/protocol.ts",
     "./sync-protocol": "./src/sync-protocol.ts",
-    "./global-protocol": "./src/global-protocol.ts"
+    "./global-protocol": "./src/global-protocol.ts",
+    "./global-allowlist": "./src/global-allowlist.ts"
   },
   "scripts": {
     "dev": "wrangler dev",

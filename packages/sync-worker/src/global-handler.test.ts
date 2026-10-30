@@ -15,6 +15,7 @@ import {
   GLOBAL_SUMMARY_TTL_MS,
   GlobalStatsLogic,
 } from "./global-stats.js";
+import { GLOBAL_ALLOWED_MODULARS } from "./global-allowlist.js";
 import { handleRequest, type HandlerDeps } from "./handler.js";
 import { GLOBAL_READS_PER_IP_PER_HOUR, GLOBAL_RESULTS_PER_IP_PER_DAY } from "./rate-limiter.js";
 import { MemoryStorage, makeEnv, type TestEnv } from "./test-support.js";
@@ -45,7 +46,7 @@ const game = (n: number, patch: Partial<GlobalResult> = {}): GlobalResult => ({
   villain: "Rhino",
   difficulty: "standard",
   modulars: ["bomb_scare"],
-  seats: [{ hero: "spider_man", aspects: ["justice"], deck: ["card_a", "card_b"] }],
+  seats: [{ hero: "01001a", aspects: ["justice"], deck: ["card_a", "card_b"] }],
   won: true,
   cause: null,
   ...patch,
@@ -84,9 +85,9 @@ describe("POST /global/result validation", () => {
     ["bad hero", { ...game(1), seats: [{ hero: "a b", aspects: [], deck: [] }] }],
     [
       "deck over cap",
-      { ...game(1), seats: [{ hero: "h", aspects: [], deck: Array.from({ length: 81 }, (_, i) => `c${i}`) }] },
+      { ...game(1), seats: [{ hero: "01001a", aspects: [], deck: Array.from({ length: 81 }, (_, i) => `c${i}`) }] },
     ],
-    ["bad card key", { ...game(1), seats: [{ hero: "h", aspects: [], deck: ["x".repeat(65)] }] }],
+    ["bad card key", { ...game(1), seats: [{ hero: "01001a", aspects: [], deck: ["x".repeat(65)] }] }],
     ["win with a cause", { ...game(1), cause: "scheme" }],
     ["loss without a cause", { ...game(1), won: false, cause: null }],
     ["unknown cause", loss(1, "boredom" as never)],
@@ -107,7 +108,7 @@ describe("POST /global/result validation", () => {
 
   it("accepts a win and a loss, and repeats a card once", async () => {
     const { call, store } = setup();
-    const dup = game(1, { seats: [{ hero: "h", aspects: [], deck: ["a", "a", "b"] }] });
+    const dup = game(1, { seats: [{ hero: "01001a", aspects: [], deck: ["a", "a", "b"] }] });
     expect((await post(call, dup)).status).toBe(200);
     expect((await post(call, loss(2, "other"))).status).toBe(200);
     expect(store().map.get("c:Rhino")).toMatchObject({ inWins: { a: 1, b: 1 } });
@@ -118,7 +119,7 @@ describe("POST /global/result validation", () => {
     const modulars = ["a.i.m._abduction", "m.o.d.o.k.", "s.h.i.e.l.d.", "s.h.i.e.l.d._executive_board"];
     expect((await post(call, game(1, { modulars }))).status).toBe(200);
     expect(store().map.has("m:s.h.i.e.l.d._executive_board")).toBe(true);
-    const six = Array.from({ length: 6 }, (_, i) => `m${i}`);
+    const six = GLOBAL_ALLOWED_MODULARS.slice(0, 6);
     expect((await post(call, game(2, { modulars: six }))).status).toBe(200);
   });
 
@@ -133,6 +134,54 @@ describe("POST /global/result validation", () => {
   });
 });
 
+describe("known content only", () => {
+  const forged: [string, Partial<GlobalResult>][] = [
+    ["villain", { villain: "Invented Villain" }],
+    ["modular", { modulars: ["invented_set"] }],
+    ["hero", { seats: [{ hero: "invented_hero", aspects: [], deck: ["card_a"] }] }],
+    ["second part of a joined villain", { villain: "Rhino & Invented Villain" }],
+    [
+      "second seat's hero",
+      {
+        seats: [
+          { hero: "01001a", aspects: [], deck: [] },
+          { hero: "nope", aspects: [], deck: [] },
+        ],
+      },
+    ],
+  ];
+  for (const [name, patch] of forged) {
+    it(`refuses a forged ${name} with 400 and touches nothing`, async () => {
+      const { call, env } = setup();
+      const res = await post(call, game(1, patch));
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as GlobalError).reason).toBe("bad-request");
+      expect(env.GLOBAL_STATS.instances.size).toBe(0);
+      expect(env.RATE_LIMITER.instances.size).toBe(0);
+    });
+  }
+
+  it("takes a joined villain only when every part is known, and a real dotted set", async () => {
+    const { call, store } = setup();
+    expect(
+      (await post(call, game(1, { villain: "Rhino & Klaw", modulars: ["s.h.i.e.l.d._executive_board"] }))).status,
+    ).toBe(200);
+    expect(store().map.has("v:Rhino & Klaw")).toBe(true);
+    expect(store().map.has("m:s.h.i.e.l.d._executive_board")).toBe(true);
+  });
+
+  it("cannot gain a key from invented ids, however many arrive", async () => {
+    const { call, env } = setup();
+    for (let i = 0; i < 40; i++) {
+      const res = await post(call, game(i, { villain: `Junk${i}`, modulars: [`junk_${i}`] }), {
+        "CF-Connecting-IP": `10.1.0.${i}`,
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(env.GLOBAL_STATS.instances.size).toBe(0);
+  });
+});
+
 describe("counting", () => {
   it("counts a game into villain, modular, hero and card rows", async () => {
     const { call, store } = setup();
@@ -141,7 +190,7 @@ describe("counting", () => {
     const map = store().map;
     expect(map.get("v:Rhino")).toEqual({ games: 1, wins: 0, causes: { villain: 1 } });
     expect(map.get("m:bomb_scare")).toEqual({ games: 1, wins: 0, causes: { villain: 1 } });
-    expect(map.get("h:spider_man")).toEqual({ games: 1, wins: 0, causes: { villain: 1 } });
+    expect(map.get("h:01001a")).toEqual({ games: 1, wins: 0, causes: { villain: 1 } });
     expect(map.get("c:Rhino")).toEqual({
       wins: 0,
       losses: 1,
@@ -153,12 +202,12 @@ describe("counting", () => {
   it("counts a hero once per game and a deck card per seat", async () => {
     const { call, store } = setup();
     const seats = [
-      { hero: "a", aspects: [], deck: ["shared", "only_a"] },
-      { hero: "b", aspects: [], deck: ["shared"] },
+      { hero: "01001a", aspects: [], deck: ["shared", "only_a"] },
+      { hero: "01010a", aspects: [], deck: ["shared"] },
     ];
     await post(call, game(1, { seats, modulars: [] }));
-    expect(store().map.get("h:a")).toMatchObject({ games: 1 });
-    expect(store().map.get("h:b")).toMatchObject({ games: 1 });
+    expect(store().map.get("h:01001a")).toMatchObject({ games: 1 });
+    expect(store().map.get("h:01010a")).toMatchObject({ games: 1 });
     expect(store().map.get("c:Rhino")).toMatchObject({ wins: 2, inWins: { shared: 2, only_a: 1 } });
   });
 
@@ -222,74 +271,10 @@ describe("dedupe month buckets", () => {
     expect([...storage.map.keys()].filter((k) => k.startsWith("g:202601")).length).toBe(0);
     expect(storage.map.has(`g:202609:${idOf(1)}`)).toBe(true);
     expect(storage.map.has(`g:202610:${idOf(2)}`)).toBe(true);
-    // Each step is one paced batch: no more than the batch plus its two bookkeeping rows.
+    // Each step is one paced batch; with the backlog gone the next alarm is next month's.
     expect(storage.alarm).toBe(now + GLOBAL_ALARM_PACE_MS);
-    // Dedupe is clear, so the next steps are the key sweep; the last one sets the next month's alarm.
-    let guard = 0;
-    while (storage.alarm !== Date.UTC(2026, 10, 1, 1) && guard++ < 10) await logic.expire(now);
+    await logic.expire(now);
     expect(storage.alarm).toBe(Date.UTC(2026, 10, 1, 1));
-    const rows = storage.rowsWritten;
-    await logic.expire(now); // swept this month already: nothing to do but re-arm
-    expect(storage.rowsWritten - rows).toBeLessThanOrEqual(1);
-  });
-});
-
-describe("key sweep", () => {
-  it("drops v/m/h rows under 3 games with the villain's card row, frees their keys, and paces itself", async () => {
-    const storage = new MemoryStorage();
-    const logic = new GlobalStatsLogic(storage);
-    const t0 = Date.UTC(2026, 9, 15);
-    // 2 popular villains (3 games each), 250 one-game garbage villains, each with its own modular and hero.
-    for (let i = 0; i < 6; i++) await logic.record(game(i, { villain: `Real${i % 2}` }), t0);
-    for (let i = 0; i < 250; i++) {
-      await logic.record(
-        game(100 + i, {
-          villain: `Junk${i}`,
-          modulars: [`junk_m${i}`],
-          seats: [{ hero: `junk_h${i}`, aspects: [], deck: ["x"] }],
-        }),
-        t0,
-      );
-    }
-    const keysBefore = (storage.map.get("meta") as { keys: number }).keys;
-    expect(keysBefore).toBeGreaterThan(750);
-    // The alarm after the month turns: sweep steps, ten minutes apart, until done.
-    const now = Date.UTC(2026, 10, 1, 1);
-    let steps = 0;
-    while (steps < 50) {
-      steps += 1;
-      const before = storage.rowsWritten;
-      await logic.expire(now + steps * GLOBAL_ALARM_PACE_MS);
-      expect(storage.rowsWritten - before).toBeLessThanOrEqual(122);
-      if (storage.alarm === Date.UTC(2026, 11, 1, 1)) break;
-      expect(storage.alarm).toBe(now + steps * GLOBAL_ALARM_PACE_MS + GLOBAL_ALARM_PACE_MS);
-    }
-    expect(steps).toBeGreaterThan(1);
-    const keys = [...storage.map.keys()];
-    expect(keys.filter((k) => k.startsWith("v:") || k.startsWith("c:")).sort()).toEqual([
-      "c:Real0",
-      "c:Real1",
-      "v:Real0",
-      "v:Real1",
-    ]);
-    expect(keys.some((k) => k.startsWith("m:junk") || k.startsWith("h:junk"))).toBe(false);
-    // The three real rows (bomb_scare 6+250 games stays, spider_man stays) remain.
-    expect(keys).toContain("m:bomb_scare");
-    expect(keys).toContain("h:spider_man");
-    expect((storage.map.get("meta") as { keys: number }).keys).toBe(4 + 2);
-  });
-
-  it("lets a full store take new games again after the sweep", async () => {
-    const storage = new MemoryStorage();
-    const logic = new GlobalStatsLogic(storage);
-    const t0 = Date.UTC(2026, 9, 15);
-    let n = 0;
-    while ((await logic.record(game(n, { villain: `V${n}`, modulars: [] }), t0)).ok) n++;
-    expect((await logic.record(game(90_000, { villain: "Fresh", modulars: [] }), t0)).ok).toBe(false);
-    for (let i = 1; i < 200 && storage.alarm !== Date.UTC(2026, 11, 1, 1); i++) {
-      await logic.expire(Date.UTC(2026, 10, 1, 1) + i * GLOBAL_ALARM_PACE_MS);
-    }
-    expect((await logic.record(game(90_001, { villain: "Fresh", modulars: [] }), Date.UTC(2026, 10, 2))).ok).toBe(true);
   });
 });
 
@@ -340,7 +325,7 @@ describe("store caps", () => {
     expect(Number(capped.headers.get("Retry-After"))).toBeGreaterThan(0);
     meta.dayCount = 0;
     meta.keys = GLOBAL_MAX_KEYS;
-    const full = await post(call, game(3, { villain: "Brand New" }));
+    const full = await post(call, game(3, { villain: "Klaw" }));
     expect(full.status).toBe(507);
     expect(((await full.json()) as GlobalError).reason).toBe("full");
   });
@@ -352,8 +337,8 @@ describe("store caps", () => {
     for (let g = 0; g < 400; g++) {
       const deck = Array.from({ length: 80 }, (_, i) => id(g, i));
       const seats = [
-        { hero: "a", aspects: [], deck },
-        { hero: "b", aspects: [], deck },
+        { hero: "01001a", aspects: [], deck },
+        { hero: "01010a", aspects: [], deck },
       ];
       expect(await logic.record(game(g, { seats, modulars: [] }), START)).toEqual({ ok: true, counted: true });
     }
@@ -363,7 +348,8 @@ describe("store caps", () => {
   it("bounds a card row by evicting cards seen once, keeping popular ones and counting the game", async () => {
     const storage = new MemoryStorage();
     const logic = new GlobalStatsLogic(storage);
-    const keep = (g: number) => game(g, { seats: [{ hero: "h", aspects: [], deck: ["popular_card"] }], modulars: [] });
+    const keep = (g: number) =>
+      game(g, { seats: [{ hero: "01001a", aspects: [], deck: ["popular_card"] }], modulars: [] });
     await logic.record(keep(1000), START);
     await logic.record(keep(1001), START);
     for (let g = 0; g < 80; g++) {
@@ -371,7 +357,7 @@ describe("store caps", () => {
         { length: 80 },
         (_, i) => `card_${String(g).padStart(3, "0")}_${String(i).padStart(3, "0")}_xxxxxxxxxxxxxxxx`,
       );
-      const out = await logic.record(game(g, { seats: [{ hero: "h", aspects: [], deck }], modulars: [] }), START);
+      const out = await logic.record(game(g, { seats: [{ hero: "01001a", aspects: [], deck }], modulars: [] }), START);
       expect(out).toEqual({ ok: true, counted: true });
     }
     const row = storage.map.get("c:Rhino") as { wins: number; inWins: Record<string, number> };
@@ -379,15 +365,18 @@ describe("store caps", () => {
     expect(JSON.stringify(row).length).toBeLessThanOrEqual(GLOBAL_MAX_CARD_ROW_BYTES);
     expect(row.inWins.popular_card).toBe(2);
     // A new card is not refused once the row is full: it replaces an older single.
-    await logic.record(game(500, { seats: [{ hero: "h", aspects: [], deck: ["fresh_card"] }], modulars: [] }), START);
+    await logic.record(
+      game(500, { seats: [{ hero: "01001a", aspects: [], deck: ["fresh_card"] }], modulars: [] }),
+      START,
+    );
     expect((storage.map.get("c:Rhino") as { inWins: Record<string, number> }).inWins.fresh_card).toBe(1);
   });
 
   it("treats inherited object names as ordinary card names and refuses __proto__", async () => {
     const { call, store } = setup();
     const deck = ["constructor", "toString", "hasOwnProperty", "valueOf"];
-    expect((await post(call, game(1, { seats: [{ hero: "h", aspects: [], deck }] }))).status).toBe(200);
-    expect((await post(call, game(2, { seats: [{ hero: "h", aspects: [], deck }] }))).status).toBe(200);
+    expect((await post(call, game(1, { seats: [{ hero: "01001a", aspects: [], deck }] }))).status).toBe(200);
+    expect((await post(call, game(2, { seats: [{ hero: "01001a", aspects: [], deck }] }))).status).toBe(200);
     const row = store().map.get("c:Rhino") as { inWins: Record<string, number> };
     expect(Object.fromEntries(Object.entries(row.inWins))).toEqual({
       constructor: 2,
@@ -395,7 +384,7 @@ describe("store caps", () => {
       hasOwnProperty: 2,
       valueOf: 2,
     });
-    const bad = await post(call, game(3, { seats: [{ hero: "h", aspects: [], deck: ["__proto__"] }] }));
+    const bad = await post(call, game(3, { seats: [{ hero: "01001a", aspects: [], deck: ["__proto__"] }] }));
     expect(bad.status).toBe(400);
   });
 });
@@ -511,7 +500,7 @@ describe("reads", () => {
   it("hides rows under the minimum and orders the rest", async () => {
     const { call } = setup();
     await fill(call, GLOBAL_MIN_GAMES);
-    await fill(call, GLOBAL_MIN_GAMES - 1, 1000, { villain: "Klaw", modulars: ["rare_set"] });
+    await fill(call, GLOBAL_MIN_GAMES - 1, 1000, { villain: "Klaw", modulars: ["m.o.d.o.k."] });
     const res = await get(call, "/global/stats");
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
     const stats = (await res.json()) as GlobalStats;
@@ -519,7 +508,7 @@ describe("reads", () => {
     expect(stats.villains.map((r) => r.key)).toEqual(["Rhino"]);
     expect(stats.modulars.map((r) => r.key)).toEqual(["bomb_scare"]);
     expect(stats.heroes[0]).toEqual({
-      key: "spider_man",
+      key: "01001a",
       games: GLOBAL_MIN_GAMES * 2 - 1,
       wins: stats.heroes[0]!.wins,
       causes: stats.heroes[0]!.causes,
@@ -548,8 +537,8 @@ describe("reads", () => {
     const { call } = setup();
     await fill(call, GLOBAL_MIN_GAMES - 1);
     expect((await get(call, "/global/cards?villain=Rhino")).status).toBe(404);
-    await post(call, game(900, { seats: [{ hero: "spider_man", aspects: [], deck: ["card_a", "rare_card"] }] }));
-    await post(call, loss(901, "scheme", { seats: [{ hero: "spider_man", aspects: [], deck: ["rare_card"] }] }));
+    await post(call, game(900, { seats: [{ hero: "01001a", aspects: [], deck: ["card_a", "rare_card"] }] }));
+    await post(call, loss(901, "scheme", { seats: [{ hero: "01001a", aspects: [], deck: ["rare_card"] }] }));
     const res = await get(call, "/global/cards?villain=Rhino");
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");

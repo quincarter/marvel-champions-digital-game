@@ -38,11 +38,12 @@
 // state and its alarm), so 16 at the worst. Reads write no limiter row (their allowance is counted in memory) and only one
 // summary row an hour in GlobalStats. Per IP: 60 results a day is at most 960 rows, and 120 reads an hour cost none.
 // Whole store: 3,000 results a day at the worst is 3,000 x 16 = 48,000 rows of the 100,000. Maintenance is an alarm
-// step every 10 minutes while there is a backlog (old dedupe rows, then once a month the sweep of aggregate rows
-// under 3 games): at most 144 x 122 = 17,600 rows a day, normally a few thousand a month. The summary read at 24 rows
-// a day is noise. Worst day in total is about 66,000 rows, leaving the rest for sync. Dedupe rows go once two months
-// old, and the store holds at most 3,000 aggregate rows. GLOBAL_STATS_ENABLED is the kill switch: anything but "true"
-// makes every /global route answer 503.
+// step every 10 minutes while old dedupe rows remain: at most 144 x 102 = 14,700 rows a day, normally a few hundred a
+// month. The summary read at 24 rows a day is noise. Worst day in total is about 63,000 rows, leaving the rest for
+// sync. Dedupe rows go once two months old. The store only takes games whose villain, modular sets and heroes are on
+// the generated allowlist (src/global-allowlist.ts, checked against the client's card pool by a client test), so it
+// holds about 1,000 aggregate rows; GLOBAL_MAX_KEYS (5,000) is a backstop real content never reaches. GLOBAL_STATS_ENABLED
+// is the kill switch: anything but "true" makes every /global route answer 503.
 //
 // Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
 // var, so it is not listed below; when it is set, a transfer upload and a sync space creation must carry a valid CF-Turnstile-Response header.

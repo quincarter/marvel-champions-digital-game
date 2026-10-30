@@ -27,21 +27,20 @@ import {
 
 /** Results the whole store takes per UTC day. */
 export const GLOBAL_RESULTS_PER_DAY = 3000;
-/** Distinct v/m/h/c rows; past it a game that needs a new one answers `full`. */
-export const GLOBAL_MAX_KEYS = 3000;
+/**
+ * Distinct v/m/h/c rows; past it a game that needs a new one answers `full`. The Worker's allowlist (`global-allowlist.ts`)
+ * is what bounds the store, about 1,000 rows for the whole pool plus any two-villain joins; this is a backstop that real
+ * content never reaches.
+ */
+export const GLOBAL_MAX_KEYS = 5000;
 /** A `c:` row's size as JSON; past it, cards seen in one deck only are evicted to make room. */
 export const GLOBAL_MAX_CARD_ROW_BYTES = 100 * 1024;
 /** A card in fewer decks than this is left out of `GET /global/cards`. */
 export const GLOBAL_MIN_CARD_DECKS = 3;
 export const GLOBAL_SUMMARY_TTL_MS = 60 * 60 * 1000;
 const DEDUPE_BATCH = 100;
-/** Time between alarm steps (a dedupe batch or a sweep batch). */
+/** Time between alarm steps (a dedupe batch). */
 export const GLOBAL_ALARM_PACE_MS = 10 * 60 * 1000;
-/** The monthly sweep drops a v/m/h row with fewer games than this. */
-export const GLOBAL_MIN_KEEP_GAMES = 3;
-/** Rows a sweep step lists; a villain deletes two rows, so a step deletes at most 120 (the 128-key limit). */
-const SWEEP_BATCH = 60;
-const SWEEP_PREFIXES = ["v:", "m:", "h:"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface Meta {
@@ -52,9 +51,6 @@ interface Meta {
   dayCount: number;
   /** When the alarm is set for; 0 or absent when none is. */
   alarmAt?: number;
-  /** The month (yyyymm) the key sweep last finished, and where an unfinished one stands. */
-  sweptMonth?: string;
-  sweep?: { p: number; after: string };
 }
 
 interface AggregateRow {
@@ -227,11 +223,9 @@ export class GlobalStatsLogic {
   }
 
   /**
-   * The alarm. Each run does one small paced step, either a batch of dedupe rows older than the previous month, or (once
-   * those are gone, once a month) a batch of the key sweep that drops v/m/h rows under GLOBAL_MIN_KEEP_GAMES games, with
-   * a villain's `c:` row, so garbage ids cannot hold the key cap forever. A step is at most 120 deletes (sweep) or 100
-   * (dedupe) plus the meta row and the alarm; steps are GLOBAL_ALARM_PACE_MS apart, so maintenance writes at most
-   * 144 x 122 = 17,600 rows a day, and only while a backlog lasts (a month's sweep of a full store is about 50 steps).
+   * The alarm. Each run drops one batch of dedupe rows older than the previous month, then waits GLOBAL_ALARM_PACE_MS
+   * before the next, so a backlog writes at most 144 x 102 = 14,700 rows a day (100 deletes, the meta row and the
+   * alarm per step). With none left it sleeps until the next month, or until the next game if there are no rows at all.
    */
   async expire(now: number): Promise<void> {
     const meta = await this.storage.get<Meta>("meta");
@@ -243,49 +237,11 @@ export class GlobalStatsLogic {
     if (old.length > 0) {
       await this.storage.delete(old);
       next = now + GLOBAL_ALARM_PACE_MS;
-    } else if (!(await this.sweepStep(meta, monthOf(now)))) {
-      next = now + GLOBAL_ALARM_PACE_MS;
     } else {
       next = listed.size > 0 ? nextMonthAlarm(now) : 0;
     }
     meta.alarmAt = next;
     await this.storage.put("meta", meta);
     if (next) await this.storage.setAlarm(next);
-  }
-
-  /** One batch of the monthly key sweep; true when the month's sweep is finished. Mutates `meta`. */
-  private async sweepStep(meta: Meta, month: string): Promise<boolean> {
-    if (meta.sweptMonth === month) return true;
-    const sweep = meta.sweep ?? { p: 0, after: "" };
-    const prefix = SWEEP_PREFIXES[sweep.p]!;
-    const listed = await this.storage.list<AggregateRow>({ prefix, start: sweep.after || prefix, limit: SWEEP_BATCH });
-    const doomed: string[] = [];
-    let last = sweep.after;
-    for (const [key, row] of listed) {
-      last = key;
-      if (key === sweep.after) continue;
-      if (row.games >= GLOBAL_MIN_KEEP_GAMES) continue;
-      doomed.push(key);
-      // A villain's card row goes with it.
-      if (prefix === "v:") doomed.push(`c:${key.slice(2)}`);
-    }
-    if (doomed.length > 0) {
-      const existing = await this.storage.get<unknown>(doomed);
-      const gone = doomed.filter((key) => existing.has(key));
-      if (gone.length > 0) await this.storage.delete(gone);
-      meta.keys = Math.max(0, meta.keys - gone.length);
-    }
-    if (listed.size < SWEEP_BATCH) {
-      // This prefix is done.
-      if (sweep.p + 1 < SWEEP_PREFIXES.length) {
-        meta.sweep = { p: sweep.p + 1, after: "" };
-        return false;
-      }
-      delete meta.sweep;
-      meta.sweptMonth = month;
-      return true;
-    }
-    meta.sweep = { p: sweep.p, after: last };
-    return false;
   }
 }

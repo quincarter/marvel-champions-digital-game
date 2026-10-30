@@ -138,12 +138,17 @@ six hours and keeps a stale copy; nothing is asked for until a screen needs it.
 
 **Limits on the free plan.** A game writes about 6 rows and at worst 14, plus about 2 in the caller's rate limiter. A
 repeat writes none. Per IP: 60 results a day and 120 reads an hour; reads write no rows. Across everyone: 3,000 results a
-day, and 3,000 distinct rows, past which a game that needs a new row is refused. On the worst day that is about 66,000 of
-the 100,000 daily rows, maintenance included (the monthly clean-up runs one small step every 10 minutes). The Worker
-does not know the card pool, so it checks shapes, not meaning. The cap on distinct rows and a monthly sweep of rows under
-3 games keep made-up ids from growing the store for good; a store filled by a flood stays full until the next sweep, and
-the client shows only heroes, villains and sets it knows, so made-up names never reach a player. `GLOBAL_STATS_ENABLED`
-in `wrangler.jsonc` is the kill switch: every `/global` route answers 503.
+day. On the worst day that is about 63,000 of the 100,000 daily rows, the monthly clean-up of old ids included (one
+small step every 10 minutes). `GLOBAL_STATS_ENABLED` in `wrangler.jsonc` is the kill switch: every `/global` route
+answers 503.
+
+**Only real content takes a row.** `packages/sync-worker/src/global-allowlist.ts` lists every villain, modular set and
+hero, generated from the card pool, and the Worker refuses a result naming anything else, so made-up ids cannot add rows
+or reach a player. A client test fails when the list is stale and prints the command to regenerate it. Two limits
+remain. Deck card ids are not checked, since they cost no rows and a card row has a byte cap; a forged id can sit in one
+until it is pushed out. Each part of a two-villain name is checked alone, so an invented pairing of real villains is
+accepted; 5,000 distinct rows is the backstop for that. Past it, a game that needs a new row is refused, while games
+that touch existing rows still count.
 
 The game never depends on any of this. With the Worker down, uploads wait for a later launch without a word, and the
 Everyone toggle says the numbers are unavailable.

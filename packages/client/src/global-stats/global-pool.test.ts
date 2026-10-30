@@ -1,4 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
+import {
+  GLOBAL_ALLOWED_HEROES,
+  GLOBAL_ALLOWED_MODULARS,
+  GLOBAL_ALLOWED_VILLAINS,
+} from "@mc/sync-worker/global-allowlist";
 import {
   GLOBAL_KEY_PATTERN,
   GLOBAL_VILLAIN_PATTERN,
@@ -65,5 +71,73 @@ describe("the real pool against the protocol's patterns", () => {
     expect(parseGlobalResult(JSON.parse(JSON.stringify(lostResult)))).toEqual(lostResult);
     const sent = result!.seats as readonly GlobalSeat[];
     expect(sent).toHaveLength(heroes.length);
+  });
+});
+
+/** The Worker's allowlist (`packages/sync-worker/src/global-allowlist.ts`) as the pool says it should read. */
+const sorted = (values: Iterable<string>): string[] => [...new Set(values)].sort();
+function expectedAllowlist() {
+  const cards = [...CARDS_BY_ID.values()];
+  return {
+    villains: sorted([
+      ...cards.filter((c) => c.type === "villain").map((c) => c.name),
+      ...POOL_SCENARIOS.map((s) => s.name),
+    ]),
+    modulars: sorted(POOL_ENCOUNTER_SETS.map((s) => s.id as string)),
+    heroes: sorted(cards.filter((c) => c.type === "hero_identity").map((c) => c.id as string)),
+  };
+}
+const list = (name: string, values: readonly string[], doc: string) =>
+  [
+    `/** ${doc} */`,
+    `export const ${name}: readonly string[] = [`,
+    ...values.map((v) => `  ${JSON.stringify(v)},`),
+    "];",
+    "",
+  ].join("\n");
+function allowlistSource(want: ReturnType<typeof expectedAllowlist>): string {
+  return [
+    "/**",
+    " * GENERATED FILE, do not edit by hand. The Worker only counts games whose villain, encounter sets and heroes it knows,",
+    " * which bounds the store. Regenerate after the card pool changes with:",
+    " *   UPDATE_GLOBAL_ALLOWLIST=1 pnpm --filter @mc/client exec vitest run src/global-stats/global-pool.test.ts",
+    " * then `pnpm exec oxfmt packages/sync-worker/src/global-allowlist.ts`. A test in the client fails when it drifts.",
+    " */",
+    "",
+    list(
+      "GLOBAL_ALLOWED_VILLAINS",
+      want.villains,
+      "Villain card names and scenario names (a two-villain game joins parts with ` & `).",
+    ),
+    list("GLOBAL_ALLOWED_MODULARS", want.modulars, "Encounter set ids."),
+    list("GLOBAL_ALLOWED_HEROES", want.heroes, "Hero identity card ids (what a seat's identityCardId holds)."),
+  ].join("\n");
+}
+const ALLOWLIST_FILE = new URL("../../../sync-worker/src/global-allowlist.ts", import.meta.url);
+
+describe("the Worker's allowlist", () => {
+  test("matches the pool (regenerate with UPDATE_GLOBAL_ALLOWLIST=1)", () => {
+    const want = expectedAllowlist();
+    if (process.env.UPDATE_GLOBAL_ALLOWLIST === "1") writeFileSync(ALLOWLIST_FILE, allowlistSource(want));
+    const have = {
+      villains: [...GLOBAL_ALLOWED_VILLAINS],
+      modulars: [...GLOBAL_ALLOWED_MODULARS],
+      heroes: [...GLOBAL_ALLOWED_HEROES],
+    };
+    const hint =
+      "packages/sync-worker/src/global-allowlist.ts is out of date. Regenerate it with:\n" +
+      "  UPDATE_GLOBAL_ALLOWLIST=1 pnpm --filter @mc/client exec vitest run src/global-stats/global-pool.test.ts\n" +
+      "  pnpm exec oxfmt packages/sync-worker/src/global-allowlist.ts";
+    if (process.env.UPDATE_GLOBAL_ALLOWLIST !== "1" && JSON.stringify(have) !== JSON.stringify(want)) {
+      throw new Error(hint);
+    }
+    expect(readFileSync(ALLOWLIST_FILE, "utf8")).toContain("GENERATED FILE");
+  });
+
+  test("every pool game's villain, sets and heroes are on it", () => {
+    const want = expectedAllowlist();
+    expect(want.villains.length).toBeGreaterThan(10);
+    expect(want.modulars.length).toBeGreaterThan(10);
+    expect(want.heroes.length).toBeGreaterThan(10);
   });
 });
