@@ -131,6 +131,7 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
           "pane:games",
           "stats-check",
           ...(input.editable ? ["stats-edit", "stats-delete"] : []),
+          "games-against",
           "games-open",
           "stats-duplicate",
           "stats-play",

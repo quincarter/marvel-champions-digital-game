@@ -26,7 +26,7 @@ const usage = {
   plays: { webs: 2 },
   activations: {},
 };
-const INSIGHTS: DeckInsights = { heroes: { spidey: usage }, decks: {} };
+const INSIGHTS: DeckInsights = { heroes: { spidey: usage }, decks: {}, villains: {} };
 
 describe("cardPlaySectionOf", () => {
   test("a player card: titled with the hero in a game, plainly outside one", () => {
@@ -41,13 +41,13 @@ describe("cardPlaySectionOf", () => {
   test("nothing for an encounter card, an identity, or a card never in a deck", () => {
     expect(cardPlaySectionOf(INSIGHTS, "minion", null, NAMES)).toBeNull();
     expect(cardPlaySectionOf(INSIGHTS, "spidey", null, NAMES)).toBeNull();
-    expect(cardPlaySectionOf({ heroes: {}, decks: {} }, "webs", null, NAMES)).toBeNull();
+    expect(cardPlaySectionOf({ heroes: {}, decks: {}, villains: {} }, "webs", null, NAMES)).toBeNull();
   });
 });
 
 describe("deckInsightsNow", () => {
   // A stand-in fold: the real one loads the whole pool, which is slow under a full parallel run.
-  const fold = async (): Promise<DeckInsights> => ({ heroes: {}, decks: {} });
+  const fold = async (): Promise<DeckInsights> => ({ heroes: {}, decks: {}, villains: {} });
   test("reuses the fold for 30 s, then reads the saves again", async () => {
     let reads = 0;
     const listSaves = async () => {

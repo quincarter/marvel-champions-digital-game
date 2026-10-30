@@ -91,6 +91,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.powerSavingNotice,
   // Device sync's prompt over everything but the music and report chrome, and the watcher that opens it.
   SCENES.syncSetupPrompt,
+  SCENES.globalStatsPrompt,
   // The achievement popup draws above the setup question (it takes no input; a stack's own tap target is its own).
   SCENES.achievementToast,
   // The controller toast: a notice with one button, over everything but the sync prompts and the chrome.

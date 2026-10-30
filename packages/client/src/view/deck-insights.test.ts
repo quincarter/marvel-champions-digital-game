@@ -3,7 +3,7 @@ import type { SessionConfig } from "../engine/host.js";
 import { SAVE_SCHEMA, type SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import type { StatsNames } from "./player-stats-model.js";
-import { cardPlayOf, deckInsightsOf, fromYourGamesOf } from "./deck-insights.js";
+import { againstVillainOf, cardPlayOf, deckInsightsOf, fromYourGamesOf, villainsFacedOf } from "./deck-insights.js";
 
 const CARDS: Record<string, { name: string; type: string; aspect?: string }> = {
   spidey: { name: "Spider-Man (Peter Parker)", type: "hero_identity" },
@@ -67,6 +67,66 @@ const game = (won: boolean, s: SeatSummary = seat(), extra: Partial<SaveMeta> = 
     ...extra,
   };
 };
+
+describe("against a villain", () => {
+  const against = (villain: string, won: boolean, deck: readonly string[]): SaveMeta => {
+    const base = game(won, seat({ deck }));
+    return { ...base, summary: { ...base.summary!, villains: [villain] } };
+  };
+  const saves = [
+    against("Klaw", true, ["webs", "first", "bot"]),
+    against("Klaw", true, ["webs", "first"]),
+    against("Klaw", false, ["webs", "bot"]),
+    against("Rhino", true, ["webs"]),
+  ];
+  const insights = deckInsightsOf(saves, NAMES);
+
+  test("each villain gathers the decks that won and lost to it", () => {
+    expect(insights.villains.Klaw).toEqual({
+      wins: 2,
+      losses: 1,
+      inWins: { webs: 2, first: 2, bot: 1 },
+      inLosses: { webs: 1, bot: 1 },
+    });
+  });
+
+  test("a game without card numbers is not counted", () => {
+    const { summary: _none, ...bare } = against("Klaw", true, ["webs"]);
+    expect(deckInsightsOf([bare as SaveMeta], NAMES).villains).toEqual({});
+  });
+
+  test("villains faced, most first", () => {
+    expect(villainsFacedOf(insights)).toEqual(["Klaw", "Rhino"]);
+  });
+
+  test("try: cards leaning to your wins that this deck lacks and may take; cut: those leaning to your losses", () => {
+    const view = againstVillainOf(insights, "Klaw", "spidey", ["webs", "bot"], ["justice"], NAMES)!;
+    expect(view.headline).toBe("Against Klaw · 2 wins, 1 loss");
+    expect(view.tryCards).toEqual([{ cardId: "first", detail: "In 2 of 2 wins · 0 of 1 loss" }]);
+    expect(view.cutCards).toEqual([{ cardId: "bot", detail: "In 1 of 2 wins · 1 of 1 loss" }]);
+    expect(view.note).toBeNull();
+  });
+
+  test("a card another aspect's deck won with is not offered", () => {
+    const other = deckInsightsOf([against("Klaw", true, ["tac"]), against("Klaw", false, [])], NAMES);
+    expect(againstVillainOf(other, "Klaw", "spidey", [], ["justice"], NAMES)!.tryCards).toEqual([]);
+    const own = againstVillainOf(other, "Klaw", "spidey", [], ["aggression"], NAMES)!;
+    expect(own.tryCards.map((c) => c.cardId)).toEqual(["tac"]);
+  });
+
+  test("the hero's own card is never offered to cut", () => {
+    const lost = deckInsightsOf([against("Klaw", true, []), against("Klaw", false, ["aunt"])], NAMES);
+    const view = againstVillainOf(lost, "Klaw", "spidey", ["aunt"], ["justice"], NAMES)!;
+    expect(view.cutCards).toEqual([]);
+  });
+
+  test("one deck is too little to say anything; a villain never faced is null", () => {
+    const view = againstVillainOf(insights, "Rhino", "spidey", [], ["justice"], NAMES)!;
+    expect(view.tryCards).toEqual([]);
+    expect(view.note).toContain("few more times");
+    expect(againstVillainOf(insights, "Ultron", "spidey", [], ["justice"], NAMES)).toBeNull();
+  });
+});
 
 describe("deckInsightsOf", () => {
   test("a hero and a deck each gather their games, cards in the deck, and cards that came out", () => {

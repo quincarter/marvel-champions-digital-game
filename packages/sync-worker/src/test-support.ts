@@ -3,7 +3,7 @@
  * directly (one instance per name, like the real thing). Not part of the Worker bundle.
  */
 
-import { RateLimiter, SyncSpace, TransferRoom } from "./durable-objects.js";
+import { GlobalStats, RateLimiter, SyncSpace, TransferRoom } from "./durable-objects.js";
 import type { DurableObjectNamespaceLike, Env, KeyValueStorage } from "./env.js";
 
 export class MemoryStorage implements KeyValueStorage {
@@ -107,6 +107,7 @@ export interface TestEnv extends Env {
   TRANSFER_ROOM: FakeNamespace<TransferRoom>;
   RATE_LIMITER: FakeNamespace<RateLimiter>;
   SYNC_SPACE: FakeNamespace<SyncSpace>;
+  GLOBAL_STATS: FakeNamespace<GlobalStats>;
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
@@ -114,8 +115,10 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
     TRANSFER_ROOM: fakeNamespace((storage) => new TransferRoom({ storage })),
     RATE_LIMITER: fakeNamespace((storage) => new RateLimiter({ storage })),
     SYNC_SPACE: fakeNamespace((storage) => new SyncSpace({ storage })),
+    GLOBAL_STATS: fakeNamespace((storage) => new GlobalStats({ storage })),
     TRANSFERS_ENABLED: "true",
     SYNC_ENABLED: "true",
+    GLOBAL_STATS_ENABLED: "true",
     MAX_UPLOAD_BYTES: "1000",
     ALLOWED_ORIGINS:
       "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*",

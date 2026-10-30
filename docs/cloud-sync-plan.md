@@ -33,8 +33,12 @@ Free-plan limits that matter here (Cloudflare's published numbers, October 2026)
    commands to the other seats over WebSockets (hibernatable, so idle tables cost nothing). The engine stays
    authoritative on the host; the relay only forwards. See PLAN.md's multiplayer phase.
 
-The Worker is shaped for all three: routes are grouped by feature (`/transfer`, `/sync`), each feature has its own
-Durable Object class (`TransferRoom`, `SyncSpace`), and the rate limiter, CORS and kill switches are shared.
+4. **Global win rates (done, #542).** Opt-in, anonymous results from finished games. Described at the end of this
+   page.
+
+The Worker is shaped for all of these: routes are grouped by feature (`/transfer`, `/sync`, `/global`), each feature has
+its own Durable Object class (`TransferRoom`, `SyncSpace`, `GlobalStats`), and the rate limiter, CORS and kill switches
+are shared.
 
 ## Step 2: sync across devices
 
@@ -106,3 +110,43 @@ Worker, though, holds the proof and the ciphertext during those 15 minutes and c
 which would reveal the recovery code and so lasting access to that player's space. The owner accepted that for game
 saves. The QR link and the recovery code don't have this weakness, and a player who wants to avoid it can always use
 them.
+
+## Global win rates
+
+**For the player.** Your stats' Heroes, Villains and Encounter tabs have an Everyone / You toggle, and the deck
+builder's Against list can read everyone's winning decks. Reading those numbers needs no consent and sends nothing about
+the player. Contributing to them is opt-in: off by default, asked once with an explanation of exactly what is sent, and
+changeable in Settings. Consent is per device, in a local key that sync does not carry: a device that has opted in also
+sends a finished game that syncs onto it from another device, because the save does not say which device finished it.
+
+**What is sent, after each game finished once opted in:** the villain's name, the difficulty, the modular set ids, each
+seat's hero, aspects and deck card ids, the result and the loss cause. Nothing else: no sync space id, no device id, no
+player or deck names, no save id, no seed, no timestamps. The contract is
+`packages/sync-worker/src/global-protocol.ts`, and a client test pins the exact fields.
+
+**Counted once.** A result's id is a SHA-256 of a fixed prefix and the game's save id, cut to 32 hex characters. The same
+game synced to two devices counts once, and the id cannot be tied back to the save. The Worker keeps seen ids in monthly
+buckets and drops any older than the month before, and the client never sends a game over 28 days old, so a late retry
+cannot count twice. A conflict resolved by "keep both" does make a new game. The rate limiter holds an IP for a day, as it does for
+sync. The Worker stores no IP with a result and no time per game beyond the month bucket, and logs nothing from a request.
+
+**How it works** (client in `packages/client/src/global-stats/`, server in `packages/sync-worker/src/global-*.ts`). One
+`GlobalStats` Durable Object, named `global`, keeps one row per villain, modular set and hero, and one row per villain
+of deck cards. Rows with fewer than 20 games are never served, and a card in fewer than 3 decks is left out. `GET
+/global/stats` serves a stored summary rebuilt at most hourly, so a read costs one row. The client caches answers for
+six hours and keeps a stale copy; nothing is asked for until a screen needs it.
+
+**Limits on the free plan.** A game writes about 6 rows and at worst 20, plus about 2 in the caller's rate limiter. A
+repeat writes none. Per IP: 60 results a day and 120 reads an hour; reads write no rows. Across everyone: 3,000 results a
+day. On the worst day that is about 81,000 of the 100,000 daily rows, the monthly clean-up of old ids included (one
+small step every 10 minutes). `GLOBAL_STATS_ENABLED` in `wrangler.jsonc` is the kill switch: every `/global` route
+answers 503.
+
+**Only real content takes a row.** `packages/sync-worker/src/global-allowlist.ts` lists every villain, modular set and
+hero, generated from the card pool, and the Worker refuses a result naming anything else, so made-up ids cannot add rows
+or reach a player. A client test fails when the list is stale and prints the command to regenerate it. One limit
+remains: deck card ids are not checked, since they cost no rows and a card row has a byte cap, so a forged id can sit in
+one until it is pushed out. A game against several villains counts for each of them, so a joined name never takes a row.
+
+The game never depends on any of this. With the Worker down, uploads wait for a later launch without a word, and the
+Everyone toggle says the numbers are unavailable.

@@ -47,9 +47,23 @@ export interface HeroUsage extends Readonly<Tally> {
 /** One deck's games and what its cards did in them. */
 export type DeckPlay = HeroUsage;
 
+/**
+ * The decks you brought against one villain (only games with card counts): a seat is one deck, so a two-hero win is two
+ * winning decks. Every hero's together, since a card that beats a villain is worth knowing whoever played it.
+ */
+export interface VillainDecks {
+  readonly wins: number;
+  readonly losses: number;
+  /** Card id to the winning decks it was in, and to the losing decks. */
+  readonly inWins: Readonly<Record<string, number>>;
+  readonly inLosses: Readonly<Record<string, number>>;
+}
+
 export interface DeckInsights {
   readonly heroes: Readonly<Record<string, HeroUsage>>;
   readonly decks: Readonly<Record<DeckKeyString, DeckPlay>>;
+  /** By the villain's name as Your stats gives it. */
+  readonly villains: Readonly<Record<string, VillainDecks>>;
 }
 
 const blank = (): {
@@ -119,6 +133,10 @@ function addGame(into: Mutable, won: boolean, lossReason: string | null, seat: S
 export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): DeckInsights {
   const heroes: Record<string, Mutable> = {};
   const decks: Record<string, Mutable> = {};
+  const villains: Record<
+    string,
+    { wins: number; losses: number; inWins: Record<string, number>; inLosses: Record<string, number> }
+  > = {};
   for (const meta of saves) {
     if (meta.guided || (meta.status !== "won" && meta.status !== "lost")) continue;
     const won = meta.status === "won";
@@ -132,6 +150,7 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
           : meta.outcome?.reason === "allPlayersDefeated"
             ? "playersDefeated"
             : "other");
+    const villain = villainNameOf(meta, names);
     meta.config.players.forEach((player, index) => {
       const seat = summary?.seats?.[index] ?? null;
       if (seat?.satOut) return;
@@ -141,14 +160,21 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
       if (identity) addGame((heroes[identity] ??= blank()), won, lossReason, seat);
       const key = deckKeyOfPlayer(player);
       if (key) addGame((decks[key] ??= blank()), won, lossReason, seat);
+      if (!seat) return;
+      const against = (villains[villain] ??= { wins: 0, losses: 0, inWins: {}, inLosses: {} });
+      if (won) against.wins++;
+      else against.losses++;
+      for (const id of seat.deck) bump(won ? against.inWins : against.inLosses, id);
     });
   }
-  return { heroes, decks };
+  return { heroes, decks, villains };
 }
 
 /** Player card types the lists name: ones played from hand. Resources are meant to be spent, not played. */
 const PLAYED_TYPES: ReadonlySet<string> = new Set(["ally", "event", "support", "upgrade"]);
 const LIST = 3;
+/** Decks faced before a villain's card lists show: one game says nothing about a card. */
+const MIN_DECKS = 2;
 
 export interface SuggestedCard {
   readonly cardId: string;
@@ -171,6 +197,87 @@ export interface FromYourGames {
 }
 
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
+/** The villain's name as Your stats gives it: the game's villains, else its scenario's name on an older save. */
+export function villainNameOf(meta: SaveMeta, names: StatsNames): string {
+  const villains = meta.summary?.villains;
+  if (villains && villains.length > 0) return villains.join(" & ");
+  return names.scenarioName(meta.config.scenarioId) ?? meta.config.scenarioId;
+}
+
+/** Whether this deck may take a card: a basic card, one of the deck's aspects, or the hero's own. */
+const deckTakes = (id: string, identityCardId: string, aspects: readonly string[], names: StatsNames): boolean => {
+  const aspect = names.cardAspect(id) ?? "";
+  return aspect === "basic" || aspects.includes(aspect) || aspect === `hero:${identityCardId}`;
+};
+
+/** Every villain your decks have faced, most faced first: what the "Against" stepper walks. */
+export function villainsFacedOf(insights: DeckInsights): readonly string[] {
+  const decksOf = ({ wins, losses }: VillainDecks): number => wins + losses;
+  return Object.entries(insights.villains)
+    .sort(([a, x], [b, y]) => decksOf(y) - decksOf(x) || a.localeCompare(b))
+    .map(([name]) => name);
+}
+
+/** The note under the "Against" stepper when no card is left to show, here or once a screen's own lists have theirs. */
+export const NOTHING_STANDS_OUT = "No card stands out against this villain yet.";
+
+export interface AgainstVillain {
+  /** "Against Klaw · 4 wins, 2 losses", counting decks. */
+  readonly headline: string;
+  /** Cards this deck could take that lean to your winning decks here, and are not in it. */
+  readonly tryCards: readonly SuggestedCard[];
+  /** Cards in this deck that lean to your losing decks here. */
+  readonly cutCards: readonly SuggestedCard[];
+  /** Why the lists are empty, or null. */
+  readonly note: string | null;
+}
+
+/**
+ * The cards your winning decks against `villain` had and your losing ones did not, and the other way around, against the
+ * deck being built. A card leans by the share of winning decks it was in less the share of losing decks. Suggestions only.
+ */
+export function againstVillainOf(
+  insights: DeckInsights,
+  villain: string,
+  identityCardId: string,
+  deckCards: readonly string[],
+  aspects: readonly string[],
+  names: StatsNames,
+): AgainstVillain | null {
+  const faced = insights.villains[villain];
+  if (!faced) return null;
+  const headline = `Against ${villain} · ${plural(faced.wins, "win")}, ${plural(faced.losses, "loss", "losses")}`;
+  const nameOf = (id: string): string => names.cardName(id) ?? id;
+  const lean = (id: string): number =>
+    (faced.wins > 0 ? (faced.inWins[id] ?? 0) / faced.wins : 0) -
+    (faced.losses > 0 ? (faced.inLosses[id] ?? 0) / faced.losses : 0);
+  const detail = (id: string): string =>
+    `In ${faced.inWins[id] ?? 0} of ${plural(faced.wins, "win")} · ${faced.inLosses[id] ?? 0} of ${plural(faced.losses, "loss", "losses")}`;
+  const played = (id: string): boolean => PLAYED_TYPES.has(names.cardType(id) ?? "");
+  if (faced.wins + faced.losses < MIN_DECKS)
+    return {
+      headline,
+      tryCards: [],
+      cutCards: [],
+      note: "Nothing stands out yet: face this villain a few more times.",
+    };
+  const inDeckNow = new Set(deckCards);
+  const tryCards = Object.keys(faced.inWins)
+    .filter((id) => !inDeckNow.has(id) && played(id) && lean(id) > 0 && deckTakes(id, identityCardId, aspects, names))
+    .sort((a, b) => lean(b) - lean(a) || nameOf(a).localeCompare(nameOf(b)))
+    .slice(0, LIST)
+    .map((id) => ({ cardId: id, detail: detail(id) }));
+  // The hero's own cards are never offered to cut (`fromYourGamesOf`).
+  const cutCards = [...inDeckNow]
+    .filter((id) => (faced.inLosses[id] ?? 0) > 0 && played(id) && lean(id) < 0)
+    .filter((id) => names.cardAspect(id) !== `hero:${identityCardId}`)
+    .sort((a, b) => lean(a) - lean(b) || nameOf(a).localeCompare(nameOf(b)))
+    .slice(0, LIST)
+    .map((id) => ({ cardId: id, detail: detail(id) }));
+  const empty = tryCards.length === 0 && cutCards.length === 0;
+  return { headline, tryCards, cutCards, note: empty ? NOTHING_STANDS_OUT : null };
+}
 
 /**
  * The deck builder's "From your games" tab for the deck being built: `identityCardId`'s games, against the cards in
@@ -248,12 +355,8 @@ export function fromYourGamesOf(
     .sort((a, b) => (usage.usedIn[b] ?? 0) - (usage.usedIn[a] ?? 0) || nameOf(a).localeCompare(nameOf(b)))
     .slice(0, 4)
     .map((id) => ({ cardId: id, detail: `Played in ${usage.usedIn[id]} of ${usage.inDeck[id]}` }));
-  const takes = (id: string): boolean => {
-    const aspect = names.cardAspect(id) ?? "";
-    return aspect === "basic" || aspects.includes(aspect) || aspect === `hero:${identityCardId}`;
-  };
   const tryCards = Object.entries(usage.wonWith)
-    .filter(([id]) => !inDeckNow.has(id) && played(id) && takes(id))
+    .filter(([id]) => !inDeckNow.has(id) && played(id) && deckTakes(id, identityCardId, aspects, names))
     .sort(([a, x], [b, y]) => y - x || nameOf(a).localeCompare(nameOf(b)))
     .slice(0, LIST)
     .map(([id, n]) => ({ cardId: id, detail: `In ${plural(n, "win")} with ${heroName}` }));

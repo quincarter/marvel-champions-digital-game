@@ -131,6 +131,68 @@ describe("playerStatsOf: streaks and losses", () => {
   });
 });
 
+describe("playerStatsOf: why games were lost", () => {
+  const wiped = (defeatedBy?: NonNullable<GameSummary["defeatedBy"]>): SaveMeta =>
+    loss("playersDefeated", {
+      summary: summary({ lossReason: "playersDefeated", ...(defeatedBy ? { defeatedBy } : {}) }),
+    });
+  const games = [
+    meta({ summary: summary() }),
+    loss("schemeCompleted", { summary: summary({ lossReason: "schemeCompleted" }) }),
+    wiped("villainAttack"),
+    wiped("villainAttack"),
+    wiped("minionAttack"),
+    wiped("encounterCard"),
+    wiped(),
+  ];
+
+  test("each villain, hero and modular set breaks its losses down, in one order", () => {
+    const stats = playerStatsOf(
+      games.map((game) => ({ ...game, config: { ...game.config, modularSetIds: ["bomb"] } })),
+      NAMES,
+    );
+    const expected = [
+      { cause: "scheme", label: "Scheme", count: 1 },
+      { cause: "villain", label: "Villain", count: 2 },
+      { cause: "minions", label: "Minions", count: 1 },
+      { cause: "encounter", label: "Encounter cards", count: 1 },
+      { cause: "unknown", label: "Unknown", count: 1 },
+    ];
+    expect(row(section(stats.sections, "villains"), "villain:Rhino").losses).toEqual(expected);
+    expect(row(section(stats.sections, "heroes"), "hero:spidey").losses).toEqual(expected);
+    const encounter = row(section(stats.sections, "encounter"), "enc:set:bomb");
+    expect(encounter.losses).toEqual(expected);
+  });
+
+  test("the win rate is on the row, and a row without losses has no bar", () => {
+    const stats = playerStatsOf([meta({ summary: summary() })], NAMES);
+    const rhino = row(section(stats.sections, "villains"), "villain:Rhino");
+    expect(rhino.detail).toContain("100% won");
+    expect(rhino.losses).toBeUndefined();
+  });
+
+  test("Why you lose names the biggest cause among the games shown", () => {
+    const stats = playerStatsOf(games, NAMES);
+    const why = row(section(stats.sections, "villains"), "villain:why");
+    expect(why.value).toBe("Villain attacks");
+    expect(why.detail).toBe("33% of 6 losses");
+  });
+
+  test("a scenario's own loss is Other; a game with no summary that lost to the wipe is Unknown", () => {
+    const own = meta({
+      status: "lost",
+      outcome: { result: "loss", reason: "cardAbility", sourceInstanceId: "x" as never },
+      summary: summary({ lossReason: "other" }),
+    });
+    const old = meta({ status: "lost", outcome: { result: "loss", reason: "allPlayersDefeated" } });
+    const losses = row(section(playerStatsOf([own, old], NAMES).sections, "villains"), "villain:why").losses;
+    expect(losses?.map((part) => [part.cause, part.count])).toEqual([
+      ["other", 1],
+      ["unknown", 1],
+    ]);
+  });
+});
+
 describe("playerStatsOf: villains", () => {
   test("most faced, beaten by most, and won by scheme or by a wiped table", () => {
     const klaw = { ...CONFIG, scenarioId: "klaw" };
@@ -471,7 +533,7 @@ describe("playerStatsOf: Bluefiref5ran's categories from what the saves hold", (
     );
     const encounter = section(stats.sections, "encounter");
     expect(row(encounter, "enc:worst").value).toBe("Hydra Patrol");
-    expect(row(encounter, "enc:set:bomb")).toMatchObject({ value: "3–0", detail: "3 games" });
+    expect(row(encounter, "enc:set:bomb")).toMatchObject({ value: "3–0", detail: "3 games · 100% won" });
   });
 });
 
