@@ -30,6 +30,8 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
+import { McChipRail } from "../ui/chip-rail.js";
+import { RailScroll } from "../view/rail-scroll.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { clipToView, pageTarget } from "../view/focus-list.js";
@@ -179,6 +181,9 @@ export class PlayerStatsScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   #data: PlayerStatsData = {};
   #buttons: McButton[] = [];
+  /** A phone's tabs, one swipeable row; the scroll outlives each redraw. */
+  #tabRail: McChipRail | null = null;
+  #tabScroll = new RailScroll();
   #list: McVirtualList | null = null;
   #listRect: Rect | null = null;
   #route: FocusRoute | null = null;
@@ -397,6 +402,8 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   #destroyWidgets(): void {
+    this.#tabRail?.destroy();
+    this.#tabRail = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#list?.destroy();
@@ -583,6 +590,46 @@ export class PlayerStatsScene extends Phaser.Scene {
     return y + height;
   }
 
+  /** The tabs as one sideways-scrolling row (`ui/chip-rail.ts`), with the current one brought into view. */
+  #drawTabRail(
+    top: number,
+    left: number,
+    width: number,
+    chips: readonly StatsChip[],
+    at: number,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): number {
+    const height = 44;
+    const rail = new McChipRail(this, {
+      rect: { x: left, y: top, width, height },
+      chips: chips.map((chip) => ({
+        id: chip.key,
+        text: chip.label,
+        selected: chip.selected,
+        onClick: () => {
+          this.#byFocus = false;
+          chip.onClick(false);
+        },
+      })),
+      scroll: this.#tabScroll,
+    });
+    this.#tabRail = rail;
+    rail.scrollIntoView(at);
+    chips.forEach((chip, index) => {
+      stops.set(chip.key, {
+        rect: () => rail.rectFor(index),
+        activate: () => {
+          this.#byFocus = true;
+          chip.onClick(true);
+        },
+        ensureVisible: () => rail.scrollIntoView(index),
+      });
+      order.push(chip.key);
+    });
+    return top + height;
+  }
+
   #draw(): void {
     if (!this.#alive) return;
     this.#destroyWidgets();
@@ -639,29 +686,24 @@ export class PlayerStatsScene extends Phaser.Scene {
     const everyone = sourceTab && lastSource === "everyone";
     // The hero / villain / difficulty filters fold your games only: they are not offered on Everyone.
     const filters = everyone ? [] : this.#filterChips(stats, phone);
-    let y = this.#drawChips(
-      bar.height + 12,
-      gutter,
-      inner,
-      [
-        ...tabs.map((tab, index) => ({
-          key: `tab:${tab.id}`,
-          label: tab.label,
-          selected: tab.id === lastTab,
-          onClick: (byFocus: boolean) => this.#setTab(tab.id, byFocus),
-          glyph:
-            tabs.length > 1 && index === (at - 1 + tabs.length) % tabs.length
-              ? shortcutSpecs("zonePrevious")
-              : tabs.length > 1 && index === (at + 1) % tabs.length
-                ? shortcutSpecs("zoneNext")
-                : null,
-        })),
-        ...(phone ? filters : []),
-      ],
-      stops,
-      order,
-      phone,
-    );
+    const tabChips = tabs.map((tab, index) => ({
+      key: `tab:${tab.id}`,
+      label: tab.label,
+      selected: tab.id === lastTab,
+      onClick: (byFocus: boolean) => this.#setTab(tab.id, byFocus),
+      glyph:
+        tabs.length > 1 && index === (at - 1 + tabs.length) % tabs.length
+          ? shortcutSpecs("zonePrevious")
+          : tabs.length > 1 && index === (at + 1) % tabs.length
+            ? shortcutSpecs("zoneNext")
+            : null,
+    }));
+    // A phone swipes one row of tabs rather than wrapping them to three, which leaves the stats the room; the Filters
+    // chip then takes the row under it.
+    let y = phone
+      ? this.#drawTabRail(bar.height + 12, gutter, inner, tabChips, at, stops, order)
+      : this.#drawChips(bar.height + 12, gutter, inner, tabChips, stops, order, phone);
+    if (phone && filters.length > 0) y = this.#drawChips(y + CHIP_GAP, gutter, inner, filters, stops, order, phone);
     if (sourceTab) y = this.#drawChips(y + 10, gutter, inner, this.#sourceChips(), stops, order, phone);
     if (!phone && filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
 
