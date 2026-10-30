@@ -44,6 +44,7 @@ export const SCENES = {
   extras: "Extras",
   /** Every achievement, the player's rank and lifetime points (`scenes/trophy-room.ts`), reached from Title and Extras. */
   trophyRoom: "TrophyRoom",
+  playerStats: "PlayerStats",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
@@ -163,6 +164,8 @@ export const SCENES = {
   achievementToast: "AchievementToast",
   /** The "Controller connected" toast (`scenes/pad-toast.ts`): runs only while it shows. */
   padToast: "PadToast",
+  /** The "Building your stats" toast (`scenes/backfill-toast.ts`, #529): runs only while older games are filled in. */
+  backfillToast: "BackfillToast",
 } as const;
 
 /** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
@@ -174,6 +177,7 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
   SCENES.padToast,
+  SCENES.backfillToast,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,
 ]);

@@ -28,6 +28,7 @@ describe("settingsSectionsOf", () => {
       "villain-dock",
       "unlocks",
       "save-data",
+      "stats",
       "controls",
       "rules",
       "achievement-popup-time",

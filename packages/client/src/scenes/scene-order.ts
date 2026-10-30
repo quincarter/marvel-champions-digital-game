@@ -63,6 +63,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.rules,
   SCENES.settings,
   SCENES.controls,
+  // Above Settings and Pause: Your stats opens over either as an overlay (and as a screen of its own elsewhere).
+  SCENES.playerStats,
   SCENES.unlocks,
   SCENES.unlockConfirm,
   SCENES.nameConflict,
@@ -92,6 +94,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.achievementToast,
   // The controller toast: a notice with one button, over everything but the sync prompts and the chrome.
   SCENES.padToast,
+  // The stats backfill toast: the same kind of notice, at the bottom.
+  SCENES.backfillToast,
   SCENES.syncConflict,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,

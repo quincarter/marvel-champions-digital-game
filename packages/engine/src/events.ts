@@ -1804,6 +1804,25 @@ export type GameEvent =
   | { readonly type: "preThenUnresolved"; readonly cause: PreThenFailure; readonly instanceId?: InstanceId }
   /** RRG 1.8 "'Then'" (p. 44): the pre-"then" text did not fully resolve, so the post-"then" text was skipped. */
   | { readonly type: "thenSkipped" }
+  /**
+   * A payment spent cards from a hand (`payPayment`: a play's, an ability's, a basic power's, a form change's, or one an
+   * effect or a prompt asked for), logged once after its spending: each card, the player who spent it (the hand it was
+   * in, or the payer for a tucked card spent as if in hand) and the resources it generated as the payment priced it
+   * (`handCardResources`: a doubling or a conversion counted). A card's own "when you spend this card" resource ability
+   * logs its own `resourcesGenerated` besides. `payingForInstanceId`: the card paid for, as the payment read it, else
+   * null. Not logged for a payment of resource abilities in play alone.
+   */
+  | {
+      readonly type: "paymentCommitted";
+      readonly playerId: PlayerId;
+      readonly payingForInstanceId: InstanceId | null;
+      readonly fromHand: readonly {
+        readonly instanceId: InstanceId;
+        readonly cardId: CardId;
+        readonly spenderId: PlayerId;
+        readonly resources: ResourcePool;
+      }[];
+    }
   | {
       readonly type: "resourcesGenerated";
       readonly playerId: PlayerId;

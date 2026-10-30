@@ -142,6 +142,7 @@ import { knownHardware, onHardwareChange } from "../platform/device-hardware.js"
 import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -157,6 +158,7 @@ const UNLOCKS_ROW = "unlocks";
 
 /** The Save data row's own id: a door to `scenes/save-data.ts`, right after Unlocks. */
 const SAVE_DATA_ROW = "save-data";
+const STATS_ROW = "stats";
 
 /** The Rules reference row: a door to `scenes/rules.ts`'s glossary, right after Save data (owner, 2026-10-01). */
 const RULES_ROW = "rules";
@@ -299,6 +301,7 @@ export class SettingsOverlay extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.unlocks) ||
         this.scene.isActive(SCENES.saveData) ||
+        this.scene.isActive(SCENES.playerStats) ||
         this.scene.isActive(SCENES.controls),
       onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList(true) : this.#close()),
     });
@@ -366,6 +369,12 @@ export class SettingsOverlay extends Phaser.Scene {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
     });
+  }
+
+  /** Your stats, over this overlay: Back there closes it and gives this one its input again. */
+  #openStats(): void {
+    if (this.scene.isActive(SCENES.playerStats)) return;
+    this.scene.launch(SCENES.playerStats, { from: SCENES.settings, overlay: true } satisfies PlayerStatsData);
   }
 
   #openSaveData(receive?: TransferCode, syncLink?: SyncLinkAddress): void {
@@ -773,6 +782,9 @@ export class SettingsOverlay extends Phaser.Scene {
       });
     };
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
+    door(STATS_ROW, "Your stats", "Your record, heroes, villains, side schemes and the cards you play.", () =>
+      this.#openStats(),
+    );
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
     door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());

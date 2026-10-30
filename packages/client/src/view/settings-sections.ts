@@ -34,6 +34,7 @@ export type SettingsItemId =
   | GuideSettingsRowId
   | "unlocks"
   | "save-data"
+  | "stats"
   | "rules"
   | "controls"
   | "achievement-popup-time"
@@ -156,6 +157,7 @@ export function settingsSectionsOf(input: {
       title: "More",
       items: [
         "unlocks",
+        "stats",
         "save-data",
         ...(input.controls === false ? [] : (["controls"] as const)),
         ...(input.discord ? (["discord-presence"] as const) : []),

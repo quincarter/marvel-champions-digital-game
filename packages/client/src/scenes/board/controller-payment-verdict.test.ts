@@ -42,6 +42,7 @@ class HeldVerdictHost implements EngineHost {
   activeSaves = () => this.inner.activeSaves();
   retireSave = (gameId: string) => this.inner.retireSave(gameId);
   listSaves = () => this.inner.listSaves();
+  backfillSummaries = (ids?: readonly string[]) => this.inner.backfillSummaries(ids);
   dispose = () => this.inner.dispose();
   judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment> {
     // Judged when asked, as the worker does in its own queue; only the reply is held.

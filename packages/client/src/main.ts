@@ -21,6 +21,9 @@ import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
 import { installLazyText } from "./ui/lazy-text.js";
 import { installColorScheme } from "./ui/color-scheme-phaser.js";
 import { appSession } from "./session.js";
+import { backfillProgress, runStatsBackfill } from "./progression/stats-backfill.js";
+import { refreshUnlocks } from "./progression/progression.js";
+import { startBackfillToastWatch } from "./scenes/backfill-toast-watch.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
@@ -165,9 +168,30 @@ installColorScheme(game);
 // Every other screen is added the first time something starts it (`scenes/scene-loader.ts`), and the rest in idle
 // time once Title has drawn its first frame.
 const sceneLoader = installSceneLoader(game, Phaser.Scenes.ScenePlugin);
+/** After Title's first frame, how long the stats backfill waits, so the first screens load first. */
+const BACKFILL_DELAY_MS = 8000;
 const preloadAfterTitle = (): void => {
   game.scene.getScene(SCENES.title)?.events.once(Phaser.Scenes.Events.CREATE, () => {
-    game.events.once(Phaser.Core.Events.POST_RENDER, () => startIdlePreload(sceneLoader));
+    game.events.once(Phaser.Core.Events.POST_RENDER, () => {
+      startIdlePreload(sceneLoader);
+      // Games finished before the save summary kept card numbers get them filled in, once, in the engine worker
+      // (`engine/summary-backfill.ts`, #529); Your stats shows how far it has got (`progression/stats-backfill.ts`).
+      // Only with the engine worker: the in-thread fallback would replay on the main thread.
+      if (typeof Worker !== "undefined") {
+        startBackfillToastWatch(game);
+        setTimeout(
+          () =>
+            void runStatsBackfill(appSession().store)
+              .then(() => {
+                // What the filled-in games earned is read now, so it comes up as one grouped popup.
+                if (backfillProgress().written > 0) return refreshUnlocks();
+                return undefined;
+              })
+              .catch(() => undefined),
+          BACKFILL_DELAY_MS,
+        );
+      }
+    });
   });
 };
 if (game.scene.isBooted) preloadAfterTitle();

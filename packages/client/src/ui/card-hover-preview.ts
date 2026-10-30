@@ -120,6 +120,7 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.roundDebrief,
   SCENES.villainPhase,
   SCENES.reportIssue,
+  SCENES.playerStats,
 ];
 
 /**
