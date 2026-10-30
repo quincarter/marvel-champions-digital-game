@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { GameState } from "@mc/engine";
+import type { GameEvent, GameState, InstanceId } from "@mc/engine";
 import { LocalEngineHost } from "./local-host.js";
 import type { SessionConfig } from "./host.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -106,6 +106,126 @@ describe("summarizeGame", () => {
       outcome: { result: "conceded", reason: "playerConceded", byPlayerId: state.players[0]!.playerId },
     };
     expect(summarizeGame(conceded, record)!.lossReason).toBe("conceded");
+  });
+});
+
+describe("summarizeGame: what dealt the defeating blow", () => {
+  const startedTable = async (): Promise<GameState> => {
+    const host = new LocalEngineHost();
+    let state: GameState | null = null;
+    host.subscribe((update) => (state = update.state));
+    await host.start(RHINO_SOLO);
+    return state!;
+  };
+
+  const lostOf = (table: GameState): GameState => ({
+    ...table,
+    outcome: { result: "loss", reason: "allPlayersDefeated" },
+  });
+
+  /** The hero falls to `blow`, after `before` this command. */
+  function fallenTo(
+    table: GameState,
+    blow: { sourceInstanceId?: InstanceId; fromAttack?: true; sourceRole?: "villain" | "minion" },
+    before: GameEvent[] = [],
+  ) {
+    const lost = lostOf(table);
+    const player = lost.players[0]!;
+    const identity = player.identity;
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        ...before,
+        { type: "characterDefeated", instanceId: identity.instanceId, cardId: identity.cardId, ...blow },
+        { type: "playerEliminated", playerId: player.playerId },
+      ],
+      lost,
+    );
+    return summarizeGame(lost, record)!;
+  }
+
+  const villainOf = (table: GameState): InstanceId => table.villains[0]!.instanceId;
+
+  test("the villain's attack, and the card that made it", async () => {
+    const table = await startedTable();
+    const summary = fallenTo(table, { sourceInstanceId: villainOf(table), fromAttack: true, sourceRole: "villain" });
+    expect(summary.defeatedBy).toBe("villainAttack");
+    expect(summary.defeatedByCardId).toBe(table.instances[villainOf(table)]!.cardId);
+  });
+
+  test("the villain's damage that is no attack is an encounter card's", async () => {
+    const table = await startedTable();
+    expect(fallenTo(table, { sourceInstanceId: villainOf(table), sourceRole: "villain" }).defeatedBy).toBe(
+      "encounterCard",
+    );
+  });
+
+  test("a minion's attack", async () => {
+    const table = await startedTable();
+    const minion = Object.values(table.instances).find((i) => table.cardPool[i.cardId]?.type === "minion");
+    expect(minion, "Rhino's encounter deck holds minions").toBeDefined();
+    const summary = fallenTo(table, { sourceInstanceId: minion!.instanceId, fromAttack: true, sourceRole: "minion" });
+    expect(summary.defeatedBy).toBe("minionAttack");
+    expect(summary.defeatedByCardId).toBe(minion!.cardId);
+  });
+
+  test("a facedown Drone is a minion, and the player's card under it stays unnamed", async () => {
+    const table = await startedTable();
+    const drone = table.players[0]!.deck[0]!;
+    const summary = fallenTo(table, { sourceInstanceId: drone, fromAttack: true, sourceRole: "minion" });
+    expect(summary.defeatedBy).toBe("minionAttack");
+    expect(summary.defeatedByCardId).toBeNull();
+  });
+
+  test("the hero's own card, or no source at all, is neither the villain's nor an encounter card's", async () => {
+    const table = await startedTable();
+    const own = table.players[0]!.identity.instanceId;
+    expect(fallenTo(table, { sourceInstanceId: own }).defeatedBy).toBe("other");
+    const unsourced = fallenTo(table, {});
+    expect(unsourced.defeatedBy).toBe("other");
+    expect(unsourced.defeatedByCardId).toBeNull();
+  });
+
+  test("an earlier hit is not the blow: a defeat that names no source stays unattributed", async () => {
+    const table = await startedTable();
+    const identity = table.players[0]!.identity.instanceId;
+    const hit: GameEvent = {
+      type: "damageDealt",
+      targetInstanceId: identity,
+      amount: 3,
+      sourceInstanceId: villainOf(table),
+    };
+    expect(fallenTo(table, {}, [hit]).defeatedBy).toBe("other");
+  });
+
+  test("placed damage that ends the hero names what placed it, though it is not counted as hurt", async () => {
+    const table = await startedTable();
+    const lost = lostOf(table);
+    const player = lost.players[0]!;
+    const identity = player.identity;
+    const record = recordEvents(
+      emptyRecord(),
+      [
+        { type: "damagePlaced", targetInstanceId: identity.instanceId, amount: 2, sourceInstanceId: villainOf(table) },
+        { type: "characterDefeated", instanceId: identity.instanceId, cardId: identity.cardId },
+        { type: "playerEliminated", playerId: player.playerId },
+      ],
+      lost,
+    );
+    expect(record.hurtBy).toBeUndefined();
+    expect(summarizeGame(lost, record)!.defeatedBy).toBe("encounterCard");
+  });
+
+  test("a passive table's real loss names its blow; a scheme loss and a win name none", async () => {
+    const { state, record } = await passiveLoss();
+    const summary = summarizeGame(state, record)!;
+    if (summary.lossReason === "playersDefeated") expect(summary.defeatedBy).toMatch(/Attack|encounterCard/);
+    else expect(summary.defeatedBy).toBeNull();
+    const table = await startedTable();
+    const scheme: GameState = { ...table, outcome: { result: "loss", reason: "mainSchemeCompleted" } };
+    expect(summarizeGame(scheme, emptyRecord())!.defeatedBy).toBeNull();
+    const won: GameState = { ...table, outcome: { result: "win", reason: "villainDefeated" } };
+    expect(summarizeGame(won, emptyRecord())!.defeatedBy).toBeNull();
   });
 });
 

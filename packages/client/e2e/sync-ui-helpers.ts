@@ -167,7 +167,7 @@ export async function openSyncScreen(page: Page): Promise<void> {
     10000,
   );
   const at = { x: row.x + row.width - 40, y: row.y + row.height / 2 };
-  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) await page.touchscreen.tap(at.x, at.y);
+  if ((page.viewportSize()?.width ?? 0) < 768) await page.touchscreen.tap(at.x, at.y);
   else await pressAt(page, at.x, at.y);
   await waitForScene(page, SAVE_DATA);
   await syncStop(page, SAVE_DATA, "row:sync");

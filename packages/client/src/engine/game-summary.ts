@@ -30,11 +30,20 @@ import type { GameRecord } from "./game-record.js";
  *   so a version 2 summary is replayed again for them.
  * - 4: the cards spent from hand counted for every payment, a prompted or an effect's too (the engine's
  *   `paymentCommitted`), so the resources, the cards paid with and the cards discarded to pay are recounted.
+ * - 5: what dealt the defeating blow at a loss to every hero falling (`defeatedBy`, `defeatedByCardId`).
  */
-export const SUMMARY_VERSION = 4;
+export const SUMMARY_VERSION = 5;
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
 export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";
+
+/**
+ * What defeated the last hero standing (`GameRecord.lastEliminated.hit`): the villain's attack, a minion's attack,
+ * anything else from a card no player owns (a treachery, an attachment, a side scheme, an enemy's ability that is not
+ * its attack, whether it dealt damage or defeated the hero outright), or something else (the hero's own side, or nothing
+ * the engine can name).
+ */
+export type DefeatCause = "villainAttack" | "minionAttack" | "encounterCard" | "other";
 
 /**
  * One seat's game, for the stats screen (`view/player-stats-model.ts`): who they played, what was in their deck and
@@ -84,6 +93,10 @@ export interface WinningSeat {
 export interface GameSummary {
   /** Null for a win. */
   readonly lossReason: LossReason | null;
+  /** At a `playersDefeated` loss, what dealt the defeating blow; null for any other result. Absent before version 5. */
+  readonly defeatedBy?: DefeatCause | null;
+  /** The card that dealt that blow, or null when none is known. Absent before version 5. */
+  readonly defeatedByCardId?: string | null;
   /** Identity defeats during the game: seats eliminated by play, not seats that sat the scenario out. */
   readonly heroesDefeated: number;
   /** The seats still standing at a win; empty for any other result. */
@@ -199,6 +212,13 @@ const lossReasonOf = (outcome: NonNullable<GameState["outcome"]>): LossReason | 
   return "other";
 };
 
+function defeatCauseOf(record: GameRecord): DefeatCause {
+  const hit = record.lastEliminated?.hit;
+  if (hit?.attack && hit.role === "villain") return "villainAttack";
+  if (hit?.attack && hit.role === "minion") return "minionAttack";
+  return hit?.hurt ? "encounterCard" : "other";
+}
+
 function finalBlowIdentityOf(state: GameState, record: GameRecord): string | null {
   const source = record.lastVillainDamage?.sourceInstanceId ?? null;
   if (!source) return null;
@@ -220,8 +240,12 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
   const outcome = state.outcome;
   if (!outcome) return null;
   const won = outcome.result === "win";
+  const lossReason = lossReasonOf(outcome);
+  const wiped = lossReason === "playersDefeated";
   return {
-    lossReason: lossReasonOf(outcome),
+    lossReason,
+    defeatedBy: wiped ? defeatCauseOf(record) : null,
+    defeatedByCardId: wiped ? (record.lastEliminated?.hit?.sourceCardId ?? null) : null,
     heroesDefeated: record.seats.filter((seat) => seat.defeatedInRound !== null).length,
     winners: won
       ? state.players

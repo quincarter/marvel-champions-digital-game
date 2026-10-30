@@ -4,7 +4,14 @@
  * cards come as strips of card pictures, as many across as fit. Pure: sizes and positions only, no Phaser.
  */
 import type { Rect } from "./layout.js";
-import type { AspectShare, HeroCardsView, OverviewTile, PlayerStats, StatRow } from "./player-stats-model.js";
+import type {
+  AspectShare,
+  HeroCardsView,
+  OverviewTile,
+  PlayerStats,
+  StatRow,
+  StatsSection,
+} from "./player-stats-model.js";
 
 export type StatsTab = "overview" | "heroes" | "villains" | "aspects" | "encounter" | "records" | "all-cards" | "cards";
 
@@ -167,6 +174,8 @@ export function cardRowsOf(
 }
 
 const statHeight = (phone: boolean): number => (phone ? 74 : 58);
+/** A stat row with a loss bar under its lines. */
+const lossStatHeight = (phone: boolean): number => (phone ? 112 : 84);
 const noteHeight = (phone: boolean): number => (phone ? 52 : 40);
 
 /**
@@ -242,14 +251,26 @@ export function dashboardRowsOf(
   for (const section of sections) {
     if (sections.length > 1)
       rows.push({ kind: "heading", id: `${section.id}:head`, height: phone ? 40 : 44, title: section.title });
-    for (const row of section.rows)
-      rows.push(
-        row.kind === "note"
-          ? { kind: "note", id: row.id, height: noteHeight(phone), text: row.text }
-          : { kind: "stat", id: row.id, height: statHeight(phone), row },
-      );
+    rows.push(...statRowsOf(section, phone));
   }
   return rows;
+}
+
+/** A section's own rows (no heading): stat rows, and the notes it carries. */
+function statRowsOf(section: StatsSection, phone: boolean): DashRow[] {
+  return section.rows.map((row): DashRow =>
+    row.kind === "note"
+      ? { kind: "note", id: row.id, height: noteHeight(phone), text: row.text }
+      : { kind: "stat", id: row.id, height: row.losses ? lossStatHeight(phone) : statHeight(phone), row },
+  );
+}
+
+/** Everyone's tab (`view/global-stats-ui.ts`): the notes for the load's state, then the section's rows. */
+export function globalRowsOf(notes: readonly string[], section: StatsSection | null, phone: boolean): DashRow[] {
+  return [
+    ...notes.map((text, i): DashRow => ({ kind: "note", id: `global:note:${i}`, height: noteHeight(phone), text })),
+    ...(section ? statRowsOf(section, phone) : []),
+  ];
 }
 
 /** The hero at `index`, wrapped into range; undefined with no heroes. */

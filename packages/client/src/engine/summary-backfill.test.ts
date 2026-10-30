@@ -120,6 +120,32 @@ describe("needsBackfill", () => {
   });
 });
 
+describe("filledSummary: what dealt the defeating blow (version 5)", () => {
+  test("a version 4 summary takes it from the replay and keeps its own numbers", () => {
+    const live: GameSummary = {
+      lossReason: "playersDefeated",
+      heroesDefeated: 1,
+      winners: [],
+      alliesPlayed: 3,
+      seats: [],
+      version: 4,
+    };
+    const replayed: GameSummary = {
+      ...live,
+      alliesPlayed: 0,
+      defeatedBy: "minionAttack",
+      defeatedByCardId: "01100",
+      version: SUMMARY_VERSION,
+    };
+    expect(filledSummary(live, replayed)).toMatchObject({
+      alliesPlayed: 3,
+      defeatedBy: "minionAttack",
+      defeatedByCardId: "01100",
+      version: SUMMARY_VERSION,
+    });
+  });
+});
+
 describe("summary version 2", () => {
   const meta = (summary: GameSummary): SaveMeta => ({
     id: "g",
@@ -186,7 +212,7 @@ describe("summary version 2", () => {
       seats: [seat({ resources: stale, paidWith: {}, discardedToPay: 0, drawn: 9 })],
       hurtBy: { "01094": 4 },
     };
-    expect(SUMMARY_VERSION).toBe(4);
+    expect(SUMMARY_VERSION).toBe(5);
     expect(needsBackfill(meta(v2), WRITER)).toBe(true);
     expect(needsBackfill(meta({ ...v2, version: 3 }), WRITER)).toBe(true);
     const replayed: GameSummary = {

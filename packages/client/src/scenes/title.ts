@@ -77,6 +77,7 @@ import { GlyphHints } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
+import { maybeAskGlobalStats } from "./global-ask-launch.js";
 import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
@@ -234,7 +235,8 @@ export class TitleScene extends Phaser.Scene {
     const syncLink = takeSyncLink();
     if (syncLink) this.scene.launch(SCENES.settings, { syncLink });
     // The one-time "Set up cross-device sync?" question; it decides for itself and stays out of a link's way.
-    else if (!receive) maybeShowSyncSetupPrompt(this);
+    // The global win rates question comes only once that one has been decided, and never in the same visit.
+    else if (!receive) void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     void refreshUnlocks()
       .catch(() => false)
