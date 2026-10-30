@@ -60,6 +60,7 @@ describe("deck builder tabs", () => {
     expect(activeDeckFilterCount({}, DEFAULT_POOL_SORT)).toBe(0);
     expect(activeDeckFilterCount({ type: null }, DEFAULT_POOL_SORT)).toBe(0);
     expect(activeDeckFilterCount({ type: "ally" }, DEFAULT_POOL_SORT)).toBe(1);
+    expect(activeDeckFilterCount({ cost: 0 }, DEFAULT_POOL_SORT)).toBe(1);
     expect(
       activeDeckFilterCount({ type: "ally", packCode: "01", cycleId: "core" }, { primary: "cost", secondary: null }),
     ).toBe(4);

@@ -342,6 +342,8 @@ const QUICK_FILTERS: readonly {
   })),
 ];
 
+/** Under this height the narrow layout folds the pool's filters behind the Filters chip, as a phone does. */
+const FOLD_FILTERS_BELOW_HEIGHT = 700;
 /** The wide left rail's Cost curve / Odds tabs: shorter than a touch target, as only a mouse reaches them there. */
 const CHART_TAB_HEIGHT = 30;
 const CARD_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL.map((card) => [card.id as string, card]));
@@ -537,9 +539,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
     // From your games draws card scans; they arrive after its first draw (in batches, `art/card-art.ts`).
-    const offArt = cardArt(this).onArrived(() => {
-      if (this.#showsGames() && this.#railArtMissing > 0 && this.scene.isActive()) this.#rebuild();
-    });
+    const redrawForArt = (): void => {
+      if (!this.#showsGames() || this.#railArtMissing === 0 || !this.scene.isActive()) return;
+      // A redraw replaces the scrolling region under a finger, which would end the swipe: wait for the lift.
+      if (this.#deckRegion?.isDragSuppressingClick) this.time.delayedCall(250, redrawForArt);
+      else this.#rebuild();
+    };
+    const offArt = cardArt(this).onArrived(redrawForArt);
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
@@ -955,7 +961,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Pool: the search row, the filters (behind a chip on a phone), and the list filling what is left.
     y = this.#drawFilterInput(left, y, column);
     const pool = this.#browsablePool(deck);
-    const folded = formFactorFor(width, height) === "phone";
+    // Anything short folds the filters too: drawn open on a landscape phone they would push the list off the screen.
+    const form = formFactorFor(width, height);
+    const folded = form === "phone" || form === "phoneLandscape" || height < FOLD_FILTERS_BELOW_HEIGHT;
     this.#narrowFolded = folded;
     const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
     if (folded) {
@@ -1052,7 +1060,9 @@ export class DeckBuilderScene extends Phaser.Scene {
       if (!this.#nameInput || !nameRect) return;
       const screenY = nameRect.y - scroll.offsetPx;
       this.#nameInput.layout({ ...nameRect, y: screenY });
-      this.#nameInput.setVisible(screenY >= rect.y && screenY + nameRect.height <= rect.y + rect.height);
+      // The aspect tip opens over the name field, and a DOM field would draw on top of it.
+      const inView = screenY >= rect.y && screenY + nameRect.height <= rect.y + rect.height;
+      this.#nameInput.setVisible(inView && this.#aspectTipOpen === null);
     };
     this.#narrowScroll = scroll;
     this.#deckRegion = new McScrollRegion(this, {
@@ -1744,14 +1754,15 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
     const stats = deckStatsOf(deck, POOL);
-    // Each bar carries its count above it (the cost is on the axis), so the chart reads as numbers, not buttons.
-    const chartHeight = 90;
+    // On a phone each bar carries its count above it (the cost is on the axis), so the chart reads as numbers, not
+    // buttons. The desktop rail (`onDark`) has no room for it.
+    const chartHeight = onDark ? 74 : 90;
     drawCostCurveBars(
       this,
       { x: left, y: top, width: column, height: chartHeight },
       costCurveBars(stats),
       onDark,
-      true,
+      !onDark,
     );
     return top + chartHeight + 16;
   }
