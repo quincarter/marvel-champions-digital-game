@@ -148,6 +148,7 @@ import {
   NOTHING_STANDS_OUT,
   againstVillainOf,
   fromYourGamesOf,
+  fromYourGamesType,
   villainsFacedOf,
   type DeckInsights,
   type SuggestedCard,
@@ -193,6 +194,7 @@ import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-mo
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import type { SearchHelpSheetData } from "./search-help-sheet.js";
 import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
@@ -1825,6 +1827,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     this.#railArtMissing = 0;
     const pool = new Set(this.#browsablePool(deck).map((card) => card.id as string));
+    const type = fromYourGamesType(isDesktopType());
     const view = fromYourGamesOf(
       this.#insights,
       deck.identityCardId as string,
@@ -1833,20 +1836,21 @@ export class DeckBuilderScene extends Phaser.Scene {
       POOL_STATS_NAMES,
     );
     if (view.headline) {
-      label(this, left, y, view.headline.toUpperCase(), typeRole.label, onDark ? signal.caution.hex : fg, 1);
-      y += 18;
+      const headType = { ...typeRole.label, size: type.label };
+      label(this, left, y, view.headline.toUpperCase(), headType, onDark ? signal.caution.hex : fg, 1);
+      y += type.label + 9;
     }
     if (view.insight) {
       const text = this.add
         .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column - 16);
       const box = this.add.graphics();
       box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
       this.children.bringToTop(text);
       y += text.height + 20;
     }
-    const thumb = { width: 30, height: 42 };
+    const { thumb } = type;
     const faced = villainsFacedOf(this.#insights);
     // The Cut and Try lists leave room for the Against stepper and a first card under it: the rail does not scroll.
     // The room is the stepper's, the You / Everyone toggle's under it, and a first card.
@@ -1883,9 +1887,9 @@ export class DeckBuilderScene extends Phaser.Scene {
 ${entry.detail}`,
             textStyle(typeRole.body, fg, onDark ? ink.body : 1),
           )
-          .setFontSize(12)
+          .setFontSize(type.text)
           .setWordWrapWidth(column - thumb.width - 16 - buttonWidth);
-        clampLines(text, 2);
+        clampLines(text, type.lines);
         if (action) {
           const rect: Rect = {
             x: left + column - buttonWidth,
@@ -2002,7 +2006,7 @@ ${entry.detail}`,
       if (sourceNote && y + 30 < bottom) {
         const note = this.add
           .text(left, y, sourceNote, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-          .setFontSize(12)
+          .setFontSize(type.note)
           .setWordWrapWidth(column);
         y += note.height + 8;
       }
@@ -2023,7 +2027,7 @@ ${entry.detail}`,
         if (nothing && y + 30 < bottom) {
           const note = this.add
             .text(left, y, nothing, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-            .setFontSize(12)
+            .setFontSize(type.note)
             .setWordWrapWidth(column);
           y += note.height + 8;
         }
@@ -2033,7 +2037,7 @@ ${entry.detail}`,
     if (view.note && y + 30 < bottom) {
       const note = this.add
         .text(left, y, view.note, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column);
       y += note.height + 8;
     }

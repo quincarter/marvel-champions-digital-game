@@ -92,6 +92,7 @@ import { DeckSearchClient } from "../view/deck-search-client.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { testedCatalog } from "../view/seatable-decks.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { cardArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -170,6 +171,7 @@ import {
   againstVillainOf,
   cardPlayOf,
   fromYourGamesOf,
+  fromYourGamesType,
   villainsFacedOf,
   type DeckInsights,
   type SuggestedCard,
@@ -321,11 +323,18 @@ function packChipsNatural(
   return { placed, bottom: rows.length === 0 ? y : y + rows.length * (rowHeight + CHIP_GAP) - CHIP_GAP };
 }
 
+/**
+ * This screen opts out of the desktop type bump (`ui/desktop-type.ts`) to keep its card grid tight, so its reading text
+ * sizes up here: `px` on a phone or tablet, two sizes up on a desktop.
+ */
+const readingSize = (px: number): number => (isDesktopType() ? px + 2 : px);
+
 /** How tall the compact Import/Export box needs to be at `column` px wide, in its current accordion state — used both to reserve room above it and to draw it, so the two can't drift apart. */
 function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | null, row: number): number {
   const pad = 12;
-  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, 4.6);
-  let height = pad * 2 + 16 + descLines * 13 + 8 + row + 8; // padding + heading + description + button row
+  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, isDesktopType() ? 6.4 : 4.6);
+  const lineHeight = isDesktopType() ? 17 : 13;
+  let height = pad * 2 + 16 + descLines * lineHeight + 8 + row + 8; // padding + heading + description + button row
   if (open === "paste") height += 64 + 8 + row + 8; // textarea + its own Import button
   if (open === "marvelcdb") height += row + 8 + row + 8; // URL field + its own Import button
   return height;
@@ -987,6 +996,7 @@ export class DecksScene extends Phaser.Scene {
       label(this, left, y, "Reading your games…", typeRole.label, surface.paper.hex, ink.meta);
       return;
     }
+    const type = fromYourGamesType(isDesktopType());
     const view = fromYourGamesOf(
       this.#insights,
       deck.identityCardId as string,
@@ -996,20 +1006,20 @@ export class DecksScene extends Phaser.Scene {
     );
     const buttonTop = bottom - this.#row;
     if (view.headline) {
-      label(this, left, y, view.headline.toUpperCase(), typeRole.label, signal.caution.hex, 1);
-      y += 18;
+      label(this, left, y, view.headline.toUpperCase(), { ...typeRole.label, size: type.label }, signal.caution.hex, 1);
+      y += type.label + 9;
     }
     if (view.insight) {
       const text = this.add
         .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column - 16);
       const box = this.add.graphics();
       box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
       this.children.bringToTop(text);
       y += text.height + 20;
     }
-    const thumb = { width: 30, height: 42 };
+    const { thumb } = type;
     const faced = villainsFacedOf(this.#insights);
     // The Cut and Try lists leave room for the Against stepper and a first card under it: the pane does not scroll.
     let limit = buttonTop - 8 - (faced.length > 0 ? this.#row + 8 + 20 + thumb.height + 16 : 0);
@@ -1039,8 +1049,8 @@ export class DecksScene extends Phaser.Scene {
             `${card?.name ?? entry.cardId}\n${entry.detail}`,
             textStyle(typeRole.body, surface.paper.hex, ink.body),
           )
-          .setFontSize(12);
-        fitWrapped(text, column - thumb.width - 8, 2, 10);
+          .setFontSize(type.text);
+        fitWrapped(text, column - thumb.width - 8, type.lines, type.text);
         y += thumb.height + 6;
       }
       y += 6;
@@ -1094,7 +1104,7 @@ export class DecksScene extends Phaser.Scene {
         if (nothing && y + 30 < buttonTop) {
           const note = this.add
             .text(left, y, nothing, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-            .setFontSize(12)
+            .setFontSize(type.note)
             .setWordWrapWidth(column);
           y += note.height + 8;
         }
@@ -1104,7 +1114,7 @@ export class DecksScene extends Phaser.Scene {
     if (view.note && y + 30 < buttonTop) {
       this.add
         .text(left, y, view.note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column);
     }
     // Decks reads; the builder changes. A precon is never changed in place: it starts a deck of your own.
@@ -1665,6 +1675,7 @@ export class DecksScene extends Phaser.Scene {
     const candidates = row.offer ? communityMetaCandidates(row.offer) : deckMetaCandidates(option, POOL_CARDS);
     const meta = this.add
       .text(textX, metaTop, candidates[0]!, textStyle(typeRole.emphasis, metaColor, metaAlpha))
+      .setFontSize(readingSize(typeRole.emphasis.size))
       .setWordWrapWidth(textWidth, true);
     const lineHeight = Math.max(1, meta.height / Math.max(1, meta.getWrappedText().length));
     const allowed = Math.max(1, Math.min(showRecord ? 1 : 2, Math.floor(metaRoom / lineHeight)));
@@ -1682,7 +1693,7 @@ export class DecksScene extends Phaser.Scene {
       if (played && played.wins + played.losses > 0) {
         const chip = this.add
           .text(0, 0, `${played.wins}–${played.losses}`, textStyle(typeRole.label, surface.paper.hex, 1))
-          .setFontSize(10);
+          .setFontSize(readingSize(10));
         const chipRect: Rect = {
           x: card.x + card.width - chip.width - 14,
           y: card.y + card.height - chip.height - 10,
@@ -1707,11 +1718,11 @@ export class DecksScene extends Phaser.Scene {
           : "Never played.";
       const recordLine = this.add.text(
         textX,
-        card.y + card.height - 16,
+        card.y + card.height - (isDesktopType() ? 18 : 16),
         recordText,
         textStyle(typeRole.label, surface.paper.hex, ink.meta),
       );
-      fitText(recordLine, textWidth, typeRole.label.size);
+      fitText(recordLine, textWidth, readingSize(typeRole.label.size));
       objects.push(recordLine);
     }
 
@@ -1733,12 +1744,20 @@ export class DecksScene extends Phaser.Scene {
     const column = rect.width - 24;
     let y = rect.y + 12;
 
-    label(this, left, y, "import / export", typeRole.label, surface.ink.hex, ink.label);
+    label(
+      this,
+      left,
+      y,
+      "import / export",
+      { ...typeRole.label, size: readingSize(typeRole.label.size) },
+      surface.ink.hex,
+      ink.label,
+    );
     y += 16;
     const desc = this.add
       .text(left, y, IMPORT_EXPORT_DESCRIPTION, {
         ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        fontSize: "10px",
+        fontSize: `${isDesktopType() ? 13 : 10}px`,
       })
       .setWordWrapWidth(column);
     y += desc.height + 8;
