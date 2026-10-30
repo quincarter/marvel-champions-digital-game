@@ -1,7 +1,10 @@
 /**
  * The report panel's two ways out for the log (#176, `scenes/report-issue.ts`): the clipboard and a saved file.
- * Both are plain DOM, since the canvas has neither.
+ * Both are plain DOM, since the canvas has neither, except in the Android app, whose WebView drops downloads: there the
+ * file goes through Android's own Save dialog (#534).
  */
+import { savesThroughAndroidPicker, saveTextOnAndroid } from "../platform/android-save-file.js";
+import { detectPlatform } from "../platform/platform.js";
 
 /** Copies `text`; resolves false when neither the Clipboard API nor the old `execCommand` fallback worked. */
 export async function copyText(text: string): Promise<boolean> {
@@ -29,8 +32,14 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Saves `text` as `fileName` through the browser's download. */
-export function downloadText(text: string, fileName: string): void {
+/**
+ * Saves `text` as `fileName` through the browser's download, or Android's Save dialog in the Android app. Resolves
+ * false when the player closes that dialog without saving.
+ */
+export async function downloadText(text: string, fileName: string): Promise<boolean> {
+  if (savesThroughAndroidPicker(detectPlatform(), globalThis.navigator?.userAgent ?? "")) {
+    return saveTextOnAndroid(fileName, text, "text/plain");
+  }
   const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
@@ -41,4 +50,5 @@ export function downloadText(text: string, fileName: string): void {
   link.remove();
   // Revoked later, not now: some browsers start the download only after this click's task ends.
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return true;
 }

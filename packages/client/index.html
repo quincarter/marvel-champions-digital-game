@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      interactive-widget=overlays-content: the on-screen keyboard lays over the
+      canvas rather than shrinking the page, so typing a few letters doesn't
+      re-lay out and redraw the screen (#537).
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=overlays-content" />
     <title>Marvel Champions</title>
     <!--
       The only DOM in the app. Phaser draws every screen (PLAN.md Phase 4), so
