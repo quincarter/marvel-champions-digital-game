@@ -131,6 +131,10 @@ export class SearchHelpSheet extends Phaser.Scene {
     const useWidth = phone ? 52 : 64;
     const copyWidth = phone ? 66 : 76;
     const buttonsWidth = useWidth + copyWidth + 6;
+    const copyRectOf = (rowRect: Rect): Rect => {
+      const use = useRectOf(rowRect);
+      return { ...use, x: use.x + useWidth + 6, width: copyWidth };
+    };
     const useRectOf = (rowRect: Rect): Rect => ({
       x: rowRect.x + rowRect.width - 18 - buttonsWidth,
       y: rowRect.y + (ROW_HEIGHT - 6 - hit.target) / 2,
@@ -187,7 +191,7 @@ export class SearchHelpSheet extends Phaser.Scene {
         kind: "secondary",
         label: copied ? (copied.ok ? "Copied" : "Failed") : "Copy",
         type: BUTTON_TYPE,
-        rect: { ...useRect, x: useRect.x + useWidth + 6, width: copyWidth },
+        rect: copyRectOf(rect),
         selected: copied?.ok ?? false,
         onClick: () => this.#copy(index, row.query),
         clip,
@@ -216,6 +220,13 @@ export class SearchHelpSheet extends Phaser.Scene {
         ensureVisible: () => list.scrollIntoView(index),
       });
       order.push(key);
+      const copyKey = `copy:${index}`;
+      stops.set(copyKey, {
+        rect: () => copyRectOf(list.rectFor(index)),
+        activate: () => this.#copy(index, row.query),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+      order.push(copyKey);
     });
 
     const closeRect: Rect = { x: inner.x, y: footerY, width: inner.width, height: hit.primary };

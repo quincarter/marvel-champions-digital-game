@@ -59,7 +59,7 @@ test("the ? opens the cheat sheet, and Use puts an example in the search", async
   await settle(page);
   expect((await texts(page, "SearchHelpSheet")).join("\n")).toContain("t:ally o<3");
 
-  // The first example is the fourth row: two notes and a heading sit between it and the top heading.
+  // The first example is row 4, after the top heading, two notes and the Try these heading.
   await pressStop(page, "SearchHelpSheet", "use:4");
   await waitFor(
     async () => (!(await activeScenes(page)).includes("SearchHelpSheet") ? true : null),

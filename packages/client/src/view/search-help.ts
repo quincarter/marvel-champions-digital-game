@@ -20,7 +20,7 @@ export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = [
 
   heading("Try these"),
   query("t:ally o<3", "Allies costing 2 or less"),
-  query("t:event rp:1", "Events with a physical resource icon"),
+  query("t:event rp>=1", "Events with a physical resource icon"),
   query("t:support|upgrade o<=1", "Supports and upgrades costing 0 or 1"),
   query("t:ally thw>=2 o<4", "Cheap allies with 2 or more thwart"),
   query("kw:uses o<3", "Cheap cards with Uses counters"),
@@ -28,7 +28,7 @@ export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = [
   query("k:shield t!ally", "S.H.I.E.L.D. cards that are not allies"),
   query("f:justice t:event o:0", "Free Justice events"),
   query("x:ready t:event", "Events that mention ready"),
-  query("t:resource rw:1", "Resource cards with a wild icon"),
+  query("t:resource rw>=1", "Resource cards with a wild icon"),
   query("spider t:ally", "Allies matching the word spider"),
 
   heading("Ways to combine"),
@@ -43,7 +43,7 @@ export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = [
 
   heading("Every term"),
   query("o:2", "o or cost: the card's cost"),
-  query("t:ally", "t or type: ally, event, support, upgrade, resource, side scheme"),
+  query("t:ally", "t or type: ally, event, upgrade, side scheme and more"),
   query("rp:1", "rp or physical: physical resource icons"),
   query("rm:1", "rm or mental: mental resource icons"),
   query("re:1", "re or energy: energy resource icons"),
@@ -52,7 +52,7 @@ export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = [
   query("kw:retaliate", "kw or keyword: Guard, Retaliate, Uses, Requirement and more"),
   query("x:draw", "x or text: rules text"),
   query("v:spider", "v or flavor: flavor text"),
-  query("f:justice", "f or aspect: aggression, justice, leadership, protection, pool, basic, hero"),
+  query("f:justice", "f or aspect: any aspect, or pool, basic or hero"),
   query("e:core", "e or pack: a pack's name or code"),
   query("y:core", "y, cycle or wave: a wave's name"),
   query("u:1", "u or unique: 1 for unique, 0 for not"),

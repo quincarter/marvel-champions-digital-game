@@ -23,6 +23,10 @@ describe("the search cheat sheet (issue #531)", () => {
     expect(POOL_CARDS.some((card) => matchesClauses(card, clauses, PACKS))).toBe(true);
   });
 
+  test("every meaning fits the phone row's two lines", () => {
+    for (const row of SEARCH_HELP_ROWS) if (row.kind === "query") expect(row.meaning.length).toBeLessThanOrEqual(60);
+  });
+
   test("only the two word examples leave free words", () => {
     const withWords = queries.filter((query) => parsePoolQuery(query).text !== "");
     expect(withWords).toEqual(["spider t:ally", "web t:event o<2"]);
