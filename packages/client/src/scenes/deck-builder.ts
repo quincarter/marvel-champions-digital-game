@@ -1356,12 +1356,15 @@ export class DeckBuilderScene extends Phaser.Scene {
       y += text.height + 20;
     }
     const thumb = { width: 30, height: 42 };
+    const faced = villainsFacedOf(this.#insights);
+    // The Cut and Try lists leave room for the Against stepper and a first card under it: the rail does not scroll.
+    let limit = faced.length > 0 ? bottom - hit.target - 8 - 20 - thumb.height - 16 : bottom;
     const section = (
       title: string,
       cards: readonly SuggestedCard[],
       action: { readonly label: string; readonly run: (cardId: string) => void } | null,
     ): void => {
-      if (cards.length === 0 || y + 20 + thumb.height > bottom) return;
+      if (cards.length === 0 || y + 20 + thumb.height > limit) return;
       const head = this.add.text(left, y, title.toUpperCase(), {
         ...textStyle(typeRole.barTitle, fg),
         fontSize: "17px",
@@ -1371,7 +1374,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       rule.fillStyle(fg, 1).fillRect(left, y + head.height + 2, column, 2);
       y += head.height + 10;
       for (const entry of cards) {
-        if (y + thumb.height > bottom) return;
+        if (y + thumb.height > limit) return;
         const card = CARDS_BY_ID.get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         const frame = this.add.graphics();
@@ -1425,7 +1428,7 @@ ${entry.detail}`,
       view.tryCards.filter((entry) => pool.has(entry.cardId)),
       { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
     );
-    const faced = villainsFacedOf(this.#insights);
+    limit = bottom;
     if (faced.length > 0 && y + hit.target <= bottom) {
       const villain = faced.includes(this.#againstVillain ?? "") ? this.#againstVillain! : faced[0]!;
       const against = againstVillainOf(

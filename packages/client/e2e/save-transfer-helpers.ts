@@ -85,7 +85,7 @@ export async function openSaveData(page: Page): Promise<void> {
   // The row's stop spans the row; the Open button is at its right end.
   const row = await waitForSettingsRow(page);
   const at = { x: row.x + row.width - 40, y: row.y + row.height / 2 };
-  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) await page.touchscreen.tap(at.x, at.y);
+  if ((page.viewportSize()?.width ?? 0) < 768) await page.touchscreen.tap(at.x, at.y);
   else await pressAt(page, at.x, at.y);
   await waitForScene(page, SAVE_DATA);
   await waitForStop(page, "row:send");

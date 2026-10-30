@@ -1010,8 +1010,11 @@ export class DecksScene extends Phaser.Scene {
       y += text.height + 20;
     }
     const thumb = { width: 30, height: 42 };
+    const faced = villainsFacedOf(this.#insights);
+    // The Cut and Try lists leave room for the Against stepper and a first card under it: the pane does not scroll.
+    let limit = buttonTop - 8 - (faced.length > 0 ? this.#row + 8 + 20 + thumb.height + 16 : 0);
     const section = (title: string, cards: readonly SuggestedCard[]): void => {
-      if (cards.length === 0 || y + 20 + thumb.height > buttonTop - 8) return;
+      if (cards.length === 0 || y + 20 + thumb.height > limit) return;
       const head = this.add.text(left, y, title.toUpperCase(), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "17px",
@@ -1023,7 +1026,7 @@ export class DecksScene extends Phaser.Scene {
         .fillRect(left, y + head.height + 2, column, 2);
       y += head.height + 10;
       for (const entry of cards) {
-        if (y + thumb.height > buttonTop - 8) return;
+        if (y + thumb.height > limit) return;
         const card = CARDS_BY_ID.get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
@@ -1052,7 +1055,7 @@ export class DecksScene extends Phaser.Scene {
       "Try: cards you won with",
       view.tryCards.filter((entry) => listed.has(entry.cardId)),
     );
-    const faced = villainsFacedOf(this.#insights);
+    limit = buttonTop - 8;
     if (faced.length > 0 && y + this.#row <= buttonTop - 8) {
       const villain = faced.includes(this.#againstVillain ?? "") ? this.#againstVillain! : faced[0]!;
       const against = againstVillainOf(
