@@ -50,4 +50,22 @@ describe("deck odds (issue #531)", () => {
     const resources = groups.find((g) => g.id === "type:resource")!.count;
     expect(resources).toBe(copies.filter((c) => c.type === "resource").length);
   });
+
+  test("Permanent and Setup cards are never drawn, so they leave the odds' deck", () => {
+    const card = (id: string, keywords: readonly string[]) =>
+      ({ id, name: id, type: "upgrade", keywords: keywords.map((name) => ({ name })) }) as never as AnyCard;
+    const cards = new Map([
+      ["plain", card("plain", [])],
+      ["perm", card("perm", ["permanent"])],
+      ["setup", card("setup", ["setup"])],
+    ]);
+    const deck = {
+      cards: [
+        { cardId: "plain", quantity: 2 },
+        { cardId: "perm", quantity: 1 },
+        { cardId: "setup", quantity: 1 },
+      ],
+    } as never;
+    expect(deckCopiesOf(deck, (id) => cards.get(id)).map((c) => c.id)).toEqual(["plain", "plain"]);
+  });
 });

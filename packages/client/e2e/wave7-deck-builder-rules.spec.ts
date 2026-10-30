@@ -252,14 +252,17 @@ test.describe("Flow 6: collection search and Inspect in the builder", () => {
     expect(builder).toEqual(expect.arrayContaining(["'POOL", "ALL PACKS", "ALL WAVES", "SORT: MATCH", "THEN: NONE"]));
 
     // Pack stepper: "<" from ALL PACKS wraps to the newest pack, and every card then listed is from it.
-    await tapText(page, "DeckBuilder", "<");
-    const packLabel = (await texts(page, "DeckBuilder")).find((t, i, all) => all[i - 1] === "<" && all[i + 1] === ">");
+    // (By its stop: the quick filters' trait stepper, issue #531, also reads "< name >", above the pack stepper.)
+    await press(page, "DeckBuilder", "pack:prev");
+    const packLabel = (await texts(page, "DeckBuilder")).find(
+      (t, i, all) => all[i - 1] === "<" && all[i + 1] === ">" && t !== "ALL TRAITS",
+    );
     expect(packLabel, "the pack stepper shows a pack name").toBeTruthy();
     expect(packLabel).not.toBe("ALL PACKS");
     const inPack = await poolIds(page);
     expect(inPack.length).toBeGreaterThan(0);
     await shot(page, "6-pack-filter");
-    await tapText(page, "DeckBuilder", ">");
+    await press(page, "DeckBuilder", "pack:next");
     expect((await texts(page, "DeckBuilder")).some((t) => t === "ALL PACKS")).toBe(true);
 
     // Sort steps from Match (the default) to Name, and Then offers a second key (issue #531).

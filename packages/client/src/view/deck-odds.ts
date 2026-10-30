@@ -26,12 +26,14 @@ const TYPE_LABELS: Readonly<Record<string, string>> = {
 };
 const capitalized = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
-/** The deck's drawable cards, one entry per copy; a line whose card the pool lacks, or a Setup card, is left out. */
+/** The deck's drawable cards, one entry per copy; a line whose card the pool lacks, or a Permanent or Setup card, is left out. */
 export function deckCopiesOf(deck: Deck, cardOf: (id: string) => AnyCard | undefined): readonly AnyCard[] {
   return deck.cards.flatMap((line) => {
     const card = cardOf(line.cardId as string);
-    // A Setup card starts in play (RRG 1.8 Appendix II, step 11, before the draw at step 14): never drawn.
-    if (!card || ("keywords" in card && card.keywords.some((k) => k.name === "setup"))) return [];
+    // A Permanent card is set aside before setup (RRG 1.8 "Permanent", p. 32) and a Setup card starts in play
+    // (Appendix II, step 11, before the draw at step 14): neither is ever drawn.
+    if (!card || ("keywords" in card && card.keywords.some((k) => k.name === "setup" || k.name === "permanent")))
+      return [];
     return Array.from({ length: line.quantity }, () => card);
   });
 }
