@@ -1573,7 +1573,8 @@ ${entry.detail}`,
     const known = this.#againstGlobal.get(villain);
     if (known?.kind === "reading" || known?.kind === "ready" || known?.kind === "none") return;
     this.#againstGlobal.set(villain, { kind: "reading" });
-    const answer = await loadGlobalVillainCards(villain);
+    // The Worker counts a game against several villains for each; the first stands for the group here.
+    const answer = await loadGlobalVillainCards(villain.split(" & ")[0]!);
     this.#againstGlobal.set(villain, answer);
     if (this.scene.isActive() && this.#railTab === "games") this.#rebuild();
   }

@@ -136,19 +136,17 @@ of deck cards. Rows with fewer than 20 games are never served, and a card in few
 /global/stats` serves a stored summary rebuilt at most hourly, so a read costs one row. The client caches answers for
 six hours and keeps a stale copy; nothing is asked for until a screen needs it.
 
-**Limits on the free plan.** A game writes about 6 rows and at worst 14, plus about 2 in the caller's rate limiter. A
+**Limits on the free plan.** A game writes about 6 rows and at worst 20, plus about 2 in the caller's rate limiter. A
 repeat writes none. Per IP: 60 results a day and 120 reads an hour; reads write no rows. Across everyone: 3,000 results a
-day. On the worst day that is about 63,000 of the 100,000 daily rows, the monthly clean-up of old ids included (one
+day. On the worst day that is about 81,000 of the 100,000 daily rows, the monthly clean-up of old ids included (one
 small step every 10 minutes). `GLOBAL_STATS_ENABLED` in `wrangler.jsonc` is the kill switch: every `/global` route
 answers 503.
 
 **Only real content takes a row.** `packages/sync-worker/src/global-allowlist.ts` lists every villain, modular set and
 hero, generated from the card pool, and the Worker refuses a result naming anything else, so made-up ids cannot add rows
-or reach a player. A client test fails when the list is stale and prints the command to regenerate it. Two limits
-remain. Deck card ids are not checked, since they cost no rows and a card row has a byte cap; a forged id can sit in one
-until it is pushed out. Each part of a two-villain name is checked alone, so an invented pairing of real villains is
-accepted; 5,000 distinct rows is the backstop for that. Past it, a game that needs a new row is refused, while games
-that touch existing rows still count.
+or reach a player. A client test fails when the list is stale and prints the command to regenerate it. One limit
+remains: deck card ids are not checked, since they cost no rows and a card row has a byte cap, so a forged id can sit in
+one until it is pushed out. A game against several villains counts for each of them, so a joined name never takes a row.
 
 The game never depends on any of this. With the Worker down, uploads wait for a later launch without a word, and the
 Everyone toggle says the numbers are unavailable.

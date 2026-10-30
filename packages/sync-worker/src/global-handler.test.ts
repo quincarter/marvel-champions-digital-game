@@ -166,7 +166,20 @@ describe("known content only", () => {
     expect(
       (await post(call, game(1, { villain: "Rhino & Klaw", modulars: ["s.h.i.e.l.d._executive_board"] }))).status,
     ).toBe(200);
-    expect(store().map.has("v:Rhino & Klaw")).toBe(true);
+    expect(store().map.has("v:Rhino")).toBe(true);
+    expect(store().map.has("v:Klaw")).toBe(true);
+    expect(store().map.has("c:Klaw")).toBe(true);
+    expect(store().map.has("v:Rhino & Klaw")).toBe(false);
+    // A reordered or repeated pairing is the same villains, and makes no new row.
+    const keys = store().map.size;
+    expect(
+      (await post(call, game(2, { villain: "Klaw & Rhino", modulars: ["s.h.i.e.l.d._executive_board"] }))).status,
+    ).toBe(200);
+    expect(
+      (await post(call, game(3, { villain: "Rhino & Rhino", modulars: ["s.h.i.e.l.d._executive_board"] }))).status,
+    ).toBe(200);
+    expect(store().map.has("v:Klaw & Rhino")).toBe(false);
+    expect(store().map.size - keys).toBe(2);
     expect(store().map.has("m:s.h.i.e.l.d._executive_board")).toBe(true);
   });
 

@@ -34,12 +34,12 @@
 //
 // Global win rates (/global, one GlobalStats Durable Object named "global"). A result writes, in one put, 1 dedupe row +
 // 1 villain + 1 per modular set (at most 6) + 1 per distinct hero (at most 4) + 1 card row + 1 bookkeeping row: 6 for a
-// typical solo game, 14 at the worst; a retry writes none. The caller's limiter object writes 2 more per result (its
-// state and its alarm), so 16 at the worst. Reads write no limiter row (their allowance is counted in memory) and only one
+// typical solo game, 20 at the worst; a retry writes none. The caller's limiter object writes 2 more per result (its
+// state and its alarm), so 22 at the worst. Reads write no limiter row (their allowance is counted in memory) and only one
 // summary row an hour in GlobalStats. Per IP: 60 results a day is at most 960 rows, and 120 reads an hour cost none.
-// Whole store: 3,000 results a day at the worst is 3,000 x 16 = 48,000 rows of the 100,000. Maintenance is an alarm
+// Whole store: 3,000 results a day at the worst is 3,000 x 22 = 66,000 rows of the 100,000. Maintenance is an alarm
 // step every 10 minutes while old dedupe rows remain: at most 144 x 102 = 14,700 rows a day, normally a few hundred a
-// month. The summary read at 24 rows a day is noise. Worst day in total is about 63,000 rows, leaving the rest for
+// month. The summary read at 24 rows a day is noise. Worst day in total is about 81,000 rows, leaving the rest for
 // sync. Dedupe rows go once two months old. The store only takes games whose villain, modular sets and heroes are on
 // the generated allowlist (src/global-allowlist.ts, checked against the client's card pool by a client test), so it
 // holds about 1,000 aggregate rows; GLOBAL_MAX_KEYS (5,000) is a backstop real content never reaches. GLOBAL_STATS_ENABLED

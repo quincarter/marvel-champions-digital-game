@@ -9,12 +9,13 @@
  *   `c:<villain>`     `{wins, losses, inWins, inLosses}`: the deck cards brought against a villain, counted per seat.
  *   `s:summary`       the served `GET /global/stats` body, rebuilt at most once an hour on read.
  *
- * Rows written per game, all in one `put` call so a game counts whole or not at all: 1 dedupe row, 1 villain, 1 per
- * modular set (at most 6), 1 per distinct hero (at most 4), 1 card row, 1 meta. A solo game with one modular set is 6
- * rows, the worst game is 14; a retry (a seen id) writes none. The alarm is set once a month (one more row). Rows read
+ * Rows written per game, all in one `put` call so a game counts whole or not at all: 1 dedupe row, 2 per villain (its
+ * row and its card row; at most 4 villains), 1 per modular set (at most 6), 1 per distinct hero (at most 4), 1 meta. A solo
+ * game with one modular set is 6 rows, the worst game is 20; a retry (a seen id) writes none. The alarm is set once a month (one more row). Rows read
  * per game: the two dedupe lookups, meta, the card row and the villain, modular and hero rows, in one `get`.
  */
 
+import { GLOBAL_ALLOWED_VILLAINS } from "./global-allowlist.js";
 import type { KeyValueStorage } from "./env.js";
 import {
   GLOBAL_MIN_GAMES,
@@ -29,7 +30,7 @@ import {
 export const GLOBAL_RESULTS_PER_DAY = 3000;
 /**
  * Distinct v/m/h/c rows; past it a game that needs a new one answers `full`. The Worker's allowlist (`global-allowlist.ts`)
- * is what bounds the store, about 1,000 rows for the whole pool plus any two-villain joins; this is a backstop that real
+ * is what bounds the store, about 1,000 rows for the whole pool; this is a backstop that real
  * content never reaches.
  */
 export const GLOBAL_MAX_KEYS = 5000;
@@ -92,6 +93,20 @@ function bump(row: AggregateRow, won: boolean, cause: GlobalLossCause | null): v
 
 const emptyAggregate = (): AggregateRow => ({ games: 0, wins: 0, causes: {} });
 
+/** Most villains a game may name: the Four Horsemen's four. */
+const MAX_VILLAINS = 4;
+const KNOWN_VILLAINS: ReadonlySet<string> = new Set(GLOBAL_ALLOWED_VILLAINS);
+
+/**
+ * The villains a result counts for, or null when it names one the pool does not have. A game against several counts for
+ * each of them, so a joined name never takes a row of its own: any pairing of real villains would otherwise be a new key.
+ */
+export function villainKeysOf(name: string): readonly string[] | null {
+  if (KNOWN_VILLAINS.has(name)) return [name];
+  const parts = [...new Set(name.split(" & "))];
+  return parts.length <= MAX_VILLAINS && parts.every((part) => KNOWN_VILLAINS.has(part)) ? parts : null;
+}
+
 export class GlobalStatsLogic {
   constructor(private readonly storage: KeyValueStorage) {}
 
@@ -101,15 +116,16 @@ export class GlobalStatsLogic {
     const dedupeKey = `g:${month}:${result.id}`;
     const previousKey = `g:${previousMonthOf(now)}:${result.id}`;
 
+    const villains = villainKeysOf(result.villain) ?? [result.villain];
     const heroes = [...new Set(result.seats.map((s) => s.hero))];
     const aggregateKeys = [
-      `v:${result.villain}`,
+      ...villains.map((v) => `v:${v}`),
       ...result.modulars.map((m) => `m:${m}`),
       ...heroes.map((h) => `h:${h}`),
     ];
-    const cardKey = `c:${result.villain}`;
+    const cardKeys = villains.map((v) => `c:${v}`);
 
-    const found = await this.storage.get<unknown>([dedupeKey, previousKey, "meta", cardKey, ...aggregateKeys]);
+    const found = await this.storage.get<unknown>([dedupeKey, previousKey, "meta", ...cardKeys, ...aggregateKeys]);
     if (found.has(dedupeKey) || found.has(previousKey)) return { ok: true, counted: false };
 
     const meta: Meta = (found.get("meta") as Meta | undefined) ?? { games: 0, keys: 0, day: 0, dayCount: 0 };
@@ -122,8 +138,8 @@ export class GlobalStatsLogic {
       return { ok: false, reason: "rate-limited", retryAfterMs: (today + 1) * DAY_MS - now };
     }
 
-    // The card row counts as one key too, so a new villain name costs two.
-    const newKeys = aggregateKeys.filter((k) => !found.has(k)).length + (found.has(cardKey) ? 0 : 1);
+    // A card row counts as a key too, so a new villain costs two.
+    const newKeys = [...aggregateKeys, ...cardKeys].filter((k) => !found.has(k)).length;
     if (meta.keys + newKeys > GLOBAL_MAX_KEYS) return { ok: false, reason: "full", retryAfterMs: 0 };
 
     const writes: Record<string, unknown> = {};
@@ -133,37 +149,39 @@ export class GlobalStatsLogic {
       writes[key] = row;
     }
 
-    const cards = (found.get(cardKey) as CardRow | undefined) ?? { wins: 0, losses: 0, inWins: {}, inLosses: {} };
-    const bucket = result.won ? cards.inWins : cards.inLosses;
-    let size = JSON.stringify(cards).length;
-    const brought = new Set<string>();
-    for (const seat of result.seats) {
-      if (result.won) cards.wins += 1;
-      else cards.losses += 1;
-      for (const card of seat.deck) {
-        // Own properties only: "constructor" and the like are card names, not inherited members.
-        if (!Object.hasOwn(bucket, card)) {
-          // A new card name adds its key, quotes, colon, comma and a count (8 bytes, counted generously).
-          size += card.length + 8;
-          bucket[card] = 0;
+    for (const key of cardKeys) {
+      const cards = (found.get(key) as CardRow | undefined) ?? { wins: 0, losses: 0, inWins: {}, inLosses: {} };
+      const bucket = result.won ? cards.inWins : cards.inLosses;
+      let size = JSON.stringify(cards).length;
+      const brought = new Set<string>();
+      for (const seat of result.seats) {
+        if (result.won) cards.wins += 1;
+        else cards.losses += 1;
+        for (const card of seat.deck) {
+          // Own properties only: "constructor" and the like are card names, not inherited members.
+          if (!Object.hasOwn(bucket, card)) {
+            // A new card name adds its key, quotes, colon, comma and a count (8 bytes, counted generously).
+            size += card.length + 8;
+            bucket[card] = 0;
+          }
+          bucket[card]! += 1;
+          brought.add(card);
         }
-        bucket[card]! += 1;
-        brought.add(card);
       }
-    }
-    // Past the byte cap, forged or rare ids make room by leaving, fewest decks first and other games' before this game's,
-    // so a row can neither freeze at the cap and refuse real new cards nor grow past it, whatever the counts.
-    if (size > GLOBAL_MAX_CARD_ROW_BYTES) {
-      const entries = [cards.inWins, cards.inLosses]
-        .flatMap((map) => Object.entries(map).map(([card, count]) => ({ map, card, count })))
-        .sort((a, b) => a.count - b.count || Number(brought.has(a.card)) - Number(brought.has(b.card)));
-      for (const { map, card } of entries) {
-        if (size <= GLOBAL_MAX_CARD_ROW_BYTES) break;
-        delete map[card];
-        size -= card.length + 8;
+      // Past the byte cap, forged or rare ids make room by leaving, fewest decks first and other games' before this game's,
+      // so a row can neither freeze at the cap and refuse real new cards nor grow past it, whatever the counts.
+      if (size > GLOBAL_MAX_CARD_ROW_BYTES) {
+        const entries = [cards.inWins, cards.inLosses]
+          .flatMap((map) => Object.entries(map).map(([card, count]) => ({ map, card, count })))
+          .sort((a, b) => a.count - b.count || Number(brought.has(a.card)) - Number(brought.has(b.card)));
+        for (const { map, card } of entries) {
+          if (size <= GLOBAL_MAX_CARD_ROW_BYTES) break;
+          delete map[card];
+          size -= card.length + 8;
+        }
       }
+      writes[key] = cards;
     }
-    writes[cardKey] = cards;
 
     meta.games += 1;
     meta.keys += newKeys;
