@@ -152,6 +152,7 @@ import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-mo
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
+import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
@@ -299,6 +300,10 @@ const QUICK_FILTERS: readonly {
   })),
 ];
 
+/** The wide left rail's Cost curve / Odds tabs: shorter than a touch target, as only a mouse reaches them there. */
+const CHART_TAB_HEIGHT = 30;
+const CARD_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL.map((card) => [card.id as string, card]));
+
 /** From this column width the quick filters fit one row: ten chips, then a trait stepper `QUICK_TRAIT_WIDTH` wide. */
 const QUICK_ONE_ROW_MIN = 720;
 const QUICK_TRAIT_WIDTH = 200;
@@ -309,6 +314,11 @@ export class DeckBuilderScene extends Phaser.Scene {
   #identity: HeroIdentityCard | null = null;
   #deck: Deck | null = null;
   #filter: PoolFilter = {};
+  /** The left rail's chart on a wide screen: the cost curve, or the draw odds (issue #531). */
+  #chartTab: "curve" | "odds" = "curve";
+  /** The odds' group (`deck-odds.ts`) and how many cards are drawn; null is the first group / the opening hand. */
+  #oddsGroup: string | null = null;
+  #oddsDraws: number | null = null;
   #filterText = "";
   #sort: PoolSort = DEFAULT_POOL_SORT;
   #status: string | null = null;
@@ -624,6 +634,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         aspectIds: [...SELECTABLE_ASPECTS],
         typeFilterIds: TYPE_FILTERS.map((f) => f.id),
         quickFilterIds: QUICK_FILTERS.map((f) => f.id),
+        chartIds: [...this.#stops.keys()].filter((key) => key.startsWith("chart:") || key.startsWith("odds:")),
         poolCardIds: pool.map((card) => card.id as string),
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
@@ -766,6 +777,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     y = this.#drawLegalityLine(left, y, inner, deck);
     y = this.#drawRewardsStrip(left, y, inner, false);
     y = this.#drawCostCurve(left, y, inner, deck, false);
+    label(this, left, y, "odds", typeRole.label, surface.ink.hex, ink.label);
+    y = this.#drawOdds(left, y + 16, inner, deck, hit.target);
     y = this.#drawYourDeckList(left, y, inner, deck, false);
     y = this.#drawPreconClearSave(left, y, inner, deck);
     const nameNode = this.#nameInput?.gameObject;
@@ -835,9 +848,29 @@ export class DeckBuilderScene extends Phaser.Scene {
     leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
     leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
     leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
-    label(this, leftX, leftY, "cost curve", typeRole.label, surface.ink.hex, ink.label);
-    leftY += 16;
-    this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
+    // The cost curve and the odds share the rail's last room behind two tabs (issue #531).
+    const tabWidth = (LEFT_RAIL_WIDTH - CHIP_GAP) / 2;
+    for (const [i, tab] of (["curve", "odds"] as const).entries()) {
+      const rect: Rect = { x: leftX + i * (tabWidth + CHIP_GAP), y: leftY, width: tabWidth, height: CHART_TAB_HEIGHT };
+      const pick = (): void => {
+        this.#chartTab = tab;
+        this.#rebuild();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: tab === "curve" ? "Cost curve" : "Odds",
+          type: typeRole.label,
+          rect,
+          selected: this.#chartTab === tab,
+          onClick: pick,
+        }),
+      );
+      this.#stops.set(`chart:${tab}`, { rect, activate: pick });
+    }
+    leftY += CHART_TAB_HEIGHT + CHIP_GAP;
+    if (this.#chartTab === "curve") this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
+    else this.#drawOdds(leftX, leftY, LEFT_RAIL_WIDTH, deck, CHART_TAB_HEIGHT);
 
     // Right rail: name, legality, Your deck, Preconstructed/Clear, Save — one ink ground panel behind all of it.
     const rightPanel = this.add.graphics();
@@ -1374,6 +1407,75 @@ export class DeckBuilderScene extends Phaser.Scene {
    * goes in the right one; the narrow layout still calls both back to back,
    * in the same order as before.
    */
+  /**
+   * The draw odds (issue #531, `view/deck-odds.ts`): a group stepper (◂ Gives physical ▸, Resource cards, a trait, a
+   * title ...), a draw count stepper starting at the alter ego's hand size (the opening hand), then the chance of
+   * drawing 0, 1, 2 and 3+ of the group and of at least one. Black Cat's top 2 is "Resource cards", draw 2.
+   */
+  #drawOdds(left: number, top: number, column: number, deck: Deck, rowHeight: number): number {
+    let y = top;
+    const copies = deckCopiesOf(deck, (id) => CARD_BY_ID.get(id));
+    const groups = oddsGroupsOf(copies);
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, enabled = true): void => {
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, enabled, onClick }),
+      );
+      this.#stops.set(id, { rect, activate: () => enabled && onClick() });
+    };
+    if (groups.length === 0) {
+      label(this, left, y, "Add cards to see their odds.", typeRole.body, surface.ink.hex, ink.meta);
+      return y + 24;
+    }
+    const at = Math.max(
+      0,
+      groups.findIndex((g) => g.id === this.#oddsGroup),
+    );
+    const group = groups[at]!;
+    const step = (dir: 1 | -1) => (): void => {
+      this.#oddsGroup = groups[(at + dir + groups.length) % groups.length]!.id;
+      this.#rebuild();
+    };
+    const arrow = rowHeight;
+    add("odds:prev", { x: left, y, width: arrow, height: rowHeight }, "<", step(-1));
+    add(
+      "odds:group",
+      { x: left + arrow + CHIP_GAP, y, width: column - 2 * (arrow + CHIP_GAP), height: rowHeight },
+      `${group.label} · ${group.count}`,
+      step(1),
+    );
+    add("odds:next", { x: left + column - arrow, y, width: arrow, height: rowHeight }, ">", step(1));
+    y += rowHeight + CHIP_GAP;
+
+    const hand = this.#identity?.alterEgo.handSize ?? 6;
+    const draws = Math.min(this.#oddsDraws ?? hand, copies.length);
+    const setDraws = (next: number) => (): void => {
+      this.#oddsDraws = Math.max(1, Math.min(copies.length, next));
+      this.#rebuild();
+    };
+    add("odds:fewer", { x: left, y, width: arrow, height: rowHeight }, "−", setDraws(draws - 1), draws > 1);
+    add(
+      "odds:draws",
+      { x: left + arrow + CHIP_GAP, y, width: column - 2 * (arrow + CHIP_GAP), height: rowHeight },
+      draws === hand ? `Draw ${draws} (opening hand)` : `Draw ${draws}`,
+      setDraws(hand),
+    );
+    add(
+      "odds:more",
+      { x: left + column - arrow, y, width: arrow, height: rowHeight },
+      "+",
+      setDraws(draws + 1),
+      draws < copies.length,
+    );
+    y += rowHeight + 8;
+
+    const { rows, atLeastOne } = oddsRowsOf(drawOdds(copies.length, group.count, draws));
+    const line = rows.map((row) => `${row.label}: ${percentText(row.p)}`).join("   ");
+    label(this, left, y, line, typeRole.body, surface.ink.hex, ink.label);
+    y += 18;
+    label(this, left, y, `At least one: ${percentText(atLeastOne)}`, typeRole.body, surface.ink.hex, ink.label);
+    return y + 26;
+  }
+
   #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
     const stats = deckStatsOf(deck, POOL);
     const chartHeight = 74;

@@ -137,6 +137,8 @@ export interface DeckBuilderFocusInput {
   readonly typeFilterIds: readonly string[];
   /** The deck builder's quick cost/icon chip ids (`quick:<id>`); present, the trait stepper follows them. */
   readonly quickFilterIds?: readonly string[];
+  /** The Cost curve / Odds tabs and the odds' steppers (`chart:*`, `odds:*`), in the order drawn, after the sort. */
+  readonly chartIds?: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
   /**
@@ -183,6 +185,7 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "pack:cycle",
     "pack:sort",
     "pack:then",
+    ...(input.chartIds ?? []),
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     ...(input.showDelete ? ["delete"] : []),

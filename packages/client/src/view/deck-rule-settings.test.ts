@@ -4,7 +4,7 @@ import { requiredIdentitySet } from "@mc/engine";
 import { addCard, deckRuleRefusal, identityOptions, newDeck, setAspects } from "./deck-builder-model.js";
 
 const spiderMan = identityOptions(CORE_CARDS).find((c) => c.name === "Spider-Man")!;
-const deck = setAspects(newDeck(spiderMan, CORE_CARDS, "d1", "2026-10-29T00:00:00.000Z"), ["justice"]);
+const deck = setAspects(newDeck(spiderMan, CORE_CARDS, "d1", "poolv1", "2026-10-29T00:00:00.000Z"), ["justice"]);
 const signature = requiredIdentitySet(spiderMan, CORE_CARDS)[0]!.cardId;
 const byName = (name: string): AnyCard => CORE_CARDS.find((c) => c.name === name)!;
 const times = (n: number, id: CardId) => Array.from({ length: n }).reduce<typeof deck>((d) => addCard(d, id), deck);
