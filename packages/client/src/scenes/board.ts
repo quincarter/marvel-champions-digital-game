@@ -527,6 +527,7 @@ export class BoardScene extends Phaser.Scene {
     // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
+      sizeRects: () => this.#frame.hoverSizeRects,
       facedown: () => this.#frame.facedownHovers,
       area: (pointer) => this.#hoverArea(isMousePointer(pointer)),
     });

@@ -34,6 +34,11 @@ import type { TeamUpRings } from "./team-up-badge.js";
 export interface BoardFrame {
   /** Card rect by instance id, so a target tap can be hit-tested and ringed. */
   readonly hitRects: Map<InstanceId, Rect>;
+  /**
+   * The card as drawn, where its hit rect is a whole row around it (a scheme's panel). The hover popover grows from
+   * this, or a row as wide as a band of the table comes up larger than the card ever should (`hoverCardSize`).
+   */
+  readonly hoverSizeRects: Map<InstanceId, Rect>;
   /** Rects of everything focusable this draw, so the focus ring knows where to go. */
   readonly focusRects: Map<string, Rect>;
   /**
@@ -100,6 +105,7 @@ export interface BarStop {
 
 export const emptyFrame = (): BoardFrame => ({
   hitRects: new Map(),
+  hoverSizeRects: new Map(),
   focusRects: new Map(),
   pileRects: new Map(),
   handStrip: [],

@@ -87,7 +87,7 @@ describe("the hero deck", () => {
     expect(view.summary[0]).toBe(`${rest.length + 1} unseen: ${rest.length} in deck, 1 facedown`);
   });
 
-  test("a card tucked facedown from the deck stays unseen with it (Operation Zero Tolerance)", () => {
+  test("a card tucked facedown from the deck stays unseen with it (Bastion's Machinations)", () => {
     const [top, ...rest] = seat(state).deck;
     const hostId = state.villains[0]!.instanceId as string;
     const tucked = {
@@ -172,7 +172,7 @@ describe("the encounter deck", () => {
     expect(viewOf(other, "encounter").facedown).toBe(0);
   });
 
-  test("an encounter card tucked facedown is not listed: it came from the set-aside area", () => {
+  test("an encounter card tucked facedown is not listed: none comes unseen out of the deck", () => {
     const [top, ...rest] = activeEncounterDeck(state).deck;
     const hostId = state.villains[0]!.instanceId as string;
     const given = withEncounterDeck(state, rest);
