@@ -1697,6 +1697,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
               to: { kind: "id", playerId: frame.targetPlayerId },
               amount: { kind: "const", value: planned.damage },
               fromAttack: true,
+              // Only the defender, or the identity if undefended, is attacked (p. 24): its share alone pierces.
+              attackedInstanceId: frame.targetInstanceId,
+              ...(keywords.includes("piercing") ? { piercingFor: frame.targetInstanceId } : {}),
             },
           ],
           selfInstanceId: frame.enemyInstanceId,
@@ -1733,6 +1736,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
               amount: { kind: "const", value: planned.damage },
               chooser: { kind: "firstPlayer" },
               fromAttack: true,
+              attackedInstanceId: frame.targetInstanceId,
               ...(keywords.includes("piercing") ? { piercingFor: frame.targetInstanceId } : {}),
             },
           ],

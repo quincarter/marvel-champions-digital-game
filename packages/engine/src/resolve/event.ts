@@ -1388,13 +1388,15 @@ type DamageEvent = Extract<TriggerEvent, { kind: "dealDamage" }>;
 /**
  * Whether this damage is an attack's, dealt to the character it attacks, by an attack with piercing: the attacker's own
  * keyword, or one granted to this attack alone and stamped on the event (`attackKeywordsOf`). Attack damage dealt to a
- * character the attack is not against (`notAttacked`, docs/phase7-wave6.md §3.36, §4.1 Q18) does not pierce.
+ * character the attack is not against (`notAttacked`, docs/phase7-wave6.md §3.36, §4.1 Q18) does not pierce, nor does
+ * an indirect or divided share dealt to a character that was not attacked (`pierceExempt`, RRG 1.8 pp. 24, 32).
  */
 function attackPierces(ctx: Ctx, event: DamageEvent): boolean {
   const source = event.sourceInstanceId;
   return (
     event.fromAttack &&
     event.notAttacked !== true &&
+    event.pierceExempt !== true &&
     (event.piercing === true || (source !== null && hasKeyword(ctx.state, source, "piercing", ctx.deps))) &&
     // "Attacks against them lose piercing" (docs/phase7-wave10.md §3.18): read here, where piercing is applied, so
     // the loss holds whatever stamped the keyword on this damage and whenever its rule came into force.

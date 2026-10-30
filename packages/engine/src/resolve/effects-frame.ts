@@ -3265,18 +3265,37 @@ function executeDealIndirectDamage(
   pushFrames(ctx, [
     damageGroupFrame(
       ctx,
-      shares.map(([key, points]) => ({
-        kind: "dealDamage",
-        targetInstanceId: asInstanceId(key.slice(`${INDIRECT}to.`.length)),
-        amount: points,
-        sourceInstanceId: frame.selfInstanceId,
-        fromAttack: effect.fromAttack === true,
-        indirect: true as const,
-        ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
-      })),
+      shares.map(([key, points]) => {
+        const targetInstanceId = asInstanceId(key.slice(`${INDIRECT}to.`.length));
+        return {
+          kind: "dealDamage",
+          targetInstanceId,
+          amount: points,
+          sourceInstanceId: frame.selfInstanceId,
+          fromAttack: effect.fromAttack === true,
+          indirect: true as const,
+          ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
+          ...attackShareKeywords(effect, targetInstanceId),
+        };
+      }),
       effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
     ),
   ]);
+}
+
+/**
+ * Piercing on one share of an attack's damage split among several characters (indirect, or divided evenly). Only the
+ * attacked character is attacked (RRG 1.8 "Indirect Damage", p. 24), and piercing discards tough status cards "from the
+ * attacked character" (p. 32; ruling January 24, 2025 #64): its share carries the attack's piercing, whatever granted
+ * it, and every other share is exempt, even from the attacker's own keyword.
+ */
+function attackShareKeywords(
+  effect: { readonly attackedInstanceId?: InstanceId; readonly piercingFor?: InstanceId },
+  targetInstanceId: InstanceId,
+): { readonly piercing?: true; readonly pierceExempt?: true } {
+  if (effect.piercingFor === targetInstanceId) return { piercing: true };
+  const attacked = effect.attackedInstanceId ?? effect.piercingFor;
+  return attacked !== undefined && attacked !== targetInstanceId ? { pierceExempt: true } : {};
 }
 
 /**
@@ -3327,7 +3346,7 @@ function executeDivideDamageEvenly(
         sourceInstanceId: frame.selfInstanceId,
         fromAttack: effect.fromAttack === true,
         ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
-        ...(effect.piercingFor === id ? { piercing: true } : {}),
+        ...attackShareKeywords(effect, id),
       })),
       null,
     ),

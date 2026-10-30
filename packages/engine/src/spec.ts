@@ -4247,6 +4247,14 @@ export type EffectSpec =
        */
       readonly fromAttack?: boolean;
       /**
+       * Set by the engine with `fromAttack`: the attacked character, the defender or the identity if the attack was
+       * undefended. Only it is attacked, "even if other characters were assigned some or all of the indirect damage"
+       * (RRG 1.8 "Indirect Damage", p. 24), so every other share is `pierceExempt`.
+       */
+      readonly attackedInstanceId?: InstanceId;
+      /** The attacked character, when the attack has piercing (RRG 1.8 "Piercing", p. 32): only its share pierces. */
+      readonly piercingFor?: InstanceId;
+      /**
        * Set by the engine for a "take N indirect damage →" cost (`AbilityCost.indirectDamage`): a character holding a
        * tough status card is not offered, since the damage it took would be prevented and a cost cannot be partly
        * paid (the Focused Rage FAQ entry, RRG 1.8 p. 57).
@@ -4269,6 +4277,8 @@ export type EffectSpec =
       readonly chooser: PlayerRef;
       /** Set by the engine for an enemy's attack: the shares are that attack's damage, reported to its event frame. */
       readonly fromAttack?: boolean;
+      /** Set by the engine with `fromAttack`: the attacked character; every other share is `pierceExempt`. */
+      readonly attackedInstanceId?: InstanceId;
       /** The attacked character, when the attack has piercing (RRG 1.8 "Piercing", p. 32): only its share pierces. */
       readonly piercingFor?: InstanceId;
     }
