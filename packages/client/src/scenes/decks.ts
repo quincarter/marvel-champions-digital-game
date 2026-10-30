@@ -383,6 +383,8 @@ export class DecksScene extends Phaser.Scene {
   #filter: RosterFilter = { text: "" };
   /** Collapsed by default (2026-09-18 fidelity pass, point 2): the quick-filter chips cost nothing until asked for, so the deck list itself gets the column's room. */
   #filtersExpanded = false;
+  /** Whether a phone's pool chips are open under their Filters button; they start folded to leave the cards the room. */
+  #poolFiltersOpen = false;
   /** Which of the Import/Export box's two fields is open, if either — collapsed by default so the box stays compact and pinned at the column's bottom. */
   #importExportOpen: "paste" | "marvelcdb" | null = null;
   #poolAspectFilter: CoreAspect | "basic" | "identity" | null = null;
@@ -455,6 +457,7 @@ export class DecksScene extends Phaser.Scene {
     this.#marvelcdbText = "";
     this.#filter = { text: "" };
     this.#filtersExpanded = false;
+    this.#poolFiltersOpen = false;
     this.#importExportOpen = null;
     this.#poolAspectFilter = null;
     this.#poolSortByCost = false;
@@ -954,7 +957,9 @@ export class DecksScene extends Phaser.Scene {
           chipIds: this.#activeTab === "decks" ? this.#chipDefs(ownOptions).map((c) => c.id) : [],
           poolCardIds,
           poolChipIds:
-            this.#activeTab === "cards" && selected ? this.#poolChipDefs(selected.deck).map((c) => c.id) : [],
+            this.#activeTab === "cards" && selected
+              ? ["filters", ...this.#poolChipDefs(selected.deck).map((c) => c.id)]
+              : [],
           wide: false,
           activeTab: this.#activeTab,
           hasSelection: selected !== null,
@@ -2059,9 +2064,31 @@ export class DecksScene extends Phaser.Scene {
       chipDefs.map((chip) => this.#chipWidth(chip)),
     );
     // On a phone the chips would be drawn over the heading ("CARD POOL" clipped to "CA" behind the first chip), so
-    // they take their own row(s) under it, left-aligned.
-    const chipY = beside ? y + (heading.height - chipHeight) / 2 : y + heading.height + 8;
-    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, beside ? "right" : "left", (chip) =>
+    // they fold behind a Filters button beside it, and open onto their own row(s) under it, left-aligned.
+    const toggleWidth = 124;
+    if (!beside) {
+      const active = (this.#poolAspectFilter ? 1 : 0) + (this.#poolSortByCost ? 1 : 0);
+      const rect: Rect = { x: left + column - toggleWidth, y, width: toggleWidth, height: chipHeight };
+      const toggle = (): void => {
+        this.#poolFiltersOpen = !this.#poolFiltersOpen;
+        this.#rebuild();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `Filters ${this.#poolFiltersOpen ? "▴" : "▾"}${active > 0 ? ` · ${active}` : ""}`,
+          type: typeRole.label,
+          rect,
+          selected: active > 0,
+          onClick: toggle,
+        }),
+      );
+      this.#stops.set("pool-chip:filters", { rect, activate: toggle });
+      heading.setY(y + (chipHeight - heading.height) / 2);
+    }
+    const chipY = beside ? y + (heading.height - chipHeight) / 2 : y + chipHeight + 8;
+    const shownChips = beside || this.#poolFiltersOpen ? chipDefs : [];
+    const packed = packChipsNatural(shownChips, left, chipY, column, chipHeight, beside ? "right" : "left", (chip) =>
       this.#chipWidth(chip),
     );
     for (const { chip, rect: cell } of packed.placed) {
@@ -2081,11 +2108,14 @@ export class DecksScene extends Phaser.Scene {
     const chipsLeftEdge =
       beside && packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
     const ruleStart = left + heading.width + 10;
-    const ruleEnd = chipsLeftEdge - 10;
+    const ruleEnd = (beside ? chipsLeftEdge : left + column - toggleWidth) - 10;
     if (ruleEnd > ruleStart) {
       const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 1).fillRect(ruleStart, y + heading.height / 2 - 1.5, ruleEnd - ruleStart, 3);
+      rule
+        .fillStyle(surface.ink.hex, 1)
+        .fillRect(ruleStart, heading.y + heading.height / 2 - 1.5, ruleEnd - ruleStart, 3);
     }
+    if (!beside) return (shownChips.length > 0 ? packed.bottom : y + chipHeight) + 12;
     return Math.max(y + heading.height, packed.bottom + chipHeight) + 12;
   }
 
