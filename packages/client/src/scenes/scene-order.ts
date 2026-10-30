@@ -82,6 +82,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
   SCENES.extrasViewer,
   SCENES.music,
   // The dark mode toggle (#459): above every screen, below the notices and popups that drop over the top bar.
@@ -156,6 +157,7 @@ const BOARD_SHEETS = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
 ];
 
 /**

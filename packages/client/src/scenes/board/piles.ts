@@ -38,6 +38,13 @@ export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: Bo
   drawPile(ctx, row.discard, narrow ? "disc." : "discard", model.myPiles.discard, model.myDiscardTop);
 
   ctx.frame.pileRects.set(pileKey("deck", model.perspectiveId), row.deck);
+  // Magik's faceup top card keeps its own tap (play it); R3 / the deck key still reach the list.
+  const deckLeftTabs = ctx.deckLeftTabs();
+  if (deckLeftTabs.includes("hero") && !shown) {
+    const open = (): void => ctx.openDeckLeft("hero");
+    addTapTarget(scene, row.deck, { onTap: open, onInspect: open, key: "deck-left:hero" });
+  }
+  if (deckLeftTabs[0] === "hero") drawDeckLeftGlyph(ctx, row.deck);
   ctx.frame.pileRects.set(pileKey("discard", model.perspectiveId), row.discard);
 
   const top = model.myDiscard[0];
@@ -65,6 +72,21 @@ export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: Bo
       );
     }
   }
+}
+
+/** The R3 / deck key glyph over the deck the shortcut opens: desktop and tablet landscape only, like every glyph. */
+export function drawDeckLeftGlyph(ctx: BoardDrawContext, box: Rect): void {
+  if (!glyphsFitLayout(ctx.tabbed)) return;
+  ctx.hints.custom(
+    // As the discard's: not under a hold layer, and not as the digit key while a direct pick is open.
+    (set, snapshot, layer) =>
+      layer === null && !(set === "keyboard" && ctx.controller.pickIds() !== null)
+        ? specsForShortcuts(["deckLeft"], snapshot)
+        : null,
+    14,
+    ({ width }) => ({ x: box.x + (box.width - width) / 2, y: box.y + box.height * 0.5 }),
+    { ground: "ink" },
+  );
 }
 
 /** The type of a resource as a word and a glyph, so a 12px icon on a scan never carries the type by color alone. */

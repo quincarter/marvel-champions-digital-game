@@ -7,6 +7,7 @@
  * through the controller.
  */
 
+import type { DeckLeftTab } from "../../view/deck-left-model.js";
 import type { VillainHandTag } from "../../view/villain-hand-tags.js";
 import type { ReferenceCardView } from "../../view/reference-cards.js";
 import type Phaser from "phaser";
@@ -187,6 +188,10 @@ export interface BoardDrawContext {
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
   /** Fans a pile out (`scenes/pile-view.ts`): every card in it, most recent first. */
   openPile(name: string, ids: readonly InstanceId[]): void;
+  /** Which decks a press may list right now (`deckLeftTabsOf`); empty leaves the piles as they were. */
+  deckLeftTabs(): readonly DeckLeftTab[];
+  /** Lists the cards left in a deck (`scenes/deck-left.ts`). */
+  openDeckLeft(tab: DeckLeftTab): void;
   /** Opens one of the scenario's printed rules cards (`Scenario.referenceCards`), which has no instance. */
   inspectReference(reference: ReferenceCardView): void;
 }
