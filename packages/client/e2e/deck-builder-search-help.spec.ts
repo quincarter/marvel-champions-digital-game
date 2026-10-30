@@ -61,8 +61,8 @@ test("the ? opens the cheat sheet, and Use puts an example in the search", async
   await settle(page);
   expect((await texts(page, "SearchHelpSheet")).join("\n")).toContain("o:2");
 
-  // The first example is row 5, after the top heading, three notes and the Every term heading.
-  await pressStop(page, "SearchHelpSheet", "use:5");
+  // The first example is row 6, after the top heading, three notes, the Every term heading and its note.
+  await pressStop(page, "SearchHelpSheet", "use:6");
   await waitFor(
     async () => (!(await activeScenes(page)).includes("SearchHelpSheet") ? true : null),
     "the sheet closes",
@@ -88,7 +88,7 @@ test("a swipe of the cheat sheet that lifts over Use does nothing", async ({ pag
   await page.touchscreen.tap(help.x + help.width / 2, help.y + help.height / 2);
   await waitFor(async () => ((await activeScenes(page)).includes("SearchHelpSheet") ? true : null), "the sheet opens");
   await settle(page);
-  const use = await waitFor(() => stopRect(page, "SearchHelpSheet", "use:6"), "a Use button", 15_000);
+  const use = await waitFor(() => stopRect(page, "SearchHelpSheet", "use:7"), "a Use button", 15_000);
   const centre = { x: use.x + use.width / 2, y: use.y + use.height / 2 };
   await swipe(page, centre, { x: centre.x, y: centre.y - 140 });
   await page.waitForTimeout(300);
