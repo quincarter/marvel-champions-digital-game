@@ -146,6 +146,8 @@ export const SCENES = {
   evidence: "EvidenceOverlay",
   /** A pile fanned out: every card in your discard (or the encounter discard) at once (`scenes/pile-view.ts`). */
   pileView: "PileViewOverlay",
+  /** The cards left in your deck or the encounter deck, with counts and never in order (`scenes/deck-left.ts`). */
+  deckLeft: "DeckLeftOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
   /** "Report an issue" (#176, `scenes/report-issue.ts`): copy or download the log, a screenshot tip, a GitHub link. */

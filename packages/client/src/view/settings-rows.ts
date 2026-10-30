@@ -73,6 +73,9 @@ export type SettingsRowId =
   | "confirm-end-turn"
   | "deck-copy-limits"
   | "same-name-conflict"
+  | "deck-counts-hero"
+  | "deck-counts-encounter"
+  | "deck-boost-average"
   | "hover-hero"
   | "hover-villain"
   | "discord-presence"
@@ -153,6 +156,25 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       detail:
         "A hero and an ally with the same name can't both be in play. Applies to new games; the ally can still be spent as a resource.",
       on: settings.sameNameHeroAllyConflict,
+    },
+    {
+      id: "deck-counts-hero",
+      title: "Your deck's cards left",
+      detail: "Tap your deck to list the cards still in it, with how many of each. Never in draw order.",
+      on: settings.deckCountsHero,
+    },
+    {
+      id: "deck-counts-encounter",
+      title: "Encounter deck's cards left",
+      detail: "Tap the encounter deck for the same list. It can name cards of a scenario you haven't met yet.",
+      on: settings.deckCountsEncounter,
+    },
+    {
+      id: "deck-boost-average",
+      title: "Encounter boost average",
+      detail:
+        "Shows the boost icons per card left in the encounter deck when you tap it. Star boosts are listed apart.",
+      on: settings.deckBoostAverage,
     },
     {
       id: "hover-hero",
@@ -246,6 +268,12 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, notOfferedNotices: !settings.notOfferedNotices };
     case "same-name-conflict":
       return { ...settings, sameNameHeroAllyConflict: !settings.sameNameHeroAllyConflict };
+    case "deck-counts-hero":
+      return { ...settings, deckCountsHero: !settings.deckCountsHero };
+    case "deck-counts-encounter":
+      return { ...settings, deckCountsEncounter: !settings.deckCountsEncounter };
+    case "deck-boost-average":
+      return { ...settings, deckBoostAverage: !settings.deckBoostAverage };
     case "hover-hero":
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":

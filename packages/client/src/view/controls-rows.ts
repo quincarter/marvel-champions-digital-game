@@ -304,7 +304,12 @@ const PAD_ROWS: readonly PadRowDef[] = [
     action: "Scroll",
     note: "The list, hand or log under focus",
   },
-  { id: "expand", index: 11, action: "Expand · collapse", note: "On a decision popup" },
+  {
+    id: "expand",
+    index: 11,
+    action: "Expand · collapse · cards left",
+    note: "On a decision popup. On the table, lists the cards left in your decks when that setting is on",
+  },
   {
     id: "discard",
     index: 10,
@@ -436,6 +441,7 @@ export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly Keyboard
         shortcutRow("teamUp", hand, "When a Team-Up is available"),
         shortcutRow("evidence", hand, "When evidence is on the table"),
         shortcutRow("discard", hand, "When your discard pile has a card in it"),
+        shortcutRow("deckLeft", hand, "When a Cards left setting is on"),
       ],
     },
     {

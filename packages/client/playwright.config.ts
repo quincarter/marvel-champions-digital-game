@@ -107,6 +107,7 @@ export default defineConfig({
         "tap-redraw.spec.ts",
         "language-button.spec.ts",
         "discard-pile-view.spec.ts",
+        "deck-left.spec.ts",
         "break-time.spec.ts",
         "angel-form.spec.ts",
         "off-turn-action.spec.ts",

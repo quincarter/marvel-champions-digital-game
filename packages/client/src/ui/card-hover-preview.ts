@@ -58,6 +58,8 @@ const FADE_MS = 90;
 export interface HoverPreviewDeps {
   /** Each game card's rect as the scene last drew it, by instance. Absent on a screen with no game (the deck screens). */
   readonly cards?: () => ReadonlyMap<InstanceId, Rect>;
+  /** The card as drawn, for its popover's size, where its rect in `cards` is a larger row around it. */
+  readonly sizeRects?: () => ReadonlyMap<InstanceId, Rect>;
   /**
    * Each game card as the scene shows it now, one entry per picture (`hoverCardHitsOf`): read instead of `cards` when
    * given, for a screen that shows one card more than once (the recap's "Ultron attacks …" rows) or inside a region
@@ -118,6 +120,7 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
   SCENES.roundDebrief,
   SCENES.villainPhase,
   SCENES.reportIssue,
@@ -533,9 +536,10 @@ export class HoverPreview {
     const source = key && this.scene.textures.exists(key) ? this.scene.textures.get(key).getSourceImage() : null;
     const aspect = source && source.width > 0 && source.height > 0 ? source.width / source.height : null;
     const scale = appSession().settings.cardHoverScale;
+    const drawn = this.deps.sizeRects?.().get(id) ?? onTable;
 
     const container = this.scene.add.container(0, 0).setDepth(HOVER_DEPTH);
-    let size = hoverCardSize(onTable, aspect, scale, area);
+    let size = hoverCardSize(drawn, aspect, scale, area);
     if (this.#minHeight > size.height) {
       const ratio = size.width / size.height;
       const height = Math.min(this.#minHeight, area.height - HOVER_MARGIN * 2);
@@ -546,7 +550,7 @@ export class HoverPreview {
     const meterHeight = hp ? HP_PLATE_HEIGHT + 14 : scheme ? METER_HEIGHT + 14 : 0;
     if ((scheme || hp) && lines.length === 0) {
       const room: Rect = { ...area, height: Math.max(1, area.height - meterHeight - STRIP_GAP) };
-      const fitted = hoverCardSize(onTable, aspect, scale, room);
+      const fitted = hoverCardSize(drawn, aspect, scale, room);
       if (fitted.width < size.width) size = fitted;
     }
     if (lines.length > 0) {
@@ -556,7 +560,7 @@ export class HoverPreview {
       });
       stripHeight = strip.height + 14;
       const room: Rect = { ...area, height: Math.max(1, area.height - stripHeight - meterHeight - STRIP_GAP) };
-      const fitted = hoverCardSize(onTable, aspect, scale, room);
+      const fitted = hoverCardSize(drawn, aspect, scale, room);
       if (fitted.width < size.width) {
         size = fitted;
         strip.setWordWrapWidth(Math.max(1, size.width - 20));

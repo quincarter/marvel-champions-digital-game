@@ -7,6 +7,7 @@
  * through the controller.
  */
 
+import type { DeckLeftTab } from "../../view/deck-left-model.js";
 import type { VillainHandTag } from "../../view/villain-hand-tags.js";
 import type { ReferenceCardView } from "../../view/reference-cards.js";
 import type Phaser from "phaser";
@@ -33,6 +34,11 @@ import type { TeamUpRings } from "./team-up-badge.js";
 export interface BoardFrame {
   /** Card rect by instance id, so a target tap can be hit-tested and ringed. */
   readonly hitRects: Map<InstanceId, Rect>;
+  /**
+   * The card as drawn, where its hit rect is a whole row around it (a scheme's panel). The hover popover grows from
+   * this, or a row as wide as a band of the table comes up larger than the card ever should (`hoverCardSize`).
+   */
+  readonly hoverSizeRects: Map<InstanceId, Rect>;
   /** Rects of everything focusable this draw, so the focus ring knows where to go. */
   readonly focusRects: Map<string, Rect>;
   /**
@@ -99,6 +105,7 @@ export interface BarStop {
 
 export const emptyFrame = (): BoardFrame => ({
   hitRects: new Map(),
+  hoverSizeRects: new Map(),
   focusRects: new Map(),
   pileRects: new Map(),
   handStrip: [],
@@ -187,6 +194,10 @@ export interface BoardDrawContext {
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
   /** Fans a pile out (`scenes/pile-view.ts`): every card in it, most recent first. */
   openPile(name: string, ids: readonly InstanceId[]): void;
+  /** Which decks a press may list right now (`deckLeftTabsOf`); empty leaves the piles as they were. */
+  deckLeftTabs(): readonly DeckLeftTab[];
+  /** Lists the cards left in a deck (`scenes/deck-left.ts`). */
+  openDeckLeft(tab: DeckLeftTab): void;
   /** Opens one of the scenario's printed rules cards (`Scenario.referenceCards`), which has no instance. */
   inspectReference(reference: ReferenceCardView): void;
 }

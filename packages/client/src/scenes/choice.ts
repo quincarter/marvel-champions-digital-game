@@ -427,6 +427,9 @@ export class ChoiceOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.optionNotice) ||
+        // Opened from a peek at the table: the pile owns B and A while it is up.
+        this.scene.isActive(SCENES.pileView) ||
+        this.scene.isActive(SCENES.deckLeft) ||
         this.#covered(),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       // A trigger or a bumper held with a face button picks a target tile outright, as on the table's targeting panel.

@@ -156,6 +156,8 @@ import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/enco
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import { evidenceInputOf } from "../view/evidence-model.js";
 import type { PileViewData } from "./pile-view.js";
+import type { DeckLeftData } from "./deck-left.js";
+import { deckLeftTabsOf, type DeckLeftTab } from "../view/deck-left-model.js";
 import type { TeamUpSplashData } from "./team-up-splash.js";
 import type { TeamUpInfoData } from "./team-up-info.js";
 import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
@@ -525,6 +527,7 @@ export class BoardScene extends Phaser.Scene {
     // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
+      sizeRects: () => this.#frame.hoverSizeRects,
       facedown: () => this.#frame.facedownHovers,
       area: (pointer) => this.#hoverArea(isMousePointer(pointer)),
     });
@@ -579,6 +582,7 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.teamUpInfo) ||
         this.scene.isActive(SCENES.evidence) ||
         this.scene.isActive(SCENES.pileView) ||
+        this.scene.isActive(SCENES.deckLeft) ||
         // Device sync's "which copy?" question owns the keyboard and pad (`conflictPromptOwnsInput`).
         this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
@@ -669,6 +673,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.choice,
         SCENES.inspect,
         SCENES.pileView,
+        SCENES.deckLeft,
         SCENES.villainPhase,
         SCENES.pause,
         SCENES.rules,
@@ -954,6 +959,7 @@ export class BoardScene extends Phaser.Scene {
       this.#choiceOpen ||
       this.scene.isActive(SCENES.inspect) ||
       this.scene.isActive(SCENES.pileView) ||
+      this.scene.isActive(SCENES.deckLeft) ||
       this.scene.isActive(SCENES.villainPhase) ||
       this.scene.isActive(SCENES.pause) ||
       this.scene.isActive(SCENES.rules) ||
@@ -1452,6 +1458,8 @@ export class BoardScene extends Phaser.Scene {
       },
       inspect: (id, siblings) => this.#inspect(id, siblings),
       openPile: (name, ids) => this.#openPile(name, ids),
+      deckLeftTabs: () => deckLeftTabsOf(appSession().settings),
+      openDeckLeft: (tab) => this.#openDeckLeft(tab),
       inspectReference: (reference) => this.scene.launch(SCENES.inspect, { reference }),
     };
 
@@ -1813,6 +1821,13 @@ export class BoardScene extends Phaser.Scene {
       case "discard":
         if (this.#focusRegion === "board" && !this.#controller.readOnly) this.#openMyDiscard();
         break;
+      case "expand":
+        // On the table R3 lists the cards left: the decision popups that Expand belongs to own the pad while up.
+        if (this.#focusRegion === "board") {
+          const first = deckLeftTabsOf(appSession().settings)[0];
+          if (first) this.#openDeckLeft(first);
+        }
+        break;
       case "pageNext":
         this.#jumpZone(1);
         break;
@@ -2047,6 +2062,9 @@ export class BoardScene extends Phaser.Scene {
           break;
         case "discard":
           this.#actOnIntent("discard");
+          break;
+        case "deckLeft":
+          this.#actOnIntent("expand");
           break;
         case "evidence":
           // Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
@@ -2520,6 +2538,7 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.evidence) ||
       this.scene.isActive(SCENES.pileView) ||
+      this.scene.isActive(SCENES.deckLeft) ||
       this.scene.isActive(SCENES.holdOn) ||
       this.scene.isActive(SCENES.optionNotice)
     );
@@ -2739,6 +2758,12 @@ export class BoardScene extends Phaser.Scene {
   #openPile(name: string, ids: readonly InstanceId[]): void {
     if (ids.length === 0 || this.scene.isActive(SCENES.pileView)) return;
     this.scene.launch(SCENES.pileView, { from: SCENES.board, name, ids } satisfies PileViewData);
+  }
+
+  #openDeckLeft(tab: DeckLeftTab): void {
+    const perspectiveId = this.#model?.perspectiveId;
+    if (!perspectiveId || this.scene.isActive(SCENES.deckLeft)) return;
+    this.scene.launch(SCENES.deckLeft, { from: SCENES.board, tab, perspectiveId } satisfies DeckLeftData);
   }
 
   #onInspectPlay(instanceId: InstanceId): void {

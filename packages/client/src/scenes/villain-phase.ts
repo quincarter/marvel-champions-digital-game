@@ -450,7 +450,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.pause) ||
         // The only-option notice (#412) owns Escape: closing it must not also skip the walkthrough.
-        this.scene.isActive(SCENES.optionNotice),
+        this.scene.isActive(SCENES.optionNotice) ||
+        // Opened from the table docked beside this phase: the pile owns Escape and B while it is up.
+        this.scene.isActive(SCENES.pileView) ||
+        this.scene.isActive(SCENES.deckLeft),
       // Esc / B on the START gate is Nevermind when End turn can still be taken back; otherwise it hides the phase.
       onCancel: () => (this.#nevermindTarget() !== null ? void this.#nevermind() : this.#skip()),
       primary: () => this.#primaryStop,

@@ -93,6 +93,12 @@ export interface Settings {
    * notice's "Don't show again" turns it off. The game log and Inspect say it either way. Defaults on.
    */
   readonly notOfferedNotices: boolean;
+  /** Tap your deck for the cards left in it, with counts and never in order (`scenes/deck-left.ts`). Defaults on: you built it. */
+  readonly deckCountsHero: boolean;
+  /** The same for the encounter deck. Defaults off: it can name cards of a scenario you have not met yet. */
+  readonly deckCountsEncounter: boolean;
+  /** Boost icons per card left in the encounter deck, on the same view. Defaults off: an aid some players would rather not have. */
+  readonly deckBoostAverage: boolean;
   /**
    * The table rule "a hero and an ally with the same name can't both be in play" (`TableRules.sameNameHeroAllyConflict`,
    * owner decision 2026-10-03). Unlike the rest of this file it reaches the engine, as the rule set a NEW game is created
@@ -431,6 +437,9 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     deckSignatureCards: "free",
     deckCopyLimits: false,
     notOfferedNotices: true,
+    deckCountsHero: true,
+    deckCountsEncounter: false,
+    deckBoostAverage: false,
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,
