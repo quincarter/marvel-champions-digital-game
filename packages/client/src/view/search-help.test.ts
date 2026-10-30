@@ -34,8 +34,9 @@ describe("the search cheat sheet (issue #531)", () => {
 
   test("every field the search reads has a row under Every term", () => {
     const at = SEARCH_HELP_ROWS.findIndex((row) => row.kind === "heading" && row.text === "Every term");
+    const end = SEARCH_HELP_ROWS.findIndex((row) => row.kind === "heading" && row.text === "Try these");
     const fields = new Set(
-      SEARCH_HELP_ROWS.slice(at).flatMap((row) =>
+      SEARCH_HELP_ROWS.slice(at, end).flatMap((row) =>
         row.kind === "query" ? parsePoolQuery(row.query).clauses.map((c) => c.field) : [],
       ),
     );

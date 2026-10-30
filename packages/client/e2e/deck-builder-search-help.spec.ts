@@ -59,9 +59,9 @@ test("the ? opens the cheat sheet, and Use puts an example in the search", async
   await pressStop(page, "DeckBuilder", "filter-help");
   await waitFor(async () => ((await activeScenes(page)).includes("SearchHelpSheet") ? true : null), "the sheet opens");
   await settle(page);
-  expect((await texts(page, "SearchHelpSheet")).join("\n")).toContain("t:ally o<3");
+  expect((await texts(page, "SearchHelpSheet")).join("\n")).toContain("o:2");
 
-  // The first example is row 5, after the top heading, three notes and the Try these heading.
+  // The first example is row 5, after the top heading, three notes and the Every term heading.
   await pressStop(page, "SearchHelpSheet", "use:5");
   await waitFor(
     async () => (!(await activeScenes(page)).includes("SearchHelpSheet") ? true : null),
@@ -74,7 +74,7 @@ test("the ? opens the cheat sheet, and Use puts an example in the search", async
   expect(filtered).toBeGreaterThan(0);
   await expect(page.locator("input").filter({ visible: true }).first()).toBeVisible();
   expect(await page.locator("input").evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value))).toContain(
-    "t:ally o<3",
+    "o:2",
   );
 });
 
