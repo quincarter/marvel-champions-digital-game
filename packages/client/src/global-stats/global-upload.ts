@@ -28,8 +28,11 @@ import { globalIdOf, globalResultOf } from "./global-result.js";
 
 export const MAX_PER_RUN = 5;
 export const UPLOAD_TIMEOUT_MS = 10_000;
-/** The Worker remembers ids for a month at the least, so an older game is never sent: it might count twice. */
-export const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * The Worker checks an id against this calendar month and the last, so the soonest a sent id can be forgotten is 29 days
+ * later (January 31 to March 1). A game is never sent past this age, so a late device cannot count it twice.
+ */
+export const MAX_AGE_MS = 28 * 24 * 60 * 60 * 1000;
 /** After a save signal, how long play must be quiet before a run starts. */
 export const RUN_DEBOUNCE_MS = 10_000;
 

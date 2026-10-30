@@ -135,7 +135,16 @@ describe("runGlobalUpload", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  test("a game over 30 days old is never sent: the Worker may have forgotten its id", async () => {
+  test("a game finished on January 31 is not sent on March 1, once the Worker has forgotten its id", async () => {
+    const { deps, storage, fetchFn } = setup();
+    const finished = Date.UTC(2027, 0, 31, 23, 59);
+    turnOnGlobalStats([], storage, finished - 1);
+    const game = meta({ id: "late", updatedAt: finished });
+    await runGlobalUpload({ listSaves: async () => [game] }, { ...deps, now: () => Date.UTC(2027, 2, 1) });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  test("a game past the age limit is never sent: the Worker may have forgotten its id", async () => {
     const { deps, storage, fetchFn } = setup();
     turnOnGlobalStats([], storage, 5000);
     const old = meta({ id: "old", updatedAt: 9000 });
