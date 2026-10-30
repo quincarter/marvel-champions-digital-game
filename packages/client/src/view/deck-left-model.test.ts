@@ -87,6 +87,24 @@ describe("the hero deck", () => {
     expect(view.summary[0]).toBe(`${rest.length + 1} unseen: ${rest.length} in deck, 1 facedown`);
   });
 
+  test("a card tucked facedown from the deck stays unseen with it (Operation Zero Tolerance)", () => {
+    const [top, ...rest] = seat(state).deck;
+    const hostId = state.villains[0]!.instanceId as string;
+    const tucked = {
+      ...state,
+      players: [{ ...seat(state), deck: rest }, ...state.players.slice(1)],
+      instances: { ...state.instances, [hostId]: { ...state.instances[hostId]!, tucked: [top!] } },
+    };
+    const view = viewOf(tucked, "hero");
+    expect(view.inDeck).toBe(rest.length);
+    expect(view.facedown).toBe(1);
+    expect(view.rows).toEqual(viewOf(state, "hero").rows);
+
+    const instance = tucked.instances[top as string]!;
+    const faceup = { ...tucked, instances: { ...tucked.instances, [top as string]: { ...instance, faceup: true } } };
+    expect(viewOf(faceup, "hero").facedown).toBe(0);
+  });
+
   test("a reshuffled deck counts what it now holds", () => {
     const player = seat(state);
     const drawn = { ...player, deck: player.deck.slice(30), discard: player.deck.slice(0, 30) };
@@ -152,6 +170,18 @@ describe("the encounter deck", () => {
     const home = { kind: "encounterDeck" as const, deckId: "elsewhere" as never };
     const other = { ...dealt, instances: { ...dealt.instances, [id]: { ...dealt.instances[id]!, home } } };
     expect(viewOf(other, "encounter").facedown).toBe(0);
+  });
+
+  test("an encounter card tucked facedown is not listed: it came from the set-aside area", () => {
+    const [top, ...rest] = activeEncounterDeck(state).deck;
+    const hostId = state.villains[0]!.instanceId as string;
+    const given = withEncounterDeck(state, rest);
+    const tucked = {
+      ...given,
+      instances: { ...given.instances, [hostId]: { ...given.instances[hostId]!, tucked: [top!] } },
+    };
+    expect(viewOf(tucked, "encounter").facedown).toBe(0);
+    expect(total(tucked, "encounter")).toBe(rest.length);
   });
 
   test("a set-aside card is not listed", () => {

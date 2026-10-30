@@ -112,13 +112,22 @@ const typeRank = (type: string): number => {
   return rank < 0 ? TYPE_ORDER.length : rank;
 };
 
-/** Cards of this home that no one may read and that are not in a deck: boost cards, dealt cards, a facedown Drone. */
+/**
+ * Cards of this home that no one may read and that are not in a deck: boost cards, dealt cards, a facedown Drone, and a
+ * player card tucked facedown (Operation Zero Tolerance, 32104; Bastion's Machinations, 32169). An encounter card tucked
+ * facedown stays out: those come from the set-aside area, so they were never in the deck (Kang's Dominion). A player
+ * card tucked from a hand is known to its owner, and listing it only under-claims.
+ */
 function facedownOf(state: GameState, deps: EngineDeps, belongs: (id: InstanceId) => boolean): readonly InstanceId[] {
   return (Object.keys(state.instances) as InstanceId[]).filter((id) => {
     const instance = getInstance(state, id);
     if (!instance || instance.faceup || !belongs(id)) return false;
     const zone = locateCard(state, id)?.kind;
-    const hidden = zone === "dealtEncounter" || zone === "boost" || instance.facedownAs !== null;
+    const hidden =
+      zone === "dealtEncounter" ||
+      zone === "boost" ||
+      instance.facedownAs !== null ||
+      (zone === "tucked" && instance.home.kind === "player");
     return hidden && !faceVisible(state, id, { deps });
   });
 }
