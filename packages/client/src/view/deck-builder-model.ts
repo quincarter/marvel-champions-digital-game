@@ -590,3 +590,45 @@ export function repairedStoredDeck(deck: Deck, precon: Deck | null, id: string, 
 
 /** The aspects selectable in the picker, in a stable order. */
 export const SELECTABLE_ASPECTS: readonly CoreAspect[] = CHOOSABLE_ASPECTS;
+
+/**
+ * The deck-building rule settings (issue #531, Settings › Gameplay). The builder lets a player go past the deck rules
+ * by default (extra copies of a signature card, a fourth copy): `validateDeck` still says what is illegal. These make
+ * it refuse the step instead, for a player who wants the standard rules.
+ *
+ * `signature`: "free" lets the identity's own set be changed like any card; "standard" keeps each of its cards at its
+ * set count; "hidden" does that and also leaves the set out of the pool list (it stays in the deck).
+ */
+export interface DeckBuildingRules {
+  readonly signature: "free" | "standard" | "hidden";
+  /** Refuse an add that would break a copy limit (3 by title, a card's own "Max 1 per deck", a hero's own rule). */
+  readonly copyLimits: boolean;
+}
+
+export const FREE_DECK_BUILDING: DeckBuildingRules = { signature: "free", copyLimits: false };
+
+/** Why `rules` refuse adding (`+1`) or removing (`-1`) one copy of `cardId`, or null when they allow it. */
+export function deckRuleRefusal(
+  deck: Deck,
+  identity: HeroIdentityCard,
+  pool: CardPool,
+  cardId: CardId,
+  step: 1 | -1,
+  rules: DeckBuildingRules,
+): string | null {
+  if (rules.signature !== "free" && requiredIdentitySet(identity, pool).some((line) => line.cardId === cardId))
+    return "Signature cards stay at their set's count (Settings › Gameplay › Signature cards).";
+  if (step === 1 && rules.copyLimits) {
+    const limitBroken = (validation: DeckValidation): readonly string[] =>
+      validation.ok
+        ? []
+        : validation.problems
+            .filter((p) => (p.code === "copy_limit" || p.code === "unique_match") && p.cardIds.includes(cardId))
+            .map((p) => p.message);
+    const before = limitBroken(validateDeck(deck, pool));
+    const after = limitBroken(validateDeck(addCard(deck, cardId), pool));
+    const fresh = after.find((message) => !before.includes(message));
+    if (fresh !== undefined) return fresh;
+  }
+  return null;
+}

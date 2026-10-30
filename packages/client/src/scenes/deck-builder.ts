@@ -53,7 +53,7 @@
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
-import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
+import { requiredIdentitySet, type CampaignDeckContext, type CampaignGrant } from "@mc/engine";
 import type { CardId } from "@mc/content";
 import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
@@ -68,6 +68,8 @@ import {
   aspectCountFor,
   packFilterChoices,
   traitFilterChoices,
+  deckRuleRefusal,
+  type DeckBuildingRules,
   QUICK_COST_MAX,
   stepChoice,
   withCycle,
@@ -644,6 +646,19 @@ export class DeckBuilderScene extends Phaser.Scene {
     return this.#campaign ? new Set([...prohibitedCampaignCardIds(this.#campaign.context)].map(String)) : null;
   }
 
+  /** The deck-building rule settings (Settings › Gameplay, issue #531). Campaign decks follow their campaign's rules. */
+  #rules(): DeckBuildingRules {
+    const settings = appSession().settings;
+    return this.#campaign
+      ? { signature: "free", copyLimits: false }
+      : { signature: settings.deckSignatureCards, copyLimits: settings.deckCopyLimits };
+  }
+
+  /** Why the rule settings refuse adding (`1`) or removing (`-1`) one `cardId`, or null. */
+  #ruleRefusal(deck: Deck, cardId: CardId, step: 1 | -1): string | null {
+    return this.#identity ? deckRuleRefusal(deck, this.#identity, POOL, cardId, step, this.#rules()) : null;
+  }
+
   /** Keeps the pool's sort, filters and view for the next visit (`platform/deck-builder-view.ts`). */
   #rememberView(): void {
     rememberDeckBuilderView({ sort: this.#sort, filter: this.#filter, poolView: this.#poolView });
@@ -672,7 +687,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     // The search worker answers the text search: only its matches stay, in the chosen sort (its ranking orders them
     // only under the Match sort, issue #531).
-    const pool = ranking ? listed.filter((card) => ranking.has(card.id as string)) : listed;
+    const searched = ranking ? listed.filter((card) => ranking.has(card.id as string)) : listed;
+    // "Hidden" signature cards stay in the deck but leave the pool list (Settings › Gameplay, issue #531).
+    const hidden =
+      this.#rules().signature === "hidden"
+        ? new Set(requiredIdentitySet(this.#identity!, POOL).map((line) => line.cardId as string))
+        : null;
+    const pool = hidden ? searched.filter((card) => !hidden.has(card.id as string)) : searched;
     const removed = this.#removedFromCampaignIds();
     const prohibited = this.#prohibitedCampaignIds();
     if (!removed && !prohibited) return pool;
@@ -1405,18 +1426,21 @@ export class DeckBuilderScene extends Phaser.Scene {
     const drawRemove = (entry: DeckListEntry, rect: Rect): void => {
       const row = this.#campaignRowFor(entry.cardId as string);
       const locked = row?.locked ?? false;
+      const refused = this.#ruleRefusal(deck, entry.cardId, -1);
       this.#buttons.push(
         new McButton(this, {
           kind: onDark ? "onInk" : "secondary",
           label: "−",
           type: typeRole.rowTitle,
           rect,
-          enabled: !locked && !frozen,
+          enabled: !locked && !frozen && refused === null,
           ...(frozen
             ? { reason: this.#campaignModel?.editingDisabledReason ?? "" }
             : locked && row?.lockedReason
               ? { reason: row.lockedReason }
-              : {}),
+              : refused
+                ? { reason: refused }
+                : {}),
           onClick: () => this.#setDeck(removeCard(deck, entry.cardId)),
         }),
       );
@@ -1696,7 +1720,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         activate: () => {
           const row = this.#campaignRowFor(cardId);
           const frozen = this.#campaignModel?.editingDisabled ?? false;
-          if (frozen || (row?.refused ?? false)) return;
+          if (frozen || (row?.refused ?? false) || this.#ruleRefusal(deck, card.id, 1)) return;
           this.#setDeck(addCard(deck, card.id));
         },
         inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
@@ -1776,6 +1800,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         activate: () => {
           const row = this.#campaignRowFor(cardId);
           if ((this.#campaignModel?.editingDisabled ?? false) || (row?.refused ?? false)) return;
+          if (this.#ruleRefusal(deck, card.id, 1)) return;
           this.#setDeck(addCard(deck, card.id));
         },
         inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
@@ -1855,15 +1880,18 @@ export class DeckBuilderScene extends Phaser.Scene {
         width: buttonWidth,
         height: hit.target,
       };
+      // The rule settings (issue #531) only matter where nothing else already disables the button.
+      const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
+      const plusRefused = this.#ruleRefusal(deck, card.id, 1);
       const minusReason = frozen
         ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-        : campaignRow?.lockedReason;
+        : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
       const minus = new McButton(this, {
         kind: "secondary",
         label: "−",
         type: typeRole.rowTitle,
         rect: minusRect,
-        enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen,
+        enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
         ...(minusReason ? { reason: minusReason } : {}),
         onClick: () => this.#setDeck(removeCard(deck, card.id)),
         clip,
@@ -1871,13 +1899,13 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
       const plusReason = frozen
         ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-        : (campaignRow?.refusedReason ?? undefined);
+        : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
       const plus = new McButton(this, {
         kind: "secondary",
         label: "+",
         type: typeRole.rowTitle,
         rect: plusRect,
-        enabled: !(campaignRow?.refused ?? false) && !frozen,
+        enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
         ...(plusReason ? { reason: plusReason } : {}),
         onClick: () => this.#setDeck(addCard(deck, card.id)),
         clip,
@@ -2302,16 +2330,18 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Campaign mode: a granted line can't be removed by the player (MC10 p. 3) and nothing is added while the
     // deck is frozen (MC16 p. 5 / MC27 p. 6) — both disable with the row's own reason, read the same way any
     // other unavailable control's reason reads (`McButton.reason`).
+    const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
+    const plusRefused = this.#ruleRefusal(deck, card.id, 1);
     const minusDisabledReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-      : campaignRow?.lockedReason;
+      : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
     const doRemove = (): void => this.#setDeck(removeCard(deck, card.id));
     const minusButton = new McButton(this, {
       kind: "secondary",
       label: "−",
       type: typeRole.rowTitle,
       rect: minusRect,
-      enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen,
+      enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
       ...(minusDisabledReason ? { reason: minusDisabledReason } : {}),
       onClick: doRemove,
       clip,
@@ -2321,7 +2351,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     const plusDisabledReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-      : (campaignRow?.refusedReason ?? undefined);
+      : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
     const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
     const doAdd = (): void => this.#setDeck(addCard(deck, card.id));
     const plusButton = new McButton(this, {
@@ -2329,7 +2359,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       label: "+",
       type: typeRole.rowTitle,
       rect: plusRect,
-      enabled: !(campaignRow?.refused ?? false) && !frozen,
+      enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
       ...(plusDisabledReason ? { reason: plusDisabledReason } : {}),
       onClick: doAdd,
       clip,

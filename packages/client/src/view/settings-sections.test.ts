@@ -18,6 +18,8 @@ describe("settingsSectionsOf", () => {
       "music-volume",
       "effects-volume",
       "token-motion",
+      "deck-signature",
+      "deck-copy-limits",
       "villain-auto",
       "villain-hold",
       "villain-flip",
