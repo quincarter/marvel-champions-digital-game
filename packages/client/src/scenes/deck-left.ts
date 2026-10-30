@@ -113,7 +113,8 @@ export class DeckLeftOverlay extends Phaser.Scene {
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#visibleCards(),
-      area: (pointer) => screenHoverArea(this, pointer),
+      // The docked villain phase, or a decision docked in it or peeked past, sits under this sheet.
+      area: (pointer) => screenHoverArea(this, pointer, { beneath: [SCENES.villainPhase, SCENES.choice] }),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
@@ -345,6 +346,7 @@ export class DeckLeftOverlay extends Phaser.Scene {
         summary: () => this.#view?.summary ?? [],
         rows: () => this.#view?.rows.map((row) => ({ name: row.name, count: row.count })) ?? [],
         cards: () => [...this.#visibleCards().values()],
+        hoverShown: () => this.#hover?.shownKey ?? null,
       };
     }
   }
