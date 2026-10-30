@@ -60,7 +60,8 @@ test("Receive: a typed code fetches the save and lands on the replace confirm", 
 
   await clickStop(page, "row:receive", SAVE_DATA);
   await waitForStop(page, "receive");
-  // Typing starts in the field (desktop focuses it); lower case and a space are fine.
+  // Into the field (desktop focuses it itself unless the host reports touch); lower case and a space are fine.
+  await page.getByRole("textbox").focus();
   await page.keyboard.type(`${ROOM.toLowerCase()} ${KEY_PART.toLowerCase()}`);
   await page.keyboard.press("Enter");
   await waitForSaveText(page, "Replace everything on this device?");
@@ -80,6 +81,7 @@ test("Receive: a wrong code says what may be wrong; a malformed one never asks t
   await clickStop(page, "row:receive", SAVE_DATA);
   await waitForStop(page, "receive");
 
+  await page.getByRole("textbox").focus();
   await page.keyboard.type("ABCD");
   await clickStop(page, "receive", SAVE_DATA);
   await waitForSaveText(page, "That isn't a transfer code.");
@@ -102,6 +104,7 @@ test("an unreachable service says so and points at Export, on Send and on Receiv
   const unavailable = "Online transfer is unavailable right now. You can still export a save file.";
   await clickStop(page, "row:receive", SAVE_DATA);
   await waitForStop(page, "receive");
+  await page.getByRole("textbox").focus();
   await page.keyboard.type(`${ROOM}${KEY_PART}`);
   await clickStop(page, "receive", SAVE_DATA);
   await waitForSaveText(page, unavailable);
