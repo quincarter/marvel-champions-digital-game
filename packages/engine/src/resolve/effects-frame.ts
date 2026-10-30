@@ -2107,6 +2107,17 @@ function choseNothing(
 const forcedEnemyTeamSearch = (effect: Extract<EffectSpec, { kind: "chooseCards" }>): boolean =>
   effect.chooser.kind === "enemyTeamDecider" && isRequiredSearch(effect);
 
+/**
+ * A target choice with nothing to decide, resolved without a prompt: a required choice (`isRequiredChoice`: neither
+ * "may" nor "up to") made by "the enemy team" (`chooser: enemyTeamDecider`, MC56 p. 6) with exactly one legal target.
+ * docs/phase7-wave10.md section 3.5: "Where there is one candidate there is no prompt" (QA finding F2,
+ * docs/phase7-wave10-qa-registration.md), as for the enemy team's search (`forcedEnemyTeamSearch`). Kept to the enemy
+ * team's choices, as that one is: a player's own required choice with one candidate still shows its prompt. The target
+ * is logged as any pick is (`targetChosen`).
+ */
+const forcedEnemyTeamChoice = (effect: Extract<EffectSpec, { kind: "chooseTarget" }>): boolean =>
+  effect.chooser.kind === "enemyTeamDecider" && isRequiredChoice(effect);
+
 function executeChooseCards(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -3702,6 +3713,12 @@ function requestTargetChoice(
     return;
   }
   const count = Math.min(wanted, legal.length);
+  // One legal target for a choice the enemy team must make: nothing to decide, so no prompt (`forcedEnemyTeamChoice`).
+  if (forcedEnemyTeamChoice(effect) && legal.length === 1) {
+    emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: legal });
+    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: legal } });
+    return;
+  }
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),

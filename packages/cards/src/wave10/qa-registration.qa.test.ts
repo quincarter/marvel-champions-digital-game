@@ -331,7 +331,7 @@ describe("one-candidate enemy-team choices", () => {
     expect(JSON.stringify(enemyTeamPrompts(asked))).toBe("[]");
   });
 
-  it.fails("56112 Colleen Wing: an Unregistered player controls exactly one ally, so the enemy team's choice is forced and the first player is not asked", () => {
+  it("56112 Colleen Wing: an Unregistered player controls exactly one ally, so the enemy team's choice is forced and the first player is not asked", () => {
     let s = heroForm(bareIronMan());
     s = stagedInPlay(s, MOON_KNIGHT).state;
     s = inPlayAreaOf(s, "56106");
