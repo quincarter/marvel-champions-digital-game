@@ -3,6 +3,7 @@
  * of a scrolling list. The Overview packs its tiles into rows of a column grid (four across, two on a phone); a hero's
  * cards come as strips of card pictures, as many across as fit. Pure: sizes and positions only, no Phaser.
  */
+import type { Rect } from "./layout.js";
 import type { AspectShare, HeroCardsView, OverviewTile, PlayerStats, StatRow } from "./player-stats-model.js";
 
 export type StatsTab = "overview" | "heroes" | "villains" | "aspects" | "encounter" | "records" | "all-cards" | "cards";
@@ -169,6 +170,15 @@ const statHeight = (phone: boolean): number => (phone ? 74 : 58);
 /** A stat row with a loss bar under its lines. */
 const lossStatHeight = (phone: boolean): number => (phone ? 112 : 84);
 const noteHeight = (phone: boolean): number => (phone ? 52 : 40);
+
+/**
+ * The picture leading a stat row about a card, inside the row's `box`. The card hover opens on this rect, not the
+ * row's: the popover grows from the rect it is given, so a row-wide target would blow the card up to fill the screen.
+ */
+export function statRowPicture(box: Rect): Rect {
+  const height = box.height - 10;
+  return { x: box.x + 6, y: box.y + 5, width: Math.round((height * 63) / 88), height };
+}
 
 /** One tab's rows. `heroIndex` picks the hero on Cards by hero (wrapped into range). */
 export function dashboardRowsOf(
