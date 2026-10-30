@@ -1681,7 +1681,10 @@ export class DecksScene extends Phaser.Scene {
       .setFontSize(readingSize(typeRole.emphasis.size))
       .setWordWrapWidth(textWidth, true);
     const lineHeight = Math.max(1, meta.height / Math.max(1, meta.getWrappedText().length));
-    const allowed = Math.max(1, Math.min(showRecord ? 1 : 2, Math.floor(metaRoom / lineHeight)));
+    const allowed = Math.max(
+      1,
+      Math.min(showRecord && !isDesktopType() ? 1 : 2, Math.floor((metaRoom + 4) / lineHeight)),
+    );
     for (const candidate of candidates) {
       meta.setText(candidate);
       if (meta.getWrappedText().length <= allowed) break;
