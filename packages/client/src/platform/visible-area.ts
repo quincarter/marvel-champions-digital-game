@@ -11,6 +11,10 @@
  * bottom reports the same taller layout viewport, but already pins fixed boxes above its toolbar, so trimming by the
  * `innerHeight` difference left a black band there (the owner, 2026-10-24).
  * Pinch-zoom is left alone (`scale !== 1`), and nothing runs where there is no `visualViewport`.
+ *
+ * The on-screen keyboard is left alone too: it lays over the canvas (#537). `index.html` asks for that with
+ * `interactive-widget=overlays-content`; a browser that ignores it shrinks the visible area while a text field has
+ * focus, and that shrink is not trimmed for, so the screen never re-lays out for a few letters of typing.
  */
 import type Phaser from "phaser";
 
@@ -19,6 +23,13 @@ export function hiddenBottom(boxBottom: number, visibleHeight: number, offsetTop
   if (zoom !== 1) return 0;
   const hidden = Math.round(boxBottom - visibleHeight - offsetTop);
   return hidden > 1 ? hidden : 0;
+}
+
+/** True while a text field has focus, when a shrunken visible area is the on-screen keyboard rather than a toolbar. */
+export function typingInto(element: Element | null): boolean {
+  if (element === null) return false;
+  const tag = element.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || (element as HTMLElement).isContentEditable === true;
 }
 
 /**
@@ -38,6 +49,8 @@ export function installVisibleArea(game: Phaser.Game): void {
   let queued = false;
   const apply = (): void => {
     queued = false;
+    // Keep whatever trim the toolbar had: the keyboard covers the canvas, it doesn't resize it.
+    if (typingInto(document.activeElement)) return;
     // The box's bottom as it would sit without the trim already applied.
     const boxBottom = box.getBoundingClientRect().bottom + applied;
     const hidden = boxTrim(hiddenBottom(boxBottom, viewport.height, viewport.offsetTop, viewport.scale));
@@ -53,6 +66,8 @@ export function installVisibleArea(game: Phaser.Game): void {
     requestAnimationFrame(apply);
   };
   viewport.addEventListener("resize", queue);
+  // Leaving a text field re-measures, in case a toolbar came or went while the keyboard was up.
+  document.addEventListener("focusout", queue);
   window.addEventListener("resize", queue);
   window.addEventListener("orientationchange", queue);
   queue();
