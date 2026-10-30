@@ -410,7 +410,7 @@ test("a stat row's card hover opens on its picture, at a card's size beside the 
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  await press(page, false, await tabStop(page, "tab:heroes").rect);
+  await press(page, false, (await tabStop(page, "tab:heroes")).rect);
   const row = await waitFor(
     async () => (await stopsOf(page)).find((s) => s.key === "row:hero:01001a") ?? null,
     "Spider-Man's row",
