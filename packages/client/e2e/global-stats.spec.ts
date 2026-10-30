@@ -41,6 +41,8 @@ test("Settings > More > Save data: the share row turns on and off, with games al
 }) => {
   test.setTimeout(120_000);
   const worker = await fakeWorker(page);
+  // The shortest screens the menu must fit: a short laptop window, and a short phone.
+  await page.setViewportSize(isPhone(page) ? { width: 375, height: 667 } : { width: 1280, height: 720 });
   await openApp(page, "unlock=all");
   await seedFinishedGames(page);
   // Answered already (the ask has its own test), so it is not over the Title.
@@ -50,6 +52,12 @@ test("Settings > More > Save data: the share row turns on and off, with games al
 
   expect(await hasText(page, "Share anonymous game results", "SaveDataOverlay")).toBe(true);
   await waitFor(textUp(page, "Off.", "SaveDataOverlay"), "the row says Off", 10_000);
+  // The way back out of sharing must be fully on screen: the menu does not scroll.
+  const view = page.viewportSize()!;
+  const row = await stopRect(page, "SaveDataOverlay", "row:global");
+  expect(row.y, "row top").toBeGreaterThan(0);
+  expect(row.y + row.height, "row bottom").toBeLessThanOrEqual(view.height - 16);
+  expect(row.x + row.width, "row right").toBeLessThanOrEqual(view.width);
   await press(page, "SaveDataOverlay", "row:global");
   await waitFor(textUp(page, "On.", "SaveDataOverlay"), "the row says On", 10_000);
   expect(await stored(page, "global-stats-consent")).toBe("on");
@@ -76,6 +84,7 @@ test("the ask comes once, after a finished game: No thanks records off and it ne
   await seedFinishedGames(page);
   await page.goto("/?unlock=all");
   await waitForScene(page, PROMPT, 30_000);
+  await page.waitForTimeout(700);
   expect((await findText(page, "Share your finished games to build win rates for everyone?", PROMPT)).length).toBe(1);
   expect(await hasText(page, "It sends no name, account or device", PROMPT)).toBe(true);
   // Two buttons, side by side in rank: the same size, neither the forward action.
@@ -97,6 +106,31 @@ test("the ask comes once, after a finished game: No thanks records off and it ne
   expect(globalRequests(worker)).toEqual([]);
 });
 
+test("the ask ignores a tap in its first moments, then answers", async ({ page }) => {
+  test.setTimeout(120_000);
+  await fakeWorker(page);
+  await openApp(page, "unlock=all");
+  await seedFinishedGames(page);
+  await page.goto("/?unlock=all");
+  await waitForScene(page, PROMPT, 30_000);
+  const t0 = Date.now();
+  const rect = await stopRect(page, PROMPT, "share");
+  const x = rect.x + rect.width / 2;
+  const y = rect.y + rect.height / 2;
+  if (isPhone(page)) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
+  // The scene was seen within one poll (150 ms) of opening: a tap this soon is inside the 400 ms window.
+  if (Date.now() - t0 < 150) {
+    await page.waitForTimeout(100);
+    expect(await stored(page, "global-stats-consent")).toBeNull();
+    expect(await activeScenes(page)).toContain(PROMPT);
+  }
+  await page.waitForTimeout(700);
+  await press(page, PROMPT, "decline");
+  await waitFor(async () => ((await activeScenes(page)).includes(PROMPT) ? null : true), "closes", 10_000);
+  expect(await stored(page, "global-stats-consent")).toBe("off");
+});
+
 test("the ask: Share turns sharing on and marks the finished games sent", async ({ page }) => {
   test.setTimeout(120_000);
   await fakeWorker(page);
@@ -104,6 +138,7 @@ test("the ask: Share turns sharing on and marks the finished games sent", async 
   await seedFinishedGames(page);
   await page.goto("/?unlock=all");
   await waitForScene(page, PROMPT, 30_000);
+  await page.waitForTimeout(700);
   await press(page, PROMPT, "share");
   await waitFor(async () => ((await activeScenes(page)).includes(PROMPT) ? null : true), "the question closes", 10_000);
   expect(await stored(page, "global-stats-consent")).toBe("on");

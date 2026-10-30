@@ -10,31 +10,14 @@ import type { GlobalConsent } from "../global-stats/global-consent.js";
 import type { StatsNames, StatsSection } from "./player-stats-model.js";
 import type { StatsTab } from "./player-stats-layout.js";
 
-export const GLOBAL_ASK_TITLE = "Share your results?";
-export const GLOBAL_ASK_BODY =
-  "Share your finished games to build win rates for everyone? This sends the villain, modular sets, difficulty, heroes, aspects, the cards in your deck, the result and why a game was lost. It sends no name, account or device, and nothing from games you have already finished. You can change this in Settings.";
 /** Settings, spelled with the on-screen labels (tab "More", row "Save data", this row). */
 export const GLOBAL_ROW_TITLE = "Share anonymous game results";
-export const GLOBAL_ASK_BUTTONS = { share: "Share", decline: "No thanks" } as const;
-export type GlobalAskAnswer = "share" | "decline";
 
 /** The Settings row's one line of detail: the state first, then what it does. */
 export const globalRowDetail = (consent: GlobalConsent): string =>
   `${consent === "on" ? "On" : "Off"}. Sends the result of each game you finish from now on, with no name or account.`;
 export const globalRowButton = (consent: GlobalConsent): string => (consent === "on" ? "Turn off" : "Turn on");
 export const GLOBAL_ROW_FAILED = "Could not save this choice on this device.";
-
-/**
- * Whether the one-time ask is due: only once the player has finished a game, never after an answer, and never in a
- * visit where the sync question was put (one question at a time).
- */
-export function shouldAskGlobal(inputs: {
-  readonly consent: GlobalConsent;
-  readonly finishedGames: number;
-  readonly syncAskedThisVisit: boolean;
-}): boolean {
-  return inputs.consent === "unset" && inputs.finishedGames > 0 && !inputs.syncAskedThisVisit;
-}
 
 export type StatsSource = "you" | "everyone";
 export const SOURCE_LABELS: Readonly<Record<StatsSource, string>> = { you: "You", everyone: "Everyone" };

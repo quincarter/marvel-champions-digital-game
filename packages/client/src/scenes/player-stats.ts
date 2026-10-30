@@ -102,6 +102,7 @@ const LOSS_COLORS: Readonly<Record<LossCause, number>> = {
   scheme: signal.caution.hex,
   villain: accent.heroRed.hex,
   minions: signal.cost.hex,
+  // A purple no other part uses (the aspect and signal tokens have none), so Encounter reads apart from the rest.
   encounter: 0x6b3fa0,
   other: MUTED_PART,
   unknown: surface.paper.hex,

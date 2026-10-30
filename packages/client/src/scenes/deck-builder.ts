@@ -424,6 +424,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     this.#deckScroll = new VariableListScroll();
     this.#insights = null;
+    // Each visit starts on your own decks: a remembered Everyone, or a remembered "unavailable", does not outlive it.
+    this.#againstSource = "yours";
+    this.#againstVillain = null;
+    this.#againstGlobal.clear();
     this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
     this.#hints = new GlyphHints(this);
     if (!this.#campaign) {
@@ -1535,11 +1539,11 @@ ${entry.detail}`,
         const offered = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
         const wins = against.tryCards.filter((entry) => pool.has(entry.cardId) && !offered.has(entry.cardId));
         const losses = against.cutCards.filter((entry) => !offered.has(entry.cardId));
-        section("Try: in your wins here", wins, {
+        section(everyone ? "Try: in everyone's wins here" : "Try: in your wins here", wins, {
           label: "+ Add",
           run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)),
         });
-        section("Cut? In your losses here", losses, {
+        section(everyone ? "Cut? In everyone's losses here" : "Cut? In your losses here", losses, {
           label: "− Cut",
           run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)),
         });

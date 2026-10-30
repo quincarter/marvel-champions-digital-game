@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import type { GlobalStats } from "@mc/sync-worker/global-protocol";
 import { NAMES } from "../global-stats/fixtures.js";
 import {
-  GLOBAL_ASK_BODY,
-  GLOBAL_ASK_BUTTONS,
   NOTE_EMPTY,
   NOTE_FILTERS,
   NOTE_READING,
@@ -13,7 +11,6 @@ import {
   globalRowDetail,
   globalTabViewOf,
   hasGlobalSource,
-  shouldAskGlobal,
 } from "./global-stats-ui.js";
 import { globalRowsOf, type StatsTab } from "./player-stats-layout.js";
 
@@ -25,29 +22,7 @@ const STATS: GlobalStats = {
   modulars: [],
 };
 
-describe("shouldAskGlobal", () => {
-  const due = { consent: "unset", finishedGames: 1, syncAskedThisVisit: false } as const;
-  test("asks once a game is finished and nothing has been answered", () => {
-    expect(shouldAskGlobal(due)).toBe(true);
-  });
-  test("never before a finished game", () => {
-    expect(shouldAskGlobal({ ...due, finishedGames: 0 })).toBe(false);
-  });
-  test("never again after either answer", () => {
-    expect(shouldAskGlobal({ ...due, consent: "on" })).toBe(false);
-    expect(shouldAskGlobal({ ...due, consent: "off" })).toBe(false);
-  });
-  test("never in a visit that put the sync question", () => {
-    expect(shouldAskGlobal({ ...due, syncAskedThisVisit: true })).toBe(false);
-  });
-});
-
 describe("the ask's words", () => {
-  test("two buttons, named as asked", () => {
-    expect(GLOBAL_ASK_BUTTONS).toEqual({ share: "Share", decline: "No thanks" });
-    expect(GLOBAL_ASK_BODY).toContain("It sends no name, account or device");
-    expect(GLOBAL_ASK_BODY).toContain("nothing from games you have already finished");
-  });
   test("the Settings row says its state and the action", () => {
     expect(globalRowDetail("on").startsWith("On.")).toBe(true);
     expect(globalRowDetail("unset").startsWith("Off.")).toBe(true);

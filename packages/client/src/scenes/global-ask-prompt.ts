@@ -21,8 +21,9 @@ import {
   GLOBAL_ASK_BODY,
   GLOBAL_ASK_BUTTONS,
   GLOBAL_ASK_TITLE,
+  askAnswerAllowed,
   type GlobalAskAnswer,
-} from "../view/global-stats-ui.js";
+} from "../view/global-ask.js";
 import { syncSetupButtonSpan } from "../view/sync-setup-prompt.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -36,6 +37,8 @@ export class GlobalStatsPromptOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   #answered = false;
+  /** When the question opened (ms), so a stray press in its first moments is ignored. */
+  #openedAt = 0;
 
   constructor() {
     super(SCENES.globalStatsPrompt);
@@ -44,6 +47,7 @@ export class GlobalStatsPromptOverlay extends Phaser.Scene {
   create(): void {
     this.#motion = new OverlayMotion();
     this.#answered = false;
+    this.#openedAt = performance.now();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     // No `primary`: Start is not "Share". Escape and B are No thanks, the same as the sync question's Not now.
@@ -57,7 +61,7 @@ export class GlobalStatsPromptOverlay extends Phaser.Scene {
   }
 
   async #answer(answer: GlobalAskAnswer): Promise<void> {
-    if (this.#answered || this.#motion.leaving) return;
+    if (this.#answered || this.#motion.leaving || !askAnswerAllowed(this.#openedAt, performance.now())) return;
     this.#answered = true;
     if (answer === "decline") turnOffGlobalStats();
     else {
