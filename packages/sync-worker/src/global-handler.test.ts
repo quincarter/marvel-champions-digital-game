@@ -345,6 +345,21 @@ describe("store caps", () => {
     expect(((await full.json()) as GlobalError).reason).toBe("full");
   });
 
+  it("holds a card row to its cap when every card is new to two seats at once", async () => {
+    const storage = new MemoryStorage();
+    const logic = new GlobalStatsLogic(storage);
+    const id = (g: number, i: number) => `${String(g).padStart(4, "0")}_${String(i).padStart(3, "0")}_`.padEnd(64, "x");
+    for (let g = 0; g < 400; g++) {
+      const deck = Array.from({ length: 80 }, (_, i) => id(g, i));
+      const seats = [
+        { hero: "a", aspects: [], deck },
+        { hero: "b", aspects: [], deck },
+      ];
+      expect(await logic.record(game(g, { seats, modulars: [] }), START)).toEqual({ ok: true, counted: true });
+    }
+    expect(JSON.stringify(storage.map.get("c:Rhino")).length).toBeLessThanOrEqual(GLOBAL_MAX_CARD_ROW_BYTES);
+  });
+
   it("bounds a card row by evicting cards seen once, keeping popular ones and counting the game", async () => {
     const storage = new MemoryStorage();
     const logic = new GlobalStatsLogic(storage);

@@ -155,19 +155,16 @@ export class GlobalStatsLogic {
         brought.add(card);
       }
     }
-    // Past the byte cap, forged or rare ids make room by leaving: cards seen once go first (other decks' before this
-    // game's), so a row cannot freeze at the cap and refuse real new cards. Cards with 2 or more decks stay, so the
-    // row never grows past what it held plus nothing.
+    // Past the byte cap, forged or rare ids make room by leaving, fewest decks first and other games' before this game's,
+    // so a row can neither freeze at the cap and refuse real new cards nor grow past it, whatever the counts.
     if (size > GLOBAL_MAX_CARD_ROW_BYTES) {
-      for (const own of [false, true]) {
-        for (const map of [cards.inWins, cards.inLosses]) {
-          for (const [card, count] of Object.entries(map)) {
-            if (size <= GLOBAL_MAX_CARD_ROW_BYTES) break;
-            if (count !== 1 || brought.has(card) !== own) continue;
-            delete map[card];
-            size -= card.length + 8;
-          }
-        }
+      const entries = [cards.inWins, cards.inLosses]
+        .flatMap((map) => Object.entries(map).map(([card, count]) => ({ map, card, count })))
+        .sort((a, b) => a.count - b.count || Number(brought.has(a.card)) - Number(brought.has(b.card)));
+      for (const { map, card } of entries) {
+        if (size <= GLOBAL_MAX_CARD_ROW_BYTES) break;
+        delete map[card];
+        size -= card.length + 8;
       }
     }
     writes[cardKey] = cards;
