@@ -2186,7 +2186,8 @@ export type GameEvent =
       /**
        * `detached`: its `whileAttached` card is no longer on that host (docs/phase7-wave6.md §3.50, §4.1 Q28).
        * `targetLeftPlay`: the only card it named left play as a new copy (a main scheme swapped out,
-       * docs/phase7-wave11-scenarios.md §S3.2).
+       * docs/phase7-wave11-scenarios.md §S3.2; a fixed target that left play and came back, `ctx.ts`
+       * `forgetReturnedCopy`), or a character it copied traits from left play.
        */
       readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached" | "targetLeftPlay";
     }

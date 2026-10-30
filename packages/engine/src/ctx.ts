@@ -23,14 +23,19 @@ import { teamOf } from "./team.js";
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
-import { loseIfEncounterCardsExhausted, resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
+import {
+  endLastingEffect,
+  loseIfEncounterCardsExhausted,
+  resetEncounterDeckIfEmpty,
+  resetPlayerDeckIfEmpty,
+} from "./effects.js";
 import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
 import { resetScenarioDeckIfEmpty } from "./resolve/cards.js";
 import { syncTreatedAs } from "./treat-as.js";
 import { announceDeckTops } from "./deck-top.js";
 import { shownCardId } from "./hidden-reverse.js";
 import { movesIntoPlay, noteEnteredPlay } from "./entered-since.js";
-import { forgetReturnedInDelayedEffects } from "./lasting.js";
+import { forgetReturnedInLastingEffects } from "./lasting.js";
 
 /**
  * Working context for one command. `state` is replaced (never mutated) by each
@@ -310,6 +315,13 @@ function listensForEnteringHand(deps: EngineDeps): boolean {
   return listens;
 }
 
+/** `id` entered play as a new copy (`forgetReturnedInLastingEffects`); an effect left with no target ends. */
+function forgetReturnedCopy(ctx: Ctx, id: InstanceId): void {
+  const forgotten = forgetReturnedInLastingEffects(noteEnteredPlay(ctx.state, id), id);
+  ctx.state = forgotten.state;
+  for (const effectId of forgotten.emptied) endLastingEffect(ctx, effectId, "targetLeftPlay");
+}
+
 /**
  * `moveCard` without `settlePlayerDecks`, for a caller that logs its own step between the move and the reset (a draw's
  * `cardDrawn` comes before the reshuffle it caused). The caller must call `settlePlayerDecks` itself.
@@ -324,8 +336,9 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
   ctx.state = setZone(ctx.state, to, position === "top" ? [id, ...target] : [...target, id]);
   // A card coming into play did not see what has already occurred: it answers none of the conditions still waiting
   // for their response window (RRG 1.8 "Triggering Condition", p. 45; the owner's answer 43B, `entered-since.ts`).
-  // A new copy, too: a delayed effect that named the copy that left play stops naming it (RRG 1.8 "Leaves Play", p. 27).
-  if (movesIntoPlay(from, to)) ctx.state = forgetReturnedInDelayedEffects(noteEnteredPlay(ctx.state, id), id);
+  // A new copy, too: a lasting effect that named the copy that left play stops naming it (RRG 1.8 "Leaves Play", p. 27),
+  // and one whose every fixed target is gone that way ends.
+  if (movesIntoPlay(from, to)) forgetReturnedCopy(ctx, id);
 
   let instance = mustInstance(ctx.state, id);
   const attachedTo = to.kind === "attachment" ? to.hostInstanceId : null;

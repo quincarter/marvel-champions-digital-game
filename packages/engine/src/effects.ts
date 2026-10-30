@@ -94,7 +94,7 @@ import { tuckLeavingCard } from "./resolve/tuck.js";
 import type { CardDestination, DefeatPlacement, StatusName } from "./spec.js";
 import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
-import { noteLeftPlayInDelayedEffects } from "./lasting.js";
+import { noteLeftPlayInLastingEffects } from "./lasting.js";
 
 /**
  * Low-level state mutators. Nothing in this file opens a timing window or
@@ -2364,8 +2364,9 @@ function leaveNow(
       ? { controllerId: to.playerId }
       : {}),
   }));
-  // A delayed effect naming this copy will not name a copy that comes back (RRG 1.8 "Leaves Play", p. 27).
-  ctx.state = noteLeftPlayInDelayedEffects(ctx.state, id);
+  // A lasting effect naming this copy (a delayed effect, a fixed target) will not name a copy that comes back (RRG 1.8
+  // "Leaves Play", p. 27).
+  ctx.state = noteLeftPlayInLastingEffects(ctx.state, id);
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);
   if (movedWithHost && leaving) recordMovedWithHost(ctx, leaving.frameId, to.kind);
