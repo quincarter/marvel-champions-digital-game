@@ -49,7 +49,6 @@ export interface PoolFilter {
   readonly clauses?: readonly QueryClause[];
 }
 
-/** One key the pool list can be ordered by. */
 /** The last quick Cost chip, "5+": this cost and every higher one. */
 export const QUICK_COST_MAX = 5;
 
@@ -213,7 +212,8 @@ const matchesFilter = (card: AnyCard, filter: PoolFilter, packs: readonly PackIn
   if (filter.text && !textMatch(card, filter.text)) return false;
   if (filter.clauses?.length && !matchesClauses(card, filter.clauses, packs)) return false;
   if (typeof filter.cost === "number") {
-    const cost = costOf(card);
+    // An X, dash or star cost (stored as 0 with `specialCost`) is no number a chip names, as with the `o:` term.
+    const cost = "specialCost" in card && card.specialCost ? Infinity : costOf(card);
     if (filter.cost >= QUICK_COST_MAX ? !(cost >= QUICK_COST_MAX && cost !== Infinity) : cost !== filter.cost)
       return false;
   }
@@ -607,7 +607,47 @@ export interface DeckBuildingRules {
 
 export const FREE_DECK_BUILDING: DeckBuildingRules = { signature: "free", copyLimits: false };
 
-/** Why `rules` refuse adding (`+1`) or removing (`-1`) one copy of `cardId`, or null when they allow it. */
+/**
+ * Why `rules` refuse adding (`+1`) or removing (`-1`) one copy of a card, or null when they allow it: a function built
+ * once per deck, since a draw asks it for every visible + and −. The identity set is read once; a copy-limit verdict
+ * runs `validateDeck` once per card asked about, then is kept.
+ */
+export function deckRuleRefusals(
+  deck: Deck,
+  identity: HeroIdentityCard,
+  pool: CardPool,
+  rules: DeckBuildingRules,
+): (cardId: CardId, step: 1 | -1) => string | null {
+  const setCounts =
+    rules.signature === "free"
+      ? new Map<CardId, number>()
+      : new Map(requiredIdentitySet(identity, pool).map((line) => [line.cardId, line.quantity]));
+  const held = (cardId: CardId): number => deck.cards.find((line) => line.cardId === cardId)?.quantity ?? 0;
+  const limitBroken = (validation: DeckValidation, cardId: CardId): readonly string[] =>
+    validation.ok
+      ? []
+      : validation.problems
+          .filter((p) => (p.code === "copy_limit" || p.code === "unique_match") && p.cardIds.includes(cardId))
+          .map((p) => p.message);
+  let before: DeckValidation | null = null;
+  const addRefusals = new Map<CardId, string | null>();
+  return (cardId, step) => {
+    const setCount = setCounts.get(cardId);
+    // A signature card may only move toward its set's count, so a deck changed under Free can still be put back.
+    if (setCount !== undefined && (step === 1 ? held(cardId) >= setCount : held(cardId) <= setCount))
+      return "Signature cards stay at their set's count (Settings › Gameplay › Signature cards).";
+    if (step === -1 || !rules.copyLimits) return null;
+    if (!addRefusals.has(cardId)) {
+      before ??= validateDeck(deck, pool);
+      const was = limitBroken(before, cardId);
+      const fresh = limitBroken(validateDeck(addCard(deck, cardId), pool), cardId).find((m) => !was.includes(m));
+      addRefusals.set(cardId, fresh ?? null);
+    }
+    return addRefusals.get(cardId) ?? null;
+  };
+}
+
+/** One step's refusal (`deckRuleRefusals` for a single question). */
 export function deckRuleRefusal(
   deck: Deck,
   identity: HeroIdentityCard,
@@ -616,19 +656,5 @@ export function deckRuleRefusal(
   step: 1 | -1,
   rules: DeckBuildingRules,
 ): string | null {
-  if (rules.signature !== "free" && requiredIdentitySet(identity, pool).some((line) => line.cardId === cardId))
-    return "Signature cards stay at their set's count (Settings › Gameplay › Signature cards).";
-  if (step === 1 && rules.copyLimits) {
-    const limitBroken = (validation: DeckValidation): readonly string[] =>
-      validation.ok
-        ? []
-        : validation.problems
-            .filter((p) => (p.code === "copy_limit" || p.code === "unique_match") && p.cardIds.includes(cardId))
-            .map((p) => p.message);
-    const before = limitBroken(validateDeck(deck, pool));
-    const after = limitBroken(validateDeck(addCard(deck, cardId), pool));
-    const fresh = after.find((message) => !before.includes(message));
-    if (fresh !== undefined) return fresh;
-  }
-  return null;
+  return deckRuleRefusals(deck, identity, pool, rules)(cardId, step);
 }

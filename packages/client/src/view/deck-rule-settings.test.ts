@@ -27,6 +27,20 @@ describe("deck-building rule settings (issue #531)", () => {
     }
   });
 
+  test("a signature card off its set count can still move back toward it, never past it", () => {
+    const rules = { signature: "standard", copyLimits: false } as const;
+    const setCount = requiredIdentitySet(spiderMan, CORE_CARDS)[0]!.quantity;
+    const extra = addCard(deck, signature);
+    expect(deckRuleRefusal(extra, spiderMan, CORE_CARDS, signature, -1, rules)).toBeNull();
+    expect(deckRuleRefusal(extra, spiderMan, CORE_CARDS, signature, 1, rules)).not.toBeNull();
+    const fewer = {
+      ...deck,
+      cards: deck.cards.map((line) => (line.cardId === signature ? { ...line, quantity: setCount - 1 } : line)),
+    };
+    expect(deckRuleRefusal(fewer, spiderMan, CORE_CARDS, signature, 1, rules)).toBeNull();
+    expect(deckRuleRefusal(fewer, spiderMan, CORE_CARDS, signature, -1, rules)).not.toBeNull();
+  });
+
   test("copy limits refuse a fourth copy by title and a second of a Max 1 per deck card", () => {
     const rules = { signature: "free", copyLimits: true } as const;
     const forJustice = byName("For Justice!").id;

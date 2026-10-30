@@ -26,11 +26,13 @@ const TYPE_LABELS: Readonly<Record<string, string>> = {
 };
 const capitalized = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
-/** The deck's cards, one entry per copy; a line whose card the pool lacks is left out. */
+/** The deck's drawable cards, one entry per copy; a line whose card the pool lacks, or a Setup card, is left out. */
 export function deckCopiesOf(deck: Deck, cardOf: (id: string) => AnyCard | undefined): readonly AnyCard[] {
   return deck.cards.flatMap((line) => {
     const card = cardOf(line.cardId as string);
-    return card ? Array.from({ length: line.quantity }, () => card) : [];
+    // A Setup card starts in play (RRG 1.8 Appendix II, step 11, before the draw at step 14): never drawn.
+    if (!card || ("keywords" in card && card.keywords.some((k) => k.name === "setup"))) return [];
+    return Array.from({ length: line.quantity }, () => card);
   });
 }
 

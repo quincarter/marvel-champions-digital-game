@@ -68,7 +68,8 @@ import {
   aspectCountFor,
   packFilterChoices,
   traitFilterChoices,
-  deckRuleRefusal,
+  traitLabelOf,
+  deckRuleRefusals,
   type DeckBuildingRules,
   QUICK_COST_MAX,
   stepChoice,
@@ -319,6 +320,12 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The odds' group (`deck-odds.ts`) and how many cards are drawn; null is the first group / the opening hand. */
   #oddsGroup: string | null = null;
   #oddsDraws: number | null = null;
+  /** The rule settings' verdicts for the deck last drawn (`#ruleRefusal`). */
+  #refusals: {
+    readonly deck: Deck;
+    readonly rules: string;
+    readonly refusal: (cardId: CardId, step: 1 | -1) => string | null;
+  } | null = null;
   #filterText = "";
   #sort: PoolSort = DEFAULT_POOL_SORT;
   #status: string | null = null;
@@ -665,9 +672,18 @@ export class DeckBuilderScene extends Phaser.Scene {
       : { signature: settings.deckSignatureCards, copyLimits: settings.deckCopyLimits };
   }
 
-  /** Why the rule settings refuse adding (`1`) or removing (`-1`) one `cardId`, or null. */
+  /** Why the rule settings refuse adding (`1`) or removing (`-1`) one `cardId`, or null; built once per deck. */
   #ruleRefusal(deck: Deck, cardId: CardId, step: 1 | -1): string | null {
-    return this.#identity ? deckRuleRefusal(deck, this.#identity, POOL, cardId, step, this.#rules()) : null;
+    if (!this.#identity) return null;
+    const rules = this.#rules();
+    const cached = this.#refusals;
+    if (!cached || cached.deck !== deck || cached.rules !== rules.signature + rules.copyLimits)
+      this.#refusals = {
+        deck,
+        rules: rules.signature + rules.copyLimits,
+        refusal: deckRuleRefusals(deck, this.#identity, POOL, rules),
+      };
+    return this.#refusals!.refusal(cardId, step);
   }
 
   /** Keeps the pool's sort, filters and view for the next visit (`platform/deck-builder-view.ts`). */
@@ -699,10 +715,15 @@ export class DeckBuilderScene extends Phaser.Scene {
     // The search worker answers the text search: only its matches stay, in the chosen sort (its ranking orders them
     // only under the Match sort, issue #531).
     const searched = ranking ? listed.filter((card) => ranking.has(card.id as string)) : listed;
-    // "Hidden" signature cards stay in the deck but leave the pool list (Settings › Gameplay, issue #531).
+    // "Hidden" signature cards stay in the deck but leave the pool list (Settings › Gameplay, issue #531), except one
+    // the deck holds fewer of than its set's count, so it can be put back.
     const hidden =
       this.#rules().signature === "hidden"
-        ? new Set(requiredIdentitySet(this.#identity!, POOL).map((line) => line.cardId as string))
+        ? new Set(
+            requiredIdentitySet(this.#identity!, POOL)
+              .filter((line) => (deck.cards.find((c) => c.cardId === line.cardId)?.quantity ?? 0) >= line.quantity)
+              .map((line) => line.cardId as string),
+          )
         : null;
     const pool = hidden ? searched.filter((card) => !hidden.has(card.id as string)) : searched;
     const removed = this.#removedFromCampaignIds();
@@ -1115,7 +1136,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       PACK_INFOS,
     );
     const arrow = hit.target;
-    const traitName = traits.find((t) => t.id === this.#filter.trait)?.name ?? "All traits";
+    // A kept trait no card shows under the other filters still names itself, so an empty pool says why.
+    const traitName = this.#filter.trait ? traitLabelOf(this.#filter.trait) : "All traits";
     const stepTrait = (dir: 1 | -1) => (): void =>
       apply({ ...this.#filter, trait: stepChoice(traits, this.#filter.trait, dir) as Trait | null });
     add("trait:prev", { x: stepperLeft, y, width: arrow, height: hit.target }, "<", stepTrait(-1));

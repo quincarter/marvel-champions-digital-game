@@ -5,7 +5,13 @@
  * belong to one deck. Anything unreadable falls back to the default for that one field.
  */
 import type { CardType, ResourceIconType, Trait } from "@mc/content";
-import { DEFAULT_POOL_SORT, type PoolFilter, type PoolSort, type PoolSortKey } from "../view/deck-builder-model.js";
+import {
+  DEFAULT_POOL_SORT,
+  QUICK_COST_MAX,
+  type PoolFilter,
+  type PoolSort,
+  type PoolSortKey,
+} from "../view/deck-builder-model.js";
 
 export const DECK_BUILDER_VIEW_KEY = "mc-deck-builder-view";
 
@@ -61,7 +67,10 @@ export function deckBuilderView(storage: PrefStorage | null = browserStorage()):
     const f = parsed.filter ?? {};
     const filter = keptFilterOf({
       type: CARD_TYPES.find((type) => type === f["type"]) ?? null,
-      cost: typeof f["cost"] === "number" && Number.isInteger(f["cost"]) && f["cost"] >= 0 ? f["cost"] : null,
+      cost:
+        typeof f["cost"] === "number" && Number.isInteger(f["cost"]) && f["cost"] >= 0
+          ? Math.min(f["cost"], QUICK_COST_MAX)
+          : null,
       resource: ICONS.find((icon) => icon === f["resource"]) ?? null,
       trait: stringOf(f["trait"]) as Trait | null,
       packCode: stringOf(f["packCode"]),

@@ -90,6 +90,9 @@ describe("quick filter chips (issue #531)", () => {
     expect(high.length).toBeGreaterThan(0);
     expect(high.every((c) => costOf(c) !== null && costOf(c)! >= 5)).toBe(true);
     expect(quick({ cost: 0 }).some((c) => c.type === "resource")).toBe(false);
+    // An X, dash or star cost is stored as 0; the 0 chip leaves it out, as `o:0` does.
+    const zero = browsablePool(POOL_CARDS, spiderMan, ["justice"], { cost: 0 }, "name", PACKS);
+    expect(zero.some((c) => "specialCost" in c && c.specialCost)).toBe(false);
   });
 
   test("an icon chip keeps cards with that icon, a resource's own icons included", () => {
