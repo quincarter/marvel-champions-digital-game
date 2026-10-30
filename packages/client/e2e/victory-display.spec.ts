@@ -41,13 +41,15 @@ test("the victory display's pile opens its cards on a tap", async ({ page }) => 
   const { x, y } = center(rect);
   expect(await focusRect(page, "victoryDisplay"), "a pad stop on the pile").not.toBeNull();
   if (!phone) {
-    await page.mouse.move(x, y);
-    await page.mouse.move(x + 4, y + 4, { steps: 4 });
-    await waitFor(
+    // A redraw under a still pointer drops a pending popover, so the pointer moves again until it shows.
+    let nudge = 0;
+    await pressUntil(
+      page,
+      () => page.mouse.move(x + (nudge++ % 2) * 4, y, { steps: 2 }),
       () =>
         page.evaluate(
           () =>
-            (window as unknown as { __mcBoardDebug: { hoverShown(): string | null } }).__mcBoardDebug.hoverShown() ??
+            (window as unknown as { __mcBoardDebug: { hoverShown(): string | null } }).__mcBoardDebug.hoverShown() !==
             null,
         ),
       "the hover popover over the pile",
