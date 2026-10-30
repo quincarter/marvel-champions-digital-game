@@ -112,19 +112,31 @@ describe("runGlobalUpload", () => {
     expect(readConsent(storage)).toBe("off");
   });
 
-  test("a game evicted from the sent set is not due again (high-water mark)", async () => {
+  test("a game evicted from a full sent set is not due again (high-water mark)", async () => {
     const { deps, storage, fetchFn } = setup();
     turnOnGlobalStats([], storage, 5000);
     const first = meta({ id: "first", updatedAt: 9000 });
     await runGlobalUpload({ listSaves: async () => [first] }, deps);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
     markSent(
-      Array.from({ length: SENT_CAP }, (_, i) => `other${i}`),
+      Array.from({ length: SENT_CAP - 1 }, (_, i) => `other${i}`),
       storage,
     );
+    const second = meta({ id: "second", updatedAt: 9500 });
+    await runGlobalUpload({ listSaves: async () => [first, second] }, deps);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(readSent(storage).has("first")).toBe(false);
-    await runGlobalUpload({ listSaves: async () => [first] }, deps);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await runGlobalUpload({ listSaves: async () => [first, second] }, deps);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  test("a game synced in late with an older stamp still goes", async () => {
+    const { deps, storage, fetchFn } = setup();
+    turnOnGlobalStats([], storage, 5000);
+    const newer = meta({ id: "newer", updatedAt: 9000 });
+    await runGlobalUpload({ listSaves: async () => [newer] }, deps);
+    const late = meta({ id: "late", updatedAt: 8000 });
+    await runGlobalUpload({ listSaves: async () => [newer, late] }, deps);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
   test("a network error stops quietly and does not throw", async () => {

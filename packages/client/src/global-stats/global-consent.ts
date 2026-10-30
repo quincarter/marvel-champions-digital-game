@@ -76,20 +76,23 @@ export function highWater(storage: ConsentStorage | null = browserStorage()): nu
   }
 }
 
-/** Marks games sent; `updatedAt` (when given) raises the high-water mark past them. */
+/**
+ * Marks games sent. Only once the set is full and an old id is about to leave does `updatedAt` raise the high-water mark,
+ * so an evicted game is not due again; below the cap, a game that syncs in late with an older stamp still goes.
+ */
 export function markSent(
   ids: readonly string[],
   storage: ConsentStorage | null = browserStorage(),
   updatedAt?: number,
 ): boolean {
-  if (updatedAt !== undefined && updatedAt > highWater(storage)) {
+  const sent = readSent(storage);
+  if (updatedAt !== undefined && sent.size >= SENT_CAP && updatedAt > highWater(storage)) {
     try {
       storage?.setItem(GLOBAL_HIGH_KEY, String(updatedAt));
     } catch {
-      // The sent set still holds the id.
+      // Only a game past the cap could come due again.
     }
   }
-  const sent = readSent(storage);
   for (const id of ids) {
     sent.delete(id);
     sent.add(id);
