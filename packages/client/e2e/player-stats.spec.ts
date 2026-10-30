@@ -93,6 +93,19 @@ async function press(page: Page, phone: boolean, rect: Rect): Promise<void> {
   else await page.mouse.click(x, y);
 }
 
+/** A tab's stop, wheeled into view first: a phone's tabs are one sideways-scrolling row. */
+async function tabStop(page: Page, key: string): Promise<{ key: string; rect: Rect }> {
+  const room = page.viewportSize()!.width;
+  for (let i = 0; i < 12; i++) {
+    const stop = (await stopsOf(page)).find((s) => s.key === key)!;
+    if (stop.rect.x >= 0 && stop.rect.x + stop.rect.width <= room - 8) return stop;
+    await page.mouse.move(room / 2, stop.rect.y + stop.rect.height / 2);
+    await page.mouse.wheel(stop.rect.x > 0 ? 120 : -120, 0);
+    await page.waitForTimeout(200);
+  }
+  return (await stopsOf(page)).find((s) => s.key === key)!;
+}
+
 /** A finger drag from `from` to `to`, lifted at `to` (a real touch sequence over CDP). */
 async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
   const steps = 10;
@@ -131,7 +144,7 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
 
   // Once the screen has settled (art arriving redraws it, and a tap that straddles a redraw is dropped by design).
   await settle(page);
-  const heroes = (await stopsOf(page)).find((s) => s.key === "tab:heroes")!;
+  const heroes = await tabStop(page, "tab:heroes");
   await press(page, phone, heroes.rect);
   await waitFor(async () => ((await keys(page)).includes("row:hero:favorite") ? true : null), "Heroes opens", 10_000);
 
@@ -140,7 +153,7 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
     await page.keyboard.press("]");
     await waitFor(async () => ((await keys(page)).includes("row:villain:favorite") ? true : null), "RB", 10_000);
     // Cards by hero shows the hero's card pictures.
-    const cards = (await stopsOf(page)).find((s) => s.key === "tab:cards")!;
+    const cards = await tabStop(page, "tab:cards");
     await press(page, phone, cards.rect);
     await waitFor(
       async () => ((await keys(page)).some((k) => k.startsWith("card:")) ? true : null),
@@ -207,7 +220,7 @@ test("on the keyboard or a pad: X jumps to the filters, and A on a card opens it
   // G is X on the left-handed keyboard.
   await page.keyboard.press("g");
   await waitFor(async () => ((await focused()) === "filter:hero" ? true : null), "X on the hero filter", 10_000);
-  const cards = (await stopsOf(page)).find((s) => s.key === "tab:all-cards")!;
+  const cards = await tabStop(page, "tab:all-cards");
   await press(page, false, cards.rect);
   const card = await waitFor(
     async () => (await stopsOf(page)).find((s) => s.key.startsWith("card:all:played:")) ?? null,
@@ -259,7 +272,7 @@ test("Aspects, Encounter and Records: the donut and their rows", async ({ page }
     ["records", "row:rec:fastest"],
   ] as const) {
     await settle(page);
-    const stop = (await stopsOf(page)).find((s) => s.key === `tab:${tab}`)!;
+    const stop = await tabStop(page, `tab:${tab}`);
     await press(page, phone, stop.rect);
     await waitFor(async () => ((await keys(page)).includes(row) ? true : null), `${tab} opens`, 10_000);
   }
@@ -310,7 +323,7 @@ test("a swipe of the dashboard that lifts over a tab switches nothing", async ({
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   const before = await keys(page);
-  const tab = (await stopsOf(page)).find((s) => s.key === "tab:villains")!;
+  const tab = await tabStop(page, "tab:villains");
   const record = (await stopsOf(page)).find((s) => s.key === "tile:record")!;
   await swipe(
     page,
@@ -367,7 +380,7 @@ test("over Pause: a press on empty stats space reaches nothing underneath, and B
   expect(await activeScenes(page)).toContain("PlayerStats");
 
   // Card hover works over Pause too: rest the mouse on a card picture on Cards by hero.
-  const cardsTab = (await stopsOf(page)).find((s) => s.key === "tab:cards")!;
+  const cardsTab = await tabStop(page, "tab:cards");
   await press(page, false, cardsTab.rect);
   const card = await waitFor(
     async () => (await stopsOf(page)).find((s) => s.key.startsWith("card:")) ?? null,
@@ -397,7 +410,7 @@ test("a stat row's card hover opens on its picture, at a card's size beside the 
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  await press(page, false, (await stopsOf(page)).find((s) => s.key === "tab:heroes")!.rect);
+  await press(page, false, await tabStop(page, "tab:heroes").rect);
   const row = await waitFor(
     async () => (await stopsOf(page)).find((s) => s.key === "row:hero:01001a") ?? null,
     "Spider-Man's row",
@@ -582,7 +595,7 @@ test("Hide hero cards takes a hero's own cards off the Cards tab; on a phone a t
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  const tab = (await stopsOf(page)).find((s) => s.key === "tab:all-cards")!;
+  const tab = await tabStop(page, "tab:all-cards");
   await press(page, phone, tab.rect);
   // The seeded games played Web-Shooter (01008), Spider-Man's own card.
   const own = "card:all:played:strip:0:01008";
@@ -607,7 +620,7 @@ test("Your stats' Cards tab: every hero's cards together", async ({ page }, info
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  const tab = (await stopsOf(page)).find((s) => s.key === "tab:all-cards")!;
+  const tab = await tabStop(page, "tab:all-cards");
   await press(page, phone, tab.rect);
   await waitFor(
     async () => ((await keys(page)).some((k) => k.startsWith("card:all:played:")) ? true : null),
@@ -743,7 +756,7 @@ test("the Villains tab says why you lose, and the deck builder reads your decks 
   });
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  const villains = (await stopsOf(page)).find((s) => s.key === "tab:villains")!;
+  const villains = await tabStop(page, "tab:villains");
   await press(page, phone, villains.rect);
   await waitFor(async () => ((await keys(page)).includes("row:villain:why") ? true : null), "Why you lose", 10_000);
   // Both seeded losses were to the main scheme.
@@ -788,4 +801,30 @@ test("the deck builder's From your games: Cut takes a copy of a card that never 
     (await stopsIn(page, "DeckBuilder")).some((s) => s.key.startsWith("games:") && s.key.endsWith(":01002")),
     "no Cut on Black Cat",
   ).toBe(false);
+});
+
+test("a swipe of a phone's tab row scrolls it and opens no tab; a tap does", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's tabs are one sideways row");
+  test.setTimeout(120_000);
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const heroes = (await stopsOf(page)).find((s) => s.key === "tab:heroes")!;
+  const y = heroes.rect.y + heroes.rect.height / 2;
+  // Starts on a tab and lifts on another: the row moves, and Overview stays open.
+  await swipe(page, { x: 340, y }, { x: 90, y });
+  await page.waitForTimeout(500);
+  expect(await keys(page)).toContain("tile:record");
+  const moved = (await stopsOf(page)).find((s) => s.key === "tab:heroes")!;
+  expect(moved.rect.x, "the row scrolled").toBeLessThan(heroes.rect.x);
+  // The flick's momentum has to die away, or the tab moves out from under the tap.
+  await page.waitForTimeout(1500);
+  await tabStop(page, "tab:records");
+  await page.waitForTimeout(800);
+  await press(page, true, (await tabStop(page, "tab:records")).rect);
+  await waitFor(
+    async () => ((await keys(page)).includes("row:rec:fastest") ? true : null),
+    "a tap opens Records",
+    10_000,
+  );
 });
