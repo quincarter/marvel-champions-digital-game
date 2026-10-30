@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { waitFor } from "./helpers.js";
+import { installWave6Helpers } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import { texts } from "./wave7-deck-builder-helpers.js";
 
@@ -47,6 +48,7 @@ test("a swipe over the quick filter chips filters nothing; a tap filters and a s
 }, testInfo) => {
   test.skip(testInfo.project.name !== "phone", "the finger-lift rule is a phone rule");
   test.setTimeout(120_000);
+  await installWave6Helpers(page);
   await openApp(page, "screen=deck-builder", { landing: "DeckBuilder" });
   await page.waitForTimeout(800);
   const all = await waitFor(async () => {

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, settle, waitFor } from "./helpers.js";
+import { installWave6Helpers } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import { texts } from "./wave7-deck-builder-helpers.js";
 
@@ -48,6 +49,7 @@ async function poolCount(page: Page): Promise<number> {
 
 test("the ? opens the cheat sheet, and Use puts an example in the search", async ({ page }) => {
   test.setTimeout(120_000);
+  await installWave6Helpers(page);
   await openApp(page, "screen=deck-builder", { landing: "DeckBuilder" });
   await page.waitForTimeout(800);
   const all = await waitFor(async () => {
@@ -79,6 +81,7 @@ test("the ? opens the cheat sheet, and Use puts an example in the search", async
 test("a swipe of the cheat sheet that lifts over Use does nothing", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "phone", "the finger-lift rule is a phone rule");
   test.setTimeout(120_000);
+  await installWave6Helpers(page);
   await openApp(page, "screen=deck-builder", { landing: "DeckBuilder" });
   await page.waitForTimeout(800);
   const help = await waitFor(() => stopRect(page, "DeckBuilder", "filter-help"), "the ? button", 15_000);
