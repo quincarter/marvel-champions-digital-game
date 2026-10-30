@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS, type AnyCard } from "@mc/content";
-import { browsablePool, identityOptions, type PackInfo } from "./deck-builder-model.js";
+import { browsablePool, identityOptions, traitFilterChoices, type PackInfo } from "./deck-builder-model.js";
 import { matchesClauses, parsePoolQuery } from "./pool-query.js";
+import { POOL_CARDS } from "../content/pool.js";
 
 const spiderMan = identityOptions(CORE_CARDS).find((c) => c.name === "Spider-Man")!;
 const PACKS: readonly PackInfo[] = [{ code: "core", name: "Core Set", cycleId: "core", cycleName: "Core Set" }];
@@ -75,5 +76,36 @@ describe("search terms filter the pool", () => {
     const ally = CORE_CARDS.find((c) => c.type === "ally" && "cost" in c && c.cost === 3)!;
     expect(matchesClauses(ally, parsePoolQuery("t:ally o:3").clauses, PACKS)).toBe(true);
     expect(matchesClauses(ally, parsePoolQuery("t:ally o:2").clauses, PACKS)).toBe(false);
+  });
+});
+
+describe("quick filter chips (issue #531)", () => {
+  const quick = (filter: Parameters<typeof browsablePool>[3]) =>
+    browsablePool(CORE_CARDS, spiderMan, ["justice"], filter, "name", PACKS);
+
+  test("a cost chip is that cost; 5+ is five and up; costless cards never match", () => {
+    expect(quick({ cost: 2 }).every((c) => costOf(c) === 2)).toBe(true);
+    // Core has no card costing 5 or more for this deck; the whole pool does.
+    const high = browsablePool(POOL_CARDS, spiderMan, ["justice"], { cost: 5 }, "name", PACKS);
+    expect(high.length).toBeGreaterThan(0);
+    expect(high.every((c) => costOf(c) !== null && costOf(c)! >= 5)).toBe(true);
+    expect(quick({ cost: 0 }).some((c) => c.type === "resource")).toBe(false);
+  });
+
+  test("an icon chip keeps cards with that icon, a resource's own icons included", () => {
+    const mental = quick({ resource: "mental" });
+    expect(mental.map((c) => c.name)).toContain("Genius");
+    expect(mental.some((c) => c.name === "Strength")).toBe(false);
+  });
+
+  test("the trait stepper offers only traits present under the other filters, and a traitless card never matches", () => {
+    const traits = traitFilterChoices(CORE_CARDS, spiderMan, ["justice"], { type: "ally" }, PACKS).map((t) => t.id);
+    expect(traits.length).toBeGreaterThan(0);
+    expect(traits).toEqual([...traits].sort((a, b) => a.localeCompare(b)));
+    const trait = traits[0]!;
+    const allies = quick({ type: "ally", trait: trait as never });
+    expect(allies.length).toBeGreaterThan(0);
+    expect(allies.every((c) => "traits" in c && (c.traits as readonly string[]).includes(trait))).toBe(true);
+    expect(quick({ trait: trait as never }).some((c) => !("traits" in c) || c.traits.length === 0)).toBe(false);
   });
 });

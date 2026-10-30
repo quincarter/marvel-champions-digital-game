@@ -16,6 +16,7 @@ import {
   type Deck,
   type DeckCardEntry,
   type HeroIdentityCard,
+  type ResourceIconType,
   type StarterDeck,
   type Trait,
 } from "@mc/content";
@@ -40,11 +41,26 @@ export interface PoolFilter {
   readonly packCode?: string | null;
   /** One release wave/cycle, by `Cycle.id` (the card's `cycleId`). */
   readonly cycleId?: string | null;
+  /** The quick Cost chip: exactly this cost, or `QUICK_COST_MAX` and up. A card with no printed cost never matches. */
+  readonly cost?: number | null;
+  /** The quick resource chip: a card with at least one of this icon (a resource card's own icons count). */
+  readonly resource?: ResourceIconType | null;
   /** Search terms such as `o:2` or `kw:guard` (`pool-query.ts`), each of which a card must meet. */
   readonly clauses?: readonly QueryClause[];
 }
 
 /** One key the pool list can be ordered by. */
+/** The last quick Cost chip, "5+": this cost and every higher one. */
+export const QUICK_COST_MAX = 5;
+
+/** A card's resource icons: what it gives when spent (a resource card's own icons count). */
+export const resourceIconsOf = (card: AnyCard): Readonly<Partial<Record<ResourceIconType, number>>> =>
+  "producesIcons" in card && card.producesIcons
+    ? card.producesIcons
+    : "resourceIcons" in card && card.resourceIcons
+      ? card.resourceIcons
+      : {};
+
 /**
  * One key the pool list can be ordered by. `match` is the text search's relevance, best first (only as a primary key;
  * with no search typed every card ties on it, so the list falls through to the next key).
@@ -196,7 +212,13 @@ const matchesFilter = (card: AnyCard, filter: PoolFilter, packs: readonly PackIn
   if (filter.type && card.type !== filter.type) return false;
   if (filter.text && !textMatch(card, filter.text)) return false;
   if (filter.clauses?.length && !matchesClauses(card, filter.clauses, packs)) return false;
-  if ("traits" in card && filter.trait && !(card.traits as readonly Trait[]).includes(filter.trait)) return false;
+  if (typeof filter.cost === "number") {
+    const cost = costOf(card);
+    if (filter.cost >= QUICK_COST_MAX ? !(cost >= QUICK_COST_MAX && cost !== Infinity) : cost !== filter.cost)
+      return false;
+  }
+  if (filter.resource && !((resourceIconsOf(card)[filter.resource] ?? 0) > 0)) return false;
+  if (filter.trait && !("traits" in card && (card.traits as readonly Trait[]).includes(filter.trait))) return false;
   if ("cost" in card && typeof filter.maxCost === "number" && (card as { cost: number }).cost > filter.maxCost)
     return false;
   if (filter.packCode && (card.setCode as string) !== filter.packCode) return false;
@@ -395,6 +417,27 @@ export function stepChoice(
   const at = Math.max(0, ids.indexOf(current ?? null));
   return ids[(at + dir + ids.length) % ids.length] ?? null;
 }
+
+/**
+ * The traits the quick Trait stepper can land on: every trait some browsable card has under the *other* filters (so
+ * stepping never lands on an empty list), alphabetical.
+ */
+export function traitFilterChoices(
+  pool: CardPool,
+  identity: HeroIdentityCard,
+  chosenAspects: readonly CoreAspect[],
+  filter: PoolFilter,
+  packs: readonly PackInfo[],
+): readonly FilterChoice[] {
+  const { trait: _t, ...rest } = filter;
+  const traits = new Set<string>();
+  for (const card of browsablePool(pool, identity, chosenAspects, rest, DEFAULT_POOL_SORT, packs))
+    if ("traits" in card) for (const trait of card.traits as readonly string[]) traits.add(trait);
+  return [...traits].sort((a, b) => a.localeCompare(b)).map((trait) => ({ id: trait, name: traitLabelOf(trait) }));
+}
+
+/** A trait as a player reads it: "S.H.I.E.L.D._Agent" is "S.H.I.E.L.D. Agent". */
+export const traitLabelOf = (trait: string): string => trait.replace(/_/g, " ");
 
 /** `filter` with a new cycle: the pack choice is dropped when it isn't in that cycle. */
 export function withCycle(filter: PoolFilter, cycleId: string | null, packs: readonly PackInfo[]): PoolFilter {

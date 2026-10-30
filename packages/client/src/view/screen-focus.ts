@@ -135,6 +135,8 @@ export interface DeckBuilderFocusInput {
   readonly aspectIds: readonly string[];
   /** W1's type filter chips ("All, Ally, Event, Upgrade, Support, Resource"), by `PoolFilter.type` value (`"all"` for the null/no-filter case). */
   readonly typeFilterIds: readonly string[];
+  /** The deck builder's quick cost/icon chip ids (`quick:<id>`); present, the trait stepper follows them. */
+  readonly quickFilterIds?: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
   /**
@@ -171,6 +173,9 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
     ...input.typeFilterIds.map((id) => `type:${id}`),
+    // The quick cost and icon chips, then the trait stepper (issue #531).
+    ...(input.quickFilterIds ?? []).map((id) => `quick:${id}`),
+    ...(input.quickFilterIds ? ["trait:prev", "trait:name", "trait:next"] : []),
     // The pack stepper (both arrows and its name), the wave button and the two sort buttons, in the order they are drawn.
     "pack:prev",
     "pack:name",

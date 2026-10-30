@@ -52,7 +52,7 @@
 
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
-import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck } from "@mc/content";
+import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import type { CardId } from "@mc/content";
 import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
@@ -67,6 +67,8 @@ import {
   addCard,
   aspectCountFor,
   packFilterChoices,
+  traitFilterChoices,
+  QUICK_COST_MAX,
   stepChoice,
   withCycle,
   browsablePool,
@@ -148,12 +150,12 @@ import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-mo
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
+import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 
-/** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept for the app session. */
+/** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
 type PoolView = "grid" | "list";
-let lastPoolView: PoolView = "grid";
 
 /**
  * Between-issue deck editing (`scenes/campaign/deck-edit.ts`), a campaign mode over this same screen rather than a
@@ -274,6 +276,31 @@ const TYPE_FILTERS: readonly {
   ] as const
 ).map((chip) => ({ ...chip, text: chip.label }));
 
+/** The quick Cost and Icon chips (issue #531): one tap filters, a second tap on the same chip clears it. */
+const QUICK_FILTERS: readonly {
+  readonly id: string;
+  readonly text: string;
+  readonly apply: (filter: PoolFilter, on: boolean) => PoolFilter;
+  readonly isOn: (filter: PoolFilter) => boolean;
+}[] = [
+  ...Array.from({ length: QUICK_COST_MAX + 1 }, (_, cost) => ({
+    id: `cost:${cost}`,
+    text: cost === QUICK_COST_MAX ? `${cost}+` : `${cost}`,
+    apply: (filter: PoolFilter, on: boolean): PoolFilter => ({ ...filter, cost: on ? cost : null }),
+    isOn: (filter: PoolFilter): boolean => filter.cost === cost,
+  })),
+  ...(["physical", "mental", "energy", "wild"] as const).map((icon) => ({
+    id: `icon:${icon}`,
+    text: `${icon.charAt(0).toUpperCase()}${icon.slice(1)}`,
+    apply: (filter: PoolFilter, on: boolean): PoolFilter => ({ ...filter, resource: on ? icon : null }),
+    isOn: (filter: PoolFilter): boolean => filter.resource === icon,
+  })),
+];
+
+/** From this column width the quick filters fit one row: ten chips, then a trait stepper `QUICK_TRAIT_WIDTH` wide. */
+const QUICK_ONE_ROW_MIN = 720;
+const QUICK_TRAIT_WIDTH = 200;
+
 export class DeckBuilderScene extends Phaser.Scene {
   /** Row sizes for the global Card size setting, read in `create()`. */
   #rows: DeckBuilderRowSizes = deckBuilderRowSizes(1);
@@ -291,7 +318,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #leaveArmed = false;
   /** Delete was pressed once: the next press deletes the saved deck. */
   #deleteArmed = false;
-  #poolView: PoolView = lastPoolView;
+  #poolView: PoolView = "grid";
   /** New deck's "Start from" step: the hero picked, while the player chooses an empty deck or one of its precons. */
   #startFor: HeroIdentityCard | null = null;
   #identitySearch = "";
@@ -362,7 +389,6 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#savedDeck = this.#campaign ? given : null;
     this.#leaveArmed = false;
     this.#deleteArmed = false;
-    this.#poolView = lastPoolView;
     this.#startFor = null;
     this.#identitySearch = "";
     this.#poolRanking = null;
@@ -370,7 +396,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#poolSearch = new DeckSearchClient();
     this.#heroSearch = new DeckSearchClient();
     this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
-    this.#filter = {};
+    // The sort, kept filters and card/list view the player last left (issue #531).
+    const view = deckBuilderView();
+    this.#filter = { ...view.filter };
+    this.#sort = view.sort;
+    this.#poolView = view.poolView;
     this.#filterText = "";
     this.#status =
       given && this.#deck !== given
@@ -591,6 +621,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         identityIds: [],
         aspectIds: [...SELECTABLE_ASPECTS],
         typeFilterIds: TYPE_FILTERS.map((f) => f.id),
+        quickFilterIds: QUICK_FILTERS.map((f) => f.id),
         poolCardIds: pool.map((card) => card.id as string),
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
@@ -611,6 +642,11 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** Cards this screen must never offer to *add*: MC27 p. 4's `Campaign.prohibited.cardIds` (Venom the ally 27190, Symbiote Suit 27191). Same narrowing rule as `#removedFromCampaignIds` — a line the deck already holds still shows, so its own refused "+"/"−" can fix it. `null` outside campaign mode. */
   #prohibitedCampaignIds(): ReadonlySet<string> | null {
     return this.#campaign ? new Set([...prohibitedCampaignCardIds(this.#campaign.context)].map(String)) : null;
+  }
+
+  /** Keeps the pool's sort, filters and view for the next visit (`platform/deck-builder-view.ts`). */
+  #rememberView(): void {
+    rememberDeckBuilderView({ sort: this.#sort, filter: this.#filter, poolView: this.#poolView });
   }
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
@@ -703,6 +739,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     y = this.#drawAspectPicker(left, y, inner, deck, true);
     y = this.#drawTypeFilters(left, y, inner);
+    y = this.#drawQuickFilters(left, y, inner, deck);
     y = this.#drawPackAndSort(left, y, inner, deck);
     if (!this.#campaign) y = this.#drawNameField(left, y, inner, deck);
     y = this.#drawLegalityLine(left, y, inner, deck);
@@ -803,6 +840,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
     midY += 16;
     midY = this.#drawFilterInput(midX, midY, midWidth);
+    // The quick filters sit under the search here: the left rail has no room left for them.
+    midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
     const pool = this.#browsablePool(deck);
     label(
       this,
@@ -943,6 +982,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         const selected = chip.id === activeTypeFilterId;
         const applyFilter = (): void => {
           this.#filter = { ...this.#filter, type: chip.type };
+          this.#rememberView();
           this.#listScroll.reset();
           this.#rebuild();
         };
@@ -960,6 +1000,80 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
     });
     return y + chipStripHeight(typeChipRows.length) + 16;
+  }
+
+  /**
+   * The quick filters under the type chips (issue #531): cost chips 0 to 5+, resource icon chips, and a trait stepper
+   * (◂ name ▸, wrapping through "All traits") over the traits the pool holds under the other filters. Built for a tap
+   * on a phone, where typing `o:2` is slow; each chip toggles.
+   */
+  #drawQuickFilters(left: number, top: number, column: number, deck: Deck): number {
+    let y = top;
+    label(this, left, y, "cost · icon · trait", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const apply = (next: PoolFilter): void => {
+      this.#filter = next;
+      this.#rememberView();
+      this.#listScroll.reset();
+      this.#rebuild();
+    };
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, selected, onClick }),
+      );
+      this.#stops.set(id, { rect, activate: onClick });
+    };
+    // A wide column takes every chip on one row with the trait stepper at its end; a narrow one stacks cost, icons
+    // and the stepper.
+    const oneRow = column >= QUICK_ONE_ROW_MIN;
+    const stepperWidth = oneRow ? QUICK_TRAIT_WIDTH : column;
+    const rows = oneRow
+      ? [QUICK_FILTERS]
+      : [QUICK_FILTERS.filter((f) => f.id.startsWith("cost:")), QUICK_FILTERS.filter((f) => f.id.startsWith("icon:"))];
+    const chipsWidth = oneRow ? column - stepperWidth - CHIP_GAP : column;
+    rows.forEach((row, rowIndex) => {
+      // On one row the cost chips ("0" to "5+") take a square each and the icon names share what is left; elsewhere
+      // a row's chips share it evenly.
+      const isCost = (chip: (typeof row)[number]): boolean => oneRow && chip.id.startsWith("cost:");
+      const costs = row.filter(isCost).length;
+      const named = row.filter((chip) => !isCost(chip));
+      const nameSpace = chipsWidth - costs * hit.target - (row.length - 1) * CHIP_GAP;
+      // Names share their space by length, so "Physical" gets more than "Wild".
+      const weight = (chip: (typeof row)[number]): number => (oneRow ? chip.text.length + 3 : 1);
+      const totalWeight = named.reduce((sum, chip) => sum + weight(chip), 0);
+      let x = left;
+      row.forEach((chip) => {
+        const width = isCost(chip) ? hit.target : (nameSpace * weight(chip)) / totalWeight;
+        const rect: Rect = { x, y: y + rowIndex * (hit.target + CHIP_GAP), width, height: hit.target };
+        x += width + CHIP_GAP;
+        const on = chip.isOn(this.#filter);
+        add(`quick:${chip.id}`, rect, chip.text, () => apply(chip.apply(this.#filter, !on)), on);
+      });
+    });
+    if (!oneRow) y += chipStripHeight(rows.length) + CHIP_GAP;
+    const stepperLeft = left + column - stepperWidth;
+
+    const traits = traitFilterChoices(
+      POOL,
+      this.#identity!,
+      deck.aspects,
+      withSearchClauses(this.#filter, this.#filterText),
+      PACK_INFOS,
+    );
+    const arrow = hit.target;
+    const traitName = traits.find((t) => t.id === this.#filter.trait)?.name ?? "All traits";
+    const stepTrait = (dir: 1 | -1) => (): void =>
+      apply({ ...this.#filter, trait: stepChoice(traits, this.#filter.trait, dir) as Trait | null });
+    add("trait:prev", { x: stepperLeft, y, width: arrow, height: hit.target }, "<", stepTrait(-1));
+    add(
+      "trait:name",
+      { x: stepperLeft + arrow + CHIP_GAP, y, width: stepperWidth - 2 * (arrow + CHIP_GAP), height: hit.target },
+      traitName,
+      stepTrait(1),
+      this.#filter.trait != null,
+    );
+    add("trait:next", { x: left + column - arrow, y, width: arrow, height: hit.target }, ">", stepTrait(1));
+    return y + hit.target + 16;
   }
 
   /**
@@ -981,6 +1095,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
+      this.#rememberView();
       this.#listScroll.reset();
       this.#rebuild();
     };
@@ -1021,6 +1136,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const half = (column - CHIP_GAP) / 2;
     const resort = (next: PoolSort): void => {
       this.#sort = next;
+      this.#rememberView();
       this.#listScroll.reset();
       this.#rebuild();
     };
@@ -1482,7 +1598,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#filterInput = new McTextInput(this, {
         rect: filterRect,
         value: this.#filterText,
-        placeholder: "Search, or o:2 t:ally k:spy rp:1 kw:guard",
+        placeholder: "Search, or o:2 t:ally kw:guard",
         onChange: applyText,
       });
     }
@@ -1501,7 +1617,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const toggleRect: Rect = { x: left + column - toggleWidth, y: top, width: toggleWidth, height: hit.target };
     const toggle = (): void => {
       this.#poolView = this.#poolView === "grid" ? "list" : "grid";
-      lastPoolView = this.#poolView;
+      this.#rememberView();
       this.#listScroll.reset();
       this.#rebuild();
     };
