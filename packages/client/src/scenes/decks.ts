@@ -221,6 +221,8 @@ export interface DecksSceneData {
 
 /** Tall enough for a 1-line title + a 2-line precon meta + a selected row's record line, comfortably. */
 const ROW_HEIGHT = 84;
+/** A row on desktop: its larger description (`readingSize`) still fits the full line under a two-line name. */
+const DESKTOP_ROW_HEIGHT = 100;
 /** A deck row's hero picture, wide for its height: a cover crop of the hero's face and shoulders. */
 const DECK_THUMB_ASPECT = 1.25;
 /** How much of a group-starting row's own top is given to its small group label instead of the card. */
@@ -1232,7 +1234,8 @@ export class DecksScene extends Phaser.Scene {
     // Reserve fixed room at the bottom for the Import/Export box, so the list gets exactly whatever's left.
     const boxHeight = importExportBoxHeight(column, this.#importExportOpen, this.#row);
     const listTop = y;
-    const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - boxHeight - 12 - listTop);
+    const rowHeight = isDesktopType() ? DESKTOP_ROW_HEIGHT : ROW_HEIGHT;
+    const listHeight = Math.max(rowHeight, rect.y + rect.height - boxHeight - 12 - listTop);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
 
     // The community decks are searched too (by name, author and tags), so the worker holds them with the player's own.
@@ -1260,7 +1263,7 @@ export class DecksScene extends Phaser.Scene {
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
-      rowHeight: ROW_HEIGHT,
+      rowHeight,
       count: rows.length,
       renderRow,
       scroll: this.#listScroll,
@@ -1273,7 +1276,7 @@ export class DecksScene extends Phaser.Scene {
     this.#hoverLists.push(() => {
       const found: (readonly [string, HoverCardIdRect])[] = [];
       const view = list.rect;
-      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, ROW_HEIGHT, view.height, rows.length);
+      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, rowHeight, view.height, rows.length);
       for (let index = start; index < end; index++) {
         const row = rows[index];
         if (row?.kind !== "deck") continue;
