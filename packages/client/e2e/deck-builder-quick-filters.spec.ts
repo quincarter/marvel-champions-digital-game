@@ -5,7 +5,7 @@ import { openApp } from "./wave6-helpers-b.js";
 import { texts } from "./wave7-deck-builder-helpers.js";
 
 /**
- * Deck builder, phone (issue #531): the quick cost/icon chips sit in the scrolling deck region. A swipe of the region
+ * Deck builder, phone (issue #531): the quick cost/icon chips sit in the scrolling filters panel. A swipe of the region
  * that starts and lifts over chips filters nothing; a tap on a chip filters the pool, and a second tap clears it (the
  * no-tap-on-finger-lift rule).
  */
@@ -39,7 +39,7 @@ async function swipe(page: Page, from: { x: number; y: number }, to: { x: number
 
 /** The pool's card count, from its "Pool — N cards" label. */
 async function poolCount(page: Page): Promise<number> {
-  const label = (await texts(page, "DeckBuilder")).find((t) => /pool\s+—\s+\d+\s+card/i.test(t));
+  const label = (await texts(page, "DeckBuilder")).find((t) => /^(pool\s+—\s+)?\d+\s+cards?$/i.test(t));
   return Number(/(\d+)/.exec(label ?? "")?.[1] ?? NaN);
 }
 
@@ -55,6 +55,10 @@ test("a swipe over the quick filter chips filters nothing; a tap filters and a s
     const count = await poolCount(page);
     return Number.isFinite(count) && count > 0 ? count : null;
   }, "the pool count");
+  // A phone keeps the filters behind the Filters chip.
+  const toggle = await waitFor(() => stopRect(page, "filters-toggle"), "the Filters chip", 15_000);
+  await page.touchscreen.tap(toggle.x + toggle.width / 2, toggle.y + toggle.height / 2);
+  await page.waitForTimeout(500);
   const chip = await waitFor(() => stopRect(page, "quick:cost:2"), "the cost 2 chip", 15_000);
   const centre = { x: chip.x + chip.width / 2, y: chip.y + chip.height / 2 };
 

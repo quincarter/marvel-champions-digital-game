@@ -45,15 +45,20 @@ export async function scrollTo(page: Page, scene: string, key: string): Promise<
     const { x, y, width, height } = stop.rect;
     const cy = y + height / 2;
     if (!/^(card:|identity:|deck:|pool-card:)/.test(key)) {
-      // A fixed control (Save, a filter chip): on a phone the whole column scrolls, so wheel the column until it is in view.
-      const limit = size.width < 1000 && scene === "DeckBuilder" && key !== "filter-text" ? 420 : size.height - 20; // the phone builder's top region scrolls above a fixed search field and pool list
+      // A fixed control (Save, a filter chip): on a phone the builder shows one tab's content in a scrolling region
+      // between the tab row (above) and a pinned Save (below), so wheel that region until the control is inside it.
+      const builderPhone = size.width < 1000 && scene === "DeckBuilder";
+      const regionTop = builderPhone && !/^(tab:|save)/.test(key) ? 150 : 60;
+      const limit = builderPhone && key !== "save" && !key.startsWith("tab:") ? size.height - 100 : size.height - 20;
       if (
-        key === "back" ? cy > 0 && cy < 120 : cy > 60 && cy < limit && x + width / 2 > 0 && x + width / 2 < size.width
+        key === "back"
+          ? cy > 0 && cy < 120
+          : cy > regionTop && cy < limit && x + width / 2 > 0 && x + width / 2 < size.width
       )
         return stop;
       if (size.width >= 1000)
         throw new Error(`"${key}" on ${scene} is outside the viewport at ${JSON.stringify(stop.rect)}`);
-      await page.mouse.move(size.width / 2, 100);
+      await page.mouse.move(size.width / 2, builderPhone ? 400 : 100);
       await page.mouse.wheel(0, cy <= 60 ? -200 : 200);
       await page.waitForTimeout(500);
       await settle(page, { quietMs: 200, maxMs: 800 });
@@ -83,6 +88,27 @@ export async function press(page: Page, scene: string, key: string): Promise<voi
     if (tab) await tap(page, tab.x + tab.width / 2, tab.y + tab.height / 2);
     await settle(page, { quietMs: 200, maxMs: 800 });
   }
+  if (PHONE && scene === "DeckBuilder" && !key.startsWith("tab:") && !(await stopOf(page, scene, key))) {
+    // The phone builder shows one tab at a time (Pool, Deck, From your games): open the one that holds the control.
+    const inDeck = /^(name|save|aspect:|preconstructed|clear|delete|reward:|freeze-deck)/.test(key);
+    const inGames = key.startsWith("games:");
+    const tab = (await stopOf(page, scene, inGames ? "tab:games" : inDeck ? "tab:deck" : "tab:pool"))?.rect;
+    if (tab) await tap(page, tab.x + tab.width / 2, tab.y + tab.height / 2);
+    await settle(page, { quietMs: 200, maxMs: 800 });
+    // A type or pack chip sits behind the Filters chip on the Pool tab, in place of the list: open it, press, close it.
+    if (/^(type|pack):/.test(key) && !(await stopOf(page, scene, key))) {
+      const chip = (await stopOf(page, scene, "filters-toggle"))?.rect;
+      if (chip) {
+        await tap(page, chip.x + chip.width / 2, chip.y + chip.height / 2);
+        await settle(page, { quietMs: 200, maxMs: 800 });
+        await press(page, scene, key);
+        const again = (await stopOf(page, scene, "filters-toggle"))?.rect;
+        if (again) await tap(page, again.x + again.width / 2, again.y + again.height / 2);
+        await settle(page, { quietMs: 200, maxMs: 800 });
+        return;
+      }
+    }
+  }
   const stop = await scrollTo(page, scene, key);
   await settle(page, { quietMs: 120, maxMs: 400 });
   const r = ((await stopOf(page, scene, key)) ?? stop).rect;
@@ -101,13 +127,34 @@ export async function rowButton(page: Page, id: string, which: "plus" | "minus")
 export const add = (page: Page, id: string): Promise<void> => rowButton(page, id, "plus");
 export const remove = (page: Page, id: string): Promise<void> => rowButton(page, id, "minus");
 
-/** Every visible text of one scene. */
+/**
+ * Every visible text of one scene. On the phone the deck builder shows one tab at a time (Pool, Deck, From your
+ * games), so its reads (the legality line, the deck list, the pool's count) are the union of the Pool and Deck tabs:
+ * this opens the Deck tab, reads it, and returns to the tab it started on.
+ */
 export async function texts(page: Page, scene: string): Promise<string[]> {
-  return (await visibleTexts(page)).filter((t) => t.scene === scene).map((t) => t.text);
+  const here = (await visibleTexts(page)).filter((t) => t.scene === scene).map((t) => t.text);
+  if (!PHONE || scene !== "DeckBuilder") return here;
+  const stops = await stopsOf(page, scene);
+  const rectOf = (key: string) => stops.find((s) => s.key === key)?.rect;
+  const deckTab = rectOf("tab:deck");
+  if (!deckTab) return here;
+  const onDeck = stops.some((s) => s.key === "name" || s.key === "save");
+  const onPool = stops.some((s) => s.key === "filter-text");
+  const other = onDeck ? rectOf("tab:pool") : deckTab;
+  if (!other || (!onDeck && !onPool)) return here;
+  await tap(page, other.x + other.width / 2, other.y + other.height / 2);
+  await settle(page, { quietMs: 200, maxMs: 800 });
+  const there = (await visibleTexts(page)).filter((t) => t.scene === scene).map((t) => t.text);
+  const back = (await stopsOf(page, scene)).find((s) => s.key === (onDeck ? "tab:deck" : "tab:pool"))?.rect;
+  if (back) await tap(page, back.x + back.width / 2, back.y + back.height / 2);
+  await settle(page, { quietMs: 200, maxMs: 800 });
+  return [...here, ...there];
 }
 /** Types into a focused field (search boxes). */
 export async function typeInto(page: Page, scene: string, key: string, value: string): Promise<void> {
   await press(page, scene, key);
+  await page.keyboard.press("ControlOrMeta+a");
   for (let i = 0; i < 40; i++) await page.keyboard.press("Backspace");
   await page.keyboard.type(value);
   await settle(page, { quietMs: 200, maxMs: 800 });
@@ -160,12 +207,20 @@ export async function startNewDeck(page: Page, identityId: string): Promise<void
   // A hero with a published precon first asks "Start from": these flows begin from the empty deck (hero cards only).
   await waitFor(
     async () =>
-      (await stopOf(page, "DeckBuilder", "save")) || (await stopOf(page, "DeckBuilder", "start:empty")) ? true : null,
+      (await stopOf(page, "DeckBuilder", "save")) ||
+      (await stopOf(page, "DeckBuilder", "tab:deck")) ||
+      (await stopOf(page, "DeckBuilder", "start:empty"))
+        ? true
+        : null,
     "builder or start step",
     15000,
   );
   if (await stopOf(page, "DeckBuilder", "start:empty")) await press(page, "DeckBuilder", "start:empty");
-  await waitFor(async () => ((await stopOf(page, "DeckBuilder", "save")) ? true : null), "builder opens", 15000);
+  await waitFor(
+    async () => ((await stopOf(page, "DeckBuilder", "save")) || (await stopOf(page, "DeckBuilder", "tab:deck")) ? true : null),
+    "builder opens",
+    15000,
+  );
   await settle(page);
   // The pool opens as a card grid; these drivers read the text rows (the "List view" toggle brings them back).
   if (await stopOf(page, "DeckBuilder", "pool-view")) {
