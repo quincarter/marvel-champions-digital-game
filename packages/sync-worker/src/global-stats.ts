@@ -10,9 +10,9 @@
  *   `s:summary`       the served `GET /global/stats` body, rebuilt at most once an hour on read.
  *
  * Rows written per game, all in one `put` call so a game counts whole or not at all: 1 dedupe row, 1 villain, 1 per
- * modular set, 1 per distinct hero, 1 card row, 1 meta. A solo game with one modular set is 6 rows, a four-hero game
- * with two modular sets is 10; the usual game is about 7. A retry (a seen id) writes none. Rows read per game: the
- * two dedupe lookups, meta, the card row and the villain, modular and hero rows, in one `get`.
+ * modular set (at most 6), 1 per distinct hero (at most 4), 1 card row, 1 meta. A solo game with one modular set is 6
+ * rows, the worst game is 14; a retry (a seen id) writes none. The alarm is set once a month (one more row). Rows read
+ * per game: the two dedupe lookups, meta, the card row and the villain, modular and hero rows, in one `get`.
  */
 
 import type { KeyValueStorage } from "./env.js";
@@ -26,15 +26,22 @@ import {
 } from "./global-protocol.js";
 
 /** Results the whole store takes per UTC day. */
-export const GLOBAL_RESULTS_PER_DAY = 5000;
+export const GLOBAL_RESULTS_PER_DAY = 3000;
 /** Distinct v/m/h/c rows; past it a game that needs a new one answers `full`. */
 export const GLOBAL_MAX_KEYS = 3000;
-/** A `c:` row's size as JSON; past it a game still counts, but cards the row does not already hold are left out. */
+/** A `c:` row's size as JSON; past it, cards seen in one deck only are evicted to make room. */
 export const GLOBAL_MAX_CARD_ROW_BYTES = 100 * 1024;
 /** A card in fewer decks than this is left out of `GET /global/cards`. */
 export const GLOBAL_MIN_CARD_DECKS = 3;
 export const GLOBAL_SUMMARY_TTL_MS = 60 * 60 * 1000;
 const DEDUPE_BATCH = 100;
+/** Time between alarm steps (a dedupe batch or a sweep batch). */
+export const GLOBAL_ALARM_PACE_MS = 10 * 60 * 1000;
+/** The monthly sweep drops a v/m/h row with fewer games than this. */
+export const GLOBAL_MIN_KEEP_GAMES = 3;
+/** Rows a sweep step lists; a villain deletes two rows, so a step deletes at most 120 (the 128-key limit). */
+const SWEEP_BATCH = 60;
+const SWEEP_PREFIXES = ["v:", "m:", "h:"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface Meta {
@@ -45,6 +52,9 @@ interface Meta {
   dayCount: number;
   /** When the alarm is set for; 0 or absent when none is. */
   alarmAt?: number;
+  /** The month (yyyymm) the key sweep last finished, and where an unfinished one stands. */
+  sweptMonth?: string;
+  sweep?: { p: number; after: string };
 }
 
 interface AggregateRow {
@@ -130,17 +140,34 @@ export class GlobalStatsLogic {
     const cards = (found.get(cardKey) as CardRow | undefined) ?? { wins: 0, losses: 0, inWins: {}, inLosses: {} };
     const bucket = result.won ? cards.inWins : cards.inLosses;
     let size = JSON.stringify(cards).length;
+    const brought = new Set<string>();
     for (const seat of result.seats) {
       if (result.won) cards.wins += 1;
       else cards.losses += 1;
       for (const card of seat.deck) {
-        if (!(card in bucket)) {
-          // A new card name adds its key, quotes, colon, comma and a count.
+        // Own properties only: "constructor" and the like are card names, not inherited members.
+        if (!Object.hasOwn(bucket, card)) {
+          // A new card name adds its key, quotes, colon, comma and a count (8 bytes, counted generously).
           size += card.length + 8;
-          if (size > GLOBAL_MAX_CARD_ROW_BYTES) continue;
           bucket[card] = 0;
         }
         bucket[card]! += 1;
+        brought.add(card);
+      }
+    }
+    // Past the byte cap, forged or rare ids make room by leaving: cards seen once go first (other decks' before this
+    // game's), so a row cannot freeze at the cap and refuse real new cards. Cards with 2 or more decks stay, so the
+    // row never grows past what it held plus nothing.
+    if (size > GLOBAL_MAX_CARD_ROW_BYTES) {
+      for (const own of [false, true]) {
+        for (const map of [cards.inWins, cards.inLosses]) {
+          for (const [card, count] of Object.entries(map)) {
+            if (size <= GLOBAL_MAX_CARD_ROW_BYTES) break;
+            if (count !== 1 || brought.has(card) !== own) continue;
+            delete map[card];
+            size -= card.length + 8;
+          }
+        }
       }
     }
     writes[cardKey] = cards;
@@ -202,23 +229,66 @@ export class GlobalStatsLogic {
     return { villain, wins: row.wins, losses: row.losses, inWins, inLosses };
   }
 
-  /** The alarm: drops dedupe buckets older than the previous month, a small batch at a time. */
+  /**
+   * The alarm. Each run does one small paced step, either a batch of dedupe rows older than the previous month, or (once
+   * those are gone, once a month) a batch of the key sweep that drops v/m/h rows under GLOBAL_MIN_KEEP_GAMES games, with
+   * a villain's `c:` row, so garbage ids cannot hold the key cap forever. A step is at most 120 deletes (sweep) or 100
+   * (dedupe) plus the meta row and the alarm; steps are GLOBAL_ALARM_PACE_MS apart, so maintenance writes at most
+   * 144 x 122 = 17,600 rows a day, and only while a backlog lasts (a month's sweep of a full store is about 50 steps).
+   */
   async expire(now: number): Promise<void> {
+    const meta = await this.storage.get<Meta>("meta");
+    if (!meta) return;
     const keep = previousMonthOf(now);
     const listed = await this.storage.list<unknown>({ prefix: "g:", limit: DEDUPE_BATCH });
     const old = [...listed.keys()].filter((key) => key.slice(2, 8) < keep);
-    if (old.length > 0) await this.storage.delete(old);
-    const meta = await this.storage.get<Meta>("meta");
-    if (!meta) return;
-    if (old.length === DEDUPE_BATCH) {
-      // The whole batch was old, so there may be more.
-      meta.alarmAt = now + 60_000;
-    } else if (listed.size > old.length) {
-      meta.alarmAt = nextMonthAlarm(now);
+    let next: number;
+    if (old.length > 0) {
+      await this.storage.delete(old);
+      next = now + GLOBAL_ALARM_PACE_MS;
+    } else if (!(await this.sweepStep(meta, monthOf(now)))) {
+      next = now + GLOBAL_ALARM_PACE_MS;
     } else {
-      meta.alarmAt = 0;
+      next = listed.size > 0 ? nextMonthAlarm(now) : 0;
     }
+    meta.alarmAt = next;
     await this.storage.put("meta", meta);
-    if (meta.alarmAt) await this.storage.setAlarm(meta.alarmAt);
+    if (next) await this.storage.setAlarm(next);
+  }
+
+  /** One batch of the monthly key sweep; true when the month's sweep is finished. Mutates `meta`. */
+  private async sweepStep(meta: Meta, month: string): Promise<boolean> {
+    if (meta.sweptMonth === month) return true;
+    const sweep = meta.sweep ?? { p: 0, after: "" };
+    const prefix = SWEEP_PREFIXES[sweep.p]!;
+    const listed = await this.storage.list<AggregateRow>({ prefix, start: sweep.after || prefix, limit: SWEEP_BATCH });
+    const doomed: string[] = [];
+    let last = sweep.after;
+    for (const [key, row] of listed) {
+      last = key;
+      if (key === sweep.after) continue;
+      if (row.games >= GLOBAL_MIN_KEEP_GAMES) continue;
+      doomed.push(key);
+      // A villain's card row goes with it.
+      if (prefix === "v:") doomed.push(`c:${key.slice(2)}`);
+    }
+    if (doomed.length > 0) {
+      const existing = await this.storage.get<unknown>(doomed);
+      const gone = doomed.filter((key) => existing.has(key));
+      if (gone.length > 0) await this.storage.delete(gone);
+      meta.keys = Math.max(0, meta.keys - gone.length);
+    }
+    if (listed.size < SWEEP_BATCH) {
+      // This prefix is done.
+      if (sweep.p + 1 < SWEEP_PREFIXES.length) {
+        meta.sweep = { p: sweep.p + 1, after: "" };
+        return false;
+      }
+      delete meta.sweep;
+      meta.sweptMonth = month;
+      return true;
+    }
+    meta.sweep = { p: sweep.p, after: last };
+    return false;
   }
 }

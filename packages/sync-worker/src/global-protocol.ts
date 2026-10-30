@@ -36,10 +36,10 @@ export interface GlobalResult {
 
 export const GLOBAL_ID_PATTERN = /^[0-9a-f]{32}$/;
 /** A card or encounter set id. */
-export const GLOBAL_KEY_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export const GLOBAL_KEY_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 /** A villain's name. */
 export const GLOBAL_VILLAIN_PATTERN = /^[\p{L}\p{N} '’&.,:()!-]{1,80}$/u;
-export const GLOBAL_MAX_MODULARS = 8;
+export const GLOBAL_MAX_MODULARS = 6;
 export const GLOBAL_MAX_SEATS = 4;
 export const GLOBAL_MAX_DECK_CARDS = 80;
 export const GLOBAL_MAX_BODY_BYTES = 16 * 1024;
@@ -94,10 +94,12 @@ export interface GlobalError {
 /** Most aspects a seat may name (a hero has one, with room for a second aspect card). */
 export const GLOBAL_MAX_ASPECTS = 4;
 
+/** `__proto__` fits the pattern but is never a real id; it would be a prototype write as an object key. */
+const isKey = (value: unknown): value is string =>
+  typeof value === "string" && GLOBAL_KEY_PATTERN.test(value) && value !== "__proto__";
+
 const isKeyList = (value: unknown, max: number): value is string[] =>
-  Array.isArray(value) &&
-  value.length <= max &&
-  value.every((entry) => typeof entry === "string" && GLOBAL_KEY_PATTERN.test(entry));
+  Array.isArray(value) && value.length <= max && value.every(isKey);
 
 /**
  * Checks an uploaded body against every pattern and cap above and returns it cut down to the fields of
@@ -127,7 +129,7 @@ export function parseGlobalResult(input: unknown): GlobalResult | null {
   for (const raw of o.seats as unknown[]) {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
     const s = raw as Record<string, unknown>;
-    if (typeof s.hero !== "string" || !GLOBAL_KEY_PATTERN.test(s.hero) || heroes.has(s.hero)) return null;
+    if (!isKey(s.hero) || heroes.has(s.hero)) return null;
     if (!isKeyList(s.aspects, GLOBAL_MAX_ASPECTS) || !isKeyList(s.deck, GLOBAL_MAX_DECK_CARDS)) return null;
     heroes.add(s.hero);
     seats.push({ hero: s.hero, aspects: [...new Set(s.aspects)], deck: [...new Set(s.deck)] });

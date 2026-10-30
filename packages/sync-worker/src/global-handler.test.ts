@@ -8,6 +8,7 @@ import {
   type GlobalVillainCards,
 } from "./global-protocol.js";
 import {
+  GLOBAL_ALARM_PACE_MS,
   GLOBAL_MAX_CARD_ROW_BYTES,
   GLOBAL_MAX_KEYS,
   GLOBAL_RESULTS_PER_DAY,
@@ -72,7 +73,7 @@ describe("POST /global/result validation", () => {
     ["empty villain", { ...game(1), villain: "" }],
     ["unknown difficulty", { ...game(1), difficulty: "heroic" }],
     ["bad modular key", { ...game(1), modulars: ["no spaces"] }],
-    ["too many modulars", { ...game(1), modulars: Array.from({ length: 9 }, (_, i) => `m${i}`) }],
+    ["too many modulars", { ...game(1), modulars: Array.from({ length: 7 }, (_, i) => `m${i}`) }],
     ["repeated modular", { ...game(1), modulars: ["a", "a"] }],
     ["no seats", { ...game(1), seats: [] }],
     [
@@ -110,6 +111,15 @@ describe("POST /global/result validation", () => {
     expect((await post(call, dup)).status).toBe(200);
     expect((await post(call, loss(2, "other"))).status).toBe(200);
     expect(store().map.get("c:Rhino")).toMatchObject({ inWins: { a: 1, b: 1 } });
+  });
+
+  it("accepts the dotted ids real modular sets have", async () => {
+    const { call, store } = setup();
+    const modulars = ["a.i.m._abduction", "m.o.d.o.k.", "s.h.i.e.l.d.", "s.h.i.e.l.d._executive_board"];
+    expect((await post(call, game(1, { modulars }))).status).toBe(200);
+    expect(store().map.has("m:s.h.i.e.l.d._executive_board")).toBe(true);
+    const six = Array.from({ length: 6 }, (_, i) => `m${i}`);
+    expect((await post(call, game(2, { modulars: six }))).status).toBe(200);
   });
 
   it("refuses a body over the cap, declared or streamed", async () => {
@@ -207,12 +217,79 @@ describe("dedupe month buckets", () => {
     const now = Date.UTC(2026, 9, 15);
     await logic.expire(now);
     expect([...storage.map.keys()].filter((k) => k.startsWith("g:202601")).length).toBe(50);
-    expect(storage.alarm).toBe(now + 60_000);
+    expect(storage.alarm).toBe(now + GLOBAL_ALARM_PACE_MS);
     await logic.expire(now);
     expect([...storage.map.keys()].filter((k) => k.startsWith("g:202601")).length).toBe(0);
     expect(storage.map.has(`g:202609:${idOf(1)}`)).toBe(true);
     expect(storage.map.has(`g:202610:${idOf(2)}`)).toBe(true);
+    // Each step is one paced batch: no more than the batch plus its two bookkeeping rows.
+    expect(storage.alarm).toBe(now + GLOBAL_ALARM_PACE_MS);
+    // Dedupe is clear, so the next steps are the key sweep; the last one sets the next month's alarm.
+    let guard = 0;
+    while (storage.alarm !== Date.UTC(2026, 10, 1, 1) && guard++ < 10) await logic.expire(now);
     expect(storage.alarm).toBe(Date.UTC(2026, 10, 1, 1));
+    const rows = storage.rowsWritten;
+    await logic.expire(now); // swept this month already: nothing to do but re-arm
+    expect(storage.rowsWritten - rows).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("key sweep", () => {
+  it("drops v/m/h rows under 3 games with the villain's card row, frees their keys, and paces itself", async () => {
+    const storage = new MemoryStorage();
+    const logic = new GlobalStatsLogic(storage);
+    const t0 = Date.UTC(2026, 9, 15);
+    // 2 popular villains (3 games each), 250 one-game garbage villains, each with its own modular and hero.
+    for (let i = 0; i < 6; i++) await logic.record(game(i, { villain: `Real${i % 2}` }), t0);
+    for (let i = 0; i < 250; i++) {
+      await logic.record(
+        game(100 + i, {
+          villain: `Junk${i}`,
+          modulars: [`junk_m${i}`],
+          seats: [{ hero: `junk_h${i}`, aspects: [], deck: ["x"] }],
+        }),
+        t0,
+      );
+    }
+    const keysBefore = (storage.map.get("meta") as { keys: number }).keys;
+    expect(keysBefore).toBeGreaterThan(750);
+    // The alarm after the month turns: sweep steps, ten minutes apart, until done.
+    const now = Date.UTC(2026, 10, 1, 1);
+    let steps = 0;
+    while (steps < 50) {
+      steps += 1;
+      const before = storage.rowsWritten;
+      await logic.expire(now + steps * GLOBAL_ALARM_PACE_MS);
+      expect(storage.rowsWritten - before).toBeLessThanOrEqual(122);
+      if (storage.alarm === Date.UTC(2026, 11, 1, 1)) break;
+      expect(storage.alarm).toBe(now + steps * GLOBAL_ALARM_PACE_MS + GLOBAL_ALARM_PACE_MS);
+    }
+    expect(steps).toBeGreaterThan(1);
+    const keys = [...storage.map.keys()];
+    expect(keys.filter((k) => k.startsWith("v:") || k.startsWith("c:")).sort()).toEqual([
+      "c:Real0",
+      "c:Real1",
+      "v:Real0",
+      "v:Real1",
+    ]);
+    expect(keys.some((k) => k.startsWith("m:junk") || k.startsWith("h:junk"))).toBe(false);
+    // The three real rows (bomb_scare 6+250 games stays, spider_man stays) remain.
+    expect(keys).toContain("m:bomb_scare");
+    expect(keys).toContain("h:spider_man");
+    expect((storage.map.get("meta") as { keys: number }).keys).toBe(4 + 2);
+  });
+
+  it("lets a full store take new games again after the sweep", async () => {
+    const storage = new MemoryStorage();
+    const logic = new GlobalStatsLogic(storage);
+    const t0 = Date.UTC(2026, 9, 15);
+    let n = 0;
+    while ((await logic.record(game(n, { villain: `V${n}`, modulars: [] }), t0)).ok) n++;
+    expect((await logic.record(game(90_000, { villain: "Fresh", modulars: [] }), t0)).ok).toBe(false);
+    for (let i = 1; i < 200 && storage.alarm !== Date.UTC(2026, 11, 1, 1); i++) {
+      await logic.expire(Date.UTC(2026, 10, 1, 1) + i * GLOBAL_ALARM_PACE_MS);
+    }
+    expect((await logic.record(game(90_001, { villain: "Fresh", modulars: [] }), Date.UTC(2026, 10, 2))).ok).toBe(true);
   });
 });
 
@@ -268,9 +345,12 @@ describe("store caps", () => {
     expect(((await full.json()) as GlobalError).reason).toBe("full");
   });
 
-  it("bounds a card row: the game counts, new cards are left out past the cap", async () => {
+  it("bounds a card row by evicting cards seen once, keeping popular ones and counting the game", async () => {
     const storage = new MemoryStorage();
     const logic = new GlobalStatsLogic(storage);
+    const keep = (g: number) => game(g, { seats: [{ hero: "h", aspects: [], deck: ["popular_card"] }], modulars: [] });
+    await logic.record(keep(1000), START);
+    await logic.record(keep(1001), START);
     for (let g = 0; g < 80; g++) {
       const deck = Array.from(
         { length: 80 },
@@ -279,17 +359,29 @@ describe("store caps", () => {
       const out = await logic.record(game(g, { seats: [{ hero: "h", aspects: [], deck }], modulars: [] }), START);
       expect(out).toEqual({ ok: true, counted: true });
     }
-    const row = storage.map.get("c:Rhino") as { wins: number };
-    expect(row.wins).toBe(80);
+    const row = storage.map.get("c:Rhino") as { wins: number; inWins: Record<string, number> };
+    expect(row.wins).toBe(82);
     expect(JSON.stringify(row).length).toBeLessThanOrEqual(GLOBAL_MAX_CARD_ROW_BYTES);
-    // Cards already in the row still count after it is full.
-    await logic.record(
-      game(500, { seats: [{ hero: "h", aspects: [], deck: ["card_000_000_xxxxxxxxxxxxxxxx"] }], modulars: [] }),
-      START,
-    );
-    expect(
-      (storage.map.get("c:Rhino") as { inWins: Record<string, number> }).inWins["card_000_000_xxxxxxxxxxxxxxxx"],
-    ).toBe(2);
+    expect(row.inWins.popular_card).toBe(2);
+    // A new card is not refused once the row is full: it replaces an older single.
+    await logic.record(game(500, { seats: [{ hero: "h", aspects: [], deck: ["fresh_card"] }], modulars: [] }), START);
+    expect((storage.map.get("c:Rhino") as { inWins: Record<string, number> }).inWins.fresh_card).toBe(1);
+  });
+
+  it("treats inherited object names as ordinary card names and refuses __proto__", async () => {
+    const { call, store } = setup();
+    const deck = ["constructor", "toString", "hasOwnProperty", "valueOf"];
+    expect((await post(call, game(1, { seats: [{ hero: "h", aspects: [], deck }] }))).status).toBe(200);
+    expect((await post(call, game(2, { seats: [{ hero: "h", aspects: [], deck }] }))).status).toBe(200);
+    const row = store().map.get("c:Rhino") as { inWins: Record<string, number> };
+    expect(Object.fromEntries(Object.entries(row.inWins))).toEqual({
+      constructor: 2,
+      toString: 2,
+      hasOwnProperty: 2,
+      valueOf: 2,
+    });
+    const bad = await post(call, game(3, { seats: [{ hero: "h", aspects: [], deck: ["__proto__"] }] }));
+    expect(bad.status).toBe(400);
   });
 });
 
@@ -373,6 +465,14 @@ describe("rate limiting", () => {
     expect((await post(call, game(1))).status).toBe(200);
     clock.now += HOUR + 1;
     expect((await get(call, "/global/stats")).status).toBe(200);
+  });
+
+  it("writes no limiter row for a read", async () => {
+    const { call, env } = setup();
+    await get(call, "/global/stats");
+    await get(call, "/global/stats");
+    expect(env.RATE_LIMITER.instances.size).toBe(1);
+    expect([...env.RATE_LIMITER.instances.values()][0]!.storage.rowsWritten).toBe(0);
   });
 
   it("does not spend allowance on a request it rejects as malformed", async () => {

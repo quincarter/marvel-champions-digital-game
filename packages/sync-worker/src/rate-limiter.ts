@@ -36,7 +36,7 @@ export const SYNC_ROWS_PER_DAY = 5000;
 export const SYNC_LIMITER_ROWS = 2;
 const HOUR_MS = 60 * 60 * 1000;
 
-/** Global win rate results one IP may send per 24 hours, and reads per hour. Each is a fixed window in one small counter. */
+/** Global win rate results one IP may send per 24 hours (a fixed window in the state row), and reads per hour (in memory). */
 export const GLOBAL_RESULTS_PER_IP_PER_DAY = 60;
 export const GLOBAL_READS_PER_IP_PER_HOUR = 120;
 
@@ -55,10 +55,11 @@ interface LimiterState {
   syncRows: { h: number; n: number }[];
   /** Global win rate counters: a window start and the count in it; absent when no window is open. */
   globalResults?: { s: number; n: number };
-  globalReads?: { s: number; n: number };
 }
 
 export class RateLimiterLogic {
+  private reads: { s: number; n: number } | undefined;
+
   constructor(private readonly storage: KeyValueStorage) {}
 
   private async load(now: number): Promise<LimiterState> {
@@ -73,7 +74,6 @@ export class RateLimiterLogic {
       syncCreates: (saved?.syncCreates ?? []).filter((t) => t > now - DAY_MS),
       syncRows: (saved?.syncRows ?? []).filter((b) => b.h > now - DAY_MS),
       ...(saved?.globalResults && saved.globalResults.s > now - DAY_MS ? { globalResults: saved.globalResults } : {}),
-      ...(saved?.globalReads && saved.globalReads.s > now - HOUR_MS ? { globalReads: saved.globalReads } : {}),
     };
   }
 
@@ -89,7 +89,6 @@ export class RateLimiterLogic {
       ...state.syncCreates.map((t) => t + DAY_MS),
       ...state.syncRows.map((b) => b.h + DAY_MS),
       ...(state.globalResults ? [state.globalResults.s + DAY_MS] : []),
-      ...(state.globalReads ? [state.globalReads.s + HOUR_MS] : []),
     ].filter((t) => t > 0);
     if (ends.length === 0) {
       await this.storage.deleteAll();
@@ -218,7 +217,7 @@ export class RateLimiterLogic {
 
   private async takeGlobal(
     now: number,
-    field: "globalResults" | "globalReads",
+    field: "globalResults",
     limit: number,
     windowMs: number,
   ): Promise<{ ok: true } | { ok: false; retryAfterMs: number }> {
@@ -235,9 +234,20 @@ export class RateLimiterLogic {
     return this.takeGlobal(now, "globalResults", GLOBAL_RESULTS_PER_IP_PER_DAY, DAY_MS);
   }
 
-  /** Takes one of the IP's GLOBAL_READS_PER_IP_PER_HOUR reads; a refusal writes nothing. */
-  takeGlobalRead(now: number) {
-    return this.takeGlobal(now, "globalReads", GLOBAL_READS_PER_IP_PER_HOUR, HOUR_MS);
+  /**
+   * Takes one of the IP's GLOBAL_READS_PER_IP_PER_HOUR reads. The count lives in memory only, so a read writes no row
+   * at all (the response is cached for an hour, so a normal client reads rarely); it resets when the object is evicted,
+   * which a caller hammering it never lets happen. A refusal writes nothing either.
+   */
+  takeGlobalRead(now: number): { ok: true } | { ok: false; retryAfterMs: number } {
+    const window = this.reads;
+    if (window && now - window.s < HOUR_MS && now >= window.s) {
+      if (window.n >= GLOBAL_READS_PER_IP_PER_HOUR) return { ok: false, retryAfterMs: window.s + HOUR_MS - now };
+      window.n += 1;
+    } else {
+      this.reads = { s: now, n: 1 };
+    }
+    return { ok: true };
   }
 
   /** Milliseconds left on a block, 0 when not blocked. */

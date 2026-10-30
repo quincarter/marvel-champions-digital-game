@@ -116,7 +116,8 @@ them.
 **For the player.** Your stats' Heroes, Villains and Encounter tabs have an Everyone / You toggle, and the deck
 builder's Against list can read everyone's winning decks. Reading those numbers needs no consent and sends nothing about
 the player. Contributing to them is opt-in: off by default, asked once with an explanation of exactly what is sent, and
-changeable in Settings. Consent is per device, in a local key that sync does not carry.
+changeable in Settings. Consent is per device, in a local key that sync does not carry: a device that has opted in also
+sends a finished game that syncs onto it from another device, because the save does not say which device finished it.
 
 **What is sent, after each game finished once opted in:** the villain's name, the difficulty, the modular set ids, each
 seat's hero, aspects and deck card ids, the result and the loss cause. Nothing else: no sync space id, no device id, no
@@ -125,8 +126,9 @@ player or deck names, no save id, no seed, no timestamps. The contract is
 
 **Counted once.** A result's id is a SHA-256 of a fixed prefix and the game's save id, cut to 32 hex characters. The same
 game synced to two devices counts once, and the id cannot be tied back to the save. The Worker keeps seen ids in monthly
-buckets and drops any older than the month before. It stores no IP address and no time per game, and logs nothing from a
-request.
+buckets and drops any older than the month before, so a device that sends the same game two months later counts it
+again, and a conflict resolved by "keep both" makes a new game. The rate limiter holds an IP for a day, as it does for
+sync. The Worker stores no IP with a result and no time per game beyond the month bucket, and logs nothing from a request.
 
 **How it works** (client in `packages/client/src/global-stats/`, server in `packages/sync-worker/src/global-*.ts`). One
 `GlobalStats` Durable Object, named `global`, keeps one row per villain, modular set and hero, and one row per villain
@@ -134,11 +136,14 @@ of deck cards. Rows with fewer than 20 games are never served, and a card in few
 /global/stats` serves a stored summary rebuilt at most hourly, so a read costs one row. The client caches answers for
 six hours and keeps a stale copy; nothing is asked for until a screen needs it.
 
-**Limits on the free plan.** A game writes about 7 rows, 6 to 10, plus about 2 in the caller's rate limiter. A repeat
-writes none. Per IP: 60 results a day and 120 reads an hour. Across everyone: 5,000 results a day, which is at most about
-45,000 of the 100,000 daily rows, and 3,000 distinct rows, past which a game that needs a new row is refused. Those caps
-are what stop a stream of made-up ids from growing the store: the Worker does not know the card pool, so it checks
-shapes, not meaning. `GLOBAL_STATS_ENABLED` in `wrangler.jsonc` is the kill switch: every `/global` route answers 503.
+**Limits on the free plan.** A game writes about 6 rows and at worst 14, plus about 2 in the caller's rate limiter. A
+repeat writes none. Per IP: 60 results a day and 120 reads an hour; reads write no rows. Across everyone: 3,000 results a
+day, and 3,000 distinct rows, past which a game that needs a new row is refused. On the worst day that is about 66,000 of
+the 100,000 daily rows, maintenance included (the monthly clean-up runs one small step every 10 minutes). The Worker
+does not know the card pool, so it checks shapes, not meaning. The cap on distinct rows and a monthly sweep of rows under
+3 games keep made-up ids from growing the store for good; a store filled by a flood stays full until the next sweep, and
+the client shows only heroes, villains and sets it knows, so made-up names never reach a player. `GLOBAL_STATS_ENABLED`
+in `wrangler.jsonc` is the kill switch: every `/global` route answers 503.
 
 The game never depends on any of this. With the Worker down, uploads wait for a later launch without a word, and the
 Everyone toggle says the numbers are unavailable.

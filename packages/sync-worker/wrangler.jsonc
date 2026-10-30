@@ -32,13 +32,17 @@
 // SYNC_ENABLED is the sync kill switch, as TRANSFERS_ENABLED is the transfer one: anything but "true" makes every /sync
 // route answer 503.
 //
-// Global win rates (/global, one GlobalStats Durable Object named "global"). A result writes about 7 rows (6 to 10): a
-// dedupe row, the villain's row, one per modular set, one per hero, the villain's card row and a bookkeeping row, in one
-// put; a retry writes none. The caller's limiter object writes about 2 more (its count and its alarm). A read writes
-// nothing in GlobalStats except one summary row an hour, plus the limiter's 2. The store takes at most 5,000 results a
-// day, so about 45,000 of the 100,000 daily rows at the very most; a normal day is far less. Dedupe rows are dropped by
-// an alarm once two months old, and the store holds at most 3,000 aggregate rows. Per IP: 60 results a day, 120 reads
-// an hour. GLOBAL_STATS_ENABLED is the kill switch: anything but "true" makes every /global route answer 503.
+// Global win rates (/global, one GlobalStats Durable Object named "global"). A result writes, in one put, 1 dedupe row +
+// 1 villain + 1 per modular set (at most 6) + 1 per distinct hero (at most 4) + 1 card row + 1 bookkeeping row: 6 for a
+// typical solo game, 14 at the worst; a retry writes none. The caller's limiter object writes 2 more per result (its
+// state and its alarm), so 16 at the worst. Reads write no limiter row (their allowance is counted in memory) and only one
+// summary row an hour in GlobalStats. Per IP: 60 results a day is at most 960 rows, and 120 reads an hour cost none.
+// Whole store: 3,000 results a day at the worst is 3,000 x 16 = 48,000 rows of the 100,000. Maintenance is an alarm
+// step every 10 minutes while there is a backlog (old dedupe rows, then once a month the sweep of aggregate rows
+// under 3 games): at most 144 x 122 = 17,600 rows a day, normally a few thousand a month. The summary read at 24 rows
+// a day is noise. Worst day in total is about 66,000 rows, leaving the rest for sync. Dedupe rows go once two months
+// old, and the store holds at most 3,000 aggregate rows. GLOBAL_STATS_ENABLED is the kill switch: anything but "true"
+// makes every /global route answer 503.
 //
 // Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
 // var, so it is not listed below; when it is set, a transfer upload and a sync space creation must carry a valid CF-Turnstile-Response header.
