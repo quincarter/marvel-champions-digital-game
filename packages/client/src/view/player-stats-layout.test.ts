@@ -114,3 +114,37 @@ describe("the merged list tabs", () => {
     expect(rows.map((r) => r.kind)).toEqual(["donut", "stat"]);
   });
 });
+
+describe("Hide hero cards", () => {
+  test("Cards leaves a hero's own cards out, and a group left empty loses its heading", () => {
+    const stats: PlayerStats = {
+      ...STATS,
+      allCards: {
+        ...STATS.allCards!,
+        groups: [
+          {
+            id: "all:played",
+            title: "Most played",
+            cards: [{ cardId: "webs", value: "2×", detail: "", signature: true }],
+          },
+          {
+            id: "all:activated",
+            title: "Most activated",
+            cards: [
+              { cardId: "webs", value: "3×", detail: "", signature: true },
+              { cardId: "tac", value: "1×", detail: "" },
+            ],
+          },
+        ],
+      },
+    };
+    const ids = (hide: boolean) => dashboardRowsOf(stats, "all-cards", 0, 1000, false, hide).map((r) => r.id);
+    expect(ids(false)).toEqual([
+      "all:played:head",
+      "all:played:strip:0",
+      "all:activated:head",
+      "all:activated:strip:0",
+    ]);
+    expect(ids(true)).toEqual(["all:activated:head", "all:activated:strip:0"]);
+  });
+});

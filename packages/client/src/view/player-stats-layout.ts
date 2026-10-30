@@ -175,7 +175,11 @@ export function dashboardRowsOf(
   heroIndex: number,
   width: number,
   phone: boolean,
+  /** Leaves each hero's own cards out of Cards and Cards by hero (the "Hide hero cards" toggle). */
+  hideSignature = false,
 ): DashRow[] {
+  const shown = (cards: HeroCardsView["groups"][number]["cards"]) =>
+    hideSignature ? cards.filter((card) => !card.signature) : cards;
   if (tab === "overview") {
     const rows = tileRowsOf(stats.overview.tiles, width, phone);
     if (stats.overview.note)
@@ -185,8 +189,10 @@ export function dashboardRowsOf(
   if (tab === "all-cards") {
     const rows: DashRow[] = [];
     for (const group of stats.allCards?.groups ?? []) {
+      const cards = shown(group.cards);
+      if (cards.length === 0) continue;
       rows.push({ kind: "heading", id: `${group.id}:head`, height: phone ? 40 : 44, title: group.title });
-      rows.push(...cardRowsOf(group.id, group.cards, width, phone));
+      rows.push(...cardRowsOf(group.id, cards, width, phone));
     }
     return rows;
   }
@@ -204,8 +210,10 @@ export function dashboardRowsOf(
       });
     if (hero.note) rows.push({ kind: "note", id: "cards:note", height: noteHeight(phone), text: hero.note });
     for (const group of hero.groups) {
+      const cards = shown(group.cards);
+      if (cards.length === 0) continue;
       rows.push({ kind: "heading", id: `${group.id}:head`, height: phone ? 40 : 44, title: group.title });
-      rows.push(...cardRowsOf(group.id, group.cards, width, phone));
+      rows.push(...cardRowsOf(group.id, cards, width, phone));
     }
     return rows;
   }

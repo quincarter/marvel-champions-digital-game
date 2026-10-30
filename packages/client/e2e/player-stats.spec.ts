@@ -536,6 +536,33 @@ test("on a phone, a pool card tapped into the stats pane and back leaves no focu
   expect(await ring(), "no ring after going back").toBe(false);
 });
 
+test("Hide hero cards takes a hero's own cards off the Cards tab; on a phone a tab tap shows no ring", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const tab = (await stopsOf(page)).find((s) => s.key === "tab:all-cards")!;
+  await press(page, phone, tab.rect);
+  // The seeded games played Web-Shooter (01008), Spider-Man's own card.
+  const own = "card:all:played:strip:0:01008";
+  await waitFor(async () => ((await keys(page)).includes(own) ? true : null), "Spider-Man's own card", 10_000);
+  if (phone) {
+    const ring = await page.evaluate(
+      () =>
+        (window as unknown as { __mcFocusState: Record<string, () => { ringShown: boolean }> }).__mcFocusState
+          .PlayerStats!().ringShown,
+    );
+    expect(ring, "no ring after a tap").toBe(false);
+  }
+  await settle(page);
+  const hide = (await stopsOf(page)).find((s) => s.key === "hide-signature")!;
+  await press(page, phone, hide.rect);
+  await waitFor(async () => ((await keys(page)).includes(own) ? null : true), "hero cards hidden", 10_000);
+});
+
 test("Your stats' Cards tab: every hero's cards together", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";

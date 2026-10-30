@@ -375,6 +375,9 @@ describe("playerStatsOf: the Cards tab, every hero together", () => {
     expect(identity.find((c) => c.cardId === "spidey")).toMatchObject({ value: "2×", detail: "Used in 1 game" });
     expect(groups.get("all:wins")!.cards.find((c) => c.cardId === "webs")).toMatchObject({ value: "67%" });
     expect(groups.get("all:unplayed")!.cards.map((c) => c.cardId)).toEqual(["bot", "tac"]);
+    // A hero's own card is flagged for the "Hide hero cards" toggle; an aspect card is not.
+    expect(groups.get("all:played")!.cards.find((c) => c.cardId === "webs")!.signature).toBe(true);
+    expect(groups.get("all:unplayed")!.cards.find((c) => c.cardId === "tac")!.signature).toBeUndefined();
   });
 
   test("no game with card numbers: no Cards tab", () => {

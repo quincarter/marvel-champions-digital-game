@@ -102,6 +102,8 @@ let lastTab: StatsTab = "overview";
 let lastHero = 0;
 /** The filter chips' choice, kept across visits like the tab. */
 let lastFilter: StatsFilter = {};
+/** Cards and Cards by hero without each hero's own cards (kept across visits, like the tab). */
+let hideSignature = false;
 /** On a phone the filter chips fold behind one "Filters" chip, so the tabs and the stats keep the screen. */
 let filtersOpen = false;
 
@@ -130,7 +132,8 @@ interface StatsChip {
   key: string;
   label: string;
   selected: boolean;
-  onClick: () => void;
+  /** `byFocus`: pressed with the pad or keyboard (A on the stop), so the focus may follow; false for a tap or click. */
+  onClick: (byFocus: boolean) => void;
   glyph?: CustomSpecs | null;
   /** A fixed width, in place of the label's own. */
   width?: number;
@@ -139,6 +142,8 @@ interface StatsChip {
 export class PlayerStatsScene extends Phaser.Scene {
   /** Counts reads of the saves, so a fold that answers after a newer one began is dropped (`#load`). */
   #loads = 0;
+  /** Whether the chip being pressed was pressed with the pad or keyboard: only then does the focus (and its ring) follow. */
+  #byFocus = false;
   /** The stops the last draw made, for X's jump to the filter chips. */
   #stops = new Map<string, FocusStop>();
   #data: PlayerStatsData = {};
@@ -270,10 +275,10 @@ export class PlayerStatsScene extends Phaser.Scene {
     return this.#stats ? statsTabsOf(this.#stats).map((t) => t.id) : [];
   }
 
-  #setTab(tab: StatsTab): void {
+  #setTab(tab: StatsTab, byFocus = true): void {
     lastTab = tab;
     this.#draw();
-    this.#route?.focusKey(`tab:${tab}`);
+    if (byFocus) this.#route?.focusKey(`tab:${tab}`);
   }
 
   #stepTab(direction: 1 | -1): void {
@@ -294,7 +299,9 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (count === 0) return;
     lastHero = ((index % count) + count) % count;
     this.#draw();
-    this.#route?.focusKey(keep ?? `hero:${heroAt(this.#stats!, lastHero)!.identityCardId}`);
+    // A tapped arrow moves no focus (no ring on a touch screen); LT / RT and the pad's A do.
+    if (keep === undefined || this.#byFocus)
+      this.#route?.focusKey(keep ?? `hero:${heroAt(this.#stats!, lastHero)!.identityCardId}`);
   }
 
   #scrollOf(tab: string): ListScroll {
@@ -394,8 +401,11 @@ export class PlayerStatsScene extends Phaser.Scene {
       lastHero = 0;
       // The chips show the new choice at once; the stats follow when the fold answers.
       this.#draw();
-      this.#route?.focusKey(key);
-      void this.#load().then(() => this.#route?.focusKey(key));
+      const byFocus = this.#byFocus;
+      if (byFocus) this.#route?.focusKey(key);
+      void this.#load().then(() => {
+        if (byFocus) this.#route?.focusKey(key);
+      });
     };
     const heroName = heroes.find((h) => h.id === filter.hero)?.name.replace(/ \(.*\)$/, "");
     const set = filter.hero !== undefined || filter.villain !== undefined || filter.difficulty !== undefined;
@@ -456,7 +466,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         onClick: () => {
           filtersOpen = !filtersOpen;
           this.#draw();
-          this.#route?.focusKey("filter:toggle");
+          if (this.#byFocus) this.#route?.focusKey("filter:toggle");
         },
       };
       return filtersOpen ? [toggle, ...chips] : [toggle];
@@ -490,11 +500,20 @@ export class PlayerStatsScene extends Phaser.Scene {
         label: chip.label.toUpperCase(),
         type: { ...typeRole.menuButton, size: phone ? 15 : 17 },
         rect,
-        onClick: chip.onClick,
+        onClick: () => {
+          this.#byFocus = false;
+          chip.onClick(false);
+        },
       });
       this.#buttons.push(button);
       if (chip.glyph) this.#hints.button(button, [], "paper", { specs: chip.glyph });
-      stops.set(chip.key, { rect, activate: chip.onClick });
+      stops.set(chip.key, {
+        rect,
+        activate: () => {
+          this.#byFocus = true;
+          chip.onClick(true);
+        },
+      });
       order.push(chip.key);
       x += chipWidth + CHIP_GAP;
     }
@@ -563,7 +582,7 @@ export class PlayerStatsScene extends Phaser.Scene {
           key: `tab:${tab.id}`,
           label: tab.label,
           selected: tab.id === lastTab,
-          onClick: () => this.#setTab(tab.id),
+          onClick: (byFocus: boolean) => this.#setTab(tab.id, byFocus),
           glyph:
             tabs.length > 1 && index === (at - 1 + tabs.length) % tabs.length
               ? shortcutSpecs("zonePrevious")
@@ -635,6 +654,29 @@ export class PlayerStatsScene extends Phaser.Scene {
       );
     }
 
+    if (lastTab === "cards" || lastTab === "all-cards") {
+      y = this.#drawChips(
+        y + 10,
+        gutter,
+        inner,
+        [
+          {
+            key: "hide-signature",
+            label: hideSignature ? "✓ Hero cards hidden" : "Hide hero cards",
+            selected: hideSignature,
+            onClick: (byFocus: boolean) => {
+              hideSignature = !hideSignature;
+              this.#draw();
+              if (byFocus) this.#route?.focusKey("hide-signature");
+            },
+          },
+        ],
+        stops,
+        order,
+        phone,
+      );
+    }
+
     const listTop = y + 12;
     const listRect: Rect = { x: gutter, y: listTop, width: inner, height: Math.max(60, height - listTop - gutter) };
     const rowWidth = inner - GUTTER;
@@ -650,7 +692,7 @@ export class PlayerStatsScene extends Phaser.Scene {
             },
           ]
         : []),
-      ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone),
+      ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone, hideSignature),
     ];
     this.#rows = rows;
     const list = new McVirtualList(this, {

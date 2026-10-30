@@ -133,7 +133,13 @@ export interface HeroCardsView {
   readonly groups: readonly {
     readonly id: string;
     readonly title: string;
-    readonly cards: readonly { readonly cardId: string; readonly value: string; readonly detail: string }[];
+    readonly cards: readonly {
+      readonly cardId: string;
+      readonly value: string;
+      readonly detail: string;
+      /** A hero's own card (its aspect is `hero:<id>`): the "Hide hero cards" toggle leaves these out. */
+      readonly signature?: true;
+    }[];
   }[];
   /** Why there are no card groups yet, or null. */
   readonly note: string | null;
@@ -1555,6 +1561,19 @@ function encounterCardRowsOf(
     );
 }
 
+/** Flags each hero's own card in a cards view, for the "Hide hero cards" toggle. */
+function markSignature(view: HeroCardsView, names: StatsNames): HeroCardsView {
+  return {
+    ...view,
+    groups: view.groups.map((group) => ({
+      ...group,
+      cards: group.cards.map((card) =>
+        names.cardAspect(card.cardId)?.startsWith("hero:") ? { ...card, signature: true as const } : card,
+      ),
+    })),
+  };
+}
+
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, filter: StatsFilter = {}): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
@@ -1631,8 +1650,11 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, fil
     header,
     sections,
     overview: overviewTilesOf(games, header, overview, heroSection, villainSection, sideSection, villainScenario),
-    heroCards,
-    allCards: allCardsOf(games, names),
+    heroCards: heroCards.map((view) => markSignature(view, names)),
+    allCards: (() => {
+      const all = allCardsOf(games, names);
+      return all ? markSignature(all, names) : null;
+    })(),
     aspects,
     filter,
     filterOptions,
