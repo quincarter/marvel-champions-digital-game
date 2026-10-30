@@ -23,7 +23,8 @@ export const POOL_STATS_NAMES: StatsNames = {
     return deck ? { identityCardId: deck.identityCardId as string, aspects: deck.aspects } : undefined;
   },
   scenarioModulars: (id) =>
-    POOL_SCENARIOS.find((scenario) => (scenario.id as string) === id)?.recommendedModularSetIds.map((set) => set as string) ??
-    [],
+    POOL_SCENARIOS.find((scenario) => (scenario.id as string) === id)?.recommendedModularSetIds.map(
+      (set) => set as string,
+    ) ?? [],
   setName: (id) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name,
 };
