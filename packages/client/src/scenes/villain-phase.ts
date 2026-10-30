@@ -121,6 +121,7 @@ import type { GlyphGround } from "../ui/input-glyph.js";
 import { primaryGlyphShown } from "../view/primary-activation.js";
 import { pickGlyphSpecs } from "../view/input-glyph-model.js";
 import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
+import { seatPeekChips, seatPeekLabel } from "../view/seat-peek.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
 import { isSamePress } from "../view/press-settle.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
@@ -601,6 +602,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   #close(): void {
     if (this.#motion.leaving) return;
+    // Whatever seat a peek left the board on, the table after the phase is the board's own seat's.
+    appSession().store.endSeatPeek();
     this.#tuckAway();
     const { width, height } = this.scale.gameSize;
     const edge = villainSlideEdge(formFactorFor(width, height));
@@ -679,8 +682,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
+  /** Out of the peek without a redraw (the caller draws): the board goes back to its own seat's side too. */
+  #leavePeek(): void {
+    this.#peeking = false;
+    appSession().store.endSeatPeek();
+  }
+
   #setPeeking(peeking: boolean): void {
     this.#peeking = peeking;
+    // Back from any seat's side of the table: the board goes back to the seat it belongs to.
+    if (!peeking) appSession().store.endSeatPeek();
     this.#draw();
   }
 
@@ -1048,7 +1059,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#answered.add(choiceId);
     // A defend, and any other decision that docks (#231), is answered on the phase's own panel, not the peek banner.
     const kind = this.#latest?.game?.pendingChoice?.prompt.kind;
-    if (kind !== undefined && (kind === "declareDefender" || dockableDecision(kind))) this.#peeking = false;
+    if (kind !== undefined && (kind === "declareDefender" || dockableDecision(kind))) this.#leavePeek();
     this.#orderAgainstChoice();
     this.#draw();
   }
@@ -1424,7 +1435,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (this.#flipGate() !== null || this.#flipTurning() !== null) {
       this.#hidden = false;
       this.#hiddenChoice = null;
-      this.#peeking = false;
+      this.#leavePeek();
     }
 
     // Guided mode G7c (`docs/guided-mode.md` §4 "Left for G7"): on desktop/tablet landscape this full-bleed panel
@@ -3173,7 +3184,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    */
   #drawPeek(footer: Rect, area: Rect, reveal: Reveal, game: GameState, viewer: PlayerId | null): void {
     this.#presentation = "peek";
-    const layout = peekBannerLayout(area, peekEdge(), footer.width < 600);
+    const { store } = appSession();
+    // A multi-seat game: one button per seat switches whose side of the table shows, hand and all (`view/seat-peek.ts`).
+    const home = store.state.perspectiveId;
+    const seats = seatPeekChips(game, store.state.peekSeat ?? home, home, (id) => shortSeatName(game, id, null));
+    const layout = peekBannerLayout(area, peekEdge(), footer.width < 600, 720, seats.length);
     const pause = this.#shownPause();
     let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const peekStrip = this.#encounterStrip(reveal, game, viewer);
@@ -3248,6 +3263,26 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#hintButton(backButton, ["peek"], "ink");
     stops.set("move", { rect: layout.move, activate: move });
     stops.set("back", { rect: layout.back, activate: back });
+    seats.forEach((seat, index) => {
+      const rect = layout.seats[index];
+      if (!rect) return;
+      const look = (): void => {
+        store.peekAtSeat(seat.playerId);
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: seatPeekLabel(seat),
+          type: typeRole.label,
+          rect,
+          selected: seat.viewing,
+          onClick: look,
+        }),
+      );
+      stops.set(`seat:${seat.playerId}`, { rect, activate: look });
+      // LB + a face button by seat order, unless an inline answer's own combo already holds that slot.
+      if (seat.slot !== null && !this.#pickTaps.has(seat.slot)) this.#registerPick(seat.slot, rect, look);
+    });
 
     if (gate) {
       const rect: Rect = {
@@ -3325,6 +3360,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         "nevermind",
         "move",
         "back",
+        ...seats.map((seat) => `seat:${seat.playerId}`),
       ],
       stops,
     );

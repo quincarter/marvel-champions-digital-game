@@ -8,6 +8,7 @@ import {
   glyphsForShortcut,
   OpennessAnimator,
   pickGlyphSpecs,
+  seatPeekGlyphSpecs,
   pickMoreGlyphSpecs,
   type GlyphSettings,
   type GlyphSpec,
@@ -207,5 +208,22 @@ describe("direct-pick glyphs", () => {
   test("the more hint is the zone key on a keyboard and nothing on a pad, which never pages", () => {
     expect(pickMoreGlyphSpecs(padState(XBOX), settings)).toBeNull();
     expect(pickMoreGlyphSpecs(keyboard, settings)?.map((g) => g.label)).toEqual(["F"]);
+  });
+});
+
+describe("seat look-at glyphs (view/seat-peek.ts)", () => {
+  const labels = (specs: ReturnType<typeof seatPeekGlyphSpecs>) => specs?.map((g) => g.label);
+
+  test("the seat's number key on the keyboard, LB + a face button on a pad, nothing past the fourth seat", () => {
+    expect([0, 1, 2, 3].map((seat) => labels(seatPeekGlyphSpecs(seat, 12 + seat, keyboard, settings, null)))).toEqual([
+      ["1"],
+      ["2"],
+      ["3"],
+      ["4"],
+    ]);
+    const xbox = padState(XBOX);
+    expect(labels(seatPeekGlyphSpecs(1, 13, xbox, settings, null))).toEqual(["LB", "B"]);
+    expect(labels(seatPeekGlyphSpecs(1, 13, xbox, settings, "lb"))).toEqual(["B"]);
+    expect(seatPeekGlyphSpecs(4, null, keyboard, settings, null)).toBeNull();
   });
 });

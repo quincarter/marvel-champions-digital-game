@@ -139,6 +139,7 @@ export default defineConfig({
         "villain-threat-interrupt.spec.ts",
         "villain-damage-interrupt.spec.ts",
         "choice-peek.spec.ts",
+        "seat-peek.spec.ts",
         "peek-banner-move.spec.ts",
         "payment-table-tile-tap.spec.ts",
         "org-support-one-way.spec.ts",
