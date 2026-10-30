@@ -17,6 +17,7 @@ export type SettingsItemId =
   | "music-volume"
   | "effects-volume"
   | "token-motion"
+  | "deck-signature"
   | "display-mode"
   | "resolution"
   | "couch-mode"
@@ -92,7 +93,11 @@ export function settingsSectionsOf(input: {
   readonly discord?: boolean;
 }): readonly SettingsSection[] {
   return [
-    { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "not-offered-notices", "same-name-conflict"] },
+    {
+      id: "gameplay",
+      title: "Gameplay",
+      items: ["confirm-end-turn", "not-offered-notices", "same-name-conflict", "deck-signature", "deck-copy-limits"],
+    },
     {
       id: "villain",
       title: "Villain phase",
