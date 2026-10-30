@@ -13,6 +13,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DisplayRatePlugin.class);
         registerPlugin(DeviceHardwarePlugin.class);
         registerPlugin(BackGesturePlugin.class);
+        registerPlugin(SaveFilePlugin.class);
         super.onCreate(savedInstanceState);
+        // After the bridge: it replaces the insets listener Capacitor's SystemBars set while loading.
+        KeyboardOverlay.install(this);
     }
 }

@@ -4,16 +4,19 @@
  * Out: a browser downloads it through a throwaway `<a download>`. The desktop app (Tauri) asks the system's own Save
  * dialog, opened in Downloads with the file name filled in (`src-tauri/src/save_file.rs`): a desktop webview doesn't
  * download, and macOS's share sheet offers AirDrop and Mail rather than a folder. The phone apps (Capacitor) go to the
- * share sheet (Files, AirDrop, Drive) when the webview can share files, and fall back to the same link otherwise.
+ * share sheet (Files, AirDrop, Drive) when the webview can share files, and fall back to the same link otherwise. The
+ * Android app's WebView can do neither, so it opens Android's own Save dialog (`platform/android-save-file.ts`, #534).
  * In: a throwaway `<input type="file">`, which every shell routes to its own picker.
  */
+import { savesThroughAndroidPicker, saveTextOnAndroid } from "../platform/android-save-file.js";
 import { detectPlatform, type Platform } from "../platform/platform.js";
 import { parseSaveFile, saveFileNameOf, type ParseResult, type SaveFile } from "./save-file.js";
 
-export type ExportRoute = "save-dialog" | "share" | "download";
+export type ExportRoute = "save-dialog" | "android-save" | "share" | "download";
 
-export function exportRouteFor(platform: Platform, canShareFiles: boolean): ExportRoute {
+export function exportRouteFor(platform: Platform, canShareFiles: boolean, userAgent = ""): ExportRoute {
   if (platform === "tauri") return "save-dialog";
+  if (savesThroughAndroidPicker(platform, userAgent)) return "android-save";
   if (platform === "capacitor" && canShareFiles) return "share";
   return "download";
 }
@@ -29,13 +32,16 @@ export async function deliverSaveFile(file: SaveFile): Promise<void> {
   const nav = globalThis.navigator;
   const canShareFiles = typeof nav?.share === "function" && nav.canShare?.({ files: [shared] }) === true;
 
-  switch (exportRouteFor(detectPlatform(), canShareFiles)) {
+  switch (exportRouteFor(detectPlatform(), canShareFiles, nav?.userAgent ?? "")) {
     case "save-dialog": {
       const { invoke } = await import("@tauri-apps/api/core");
       const saved = await invoke<string | null>("save_text_file", { fileName: name, contents: json });
       if (saved === null) throw cancelled();
       return;
     }
+    case "android-save":
+      if (!(await saveTextOnAndroid(name, json, "application/json"))) throw cancelled();
+      return;
     case "share":
       await nav.share({ files: [shared], title: name });
       return;
