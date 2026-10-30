@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxTrim, hiddenBottom } from "./visible-area.js";
+import { boxTrim, hiddenBottom, typingInto } from "./visible-area.js";
 
 describe("hiddenBottom", () => {
   it("is how far the box hangs below the visible area", () => {
@@ -19,5 +19,21 @@ describe("boxTrim", () => {
   it("gives up half of the hidden strip, rounded", () => {
     expect(boxTrim(75)).toBe(38);
     expect(boxTrim(0)).toBe(0);
+  });
+});
+
+describe("typingInto", () => {
+  const element = (tagName: string, isContentEditable = false): Element =>
+    ({ tagName, isContentEditable }) as unknown as Element;
+
+  it("is true for a text field, where a shrunken visible area is the keyboard", () => {
+    expect(typingInto(element("INPUT"))).toBe(true);
+    expect(typingInto(element("TEXTAREA"))).toBe(true);
+    expect(typingInto(element("DIV", true))).toBe(true);
+  });
+  it("is false with nothing focused or the canvas focused", () => {
+    expect(typingInto(null)).toBe(false);
+    expect(typingInto(element("CANVAS"))).toBe(false);
+    expect(typingInto(element("BODY"))).toBe(false);
   });
 });
