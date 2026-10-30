@@ -165,6 +165,7 @@ import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-mo
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
+import type { SearchHelpSheetData } from "./search-help-sheet.js";
 import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { SearchDocument } from "../view/deck-search.js";
@@ -524,6 +525,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       onCancel: () => this.#stops.get("back")?.activate(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.searchHelp) ||
         (this.#nameInput?.focused ?? false) ||
         (this.#filterInput?.focused ?? false) ||
         (this.#identityInput?.focused ?? false),
@@ -701,7 +703,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         showPreconClear: !this.#campaign,
         showDelete: !this.#campaign && this.#savedDeck !== null,
         railIds: this.#railStops,
-        filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "pool-view"],
+        filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "filter-help", "pool-view"],
         rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
       }),
       this.#stops,
@@ -1954,8 +1956,10 @@ ${entry.detail}`,
    */
   #drawFilterInput(left: number, top: number, column: number): number {
     const toggleWidth = 92;
+    const helpWidth = hit.target;
     const clearWidth = this.#filterText ? hit.target : 0;
-    const fieldWidth = column - toggleWidth - CHIP_GAP - (clearWidth ? clearWidth + CHIP_GAP : 0);
+    const fieldWidth =
+      column - toggleWidth - CHIP_GAP - helpWidth - CHIP_GAP - (clearWidth ? clearWidth + CHIP_GAP : 0);
     const filterRect: Rect = { x: left, y: top, width: fieldWidth, height: hit.target };
     const applyText = (value: string): void => {
       this.#filterText = value;
@@ -1983,6 +1987,17 @@ ${entry.detail}`,
       );
       this.#stops.set("filter-clear", { rect: clearRect, activate: clear });
     }
+    const helpRect: Rect = {
+      x: left + column - toggleWidth - CHIP_GAP - helpWidth,
+      y: top,
+      width: helpWidth,
+      height: hit.target,
+    };
+    const openHelp = (): void => this.#openSearchHelp(applyText);
+    this.#buttons.push(
+      new McButton(this, { kind: "secondary", label: "?", type: typeRole.rowTitle, rect: helpRect, onClick: openHelp }),
+    );
+    this.#stops.set("filter-help", { rect: helpRect, activate: openHelp });
     const toggleRect: Rect = { x: left + column - toggleWidth, y: top, width: toggleWidth, height: hit.target };
     const toggle = (): void => {
       this.#poolView = this.#poolView === "grid" ? "list" : "grid";
@@ -2001,6 +2016,25 @@ ${entry.detail}`,
     );
     this.#stops.set("pool-view", { rect: toggleRect, activate: toggle });
     return top + hit.target + 16;
+  }
+
+  /** The search cheat sheet (issue #531). The DOM text fields sit over the canvas, so they hide while it is up. */
+  #openSearchHelp(applyText: (value: string) => void): void {
+    if (this.scene.isActive(SCENES.searchHelp)) return;
+    this.#filterInput?.setVisible(false);
+    this.#nameInput?.setVisible(false);
+    this.scene.launch(SCENES.searchHelp, {
+      from: this.scene.key,
+      onUse: (query) => {
+        this.#filterInput?.setValue(query);
+        applyText(query);
+      },
+      onClose: () => {
+        if (!this.sys.isActive()) return;
+        this.#filterInput?.setVisible(true);
+        this.#rebuild();
+      },
+    } satisfies SearchHelpSheetData);
   }
 
   /** The pool, virtualized: `McVirtualList` owns which rows are live game objects; every card still gets a focus stop regardless of whether it's currently drawn. */

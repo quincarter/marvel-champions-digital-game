@@ -118,6 +118,7 @@ export const SCENES = {
   nameConflict: "NameConflictOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
+  searchHelp: "SearchHelpSheet",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Only one option" (`scenes/option-notice.ts`, #412): a choose-one that took its only option, over the Board. */
