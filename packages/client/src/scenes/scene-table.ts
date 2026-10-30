@@ -83,6 +83,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.teamUpInfo]: () => import("./team-up-info.js").then((m) => m.TeamUpInfoOverlay),
   [SCENES.evidence]: () => import("./evidence.js").then((m) => m.EvidenceOverlay),
   [SCENES.pileView]: () => import("./pile-view.js").then((m) => m.PileViewOverlay),
+  [SCENES.deckLeft]: () => import("./deck-left.js").then((m) => m.DeckLeftOverlay),
   [SCENES.extrasViewer]: () => import("./extras-viewer.js").then((m) => m.ExtrasViewerScene),
   // Dev-only demo scenes: a production build has no entry for them, so their modules are never emitted.
   ...(import.meta.env.DEV

@@ -42,6 +42,7 @@ export type SettingsItemId =
 
 export type SettingsSectionId =
   | "gameplay"
+  | "cards-left"
   | "villain"
   | "cards"
   | "window"
@@ -93,6 +94,11 @@ export function settingsSectionsOf(input: {
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "not-offered-notices", "same-name-conflict"] },
+    {
+      id: "cards-left",
+      title: "Cards left",
+      items: ["deck-counts-hero", "deck-counts-encounter", "deck-boost-average"],
+    },
     {
       id: "villain",
       title: "Villain phase",
@@ -182,7 +188,7 @@ const TAB_SECTIONS: readonly {
   readonly label: string;
   readonly sections: readonly SettingsSectionId[];
 }[] = [
-  { id: "gameplay", label: "Game", sections: ["gameplay", "villain"] },
+  { id: "gameplay", label: "Game", sections: ["gameplay", "cards-left", "villain"] },
   { id: "cards", label: "Cards", sections: ["cards"] },
   { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },

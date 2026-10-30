@@ -7,6 +7,7 @@
  * panel, where the scan *is* the panel and the live numbers ride on top.
  */
 
+import { cardRectInRow } from "../../view/card-hover.js";
 import { footStripLayout, FOOT_STRIP_HEIGHT } from "../../view/foot-strip-layout.js";
 import { activeKeywordTag, inactiveKeywordNote, stripKeepsStats, tagCapacity } from "../../view/keyword-tags.js";
 import { countTween } from "../../ui/bound-tween.js";
@@ -172,6 +173,7 @@ export function drawCharacter(
     0,
     Math.round(Math.min(rect.width - PANEL_TEXT_MIN_WIDTH - PANEL_TEXT_INSETS, (rect.height - 6) * CARD_ASPECT)),
   );
+  ctx.frame.hoverSizeRects.set(panel.instanceId, cardRectInRow(rect, artWidth));
   const artColumn: Rect | null =
     artWidth > 0
       ? {

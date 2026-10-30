@@ -1,5 +1,5 @@
 import type { BrowserContext, Page, Route } from "@playwright/test";
-import { activeScenes, clickText, hasText, isSceneUp, pressAt, settle, waitFor } from "./helpers.js";
+import { activeScenes, clickText, hasText, isPhonePage, isSceneUp, pressAt, settle, waitFor } from "./helpers.js";
 import { clickStop, routeStops, waitForScene } from "./wave6-helpers-a.js";
 
 /** Shared driving code for the device-sync UI specs (`sync-ui.spec.ts`, `sync-ui-touch.spec.ts`). */
@@ -167,7 +167,7 @@ export async function openSyncScreen(page: Page): Promise<void> {
     10000,
   );
   const at = { x: row.x + row.width - 40, y: row.y + row.height / 2 };
-  if ((page.viewportSize()?.width ?? 0) < 768) await page.touchscreen.tap(at.x, at.y);
+  if (isPhonePage(page)) await page.touchscreen.tap(at.x, at.y);
   else await pressAt(page, at.x, at.y);
   await waitForScene(page, SAVE_DATA);
   await syncStop(page, SAVE_DATA, "row:sync");

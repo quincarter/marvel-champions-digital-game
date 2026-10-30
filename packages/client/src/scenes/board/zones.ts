@@ -88,7 +88,7 @@ import {
 } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
-import { drawPile } from "./piles.js";
+import { drawDeckLeftGlyph, drawPile } from "./piles.js";
 import { drawDealtPile } from "./dealt-pile.js";
 import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
@@ -1217,6 +1217,8 @@ export function drawEncounter(
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
     // `faceVisible`; this box only had no tap target to reach that with. A scenario area opens every card it
     // holds, not only the top one — it's a shared, faceup zone, closer to the discard than to a deck.
+    const listsLeft = kind === "encounterDeck" && ctx.deckLeftTabs().includes("encounter");
+    if (listsLeft && ctx.deckLeftTabs()[0] === "encounter") drawDeckLeftGlyph(ctx, box);
     if (count > 0 && instanceId) {
       ctx.frame.hitRects.set(instanceId, box);
       const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
@@ -1227,9 +1229,15 @@ export function drawEncounter(
             ? () => ctx.openPile("Encounter discard", siblings)
             : kind === "scenarioDiscard" && pileTitle
               ? () => ctx.openPile(pileTitle, siblings)
-              : open,
+              : listsLeft
+                ? () => ctx.openDeckLeft("encounter")
+                : open,
         onInspect: open,
       });
+    } else if (listsLeft) {
+      // An empty deck can still have cards dealt facedown out of it.
+      const left = (): void => ctx.openDeckLeft("encounter");
+      addTapTarget(scene, box, { onTap: left, onInspect: left });
     }
   });
 }
