@@ -127,7 +127,13 @@ import {
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
-import { fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
+import {
+  againstVillainOf,
+  fromYourGamesOf,
+  villainsFacedOf,
+  type DeckInsights,
+  type SuggestedCard,
+} from "../view/deck-insights.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { noteDeckFeat } from "../progression/deck-feats.js";
@@ -330,6 +336,8 @@ export class DeckBuilderScene extends Phaser.Scene {
    * the stats worker when the screen opens; null until it answers.
    */
   #insights: DeckInsights | null = null;
+  /** The villain "From your games" reads your winning decks against (a stepper); null: the most faced. */
+  #againstVillain: string | null = null;
   /** Which of the deck rail's two tabs shows: the deck list, or "From your games" (LB / RB). Not in campaign mode. */
   #railTab: "deck" | "games" = "deck";
   /** The rail tabs' and the From your games rows' stops, in the order drawn, for the focus route. */
@@ -1416,6 +1424,60 @@ ${entry.detail}`,
       view.tryCards.filter((entry) => pool.has(entry.cardId)),
       { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
     );
+    const faced = villainsFacedOf(this.#insights);
+    if (faced.length > 0 && y + hit.target <= bottom) {
+      const villain = faced.includes(this.#againstVillain ?? "") ? this.#againstVillain! : faced[0]!;
+      const against = againstVillainOf(
+        this.#insights,
+        villain,
+        deck.identityCardId as string,
+        deck.cards.map((line) => line.cardId as string),
+        deck.aspects,
+        POOL_STATS_NAMES,
+      );
+      const rect: Rect = { x: left, y, width: column, height: hit.target };
+      const step = (): void => {
+        this.#againstVillain = faced[(faced.indexOf(villain) + 1) % faced.length]!;
+        this.#rebuild();
+        this.#route?.focusKey("games:against");
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: onDark ? "onInk" : "secondary",
+          label: `${against?.headline ?? villain}${faced.length > 1 ? " ▸" : ""}`,
+          type: typeRole.label,
+          rect,
+          onClick: step,
+          enabled: faced.length > 1,
+        }),
+      );
+      if (faced.length > 1) {
+        this.#stops.set("games:against", { rect, activate: step });
+        this.#railStops.push("games:against");
+      }
+      y += hit.target + 8;
+      if (against) {
+        // A card the lists above already offer keeps its one button (and its one stop).
+        const offered = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
+        section(
+          "Try: in your wins here",
+          against.tryCards.filter((entry) => pool.has(entry.cardId) && !offered.has(entry.cardId)),
+          { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
+        );
+        section(
+          "Cut? In your losses here",
+          against.cutCards.filter((entry) => !offered.has(entry.cardId)),
+          { label: "− Cut", run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)) },
+        );
+        if (against.note && y + 30 < bottom) {
+          const note = this.add
+            .text(left, y, against.note, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
+            .setFontSize(12)
+            .setWordWrapWidth(column);
+          y += note.height + 8;
+        }
+      }
+    }
     section("Keep: your staples", view.keep, null);
     if (view.note && y + 30 < bottom) {
       const note = this.add

@@ -166,6 +166,8 @@ export function cardRowsOf(
 }
 
 const statHeight = (phone: boolean): number => (phone ? 74 : 58);
+/** A stat row with a loss bar under its lines. */
+const lossStatHeight = (phone: boolean): number => (phone ? 112 : 84);
 const noteHeight = (phone: boolean): number => (phone ? 52 : 40);
 
 /** One tab's rows. `heroIndex` picks the hero on Cards by hero (wrapped into range). */
@@ -236,7 +238,7 @@ export function dashboardRowsOf(
       rows.push(
         row.kind === "note"
           ? { kind: "note", id: row.id, height: noteHeight(phone), text: row.text }
-          : { kind: "stat", id: row.id, height: statHeight(phone), row },
+          : { kind: "stat", id: row.id, height: row.losses ? lossStatHeight(phone) : statHeight(phone), row },
       );
   }
   return rows;

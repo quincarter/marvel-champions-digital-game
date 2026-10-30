@@ -165,7 +165,14 @@ import {
   resetHoverCards,
   screenHoverArea,
 } from "../ui/card-hover-preview.js";
-import { cardPlayOf, fromYourGamesOf, type DeckInsights, type SuggestedCard } from "../view/deck-insights.js";
+import {
+  againstVillainOf,
+  cardPlayOf,
+  fromYourGamesOf,
+  villainsFacedOf,
+  type DeckInsights,
+  type SuggestedCard,
+} from "../view/deck-insights.js";
 import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { clipToView } from "../view/focus-list.js";
@@ -375,6 +382,8 @@ export class DecksScene extends Phaser.Scene {
   #history: ResultsHistory | null = null;
   /** What each deck's finished games say (`view/deck-insights.ts`), folded in the stats worker; null until it answers. */
   #insights: DeckInsights | null = null;
+  /** The villain the games pane reads your winning decks against (a stepper); null: the most faced. */
+  #againstVillain: string | null = null;
   /** The stats pane's tab: the deck's own numbers, or what your games say about it (#529). LT / RT switch them. */
   #paneTab: "deck" | "games" = "deck";
   /**
@@ -1042,6 +1051,54 @@ export class DecksScene extends Phaser.Scene {
       "Try: cards you won with",
       view.tryCards.filter((entry) => listed.has(entry.cardId)),
     );
+    const faced = villainsFacedOf(this.#insights);
+    if (faced.length > 0 && y + this.#row <= buttonTop - 8) {
+      const villain = faced.includes(this.#againstVillain ?? "") ? this.#againstVillain! : faced[0]!;
+      const against = againstVillainOf(
+        this.#insights,
+        villain,
+        deck.identityCardId as string,
+        deck.cards.map((line) => line.cardId as string),
+        deck.aspects,
+        POOL_STATS_NAMES,
+      );
+      const stepRect: Rect = { x: left, y, width: column, height: this.#row };
+      const step = (): void => {
+        this.#againstVillain = faced[(faced.indexOf(villain) + 1) % faced.length]!;
+        this.#rebuild();
+        this.#route?.focusKey("games-against");
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: `${against?.headline ?? villain}${faced.length > 1 ? " ▸" : ""}`,
+          type: typeRole.label,
+          rect: stepRect,
+          onClick: step,
+          enabled: faced.length > 1,
+        }),
+      );
+      if (faced.length > 1) this.#stops.set("games-against", { rect: stepRect, activate: step });
+      y += this.#row + 8;
+      if (against) {
+        const shown = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
+        section(
+          "Try: in your wins here",
+          against.tryCards.filter((entry) => listed.has(entry.cardId) && !shown.has(entry.cardId)),
+        );
+        section(
+          "Cut? In your losses here",
+          against.cutCards.filter((entry) => !shown.has(entry.cardId)),
+        );
+        if (against.note && y + 30 < buttonTop) {
+          const note = this.add
+            .text(left, y, against.note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+            .setFontSize(12)
+            .setWordWrapWidth(column);
+          y += note.height + 8;
+        }
+      }
+    }
     section("Keep: your staples", view.keep);
     if (view.note && y + 30 < buttonTop) {
       this.add

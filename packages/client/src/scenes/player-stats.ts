@@ -47,7 +47,7 @@ import {
   type PlacedTile,
   type StatsTab,
 } from "../view/player-stats-layout.js";
-import type { OverviewTile, PlayerStats, StatsFilter } from "../view/player-stats-model.js";
+import type { LossCause, LossPart, OverviewTile, PlayerStats, StatsFilter } from "../view/player-stats-model.js";
 import { appSession } from "../session.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -79,6 +79,15 @@ const GUTTER = 14;
 const CHIP_GAP = 8;
 /** The "Other" part of How you lose: a warm grey (the Basic aspect's), with ink text, apart from Wiped's ink. */
 const MUTED_PART = 0x9a948a;
+/** A loss bar's parts: the same hue for a cause on every row. The legend beside the bar names them in words too. */
+const LOSS_COLORS: Readonly<Record<LossCause, number>> = {
+  scheme: signal.caution.hex,
+  villain: accent.heroRed.hex,
+  minions: signal.cost.hex,
+  encounter: 0x6b3fa0,
+  other: MUTED_PART,
+  unknown: surface.paper.hex,
+};
 
 /** Covering scenes that can be running under the stats overlay, never over it (`screenHoverArea`'s `beneath`). */
 const UNDER_STATS: readonly string[] = [
@@ -957,7 +966,39 @@ export class PlayerStatsScene extends Phaser.Scene {
       fitWrapped(detail, box.x + box.width - 12 - left, phone ? 2 : 1, 12);
       objects.push(detail);
     }
+    if (row.losses) objects.push(...this.#renderLossBar(row.losses, left, box, phone));
     return objects;
+  }
+
+  /** Why a row's games were lost: a stacked bar, and each part in words (beside the bar; under it on a phone). */
+  #renderLossBar(parts: readonly LossPart[], left: number, box: Rect, phone: boolean): Phaser.GameObjects.GameObject[] {
+    const right = box.x + box.width - 12;
+    const full = right - left;
+    const bar: Rect = {
+      x: left,
+      y: box.y + box.height - (phone ? 36 : 22),
+      width: phone ? full : Math.round(full * 0.3),
+      height: 12,
+    };
+    const total = parts.reduce((sum, part) => sum + part.count, 0);
+    const g = this.add.graphics();
+    let x = bar.x;
+    for (const part of parts) {
+      const w = (bar.width * part.count) / total;
+      g.fillStyle(LOSS_COLORS[part.cause], 1).fillRect(x, bar.y, w, bar.height);
+      x += w;
+    }
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(bar.x, bar.y, bar.width, bar.height);
+    const legend = this.add
+      .text(
+        phone ? bar.x : bar.x + bar.width + 10,
+        phone ? bar.y + 15 : bar.y - 2,
+        parts.map((part) => `${part.label} ${part.count}`).join(" · "),
+        textStyle(typeRole.body, surface.ink.hex, 0.85),
+      )
+      .setFontSize(12);
+    fitText(legend, right - legend.x, 12);
+    return [g, legend];
   }
 
   #renderTile(placed: PlacedTile, box: Rect, phone: boolean): Phaser.GameObjects.GameObject[] {

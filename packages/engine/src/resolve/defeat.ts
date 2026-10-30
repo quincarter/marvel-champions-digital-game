@@ -777,7 +777,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       pushFrames(ctx, [eventFrame(ctx, defeat)]);
       continue;
     }
-    recordIdentityDefeat(ctx, identityId, hint?.parentFrameId, hint?.reportFrameId, hint?.spilledFromFrameId);
+    recordIdentityDefeat(ctx, identityId, hint?.parentFrameId, hint?.reportFrameId, hint?.spilledFromFrameId, hint);
     eliminatePlayer(ctx, player.playerId);
     if (ctx.state.outcome) return;
   }
@@ -788,18 +788,35 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
  * "Character", p. 12: identities are characters), recorded as an ally's or minion's defeat is before its player is
  * eliminated ("Player Elimination", p. 34): the log line, and `defeated` on the damage that did it (`parentFrameId`)
  * and on the attack that damage belongs to (`reportFrameId`), so "after [enemy] attacks and defeats a character"
- * answers a hero's defeat in a game that goes on.
+ * answers a hero's defeat in a game that goes on. `cause` is the sweep's hint or the defeat event, and only the log
+ * reads it: the defeat's card and whether it was an attack's.
  */
 export function recordIdentityDefeat(
   ctx: Ctx,
   identityId: InstanceId,
   parentFrameId: FrameId | null | undefined,
   reportFrameId: FrameId | null | undefined,
-  spilledFromFrameId?: FrameId | null,
+  spilledFromFrameId: FrameId | null | undefined,
+  cause: { readonly sourceInstanceId?: InstanceId | null; readonly fromAttack?: boolean } | undefined,
 ): void {
   const instance = getInstance(ctx.state, identityId);
   if (!instance) return;
-  emit(ctx, { type: "characterDefeated", instanceId: identityId, cardId: instance.cardId });
+  const source = cause?.sourceInstanceId;
+  const sourceRole = !source
+    ? undefined
+    : villainOf(ctx.state, source)
+      ? ("villain" as const)
+      : isMinion(ctx.state, source)
+        ? ("minion" as const)
+        : undefined;
+  emit(ctx, {
+    type: "characterDefeated",
+    instanceId: identityId,
+    cardId: instance.cardId,
+    ...(source ? { sourceInstanceId: source } : {}),
+    ...(cause?.fromAttack ? { fromAttack: true as const } : {}),
+    ...(sourceRole ? { sourceRole } : {}),
+  });
   addFrameVars(ctx, parentFrameId, { defeated: 1 });
   if (reportFrameId && reportFrameId !== parentFrameId) addFrameVars(ctx, reportFrameId, { defeated: 1 });
   addFrameVars(ctx, spilledFromFrameId, { [spillDefeatedKey(identityId)]: 1 });
