@@ -471,7 +471,12 @@ test("Decks & Collection: a pool card opens in the stats pane, Inspect shows You
     "what your games say about it",
     15_000,
   );
-  expect((await findText(page, "WITH SPIDER-MAN", "Decks")).length, "the selected deck's hero").toBeGreaterThan(0);
+  // The pane reads your games in a worker, so its numbers can land a moment after the card shows.
+  await waitFor(
+    async () => ((await findText(page, "WITH SPIDER-MAN", "Decks")).length > 0 ? true : null),
+    "the selected deck's hero",
+    15_000,
+  );
 
   // Inspect from the pane: the overlay has the same numbers in its Your play section.
   await settle(page);
