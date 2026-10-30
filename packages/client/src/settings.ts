@@ -37,6 +37,9 @@ export function clampGlyphSize(percent: number): number {
   return Math.min(GLYPH_SIZE_MAX, Math.max(GLYPH_SIZE_MIN, stepped));
 }
 
+export const DECK_SIGNATURE_CARDS_VALUES = ["free", "standard", "hidden"] as const;
+export type DeckSignatureCards = (typeof DECK_SIGNATURE_CARDS_VALUES)[number];
+
 export interface Settings {
   readonly reducedMotion: boolean;
   /** Text resolution multiplier; set from the device pixel ratio so text stays sharp. */
@@ -75,6 +78,15 @@ export interface Settings {
    * usually a misclick, not a choice. Off restores the old immediate-end behavior.
    */
   readonly confirmBeforeEndTurn: boolean;
+  /**
+   * The deck builder's signature cards (issue #531, `view/deck-builder-model.ts`'s `DeckBuildingRules`): "free" lets a
+   * player change the identity's own set like any card, "standard" keeps each at its set count, "hidden" also leaves
+   * the set out of the pool list. Defaults to free, as the builder has always been; the deck's legality line still
+   * reports a changed set either way.
+   */
+  readonly deckSignatureCards: DeckSignatureCards;
+  /** The deck builder refuses an add that would break a copy limit (issue #531). Defaults off. */
+  readonly deckCopyLimits: boolean;
   /**
    * Open a notice the first time in a game that one of your cards' interrupts or responses answered what happened but
    * could not be used: no valid target, or a cost you cannot pay (#431, Iron Lad with no other ready Avenger ally). The
@@ -422,6 +434,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     musicVolume: MUSIC_VOLUME_MAX,
     effectsVolume: MUSIC_VOLUME_MAX,
     confirmBeforeEndTurn: true,
+    deckSignatureCards: "free",
+    deckCopyLimits: false,
     notOfferedNotices: true,
     deckCountsHero: true,
     deckCountsEncounter: false,

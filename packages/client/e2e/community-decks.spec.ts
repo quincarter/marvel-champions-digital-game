@@ -106,7 +106,27 @@ async function pressDeckRow(page: Page, key: string, done: () => Promise<boolean
 /** Finds a community deck by search and selects its row. */
 async function selectCommunityDeck(page: Page, deck: { id: number; name: string }, searchText: string): Promise<void> {
   await search(page, searchText);
-  await pressDeckRow(page, `deck:community:${deck.id}`, async () => (await offer(page, deck.id)).selected);
+  const key = `deck:community:${deck.id}`;
+  // An author with many decks runs past the list's window: wheel the row into it.
+  await waitFor(
+    async () => {
+      const y = await page.evaluate(
+        (k) =>
+          (window as unknown as { __mcDecksDebug: { stops: () => { key: string; y: number }[] } }).__mcDecksDebug
+            .stops()
+            .find((stop) => stop.key === k)?.y ?? null,
+        key,
+      );
+      if (y !== null && y < 560) return true;
+      await page.mouse.move(160, 400);
+      await page.mouse.wheel(0, 200);
+      await settle(page);
+      return null;
+    },
+    `${key} in view`,
+    15000,
+  );
+  await pressDeckRow(page, key, async () => (await offer(page, deck.id)).selected);
   await settle(page);
 }
 

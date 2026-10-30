@@ -1,0 +1,3 @@
+kind: Added
+body: 'Deck builder search filters in the style of marvelcdb: o:2, o<3, t:ally|event, rp:1, k:spy, kw:guard, x:, f:, e:, y:, u:, atk/thw/h, with ! to exclude (#531)'
+time: 2026-10-29T20:06:22.9622662-04:00

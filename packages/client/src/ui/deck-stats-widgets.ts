@@ -55,26 +55,40 @@ export function cardTypeBadgeColor(type: PlayerCardType): number {
 /**
  * The bars themselves plus their axis labels, inside `rect` (bar area only —
  * no heading, no border; the caller draws those). `onDark` swaps the axis
- * label's ink for the stats pane's dark ground (D14's sidebar).
+ * label's ink for the stats pane's dark ground (D14's sidebar). `withCounts` writes each bar's count above it (a
+ * zero too), so the chart reads as numbers rather than a row of blue blocks; the bars then top out a line lower to leave
+ * room for it. Off by default, so the other screens' charts are unchanged.
  */
 export function drawCostCurveBars(
   scene: Phaser.Scene,
   rect: Rect,
   bars: readonly CostCurveBar[],
   onDark = false,
+  withCounts = false,
 ): void {
   const gap = 6;
   const barWidth = (rect.width - gap * (bars.length - 1)) / bars.length;
   const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
   const axisColor = onDark ? surface.paper.hex : surface.ink.hex;
+  const countRoom = withCounts ? 16 : 0;
   bars.forEach((bar, index) => {
-    const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (rect.height - 18)));
+    const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (rect.height - 18 - countRoom)));
     const x = rect.x + index * (barWidth + gap);
     const g = scene.add.graphics();
     g.fillStyle(index === bars.length - 1 ? signal.spent.hex : signal.cost.hex, 1);
     g.fillRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
     if (!onDark)
       g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
+    if (withCounts)
+      label(
+        scene,
+        x + barWidth / 2,
+        rect.y + (rect.height - 18 - barHeight) - 2,
+        String(bar.count),
+        typeRole.rowTitle,
+        axisColor,
+        1,
+      ).setOrigin(0.5, 1);
     label(
       scene,
       x + barWidth / 2,

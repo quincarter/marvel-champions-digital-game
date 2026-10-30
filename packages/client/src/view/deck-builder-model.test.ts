@@ -6,6 +6,7 @@ import {
   WAVE1_CARDS,
   cardId,
   deckFromStarterDeck,
+  type AnyCard,
   type Deck,
 } from "@mc/content";
 import {
@@ -140,6 +141,80 @@ describe("pack/cycle filter and sort", () => {
       ({ name, setCode, collectorNumber, type: "event" }) as never;
     const ordered = sortPool([fake("A", "gob", "1"), fake("B", "core", "10"), fake("C", "core", "9")], "pack", PACKS);
     expect(ordered.map((c) => c.name)).toEqual(["C", "B", "A"]);
+  });
+
+  test("a text search narrows the list but keeps the chosen sort (issue #531)", () => {
+    const costsOf = (cards: readonly AnyCard[]): number[] =>
+      cards.map((c) => ("cost" in c && typeof c.cost === "number" ? c.cost : Infinity));
+    const byCost = browsablePool(CORE_CARDS, spiderMan, ["justice"], { text: "hero" }, "cost");
+    expect(byCost.length).toBeGreaterThan(2);
+    expect(costsOf(byCost)).toEqual([...costsOf(byCost)].sort((a, b) => a - b));
+    // A ranked search (the scene's worker) only reorders under Match.
+    const reversed = new Map(byCost.map((c, i) => [c.id as string, i]));
+    expect(
+      browsablePool(CORE_CARDS, spiderMan, ["justice"], { text: "hero" }, "cost", [], new Set(), reversed),
+    ).toEqual(byCost);
+    const byMatch = browsablePool(
+      CORE_CARDS,
+      spiderMan,
+      ["justice"],
+      { text: "hero" },
+      "match",
+      [],
+      new Set(),
+      reversed,
+    );
+    expect(byMatch).toEqual([...byCost].reverse());
+  });
+
+  test("a secondary key orders the primary's ties, then the name ends them", () => {
+    const fake = (name: string, aspect: string, type: string, cost: number) =>
+      ({ id: name, name, aspect, type, cost, setCode: "core", collectorNumber: "1" }) as never as AnyCard;
+    const cards = [
+      fake("Basic Ally", "basic", "ally", 1),
+      fake("Justice Event", "justice", "event", 2),
+      fake("Hero Upgrade", "hero:spider_man", "upgrade", 3),
+      fake("Justice Ally B", "justice", "ally", 3),
+      fake("Justice Ally A", "justice", "ally", 3),
+      fake("Justice Ally C", "justice", "ally", 0),
+    ];
+    const names = (sort: Parameters<typeof sortPool>[1]): string[] => sortPool(cards, sort, PACKS).map((c) => c.name);
+    expect(names({ primary: "aspect", secondary: "type" })).toEqual([
+      "Hero Upgrade",
+      "Justice Ally A",
+      "Justice Ally B",
+      "Justice Ally C",
+      "Justice Event",
+      "Basic Ally",
+    ]);
+    expect(names({ primary: "aspect", secondary: "cost" })).toEqual([
+      "Hero Upgrade",
+      "Justice Ally C",
+      "Justice Event",
+      "Justice Ally A",
+      "Justice Ally B",
+      "Basic Ally",
+    ]);
+    expect(names({ primary: "type", secondary: null })).toEqual([
+      "Basic Ally",
+      "Justice Ally A",
+      "Justice Ally B",
+      "Justice Ally C",
+      "Justice Event",
+      "Hero Upgrade",
+    ]);
+    // Costless cards tie on cost, so the secondary key and then the name still order them.
+    const costless = (name: string, aspect: string) =>
+      ({ id: name, name, aspect, type: "resource", setCode: "core", collectorNumber: "1" }) as never as AnyCard;
+    const resources = [costless("Zeta", "basic"), costless("Gamma", "justice"), costless("Alpha", "basic")];
+    expect(sortPool(resources, { primary: "cost", secondary: "aspect" }, PACKS).map((c) => c.name)).toEqual([
+      "Gamma",
+      "Alpha",
+      "Zeta",
+    ]);
+    expect(sortPool(resources, "cost", PACKS).map((c) => c.name)).toEqual(["Alpha", "Gamma", "Zeta"]);
+    // A secondary equal to the primary adds nothing.
+    expect(names({ primary: "cost", secondary: "cost" })).toEqual(names("cost"));
   });
 
   test("choices list only packs with cards, narrowed by cycle; stepping wraps through All", () => {

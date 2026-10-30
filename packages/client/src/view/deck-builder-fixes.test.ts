@@ -65,7 +65,7 @@ describe("F4: held cards stay listed when the deck refuses them", () => {
   test("a 'Pool card under Aggression is listed only while the deck holds it", () => {
     expect(ids(browsablePool(POOL_CARDS, deadpool, ["aggression"], { text: "Barely" }))).not.toContain("44017");
     const held = new Set(["44017"]);
-    const list = browsablePool(POOL_CARDS, deadpool, ["aggression"], { text: "Barely" }, "default", [], held);
+    const list = browsablePool(POOL_CARDS, deadpool, ["aggression"], { text: "Barely" }, "name", [], held);
     expect(ids(list)).toContain("44017");
     expect(poolRowNote(card("44017"), deadpool, ["aggression"])).toBe("not allowed in this deck");
   });
@@ -110,7 +110,7 @@ describe("F7 and F8", () => {
   });
 });
 
-describe("F5: search reads traits, type and rules text (issue #217), name matches first", () => {
+describe("F5: search reads traits, type and rules text (issue #217), name matches first under Match", () => {
   test("S.H.I.E.L.D. and Soldier find cards by trait", () => {
     const justice = hero("01001a");
     expect(ids(browsablePool(POOL_CARDS, justice, ["justice"], { text: "S.H.I.E.L.D." }))).toContain("08011");
@@ -126,8 +126,8 @@ describe("F5: search reads traits, type and rules text (issue #217), name matche
       ),
     ).toBe(true);
   });
-  test("a name match comes before a trait-only match", () => {
-    const list = browsablePool(POOL_CARDS, hero("01001a"), ["justice"], { text: "Agent" });
+  test("under the Match sort, a name match comes before a trait-only match", () => {
+    const list = browsablePool(POOL_CARDS, hero("01001a"), ["justice"], { text: "Agent" }, "match");
     const firstTraitOnly = list.findIndex((c) => !c.name.toLowerCase().includes("agent"));
     const lastName = list.map((c) => c.name.toLowerCase().includes("agent")).lastIndexOf(true);
     if (firstTraitOnly >= 0) expect(lastName).toBeLessThan(firstTraitOnly);
