@@ -770,10 +770,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     // content no height. The desktop's "N games played" gives way to it where the two would crowd the dark mode button.
     const playedText = phone || !stats ? undefined : stats.header.played;
     const sourceBar = stats
-      ? sourceBarOf(
-          { width, phone, topBar: frame.topBar },
-          playedText ? playedText.length * 10 + 16 : 0,
-          (text) => this.#labelWidth(text, phone ? 15 : 17),
+      ? sourceBarOf({ width, phone, topBar: frame.topBar }, playedText ? playedText.length * 10 + 16 : 0, (text) =>
+          this.#labelWidth(text, phone ? 15 : 17),
         )
       : null;
     const bar = drawTopBar(this, {
