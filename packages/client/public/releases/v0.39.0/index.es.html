@@ -1,0 +1,1253 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.39.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="Las novedades de v0.39.0 del juego digital de Marvel Champions hecho por fans: dark mode, cartas en español en cada instalador, auditoría de reglas parte 5 y correcciones a partir de los reportes de los jugadores."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.39.0" />
+    <meta
+      property="og:description"
+      content="Dark mode, cartas en español en cada instalador, auditoría de reglas parte 5 y correcciones a partir de los reportes de los jugadores."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.39.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.39.0 release report, a comic page in the game's own house style. Self-contained like
+   shadowland-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Informe de la versión</div>
+          <h1>Luces fuera.<br /><span class="g">¡Cartas en español!</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.39.0</span> · PR de la versión
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/465">#465</a><br />después de
+          v0.38.1 (27 de oct.)<br />Android · Web · Windows · macOS · Linux<br />28 de oct. de 2026<span
+            data-history-link
+            ><br /><a href="../index.html#v0.39.0">Todas las versiones</a> ·
+            <a href="index.html" lang="en">English</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star moon">☾</div>
+          <div><small>Logro desbloqueado</small><span>After Hours</span></div>
+        </div>
+        <p>
+          <b>Ya llegó el dark mode</b>: una luna en la parte superior de cada pantalla vuelve las pantallas y ventanas
+          emergentes claras de un carbón cálido, y el arte de tus cartas queda exactamente como se imprimió.
+          <b>Ahora cada instalador también viene en español</b>, con las cartas que tienes en español, y la versión web
+          cambia de idioma con un botón de globo. La parte 5 de la auditoría de reglas trae una nueva ventana de
+          respuesta, la Trophy Room se pliega y se ordena, y los héroes del core, Black Panther y Nebula reciben
+          escaneos nuevos y limpios.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="Esta versión en números">
+        <div class="tile big">
+          <h4>Escaneos de cartas en español</h4>
+          <div class="n">4.053</div>
+          <p>
+            de las 4.312 cartas del conjunto muestran su impresión en español en las compilaciones -ES-. El resto se ve
+            en inglés.
+          </p>
+        </div>
+        <div class="tile">
+          <h4>Dark mode</h4>
+          <div class="n">1 toque</div>
+          <p>La luna cambia cada pantalla en el momento, sin recargar.</p>
+        </div>
+        <div class="tile">
+          <h4>Correcciones</h4>
+          <div class="n c-red">29</div>
+          <p>
+            Correcciones de reglas, mando, teléfono, escritorio y campaña, a partir de los reportes de ocho jugadores y
+            de la auditoría.
+          </p>
+        </div>
+        <div class="tile">
+          <h4>Resoluciones aplicadas</h4>
+          <div class="n c-blue">8</div>
+          <p>Auditoría de reglas parte 5, cada corrección con su fuente: RRG 1.8 o una resolución de FFG.</p>
+        </div>
+        <div class="tile">
+          <h4>Pruebas de navegador</h4>
+          <div class="n c-green">623</div>
+          <p>La suite completa de pruebas de extremo a extremo, aprobada en la rama del dark mode.</p>
+        </div>
+        <div class="tile">
+          <h4>Trophy Room</h4>
+          <div class="n">318</div>
+          <p>logros, ahora en categorías plegables que puedes ordenar de cuatro formas.</p>
+        </div>
+        <div class="tile">
+          <h4>Escaneos nuevos</h4>
+          <div class="n">4 héroes</div>
+          <p>Spider-Man, Captain Marvel, Black Panther y Nebula, además de las cartas de aspecto del core.</p>
+        </div>
+      </section>
+
+      <!-- ============ DARK MODE ============ -->
+      <div class="band">
+        <h2>Dark mode</h2>
+        <div class="lab">Issue #459 de @neopolii · PR #486</div>
+      </div>
+      <p class="lead">
+        Toca la <b>luna</b>
+        <svg class="ico" viewBox="0 0 24 24" role="img" aria-label="botón de luna">
+          <rect x="1" y="1" width="22" height="22" fill="#15110e" stroke="#f2ede1" stroke-width="1.5" />
+          <path d="M14.6 6.2a6.2 6.2 0 1 0 3.6 10.6 5.2 5.2 0 0 1-3.6-10.6z" fill="#f2ede1" />
+        </svg>
+        en la parte superior de cualquier pantalla, o activa <b>Settings ▸ Display ▸ Dark mode</b>. Las pantallas de
+        pergamino y de papel bajan a un carbón cálido, el texto de tinta se vuelve crema y todos los tonos se quedan
+        como están: el rojo de héroe, los colores de aspecto, las etiquetas de estado.
+        <b>El arte y las caras de las cartas nunca se recolorean.</b>
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/dm-board.webp"
+            alt="La ventana emergente del mulligan en el tablero, clara a la izquierda y oscura a la derecha"
+            width="1446"
+            height="450"
+            loading="lazy"
+          />
+          <figcaption>La mesa, clara y oscura · el mulligan</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/dm-title.webp"
+            alt="La pantalla de título, clara a la izquierda y oscura a la derecha"
+            width="1446"
+            height="450"
+            loading="lazy"
+          />
+          <figcaption>Title · la luna está junto al botón de idioma</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/dm-live.webp"
+            alt="El deck builder en dark mode, con el interruptor del sol en el centro de la parte superior"
+            width="1200"
+            height="750"
+            loading="lazy"
+          />
+          <figcaption>El deck builder tras un cambio en vivo, sin recargar</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/dm-phone.webp"
+            alt="Ocho pantallas de teléfono en dark mode"
+            width="1100"
+            height="1190"
+            loading="lazy"
+          />
+          <figcaption>En un teléfono</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Dónde está el interruptor</h3>
+          <ul class="ck">
+            <li>
+              Un botón de <b>luna</b>
+              <svg class="ico" viewBox="0 0 24 24" role="img" aria-label="botón de luna">
+                <rect x="1" y="1" width="22" height="22" fill="#15110e" stroke="#f2ede1" stroke-width="1.5" />
+                <path d="M14.6 6.2a6.2 6.2 0 1 0 3.6 10.6 5.2 5.2 0 0 1-3.6-10.6z" fill="#f2ede1" />
+              </svg>
+              (pasar a oscuro) o de <b>sol</b>
+              <svg class="ico" viewBox="0 0 24 24" role="img" aria-label="botón de sol">
+                <rect x="1" y="1" width="22" height="22" fill="#15110e" stroke="#f2ede1" stroke-width="1.5" />
+                <circle cx="12" cy="12" r="3.2" fill="none" stroke="#f2ede1" stroke-width="1.6" />
+                <g stroke="#f2ede1" stroke-width="1.6" stroke-linecap="round">
+                  <path
+                    d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.7 6.7l1.4 1.4M15.9 15.9l1.4 1.4M6.7 17.3l1.4-1.4M15.9 8.1l1.4-1.4"
+                  />
+                </g>
+              </svg>
+              (pasar a claro) en la parte superior de cada pantalla. En un teléfono es una pestaña corta en el borde
+              superior.
+            </li>
+            <li>
+              <b>Settings ▸ Display ▸ Dark mode</b>, también en el grupo Table de Pause. Los mandos y los teclados usan
+              esta fila, así que el D-pad nunca cae por accidente en el botón de arriba.
+            </li>
+            <li>Se guarda con tus demás ajustes, y empieza desactivado.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Qué cambia</h3>
+          <ul class="ck">
+            <li>
+              Las pantallas, las ventanas emergentes, las páginas del libro de campaña y los campos de texto se
+              oscurecen. Un control seleccionado o bajo el cursor sigue siendo el más claro.
+            </li>
+            <li>
+              El marco de tinta se queda como estaba: las barras superiores, la barra de acciones, el fieltro de la
+              mesa.
+            </li>
+            <li>
+              El texto sobre amarillo y otros fondos brillantes sigue en tinta oscura, así que las etiquetas NOTICE y
+              los sellos se siguen leyendo.
+            </li>
+            <li>
+              Cambiarlo a mitad de una partida vuelve a pintar lo que hay en pantalla. Tu tablero, una ventana abierta o
+              un mazo a medio armar se conservan.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ SPANISH ============ -->
+      <section lang="es" aria-label="Cartas en español">
+        <div class="band gold">
+          <h2>Cartas en español</h2>
+          <div class="lab">Issue #337 · PR #393</div>
+        </div>
+        <p class="lead">
+          ¡Ya puedes jugar con tus cartas en español! Desde esta versión,
+          <b>cada instalador y el APK se publican dos veces</b>: en inglés (<b>-EN-</b>) y en español (<b>-ES-</b>). Las
+          versiones en español muestran la impresión española de cada carta que la tiene:
+          <b>4.053 de las 4.312 cartas</b>. Las demás se ven en inglés.
+        </p>
+        <div class="shots s2">
+          <figure class="a">
+            <img
+              src="img/es-board.webp"
+              alt="El mulligan con cartas de Spider-Man en español"
+              width="1200"
+              height="817"
+              loading="lazy"
+            />
+            <figcaption>Un mulligan en español · Sentido arácnido mejorado</figcaption>
+          </figure>
+          <figure class="a">
+            <img
+              src="img/es-lang.webp"
+              alt="La pantalla de título con el selector de idioma abierto: English y Español"
+              width="1200"
+              height="750"
+              loading="lazy"
+            />
+            <figcaption>El botón del globo en la web</figcaption>
+          </figure>
+        </div>
+        <div class="cols">
+          <div class="box">
+            <h3>Cómo conseguirlo</h3>
+            <ul class="ck">
+              <li>
+                <b>Windows, macOS, Linux y Android:</b> descarga el archivo con <b>-ES-</b> en el nombre, o abre
+                <b>Descargas en español</b> en el README.
+              </li>
+              <li>El instalador en español reemplaza la versión en inglés y <b>conserva tus partidas guardadas</b>.</li>
+              <li>
+                <b>En el navegador:</b> la web incluye los dos idiomas. Empieza en el idioma de tu navegador, y el botón
+                del globo, junto al de la música, lo cambia en cualquier momento. También está en Ajustes ▸ Cartas.
+              </li>
+              <li>En las apps de escritorio y de móvil, el globo explica qué descarga tiene cada idioma.</li>
+            </ul>
+          </div>
+          <div class="box">
+            <h3>Gracias</h3>
+            <p>
+              Los escaneos en español son de <a href="https://github.com/alaintxu/mc-ocr"><b>mc-ocr</b></a
+              >, de alaintxu, que nos dio permiso para usarlos. ¡Muchas gracias, alaintxu!
+            </p>
+            <p>
+              Lo pidió <span class="rep"><span class="star">★</span>@AntonioAPG</span>. ¡Gracias por la idea!
+            </p>
+            <p>
+              <b>¿Encontraste un error?</b> El formulario de reportes ahora pregunta en qué idioma jugabas, y el reporte
+              desde el juego lo rellena solo.
+            </p>
+            <p>
+              <b>Lo que viene:</b> el texto del juego, el texto de las cartas y las reglas en español (#390, #391 y
+              #392).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ RULES AUDIT ============ -->
+      <div class="band">
+        <h2>Auditoría de reglas, parte 5</h2>
+        <div class="lab">PR #410 de @bluefireF5ran · PR #477</div>
+      </div>
+      <p class="lead">
+        <b>@bluefireF5ran</b> sigue repasando la RRG 1.8 y las resoluciones de FFG, una corrección por commit, cada una
+        con su fuente. El cambio más grande es <b>cómo se abren las respuestas</b>: las respuestas a una frase ahora
+        esperan a que se resuelva la frase entera, y luego se abren como una sola ventana donde las ordenas libremente.
+      </p>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">La nueva ventana de respuesta</div>
+          <h3>Gamma Blast espera a su daño</h3>
+          <p>
+            Gamma Blast de Spectrum inflige sus 7 de daño antes de la respuesta de la forma de energía, así que un
+            enemigo <b>tough</b> lo bloquea. Photon Speed funciona igual. Cuando respuestas a distintas condiciones
+            comparten una ventana, la hoja ahora dice a cuál responden, y una respuesta opcional ofrecida antes que las
+            forzadas dice <b>Not now</b>: se te preguntará de nuevo cuando se resuelvan las forzadas.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/gamma.webp"
+              alt="Una hoja de respuestas con el encabezado You changed to Gamma energy form"
+              width="1200"
+              height="817"
+              loading="lazy"
+            />
+          </figure>
+          <div class="src">RRG 1.8 p. 45, p. 38, p. 5, p. 20 · resolución de FFG del 8 de dic. de 2023 (#126)</div>
+        </div>
+        <div class="paper">
+          <div class="eb">También en esta parte</div>
+          <h3>Siete resoluciones más</h3>
+          <p>
+            <b>Rellenar hasta el tamaño de mano roba una carta a la vez</b>, así que Shapeshifter Surprise o una
+            obligación robada se resuelve antes de la siguiente carta. El resumen de la fase de villano sigue contando
+            todo el robo.
+          </p>
+          <p>
+            Las cartas <b>The Power Of</b> ya no duplican sus recursos al pagar de más por los aliados Ant-Man o Wasp.
+          </p>
+          <p>
+            <b>Ready for a Fight</b> lleva a un héroe con dos formas de héroe a la otra, y Bodyslide se lo permite. El
+            registro ahora nombra la cara: "You changed to Giant Wasp."
+          </p>
+          <p>
+            <b>Frenemies</b> retira las dos amenazas a la vez, así que un icono de crisis sigue protegiendo el plan
+            principal.
+          </p>
+          <p><b>Wolverine's Claws</b> da piercing solo al primer ataque del evento jugado.</p>
+          <p>
+            <b>I've Been Waiting For This!</b> como potenciación: el villano ejecuta su plan después de que el ataque
+            potenciado y sus respuestas terminen.
+          </p>
+          <p>Cuando un efecto activa a varios enemigos, <b>los villanos van antes que los esbirros</b>.</p>
+          <div class="src">
+            RRG 1.8 p. 6, p. 21 · resoluciones de FFG #22, #87, #127, #190, #214 y 14 de ago. de 2025
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PLAYER REPORTS ============ -->
+      <div class="band gold">
+        <h2>Lo pediste, lo arreglamos</h2>
+        <div class="lab">Issues #458 · #462 · #478 · #479 · #480 · #496 · PR #503</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#479 · reportado por @zackburnley</div>
+          <h3>Una Trophy Room que se pliega</h3>
+          <p>
+            Cada categoría se pliega y se abre con un toque, y todas empiezan plegadas. Una barra <b>Filters</b> ordena
+            por categoría, avance, puntos o A–Z, en cualquier sentido, con Expand all y Collapse all. La sala recuerda
+            cuáles abriste.
+          </p>
+          <div class="shots s-phone" style="margin: 14px 0 0">
+            <figure>
+              <img
+                src="img/trophy.webp"
+                alt="La Trophy Room con categorías plegadas y botones de orden"
+                width="1200"
+                height="817"
+                loading="lazy"
+              />
+            </figure>
+            <figure>
+              <img
+                src="img/trophy-phone.webp"
+                alt="La Trophy Room en un teléfono"
+                width="390"
+                height="844"
+                loading="lazy"
+              />
+            </figure>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="eb">#478 y #480 · reportados por @zackburnley</div>
+          <h3>El teléfono se siente bien</h3>
+          <p>
+            <b>Un toque rápido lateral sigue deslizándose</b> después de levantar el dedo, en las estanterías de héroes
+            y de escenarios, como ya lo hacía el desplazamiento vertical.
+          </p>
+          <p>
+            <b>El gesto de volver retrocede una pantalla.</b> El gesto de volver de Android, el Back de un navegador y
+            el botón de retroceso de un ratón ahora cierran lo que esté abierto, o abren Pause en una partida, en lugar
+            de cerrar la app.
+          </p>
+          <p>
+            El menú del título también se desplaza en una ventana demasiado corta para él, como un teléfono en
+            horizontal.
+          </p>
+          <figure style="margin-top: 14px; max-width: 240px">
+            <img
+              src="img/flick.webp"
+              alt="La estantería Take your seats en un teléfono tras un toque rápido"
+              width="390"
+              height="844"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#458 · reportado por @neopolii</div>
+          <h3>El deck builder llena una pantalla ancha</h3>
+          <p>
+            En una ventana ancha, el conjunto de cartas añade columnas a medida que crece, y
+            <b>el hover de carta siempre agranda la carta</b>, al menos 1.5 veces su tamaño en pantalla.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/db-wide.webp"
+              alt="El deck builder a 2560 píxeles de ancho con muchas columnas de cartas"
+              width="1400"
+              height="750"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#462 · reportado por @andy-xxvii27</div>
+          <h3>Upgraded Drones se puede descartar</h3>
+          <p>
+            Una carta vinculada a un entorno ahora se muestra en la ficha del entorno, así que puedes usar su habilidad,
+            como gastar para descartar Upgraded Drones.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/drones.webp"
+              alt="Upgraded Drones mostrada en la ficha del entorno con su habilidad disponible"
+              width="1200"
+              height="695"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">#496 · reportado por @AlecHolland1582</div>
+            <h3>Tras Zola, tu propia mejora Basic</h3>
+            <p>
+              En The Rise of Red Skull, tras vencer a Zola con Hydra Prison fuera de juego, cada héroe en forma de héroe
+              puede voltear a su lado Improved la mejora Basic que tomó después de Absorbing Man. El juego solía ofrecer
+              cada carta Condition del mazo del primer héroe. Ahora
+              <b>a cada héroe solo se le ofrece su propia mejora</b>, un héroe a la vez, con una opción
+              <b>Keep it Basic</b>.
+            </p>
+            <p>
+              La misma corrección da a cada héroe su propia columna para la recompensa Planning Ahead de Sinister
+              Motives.
+            </p>
+          </div>
+          <figure>
+            <img
+              src="img/zola.webp"
+              alt="The Aftermath tras Zola: a Hawkeye se le ofrece Basic Attack Upgrade, Spider-Woman espera su turno"
+              width="1200"
+              height="750"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">PR #503 · reportado por @funguykawhi en Discord y @jcast123 (#506)</div>
+            <h3>Un mando llega a toda la mesa</h3>
+            <p>
+              En un Steam Deck, LB/RB y el D-pad no llegaban al villano, los planes, los esbirros ni las vinculadas, así
+              que Y no tenía nada que inspeccionar ahí. Ahora <b>cada carta de la mesa es una parada</b>: LB/RB saltan a
+              la zona del villano, el D-pad se mueve entre el villano, los planes y los esbirros, y
+              <b>Y inspecciona</b> (mantén para ampliar).
+            </p>
+            <p>
+              A sobre una carta sin nada que usar la abre en Inspect, como un toque. En un teléfono, RB cambia a la
+              pestaña Enemies o Threat y se queda ahí.
+            </p>
+          </div>
+          <figure>
+            <img
+              src="img/pad-focus.webp"
+              alt="Rhino enfocado con el mando, con la leyenda de Inspect encima"
+              width="1200"
+              height="817"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ SCANS ============ -->
+      <div class="band">
+        <h2>Escaneos nuevos y limpios</h2>
+        <div class="lab">#466 · #468 · #485 · PR #490</div>
+      </div>
+      <p class="lead">
+        Más cartas ahora usan <b>mis propios escaneos</b>: rectos, nítidos y sin marca de agua. La carta torcida de
+        Captain Marvel con una pestaña blanca, reportada por <b>@neopolii</b>, desapareció.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/core-scans.webp"
+            alt="Cartas del core de Spider-Man y Captain Marvel, escaneos viejos arriba y escaneos nuevos abajo"
+            width="1400"
+            height="740"
+            loading="lazy"
+          />
+          <figcaption>Spider-Man y Captain Marvel · antes arriba, después abajo</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/nebula.webp"
+            alt="Cartas de Nebula, con la tenue marca de agua arriba y escaneos limpios abajo"
+            width="1600"
+            height="454"
+            loading="lazy"
+          />
+          <figcaption>El pack de Nebula · la tenue marca de agua desapareció</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li><b>Spider-Man</b> y <b>Captain Marvel</b>: mazos del core y sets de némesis.</li>
+          <li>
+            <b>Black Panther</b>: mazo del core y set de némesis, además de cada carta de aspecto y básica del core y
+            las cartas de aspecto de Rise of Red Skull.
+          </li>
+          <li>
+            <b>Nebula</b>: las 24 cartas del pack, de Cutthroat Ambition a Defensive Training, y los dos lados de la
+            identidad.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band gold">
+        <h2>También en v0.39.0</h2>
+        <div class="lab">Escritorio · reglas · colaboradores</div>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3>Escritorio</h3>
+          <ul class="ck">
+            <li>
+              El script <b>Install for Steam</b> de Windows ahora es un <b>.cmd en el que haces doble clic</b>. No hace
+              falta cambiar la política de ejecución.
+            </li>
+            <li>
+              Un campo de texto, como la barra de búsqueda de Seats, se queda en su lugar bajo el hover de una carta en
+              lugar de parpadear y desaparecer.
+            </li>
+            <li>
+              Las compilaciones de prueba de Android y Linux de un pull request integrado ya no se quedan en la página
+              de Releases.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Reglas, letra pequeña</h3>
+          <ul class="ck">
+            <li>
+              Las cartas de encuentro de Mysterio se siguen repartiendo después de todo el relleno de mano, incluso
+              cuando un robo está anidado en otro.
+            </li>
+            <li>Cuando se cancela el primer ataque de un evento jugado, Wolverine's Claws da piercing al siguiente.</li>
+            <li>Una respuesta que no se puede usar ya no se reporta como "no ofrecida" en medio de una revelación.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Para colaboradores</h3>
+          <ul class="ck">
+            <li>
+              El arte de cartas, la música y el arte salieron de git a paquetes con versión.
+              <b>pnpm assets:fetch</b> los descarga una vez por máquina, así que una copia de trabajo es mucho más
+              pequeña.
+            </li>
+            <li>
+              Añade o reemplaza escaneos de cartas, música o arte desde un pull request poniendo los archivos en
+              <b>incoming/</b>. Tras la integración, se empaquetan en los paquetes por ti.
+            </li>
+            <li>Las compilaciones de la versión clonan más rápido y expiran en lugar de retener la cola.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>¡Gracias!</h2>
+          <p>
+            Cada reporte de aquí vino de un jugador que se tomó un minuto para avisarnos. Sigue enviándolos desde Pause
+            ▸ Report a problem, un issue de GitHub o el Discord de la comunidad.
+          </p>
+        </div>
+        <div class="people">
+          <div class="person">
+            <h3>@zackburnley</h3>
+            <p>
+              Reportó <b>#478</b>, <b>#479</b> y <b>#480</b>: el toque rápido en la estantería, la Trophy Room y el
+              gesto de volver.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@bluefireF5ran</h3>
+            <p>Escribió <b>#410</b>, la parte 5 de la auditoría de reglas, con una fuente para cada corrección.</p>
+          </div>
+          <div class="person">
+            <h3>@neopolii</h3>
+            <p>
+              Pidió el dark mode en <b>#459</b>, y reportó <b>#458</b> y <b>#485</b>: el deck builder ancho y la carta
+              torcida de Captain Marvel.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@AntonioAPG</h3>
+            <p>Pidió las cartas en español en <b>#337</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@andy-xxvii27</h3>
+            <p>Reportó <b>#462</b>, Upgraded Drones.</p>
+          </div>
+          <div class="person">
+            <h3>@AlecHolland1582</h3>
+            <p>Reportó <b>#496</b>, la mejora Basic que se ofrecía tras Zola.</p>
+          </div>
+          <div class="person">
+            <h3>@funguykawhi</h3>
+            <p>Reportó en Discord que un mando no podía llegar al villano ni a los planes (<b>#503</b>).</p>
+          </div>
+          <div class="person">
+            <h3>@jcast123</h3>
+            <p>Reportó el mismo error del mando en <b>#506</b>.</p>
+          </div>
+          <div class="person wide">
+            <h3>alaintxu</h3>
+            <p>Hizo los escaneos de cartas en español de <b>mc-ocr</b> y nos dejó usarlos.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Código publicado</h2>
+        <div class="lab">Desde v0.38.1</div>
+      </div>
+      <section class="stats" aria-label="Código publicado desde v0.38.1">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">26</div>
+          <p>integrados en main.</p>
+        </div>
+        <div class="tile">
+          <h4>Archivos cambiados</h4>
+          <div class="n">18,711</div>
+          <p>La mayoría son contenido multimedia que sale de git hacia los paquetes de la versión.</p>
+        </div>
+        <div class="tile">
+          <h4>Líneas añadidas</h4>
+          <div class="n c-green">18,844</div>
+          <p>Solo el dark mode son 1,083.</p>
+        </div>
+        <div class="tile">
+          <h4>Líneas eliminadas</h4>
+          <div class="n c-red">2,191</div>
+          <p>en los mismos pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        La banda sonora está generada con IA mediante Gemini. Los efectos de sonido son sonidos libres de derechos de
+        varios sitios web. Arte de los mandos: control de Xbox One de Akshay Kumar (ArtStation), control de PlayStation
+        de Uttam Das (Vecteezy), icono de Switch de Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition es un proyecto hecho por fans y sin fines de lucro. Marvel Champions, el
+          texto de sus cartas, su arte y sus personajes pertenecen a Fantasy Flight Games y Marvel.</span
+        >
+        <span
+          ><a href="../../">Jugar en el navegador ↗</a> ·
+          <a data-history-link href="../index.html#v0.39.0">Todas las versiones</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.39.0"
+            >Descargas ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
