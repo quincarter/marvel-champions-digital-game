@@ -4,7 +4,7 @@
  * draws what this decides. It reads state and never changes it: the popover takes no input.
  */
 import { cardHoverFactor, type CardHoverScale } from "../settings.js";
-import type { CardFace } from "../art/art-source.js";
+import type { ArtSource, CardFace } from "../art/art-source.js";
 import type { FormFactor, Rect } from "./layout.js";
 
 /** How long the pointer rests on a card before the popover opens, so sweeping across the table flashes nothing. */
@@ -124,6 +124,8 @@ export interface HoverCardIdRect extends Rect {
   readonly cardId: string;
   /** The face to show when it is not the card's default (`defaultFaceFor`): a villain stage, a scheme's B side. */
   readonly face?: CardFace;
+  /** The picture to show when it is not that face's own: a promo card on its Extras tile. */
+  readonly art?: ArtSource;
   readonly through?: boolean;
 }
 

@@ -22,7 +22,8 @@ export function openExtrasOf(
     if (!extras.isOpen(entry.unlock)) continue;
     open.set(entry.id, { id: entry.id, tab: entry.tab, title: entry.title });
     extras.openSlides(entry.content).forEach((slide, index) => {
-      if (index === 0) return;
+      // A promo card's faces open together: one card, one notice.
+      if (index === 0 || (entry.content.kind === "gallery" && entry.content.promoSetId)) return;
       const id = `${entry.id}#${slide.caption}#${index}`;
       open.set(id, { id, tab: entry.tab, title: slide.caption });
     });
@@ -42,6 +43,7 @@ const ONE: Record<ExtrasTab, string> = {
   heroes: "New hero file",
   villains: "New villain file",
   art: "New artwork",
+  promos: "New promo card",
   books: "New rulebook",
 };
 
@@ -52,6 +54,7 @@ const MANY: Record<ExtrasTab, string> = {
   heroes: "new hero files",
   villains: "new villain files",
   art: "new artworks",
+  promos: "new promo cards",
   books: "new rulebooks",
 };
 

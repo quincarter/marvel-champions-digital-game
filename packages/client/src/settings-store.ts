@@ -11,6 +11,7 @@
 import { isCardLanguage } from "./art/card-language.js";
 import {
   ACHIEVEMENT_POPUP_PLACE_VALUES,
+  HERO_ART_VALUES,
   ACHIEVEMENT_POPUP_SIZE_VALUES,
   ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
@@ -62,6 +63,7 @@ const BOOLEAN_FIELDS = [
   "hoverHeroCard",
   "hoverVillainCard",
   "ultronDroneArt",
+  "promoArtOn",
   "powerSavingAdjust",
   "nintendoLayout",
   "inputGlyphs",
@@ -83,6 +85,10 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
     const value = source[field];
     if (typeof value === "boolean") out[field] = value;
   }
+  const heroArtValue = HERO_ART_VALUES.find((value) => value === source["heroArt"]);
+  if (heroArtValue !== undefined) out.heroArt = heroArtValue;
+  const promoArt = source["promoArt"];
+  if (Array.isArray(promoArt)) out.promoArt = promoArt.filter((id): id is string => typeof id === "string");
   const autoAdvance = source["villainAutoAdvance"];
   const autoAdvanceValue = VILLAIN_AUTO_ADVANCE_VALUES.find((value) => value === autoAdvance);
   if (autoAdvanceValue !== undefined) out.villainAutoAdvance = autoAdvanceValue;

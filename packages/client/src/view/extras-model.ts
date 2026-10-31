@@ -29,7 +29,7 @@ export interface ExtrasTileView {
   /** How to open a locked tile ("Beat Rhino"); null once open. */
   readonly hint: string | null;
   readonly thumb: Picture | null;
-  /** The tile's call to action once open: READ, VIEW or PLAY. */
+  /** The tile's call to action once open: READ, VIEW or PLAY, or IN USE for a promo card being used. */
   readonly action: string;
   readonly entry: ExtrasEntry;
 }
@@ -48,17 +48,22 @@ const actionOf = (entry: ExtrasEntry): string =>
       ? "PLAY"
       : "VIEW";
 
-export function extrasTilesOf(extras: Extras, tab: ExtrasTab): readonly ExtrasTileView[] {
+export function extrasTilesOf(
+  extras: Extras,
+  tab: ExtrasTab,
+  promosInUse: readonly string[] = [],
+): readonly ExtrasTileView[] {
   return EXTRAS_ENTRIES[tab].map((entry) => {
     const open = extras.isOpen(entry.unlock);
+    const promoSetId = entry.content.kind === "gallery" ? entry.content.promoSetId : undefined;
     return {
       id: entry.id,
       title: entry.title,
       subtitle: entry.subtitle,
       open,
-      hint: open ? null : unlockHint(entry.unlock),
+      hint: open ? null : unlockHint(entry.unlock, extras.winsToward(entry.unlock)),
       thumb: entry.thumb,
-      action: actionOf(entry),
+      action: promoSetId && promosInUse.includes(promoSetId) ? "IN USE" : actionOf(entry),
       entry,
     };
   });
@@ -100,8 +105,9 @@ export function extrasGridOf(width: number, tab: ExtrasTab, phone: boolean): Ext
   }
   const columns = Math.max(2, Math.floor((width + gap) / (MIN_TILE_WIDTH + gap)));
   const tileWidth = Math.max(1, (width - gap * (columns - 1)) / columns);
-  // Heroes and villains are portraits; stories, rulebooks and artwork are landscape panels.
-  const pictureHeight = tab === "heroes" || tab === "villains" ? tileWidth * 1.1 : tileWidth * 0.62;
+  // Heroes and villains are portraits, promo cards are whole cards; stories, rulebooks and artwork are landscape panels.
+  const pictureHeight =
+    tab === "promos" ? tileWidth * 1.4 : tab === "heroes" || tab === "villains" ? tileWidth * 1.1 : tileWidth * 0.62;
   const tileHeight = Math.round(pictureHeight + TILE_CAPTION);
   return { columns, gap, tileWidth, tileHeight, rowHeight: tileHeight + gap };
 }
