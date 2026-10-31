@@ -4,9 +4,9 @@
  * object through `syncService()`.
  *
  * Game writes happen in the engine Web Worker, whose `notifySaveDataChanged` never reaches this thread, so the worker
- * posts a `saved` message once its writes have committed and `engine/worker-host.ts` relays it (reason "turn" for a
- * command that ended a turn). Decks and campaigns are written on this thread and notify for themselves. Every game-only
- * trigger still re-reads the whole snapshot (non-game records are hashed again): cheap at this size, not yet cached.
+ * posts a `saved` message once its writes have committed and `engine/worker-host.ts` relays it (reason "round" for a
+ * command that ended a round or the game). Decks and campaigns are written on this thread and notify for themselves.
+ * Every game-only trigger still re-reads the whole snapshot (non-game records are hashed again): cheap at this size, not yet cached.
  */
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import { appSession } from "../session.js";
