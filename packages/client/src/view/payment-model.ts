@@ -100,11 +100,10 @@ export interface PaymentState {
  */
 export interface PaymentSourceView extends PaymentSource {
   readonly spent: boolean;
-  /**
-   * The card this source's own cost exhausts, when it picks exactly one in play: the card its tile shows, since every
-   * option of Sync Ratio names the same SP//dr Suit and only the pick tells them apart (issue #601). Absent otherwise.
-   */
+  /** The card the tile shows (`pickedCardOf`). Absent when that is the source's own card. */
   readonly pickedCard?: InstanceId;
+  /** `pickedCard` is tucked under a card, so it is not in play (Jet Belt's cost, under Ionic Physiology). */
+  readonly pickedTucked?: boolean;
   /**
    * Another player's hand card offered toward an alliance card (RRG 1.8 "Alliance", p. 6): the hero name of the
    * hand it sits in, so the strip can say whose card it is. Null for the payer's own cards and for resource
@@ -470,6 +469,17 @@ function exhaustPickOptions(sources: readonly PaymentSource[], card: InstanceId)
 const picksOf = (source: PaymentSource | undefined): readonly InstanceId[] =>
   Object.values(source?.costChoices ?? {}).flat();
 
+/**
+ * The one card a resource ability's own cost picks, which is what tells its options apart: every option of Sync Ratio
+ * names the same SP//dr Suit (issue #601), and each of Jet Belt's the same Jet Belt. So it is the card the option's tile
+ * shows, its stop on the focus route and the card a tap on it means. Null for a source with no such pick.
+ */
+export function pickedCardOf(source: PaymentSource): InstanceId | null {
+  if (source.kind !== "resourceAbility" || source.spendsHandCard) return null;
+  const picks = picksOf(source);
+  return picks.length === 1 ? picks[0]! : null;
+}
+
 /** A set of picked cards as one key: two options exhausting the same cards have the same key. */
 const pickKey = (ids: Iterable<InstanceId>): string => [...ids].sort().join(",");
 
@@ -566,7 +576,7 @@ function handCardSpentBy(payment: PaymentState, optionId: string): InstanceId | 
  * one is picked, so the tap takes it back out, else the first way the engine offers.
  */
 export function cardTapOption(payment: PaymentState, instanceId: InstanceId): string | null {
-  const options = payment.query.sources.filter((source) => source.instanceId === instanceId);
+  const options = payment.query.sources.filter((source) => (pickedCardOf(source) ?? source.instanceId) === instanceId);
   return (options.find((source) => payment.picked.includes(source.optionId)) ?? options[0])?.optionId ?? null;
 }
 
@@ -644,10 +654,10 @@ export function paymentView(
     const place = order.get(source.optionId);
     const underSubject = place?.underSubject && landing ? cardName(state, landing.id) : null;
     const onTop = place?.onTop ?? false;
-    const picks = source.kind === "resourceAbility" ? picksOf(source) : [];
+    const pickedCard = pickedCardOf(source);
     return {
       ...source,
-      ...(picks.length === 1 ? { pickedCard: picks[0]! } : {}),
+      ...(pickedCard ? { pickedCard, pickedTucked: locateCard(state, pickedCard)?.kind === "tucked" } : {}),
       spent: picked.includes(source.optionId),
       helperName: helperNameOf(state, playerId, source),
       amountNote: amountNoteOf(source),
@@ -831,6 +841,7 @@ export function sourceTagText(source: PaymentSourceView, compact = false): strin
   if (source.helperName !== null) return source.helperName;
   if (source.amountNote !== null) return source.amountNote;
   if (source.overpayOnly) return compact ? "extra" : "overpay only";
+  if (source.pickedTucked) return "tucked";
   return source.spendsHandCard ? "from hand" : "in play";
 }
 
