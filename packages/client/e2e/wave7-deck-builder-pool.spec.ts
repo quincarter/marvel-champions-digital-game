@@ -60,7 +60,7 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
       expect.arrayContaining([
         '"Yoo-Hoo!"',
         "Armed to the Teeth",
-        "Cable",
+        "Cable (Nathan Summers)",
         "Chimichanga Truck",
         "Deadpool's Katana",
         "Montage",
