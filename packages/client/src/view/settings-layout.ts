@@ -106,6 +106,8 @@ export interface SettingsLayout {
   readonly tabs: Rect;
   /** The one scroll region under the tab rail — screen space; everything in `content` draws inside it. */
   readonly bodyViewport: Rect;
+  /** All the room under the tab rail, whatever `content` needs: the search results' list. */
+  readonly bodyRoom: Rect;
   readonly content: SettingsContentLayout;
 }
 
@@ -145,8 +147,16 @@ export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionS
   // never taller than what's actually left in the panel (the phone case this region exists for).
   const viewportHeight = Math.min(totalHeight, Math.max(0, body.y + body.height - bodyTop));
   const bodyViewport: Rect = { x, y: bodyTop, width, height: viewportHeight };
+  const bodyRoom: Rect = { x, y: bodyTop, width, height: Math.max(0, body.y + body.height - bodyTop - 8) };
 
-  return { panel, header, tabs, bodyViewport, content: { sections: placed, slots, slotHeights, totalHeight } };
+  return {
+    panel,
+    header,
+    tabs,
+    bodyViewport,
+    bodyRoom,
+    content: { sections: placed, slots, slotHeights, totalHeight },
+  };
 }
 
 function placeItem(
