@@ -238,16 +238,15 @@ export class FocusRoute {
       // A chrome button can leave the route (the pad toast covers the bar for a moment), or move a frame after a
       // redraw (its scene follows the slot in its own update): the ring is drawn again for either.
       if (CHROME_STOPS.has(this.#focus)) {
-        const chrome = this.#chrome().get(this.#focus)?.rect as Rect | undefined;
+        // The theme button stays drawn while the row is hidden (it floats alone), so the note answers for all but the bug.
+        const hidden = (this.#focus === CHROME_REPORT_STOP ? shownReportButton() : shownMusicButton()) === null;
+        // No rect with the row shown: an overlay is on top for now, and focus waits here for it to close.
+        const rect = this.#chrome().get(this.#focus)?.rect as Rect | undefined;
         const ring = this.#ringRect;
-        const same =
-          chrome &&
-          ring &&
-          chrome.x === ring.x &&
-          chrome.y === ring.y &&
-          chrome.width === ring.width &&
-          chrome.height === ring.height;
-        if (!same) this.#drawRing();
+        const moved =
+          rect !== undefined &&
+          (rect.x !== ring?.x || rect.y !== ring.y || rect.width !== ring.width || rect.height !== ring.height);
+        if (hidden || moved) this.#drawRing();
         return;
       }
       const stop = this.#ownStops.get(this.#focus);
