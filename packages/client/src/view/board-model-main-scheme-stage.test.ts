@@ -4,11 +4,11 @@
  * position-based caption read "Main scheme 3" over a card printed stage 2 (QA, issue #4).
  */
 import { describe, expect, test } from "vitest";
-import type { GameState, PlayerId } from "@mc/engine";
+import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { boardModel } from "./board-model.js";
+import { boardModel, faceOf } from "./board-model.js";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 
 async function started(scenarioId: string): Promise<{ state: GameState; perspective: PlayerId }> {
@@ -43,6 +43,20 @@ describe("main scheme caption uses the printed stage number", () => {
       if (stage.stageNumber !== index + 1) differs += 1;
     });
     expect(differs).toBeGreaterThan(0);
+  });
+
+  test("a stage in the victory display keeps its own art after the scheme moves on", async () => {
+    const { state } = await started("mansion-attack");
+    const scheme = state.mainScheme.instanceId;
+    const stage = "spent-stage" as InstanceId;
+    const at: GameState = {
+      ...state,
+      mainScheme: { ...state.mainScheme, stageIndex: 1 },
+      instances: { ...state.instances, [stage]: { ...state.instances[scheme]!, mainSchemeStageIndex: 0 } },
+      victoryDisplay: [stage],
+    };
+    expect(faceOf(at, stage)).toEqual({ kind: "mainSchemeStage", stageIndex: 0, side: "B" });
+    expect(faceOf(at, scheme)).toEqual({ kind: "mainSchemeStage", stageIndex: 1, side: "B" });
   });
 
   test("a plain scenario still reads its stage 1", async () => {

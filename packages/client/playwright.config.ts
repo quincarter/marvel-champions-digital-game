@@ -95,6 +95,7 @@ export default defineConfig({
       testMatch: [
         "holdon.spec.ts",
         "deck-builder-quick-filters.spec.ts",
+        "victory-display.spec.ts",
         "deck-builder-search-help.spec.ts",
         "ironheart-level-up.spec.ts",
         "tips.spec.ts",
