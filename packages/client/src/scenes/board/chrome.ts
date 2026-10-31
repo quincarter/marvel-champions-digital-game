@@ -190,7 +190,7 @@ export function drawChrome(scene: Phaser.Scene, whole: Rect, model: BoardModel, 
   const left = stepLeft + (showToggle ? toggleWidth : 0);
   step.setX(left);
   const room = Math.max(40, rightEdge - left);
-  clipLine(step, ownRow ? room : Math.round(room * 0.45));
+  step.setWordWrapWidth(ownRow ? room : Math.round(room * 0.45)).setMaxLines(1);
   if (showToggle) {
     // Two-state phase toggle: whichever side's clock is running is filled.
     (["player", "villain"] as const).forEach((phase, index) => {

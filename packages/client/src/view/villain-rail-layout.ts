@@ -230,19 +230,7 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
   const hide: Rect = { x: x + width - buttonWidth, y: panel.y + RAIL_PAD, width: buttonWidth, height: HEADER_HEIGHT };
   const skip: Rect = { x: hide.x - 10 - buttonWidth, y: hide.y, width: buttonWidth, height: HEADER_HEIGHT };
   const title: Rect = { x, y: hide.y, width: Math.max(0, skip.x - 12 - x), height: HEADER_HEIGHT };
-  // On the subtitle's row: beside SKIP and HIDE it would leave the title no room.
-  const logButton: Rect = {
-    x: x + width - LOG_BUTTON_WIDTH,
-    y: title.y + title.height,
-    width: LOG_BUTTON_WIDTH,
-    height: 30,
-  };
-  const subtitle: Rect = {
-    x,
-    y: title.y + title.height + 2,
-    width: width - LOG_BUTTON_WIDTH - 8,
-    height: SUBTITLE_HEIGHT,
-  };
+  const subtitle: Rect = { x, y: title.y + title.height + 2, width, height: SUBTITLE_HEIGHT };
   const stepsTop = subtitle.y + subtitle.height + 12;
 
   const footer: Rect = { x: panel.x, y: bottom - FOOTER_HEIGHT, width: panel.width, height: FOOTER_HEIGHT };
@@ -252,6 +240,8 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
     width: 150,
     height: hit.primary,
   };
+  // In the footer: beside SKIP and HIDE it would leave the title no room, and the subtitle needs its whole row.
+  const logButton: Rect = { ...toggle, x: toggle.x - 10 - LOG_BUTTON_WIDTH, width: LOG_BUTTON_WIDTH };
 
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
   const scale = input.cardScale ?? 1;
@@ -356,7 +346,7 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
     interrupt,
     log,
     footer,
-    footerText: { x, y: footer.y + 14, width: Math.max(0, toggle.x - 12 - x), height: FOOTER_HEIGHT - 28 },
+    footerText: { x, y: footer.y + 14, width: Math.max(0, logButton.x - 12 - x), height: FOOTER_HEIGHT - 28 },
     toggle,
   };
 }

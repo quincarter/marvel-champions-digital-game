@@ -1168,7 +1168,7 @@ function drawFooter(
 function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvance): void {
   const x = rect.x;
   label(scene, x, rect.y + 6, "Auto-advance", { ...typeRole.label, size: 12 }, surface.paper.hex, ink.body);
-  label(
+  const line = label(
     scene,
     x,
     rect.y + 26,
@@ -1177,6 +1177,7 @@ function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvanc
     surface.paper.hex,
     ink.secondary,
   );
+  fitText(line, rect.width, 12);
 }
 
 /** AUTO-ADVANCE OFF | ON, the side in force filled in paper. */
