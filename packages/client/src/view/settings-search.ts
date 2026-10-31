@@ -241,12 +241,14 @@ export function nestedPageEntriesOf(input: {
   readonly family: PadFamily;
   readonly swap: boolean;
   readonly globalConsent: GlobalConsent;
+  /** False where Settings leaves the Controls page out (`settingsSectionsOf`). */
+  readonly controls: boolean;
 }): readonly SettingsSearchEntry[] {
   return [
     ...rulesEntries(),
     ...unlocksEntries(input.unlocks),
     ...saveDataEntries(input.globalConsent),
-    ...controlsEntries(input.settings, input.family, input.swap),
+    ...(input.controls ? controlsEntries(input.settings, input.family, input.swap) : []),
     ...statsEntries(),
     ...howToPlayEntries(),
   ];
@@ -283,7 +285,7 @@ function wordsWithPlaceOf(text: string): readonly (TextRange & { readonly word: 
 }
 
 /** Where one query word matched in `folded`: the same order of preference as the ranking. */
-function tokenRanges(token: string, folded: string): readonly TextRange[] {
+function tokenRanges(token: string, folded: string, loose: boolean): readonly TextRange[] {
   const words = wordsWithPlaceOf(folded);
   const atWordStart = words
     .filter(({ word }) => word.startsWith(token))
@@ -303,7 +305,7 @@ function tokenRanges(token: string, folded: string): readonly TextRange[] {
     );
     if (close.length > 0) return close.map(({ start, end }) => ({ start, end }));
   }
-  if (token.length < 5 || folded[0] !== token[0] || !isSubsequence(token, folded)) return [];
+  if (!loose || token.length < 5 || folded[0] !== token[0] || !isSubsequence(token, folded)) return [];
   const letters: TextRange[] = [];
   let next = 0;
   for (let at = 0; at < folded.length && next < token.length; at++) {
@@ -314,12 +316,15 @@ function tokenRanges(token: string, folded: string): readonly TextRange[] {
   return letters;
 }
 
-/** Which parts of `text` to mark for `query`: sorted, none overlapping, in `text`'s own positions. */
-export function matchRangesOf(text: string, query: string): readonly TextRange[] {
+/**
+ * Which parts of `text` to mark for `query`: sorted, none overlapping, in `text`'s own positions. `loose` is for a
+ * title: the ranking only takes letters in order across a name.
+ */
+export function matchRangesOf(text: string, query: string, loose = false): readonly TextRange[] {
   const folded = foldedOf(text);
   const tokens = normalizeText(query).match(/[a-z0-9]+/g) ?? [];
   const found = tokens
-    .flatMap((token) => tokenRanges(token, folded.text))
+    .flatMap((token) => tokenRanges(token, folded.text, loose))
     .map(({ start, end }) => ({ start: folded.at[start]!, end: folded.at[end - 1]! + 1 }))
     .sort((a, b) => a.start - b.start);
   const merged: { start: number; end: number }[] = [];
@@ -339,6 +344,7 @@ export interface SettingsSearchIndexInput {
   readonly pad: PadIdentity | null;
   readonly unlocks: UnlocksInput;
   readonly globalConsent: GlobalConsent;
+  readonly controls: boolean;
 }
 
 /** A match, with which letters of its title and description to mark. */
@@ -363,24 +369,26 @@ export class SettingsSearchHost {
   #documents: readonly PreparedDocument[] = [];
 
   index(input: SettingsSearchIndexInput): void {
-    const { settings, pad, globalConsent } = input;
+    const { settings, pad, globalConsent, controls } = input;
     const { family, swap } = controllerStateOf(settings, pad);
     const entries = [
       ...settingsRowEntriesOf(input.tabs, new Map(input.rows)),
-      ...nestedPageEntriesOf({ settings, unlocks: new Unlocks(input.unlocks), family, swap, globalConsent }),
+      ...nestedPageEntriesOf({ settings, unlocks: new Unlocks(input.unlocks), family, swap, globalConsent, controls }),
     ];
     this.#entries = new Map(entries.map((entry) => [entry.id, entry]));
     this.#documents = prepareDocuments(searchDocumentsOf(entries));
   }
 
   search(query: string): readonly SettingsSearchResult[] {
+    // Punctuation alone is no search, though an empty query ranks everything.
+    if (!/[a-z0-9]/.test(normalizeText(query))) return [];
     return rankDocuments(this.#documents, query).flatMap(({ id }) => {
       const entry = this.#entries.get(id);
       if (!entry) return [];
       return [
         {
           entry,
-          titleRanges: matchRangesOf(entry.title, query),
+          titleRanges: matchRangesOf(entry.title, query, true),
           detailRanges: matchRangesOf(entry.detail, query),
         },
       ];

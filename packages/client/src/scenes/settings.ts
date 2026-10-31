@@ -235,6 +235,11 @@ function couchModeShown(game: Phaser.Game, settings: Settings): boolean {
   return settings.couchMode !== "off" || couchModeRowInfoOf(settings, couchBaseOf(game)).options.length > 1;
 }
 
+/** The phone apps show Controls only once a controller is connected (the owner, 2026-10-24). */
+function controlsShown(): boolean {
+  return detectPlatform() !== "capacitor" || padAvailable();
+}
+
 /** The Screen section: every build, unless `?renderscale=off`. */
 function screenSettingsShown(): boolean {
   const env = screenEnvironment();
@@ -321,6 +326,8 @@ export class SettingsOverlay extends Phaser.Scene {
     // In the desktop app a resize can also be a move to another monitor, whose sizes the Resolution row lists.
     const onResize = (): void => {
       this.#draw();
+      // A turned phone can move Sound off its tab.
+      this.#refreshSearch();
       if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     };
     this.scale.on("resize", onResize, this);
@@ -343,6 +350,7 @@ export class SettingsOverlay extends Phaser.Scene {
       },
       // LB / RB (R / F on the keyboard) step through the tabs, wrapping at the ends.
       onTab: (direction) => {
+        if (this.#resultsList) this.#resultsList.scrollByPage(direction);
         const ids = this.#tabIds;
         if (ids.length === 0) return;
         if (this.#resolutionListOpen) return;
@@ -352,6 +360,8 @@ export class SettingsOverlay extends Phaser.Scene {
         // The ring goes onto the new tab, as a press on it would leave it.
         this.#route?.focusKey(`tab:${next}`);
       },
+      onPage: (direction) => this.#resultsList?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#resultsList?.scrollToStart() : this.#resultsList?.scrollToEnd()),
       blocked: () => this.#covered() || (this.#searchInput?.focused ?? false),
       onCancel: () => {
         if (this.#resolutionListOpen) this.#closeResolutionList(true);
@@ -455,7 +465,14 @@ export class SettingsOverlay extends Phaser.Scene {
     if (focus) this.#route?.focusKey(focus);
   }
 
-  /** What the rows say now, once per open: the worker reads the pages under Settings itself. */
+  /** After a page or the window changed what the results say: reads the index again and asks again. */
+  #refreshSearch(): void {
+    if (!this.#searchOpen) return;
+    this.#indexForSearch();
+    this.#onSearchChange(this.#searchInput?.value ?? "");
+  }
+
+  /** What the rows say now: the worker reads the pages under Settings itself. */
   #indexForSearch(): void {
     const { width, height } = this.scale.gameSize;
     const settings = appSession().settings;
@@ -470,6 +487,7 @@ export class SettingsOverlay extends Phaser.Scene {
       pad: inputDevice().pad,
       unlocks: { progress, prefs, devUnlockAll, achievementPoints },
       globalConsent: readConsent(),
+      controls: controlsShown(),
     });
   }
 
@@ -540,8 +558,7 @@ export class SettingsOverlay extends Phaser.Scene {
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
       screenSettings: screenSettingsShown(),
-      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
-      controls: detectPlatform() !== "capacitor" || padAvailable(),
+      controls: controlsShown(),
     });
   }
 
@@ -554,6 +571,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scene.get(SCENES.unlocks).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
+      this.#refreshSearch();
     });
   }
 
@@ -578,6 +596,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scene.get(SCENES.saveData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
+      this.#refreshSearch();
     });
   }
 
@@ -587,6 +606,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scene.launch(SCENES.controls, (tab ? { tab } : {}) satisfies ControlsSceneData);
     this.scene.get(SCENES.controls).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
+      this.#refreshSearch();
     });
   }
 
@@ -806,6 +826,8 @@ export class SettingsOverlay extends Phaser.Scene {
       });
     }
 
+    // The open list holds the keyboard; the field is a DOM element over it.
+    this.#searchInput?.setVisible(!this.#resolutionListOpen);
     const stopIds = results
       ? this.#drawResults(layout.bodyRoom, results, stops)
       : this.#drawBody(layout.bodyViewport, layout.content, items, stops).map((id) => `row:${id}`);

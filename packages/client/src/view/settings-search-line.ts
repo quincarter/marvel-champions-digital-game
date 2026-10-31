@@ -23,7 +23,8 @@ export function markedLineOf(text: string, ranges: readonly TextRange[], maxChar
   const first = ranges[0]?.start ?? 0;
   // The start of the line, unless that would cut the first match off.
   const fits = (ranges[0]?.end ?? 0) < maxChars;
-  let from = fits ? 0 : Math.min(first - LEAD_IN, text.length - maxChars + 1);
+  const leadIn = Math.min(LEAD_IN, Math.floor(maxChars / 3));
+  let from = fits ? 0 : Math.min(first - leadIn, text.length - maxChars + 2);
   if (from > 0) {
     const space = text.indexOf(" ", from);
     if (space >= 0 && space < first) from = space + 1;

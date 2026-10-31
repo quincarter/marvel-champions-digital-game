@@ -20,6 +20,7 @@ const nested = (): readonly SettingsSearchEntry[] =>
     family: "xbox",
     swap: false,
     globalConsent: "unset",
+    controls: true,
   });
 
 const marked = (text: string, query: string): readonly string[] =>
@@ -108,8 +109,10 @@ describe("matchRangesOf", () => {
     expect(matchRangesOf("Sound", "   ")).toEqual([]);
   });
 
-  it("marks letters in order across a name, the ranking's last tier", () => {
-    expect(marked("Spider-Man", "spdrmn").join("")).toBe("SpdrMn");
+  it("marks letters in order across a title, the ranking's last tier, and only there", () => {
+    const ranges = matchRangesOf("Spider-Man", "spdrmn", true);
+    expect(ranges.map(({ start, end }) => "Spider-Man".slice(start, end)).join("")).toBe("SpdrMn");
+    expect(matchRangesOf("Spider-Man", "spdrmn")).toEqual([]);
   });
 });
 
@@ -123,6 +126,7 @@ describe("SettingsSearchHost", () => {
       pad: null,
       unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
       globalConsent: "unset",
+      controls: false,
     });
     const [best] = host.search("dark mode");
     expect(best?.entry.id).toBe("setting:dark-mode");
@@ -131,6 +135,8 @@ describe("SettingsSearchHost", () => {
       { start: 5, end: 9 },
     ]);
     expect(host.search("zzzzqq")).toEqual([]);
+    expect(host.search("...")).toEqual([]);
+    expect(host.search("keyboard hand")).toEqual([]);
   });
 });
 
@@ -159,6 +165,15 @@ describe("markedLineOf", () => {
     expect(line.text.endsWith("…")).toBe(true);
     const range = line.ranges[0]!;
     expect(line.text.slice(range.start, range.end)).toBe("boost");
+  });
+
+  it("keeps a match whole on a narrow line and at the very end", () => {
+    const text = "Reduced motion is a long enough line of text to cut here";
+    const line = lineOf(text, "here", 12);
+    expect(line.text.length).toBeLessThanOrEqual(12);
+    const range = line.ranges[0]!;
+    expect(line.text.slice(range.start, range.end)).toBe("here");
+    expect(line.text.endsWith("here")).toBe(true);
   });
 
   it("drops a mark that falls past the cut", () => {
