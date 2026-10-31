@@ -11,6 +11,7 @@ import { fitText } from "./widgets.js";
 import { onTap } from "./tap.js";
 import { isNativeShell, openExternal } from "../platform/platform.js";
 import { latestReleaseVersion } from "../platform/update-check.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { releaseReportUrl } from "../view/release-report-link.js";
 import {
   NOTICE_BAR_GAP,
@@ -27,7 +28,7 @@ import {
 
 /** Opens the release's report, exactly as the sync screens open their guide. */
 export function openReleaseReport(version = RELEASE_NOTICE_VERSION): void {
-  openExternal(releaseReportUrl(globalThis.location?.href ?? "", isNativeShell(), version));
+  openExternal(releaseReportUrl(globalThis.location?.href ?? "", isNativeShell(), version, artLanguageNow()));
 }
 
 export interface DrawnReleaseNoticeBar {

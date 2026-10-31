@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   buildReleaseHistory,
+  buildSpanishReleaseHistory,
   compareVersions,
   inlineHtml,
   parseChangelog,
@@ -68,6 +69,36 @@ describe("inlineHtml", () => {
 
   test("bold and links", () => {
     expect(inlineHtml("**New** [site](https://x.test/#1)")).toBe('<b>New</b> <a href="https://x.test/#1">site</a>');
+  });
+});
+
+describe("buildSpanishReleaseHistory", () => {
+  const english = "## [v1.0.0] - 2026-10-01\n### Added\n* A line (#7)\n";
+  const spanish = "## Un titular\n\nUn resumen.\n\n## [v1.0.0] - 2026-10-01\n### Added\n* Una línea (#7)\n";
+  const sources = {
+    changelogs: [english],
+    backfill: { "v1.0.0": { title: "A headline", summary: "A summary.", noGithubRelease: true } },
+    headers: {},
+    reports: new Set(["v1.0.0"]),
+  };
+
+  test("a translated release reads in Spanish, and keeps what only its English says", () => {
+    const [notes] = buildSpanishReleaseHistory({
+      ...sources,
+      translations: { "v1.0.0": spanish },
+      spanishReports: new Set(["v1.0.0"]),
+    }).notes;
+    expect(notes?.title).toBe("Un titular");
+    expect(notes?.summaryHtml).toBe("Un resumen.");
+    expect(notes?.sections[0]?.itemsHtml[0]).toContain("Una línea");
+    expect(notes?.reportFile).toBe("index.es.html");
+    expect(notes?.linkUrl).toContain("/tree/v1.0.0");
+  });
+
+  test("a release with no translation stays in English", () => {
+    const [notes] = buildSpanishReleaseHistory(sources).notes;
+    expect(notes?.title).toBe("A headline");
+    expect(notes?.reportFile).toBe("index.html");
   });
 });
 

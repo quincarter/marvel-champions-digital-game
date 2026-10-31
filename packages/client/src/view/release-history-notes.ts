@@ -4,9 +4,15 @@
  * has one, else from `docs/releases/history.json`, which holds the headlines written after the fact for the older
  * releases. Pure strings in, plain data out: `vite-release-history.ts` does the file work at build time, so a new
  * release shows up with no step of its own.
+ *
+ * Spanish comes from `docs/releases/es/<version>.md`, whose README gives its shape. A release with no translation
+ * reads in English on the Spanish page.
  */
 
 export const REPO_URL = "https://github.com/quincarter/marvel-champions-digital-game";
+
+export const REPORT_FILE = "index.html";
+export const SPANISH_REPORT_FILE = "index.es.html";
 
 /** The order a release's sections read in. A kind not listed here goes after these. */
 const KIND_ORDER = ["Added", "Changed", "Fixed", "Content", "Engine", "Docs"];
@@ -44,8 +50,9 @@ export interface ReleaseEntry {
   readonly version: string;
   readonly date: string;
   readonly title: string;
-  /** Has a full report at `<version>/index.html`. */
+  /** Has a full report, at `<version>/<reportFile>`. */
   readonly report: boolean;
+  readonly reportFile: string;
 }
 
 /** What the page draws for one release. Strings ending in `Html` are already escaped. */
@@ -104,6 +111,12 @@ export function parseHeader(text: string): ReleaseHighlight | null {
   return { title, summary, images };
 }
 
+/** One `docs/releases/es/<version>.md`: a headline over a changelog, each in the shape of its English. */
+export function parseTranslation(text: string): { highlight: ReleaseHighlight | null; changelog: ParsedChangelog } {
+  const start = text.search(/^## \[v/m);
+  return { highlight: parseHeader(text.slice(0, Math.max(start, 0))), changelog: parseChangelog(text) };
+}
+
 const escapeHtml = (text: string): string =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -142,7 +155,21 @@ function fallbackHighlight(changelog: ParsedChangelog): ReleaseHighlight {
   return { title: `Release ${changelog.version}`, summary: changelog.sections[0]?.items[0] ?? "" };
 }
 
-function notesOf(changelog: ParsedChangelog, highlight: ReleaseHighlight | undefined, report: boolean): ReleaseNotes {
+interface LinkLabels {
+  readonly downloads: string;
+  readonly source: string;
+}
+
+const ENGLISH_LINKS: LinkLabels = { downloads: "Downloads ↗", source: "Source at this tag ↗" };
+const SPANISH_LINKS: LinkLabels = { downloads: "Descargas ↗", source: "Código de esta etiqueta ↗" };
+
+function notesOf(
+  changelog: ParsedChangelog,
+  highlight: ReleaseHighlight | undefined,
+  report: boolean,
+  reportFile: string,
+  links: LinkLabels,
+): ReleaseNotes {
   const { version, date } = changelog;
   const { title, summary, images, noGithubRelease } = highlight ?? fallbackHighlight(changelog);
   const sections = [...changelog.sections].sort((a, b) => kindRank(a.kind) - kindRank(b.kind));
@@ -151,6 +178,7 @@ function notesOf(changelog: ParsedChangelog, highlight: ReleaseHighlight | undef
     date,
     title,
     report,
+    reportFile,
     summaryHtml: inlineHtml(summary),
     images: images ?? [],
     counts: sections.map((section) => ({ kind: section.kind, count: section.items.length })),
@@ -160,7 +188,7 @@ function notesOf(changelog: ParsedChangelog, highlight: ReleaseHighlight | undef
       itemsHtml: section.items.map(inlineHtml),
     })),
     linkUrl: noGithubRelease ? `${REPO_URL}/tree/${version}` : `${REPO_URL}/releases/tag/${version}`,
-    linkLabel: noGithubRelease ? "Source at this tag ↗" : "Downloads ↗",
+    linkLabel: noGithubRelease ? links.source : links.downloads,
   };
 }
 
@@ -173,20 +201,43 @@ export interface ReleaseSources {
   readonly headers: Readonly<Record<string, string>>;
   /** The versions with a report page. */
   readonly reports: ReadonlySet<string>;
+  /** The text of each `docs/releases/es/<version>.md`, by version. */
+  readonly translations?: Readonly<Record<string, string>>;
+  /** The versions with a Spanish report page. */
+  readonly spanishReports?: ReadonlySet<string>;
 }
 
-export function buildReleaseHistory({ changelogs, backfill, headers, reports }: ReleaseSources): ReleaseHistory {
-  const notes = changelogs
-    .map(parseChangelog)
-    .sort((a, b) => compareVersions(a.version, b.version))
-    .map((changelog) => {
-      const { version } = changelog;
-      const header = headers[version];
-      const highlight = (header ? parseHeader(header) : null) ?? backfill[version];
-      return notesOf(changelog, highlight, reports.has(version));
-    });
-  return {
-    manifest: notes.map(({ version, date, title, report }) => ({ version, date, title, report })),
-    notes,
-  };
+const manifestOf = (notes: readonly ReleaseNotes[]): readonly ReleaseEntry[] =>
+  notes.map(({ version, date, title, report, reportFile }) => ({ version, date, title, report, reportFile }));
+
+function englishHighlight(version: string, { backfill, headers }: ReleaseSources): ReleaseHighlight | undefined {
+  const header = headers[version];
+  return (header ? parseHeader(header) : null) ?? backfill[version];
+}
+
+const sortedChangelogs = ({ changelogs }: ReleaseSources): readonly ParsedChangelog[] =>
+  changelogs.map(parseChangelog).sort((a, b) => compareVersions(a.version, b.version));
+
+export function buildReleaseHistory(sources: ReleaseSources): ReleaseHistory {
+  const notes = sortedChangelogs(sources).map((changelog) => {
+    const { version } = changelog;
+    const highlight = englishHighlight(version, sources);
+    return notesOf(changelog, highlight, sources.reports.has(version), REPORT_FILE, ENGLISH_LINKS);
+  });
+  return { manifest: manifestOf(notes), notes };
+}
+
+/** The same releases for the Spanish page: each one's translation where it has one, else its English. */
+export function buildSpanishReleaseHistory(sources: ReleaseSources): ReleaseHistory {
+  const { translations = {}, reports, spanishReports = new Set<string>() } = sources;
+  const notes = sortedChangelogs(sources).map((english) => {
+    const { version } = english;
+    const text = translations[version];
+    const translation = text === undefined ? null : parseTranslation(text);
+    const base = englishHighlight(version, sources);
+    const highlight = translation?.highlight ? { ...base, ...translation.highlight } : base;
+    const reportFile = spanishReports.has(version) ? SPANISH_REPORT_FILE : REPORT_FILE;
+    return notesOf(translation?.changelog ?? english, highlight, reports.has(version), reportFile, SPANISH_LINKS);
+  });
+  return { manifest: manifestOf(notes), notes };
 }

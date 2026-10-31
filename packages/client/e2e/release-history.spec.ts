@@ -25,6 +25,43 @@ const openList = async (page: Page, phone: boolean): Promise<void> => {
   if (phone) await page.locator("#bar-open").click();
 };
 
+test.describe("language", () => {
+  const SPANISH_TITLE = "Historial de versiones";
+
+  test("the toggle swaps the page and remembers, staying on the release", async ({ page }) => {
+    await page.goto(`${PAGE}#v0.33.0`);
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    const english = await page.locator("h2.title").textContent();
+    await markDocument(page);
+
+    await page.locator('.language button[data-language="es"]').click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "es");
+    await expect(page.locator("h2.title")).not.toHaveText(english ?? "");
+    await expect(page.locator(".notes-title")).toHaveText("Notas de la versión");
+    await expect(page).toHaveTitle(new RegExp(SPANISH_TITLE));
+    await expect(page).toHaveURL(/lang=es.*#v0\.33\.0$/);
+    expect(await sameDocument(page)).toBe(true);
+
+    await page.goto(PAGE);
+    await expect(page.locator(".language button[data-language='es']")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("Spanish on in the game opens the page in Spanish, and ?lang= beats it", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("mc-settings", '{"cardLanguage":"es"}'));
+    await page.goto(`${PAGE}#v0.33.0`);
+    await expect(page.locator("html")).toHaveAttribute("lang", "es");
+    await page.goto(`${PAGE}?lang=en#v0.33.0`);
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  });
+
+  test("a report opens in Spanish inside the history", async ({ page }) => {
+    await page.goto(`${PAGE}?lang=es#v0.40.0`);
+    await expect(page.locator("#report")).toBeAttached();
+    const lang = await page.locator("#report").evaluate((host) => host.shadowRoot?.querySelector(".wrap")?.textContent);
+    expect(lang).toContain("Informe de la versión");
+  });
+});
+
 test("every release is listed, and a click swaps it in with no reload", async ({ page }, info) => {
   const phone = info.project.name === "phone";
   const errors = trackPageErrors(page);
