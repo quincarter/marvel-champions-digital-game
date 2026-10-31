@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { RELEASE_NOTICE_VERSION } from "../src/view/release-notice.js";
 import { settle, trackPageErrors, waitFor } from "./helpers.js";
 import { routeStops } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
@@ -63,10 +64,10 @@ test("the notice bar sits across the top of Title and opens the release report",
   // One plain click: `clickStop` presses again when the screen does not change, and a new tab is no screen change.
   else await page.mouse.click(bar.x + bar.width / 2, bar.y + bar.height / 2);
   const tab = await popup;
-  expect(tab.url()).toMatch(/\/releases\/v0\.40\.0\/index\.html$/);
+  expect(tab.url()).toContain(`/releases/${RELEASE_NOTICE_VERSION}/index.html`);
   await settle(page, { quietMs: 400, maxMs: 2000 });
   expect(opened, "one press opens one tab").toHaveLength(1);
   await tab.waitForLoadState("domcontentloaded");
-  await expect(tab).toHaveTitle(/^v0\.40\.0 ·/);
+  expect(await tab.title()).toContain(RELEASE_NOTICE_VERSION);
   expect(errors).toEqual([]);
 });

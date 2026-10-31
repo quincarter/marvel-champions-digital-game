@@ -12,7 +12,7 @@
  * (`shadowland-scenarios.ts`) are wired in and the pack is in the content index.
  *
  * Evidence abbreviations: "scan" is the Hall of Heroes preview `mc65_cards_<stem>.png` (https://hallofheroeslcg.com/
- * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`), "insert" is the box rules insert
+ * shadowland/), "insert" is the box rules insert
  * (docs/campaign-modes/markdown/mc65_shadowland.md, printed pages) and "spec" is docs/phase7-shadowland.md.
  */
 import type { Correction, PackCuration } from "./types.ts";

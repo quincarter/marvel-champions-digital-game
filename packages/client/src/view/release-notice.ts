@@ -22,7 +22,7 @@ export const RELEASE_NOTICE_LINK_SHORT = "↗";
 const PAD = 12;
 const GAP = 10;
 /** Below this much room for the tag and the message together, the link shortens to its arrow. */
-const MESSAGE_MIN = 380;
+const MESSAGE_MIN = 240;
 
 export interface NoticeBarParts {
   /** Where the tag's left edge goes. */

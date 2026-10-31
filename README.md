@@ -217,10 +217,10 @@ Every Spanish build shows the Spanish card scans that [alaintxu](https://github.
 <tr><td align="center"><a href="https://github.com/alaintxu"><img src="https://github.com/alaintxu.png?size=128" width="64" height="64" alt="alaintxu"><br><sub><b>alaintxu</b></sub></a><br><sub>mc-ocr</sub></td><td align="center"><a href="https://github.com/AntonioAPG"><img src="https://github.com/AntonioAPG.png?size=128" width="64" height="64" alt="AntonioAPG"><br><sub><b>AntonioAPG</b></sub></a><br><sub>Spanish cards request</sub></td></tr>
 </table>
 
+Reported something on Discord or through the in-game bug button and want to be listed? Add yourself to
+[`.github/credits.json`](.github/credits.json) or ask in an issue.
+
 ### Shadowland card scans
 
 Shadowland's cards use the scans from a community folder that
 [u/Ok-Replacement-9793](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) shared on Reddit. Thank you!
-
-Reported something on Discord or through the in-game bug button and want to be listed? Add yourself to
-[`.github/credits.json`](.github/credits.json) or ask in an issue.

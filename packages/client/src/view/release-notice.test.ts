@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   RELEASE_NOTICE_LINK,
@@ -7,8 +8,11 @@ import {
   noticeBarParts,
 } from "./release-notice.js";
 
-test("the bar names the release it opens", () => {
+test("the bar names the release it opens, and that release's report is in the site", () => {
   expect(RELEASE_NOTICE_TEXT).toContain(RELEASE_NOTICE_VERSION);
+  // A missing page would not 404: the site's fallback would open a second copy of the game.
+  const report = new URL(`../../public/releases/${RELEASE_NOTICE_VERSION}/index.html`, import.meta.url);
+  expect(existsSync(report)).toBe(true);
 });
 
 describe("noticeBarParts", () => {
@@ -23,6 +27,6 @@ describe("noticeBarParts", () => {
   });
 
   test("a narrow phone bar keeps only the arrow, so the message has room", () => {
-    expect(noticeBarParts(bar(360), 70).link).toBe(RELEASE_NOTICE_LINK_SHORT);
+    expect(noticeBarParts(bar(320), 70).link).toBe(RELEASE_NOTICE_LINK_SHORT);
   });
 });

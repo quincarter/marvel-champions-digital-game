@@ -307,6 +307,10 @@ done (a bug fixed or a feature built, by anyone; `watcherMinimum` in `.github/cr
 everyone with a merged pull request, led by `pinnedContributors` (the maintainer). People GitHub can't see, such as a bug sent on Discord or through the in-game
 reporter, go in `.github/credits.json`.
 
+A release with a report page in `packages/client/public/releases/<version>/` also moves the Title screen's notice bar
+to it: set `RELEASE_NOTICE_VERSION` in `packages/client/src/view/release-notice.ts` and the `/shadowland-info.html`
+redirect in `netlify.toml`, which older builds' bar opens.
+
 `mise ship-it` (or `pnpm ship-it`) builds and stages the native packages locally.
 
 ### macOS signing
