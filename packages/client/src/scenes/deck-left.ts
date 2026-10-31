@@ -29,6 +29,7 @@ import { blindRevealOf } from "../view/civil-war-blind.js";
 import { deckLeftLayout, type DeckLeftLayout } from "../view/deck-left-layout.js";
 import {
   DECK_LEFT_TAB_LABELS,
+  deckLeftCellsOf,
   deckLeftTabsOf,
   deckLeftViewOf,
   type DeckLeftRow,
@@ -54,6 +55,8 @@ export class DeckLeftOverlay extends Phaser.Scene {
   #data!: DeckLeftData;
   #tab: DeckLeftTab = "hero";
   #view: DeckLeftView | null = null;
+  /** The grid's cells for the columns showing (`deckLeftCellsOf`); a blank is null. */
+  #cells: readonly (DeckLeftRow | null)[] = [];
   #buttons: McButton[] = [];
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
@@ -174,8 +177,8 @@ export class DeckLeftOverlay extends Phaser.Scene {
     const list = this.#list;
     const layout = this.#layout;
     if (!list || !layout) return found;
-    this.#view?.rows.forEach((row, index) => {
-      if (!row.face) return;
+    this.#cells.forEach((row, index) => {
+      if (!row?.face) return;
       const shown = clipHoverRect(this.#cell(index, list, layout), layout.list);
       if (shown)
         found.set(hoverSlotOf(row.face.cardId, `left${index}`), {
@@ -235,11 +238,13 @@ export class DeckLeftOverlay extends Phaser.Scene {
     const view = this.#view?.tab === this.#tab ? this.#view : this.#viewNow();
     this.#view = view;
     const { width, height } = this.scale.gameSize;
-    const rows = view?.rows ?? [];
     const tabs = this.#tabs();
     const scale = cardSizeFactor(appSession().settings.cardSize);
     const summaryText = (view?.summary ?? []).join("\n");
-    const summaryWidth = deckLeftLayout(width, height, rows.length, tabs.length, 0, scale).summary.width;
+    const sizing = deckLeftLayout(width, height, 0, tabs.length, 0, scale);
+    const rows = deckLeftCellsOf(view, sizing.geometry.columns);
+    this.#cells = rows;
+    const summaryWidth = sizing.summary.width;
     const summaryStyle = {
       ...textStyle(typeRole.body, surface.ink.hex, ink.body),
       wordWrap: { width: summaryWidth, useAdvancedWrap: true },
@@ -305,7 +310,7 @@ export class DeckLeftOverlay extends Phaser.Scene {
     });
 
     if (summaryText !== "") this.add.text(summary.x, summary.y, summaryText, summaryStyle);
-    if (view && view.rows.length === 0 && view.boost === null) {
+    if (view && rows.length === 0 && view.boost === null) {
       const empty = textStyle(typeRole.body, surface.ink.hex, ink.body);
       this.add.text(listRect.x, listRect.y, "No cards left in this deck.", empty);
     }
@@ -320,7 +325,7 @@ export class DeckLeftOverlay extends Phaser.Scene {
     });
     this.#list = list;
     rows.forEach((row, index) => {
-      if (!row.face) return;
+      if (!row?.face) return;
       const rowIndex = Math.floor(index / geometry.columns);
       const key = `card:${index}`;
       stops.set(key, {
@@ -345,6 +350,7 @@ export class DeckLeftOverlay extends Phaser.Scene {
         list: () => listRect,
         summary: () => this.#view?.summary ?? [],
         rows: () => this.#view?.rows.map((row) => ({ name: row.name, count: row.count })) ?? [],
+        stages: () => this.#view?.stages.map((row) => ({ name: row.name, inPlay: row.inPlay })) ?? [],
         cards: () => [...this.#visibleCards().values()],
         hoverShown: () => this.#hover?.shownKey ?? null,
       };
@@ -353,12 +359,13 @@ export class DeckLeftOverlay extends Phaser.Scene {
 
   #renderRow(rowRect: Rect, rowIndex: number, layout: DeckLeftLayout): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
-    const rows = this.#view?.rows ?? [];
+    const rows = this.#cells;
     const { geometry } = layout;
     const first = rowIndex * geometry.columns;
     const inRow = Math.min(geometry.columns, rows.length - first);
     for (let column = 0; column < inRow; column++) {
-      const row = rows[first + column]!;
+      const row = rows[first + column];
+      if (!row) continue;
       const { art, caption } = pileCell(geometry, rowRect, column);
       const g = this.add.graphics();
       const frame: Rect = { x: art.x - 2, y: art.y - 2, width: art.width + 4, height: art.height + caption.height };
@@ -369,16 +376,19 @@ export class DeckLeftOverlay extends Phaser.Scene {
       if (shown) objects.push(shown);
 
       // The count rides on an ink chip over the art's corner, where a small cell still reads it.
-      const count = this.add.text(0, 0, `×${row.count}`, textStyle(typeRole.stat, surface.paper.hex)).setOrigin(1);
-      const chipWidth = Math.ceil(count.width) + 12;
-      const chipHeight = Math.ceil(count.height) + 4;
-      const chip = this.add.graphics();
-      chip
-        .fillStyle(surface.ink.hex, 0.88)
-        .fillRect(art.x + art.width - chipWidth, art.y + art.height - chipHeight, chipWidth, chipHeight);
-      count.setPosition(art.x + art.width - 6, art.y + art.height - 2);
-      count.setDepth(1);
-      objects.push(chip, count);
+      const chipText = row.inPlay === undefined ? `×${row.count}` : row.inPlay ? "In play" : null;
+      if (chipText !== null) {
+        const count = this.add.text(0, 0, chipText, textStyle(typeRole.stat, surface.paper.hex)).setOrigin(1);
+        const chipWidth = Math.ceil(count.width) + 12;
+        const chipHeight = Math.ceil(count.height) + 4;
+        const chip = this.add.graphics();
+        chip
+          .fillStyle(surface.ink.hex, 0.88)
+          .fillRect(art.x + art.width - chipWidth, art.y + art.height - chipHeight, chipWidth, chipHeight);
+        count.setPosition(art.x + art.width - 6, art.y + art.height - 2);
+        count.setDepth(1);
+        objects.push(chip, count);
+      }
 
       const name = this.add
         .text(caption.x + caption.width / 2, caption.y + 4, row.name, {
