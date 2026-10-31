@@ -7,6 +7,8 @@ import {
   RELEASE_NOTICE_VERSION,
   noticeBarParts,
   noticeGlyphSpot,
+  noticeVersionOf,
+  releaseNoticeText,
 } from "./release-notice.js";
 
 test("the bar names the release it opens, and that release's report is in the site", () => {
@@ -14,6 +16,13 @@ test("the bar names the release it opens, and that release's report is in the si
   // A missing page would not 404: the site's fallback would open a second copy of the game.
   const report = new URL(`../../public/releases/${RELEASE_NOTICE_VERSION}/index.html`, import.meta.url);
   expect(existsSync(report)).toBe(true);
+});
+
+test("the bar follows GitHub's latest release, keeps its own when GitHub gives none, and the flag turns that off", () => {
+  expect(noticeVersionOf("9.1.0", true)).toBe("v9.1.0");
+  expect(noticeVersionOf(null, true)).toBe(RELEASE_NOTICE_VERSION);
+  expect(noticeVersionOf("9.1.0", false)).toBe(RELEASE_NOTICE_VERSION);
+  expect(releaseNoticeText("v9.1.0")).toBe("What's new in v9.1.0");
 });
 
 describe("noticeBarParts", () => {

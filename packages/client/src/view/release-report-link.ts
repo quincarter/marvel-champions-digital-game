@@ -13,8 +13,12 @@ const SITE_URL = "https://marvel-champions-digital-game.netlify.app/";
 export const RELEASE_REPORT_PATH = `releases/${RELEASE_NOTICE_VERSION}/index.html`;
 export const RELEASE_REPORT_SITE_URL = `${SITE_URL}${RELEASE_REPORT_PATH}`;
 
-/** `pageUrl` is `location.href`; `native` is `isNativeShell()`. */
-export function releaseReportUrl(pageUrl: string, native: boolean): string {
+/**
+ * `pageUrl` is `location.href`; `native` is `isNativeShell()`. A release other than the one this build has a report
+ * for (`view/release-notice.ts`, following GitHub) opens in the release history, which draws any release.
+ */
+export function releaseReportUrl(pageUrl: string, native: boolean, version = RELEASE_NOTICE_VERSION): string {
+  if (version !== RELEASE_NOTICE_VERSION) return releaseHistoryUrl(version.replace(/^v/, ""), pageUrl, native);
   if (native) return RELEASE_REPORT_SITE_URL;
   try {
     return new URL(RELEASE_REPORT_PATH, pageUrl).href;

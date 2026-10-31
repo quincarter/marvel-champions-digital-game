@@ -126,7 +126,10 @@ export function inlineHtml(markdown: string): string {
     .replace(/(?<![\w/.])@([A-Za-z0-9][A-Za-z0-9-]*)(?![\w/-])/g, (_, name: string) =>
       hold(anchor(`https://github.com/${name}`, `@${name}`)),
     );
-  return text.replace(HELD, (_, index: string) => held[Number(index)]!);
+  // A held link can hold held code, so this runs until nothing is left.
+  let html = text;
+  while (html.includes(MARK)) html = html.replace(HELD, (_, index: string) => held[Number(index)]!);
+  return html;
 }
 
 const kindRank = (kind: string): number => {

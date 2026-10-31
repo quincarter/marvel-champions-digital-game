@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Plugin } from "vite";
 import { buildReleaseHistory, type ReleaseHighlight } from "./src/view/release-history-notes.js";
@@ -27,10 +27,16 @@ export function writeReleaseHistory(): void {
     headers,
     reports: new Set(versions.filter((version) => existsSync(join(PUBLIC_RELEASES, version, "index.html")))),
   });
-  rmSync(OUT_DIR, { recursive: true, force: true });
+  // In place, file by file: a running dev server or a second generator (e2e beside a dev server) never sees a gap.
   mkdirSync(OUT_DIR, { recursive: true });
-  writeFileSync(join(OUT_DIR, "manifest.json"), JSON.stringify(manifest));
-  for (const release of notes) writeFileSync(join(OUT_DIR, `${release.version}.json`), JSON.stringify(release));
+  const files = new Map<string, unknown>([["manifest.json", manifest]]);
+  for (const release of notes) files.set(`${release.version}.json`, release);
+  for (const [name, data] of files) {
+    const temp = join(OUT_DIR, `${name}.${process.pid}.tmp`);
+    writeFileSync(temp, JSON.stringify(data));
+    renameSync(temp, join(OUT_DIR, name));
+  }
+  for (const name of readdirSync(OUT_DIR)) if (!name.endsWith(".tmp") && !files.has(name)) rmSync(join(OUT_DIR, name));
 }
 
 /** Runs from `config` because the dev server lists `public/` before `buildStart`, and would miss a new file. */

@@ -10,19 +10,24 @@ import { textStyle } from "./theme.js";
 import { fitText } from "./widgets.js";
 import { onTap } from "./tap.js";
 import { isNativeShell, openExternal } from "../platform/platform.js";
+import { latestReleaseVersion } from "../platform/update-check.js";
 import { releaseReportUrl } from "../view/release-report-link.js";
 import {
   NOTICE_BAR_GAP,
+  RELEASE_NOTICE_FOLLOW_LATEST,
   RELEASE_NOTICE_LINK,
   RELEASE_NOTICE_TAG,
   RELEASE_NOTICE_TEXT,
+  RELEASE_NOTICE_VERSION,
   noticeBarParts,
   noticeGlyphSpot,
+  noticeVersionOf,
+  releaseNoticeText,
 } from "../view/release-notice.js";
 
-/** Opens the release report, exactly as the sync screens open their guide. */
-export function openReleaseReport(): void {
-  openExternal(releaseReportUrl(globalThis.location?.href ?? "", isNativeShell()));
+/** Opens the release's report, exactly as the sync screens open their guide. */
+export function openReleaseReport(version = RELEASE_NOTICE_VERSION): void {
+  openExternal(releaseReportUrl(globalThis.location?.href ?? "", isNativeShell(), version));
 }
 
 export interface DrawnReleaseNoticeBar {
@@ -64,15 +69,28 @@ export function drawReleaseNoticeBar(scene: Phaser.Scene, rect: Rect): DrawnRele
   const message = scene.add
     .text(messageX, midY, RELEASE_NOTICE_TEXT, textStyle(typeRole.sectionHeader, paper))
     .setOrigin(0, 0.5);
-  fitText(message, link.x - link.width - NOTICE_BAR_GAP - messageX, typeRole.sectionHeader.size);
+  const messageRoom = link.x - link.width - NOTICE_BAR_GAP - messageX;
+  fitText(message, messageRoom, typeRole.sectionHeader.size);
+
+  let version = RELEASE_NOTICE_VERSION;
+  const open = (): void => openReleaseReport(version);
+  if (RELEASE_NOTICE_FOLLOW_LATEST) {
+    void latestReleaseVersion().then((latest) => {
+      version = noticeVersionOf(latest);
+      // The screen may have moved on while GitHub answered.
+      if (!message.active) return;
+      message.setText(releaseNoticeText(version));
+      fitText(message, messageRoom, typeRole.sectionHeader.size);
+    });
+  }
 
   const zone = scene.add
     .zone(rect.x, rect.y, rect.width, rect.height)
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
-  onTap(zone, openReleaseReport, "title:release-notice");
+  onTap(zone, open, "title:release-notice");
   return {
-    open: openReleaseReport,
+    open,
     glyphSpot: (width) => noticeGlyphSpot(link.x - link.width, message.x + message.displayWidth, midY, width),
   };
 }

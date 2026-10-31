@@ -23,6 +23,12 @@ describe("releaseReportUrl", () => {
   });
 });
 
+test("a release newer than this build's report opens in the history", () => {
+  expect(releaseReportUrl("http://localhost:5193/", false, "v9.1.0")).toBe(
+    "http://localhost:5193/releases/index.html#v9.1.0",
+  );
+});
+
 describe("releaseHistoryUrl", () => {
   test("opens the history at the running release, on this site or on the production one", () => {
     expect(releaseHistoryUrl("0.40.0", "http://localhost:5193/?unlock=all", false)).toBe(

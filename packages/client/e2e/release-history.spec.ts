@@ -25,11 +25,15 @@ test("every release is listed, and a click swaps it in with no reload", async ({
   await page.goto(PAGE);
   // The newest release has a report.
   await expect(page.locator("#report")).toBeAttached();
-  await expect(page.locator(".list a")).toHaveCount(RELEASES.length);
+  await expect(page.locator(".rail .list a[data-version^='v']")).toHaveCount(10);
   await markDocument(page);
 
+  // Older releases are one step further, as a list of their own.
   await openList(page, phone);
-  await page.locator('.list a[data-version="v0.33.0"]').click();
+  await page.locator('.rail a[data-version="older"]').click();
+  await expect(page.locator("h2.title")).toHaveText("Older releases");
+  await expect(page.locator(".archive .list a")).toHaveCount(RELEASES.length - 10);
+  await page.locator('.archive a[data-version="v0.33.0"]').click();
   await expect(page.locator("h2.title")).toHaveText("Five reporters. Six fixes.");
   await expect(page.locator(".tile.Fixed div")).toHaveText("7");
   await expect(page.locator('.shots img[alt*="part 1"]')).toBeAttached();
@@ -38,7 +42,7 @@ test("every release is listed, and a click swaps it in with no reload", async ({
 
   // Back returns to where we came from, still in the same document.
   await page.goBack();
-  await expect(page.locator("#report")).toBeAttached();
+  await expect(page.locator("h2.title")).toHaveText("Older releases");
   await page.goForward();
   await expect(page.locator("h2.title")).toHaveText("Five reporters. Six fixes.");
 
@@ -53,7 +57,32 @@ test("a link to one release opens it, and a release from the first day has a pag
   await page.goto(`${PAGE}#v0.1.0`);
   await expect(page.locator("h2.title")).toHaveText("First playable");
   await expect(page.locator(".pager a.older")).toHaveCount(0);
-  await expect(page.locator('.list a[aria-current="page"]')).toHaveAttribute("data-version", "v0.1.0");
+  await expect(page.locator('.rail a[aria-current="page"]')).toHaveAttribute("data-version", "v0.1.0");
+  await page.locator(".strip a", { hasText: "Older releases" }).click();
+  await expect(page.locator("h2.title")).toHaveText("Older releases");
+});
+
+test("a hash that is no release still lands on one", async ({ page }) => {
+  await page.goto(`${PAGE}#content`);
+  await expect(page.locator("#report")).toBeAttached();
+});
+
+test("a slow release does not land over the one picked after it", async ({ page }) => {
+  await page.goto(`${PAGE}#v0.33.0`);
+  await expect(page.locator("h2.title")).toHaveText("Five reporters. Six fixes.");
+  let release = (): void => undefined;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/history/v0.32.1.json", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.evaluate(() => (location.hash = "#v0.32.0"));
+  await page.evaluate(() => (location.hash = "#v0.32.1"));
+  await page.evaluate(() => (location.hash = "#v0.1.0"));
+  await expect(page.locator("h2.title")).toHaveText("First playable");
+  release();
+  await page.waitForTimeout(200);
+  await expect(page.locator("h2.title")).toHaveText("First playable");
 });
 
 test("a report keeps its own look and its pictures load", async ({ page }) => {
@@ -74,6 +103,9 @@ test("a report keeps its own look and its pictures load", async ({ page }) => {
   expect(report.image).toContain("/releases/v0.40.0/img/");
   expect(report.background).toBe("rgb(21, 17, 14)");
   expect(report.historyLinks, "the link back here is left out of the embedded report").toBe(0);
+  // The release notes follow the announcement.
+  await expect(page.locator(".notes .notes-title")).toHaveText("Release notes");
+  await expect(page.locator(".notes details").first()).toContainText("Your stats");
   const noSideways = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
   expect(noSideways).toBe(true);
 });
@@ -187,6 +219,36 @@ test("a controller walks the releases, with its own glyphs", async ({ page }, in
   expect(await page.evaluate(() => document.querySelector("main")!.contains(document.activeElement))).toBe(true);
 });
 
+test("a controller reaches a report's links, and a pager press keeps it on the page", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the same stops as desktop, in one column");
+  await installPad(page, "Xbox 360 Controller (XInput STANDARD GAMEPAD)");
+  await page.goto(`${PAGE}#v0.40.0`);
+  await expect(page.locator("#report h1")).toBeVisible();
+  await press(page, RIGHT);
+  expect(await focusedText(page)).toContain("Open on its own page");
+  await press(page, DOWN);
+  const inReport = await page.evaluate(() => document.activeElement?.id === "report");
+  expect(inReport, "the next stop is inside the report").toBe(true);
+  // A press on the pager replaces the page; the next press stays in it.
+  await page.locator(".pager a.older").focus();
+  await press(page, A);
+  await expect(page).toHaveURL(/#v0\.39\.0$/);
+  await expect(page.locator("main")).toBeFocused();
+  await press(page, DOWN);
+  expect(await page.evaluate(() => document.querySelector("main")!.contains(document.activeElement))).toBe(true);
+});
+
+test("the phone bar's arrow goes nowhere at the oldest release", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's bar");
+  await page.goto(`${PAGE}#v0.1.1`);
+  await expect(page.locator("h2.title")).toBeVisible();
+  await page.locator("#bar-older").click();
+  await expect(page).toHaveURL(/#v0\.1\.0$/);
+  await page.locator("#bar-older").evaluate((el: HTMLElement) => el.click());
+  await expect(page).toHaveURL(/#v0\.1\.0$/);
+  await expect(page.locator("h2.title")).toHaveText("First playable");
+});
+
 test("a press on a Nintendo pad goes by its printed A", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "the list is a sheet there, walked in the test above");
   await installPad(page, "Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)");
@@ -194,5 +256,5 @@ test("a press on a Nintendo pad goes by its printed A", async ({ page }, info) =
   await expect(page.locator("h2.title")).toBeVisible();
   await page.locator('.list a[data-version="v0.32.1"]').focus();
   await press(page, A_NINTENDO);
-  await expect(page).toHaveURL(/#v0.32.1$/);
+  await expect(page).toHaveURL(/#v0\.32\.1$/);
 });

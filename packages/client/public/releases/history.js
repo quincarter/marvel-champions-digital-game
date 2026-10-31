@@ -21,6 +21,9 @@
   const openButton = $("bar-open");
   const closeButton = $("rail-close");
   const narrow = matchMedia("(max-width: 900px)");
+  /** The list shows this many; the rest live behind Show older releases. */
+  const RECENT = 10;
+  const OLDER = "older";
 
   /** Newest first. */
   let manifest = [];
@@ -28,6 +31,9 @@
   let current = null;
   let reportRoot = null;
   let routeId = 0;
+  /** Which list is drawn, and how far down the older releases page was. */
+  let archiveDrawn = null;
+  let olderScroll = 0;
   const notes = new Map();
   const reports = new Map();
 
@@ -40,9 +46,10 @@
     return read(response);
   };
 
-  function drawList() {
+  /** Rows for `entries`, under a heading for each month. */
+  function rowsHtml(entries) {
     let month = "";
-    list.innerHTML = manifest
+    return entries
       .map(({ version, date, title, report }) => {
         const next = when(date, MONTH);
         const heading = next === month ? "" : `<h2>${next}</h2>`;
@@ -51,15 +58,44 @@
           <span class="v">${version}</span><small>${when(date, SHORT_DATE)}</small><b>${escape(title)}</b></a>`;
       })
       .join("");
-    const oldest = manifest.at(-1);
-    $("rail-count").textContent = `${manifest.length} releases since ${when(oldest.date, LONG_DATE)}`;
+  }
+
+  /** The list: the latest releases, or the older ones while one of those is open, with the way back above them. */
+  function drawList(archive) {
+    if (archive === archiveDrawn) return;
+    archiveDrawn = archive;
+    const older = manifest.length - RECENT;
+    list.innerHTML = archive
+      ? `<a class="more" href="#${OLDER}"><b>‹ All older releases</b></a>
+         <a class="more" href="#${manifest[0].version}"><b>‹ Latest releases</b></a>${rowsHtml(manifest.slice(RECENT))}`
+      : `${rowsHtml(manifest.slice(0, RECENT))}${
+          older > 0
+            ? `<a class="more" href="#${OLDER}" data-version="${OLDER}"><b>Show older releases</b><small>${older}</small></a>`
+            : ""
+        }`;
+    list.scrollTop = 0;
+  }
+
+  /** The older releases, as a page of their own: the list a release opens from, and the one back returns to. */
+  function olderHtml() {
+    const entries = manifest.slice(RECENT);
+    return `<article class="page archive">
+      <header>
+        <span class="tag">${entries.length} releases</span>
+        <h2 class="title">Older releases</h2>
+        <div class="kick" style="margin-top: 12px">
+          ${when(entries.at(-1).date, LONG_DATE)} to ${when(entries[0].date, LONG_DATE)}
+        </div>
+      </header>
+      <div class="list">${rowsHtml(entries)}</div>
+    </article>`;
   }
 
   /** A report's styles, made to work inside a shadow root and to answer to its own width rather than the window's. */
   function reportStyles(css) {
     return `
       :host { display: block; container: report / inline-size; }
-      a:focus { outline: 3px solid var(--gold); outline-offset: 2px; }
+      a:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       ${css
         .replace(/@font-face\s*\{[^}]*\}/g, "")
         .replace(/(^|\})\s*html\s*\{[^}]*\}/g, "$1")
@@ -91,7 +127,7 @@
   }
 
   function pageHtml(release) {
-    const { version, date, title, summaryHtml, counts, images, sections } = release;
+    const { version, date, title, summaryHtml, counts, images } = release;
     const tiles = counts
       .map(({ kind, count }) => `<div class="tile ${escape(kind)}"><h4>${escape(kind)}</h4><div>${count}</div></div>`)
       .join("");
@@ -99,13 +135,6 @@
       .map(
         ({ src, alt }) =>
           `<a href="${escape(src)}"><img src="${escape(src)}" alt="${escape(alt)}" loading="lazy" /></a>`,
-      )
-      .join("");
-    const body = sections
-      .map(
-        ({ kind, open, itemsHtml }) => `<details${open ? " open" : ""}>
-          <summary>${escape(kind)}<span>${itemsHtml.length}</span></summary>
-          <ul>${itemsHtml.map((item) => `<li>${item}</li>`).join("")}</ul></details>`,
       )
       .join("");
     return `<article class="page">
@@ -117,8 +146,21 @@
       </header>
       <div class="tiles">${tiles}</div>
       ${shots ? `<div class="shots">${shots}</div>` : ""}
-      ${body}
     </article>`;
+  }
+
+  /** The changelog, under the announcement on every release. */
+  function notesHtml(release) {
+    if (!release) return "";
+    const { sections } = release;
+    const body = (sections ?? [])
+      .map(
+        ({ kind, open, itemsHtml }) => `<details${open ? " open" : ""}>
+          <summary>${escape(kind)}<span>${itemsHtml.length}</span></summary>
+          <ul>${itemsHtml.map((item) => `<li>${item}</li>`).join("")}</ul></details>`,
+      )
+      .join("");
+    return `<section class="page notes"><h2 class="notes-title">Release notes</h2>${body}</section>`;
   }
 
   function pagerHtml(index) {
@@ -130,34 +172,59 @@
       ${link(manifest[index - 1], "newer", "‹ Newer")}${link(manifest[index + 1], "older", "Older ›")}</nav>`;
   }
 
-  function stripHtml({ version, date, report }, release) {
+  function stripHtml({ version, date, report }, index, release) {
     const link = report
       ? `<a href="${version}/index.html">Open on its own page ↗</a>`
       : `<a href="${escape(release.linkUrl)}">${escape(release.linkLabel)}</a>`;
-    return `<div class="strip"><span>${version} · ${when(date, LONG_DATE)}</span><span>${link}</span></div>`;
+    const back = index >= RECENT ? `<a href="#${OLDER}">‹ Older releases</a> · ` : "";
+    return `<div class="strip"><span>${back}${version} · ${when(date, LONG_DATE)}</span><span>${link}</span></div>`;
   }
 
-  function markCurrent(entry, index) {
+  /** Only the list moves: `scrollIntoView` would drag the page along with it. */
+  function revealInList(link) {
+    const top = link.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top + link.offsetHeight > list.scrollTop + list.clientHeight)
+      list.scrollTop = top - list.clientHeight / 2;
+  }
+
+  function markCurrent(key, barVersion, barTitle, newer, older) {
     for (const link of list.querySelectorAll("a")) {
-      if (link.dataset.version === entry.version) {
+      if (link.dataset.version === key) {
         link.setAttribute("aria-current", "page");
-        // Only the list moves: `scrollIntoView` would drag the page along with it.
-        const top = link.offsetTop - list.offsetTop;
-        if (top < list.scrollTop || top + link.offsetHeight > list.scrollTop + list.clientHeight)
-          list.scrollTop = top - list.clientHeight / 2;
+        revealInList(link);
       } else link.removeAttribute("aria-current");
     }
-    $("bar-version").textContent = `${entry.version} · ${when(entry.date, SHORT_DATE)}`;
-    $("bar-title").textContent = `${entry.title} ▾`;
+    $("bar-version").textContent = barVersion;
+    $("bar-title").textContent = `${barTitle} ▾`;
     const step = (link, neighbor) => {
-      link.href = neighbor ? `#${neighbor.version}` : "#";
+      // No `href` at the ends of the list: a bare `#` would go to the newest release.
+      if (neighbor) link.href = `#${neighbor.version}`;
+      else link.removeAttribute("href");
       link.setAttribute("aria-disabled", String(!neighbor));
-      if (neighbor) link.removeAttribute("tabindex");
-      else link.tabIndex = -1;
+      if (!neighbor && document.activeElement === link) openButton.focus();
     };
-    step($("bar-newer"), manifest[index - 1]);
-    step($("bar-older"), manifest[index + 1]);
-    document.title = `${entry.version} · Release history · Marvel Champions: Digital Edition`;
+    step($("bar-newer"), newer);
+    step($("bar-older"), older);
+    const name = key === OLDER ? "Older releases" : key;
+    document.title = `${name} · Release history · Marvel Champions: Digital Edition`;
+    $("status").textContent = `${name}: ${barTitle}`;
+  }
+
+  /** Redraws the list, with focus staying in it if it was there. */
+  function listFor(archive, mark) {
+    const hadFocus = list.contains(document.activeElement);
+    drawList(archive);
+    mark();
+    if (hadFocus && !list.contains(document.activeElement))
+      list.querySelector('[aria-current="page"]')?.focus({ preventScroll: true });
+  }
+
+  /** Swaps the page. Focus on what was replaced would fall out of the page, so it holds on `main`. */
+  function draw(html) {
+    const hadFocus = inMain(focusedEl());
+    reportRoot = null;
+    main.innerHTML = html;
+    if (hadFocus) main.focus({ preventScroll: true });
   }
 
   function showFailure(entry) {
@@ -167,8 +234,10 @@
 
   async function route() {
     const hash = location.hash.slice(1);
-    // Any other hash is the skip link's, which the browser handles.
-    if (hash && !/^v\d/.test(hash)) return;
+    if (current === OLDER) olderScroll = window.scrollY;
+    if (hash === OLDER) return showOlder();
+    // Any other hash is the skip link's, which the browser handles, once a release is showing.
+    if (current && hash && !/^v\d/.test(hash)) return;
     const index = Math.max(
       0,
       manifest.findIndex((entry) => entry.version === hash),
@@ -178,25 +247,57 @@
     if (current === entry.version) return;
     current = entry.version;
     const id = ++routeId;
-    markCurrent(entry, index);
-    reportRoot = null;
+    listFor(index >= RECENT, () =>
+      markCurrent(
+        entry.version,
+        `${entry.version} · ${when(entry.date, SHORT_DATE)}`,
+        entry.title,
+        manifest[index - 1],
+        manifest[index + 1],
+      ),
+    );
     try {
       if (entry.report) {
-        const report = await loadReport(entry.version);
+        const [report, release] = await Promise.all([
+          loadReport(entry.version),
+          loadNotes(entry.version).catch(() => null),
+        ]);
         if (id !== routeId) return;
-        main.innerHTML = `${stripHtml(entry)}<div id="report"></div>${pagerHtml(index)}`;
+        draw(`${stripHtml(entry, index)}<div id="report"></div>${notesHtml(release)}${pagerHtml(index)}`);
         reportRoot = main.querySelector("#report").attachShadow({ mode: "open" });
         reportRoot.innerHTML = `<style>${report.css}</style>${report.html}`;
       } else {
         const release = await loadNotes(entry.version);
         if (id !== routeId) return;
-        main.innerHTML = `${stripHtml(entry, release)}${pageHtml(release)}${pagerHtml(index)}`;
+        draw(`${stripHtml(entry, index, release)}${pageHtml(release)}${notesHtml(release)}${pagerHtml(index)}`);
       }
     } catch {
-      if (id === routeId) showFailure(entry);
+      if (id === routeId) {
+        // So picking it again tries again.
+        current = null;
+        showFailure(entry);
+      }
       return;
     }
     window.scrollTo(0, 0);
+  }
+
+  function showOlder() {
+    setSheet(false);
+    if (current === OLDER) return;
+    current = OLDER;
+    routeId += 1;
+    listFor(false, () =>
+      markCurrent(
+        OLDER,
+        `${manifest.length - RECENT} releases`,
+        "Older releases",
+        manifest[RECENT - 1],
+        manifest[RECENT],
+      ),
+    );
+    draw(olderHtml());
+    window.scrollTo(0, olderScroll);
   }
 
   function setSheet(open) {
@@ -205,14 +306,16 @@
     openButton.setAttribute("aria-expanded", String(open));
     if (open && !wasOpen) (list.querySelector('[aria-current="page"]') ?? closeButton).focus();
     else if (!open && wasOpen) openButton.focus();
+    if (family) drawHints();
   }
 
   openButton.addEventListener("click", () => setSheet(true));
   closeButton.addEventListener("click", () => setSheet(false));
+  history.scrollRestoration = "manual";
   addEventListener("hashchange", route);
   addEventListener("keydown", (event) => {
     if (event.key === "Escape") setSheet(false);
-    const inList = event.target.closest?.(".list");
+    const inList = event.target.closest?.(".rail .list");
     if (inList && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
       event.preventDefault();
       step(event.key === "ArrowDown" ? 1 : -1);
@@ -236,12 +339,21 @@
   const [A, B, X, Y, LB, RB] = [0, 1, 2, 3, 4, 5];
   const [UP, DOWN, LEFT, RIGHT] = [12, 13, 14, 15];
 
-  /** What `Gamepad.id` says this pad is; the same answers as `detectPad` in `view/pad-family.ts`. */
+  /** What `Gamepad.id` says this pad is, by the same rules as `detectPad` in `view/pad-family.ts`. */
   function familyOf(id) {
     const name = id.toLowerCase();
-    if (/steam|28de/.test(name)) return "xbox";
-    if (/054c|dualsense|dualshock|playstation/.test(name)) return "playstation";
-    if (/057e|pro controller|joy-con|nintendo/.test(name)) return "nintendo";
+    const vendorId = /vendor:\s*([0-9a-f]{4})/.exec(name)?.[1] ?? /^([0-9a-f]{1,4})-[0-9a-f]{1,4}-/.exec(name)?.[1];
+    const vendor = vendorId?.padStart(4, "0");
+    if (vendor === "28de" || name.includes("steam")) return "xbox";
+    if (vendor === "2dc8") return /switch|\bns\b|\bpro\b/.test(name) ? "nintendo" : "xbox";
+    if (vendor === "054c") return "playstation";
+    if (vendor === "057e") return "nintendo";
+    if (vendor === "045e") return "xbox";
+    const noIds = !vendor || vendor === "0000";
+    if (/dualsense|dualshock|playstation/.test(name) || (noIds && name.startsWith("wireless controller")))
+      return "playstation";
+    if (name.startsWith("8bitdo") && !/switch|\bns\b|\bpro\b/.test(name)) return "xbox";
+    if (/pro controller|joy-con|nintendo|switch/.test(name)) return "nintendo";
     return "xbox";
   }
 
@@ -276,9 +388,10 @@
     return [...rail.querySelectorAll("a, button")].filter(visible);
   }
   function mainStops() {
-    const inMain = [...main.querySelectorAll("a[href], summary")].filter(visible);
-    const inReport = reportRoot ? [...reportRoot.querySelectorAll("a[href]")].filter(visible) : [];
-    return [...inReport, ...inMain];
+    const strip = [...main.querySelectorAll(".strip a")];
+    const inReport = reportRoot ? [...reportRoot.querySelectorAll("a[href]")] : [];
+    const below = [...main.querySelectorAll(".notes a[href], .notes summary, .page a[href], .pager a")];
+    return [...new Set([...strip, ...inReport, ...below])].filter(visible);
   }
   function inMain(el) {
     return !!el && (el.getRootNode() === reportRoot || main.contains(el));
@@ -286,7 +399,8 @@
 
   function focusStop(el) {
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: "center" });
+    if (list.contains(el)) revealInList(el);
+    else if (inMain(el)) el.scrollIntoView({ block: "center" });
   }
 
   function step(delta) {
@@ -312,7 +426,7 @@
   }
 
   function goBy(delta) {
-    const at = manifest.findIndex((entry) => entry.version === current);
+    const at = current === OLDER ? RECENT - (delta > 0 ? 1 : 0) : manifest.findIndex((e) => e.version === current);
     const entry = manifest[at + delta];
     if (entry) location.hash = entry.version;
   }
@@ -366,7 +480,8 @@
     const scroll = [pad.axes[3] ?? 0, pad.axes[1] ?? 0].find((axis) => Math.abs(axis) > DEADZONE);
     if (scroll) {
       wake(pad);
-      window.scrollBy({ top: scroll * SCROLL_PER_FRAME, behavior: "instant" });
+      const scroller = rail.classList.contains("open") ? list : window;
+      scroller.scrollBy({ top: scroll * SCROLL_PER_FRAME, behavior: "instant" });
       used = true;
     }
     if (used) drawHints();
@@ -383,7 +498,7 @@
   fetchOk(new URL("history/manifest.json", BASE), (r) => r.json())
     .then((entries) => {
       manifest = entries;
-      drawList();
+      $("rail-count").textContent = `${manifest.length} releases since ${when(manifest.at(-1).date, LONG_DATE)}`;
       if (navigator.getGamepads) requestAnimationFrame(poll);
       return route();
     })

@@ -62,6 +62,10 @@ describe("inlineHtml", () => {
     expect(inlineHtml("`#12` in @mc/client")).toBe("<code>#12</code> in @mc/client");
   });
 
+  test("code inside a link", () => {
+    expect(inlineHtml("[`x`](https://x.test)")).toBe('<a href="https://x.test"><code>x</code></a>');
+  });
+
   test("bold and links", () => {
     expect(inlineHtml("**New** [site](https://x.test/#1)")).toBe('<b>New</b> <a href="https://x.test/#1">site</a>');
   });
