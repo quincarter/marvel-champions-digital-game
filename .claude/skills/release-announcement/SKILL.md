@@ -24,9 +24,14 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
 ```
 
 - Read the PRs behind the biggest changes, for their screenshots and what they actually do. Credit each reporter by
-  GitHub handle. `.github/credits.json` holds the people GitHub can't see, such as Discord reports.
-- Count for Code shipped: pull requests merged, files changed, lines added and removed
-  (`git diff --shortstat <previous> origin/main`, and `git log --merges` or the `(#n)` subjects for the PRs).
+  GitHub handle (`gh issue view <n> --json author`). `.github/credits.json` holds the people GitHub can't see, such as
+  Discord reports.
+- Read each PR's **Action Items** too. They hold what a player has to do or put up with, like running a new script
+  once, a save that won't carry over or a build that shows English, and that belongs in the report. Anything there
+  that says a check is still open goes to Quin under the PR's Action Items.
+- Check the release PR's counts against the PR that made them before putting one on a tile, and check every menu path
+  and button name you print against the code.
+- Count for Code shipped last, in step 6, because the report's own PR is part of the release.
 - Group the changes into stories a player would care about, biggest first. Bug fixes from reports go together under
   "You asked, we fixed", with the reporter on each. Internal work goes in "Also in" or nowhere.
 
@@ -56,7 +61,11 @@ Rules for the page:
 - **Self-contained:** no scripts and no outside hosts. Fonts come from `../../fonts/` and images from `img/`, by
   relative paths, because the history page rewrites them and mounts the report in a shadow root.
 - **Screenshots:** WebP under `img/`, about 1.4 MB to 3 MB in all, since `public/` ships in every app bundle. Reuse the
-  PRs' screenshots, or take new ones with `scripts/shoot-app.mjs`. `img/og.jpg` is 1200x630.
+  PRs' screenshots, or take new ones with `scripts/shoot-app.mjs`. A PR's images are at the raw URLs in its body. Pull
+  them with `curl` into a scratch folder and convert them with Pillow, which is on the rig: 1280 wide for a desktop
+  shot, a phone shot left at its size, quality about 72 to 78. `img/og.jpg` is 1200x630, a crop of the top story's best
+  screenshot. Keep each `<img>`'s `width` and `height` the file's real size.
+- Don't leave a test build's numbers unexplained: if a shot shows a made-up version, say so in its caption.
 - **No new `html` or `body` rules beyond the ones already there,** and use `max-width` and `min-width` media queries,
   which the history page turns into container queries.
 - No sideways scroll at phone width.
@@ -69,12 +78,13 @@ release PR and the code confirm.
 The GitHub release description carries the report as images, cut from the finished page in sections so it stays small
 and easy to read. Every release needs them.
 
-- Cut one JPG per section of the page, in order: the numbers first, then each story, You asked we fixed, Also in, Thank
-  you and Code shipped. Shoot the section's element from `/releases/<version>/index.html` with Playwright at a 1424 px
-  wide viewport and a device scale factor of 2, so each is about 2848 px wide. v0.40.0 has 14 and v0.39.0 has 9.
-- Save them in `docs/screenshots/releases/<version>/`, named in the `v0-40-0-release-01-the-numbers.jpg` style.
+- With the dev server up, `node scripts/shoot-release-report.mjs <version> sections` cuts one JPG per section of the
+  page, in order: the numbers first (the top of the page down to the tiles), then each band, with Thank you on its own.
+  They land in `docs/screenshots/releases/<version>/`, about 2848 px wide, named in the
+  `v0-40-0-release-01-the-numbers.jpg` style. v0.40.0 has 14 and v0.39.0 has 9.
 - List them in the header as `![what it shows](raw URL)`, with the alt text naming what the image holds and the URL
-  pinned to the commit that adds them. Commit the images first, then the header that names that commit.
+  pinned to the commit that adds them. Commit the images first, then the header that names that commit. Cut them only
+  once Code shipped is final (step 6), or that image and its alt text go stale.
 
 ## 5. Wire it in
 
@@ -86,9 +96,19 @@ and easy to read. Every release needs them.
 ## 6. Check and ship
 
 - Run the touched unit test, `pnpm exec oxfmt` and `pnpm exec oxlint` on the changed files.
-- With the dev server up, open `/releases/index.html#<version>`: the report sits on top, its notes below, nothing runs
-  sideways, and every image loads. The page must have a `.changes/<version>.md` to appear, so before the release PR
-  merges check the report on its own at `/releases/<version>/index.html`.
-- Screenshot it at `se`, `pixel`, `tablet-portrait`, `tablet` and `desktop` for the PR.
+- A fresh worktree needs `pnpm install`, and not `pnpm assets:fetch`: the report needs no media.
+- The history page only finds a report through `.changes/<version>.md`, which the release writes. To check the report
+  inside it, write a short temporary `.changes/<version>.md`, restart the dev server (the notes are read when it
+  starts), and delete the file afterwards.
+- `node scripts/shoot-release-report.mjs <version> sizes` shoots `se`, `pixel`, `tablet-portrait`, `tablet` and
+  `desktop`, alone and inside the history, and fails on sideways scroll, a broken image or a wrong `width` or `height`.
+  Read the screenshots too. To show them in the PR, commit them under `docs/pr-screenshots/`, link them by that commit
+  and remove them in the next commit, so they don't ship or count in Code shipped.
 - Merge the latest `origin/main`, branch `feature/<version>-release-report`, commit as Quin with no Claude attribution.
-- The PR says what the report covers, and asks Quin to read the copy under **Action Items**.
+- **Code shipped comes last.** With everything else staged, count pull requests from the `(#n)` subjects in
+  `git log <previous>..origin/main`, plus one for this PR, and take files and lines from
+  `git diff --cached --shortstat <previous>`. Put them in the page, cut the images, commit, and re-pin the header.
+- The release PR is regenerated on every merge. If anything lands on `main` after you start, re-read its notes and
+  recount before this PR merges.
+- The PR says what the report covers, and asks Quin to read the copy under **Action Items**. It merges before the
+  release PR.
