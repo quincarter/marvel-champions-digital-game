@@ -562,6 +562,15 @@
           padding-top: 28px;
         }
       }
+      .ai-note {
+        padding: 10px var(--safe-r) 10px var(--safe-l);
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 14px/1.4 var(--b);
+      }
+      .ai-note[hidden] {
+        display: none;
+      }
       .language {
         display: flex;
         justify-content: flex-end;
@@ -615,6 +624,9 @@
             <small id="bar-version"></small><b id="bar-title">All releases ▾</b>
           </button>
           <a id="bar-older" href="#" aria-label="Older release">›</a>
+        </div>
+        <div class="ai-note" id="ai-note" role="note" lang="es" hidden>
+          Todo el texto en español fue traducido con IA y puede contener errores.
         </div>
         <div class="language" id="language" role="group" aria-label="Language">
           <button type="button" data-language="en" lang="en" aria-pressed="true">English</button>

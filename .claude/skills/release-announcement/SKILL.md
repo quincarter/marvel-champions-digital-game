@@ -85,6 +85,8 @@ first, get it final, then translate it, so the two say the same thing.
   `<html lang="es">`, translate the text, alt text, `description` and `og:` tags, keep the images and the fonts, and keep
   the `data-history-link` links, with the language link swapped: `index.html` links to `index.es.html` as Español, and
   `index.es.html` links back as English. Copy the Spanish wording of v0.40.0's page where a line recurs.
+- Keep the `.notice` at the top of `index.es.html`, which says the Spanish is AI translated. The history page drops it
+  and shows its own bar while Spanish is on.
 - The header gets one line under its English report link:
   `**[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/index.es.html)**`.
 - Screenshots and the GitHub release's section images stay in English, since the game's own text is English.

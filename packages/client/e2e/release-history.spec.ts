@@ -31,6 +31,7 @@ test.describe("language", () => {
   test("the toggle swaps the page and remembers, staying on the release", async ({ page }) => {
     await page.goto(`${PAGE}#v0.33.0`);
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.locator("#ai-note")).toBeHidden();
     const english = await page.locator("h2.title").textContent();
     await markDocument(page);
 
@@ -38,6 +39,7 @@ test.describe("language", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "es");
     await expect(page.locator("h2.title")).not.toHaveText(english ?? "");
     await expect(page.locator(".notes-title")).toHaveText("Notas de la versión");
+    await expect(page.locator("#ai-note")).toContainText("traducido con IA");
     await expect(page).toHaveTitle(new RegExp(SPANISH_TITLE));
     await expect(page).toHaveURL(/lang=es.*#v0\.33\.0$/);
     expect(await sameDocument(page)).toBe(true);

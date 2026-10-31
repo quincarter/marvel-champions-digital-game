@@ -11,7 +11,8 @@
  *
  * The page reads in English or Spanish. `?lang=` picks one (the game's links carry it), then the toggle's last choice,
  * then the game's own card language: its saved setting, else the same browser language check the game starts from.
- * Spanish data lives in `history/es/` and each report's `index.es.html`.
+ * Spanish data lives in `history/es/` and each report's `index.es.html`. While Spanish is on, a bar above the page says
+ * the text is AI translated; a report carries its own for when it's opened alone, which is dropped here.
  *
  * Lives in `public/` beside the reports, which is why it is plain
  * script with no imports.
@@ -684,6 +685,7 @@
     $("bar-newer").setAttribute("aria-label", text.newerRelease);
     $("bar-older").setAttribute("aria-label", text.olderRelease);
     languageGroup.setAttribute("aria-label", text.languageLabel);
+    $("ai-note").hidden = language !== "es";
     for (const button of languageGroup.querySelectorAll("button"))
       button.setAttribute("aria-pressed", String(button.dataset.language === language));
   }

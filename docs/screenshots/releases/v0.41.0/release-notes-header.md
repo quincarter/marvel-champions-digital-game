@@ -34,4 +34,4 @@ Winning now earns you the official promo cards: 128 scans of 25 heroes, 12 villa
 
 ![Thank you to PermaKarma and Vasko47](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-14-thank-you.jpg)
 
-![Code shipped: 20 pull requests, 472 files, 21,602 lines added and 838 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-15-code-shipped.jpg)
+![Code shipped: 20 pull requests, 472 files, 21,632 lines added and 838 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-15-code-shipped.jpg)
