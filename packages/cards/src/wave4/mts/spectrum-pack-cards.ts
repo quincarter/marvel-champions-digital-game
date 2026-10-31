@@ -168,7 +168,12 @@ export const SPECTRUM_PACK_CARDS = defineAbilities({
 
   // Ready to Rumble (21022) — Play under any player's control. Max 1 per player (data). Hero Response: After you
   // change form, discard this card → ready your hero.
-  "21022.ready-to-rumble-response": heroResponse(on.youChangeForm(), discard(self), ready(yourIdentity)),
+  "21022.ready-to-rumble-response": heroResponse(
+    on.youChangeForm(),
+    { costEffects: 1 },
+    discard(self),
+    ready(yourIdentity),
+  ),
 
   // Loss of Control (21026), Radioactive Man (21027) etc. are `spectrum-obligation-nemesis.ts`.
 });

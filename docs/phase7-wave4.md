@@ -1026,6 +1026,9 @@ set-aside modular encounter sets remaining"); the Campaign Challenge faces (`gmw
 
 ### 3.19 Readying as a costed act; "cannot be readied by player card effects"
 
+A card such a rule covers is no target for a player card's ready, so an ability that only readies it is not offered and
+pays nothing (RRG 1.8 "Target", p. 43; issue #568, settled by the authority order).
+
 > **Status: landed (2026-09-24),** tested in `packages/engine/src/ready-cost.test.ts` (5 tests: at the end of the
 > player phase each taxed card asks in ready order, paid readies and declined stays exhausted; a card effect's ready
 > asks too; the other player's readies are not taxed; with nothing to pay with the ready is declined; "cannot be
