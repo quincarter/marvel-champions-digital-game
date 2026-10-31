@@ -51,11 +51,11 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["21", "22", "23", "24", "25", "26"],
-      "tag": "card-art-mts-b6ef16e809fe",
+      "tag": "card-art-mts-f5f7223f53b2",
       "file": "card-art-mts.zip",
-      "size": 26178126,
-      "sha256": "b6ef16e809fee412825254a547e298679f6cd2fd7929cfdaed344b424de7aa72",
-      "files": 397
+      "size": 26307234,
+      "sha256": "f5f7223f53b23f27ada8e1c8814707f31c8c0e2b4c2591930c4e89772c3736aa",
+      "files": 399
     },
     {
       "name": "card-art-sm",
