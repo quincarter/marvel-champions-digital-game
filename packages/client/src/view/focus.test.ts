@@ -179,6 +179,7 @@ describe("the table's cards on the idle route", () => {
         kind: "idle",
         hand: [id("h")],
         discard: true,
+        victoryDisplay: true,
         table: [id("villain"), id("ally"), id("offscreen"), id("scheme")],
         tiled: (card) => card !== id("offscreen"),
       },
@@ -192,6 +193,7 @@ describe("the table's cards on the idle route", () => {
       { kind: "card", instanceId: id("scheme") },
       // A usable card the table list does not name still comes after it.
       { kind: "card", instanceId: id("teammate") },
+      { kind: "victoryDisplay" },
       { kind: "basic", action: "endTurn" },
     ]);
   });

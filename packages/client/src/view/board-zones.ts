@@ -95,6 +95,9 @@ export function zoneOfTarget(target: FocusTarget, members: ZoneMembers): BoardZo
     // The discard pile sits on the hand row, so a zone jump reads it as the hand's.
     case "discard":
       return "hand";
+    // The victory display's pile sits in the encounter column, beside the villain.
+    case "victoryDisplay":
+      return "villain";
     case "teamUp":
     case "music":
       return null;

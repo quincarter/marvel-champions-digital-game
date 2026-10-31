@@ -166,7 +166,7 @@ const TONE_COLOR: Readonly<Record<DeckStatusTone, number>> = {
 };
 
 /**
- * D04's own left-rail filter chips: the same six `scenes/deck-builder.ts`'s `TYPE_FILTERS` offers, redeclared here
+ * D04's own left-rail filter chips: the same seven `scenes/deck-builder.ts`'s `TYPE_FILTERS` offers, redeclared here
  * (that constant isn't exported — the builder's own doc comment notes it has no shared layout module to export one
  * from) rather than filtering the deck's own pool of *card types* by name a second, different way.
  */
@@ -177,6 +177,7 @@ const TYPE_FILTERS: readonly { readonly id: string; readonly label: string; read
   { id: "upgrade", label: "Upgrade", type: "upgrade" },
   { id: "support", label: "Support", type: "support" },
   { id: "resource", label: "Resource", type: "resource" },
+  { id: "scheme", label: "Side scheme", type: "player_side_scheme" },
 ];
 
 /** One flattened, unwrapped line of a card's rules text, for a cell's own short footer strip — the full text is always one tap away, in Inspect. */
