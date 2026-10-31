@@ -28,8 +28,8 @@ export function releaseReportUrl(pageUrl: string, native: boolean, version = REL
 }
 
 /**
- * The release history page (`public/releases/index.html`), open at one release: where the Title footer's "Release
- * notes" goes. Resolved the same way as the report above.
+ * The release history page (`public/releases/index.html`), open at one release: where a release with no report here
+ * goes. Resolved the same way as the report above.
  */
 export function releaseHistoryUrl(version: string, pageUrl: string, native: boolean): string {
   const path = `releases/index.html#v${version}`;
@@ -39,4 +39,14 @@ export function releaseHistoryUrl(version: string, pageUrl: string, native: bool
   } catch {
     return `${SITE_URL}${path}`;
   }
+}
+
+/**
+ * Where the Title footer's "Release notes" goes. A packaged app opens its own release. The web build can be ahead of
+ * the latest published release, whose notes aren't public yet, so it opens the history at its latest.
+ */
+export function releaseNotesPageUrl(version: string, pageUrl: string, native: boolean): string {
+  return native
+    ? releaseHistoryUrl(version, pageUrl, native)
+    : releaseHistoryUrl(version, pageUrl, false).split("#")[0]!;
 }

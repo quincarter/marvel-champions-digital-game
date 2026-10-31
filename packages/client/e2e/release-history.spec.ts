@@ -10,6 +10,12 @@ import { trackPageErrors } from "./helpers.js";
 const RELEASES = readdirSync(new URL("../../../.changes/", import.meta.url)).filter((f) => /^v[\d.]+\.md$/.test(f));
 const PAGE = "/releases/index.html";
 
+const LATEST_RELEASE = "https://api.github.com/**/releases/latest";
+
+test.beforeEach(async ({ page }) => {
+  await page.route(LATEST_RELEASE, (route) => route.abort());
+});
+
 /** Marks the document, so a test can see that nothing reloaded it. */
 const markDocument = (page: Page) =>
   page.evaluate(() => void ((window as unknown as { __same: boolean }).__same = true));
@@ -83,6 +89,26 @@ test("a slow release does not land over the one picked after it", async ({ page 
   release();
   await page.waitForTimeout(200);
   await expect(page.locator("h2.title")).toHaveText("First playable");
+});
+
+test("the list stops at GitHub's latest release, and a newer one opens by its link", async ({ page }) => {
+  await page.route(LATEST_RELEASE, (route) => route.fulfill({ json: { tag_name: "v0.39.0" } }));
+  await page.goto(PAGE);
+  await expect(page.locator("#report h1")).toContainText("Lights down");
+  await expect(page.locator('.rail a[data-version="v0.40.0"]')).toHaveCount(0);
+  await expect(page.locator(".pager a.newer")).toHaveCount(0);
+  await page.evaluate(() => (location.hash = "#v0.40.0"));
+  await expect(page.locator("#report h1")).toContainText("Every game counts");
+  await expect(page.locator('.rail a[data-version="v0.40.0"]')).toHaveCount(0);
+});
+
+test("a release GitHub knows that this build does not links to GitHub", async ({ page }) => {
+  await page.route(LATEST_RELEASE, (route) => route.fulfill({ json: { tag_name: "v9.9.9" } }));
+  await page.goto(`${PAGE}#v9.9.9`);
+  const link = page.locator("main a");
+  await expect(link).toHaveAttribute("href", /\/releases\/tag\/v9\.9\.9$/);
+  await expect(page.locator("main")).toContainText("v9.9.9 isn't in this page yet");
+  await expect(page.locator(".rail a[data-version='v0.40.0']")).toHaveCount(1);
 });
 
 test("a report keeps its own look and its pictures load", async ({ page }) => {

@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { RELEASE_NOTICE_VERSION } from "./release-notice.js";
-import { RELEASE_REPORT_SITE_URL, releaseHistoryUrl, releaseReportUrl } from "./release-report-link.js";
+import {
+  RELEASE_REPORT_SITE_URL,
+  releaseHistoryUrl,
+  releaseNotesPageUrl,
+  releaseReportUrl,
+} from "./release-report-link.js";
 
 const REPORT = `releases/${RELEASE_NOTICE_VERSION}/index.html`;
 
@@ -39,6 +44,15 @@ describe("releaseHistoryUrl", () => {
     );
     expect(releaseHistoryUrl("0.40.0", "not a url", false)).toBe(
       "https://marvel-champions-digital-game.netlify.app/releases/index.html#v0.40.0",
+    );
+  });
+});
+
+describe("releaseNotesPageUrl", () => {
+  test("a packaged app opens its own release, and the web, which can be ahead of it, opens the history", () => {
+    expect(releaseNotesPageUrl("0.40.0", "tauri://localhost/", true)).toContain("/releases/index.html#v0.40.0");
+    expect(releaseNotesPageUrl("0.40.0", "http://localhost:5193/", false)).toBe(
+      "http://localhost:5193/releases/index.html",
     );
   });
 });
