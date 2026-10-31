@@ -146,6 +146,16 @@
       "files": 5
     },
     {
+      "name": "card-art-promos",
+      "group": "card-art",
+      "dir": "assets/card-art/promos",
+      "tag": "card-art-promos-84a53febefba",
+      "file": "card-art-promos.zip",
+      "size": 9846028,
+      "sha256": "84a53febefba540bddbedd6858e54aab290a8bbbf2890cbfdf5505f44ef3c9c4",
+      "files": 128
+    },
+    {
       "name": "card-art-es",
       "group": "card-art-es",
       "dir": "assets/card-art-locales/es/bundles/cards",

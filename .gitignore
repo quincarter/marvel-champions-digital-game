@@ -40,6 +40,7 @@ research/rules-audit/sources/
 # card backs stay in git.
 assets/.fetched.json
 assets/card-art/bundles/cards/[0-9]*
+assets/card-art/promos/
 assets/card-art-locales/*/bundles/
 music/**/*.mp3
 music/**/*.ogg

@@ -18,11 +18,23 @@ describe("earned items", () => {
   });
 
   test("every earned item names an achievement that exists and is tracked", () => {
-    for (const item of EARNED_ITEMS) expect(ACHIEVEMENTS.find((a) => a.id === item.achievementId)?.tracked).toBe(true);
+    for (const item of EARNED_ITEMS.filter((one) => one.achievementId)) {
+      expect(ACHIEVEMENTS.find((a) => a.id === item.achievementId)?.tracked).toBe(true);
+    }
   });
 
   test("Unlock everything earns them too", () => {
-    expect([...earnedItemIdsOf(() => false, true)]).toEqual(["ultron-drone-art"]);
+    expect([...earnedItemIdsOf(() => false, true)]).toEqual(["ultron-drone-art", "promo-art"]);
+  });
+
+  test("promo card art opens with the first promo card, and switches off and on in Settings (#192)", () => {
+    expect([...earnedItemIdsOf(() => false, false, true)]).toEqual(["promo-art"]);
+    const settings = defaultSettings();
+    const row = (earned: ReadonlySet<"promo-art">) =>
+      earnedItemRowInfoOf(settings, earned).find((one) => one.id === "promo-art");
+    expect(row(new Set())).toMatchObject({ on: false, unavailable: expect.stringContaining("win 3 games") });
+    expect(row(new Set(["promo-art"]))).toMatchObject({ on: true });
+    expect(nextSettingsAfterToggle(settings, "promo-art", 1).promoArtOn).toBe(false);
   });
 
   test("the art is drawn only when earned and switched on", () => {

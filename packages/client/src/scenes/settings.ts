@@ -55,6 +55,8 @@ import {
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
   achievementPopupPlaceRowInfoOf,
+  heroArtRowInfoOf,
+  nextSettingsAfterHeroArt,
   achievementPopupSizeRowInfoOf,
   nextSettingsAfterAchievementPopupSize,
   achievementPopupTimeRowInfoOf,
@@ -147,7 +149,8 @@ import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
-import { applyEarnedItems, earnedItems, unlocks } from "../progression/progression.js";
+import { applyEarnedItems, earnedItems, earnedPromoSets, unlocks } from "../progression/progression.js";
+import { heroPromoShown } from "../view/hero-art-choice.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
@@ -647,6 +650,11 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     segmented("deck-signature", deckSignatureRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterDeckSignature(appSession().settings, v);
+      this.#draw();
+    });
+    const promoShown = heroPromoShown(earnedPromoSets(), settings.promoArtOn);
+    segmented("hero-art", heroArtRowInfoOf(settings, promoShown), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterHeroArt(appSession().settings, v);
       this.#draw();
     });
     // The achievement popup: picking a time or a position shows a sample there (`scenes/achievement-toast.ts`).

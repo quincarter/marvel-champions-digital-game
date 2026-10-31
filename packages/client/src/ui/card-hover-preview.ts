@@ -12,7 +12,7 @@
 
 import Phaser from "phaser";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
-import { CARD_BACKS, defaultFaceFor, isStandInArt, type CardFace } from "../art/art-source.js";
+import { CARD_BACKS, defaultFaceFor, isStandInArt, type ArtSource, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import type { FacedownHover } from "../scenes/board/context.js";
@@ -454,7 +454,7 @@ export class HoverPreview {
     const built = !rect
       ? null
       : plain
-        ? this.#buildPlain(plain.cardId, plain.face, rect, area)
+        ? this.#buildPlain(plain.cardId, plain.face, rect, area, plain.art)
         : this.#build(id as InstanceId, rect, area, this.#candidateHp);
     if (!built) {
       this.#clear();
@@ -671,6 +671,7 @@ export class HoverPreview {
     face: CardFace | undefined,
     onScreen: Rect,
     area: Rect,
+    art?: ArtSource,
   ): {
     readonly container: Phaser.GameObjects.Container;
     readonly size: Size;
@@ -678,7 +679,8 @@ export class HoverPreview {
   } | null {
     const card = CARDS_BY_ID.get(cardId);
     if (!card) return null;
-    const model = cardInspectModel(card, face ?? defaultFaceFor(card));
+    const faceModel = cardInspectModel(card, face ?? defaultFaceFor(card));
+    const model = art ? { ...faceModel, art } : faceModel;
     const key = cardArt(this.scene).request(this.scene, model.art);
     const source = key && this.scene.textures.exists(key) ? this.scene.textures.get(key).getSourceImage() : null;
     const aspect = source && source.width > 0 && source.height > 0 ? source.width / source.height : null;
