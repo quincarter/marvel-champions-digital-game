@@ -79,7 +79,8 @@ Read `docs/releases/es/README.md`: it holds the file shape, what stays in Englis
 first, get it final, then translate it, so the two say the same thing.
 
 - `docs/releases/es/<version>.md`: the header's headline, paragraph and image alt text, then every line of the release
-  PR's notes, with the same sections and items in the same order. `view/release-notes-es.test.ts` fails on the release
+  PR's notes up to Docs, with the same sections and items in the same order. Leave out **Special thanks**: the release
+  job adds it to the GitHub notes, and `.changes/<version>.md` doesn't have it. `view/release-notes-es.test.ts` fails on the release
   PR if it drifts, so if a fragment lands after you write it, add its line, with this PR's own fragment included.
 - `docs/releases/es/reports/<version>.json`: the report's text map, from each block of English in `index.html` (a `p`,
   `li`, heading, caption or `div`, with its inline tags, plus alt text and `content` attributes) to its Spanish. The
