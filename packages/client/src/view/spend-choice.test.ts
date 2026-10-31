@@ -72,6 +72,23 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
     );
   });
 
+  test("the copy the player already spends exhausts, not the other one", () => {
+    const two = choiceOf([card("org"), way("org", ["a"], ["A"]), card("org2"), way("org2", ["a"], ["A"])]);
+    const picks = toggleSpendPick(two, ["hand:org2"], "exhaust:org:a");
+    expect(picks).not.toContain("hand:org");
+    expect(spendAnswerOf(two, picks)).toEqual([way("org2", ["a"], []).optionId]);
+  });
+
+  test("a card only one copy's owner can exhaust goes to that copy (an alliance helper's)", () => {
+    const helper = choiceOf([card("mine"), way("mine", ["a"], ["A"]), card("theirs"), way("theirs", ["b"], ["B"])]);
+    const shown = shownSpendChoice(helper);
+    expect(shown.options.map((option) => option.optionId)).toContain("exhaust:mine:b");
+    const picks = toggleSpendPick(helper, [], "exhaust:mine:b");
+    expect(picks).toContain("hand:theirs");
+    expect(picks).not.toContain("hand:mine");
+    expect(spendAnswerOf(helper, picks)).toEqual([way("theirs", ["b"], []).optionId]);
+  });
+
   test("a second copy keeps its plain option and draws no tiles", () => {
     const two = choiceOf([...org.options, card("org2", "Organizational Support"), way("org2", ["a"], ["Agent 13"])]);
     expect(shownSpendChoice(two).options.map((option) => option.optionId)).toEqual([

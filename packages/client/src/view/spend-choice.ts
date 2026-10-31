@@ -45,8 +45,6 @@ const waysOf = (choice: Pick<PendingChoice, "options">, card: InstanceId): reado
 const setKey = (ids: readonly InstanceId[]): string => [...ids].sort().join(",");
 const exhaustTileId = (card: InstanceId, candidate: InstanceId): string => `${EXHAUST_TILE}${card}:${candidate}`;
 const candidateOf = (tileId: string): InstanceId => tileId.slice(tileId.lastIndexOf(":") + 1) as InstanceId;
-const cardOfTile = (tileId: string): InstanceId =>
-  tileId.slice(EXHAUST_TILE.length, tileId.lastIndexOf(":")) as InstanceId;
 const isExhaustTile = (id: string): boolean => id.startsWith(EXHAUST_TILE);
 
 /** What the engine's label says a way of spending takes, in its brackets: "Agent 13, The Iliad", "take 2 damage". */
@@ -60,18 +58,26 @@ export function spendOptionNote(label: string): string | null {
  */
 function assignedTiles(
   choice: PendingChoice,
-  tiles: readonly string[],
+  picks: readonly string[],
+  tiles: readonly string[] = picks.filter(isExhaustTile),
 ): ReadonlyMap<InstanceId, readonly InstanceId[]> | null {
   const assigned = new Map<InstanceId, readonly InstanceId[]>();
   let rest = tiles.map(candidateOf);
-  for (const card of exhaustersOf(choice)) {
+  // A copy the player already spends goes first, so a press never spends a card they did not pick when theirs can do it.
+  const copies = exhaustersOf(choice);
+  const picked = (card: InstanceId): boolean => picks.includes(`hand:${card}`);
+  for (const card of [...copies.filter(picked), ...copies.filter((copy) => !picked(copy))]) {
     if (rest.length === 0) break;
     const ways = waysOf(choice, card);
-    const most = Math.max(...ways.map((way) => picksOf(way.optionId).length));
-    const taken = rest.slice(0, most);
-    if (!ways.some((way) => setKey(picksOf(way.optionId)) === setKey(taken))) return null;
+    // As many as this copy has a way for: a card it can't exhaust is left to the next copy.
+    const taken: InstanceId[] = [];
+    for (const candidate of rest) {
+      const next = setKey([...taken, candidate]);
+      if (ways.some((way) => setKey(picksOf(way.optionId)) === next)) taken.push(candidate);
+    }
+    if (taken.length === 0) continue;
     assigned.set(card, taken);
-    rest = rest.slice(most);
+    rest = rest.filter((candidate) => !taken.includes(candidate));
   }
   return rest.length === 0 ? assigned : null;
 }
@@ -110,7 +116,7 @@ export function shownSpendChoice(choice: PendingChoice): PendingChoice {
 export function toggleSpendPick(choice: PendingChoice, picks: readonly string[], id: string): readonly string[] {
   if (isExhaustTile(id)) {
     if (picks.includes(id)) return picks.filter((pick) => pick !== id);
-    const assigned = assignedTiles(choice, [...picks.filter(isExhaustTile), id]);
+    const assigned = assignedTiles(choice, picks, [...picks.filter(isExhaustTile), id]);
     if (!assigned) return picks;
     const spenders = [...assigned.keys()];
     const others = picks.filter((pick) => !spenders.includes(spentHandCardOf(pick) as InstanceId));
@@ -126,7 +132,7 @@ export function toggleSpendPick(choice: PendingChoice, picks: readonly string[],
 
 /** The engine's option ids for the sheet's picks: a hand card's plain option becomes the way that exhausts its tiles. */
 export function spendAnswerOf(choice: PendingChoice, picks: readonly string[]): readonly string[] {
-  const assigned = assignedTiles(choice, picks.filter(isExhaustTile));
+  const assigned = assignedTiles(choice, picks);
   const wayOf = (pick: string): string => {
     const card = spentHandCardOf(pick);
     const set = card !== null && pick === `hand:${card}` ? assigned?.get(card) : undefined;
@@ -143,8 +149,7 @@ export function exhaustTileOptionsOf(
   tileId: string,
 ): { readonly alone: string; readonly plain: string } | null {
   if (!isExhaustTile(tileId)) return null;
-  const card = cardOfTile(tileId);
   const candidate = candidateOf(tileId);
-  const way = waysOf(choice, card).find((option) => setKey(picksOf(option.optionId)) === candidate);
-  return way ? { alone: way.optionId, plain: `hand:${card}` } : null;
+  const way = choice.options.find((option) => setKey(picksOf(option.optionId)) === candidate);
+  return way ? { alone: way.optionId, plain: `hand:${spentHandCardOf(way.optionId)}` } : null;
 }
