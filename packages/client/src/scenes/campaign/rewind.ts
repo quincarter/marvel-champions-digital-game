@@ -248,9 +248,9 @@ export class CampaignRewindScene extends Phaser.Scene {
    * The photo torn from the log: a tilted paper frame with a jagged bottom edge (a sawtooth polygon, container-
    * rotated around the frame's own center so the tilt reads as "torn and dropped", not "rotated text"). The photo
    * itself gets the same jagged bottom, clipped through `ui/rex.ts`'s `setMask` (Phaser 4's own geometry mask is a
-   * silent WebGL no-op) so the tear reads on the picture, not just on the paper peeking out from behind it. A
-   * page-based box (GMW) shows the issue's own last-read panel here (`ctx.panel`); every other box keeps the plain
-   * villain portrait.
+   * silent WebGL no-op) so the tear reads on the picture, not just on the paper peeking out from behind it. It is the
+   * scenario's villain portrait; a page-based box (GMW, TRORS) falls back to the issue's last-read panel
+   * (`ctx.panel`) only when the scenario has no villain art.
    */
   #drawVillainFrame(rect: Rect, ctx: RewindFrameCtx): void {
     const cx = rect.x + rect.width / 2;
@@ -276,12 +276,14 @@ export class CampaignRewindScene extends Phaser.Scene {
       width: localRect.width - innerPad * 2,
       height: localRect.height - innerPad * 2 - toothDepth,
     };
-    const image = ctx.panel
-      ? this.#drawLastPanelPicture(ctx.campaignId, ctx.panel, localInnerRect)
-      : drawPicture(this, villainPicture(this.#data.nodeId), localInnerRect, () => this.#draw(), {
-          focusY: 0.2,
-          grayscale: true,
-        });
+    // The villain's own picture wins whenever the scenario has one, the same picture its stage-flip splash shows
+    // (the owner, 2026-10-31: Taskmaster's Rewind showed a blurry crop of page 5 instead); the last-read panel is
+    // only the fallback for a scenario with no villain art.
+    const portrait = villainPicture(this.#data.nodeId);
+    const image =
+      portrait || !ctx.panel
+        ? drawPicture(this, portrait, localInnerRect, () => this.#draw(), { focusY: 0.2, grayscale: true })
+        : this.#drawLastPanelPicture(ctx.campaignId, ctx.panel, localInnerRect);
     if (image) {
       // Added after `frame`, so it renders on top of the paper within the container's own child order.
       container.add(image);
@@ -449,7 +451,7 @@ export class CampaignRewindScene extends Phaser.Scene {
         .text(
           rect.x + 16 + 52,
           boxY - 1,
-          `Page ${ctx.panel.pageNumber}'s last panel is shown here. The game starts again from it.`,
+          `The game starts again from page ${ctx.panel.pageNumber}'s last panel.`,
           textStyle(typeRole.body, surface.paper.hex, ink.secondary),
         )
         .setFontSize(13)

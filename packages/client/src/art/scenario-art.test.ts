@@ -1,4 +1,8 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
+import { parseFocus } from "./focus.js";
 import { POOL_PACKS, POOL_SCENARIOS } from "../content/pool.js";
 import { ART_CATALOG, outcomeArtFor, packCoverFor, parseArtCatalog, villainArtFor } from "./scenario-art.js";
 
@@ -54,6 +58,30 @@ describe("parseArtCatalog", () => {
   test("pack covers land in the packs map, variants included, sorted the same way scenario art is", () => {
     expect(catalog.packs.get("core")!.cover.map((p) => p.url)).toEqual(["/core-cover-2.png", "/core-cover.jpg"]);
     expect(catalog.packs.has("twc")).toBe(false); // its only file was a typo, unrecognized rather than misfiled
+  });
+});
+
+describe("a scenario's focus.json", () => {
+  const withFocus = parseArtCatalog(
+    {
+      "../../art/scenarios/taskmaster/villain.jpg": "/tm.jpg",
+      "../../art/scenarios/taskmaster/villain-wins.jpg": "/tmw.jpg",
+      "../../art/scenarios/_pending/villain.jpg": "/pending.jpg",
+    },
+    {
+      "../../art/scenarios/taskmaster/focus.json": { y: 0.18 },
+      "../../art/scenarios/_pending/focus.json": { y: 0.1 },
+    },
+  );
+
+  test("rides on the villain pictures only, never the outcome scenes", () => {
+    const taskmaster = withFocus.scenarios.get("taskmaster")!;
+    expect(taskmaster.villain[0]?.focus).toEqual({ y: 0.18 });
+    expect(taskmaster["villain-wins"][0]?.focus).toBeUndefined();
+  });
+
+  test("a folder with none crops the way the screen always did", () => {
+    expect(catalog.scenarios.get("ultron")!.villain[0]?.focus).toBeUndefined();
   });
 });
 
@@ -113,6 +141,20 @@ describe("the real art/ folder", () => {
 
   test("every file fits a slot", () => {
     expect(ART_CATALOG.unrecognized).toEqual([]);
+  });
+
+  test("every focus.json is valid and sits beside a villain picture", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/scenarios");
+    const folders = readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+    for (const { name } of folders) {
+      const file = join(root, name, "focus.json");
+      if (!existsSync(file)) continue;
+      const focus = parseFocus(JSON.parse(readFileSync(file, "utf8")));
+      expect(focus, name).not.toBeNull();
+      expect(ART_CATALOG.scenarios.get(name)?.villain[0]?.focus, name).toEqual(focus);
+    }
+    // The stage-flip splash crops to a wide band; Taskmaster's face sits at the top of a tall picture.
+    expect(ART_CATALOG.scenarios.get("taskmaster")?.villain[0]?.focus?.y).toBeLessThan(0.3);
   });
 
   test("every scenario folder is named for a real scenario id", () => {

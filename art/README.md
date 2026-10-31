@@ -99,6 +99,12 @@ picture. Either axis may be left out; an axis left out crops the way the screen 
 picture in the folder (`hero.jpg`, `hero-2.png`), and a folder with no `focus.json` crops around the center.
 Estimate the point off the face or the middle of the figure; the check is the roster's tall seat tile.
 
+**Keeping the villain in frame (`scenarios/<scenarioId>/focus.json`).** The same file works for a scenario's
+`villain*` pictures: `{ "y": 0.18 }` puts Taskmaster's face, near the top of a tall picture, in the stage-flip splash's
+wide band instead of his chest. Every crop of the villain art that goes through `drawPicture` (the stage-flip splash,
+the issue page, the Run and Dossier thumbnails) centers on it. It never applies to the `villain-wins`/`villain-loses`
+scenes, which are other pictures. The check is the stage-flip splash, roughly 3:2 wide.
+
 **Extras** (the Title menu's reward shelf) shows these same pictures once play has opened them: a hero's
 `hero.*` files, a scenario's `villain*` files, `title/`, `outcomes/` and each campaign's `cover.*`. Nothing extra
 needs adding for it; a new file shows up there too. `extras/`: pictures shown only on the Extras ▸ Artwork shelf, always open; name the file for its title.

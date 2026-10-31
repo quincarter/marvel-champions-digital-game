@@ -19,3 +19,14 @@ export function focusedOffset(length: number, cropLength: number, point: number 
   if (point === undefined || !Number.isFinite(point) || room <= 0) return room / 2;
   return Math.max(0, Math.min(room, point * length - cropLength / 2));
 }
+
+/** A `focus.json`'s content as a focus, or null when it names no usable axis. Values outside 0 to 1 are clamped. */
+export function parseFocus(raw: unknown): PictureFocus | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const axis = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : undefined;
+  const x = axis((raw as { x?: unknown }).x);
+  const y = axis((raw as { y?: unknown }).y);
+  if (x === undefined && y === undefined) return null;
+  return { ...(x === undefined ? {} : { x }), ...(y === undefined ? {} : { y }) };
+}
