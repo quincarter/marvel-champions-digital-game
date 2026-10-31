@@ -85,6 +85,9 @@ const COMPLETE_PRIMARY_LABEL = "Close";
 
 export interface GuideControllerOptions {
   readonly lessons: readonly Lesson[];
+  /** The tutorial's rule (#554): this run's gates hold, "Got it" steps hold the table, and a step naming its payers
+   * leaves only those tappable. A Try-it leaves it off (`GuideGate.holds`). */
+  readonly holdGate?: boolean;
   /** Lesson ids to treat as already complete before this run starts — the tutorial's lesson 1 ("How to win") is
    * its own pre-game screen (G6b), not a board step, so the board-side controller starts with it already done
    * rather than running it (`docs/guided-mode.md` §4 G5c). */
@@ -195,6 +198,7 @@ export class GuideController {
   #state: LessonRunnerState;
   #observation: LessonObservation;
   readonly #blocked: () => boolean;
+  readonly #holdGate: boolean;
   /** The last view shown while not blocked: what a held `view()` keeps showing. */
   #lastShown: GuideControllerView | null = null;
   #shownKey: string | null = null;
@@ -217,6 +221,7 @@ export class GuideController {
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
     this.#blocked = options.blocked ?? (() => false);
+    this.#holdGate = options.holdGate ?? false;
     this.#extraFor = options.extraFor;
     this.#panelExtraFor = options.panelExtraFor;
     this.#runLabel = options.runLabel ?? DEFAULT_RUN_LABEL;
@@ -408,7 +413,8 @@ export class GuideController {
       extra: panelExtra?.rows ?? null,
       progressTicks: progress?.totalSteps ?? null,
       progressCurrent: progress?.stepIndex ?? null,
-      backLabel: progress && progress.stepIndex > 0 ? "Back" : null,
+      // Back only onto a step that can be read again: an awaited step already done has nothing left to wait for.
+      backLabel: progress && this.#previousStep()?.mode === "acknowledge" ? "Back" : null,
       // Only meaningful alongside a primary button (an `"acknowledge"` step) — see `LessonStepCopy.secondaryLabel`'s
       // own doc comment for why both fire the same `primary()` call.
       secondaryLabel: step.mode === "acknowledge" ? (copy.secondaryLabel ?? null) : null,
@@ -420,6 +426,17 @@ export class GuideController {
     const gate = gateFor(step, this.#observation.game, this.#observation.perspectiveId, this);
     const stripText = copy.short ?? copy.tip ?? null;
     return { step, panel, anchor, tagVariant, gate, stripText, active: true };
+  }
+
+  #previousStep(): LessonStep | null {
+    const active = this.#state.active;
+    if (active === null || active.stepIndex === 0) return null;
+    return this.#state.lessons[active.lessonIndex]?.steps[active.stepIndex - 1] ?? null;
+  }
+
+  /** `GuideControllerOptions.holdGate`, for `gateFor`. */
+  get holdsGate(): boolean {
+    return this.#holdGate;
   }
 
   #runObserve(): void {
@@ -461,7 +478,7 @@ export class GuideController {
     this.skip();
   }
 
-  /** Two inert clicks lifted the gate on their own (§3.10) — arms the panel's nudge line rather than acting for
+  /** Two inert clicks landed outside the gate (§3.10) — arms the panel's nudge line rather than acting for
    * the player. Same visibility note as `onGateReleased`. */
   onGateEscaped(): void {
     this.#nudge = NUDGE_TEXT;
@@ -556,7 +573,8 @@ function tagVariantOf(anchor: LessonAnchor | null | undefined): McGuideTagVarian
  * anything: tapping it opens payment mode, and *paying* means tapping other hand cards as sources
  * (`BoardController#tapInMode`'s own `"paying"` branch, `#spendByInstance`) — a gate that only allowed the taught card
  * itself would block every one of those taps as "inert", making the very thing the step is teaching impossible to
- * finish. A step naming its `payWith` leaves exactly those cards; one that doesn't leaves the whole hand.
+ * finish. In a run that holds its gates, a step naming its `payWith` leaves exactly those cards; otherwise the whole
+ * hand stays tappable.
  */
 function gateFor(
   step: LessonStep,
@@ -567,7 +585,8 @@ function gateFor(
   const anchor = step.anchor;
   // A step waiting on "Got it" holds the table until it's answered (#554). The villain phase's own step narrates over
   // a walkthrough that's already holding it.
-  const holdsTable = step.mode === "acknowledge" && !step.overWalkthrough;
+  const hold = controller.holdsGate;
+  const holdsTable = hold && step.mode === "acknowledge" && !step.overWalkthrough;
   if (!holdsTable && (!anchor || anchor.kind === "zone" || anchor.kind === "choice" || anchor.kind === "control"))
     return null;
 
@@ -581,23 +600,25 @@ function gateFor(
     const player = game.players.find((p) => p.playerId === perspectiveId);
     const instanceId = instanceOfCode(game, perspectiveId, anchor.code);
     if (instanceId !== null) cards.add(instanceId);
-    const payWith = step.copy.payWith ?? [];
-    // A step naming its payers leaves only those tappable; without any, a hand card can still pay.
+    const payWith = hold ? (step.copy.payWith ?? []) : [];
+    // A step naming its payers leaves only those tappable; otherwise any hand card can pay.
     if (payWith.length === 0) for (const id of player?.hand ?? []) cards.add(id);
     for (const payer of payWith) {
-      const payerId =
-        payer.kind === "handCard"
-          ? instanceOfCode(game, perspectiveId, payer.code)
-          : payer.kind === "cardAbility"
-            ? (cardsInPlay(game).find((id) => game.instances[id]?.cardId === payer.code) ?? null)
-            : (player?.identity.instanceId ?? null);
-      if (payerId !== null) cards.add(payerId);
+      if (payer.kind === "handCard") {
+        for (const id of player?.hand ?? []) if (game.instances[id]?.cardId === payer.code) cards.add(id);
+      } else if (payer.kind === "cardAbility") {
+        const source = cardsInPlay(game).find((id) => game.instances[id]?.cardId === payer.code);
+        if (source) cards.add(source);
+      } else if (player) {
+        cards.add(player.identity.instanceId);
+      }
     }
   }
 
   return {
     actions,
     cards,
+    holds: hold,
     onGateReleased: () => controller.onGateReleased(),
     onGateEscaped: () => controller.onGateEscaped(),
   };

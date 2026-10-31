@@ -4,13 +4,14 @@
  * every guide surface's own controls (Collapse, Back, "Stop tutorial") stay live — none of those ever route through
  * `BoardController`'s gated entry points at all, so they're unaffected by construction, not by a special case here.
  *
- * **Clicks outside the guide never land (owner, #554).** The gate used to lift after two inert clicks, which let a
- * third click run ahead of the lesson. The ways out are explicit instead:
+ * **In the tutorial, clicks outside the guide never land (owner, #554).** Its gates hold (`GuideGate.holds`), so a third
+ * click can't run ahead of the lesson. A Try-it's gate lifts after two inert clicks instead: its open-ended steps
+ * weren't written for a hard gate. The ways out:
  *  - `release()` — Escape's own explicit release. Lifts the gate immediately and fires `onGateReleased`, so the
  *    guide controller (G5c) can treat the step as skipped.
  *  - Two inert clicks (`noteInertClick`, called from every blocked entry point) fire `onGateEscaped`, so the guide
- *    offers "Want to do something else? Skip this step" to a player who taps around looking for the way out. The
- *    gate stays up.
+ *    offers "Want to do something else? Skip this step" to a player who taps around looking for the way out. A gate
+ *    that doesn't hold also lifts here.
  *  - `set(null)` clears the gate outright — what "Stop tutorial" calls.
  *
  * A plain nullable field couldn't hold the inert-click count between calls, so `BoardController` holds one
@@ -27,8 +28,10 @@ export interface GuideGate {
   readonly cards: ReadonlySet<InstanceId>;
   /** Escape's own release fired this gate's step as skipped. */
   readonly onGateReleased?: () => void;
-  /** Two inert clicks landed outside the allowed targets; the gate has already lifted itself. */
+  /** Two inert clicks landed outside the allowed targets. */
   readonly onGateEscaped?: () => void;
+  /** True when inert clicks never lift this gate, and it covers abilities too. */
+  readonly holds?: boolean;
 }
 
 /** How many inert clicks earn the "Skip this step" nudge. */
@@ -60,6 +63,11 @@ export class GuideGateHolder {
     return this.#gate === null || this.#gate.cards.has(id);
   }
 
+  /** True when `id`'s ability may be used right now: only a holding gate covers abilities. */
+  allowsAbility(id: InstanceId): boolean {
+    return this.#gate === null || this.#gate.holds !== true || this.#gate.cards.has(id);
+  }
+
   /**
    * Escape's own release: always lifts the gate immediately, regardless of the inert-click count so far, and
    * fires `onGateReleased` — never `onGateEscaped`, which only points a player who doesn't know Escape at Skip.
@@ -78,14 +86,16 @@ export class GuideGateHolder {
 
   /**
    * Counts one inert click — call this from a gated entry point's own "blocked" branch, never from an allowed
-   * one. Fires `onGateEscaped` each time the count reaches `INERT_CLICKS_BEFORE_NUDGE`. The gate stays up. No-op with
-   * no gate open.
+   * one. Fires `onGateEscaped` each time the count reaches `INERT_CLICKS_BEFORE_NUDGE`, lifting the gate first unless
+   * it holds. No-op with no gate open.
    */
   noteInertClick(): void {
     if (this.#gate === null) return;
     this.#inertClicks += 1;
     if (this.#inertClicks < INERT_CLICKS_BEFORE_NUDGE) return;
     this.#inertClicks = 0;
-    this.#gate.onGateEscaped?.();
+    const gate = this.#gate;
+    if (gate.holds !== true) this.#gate = null;
+    gate.onGateEscaped?.();
   }
 }

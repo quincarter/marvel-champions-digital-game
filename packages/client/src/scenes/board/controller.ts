@@ -623,7 +623,9 @@ export class BoardController {
     // reported as "handled" (true) rather than falling through to `onTap`, so a gated card outside the mode's own
     // targets doesn't also try to play itself. Idle falls through to `onTap` (`tapHandCard`/`onCharacterTap`),
     // which gate — and count the inert click — on their own, so this doesn't double-count that tap.
-    if (!this.#guideGate.allowsCard(id)) {
+    // A target or source pick was opened by the taught action, so its own options answer whatever the gate names.
+    const pickOpen = this.#selection.kind === "targeting" || this.#selection.kind === "choosingSource";
+    if (!pickOpen && !this.#guideGate.allowsCard(id)) {
       if (this.#selection.kind === "idle") return false;
       this.#guideGate.noteInertClick();
       return true;
@@ -1258,6 +1260,10 @@ export class BoardController {
   /** The Inspect sheet's ability picker reports its pick here; it never dispatches itself. */
   useAbilityById(instanceId: InstanceId, abilityId: AbilityId): void {
     if (this.#readOnly) return;
+    if (!this.#guideGate.allowsAbility(instanceId)) {
+      this.#guideGate.noteInertClick();
+      return;
+    }
     const entry = this.usableAbilitiesFor(instanceId).find((candidate) => candidate.action.abilityId === abilityId);
     if (entry) this.#useAbility(entry);
   }

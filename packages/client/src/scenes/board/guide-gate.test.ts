@@ -46,7 +46,7 @@ describe("GuideGateHolder — set", () => {
   });
 });
 
-describe("GuideGateHolder — two inert clicks nudge, and the gate stays up (#554)", () => {
+describe("GuideGateHolder — two inert clicks", () => {
   it("stays gated after one inert click", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
@@ -56,10 +56,21 @@ describe("GuideGateHolder — two inert clicks nudge, and the gate stays up (#55
     expect(onGateEscaped).not.toHaveBeenCalled();
   });
 
-  it("fires onGateEscaped on the second inert click, and keeps blocking", () => {
+  it("lifts a gate that doesn't hold, and fires onGateEscaped", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
     holder.set(gate({ onGateEscaped }));
+    holder.noteInertClick();
+    holder.noteInertClick();
+    expect(onGateEscaped).toHaveBeenCalledOnce();
+    expect(holder.current).toBeNull();
+    expect(holder.allowsAction("attack")).toBe(true);
+  });
+
+  it("keeps blocking with a gate that holds, and still fires onGateEscaped (#554)", () => {
+    const holder = new GuideGateHolder();
+    const onGateEscaped = vi.fn();
+    holder.set(gate({ onGateEscaped, holds: true }));
     holder.noteInertClick();
     holder.noteInertClick();
     expect(onGateEscaped).toHaveBeenCalledOnce();
@@ -68,10 +79,19 @@ describe("GuideGateHolder — two inert clicks nudge, and the gate stays up (#55
     expect(holder.allowsCard(toInstanceId("i5"))).toBe(false);
   });
 
+  it("only a gate that holds covers abilities", () => {
+    const holder = new GuideGateHolder();
+    holder.set(gate());
+    expect(holder.allowsAbility(toInstanceId("i5"))).toBe(true);
+    holder.set(gate({ holds: true }));
+    expect(holder.allowsAbility(toInstanceId("i4"))).toBe(true);
+    expect(holder.allowsAbility(toInstanceId("i5"))).toBe(false);
+  });
+
   it("nudges again on every second inert click after that", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
-    holder.set(gate({ onGateEscaped }));
+    holder.set(gate({ onGateEscaped, holds: true }));
     for (let i = 0; i < 4; i++) holder.noteInertClick();
     expect(onGateEscaped).toHaveBeenCalledTimes(2);
   });

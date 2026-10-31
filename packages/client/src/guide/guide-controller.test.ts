@@ -63,7 +63,7 @@ function observationOf(snapshot: Snapshot, perspectiveId = TUTORIAL_PLAYER_ID): 
 /** A fresh controller against `TUTORIAL_LESSONS`, lesson 1 already done (mirrors `scenes/board/guide-mount.ts`'s
  * own `BoardGuideMount` construction). */
 function newController(observation: LessonObservation): GuideController {
-  return new GuideController({ lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win"] }, observation);
+  return new GuideController({ lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win"], holdGate: true }, observation);
 }
 
 /**
@@ -139,6 +139,28 @@ describe("GuideController — the tutorial script", () => {
     expect(controller.view().step?.id).toBe("flip");
     run(core, controller, 4); // flip, with Black Cat still in hand
     expect(controller.view().step?.id).toBe("attack-with-spidey");
+  });
+
+  test("Back only offers a step that can be read again", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = newController(observationOf(started.snapshot));
+    run(core, controller, 0);
+    run(core, controller, 1);
+    expect(controller.view().step?.id).toBe("play-black-cat");
+    expect(controller.view().panel?.backLabel).toBeNull();
+  });
+
+  test("a Try-it's gate doesn't hold, and leaves the hand tappable", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win"] },
+      observationOf(started.snapshot),
+    );
+    const gate = controller.view().gate;
+    expect(gate?.holds).toBe(false);
+    expect(gate?.cards.has(BLACK_CAT_ID)).toBe(true);
   });
 
   test("a step waiting on Got it holds the table, and the villain phase's own step leaves it to the walkthrough (#554)", async () => {

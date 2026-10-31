@@ -123,7 +123,7 @@ const PAYING_FOR_CARDS: Lesson = {
         stepLabel: "STEP 3 OF 9",
         title: "Play Interrogation Room",
         body:
-          "Any card can pay, not only resource cards. For Justice! prints one [[resource|resource]], so discarding " +
+          "Most cards can pay, not only resource cards. For Justice! prints one [[resource|resource]], so discarding " +
           "it pays for the room, but you give up what For Justice! does. Choosing what to spend is the real " +
           "decision in this game.",
         tip: "Use your hand each turn: you draw back up at the end of it.",

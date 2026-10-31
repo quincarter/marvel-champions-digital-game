@@ -1029,7 +1029,7 @@ export class BoardScene extends Phaser.Scene {
           onLeave: () => this.#leaveLesson({ scene: SCENES.aspectLesson, data: { aspect, backTo: "howToPlay" } }),
         },
         observation,
-        { lockLog: false, roundDebrief: false },
+        { lockLog: false, roundDebrief: false, holdGate: false },
       );
       return;
     }
@@ -1049,7 +1049,7 @@ export class BoardScene extends Phaser.Scene {
           onLeave: () => this.#leaveLesson({ scene: SCENES.howToPlay, data: {} }),
         },
         observation,
-        { lockLog: false, roundDebrief: false },
+        { lockLog: false, roundDebrief: false, holdGate: false },
       );
       return;
     }

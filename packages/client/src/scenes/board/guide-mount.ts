@@ -159,6 +159,8 @@ function resourceLegendExtraRowsOf(
 export interface BoardGuideMountOptions {
   readonly lockLog?: boolean;
   readonly roundDebrief?: boolean;
+  /** `GuideControllerOptions.holdGate`. */
+  readonly holdGate?: boolean;
 }
 
 export class BoardGuideMount {
@@ -267,6 +269,7 @@ export class BoardGuideMount {
     this.#controller = new GuideController(
       {
         ...options,
+        holdGate: mountOptions.holdGate ?? true,
         blocked: () => this.#walkthroughPlaying(),
         panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) ?? resourceLegendExtraRowsOf(step.id),
       },

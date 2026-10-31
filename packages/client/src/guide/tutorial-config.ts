@@ -32,7 +32,7 @@
  *   second, ordinary villain activation (a scheme) with no damage and no player decision, so round 2 opens with
  *   threat on the main scheme for lesson 5's thwart without any surprises along the way.
  *
- * **Why Black Cat is played before the flip, and Spider-Man flips in round 1 regardless.** §5.1 now stages
+ * **Why lesson 2 comes before the flip, and Spider-Man flips in round 1 regardless.** §5.1 now stages
  * "Paying for cards" (lesson 2) before "Hero & alter-ego" (lesson 3) — the owner's reorder, since Peter Parker's
  * own Scientist ability only exists on the alter-ego face, so Black Cat has to be played while still Peter. §5.1
  * also stages "The villain phase" as a round-1 lesson, which only works if Rhino *attacks* that round — and RRG
