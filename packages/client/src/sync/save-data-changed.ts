@@ -4,7 +4,7 @@
  * only a reason. Listeners live in this realm: a write made inside the engine worker reaches only listeners
  * registered in the worker, so the main thread has to relay it (e.g. on the `flushed` replies it already gets).
  */
-export type SaveDataChangeReason = "game" | "deck" | "campaign" | "progress" | "turn";
+export type SaveDataChangeReason = "game" | "deck" | "campaign" | "progress" | "round";
 
 type Listener = (reason: SaveDataChangeReason) => void;
 

@@ -96,7 +96,9 @@ export class RateLimiterLogic {
       return;
     }
     await this.storage.put("state", state);
-    await this.storage.setAlarm(Math.max(...ends));
+    // Every `setAlarm` is a row written, and a sync request saves twice with the same last window, so only move it out.
+    const last = Math.max(...ends);
+    if (((await this.storage.getAlarm()) ?? 0) < last) await this.storage.setAlarm(last);
   }
 
   /** Counts an upload; if refused, `retryAfterMs` is when the oldest one rolls out of the window. */

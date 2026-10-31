@@ -117,6 +117,8 @@ export interface SyncCounts {
   readonly applied: number;
   /** Records written to the server (the run's write budget). */
   readonly pushed: number;
+  /** Batches the server took, each one against its hourly cap. */
+  readonly batches?: number;
   /** Games the player was asked about. */
   readonly conflicts: number;
   /** Records that wouldn't open or were too big to upload, left alone. */
@@ -234,7 +236,7 @@ class Run {
   readonly #api: SyncEngineApi;
   readonly #now: () => number;
   readonly #creds: SyncCredentials;
-  readonly #counts = { pulled: 0, applied: 0, pushed: 0, conflicts: 0, skipped: 0, waiting: 0 };
+  readonly #counts = { pulled: 0, applied: 0, pushed: 0, batches: 0, conflicts: 0, skipped: 0, waiting: 0 };
   /** Things this run left alone because another device is on a newer build (becomes `newerElsewhere`). */
   #newer = 0;
   #entries = new Map<string, SyncedEntry>();
@@ -1097,6 +1099,7 @@ class Run {
         group.map((g) => g.op),
       );
       if (!sent.ok) return { failure: sent.failure };
+      this.#counts.batches++;
       const done: SyncedEntry[] = [];
       let accepted = 0;
       sent.result.results.forEach((result, i) => {

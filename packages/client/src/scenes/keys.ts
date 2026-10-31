@@ -106,6 +106,8 @@ export const SCENES = {
   syncData: "SyncDataOverlay",
   /** "Which copy do you want?" (`scenes/sync-conflict.ts`): a game both devices changed, over whatever screen is up. */
   syncConflict: "SyncConflictOverlay",
+  /** The Install for Steam script's update, with its progress (`scenes/steam-update.ts`). */
+  steamUpdate: "SteamUpdateOverlay",
   /** Device sync's watcher (`scenes/sync-prompt.ts`): opens the conflict prompt and shows "Checking your other devices…". */
   syncPrompt: "SyncPrompt",
   /** The one-time "Set up cross-device sync?" question (`scenes/sync-setup-prompt.ts`), launched over Title. */

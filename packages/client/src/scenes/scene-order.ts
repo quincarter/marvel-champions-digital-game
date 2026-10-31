@@ -99,6 +99,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.padToast,
   // The stats backfill toast: the same kind of notice, at the bottom.
   SCENES.backfillToast,
+  SCENES.steamUpdate,
   SCENES.syncConflict,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,
