@@ -220,9 +220,9 @@ export interface DeckListEntry {
 
 /** One group of a grouped deck list ("Hero", an aspect, "Basic") — W1's builder stats panel and Deck check both group this way. */
 export interface DeckListGroup {
-  /** `"hero"` for the identity's signature cards, otherwise the `CoreAspect` value. */
-  readonly key: "hero" | CoreAspect;
-  /** Title-cased for display: "Hero", "Aggression", "Basic", … */
+  /** By aspect, `"hero"` for the identity's signature cards, otherwise the `CoreAspect` value; by another sort, its own bucket. */
+  readonly key: string;
+  /** Title-cased for display: "Hero", "Aggression", "Basic", "Allies", "Cost 2", … */
   readonly label: string;
   /** The sum of `entries`' quantities — same number `countsByAspect`/`countsByType` would give for this group, kept alongside the entries so a caller never has to re-sum them. */
   readonly count: number;
@@ -241,21 +241,73 @@ const GROUP_ORDER: readonly { readonly key: "hero" | CoreAspect; readonly label:
   { key: "pool", label: "'Pool" },
 ];
 
+/** How a deck's own card list is sorted (issue #594), remembered with the deck builder's view. */
+export type DeckListSort = "aspect" | "type" | "cost" | "name";
+
+export const DECK_LIST_SORTS: readonly DeckListSort[] = ["aspect", "type", "cost", "name"];
+
+export const DEFAULT_DECK_LIST_SORT: DeckListSort = "aspect";
+
+const DECK_LIST_SORT_LABELS: Readonly<Record<DeckListSort, string>> = {
+  aspect: "Aspect",
+  type: "Type",
+  cost: "Cost",
+  name: "Name",
+};
+
+/** The sort control's words. */
+export const deckListSortLabel = (sort: DeckListSort): string => `Sort: ${DECK_LIST_SORT_LABELS[sort]}`;
+
+/** The sort a press of the control moves to. */
+export const nextDeckListSort = (sort: DeckListSort): DeckListSort =>
+  DECK_LIST_SORTS[(DECK_LIST_SORTS.indexOf(sort) + 1) % DECK_LIST_SORTS.length]!;
+
+const TYPE_GROUPS: readonly { readonly key: PlayerCardType; readonly label: string }[] = [
+  { key: "ally", label: "Allies" },
+  { key: "event", label: "Events" },
+  { key: "support", label: "Supports" },
+  { key: "upgrade", label: "Upgrades" },
+  { key: "resource", label: "Resources" },
+  { key: "player_side_scheme", label: "Side schemes" },
+];
+
+/** A cost group's number, for its order: X after every printed cost, then the cards with no cost at all. */
+const COST_X = Number.MAX_SAFE_INTEGER - 1;
+const NO_COST = Number.MAX_SAFE_INTEGER;
+const costGroupLabel = (rank: number): string =>
+  rank === NO_COST ? "No cost" : rank === COST_X ? "Cost X" : `Cost ${rank}`;
+
+const groupOf = (key: string, label: string, entries: readonly DeckListEntry[]): DeckListGroup => {
+  const sorted = entries.slice().sort((a, b) => a.name.localeCompare(b.name));
+  return { key, label, count: sorted.reduce((sum, e) => sum + e.quantity, 0), entries: sorted };
+};
+
 /**
- * `deck`'s cards grouped the way the builder's "YOUR DECK" panel and Deck check's card list both show them: by
- * signature set, then by aspect, each group's cards sorted by name. A card missing from `pool` is skipped, exactly
- * as `deckStatsOf` skips it from every count — there is nothing to name or group it by.
+ * `deck`'s cards as the builder's "YOUR DECK" panel and Deck check's card list show them, cards sorted by name inside
+ * each group. By aspect (the default) the groups are the signature set, then each aspect; by type or cost, a group for
+ * each; by name, one group of everything. A card missing from `pool` is skipped, exactly as `deckStatsOf` skips it from
+ * every count — there is nothing to name or group it by.
  */
-export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): readonly DeckListGroup[] {
+export function deckListGroupsOf(
+  deck: Pick<Deck, "cards">,
+  pool: CardPool,
+  sort: DeckListSort = DEFAULT_DECK_LIST_SORT,
+): readonly DeckListGroup[] {
   const byId = new Map(cardsOf(pool).map((card) => [card.id as string, card]));
   const buckets = new Map<string, DeckListEntry[]>();
+  const costRanks = new Map<string, number>();
 
   for (const entry of deck.cards as readonly DeckCardEntry[]) {
     const card = byId.get(entry.cardId as string);
     if (!card || !PLAYER_CARD_TYPES.has(card.type) || !("aspect" in card)) continue;
     const aspect = card.aspect as string;
-    const key = aspect.startsWith("hero:") ? "hero" : CORE_ASPECTS.has(aspect as CoreAspect) ? aspect : null;
-    if (!key) continue;
+    const aspectKey = aspect.startsWith("hero:") ? "hero" : CORE_ASPECTS.has(aspect as CoreAspect) ? aspect : null;
+    if (!aspectKey) continue;
+    const costRank =
+      "specialCost" in card && card.specialCost ? COST_X : "cost" in card ? (card.cost as number) : NO_COST;
+    const key =
+      sort === "aspect" ? aspectKey : sort === "type" ? card.type : sort === "cost" ? String(costRank) : "all";
+    costRanks.set(key, costRank);
     const list = buckets.get(key) ?? [];
     list.push({
       cardId: card.id,
@@ -267,13 +319,13 @@ export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): rea
     buckets.set(key, list);
   }
 
-  return GROUP_ORDER.filter(({ key }) => buckets.has(key)).map(({ key, label }) => {
-    const entries = buckets
-      .get(key)!
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return { key, label, count: entries.reduce((sum, e) => sum + e.quantity, 0), entries };
-  });
+  if (sort === "name") return buckets.size > 0 ? [groupOf("all", "All cards", buckets.get("all")!)] : [];
+  if (sort === "cost")
+    return [...buckets.keys()]
+      .sort((a, b) => costRanks.get(a)! - costRanks.get(b)!)
+      .map((key) => groupOf(key, costGroupLabel(costRanks.get(key)!), buckets.get(key)!));
+  const order = sort === "type" ? TYPE_GROUPS : GROUP_ORDER;
+  return order.filter(({ key }) => buckets.has(key)).map(({ key, label }) => groupOf(key, label, buckets.get(key)!));
 }
 
 /**

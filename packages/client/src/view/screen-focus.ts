@@ -156,6 +156,8 @@ export interface DeckBuilderFocusInput {
   readonly chartIds?: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
+  /** The Your deck list's own controls (its sort, Review), in the order drawn. */
+  readonly deckListIds?: readonly string[];
   /**
    * Campaign deck-edit mode (`scenes/campaign/deck-edit.ts`) draws neither the deck-name field (a campaign seat's
    * deck has no name of its own — `DeckContents` carries only identity/aspects/cards) nor Preconstructed/Clear
@@ -204,6 +206,7 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "pack:then",
     ...(input.chartIds ?? []),
     ...((input.showName ?? true) ? ["name"] : []),
+    ...(input.deckListIds ?? []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     ...(input.showDelete ? ["delete"] : []),
     ...(input.rewardIds ?? []).map((id) => `reward:${id}`),
@@ -229,6 +232,8 @@ export interface DeckCheckFocusInput {
   readonly cardIds: readonly string[];
   /** Wide only: the left rail's type filter chip ids (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), between Back and the grid. */
   readonly filterChipIds?: readonly string[];
+  /** The card list's sort control is drawn: a stop ahead of the cards. */
+  readonly showSort?: boolean;
 }
 
 /**
@@ -241,7 +246,7 @@ export interface DeckCheckFocusInput {
  * be read (the "dashed = not yet real" rule, docs/phase4-screen-gaps.md §0).
  */
 export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
-  const cardStops = input.cardIds.map((id) => `card:${id}`);
+  const cardStops = [...(input.showSort ? ["deck-sort"] : []), ...input.cardIds.map((id) => `card:${id}`)];
   if (input.wide)
     return ["back", ...(input.filterChipIds ?? []).map((id) => `filter:${id}`), ...cardStops, "edit-deck", "start"];
   return [

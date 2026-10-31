@@ -78,10 +78,13 @@ import {
   costCurveBars,
   deckCountText,
   deckListGroupsOf,
+  deckListSortLabel,
+  nextDeckListSort,
   deckStatsOf,
   filterDeckListGroups,
   type DeckListEntry,
   type DeckListGroup,
+  type DeckListSort,
   type PlayerCardType,
 } from "../view/deck-stats.js";
 import { deckOptionOf } from "../view/deck-list-model.js";
@@ -107,6 +110,7 @@ import {
 } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import type { VirtualListRow } from "../ui/virtual-list.js";
+import { deckBuilderView, rememberDeckListSort } from "../platform/deck-builder-view.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText, fitWrapped, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
@@ -125,6 +129,9 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
+
+/** The sort control: wide enough for its longest words, "Sort: Aspect". */
+const SORT_WIDTH = 132;
 
 export interface DeckCheckSceneData {
   readonly deck: Deck;
@@ -205,6 +212,7 @@ function editableCopyOf(deck: Deck): Deck {
 export class DeckCheckScene extends Phaser.Scene {
   #deck!: Deck;
   #returnTo!: { readonly scene: SceneKey; readonly data?: object };
+  #deckSort: DeckListSort = "aspect";
   #onStartGame: ((from: Phaser.Scene) => void) | undefined;
   /** Narrow only — wide shows every tab's content at once, so this is ignored there. */
   #activeTab: DeckCheckTab = "curve";
@@ -233,6 +241,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#deck = data.deck;
     this.#returnTo = data.returnTo ?? { scene: SCENES.decks };
+    this.#deckSort = deckBuilderView().deckSort;
     this.#onStartGame = data.onStartGame;
     this.#activeTab = "curve";
     this.#typeFilter = null;
@@ -316,7 +325,9 @@ export class DeckCheckScene extends Phaser.Scene {
 
     const option = deckOptionOf(this.#deck, POOL_CARDS, POOL_VERSION, POOL_DEPS);
     const stats = deckStatsOf(this.#deck, POOL_CARDS);
+    // The Curve and Aspect tabs read the deck by aspect whatever the card list's sort.
     const groups = deckListGroupsOf(this.#deck, POOL_CARDS);
+    const sorted = deckListGroupsOf(this.#deck, POOL_CARDS, this.#deckSort);
     const status = deckStatusOf(option);
     const inFlow = this.#returnTo.scene === SCENES.seats;
 
@@ -361,10 +372,10 @@ export class DeckCheckScene extends Phaser.Scene {
     let filterChipIds: readonly string[] = [];
     if (layout.wide) {
       filterChipIds = TYPE_FILTERS.map((f) => f.id);
-      const filteredGroups = filterDeckListGroups(groups, this.#typeFilter);
+      const filteredGroups = filterDeckListGroups(sorted, this.#typeFilter);
       cardIds = this.#drawCardGrid(layout.cards!, filteredGroups);
       this.#drawRail(layout.rail!, this.#deck, stats, { x: 0, y: 0, width, height });
-      this.#drawPanel(layout.panel!, layout.editDeck, layout.startGame, groups);
+      this.#drawPanel(layout.panel!, layout.editDeck, layout.startGame, sorted);
     } else {
       this.#tabs = new McTabs(this, {
         rect: layout.tabs!,
@@ -400,13 +411,16 @@ export class DeckCheckScene extends Phaser.Scene {
 
       if (this.#activeTab === "curve") this.#drawCurveTab(layout.content!, stats, groups);
       else if (this.#activeTab === "aspect") this.#drawAspectTab(layout.content!, groups);
-      else cardIds = this.#drawCardGrid(layout.content!, groups);
+      else {
+        const content = layout.content!;
+        const top = content.y + hit.target + 8;
+        this.#drawSort({ x: content.x, y: content.y, width: SORT_WIDTH, height: hit.target }, "secondary");
+        cardIds = this.#drawCardGrid({ ...content, y: top, height: content.y + content.height - top }, sorted);
+      }
 
       const footerBg = this.add.graphics();
       paintPanel(footerBg, layout.footer!, "onInk", "rest");
-      const openEdit = (): void => {
-        goToScreen(this, SCENES.deckBuilder, { deck: editableCopyOf(this.#deck) } satisfies DeckBuilderSceneData);
-      };
+      const openEdit = (): void => this.#edit();
       this.#buttons.push(
         new McButton(this, {
           kind: "onInk",
@@ -434,7 +448,13 @@ export class DeckCheckScene extends Phaser.Scene {
     }
 
     this.#route?.set(
-      deckCheckFocusOrder({ wide: layout.wide, activeTab: this.#activeTab, cardIds, filterChipIds }),
+      deckCheckFocusOrder({
+        wide: layout.wide,
+        activeTab: this.#activeTab,
+        cardIds,
+        filterChipIds,
+        showSort: layout.wide || this.#activeTab === "cards",
+      }),
       this.#stops,
     );
     this.#hover?.onDraw();
@@ -624,6 +644,31 @@ export class DeckCheckScene extends Phaser.Scene {
     );
   }
 
+  /** Back in the builder when it opened this screen, on the deck it handed over; else a builder opened on this deck. */
+  #edit(): void {
+    if (this.#returnTo.scene === SCENES.deckBuilder) goToScreen(this, SCENES.deckBuilder, this.#returnTo.data);
+    else goToScreen(this, SCENES.deckBuilder, { deck: editableCopyOf(this.#deck) } satisfies DeckBuilderSceneData);
+  }
+
+  /** The card list's sort (issue #594), the builder's own kept setting. */
+  #drawSort(rect: Rect, kind: "onInk" | "secondary"): void {
+    const sort = (): void => {
+      this.#deckSort = nextDeckListSort(this.#deckSort);
+      rememberDeckListSort(this.#deckSort);
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind,
+        label: deckListSortLabel(this.#deckSort),
+        type: typeRole.label,
+        rect,
+        onClick: sort,
+      }),
+    );
+    this.#stops.set("deck-sort", { rect, activate: sort });
+  }
+
   // ------------------------------------------------------------------------------------------------------------
   // The right ink rail (wide only, D04): "YOUR DECK", the grouped list (`scenes/deck-builder.ts`'s own
   // `drawGroupedCardList`, so the two screens' right rails read identically), then Edit deck and Start game ▸
@@ -636,11 +681,12 @@ export class DeckCheckScene extends Phaser.Scene {
     const left = rect.x + 16;
     const column = rect.width - 32;
     label(this, left, rect.y + 16, "Your deck", typeRole.label, surface.paper.hex, ink.secondary);
+    this.#drawSort({ x: left + column - SORT_WIDTH, y: rect.y + 8, width: SORT_WIDTH, height: hit.target }, "onInk");
     // The panel's lines have no zone of their own, so each line's card is `through` to nothing under the pointer.
     drawGroupedCardList(
       this,
       left,
-      rect.y + 36,
+      rect.y + 16 + hit.target,
       column,
       groups,
       PANEL_LIST_ENTRY_CAP,
@@ -651,9 +697,7 @@ export class DeckCheckScene extends Phaser.Scene {
       (entry, lineRect) => noteHoverCardId(this, entry.cardId as string, lineRect, true),
     );
 
-    const openEdit = (): void => {
-      goToScreen(this, SCENES.deckBuilder, { deck: editableCopyOf(this.#deck) } satisfies DeckBuilderSceneData);
-    };
+    const openEdit = (): void => this.#edit();
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
