@@ -6,8 +6,9 @@
  * art), Heroes, Villains, Side schemes, Devices (once a synced game says where it was played) and Cards by hero (each
  * hero's most played, most used and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes; a
  * pad or keyboard walks every tile, row and card, and the list follows the ring. Each card picture, in a strip or
- * leading a row, opens the card hover popover under a resting mouse. Read-only: only the tabs, the hero chips and Back
- * press anything, and none of them sits over the scrolling list.
+ * leading a row, opens the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and
+ * "Share my games" on Everyone), the tabs, the hero chips and Back press anything, and none of them sits over the
+ * scrolling list.
  *
  * Opened two ways (`PlayerStatsData`): as a screen from the Title, Decks & Collection or the Trophy Room (Back goes to
  * that screen), or as an overlay over Settings or Pause (Back closes it, and the scene under it takes input again).
@@ -21,7 +22,7 @@ import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
 import { accent, ink, signal, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
+import { bangers, campaignFrame, drawTopBar, estimateBangersWidth } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { addPressShield } from "../ui/press-shield.js";
@@ -47,7 +48,6 @@ import {
   SHARE_LABEL,
   SHARE_LINE,
   SHARING_ON_LABEL,
-  SOURCE_LABELS,
   settleSource,
   statsTabsFor,
   switchSource,
@@ -55,6 +55,8 @@ import {
   type SourceState,
   type StatsSource,
 } from "../view/global-stats-ui.js";
+import { sourceBarOf, type SourceBar } from "../view/stats-source-bar.js";
+import { askAnswerAllowed } from "../view/global-ask.js";
 import { readConsent } from "../global-stats/global-consent.js";
 import { shareFinishedGamesNow } from "../global-stats/share-now.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
@@ -163,6 +165,9 @@ const shortcutSpecs =
   (_set, snapshot) =>
     specsForShortcuts([id], snapshot);
 
+/** The glyph for the You / Everyone switch: a plain press of View on a pad, Shift+B (Shift+N) on a keyboard. */
+const sourceSwitchSpecs: CustomSpecs = (set, snapshot) => specsForShortcuts([set === "pad" ? "peek" : "log"], snapshot);
+
 /** The trigger glyph (LT or RT) on a pad; nothing on a keyboard, which has no triggers. */
 const triggerSpecs =
   (trigger: "lt" | "rt"): CustomSpecs =>
@@ -213,6 +218,8 @@ export class PlayerStatsScene extends Phaser.Scene {
   /** A press on "Share my games" is being saved (a second press waits), or the last one failed. */
   #shareBusy = false;
   #shareFailed = false;
+  /** When "Share my games" first appeared (ms), so a press in its first moments is ignored; null while it is not shown. */
+  #shareShownAt: number | null = null;
 
   constructor() {
     super(SCENES.playerStats);
@@ -268,10 +275,11 @@ export class PlayerStatsScene extends Phaser.Scene {
       onPage: (direction) => this.#pageFocus(direction),
       onHomeEnd: (edge) => this.#focusEdge(edge),
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
-      // X (G / H): to the filter chips, opening them on a phone; the chip it lands on wears the glyph. (View is not
-      // bound here: its key, R / P, is LB's on the keyboard.)
+      // X (G / H): to the filter chips, opening them on a phone (on Everyone, which has none, to the You / Everyone
+      // chips); the chip it lands on wears the glyph.
       onToggle: () => this.#focusFilters(),
-      // View (Shift+B / Shift+N): the other side of the You / Everyone switch. (Not View's own key R / P, which is LB's.)
+      // View on a pad (a plain press) and Shift+B / Shift+N on a keyboard: the other side of the You / Everyone switch.
+      // (Not View's own key R / P, which is LB's on the keyboard.)
       onLog: () => this.#chooseSource(lastSource === "you" ? "everyone" : "you", true),
       blocked: () => this.scene.isActive(SCENES.inspect),
     });
@@ -459,16 +467,33 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   /** The You / Everyone pair: one source at a time, drawn with the same chips as the filters. */
-  #sourceChips(phone: boolean): readonly StatsChip[] {
-    return (["you", "everyone"] as const).map((source) => ({
-      key: `source:${source}`,
-      label: SOURCE_LABELS[source],
-      selected: lastSource === source,
-      width: phone ? 118 : 140,
+  /** The You / Everyone pair in the top bar: two segments, the chosen one filled; the other wears the switch glyph. */
+  #drawSourceBar(bar: SourceBar, phone: boolean, stops: Map<string, FocusStop>, order: string[]): void {
+    (["you", "everyone"] as const).forEach((source, index) => {
+      const rect = source === "you" ? bar.you : bar.everyone;
+      const selected = lastSource === source;
+      const button = new McButton(this, {
+        kind: selected ? "primary" : "onInk",
+        label: bar.labels[index]!.toUpperCase(),
+        type: { ...typeRole.menuButton, size: phone ? 15 : 17 },
+        rect,
+        onClick: () => {
+          this.#byFocus = false;
+          this.#chooseSource(source, false);
+        },
+      });
+      this.#buttons.push(button);
       // The one not chosen wears the glyph of the key or button that switches (View, or Shift+B / Shift+N); not on a phone.
-      ...(phone || lastSource === source ? {} : { glyph: shortcutSpecs("log") }),
-      onClick: (byFocus: boolean) => this.#chooseSource(source, byFocus),
-    }));
+      if (!phone && !selected) this.#hints.button(button, [], "ink", { specs: sourceSwitchSpecs });
+      stops.set(`source:${source}`, {
+        rect,
+        activate: () => {
+          this.#byFocus = true;
+          this.#chooseSource(source, true);
+        },
+      });
+      order.push(`source:${source}`);
+    });
   }
 
   #sourceState(): SourceState {
@@ -495,6 +520,18 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (byFocus) this.#route?.focusKey(`source:${source}`);
   }
 
+  /** The one fixed line under Share: what is sent, in two lines at most (and why it failed, when it did). */
+  #drawShareLine(x: number, y: number, width: number, phone: boolean): number {
+    const line = this.add.text(
+      x,
+      y,
+      this.#shareFailed ? `${GLOBAL_ROW_FAILED} ${SHARE_LINE}` : SHARE_LINE,
+      textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+    );
+    fitWrapped(line, width, 2, phone ? 11 : 12);
+    return line.y + line.height;
+  }
+
   /** "Share my games", beside the switch while Everyone is on and sharing is not. */
   #shareChip(): StatsChip {
     return {
@@ -514,6 +551,8 @@ export class PlayerStatsScene extends Phaser.Scene {
    */
   async #share(): Promise<void> {
     if (this.#shareBusy || readConsent() === "on") return;
+    // A tap meant for a tab that lands as the button appears is not an answer (the same grace as the Title's ask).
+    if (this.#shareShownAt === null || !askAnswerAllowed(this.#shareShownAt, performance.now())) return;
     this.#shareBusy = true;
     const saved = await shareFinishedGamesNow();
     this.#shareBusy = false;
@@ -718,12 +757,21 @@ export class PlayerStatsScene extends Phaser.Scene {
     addPressShield(this, { x: 0, y: 0, width, height });
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     const backWord = this.#data.overlay ? "BACK" : (BACK_LABELS[this.#data.from ?? SCENES.trophyRoom] ?? "BACK");
+    // The You / Everyone switch lives in the bar, to the right of the title (`view/stats-source-bar.ts`), so it costs the
+    // content no height. The desktop's "N games played" gives way to it where the two would crowd the dark mode button.
+    const playedText = phone || !stats ? undefined : stats.header.played;
+    const sourceBar = stats
+      ? sourceBarOf({ width, phone, topBar: frame.topBar }, playedText ? playedText.length * 10 + 16 : 0, (text) =>
+          estimateBangersWidth(text, phone ? 15 : 17),
+        )
+      : null;
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : `◂ ${backWord}`,
       onBack: () => this.#back(),
       hints: this.#hints,
       title: "Your stats",
-      ...(phone || !stats ? {} : { right: stats.header.played }),
+      ...(playedText && sourceBar?.showRight ? { right: playedText } : {}),
+      ...(sourceBar ? { reserveRight: sourceBar.reserveRight } : {}),
     });
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) {
@@ -747,6 +795,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       return;
     }
 
+    if (sourceBar) this.#drawSourceBar(sourceBar, phone, stops, order);
     // Everyone kept from an earlier visit on a tab it lacks moves to Villains (Overview comes back with You).
     this.#applySource(settleSource(this.#sourceState()));
     const tabs = statsTabsFor(lastSource, statsTabsOf(stats));
@@ -770,49 +819,49 @@ export class PlayerStatsScene extends Phaser.Scene {
             ? shortcutSpecs("zoneNext")
             : null,
     }));
-    // A phone swipes one row of tabs rather than wrapping them to three, which leaves the stats the room; the Filters
-    // chip then takes the row under it.
-    // The You / Everyone switch is fixed right under the top bar on every tab, above the tab row, and is not part of
-    // the scrolling list. Beside it on Everyone: the share control (or "Sharing on"), and one line saying what sharing is.
+    // On Everyone, before sharing is on: the share control and a line saying what sharing is, fixed below the tab row
+    // (never where the tabs were a moment ago: a tap on a tab from habit must not turn sharing on).
     const sharing = readConsent() === "on";
-    const sourceTop = bar.height + 12;
-    let y = this.#drawChips(
-      sourceTop,
-      gutter,
-      inner,
-      [...this.#sourceChips(phone), ...(everyone && !sharing ? [this.#shareChip()] : [])],
-      stops,
-      order,
-      phone,
-    );
-    if (everyone && sharing) {
-      this.add
-        .text(
-          gutter + inner,
-          sourceTop + 22,
-          SHARING_ON_LABEL.toUpperCase(),
-          textStyle(typeRole.label, surface.ink.hex, 1),
-        )
-        .setOrigin(1, 0.5);
+    const showShare = everyone && !sharing;
+    if (!showShare) this.#shareShownAt = null;
+    else this.#shareShownAt ??= performance.now();
+    let y = bar.height + 12;
+    // A phone swipes one row of tabs rather than wrapping them to three, which leaves the stats the room; the Filters
+    // chip takes the right end of that same row.
+    if (phone) {
+      const toggle = filters.find((chip) => chip.key === "filter:toggle");
+      const rest = filters.filter((chip) => chip !== toggle);
+      const toggleWidth = toggle ? 124 : 0;
+      const railWidth = toggle ? inner - toggleWidth - CHIP_GAP : inner;
+      const rowTop = y;
+      y = this.#drawTabRail(rowTop, gutter, railWidth, tabChips, at, stops, order);
+      if (toggle)
+        this.#drawChips(
+          rowTop,
+          gutter + inner - toggleWidth,
+          toggleWidth,
+          [{ ...toggle, width: toggleWidth }],
+          stops,
+          order,
+          phone,
+        );
+      if (rest.length > 0) y = this.#drawChips(y + CHIP_GAP, gutter, inner, rest, stops, order, phone);
+    } else {
+      y = this.#drawChips(y, gutter, inner, tabChips, stops, order, phone);
+      if (filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
     }
-    if (everyone && !sharing) {
-      const line = this.add
-        .text(
-          gutter,
-          y + 6,
-          this.#shareFailed ? `${GLOBAL_ROW_FAILED} ${SHARE_LINE}` : SHARE_LINE,
-          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        )
-        .setFontSize(phone ? 11 : 12)
-        .setWordWrapWidth(inner);
-      y = line.y + line.height;
+    if (showShare) {
+      y = this.#drawChips(y + 10, gutter, inner, [this.#shareChip()], stops, order, phone);
+      y = this.#drawShareLine(gutter, y + 6, inner, phone);
+    } else if (everyone && sharing) {
+      const on = this.add.text(
+        gutter,
+        y + 8,
+        SHARING_ON_LABEL.toUpperCase(),
+        textStyle(typeRole.label, surface.ink.hex, 1),
+      );
+      y = on.y + on.height;
     }
-    y += 10;
-    y = phone
-      ? this.#drawTabRail(y, gutter, inner, tabChips, at, stops, order)
-      : this.#drawChips(y, gutter, inner, tabChips, stops, order, phone);
-    if (phone && filters.length > 0) y = this.#drawChips(y + CHIP_GAP, gutter, inner, filters, stops, order, phone);
-    if (!phone && filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
 
     if (lastTab === "cards") {
       // One row however many heroes: the previous hero, this one, the next (LT / RT step them too).

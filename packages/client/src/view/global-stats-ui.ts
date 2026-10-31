@@ -68,7 +68,7 @@ export function settleSource(state: SourceState): SourceState {
 
 export const SHARE_LABEL = "Share my games";
 export const SHARE_LINE =
-  "Shares each game you finish from now on: the villain, heroes, deck and result. No name or account.";
+  "Shares each game you finish from now on: the villain, sets, difficulty, heroes, deck, result and why you lost. No name or account. Turn it off in Settings.";
 export const SHARING_ON_LABEL = "Sharing on";
 
 /** A load that has not answered yet, beside the answers. */
