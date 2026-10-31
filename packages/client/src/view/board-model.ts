@@ -850,6 +850,10 @@ export interface BoardModel {
   readonly encounterDiscardTopInstanceId: InstanceId | null;
   /** Every card in the encounter discard, most recent first, for the pile overlay. */
   readonly encounterDiscard: readonly InstanceId[];
+  /** Every card in the victory display, for its pile and the pile overlay. Empty until a card gets there. */
+  readonly victoryDisplay: readonly InstanceId[];
+  /** The victory display's top card as it sits there: a flipped side scheme shows the side that was defeated. */
+  readonly victoryDisplayTop: ArtSource | null;
   /**
    * A second deck your identity brings besides your player deck — Doctor
    * Strange's Invocation deck (`HeroIdentityCard.separateDecks`) — one entry
@@ -987,6 +991,11 @@ function encounterDeckTopView(state: GameState, deps: EngineDeps): EncounterTopV
 function topOfDiscard(state: GameState, pile: readonly InstanceId[]): ArtSource | null {
   const top = pile[0];
   return top ? artFor(cardOf(state, top), { kind: "front" }) : null;
+}
+
+function victoryTopOf(state: GameState): ArtSource | null {
+  const top = state.victoryDisplay[0];
+  return top ? artFor(cardOf(state, top), faceOf(state, top)) : null;
 }
 
 /**
@@ -1243,6 +1252,8 @@ export function boardModel(
     encounterDeckTop: encounterDeckTopView(state, deps),
     encounterDiscardTopInstanceId: activeEncounterDeck(state).discard[0] ?? null,
     encounterDiscard: activeEncounterDeck(state).discard,
+    victoryDisplay: state.victoryDisplay,
+    victoryDisplayTop: victoryTopOf(state),
     separateDecks: separateDeckPiles(state, me),
     formCards,
     team: state.players
@@ -1554,10 +1565,14 @@ export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerCo
       // The B side is the one on the table: it carries the threat values shown,
       // and it is the side with a picture. Asking a main scheme for its "front"
       // gets nothing, because the schema puts the image on the stage.
-      // This instance's own stage: a game area's stage 3 is a second instance of the same card at another stage.
+      // This instance's own stage: a game area's stage 3 is a second instance of the same card at another stage, and
+      // a stage in the victory display (Mansion Attack) keeps the stage it left, whatever the scheme has moved on to.
       return {
         kind: "mainSchemeStage",
-        stageIndex: (mainSchemeStateOf(state, instanceId) ?? state.mainScheme).stageIndex,
+        stageIndex:
+          mainSchemeStateOf(state, instanceId)?.stageIndex ??
+          instance.mainSchemeStageIndex ??
+          state.mainScheme.stageIndex,
         side: "B",
       };
     default:

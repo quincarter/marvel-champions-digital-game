@@ -109,6 +109,11 @@ export interface FocusRouteOptions {
   readonly onPause?: () => void;
   /** View / Select / - and the Peek key (R / P), for a screen with a Peek-style control. No-op (and no key) when omitted. */
   readonly onView?: () => void;
+  /**
+   * The game log's key, and a hold of View, for a screen the log opens from (the villain phase). With it View splits as
+   * it does on the Board: a tap is `onView`, a hold is this.
+   */
+  readonly onLog?: () => void;
   /** R3 and the Expand key (F / ;), for a screen with an Expand/Collapse control. No-op (and no key) when omitted. */
   readonly onExpand?: () => void;
   /**
@@ -159,6 +164,7 @@ export class FocusRoute {
   readonly #onFocusChange: ((key: string | null) => void) | undefined;
   readonly #onPause: (() => void) | undefined;
   readonly #onView: (() => void) | undefined;
+  readonly #onLog: (() => void) | undefined;
   readonly #onExpand: (() => void) | undefined;
   readonly #primary: (() => string | null) | undefined;
   readonly #onTab: ((direction: 1 | -1) => void) | undefined;
@@ -190,6 +196,7 @@ export class FocusRoute {
     this.#onFocusChange = options.onFocusChange;
     this.#onPause = options.onPause;
     this.#onView = options.onView;
+    this.#onLog = options.onLog;
     this.#onExpand = options.onExpand;
     this.#primary = options.primary;
     this.#onTab = options.onTab;
@@ -258,6 +265,7 @@ export class FocusRoute {
             onBumperPick: (bumper: PickBumper, index: number) => options.picks!.onBumperPick(bumper, index),
           }
         : {}),
+      ...(options.onLog && options.onView ? { onViewTap: options.onView } : {}),
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       onScroll: (dx: number, dy: number, dtMs: number) => {
@@ -277,6 +285,7 @@ export class FocusRoute {
     }
     // View and R3 arrive as intents above; their keys (Peek and Expand: R / F left-handed, P / ; right-handed) have no
     // intent in the shared keyboard binding.
+    if (options.onLog) bindExtraInput(scene, { blocked: binding.blocked, log: options.onLog });
     if (options.onView || options.onExpand) {
       bindExtraInput(scene, {
         blocked: binding.blocked,
@@ -501,7 +510,8 @@ export class FocusRoute {
         this.#onToggle?.();
         break;
       case "view":
-        this.#onView?.();
+        // Split by `onViewTap`, this is the hold.
+        (this.#onLog ?? this.#onView)?.();
         break;
       case "expand":
         this.#onExpand?.();

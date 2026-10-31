@@ -977,6 +977,7 @@ function pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, 
   switch (zone.kind) {
     case "encounterDeck":
     case "encounterDiscard":
+    case "victoryDisplay":
       return frame.pileRects.get(pileKey(zone.kind)) ?? layout.zones.encounter;
     case "villainArea":
       return layout.zones.enemies;

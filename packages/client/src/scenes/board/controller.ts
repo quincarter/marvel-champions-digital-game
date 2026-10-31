@@ -156,6 +156,8 @@ export interface BoardControllerHost {
   /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
   hasDiscardStop?(): boolean;
   openDiscard?(): void;
+  hasVictoryDisplayStop?(): boolean;
+  openVictoryDisplay?(): void;
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -482,6 +484,7 @@ export class BoardController {
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
+        ...(this.#host.hasVictoryDisplayStop?.() ? { victoryDisplay: true as const } : {}),
         undo: this.undoOffer() !== null,
         table: this.#host.tableCards?.() ?? [],
         ...(this.#host.hasTile
@@ -535,6 +538,11 @@ export class BoardController {
     // So does reading a card on the table: it opens on a replayed board, and past a guided step's gate, as a tap does.
     if (focus.kind === "card" && this.#selection.kind === "idle" && this.opensOnActivate(focus.instanceId)) {
       this.onCharacterTap(focus.instanceId);
+      return;
+    }
+    // The pile sends nothing, so it opens on a replayed board too, as a tap does.
+    if (focus.kind === "victoryDisplay") {
+      this.#host.openVictoryDisplay?.();
       return;
     }
     if (this.#readOnly) return;

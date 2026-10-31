@@ -61,9 +61,10 @@ import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
 import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
 import { eventOnce } from "../view/event-once.js";
 import {
-  PHONE_TABS,
+  PHONE_RAIL_TABS,
   boardLayout,
   formFactorFor,
+  isTabbed,
   scrollLayout,
   type BoardLayout,
   type PhoneTab,
@@ -152,6 +153,7 @@ import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
+import { logDockRect, logDockWidthFor, logTickerOf, logTypeFor } from "../view/log-dock.js";
 import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/encounter-pile-layout.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import { evidenceInputOf } from "../view/evidence-model.js";
@@ -287,8 +289,14 @@ export class BoardScene extends Phaser.Scene {
    * what the right stick scrolls and what the ring is drawn round. Any move of the board's own focus ends it.
    */
   #logFocused = false;
-  /** Where the log panel was drawn last, or null while this layout is not showing it (another phone tab, a guided lock). */
+  /** The game log is open: docked beside the table, or in the tab area on a tabbed layout (`view/log-dock.ts`). */
+  #logOpen = false;
+  /** Where the table was scrolled when the log opened: the tab area's log clamps it away. */
+  #scrollBeforeLog = 0;
+  /** Where the log panel was drawn last, or null while it is shut. */
   #logRect: Rect | null = null;
+  /** Where the title bar's log line was drawn last, for the e2e specs. */
+  #logTickerRect: Rect | null = null;
   /**
    * Which surface keyboard/pad focus is currently in (§3.10, §7 accessibility fix — guided mode's rail/callout
    * and opportunistic tip toast were unreachable by keyboard/pad). "G"/the pad's X toggles between them
@@ -348,6 +356,10 @@ export class BoardScene extends Phaser.Scene {
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
     hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
     openDiscard: () => this.#openMyDiscard(),
+    hasVictoryDisplayStop: () => this.#frame.focusRects.has(focusKey({ kind: "victoryDisplay" })),
+    openVictoryDisplay: () => {
+      if (this.#model) this.#openPile("Victory display", this.#model.victoryDisplay);
+    },
     pressBarStop: (index) => {
       const stop = this.#frame.barStops[index];
       if (stop?.enabled) stop.press();
@@ -486,6 +498,7 @@ export class BoardScene extends Phaser.Scene {
     this.#debugFirstPlayer = null;
     this.#log = emptyLog();
     this.#cardHistory = emptyCardHistoryLog();
+    this.#logOpen = false;
     appSession().gameLog = this.#log;
     // A fresh game has no villain phase to look back on yet.
     appSession().villainReview = null;
@@ -698,6 +711,9 @@ export class BoardScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       (window as unknown as { __mcBoardDebug?: unknown }).__mcBoardDebug = {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
+        logTickerRect: () => this.#logTickerRect,
+        logOpen: () => this.#logOpen,
+        logRect: () => this.#logRect,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         hoverShown: () => this.#hover?.shownKey ?? null,
         // The focus ring's key (keyboard or pad moved it), null when nothing is focused.
@@ -1410,9 +1426,14 @@ export class BoardScene extends Phaser.Scene {
     const atRest = boardLayout(viewport, {
       playerCount: model.team.length + 1,
       neutralArea: model.scenarioPlayAreas.some((area) => area.neutral),
-      activeTab: this.#activeTab,
+      // The open log takes the tab area; the tab under it comes back when it shuts.
+      activeTab: this.#logOpen ? "log" : this.#activeTab,
       ...(guideRail ? { guideRail } : {}),
-      ...(dock?.request === "rail" ? { villainDock: this.#dockShown.width } : {}),
+      ...(dock?.request === "rail"
+        ? { villainDock: this.#dockShown.width }
+        : this.#logOpen && !isTabbed(formFactorFor(width, height))
+          ? { villainDock: logDockWidthFor(width) }
+          : {}),
       ...(dock?.request === "band" && this.#dockShown.grow > 0
         ? { villainBand: { tall: true, grow: this.#dockShown.grow } }
         : {}),
@@ -1480,6 +1501,14 @@ export class BoardScene extends Phaser.Scene {
               menuHintWhen: (set: "keyboard" | "pad") => set === "pad" || this.#escapeMeaning() === "pause",
             }
           : {}),
+        log: {
+          ...logTickerOf(this.#tableLog(), this.#guide?.logGate() ?? { locked: false, reason: null }),
+          open: this.#logOpen || this.#villainOverlay()?.logShown() === true,
+          onPress: () => this.toggleLog(),
+        },
+        onLogRect: (rect) => {
+          this.#logTickerRect = rect;
+        },
       });
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
       // The top bar's music note is a stop at the end of the focus route, so a pad can open the player (Pause has Music too).
@@ -1506,32 +1535,15 @@ export class BoardScene extends Phaser.Scene {
       : { enemies: null, area: null };
     if (missionSplit.enemies) drawEnemies(ctx, missionSplit.enemies, model);
     if (missionSplit.area) drawScenarioPlayAreas(ctx, missionSplit.area, stripAreas, references);
-    // The set-aside footer's line comes out of the log's space, never the deck and discard's.
     const setAside =
       model.setAside && zones.encounter
         ? splitSetAside(
             zones.encounter,
-            zones.log,
-            setAsideFooterHeight(
-              setAsideLines(model.setAside.count, model.setAside.names, (zones.log ?? zones.encounter).width),
-            ),
+            null,
+            setAsideFooterHeight(setAsideLines(model.setAside.count, model.setAside.names, zones.encounter.width)),
           )
         : null;
     if (zones.encounter) drawEncounter(ctx, setAside?.encounter ?? zones.encounter, model, setAside?.footer ?? null);
-    // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
-    // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson
-    // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
-    const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
-    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
-    else if (zones.log)
-      this.#logPanel.draw(
-        this,
-        setAside?.log ?? zones.log,
-        this.#tableLog(),
-        glyphsFitLayout(layout.tabbed) ? this.#hints : undefined,
-      );
-    else this.#logPanel.hide();
-    this.#logRect = zones.log && !logGate.locked ? (setAside?.log ?? zones.log) : null;
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
     const compactRow = layout.compactPlayerRow === true;
@@ -1541,7 +1553,6 @@ export class BoardScene extends Phaser.Scene {
     if (zones.me) drawDealtPile(ctx, zones.me, compactRow ? "compact" : "wide", model.perspectiveId, model.myDealt);
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model, compactRow ? { compact: true } : {});
     if (zones.team) drawTeam(ctx, zones.team, model);
-    if (zones.log && !logGate.locked) this.#frame.innerScroll.push(setAside?.log ?? zones.log);
     this.#rowWheelRect = zones.playArea && this.#playAreaScroll.row.canScroll ? zones.playArea : null;
     if (scrolling) {
       this.#drawScrollBands(layout);
@@ -1551,6 +1562,21 @@ export class BoardScene extends Phaser.Scene {
     }
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
+    // After the pinned bands: on a scrolling table they run the full width of the screen, under the docked log.
+    const logRect = this.#logOpen ? (zones.log ?? logDockRect(layout, logDockWidthFor(width))) : null;
+    if (logRect) {
+      this.#logPanel.draw(this, logRect, this.#tableLog(), {
+        type: logTypeFor(layout.formFactor),
+        closeLabel: "Close",
+        onClose: () => this.toggleLog(),
+        onCloseButton: (button) => {
+          this.#frame.buttons.push(button);
+          if (glyphsFitLayout(layout.tabbed)) this.#hints.button(button, ["log"], "paper");
+        },
+      });
+      this.#frame.innerScroll.push(logRect);
+    } else this.#logPanel.hide();
+    this.#logRect = logRect;
     this.#layerAssign = null;
     this.#registerLayerHints(layout);
     // Both sheets lay out below the top bar, where the chrome buttons (Report, music, language, dark mode) stay drawn
@@ -1638,7 +1664,7 @@ export class BoardScene extends Phaser.Scene {
     // On a phone the first player's card can be on another tab: the token then sits on that tab (Me or Team).
     const chrome = layout.zones.chrome;
     const tabs = layout.zones.tabs;
-    const tabIds = PHONE_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
+    const tabIds = PHONE_RAIL_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
     const holderTab = tabIds.indexOf(
       (this.#debugFirstPlayer ?? model.firstPlayerId) === model.perspectiveId ? "me" : "team",
     );
@@ -1678,10 +1704,10 @@ export class BoardScene extends Phaser.Scene {
 
   #drawTabs(rect: Rect, model: BoardModel): void {
     this.#tabs = drawPhoneTabs(this, rect, model, {
-      activeTab: this.#activeTab,
+      activeTab: this.#logOpen ? "log" : this.#activeTab,
       badges: this.#tabBadges,
-      logGate: this.#guide?.logGate() ?? { locked: false, reason: null },
       onSelect: (tab) => {
+        this.#shutLog();
         if (tab !== this.#activeTab) this.#tableScroll = 0;
         this.#activeTab = tab;
         // Looking at a tab is what clears its badge.
@@ -1816,7 +1842,7 @@ export class BoardScene extends Phaser.Scene {
         this.#openVillainReview();
         break;
       case "view":
-        this.#toggleLogFocus();
+        if (this.#focusRegion === "board") this.toggleLog(true);
         break;
       case "discard":
         if (this.#focusRegion === "board" && !this.#controller.readOnly) this.#openMyDiscard();
@@ -1854,10 +1880,9 @@ export class BoardScene extends Phaser.Scene {
         // A zone/choice-anchored step never sets a board gate at all (nothing to release above), but §3.10
         // still promises Escape always works there too — see `BoardGuideMount.handleEscape`'s own doc comment.
         if (this.#guide?.handleEscape()) break;
-        // Backing out of the log's focus comes before Pause, like backing out of any other mode.
-        if (this.#logFocused) {
-          this.#logFocused = false;
-          this.#draw();
+        // Backing out of the log comes before Pause, like backing out of any other mode.
+        if (this.#logFocused || (this.#logOpen && this.#controller.selection.kind === "idle")) {
+          this.toggleLog();
           break;
         }
         // A visible tip toast dismisses on Escape, like its own "Got it" (guided mode G10e).
@@ -1942,21 +1967,57 @@ export class BoardScene extends Phaser.Scene {
     this.#setFocus(stop.target);
   }
 
-  /** View / L: the log takes focus (the right stick then scrolls it), or gives it back. */
-  #toggleLogFocus(): void {
-    if (this.#focusRegion !== "board") return;
-    if (this.#logFocused) {
-      this.#logFocused = false;
-      this.#draw();
+  /**
+   * The log's key, holding View, or a press of the title bar's line: opens the log or shuts it. Opened from a key or a
+   * pad it takes focus, with the ring round it. Inside a villain phase the toggle is the phase's: it has the screen.
+   */
+  toggleLog(focus = false): void {
+    const phase = this.#villainOverlay();
+    if (phase) {
+      phase.toggleLog();
       return;
     }
-    const layout = this.#layout;
-    // A guided run keeps the log locked until its last lesson; there is nothing to scroll then.
-    if (!layout || !this.#model || this.#guide?.logGate().locked) return;
-    if (layout.tabbed) this.switchToTab("log");
-    else if (!layout.zones.log) return;
-    this.#logFocused = true;
+    if (!this.#model || (!this.#logOpen && this.logLocked())) return;
+    if (this.#logOpen) this.#shutLog();
+    else {
+      this.#logOpen = true;
+      this.#logFocused = focus;
+      this.#scrollBeforeLog = this.#tableScroll;
+    }
     this.#draw();
+  }
+
+  /** A guided run keeps the log locked until its last lesson (`view/log-gate-model.ts`). */
+  logLocked(): boolean {
+    return this.#guide?.logGate().locked === true;
+  }
+
+  /** The tab under the log is back (a tab press), or the villain phase has the screen. */
+  #shutLog(): void {
+    if (this.#logOpen) this.#tableScroll = this.#scrollBeforeLog;
+    this.#logOpen = false;
+    this.#logFocused = false;
+  }
+
+  /** The villain phase running over this table, or null. */
+  #villainOverlay(): VillainPhaseOverlay | null {
+    if (!this.scene.isActive(SCENES.villainPhase)) return null;
+    return this.scene.get(SCENES.villainPhase) as VillainPhaseOverlay;
+  }
+
+  /** The villain phase toggled its log: the title bar's line says so. */
+  refreshChrome(): void {
+    this.#draw();
+  }
+
+  /** The log as the table has it, for the view the villain phase opens. */
+  tableLog(): LogState {
+    return this.#tableLog();
+  }
+
+  /** The table's log is waiting where the phase began, behind the rail (`#tableLog`). */
+  logHeldBehindPhase(): boolean {
+    return this.#tableLog() !== this.#log;
   }
 
   /**
@@ -1966,10 +2027,10 @@ export class BoardScene extends Phaser.Scene {
   #scrollFocused(dx: number, dy: number): void {
     const members = this.#zoneMembers();
     if (!members) return;
-    const rowShown = !this.#layout?.tabbed || this.#activeTab === "me";
+    const rowShown = !this.#layout?.tabbed || (this.#activeTab === "me" && !this.#logOpen);
     switch (
       scrollTargetOf(
-        this.#logFocused,
+        this.#logOpen,
         this.#focus,
         members,
         { hand: this.#hand.canScroll, playArea: this.#playAreaScroll.row.canScroll },
@@ -2054,7 +2115,7 @@ export class BoardScene extends Phaser.Scene {
           this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
           break;
         case "log":
-          this.#actOnIntent("view");
+          this.toggleLog(true);
           break;
         case "teamUp":
           // The keyboard route to the badge's click: the first active pair's panel.
@@ -2431,7 +2492,7 @@ export class BoardScene extends Phaser.Scene {
       scale: appSession().settings.cardHoverScale,
       overlays,
       villainPhaseKey: SCENES.villainPhase,
-      dockPanel: this.#villainDockRects?.panel ?? null,
+      dockPanel: this.#villainDockRects?.panel ?? (this.#layout?.tabbed ? null : this.#logRect),
       viewport: { x: 0, y: 0, width, height },
     });
   }
@@ -2607,7 +2668,7 @@ export class BoardScene extends Phaser.Scene {
     return escapeMeaning({
       guideGateOpen: this.#controller.hasGuideGate(),
       guideStepActive: this.#guide?.escapeActs() ?? false,
-      logFocused: this.#logFocused,
+      logFocused: this.#logOpen,
       tipShown: this.#tip?.escapeActs() ?? false,
       selectionIdle: this.#controller.selection.kind === "idle",
       seatPeek: appSession().store.state.peekSeat !== null,
@@ -2997,6 +3058,11 @@ export class BoardScene extends Phaser.Scene {
    */
   setVillainPhaseOpen(open: boolean): void {
     this.#controller.setReadOnly(open);
+    // The phase takes priority over an open log (issue #550); its own Log button is the way back to it.
+    if (open && this.#logOpen) {
+      this.#shutLog();
+      this.#draw();
+    }
   }
 
   /**
@@ -3012,7 +3078,9 @@ export class BoardScene extends Phaser.Scene {
     const play = layout.zones.playArea;
     const top = play ? play.y : chrome ? chrome.y + chrome.height : viewport.y;
     const bottom = play ? play.y + play.height : (layout.zones.hand?.y ?? viewport.y + viewport.height);
-    const rect = reviewHandleRect(viewport, top, bottom);
+    // Beside the docked log, not under it: the handle keeps to the table's own right edge.
+    const docked = this.#logRect && !layout.tabbed ? { ...viewport, width: this.#logRect.x } : viewport;
+    const rect = reviewHandleRect(docked, top, bottom);
     const g = this.add.graphics().setDepth(HANDLE_DEPTH);
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width, rect.height - 2);
@@ -3056,6 +3124,8 @@ export class BoardScene extends Phaser.Scene {
   #reviewHandleShown(): boolean {
     const game = appSession().store.state.game ?? null;
     if (!showReviewHandle(appSession().villainReview, game) || this.#choiceOpen) return false;
+    // The log over the tab area has the screen; the handle comes back with the table.
+    if (this.#logOpen && this.#layout?.tabbed) return false;
     return !this.scene.isActive(SCENES.villainPhase) && !this.scene.isActive(SCENES.inspect);
   }
 
@@ -3084,6 +3154,10 @@ export class BoardScene extends Phaser.Scene {
    * already has (clear that tab's badge, then a full redraw so the newly-active tab's zones actually appear) but
    * from outside a pointer event, where `#drawTabs` keeps its handler private. A no-op already on `tab`. */
   switchToTab(tab: PhoneTab): void {
+    if (this.#logOpen) {
+      this.#shutLog();
+      if (this.#activeTab === tab) this.#draw();
+    }
     if (this.#activeTab === tab) return;
     this.#activeTab = tab;
     this.#tabBadges.delete(tab);

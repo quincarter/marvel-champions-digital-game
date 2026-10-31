@@ -131,6 +131,7 @@ export const pileKey = (
     | "discard"
     | "encounterDeck"
     | "encounterDiscard"
+    | "victoryDisplay"
     | "separateDeck"
     | "separateDiscard"
     | "scenarioDeck"

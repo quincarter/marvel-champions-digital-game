@@ -30,6 +30,8 @@ export interface ExtraInput {
    * track list steps with them, the keyboard's match for LB / RB.
    */
   readonly zones?: { readonly previous?: () => void; readonly next?: () => void };
+  /** The game log's key (`view/input-shortcuts.ts`), a chord the zone and Peek keys never match. */
+  readonly log?: () => void;
   /** Pad intent to what it does; an intent left out is ignored by this binding (the screen's route still sees it). */
   readonly intents?: Readonly<Partial<Record<GamepadIntent, () => void>>>;
 }
@@ -75,6 +77,18 @@ export function bindExtraInput(scene: Phaser.Scene, input: ExtraInput): void {
       if (!action) return;
       event.preventDefault();
       action();
+    });
+  }
+  const log = input.log;
+  if (log) {
+    const firstDelivery = eventOnce();
+    scene.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
+      if (!firstDelivery(event)) return;
+      if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+      if (blocked() || conflictPromptOwnsInput(scene) || typingInTextField(event)) return;
+      if (!shortcutsFor(event, currentKeyboardHand()).includes("log")) return;
+      event.preventDefault();
+      log();
     });
   }
   const intents = input.intents;
