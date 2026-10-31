@@ -1,3 +1,0 @@
-kind: Fixed
-body: The keyword-order prompt after an each-time loop (Drang III) names each keyword's minion on its own line, tells two same-name minions apart by the order they were discarded, shows the minion on hover, and says why the order is asked.
-time: 2026-10-29T08:21:39.8413049-04:00

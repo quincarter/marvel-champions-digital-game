@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Deck builder: a card search no longer overrides the chosen sort, and a second Then sort key (plus Aspect, Type and Match sorts) orders its ties (#531)'
-time: 2026-10-29T18:34:23.3853841-04:00
