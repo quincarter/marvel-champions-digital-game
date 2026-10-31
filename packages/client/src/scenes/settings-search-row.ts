@@ -11,7 +11,8 @@ import { textStyle } from "../ui/theme.js";
 import type { VirtualListRow } from "../ui/virtual-list.js";
 import { fitText } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
-import { markedLineOf, type MarkedLine, type SettingsSearchEntry } from "../view/settings-search.js";
+import type { SettingsSearchResult } from "../view/settings-search.js";
+import { markedLineOf, type MarkedLine, type TextRange } from "../view/settings-search-line.js";
 
 export const SEARCH_RESULT_ROW_HEIGHT = 52;
 
@@ -23,9 +24,9 @@ const GUTTER = 14;
 const PLACE_GAP = 12;
 
 /** Sets `text` to as much of `whole` as fits `room`, around the match: how much fits is read off `whole` drawn at full length. */
-function fitLine(text: Phaser.GameObjects.Text, whole: string, query: string, room: number): MarkedLine {
+function fitLine(text: Phaser.GameObjects.Text, whole: string, ranges: readonly TextRange[], room: number): MarkedLine {
   const maxChars = text.width <= room ? whole.length : Math.floor((whole.length * room) / text.width);
-  const line = markedLineOf(whole, query, maxChars);
+  const line = markedLineOf(whole, ranges, maxChars);
   text.setText(line.text);
   return line;
 }
@@ -47,8 +48,7 @@ function markRanges(band: Phaser.GameObjects.Graphics, text: Phaser.GameObjects.
 export function drawSearchResultRow(
   scene: Phaser.Scene,
   rect: Rect,
-  entry: SettingsSearchEntry,
-  query: string,
+  { entry, titleRanges, detailRanges }: SettingsSearchResult,
 ): VirtualListRow {
   const right = rect.x + rect.width - GUTTER;
   const place = scene.add
@@ -61,11 +61,11 @@ export function drawSearchResultRow(
   const title = scene.add
     .text(rect.x, rect.y + 6, entry.title, textStyle(typeRole.body, surface.paper.hex, 0.95))
     .setFontSize(TITLE_SIZE);
-  markRanges(band, title, fitLine(title, entry.title, query, titleRoom));
+  markRanges(band, title, fitLine(title, entry.title, titleRanges, titleRoom));
   const detail = scene.add
     .text(rect.x, rect.y + 28, entry.detail, textStyle(typeRole.body, surface.paper.hex, 0.75))
     .setFontSize(DETAIL_SIZE);
-  markRanges(band, detail, fitLine(detail, entry.detail, query, rect.width - GUTTER));
+  markRanges(band, detail, fitLine(detail, entry.detail, detailRanges, rect.width - GUTTER));
   const rule = scene.add.graphics();
   rule
     .fillStyle(surface.paper.hex, 0.25)

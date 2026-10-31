@@ -57,6 +57,8 @@ test("issue #576: search lists settings and nested pages, best first, and a pres
   // A setting: back to its tab with the ring on it.
   await search(page, phone, "dark mode");
   expect((await results(page))[0]).toBe("result:setting:dark-mode");
+  // Indexed, ranked and marked off the main thread.
+  expect(page.workers().some((worker) => worker.url().includes("settings-search"))).toBe(true);
   await pressStop(page, "result:setting:dark-mode", phone);
   await waitFor(
     async () =>

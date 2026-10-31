@@ -1,15 +1,26 @@
 /**
  * Search across Settings and every page nested under it (#576): one flat list of entries, ranked by
- * `view/deck-search.ts` in its worker, each saying what it is, where it lives and where a press goes. Pure: the scene
- * (`scenes/settings.ts`) supplies its own rows, draws the results and does the jump.
+ * `view/deck-search.ts`, each saying what it is, where it lives and where a press goes. All of it runs in
+ * `workers/settings-search.worker.ts`, through `view/settings-search-client.ts`: the scene sends what its rows say and
+ * gets back results ready to draw.
  *
  * `matchRangesOf` says which letters to mark in a result. It follows the ranking's own tiers, so what is marked is what
  * matched: the letters typed, else the word one typo away, else the letters in order across a name.
  */
-import { GUIDE_LEVEL_OPTIONS } from "./settings-rows.js";
-import { editDistance, isSubsequence, normalizeText, typoLimitOf, type SearchDocument } from "./deck-search.js";
+import {
+  editDistance,
+  isSubsequence,
+  normalizeText,
+  prepareDocuments,
+  rankDocuments,
+  typoLimitOf,
+  type PreparedDocument,
+  type SearchDocument,
+} from "./deck-search.js";
+import type { TextRange } from "./settings-search-line.js";
 import type { SettingsItemId, SettingsTabId } from "./settings-sections.js";
 import {
+  controllerStateOf,
   glyphSourceRowInfoOf,
   hintSizeRowInfoOf,
   hintsToggleInfoOf,
@@ -21,7 +32,7 @@ import {
   padRowsOf,
   type ControlsTab,
 } from "./controls-rows.js";
-import type { PadFamily } from "./pad-family.js";
+import type { PadFamily, PadIdentity } from "./pad-family.js";
 import { progressionGuideOf } from "./progression-guide.js";
 import { everyGlossaryEntry, villainPhaseOrder } from "./rules-reference.js";
 import type { RulesTab } from "./rules-layout.js";
@@ -33,7 +44,7 @@ import type { StatsTab } from "./player-stats-layout.js";
 import { printAndPlayRowOf, unlockAllRowOf, unlockListRowsOf } from "./unlocks-model.js";
 import type { GlobalConsent } from "../global-stats/global-consent.js";
 import type { Settings } from "../settings.js";
-import type { Unlocks } from "../progression/unlocks.js";
+import { Unlocks, type UnlocksInput } from "../progression/unlocks.js";
 import { ASPECT_GUIDES } from "../guide/aspects.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 
@@ -241,9 +252,6 @@ export function nestedPageEntriesOf(input: {
   ];
 }
 
-/** The Guide level row's text for the search: it draws no detail line of its own, its options say it. */
-export const GUIDE_LEVEL_SEARCH_DETAIL = GUIDE_LEVEL_OPTIONS.map((o) => `${o.label}: ${o.detail}.`).join(" ");
-
 /** Title first, then its description; the place last, so "sound" finds a row that only lives under Sound. */
 export function searchDocumentsOf(entries: readonly SettingsSearchEntry[]): readonly SearchDocument[] {
   return entries.map((entry) => ({
@@ -252,11 +260,6 @@ export function searchDocumentsOf(entries: readonly SettingsSearchEntry[]): read
     secondary: [entry.detail],
     notes: [entry.place],
   }));
-}
-
-export interface TextRange {
-  readonly start: number;
-  readonly end: number;
 }
 
 /** `text` folded as the ranking folds it, with where each folded letter came from. */
@@ -328,38 +331,59 @@ export function matchRangesOf(text: string, query: string): readonly TextRange[]
   return merged;
 }
 
-export interface MarkedLine {
-  readonly text: string;
-  readonly ranges: readonly TextRange[];
+/** What the scene sends once per open: all plain data, so it crosses to the worker as it is. */
+export interface SettingsSearchIndexInput {
+  readonly tabs: Parameters<typeof settingsRowEntriesOf>[0];
+  readonly rows: readonly (readonly [SettingsItemId, SettingsRowText])[];
+  readonly settings: Settings;
+  readonly pad: PadIdentity | null;
+  readonly unlocks: UnlocksInput;
+  readonly globalConsent: GlobalConsent;
 }
 
-const ELLIPSIS = "…";
-/** Letters kept ahead of the first match when a long description is cut to show it. */
-const LEAD_IN = 12;
+/** A match, with which letters of its title and description to mark. */
+export interface SettingsSearchResult {
+  readonly entry: SettingsSearchEntry;
+  readonly titleRanges: readonly TextRange[];
+  readonly detailRanges: readonly TextRange[];
+}
 
-/** One line of at most `maxChars` holding `text`'s first match, cut at word starts where it can be. */
-export function markedLineOf(text: string, query: string, maxChars: number): MarkedLine {
-  const ranges = matchRangesOf(text, query);
-  if (text.length <= maxChars) return { text, ranges };
-  const first = ranges[0]?.start ?? 0;
-  // The start of the line, unless that would cut the first match off.
-  const fits = (ranges[0]?.end ?? 0) < maxChars;
-  let from = fits ? 0 : Math.min(first - LEAD_IN, text.length - maxChars + 1);
-  if (from > 0) {
-    const space = text.indexOf(" ", from);
-    if (space >= 0 && space < first) from = space + 1;
+export type SettingsSearchRequest =
+  | { readonly type: "index"; readonly input: SettingsSearchIndexInput }
+  | { readonly type: "query"; readonly requestId: number; readonly query: string };
+
+export interface SettingsSearchResponse {
+  readonly requestId: number;
+  readonly results: readonly SettingsSearchResult[];
+}
+
+/** Holds the index and answers queries: in the worker, or here where there is none. */
+export class SettingsSearchHost {
+  #entries: ReadonlyMap<string, SettingsSearchEntry> = new Map();
+  #documents: readonly PreparedDocument[] = [];
+
+  index(input: SettingsSearchIndexInput): void {
+    const { settings, pad, globalConsent } = input;
+    const { family, swap } = controllerStateOf(settings, pad);
+    const entries = [
+      ...settingsRowEntriesOf(input.tabs, new Map(input.rows)),
+      ...nestedPageEntriesOf({ settings, unlocks: new Unlocks(input.unlocks), family, swap, globalConsent }),
+    ];
+    this.#entries = new Map(entries.map((entry) => [entry.id, entry]));
+    this.#documents = prepareDocuments(searchDocumentsOf(entries));
   }
-  from = Math.max(0, from);
-  const lead = from > 0 ? ELLIPSIS : "";
-  const room = maxChars - lead.length - 1;
-  const cut = from + room >= text.length;
-  const body = text.slice(from, cut ? text.length : from + room).trimEnd();
-  const shift = lead.length - from;
-  return {
-    text: `${lead}${body}${cut ? "" : ELLIPSIS}`,
-    ranges: ranges.flatMap(({ start, end }) => {
-      const clipped = { start: Math.max(start, from) + shift, end: Math.min(end, from + body.length) + shift };
-      return clipped.end > clipped.start ? [clipped] : [];
-    }),
-  };
+
+  search(query: string): readonly SettingsSearchResult[] {
+    return rankDocuments(this.#documents, query).flatMap(({ id }) => {
+      const entry = this.#entries.get(id);
+      if (!entry) return [];
+      return [
+        {
+          entry,
+          titleRanges: matchRangesOf(entry.title, query),
+          detailRanges: matchRangesOf(entry.detail, query),
+        },
+      ];
+    });
+  }
 }

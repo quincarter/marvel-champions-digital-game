@@ -310,6 +310,9 @@ export const GUIDE_LEVEL_OPTIONS: readonly GuideLevelOption[] = [
   { value: "off", label: "Off", detail: "Glossary stays on" },
 ];
 
+/** The Guide level row's text for Settings' search: it draws no detail line of its own, its options say it. */
+export const GUIDE_LEVEL_SEARCH_DETAIL = GUIDE_LEVEL_OPTIONS.map((o) => `${o.label}: ${o.detail}.`).join(" ");
+
 export interface GuideLevelRowInfo {
   readonly kind: "segmented";
   readonly id: "guide-level";

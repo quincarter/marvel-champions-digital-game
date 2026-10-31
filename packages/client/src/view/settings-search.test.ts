@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { defaultSettings } from "../settings.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 import { prepareDocuments, rankDocuments } from "./deck-search.js";
+import { markedLineOf } from "./settings-search-line.js";
 import {
-  markedLineOf,
+  SettingsSearchHost,
   matchRangesOf,
   nestedPageEntriesOf,
   searchDocumentsOf,
@@ -112,16 +113,40 @@ describe("matchRangesOf", () => {
   });
 });
 
+describe("SettingsSearchHost", () => {
+  it("answers from what it was sent, with the letters to mark", () => {
+    const host = new SettingsSearchHost();
+    host.index({
+      tabs: [{ id: "display", label: "Display", sections: [{ items: ["dark-mode"] }] }],
+      rows: [["dark-mode", { title: "Dark mode", detail: "Draws the light screens dark." }]],
+      settings: defaultSettings(),
+      pad: null,
+      unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
+      globalConsent: "unset",
+    });
+    const [best] = host.search("dark mode");
+    expect(best?.entry.id).toBe("setting:dark-mode");
+    expect(best?.titleRanges).toEqual([
+      { start: 0, end: 4 },
+      { start: 5, end: 9 },
+    ]);
+    expect(host.search("zzzzqq")).toEqual([]);
+  });
+});
+
 describe("markedLineOf", () => {
+  const lineOf = (text: string, query: string, maxChars: number) =>
+    markedLineOf(text, matchRangesOf(text, query), maxChars);
+
   const long =
     "Shows the boost icons per card left in the encounter deck when you tap it. Star boosts are listed apart.";
 
   it("leaves a short line whole", () => {
-    expect(markedLineOf("Sound", "sou", 40)).toEqual({ text: "Sound", ranges: [{ start: 0, end: 3 }] });
+    expect(lineOf("Sound", "sou", 40)).toEqual({ text: "Sound", ranges: [{ start: 0, end: 3 }] });
   });
 
   it("cuts a long line around a match near its end, keeping the mark on the same letters", () => {
-    const line = markedLineOf(long, "apart", 40);
+    const line = lineOf(long, "apart", 40);
     expect(line.text.length).toBeLessThanOrEqual(40);
     expect(line.text.startsWith("…")).toBe(true);
     const range = line.ranges[0]!;
@@ -129,7 +154,7 @@ describe("markedLineOf", () => {
   });
 
   it("keeps a match near the start in the first window", () => {
-    const line = markedLineOf(long, "boost", 40);
+    const line = lineOf(long, "boost", 40);
     expect(line.text.startsWith("Shows")).toBe(true);
     expect(line.text.endsWith("…")).toBe(true);
     const range = line.ranges[0]!;
@@ -137,7 +162,7 @@ describe("markedLineOf", () => {
   });
 
   it("drops a mark that falls past the cut", () => {
-    for (const { start, end } of markedLineOf(long, "star", 30).ranges) {
+    for (const { start, end } of lineOf(long, "star", 30).ranges) {
       expect(end).toBeGreaterThan(start);
       expect(end).toBeLessThanOrEqual(30);
     }

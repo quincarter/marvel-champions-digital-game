@@ -26,6 +26,7 @@
  */
 import Phaser from "phaser";
 import {
+  GUIDE_LEVEL_SEARCH_DETAIL,
   guideRowInfoOf,
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
@@ -79,18 +80,10 @@ import {
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { glyphRightInRow } from "../view/glyph-placement.js";
 import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
-import type { RankedDocument } from "../view/deck-search.js";
-import { DeckSearchClient } from "../view/deck-search-client.js";
-import {
-  GUIDE_LEVEL_SEARCH_DETAIL,
-  nestedPageEntriesOf,
-  searchDocumentsOf,
-  settingsRowEntriesOf,
-  type SettingsRowText,
-  type SettingsSearchEntry,
-} from "../view/settings-search.js";
+import { SettingsSearchClient } from "../view/settings-search-client.js";
+import type { SettingsRowText, SettingsSearchEntry, SettingsSearchResult } from "../view/settings-search.js";
 import { readConsent } from "../global-stats/global-consent.js";
-import { controllerStateOf, type ControlsTab } from "../view/controls-rows.js";
+import type { ControlsTab } from "../view/controls-rows.js";
 import type { ControlsSceneData } from "./controls.js";
 import type { UnlocksSceneData } from "./unlocks.js";
 import type { StatsTab } from "../view/player-stats-layout.js";
@@ -310,15 +303,13 @@ export class SettingsOverlay extends Phaser.Scene {
   /** The search (#576): shown in the tab rail's place while open, with the results in place of the rows. */
   #searchOpen = false;
   #searchInput: McTextInput | null = null;
-  #searchClient: DeckSearchClient | null = null;
-  #searchEntries: ReadonlyMap<string, SettingsSearchEntry> = new Map();
+  #searchClient: SettingsSearchClient | null = null;
   /** The newest answer for what is typed; null with nothing typed. */
-  #searchRanked: readonly RankedDocument[] | null = null;
+  #searchResults: readonly SettingsSearchResult[] | null = null;
   #resultsList: McVirtualList | null = null;
   readonly #resultsScroll = new ListScroll();
   /** Each row's first focus stop, for a search result to land the ring on. */
   #firstStopOf = new Map<string, string>();
-  #searchVersion = 0;
 
   constructor() {
     super(SCENES.settings);
@@ -335,7 +326,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
     this.#searchOpen = false;
-    this.#searchRanked = null;
+    this.#searchResults = null;
     // Before the route: A, B or Start takes the caret out of the search field.
     bindTextFieldEscape(
       this,
@@ -446,7 +437,7 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #openSearch(): void {
     this.#searchOpen = true;
-    this.#searchRanked = null;
+    this.#searchResults = null;
     this.#draw();
     this.#indexForSearch();
     this.#searchInput?.focus();
@@ -456,7 +447,7 @@ export class SettingsOverlay extends Phaser.Scene {
   /** Back to the tab the search was opened over. */
   #closeSearch(focus: string | null = "search-toggle"): void {
     this.#searchOpen = false;
-    this.#searchRanked = null;
+    this.#searchResults = null;
     this.#searchClient?.cancel();
     this.#searchInput?.destroy();
     this.#searchInput = null;
@@ -464,31 +455,33 @@ export class SettingsOverlay extends Phaser.Scene {
     if (focus) this.#route?.focusKey(focus);
   }
 
-  /** Every row and page as they read now. Once per open: nothing they say changes while the field has the caret. */
+  /** What the rows say now, once per open: the worker reads the pages under Settings itself. */
   #indexForSearch(): void {
     const { width, height } = this.scale.gameSize;
     const settings = appSession().settings;
     const guideRows = guideRowInfoOf(guidePrefs());
     const rows = this.#itemsOf(settings, guideRows);
-    const { family, swap } = controllerStateOf(settings, inputDevice().pad);
-    const entries = [
-      ...settingsRowEntriesOf(this.#tabsOf(width, height, settings, guideRows), rows),
-      ...nestedPageEntriesOf({ settings, unlocks: unlocks(), family, swap, globalConsent: readConsent() }),
-    ];
-    this.#searchEntries = new Map(entries.map((entry) => [entry.id, entry]));
-    this.#searchClient ??= new DeckSearchClient();
-    this.#searchClient.setDocuments(searchDocumentsOf(entries), String(++this.#searchVersion));
+    const { progress, prefs, devUnlockAll, achievementPoints } = unlocks();
+    this.#searchClient ??= new SettingsSearchClient();
+    this.#searchClient.index({
+      tabs: this.#tabsOf(width, height, settings, guideRows),
+      rows: [...rows].map(([id, { title, detail }]) => [id, { title, detail }] as const),
+      settings,
+      pad: inputDevice().pad,
+      unlocks: { progress, prefs, devUnlockAll, achievementPoints },
+      globalConsent: readConsent(),
+    });
   }
 
   #onSearchChange(value: string): void {
     if (value.trim() === "") {
       this.#searchClient?.cancel();
-      this.#searchRanked = null;
+      this.#searchResults = null;
       this.#draw();
       return;
     }
-    this.#searchClient?.search(value, (ranked) => {
-      this.#searchRanked = ranked;
+    this.#searchClient?.search(value, (results) => {
+      this.#searchResults = results;
       this.#resultsScroll.reset();
       this.#redrawIfOpen();
     });
@@ -676,7 +669,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = this.#tabsOf(width, height, settings, guideRows);
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     // With something typed the results replace the rows; until then the tab stays under the field.
-    const results = this.#searchOpen ? this.#searchRanked : null;
+    const results = this.#searchOpen ? this.#searchResults : null;
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
       (results ? [] : active.sections).map((section) => ({
@@ -832,13 +825,8 @@ export class SettingsOverlay extends Phaser.Scene {
   }
 
   /** The ranked results, in the room the rows had, or a line saying there are none. Returns their stops in order. */
-  #drawResults(room: Rect, ranked: readonly RankedDocument[], stops: Map<string, FocusStop>): readonly string[] {
-    const query = this.#searchInput?.value ?? "";
-    const entries = ranked.flatMap(({ id }) => {
-      const entry = this.#searchEntries.get(id);
-      return entry ? [entry] : [];
-    });
-    if (entries.length === 0) {
+  #drawResults(room: Rect, results: readonly SettingsSearchResult[], stops: Map<string, FocusStop>): readonly string[] {
+    if (results.length === 0) {
       this.add
         .text(room.x, room.y + 14, "Nothing matches that search.", textStyle(typeRole.body, surface.paper.hex, 0.8))
         .setFontSize(12);
@@ -847,14 +835,14 @@ export class SettingsOverlay extends Phaser.Scene {
     const list = new McVirtualList(this, {
       rect: room,
       rowHeight: SEARCH_RESULT_ROW_HEIGHT,
-      count: entries.length,
+      count: results.length,
       scroll: this.#resultsScroll,
       background: false,
-      renderRow: (index, rect) => drawSearchResultRow(this, rect, entries[index]!, query),
-      onRowActivate: (index) => this.#openResult(entries[index]!),
+      renderRow: (index, rect) => drawSearchResultRow(this, rect, results[index]!),
+      onRowActivate: (index) => this.#openResult(results[index]!.entry),
     });
     this.#resultsList = list;
-    return entries.map((entry, index) => {
+    return results.map(({ entry }, index) => {
       const key = `result:${entry.id}`;
       stops.set(key, {
         rect: () => list.rectFor(index),
