@@ -157,6 +157,7 @@ import {
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { loadGlobalVillainCards, type GlobalLoad } from "../global-stats/global-stats-client.js";
 import { globalVillainDecksOf } from "../global-stats/global-stats-model.js";
+import { askAnswerAllowed } from "../view/global-ask.js";
 import { readConsent } from "../global-stats/global-consent.js";
 import { shareFinishedGamesNow } from "../global-stats/share-now.js";
 import {
@@ -460,6 +461,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** A press on "Share my games" is being saved (a second press waits), or the last one failed. */
   #shareBusy = false;
   #shareFailed = false;
+  /** When Share first appeared (ms), for the 400 ms grace; null while it is not shown. */
+  #shareShownAt: number | null = null;
   /** The stepper's read, waiting for it to rest on a villain (the Worker allows 120 reads an hour). */
   #stepTimer: Phaser.Time.TimerEvent | null = null;
   /** Which of the deck rail's two tabs shows: the deck list, or "From your games" (LB / RB). Not in campaign mode. */
@@ -545,6 +548,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#againstGlobal.clear();
     this.#shareFailed = false;
     this.#shareBusy = false;
+    this.#shareShownAt = null;
     this.#stepTimer = null;
     this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
     this.#tab = startTab(data.railTab, this.#campaign !== null);
@@ -1975,6 +1979,7 @@ ${entry.detail}`,
       { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
     );
     limit = bottom;
+    let shareDrawn = false;
     if (y + (hit.target + 8) * 2 <= bottom) {
       const villain = villainIn(this.#againstSource);
       const everyone = this.#againstSource === "everyone";
@@ -2052,6 +2057,9 @@ ${entry.detail}`,
         const choose = (): void => {
           if (this.#againstSource === source) return;
           this.#againstSource = source;
+          // A read still waiting for the stepper to rest belongs to the other source.
+          this.#stepTimer?.remove();
+          this.#stepTimer = null;
           // Everyone with no villain chosen yet starts on the first of its list, read now (this press), not before.
           const first = villainIn(source);
           if (source === "everyone" && first !== undefined) void this.#loadAgainstGlobal(first);
@@ -2094,9 +2102,13 @@ ${entry.detail}`,
       // Without room, a note says where Settings has it. Turning it off stays in Settings.
       if (everyone && readConsent() !== "on") {
         if (bottom - y >= shareRoom || !Number.isFinite(bottom)) {
+          shareDrawn = true;
+          this.#shareShownAt ??= performance.now();
           const shareRect: Rect = { x: left, y, width: column, height: hit.target };
           const share = (byFocus: boolean): void => {
             if (this.#shareBusy) return;
+            // A tap meant for something else that lands as the button appears is not a press on it.
+            if (this.#shareShownAt === null || !askAnswerAllowed(this.#shareShownAt, performance.now())) return;
             this.#shareBusy = true;
             void shareFinishedGamesNow().then((saved) => {
               this.#shareBusy = false;
@@ -2156,6 +2168,7 @@ ${entry.detail}`,
         }
       }
     }
+    if (!shareDrawn) this.#shareShownAt = null;
     section("Keep: your staples", view.keep, null);
     if (view.note && y + 30 < bottom) {
       const note = this.add

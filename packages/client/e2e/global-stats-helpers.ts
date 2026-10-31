@@ -50,6 +50,9 @@ export async function fakeWorker(target: Page | BrowserContext): Promise<FakeWor
   await target.addInitScript(() => {
     try {
       if (localStorage.getItem("mcsync.prompted") === null) localStorage.setItem("mcsync.prompted", "1");
+      // Seeded games earn achievements, whose popup sits over the top bar (and a stack takes the taps) for its life.
+      const settings = JSON.parse(localStorage.getItem("mc-settings") ?? "{}") as object;
+      localStorage.setItem("mc-settings", JSON.stringify({ version: 1, ...settings, achievementPopupTime: "off" }));
     } catch {}
   });
   await target.route(`${WORKER}/**`, async (route) => {

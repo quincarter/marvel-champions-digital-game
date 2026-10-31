@@ -366,6 +366,7 @@ test("Your stats: Share my games turns sharing on with one press, marks finished
   await page.waitForTimeout(500);
   expect(await stored(page, "global-stats-consent")).toBeNull();
 
+  await page.waitForTimeout(500);
   await press(page, STATS, "share:global");
   await waitFor(async () => ((await hasStop(page, STATS, "share:global")) ? null : true), "the button goes", 10_000);
   expect(await stored(page, "global-stats-consent")).toBe("on");
@@ -483,6 +484,7 @@ test("the deck builder: Share my games turns sharing on with one press and marks
   await press(page, BUILDER, "games:source:everyone");
   await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? true : null), "Share my games", 15_000);
   expect(await stored(page, "global-stats-consent")).toBeNull();
+  await page.waitForTimeout(500);
   await press(page, BUILDER, "games:share");
   await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? null : true), "the button goes", 10_000);
   expect(await stored(page, "global-stats-consent")).toBe("on");
@@ -514,6 +516,7 @@ test("phone, the deck builder\x27s From your games tab: Share my games works, an
   await settle(page);
   expect(await hasStop(page, BUILDER, "games:share")).toBe(true);
   expect(await stored(page, "global-stats-consent")).toBeNull();
+  await page.waitForTimeout(500);
   await press(page, BUILDER, "games:share");
   await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? null : true), "the button goes", 10_000);
   expect(await stored(page, "global-stats-consent")).toBe("on");
@@ -526,7 +529,8 @@ for (const size of [
 ]) {
   test(`phone ${size.name}: the You / Everyone switch is in the top bar and the list starts no lower than without it`, async ({
     page,
-  }) => {
+  }, info) => {
+    test.skip(info.project.name !== "phone", "a finger");
     test.setTimeout(120_000);
     await fakeWorker(page);
     await page.setViewportSize({ width: size.width, height: size.height });
@@ -544,8 +548,8 @@ for (const size of [
       expect(rect.x + rect.width).toBeLessThanOrEqual(size.width);
     }
     expect(you.x).toBeGreaterThanOrEqual(back.x + back.width);
-    // Clear of the dark mode tab hanging from the top centre.
-    expect(you.x).toBeGreaterThanOrEqual(size.width / 2 + 17);
+    // Clear of the dark mode button's press zone (hit.target wide) at the top centre.
+    expect(you.x).toBeGreaterThanOrEqual(size.width / 2 + 22);
     // Main's You view with no chips: bar 52 + 12, tab row 44, 12 to the list.
     const tile = (await stopKeys(page, STATS)).find((k) => k.startsWith("tile:"))!;
     const first = await stopRect(page, STATS, tile);

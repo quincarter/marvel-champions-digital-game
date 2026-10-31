@@ -21,8 +21,12 @@ export interface SourceBar {
 }
 
 const GAP = 8;
-/** Half the width of the dark mode button's slot, and the room kept clear beside it. */
-const THEME_HALF = { phone: 17, wide: 19 } as const;
+/**
+ * Half the width of the dark mode button's press zone (`scenes/theme-button.ts` widens its slot to `hit.target`, and the
+ * zone runs from the very top edge), plus the room kept clear beside it. The drawn tab is narrower; the zone is what a
+ * press hits.
+ */
+const THEME_HALF = hit.target / 2;
 /** One segment's widest, and its text's side padding. */
 const SEGMENT_MAX = { phone: 96, wide: 112 } as const;
 const SEGMENT_PAD = 16;
@@ -38,7 +42,7 @@ export function sourceBarOf(
 ): SourceBar {
   const pad = frame.phone ? 12 : 22;
   const kind = frame.phone ? "phone" : "wide";
-  const centreClear = Math.round(frame.width / 2) + THEME_HALF[kind] + GAP;
+  const centreClear = Math.round(frame.width / 2) + THEME_HALF + GAP;
   const height = Math.min(hit.target, frame.topBar);
   const y = Math.round((frame.topBar - height) / 2);
   // The right text sits at the edge; the pair sits left of it when both fit right of the dark mode button.

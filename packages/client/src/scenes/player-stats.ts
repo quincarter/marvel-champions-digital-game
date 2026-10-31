@@ -22,7 +22,7 @@ import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
 import { accent, ink, signal, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawTopBar, estimateBangersWidth } from "../ui/campaign-chrome.js";
+import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { addPressShield } from "../ui/press-shield.js";
@@ -236,6 +236,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#global = { kind: "idle" };
     this.#shareBusy = false;
     this.#shareFailed = false;
+    this.#shareShownAt = null;
     const under = this.#data.overlay && this.#data.from ? this.scene.get(this.#data.from) : null;
     if (under) {
       under.input.enabled = false;
@@ -494,6 +495,14 @@ export class PlayerStatsScene extends Phaser.Scene {
       });
       order.push(`source:${source}`);
     });
+  }
+
+  /** The width `text` draws at on a switch segment (the button face, Public Sans 800), measured rather than estimated. */
+  #labelWidth(text: string, size: number): number {
+    const probe = this.add.text(0, 0, text.toUpperCase(), textStyle({ ...typeRole.menuButton, size }, surface.ink.hex));
+    const width = probe.width;
+    probe.destroy();
+    return width;
   }
 
   #sourceState(): SourceState {
@@ -761,8 +770,10 @@ export class PlayerStatsScene extends Phaser.Scene {
     // content no height. The desktop's "N games played" gives way to it where the two would crowd the dark mode button.
     const playedText = phone || !stats ? undefined : stats.header.played;
     const sourceBar = stats
-      ? sourceBarOf({ width, phone, topBar: frame.topBar }, playedText ? playedText.length * 10 + 16 : 0, (text) =>
-          estimateBangersWidth(text, phone ? 15 : 17),
+      ? sourceBarOf(
+          { width, phone, topBar: frame.topBar },
+          playedText ? playedText.length * 10 + 16 : 0,
+          (text) => this.#labelWidth(text, phone ? 15 : 17),
         )
       : null;
     const bar = drawTopBar(this, {
@@ -803,7 +814,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     const at = tabs.findIndex((t) => t.id === lastTab);
     const inner = width - gutter * 2;
     // LB on the tab before this one and RB on the tab after it: the glyphs say where the bumpers go.
-    // On a phone the Filters chip follows the tabs in their own rows, so it takes no row of its own.
+    // On a phone the Filters chip takes the right end of the tab row, so it costs no row of its own.
     const everyone = lastSource === "everyone";
     // The hero / villain / difficulty filters fold your games only: they are not offered on Everyone.
     const filters = everyone ? [] : this.#filterChips(stats, phone);
