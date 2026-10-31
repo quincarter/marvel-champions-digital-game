@@ -141,6 +141,18 @@ describe("GuideController — the tutorial script", () => {
     expect(controller.view().step?.id).toBe("attack-with-spidey");
   });
 
+  test("Spider-Man attacking first still finishes both attack steps: the order is the player's", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = newController(observationOf(started.snapshot));
+    for (let i = 0; i < 5; i++) run(core, controller, i);
+    run(core, controller, 6); // Spider-Man attacks
+    expect(controller.view().step?.id).toBe("attack-with-black-cat");
+    run(core, controller, 5); // Black Cat attacks
+    expect(controller.view().step?.id).not.toBe("attack-with-spidey");
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+  });
+
   test("Back only offers a step that can be read again", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
