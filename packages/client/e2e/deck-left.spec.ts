@@ -21,6 +21,9 @@ interface DeckLeftDebug {
   list(): Rect;
   summary(): readonly string[];
   rows(): readonly { name: string; count: number }[];
+  stages(): readonly { name: string; inPlay: boolean }[];
+  cards(): readonly Rect[];
+  hoverShown(): string | null;
 }
 
 const debugOf = <T>(page: Page, read: (debug: DeckLeftDebug) => T): Promise<T | null> =>
@@ -120,6 +123,33 @@ test("with every setting off a deck is only a deck", async ({ page }, info) => {
   await tapPile(page, phone, "deck");
   await page.waitForTimeout(800);
   expect(await overlayUp(page)).toBe(false);
+});
+
+test("a setting turned on during a game reaches the deck without a reload (#575)", async ({ page }, info) => {
+  test.setTimeout(180_000);
+  const phone = info.project.name === "phone";
+  await withSettings(page, { deckCountsHero: true, deckCountsEncounter: false, deckBoostAverage: false });
+  await boardReady(page);
+  // Written the way Settings over Pause writes it (`appSession().settings`); nothing about the game changes.
+  await page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { settings: Record<string, unknown> };
+    };
+    appSession().settings = { ...appSession().settings, deckCountsEncounter: true };
+  });
+  await settle(page, { quietMs: 300, maxMs: 3000 });
+  await openPile(page, phone, "encounterDeck");
+  expect((await debugOf(page, (debug) => debug.rows()))!.length).toBeGreaterThan(0);
+  expect((await debugOf(page, (debug) => debug.stages()))![0]).toEqual({ name: "Rhino I", inPlay: true });
+  // Each stage is a real card tile: on a desktop the hover opens on it.
+  if (!phone) {
+    const tile = await waitFor(
+      async () => (await debugOf(page, (debug) => debug.cards()))?.[0] ?? null,
+      "a stage tile",
+    );
+    await page.mouse.move(tile!.x + tile!.width / 2, tile!.y + tile!.height / 2);
+    await waitFor(() => debugOf(page, (debug) => debug.hoverShown()), "the stage's hover");
+  }
 });
 
 test("the boost average alone: the encounter deck shows the line and no cards", async ({ page }, info) => {
