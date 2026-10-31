@@ -356,6 +356,10 @@ export class BoardScene extends Phaser.Scene {
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
     hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
     openDiscard: () => this.#openMyDiscard(),
+    hasVictoryDisplayStop: () => this.#frame.focusRects.has(focusKey({ kind: "victoryDisplay" })),
+    openVictoryDisplay: () => {
+      if (this.#model) this.#openPile("Victory display", this.#model.victoryDisplay);
+    },
     pressBarStop: (index) => {
       const stop = this.#frame.barStops[index];
       if (stop?.enabled) stop.press();
