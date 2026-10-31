@@ -553,6 +553,7 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     // each seat card's own "✕") skip both, as does a shut disclosure for the second.
     ...(input.narrow ? ["seat-details-toggle"] : []),
     "clear-seat",
+    "hero-art",
     "use-preconstructed",
     // Narrow only, likewise: the search toggle at the head of the chip rail.
     ...(input.narrow ? ["hero-search-toggle"] : []),

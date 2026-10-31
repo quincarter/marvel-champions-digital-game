@@ -12,10 +12,11 @@
 import type { AnyCard } from "@mc/content";
 import { POOL_CARDS } from "../content/pool-cards.js";
 import { CARD_BACKS, STAND_IN_ART, allArtFor, artPathOf } from "./art-source.js";
+import { PROMO_ART } from "./promo-art.js";
 
 /** Paths relative to `assets/card-art/` (and to `/card-art/` once served), sorted and unique. */
 export function bundledArtPaths(cards: readonly AnyCard[]): readonly string[] {
-  const paths = new Set<string>([...Object.values(CARD_BACKS), ...STAND_IN_ART].map(artPathOf));
+  const paths = new Set<string>([...Object.values(CARD_BACKS), ...STAND_IN_ART, ...PROMO_ART].map(artPathOf));
   for (const card of cards) for (const art of allArtFor(card)) paths.add(artPathOf(art));
   return [...paths].sort();
 }

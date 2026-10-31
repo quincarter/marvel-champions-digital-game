@@ -120,6 +120,16 @@ export function setShownStandIns(kinds: ReadonlySet<StandIn["kind"]>): void {
   shownStandIns = kinds;
 }
 
+/**
+ * The promo pictures this player has earned and chosen (`art/promo-art.ts`), by the normal scan each stands in for. Set
+ * by `applyEarnedItems` (`progression/progression.ts`). Empty in the build, so `allArtFor` lists the normal scans.
+ */
+let shownPromos: ReadonlyMap<string, ArtSource> = new Map();
+
+export function setShownPromos(promos: ReadonlyMap<string, ArtSource>): void {
+  shownPromos = promos;
+}
+
 /** The ATKs the Drone pictures print; a Drone's ATK outside them shows the nearest one. */
 export const DRONE_STAND_IN_ATKS = [1, 2, 3, 4] as const;
 
@@ -138,9 +148,15 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
   }
   if (!card) return null;
   const local = localRefFor(card, face);
-  if (local) return faceSource(`${local as string}.png`);
+  if (local) return promoOrFace(`${local as string}.png`);
   const upstream = imageRefFor(card, face);
-  return upstream ? faceSource(upstream as string) : null;
+  return upstream ? promoOrFace(upstream as string) : null;
+}
+
+/** The promo picture chosen for this scan, else the scan. A promo is the same picture in every card language. */
+function promoOrFace(refPath: string): ArtSource {
+  const scan = refPath.slice(refPath.lastIndexOf("/") + 1).replace(/\.\w+$/, "");
+  return shownPromos.get(scan) ?? faceSource(refPath);
 }
 
 /**
@@ -267,6 +283,11 @@ export function standInArt(standIn: StandIn): ArtSource {
   const hi = DRONE_STAND_IN_ATKS[DRONE_STAND_IN_ATKS.length - 1]!;
   const atk = Math.min(hi, Math.max(lo, Math.round(standIn.atk)));
   return source(`stand-ins/ultron-drone-atk-${atk}.webp`);
+}
+
+/** A promo printing's picture of a normal scan, from `assets/card-art/promos/`. */
+export function promoArtOf(scan: string, printing: number): ArtSource {
+  return source(`promos/${scan}-${printing}.webp`);
 }
 
 /** Every stand-in picture, for the build to carry alongside the card backs. */

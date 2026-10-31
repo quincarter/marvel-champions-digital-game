@@ -116,6 +116,11 @@ export interface SeatsLayout {
   readonly rosterHeader: Rect;
   /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
   readonly usePreconstructed: Rect;
+  /**
+   * The hero art button (`view/hero-art-choice.ts`): just left of "Use preconstructed", or at the end of the Filters
+   * row where the Filters button leaves room and the roster header has none (a phone).
+   */
+  readonly heroArt: Rect;
   /** Narrow only: the active seat's details disclosure, the left part of `rosterHeader`. Null on wide. */
   readonly detailsToggle: Rect | null;
   /** The search field. Zero-height on a narrow layout whose toggle is off (`searchOpen`) — nothing is drawn there. */
@@ -246,6 +251,12 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       width: usePreconstructedWidth,
       height: ROSTER_HEADER_HEIGHT,
     };
+    const heroArtWidth = Math.min(170, shelvesWidth * 0.25);
+    const heroArt: Rect = {
+      ...usePreconstructed,
+      x: usePreconstructed.x - heroArtWidth - smallGap,
+      width: heroArtWidth,
+    };
     y += ROSTER_HEADER_HEIGHT + smallGap;
 
     const behindButton = input.filtersButton ?? false;
@@ -292,6 +303,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       notice,
       rosterHeader,
       usePreconstructed,
+      heroArt,
       detailsToggle: null,
       search,
       searchToggle: null,
@@ -336,10 +348,12 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     width: usePreconstructedWidth,
     height: hit.target,
   };
+  const behindButton = input.filtersButton ?? false;
+  const heroArtWidth = Math.min(110, shelvesWidth * 0.3);
   const detailsToggle: Rect = {
     x: left,
     y,
-    width: shelvesWidth - usePreconstructedWidth - smallGap,
+    width: shelvesWidth - usePreconstructedWidth - smallGap - (behindButton ? 0 : heroArtWidth + smallGap),
     height: hit.target,
   };
   y += hit.target + smallGap;
@@ -364,11 +378,18 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const searchToggle: Rect = { x: left, y, width: hit.target, height: hit.target };
   // Behind the Filters button: the button takes the rail's place beside the toggle, and the rail is a second row, only
   // while open.
-  const behindButton = input.filtersButton ?? false;
   const railShown = !behindButton || (input.chipsShown ?? false);
   const filtersButton: Rect | null = behindButton
-    ? { x: left + hit.target + smallGap, y, width: shelvesWidth - hit.target - smallGap, height: hit.target }
+    ? {
+        x: left + hit.target + smallGap,
+        y,
+        width: shelvesWidth - hit.target - heroArtWidth - smallGap * 2,
+        height: hit.target,
+      }
     : null;
+  const heroArt: Rect = behindButton
+    ? { x: left + shelvesWidth - heroArtWidth, y, width: heroArtWidth, height: hit.target }
+    : { ...usePreconstructed, x: usePreconstructed.x - heroArtWidth - smallGap, width: heroArtWidth };
   const chips: Rect = behindButton
     ? {
         x: left,
@@ -421,6 +442,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     notice,
     rosterHeader,
     usePreconstructed,
+    heroArt,
     detailsToggle,
     search,
     searchToggle,

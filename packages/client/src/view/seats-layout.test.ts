@@ -19,6 +19,27 @@ const SIZES: readonly { readonly width: number; readonly height: number }[] = [
   { width: 1870, height: 1050 }, // desktop, the owner's own check size
 ];
 
+describe("the hero art button", () => {
+  test.each([
+    [390, 844, true],
+    [320, 700, true],
+    [768, 1024, true],
+    [1100, 700, false],
+    [1440, 980, false],
+  ])("clears its neighbours at %ix%i", (width, height, filtersButton) => {
+    const layout = seatsLayout({ width, height, chipRows: 2, detailLines: 8, filtersButton });
+    expect(layout.heroArt.height).toBeGreaterThanOrEqual(layout.wide ? 26 : 44);
+    expect(layout.heroArt.x + layout.heroArt.width).toBeLessThanOrEqual(width);
+    const neighbours = [layout.usePreconstructed, layout.detailsToggle, layout.filtersButton, layout.searchToggle];
+    for (const rect of neighbours) if (rect) expect(rectsOverlap(layout.heroArt, rect)).toBe(false);
+  });
+
+  test("on a phone it leaves the seat summary the whole row beside Use preconstructed", () => {
+    const layout = seatsLayout({ width: 390, height: 844, chipRows: 2, detailLines: 8, filtersButton: true });
+    expect(layout.detailsToggle!.width).toBeGreaterThan(180);
+  });
+});
+
 describe("seatsLayout", () => {
   for (const size of SIZES) {
     test(`no overlap at ${size.width}x${size.height}`, () => {

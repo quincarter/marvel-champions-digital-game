@@ -5,6 +5,9 @@
  *
  * Only the slides the player has opened are shown; the rest are counted, with what opens them ("1 more scene: Beat
  * Rhino"), so a villain's file says there is more to earn. ✕ or Escape closes it; ← and → step through pictures.
+ *
+ * A promo card's file has one more control: use this art in place of the normal card, or stop using it. The choice is
+ * saved in `Settings.promoArt`.
  */
 import Phaser from "phaser";
 import { containScale, ensurePictureLoaded } from "../art/pictures.js";
@@ -16,7 +19,10 @@ import { McButton, fitText } from "../ui/widgets.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { Rect } from "../view/layout.js";
 import { EXTRAS_ENTRIES, unlockHint, type ExtrasEntry } from "../progression/extras.js";
-import { extras } from "../progression/progression.js";
+import { applyEarnedItems, extras } from "../progression/progression.js";
+import { withPromoToggled } from "../art/promo-art.js";
+import { appSession } from "../session.js";
+import { PROMO_CHANGED } from "./extras.js";
 import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -136,6 +142,7 @@ export class ExtrasViewerScene extends Phaser.Scene {
     const content = entry.content;
     const lines = content.kind === "gallery" ? content.lines : [];
     const note = this.#lockedNote(entry);
+    const promoSetId = content.kind === "gallery" ? content.promoSetId : undefined;
     const hasText = lines.length > 0 || note !== null;
     const sideBySide = width >= SIDE_BY_SIDE_MIN && hasText;
     const body: Rect = { x: pad, y: HEADER + pad, width: width - pad * 2, height: height - HEADER - pad * 2 };
@@ -222,6 +229,7 @@ export class ExtrasViewerScene extends Phaser.Scene {
           .setLineSpacing(3);
         y += text.height + 10;
       }
+      if (promoSetId) y = this.#drawPromoControl(promoSetId, textRect, y, stops);
       if (note && y < textRect.y + textRect.height - 16) {
         this.add
           .text(textRect.x, y, note, textStyle(typeRole.body, accent.heroRed.hex))
@@ -230,8 +238,44 @@ export class ExtrasViewerScene extends Phaser.Scene {
       }
     }
 
-    this.#route?.set([...(slides.length > 1 ? ["prev", "next"] : []), "close"], stops);
+    this.#route?.set(
+      [...(slides.length > 1 ? ["prev", "next"] : []), ...(promoSetId ? ["promo"] : []), "close"],
+      stops,
+    );
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /** The use-this-art button, at `y` in the text column. Returns the y below it. */
+  #drawPromoControl(setId: string, column: Rect, y: number, stops: Map<string, FocusStop>): number {
+    const { promoArt, promoArtOn } = appSession().settings;
+    const toggle = (): void => {
+      appSession().settings = { ...appSession().settings, promoArt: withPromoToggled(promoArt, setId) };
+      applyEarnedItems();
+      this.scene.get(SCENES.extras).events.emit(PROMO_CHANGED);
+      this.#draw();
+    };
+    const rect: Rect = { x: column.x, y, width: Math.min(column.width, 260), height: 44 };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: promoArt.includes(setId) ? "In use ✓ · Stop using" : "Use this art",
+        type: typeRole.rowTitle,
+        rect,
+        onClick: toggle,
+      }),
+    );
+    stops.set("promo", { rect, activate: toggle });
+    if (promoArtOn) return y + rect.height + 10;
+    const off = this.add
+      .text(
+        column.x,
+        y + rect.height + 8,
+        "Promo card art is off in Settings ▸ More ▸ Earned items.",
+        textStyle(typeRole.body, accent.heroRed.hex),
+      )
+      .setFontSize(12)
+      .setWordWrapWidth(column.width);
+    return off.y + off.height + 10;
   }
 
   /** "1 more picture to earn: Beat Rhino", or null when the whole file is open. */
