@@ -18,7 +18,8 @@
 import type Phaser from "phaser";
 import { onInputDeviceChange } from "../platform/input-device.js";
 import { shownReportButton } from "../ui/report-slot.js";
-import { shownMusicButton } from "../ui/music-slot.js";
+import { shownLanguageButton, shownMusicButton } from "../ui/music-slot.js";
+import { shownThemeButton } from "../ui/theme-slot.js";
 import { chromeStopsOf } from "../view/chrome-stops.js";
 import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
@@ -30,11 +31,24 @@ import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { bindExtraInput } from "./extra-input.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
+import type { LanguageButtonScene } from "./language-button.js";
 import type { MusicButtonScene } from "./music-button.js";
+import type { ThemeButtonScene } from "./theme-button.js";
 
 /** The focus keys of the two top-bar chrome buttons, added to every route while they are on screen. */
 export const CHROME_MUSIC_STOP = "chrome:music";
 export const CHROME_REPORT_STOP = "chrome:report";
+/** The other two in the row, on a route with `topRow`. */
+export const CHROME_LANGUAGE_STOP = "chrome:language";
+export const CHROME_THEME_STOP = "chrome:theme";
+
+/** Where each chrome stop's button is drawn now. */
+const CHROME_SHOWN: Readonly<Record<string, () => Rect | null>> = {
+  [CHROME_MUSIC_STOP]: shownMusicButton,
+  [CHROME_REPORT_STOP]: shownReportButton,
+  [CHROME_LANGUAGE_STOP]: shownLanguageButton,
+  [CHROME_THEME_STOP]: shownThemeButton,
+};
 
 export interface FocusStop {
   /**
@@ -154,6 +168,12 @@ export interface FocusRouteOptions {
   readonly onInspectZoom?: (zooming: boolean) => void;
   /** False while the zoom is switched off (Card hover size "off"): a hold is then a tap. */
   readonly zoomEnabled?: () => boolean;
+  /**
+   * The language and theme buttons join the note and the bug as stops, for a screen with the whole top row beside its
+   * own controls (Title). Not for every screen: the theme button floats at the top centre of most of them, and a stop
+   * there pulled the d-pad off their own controls (`scenes/theme-button.ts`).
+   */
+  readonly topRow?: boolean;
 }
 
 export class FocusRoute {
@@ -171,6 +191,7 @@ export class FocusRoute {
   readonly #onToggle: (() => void) | undefined;
   readonly #onInspect: ((source?: "key") => boolean) | undefined;
   readonly #reachAcross: boolean;
+  readonly #topRow: boolean;
   /** The ring is hidden after the mouse takes over, until the next pad or keyboard input. */
   #ringHidden = false;
   #chromeFrame = -1;
@@ -203,6 +224,7 @@ export class FocusRoute {
     this.#onToggle = options.onToggle;
     this.#onInspect = options.onInspect;
     this.#reachAcross = options.reachAcross ?? false;
+    this.#topRow = options.topRow ?? false;
     // The mouse moving hides the ring (it comes back, on the same stop, at the next pad or keyboard input). The change
     // arrives deferred (platform/input-device.ts), never mid-press.
     const unsubscribe = onInputDeviceChange((state) => {
@@ -215,9 +237,9 @@ export class FocusRoute {
     const follow = (): void => {
       if (!this.#ring || this.#focus === null) return;
       // Chrome rects are static: only a hidden one (the pad toast covers the bar for a moment) needs a look.
-      if (this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP) {
-        const shown = this.#focus === CHROME_MUSIC_STOP ? shownMusicButton() : shownReportButton();
-        if (shown === null) this.#drawRing();
+      const shown = CHROME_SHOWN[this.#focus];
+      if (shown) {
+        if (shown() === null) this.#drawRing();
         return;
       }
       const stop = this.#ownStops.get(this.#focus);
@@ -355,9 +377,9 @@ export class FocusRoute {
   }
 
   /**
-   * The music note and the bug in the top bar, as focus stops, while they are drawn and this is the screen on top:
-   * pressing up or right from the top row reaches them on every screen. A screen that already has a stop over one of
-   * them keeps its own.
+   * The music note and the bug in the top bar (and the language and theme buttons, with `topRow`), as focus stops, while
+   * they are drawn and this is the screen on top: pressing up or right from the top row reaches them on every screen. A
+   * screen that already has a stop over one of them keeps its own.
    */
   #chrome(): ReadonlyMap<string, FocusStop> {
     // One answer per frame: a pad step asks for every stop's rect, and nothing here changes within a frame.
@@ -374,9 +396,23 @@ export class FocusRoute {
       excluded: key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton,
       music: shownMusicButton(),
       report: shownReportButton(),
+      ...(this.#topRow ? { language: shownLanguageButton(), theme: shownThemeButton() } : {}),
       own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
     });
+    // Left to right as drawn, so Tab walks the row in order.
     const out = new Map<string, FocusStop>();
+    if (found.theme) {
+      out.set(CHROME_THEME_STOP, {
+        rect: found.theme,
+        activate: () => (manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle(),
+      });
+    }
+    if (found.language) {
+      out.set(CHROME_LANGUAGE_STOP, {
+        rect: found.language,
+        activate: () => (manager.getScene(SCENES.languageButton) as LanguageButtonScene | null)?.toggle(true),
+      });
+    }
     if (found.music) {
       out.set(CHROME_MUSIC_STOP, {
         rect: found.music,
@@ -468,7 +504,7 @@ export class FocusRoute {
         }
         // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow
         // that finds nothing in its cone still reaches the screen below, so focus there is never stranded.
-        const fromChrome = this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP;
+        const fromChrome = this.#focus !== null && this.#focus in CHROME_SHOWN;
         this.#moveTo(
           spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross || fromChrome),
         );
@@ -520,8 +556,7 @@ export class FocusRoute {
         if (this.#onCancel) {
           this.#onCancel();
         } else {
-          this.#focus = null;
-          this.#drawRing();
+          this.#moveTo(null);
         }
         break;
     }
