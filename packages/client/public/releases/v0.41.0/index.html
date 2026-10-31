@@ -1,0 +1,1324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.41.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v0.41.0 of the fan-made Marvel Champions digital game: promo cards earned by winning, a release history, a search in Settings, one Install for Steam script, and fixes from players' reports."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.41.0" />
+    <meta
+      property="og:description"
+      content="Promo cards earned by winning, a release history, a search in Settings, one Install for Steam script, and fixes from players' reports."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.41.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.41.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>Win the game.<br /><span class="g">Keep the art.</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.41.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/564">#564</a><br />after v0.40.0
+          (Oct 31)<br />Android · Web · Windows · macOS · Linux<br />Oct 31, 2026<span data-history-link
+            ><br /><a href="../index.html#v0.41.0">All releases</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star moon">★</div>
+          <div><small>Achievement unlocked</small><span>Promo Collector</span></div>
+        </div>
+        <p>
+          <b>Winning now earns you the official promo cards.</b> Wins as a hero, against a villain or with an event open
+          promo art you can put in place of a card's normal picture, and the wins already in your save count. Every
+          release now has its own place on the site, <b>Settings has a search</b>, and Install for Steam is one script
+          that keeps the game up to date from inside the game. Cards left lists the villain's stages, 21 cards that
+          showed the wrong scan show their own, and Kang's stage 3 plays the way it's printed.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big">
+          <h4>Promo cards</h4>
+          <div class="n">128 scans</div>
+          <p>25 heroes, 12 villains and villain teams, and 5 events, all earned by winning.</p>
+        </div>
+        <div class="tile">
+          <h4>Wins to earn</h4>
+          <div class="n">3</div>
+          <p>for most promos. A hero's second printing takes 10.</p>
+        </div>
+        <div class="tile">
+          <h4>Release history</h4>
+          <div class="n c-blue">57</div>
+          <p>releases on one page, back to the first build.</p>
+        </div>
+        <div class="tile">
+          <h4>Wrong scans</h4>
+          <div class="n c-red">21</div>
+          <p>cards that showed a neighbour's scan now show their own.</p>
+        </div>
+        <div class="tile">
+          <h4>Settings search</h4>
+          <div class="n c-green">6 pages</div>
+          <p>and every setting, with typos forgiven.</p>
+        </div>
+        <div class="tile">
+          <h4>Steam scripts</h4>
+          <div class="n">3</div>
+          <p>one for each system, at a link that never changes.</p>
+        </div>
+        <div class="tile">
+          <h4>Fixes</h4>
+          <div class="n c-red">12</div>
+          <p>for players, from reports, the rules checks and dark mode.</p>
+        </div>
+      </section>
+
+      <!-- ============ PROMOS ============ -->
+      <div class="band">
+        <h2>Earn the promos</h2>
+        <div class="lab">Issue #192 by @PermaKarma · PR #561</div>
+      </div>
+      <p class="lead">
+        <b>Extras has a new Promos tab.</b> A locked promo shows its art in the hover and how far along you are, like
+        "2/3: Win 3 games as Spider-Man (Peter Parker)". An open one has <b>Use this art</b>, and the picture changes
+        everywhere the card is drawn. It's art only, so the rules never change.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/promo-shelf-desktop.webp"
+            alt="The Promos tab in Extras: a shelf of promo hero cards, with a hover open on one"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The shelf · hover any promo</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/promo-viewer-phone.webp"
+            alt="The Spider-Man promo open on a phone, with Use this art under it"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone · Use this art</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>How you earn one</h3>
+          <ul class="ck">
+            <li><b>A hero's first printing:</b> 3 wins as that hero.</li>
+            <li><b>A hero's second printing:</b> 10 wins as that hero.</li>
+            <li><b>A villain or team:</b> 3 wins against its scenario.</li>
+            <li><b>An event:</b> 3 wins with it in your deck, reprints counted together.</li>
+            <li>
+              <b>The wins you already have count.</b> Progress comes from your save history, so you may open Extras and
+              find some waiting. Tutorial wins don't count.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Good to know</h3>
+          <ul class="ck">
+            <li>A card shows one printing at a time, and your choice follows your save and device sync.</li>
+            <li>
+              Turn them all off with <b>Promo card art</b> in Settings ▸ More ▸ Earned items. Unlock everything opens
+              them all.
+            </li>
+            <li>A promo shows the text it was printed with. The game plays the current text.</li>
+            <li>There are no Spanish promo scans, so a Spanish build shows them in English.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shots s-phone" style="margin-top: 26px">
+        <figure class="a">
+          <img
+            src="img/promo-seats-desktop.webp"
+            alt="Take Your Seats with the hero tiles showing promo art"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Take Your Seats · the hero tiles in Promo art</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/promo-seats-phone.webp"
+            alt="Take Your Seats on a phone with promo hero tiles"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <p class="lead">
+        <b>Choose your hero tiles, too.</b> A button beside Use preconstructed steps through <b>Game art</b>,
+        <b>Card art</b>, and <b>Promo art</b> once you've earned one. It's also the Hero art row in Settings ▸ Cards.
+      </p>
+
+      <!-- ============ HISTORY ============ -->
+      <div class="band gold">
+        <h2>Every release, in one place</h2>
+        <div class="lab">Issue #588 · PR #589</div>
+      </div>
+      <p class="lead">
+        <b>The Release notes link on the Title opens a release history</b>, and you may be reading this report inside
+        it. Pick any release and it swaps in without a reload, with its announcement on top and its release notes under
+        it. Releases that never had an announcement get one written from their notes.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/history-page-desktop.webp"
+            alt="The release history with the list on the left and an older release's page on the right"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>An older release · its counts, screenshots and notes</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/history-list-phone.webp"
+            alt="The release list as a full sheet on a phone"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On a phone · a full sheet</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Getting around</h3>
+          <ul class="ck">
+            <li>
+              It lists <b>the last 10 releases</b>, and <b>Show older releases</b> opens the rest, back to v0.1.0.
+            </li>
+            <li>Every release has its own link, and the browser's back button works at every step.</li>
+            <li>Phones and tablets get a bar with ‹ and › for the next release along.</li>
+            <li>
+              <b>On a controller:</b> the D-pad moves, the face button opens, LB and RB go newer and older, and a stick
+              scrolls.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <figure>
+            <img
+              src="img/history-older-desktop.webp"
+              alt="The Older releases list, grouped by month"
+              width="1280"
+              height="871"
+              loading="lazy"
+            />
+            <figcaption>Older releases · back to the first build</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ SEARCH ============ -->
+      <div class="band">
+        <h2>Search Settings</h2>
+        <div class="lab">Issue #576 · PR #578</div>
+      </div>
+      <p class="lead">
+        <b>Press the magnifier in the Settings title bar and type.</b> It finds every setting, and anything on the pages
+        under it: Rules, Unlocks and How it works, Save data, Controls, Your stats and How to play. The best match comes
+        first, with the matched words marked, and a press takes you straight there.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/search-typo-desktop.webp"
+            alt="Settings search for champoin points, finding Champion Points despite the typo"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>"champoin points" · typos are forgiven</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/search-phone.webp"
+            alt="Settings search for dark on an iPhone SE, with the word marked in each result"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On a phone · the field replaces the tabs</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>Each result says where it lives, and backing out of a page returns you to the search.</li>
+          <li><b>On a controller</b>, Y opens and shuts it, and LB and RB page the results.</li>
+          <li>On a keyboard, PageUp, PageDown, Home and End get around the results.</li>
+          <li>On a phone the field stays at the top, so the keyboard only ever covers the results.</li>
+        </ul>
+      </div>
+
+      <!-- ============ STEAM ============ -->
+      <div class="band gold">
+        <h2>One Steam script, for good</h2>
+        <div class="lab">Issue #582 · PR #583 · follows #422 and #423</div>
+      </div>
+      <p class="lead">
+        <b>Install for Steam is now one script for each system, with a link that never changes.</b> It finds the latest
+        release itself, and on Windows and macOS it no longer needs the game installed first. On Linux there's a
+        <code>.tar.gz</code>, so the script stays executable after a browser download.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/steam-title-desktop.webp"
+            alt="The Title with an update banner offering Update"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The banner's Download becomes Update · test version shown</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/steam-working-phone.webp"
+            alt="The update panel on a phone with a progress bar"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>Progress on screen</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Updates from inside the game</h3>
+          <ul class="ck">
+            <li>
+              <b>It works in Game Mode.</b> The script runs with no terminal and its progress shows in a panel, which a
+              controller can reach.
+            </li>
+            <li>
+              It downloads first. Then pick <b>Quit and install</b>, or <b>Keep playing</b> and it installs when you
+              next quit.
+            </li>
+            <li>
+              The Title footer and bug reports say "Steam script", and Settings ▸ More ▸ Steam install opens the panel.
+            </li>
+            <li>If it fails it says why, and offers the download.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Run it once, then tell me how it went</h3>
+          <p>
+            <b>If you installed with an older script, run the new one once.</b> That's what lets the game find it. Every
+            link is on the
+            <a href="https://github.com/quincarter/marvel-champions-digital-game/blob/main/docs/project/downloads.md"
+              >downloads page ↗</a
+            >.
+          </p>
+          <p>
+            This is new, and I can't test every setup here, a Mac least of all. If it goes wrong on your Deck, PC or
+            Mac, tell me from Pause ▸ Report a problem or on GitHub.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ CARDS LEFT ============ -->
+      <div class="band">
+        <h2>Cards left knows the villain</h2>
+        <div class="lab">Issue #575 · PR #577</div>
+      </div>
+      <p class="lead">
+        The encounter deck's list now <b>starts with the villain's stages</b>, as cards with the hover and Inspect. The
+        stage up has an In play chip, the ones ahead follow it, and beaten stages drop off.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/cards-left-hover-desktop.webp"
+            alt="The encounter deck's Cards left list opening with Hela A1 and A2, with the hover open on a stage"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Hela A1 and A2 · with the card hover</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/cards-left-phone.webp"
+            alt="Cards left on an iPhone SE with Hela's stages above the deck's cards"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>No spoilers you didn't ask for</h3>
+          <ul class="ck">
+            <li>Stages sit behind <b>Encounter deck's cards left</b>, since they can name one you haven't met.</li>
+            <li>It lists this game's faces: standard Hela shows A1 and A2, and expert shows B1 and B2.</li>
+            <li>A villain still set aside isn't listed.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Settings apply at once</h3>
+          <p>
+            <b>A setting changed from Pause now reaches the table when you go back</b>, without a reload. Turning on
+            cards left used to do nothing until the game next changed. Every setting the table draws is covered.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ EVERYONE ============ -->
+      <div class="band gold">
+        <h2>Everyone's numbers, easier to find</h2>
+        <div class="lab">Issue #563 · PR #565</div>
+      </div>
+      <p class="lead">
+        The <b>You / Everyone</b> switch now sits at the top of Your stats on every tab, and it shows in the deck
+        builder even with no games of your own. It reads "You / All" on a phone.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/everyone-deck-desktop.webp"
+            alt="The deck builder with the Your decks and Everyone pair"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>The deck builder · Your decks or Everyone</figcaption>
+        </figure>
+        <div class="box">
+          <h3>Sharing, from the stats page</h3>
+          <ul class="ck">
+            <li>
+              <b>Share my games</b> turns sharing on with one press, with a line saying what is sent. Games you've
+              already finished are never sent.
+            </li>
+            <li>The Title still only asks once, and turning sharing off stays in Settings.</li>
+            <li>An empty Everyone says a row needs 20 shared games, with the count so far.</li>
+            <li>Choosing Everyone shows only Heroes, Villains and Encounter, and You takes you back.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ RULES ============ -->
+      <div class="band">
+        <h2>Back to the printed card</h2>
+        <div class="lab">PR #566</div>
+      </div>
+      <p class="lead">
+        Checking the cards that had the wrong scan turned up two script bugs. The printed numbers and text were right;
+        the way they played wasn't.
+      </p>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">Kang</div>
+          <h3>The Once and Future Kang</h3>
+          <p>
+            Completing a stage 3 now removes <b>that Kang (II) and the stage at the end of the phase</b>. Before, he
+            could follow the players and sit beside Kang (III).
+          </p>
+          <p>
+            All 4 copies of <b>Kang's Dominion start set aside</b>, as stage 1A says, and each completed stage tucks
+            exactly 1 under stage 4A. Players join only once when a Kang (II) is defeated in the phase its stage was
+            completed.
+          </p>
+          <div class="src">Printed cards · the single join is an engine reading, as no ruling covers it</div>
+        </div>
+        <div class="paper">
+          <div class="eb">The Wrecking Crew</div>
+          <h3>Escaped Convict's boost</h3>
+          <p>
+            All four copies now make <b>no attack on an ordinary scheme</b>. The one exception is a scheme a boost
+            started during an attack, like I've Been Waiting For This!, where the new attack follows that scheme.
+          </p>
+          <p>
+            <b>A saved game may not carry over:</b> a Kang game past a stage 3, or a Wrecking Crew game where this came
+            up, can replay differently and be marked incompatible.
+          </p>
+          <div class="src">FFG ruling, May 16, 2024 · RRG 1.8 p. 6</div>
+        </div>
+      </div>
+
+      <!-- ============ PLAYER REPORTS ============ -->
+      <div class="band gold">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issues #568 · #569 · #571 · #572</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#572 · reported by @PermaKarma</div>
+          <h3>Wounded Hela has her card</h3>
+          <p>
+            Hela's A2 and B2 faces never had a scan, so the table drew a generated frame.
+            <b>Both now show the real card</b>, and Expert Hela B1 and The Wastes of Niffleheim use new scans.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/hela-wounded-desktop.webp"
+              alt="Wounded Hela on the table with her real card in the hover"
+              width="1280"
+              height="871"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#569 · reported by @PermaKarma</div>
+          <h3>Paying for Team-Building Exercise</h3>
+          <p>
+            <b>One tile per card Organizational Support can exhaust</b>, where the sheet used to draw one identical tile
+            per set of cards. Confirm stays off, reading "Pay N more", until the payment pays. Picking a card from your
+            own hand no longer stops Undo.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/team-building-pay-desktop.webp"
+              alt="The Team-Building Exercise payment sheet with a tile for each card and Pay 1 more on the button"
+              width="1280"
+              height="871"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#571 · reported by @PermaKarma</div>
+          <h3>Which Field Agent was that?</h3>
+          <p>
+            Decision sheets now show <b>the counters each card in play holds</b>, so two copies of a Uses card can be
+            told apart. The "If you confirm" line reads Field Agent's Hero Interrupt, not a Uses line that always said
+            3.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#568 · reported by @Vasko47</div>
+          <h3>Cloak of Levitation, under Unnatural Storm</h3>
+          <p>
+            A player card ability that only readies a card is <b>no longer offered while that card can't ready</b>, so
+            the Cloak isn't spent for nothing. Ready to Rumble, Battle Fury and Justice Served had the same bug.
+          </p>
+          <div class="src">RRG 1.8 p. 14, p. 24, p. 43 · FFG ruling on Unnatural Storm</div>
+        </div>
+      </div>
+
+      <!-- ============ SCANS ============ -->
+      <div class="band">
+        <h2>Every card on its own scan</h2>
+        <div class="lab">PR #560 · PR #574</div>
+      </div>
+      <p class="lead">
+        Art matching can't tell near-identical cards apart, so some of my scans landed on a neighbouring stage, side or
+        set. I placed these by folder, name, stage and side instead, and <b>21 cards now show their own</b>.
+      </p>
+      <figure class="a" style="margin-bottom: 26px">
+        <img
+          src="img/scans-before-after.webp"
+          alt="Rows of scenario pack cards side by side, the old scan beside the new one"
+          width="1400"
+          height="592"
+          loading="lazy"
+        />
+        <figcaption>Before and after</figcaption>
+      </figure>
+      <div class="cols">
+        <div class="box">
+          <ul class="ck">
+            <li>
+              <b>Wrong card, now right:</b> Green Goblin III, Mojo II, Spiral II, Enchantress I, Piledriver B, Expert
+              Kang I, Black Widow III, Batroc B, A.I.M. Interference (mental) and more.
+            </li>
+            <li>
+              <b>Older images replaced:</b> Green Goblin, The Wrecking Crew, Kang, The Hood, MojoMania, Trickster
+              Takeover and Synthezoid Smackdown, plus the Standard PvP faces.
+            </li>
+            <li>
+              <b>Agents of S.H.I.E.L.D.:</b> Black Widow II, Batroc A, Baron Zemo's other three faces and the other
+              A.I.M. Interference cards use my scans.
+            </li>
+          </ul>
+        </div>
+        <figure class="a">
+          <img
+            src="img/hela-before-after.webp"
+            alt="Hela's card faces, old above new"
+            width="1100"
+            height="870"
+            loading="lazy"
+          />
+          <figcaption>Hela's set · old above new</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ VILLAIN FACES ============ -->
+      <div class="band gold">
+        <h2>Taskmaster gets his face back</h2>
+        <div class="lab">PR #567</div>
+      </div>
+      <p class="lead">
+        The stage-flip splash cropped Taskmaster at the chest. <b>He and twelve other villains now keep their faces.</b>
+        A lost issue's Rewind shows the villain's own picture too, not a comic panel.
+      </p>
+      <div class="shots s2">
+        <figure>
+          <img
+            src="img/taskmaster-before.webp"
+            alt="Before: Taskmaster's splash cropped to his chest"
+            width="960"
+            height="653"
+            loading="lazy"
+          />
+          <figcaption>Before</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/taskmaster-after.webp"
+            alt="After: Taskmaster's splash showing his face"
+            width="960"
+            height="653"
+            loading="lazy"
+          />
+          <figcaption>After</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ FIXED ALONG THE WAY ============ -->
+      <div class="band">
+        <h2>Fixed along the way</h2>
+        <div class="lab">PR #580 · #581 · #584 · #586</div>
+      </div>
+      <div class="cards cards3">
+        <div class="paper">
+          <div class="eb">#579</div>
+          <h3>The whole top row, by pad</h3>
+          <p>
+            A controller and the keyboard now reach <b>the theme and language buttons</b> on the title menu. A focused
+            top button and Read more show the button to press.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/pad-title-desktop.webp"
+              alt="The title menu with controller focus on the theme button and its press glyph"
+              width="1100"
+              height="749"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#587</div>
+          <h3>Red rank bars</h3>
+          <p>
+            Rank progress bars fill <b>Hero Red</b> in light and dark mode. Dark mode's bar tracks, the deck cost chart
+            and the opening-hand scroller stay readable too.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/bars-trophies-dark.webp"
+              alt="The Trophy Room in dark mode with a red rank bar"
+              width="960"
+              height="653"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#585</div>
+          <h3>Sync keeps up with a long game</h3>
+          <p>
+            Steady play could hit the server's hourly cap, and then pushes were refused for up to an hour. A game now
+            <b>pushes after each round</b>, when you leave it and when it sits idle, under that cap.
+          </p>
+          <p>A desktop window regaining focus pulls too. Offline play hasn't changed.</p>
+        </div>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band gold">
+        <h2>Also in v0.41.0</h2>
+        <div class="lab">Title · builds · contributors</div>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3>Title</h3>
+          <ul class="ck">
+            <li>The release notice follows the latest release on GitHub once GitHub answers.</li>
+            <li>A release with no report of its own opens in the release history.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Builds</h3>
+          <ul class="ck">
+            <li>Android builds free disk space first, so a build no longer runs out while signing the APK.</li>
+            <li>The Linux script works from <code>curl ... | bash</code>, and all three pick the right language.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>For contributors</h3>
+          <ul class="ck">
+            <li>Screenshots now cover the iPhone SE, Pixel 10, tablet portrait and landscape, and desktop.</li>
+            <li>The controller specs expect the full top row on the title menu.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            Every report here came from a player who took a minute to tell us. Keep them coming from Pause ▸ Report a
+            problem, a GitHub issue or the community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person">
+            <h3>@PermaKarma</h3>
+            <p>
+              Asked for promo cards as a reward in <b>#192</b>, and reported <b>#569</b>, <b>#571</b> and <b>#572</b>:
+              Team-Building Exercise's payment, telling Field Agents apart, and Wounded Hela's missing card.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@Vasko47</h3>
+            <p>Reported Cloak of Levitation in <b>#568</b>, with a seed that replayed it.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.40.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.40.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">19</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">408</div>
+          <p>across the engine, cards, client, scripts and sync Worker.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">12,886</div>
+          <p>the release history, Settings search, promo cards and the Steam scripts lead.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">835</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v0.41.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.41.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
