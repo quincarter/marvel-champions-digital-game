@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Release history · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="Every release of the fan-made Marvel Champions digital game, from the first playable build to today."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition release history" />
+    <meta
+      property="og:description"
+      content="Every release of the fan-made Marvel Champions digital game, from the first playable build to today."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.40.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      /* The release reports' own house style, so a report and a written-up page read as one magazine. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --rail: 300px;
+        --safe-l: max(16px, env(safe-area-inset-left, 0px));
+        --safe-r: max(16px, env(safe-area-inset-right, 0px));
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--bg);
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible,
+      button:focus-visible,
+      summary:focus-visible,
+      .pad a:focus,
+      .pad button:focus,
+      .pad summary:focus {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      img {
+        max-width: 100%;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      .skip {
+        position: absolute;
+        left: -999px;
+      }
+      .skip:focus {
+        left: 8px;
+        top: 8px;
+        z-index: 40;
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 6px 12px;
+      }
+
+      /* The list: a rail beside the page on a wide screen, a sheet from the bar on a narrow one. */
+      .layout {
+        display: grid;
+        grid-template-columns: var(--rail) minmax(0, 1fr);
+        min-height: 100vh;
+      }
+      .rail {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg2);
+        border-right: 3px solid var(--fg);
+        padding-top: env(safe-area-inset-top, 0px);
+      }
+      .rail-head {
+        padding: 20px 18px 14px var(--safe-l);
+        border-bottom: 1px solid var(--line);
+      }
+      .kick {
+        font: 700 11px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .rail-head h1 {
+        font: 400 44px/0.95 var(--d);
+        letter-spacing: 0.01em;
+        margin: 8px 0 6px;
+      }
+      .rail-head h1 span {
+        color: var(--gold);
+      }
+      .rail-meta {
+        font: 12px/1.6 var(--m);
+        color: var(--muted);
+      }
+      .rail-close {
+        display: none;
+      }
+      .list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 6px 0 20px;
+      }
+      .list h2 {
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 14px 18px 6px;
+      }
+      .list a {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0 8px;
+        padding: 8px 14px 8px 15px;
+        border-left: 5px solid transparent;
+        text-decoration: none;
+      }
+      .list a:hover {
+        background: #2c251f;
+      }
+      .list a[aria-current="page"] {
+        background: var(--red);
+        border-left-color: var(--gold);
+      }
+      .list a[aria-current="page"] small,
+      .list a[aria-current="page"] .v {
+        color: var(--fg);
+      }
+      .list a:focus-visible,
+      .pad .list a:focus {
+        outline-offset: -3px;
+      }
+      .list .v {
+        font: 12px/1.5 var(--m);
+        color: var(--gold);
+      }
+      .list small {
+        font: 12px/1.5 var(--m);
+        color: var(--muted);
+      }
+      .list b {
+        grid-column: 1 / -1;
+        font: 700 14px/1.3 var(--b);
+      }
+      .list a.full .v::after {
+        content: " ★";
+      }
+
+      /* The bar a narrow screen moves between releases with. */
+      .bar {
+        display: none;
+      }
+      main {
+        min-width: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      main:focus {
+        outline: none;
+      }
+      .strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 18px;
+        justify-content: space-between;
+        padding: 12px var(--safe-r) 12px var(--safe-l);
+        border-bottom: 1px solid var(--line);
+        font: 13px/1.6 var(--m);
+        color: var(--muted);
+      }
+      .state {
+        padding: 64px 24px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      /* A release written up from its changelog. */
+      .page {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 40px var(--safe-r) 24px var(--safe-l);
+      }
+      .page header {
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 22px;
+      }
+      .page h2.title {
+        font: 400 clamp(46px, 7vw, 92px)/0.95 var(--d);
+        letter-spacing: 0.01em;
+        margin: 12px 0 0;
+        text-wrap: balance;
+      }
+      .page .tag {
+        display: inline-block;
+        font: 400 22px/1 var(--d);
+        letter-spacing: 0.04em;
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 6px 12px 4px;
+        transform: rotate(-1.5deg);
+        box-shadow: 4px 4px 0 var(--red);
+      }
+      .page .lede {
+        font-size: 19px;
+        max-width: 760px;
+        margin: 22px 0 0;
+      }
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin: 24px 0;
+      }
+      .tile {
+        background: var(--bg2);
+        border: 2px solid var(--line);
+        padding: 12px 14px;
+      }
+      .tile h4 {
+        font: 700 11px var(--b);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .tile div {
+        font: 400 42px/1.05 var(--d);
+        color: var(--gold);
+      }
+      .tile.Added div {
+        color: var(--green);
+      }
+      .tile.Fixed div {
+        color: var(--blue);
+      }
+      .shots {
+        display: grid;
+        gap: 18px;
+        margin: 24px 0;
+      }
+      .shots a {
+        display: block;
+        border: 3px solid var(--fg);
+        box-shadow: 6px 6px 0 var(--line);
+        line-height: 0;
+      }
+      .shots img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      details {
+        border-top: 2px solid var(--line);
+        padding: 8px 0;
+      }
+      summary {
+        cursor: pointer;
+        font: 400 32px/1.3 var(--d);
+        letter-spacing: 0.02em;
+      }
+      summary span {
+        font: 13px var(--m);
+        color: var(--muted);
+        margin-left: 8px;
+      }
+      details li {
+        margin: 7px 0;
+        overflow-wrap: anywhere;
+      }
+      details ul {
+        padding-left: 22px;
+        margin: 6px 0 14px;
+      }
+      code {
+        font: 0.9em var(--m);
+        background: var(--bg2);
+        padding: 1px 4px;
+      }
+
+      .pager {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 16px var(--safe-r) 56px var(--safe-l);
+      }
+      .pager a {
+        display: block;
+        min-height: 44px;
+        padding: 10px 14px;
+        background: var(--bg2);
+        border: 2px solid var(--line);
+        text-decoration: none;
+      }
+      .pager a:hover {
+        border-color: var(--gold);
+      }
+      .pager a.older {
+        grid-column: 2;
+        text-align: right;
+      }
+      .pager small {
+        display: block;
+        font: 12px var(--m);
+        color: var(--muted);
+      }
+      .pager b {
+        font-weight: 700;
+      }
+
+      /* Button hints, only once a controller is in use. */
+      .hints {
+        position: fixed;
+        z-index: 30;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: none;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px 18px;
+        padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+        background: rgb(21 17 14 / 0.94);
+        border-top: 2px solid var(--line);
+        font: 700 13px var(--b);
+      }
+      .pad .hints {
+        display: flex;
+      }
+      .pad main {
+        padding-bottom: 56px;
+      }
+      .hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .hint[hidden] {
+        display: none;
+      }
+      .glyph {
+        display: inline-grid;
+        place-items: center;
+        min-width: 24px;
+        height: 24px;
+        padding: 0 6px;
+        border-radius: 12px;
+        background: var(--fg);
+        color: var(--bg);
+        font: 800 12px/1 var(--b);
+      }
+      .glyph.shoulder {
+        border-radius: 5px;
+      }
+      .glyph.dpad {
+        padding: 0;
+        background: none;
+      }
+      .glyph.stick {
+        background: none;
+        color: var(--fg);
+        border: 2px solid var(--fg);
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+        }
+        .bar {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          display: grid;
+          grid-template-columns: 48px minmax(0, 1fr) 48px;
+          align-items: stretch;
+          min-height: 56px;
+          padding-top: env(safe-area-inset-top, 0px);
+          padding-left: env(safe-area-inset-left, 0px);
+          padding-right: env(safe-area-inset-right, 0px);
+          background: var(--bg2);
+          border-bottom: 3px solid var(--fg);
+        }
+        .bar a,
+        .bar button {
+          display: grid;
+          place-items: center;
+          border: 0;
+          background: none;
+          text-decoration: none;
+        }
+        .bar a {
+          font: 400 30px/1 var(--d);
+          color: var(--gold);
+        }
+        .bar a[aria-disabled="true"] {
+          color: var(--line);
+          pointer-events: none;
+        }
+        .bar a:focus-visible,
+        .bar button:focus-visible,
+        .pad .bar a:focus,
+        .pad .bar button:focus {
+          outline-offset: -3px;
+        }
+        .bar button {
+          min-width: 0;
+          padding: 4px 6px;
+          line-height: 1.25;
+        }
+        .bar button small {
+          display: block;
+          font: 12px var(--m);
+          color: var(--gold);
+        }
+        .bar button b {
+          display: block;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font: 700 15px var(--b);
+        }
+        .rail {
+          position: fixed;
+          inset: 0;
+          z-index: 20;
+          height: auto;
+          border-right: 0;
+          visibility: hidden;
+          transform: translateY(12px);
+          opacity: 0;
+          transition:
+            opacity 0.14s,
+            transform 0.14s,
+            visibility 0.14s;
+        }
+        .rail.open {
+          visibility: visible;
+          transform: none;
+          opacity: 1;
+        }
+        .rail-head {
+          position: relative;
+          padding-right: 64px;
+        }
+        .rail-close {
+          display: grid;
+          place-items: center;
+          position: absolute;
+          top: 12px;
+          right: var(--safe-r);
+          width: 44px;
+          height: 44px;
+          background: none;
+          border: 2px solid var(--line);
+          font-size: 20px;
+          cursor: pointer;
+        }
+        .list a {
+          padding-block: 10px;
+        }
+        .page {
+          padding-top: 28px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .rail {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to the release</a>
+    <div class="layout">
+      <nav class="rail" id="rail" aria-label="Releases">
+        <div class="rail-head">
+          <div class="kick">Marvel Champions: Digital Edition</div>
+          <h1>Release <span>history</span></h1>
+          <div class="rail-meta"><span id="rail-count"></span><br /><a href="../">Play in your browser ↗</a></div>
+          <button class="rail-close" id="rail-close" type="button" aria-label="Close the release list">✕</button>
+        </div>
+        <div class="list" id="list"></div>
+      </nav>
+      <div>
+        <div class="bar">
+          <a id="bar-newer" href="#" aria-label="Newer release">‹</a>
+          <button id="bar-open" type="button" aria-expanded="false" aria-controls="rail">
+            <small id="bar-version"></small><b id="bar-title">All releases ▾</b>
+          </button>
+          <a id="bar-older" href="#" aria-label="Older release">›</a>
+        </div>
+        <main id="content" tabindex="-1" aria-live="polite">
+          <div class="state">Loading the releases…</div>
+        </main>
+      </div>
+    </div>
+    <div class="hints" id="hints" aria-hidden="true"></div>
+    <noscript>
+      <p class="state">
+        This page needs JavaScript. Every release is also on
+        <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">GitHub</a>.
+      </p>
+    </noscript>
+    <script src="history.js"></script>
+  </body>
+</html>

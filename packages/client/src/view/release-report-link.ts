@@ -22,3 +22,17 @@ export function releaseReportUrl(pageUrl: string, native: boolean): string {
     return RELEASE_REPORT_SITE_URL;
   }
 }
+
+/**
+ * The release history page (`public/releases/index.html`), open at one release: where the Title footer's "Release
+ * notes" goes. Resolved the same way as the report above.
+ */
+export function releaseHistoryUrl(version: string, pageUrl: string, native: boolean): string {
+  const path = `releases/index.html#v${version}`;
+  if (native) return `${SITE_URL}${path}`;
+  try {
+    return new URL(path, pageUrl).href;
+  } catch {
+    return `${SITE_URL}${path}`;
+  }
+}

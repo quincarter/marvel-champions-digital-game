@@ -29,6 +29,12 @@ to = "/releases/v0.40.0/index.html"
 status = 302
 force = true
 
+# A release with no report of its own is a page of the release history. Existing files, like a report, win over this.
+[[redirects]]
+from = "/releases/:version"
+to = "/releases/#:version"
+status = 302
+
 # SPA client-side routing fallback
 [[redirects]]
 from = "/*"

@@ -94,6 +94,7 @@ export default defineConfig({
       // here unchanged.
       testMatch: [
         "holdon.spec.ts",
+        "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",
         "victory-display.spec.ts",
         "deck-builder-search-help.spec.ts",

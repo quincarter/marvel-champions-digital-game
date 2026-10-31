@@ -27,10 +27,11 @@ import { ensurePictureLoaded } from "../art/pictures.js";
 import { cardLanguage } from "../art/card-language.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
-import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
+import { UPDATE_DISMISS_ID, appVersionText, buildCommit, updateActions } from "../view/app-version.js";
+import { releaseHistoryUrl } from "../view/release-report-link.js";
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
-import { detectPlatform, openExternal } from "../platform/platform.js";
+import { detectPlatform, isNativeShell, openExternal } from "../platform/platform.js";
 import { DISCORD_INVITE_URL } from "../view/issue-report.js";
 import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
@@ -702,9 +703,10 @@ export class TitleScene extends Phaser.Scene {
       powerText.setX(layout.footer.x + layout.footer.width - powerText.width);
     }
 
-    // The release this build is on, on GitHub: its notes and downloads. Underlined in the footer's own ink rather
-    // than red, which is the screen's one forward action.
-    const releaseNotes = (): void => openExternal(releaseNotesUrl(CLIENT_VERSION));
+    // The release this build is on, in the release history. Underlined in the footer's own ink rather than red, which
+    // is the screen's one forward action.
+    const releaseNotes = (): void =>
+      openExternal(releaseHistoryUrl(CLIENT_VERSION, globalThis.location?.href ?? "", isNativeShell()));
     const linkText = this.add.text(0, layout.footer.y, "Release notes ↗", textStyle(typeRole.label, textColor));
     linkText.setX(versionText.x - 16 - linkText.width);
     this.add
