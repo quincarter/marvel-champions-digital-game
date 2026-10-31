@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { deckFromStarterDeck, type Deck, type HeroIdentityCard } from "@mc/content";
-import { validateDeck } from "@mc/engine";
+import { deckFromStarterDeck, type AnyCard, type Deck, type HeroIdentityCard, type Trait } from "@mc/content";
+import { uniqueLabel, validateDeck } from "@mc/engine";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import { aspectName } from "./aspect-stamp.js";
 import {
@@ -131,5 +131,50 @@ describe("F5: search reads traits, type and rules text (issue #217), name matche
     const firstTraitOnly = list.findIndex((c) => !c.name.toLowerCase().includes("agent"));
     const lastName = list.map((c) => c.name.toLowerCase().includes("agent")).lastIndexOf(true);
     if (firstTraitOnly >= 0) expect(lastName).toBeLessThan(firstTraitOnly);
+  });
+});
+
+describe("issue #598: cards that share a name are not reprints of one another", () => {
+  const ironMan = hero("01029a");
+  const labels = (cards: readonly AnyCard[]): string[] => cards.map((c) => `${uniqueLabel(c)} ${costOfCard(c)}`);
+  const costOfCard = (c: AnyCard): number | null => ("cost" in c && typeof c.cost === "number" ? c.cost : null);
+
+  test("every Spider-Man ally with its own subtitle, cost or aspect gets a row", () => {
+    const listed = browsablePool(POOL_CARDS, ironMan, ["justice", "protection"], {}).filter(
+      (c) => c.name === "Spider-Man" && c.type === "ally",
+    );
+    expect(labels(listed).sort()).toEqual([
+      "Spider-Man (Hobie Brown) 3",
+      "Spider-Man (Miles Morales) 3",
+      "Spider-Man (Miles Morales) 4",
+      "Spider-Man (Otto Octavius) 2",
+      "Spider-Man (Pavitr Prabhakar) 3",
+      "Spider-Man (Peter Parker) 3",
+      "Spider-Man (Peter Parker) 5",
+    ]);
+  });
+  test("a trait search lists them all too", () => {
+    const listed = browsablePool(POOL_CARDS, ironMan, ["justice"], { trait: "WEB-WARRIOR" as Trait });
+    expect(labels(listed)).toEqual(
+      expect.arrayContaining([
+        "Spider-Man (Otto Octavius) 2",
+        "Spider-Man (Pavitr Prabhakar) 3",
+        "Spider-Man (Peter Parker) 3",
+        "Spider-Woman (Mattie Franklin) 4",
+      ]),
+    );
+  });
+  test("a reprint the deck holds is the row listed, so its minus removes it", () => {
+    const holds = (id: string) => new Set([id]);
+    const peter = (held: string): string[] =>
+      ids(browsablePool(POOL_CARDS, ironMan, ["justice"], {}, undefined, [], holds(held))).filter((id) =>
+        ["27049", "52022"].includes(id),
+      );
+    expect(peter("52022")).toEqual(["52022"]);
+    expect(peter("27049")).toEqual(["27049"]);
+  });
+  test("a true reprint still folds into one row", () => {
+    const listed = browsablePool(POOL_CARDS, ironMan, ["justice"], {});
+    expect(listed.filter((c) => c.name === "Energy")).toHaveLength(1);
   });
 });

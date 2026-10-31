@@ -33,7 +33,7 @@
  *   the comment alone.
  */
 import type { CardId, CoreAspect, Deck, DeckCardEntry } from "@mc/content";
-import { isPermanentCard, type CardPool } from "@mc/engine";
+import { isPermanentCard, uniqueLabel, type CardPool } from "@mc/engine";
 
 /** The card types that can appear in a player deck (`Deck.cards`) — never `hero_identity` or any encounter/villain type. */
 export type PlayerCardType = "ally" | "event" | "support" | "upgrade" | "resource" | "player_side_scheme";
@@ -259,7 +259,7 @@ export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): rea
     const list = buckets.get(key) ?? [];
     list.push({
       cardId: card.id,
-      name: card.name,
+      name: uniqueLabel(card),
       type: card.type as PlayerCardType,
       cost: "cost" in card ? (card.cost as number) : null,
       quantity: entry.quantity,
