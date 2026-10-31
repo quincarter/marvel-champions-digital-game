@@ -1,5 +1,10 @@
 # Release notes in Spanish
 
+A report's Spanish lives in `reports/<version>.json`: each block of `public/releases/<version>/index.html` as a key, with
+its inline tags, and its Spanish as the value. The build writes `index.es.html` from the two, so there is no Spanish page
+to edit. `src/view/release-report-spanish.test.ts` fails if a block has no Spanish or a key has no block, so changing an
+English line means changing its key. The rules below apply to these too.
+
 One `<version>.md` per release, read by the release history page (`view/release-history-notes.ts`). A release with no
 file here shows in English, so a missing translation is never an error.
 

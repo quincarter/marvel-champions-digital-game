@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Plugin } from "vite";
+import { spanishReport } from "./src/view/release-report-spanish.js";
 import {
   buildReleaseHistory,
   buildSpanishReleaseHistory,
@@ -13,6 +14,20 @@ const REPO_ROOT = resolve(import.meta.dirname, "../..");
 const PUBLIC_RELEASES = resolve(import.meta.dirname, "public/releases");
 const OUT_DIR = join(PUBLIC_RELEASES, "history");
 const SPANISH_DIR = join(REPO_ROOT, "docs/releases/es");
+const SPANISH_REPORTS_DIR = join(SPANISH_DIR, "reports");
+
+/** Writes each report's `index.es.html` (not in git) from its page and text map, and says which versions have one. */
+function writeSpanishReports(): Set<string> {
+  const written = new Set<string>();
+  for (const name of readdirSync(SPANISH_REPORTS_DIR)) {
+    const version = name.replace(/\.json$/, "");
+    const texts = JSON.parse(readFileSync(join(SPANISH_REPORTS_DIR, name), "utf8")) as Record<string, string>;
+    const page = readFileSync(join(PUBLIC_RELEASES, version, "index.html"), "utf8");
+    writeFileSync(join(PUBLIC_RELEASES, version, SPANISH_REPORT_FILE), spanishReport(page, texts));
+    written.add(version);
+  }
+  return written;
+}
 
 /** One language's data into `dir`, in place, file by file. */
 function writeHistoryFiles(dir: string, { manifest, notes }: ReleaseHistory): void {
@@ -55,7 +70,7 @@ export function writeReleaseHistory(): void {
     headers,
     reports: new Set(versions.filter((version) => existsSync(join(PUBLIC_RELEASES, version, "index.html")))),
     translations,
-    spanishReports: new Set(versions.filter((v) => existsSync(join(PUBLIC_RELEASES, v, SPANISH_REPORT_FILE)))),
+    spanishReports: writeSpanishReports(),
   };
   writeHistoryFiles(OUT_DIR, buildReleaseHistory(sources));
   writeHistoryFiles(join(OUT_DIR, "es"), buildSpanishReleaseHistory(sources));

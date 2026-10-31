@@ -81,12 +81,16 @@ first, get it final, then translate it, so the two say the same thing.
 - `docs/releases/es/<version>.md`: the header's headline, paragraph and image alt text, then every line of the release
   PR's notes, with the same sections and items in the same order. `view/release-notes-es.test.ts` fails on the release
   PR if it drifts, so if a fragment lands after you write it, add its line, with this PR's own fragment included.
-- `packages/client/public/releases/<version>/index.es.html`: the report in Spanish, from a copy of `index.html`. Set
-  `<html lang="es">`, translate the text, alt text, `description` and `og:` tags, keep the images and the fonts, and keep
-  the `data-history-link` links, with the language link swapped: `index.html` links to `index.es.html` as Español, and
-  `index.es.html` links back as English. Copy the Spanish wording of v0.40.0's page where a line recurs.
-- Keep the `.notice` at the top of `index.es.html`, which says the Spanish is AI translated. The history page drops it
-  and shows its own bar while Spanish is on.
+- `docs/releases/es/reports/<version>.json`: the report's text map, from each block of English in `index.html` (a `p`,
+  `li`, heading, caption or `div`, with its inline tags, plus alt text and `content` attributes) to its Spanish. The
+  build writes `index.es.html` from the page and the map, and it isn't in git, so layout, images and numbers only ever
+  change in `index.html`. Copy the wording of v0.40.0's map where a line recurs.
+- `view/release-report-spanish.test.ts` fails if a block has no Spanish or a key has no block. So once the map exists,
+  changing a line of English means changing its key too. `reportTexts` lists what the page needs.
+- `index.html`'s `.meta` has an Español link inside a `data-history-link` span. The map gives its Spanish version, which
+  links back as English and sends All releases to `../index.html?lang=es#<version>`.
+- The build adds the notice that says the Spanish is AI translated. The history page drops it and shows its own bar
+  while Spanish is on.
 - The header gets one line under its English report link:
   `**[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/index.es.html)**`.
 - Screenshots and the GitHub release's section images stay in English, since the game's own text is English.

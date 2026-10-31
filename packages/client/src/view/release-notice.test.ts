@@ -16,7 +16,7 @@ test("the bar names the release it opens, and that release's report is in the si
   // A missing page would not 404: the site's fallback would open a second copy of the game.
   const report = new URL(`../../public/releases/${RELEASE_NOTICE_VERSION}/index.html`, import.meta.url);
   expect(existsSync(report)).toBe(true);
-  const spanish = new URL(`../../public/releases/${RELEASE_NOTICE_VERSION}/index.es.html`, import.meta.url);
+  const spanish = new URL(`../../../../docs/releases/es/reports/${RELEASE_NOTICE_VERSION}.json`, import.meta.url);
   expect(existsSync(spanish)).toBe(true);
 });
 
