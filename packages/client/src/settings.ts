@@ -239,10 +239,10 @@ export function achievementPopupHoldMs(time: AchievementPopupTime): number {
   return time === "off" ? 0 : Number.parseInt(time, 10) * 1000;
 }
 
-/** "titleBar" sits in the screens' top bar strip; the rest are centered across the screen at that height. */
 export type HeroArt = "game" | "card" | "promo";
 export const HERO_ART_VALUES: readonly HeroArt[] = ["game", "card", "promo"];
 
+/** "titleBar" sits in the screens' top bar strip; the rest are centered across the screen at that height. */
 export type AchievementPopupPlace = "titleBar" | "top" | "middle" | "bottom";
 export type AchievementPopupSize = "small" | "medium" | "large";
 export const ACHIEVEMENT_POPUP_SIZE_VALUES: readonly AchievementPopupSize[] = ["small", "medium", "large"];

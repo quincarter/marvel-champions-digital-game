@@ -30,7 +30,13 @@ import {
 } from "../view/seat-recommendations.js";
 import { loadRecommendedCollapsed, recommendedStartsCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { HERO_ART_LABELS, heroArtInForce, heroTilePicture, nextHeroArt } from "../view/hero-art-choice.js";
+import {
+  HERO_ART_LABELS,
+  heroArtInForce,
+  heroPromoShown,
+  heroTilePicture,
+  nextHeroArt,
+} from "../view/hero-art-choice.js";
 import { earnedPromoSets } from "../progression/progression.js";
 import type { PromoSet } from "../art/promo-art.js";
 import type { HeroArt } from "../settings.js";
@@ -783,7 +789,7 @@ export class SeatsScene extends Phaser.Scene {
     );
     this.#stops.set("use-preconstructed", { rect: layout.usePreconstructed, activate: usePreconstructed });
     const earnedPromos = earnedPromoSets();
-    const promoShown = earnedPromos.length > 0 && appSession().settings.promoArtOn;
+    const promoShown = heroPromoShown(earnedPromos, appSession().settings.promoArtOn);
     const heroArtNow = heroArtInForce(appSession().settings.heroArt, promoShown);
     this.#tileArt = { choice: heroArtNow, earned: earnedPromos };
     const stepHeroArt = (): void => {
@@ -1765,7 +1771,7 @@ export class SeatsScene extends Phaser.Scene {
   /**
    * The hero's own artwork (`art/heroes/`, `art/hero-art.ts`), picked once per visit so a redraw doesn't reshuffle a
    * hero with several pictures. A hero printed as more than one identity card (Ironheart's three versions) shares
-   * the picture filed under any of them: same name, same set.
+   * the picture filed under any of them: same name, same set. Card or Promo art (`Settings.heroArt`) goes first.
    */
   #heroPictureFor(identityId: string): Picture | null {
     const { choice, earned } = this.#tileArt;

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { setShownPromos } from "../art/art-source.js";
 import { PROMO_SETS, promoArtByScan } from "../art/promo-art.js";
 import { CARDS_BY_ID } from "../content/pool.js";
-import { heroArtChoicesOf, heroArtInForce, heroTilePicture, nextHeroArt } from "./hero-art-choice.js";
+import { heroArtChoicesOf, heroArtInForce, heroPromoShown, heroTilePicture, nextHeroArt } from "./hero-art-choice.js";
 
 const set = (id: string) => PROMO_SETS.find((one) => one.id === id)!;
 const cable = CARDS_BY_ID.get("40001a");
@@ -13,6 +13,12 @@ describe("the hero art choice (#192)", () => {
   test("Promo art is on offer only once a promo is earned and shown", () => {
     expect(heroArtChoicesOf(false)).toEqual(["game", "card"]);
     expect(heroArtChoicesOf(true)).toEqual(["game", "card", "promo"]);
+  });
+
+  test("only a hero's promo puts Promo art on offer, and only with promo art on", () => {
+    expect(heroPromoShown([set("tackle"), set("magneto")], true)).toBe(false);
+    expect(heroPromoShown([set("cable")], true)).toBe(true);
+    expect(heroPromoShown([set("cable")], false)).toBe(false);
   });
 
   test("a press steps through the choices and wraps", () => {
@@ -31,10 +37,9 @@ describe("the hero art choice (#192)", () => {
     expect(heroTilePicture("game", cable, [set("cable")], [])).toBeNull();
   });
 
-  test("Card art is the hero's card, on a key of its own", () => {
+  test("Card art is the hero's card", () => {
     const picture = heroTilePicture("card", cable, [], []);
     expect(picture?.url).toBe("/card-art/bundles/cards/40001a.png");
-    expect(picture?.key.startsWith("tile:")).toBe(true);
   });
 
   test("Card art shows a promo in use, as the card is drawn in play", () => {

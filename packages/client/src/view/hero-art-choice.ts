@@ -1,6 +1,6 @@
 /**
  * Which picture the hero tiles on Take Your Seats show (`Settings.heroArt`): the game's own painted art, the card, or
- * an earned promo card. The screen's art button and Settings ▸ More both set it.
+ * an earned promo card. The screen's art button and Settings ▸ Cards both set it.
  *
  * Pure: `scenes/seats.ts` draws what this picks, and falls back to the game art when it picks nothing.
  */
@@ -16,7 +16,11 @@ export const HERO_ART_LABELS: Readonly<Record<HeroArt, string>> = {
   promo: "Promo art",
 };
 
-/** The choices on offer: Promo art only once a promo card is earned and promo art is on. */
+/** Whether Promo art is on offer: a hero's promo is earned and promo art is on. A villain's or event's is no tile's. */
+export const heroPromoShown = (earnedSets: readonly PromoSet[], promoArtOn: boolean): boolean =>
+  promoArtOn && earnedSets.some(({ earn }) => earn.kind === "heroWins");
+
+/** The choices on offer. */
 export const heroArtChoicesOf = (promoShown: boolean): readonly HeroArt[] =>
   promoShown ? ["game", "card", "promo"] : ["game", "card"];
 
@@ -30,7 +34,7 @@ export function nextHeroArt(saved: HeroArt, promoShown: boolean): HeroArt {
   return choices[(choices.indexOf(heroArtInForce(saved, promoShown)) + 1) % choices.length]!;
 }
 
-/** A card picture as a tile's picture, on its own key: `CardArt` may evict what it loaded (`art/card-art.ts`). */
+/** A card picture as a tile's picture. */
 const tilePicture = (art: ArtSource): Picture => ({ key: `tile:${art.key}`, url: art.url });
 
 /**
