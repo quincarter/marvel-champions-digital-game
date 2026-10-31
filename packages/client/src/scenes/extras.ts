@@ -79,7 +79,7 @@ export class ExtrasScene extends Phaser.Scene {
   #player: NowPlayingPanel | null = null;
   #unsubscribe: (() => void) | null = null;
   #hover: HoverPreview | null = null;
-  /** The Promo Cards tab's open tiles as drawn, for the hover popover. */
+  /** The Promo Cards tab's tiles as drawn, for the hover popover: a locked one shows what there is to earn. */
   #promoTiles: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
 
   constructor() {
@@ -354,7 +354,7 @@ export class ExtrasScene extends Phaser.Scene {
             const found = new Map<string, HoverCardIdRect>();
             tiles.forEach((tile, index) => {
               const set = PROMO_SETS.find((one) => `promo:${one.id}` === tile.id);
-              if (!tile.open || !set) return;
+              if (!set) return;
               const rowRect = list.rectFor(Math.floor(index / grid.columns));
               const shown = clipHoverRect(extrasTileRect(index, grid, rowRect), listRect);
               if (!shown) return;

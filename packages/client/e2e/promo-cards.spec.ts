@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { settle, trackPageErrors, waitFor } from "./helpers.js";
+import { isSceneUp, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { routeStops, waitForScene } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 
@@ -53,4 +53,21 @@ test("a promo not earned yet is not drawn, even if a save names it", async ({ pa
   await openApp(page, "screen=board", { landing: "Board" });
   await settle(page);
   expect(asked).toEqual([]);
+});
+
+test("a locked promo tile opens the card hover on a mouse, and no viewer", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the hover is a desktop mouse's");
+  await openApp(page, "screen=extras&tab=promos", { landing: "Extras" });
+  await settle(page);
+  const tile = await waitFor(
+    async () => (await routeStops(page, "Extras"))?.stops.find((s) => s.key === "tile:promo:spider-man")?.rect ?? null,
+    "Extras draws the Spider-Man tile",
+    10000,
+  );
+  const hovered = page.waitForRequest(/\/card-art\/promos\/01001a-1\.webp/, { timeout: 15000 });
+  await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await hovered;
+  await page.mouse.click(tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await settle(page);
+  expect(await isSceneUp(page, VIEWER)).toBe(false);
 });
