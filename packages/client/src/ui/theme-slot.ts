@@ -15,3 +15,14 @@ export function setThemeSlot(sceneKey: string, rect: Rect | null): void {
 export function themeSlots(): ReadonlyMap<string, Rect> {
   return slots;
 }
+
+let shown: Rect | null = null;
+
+/** Where the toggle is drawn now, or null while it is hidden. */
+export function shownThemeButton(): Rect | null {
+  return shown;
+}
+
+export function setShownThemeButton(rect: Rect | null): void {
+  shown = rect;
+}

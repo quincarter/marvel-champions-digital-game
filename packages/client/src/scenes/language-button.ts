@@ -17,7 +17,7 @@ import { onLanguageChange } from "../language-change.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { onTap } from "../ui/tap.js";
-import { musicSlots } from "../ui/music-slot.js";
+import { musicSlots, setShownLanguageButton } from "../ui/music-slot.js";
 import { reportButtonSlot } from "../view/report-button.js";
 import type { Rect } from "../view/layout.js";
 import { languageCodeOf, languagePopupMode, languageSlotBeside } from "../view/language-button.js";
@@ -65,11 +65,12 @@ export class LanguageButtonScene extends Phaser.Scene {
     this.#zone = this.add.zone(0, 0, 1, 1).setOrigin(0, 0).setDepth(2).setInteractive({ useHandCursor: true });
     this.#zone.on("pointerover", () => this.#setHovered(true));
     this.#zone.on("pointerout", () => this.#setHovered(false));
-    onTap(this.#zone, () => this.#toggle(), "language-button");
+    onTap(this.#zone, () => this.toggle(), "language-button");
     this.#unsubscribe = onLanguageChange(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
+      setShownLanguageButton(null);
     });
     this.#place(null);
     // Headless click-through hook only: where the button is and what it says, for the e2e specs.
@@ -111,7 +112,8 @@ export class LanguageButtonScene extends Phaser.Scene {
     return { rect: this.#rect, code: this.#drawnCode };
   }
 
-  #toggle(): void {
+  /** What a tap does; pad and keyboard focus ask for `focused`, so the list opens with focus on it. */
+  toggle(focused = false): void {
     const rect = this.#rect;
     if (!rect) return;
     if (this.scene.isActive(SCENES.languagePopup)) {
@@ -121,6 +123,7 @@ export class LanguageButtonScene extends Phaser.Scene {
     this.scene.launch(SCENES.languagePopup, {
       mode: languagePopupMode(availableCardLanguages().length, isNativeShell(), forcedInfo()),
       anchor: rect,
+      focused,
     });
   }
 
@@ -135,6 +138,7 @@ export class LanguageButtonScene extends Phaser.Scene {
         rect.height === this.#rect.height);
     if (same) return;
     this.#rect = rect;
+    setShownLanguageButton(rect);
     this.#draw();
   }
 
