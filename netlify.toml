@@ -25,7 +25,7 @@ force = true
 # Builds up to v0.39.0 have a title bar that opens this retired page.
 [[redirects]]
 from = "/shadowland-info.html"
-to = "/releases/v0.40.0/index.html"
+to = "/releases/v0.41.0/index.html"
 status = 302
 force = true
 
