@@ -1,3 +1,0 @@
-kind: Fixed
-body: The target picker starts below the table's top bar, so its title is no longer under the top-bar buttons, and the first player token no longer shows over it (#515).
-time: 2026-10-28T22:48:12.9566164-04:00

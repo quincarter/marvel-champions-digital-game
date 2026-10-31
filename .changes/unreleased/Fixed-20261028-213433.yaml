@@ -1,3 +1,0 @@
-kind: Fixed
-body: The card scan importer no longer crashes when saving a scan without cleared corners over an old JPEG scan
-time: 2026-10-28T21:34:33.3731094-04:00
