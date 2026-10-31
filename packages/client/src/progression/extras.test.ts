@@ -303,6 +303,13 @@ describe("promo cards (#192)", () => {
     expect(withEndedGame(NO_EXTRAS_PROGRESS, { ...game, result: "loss" }).heroWins).toEqual({});
   });
 
+  it("a finished game reopened at Game over is not counted twice", () => {
+    const saved = extrasProgressOf([{ ...won("rhino", spiderMan), id: "game-1" }], []);
+    const game = { scenarioId: "rhino", result: "win", heroIds: [spiderMan] } as const;
+    expect(withEndedGame(saved, { ...game, gameId: "game-1" }).heroWins).toEqual({ [spiderMan]: 1 });
+    expect(withEndedGame(saved, { ...game, gameId: "game-2" }).heroWins).toEqual({ [spiderMan]: 2 });
+  });
+
   it("files every set on the Promo Cards shelf, locked until earned, open under Unlock everything", () => {
     const entries = EXTRAS_ENTRIES.promos;
     expect(entries.length).toBeGreaterThan(40);

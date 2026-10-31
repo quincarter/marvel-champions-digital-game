@@ -70,6 +70,8 @@ export interface ExtrasProgress {
   readonly heroWins: WinCounts;
   readonly scenarioWins: WinCounts;
   readonly cardWins: WinCounts;
+  /** The saved games those counts include, so Game over never counts one twice. */
+  readonly wonGameIds: readonly string[];
 }
 
 export type WinCounts = Readonly<Record<string, number>>;
@@ -86,6 +88,7 @@ export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
   heroWins: {},
   scenarioWins: {},
   cardWins: {},
+  wonGameIds: [],
 };
 
 /**
@@ -118,6 +121,7 @@ export function identityOfSeat(seat: object): string | null {
 /** Progress from the same two storage listings `progressOf` (`unlocks.ts`) reads. */
 export function extrasProgressOf(
   saves: readonly {
+    readonly id?: string;
     readonly status: string;
     readonly guided?: { readonly kind: string };
     readonly config: { readonly scenarioId: string; readonly players: readonly object[] };
@@ -153,6 +157,7 @@ export function extrasProgressOf(
     ),
     scenarioWins: tally(won.map((save) => [save.config.scenarioId])),
     cardWins: tally(won.map((save) => (save.summary?.seats ?? []).flatMap((seat) => seat.deck.map(winCardOf)))),
+    wonGameIds: unique(won.flatMap((save) => (save.id ? [save.id] : []))),
   };
 }
 
@@ -168,10 +173,15 @@ export function withEndedGame(
     readonly heroIds: readonly string[];
     /** The cards in the game, for a promo card that counts wins with it (only player cards are ever counted). */
     readonly deckCardIds?: readonly string[];
+    /** The save it is stored under: a game reopened at Game over may already be in the counts. */
+    readonly gameId?: string | null;
   },
 ): ExtrasProgress {
+  const counted = game.gameId != null && progress.wonGameIds.includes(game.gameId);
   const plusWin = (counts: WinCounts, ids: readonly string[]): WinCounts =>
-    game.result === "win" ? { ...counts, ...Object.fromEntries(ids.map((id) => [id, (counts[id] ?? 0) + 1])) } : counts;
+    game.result === "win" && !counted
+      ? { ...counts, ...Object.fromEntries(ids.map((id) => [id, (counts[id] ?? 0) + 1])) }
+      : counts;
   return {
     ...progress,
     heroWins: plusWin(progress.heroWins, game.heroIds),

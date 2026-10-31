@@ -128,6 +128,7 @@ export class GameOverScene extends Phaser.Scene {
               scenarioId: config.scenarioId,
               result: game.outcome.result,
               heroIds,
+              gameId: appSession().store.state.gameId ?? null,
               deckCardIds: [...new Set(Object.values(game.instances).map((instance) => instance.cardId as string))],
             }),
         { everything: before.everything },
