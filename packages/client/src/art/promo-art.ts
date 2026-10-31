@@ -24,6 +24,8 @@ export type PromoEarn =
 export interface PromoFace {
   /** The normal scan this picture stands in for, by file name. */
   readonly scan: string;
+  /** A reprint's scan it stands in for too, when the reprint has different art of its own. */
+  readonly alsoScans?: readonly string[];
   readonly caption: string;
 }
 
@@ -129,7 +131,11 @@ export const PROMO_SETS: readonly PromoSet[] = [
   ...hero("deadpool", "Deadpool", "44001", 2),
   villain("norman-osborn", "Norman Osborn", ["02001a", "02002a", "02003a"], "risky-business"),
   villain("green-goblin", "Green Goblin", ["02014", "02015", "02016"], "mutagen-formula"),
-  { ...villain("bulldozer", "Bulldozer", ["07047"], "breakout"), faces: [{ scan: "07047", caption: "Bulldozer B" }] },
+  {
+    ...villain("bulldozer", "Bulldozer", ["07047"], "breakout"),
+    cardId: "07046",
+    faces: [{ scan: "07047", caption: "Bulldozer B" }],
+  },
   villain("sabretooth", "Sabretooth", ["32060", "32061"], "sabretooth"),
   villain("sentinel", "Sentinel", ["32084", "32085"], "project-wideawake"),
   villain("master-mold", "Master Mold", ["32109", "32110"], "master-mold"),
@@ -165,7 +171,10 @@ export const PROMO_SETS: readonly PromoSet[] = [
   villain("stryfe", "Stryfe", ["40163", "40164"], "stryfe"),
   event("avengers-assemble", "Avengers Assemble!", "03015"),
   event("tackle", "Tackle", "05015", "56049"),
-  event("stealth-strike", "Stealth Strike", "08013"),
+  {
+    ...event("stealth-strike", "Stealth Strike", "08013", "37014"),
+    faces: [{ scan: "08013", alsoScans: ["37014"], caption: "Stealth Strike" }],
+  },
   event("desperate-defense", "Desperate Defense", "09015", "16013"),
   event("drop-kick", "Drop Kick", "10014"),
 ];
@@ -180,8 +189,24 @@ export const PROMO_ART: readonly ArtSource[] = PROMO_SETS.flatMap((set) =>
 
 /** What `artFor` draws for these sets: each normal scan they cover, to its promo picture. */
 export function promoArtByScan(sets: readonly PromoSet[]): ReadonlyMap<string, ArtSource> {
-  return new Map(sets.flatMap((set) => set.faces.map((face) => [face.scan, promoFaceArt(set, face)] as const)));
+  return new Map(
+    sets.flatMap((set) =>
+      set.faces.flatMap((face) =>
+        [face.scan, ...(face.alsoScans ?? [])].map((scan) => [scan, promoFaceArt(set, face)] as const),
+      ),
+    ),
+  );
 }
+
+/** Each printing of an event with a promo, to the first: a game with any of them is one win toward it. */
+const FIRST_PRINTING: ReadonlyMap<string, string> = new Map(
+  PROMO_SETS.flatMap(({ earn }) =>
+    earn.kind === "cardWins" ? earn.cardIds.map((id) => [id, earn.cardIds[0]!] as const) : [],
+  ),
+);
+
+/** The id a deck card's wins are counted under: its first printing, for an event with a promo. */
+export const winCardOf = (cardId: string): string => FIRST_PRINTING.get(cardId) ?? cardId;
 
 /**
  * The sets in use after the player turns `id` on or off. A card shows one printing, so turning a set on turns off any

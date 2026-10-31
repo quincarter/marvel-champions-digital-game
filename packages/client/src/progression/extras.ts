@@ -39,7 +39,7 @@ import { EXTRAS_ART, extrasArtTitle } from "../art/extras-art.js";
 import { SIDE_STORY_ART } from "../art/side-stories-art.js";
 import { TITLE_ART } from "../art/title-art.js";
 import type { Picture } from "../art/pictures.js";
-import { PROMO_SETS, promoFaceArt, type PromoEarn } from "../art/promo-art.js";
+import { PROMO_SETS, promoFaceArt, winCardOf, type PromoEarn } from "../art/promo-art.js";
 import { MUSIC_CATALOG, type MusicCatalog, type Track } from "../audio/music-catalog.js";
 import { SAGA_VOLUMES, storyFor } from "../campaign/story.js";
 import { CARDS_BY_ID, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
@@ -47,6 +47,7 @@ import { BOOKS } from "../content/books.js";
 import { SIDE_STORIES, type SideStory } from "../content/side-stories.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
+import { cardDisplayName } from "../view/hero-names.js";
 import { isLessonSave } from "../engine/game-storage.js";
 import { ACHIEVEMENTS } from "./achievements.js";
 import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
@@ -151,7 +152,7 @@ export function extrasProgressOf(
       won.map((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
     ),
     scenarioWins: tally(won.map((save) => [save.config.scenarioId])),
-    cardWins: tally(won.map((save) => (save.summary?.seats ?? []).flatMap((seat) => seat.deck))),
+    cardWins: tally(won.map((save) => (save.summary?.seats ?? []).flatMap((seat) => seat.deck.map(winCardOf)))),
   };
 }
 
@@ -165,7 +166,7 @@ export function withEndedGame(
     readonly scenarioId: string;
     readonly result: "win" | "loss" | "conceded";
     readonly heroIds: readonly string[];
-    /** Every card the seats brought, for a promo card that counts wins with it. */
+    /** The cards in the game, for a promo card that counts wins with it (only player cards are ever counted). */
     readonly deckCardIds?: readonly string[];
   },
 ): ExtrasProgress {
@@ -175,7 +176,7 @@ export function withEndedGame(
     ...progress,
     heroWins: plusWin(progress.heroWins, game.heroIds),
     scenarioWins: plusWin(progress.scenarioWins, [game.scenarioId]),
-    cardWins: plusWin(progress.cardWins, game.deckCardIds ?? []),
+    cardWins: plusWin(progress.cardWins, [...new Set((game.deckCardIds ?? []).map(winCardOf))]),
     playedHeroIds: unique([...progress.playedHeroIds, ...game.heroIds]),
     playedScenarioIds: unique([...progress.playedScenarioIds, game.scenarioId]),
     wonScenarioIds:
@@ -270,6 +271,11 @@ export interface ExtrasEntry {
 }
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+/** A hero's name, told apart from a second hero of that name (Spider-Man, Miles Morales). */
+const heroName = (id: string): string => {
+  const card = CARDS_BY_ID.get(id);
+  return card ? cardDisplayName(card) : id;
+};
 const packName = (code: string): string => POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
 const campaignName = (campaignId: string): string =>
   SAGA_VOLUMES.find((volume) => volume.campaignId === campaignId)?.name ?? campaignId;
@@ -291,7 +297,7 @@ export function unlockHint(unlock: ExtrasUnlock, wins: number | null = null): st
   const soFar = wins === null || !("wins" in unlock) ? "" : ` (${wins}/${unlock.wins})`;
   switch (unlock.kind) {
     case "heroWins":
-      return `Win ${unlock.wins} games as ${cardName(unlock.identityCardId)}${soFar}`;
+      return `Win ${unlock.wins} games as ${heroName(unlock.identityCardId)}${soFar}`;
     case "scenarioWins": {
       const names = unlock.scenarioIds.map((id) => scenarioNamedHint(id));
       return names.every((name) => name !== null)
@@ -414,12 +420,11 @@ export class Extras {
   /** The wins so far toward a promo card; null for anything else. */
   winsToward(unlock: ExtrasUnlock): number | null {
     const { heroWins, scenarioWins, cardWins } = this.progress;
-    const total = (counts: WinCounts, ids: readonly string[]): number =>
-      ids.reduce((sum, id) => sum + (counts[id] ?? 0), 0);
     if (unlock.kind === "heroWins") return heroWins[unlock.identityCardId] ?? 0;
-    if (unlock.kind === "scenarioWins") return total(scenarioWins, unlock.scenarioIds);
-    // The most any one printing has: a deck holding both reprints of a card is still one game.
-    if (unlock.kind === "cardWins") return Math.max(...unlock.cardIds.map((id) => cardWins[id] ?? 0));
+    if (unlock.kind === "scenarioWins") {
+      return unlock.scenarioIds.reduce((sum, id) => sum + (scenarioWins[id] ?? 0), 0);
+    }
+    if (unlock.kind === "cardWins") return cardWins[winCardOf(unlock.cardIds[0]!)] ?? 0;
     return null;
   }
 
@@ -912,16 +917,13 @@ export function shadowlandArtEntriesOf(): ExtrasEntry[] {
   });
 }
 
-/**
- * The rulebooks, always open. A campaign rulebook wears its box's cover, or its final villain until the box ships a
- * cover; the Rules Reference wears the Core Set box.
- */
 /** One tile per promo set; its file holds each face it was printed for. */
 export function promoEntriesOf(): ExtrasEntry[] {
   return PROMO_SETS.map((set) => {
     const pictures = set.faces.map((face) => {
       const art = promoFaceArt(set, face);
-      return { picture: { key: art.key, url: art.url }, caption: face.caption, unlock: set.earn };
+      // Its own key: the hover popover loads the same file through `CardArt`, which may evict what it loaded.
+      return { picture: { key: `extras:${art.key}`, url: art.url }, caption: face.caption, unlock: set.earn };
     });
     return {
       id: `promo:${set.id}`,
@@ -942,6 +944,10 @@ export function promoEntriesOf(): ExtrasEntry[] {
   });
 }
 
+/**
+ * The rulebooks, always open. A campaign rulebook wears its box's cover, or its final villain until the box ships a
+ * cover; the Rules Reference wears the Core Set box.
+ */
 export function bookEntriesOf(): ExtrasEntry[] {
   const coreBox = TITLE_ART.find((picture) => picture.key.includes("box-core-set")) ?? null;
   return BOOKS.map((book): ExtrasEntry => {

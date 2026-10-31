@@ -30,6 +30,10 @@ describe("the promo catalog (#192)", () => {
     for (const one of PROMO_SETS) for (const face of one.faces) expect(scans, face.scan).toContain(face.scan);
   });
 
+  test("every set names a real card for its hover", () => {
+    for (const one of PROMO_SETS) expect(CARDS_BY_ID.has(one.cardId), one.id).toBe(true);
+  });
+
   test("what earns a set names a real hero, scenario or card", () => {
     const scenarios = new Set(POOL_SCENARIOS.map((scenario) => scenario.id as string));
     for (const { earn, id } of PROMO_SETS) {
@@ -79,13 +83,18 @@ describe("drawing a promo", () => {
     expect(artFor(CARDS_BY_ID.get("56049"), { kind: "front" })?.url).toBe("/card-art/promos/05015-1.webp");
   });
 
+  test("a reprint with its own art takes the promo too", () => {
+    setShownPromos(promoArtByScan([set("stealth-strike")]));
+    expect(artFor(CARDS_BY_ID.get("37014"), { kind: "front" })?.url).toBe("/card-art/promos/08013-1.webp");
+  });
+
   test("a facedown card never shows a promo", () => {
     setShownPromos(promoArtByScan([set("spider-man")]));
     expect(artFor(spiderMan, { kind: "back", back: "player" })?.url).toContain("marvel-player-back");
     expect(standInArt({ kind: "ultronDrone", atk: 1 }).url).not.toContain("promos");
   });
 
-  test("the first face of a set is its own picture", () => {
+  test("a face's picture is named for its scan and printing", () => {
     expect(promoFaceArt(set("angel-2"), set("angel-2").faces[2]!).url).toBe("/card-art/promos/42001c-2.webp");
   });
 });

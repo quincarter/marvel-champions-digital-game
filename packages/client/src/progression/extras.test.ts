@@ -282,14 +282,17 @@ describe("promo cards (#192)", () => {
     expect(at(2).isOpen(heroPromo)).toBe(false);
     expect(at(3).isOpen(heroPromo)).toBe(true);
     expect(at(2).winsToward(heroPromo)).toBe(2);
-    expect(unlockHint(heroPromo, 2)).toBe("Win 3 games as Spider-Man (2/3)");
+    expect(unlockHint(heroPromo, 2)).toBe("Win 3 games as Spider-Man (Peter Parker) (2/3)");
   });
 
-  it("adds a villain's scenarios together, and takes the best of an event's reprints", () => {
+  it("adds a villain's scenarios together, and an event's reprints, a game with both counting once", () => {
     const marauders = { kind: "scenarioWins", scenarioIds: ["morlock-siege", "on-the-run"], wins: 3 } as const;
     expect(open({ scenarioWins: { "morlock-siege": 2, "on-the-run": 1 } }).isOpen(marauders)).toBe(true);
     const tackle = { kind: "cardWins", cardIds: ["05015", "56049"], wins: 3 } as const;
-    expect(open({ cardWins: { "05015": 2, "56049": 2 } }).isOpen(tackle)).toBe(false);
+    const tackleGames = [["05015"], ["05015"], ["56049", "05015"]].map((deck) => won("rhino", spiderMan, deck));
+    expect(extrasProgressOf(tackleGames, []).cardWins).toEqual({ "05015": 3 });
+    expect(new Extras(extrasProgressOf(tackleGames, [])).isOpen(tackle)).toBe(true);
+    expect(new Extras(extrasProgressOf(tackleGames.slice(1), [])).isOpen(tackle)).toBe(false);
     expect(unlockHint(tackle)).toBe("Win 3 games with Tackle in a deck");
   });
 
