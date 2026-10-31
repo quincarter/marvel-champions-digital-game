@@ -118,7 +118,9 @@ test("a log moment in Pause rewinds like Undo, and a swipe across one doesn't", 
     await waitFor(
       async () => {
         if ((await momentStops(page)).length > 0) return true;
-        const row = (await routeStops(page, PAUSE))?.stops.find((s) => s.key === "quick:jumpLog");
+        const stops = (await routeStops(page, PAUSE))?.stops ?? [];
+        // The row sits under the collapsed Quick reference toggle.
+        const row = stops.find((s) => s.key === "quick:jumpLog") ?? stops.find((s) => s.key === "quick-toggle");
         if (row) await press(page, true, row.rect.x + row.rect.width / 2, row.rect.y + row.rect.height / 2);
         await settle(page, { quietMs: 300, maxMs: 2000 });
         return (await momentStops(page)).length > 0 ? true : null;

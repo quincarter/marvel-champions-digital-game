@@ -46,6 +46,7 @@ const BODY_MIN = 150;
 const REVEAL_BODY_MAX = 330;
 const HAPPENING_BODY_MAX = 210;
 const LOG_MIN = 60;
+const LOG_BUTTON_WIDTH = 76;
 /** "Happening now" on a phone: the label, a two-line headline, a two-line breakdown and the boost card row. */
 const PHONE_HAPPENING_MAX = 240;
 /** What it keeps when the log has nothing to give. */
@@ -94,6 +95,8 @@ export interface VillainRailLayout {
   readonly title: Rect;
   readonly skip: Rect;
   readonly hide: Rect;
+  /** LOG: the game log in this panel (issue #550). Zero width where the header has no room: the title bar's line opens it. */
+  readonly logButton: Rect;
   readonly subtitle: Rect;
   /** Five rects: rows of the step list, or chips in one row while revealing. */
   readonly steps: readonly Rect[];
@@ -237,6 +240,8 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
     width: 150,
     height: hit.primary,
   };
+  // In the footer: beside SKIP and HIDE it would leave the title no room, and the subtitle needs its whole row.
+  const logButton: Rect = { ...toggle, x: toggle.x - 10 - LOG_BUTTON_WIDTH, width: LOG_BUTTON_WIDTH };
 
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
   const scale = input.cardScale ?? 1;
@@ -329,6 +334,7 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
     title,
     skip,
     hide,
+    logButton,
     subtitle,
     steps,
     stepMode,
@@ -340,7 +346,7 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
     interrupt,
     log,
     footer,
-    footerText: { x, y: footer.y + 14, width: Math.max(0, toggle.x - 12 - x), height: FOOTER_HEIGHT - 28 },
+    footerText: { x, y: footer.y + 14, width: Math.max(0, logButton.x - 12 - x), height: FOOTER_HEIGHT - 28 },
     toggle,
   };
 }
@@ -364,9 +370,10 @@ export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
   const buttonWidth = 84;
   const hide: Rect = { x: x + width - buttonWidth, y: top, width: buttonWidth, height: BAND_HEADER };
   const skip: Rect = { x: hide.x - 8 - buttonWidth, y: top, width: buttonWidth, height: BAND_HEADER };
+  const logButton: Rect = { x: skip.x - 8 - buttonWidth, y: top, width: buttonWidth, height: BAND_HEADER };
   const title: Rect = { x, y: top, width: Math.round(width * 0.36), height: BAND_HEADER };
   const chipsLeft = title.x + title.width + 12;
-  const chipsWidth = Math.max(0, skip.x - 16 - chipsLeft);
+  const chipsWidth = Math.max(0, logButton.x - 16 - chipsLeft);
   const gap = 6;
   const chipWidth = (chipsWidth - gap * 4) / 5;
   const chipHeight = 36;
@@ -436,6 +443,7 @@ export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
     title,
     skip,
     hide,
+    logButton,
     subtitle: { x, y: top, width: 0, height: 0 },
     steps,
     stepMode: "chips",
@@ -474,7 +482,14 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
   const peekWidth = narrow ? 132 : 170;
   const skip: Rect = { x: x + width - skipWidth, y: panel.y + TAB_PAD, width: skipWidth, height: headerHeight };
   const hide: Rect = { x: skip.x - 8 - peekWidth, y: skip.y, width: peekWidth, height: headerHeight };
-  const title: Rect = { x, y: skip.y, width: Math.max(0, hide.x - 10 - x), height: headerHeight };
+  const logWidth = narrow ? 0 : LOG_BUTTON_WIDTH;
+  const logButton: Rect = { x: hide.x - 8 - logWidth, y: skip.y, width: logWidth, height: headerHeight };
+  const title: Rect = {
+    x,
+    y: skip.y,
+    width: Math.max(0, (narrow ? hide.x : logButton.x) - 10 - x),
+    height: headerHeight,
+  };
 
   let cursor = title.y + title.height + 10;
   const chipGap = 6;
@@ -573,6 +588,7 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
     title,
     skip,
     hide,
+    logButton,
     subtitle: { x, y: panel.y, width: 0, height: 0 },
     steps,
     stepMode: "chips",

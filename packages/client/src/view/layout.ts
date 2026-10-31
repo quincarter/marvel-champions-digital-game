@@ -137,6 +137,8 @@ export const PHONE_LANDSCAPE_RAIL_WIDTH = 84;
 /** The phone board's zone tabs, in the order the design canvas lists them. */
 export const PHONE_TABS = ["threat", "enemies", "me", "team", "log"] as const;
 export type PhoneTab = (typeof PHONE_TABS)[number];
+/** The tabs the rail draws: the log opens from the title bar's line (issue #550), so it has no tab of its own. */
+export const PHONE_RAIL_TABS = PHONE_TABS.filter((tab) => tab !== "log");
 
 export type ZoneName =
   /** Round chip, phase toggle, menu. Every in-game screen has one. */
@@ -155,7 +157,7 @@ export type ZoneName =
   | "team"
   /** Encounter deck and discard. */
   | "encounter"
-  /** The virtualized game log. */
+  /** The game log, on the tabbed layouts while it is open. The long table docks it beside the table (`view/log-dock.ts`). */
   | "log"
   | "hand"
   | "actionBar";
@@ -248,7 +250,7 @@ const scaledHand = (base: number, scale: number, viewportHeight: number, capShar
   scale <= 1 ? base : Math.min(Math.max(base, Math.round(viewportHeight * capShare)), Math.round(base * scale));
 
 /** The zones that scroll with the table; the rest are pinned. */
-export const SCROLLING_ZONES: readonly ZoneName[] = ["threat", "enemies", "me", "playArea", "team", "encounter", "log"];
+export const SCROLLING_ZONES: readonly ZoneName[] = ["threat", "enemies", "me", "playArea", "team", "encounter"];
 
 /**
  * The layout with its scrolling zones moved to `scrollY` (clamped to `0..maxScroll`): every zone then holds the screen
@@ -344,8 +346,13 @@ export function formFactorFor(width: number, height: number): FormFactor {
 }
 
 const GUTTER = { phone: 8, phoneLandscape: 6, tabletPortrait: 12, tabletLandscape: 12, desktop: 16 } as const;
+/**
+ * The second row of the phone's title bar, for the game log's latest line (issue #550): beside the bar's buttons a phone
+ * has no room for it. Wider layouts carry the line in the bar's one row.
+ */
+export const CHROME_TICKER_ROW = 28;
 export const CHROME_HEIGHT = {
-  phone: 36,
+  phone: 36 + CHROME_TICKER_ROW,
   phoneLandscape: 32,
   tabletPortrait: 44,
   tabletLandscape: 44,
@@ -461,12 +468,16 @@ function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect =
     height: barHeight,
   };
   const hand: Rect = { x: viewport.x, y: actionBar.y - handHeight, width: viewport.width, height: handHeight };
-  // As tall as the room between the tab row and the *unscaled* hand, times the card scale; the part past the window scrolls.
+  // As tall as the room between the tab row and the *unscaled* hand, times the card scale; the part past the window
+  // scrolls. Not the log, which scrolls itself and holds no cards.
   const content: Rect = {
     x: viewport.x + gutter,
     y: tabs.y + tabs.height + gutter,
     width: viewport.width - gutter * 2,
-    height: Math.round((actionBar.y - baseHandHeight - (tabs.y + tabs.height) - gutter * 2) * scale),
+    height:
+      activeTab === "log"
+        ? hand.y - (tabs.y + tabs.height) - gutter * 2
+        : Math.round((actionBar.y - baseHandHeight - (tabs.y + tabs.height) - gutter * 2) * scale),
   };
   const tableWindow: Rect = {
     x: fullViewport.x,
@@ -563,7 +574,10 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions, fullViewpor
     x: tabs.x + tabs.width + gutter,
     y: chrome.y + chrome.height + gutter,
     width: viewport.width - railWidth - gutter * 2,
-    height: Math.round((actionBar.y - baseHandHeight - (chrome.y + chrome.height) - gutter * 2) * scale),
+    height:
+      activeTab === "log"
+        ? hand.y - (chrome.y + chrome.height) - gutter * 2
+        : Math.round((actionBar.y - baseHandHeight - (chrome.y + chrome.height) - gutter * 2) * scale),
   };
   // Beside the pinned rail, which never sits under the scrolling content.
   const tableWindow: Rect = {
@@ -698,9 +712,6 @@ function longTableZones(
   const identityWidth = Math.round(normalIdentityWidth + (Math.min(300, usable * 0.34) - normalIdentityWidth) * grow);
   const playAreaWidth = usable - identityWidth - teamWidth - gutter * (teamWidth > 0 ? 2 : 1);
 
-  // The log shares the encounter column, under the piles.
-  const encounterPilesHeight = Math.round(villainHeight * 0.5);
-
   const zones: Zones = {
     chrome,
     tabs: null,
@@ -710,14 +721,9 @@ function longTableZones(
       x: left + schemesWidth + enemiesWidth + gutter * 2,
       y: tableTop,
       width: encounterWidth,
-      height: encounterPilesHeight,
+      height: villainHeight,
     },
-    log: {
-      x: left + schemesWidth + enemiesWidth + gutter * 2,
-      y: tableTop + encounterPilesHeight + gutter,
-      width: encounterWidth,
-      height: villainHeight - encounterPilesHeight - gutter,
-    },
+    log: null,
     me: { x: left, y: playerTop, width: identityWidth, height: playerHeight },
     playArea: { x: left + identityWidth + gutter, y: playerTop, width: playAreaWidth, height: playerHeight },
     team:
