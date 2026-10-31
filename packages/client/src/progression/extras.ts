@@ -294,18 +294,19 @@ function scenarioNamedHint(scenarioId: string): string | null {
 
 /** How to open something, in the same "Beat Rhino" voice as the unlock path's own hints. `wins` is how far along it is. */
 export function unlockHint(unlock: ExtrasUnlock, wins: number | null = null): string {
-  const soFar = wins === null || !("wins" in unlock) ? "" : ` (${wins}/${unlock.wins})`;
+  // First, so a narrow tile that cuts the hint short still shows it.
+  const soFar = wins === null || !("wins" in unlock) ? "" : `${wins}/${unlock.wins}: `;
   switch (unlock.kind) {
     case "heroWins":
-      return `Win ${unlock.wins} games as ${heroName(unlock.identityCardId)}${soFar}`;
+      return `${soFar}Win ${unlock.wins} games as ${heroName(unlock.identityCardId)}`;
     case "scenarioWins": {
       const names = unlock.scenarioIds.map((id) => scenarioNamedHint(id));
       return names.every((name) => name !== null)
-        ? `Win ${names.join(" or ")} ${unlock.wins} times${soFar}`
-        : `Beat ${villainLabelOf(unlock.scenarioIds[0]!)} ${unlock.wins} times${soFar}`;
+        ? `${soFar}Win ${names.join(" or ")} ${unlock.wins} times`
+        : `${soFar}Beat ${villainLabelOf(unlock.scenarioIds[0]!)} ${unlock.wins} times`;
     }
     case "cardWins":
-      return `Win ${unlock.wins} games with ${cardName(unlock.cardIds[0]!)} in a deck${soFar}`;
+      return `${soFar}Win ${unlock.wins} games with ${cardName(unlock.cardIds[0]!)} in a deck`;
     case "always":
       return "Open from the start";
     case "heroPlayed":

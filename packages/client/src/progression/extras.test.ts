@@ -282,7 +282,7 @@ describe("promo cards (#192)", () => {
     expect(at(2).isOpen(heroPromo)).toBe(false);
     expect(at(3).isOpen(heroPromo)).toBe(true);
     expect(at(2).winsToward(heroPromo)).toBe(2);
-    expect(unlockHint(heroPromo, 2)).toBe("Win 3 games as Spider-Man (Peter Parker) (2/3)");
+    expect(unlockHint(heroPromo, 2)).toBe("2/3: Win 3 games as Spider-Man (Peter Parker)");
   });
 
   it("adds a villain's scenarios together, and an event's reprints, a game with both counting once", () => {
