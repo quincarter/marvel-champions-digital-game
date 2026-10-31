@@ -740,6 +740,7 @@ export class BoardScene extends Phaser.Scene {
         guideWaitingStripRects: () => this.#guide?.debugWaitingStripRects() ?? null,
         guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
         guideHighlightRect: () => this.guideHighlightRect(),
+        guideHighlightAlpha: () => this.#guide?.debugHighlightAlpha() ?? null,
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,

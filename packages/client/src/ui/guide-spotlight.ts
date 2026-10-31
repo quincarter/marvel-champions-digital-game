@@ -68,6 +68,12 @@ export class McGuideSpotlight {
     this.#ring.lineStyle(ringWidth, ringColor.hex, 1).strokeRect(outer.x, outer.y, outer.width, outer.height);
   }
 
+  /** Fades the whole highlight, dim included: a fade between two targets on top of each other. */
+  setAlpha(alpha: number): void {
+    this.#dim.setAlpha(alpha);
+    this.#ring.setAlpha(alpha);
+  }
+
   hide(): void {
     this.#dim.clear().setVisible(false);
     this.#ring.clear().setVisible(false);

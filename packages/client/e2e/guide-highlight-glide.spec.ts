@@ -11,6 +11,7 @@ import {
   pressKey,
   pressUntil,
   settle,
+  startTutorialFromTitle,
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
@@ -23,6 +24,8 @@ import { answerChoice, hook, openApp, startMechanicLesson, type Rect } from "./w
  */
 
 const highlight = (page: Page): Promise<Rect | null> => hook<Rect>(page, "__mcBoardDebug", "guideHighlightRect");
+const stepIs = (page: Page, id: string) => async (): Promise<true | null> =>
+  (await guideStepId(page)) === id ? true : null;
 const anchor = (page: Page): Promise<Rect | null> => hook<Rect>(page, "__mcBoardDebug", "guideAnchorRect");
 
 /** Records the highlight's x every animation frame, until `stopSampling`. */
@@ -102,6 +105,51 @@ test.describe("with motion", () => {
     expect(from, "the two targets are apart").not.toBe(to);
     expect(between(xs, from, to).length, "several frames between the targets").toBeGreaterThan(3);
     expect(xs.at(-1), "it lands exactly").toBe(to);
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe("a next target on top of the last one", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  test("Black Cat in the hand to Peter's Scientist tile fades out, holds the table lit, and fades in", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const errors = trackPageErrors(page);
+    await installPageHelpers(page);
+    await page.goto("/");
+    await startTutorialFromTitle(page);
+    await waitFor(stepIs(page, "play-black-cat"), "the Paying for cards lesson", 20000);
+    await waitFor(() => highlight(page), "the ring is on Black Cat", 20000);
+    await settle(page);
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mcBoardDebug: { guideHighlightAlpha(): number | null };
+        __alphas: number[];
+        __alphaOn: boolean;
+      };
+      w.__alphas = [];
+      w.__alphaOn = true;
+      const sample = (): void => {
+        const alpha = w.__mcBoardDebug.guideHighlightAlpha();
+        if (alpha !== null) w.__alphas.push(alpha);
+        if (w.__alphaOn) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    await clickHandCard(page, "01002");
+    await page.waitForTimeout(1500);
+    const alphas = await page.evaluate(() => {
+      const w = window as unknown as { __alphas: number[]; __alphaOn: boolean };
+      w.__alphaOn = false;
+      return w.__alphas;
+    });
+    const lit = alphas.indexOf(0);
+    expect(lit, "the highlight fades right out").toBeGreaterThan(0);
+    expect(alphas.filter((alpha) => alpha === 0).length, "the table holds lit for a while").toBeGreaterThan(5);
+    expect(new Set(alphas.slice(0, lit)).size, "it fades rather than cuts").toBeGreaterThan(3);
+    expect(alphas.at(-1), "it comes back").toBe(1);
     expect(errors).toEqual([]);
   });
 });

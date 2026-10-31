@@ -13,7 +13,11 @@ import { McGuideTag, type McGuideTagVariant } from "./guide-tag.js";
 export const glideNow = (scene: Phaser.Scene): number => scene.game.getTime();
 
 /** Paints the rest of the glide under way, if there is one. Returns what stops it. */
-export function runGuideGlide(scene: Phaser.Scene, glide: GuideGlide, paint: (rect: Rect) => void): () => void {
+export function runGuideGlide(
+  scene: Phaser.Scene,
+  glide: GuideGlide,
+  paint: (rect: Rect, alpha: number) => void,
+): () => void {
   const remaining = glide.remainingMs(glideNow(scene));
   if (remaining <= 0) return () => {};
   const tween = scene.tweens.addCounter({
@@ -21,12 +25,13 @@ export function runGuideGlide(scene: Phaser.Scene, glide: GuideGlide, paint: (re
     to: 1,
     duration: remaining,
     onUpdate: () => {
-      const rect = glide.rectAt(glideNow(scene));
-      if (rect) paint(rect);
+      const now = glideNow(scene);
+      const rect = glide.rectAt(now);
+      if (rect) paint(rect, glide.alphaAt(now));
     },
     onComplete: () => {
       const rect = glide.rectAt(Number.POSITIVE_INFINITY);
-      if (rect) paint(rect);
+      if (rect) paint(rect, 1);
     },
   });
   return () => tween.stop();
@@ -52,7 +57,7 @@ export class GuideStampGlide {
     const now = glideNow(scene);
     if (!this.#started && from) this.#glide.seed(from, now);
     this.#started = true;
-    const shown = this.#glide.place("stamp", target, now, !appSession().settings.reducedMotion);
+    const shown = this.#glide.place("stamp", target, now, !appSession().settings.reducedMotion, false);
     const tag = new McGuideTag(scene, variant);
     tag.update(shown);
     this.#stop = runGuideGlide(scene, this.#glide, (rect) => {

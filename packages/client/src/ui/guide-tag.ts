@@ -76,12 +76,17 @@ export class McGuideTag {
     this.#label.setPosition(x + width / 2, y + height / 2).setVisible(true);
   }
 
+  setAlpha(alpha: number): void {
+    this.#box.setAlpha(alpha);
+    this.#label.setAlpha(alpha);
+  }
+
   /** Takes the stamp out of its sheet's entrance (`enterOverlay` fades and raises every object it finds), which would
    * fight a glide over its position. */
   leaveEntrance(): void {
     this.#scene.tweens.killTweensOf([this.#box, this.#label]);
-    this.#box.setY(0).setAlpha(1);
-    this.#label.setAlpha(1);
+    this.#box.setY(0);
+    this.setAlpha(1);
   }
 
   /** False once the host scene's redraw has destroyed the stamp. */

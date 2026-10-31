@@ -527,6 +527,11 @@ export class BoardGuideMount {
     return this.#glide.recentRect(glideNow(this.#scene));
   }
 
+  /** Debug-only: how opaque the highlight is this moment. */
+  debugHighlightAlpha(): number {
+    return this.#glide.alphaAt(glideNow(this.#scene));
+  }
+
   /** The guide rail's own width to reserve in this frame's `boardLayout` call, or `null` off desktop/tablet
    * landscape, or once the guide is hidden — `BoardScene#draw` reads this *before* laying out the rest of the
    * table, so nothing the rail covers is also a drop target underneath it. */
@@ -999,9 +1004,14 @@ export class BoardGuideMount {
     spotlight.show(viewport, shown);
     const tag = tagVariant ? new McGuideTag(this.#scene, tagVariant) : null;
     tag?.update(shown);
-    this.#stopGlide = runGuideGlide(this.#scene, this.#glide, (rect) => {
+    const alpha = this.#glide.alphaAt(now);
+    spotlight.setAlpha(alpha);
+    tag?.setAlpha(alpha);
+    this.#stopGlide = runGuideGlide(this.#scene, this.#glide, (rect, frameAlpha) => {
       spotlight.moveTo(viewport, rect);
+      spotlight.setAlpha(frameAlpha);
       tag?.moveTo(rect);
+      tag?.setAlpha(frameAlpha);
     });
   }
 

@@ -113,6 +113,76 @@ describe("GuideGlide", () => {
     expect(glide.place("card", CARD, 1000, true)).toEqual(CARD);
   });
 
+  describe("a next target on top of the last one", () => {
+    const TILE: Rect = { x: CARD.x + 10, y: CARD.y + 20, width: 100, height: 150 };
+    const fade = (): GuideGlide => {
+      const glide = new GuideGlide();
+      glide.place("card", CARD, 0, true);
+      glide.place("tile", TILE, 1000, true);
+      return glide;
+    };
+    const total = motion.guideFadeMs * 2 + motion.guideFadeHoldMs;
+
+    test("fades out on the old target, holds the table undimmed, and fades in on the new one", () => {
+      const glide = fade();
+      expect(glide.remainingMs(1000)).toBe(total);
+      expect(glide.alphaAt(1000)).toBe(1);
+      expect(glide.rectAt(1000)).toEqual(CARD);
+      expect(glide.alphaAt(1000 + motion.guideFadeMs / 2)).toBeCloseTo(0.5);
+      expect(glide.alphaAt(1000 + motion.guideFadeMs)).toBe(0);
+      expect(glide.alphaAt(1000 + total / 2)).toBe(0);
+      expect(glide.rectAt(1000 + total / 2)).toEqual(TILE);
+      expect(glide.alphaAt(1000 + total - motion.guideFadeMs / 2)).toBeCloseTo(0.5);
+      expect(glide.alphaAt(1000 + total)).toBe(1);
+      expect(glide.rectAt(1000 + total)).toEqual(TILE);
+      expect(glide.remainingMs(1000 + total)).toBe(0);
+    });
+
+    test("the same rect under a new target fades too", () => {
+      const glide = new GuideGlide();
+      glide.place("card", CARD, 0, true);
+      glide.place("tile", CARD, 1000, true);
+      expect(glide.alphaAt(1000 + motion.guideFadeMs)).toBe(0);
+    });
+
+    test("a target that shows up mid-fade is where the fade lands, without restarting it", () => {
+      const glide = fade();
+      glide.place("pay", THWART, 1000 + motion.guideFadeMs, true);
+      expect(glide.remainingMs(1000 + motion.guideFadeMs)).toBe(total - motion.guideFadeMs);
+      expect(glide.rectAt(1000 + total)).toEqual(THWART);
+    });
+
+    test("a redraw mid-fade carries on", () => {
+      const glide = fade();
+      glide.place("tile", TILE, 1000 + motion.guideFadeMs, true);
+      expect(glide.remainingMs(1000 + motion.guideFadeMs)).toBe(total - motion.guideFadeMs);
+    });
+
+    test("Reduced motion: shown in place, fully opaque", () => {
+      const glide = new GuideGlide();
+      glide.place("card", CARD, 0, false);
+      expect(glide.place("tile", TILE, 1000, false)).toEqual(TILE);
+      expect(glide.alphaAt(1000 + motion.guideFadeMs)).toBe(1);
+      expect(glide.remainingMs(1000)).toBe(0);
+    });
+
+    test("a sheet's stamp keeps its glide", () => {
+      const glide = new GuideGlide();
+      glide.place("card", CARD, 0, true);
+      glide.place("tile", TILE, 1000, true, false);
+      expect(glide.remainingMs(1000)).toBe(motion.guideGlideMs);
+      expect(glide.alphaAt(1000 + motion.guideFadeMs)).toBe(1);
+    });
+
+    test("rects that only just touch still glide", () => {
+      const glide = new GuideGlide();
+      glide.place("card", CARD, 0, true);
+      glide.place("next", { ...CARD, x: CARD.x + CARD.width - 10 }, 1000, true);
+      expect(glide.remainingMs(1000)).toBe(motion.guideGlideMs);
+      expect(glide.alphaAt(1000 + motion.guideFadeMs)).toBe(1);
+    });
+  });
+
   test("a sheet's stamp glides in from the seed, even on the same key", () => {
     const glide = new GuideGlide();
     glide.seed(THWART, 0);
