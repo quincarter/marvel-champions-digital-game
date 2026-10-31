@@ -235,7 +235,10 @@ export function buildSpanishReleaseHistory(sources: ReleaseSources): ReleaseHist
     const text = translations[version];
     const translation = text === undefined ? null : parseTranslation(text);
     const base = englishHighlight(version, sources);
-    const highlight = translation?.highlight ? { ...base, ...translation.highlight } : base;
+    const translated = translation?.highlight;
+    // A translation with no images of its own keeps the English ones.
+    const images = translated?.images?.length ? translated.images : (base?.images ?? []);
+    const highlight = translated ? { ...base, ...translated, images } : base;
     const reportFile = spanishReports.has(version) ? SPANISH_REPORT_FILE : REPORT_FILE;
     return notesOf(translation?.changelog ?? english, highlight, reports.has(version), reportFile, SPANISH_LINKS);
   });

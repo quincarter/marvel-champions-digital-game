@@ -5,7 +5,8 @@
  *
  *   node scripts/shoot-release-report.mjs v0.41.0 sizes [out]
  *     → report-<size>.png at se, pixel, tablet-portrait, tablet and desktop, and history-<size>.png, the report inside
- *       the release history, and the same with -es for the Spanish report, in [out] (default artifacts/qa/<version>-report). It prints each size's sideways overflow,
+ *       the release history, and the same with -es for the Spanish report, in [out] (default
+ *       artifacts/qa/<version>-report). It prints each size's sideways overflow,
  *       broken images and images whose width and height attributes are wrong, and fails if it finds any.
  *   node scripts/shoot-release-report.mjs v0.41.0 sections
  *     → v0-41-0-release-NN-<slug>.jpg in docs/screenshots/releases/<version>/: the top of the page down to the number

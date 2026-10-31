@@ -95,6 +95,17 @@ describe("buildSpanishReleaseHistory", () => {
     expect(notes?.linkUrl).toContain("/tree/v1.0.0");
   });
 
+  test("a translation with no images keeps the English ones", () => {
+    const images = [{ src: "https://example.org/a.jpg", alt: "A" }];
+    const backfill = { "v1.0.0": { title: "A headline", summary: "A summary.", images } };
+    const [notes] = buildSpanishReleaseHistory({
+      ...sources,
+      backfill,
+      translations: { "v1.0.0": spanish },
+    }).notes;
+    expect(notes?.images).toEqual(images);
+  });
+
   test("a release with no translation stays in English", () => {
     const [notes] = buildSpanishReleaseHistory(sources).notes;
     expect(notes?.title).toBe("A headline");

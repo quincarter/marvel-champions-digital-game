@@ -54,6 +54,22 @@ test.describe("language", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
   });
 
+  test("the last of two quick presses wins, and the skip link's hash stays on the release", async ({ page }) => {
+    await page.goto(`${PAGE}#v0.33.0`);
+    await expect(page.locator("h2.title")).toBeVisible();
+    const english = page.locator('.language button[data-language="en"]');
+    const spanish = page.locator('.language button[data-language="es"]');
+    await spanish.click();
+    await english.click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.locator(".notes-title")).toHaveText("Release notes");
+
+    await page.evaluate(() => (location.hash = "content"));
+    await spanish.click();
+    await expect(page.locator(".notes-title")).toHaveText("Notas de la versión");
+    await expect(page.locator('.rail a[aria-current="page"]')).toHaveAttribute("data-version", "v0.33.0");
+  });
+
   test("a report opens in Spanish inside the history", async ({ page }) => {
     await page.goto(`${PAGE}?lang=es#v0.40.0`);
     await expect(page.locator("#report")).toBeAttached();

@@ -166,6 +166,9 @@
   const OLDER = "older";
 
   let language = startingLanguage();
+  /** Counts the toggle's presses, and says when the last language's list didn't load, so a press can try again. */
+  let languageRun = 0;
+  let listBroken = false;
   const words = () => WORDS[language];
   const kindName = (kind) => words().kinds[kind] ?? kind;
   /** Where this language's generated data lives. */
@@ -254,9 +257,9 @@
   }
 
   async function loadReport({ version, reportFile }) {
-    const key = `${language}:${version}`;
-    if (reports.has(key)) return reports.get(key);
     const url = new URL(`${version}/${reportFile}`, BASE);
+    const key = url.href;
+    if (reports.has(key)) return reports.get(key);
     const page = new DOMParser().parseFromString(await fetchOk(url, (r) => r.text()), "text/html");
     page.querySelectorAll("[data-history-link]").forEach((link) => link.remove());
     for (const el of page.querySelectorAll("[src]")) el.src = new URL(el.getAttribute("src"), url).href;
@@ -270,9 +273,9 @@
   }
 
   async function loadNotes(version) {
-    const key = `${language}:${version}`;
-    if (!notes.has(key)) notes.set(key, await fetchOk(dataUrl(`${version}.json`), (r) => r.json()));
-    return notes.get(key);
+    const url = dataUrl(`${version}.json`);
+    if (!notes.has(url.href)) notes.set(url.href, await fetchOk(url, (r) => r.json()));
+    return notes.get(url.href);
   }
 
   function pageHtml(release) {
@@ -373,7 +376,7 @@
 
   /** Swaps the page. Focus on what was replaced would fall out of the page, so it holds on `main`. */
   function draw(html) {
-    const hadFocus = inMain(focusedEl());
+    const hadFocus = inMain(focusedEl()) && !languageGroup.contains(focusedEl());
     reportRoot = null;
     main.innerHTML = html;
     if (hadFocus) main.focus({ preventScroll: true });
@@ -394,8 +397,9 @@
       <a href="${REPO}/releases/tag/${entry.version}">${words().onGithub}</a></p>`;
   }
 
-  async function route() {
-    const hash = location.hash.slice(1);
+  /** `target` redraws that release whatever the address says; a hash that is the skip link's stays out of it. */
+  async function route(target) {
+    const hash = target ?? location.hash.slice(1);
     if (current === OLDER) olderScroll = window.scrollY;
     if (hash === OLDER) return showOlder();
     // Any other hash is the skip link's, which the browser handles, once a release is showing.
@@ -702,7 +706,9 @@
 
   /** Redraws the page in `next`, staying on the same release, with the address saying which language is on. */
   async function setLanguage(next) {
-    if (next === language) return;
+    if (next === language && !listBroken) return;
+    const run = ++languageRun;
+    listBroken = false;
     language = next;
     storageWrite(LANGUAGE_KEY, next);
     const address = new URL(location.href);
@@ -710,14 +716,20 @@
     history.replaceState(history.state, "", address);
     drawChrome();
     if (family) drawHints();
-    const shown = current;
-    current = null;
-    archiveDrawn = null;
     try {
-      useEntries(await fetchOk(dataUrl("manifest.json"), (r) => r.json()));
+      // The list has to exist first, and only the last press counts: a late answer is another language's.
+      await started;
+      const entries = await fetchOk(dataUrl("manifest.json"), (r) => r.json());
+      if (run !== languageRun) return;
+      useEntries(entries);
+      const shown = current;
+      current = null;
+      archiveDrawn = null;
       if (shown === OLDER) showOlder();
-      else await route();
+      else await route(shown ?? undefined);
     } catch {
+      if (run !== languageRun) return;
+      listBroken = true;
       showListFailure();
     }
   }
@@ -726,14 +738,17 @@
     button.addEventListener("click", () => void setLanguage(button.dataset.language));
 
   drawChrome();
-  Promise.all([fetchOk(dataUrl("manifest.json"), (r) => r.json()), latestTag()])
+  const started = Promise.all([fetchOk(dataUrl("manifest.json"), (r) => r.json()), latestTag()])
     .then(([entries, latest]) => {
       latestOnGithub = latest;
       useEntries(entries);
       if (navigator.getGamepads) requestAnimationFrame(poll);
       // Not before now: a hash change with no list yet would have nothing to route to.
-      addEventListener("hashchange", route);
+      addEventListener("hashchange", () => route());
       return route();
     })
-    .catch(showListFailure);
+    .catch(() => {
+      listBroken = true;
+      showListFailure();
+    });
 })();
