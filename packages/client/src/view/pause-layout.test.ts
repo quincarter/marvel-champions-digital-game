@@ -159,11 +159,55 @@ describe("pauseLayout", () => {
     test("every row is at least as tall as its own wrapped detail text needs", () => {
       const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
       if (layout.kind !== "phone") throw new Error("expected phone");
-      for (const rows of [layout.quickReferenceRows, layout.lowerContent.tableRows, layout.lowerContent.guideRows]) {
+      for (const rows of [layout.lowerContent.tableRows, layout.lowerContent.guideRows]) {
         for (let i = 0; i + 1 < rows.length; i++) {
           expect(rows[i]!.y + rows[i]!.height).toBeLessThanOrEqual(rows[i + 1]!.y);
         }
       }
+    });
+
+    const phoneAt = (extra: Partial<PauseLayoutInput> = {}) => {
+      const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, { ...input(0), ...extra });
+      if (layout.kind !== "phone") throw new Error("expected phone");
+      return layout;
+    };
+
+    test("collapsed, Reference shares a line with the compact cells and the settings have the rest of the panel", () => {
+      const layout = phoneAt({
+        quickReferenceDetails: ["Music.", "Report.", "Controls."],
+        quickReferenceCompactTail: 3,
+      });
+      expect(layout.quickReferenceRows).toHaveLength(3);
+      for (const cell of layout.quickReferenceRows) {
+        expect(cell.y).toBe(layout.quickReferenceToggle.y);
+        expect(cell.x).toBeGreaterThanOrEqual(layout.quickReferenceToggle.x + layout.quickReferenceToggle.width);
+      }
+      const last = layout.quickReferenceRows[2]!;
+      expect(last.x + last.width).toBeCloseTo(layout.search.x + layout.search.width);
+      expect(layout.lowerViewport.y).toBeGreaterThanOrEqual(
+        layout.quickReferenceToggle.y + layout.quickReferenceToggle.height,
+      );
+      expect(layout.lowerViewport.height).toBeGreaterThan(400);
+    });
+
+    test("open, the rows sit two to a line and the settings still scroll in a usable window", () => {
+      const layout = phoneAt({
+        quickReferenceDetails: [...QUICK_REFERENCE_DETAILS, "One.", "Two.", "Music.", "Report.", "Controls."],
+        quickReferenceCompactTail: 3,
+      });
+      const rows = layout.quickReferenceRows;
+      expect(rows[0]!.y).toBe(rows[1]!.y);
+      expect(rows[1]!.x).toBeGreaterThanOrEqual(rows[0]!.x + rows[0]!.width);
+      expect(rows[2]!.y).toBeGreaterThanOrEqual(rows[0]!.y + rows[0]!.height);
+      expect(rows[0]!.width).toBeLessThan(layout.search.width / 2 + 1);
+      expect(layout.lowerViewport.height).toBeGreaterThan(150);
+    });
+
+    test("the search row keeps the full width above the two columns", () => {
+      const rows = phoneAt({ quickReferenceFullWidthHead: 1 }).quickReferenceRows;
+      expect(rows[0]!.width).toBeGreaterThan(rows[1]!.width * 1.5);
+      expect(rows[1]!.y).toBeGreaterThanOrEqual(rows[0]!.y + rows[0]!.height);
+      expect(rows[2]!.y).toBe(rows[1]!.y);
     });
 
     test("the close button sits inside the header", () => {
@@ -196,7 +240,7 @@ describe("pauseLayout", () => {
       const qrLast = layout.quickReferenceRows[layout.quickReferenceRows.length - 1]!;
       expect(layout.lowerViewport.y).toBeGreaterThanOrEqual(qrLast.y + qrLast.height);
       expect(layout.lowerViewport.y + layout.lowerViewport.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
-      // At a real phone height, Quick reference alone already uses a fair share of the panel, so the Table rows
+      // At a real phone height, an open Quick reference uses a fair share of the panel, so the Table rows
       // and the Guide group's own six rows scroll rather than push the footer off screen (the problem this
       // viewport exists for — found in browser verification, 2026-09-26).
       expect(layout.lowerViewport.height).toBeLessThan(layout.lowerContent.totalHeight);
@@ -294,7 +338,8 @@ describe("pauseLayout", () => {
       for (const cell of cells) expect(cell.height).toBeGreaterThanOrEqual(44);
       expect(cells[1]!.x).toBeGreaterThan(cells[0]!.x + cells[0]!.width - 1);
       expect(cells[2]!.x).toBeGreaterThan(cells[1]!.x + cells[1]!.width - 1);
-      expect(shared.lowerViewport.height).toBeGreaterThan(apart.lowerViewport.height + 80);
+      expect(shared.lowerViewport.height).toBeGreaterThan(apart.lowerViewport.height + 40);
+      expect(cells[0]!.y).toBe(shared.quickReferenceToggle.y);
       const rects = pauseLayoutRects(shared);
       for (let i = 0; i < rects.length; i++)
         for (let j = i + 1; j < rects.length; j++)

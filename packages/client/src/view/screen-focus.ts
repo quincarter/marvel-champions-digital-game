@@ -387,6 +387,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
   return [
     "close",
     "search",
+    "quick-toggle",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
     ...(input.momentIds ?? []).map((id) => `moment:${id}`),
     ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
