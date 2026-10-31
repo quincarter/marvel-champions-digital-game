@@ -120,7 +120,7 @@ export class GameOverScene extends Phaser.Scene {
       const heroIds = seated;
       // A lesson counts for nothing in the saves (`isLessonSave`), so it opens nothing here either.
       const { guidedRun, guidedRunKind } = appSession();
-      const lesson = guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: { kind: guidedRunKind } });
+      const lesson = guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: guidedRunKind });
       const after = new Extras(
         lesson
           ? before.progress
