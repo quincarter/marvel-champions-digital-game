@@ -34,6 +34,7 @@ async function openAsSteamInstall(page: Page, install: Shell["install"], query =
       transformCallback: () => 0,
       invoke: async (command: string, args?: Record<string, unknown>) => {
         if (command.startsWith("steam_")) shell.calls.push(`${command} ${JSON.stringify(args ?? {})}`);
+        if (command === "installer_kind") return "nsis";
         if (command === "steam_install_info") return shell.install;
         if (command === "steam_update_status") return shell.status;
         return null;
