@@ -562,6 +562,40 @@
           padding-top: 28px;
         }
       }
+      .ai-note {
+        padding: 10px var(--safe-r) 10px var(--safe-l);
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 14px/1.4 var(--b);
+      }
+      .ai-note[hidden] {
+        display: none;
+      }
+      .language {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px var(--safe-r) 0 var(--safe-l);
+      }
+      .language button {
+        min-height: 36px;
+        padding: 0 14px;
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        color: var(--muted);
+        font: 700 13px var(--b);
+        cursor: pointer;
+      }
+      .language button[aria-pressed="true"] {
+        border-color: var(--gold);
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .language button:focus-visible,
+      .pad .language button:focus {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
       @media (prefers-reduced-motion: reduce) {
         .rail {
           transition: none;
@@ -570,13 +604,15 @@
     </style>
   </head>
   <body>
-    <a class="skip" href="#content">Skip to the release</a>
+    <a class="skip" id="skip" href="#content">Skip to the release</a>
     <div class="layout">
       <nav class="rail" id="rail" aria-label="Releases">
         <div class="rail-head">
-          <div class="kick">Marvel Champions: Digital Edition</div>
-          <h1>Release <span>history</span></h1>
-          <div class="rail-meta"><span id="rail-count"></span><br /><a href="../">Play in your browser ↗</a></div>
+          <div class="kick" id="rail-game">Marvel Champions: Digital Edition</div>
+          <h1 id="rail-title">Release <span>history</span></h1>
+          <div class="rail-meta">
+            <span id="rail-count"></span><br /><a id="rail-play" href="../">Play in your browser ↗</a>
+          </div>
           <button class="rail-close" id="rail-close" type="button" aria-label="Close the release list">✕</button>
         </div>
         <div class="list" id="list"></div>
@@ -588,6 +624,13 @@
             <small id="bar-version"></small><b id="bar-title">All releases ▾</b>
           </button>
           <a id="bar-older" href="#" aria-label="Older release">›</a>
+        </div>
+        <div class="ai-note" id="ai-note" role="note" lang="es" hidden>
+          Todo el texto en español fue traducido con IA y puede contener errores.
+        </div>
+        <div class="language" id="language" role="group" aria-label="Language">
+          <button type="button" data-language="en" lang="en" aria-pressed="true">English</button>
+          <button type="button" data-language="es" lang="es" aria-pressed="false">Español</button>
         </div>
         <main id="content" tabindex="-1">
           <div class="state">Loading the releases…</div>

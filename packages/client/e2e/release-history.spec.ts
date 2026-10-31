@@ -25,6 +25,61 @@ const openList = async (page: Page, phone: boolean): Promise<void> => {
   if (phone) await page.locator("#bar-open").click();
 };
 
+test.describe("language", () => {
+  const SPANISH_TITLE = "Historial de versiones";
+
+  test("the toggle swaps the page and remembers, staying on the release", async ({ page }) => {
+    await page.goto(`${PAGE}#v0.33.0`);
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.locator("#ai-note")).toBeHidden();
+    const english = await page.locator("h2.title").textContent();
+    await markDocument(page);
+
+    await page.locator('.language button[data-language="es"]').click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "es");
+    await expect(page.locator("h2.title")).not.toHaveText(english ?? "");
+    await expect(page.locator(".notes-title")).toHaveText("Notas de la versión");
+    await expect(page.locator("#ai-note")).toContainText("traducido con IA");
+    await expect(page).toHaveTitle(new RegExp(SPANISH_TITLE));
+    await expect(page).toHaveURL(/lang=es.*#v0\.33\.0$/);
+    expect(await sameDocument(page)).toBe(true);
+
+    await page.goto(PAGE);
+    await expect(page.locator(".language button[data-language='es']")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("Spanish on in the game opens the page in Spanish, and ?lang= beats it", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("mc-settings", '{"cardLanguage":"es"}'));
+    await page.goto(`${PAGE}#v0.33.0`);
+    await expect(page.locator("html")).toHaveAttribute("lang", "es");
+    await page.goto(`${PAGE}?lang=en#v0.33.0`);
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  });
+
+  test("the last of two quick presses wins, and the skip link's hash stays on the release", async ({ page }) => {
+    await page.goto(`${PAGE}#v0.33.0`);
+    await expect(page.locator("h2.title")).toBeVisible();
+    const english = page.locator('.language button[data-language="en"]');
+    const spanish = page.locator('.language button[data-language="es"]');
+    await spanish.click();
+    await english.click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.locator(".notes-title")).toHaveText("Release notes");
+
+    await page.evaluate(() => (location.hash = "content"));
+    await spanish.click();
+    await expect(page.locator(".notes-title")).toHaveText("Notas de la versión");
+    await expect(page.locator('.rail a[aria-current="page"]')).toHaveAttribute("data-version", "v0.33.0");
+  });
+
+  test("a report opens in Spanish inside the history", async ({ page }) => {
+    await page.goto(`${PAGE}?lang=es#v0.40.0`);
+    await expect(page.locator("#report")).toBeAttached();
+    const lang = await page.locator("#report").evaluate((host) => host.shadowRoot?.querySelector(".wrap")?.textContent);
+    expect(lang).toContain("Informe de la versión");
+  });
+});
+
 test("every release is listed, and a click swaps it in with no reload", async ({ page }, info) => {
   const phone = info.project.name === "phone";
   const errors = trackPageErrors(page);
@@ -192,7 +247,7 @@ test("a phone swipes the list without opening a release", async ({ page }, info)
   await expect(list).toBeHidden();
 });
 
-const [A, Y, LB, RB, DOWN, RIGHT, LEFT] = [0, 3, 4, 5, 13, 15, 14];
+const [A, Y, LB, RB, UP, DOWN, RIGHT, LEFT] = [0, 3, 4, 5, 12, 13, 15, 14];
 /** The right face button, where a Nintendo pad prints A. */
 const A_NINTENDO = 1;
 
@@ -272,6 +327,10 @@ test("a controller reaches a report's links, and a pager press keeps it on the p
   await expect(page.locator("#report h1")).toBeVisible();
   await press(page, RIGHT);
   expect(await focusedText(page)).toContain("Open on its own page");
+  // The language toggle is one step above it.
+  await press(page, UP);
+  expect(await focusedText(page)).toContain("Español");
+  await press(page, DOWN);
   await press(page, DOWN);
   const inReport = await page.evaluate(() => document.activeElement?.id === "report");
   expect(inReport, "the next stop is inside the report").toBe(true);

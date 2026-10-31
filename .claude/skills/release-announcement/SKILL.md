@@ -5,8 +5,8 @@ description: Write a release's announcement from its open `chore(release): vX.Y.
 
 # Write a release announcement
 
-The input is the release PR: an open `chore(release): vX.Y.Z` pull request, which lists everything unreleased and
-ends with its **Special thanks**. Ask for its number only if none is open. The output is one PR, into `main`, that
+Every announcement goes out in **English and Spanish**. The input is the release PR: an open
+`chore(release): vX.Y.Z` pull request, which lists everything unreleased and ends with its **Special thanks**. Ask for its number only if none is open. The output is one PR, into `main`, that
 goes in **before** the release PR is merged. The web build carries it first, but nobody sees it on the release
 history's list until GitHub calls that release latest, so it can merge ahead of the release safely.
 
@@ -31,7 +31,7 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
   that says a check is still open goes to Quin under the PR's Action Items.
 - Check the release PR's counts against the PR that made them before putting one on a tile, and check every menu path
   and button name you print against the code.
-- Count for Code shipped last, in step 6, because the report's own PR is part of the release.
+- Count for Code shipped last, in step 7, because the report's own PR is part of the release.
 - Group the changes into stories a player would care about, biggest first. Bug fixes from reports go together under
   "You asked, we fixed", with the reporter on each. Internal work goes in "Also in" or nowhere.
 
@@ -43,7 +43,7 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
 2. One paragraph naming the big changes and thanking people, with `#123` and `@handle`.
 3. `**[Read the full <version> report on the site ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/)**:`
    and a line of what's in it.
-4. The section images (step 4). They are required: this is what the GitHub release description shows.
+4. The section images (step 5). They are required: this is what the GitHub release description shows.
 
 ## 3. Build the report
 
@@ -73,7 +73,30 @@ Rules for the page:
 Copy and voice: plain sentences, in the first person where it's Quin speaking, with no em dashes. State only what the
 release PR and the code confirm.
 
-## 4. Section images for the GitHub release
+## 4. Write it in Spanish
+
+Read `docs/releases/es/README.md`: it holds the file shape, what stays in English and the term table. Write the English
+first, get it final, then translate it, so the two say the same thing.
+
+- `docs/releases/es/<version>.md`: the header's headline, paragraph and image alt text, then every line of the release
+  PR's notes, with the same sections and items in the same order. `view/release-notes-es.test.ts` fails on the release
+  PR if it drifts, so if a fragment lands after you write it, add its line, with this PR's own fragment included.
+- `docs/releases/es/reports/<version>.json`: the report's text map, from each block of English in `index.html` (a `p`,
+  `li`, heading, caption or `div`, with its inline tags, plus alt text and `content` attributes) to its Spanish. The
+  build writes `index.es.html` from the page and the map, and it isn't in git, so layout, images and numbers only ever
+  change in `index.html`. Copy the wording of v0.40.0's map where a line recurs.
+- `view/release-report-spanish.test.ts` fails if a block has no Spanish or a key has no block. So once the map exists,
+  changing a line of English means changing its key too. `reportTexts` lists what the page needs.
+- `index.html`'s `.meta` has an Español link inside a `data-history-link` span. The map gives its Spanish version, which
+  links back as English and sends All releases to `../index.html?lang=es#<version>`.
+- The build adds the notice that says the Spanish is AI translated. The history page drops it and shows its own bar
+  while Spanish is on.
+- The header gets one line under its English report link:
+  `**[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/index.es.html)**`.
+- Screenshots and the GitHub release's section images stay in English, since the game's own text is English.
+- Say in the PR's Action Items that a Spanish speaker should read it, and name the lines you weren't sure of.
+
+## 5. Section images for the GitHub release
 
 The GitHub release description carries the report as images, cut from the finished page in sections so it stays small
 and easy to read. Every release needs them.
@@ -84,22 +107,24 @@ and easy to read. Every release needs them.
   `v0-40-0-release-01-the-numbers.jpg` style. v0.40.0 has 14 and v0.39.0 has 9.
 - List them in the header as `![what it shows](raw URL)`, with the alt text naming what the image holds and the URL
   pinned to the commit that adds them. Commit the images first, then the header that names that commit. Cut them only
-  once Code shipped is final (step 6), or that image and its alt text go stale.
+  once Code shipped is final (step 7), or that image and its alt text go stale.
 
-## 5. Wire it in
+## 6. Wire it in
 
 - `RELEASE_NOTICE_VERSION` in `packages/client/src/view/release-notice.ts`, which `view/release-notice.test.ts` checks
   has a report.
 - The `/shadowland-info.html` redirect in `netlify.toml`, which older builds' title bar opens.
 - A changie fragment: `changie new -k Added -b "The <version> release report has its own page on the site, at /releases/<version>/"`.
 
-## 6. Check and ship
+## 7. Check and ship
 
 - Run the touched unit test, `pnpm exec oxfmt` and `pnpm exec oxlint` on the changed files.
 - A fresh worktree needs `pnpm install`, and not `pnpm assets:fetch`: the report needs no media.
 - The history page only finds a report through `.changes/<version>.md`, which the release writes. To check the report
   inside it, write a short temporary `.changes/<version>.md`, restart the dev server (the notes are read when it
   starts), and delete the file afterwards.
+- Open `/releases/index.html?lang=es#<version>` too, and press the toggle on it: the page stays on the release and the
+  report and notes swap language.
 - `node scripts/shoot-release-report.mjs <version> sizes` shoots `se`, `pixel`, `tablet-portrait`, `tablet` and
   `desktop`, alone and inside the history, and fails on sideways scroll, a broken image or a wrong `width` or `height`.
   Read the screenshots too. To show them in the PR, commit them under `docs/pr-screenshots/`, link them by that commit
@@ -110,5 +135,5 @@ and easy to read. Every release needs them.
   `git diff --cached --shortstat <previous>`. Put them in the page, cut the images, commit, and re-pin the header.
 - The release PR is regenerated on every merge. If anything lands on `main` after you start, re-read its notes and
   recount before this PR merges.
-- The PR says what the report covers, and asks Quin to read the copy under **Action Items**. It merges before the
+- The PR says what the report covers, and asks Quin to read the copy, in both languages, under **Action Items**. It merges before the
   release PR.

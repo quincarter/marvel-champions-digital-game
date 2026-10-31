@@ -220,7 +220,7 @@ Every Spanish build shows the Spanish card scans that [alaintxu](https://github.
 Reported something on Discord or through the in-game bug button and want to be listed? Add yourself to
 [`.github/credits.json`](.github/credits.json) or ask in an issue.
 
-### Shadowland card scans
+### Shadowland and promo card scans
 
 Shadowland's cards use the scans from a community folder that
-[u/Ok-Replacement-9793](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) shared on Reddit. Thank you!
+[u/Ok-Replacement-9793](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) shared on Reddit, and the promo cards use the scans they shared too. Thank you!

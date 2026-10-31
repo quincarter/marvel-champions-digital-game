@@ -16,6 +16,7 @@
  */
 
 import Phaser from "phaser";
+import { artLanguageNow } from "../art/art-source.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { cssOf, skin, textStyle } from "../ui/theme.js";
@@ -716,7 +717,9 @@ export class TitleScene extends Phaser.Scene {
     // The release history. Underlined in the footer's own ink rather than red, which
     // is the screen's one forward action.
     const releaseNotes = (): void =>
-      openExternal(releaseNotesPageUrl(CLIENT_VERSION, globalThis.location?.href ?? "", isNativeShell()));
+      openExternal(
+        releaseNotesPageUrl(CLIENT_VERSION, globalThis.location?.href ?? "", isNativeShell(), artLanguageNow()),
+      );
     const linkText = this.add.text(0, layout.footer.y, "Release notes ↗", textStyle(typeRole.label, textColor));
     linkText.setX(versionText.x - 16 - linkText.width);
     // A phone's footer has no room for all three once the version names its language and install.

@@ -4,6 +4,6 @@
   "watcherMinimum": 2,
   "reporters": [],
   "contributors": [],
-  "release": {},
+  "release": { "v0.41.0": ["u/Ok-Replacement-9793 shared the promo card scans."] },
   "exclude": []
 }

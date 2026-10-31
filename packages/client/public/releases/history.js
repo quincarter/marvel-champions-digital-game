@@ -9,6 +9,11 @@
  * The web build carries a release's notes before that release is published, so the list stops at GitHub's latest
  * release. A newer one still opens by its own link, and with GitHub out of reach the list shows everything it has.
  *
+ * The page reads in English or Spanish. `?lang=` picks one (the game's links carry it), then the toggle's last choice,
+ * then the game's own card language: its saved setting, else the same browser language check the game starts from.
+ * Spanish data lives in `history/es/` and each report's `index.es.html`. While Spanish is on, a bar above the page says
+ * the text is AI translated; a report carries its own for when it's opened alone, which is dropped here.
+ *
  * Lives in `public/` beside the reports, which is why it is plain
  * script with no imports.
  */
@@ -21,6 +26,134 @@
   const LONG_DATE = { ...SHORT_DATE, year: "numeric" };
   const MONTH = { month: "long", year: "numeric", timeZone: "UTC" };
 
+  const LANGUAGES = ["en", "es"];
+  const LANGUAGE_KEY = "mc-release-language";
+  /** The game's settings (`settings-store.ts`): same origin on the web, so a choice made in the game shows here. */
+  const SETTINGS_KEY = "mc-settings";
+  const LOCALE = { en: "en-US", es: "es" };
+  const WORDS = {
+    en: {
+      title: "Release history",
+      titleWords: ["Release", "history"],
+      game: "Marvel Champions: Digital Edition",
+      skip: "Skip to the release",
+      play: "Play in your browser ↗",
+      releasesLabel: "Releases",
+      closeList: "Close the release list",
+      newerRelease: "Newer release",
+      olderRelease: "Older release",
+      languageLabel: "Language",
+      releases: (n) => `${n} releases`,
+      releasesSince: (n, date) => `${n} releases since ${date}`,
+      showOlder: "Show older releases",
+      allOlder: "‹ All older releases",
+      latest: "‹ Latest releases",
+      olderTitle: "Older releases",
+      backToOlder: "‹ Older releases",
+      range: (from, to) => `${from} to ${to}`,
+      notes: "Release notes",
+      newer: "‹ Newer",
+      older: "Older ›",
+      pagerLabel: "Newer and older releases",
+      ownPage: "Open on its own page ↗",
+      notHere: "Not here yet",
+      missing: (version) => `${version} isn't in this page yet.`,
+      failed: "This release didn't load.",
+      onGithub: "Read it on GitHub ↗",
+      listFailed: "The release list didn't load.",
+      allOnGithub: "Every release is on GitHub ↗",
+      hints: {
+        move: "Move",
+        open: "Open",
+        newerOlder: "Newer / older",
+        scroll: "Scroll",
+        list: "List",
+        close: "Close",
+      },
+      kinds: {},
+    },
+    es: {
+      title: "Historial de versiones",
+      titleWords: ["Historial", "de versiones"],
+      game: "Marvel Champions: Digital Edition",
+      skip: "Ir a la versión",
+      play: "Jugar en el navegador ↗",
+      releasesLabel: "Versiones",
+      closeList: "Cerrar la lista de versiones",
+      newerRelease: "Versión más reciente",
+      olderRelease: "Versión anterior",
+      languageLabel: "Idioma",
+      releases: (n) => `${n} versiones`,
+      releasesSince: (n, date) => `${n} versiones desde el ${date}`,
+      showOlder: "Ver versiones anteriores",
+      allOlder: "‹ Todas las anteriores",
+      latest: "‹ Últimas versiones",
+      olderTitle: "Versiones anteriores",
+      backToOlder: "‹ Versiones anteriores",
+      range: (from, to) => `Del ${from} al ${to}`,
+      notes: "Notas de la versión",
+      newer: "‹ Más reciente",
+      older: "Anterior ›",
+      pagerLabel: "Versiones más recientes y anteriores",
+      ownPage: "Abrir en su propia página ↗",
+      notHere: "Aún no está aquí",
+      missing: (version) => `${version} aún no está en esta página.`,
+      failed: "Esta versión no se cargó.",
+      onGithub: "Leerla en GitHub ↗",
+      listFailed: "La lista de versiones no se cargó.",
+      allOnGithub: "Todas las versiones están en GitHub ↗",
+      hints: {
+        move: "Mover",
+        open: "Abrir",
+        newerOlder: "Reciente / anterior",
+        scroll: "Desplazar",
+        list: "Lista",
+        close: "Cerrar",
+      },
+      kinds: {
+        Added: "Añadido",
+        Changed: "Cambiado",
+        Fixed: "Corregido",
+        Content: "Contenido",
+        Engine: "Motor",
+        Docs: "Documentación",
+        "Special thanks": "Agradecimientos",
+      },
+    },
+  };
+
+  const storageRead = (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+  const storageWrite = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Private windows and blocked storage just don't remember.
+    }
+  };
+  /** The game's card language: its saved setting, else what `preferredCardLanguage` starts a new player in. */
+  function gameLanguage() {
+    try {
+      const saved = JSON.parse(storageRead(SETTINGS_KEY) ?? "{}").cardLanguage;
+      if (LANGUAGES.includes(saved)) return saved;
+    } catch {
+      // A settings record this page can't read says nothing about the language.
+    }
+    const tags = navigator.languages ?? [];
+    return tags.map((tag) => tag.toLowerCase().split("-")[0]).find((tag) => LANGUAGES.includes(tag)) ?? "en";
+  }
+  function startingLanguage() {
+    const asked = new URLSearchParams(location.search).get("lang");
+    if (LANGUAGES.includes(asked)) return asked;
+    const chosen = storageRead(LANGUAGE_KEY);
+    return LANGUAGES.includes(chosen) ? chosen : gameLanguage();
+  }
+
   const $ = (id) => document.getElementById(id);
   const main = $("content");
   const rail = $("rail");
@@ -28,9 +161,19 @@
   const openButton = $("bar-open");
   const closeButton = $("rail-close");
   const narrow = matchMedia("(max-width: 900px)");
+  const languageGroup = $("language");
   /** The list shows this many; the rest live behind Show older releases. */
   const RECENT = 10;
   const OLDER = "older";
+
+  let language = startingLanguage();
+  /** Counts the toggle's presses, and says when the last language's list didn't load, so a press can try again. */
+  let languageRun = 0;
+  let listBroken = false;
+  const words = () => WORDS[language];
+  const kindName = (kind) => words().kinds[kind] ?? kind;
+  /** Where this language's generated data lives. */
+  const dataUrl = (file) => new URL(`history/${language === "es" ? "es/" : ""}${file}`, BASE);
 
   /** Newest first: what the list shows, and every release this build has notes for. */
   let manifest = [];
@@ -46,7 +189,7 @@
   const notes = new Map();
   const reports = new Map();
 
-  const when = (date, format) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", format);
+  const when = (date, format) => new Date(`${date}T00:00:00Z`).toLocaleDateString(LOCALE[language], format);
   const escape = (text) =>
     String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const fetchOk = async (url, read, options) => {
@@ -75,11 +218,11 @@
     archiveDrawn = archive;
     const older = manifest.length - RECENT;
     list.innerHTML = archive
-      ? `<a class="more" href="#${OLDER}"><b>‹ All older releases</b></a>
-         <a class="more" href="#${manifest[0].version}"><b>‹ Latest releases</b></a>${rowsHtml(manifest.slice(RECENT))}`
+      ? `<a class="more" href="#${OLDER}"><b>${words().allOlder}</b></a>
+         <a class="more" href="#${manifest[0].version}"><b>${words().latest}</b></a>${rowsHtml(manifest.slice(RECENT))}`
       : `${rowsHtml(manifest.slice(0, RECENT))}${
           older > 0
-            ? `<a class="more" href="#${OLDER}" data-version="${OLDER}"><b>Show older releases</b><small>${older}</small></a>`
+            ? `<a class="more" href="#${OLDER}" data-version="${OLDER}"><b>${words().showOlder}</b><small>${older}</small></a>`
             : ""
         }`;
     list.scrollTop = 0;
@@ -90,10 +233,10 @@
     const entries = manifest.slice(RECENT);
     return `<article class="page archive">
       <header>
-        <span class="tag">${entries.length} releases</span>
-        <h2 class="title">Older releases</h2>
+        <span class="tag">${words().releases(entries.length)}</span>
+        <h2 class="title">${words().olderTitle}</h2>
         <div class="kick" style="margin-top: 12px">
-          ${when(entries.at(-1).date, LONG_DATE)} to ${when(entries[0].date, LONG_DATE)}
+          ${words().range(when(entries.at(-1).date, LONG_DATE), when(entries[0].date, LONG_DATE))}
         </div>
       </header>
       <div class="list">${rowsHtml(entries)}</div>
@@ -114,9 +257,10 @@
         .replace(/(\d)vw\b/g, "$1cqw")}`;
   }
 
-  async function loadReport(version) {
-    if (reports.has(version)) return reports.get(version);
-    const url = new URL(`${version}/index.html`, BASE);
+  async function loadReport({ version, reportFile }) {
+    const url = new URL(`${version}/${reportFile}`, BASE);
+    const key = url.href;
+    if (reports.has(key)) return reports.get(key);
     const page = new DOMParser().parseFromString(await fetchOk(url, (r) => r.text()), "text/html");
     page.querySelectorAll("[data-history-link]").forEach((link) => link.remove());
     for (const el of page.querySelectorAll("[src]")) el.src = new URL(el.getAttribute("src"), url).href;
@@ -125,20 +269,23 @@
       css: reportStyles([...page.querySelectorAll("style")].map((s) => s.textContent).join("\n")),
       html: page.body.innerHTML,
     };
-    reports.set(version, report);
+    reports.set(key, report);
     return report;
   }
 
   async function loadNotes(version) {
-    if (!notes.has(version))
-      notes.set(version, await fetchOk(new URL(`history/${version}.json`, BASE), (r) => r.json()));
-    return notes.get(version);
+    const url = dataUrl(`${version}.json`);
+    if (!notes.has(url.href)) notes.set(url.href, await fetchOk(url, (r) => r.json()));
+    return notes.get(url.href);
   }
 
   function pageHtml(release) {
     const { version, date, title, summaryHtml, counts, images } = release;
     const tiles = counts
-      .map(({ kind, count }) => `<div class="tile ${escape(kind)}"><h4>${escape(kind)}</h4><div>${count}</div></div>`)
+      .map(
+        ({ kind, count }) =>
+          `<div class="tile ${escape(kind)}"><h4>${escape(kindName(kind))}</h4><div>${count}</div></div>`,
+      )
       .join("");
     const shots = images
       .map(
@@ -165,11 +312,11 @@
     const body = (sections ?? [])
       .map(
         ({ kind, open, itemsHtml }) => `<details${open ? " open" : ""}>
-          <summary>${escape(kind)}<span>${itemsHtml.length}</span></summary>
+          <summary>${escape(kindName(kind))}<span>${itemsHtml.length}</span></summary>
           <ul>${itemsHtml.map((item) => `<li>${item}</li>`).join("")}</ul></details>`,
       )
       .join("");
-    return `<section class="page notes"><h2 class="notes-title">Release notes</h2>${body}</section>`;
+    return `<section class="page notes"><h2 class="notes-title">${words().notes}</h2>${body}</section>`;
   }
 
   function pagerHtml(index) {
@@ -177,15 +324,15 @@
       entry
         ? `<a class="${cls}" href="#${entry.version}"><small>${label} · ${entry.version}</small><b>${escape(entry.title)}</b></a>`
         : "";
-    return `<nav class="pager" aria-label="Newer and older releases">
-      ${link(manifest[index - 1], "newer", "‹ Newer")}${link(manifest[index + 1], "older", "Older ›")}</nav>`;
+    return `<nav class="pager" aria-label="${words().pagerLabel}">
+      ${link(manifest[index - 1], "newer", words().newer)}${link(manifest[index + 1], "older", words().older)}</nav>`;
   }
 
-  function stripHtml({ version, date, report }, index, release) {
+  function stripHtml({ version, date, report, reportFile }, index, release) {
     const link = report
-      ? `<a href="${version}/index.html">Open on its own page ↗</a>`
+      ? `<a href="${version}/${reportFile}">${words().ownPage}</a>`
       : `<a href="${escape(release.linkUrl)}">${escape(release.linkLabel)}</a>`;
-    const back = index >= RECENT ? `<a href="#${OLDER}">‹ Older releases</a> · ` : "";
+    const back = index >= RECENT ? `<a href="#${OLDER}">${words().backToOlder}</a> · ` : "";
     return `<div class="strip"><span>${back}${version} · ${when(date, LONG_DATE)}</span><span>${link}</span></div>`;
   }
 
@@ -214,8 +361,8 @@
     };
     step($("bar-newer"), newer);
     step($("bar-older"), older);
-    const name = key === OLDER ? "Older releases" : key;
-    document.title = `${name} · Release history · Marvel Champions: Digital Edition`;
+    const name = key === OLDER ? words().olderTitle : key;
+    document.title = `${name} · ${words().title} · ${words().game}`;
     $("status").textContent = `${name}: ${barTitle}`;
   }
 
@@ -230,7 +377,7 @@
 
   /** Swaps the page. Focus on what was replaced would fall out of the page, so it holds on `main`. */
   function draw(html) {
-    const hadFocus = inMain(focusedEl());
+    const hadFocus = inMain(focusedEl()) && !languageGroup.contains(focusedEl());
     reportRoot = null;
     main.innerHTML = html;
     if (hadFocus) main.focus({ preventScroll: true });
@@ -240,19 +387,20 @@
   function showMissing(version) {
     current = version;
     routeId += 1;
-    listFor(false, () => markCurrent(version, version, "Not here yet", undefined, manifest[0]));
-    draw(`<p class="state">${escape(version)} isn't in this page yet.
-      <a href="${REPO}/releases/tag/${encodeURIComponent(version)}">Read it on GitHub ↗</a></p>`);
+    listFor(false, () => markCurrent(version, version, words().notHere, undefined, manifest[0]));
+    draw(`<p class="state">${escape(words().missing(version))}
+      <a href="${REPO}/releases/tag/${encodeURIComponent(version)}">${words().onGithub}</a></p>`);
     window.scrollTo(0, 0);
   }
 
   function showFailure(entry) {
-    main.innerHTML = `<p class="state">This release didn't load.
-      <a href="${REPO}/releases/tag/${entry.version}">Read it on GitHub ↗</a></p>`;
+    main.innerHTML = `<p class="state">${words().failed}
+      <a href="${REPO}/releases/tag/${entry.version}">${words().onGithub}</a></p>`;
   }
 
-  async function route() {
-    const hash = location.hash.slice(1);
+  /** `target` redraws that release whatever the address says; a hash that is the skip link's stays out of it. */
+  async function route(target) {
+    const hash = target ?? location.hash.slice(1);
     if (current === OLDER) olderScroll = window.scrollY;
     if (hash === OLDER) return showOlder();
     // Any other hash is the skip link's, which the browser handles, once a release is showing.
@@ -279,10 +427,7 @@
     );
     try {
       if (entry.report) {
-        const [report, release] = await Promise.all([
-          loadReport(entry.version),
-          loadNotes(entry.version).catch(() => null),
-        ]);
+        const [report, release] = await Promise.all([loadReport(entry), loadNotes(entry.version).catch(() => null)]);
         if (id !== routeId) return;
         draw(`${stripHtml(entry, index)}<div id="report"></div>${notesHtml(release)}${pagerHtml(index)}`);
         reportRoot = main.querySelector("#report").attachShadow({ mode: "open" });
@@ -311,8 +456,8 @@
     listFor(false, () =>
       markCurrent(
         OLDER,
-        `${manifest.length - RECENT} releases`,
-        "Older releases",
+        words().releases(manifest.length - RECENT),
+        words().olderTitle,
         manifest[RECENT - 1],
         manifest[RECENT],
       ),
@@ -388,12 +533,12 @@
     const face = (text) => `<span class="glyph">${text}</span>`;
     const shoulder = (text) => `<span class="glyph shoulder">${text}</span>`;
     $("hints").innerHTML = [
-      hint(`<span class="glyph dpad">${DPAD_SVG}</span>`, "Move"),
-      hint(face(glyphs.confirm), "Open"),
-      hint(`${shoulder(glyphs.left)}${shoulder(glyphs.right)}`, "Newer / older"),
-      hint(`<span class="glyph stick">R</span>`, "Scroll"),
-      narrow.matches && !sheetOpen ? hint(face(glyphs.list), "List") : "",
-      narrow.matches && sheetOpen ? hint(face(glyphs.back), "Close") : "",
+      hint(`<span class="glyph dpad">${DPAD_SVG}</span>`, words().hints.move),
+      hint(face(glyphs.confirm), words().hints.open),
+      hint(`${shoulder(glyphs.left)}${shoulder(glyphs.right)}`, words().hints.newerOlder),
+      hint(`<span class="glyph stick">R</span>`, words().hints.scroll),
+      narrow.matches && !sheetOpen ? hint(face(glyphs.list), words().hints.list) : "",
+      narrow.matches && sheetOpen ? hint(face(glyphs.back), words().hints.close) : "",
     ].join("");
   }
 
@@ -408,13 +553,14 @@
     return [...rail.querySelectorAll("a, button")].filter(visible);
   }
   function mainStops() {
+    const toggle = [...languageGroup.querySelectorAll("button")];
     const strip = [...main.querySelectorAll(".strip a")];
     const inReport = reportRoot ? [...reportRoot.querySelectorAll("a[href]")] : [];
     const below = [...main.querySelectorAll(".state a, .notes a[href], .notes summary, .page a[href], .pager a")];
-    return [...new Set([...strip, ...inReport, ...below])].filter(visible);
+    return [...new Set([...toggle, ...strip, ...inReport, ...below])].filter(visible);
   }
   function inMain(el) {
-    return !!el && (el.getRootNode() === reportRoot || main.contains(el));
+    return !!el && (el.getRootNode() === reportRoot || main.contains(el) || languageGroup.contains(el));
   }
 
   function focusStop(el) {
@@ -427,14 +573,15 @@
     const active = focusedEl();
     const column = inMain(active) ? mainStops() : railStops();
     const at = column.indexOf(active);
-    const next = column[at === -1 ? 0 : at + delta];
+    const next = at === -1 ? column.find((el) => !languageGroup.contains(el)) : column[at + delta];
     if (next) focusStop(next);
     // Past the last link there may still be page to read.
     else if (inMain(active)) window.scrollBy({ top: delta * innerHeight * 0.7 });
   }
 
   function intoMain() {
-    const stops = mainStops();
+    // The toggle is one Up above the page's first stop, so moving across lands on the release.
+    const stops = mainStops().filter((el) => !languageGroup.contains(el));
     const first = stops.find((el) => el.getBoundingClientRect().top >= 0) ?? stops[0];
     if (first) focusStop(first);
   }
@@ -525,24 +672,85 @@
     }
   }
 
-  Promise.all([fetchOk(new URL("history/manifest.json", BASE), (r) => r.json()), latestTag()])
+  /** Everything on the page that isn't drawn with a release: the page's own words, in the language now on. */
+  function drawChrome() {
+    const text = words();
+    document.documentElement.lang = language;
+    $("skip").textContent = text.skip;
+    rail.setAttribute("aria-label", text.releasesLabel);
+    $("rail-game").textContent = text.game;
+    $("rail-title").innerHTML = `${text.titleWords[0]} <span>${text.titleWords[1]}</span>`;
+    $("rail-play").textContent = text.play;
+    closeButton.setAttribute("aria-label", text.closeList);
+    $("bar-newer").setAttribute("aria-label", text.newerRelease);
+    $("bar-older").setAttribute("aria-label", text.olderRelease);
+    languageGroup.setAttribute("aria-label", text.languageLabel);
+    $("ai-note").hidden = language !== "es";
+    for (const button of languageGroup.querySelectorAll("button"))
+      button.setAttribute("aria-pressed", String(button.dataset.language === language));
+  }
+
+  function useEntries(entries) {
+    allReleases = entries;
+    manifest = entries.slice(
+      Math.max(
+        0,
+        entries.findIndex((entry) => entry.version === latestOnGithub),
+      ),
+    );
+    $("rail-count").textContent = words().releasesSince(manifest.length, when(manifest.at(-1).date, LONG_DATE));
+  }
+
+  function showListFailure() {
+    main.innerHTML = `<p class="state">${words().listFailed}
+      <a href="${REPO}/releases">${words().allOnGithub}</a></p>`;
+  }
+
+  /** Redraws the page in `next`, staying on the same release, with the address saying which language is on. */
+  async function setLanguage(next) {
+    if (next === language && !listBroken) return;
+    const run = ++languageRun;
+    listBroken = false;
+    language = next;
+    storageWrite(LANGUAGE_KEY, next);
+    const address = new URL(location.href);
+    address.searchParams.set("lang", next);
+    history.replaceState(history.state, "", address);
+    drawChrome();
+    if (family) drawHints();
+    try {
+      // The list has to exist first, and only the last press counts: a late answer is another language's.
+      await started;
+      const entries = await fetchOk(dataUrl("manifest.json"), (r) => r.json());
+      if (run !== languageRun) return;
+      useEntries(entries);
+      const shown = current;
+      current = null;
+      archiveDrawn = null;
+      if (shown === OLDER) showOlder();
+      else await route(shown ?? undefined);
+    } catch {
+      if (run !== languageRun) return;
+      listBroken = true;
+      showListFailure();
+    }
+  }
+
+  for (const button of languageGroup.querySelectorAll("button"))
+    button.addEventListener("click", () => void setLanguage(button.dataset.language));
+
+  drawChrome();
+  const started = Promise.all([fetchOk(dataUrl("manifest.json"), (r) => r.json()), latestTag()])
     .then(([entries, latest]) => {
-      allReleases = entries;
       latestOnGithub = latest;
-      manifest = entries.slice(
-        Math.max(
-          0,
-          entries.findIndex((entry) => entry.version === latest),
-        ),
-      );
-      $("rail-count").textContent = `${manifest.length} releases since ${when(manifest.at(-1).date, LONG_DATE)}`;
+      useEntries(entries);
       if (navigator.getGamepads) requestAnimationFrame(poll);
       // Not before now: a hash change with no list yet would have nothing to route to.
-      addEventListener("hashchange", route);
+      addEventListener("hashchange", () => route());
       return route();
     })
     .catch(() => {
-      main.innerHTML = `<p class="state">The release list didn't load.
-        <a href="${REPO}/releases">Every release is on GitHub ↗</a></p>`;
+      listBroken = true;
+      showListFailure();
     });
 })();
