@@ -1,3 +1,0 @@
-kind: Added
-body: 'One Install for Steam script for each system, with a link that never changes: it installs the latest release itself, on Linux it is already executable in its .tar.gz, and the game shows the install and offers to update through the script, with its progress on screen so it works in Game Mode (#582)'
-time: 2026-10-31T11:58:55.758808-04:00

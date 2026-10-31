@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Keep device sync pushing through a long game: a game now pushes after each round, when you leave it and when it sits idle, under the server''s hourly cap, and a desktop window regaining focus pulls'
-time: 2026-10-31T12:12:35.9690436-04:00

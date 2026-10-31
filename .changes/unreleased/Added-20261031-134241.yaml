@@ -1,3 +1,0 @@
-kind: Added
-body: A release history page at /releases/ lists every release back to the first build and swaps between them without a reload, with the announcement on top where one exists, a generated one where it does not, and the release notes under it; the Title footer's Release notes link opens it (#588)
-time: 2026-10-31T13:42:41.1705326-04:00
