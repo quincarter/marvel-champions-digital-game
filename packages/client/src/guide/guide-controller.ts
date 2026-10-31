@@ -37,7 +37,7 @@
  *    either way, via the shared `hidden` getter, so the board mount's `railOptionFor` reflows to full width
  *    without having to know which of the two ended the run.
  */
-import type { GameState, InstanceId, PlayerId } from "@mc/engine";
+import { cardsInPlay, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import type { McGuidePanelContent, GuidePanelExtraRow, GuidePanelLessonRow } from "../ui/guide-panel.js";
 import type { McGuideTagVariant } from "../ui/guide-tag.js";
 import { ACTION_TO_BASIC, instanceOfCode } from "../view/guide-anchor.js";
@@ -417,7 +417,7 @@ export class GuideController {
       nudge: this.#nudge,
     };
     const tagVariant = tagVariantOf(anchor);
-    const gate = step.anchor ? gateFor(step, this.#observation.game, this.#observation.perspectiveId, this) : null;
+    const gate = gateFor(step, this.#observation.game, this.#observation.perspectiveId, this);
     const stripText = copy.short ?? copy.tip ?? null;
     return { step, panel, anchor, tagVariant, gate, stripText, active: true };
   }
@@ -547,17 +547,16 @@ function tagVariantOf(anchor: LessonAnchor | null | undefined): McGuideTagVarian
 }
 
 /**
- * The soft gate for `step`'s own anchor (§3.10): only the taught control (plus any extra basic actions the step
- * itself names via `LessonStep.gate`) stays live. A zone anchor gates nothing extra — there's nothing on the board
+ * The gate for `step`'s own anchor (§3.10): only the taught control (plus any extra basic actions the step itself
+ * names via `LessonStep.gate`) stays live. An awaited zone anchor gates nothing extra — there's nothing on the board
  * to tap for "look at the main scheme" — and a choice anchor gates nothing on the *board* either, since the open
  * choice sheet (`ChoiceOverlay`) already owns input exclusively while it's up (its own `binding.blocked`).
  *
- * **A `card` anchor gates the whole hand, not just the taught card.** "Play this card" is a two-tap flow the
- * moment it costs anything: tapping it opens payment mode, and *paying* means tapping other hand cards as
- * sources (`BoardController#tapInMode`'s own `"paying"` branch, `#spendByInstance`) — a gate that only allowed
- * the taught card itself would block every one of those taps as "inert" (`GuideGateHolder.noteInertClick`),
- * making the very thing the step is teaching impossible to finish. Found in browser verification: lesson 3
- * ("Play Black Cat") never advanced past tapping Black Cat, because tapping Energy to pay her cost was gated out.
+ * **A `card` anchor also leaves its payers tappable.** "Play this card" is a two-tap flow the moment it costs
+ * anything: tapping it opens payment mode, and *paying* means tapping other hand cards as sources
+ * (`BoardController#tapInMode`'s own `"paying"` branch, `#spendByInstance`) — a gate that only allowed the taught card
+ * itself would block every one of those taps as "inert", making the very thing the step is teaching impossible to
+ * finish. A step naming its `payWith` leaves exactly those cards; one that doesn't leaves the whole hand.
  */
 function gateFor(
   step: LessonStep,
@@ -566,19 +565,34 @@ function gateFor(
   controller: GuideController,
 ): GuideGate | null {
   const anchor = step.anchor;
-  if (!anchor || anchor.kind === "zone" || anchor.kind === "choice" || anchor.kind === "control") return null;
+  // A step waiting on "Got it" holds the table until it's answered (#554). The villain phase's own step narrates over
+  // a walkthrough that's already holding it.
+  const holdsTable = step.mode === "acknowledge" && !step.overWalkthrough;
+  if (!holdsTable && (!anchor || anchor.kind === "zone" || anchor.kind === "choice" || anchor.kind === "control"))
+    return null;
 
   const actions = new Set<BasicAction>();
   const cards = new Set<InstanceId>();
   for (const id of step.gate ?? []) actions.add(id as BasicAction);
 
-  if (anchor.kind === "action") {
+  if (anchor?.kind === "action") {
     actions.add(ACTION_TO_BASIC[anchor.id]);
-  } else if (perspectiveId !== null) {
+  } else if (anchor?.kind === "card" && perspectiveId !== null) {
     const player = game.players.find((p) => p.playerId === perspectiveId);
-    for (const id of player?.hand ?? []) cards.add(id);
     const instanceId = instanceOfCode(game, perspectiveId, anchor.code);
     if (instanceId !== null) cards.add(instanceId);
+    const payWith = step.copy.payWith ?? [];
+    // A step naming its payers leaves only those tappable; without any, a hand card can still pay.
+    if (payWith.length === 0) for (const id of player?.hand ?? []) cards.add(id);
+    for (const payer of payWith) {
+      const payerId =
+        payer.kind === "handCard"
+          ? instanceOfCode(game, perspectiveId, payer.code)
+          : payer.kind === "cardAbility"
+            ? (cardsInPlay(game).find((id) => game.instances[id]?.cardId === payer.code) ?? null)
+            : (player?.identity.instanceId ?? null);
+      if (payerId !== null) cards.add(payerId);
+    }
   }
 
   return {

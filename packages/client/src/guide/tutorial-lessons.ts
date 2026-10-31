@@ -17,6 +17,7 @@
  */
 import { abilityId, cardId } from "@mc/content";
 import {
+  cardInPlay,
   cardPlayed,
   declareDefenderResolved,
   formIs,
@@ -28,6 +29,9 @@ import {
 } from "../view/lesson-model.js";
 
 const BLACK_CAT = cardId("01002");
+const AUNT_MAY = cardId("01006");
+const ENERGY = cardId("01088");
+const FOR_JUSTICE = cardId("01060");
 const INTERROGATION_ROOM = cardId("01063");
 const SCIENTIST = abilityId("01001b.scientist");
 /** Spider-Man's identity card — one physical card, so its instance's `cardId` is this on both faces
@@ -59,47 +63,76 @@ const HOW_TO_WIN: Lesson = {
 
 /**
  * Lesson 2: "Paying for cards" (§5.1, owner's reorder 2026-09-29 — see this file's own header). Round 1, before
- * the flip: Black Cat is stacked into the opening hand, played as Peter Parker while he can still use his own
- * Scientist ability. No `when` — it becomes current the moment lesson 1 ("How to win") is done, since it has to
- * run before the flip lesson 3 teaches.
+ * the flip: three plays that spend the opening hand (#555), each showing another way to pay. No `when` — it becomes
+ * current the moment lesson 1 ("How to win") is done, since Scientist has to be used before the flip lesson 3 teaches.
  */
 const PAYING_FOR_CARDS: Lesson = {
   id: "paying-for-cards",
   title: "Paying for cards",
   steps: [
     {
-      id: "play-black-cat",
-      anchor: { kind: "card", code: BLACK_CAT },
+      id: "play-aunt-may",
+      anchor: { kind: "card", code: AUNT_MAY },
       copy: {
-        stepLabel: "STEP 1 OF 7",
-        title: "Play Black Cat, as Peter Parker",
+        stepLabel: "STEP 1 OF 9",
+        title: "Play Aunt May, as Peter Parker",
         body:
           "A card's [[cost|cost]] is just a number. Pay it with [[resource|resources]] from any source: discard a " +
           "hand card for its printed icon, or use an ability like Peter's own Scientist on his identity card. " +
-          "Using Scientist doesn't exhaust Peter, so he can still act. " +
-          "A type only matters when a card says so, like Black Cat caring about [[mentalResource|mental]] ones.",
+          "Using Scientist doesn't exhaust Peter, so he can still act.",
         // Plain text, not `[[id]]` markup — `McGuidePanel`'s own tip box renders it as a plain `Text`, not
         // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
         // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
         tip: "Any resource type pays any cost.",
         // Overridden while the payment bar is open (`scenes/board/guide-mount.ts#syncPayingOverride`) — this is
-        // only what shows before Black Cat's been tapped at all.
-        doThis: "Tap Black Cat to play her",
-        // Tabbed layouts open Inspect on a hand tap before Black Cat is on the table (guided mode G7b,
+        // only what shows before Aunt May's been tapped at all.
+        doThis: "Tap Aunt May to play her",
+        // Tabbed layouts open Inspect on a hand tap before the card is on the table (guided mode G7b,
         // `docs/guided-mode.md` §4 "Left for G7") — `scenes/board/guide-mount.ts` swaps this in while tabbed,
         // both on the board's own callout and Inspect's compact guide strip.
+        doThisTabbed: "Tap Aunt May, then Play",
+        // Once the card is the open payment's subject, `TRY THIS` walks each payer in order, then Pay (guided mode
+        // G10d fix, extended for this reorder). Each play here pays its cost exactly.
+        payWith: [{ kind: "identityAbility", abilityId: SCIENTIST, doThis: "Tap Scientist to generate a resource" }],
+      },
+      mode: "await",
+      completes: cardPlayed(AUNT_MAY),
+    },
+    {
+      id: "play-black-cat",
+      anchor: { kind: "card", code: BLACK_CAT },
+      copy: {
+        stepLabel: "STEP 2 OF 9",
+        title: "Play Black Cat",
+        body:
+          "Scientist only works once a round, so this one comes from your hand. Energy prints two " +
+          "[[resource|resources]], which pays Black Cat's cost of 2 on its own. A type only matters when a card " +
+          "says so, like Black Cat caring about [[mentalResource|mental]] ones.",
+        tip: "Spending a card from your hand discards it.",
+        doThis: "Tap Black Cat to play her",
         doThisTabbed: "Tap Black Cat, then Play",
-        // Once Black Cat is the open payment's subject, `TRY THIS` walks each payer in order (guided mode G10d
-        // fix, extended for this reorder): Peter's own Scientist ability (1 mental resource), then Interrogation
-        // Room discarded for its printed [energy] resource, then Pay — 1 + 1 pays her cost of 2 exactly, no
-        // overpay (unlike a double-printing resource card, which would trip Hold on!'s `wastedPay`).
-        payWith: [
-          { kind: "identityAbility", abilityId: SCIENTIST, doThis: "Tap Scientist to generate a resource" },
-          { kind: "handCard", code: INTERROGATION_ROOM, doThis: "Tap Interrogation Room, then Pay" },
-        ],
+        payWith: [{ kind: "handCard", code: ENERGY, doThis: "Tap Energy, then Pay" }],
       },
       mode: "await",
       completes: cardPlayed(BLACK_CAT),
+    },
+    {
+      id: "play-interrogation-room",
+      anchor: { kind: "card", code: INTERROGATION_ROOM },
+      copy: {
+        stepLabel: "STEP 3 OF 9",
+        title: "Play Interrogation Room",
+        body:
+          "Any card can pay, not only resource cards. For Justice! prints one [[resource|resource]], so discarding " +
+          "it pays for the room, but you give up what For Justice! does. Choosing what to spend is the real " +
+          "decision in this game.",
+        tip: "Use your hand each turn: you draw back up at the end of it.",
+        doThis: "Tap Interrogation Room to play it",
+        doThisTabbed: "Tap Interrogation Room, then Play",
+        payWith: [{ kind: "handCard", code: FOR_JUSTICE, doThis: "Tap For Justice!, then Pay" }],
+      },
+      mode: "await",
+      completes: cardPlayed(INTERROGATION_ROOM),
     },
   ],
 };
@@ -119,7 +152,7 @@ const HERO_AND_ALTER_EGO: Lesson = {
       id: "flip",
       anchor: { kind: "action", id: "flip" },
       copy: {
-        stepLabel: "STEP 2 OF 7",
+        stepLabel: "STEP 4 OF 9",
         title: "You're Peter Parker",
         body:
           "Scientist is an [[heroAlterEgoForm|alter-ego]] ability, so it only works while you're Peter. In " +
@@ -138,7 +171,7 @@ const HERO_AND_ALTER_EGO: Lesson = {
       id: "attack-with-black-cat",
       anchor: { kind: "action", id: "attack" },
       copy: {
-        stepLabel: "STEP 3 OF 7",
+        stepLabel: "STEP 5 OF 9",
         title: "Attack Rhino",
         body:
           "As Spider-Man you can [[attack|attack]], and so can Black Cat. Each attack deals damage equal to that " +
@@ -151,13 +184,14 @@ const HERO_AND_ALTER_EGO: Lesson = {
         pickSource: { code: BLACK_CAT, doThis: "Pick Black Cat to attack first" },
       },
       mode: "await",
-      completes: villainDamagedBy(BLACK_CAT),
+      // A skipped lesson 2 leaves her in hand: there's no Black Cat to wait for (#554).
+      completes: (observation) => villainDamagedBy(BLACK_CAT)(observation) || !cardInPlay(BLACK_CAT)(observation),
     },
     {
       id: "attack-with-spidey",
       anchor: { kind: "action", id: "attack" },
       copy: {
-        stepLabel: "STEP 4 OF 7",
+        stepLabel: "STEP 6 OF 9",
         title: "Now Spider-Man",
         body:
           "Black Cat is exhausted, so Spider-Man is the only one left and Attack goes straight to him. " +
@@ -182,7 +216,7 @@ const VILLAIN_PHASE: Lesson = {
       overWalkthrough: true,
       anchor: { kind: "zone", id: "villain" },
       copy: {
-        stepLabel: "STEP 5 OF 7",
+        stepLabel: "STEP 7 OF 9",
         title: "Now it's his turn",
         body:
           "The [[villainPhase|villain phase]] always goes the same three steps, in order — you'll see them at the " +
@@ -200,7 +234,7 @@ const VILLAIN_PHASE: Lesson = {
       overWalkthrough: true,
       anchor: { kind: "choice", id: "defend" },
       copy: {
-        stepLabel: "STEP 6 OF 7",
+        stepLabel: "STEP 8 OF 9",
         title: "Who takes the hit?",
         body:
           "[[defend|Defend]] with Black Cat and she takes the damage instead of you, [[exhaustCost|exhausting]] " +
@@ -229,7 +263,7 @@ const THREAT_AND_THWARTING: Lesson = {
       id: "spotlight-scheme",
       anchor: { kind: "zone", id: "mainScheme" },
       copy: {
-        stepLabel: "STEP 7 OF 7",
+        stepLabel: "STEP 9 OF 9",
         title: "The main scheme has {threat} threat",
         body:
           "[[threat|Threat]] goes on [[mainScheme|the main scheme]] every villain phase. Reach its target and the " +

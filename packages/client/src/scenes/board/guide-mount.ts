@@ -126,14 +126,14 @@ function villainPhaseExtraRowsOf(
   return { heading: "This villain phase", rows };
 }
 
-/** `tutorial-lessons.ts`'s own lesson-2 payment step id — the only step whose rail shows the resource legend. */
-const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
+/** `tutorial-lessons.ts`'s own lesson-2 payment steps — the only steps whose rail shows the resource legend. */
+const PAYMENT_STEP_IDS: ReadonlySet<string> = new Set(["play-aunt-may", "play-black-cat", "play-interrogation-room"]);
 
 /** Lesson 2's own rail extra rows (owner's tutorial reorder, `docs/guided-mode.md` §4): the T02 tile's resource
  * legend, one row per resource type. Every row shares the same swatch — types are told apart by the letter
  * already in each row's label (`scenes/inspect.ts#resourcePipGlyph`'s own "never color-only" rule), not by a
  * distinct swatch color per type, so this stays consistent with how a resource pip reads everywhere else in the
- * client. Only the payment step shows it (`PLAY_BLACK_CAT_STEP_ID`); the callout surfaces (phone, tablet
+ * client. Only the payment steps show it (`PAYMENT_STEP_IDS`); the callout surfaces (phone, tablet
  * portrait) get the step's own one-line `tip` instead — `McGuideCallout` has no `extra` rows at all. */
 const RESOURCE_LEGEND_ROWS: readonly GuidePanelExtraRow[] = [
   // One line each: a status row has no room for a second line, and the step's own tip already says any type pays.
@@ -146,7 +146,7 @@ const RESOURCE_LEGEND_ROWS: readonly GuidePanelExtraRow[] = [
 function resourceLegendExtraRowsOf(
   stepId: string,
 ): { readonly heading: string; readonly rows: readonly GuidePanelExtraRow[] } | null {
-  return stepId === PLAY_BLACK_CAT_STEP_ID ? { heading: "Resource types", rows: RESOURCE_LEGEND_ROWS } : null;
+  return PAYMENT_STEP_IDS.has(stepId) ? { heading: "Resource types", rows: RESOURCE_LEGEND_ROWS } : null;
 }
 
 /**
@@ -217,7 +217,7 @@ export class BoardGuideMount {
   /** The step whose off-screen hand card the hand has already been scrolled to (once per step, like the tab switch). */
   #handRevealStepId: string | null | undefined = undefined;
   /** The step id `#syncPayingOverride` last set (or cleared) an override for — see that method's own doc comment
-   * for why this is tracked rather than re-derived from `PLAY_BLACK_CAT_STEP_ID` (guided mode G10d fix, any
+   * for why this is tracked rather than re-derived from `PAYMENT_STEP_IDS` (guided mode G10d fix, any
    * card-play step with a `payWith` can drive this, not only the tutorial's own lesson 3). */
   #payingOverrideStepId: string | null = null;
   /** The step id `#syncSourceOverride` last set an override for, so it only clears its own. */

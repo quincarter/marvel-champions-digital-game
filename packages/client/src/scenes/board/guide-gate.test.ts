@@ -46,7 +46,7 @@ describe("GuideGateHolder — set", () => {
   });
 });
 
-describe("GuideGateHolder — two inert clicks lift the gate (owner: 'no one should feel locked in')", () => {
+describe("GuideGateHolder — two inert clicks nudge, and the gate stays up (#554)", () => {
   it("stays gated after one inert click", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
@@ -56,40 +56,30 @@ describe("GuideGateHolder — two inert clicks lift the gate (owner: 'no one sho
     expect(onGateEscaped).not.toHaveBeenCalled();
   });
 
-  it("lifts the gate and fires onGateEscaped on the second inert click", () => {
+  it("fires onGateEscaped on the second inert click, and keeps blocking", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
     holder.set(gate({ onGateEscaped }));
     holder.noteInertClick();
     holder.noteInertClick();
-    expect(holder.current).toBeNull();
     expect(onGateEscaped).toHaveBeenCalledOnce();
+    expect(holder.current).not.toBeNull();
+    expect(holder.allowsAction("attack")).toBe(false);
+    expect(holder.allowsCard(toInstanceId("i5"))).toBe(false);
   });
 
-  it("never swallows a third click — it's checked against 'no gate at all'", () => {
+  it("nudges again on every second inert click after that", () => {
     const holder = new GuideGateHolder();
-    holder.set(gate());
-    holder.noteInertClick();
-    holder.noteInertClick();
-    // The gate is gone now; a click on something it used to block works.
-    expect(holder.allowsAction("attack")).toBe(true);
-    expect(holder.allowsCard(toInstanceId("i9"))).toBe(true);
-  });
-
-  it("does not fire onGateReleased — that's Escape's own event, not the two-strikes fallback", () => {
-    const holder = new GuideGateHolder();
-    const onGateReleased = vi.fn();
     const onGateEscaped = vi.fn();
-    holder.set(gate({ onGateReleased, onGateEscaped }));
-    holder.noteInertClick();
-    holder.noteInertClick();
-    expect(onGateEscaped).toHaveBeenCalledOnce();
-    expect(onGateReleased).not.toHaveBeenCalled();
+    holder.set(gate({ onGateEscaped }));
+    for (let i = 0; i < 4; i++) holder.noteInertClick();
+    expect(onGateEscaped).toHaveBeenCalledTimes(2);
   });
 
   it("is a no-op with no gate open", () => {
     const holder = new GuideGateHolder();
-    expect(() => holder.noteInertClick()).not.toThrow();
+    holder.noteInertClick();
+    holder.noteInertClick();
     expect(holder.current).toBeNull();
   });
 });

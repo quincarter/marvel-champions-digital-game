@@ -112,7 +112,7 @@ test.describe("with motion", () => {
 test.describe("a next target on top of the last one", () => {
   test.use({ reducedMotion: "no-preference" });
 
-  test("Black Cat in the hand to Peter's Scientist tile fades out, holds the table lit, and fades in", async ({
+  test("Aunt May in the hand to Peter's Scientist tile fades out, holds the table lit, and fades in", async ({
     page,
   }) => {
     test.setTimeout(180_000);
@@ -120,8 +120,8 @@ test.describe("a next target on top of the last one", () => {
     await installPageHelpers(page);
     await page.goto("/");
     await startTutorialFromTitle(page);
-    await waitFor(stepIs(page, "play-black-cat"), "the Paying for cards lesson", 20000);
-    await waitFor(() => highlight(page), "the ring is on Black Cat", 20000);
+    await waitFor(stepIs(page, "play-aunt-may"), "the Paying for cards lesson", 20000);
+    await waitFor(() => highlight(page), "the ring is on Aunt May", 20000);
     await settle(page);
     await page.evaluate(() => {
       const w = window as unknown as {
@@ -138,7 +138,7 @@ test.describe("a next target on top of the last one", () => {
       };
       requestAnimationFrame(sample);
     });
-    await clickHandCard(page, "01002");
+    await clickHandCard(page, "01006");
     await page.waitForTimeout(1500);
     const alphas = await page.evaluate(() => {
       const w = window as unknown as { __alphas: number[]; __alphaOn: boolean };

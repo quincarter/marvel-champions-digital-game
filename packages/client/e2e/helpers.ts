@@ -505,7 +505,10 @@ export function trackPageErrors(page: Page): string[] {
   return errors;
 }
 
+export const AUNT_MAY_CODE = "01006";
 export const BLACK_CAT_CODE = "01002";
+export const ENERGY_CODE = "01088";
+export const FOR_JUSTICE_CODE = "01060";
 export const INTERROGATION_ROOM_CODE = "01063";
 
 export async function handInstanceFor(page: Page, code: string): Promise<string | null> {

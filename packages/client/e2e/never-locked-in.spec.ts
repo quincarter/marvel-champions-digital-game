@@ -14,12 +14,40 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
+import { hook } from "./wave6-helpers-b.js";
 
 /**
  * §3.10 "never locked in" (`docs/guided-mode.md`): every guide surface always offers "Skip this step" and Escape,
  * and Pause always offers "Stop tutorial" whenever a guided run is active — regressions here would trap a player
  * inside the tutorial with no way out, so this gets its own spec rather than folding into the happy-path run.
  */
+test("clicks outside the guide never land, however many there are, and the guide points at Skip (#554)", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await installPageHelpers(page);
+  await page.goto("/");
+  await startTutorialFromTitle(page);
+  await waitFor(async () => (await guideStepId(page)) === "play-aunt-may" || null, "lesson2 play-aunt-may step");
+  await settle(page);
+
+  for (let press = 0; press < 4; press++) await clickFocus(page, "basic:changeForm");
+  await settle(page);
+
+  const form = await page.evaluate(async () => {
+    const mod = await import("/src/session.ts");
+    const state = (mod as unknown as { appSession: () => { store: { state: unknown } } }).appSession().store.state as {
+      game?: { players: { identity: { form: string } }[] };
+    };
+    return state.game!.players[0]!.identity.form;
+  });
+  expect(form, "Flip never landed").toBe("alterEgo");
+  expect(await guideStepId(page), "the guide stays on its step").toBe("play-aunt-may");
+  expect(await hook<string>(page, "__mcBoardDebug", "guideNudge"), "the guide points at Skip").toContain("Skip");
+  expect(errors).toEqual([]);
+});
+
 test("Skip this step, Escape and Stop tutorial all release the player, and the game stays playable", async ({
   page,
 }) => {
@@ -31,7 +59,7 @@ test("Skip this step, Escape and Stop tutorial all release the player, and the g
   await startTutorialFromTitle(page);
 
   // "Skip this step" advances past the current lesson step without completing it.
-  await waitFor(async () => (await guideStepId(page)) === "play-black-cat" || null, "lesson2 play-black-cat step");
+  await waitFor(async () => (await guideStepId(page)) === "play-aunt-may" || null, "lesson2 play-aunt-may step");
   const beforeSkip = await guideStepId(page);
   await pressUntil(
     page,
