@@ -126,7 +126,7 @@ export class McStepSlider {
     const { track } = this;
     const midY = this.#midY;
     const ground = this.#options.ground;
-    const base = ground === "ink" ? surface.paper.hex : surface.ink.hex;
+    const base = ground === "ink" ? surface.paperOnInk.hex : surface.inkMark.hex;
     const bar = this.#bar;
     bar.clear();
     bar.fillStyle(base, 0.22).fillRect(track.x, midY - 3, track.width, 6);

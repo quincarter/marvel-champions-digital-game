@@ -41,6 +41,17 @@ describe("schemeColor", () => {
     }
   });
 
+  test("a bar's marks stay readable on their ground in dark mode", () => {
+    const lum = (hex: number): number => ((hex >> 16) & 0xff) + ((hex >> 8) & 0xff) + (hex & 0xff);
+    expect(schemeColor(surface.paperOnInk.hex, "fill", "dark")).toBe(surface.paperOnInk.hex);
+    const mark = schemeColor(surface.inkMark.hex, "fill", "dark");
+    expect(lum(mark)).toBeGreaterThan(lum(schemeColor(surface.card.hex, "fill", "dark")) * 2);
+    expect(schemeColor(mark, "fill", "light", "dark")).toBe(surface.inkMark.hex);
+    expect(isSchemeColor(surface.inkMark.hex, "fill")).toBe(true);
+    expect(isSchemeColor(mark, "fill")).toBe(true);
+    expect(isSchemeColor(surface.paperOnInk.hex, "fill")).toBe(false);
+  });
+
   test("dark goes back to light exactly", () => {
     for (const channel of ["fill", "line", "text"] as const) {
       for (const token of [surface.paper, surface.parchment, surface.card, surface.ink]) {
