@@ -118,7 +118,12 @@ export class GameOverScene extends Phaser.Scene {
       const before = extras();
       const heroIds = seated;
       const after = new Extras(
-        withEndedGame(before.progress, { scenarioId: config.scenarioId, result: game.outcome.result, heroIds }),
+        withEndedGame(before.progress, {
+          scenarioId: config.scenarioId,
+          result: game.outcome.result,
+          heroIds,
+          deckCardIds: [...new Set(Object.values(game.instances).map((instance) => instance.cardId as string))],
+        }),
         { everything: before.everything },
       );
       this.#extrasNews = extrasNewsBetween(before, after);

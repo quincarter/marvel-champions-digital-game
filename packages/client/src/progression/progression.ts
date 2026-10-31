@@ -10,7 +10,8 @@
  * `localStorage` is missing or throws (Vitest, a locked-down webview), they fall back to the defaults for the
  * session.
  */
-import { setShownStandIns } from "../art/art-source.js";
+import { setShownPromos, setShownStandIns } from "../art/art-source.js";
+import { PROMO_SETS, promoArtByScan, type PromoSet } from "../art/promo-art.js";
 import { guidePrefs } from "../guide/guide-store.js";
 import { howToPlayProgressOf } from "../view/how-to-play-model.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
@@ -177,12 +178,23 @@ export function dropUnlockCaches(): void {
 
 /** The earned items this player has (`earned-items.ts`): their achievements, from the same reads as `unlocks()`. */
 export function earnedItems(): ReadonlySet<EarnedItemId> {
-  return earnedItemIdsOf((id) => isAchievementEarned(id, history), unlocks().everything);
+  return earnedItemIdsOf(
+    (id) => isAchievementEarned(id, history),
+    unlocks().everything,
+    PROMO_SETS.some((set) => extras().isOpen(set.earn)),
+  );
+}
+
+/** The promo sets to draw: earned, picked, and promo card art switched on. */
+function shownPromoSets(): readonly PromoSet[] {
+  const { promoArt, promoArtOn } = appSession().settings;
+  return promoArtOn ? PROMO_SETS.filter((set) => promoArt.includes(set.id) && extras().isOpen(set.earn)) : [];
 }
 
 /** Tells the art which earned pictures to draw: call after progress, unlock preferences or settings change. */
 export function applyEarnedItems(): void {
   setShownStandIns(shownStandInsOf(earnedItems(), appSession().settings));
+  setShownPromos(promoArtByScan(shownPromoSets()));
 }
 
 /** Saves new preferences and applies them at once. */

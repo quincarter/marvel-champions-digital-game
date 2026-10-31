@@ -20,6 +20,8 @@
  *   theme are always open.
  * - **Rulebooks:** always open. The Rules Reference, FFG's rulings since RRG 1.7 and every campaign box's rulebook,
  *   as plain text with links to the PDFs (`content/books.ts`). They are references, not rewards.
+ * - **Promo cards:** a hero's opens with wins as that hero, a villain's with wins against it, an event's with wins with
+ *   it in a deck (`art/promo-art.ts`). Open, one can be used in place of the normal card (`Settings.promoArt`).
  * - **Artwork:** the title wallpapers and the loose pictures in `art/extras/` are always open; the generic victory and defeat scenes open with a first win
  *   and a first loss, and a campaign box's cover with its first run.
  *
@@ -37,6 +39,7 @@ import { EXTRAS_ART, extrasArtTitle } from "../art/extras-art.js";
 import { SIDE_STORY_ART } from "../art/side-stories-art.js";
 import { TITLE_ART } from "../art/title-art.js";
 import type { Picture } from "../art/pictures.js";
+import { PROMO_SETS, promoFaceArt, type PromoEarn } from "../art/promo-art.js";
 import { MUSIC_CATALOG, type MusicCatalog, type Track } from "../audio/music-catalog.js";
 import { SAGA_VOLUMES, storyFor } from "../campaign/story.js";
 import { CARDS_BY_ID, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
@@ -62,7 +65,13 @@ export interface ExtrasProgress {
   readonly wonCampaignIds: readonly string[];
   /** Ids of the achievements earned (`achievements.ts`), for an extra gated on one. */
   readonly earnedAchievementIds: readonly string[];
+  /** Games won, by each hero seated in them, by scenario, and by each card in a seat's deck: what a promo card counts. */
+  readonly heroWins: WinCounts;
+  readonly scenarioWins: WinCounts;
+  readonly cardWins: WinCounts;
 }
+
+export type WinCounts = Readonly<Record<string, number>>;
 
 export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
   playedHeroIds: [],
@@ -73,6 +82,9 @@ export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
   startedCampaignIds: [],
   wonCampaignIds: [],
   earnedAchievementIds: [],
+  heroWins: {},
+  scenarioWins: {},
+  cardWins: {},
 };
 
 /**
@@ -82,6 +94,13 @@ export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
 const ENDED = new Set(["won", "lost", "abandoned"]);
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)].sort();
+
+/** How many of `games` name each id, each game counted once for an id; sorted, so two tallies compare equal as JSON. */
+function tally(games: readonly (readonly string[])[]): WinCounts {
+  const counts = new Map<string, number>();
+  for (const ids of games) for (const id of new Set(ids)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return Object.fromEntries([...counts].sort(([a], [b]) => (a < b ? -1 : 1)));
+}
 
 const issueKey = (campaignId: string, nodeId: string): string => `${campaignId}/${nodeId}`;
 
@@ -101,6 +120,7 @@ export function extrasProgressOf(
     readonly status: string;
     readonly guided?: { readonly kind: string };
     readonly config: { readonly scenarioId: string; readonly players: readonly object[] };
+    readonly summary?: { readonly seats?: readonly { readonly deck: readonly string[] }[] } | null;
   }[],
   campaigns: readonly {
     readonly status: string;
@@ -110,6 +130,7 @@ export function extrasProgressOf(
   earnedAchievementIds: readonly string[] = [],
 ): ExtrasProgress {
   const ended = saves.filter((save) => ENDED.has(save.status) && !isLessonSave(save));
+  const won = ended.filter((save) => save.status === "won");
   return {
     playedHeroIds: unique(
       ended.flatMap((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
@@ -126,6 +147,11 @@ export function extrasProgressOf(
     startedCampaignIds: unique(campaigns.map((run) => run.campaignId)),
     wonCampaignIds: unique(campaigns.filter((run) => run.status === "won").map((run) => run.campaignId)),
     earnedAchievementIds: unique(earnedAchievementIds),
+    heroWins: tally(
+      won.map((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
+    ),
+    scenarioWins: tally(won.map((save) => [save.config.scenarioId])),
+    cardWins: tally(won.map((save) => (save.summary?.seats ?? []).flatMap((seat) => seat.deck))),
   };
 }
 
@@ -139,10 +165,17 @@ export function withEndedGame(
     readonly scenarioId: string;
     readonly result: "win" | "loss" | "conceded";
     readonly heroIds: readonly string[];
+    /** Every card the seats brought, for a promo card that counts wins with it. */
+    readonly deckCardIds?: readonly string[];
   },
 ): ExtrasProgress {
+  const plusWin = (counts: WinCounts, ids: readonly string[]): WinCounts =>
+    game.result === "win" ? { ...counts, ...Object.fromEntries(ids.map((id) => [id, (counts[id] ?? 0) + 1])) } : counts;
   return {
     ...progress,
+    heroWins: plusWin(progress.heroWins, game.heroIds),
+    scenarioWins: plusWin(progress.scenarioWins, [game.scenarioId]),
+    cardWins: plusWin(progress.cardWins, game.deckCardIds ?? []),
     playedHeroIds: unique([...progress.playedHeroIds, ...game.heroIds]),
     playedScenarioIds: unique([...progress.playedScenarioIds, game.scenarioId]),
     wonScenarioIds:
@@ -183,19 +216,21 @@ export type ExtrasUnlock =
   /** An achievement in the Trophy Room (`achievements.ts`), by id. */
   | { readonly kind: "achievement"; readonly achievementId: string }
   /** One track filed in several slots (the same song as a campaign finale and a pack's victory theme). */
-  | { readonly kind: "any"; readonly of: readonly ExtrasUnlock[] };
+  | { readonly kind: "any"; readonly of: readonly ExtrasUnlock[] }
+  | PromoEarn;
 
-export type ExtrasTab = "stories" | "side" | "books" | "heroes" | "villains" | "art" | "music";
+export type ExtrasTab = "stories" | "side" | "books" | "heroes" | "villains" | "art" | "promos" | "music";
 
-/** `short` is a phone's tab label, where seven tabs share 390px. */
+/** `short` is a phone's tab label, where eight tabs share 390px: four letters each. */
 export const EXTRAS_TABS: readonly { readonly id: ExtrasTab; readonly label: string; readonly short: string }[] = [
-  { id: "stories", label: "Stories", short: "Story" },
+  { id: "stories", label: "Stories", short: "Tale" },
   { id: "side", label: "Side Stories", short: "Side" },
-  { id: "books", label: "Rulebooks", short: "Rules" },
+  { id: "books", label: "Rulebooks", short: "Rule" },
   { id: "heroes", label: "Heroes", short: "Hero" },
   { id: "villains", label: "Villains", short: "Foes" },
   { id: "art", label: "Artwork", short: "Art" },
-  { id: "music", label: "Music", short: "Music" },
+  { id: "promos", label: "Promos", short: "Card" },
+  { id: "music", label: "Music", short: "Song" },
 ];
 
 /** One picture of a gallery, opened on its own: a villain's defeat scene opens on a win, not on the first game. */
@@ -209,7 +244,13 @@ export type ExtrasContent =
   /** A campaign issue, read through the campaign opener. */
   | { readonly kind: "issue"; readonly campaignId: string; readonly nodeId: string }
   /** Pictures and a few lines of text (a hero's or villain's file, a piece of artwork). */
-  | { readonly kind: "gallery"; readonly slides: readonly ExtrasSlide[]; readonly lines: readonly string[] }
+  | {
+      readonly kind: "gallery";
+      readonly slides: readonly ExtrasSlide[];
+      readonly lines: readonly string[];
+      /** A promo card's file: its viewer offers to use it (`PromoSet.id`). */
+      readonly promoSetId?: string;
+    }
   | { readonly kind: "track"; readonly track: Track }
   /** A rulebook, read in the Extras reader (`content/books.ts`). */
   | { readonly kind: "book"; readonly bookId: string }
@@ -245,9 +286,20 @@ function scenarioNamedHint(scenarioId: string): string | null {
   return scenario.villainOptions || (scenario.packCode as string) === "shadowland" ? scenario.name : null;
 }
 
-/** How to open something, in the same "Beat Rhino" voice as the unlock path's own hints. */
-export function unlockHint(unlock: ExtrasUnlock): string {
+/** How to open something, in the same "Beat Rhino" voice as the unlock path's own hints. `wins` is how far along it is. */
+export function unlockHint(unlock: ExtrasUnlock, wins: number | null = null): string {
+  const soFar = wins === null || !("wins" in unlock) ? "" : ` (${wins}/${unlock.wins})`;
   switch (unlock.kind) {
+    case "heroWins":
+      return `Win ${unlock.wins} games as ${cardName(unlock.identityCardId)}${soFar}`;
+    case "scenarioWins": {
+      const names = unlock.scenarioIds.map((id) => scenarioNamedHint(id));
+      return names.every((name) => name !== null)
+        ? `Win ${names.join(" or ")} ${unlock.wins} times${soFar}`
+        : `Beat ${villainLabelOf(unlock.scenarioIds[0]!)} ${unlock.wins} times${soFar}`;
+    }
+    case "cardWins":
+      return `Win ${unlock.wins} games with ${cardName(unlock.cardIds[0]!)} in a deck${soFar}`;
     case "always":
       return "Open from the start";
     case "heroPlayed":
@@ -352,7 +404,23 @@ export class Extras {
         return s.achievements.has(unlock.achievementId);
       case "any":
         return unlock.of.some((one) => this.isOpen(one));
+      case "heroWins":
+      case "scenarioWins":
+      case "cardWins":
+        return this.winsToward(unlock)! >= unlock.wins;
     }
+  }
+
+  /** The wins so far toward a promo card; null for anything else. */
+  winsToward(unlock: ExtrasUnlock): number | null {
+    const { heroWins, scenarioWins, cardWins } = this.progress;
+    const total = (counts: WinCounts, ids: readonly string[]): number =>
+      ids.reduce((sum, id) => sum + (counts[id] ?? 0), 0);
+    if (unlock.kind === "heroWins") return heroWins[unlock.identityCardId] ?? 0;
+    if (unlock.kind === "scenarioWins") return total(scenarioWins, unlock.scenarioIds);
+    // The most any one printing has: a deck holding both reprints of a card is still one game.
+    if (unlock.kind === "cardWins") return Math.max(...unlock.cardIds.map((id) => cardWins[id] ?? 0));
+    return null;
   }
 
   /** A gallery's slides the player has opened, in order. */
@@ -848,6 +916,32 @@ export function shadowlandArtEntriesOf(): ExtrasEntry[] {
  * The rulebooks, always open. A campaign rulebook wears its box's cover, or its final villain until the box ships a
  * cover; the Rules Reference wears the Core Set box.
  */
+/** One tile per promo set; its file holds each face it was printed for. */
+export function promoEntriesOf(): ExtrasEntry[] {
+  return PROMO_SETS.map((set) => {
+    const pictures = set.faces.map((face) => {
+      const art = promoFaceArt(set, face);
+      return { picture: { key: art.key, url: art.url }, caption: face.caption, unlock: set.earn };
+    });
+    return {
+      id: `promo:${set.id}`,
+      tab: "promos",
+      title: set.title,
+      subtitle: set.subtitle,
+      thumb: pictures[0]!.picture,
+      unlock: set.earn,
+      content: {
+        kind: "gallery",
+        slides: pictures,
+        lines: [
+          "Used in place of the normal card wherever it is drawn. Only the picture changes: the rules stay the same.",
+        ],
+        promoSetId: set.id,
+      },
+    };
+  });
+}
+
 export function bookEntriesOf(): ExtrasEntry[] {
   const coreBox = TITLE_ART.find((picture) => picture.key.includes("box-core-set")) ?? null;
   return BOOKS.map((book): ExtrasEntry => {
@@ -881,5 +975,6 @@ export const EXTRAS_ENTRIES: Readonly<Record<ExtrasTab, readonly ExtrasEntry[]>>
   heroes: heroEntriesOf(),
   villains: villainEntriesOf(),
   art: artEntriesOf(),
+  promos: promoEntriesOf(),
   music: musicEntriesOf(),
 };

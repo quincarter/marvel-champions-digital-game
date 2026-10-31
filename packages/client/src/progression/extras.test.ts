@@ -260,3 +260,50 @@ describe("the achievement unlock", () => {
     expect(extrasProgressOf([], []).earnedAchievementIds).toEqual([]);
   });
 });
+
+describe("promo cards (#192)", () => {
+  const won = (scenarioId: string, identityCardId: string, deck: readonly string[] = []) => ({
+    status: "won",
+    config: { scenarioId, players: [{ identityCardId }] },
+    summary: { seats: [{ deck }] },
+  });
+  const heroPromo = { kind: "heroWins", identityCardId: spiderMan, wins: 3 } as const;
+
+  it("counts wins by hero, scenario and deck card, once a game, and never a loss", () => {
+    const lost = { ...won("rhino", spiderMan, ["05015"]), status: "lost" };
+    const progress = extrasProgressOf([won("rhino", spiderMan, ["05015", "05015"]), won("rhino", spiderMan), lost], []);
+    expect(progress.heroWins).toEqual({ [spiderMan]: 2 });
+    expect(progress.scenarioWins).toEqual({ rhino: 2 });
+    expect(progress.cardWins).toEqual({ "05015": 1 });
+  });
+
+  it("opens at the number of wins it asks for, and says how far along it is", () => {
+    const at = (wins: number) => open({ heroWins: { [spiderMan]: wins } });
+    expect(at(2).isOpen(heroPromo)).toBe(false);
+    expect(at(3).isOpen(heroPromo)).toBe(true);
+    expect(at(2).winsToward(heroPromo)).toBe(2);
+    expect(unlockHint(heroPromo, 2)).toBe("Win 3 games as Spider-Man (2/3)");
+  });
+
+  it("adds a villain's scenarios together, and takes the best of an event's reprints", () => {
+    const marauders = { kind: "scenarioWins", scenarioIds: ["morlock-siege", "on-the-run"], wins: 3 } as const;
+    expect(open({ scenarioWins: { "morlock-siege": 2, "on-the-run": 1 } }).isOpen(marauders)).toBe(true);
+    const tackle = { kind: "cardWins", cardIds: ["05015", "56049"], wins: 3 } as const;
+    expect(open({ cardWins: { "05015": 2, "56049": 2 } }).isOpen(tackle)).toBe(false);
+    expect(unlockHint(tackle)).toBe("Win 3 games with Tackle in a deck");
+  });
+
+  it("a win at Game over counts before storage has caught up; a loss does not", () => {
+    const game = { scenarioId: "rhino", heroIds: [spiderMan], deckCardIds: ["05015"] };
+    const after = withEndedGame({ ...NO_EXTRAS_PROGRESS, heroWins: { [spiderMan]: 2 } }, { ...game, result: "win" });
+    expect(after).toMatchObject({ heroWins: { [spiderMan]: 3 }, scenarioWins: { rhino: 1 }, cardWins: { "05015": 1 } });
+    expect(withEndedGame(NO_EXTRAS_PROGRESS, { ...game, result: "loss" }).heroWins).toEqual({});
+  });
+
+  it("files every set on the Promo Cards shelf, locked until earned, open under Unlock everything", () => {
+    const entries = EXTRAS_ENTRIES.promos;
+    expect(entries.length).toBeGreaterThan(40);
+    expect(new Extras(NO_EXTRAS_PROGRESS).countOf(entries).open).toBe(0);
+    expect(new Extras(NO_EXTRAS_PROGRESS, { everything: true }).countOf(entries).open).toBe(entries.length);
+  });
+});

@@ -62,6 +62,7 @@ const BOOLEAN_FIELDS = [
   "hoverHeroCard",
   "hoverVillainCard",
   "ultronDroneArt",
+  "promoArtOn",
   "powerSavingAdjust",
   "nintendoLayout",
   "inputGlyphs",
@@ -83,6 +84,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
     const value = source[field];
     if (typeof value === "boolean") out[field] = value;
   }
+  const promoArt = source["promoArt"];
+  if (Array.isArray(promoArt)) out.promoArt = promoArt.filter((id): id is string => typeof id === "string");
   const autoAdvance = source["villainAutoAdvance"];
   const autoAdvanceValue = VILLAIN_AUTO_ADVANCE_VALUES.find((value) => value === autoAdvance);
   if (autoAdvanceValue !== undefined) out.villainAutoAdvance = autoAdvanceValue;

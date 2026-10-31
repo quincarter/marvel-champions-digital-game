@@ -282,6 +282,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, discordPresence: !settings.discordPresence };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
+    case "promo-art":
+      return { ...settings, promoArtOn: !settings.promoArtOn };
   }
 }
 

@@ -144,6 +144,10 @@ export interface Settings {
    * `progression/earned-items.ts`; issue #291). Defaults on: earning it is what turns it on.
    */
   readonly ultronDroneArt: boolean;
+  /** The promo cards the player picked in Extras ▸ Promos (`art/promo-art.ts`; issue #192), by set id. */
+  readonly promoArt: readonly string[];
+  /** Whether picked promo cards are drawn at all (Settings ▸ More ▸ Earned items). Defaults on. */
+  readonly promoArtOn: boolean;
   /**
    * How the first player token travels to a new first player, on the Set the table screen and around the table
    * (`view/first-player-token-motion.ts`). Defaults to a toss (the owner, 2026-10-16). Reduced motion places it instead.
@@ -454,6 +458,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     hoverHeroCard: true,
     hoverVillainCard: true,
     ultronDroneArt: true,
+    promoArt: [],
+    promoArtOn: true,
     firstPlayerTokenMotion: "toss",
     displayMode: "windowed",
     resolution: "native",

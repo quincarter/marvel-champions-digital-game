@@ -1,6 +1,6 @@
 /**
- * Extras: the comics, rulebooks, artwork, hero and villain files and the soundtrack, reached from Title. Seven tabs
- * (Stories, Side Stories, Rulebooks, Heroes, Villains, Artwork, Music), each a shelf of tiles; a locked tile shows its picture pixelated and says what
+ * Extras: the comics, rulebooks, artwork, promo cards, hero and villain files and the soundtrack, reached from Title.
+ * Eight tabs (Stories, Side Stories, Rulebooks, Heroes, Villains, Artwork, Promo Cards, Music), each a shelf of tiles; a locked tile shows its picture pixelated and says what
  * opens it, an open one reads, views or plays.
  *
  * What is open is `progression/extras.ts`'s (read through `extras()`, refreshed from storage when the screen opens);
@@ -10,7 +10,8 @@
  *   back here to the same tab.
  * - **Rulebooks** open the reader (`scenes/extras-reader.ts`): the book as plain text, with links to its PDFs.
  * - **Side Stories** open the side-story reader (`scenes/side-story-reader.ts`): the comic beat by beat.
- * - **Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
+ * - **Heroes, Villains, Artwork, Promo Cards** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
+ *   A promo card's viewer is where it is picked for use, and it tells this scene to redraw (`PROMO_CHANGED`).
  * - **Music** plays the song through the music controller's jukebox, until Title (or any other screen) asks for its
  *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
  */
@@ -43,6 +44,9 @@ import { extras, refreshUnlocks } from "../progression/progression.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { PROMO_SETS, promoFaceArt } from "../art/promo-art.js";
 import type { CampaignOpenerData } from "./campaign/routes.js";
 import type { ExtrasViewerData } from "./extras-viewer.js";
 import type { ExtrasReaderData } from "./extras-reader.js";
@@ -54,6 +58,9 @@ export interface ExtrasSceneData {
 }
 
 const TAB_HEIGHT = 44;
+
+/** Emitted on this scene by the viewer when a promo card is picked or dropped. */
+export const PROMO_CHANGED = "promo-changed";
 
 export class ExtrasScene extends Phaser.Scene {
   #tab: ExtrasTab = "stories";
@@ -71,6 +78,9 @@ export class ExtrasScene extends Phaser.Scene {
   /** The Music tab's expanded player (#191), whose progress bar moves every frame. */
   #player: NowPlayingPanel | null = null;
   #unsubscribe: (() => void) | null = null;
+  #hover: HoverPreview | null = null;
+  /** The Promo Cards tab's open tiles as drawn, for the hover popover. */
+  #promoTiles: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
 
   constructor() {
     super(SCENES.extras);
@@ -98,8 +108,16 @@ export class ExtrasScene extends Phaser.Scene {
     });
     // A new song (the shuffle moving on, or Next) redraws the Music tab's player and its playing row.
     this.#unsubscribe = appSession().music?.onTrackStart(() => this.#requestRedraw()) ?? null;
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#promoTiles?.() ?? new Map(),
+      area: (pointer) => (this.scene.isActive(SCENES.extrasViewer) ? null : screenHoverArea(this, pointer)),
+    });
+    this.events.on(PROMO_CHANGED, this.#requestRedraw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#hover?.destroy();
+      this.#hover = null;
+      this.events.off(PROMO_CHANGED, this.#requestRedraw, this);
       this.scale.off("resize", this.#draw, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
@@ -312,7 +330,7 @@ export class ExtrasScene extends Phaser.Scene {
     // The scrollbar sits in the list's own right edge; keep tiles clear of it.
     const gridWidth = listRect.width - 12;
     const grid = extrasGridOf(gridWidth, this.#tab, phone);
-    const tiles = extrasTilesOf(current, this.#tab);
+    const tiles = extrasTilesOf(current, this.#tab, appSession().settings.promoArt);
     const rows = extrasRowCount(tiles.length, grid);
     const playing = appSession().music?.nowPlaying()?.key ?? null;
 
@@ -330,6 +348,26 @@ export class ExtrasScene extends Phaser.Scene {
       },
     });
     this.#list = list;
+    this.#promoTiles =
+      this.#tab === "promos"
+        ? () => {
+            const found = new Map<string, HoverCardIdRect>();
+            tiles.forEach((tile, index) => {
+              const set = PROMO_SETS.find((one) => `promo:${one.id}` === tile.id);
+              if (!tile.open || !set) return;
+              const rowRect = list.rectFor(Math.floor(index / grid.columns));
+              const shown = clipHoverRect(extrasTileRect(index, grid, rowRect), listRect);
+              if (!shown) return;
+              found.set(hoverSlotOf(set.cardId, `promo${index}`), {
+                ...shown,
+                cardId: set.cardId,
+                art: promoFaceArt(set, set.faces[0]!),
+                through: true,
+              });
+            });
+            return found;
+          }
+        : null;
 
     const order = [
       ...(bar.backRect ? ["back"] : []),
@@ -386,7 +424,7 @@ export class ExtrasScene extends Phaser.Scene {
     ground.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, art.y + art.height, rect.width, captionHeight);
     objects.push(ground);
 
-    const portrait = this.#tab === "heroes" || this.#tab === "villains";
+    const portrait = this.#tab === "heroes" || this.#tab === "villains" || this.#tab === "promos";
     const image = drawPicture(this, tile.thumb, art, () => this.#requestRedraw(), {
       focusY: portrait ? 0.2 : 0.4,
       // Locked: a gray ghost of the picture on the ink ground, so the shelf shows what there is to earn.
