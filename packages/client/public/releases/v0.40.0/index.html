@@ -594,7 +594,7 @@
         <div class="meta">
           <span class="v">v0.40.0</span> · release PR
           <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/510">#510</a><br />after v0.39.0
-          (Oct 28)<br />Android · Web · Windows · macOS · Linux<br />Oct 30, 2026
+          (Oct 28)<br />Android · Web · Windows · macOS · Linux<br />Oct 31, 2026
         </div>
       </header>
 
@@ -608,7 +608,8 @@
           favorite heroes, toughest villains and the cards you lean on, and your older games are counted too. Every
           villain, modular set and hero gets <b>a win rate and the reason you lost</b>, with everyone's numbers if you
           opt in. The deck builder learns marvelcdb's search, standard deck rules and draw odds, and suggests cards from
-          your winning decks. In a game you can list what's left in your deck, and part 6 closes out the rules audit.
+          your winning decks. In a game you can list what's left in your deck and read the log in a big view from the
+          title bar, the tutorial's highlight glides to each next step, and part 6 closes out the rules audit.
         </p>
       </section>
 
@@ -935,6 +936,106 @@
         </ul>
       </div>
 
+      <!-- ============ GAME LOG ============ -->
+      <div class="band">
+        <h2>A log you can read</h2>
+        <div class="lab">Issue #550 · PR #551</div>
+      </div>
+      <p class="lead">
+        The game log moved to <b>the title bar</b>. Its newest line runs there, and a click or tap opens
+        <b>a larger view</b>: docked beside the live table on desktop and tablet landscape, and between the title bar
+        and your hand on a phone. The lines are bigger and bolder, up from small grey text.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/log-open-desktop.webp"
+            alt="The game log open beside the table on desktop, with large bold lines"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Desktop · the log docks beside the table</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/log-open-phone.webp"
+            alt="The game log open on a phone between the title bar and the hand"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Same keys, more room</h3>
+          <ul class="ck">
+            <li><b>Shift+B</b> (Shift+N right-handed), holding <b>View</b> on a pad, and Escape or B to close.</li>
+            <li>The table's old log panel is gone, so the encounter deck and discard fill that column.</li>
+            <li>The recap's <b>Full log</b> opens the log in place instead of opening Pause.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>In the villain phase</h3>
+          <ul class="ck">
+            <li>
+              A <b>Log</b> button on the phase panel switches to the log, and "◂ Villain phase" switches back. The phase
+              waits while you read.
+            </li>
+            <li>A facedown card's name stays hidden in the log until it's flipped.</li>
+            <li>
+              <b>Pause on phones:</b> Reference folds onto one row with Music, Report and Controls, so the settings get
+              most of the sheet.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ TUTORIAL ============ -->
+      <div class="band gold">
+        <h2>A smoother tutorial</h2>
+        <div class="lab">Issues #552 · #554 · PR #553</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#552</div>
+          <h3>TRY THIS glides</h3>
+          <p>
+            The tutorial's highlight <b>glides from one target to the next</b> instead of jumping: the ring, the dimmed
+            cut-out and the stamp travel together, from an action button to the Attack with picker, a card, each payer
+            and Pay. When the next target sits on top of the last, like Black Cat becoming a Scientist payer in the same
+            slot, it fades out and back in so you see the card being paid for. Reduced motion goes straight there.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/guide-ring.webp"
+              alt="The tutorial ring gliding from Daredevil to each payer during a payment"
+              width="720"
+              height="405"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#554</div>
+          <h3>The lesson stays on track</h3>
+          <p>
+            Clicks outside the control the tutorial is teaching <b>stay inert</b> for as long as the step is up, so a
+            stray click can't leave the lesson behind. Skip this step, Stop tutorial and Escape are still the ways out.
+          </p>
+          <p>
+            Steps you only need to acknowledge hold the table until you answer them, and a step whose card never reached
+            the table moves on by itself.
+          </p>
+          <p>
+            <b>A fuller first turn:</b> the first lesson now plays Aunt May, Black Cat and Interrogation Room before the
+            villain phase.
+          </p>
+        </div>
+      </div>
+
       <!-- ============ INSPECT + PEEK ============ -->
       <div class="band">
         <h2>Read before you pick</h2>
@@ -1044,7 +1145,7 @@
       <!-- ============ PLAYER REPORTS ============ -->
       <div class="band gold">
         <h2>You asked, we fixed</h2>
-        <div class="lab">Issues #514 · #515 · #517 · #518 · #521 · #522 · #534 · #537 · PR #509</div>
+        <div class="lab">Issues #514 · #515 · #517 · #518 · #521 · #522 · #534 · #537 · #548 · PR #509</div>
       </div>
       <div class="cards">
         <div class="paper">
@@ -1144,6 +1245,31 @@
         </div>
       </div>
 
+      <div class="paper wide" style="margin-top: 26px">
+        <div>
+          <div class="eb">#548 · reported by @andy-xxvii27</div>
+          <h3>A Victory pile, and side schemes in the filter</h3>
+          <p>
+            Once a card reaches the victory display, <b>a VICTORY pile</b> joins the encounter column with its top card
+            and a count. Tap it to see every card there, hold to inspect the top one, and hover on desktop. Cards fly to
+            it as they arrive.
+          </p>
+          <p>
+            The deck builder and deck check get a <b>Side scheme</b> chip next to Resource, to find player side schemes
+            like Cable's.
+          </p>
+        </div>
+        <figure>
+          <img
+            src="img/pile-hover-desktop.webp"
+            alt="The Victory pile in the encounter column with its card hover open"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+        </figure>
+      </div>
+
       <!-- ============ SCANS ============ -->
       <div class="band">
         <h2>More of my own scans</h2>
@@ -1236,7 +1362,10 @@
           </div>
           <div class="person">
             <h3>@andy-xxvii27</h3>
-            <p>Asked for every side of a hero in Inspect in <b>#532</b>.</p>
+            <p>
+              Asked for every side of a hero in Inspect in <b>#532</b>, and for the Victory pile and Side scheme filter
+              in <b>#548</b>.
+            </p>
           </div>
           <div class="person">
             <h3>@neopolii</h3>
@@ -1257,22 +1386,22 @@
       <section class="stats" aria-label="Code shipped since v0.39.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">19</div>
+          <div class="n">21</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">445</div>
+          <div class="n">490</div>
           <p>across the engine, cards, client and sync Worker.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">28,710</div>
+          <div class="n c-green">30,361</div>
           <p>Your stats, win rates and the deck builder are most of it.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">1,873</div>
+          <div class="n c-red">2,142</div>
           <p>across the same pull requests.</p>
         </div>
       </section>
