@@ -1,6 +1,6 @@
 ---
 name: release-announcement
-description: Write a release's announcement from its open `chore(release): vX.Y.Z` pull request - the release-notes header, the report page at /releases/<version>/ and the images, in the v0.40.0 report's design. Use when someone asks for a release report, announcement, what's-new page or release notes header, or points at a release PR to write up.
+description: Write a release's announcement from its open `chore(release): vX.Y.Z` pull request - the release-notes header, the report page at /releases/<version>/ and the images, in the design of the v0.39.0 and v0.40.0 reports. Use when someone asks for a release report, announcement, what's-new page or release notes header, or points at a release PR to write up.
 ---
 
 # Write a release announcement
@@ -10,7 +10,7 @@ ends with its **Special thanks**. Ask for its number only if none is open. The o
 goes in **before** the release PR is merged. The web build carries it first, but nobody sees it on the release
 history's list until GitHub calls that release latest, so it can merge ahead of the release safely.
 
-Build the page directly in the repo. The PR's Netlify preview is where it gets reviewed, so there is no artifact step.
+The v0.39.0 and v0.40.0 reports are the models. Read both before writing: `packages/client/public/releases/` for the pages, and `docs/screenshots/releases/` for their headers and images. Build the page directly in the repo. The PR's Netlify preview is where it gets reviewed, so there is no artifact step.
 
 ## 1. Gather
 
@@ -32,7 +32,7 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
 
 ## 2. Write the header
 
-`docs/screenshots/releases/<version>/release-notes-header.md`, as in the v0.40.0 one:
+`docs/screenshots/releases/<version>/release-notes-header.md`, as in v0.39.0 and v0.40.0:
 
 1. `## A short headline`, the release's story. The history page shows it in its list.
 2. One paragraph naming the big changes and thanking people, with `#123` and `@handle`.
@@ -42,7 +42,7 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
 
 ## 3. Build the report
 
-Copy `packages/client/public/releases/<latest>/` to `<version>/` and rewrite it. Keep its shape:
+Copy `packages/client/public/releases/<latest>/` to `<version>/` and rewrite it. Both reports have the same shape; v0.39.0 shows how a big visual feature fills a band, and v0.40.0 how many stories sit side by side. Keep the shape:
 
 - `<title>`, `description`, the `og:` tags and every `<latest>` in the file, including both `data-history-link` links
   to `../index.html#<version>`, which the history page removes when it embeds the report.
