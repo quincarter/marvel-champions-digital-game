@@ -42,12 +42,21 @@ import { ListScroll } from "../view/list-scroll.js";
 import { loadPlayerStats } from "../view/player-stats-client.js";
 import { loadGlobalStats } from "../global-stats/global-stats-client.js";
 import {
+  GLOBAL_ROW_FAILED,
   globalTabViewOf,
-  hasGlobalSource,
+  SHARE_LABEL,
+  SHARE_LINE,
+  SHARING_ON_LABEL,
   SOURCE_LABELS,
+  settleSource,
+  statsTabsFor,
+  switchSource,
   type GlobalState,
+  type SourceState,
   type StatsSource,
 } from "../view/global-stats-ui.js";
+import { readConsent } from "../global-stats/global-consent.js";
+import { shareFinishedGamesNow } from "../global-stats/share-now.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { backfillProgress, onBackfillProgress } from "../progression/stats-backfill.js";
 import {
@@ -135,6 +144,8 @@ let lastHero = 0;
 let lastFilter: StatsFilter = {};
 /** Whose numbers the Heroes, Villains and Encounter tabs show, kept across visits like `lastFilter`. */
 let lastSource: StatsSource = "you";
+/** The You tab Everyone was chosen from, which You returns to. */
+let lastCameFrom: StatsTab | null = null;
 /** Cards and Cards by hero without each hero's own cards (kept across visits, like the tab). */
 let hideSignature = false;
 /** On a phone the filter chips fold behind one "Filters" chip, so the tabs and the stats keep the screen. */
@@ -199,6 +210,9 @@ export class PlayerStatsScene extends Phaser.Scene {
   #redrawQueued = false;
   /** Everyone's numbers: read on first use (Everyone shown), never at launch; once per visit unless it failed. */
   #global: GlobalState = { kind: "idle" };
+  /** A press on "Share my games" is being saved (a second press waits), or the last one failed. */
+  #shareBusy = false;
+  #shareFailed = false;
 
   constructor() {
     super(SCENES.playerStats);
@@ -213,6 +227,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#stats = null;
     this.#failed = false;
     this.#global = { kind: "idle" };
+    this.#shareBusy = false;
+    this.#shareFailed = false;
     const under = this.#data.overlay && this.#data.from ? this.scene.get(this.#data.from) : null;
     if (under) {
       under.input.enabled = false;
@@ -255,6 +271,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       // X (G / H): to the filter chips, opening them on a phone; the chip it lands on wears the glyph. (View is not
       // bound here: its key, R / P, is LB's on the keyboard.)
       onToggle: () => this.#focusFilters(),
+      // View (Shift+B / Shift+N): the other side of the You / Everyone switch. (Not View's own key R / P, which is LB's.)
+      onLog: () => this.#chooseSource(lastSource === "you" ? "everyone" : "you", true),
       blocked: () => this.scene.isActive(SCENES.inspect),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -291,7 +309,12 @@ export class PlayerStatsScene extends Phaser.Scene {
       const stats = await loadPlayerStats(await appSession().store.listSaves(), undefined, lastFilter);
       if (!this.#alive || token !== this.#loads) return;
       this.#stats = stats;
-      if (first && this.#data.tab) lastTab = this.#data.tab;
+      if (first && this.#data.tab) {
+        // Opened on a named tab (Cards by hero): your own numbers.
+        lastTab = this.#data.tab;
+        lastSource = "you";
+        lastCameFrom = null;
+      }
       const hero =
         first && this.#data.heroId ? stats.heroCards.findIndex((h) => h.identityCardId === this.#data.heroId) : -1;
       if (hero >= 0) lastHero = hero;
@@ -312,7 +335,7 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   #tabs(): readonly StatsTab[] {
-    return this.#stats ? statsTabsOf(this.#stats).map((t) => t.id) : [];
+    return this.#stats ? statsTabsFor(lastSource, statsTabsOf(this.#stats)).map((t) => t.id) : [];
   }
 
   #setTab(tab: StatsTab, byFocus = true): void {
@@ -436,20 +459,68 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   /** The You / Everyone pair: one source at a time, drawn with the same chips as the filters. */
-  #sourceChips(): readonly StatsChip[] {
+  #sourceChips(phone: boolean): readonly StatsChip[] {
     return (["you", "everyone"] as const).map((source) => ({
       key: `source:${source}`,
       label: SOURCE_LABELS[source],
       selected: lastSource === source,
-      width: 140,
-      onClick: (byFocus: boolean) => {
-        lastSource = source;
-        // A failed read is tried again each time Everyone is chosen.
-        if (source === "everyone" && this.#global.kind === "unavailable") this.#global = { kind: "idle" };
-        this.#draw();
-        if (byFocus) this.#route?.focusKey(`source:${source}`);
-      },
+      width: phone ? 118 : 140,
+      // The one not chosen wears the glyph of the key or button that switches (View, or Shift+B / Shift+N); not on a phone.
+      ...(phone || lastSource === source ? {} : { glyph: shortcutSpecs("log") }),
+      onClick: (byFocus: boolean) => this.#chooseSource(source, byFocus),
     }));
+  }
+
+  #sourceState(): SourceState {
+    return { source: lastSource, tab: lastTab, cameFrom: lastCameFrom };
+  }
+
+  #applySource(state: SourceState): void {
+    lastSource = state.source;
+    lastTab = state.tab;
+    lastCameFrom = state.cameFrom;
+  }
+
+  /** The tabs the player has of their own, for You's return tab. */
+  #ownTabs(): readonly StatsTab[] {
+    return this.#stats ? statsTabsOf(this.#stats).map((t) => t.id) : ["overview"];
+  }
+
+  #chooseSource(source: StatsSource, byFocus: boolean): void {
+    if (lastSource === source) return;
+    this.#applySource(switchSource(this.#sourceState(), source, this.#ownTabs()));
+    // A failed read is tried again each time Everyone is chosen.
+    if (source === "everyone" && this.#global.kind === "unavailable") this.#global = { kind: "idle" };
+    this.#draw();
+    if (byFocus) this.#route?.focusKey(`source:${source}`);
+  }
+
+  /** "Share my games", beside the switch while Everyone is on and sharing is not. */
+  #shareChip(): StatsChip {
+    return {
+      key: "share:global",
+      label: SHARE_LABEL,
+      selected: false,
+      onClick: (byFocus: boolean) => {
+        this.#byFocus = byFocus;
+        void this.#share();
+      },
+    };
+  }
+
+  /**
+   * One press turns sharing on, as the Settings row does: the games finished so far are marked sent, so only games
+   * finished from now on are ever shared. Off stays in Settings.
+   */
+  async #share(): Promise<void> {
+    if (this.#shareBusy || readConsent() === "on") return;
+    this.#shareBusy = true;
+    const saved = await shareFinishedGamesNow();
+    this.#shareBusy = false;
+    this.#shareFailed = !saved;
+    // #draw ignores a scene that has shut down.
+    this.#draw();
+    if (saved && this.#alive && this.#byFocus) this.#route?.focusKey(`source:${lastSource}`);
   }
 
   /** A card the stats name, opened in Inspect (A or Y on its picture or its row): the pad's way to read it large. */
@@ -676,14 +747,15 @@ export class PlayerStatsScene extends Phaser.Scene {
       return;
     }
 
-    const tabs = statsTabsOf(stats);
-    if (!tabs.some((t) => t.id === lastTab)) lastTab = "overview";
+    // Everyone kept from an earlier visit on a tab it lacks moves to Villains (Overview comes back with You).
+    this.#applySource(settleSource(this.#sourceState()));
+    const tabs = statsTabsFor(lastSource, statsTabsOf(stats));
+    if (!tabs.some((t) => t.id === lastTab)) lastTab = tabs[0]?.id ?? "overview";
     const at = tabs.findIndex((t) => t.id === lastTab);
     const inner = width - gutter * 2;
     // LB on the tab before this one and RB on the tab after it: the glyphs say where the bumpers go.
     // On a phone the Filters chip follows the tabs in their own rows, so it takes no row of its own.
-    const sourceTab = hasGlobalSource(lastTab);
-    const everyone = sourceTab && lastSource === "everyone";
+    const everyone = lastSource === "everyone";
     // The hero / villain / difficulty filters fold your games only: they are not offered on Everyone.
     const filters = everyone ? [] : this.#filterChips(stats, phone);
     const tabChips = tabs.map((tab, index) => ({
@@ -700,11 +772,46 @@ export class PlayerStatsScene extends Phaser.Scene {
     }));
     // A phone swipes one row of tabs rather than wrapping them to three, which leaves the stats the room; the Filters
     // chip then takes the row under it.
-    let y = phone
-      ? this.#drawTabRail(bar.height + 12, gutter, inner, tabChips, at, stops, order)
-      : this.#drawChips(bar.height + 12, gutter, inner, tabChips, stops, order, phone);
+    // The You / Everyone switch is fixed right under the top bar on every tab, above the tab row, and is not part of
+    // the scrolling list. Beside it on Everyone: the share control (or "Sharing on"), and one line saying what sharing is.
+    const sharing = readConsent() === "on";
+    const sourceTop = bar.height + 12;
+    let y = this.#drawChips(
+      sourceTop,
+      gutter,
+      inner,
+      [...this.#sourceChips(phone), ...(everyone && !sharing ? [this.#shareChip()] : [])],
+      stops,
+      order,
+      phone,
+    );
+    if (everyone && sharing) {
+      this.add
+        .text(
+          gutter + inner,
+          sourceTop + 22,
+          SHARING_ON_LABEL.toUpperCase(),
+          textStyle(typeRole.label, surface.ink.hex, 1),
+        )
+        .setOrigin(1, 0.5);
+    }
+    if (everyone && !sharing) {
+      const line = this.add
+        .text(
+          gutter,
+          y + 6,
+          this.#shareFailed ? `${GLOBAL_ROW_FAILED} ${SHARE_LINE}` : SHARE_LINE,
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        )
+        .setFontSize(phone ? 11 : 12)
+        .setWordWrapWidth(inner);
+      y = line.y + line.height;
+    }
+    y += 10;
+    y = phone
+      ? this.#drawTabRail(y, gutter, inner, tabChips, at, stops, order)
+      : this.#drawChips(y, gutter, inner, tabChips, stops, order, phone);
     if (phone && filters.length > 0) y = this.#drawChips(y + CHIP_GAP, gutter, inner, filters, stops, order, phone);
-    if (sourceTab) y = this.#drawChips(y + 10, gutter, inner, this.#sourceChips(), stops, order, phone);
     if (!phone && filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
 
     if (lastTab === "cards") {

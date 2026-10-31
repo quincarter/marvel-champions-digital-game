@@ -219,6 +219,22 @@ export function villainsFacedOf(insights: DeckInsights): readonly string[] {
     .map(([name]) => name);
 }
 
+/**
+ * The villains the "Against" stepper walks: Your decks, only those you have faced; Everyone, those first and then every
+ * other villain in the pool (`poolVillains`), sorted by name.
+ */
+export function againstStepOf(
+  insights: DeckInsights,
+  poolVillains: readonly string[],
+  source: "yours" | "everyone",
+): readonly string[] {
+  const faced = villainsFacedOf(insights);
+  if (source === "yours") return faced;
+  const seen = new Set(faced);
+  const others = [...new Set(poolVillains)].filter((name) => !seen.has(name)).sort((a, b) => a.localeCompare(b));
+  return [...faced, ...others];
+}
+
 /** The note under the "Against" stepper when no card is left to show, here or once a screen's own lists have theirs. */
 export const NOTHING_STANDS_OUT = "No card stands out against this villain yet.";
 

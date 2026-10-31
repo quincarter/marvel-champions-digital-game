@@ -19,6 +19,8 @@ export interface FakeWorker {
   down: boolean;
   /** What /global/cards answers for a villain, by name; absent: 404 not-found. */
   cards: Record<string, unknown>;
+  /** What /global/stats answers: `STATS_BODY` unless a spec sets another (e.g. too few games for any row). */
+  stats: unknown;
 }
 
 export const STATS_BODY = {
@@ -44,7 +46,7 @@ const json = (route: Route, status: number, body: unknown) =>
  * competes with the one under test.
  */
 export async function fakeWorker(target: Page | BrowserContext): Promise<FakeWorker> {
-  const worker: FakeWorker = { requests: [], down: false, cards: {} };
+  const worker: FakeWorker = { requests: [], down: false, cards: {}, stats: STATS_BODY };
   await target.addInitScript(() => {
     try {
       if (localStorage.getItem("mcsync.prompted") === null) localStorage.setItem("mcsync.prompted", "1");
@@ -58,7 +60,7 @@ export async function fakeWorker(target: Page | BrowserContext): Promise<FakeWor
     if (url.pathname === "/sync/status") return json(route, 200, { sync: true });
     if (!url.pathname.startsWith("/global/")) return json(route, 404, { reason: "not-found", error: "not found" });
     if (worker.down) return json(route, 503, { reason: "disabled", error: "off" });
-    if (url.pathname === "/global/stats") return json(route, 200, STATS_BODY);
+    if (url.pathname === "/global/stats") return json(route, 200, worker.stats);
     if (url.pathname === "/global/cards") {
       const villain = url.searchParams.get("villain") ?? "";
       const body = worker.cards[villain];
@@ -155,6 +157,39 @@ export async function press(page: Page, scene: string, key: string, fromRight = 
 
 export async function hasStop(page: Page, scene: string, key: string): Promise<boolean> {
   return ((await routeStops(page, scene))?.stops ?? []).some((s) => s.key === key);
+}
+
+/** The keys of a scene's stops now, in route order. */
+export async function stopKeys(page: Page, scene: string): Promise<string[]> {
+  return ((await routeStops(page, scene))?.stops ?? []).map((s) => s.key);
+}
+
+/** A stats body with `games` shared and no row at 20 games yet. */
+export const fewGames = (games: number) => ({
+  updatedAt: 1_700_000_000_000,
+  games,
+  heroes: [],
+  villains: [],
+  modulars: [],
+});
+
+/** A finger that goes down on `from` and lifts over `to`, with a real touch sequence over CDP. */
+export async function swipeOver(
+  page: Page,
+  from: { x: number; y: number; width: number; height: number },
+  to: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  const a = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+  const b = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...a, id: 1 }] });
+  for (let i = 1; i <= 10; i++)
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: a.x + ((b.x - a.x) * i) / 10, y: a.y + ((b.y - a.y) * i) / 10, id: 1 }],
+    });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
 }
 
 /** Title, Settings, More, Save data. */
