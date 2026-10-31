@@ -56,9 +56,9 @@ export type HostResponse =
   | { readonly kind: "backfilled"; readonly id: number; readonly written: number }
   /**
    * Unsolicited (`id` is 0): the worker's storage writes so far have committed. Device sync listens on the main thread,
-   * where the worker's own change notifications never arrive; `turn` says the command that was written ended a turn.
+   * where the worker's own change notifications never arrive; `round` says the command that was written ended a round or the game.
    */
-  | { readonly kind: "saved"; readonly id: 0; readonly reason: "game" | "turn" }
+  | { readonly kind: "saved"; readonly id: 0; readonly reason: "game" | "round" }
   /**
    * The worker threw: an invariant break, a bad setup, or a save that won't
    * replay. Surfaced, never swallowed. `code`/`illegalDecks` are present when

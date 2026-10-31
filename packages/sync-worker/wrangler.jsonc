@@ -17,11 +17,15 @@
 //   - every sync request also writes about 2 rows in the caller's RateLimiter object (count, then refund).
 //   - reads: a batch reads the meta and one stub per distinct key; a changes page reads the meta and each record it
 //     returns.
-// A typical session is one changes pull and one push of a few saves: say 3 rewritten records is 1 + 3 x 3 = 10 rows plus
-// 4 for the two requests' limiter rows, about 15 rows and 6 Durable Object requests. At 10 pushes a day that is 150
-// rows per active player, so the 100,000-row cap is about 600 active players a day (the Worker request cap, 100,000,
-// is not close). Each sync request is 3 Durable Object requests (limiter twice, space once) against their own daily
-// cap.
+// A push during a game is one changes pull and one batch of the game's log chunk and meta: 1 + 2 x 3 = 7 rows plus 4 for
+// the two requests' limiter rows, 11 rows, 2 Worker requests and 6 Durable Object requests (each sync request is 3:
+// limiter twice, space once). The client pushes a game once a round (`sync-scheduler.ts`), and at most 50 times an hour
+// however short the rounds are. So an hour of play is about 550 rows at the most (a push that crosses into a new log
+// chunk costs 3 rows more than one that doesn't, and one that starts a chunk 1 less), 100 Worker requests and 300 Durable Object
+// requests, and the 100,000-row cap is at least 180 player-hours a day, shared with whatever else ran; at a round every
+// 3 minutes (20 pushes an hour) it is about 450. One push per command (about 600 an hour) would be 6,600 rows an hour,
+// about 15 player-hours a day, with the per-space and per-IP caps below raised to allow it. Past a daily free cap the
+// calls fail until 00:00 UTC, and nothing is billed on the Workers Free plan.
 //
 // Worst case: each IP is held to 5,000 rows of writes per day (the spaces' rows plus the limiter's own, counted as the
 // space reports them), so the account's 100,000 rows are spent by about 19 IPs that each use their whole allowance
