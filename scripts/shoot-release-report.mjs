@@ -5,7 +5,7 @@
  *
  *   node scripts/shoot-release-report.mjs v0.41.0 sizes [out]
  *     → report-<size>.png at se, pixel, tablet-portrait, tablet and desktop, and history-<size>.png, the report inside
- *       the release history, in [out] (default artifacts/qa/<version>-report). It prints each size's sideways overflow,
+ *       the release history, and the same with -es for the Spanish report, in [out] (default artifacts/qa/<version>-report). It prints each size's sideways overflow,
  *       broken images and images whose width and height attributes are wrong, and fails if it finds any.
  *   node scripts/shoot-release-report.mjs v0.41.0 sections
  *     → v0-41-0-release-NN-<slug>.jpg in docs/screenshots/releases/<version>/: the top of the page down to the number
@@ -33,7 +33,7 @@ if (!/^v\d+\.\d+\.\d+$/.test(version ?? "") || !["sizes", "sections"].includes(m
   console.error("Usage: node scripts/shoot-release-report.mjs vX.Y.Z sizes|sections [out]");
   process.exit(1);
 }
-const report = `${HOST}/releases/${version}/index.html`;
+const reportOf = (language) => `${HOST}/releases/${version}/index${language === "es" ? ".es" : ""}.html`;
 const browser = await chromium.launch();
 
 async function openPage(url, width, height, deviceScaleFactor) {
@@ -57,7 +57,9 @@ const settle = (page) =>
     return images.length;
   });
 
-async function shootSizes(out) {
+async function shootLanguage(out, language) {
+  const report = reportOf(language);
+  const tag = language === "es" ? "-es" : "";
   await mkdir(out, { recursive: true });
   let failed = false;
   for (const [name, [width, height]] of Object.entries(SIZES)) {
@@ -77,10 +79,10 @@ async function shootSizes(out) {
     });
     failed ||= problems.overflow > 0 || problems.broken.length > 0 || problems.misSized.length > 0;
     console.log(name, JSON.stringify(problems));
-    await page.screenshot({ path: path.join(out, `report-${name}.png`), fullPage: true });
+    await page.screenshot({ path: path.join(out, `report-${name}${tag}.png`), fullPage: true });
 
     // The history page needs `.changes/<version>.md`, so before the release this finds no report to show.
-    await page.goto(`${HOST}/releases/index.html#${version}`, { waitUntil: "load" });
+    await page.goto(`${HOST}/releases/index.html?lang=${language}#${version}`, { waitUntil: "load" });
     const mounted = await page
       .waitForFunction(
         () => [...document.querySelectorAll("*")].some((e) => e.shadowRoot?.querySelector(".wrap")),
@@ -95,7 +97,7 @@ async function shootSizes(out) {
       );
     if (mounted) {
       await settle(page);
-      await page.screenshot({ path: path.join(out, `history-${name}.png`) });
+      await page.screenshot({ path: path.join(out, `history-${name}${tag}.png`) });
     }
     console.log(name, mounted ? "report mounted in the history" : "no report in the history");
     await context.close();
@@ -103,8 +105,13 @@ async function shootSizes(out) {
   return failed;
 }
 
+async function shootSizes(out) {
+  const [english, spanish] = [await shootLanguage(out, "en"), await shootLanguage(out, "es")];
+  return english || spanish;
+}
+
 async function cutSections(out) {
-  const { page } = await openPage(report, SECTION_WIDTH, 980, 2);
+  const { page } = await openPage(reportOf("en"), SECTION_WIDTH, 980, 2);
   await settle(page);
   // Those links lead back to the history, and the images are for GitHub.
   await page.addStyleTag({ content: "[data-history-link]{display:none !important}" });

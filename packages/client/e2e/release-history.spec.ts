@@ -229,7 +229,7 @@ test("a phone swipes the list without opening a release", async ({ page }, info)
   await expect(list).toBeHidden();
 });
 
-const [A, Y, LB, RB, DOWN, RIGHT, LEFT] = [0, 3, 4, 5, 13, 15, 14];
+const [A, Y, LB, RB, UP, DOWN, RIGHT, LEFT] = [0, 3, 4, 5, 12, 13, 15, 14];
 /** The right face button, where a Nintendo pad prints A. */
 const A_NINTENDO = 1;
 
@@ -309,6 +309,10 @@ test("a controller reaches a report's links, and a pager press keeps it on the p
   await expect(page.locator("#report h1")).toBeVisible();
   await press(page, RIGHT);
   expect(await focusedText(page)).toContain("Open on its own page");
+  // The language toggle is one step above it.
+  await press(page, UP);
+  expect(await focusedText(page)).toContain("Español");
+  await press(page, DOWN);
   await press(page, DOWN);
   const inReport = await page.evaluate(() => document.activeElement?.id === "report");
   expect(inReport, "the next stop is inside the report").toBe(true);

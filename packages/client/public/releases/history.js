@@ -568,14 +568,15 @@
     const active = focusedEl();
     const column = inMain(active) ? mainStops() : railStops();
     const at = column.indexOf(active);
-    const next = column[at === -1 ? 0 : at + delta];
+    const next = at === -1 ? column.find((el) => !languageGroup.contains(el)) : column[at + delta];
     if (next) focusStop(next);
     // Past the last link there may still be page to read.
     else if (inMain(active)) window.scrollBy({ top: delta * innerHeight * 0.7 });
   }
 
   function intoMain() {
-    const stops = mainStops();
+    // The toggle is one Up above the page's first stop, so moving across lands on the release.
+    const stops = mainStops().filter((el) => !languageGroup.contains(el));
     const first = stops.find((el) => el.getBoundingClientRect().top >= 0) ?? stops[0];
     if (first) focusStop(first);
   }

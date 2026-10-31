@@ -4,6 +4,8 @@ Winning now earns you the official promo cards: 128 scans of 25 heroes, 12 villa
 
 **[Read the full v0.41.0 report on the site ↗](https://marvel-champions-digital-game.netlify.app/releases/v0.41.0/)**: the promo cards, the release history, Settings search, the Steam script, Cards left, every fix with screenshots, and the thank-you wall.
 
+**[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/v0.41.0/index.es.html)**
+
 ![The numbers: 128 promo scans, 3 wins to earn most, 57 releases in the history, 21 wrong scans fixed, Settings search across 6 pages, 3 Steam scripts and 12 fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/df936721cc461a854f78038faed6ef63cf9d3466/docs/screenshots/releases/v0.41.0/v0-41-0-release-01-the-numbers.jpg)
 
 ![Earn the promos: the Promos tab, how each promo is earned, and Promo art on Take Your Seats](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/df936721cc461a854f78038faed6ef63cf9d3466/docs/screenshots/releases/v0.41.0/v0-41-0-release-02-earn-the-promos.jpg)
@@ -32,4 +34,4 @@ Winning now earns you the official promo cards: 128 scans of 25 heroes, 12 villa
 
 ![Thank you to PermaKarma and Vasko47](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/df936721cc461a854f78038faed6ef63cf9d3466/docs/screenshots/releases/v0.41.0/v0-41-0-release-14-thank-you.jpg)
 
-![Code shipped: 19 pull requests, 409 files, 13,059 lines added and 835 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/df936721cc461a854f78038faed6ef63cf9d3466/docs/screenshots/releases/v0.41.0/v0-41-0-release-15-code-shipped.jpg)
+![Code shipped: 20 pull requests, 472 files, 21,546 lines added and 838 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/df936721cc461a854f78038faed6ef63cf9d3466/docs/screenshots/releases/v0.41.0/v0-41-0-release-15-code-shipped.jpg)

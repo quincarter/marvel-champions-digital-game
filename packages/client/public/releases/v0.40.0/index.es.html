@@ -1,0 +1,1484 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.40.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="Novedades de v0.40.0 del juego digital de Marvel Champions hecho por fans: Your stats, porcentajes de victorias y por qué pierdes, un deck builder más inteligente, Cards left, auditoría de reglas parte 6 y correcciones de los reportes de los jugadores."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.40.0" />
+    <meta
+      property="og:description"
+      content="Your stats, porcentajes de victorias y por qué pierdes, un deck builder más inteligente, Cards left, auditoría de reglas parte 6 y correcciones de los reportes de los jugadores."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.40.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.40.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Informe de la versión</div>
+          <h1>Cada partida cuenta.<br /><span class="g">Construye a la altura.</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.40.0</span> · PR de la versión
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/510">#510</a><br />después de
+          v0.39.0 (28 oct)<br />Android · Web · Windows · macOS · Linux<br />31 oct 2026<span data-history-link
+            ><br /><a href="../index.html#v0.40.0">Todas las versiones</a> ·
+            <a href="index.html" lang="en">English</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star moon">▲</div>
+          <div><small>Logro desbloqueado</small><span>Por los números</span></div>
+        </div>
+        <p>
+          <b>Ahora el juego lleva la cuenta de cómo juegas.</b> Your stats convierte cada partida terminada en un
+          registro, rachas, héroes favoritos, los villanos más duros y las cartas en las que más confías, y tus partidas
+          anteriores también cuentan. Cada villano, set modular y héroe tiene
+          <b>un porcentaje de victorias y la razón por la que perdiste</b>, con los números de todos si lo activas. El
+          deck builder aprende la búsqueda de marvelcdb, las reglas estándar de mazo y las probabilidades de robo, y te
+          sugiere cartas a partir de tus mazos ganadores. En una partida puedes listar lo que queda en tu mazo y leer el
+          registro en una vista grande desde la barra del título, el resaltado del tutorial se desliza hacia cada paso
+          siguiente, y la parte 6 cierra la auditoría de reglas.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="Esta versión en números">
+        <div class="tile big">
+          <h4>Your stats</h4>
+          <div class="n">8 pestañas</div>
+          <p>
+            Overview, Heroes, Villains, Aspects, Encounter, Records, Cards y Cards by hero, construidas con todas las
+            partidas que has terminado.
+          </p>
+        </div>
+        <div class="tile">
+          <h4>Causas de derrota</h4>
+          <div class="n">5</div>
+          <p>Scheme, Villain, Minions, Encounter cards u Other, por cada partida que pierdes.</p>
+        </div>
+        <div class="tile">
+          <h4>Correcciones</h4>
+          <div class="n c-red">18</div>
+          <p>
+            Correcciones de reglas, teléfono, Android, mando y Fear No Evil, a partir de los reportes de los jugadores y
+            la auditoría.
+          </p>
+        </div>
+        <div class="tile">
+          <h4>Resoluciones aplicadas</h4>
+          <div class="n c-blue">7</div>
+          <p>Auditoría de reglas parte 6, cada corrección con su fuente: RRG 1.8 o una resolución de FFG.</p>
+        </div>
+        <div class="tile">
+          <h4>Formas de llegar</h4>
+          <div class="n c-green">5</div>
+          <p>Your stats se abre desde el Title, Decks &amp; Collection, la Trophy Room, Settings y Pause.</p>
+        </div>
+        <div class="tile">
+          <h4>Los números de todos</h4>
+          <div class="n">20 partidas</div>
+          <p>
+            antes de que un villano, set o héroe muestre un porcentaje de victorias compartido. Nunca se envía nada
+            personal.
+          </p>
+        </div>
+        <div class="tile">
+          <h4>Escaneos nuevos</h4>
+          <div class="n">11 oleadas</div>
+          <p>más ahora usan mis propios escaneos, además del resto del Core Set.</p>
+        </div>
+      </section>
+
+      <!-- ============ YOUR STATS ============ -->
+      <div class="band">
+        <h2>Your stats</h2>
+        <div class="lab">Issue #529 · PR #530 · #539 · #545</div>
+      </div>
+      <p class="lead">
+        <b>Un panel de cómo juegas.</b> Ábrelo desde el Title, el encabezado de Decks &amp; Collection, la Trophy Room,
+        Settings ▸ More o Pause. LB/RB cambian de pestaña, LT/RT cambian de héroe, y
+        <b>cada imagen de carta abre el hover de la carta</b>.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/dash-overview-desktop.webp"
+            alt="Overview de Your stats: un récord de 15-9, cómo pierdes, la heroína favorita Captain Marvel y los villanos que más te vencen"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Overview · récord, rachas, cómo pierdes, héroe favorito</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/dash-overview-phone.webp"
+            alt="Overview de Your stats en un teléfono"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>En un teléfono · una fila de pestañas deslizable</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/dash-cards-hover-desktop.webp"
+            alt="Cards by hero de Captain Marvel, con el hover de carta abierto sobre una carta"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Cards by hero · el hover en cualquier carta</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/dash-records-desktop.webp"
+            alt="La pestaña Records: victoria más rápida, partida más larga, victoria más ajustada, más daño en un turno y el golpe final"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Records · victoria más ajustada, mejor turno, el golpe final</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Qué contiene</h3>
+          <ul class="ck">
+            <li>
+              <b>Overview:</b> tu récord y porcentaje de victorias, rachas, la victoria más rápida, cómo pierdes, tu
+              héroe favorito y los villanos que más te vencen.
+            </li>
+            <li>
+              <b>Records:</b> la victoria más ajustada, el mayor daño y la mayor amenaza retirada en un turno, el golpe
+              final (quién remata más al villano, y con qué carta), las horas jugadas y tu mes más activo.
+            </li>
+            <li>
+              <b>Cards:</b> las más jugadas, las más activadas, el mejor porcentaje de victorias cuando sale una carta,
+              los aliados con más daño y defensas, y las cartas que nunca juegas.
+            </li>
+            <li><b>Devices:</b> tu récord en cada plataforma en la que juegas.</li>
+            <li>Filtra todo por héroe, villano y dificultad.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Tus partidas antiguas también cuentan</h3>
+          <p>
+            Las partidas terminadas antes de esta actualización se <b>reproducen una vez en segundo plano</b> a partir
+            de sus registros guardados, así que el panel empieza lleno. Una nota en el Title dice cuánto lleva.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/backfill-toast-desktop.webp"
+              alt="El Title con una nota Building your stats que cuenta las partidas antiguas"
+              width="1280"
+              height="800"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ WIN RATES ============ -->
+      <div class="band gold">
+        <h2>Por qué pierdes</h2>
+        <div class="lab">Issue #542 · PR #541 · sugerido por @neopolii en Discord</div>
+      </div>
+      <p class="lead">
+        Cada fila de villano, set modular y héroe tiene ahora <b>un porcentaje de victorias y una barra de derrotas</b>:
+        Scheme, Villain, Minions, Encounter cards u Other. La pestaña Villains se abre con una fila <b>Why you lose</b>,
+        y los filtros siguen aplicándose, así que filtrar por Rhino muestra qué héroes le van bien contra él.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/winrates-villains-desktop.webp"
+            alt="La pestaña Villains con un porcentaje de victorias y una barra de derrotas de color en cada villano"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Villains · porcentaje de victorias y por qué se perdieron esas partidas</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/winrates-villains-phone.webp"
+            alt="La pestaña Villains en un teléfono con Why you lose arriba"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>En un teléfono</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Los números de todos, si los quieres</h3>
+          <ul class="ck">
+            <li>
+              <b>Está desactivado salvo que digas que sí.</b> Tras una partida terminada, el Title pregunta una vez y
+              explica qué se envía: el villano, la dificultad, los sets modulares, los héroes, los aspectos, las cartas
+              del mazo, el resultado y la causa de la derrota.
+            </li>
+            <li><b>Nunca se envía nombre, cuenta, dispositivo ni partida guardada.</b></li>
+            <li>
+              Las fichas <b>You / Everyone</b> cambian las pestañas Heroes, Villains y Encounter. Una fila necesita 20
+              partidas para mostrarse.
+            </li>
+            <li>Cambia de opinión cuando quieras en <b>Settings ▸ More ▸ Save data</b>.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <figure>
+            <img
+              src="img/global-ask-desktop.webp"
+              alt="La pregunta Share your results? en el Title, con Share y No thanks"
+              width="1400"
+              height="875"
+              loading="lazy"
+            />
+            <figcaption>La pregunta de una sola vez · Share o No thanks</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ DECK BUILDER ============ -->
+      <div class="band">
+        <h2>Un deck builder que conoce tus partidas</h2>
+        <div class="lab">Issue #531 · PR #533 · #544</div>
+      </div>
+      <p class="lead">
+        <b>Busca como en marvelcdb</b>, filtra con el pulgar, construye según las reglas estándar de mazo, revisa tus
+        probabilidades y deja que <b>tus propios mazos ganadores</b> te sugieran qué añadir.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/531_desktop-search-help.webp"
+            alt="La guía rápida de búsqueda con todos los términos y los botones Use y Copy"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>La guía ? · cada término, con ejemplos para usar o copiar</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/531_desktop-odds.webp"
+            alt="El panel de probabilidades del deck builder junto al conjunto de cartas"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>Probabilidades · desde tu mano inicial hasta las 2 cartas superiores de Black Cat</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/winrates-builder-desktop.webp"
+            alt="From your games con Against Rhino: cartas para añadir y cartas para quitar"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Against Rhino · + Add de tus victorias, − Cut de tus derrotas</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/531_phone-tab-pool.webp"
+            alt="La pestaña Pool del deck builder en teléfono"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>En un teléfono · pestañas Pool, Deck y From your games</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Encuentra la carta</h3>
+          <ul class="ck">
+            <li>
+              <b>Términos de búsqueda:</b> <code>o:2</code>, <code>t:ally|event</code>, <code>rp:1</code>,
+              <code>k:spy</code>, <code>kw:guard</code>, <code>atk</code>/<code>thw</code>/<code>h</code> y más, con
+              <code>!</code> para excluir.
+            </li>
+            <li>
+              <b>Filtros rápidos:</b> fichas de coste de 0 a 5+, fichas de iconos de recurso y un selector de trait.
+            </li>
+            <li>
+              <b>Un orden que se mantiene:</b> una búsqueda ya no anula tu orden, y un segundo orden Then ordena los
+              empates.
+            </li>
+            <li><b>Recuerda</b> tu orden, tus filtros y la vista de cartas o de lista entre visitas.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Constrúyelo bien</h3>
+          <ul class="ck">
+            <li>
+              <b>Reglas estándar de mazo, si las quieres:</b> Settings ▸ Gameplay ▸ Signature cards (Free, Standard,
+              Hidden) y límites de copias.
+            </li>
+            <li>
+              <b>Probabilidades:</b> la probabilidad de que un robo contenga 0, 1, 2 o 3+ de un icono de recurso, un
+              tipo, un trait o un título.
+            </li>
+            <li>
+              <b>From your games:</b> los números propios de una carta en el panel lateral y en Inspect, y Build my own
+              a partir de un precon.
+            </li>
+            <li>
+              <b>En un teléfono:</b> tres pestañas a pantalla completa con un conteo de cartas en vivo, una sola zona
+              desplazable a la vez.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ CARDS LEFT ============ -->
+      <div class="band gold">
+        <h2>¿Qué queda en mi mazo?</h2>
+        <div class="lab">Issue #540 · PR #543 · sugerido por @neopolii en Discord</div>
+      </div>
+      <p class="lead">
+        <b>Toca tu mazo</b> durante una partida para listar las cartas que aún quedan en él, con conteos: "Swinging Web
+        Kick ×2". Está ordenado por tipo y nombre, <b>nunca en el orden del mazo</b>, así que no te dice nada que un
+        jugador cuidadoso no pudiera contar.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/hero-hover-desktop.webp"
+            alt="Las cartas que quedan en tu mazo con conteos y el hover de carta abierto"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>Tu mazo · con el hover de carta</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/encounter-desktop.webp"
+            alt="Las cartas que quedan en el mazo de encuentros con la línea del promedio de potenciación"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>El mazo de encuentros · con el promedio de potenciación</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            Una carta repartida boca abajo o dada como potenciación sigue <b>sin verse</b>, así que nada se revela por
+            eliminación.
+          </li>
+          <li>
+            La lista del mazo de encuentros y el <b>promedio de potenciación</b> ("1.1 iconos por carta") son
+            opcionales, en <b>Settings ▸ Game ▸ Cards left</b>. Empiezan desactivados, porque la lista de encuentros
+            puede nombrar cartas que aún no has visto.
+          </li>
+          <li><b>R3</b> en un mando, <b>6</b> en el teclado.</li>
+        </ul>
+      </div>
+
+      <!-- ============ GAME LOG ============ -->
+      <div class="band">
+        <h2>Un registro que se puede leer</h2>
+        <div class="lab">Issue #550 · PR #551</div>
+      </div>
+      <p class="lead">
+        El registro de la partida pasó a <b>la barra del título</b>. Su línea más reciente corre ahí, y un clic o toque
+        abre <b>una vista más grande</b>: acoplada junto a la mesa en vivo en escritorio y en tableta horizontal, y
+        entre la barra del título y tu mano en un teléfono. Las líneas son más grandes y más gruesas, en lugar de texto
+        pequeño y gris.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/log-open-desktop.webp"
+            alt="El registro de la partida abierto junto a la mesa en escritorio, con líneas grandes y gruesas"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Escritorio · el registro se acopla junto a la mesa</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/log-open-phone.webp"
+            alt="El registro de la partida abierto en un teléfono entre la barra del título y la mano"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>En un teléfono</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Las mismas teclas, más espacio</h3>
+          <ul class="ck">
+            <li><b>Shift+B</b> (Shift+N para zurdos), mantener <b>View</b> en un mando, y Escape o B para cerrar.</li>
+            <li>
+              El antiguo panel del registro de la mesa desapareció, así que el mazo de encuentros y la pila de descartes
+              llenan esa columna.
+            </li>
+            <li>El <b>Full log</b> del resumen abre el registro en su lugar en vez de abrir Pause.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>En la fase de villano</h3>
+          <ul class="ck">
+            <li>
+              Un botón <b>Log</b> en el panel de la fase cambia al registro, y "◂ Villain phase" vuelve. La fase espera
+              mientras lees.
+            </li>
+            <li>El nombre de una carta boca abajo sigue oculto en el registro hasta que se voltea.</li>
+            <li>
+              <b>Pause en teléfonos:</b> Reference va en una sola fila con Music, Report y Controls, así que los ajustes
+              ocupan la mayor parte de la hoja.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ TUTORIAL ============ -->
+      <div class="band gold">
+        <h2>Un tutorial más fluido</h2>
+        <div class="lab">Issues #552 · #554 · PR #553</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#552</div>
+          <h3>TRY THIS se desliza</h3>
+          <p>
+            El resaltado del tutorial <b>se desliza de un objetivo al siguiente</b> en lugar de saltar: el anillo, el
+            recorte atenuado y el sello viajan juntos, desde un botón de acción hasta el selector Attack with, una
+            carta, cada pagador y Pay. Cuando el siguiente objetivo queda encima del anterior, como Black Cat que pasa a
+            ser un pagador Scientist en el mismo lugar, se desvanece y vuelve a aparecer para que veas la carta que se
+            está pagando. Con Reduced motion va directo allí.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/guide-ring.webp"
+              alt="El anillo del tutorial deslizándose de Daredevil a cada pagador durante un pago"
+              width="720"
+              height="405"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#554</div>
+          <h3>La lección se mantiene en marcha</h3>
+          <p>
+            Los clics fuera del control que enseña el tutorial <b>siguen bloqueados</b> mientras el paso esté activo,
+            así que un clic perdido no puede dejar atrás la lección. Skip this step, Stop tutorial y Escape siguen
+            siendo las salidas.
+          </p>
+          <p>
+            Un paso de carta deja tocables solo esa carta y sus pagadores, así que no se puede jugar el resto de la mano
+            antes de tiempo, y los pasos que esperan Got it mantienen la mesa. Un paso que necesita a Black Cat avanza
+            solo si ella nunca llegó a la mesa.
+          </p>
+          <p>
+            <b>Un primer turno más completo:</b> como Peter Parker, la lección 2 ahora juega Aunt May, Black Cat e
+            Interrogation Room antes del volteo, cada una pagando su coste exacto.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ INSPECT + PEEK ============ -->
+      <div class="band">
+        <h2>Lee antes de elegir</h2>
+        <div class="lab">Issue #532 de @andy-xxvii27 · PR #535 · PR #523</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#532 · pedido por @andy-xxvii27</div>
+          <h3>Cada lado de un héroe</h3>
+          <p>
+            Inspect en la identidad de un héroe ahora <b>recorre sus lados Hero y Alter-Ego y cualquier forma extra</b>,
+            como el Tiny y el Giant de Ant-Man, para que puedas leer un héroe que no tienes antes de elegirlo.
+          </p>
+          <div class="shots s2" style="margin: 14px 0 0">
+            <figure>
+              <img
+                src="img/desktop-1-tiny.webp"
+                alt="Inspect mostrando a Ant-Man en su forma Tiny"
+                width="1400"
+                height="875"
+                loading="lazy"
+              />
+            </figure>
+            <figure>
+              <img
+                src="img/desktop-3-giant.webp"
+                alt="Inspect mostrando a Ant-Man en su forma Giant"
+                width="1400"
+                height="875"
+                loading="lazy"
+              />
+            </figure>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="eb">PR #523</div>
+          <h3>Echa un vistazo a tus compañeros</h3>
+          <p>
+            ¿Llevas varios héroes tú solo? <b>Peek at table</b> cambia la mesa a cualquier asiento, mano incluida, y una
+            decisión de elegir un jugador tiene <b>View table</b> junto a cada jugador. Las filas de decisión ahora
+            muestran la imagen del héroe, villano, esbirro o plan, con el hover de carta.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/2-peek-teammate-hover.webp"
+              alt="Mirando la mano de un compañero durante una decisión, con un hover de carta abierto"
+              width="1400"
+              height="953"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ RULES AUDIT ============ -->
+      <div class="band">
+        <h2>Auditoría de reglas, parte 6</h2>
+        <div class="lab">PR #498 de @bluefireF5ran · PR #527</div>
+      </div>
+      <p class="lead">
+        <b>@bluefireF5ran</b> termina la sexta y última parte de la auditoría, una corrección por commit, cada una con
+        su fuente. El cambio más grande es <b>cuándo ocurre Quickstrike</b>: un esbirro puesto en juego a mitad de una
+        carta empieza su ataque de inmediato, y el ataque se resuelve después de la carta.
+      </p>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">Momento de las keywords</div>
+          <h3>Quickstrike espera su turno</h3>
+          <p>
+            Un ataque de Quickstrike o Teamwork hecho mientras se resuelve una habilidad
+            <b>empieza de inmediato y se resuelve después de esa habilidad</b>: Drang III, Planetary Invasion y Shadow
+            of the Past. Una Response a que un esbirro entre en juego, como la de Hawkeye, se resuelve después de que
+            empieza el Quickstrike y antes de su daño.
+          </p>
+          <p>
+            Después de un bucle como el de Drang III, el aviso de orden de keywords nombra cada esbirro en su propia
+            línea y dice por qué lo pide.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/loop-desktop-hover.webp"
+              alt="Drang: ordena las keywords, con cada esbirro en su propia línea y el hover de carta"
+              width="1400"
+              height="953"
+              loading="lazy"
+            />
+          </figure>
+          <div class="src">RRG 1.8 p. 6, p. 24, p. 38 · resoluciones de FFG 38, 137, 147 y 194</div>
+        </div>
+        <div class="paper">
+          <div class="eb">También en esta parte</div>
+          <h3>Cuatro resoluciones más</h3>
+          <p>
+            <b>Primero los límites y las reducciones.</b> Los límites de Titanium Exoskeleton y Boarding Party se
+            aplican antes de que Magnetic Bubble vea el daño.
+          </p>
+          <p>
+            <b>Una carta que vuelve es una copia nueva</b>, así que un efecto retardado ya no la sigue de vuelta al
+            juego.
+          </p>
+          <p><b>Un aliado que defiende no es un poder básico</b>, así que Melinda May no se activa por ello.</p>
+          <p>
+            <b>"Cannot be stunned" conserva un aturdimiento que ya tienes</b>; solo ganar stalwart lo retira (Magneto's
+            Helmet, Ronan the Accuser).
+          </p>
+          <div class="src">RRG 1.8 p. 5, p. 14, p. 27, p. 40 · resoluciones de FFG #145, #205, #206 y 16 mar 2025</div>
+        </div>
+      </div>
+
+      <!-- ============ PLAYER REPORTS ============ -->
+      <div class="band gold">
+        <h2>Lo pediste, lo arreglamos</h2>
+        <div class="lab">Issues #514 · #515 · #517 · #518 · #521 · #522 · #534 · #537 · #548 · PR #509</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#514 y #515 · reportado por @zackburnley</div>
+          <h3>La barra superior se aparta del camino</h3>
+          <p>
+            Sus botones ya no tapan el título de una ventana emergente de elección en un teléfono, el botón de dark mode
+            ya no flota sobre Pause ni Inspect, y el selector de objetivos empieza bajo la barra.
+          </p>
+          <div class="shots s2" style="margin: 14px 0 0; max-width: 420px">
+            <figure>
+              <img
+                src="img/choice-phone-before.webp"
+                alt="Antes: los botones de la barra superior sobre el título de una ventana emergente de elección"
+                width="360"
+                height="788"
+                loading="lazy"
+              />
+              <figcaption>Antes</figcaption>
+            </figure>
+            <figure>
+              <img
+                src="img/choice-phone-after.webp"
+                alt="Después: el título de la ventana emergente de elección libre de la barra superior"
+                width="360"
+                height="788"
+                loading="lazy"
+              />
+              <figcaption>Después</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="eb">#518 · reportado por @zackburnley</div>
+          <h3>El plan correcto en la pantalla de derrota</h3>
+          <p>
+            Dice cuándo <b>Change of Venue</b> intercambió tu plan principal, y nombra el plan que realmente ganó cuando
+            cada jugador tiene el suyo.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/518_game-over-desktop.webp"
+              alt="La pantalla de derrota Scheme Wins nombrando Pawn Shop Showdown"
+              width="1400"
+              height="875"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#522 y #521 · reportado por @zackburnley</div>
+          <h3>Fear No Evil, ordenado</h3>
+          <p>
+            <b>Protection Racket</b> en estándar deja que cada jugador elija su plan principal en Table setup, en lugar
+            de repartir siempre Battle in the Bodega. Los textos de dos líneas de las fichas de escenario ahora caben en
+            la ficha.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/522_table-setup-desktop.webp"
+              alt="Table setup de Protection Racket con una elección de plan principal por jugador"
+              width="1400"
+              height="953"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#517 · reportado por @zackburnley</div>
+          <h3>La armadura de Bloody Mary</h3>
+          <p><b>Assembled Armor</b> muestra que se rompe a 5 de daño en modo estándar, no a los 8 de experto.</p>
+          <div class="eb" style="margin-top: 22px">#534 y #537</div>
+          <h3>Partidas guardadas y teclado en Android</h3>
+          <p>
+            <b>Export save data</b> y Download log abren el diálogo Save propio de Android, donde antes no hacían nada.
+            El teclado en pantalla ahora <b>se superpone al juego</b> en vez de encogerlo, en el navegador y en la app.
+          </p>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">PR #509 · reportado en Discord</div>
+            <h3>Un mando recorre un tablero lleno</h3>
+            <p>
+              Con un tablero lleno de apoyos y aliados, un mando no podía llegar al otro extremo. Ahora
+              <b>el D-pad recorre toda la fila del área de juego</b>, y un empujón lateral del stick derecho la desplaza
+              desde cualquier punto de la mesa.
+            </p>
+          </div>
+          <figure>
+            <img
+              src="img/pad-play-area-end-d.webp"
+              alt="El foco del mando en la última carta de una fila larga del área de juego"
+              width="1400"
+              height="875"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <div class="paper wide" style="margin-top: 26px">
+        <div>
+          <div class="eb">#548 · reportado por @andy-xxvii27</div>
+          <h3>Una pila Victory, y planes secundarios en el filtro</h3>
+          <p>
+            Cuando una carta llega a la zona de victoria, <b>una pila VICTORY</b> se une a la columna de encuentros con
+            su carta superior y un conteo. Tócala para ver todas las cartas que hay ahí, mantén pulsado para
+            inspeccionar la superior, y pasa el ratón en escritorio. Las cartas vuelan hacia ella al llegar.
+          </p>
+          <p>
+            El deck builder y Deck check tienen una ficha <b>Side scheme</b> junto a Resource, para encontrar planes
+            secundarios de jugador como los de Cable.
+          </p>
+        </div>
+        <figure>
+          <img
+            src="img/pile-hover-desktop.webp"
+            alt="La pila Victory en la columna de encuentros con su hover de carta abierto"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+        </figure>
+      </div>
+
+      <!-- ============ SCANS ============ -->
+      <div class="band">
+        <h2>Más de mis propios escaneos</h2>
+        <div class="lab">PR #512 · PR #513 · PR #528</div>
+      </div>
+      <p class="lead">
+        <b>114 cartas más del Core Set</b> ahora usan mis propios escaneos, y cubren <b>11 oleadas más</b>: la primera
+        oleada de packs de héroe, cada caja de campaña y los packs de escenario.
+      </p>
+      <div class="cols">
+        <div class="box">
+          <ul class="ck">
+            <li>
+              <b>Core Set:</b> Iron Man, She-Hulk, sus sets de némesis, Rhino, Klaw, Ultron y los sets de encuentro del
+              core.
+            </li>
+            <li>
+              <b>11 oleadas más:</b> la primera oleada de packs de héroe, cada caja de campaña y los packs de escenario.
+            </li>
+            <li>
+              <b>Drang II y III</b> muestran sus propios escaneos: la etapa III ya no muestra la carta de Drang II.
+            </li>
+            <li>
+              <b>Shadowland:</b> cada carta tiene ahora un escaneo completo, gracias a u/Ok-Replacement-9793 por
+              compartir la carpeta.
+            </li>
+          </ul>
+        </div>
+        <figure class="a" style="max-width: 300px">
+          <img
+            src="img/card-art-core-01.webp"
+            alt="Una cuadrícula de nuevos escaneos del Core Set"
+            width="420"
+            height="665"
+            loading="lazy"
+          />
+          <figcaption>Nuevos escaneos del Core Set</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band gold">
+        <h2>También en v0.40.0</h2>
+        <div class="lab">Mesa · reglas · colaboradores</div>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3>Mesa</h3>
+          <ul class="ck">
+            <li>
+              El hover de carta se abre a un <b>tamaño normal de carta</b> sobre un plan, villano o héroe en una
+              pantalla ancha, y sobre la imagen de una fila en Your stats.
+            </li>
+            <li>Decks &amp; Collection en un teléfono pliega sus fichas tras un botón Filters.</li>
+            <li>
+              En escritorio, el texto es más grande en el riel From your games, las descripciones de mazos y el cuadro
+              de importación.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Reglas, letra pequeña</h3>
+          <ul class="ck">
+            <li>El consejo del defensor declarado está redactado para el héroe o aliado que nombra.</li>
+            <li>La hoja de defensa muestra como en espera un ataque con keyword que espera su habilidad.</li>
+            <li>La derrota anotada de un héroe nombra la carta que lo derrotó, y si fue un ataque.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Para colaboradores</h3>
+          <ul class="ck">
+            <li>El registro de la partida anota cada carta que un pago gasta de la mano, sea cual sea el pago.</li>
+            <li>El importador de escaneos de cartas ya no falla al guardar sobre un escaneo JPEG antiguo.</li>
+            <li>
+              Los porcentajes de victorias globales corren en el Worker de sincronización con una lista de contenido
+              real permitido; un pack nuevo la regenera (<b>CONTRIBUTING.md</b>).
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>¡Gracias!</h2>
+          <p>
+            Cada reporte de aquí vino de un jugador que se tomó un minuto para avisarnos. Sigan mandándolos desde Pause
+            ▸ Report a problem, una issue de GitHub o el Discord de la comunidad.
+          </p>
+        </div>
+        <div class="people">
+          <div class="person">
+            <h3>@zackburnley</h3>
+            <p>
+              Reportó <b>#514</b>, <b>#515</b>, <b>#517</b>, <b>#518</b>, <b>#521</b> y <b>#522</b>: la barra superior,
+              la armadura de Bloody Mary, la pantalla de derrota, Protection Racket y los textos de Fear No Evil.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@bluefireF5ran</h3>
+            <p>
+              Escribió <b>#498</b>, la sexta y última parte de la auditoría de reglas, con una fuente para cada
+              corrección.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@andy-xxvii27</h3>
+            <p>
+              Pidió todos los lados de un héroe en Inspect en <b>#532</b>, y la pila Victory y el filtro Side scheme en
+              <b>#548</b>.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@neopolii</h3>
+            <p>
+              Sugirió en Discord los porcentajes de victorias y por qué se perdieron las partidas (<b>#542</b>) y Cards
+              left (<b>#540</b>).
+            </p>
+          </div>
+          <div class="person wide">
+            <h3>Nuestro Discord</h3>
+            <p>Reportó que un mando no podía llegar al final de un tablero lleno (<b>#509</b>).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Código publicado</h2>
+        <div class="lab">Desde v0.39.0</div>
+      </div>
+      <section class="stats" aria-label="Código publicado desde v0.39.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">24</div>
+          <p>fusionados en main.</p>
+        </div>
+        <div class="tile">
+          <h4>Archivos cambiados</h4>
+          <div class="n">583</div>
+          <p>en el engine, las cartas, el client y el Worker de sincronización.</p>
+        </div>
+        <div class="tile">
+          <h4>Líneas añadidas</h4>
+          <div class="n c-green">33.505</div>
+          <p>Your stats, los porcentajes de victorias y el deck builder son la mayor parte.</p>
+        </div>
+        <div class="tile">
+          <h4>Líneas eliminadas</h4>
+          <div class="n c-red">3.100</div>
+          <p>en los mismos pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        La banda sonora está generada con IA mediante Gemini. Los efectos de sonido son sonidos libres de derechos de
+        varios sitios web. Arte de los mandos: mando de Xbox One de Akshay Kumar (ArtStation), mando de PlayStation de
+        Uttam Das (Vecteezy), icono de Switch de Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition es un proyecto de fans sin fines comerciales. Marvel Champions, el texto de
+          sus cartas, su arte y sus personajes pertenecen a Fantasy Flight Games y Marvel.</span
+        >
+        <span
+          ><a href="../../">Jugar en el navegador ↗</a> ·
+          <a data-history-link href="../index.html#v0.40.0">Todas las versiones</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.40.0"
+            >Descargas ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
