@@ -1,7 +1,7 @@
 # Custom content packs: design proposal
 
-Status: **proposal, second pass, for the owner's review.** Nothing here is built yet. The aim is to agree on the shape
-before any code lands.
+Status: **parked by the owner on 2026-10-31, until a domain is chosen (§10).** Proposal, second pass. Nothing here is
+built yet. The aim is to agree on the shape before any code lands.
 
 **What changed in this pass (2026-10-30):** media left git for release bundles in the content repo (#495), so pack
 images follow them there (§3). Netlify is near its bandwidth limit after a Reddit post, so the site's own hosting is
@@ -134,7 +134,7 @@ if Workers' previews fall short.
 - **Buy a domain first, so this is the last move.** On a domain we own, a future host change never strands saves again,
   and R2 needs one anyway (§4.2). Moving to a `workers.dev` address would mean doing the save migration twice. Marvel's
   name in a fan project's own domain is a trademark risk the `netlify.app` subdomain doesn't carry, so the name should
-  leave it out.
+  leave it out. Candidate names and where the choice stands are in §10.
 - **Smaller pieces:** port the cache headers and SPA fallback, rewrite `netlify-deploy.yml`, including PR preview URLs
   and the deploy secrets, and update the site address in four client files, the Tauri capability and the README.
   Installed apps still link to the old address, which is one more reason to keep it answering.
@@ -369,6 +369,42 @@ scope here, but nothing above blocks it.
 5. **Web offline:** stream only at first (recommended), or build "Keep offline" in the first player-facing version?
 6. **Licensing of fan art:** each pack's `CREDITS.md` states the artist's permission; is that enough, or do you want a
    standard grant the artist signs off on in the PR?
+
+## 10. Decisions and discussion so far
+
+**Parked (2026-10-31).** The owner hasn't chosen a domain and can't move hosts yet, so the work is on hold. Nothing
+gets built, and the site stays on Netlify, until a domain is picked. Cloudflare for both the site and packs (§9.1)
+is still the recommendation but isn't approved yet. The other §9 questions are still open.
+
+**Domain (§9.4), open.** The owner suggested `marvel-champions-digital-game.app` and `marvel-champions-digital.game`.
+The recommendation is against both. A fan project's own domain with "marvel" in it can be claimed outright by the
+trademark holder through a domain dispute, and losing the address would strand web saves again, which is the problem
+the domain is meant to solve. The `netlify.app` address is only a subdomain, so it doesn't carry that risk. Names that
+hint at the game without naming it are safer, for example `champions-digital.app`, `champsdigital.game` or
+`mcdigital.app`, since "Champions" alone is a common word. Their availability hasn't been checked, and this is not
+legal advice. Either ending works: `.app` is HTTPS-only, which the site needs anyway. Wherever it's bought, the
+domain's DNS has to run on Cloudflare for R2 to serve from it.
+
+**Netlify's limit.** The pricing pages read for §4.1 don't say what the site's current plan does at 100 GB. Check
+Netlify's usage page for that before the limit is reached.
+
+**Pack size (2026-10-28).** A precon hero pack fits comfortably: base scans average about 100 KB each, so a 40-card
+hero with its art comes to roughly 4–6 MB as one zip. The per-file size is not what ruled out jsDelivr; its 150 MB
+cap per package is (§4.2).
+
+**The community list (2026-10-28).** BluefireF5ran's list of fan content, grouped by the official expansions, has 30
+packs, three per expansion:
+
+- **20 heroes:** Agent Coulson, Dum Dum Dugan, Gwenpool, Mantis, Ebony Maw, Quasar, Spiderling, Spiders-Man, Ink,
+  Dazzler, Deathlok, Sunspot, Blink, Sabretooth (counted as a hero by the list's pattern; it doesn't say), Quake,
+  Mockingbird, Night Thrasher, Kate Bishop, Howard the Duck and Black Cat.
+- **9 scenarios:** Baron Zemo, Escape the Church, The Magus, The Lizard (with its own modular set), Black King,
+  Sentinel City, Hellfire Gala, Secret Invasion and The Rose.
+- **1 PvP pack:** Magneto & Professor X, in two Drive folders.
+
+The list also links JustATuna's whole campaign as an option, and suggests unlocking packs as "secret" heroes and
+scenarios tied to each expansion's progression. **Only Gwenpool has its creator's permission** (PatataSaurio); each of
+the other 29 needs its creator's permission before it ships (§9.6). The set comes to about 150–200 MB.
 
 ## Sources
 
