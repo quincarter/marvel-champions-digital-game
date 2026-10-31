@@ -439,6 +439,8 @@ jobs:
         with:
           ref: ${{ needs.check-and-cut-release.outputs.tag }}
 
+      - uses: ./.github/actions/free-disk
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
