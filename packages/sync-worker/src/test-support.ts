@@ -9,6 +9,8 @@ import type { DurableObjectNamespaceLike, Env, KeyValueStorage } from "./env.js"
 export class MemoryStorage implements KeyValueStorage {
   readonly map = new Map<string, unknown>();
   alarm: number | null = null;
+  /** Calls to `setAlarm`; each is a row written on the real storage. */
+  alarmsSet = 0;
   /** Rows written so far: one per key put or deleted, the way the free plan counts them. */
   rowsWritten = 0;
 
@@ -59,8 +61,12 @@ export class MemoryStorage implements KeyValueStorage {
   async deleteAll(): Promise<void> {
     this.map.clear();
   }
+  async getAlarm(): Promise<number | null> {
+    return this.alarm;
+  }
   async setAlarm(scheduledTime: number): Promise<void> {
     this.alarm = scheduledTime;
+    this.alarmsSet += 1;
   }
   async deleteAlarm(): Promise<void> {
     this.alarm = null;

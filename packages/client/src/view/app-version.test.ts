@@ -17,6 +17,11 @@ describe("appVersionText", () => {
     expect(appVersionText("0.7.0", "tauri", "a1b2c3d", "en")).toBe("v0.7.0");
   });
 
+  test("an install the Install for Steam script looks after says so", () => {
+    expect(appVersionText("0.7.0", "tauri", "a1b2c3d", "en", true)).toBe("v0.7.0 · Steam script");
+    expect(appVersionText("0.7.0", "tauri", "a1b2c3d", "es", true)).toBe("v0.7.0 · ES · Steam script");
+  });
+
   test("no commit known: the release alone", () => {
     expect(appVersionText("0.7.0", "web", "")).toBe("v0.7.0");
   });

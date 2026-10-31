@@ -211,7 +211,7 @@ describe("startGlobalUploads", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(listSaves).toHaveBeenCalledTimes(1);
     notifySaveDataChanged("game");
-    notifySaveDataChanged("turn");
+    notifySaveDataChanged("round");
     notifySaveDataChanged("deck");
     await vi.advanceTimersByTimeAsync(1000);
     expect(listSaves).toHaveBeenCalledTimes(2);

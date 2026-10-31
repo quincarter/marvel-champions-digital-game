@@ -4,42 +4,53 @@
 #
 #   bash install-for-steam.sh [options] [path/to/MarvelChampions-<version>-Linux-x64.AppImage]
 #
-# With no AppImage named it takes the newest one next to this script or in ~/Downloads, else downloads the latest
-# release's. The AppImage is copied to ~/Applications/MarvelChampions/MarvelChampions.AppImage, so running the script
-# again with a newer one updates the game in place and keeps the same Steam entry, art and play time.
+# This one file works for every release: it asks GitHub for the latest one. With no AppImage named it uses the one next
+# to this script or in ~/Downloads when that is the latest, else downloads it. The AppImage is copied to
+# ~/Applications/MarvelChampions/MarvelChampions.AppImage, so running the script again updates the game in place and
+# keeps the same Steam entry, art and play time. If GitHub can't be reached it uses the newest AppImage on disk.
+#
+# Each run records the install in ~/.marvel-champions/ with a copy of this script. The game reads that record, says it
+# was installed this way, and offers to run the copy with --update when a new release is out.
 #
 # Options:
-#   --download   download the latest release's AppImage even if one is on disk
-#   --yes        close Steam without asking when it is running
-#   --uninstall  remove the Steam entry, its art and the installed AppImage
-#   -h, --help   this text
+#   --download       download the latest release's AppImage even if one is on disk
+#   --language <xx>  the card language to install, en or es (default: what's installed, else the AppImage on disk, else en)
+#   --update         update the game only: leave Steam alone, so it can run while Steam and the game are open
+#   --wait-pid <n>   with --update, download first, then wait for this process to end before replacing the game
+#   --yes            close Steam without asking when it is running
+#   --uninstall      remove the Steam entry, its art, the installed AppImage and ~/.marvel-champions
+#   -h, --help       this text
 #
 # Running it again keeps the launch options you added or changed in Steam yourself (your value of a variable wins over
 # the script's), and refreshes the rest.
 #
-# Needs bash, python3 and curl (curl only to download). Steam must be closed while its shortcut list is written; the
-# script offers to close it. On a Steam Deck run it from Desktop Mode, then go back to Game Mode.
+# Needs bash, python3 and curl. Steam must be closed while its shortcut list is written; the script offers to close it.
+# On a Steam Deck run it from Desktop Mode, then go back to Game Mode.
 set -euo pipefail
 
 REPO="quincarter/marvel-champions-digital-game"
-# The release staging step (scripts/stage-release-assets.mjs) stamps the release's tag here, so a script downloaded
-# from a release fetches that release's art. A copy run from the repo uses main's.
-ART_REF="__MC_RELEASE_TAG__"
-case "$ART_REF" in __*) ART_REF="main" ;; esac
 
 # The shortcut's name: what Steam, Big Picture and status plugins (Discord via Decky) show.
 APP_NAME="Marvel Champions Digital Edition"
 INSTALL_DIR="$HOME/Applications/MarvelChampions"
 INSTALLED="$INSTALL_DIR/MarvelChampions.AppImage"
+# The hidden folder the game reads (src-tauri/src/steam_install.rs).
+STATE_DIR="$HOME/.marvel-champions"
+MARKER="$STATE_DIR/install.json"
 ART_FILES=(icon.png portrait.jpg wide.jpg hero.jpg logo.png)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Empty when this runs from a pipe (curl ... | bash).
+SELF="${BASH_SOURCE[0]:-}"
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 
 force_download=0
 assume_yes=0
 uninstall=0
+update=0
+wait_pid=""
+language=""
 appimage=""
 
-usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'; }
+usage() { sed -n '2,/^set -euo/p' "$SELF" | sed '$d; s/^# \{0,1\}//'; }
 say() { printf '%s\n' "$*"; }
 die() {
   printf 'Error: %s\n' "$*" >&2
@@ -49,6 +60,15 @@ die() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --download) force_download=1 ;;
+    --language)
+      language="$(printf '%s' "${2:?--language needs a language}" | tr '[:upper:]' '[:lower:]')"
+      shift
+      ;;
+    --update) update=1 ;;
+    --wait-pid)
+      wait_pid="${2:?--wait-pid needs a process id}"
+      shift
+      ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
@@ -62,7 +82,107 @@ while [ $# -gt 0 ]; do
 done
 
 [ "$(uname -s)" = "Linux" ] || die "this script is for Linux; on Windows and macOS use the installer from the release."
+case "$language" in '' | [a-z][a-z]) ;; *) die "--language takes a two-letter language, en or es." ;; esac
+case "$wait_pid" in *[!0-9]*) die "--wait-pid takes a process id." ;; esac
 command -v python3 > /dev/null || die "python3 is needed to edit Steam's shortcut list. Install it with your package manager (Arch: sudo pacman -S python) and run this again."
+
+# A field of the install record, or nothing when there is no record.
+marker_value() {
+  python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get(sys.argv[2], ""))' \
+    "$MARKER" "$1" 2> /dev/null || true
+}
+
+# Sets latest_version and latest_url to the latest release and its AppImage in the chosen language. GitHub's "latest" is
+# never a draft or a prerelease.
+latest_version=""
+latest_url=""
+lookup_latest() {
+  command -v curl > /dev/null || return 1
+  local answer
+  answer="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2> /dev/null | python3 -c '
+import json, sys
+release = json.load(sys.stdin)
+images = [a for a in release.get("assets", []) if a["name"].endswith(".AppImage")]
+tag = f"-{sys.argv[1].upper()}-Linux-"
+image = next((a for a in images if tag in a["name"]), None)
+print(release["tag_name"].lstrip("v"), image["browser_download_url"] if image else "", sep="\t")
+' "${language:-en}" 2> /dev/null)" || return 1
+  IFS=$'\t' read -r latest_version latest_url <<< "$answer"
+  [ -n "$latest_url" ]
+}
+
+fetch_appimage() {
+  say "Downloading version $latest_version..."
+  curl -fL --progress-bar -o "$1" "$latest_url" || die "the download failed."
+}
+
+# The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy or a
+# pipe, the latest published one replaces it, so a fix to this script reaches an existing install.
+save_script() {
+  local copy="$STATE_DIR/install-for-steam.sh"
+  if [ -f "$SELF" ] && [ "$SELF" != "$copy" ]; then
+    cp -f "$SELF" "$copy.new"
+  elif ! curl -fsSL -o "$copy.new" \
+    "https://github.com/$REPO/releases/latest/download/MarvelChampions-Linux-Install-for-Steam.sh" 2> /dev/null; then
+    rm -f "$copy.new"
+    return 0
+  fi
+  chmod +x "$copy.new"
+  mv -f "$copy.new" "$copy"
+}
+
+# Records the install: <version> <Steam kind>.
+write_marker() {
+  mkdir -p "$STATE_DIR"
+  python3 - "$MARKER" "$INSTALLED" "$1" "${language:-en}" "$2" << 'PY'
+import datetime, json, os, sys
+
+path, game, version, language, steam = sys.argv[1:6]
+record = {
+    "method": "steam-script",
+    "os": "linux",
+    "game": game,
+    "version": version,
+    "language": language,
+    "steam": steam,
+    "installedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+}
+with open(path + ".tmp", "w", encoding="utf-8") as f:
+    json.dump(record, f, indent=2)
+os.replace(path + ".tmp", path)
+PY
+  save_script
+}
+
+# --- Update (from the game, or by hand) ----------------------------------------------------------------------------
+
+# The game shows these MC_UPDATE lines' meaning on screen (packages/client/src/view/steam-update.ts). Steam isn't
+# touched: the entry already points at the AppImage's path, and Steam may be what started the game.
+if [ "$update" = 1 ]; then
+  [ -n "$language" ] || language="$(marker_value language)"
+  lookup_latest || die "couldn't find the latest release on GitHub."
+  if [ -x "$INSTALLED" ] && [ "$(marker_value version)" = "$latest_version" ] &&
+    [ "$(marker_value language)" = "${language:-en}" ]; then
+    say "MC_UPDATE current $latest_version"
+    exit 0
+  fi
+  mkdir -p "$INSTALL_DIR"
+  # This run's own name: one left going by an earlier run of the game must not share it.
+  staged="$INSTALLED.new.$$"
+  trap 'rm -f "$staged"' EXIT
+  fetch_appimage "$staged"
+  chmod +x "$staged"
+  if [ -n "$wait_pid" ]; then
+    # The game went while this downloaded. It may have been started again, so nothing here decides for that one.
+    kill -0 "$wait_pid" 2> /dev/null || die "the game closed before the download finished, so nothing changed."
+    say "MC_UPDATE ready $latest_version"
+    while kill -0 "$wait_pid" 2> /dev/null; do sleep 1; done
+  fi
+  mv -f "$staged" "$INSTALLED"
+  write_marker "$latest_version" "$(marker_value steam)"
+  say "MC_UPDATE done $latest_version"
+  exit 0
+fi
 
 # --- The system ------------------------------------------------------------------------------------------------------
 
@@ -120,9 +240,11 @@ steam_running() { pgrep -x steam > /dev/null 2>&1 || pgrep -f 'steamwebhelper' >
 
 if steam_running; then
   if [ "$assume_yes" = 0 ]; then
-    [ -t 0 ] || die "Steam is running. Close it (Steam > Exit) and run this again, or pass --yes to have it closed."
+    # The terminal, not stdin: run from a pipe (curl ... | bash), stdin is the script itself.
+    { : < /dev/tty; } 2> /dev/null ||
+      die "Steam is running. Close it (Steam > Exit) and run this again, or pass --yes to have it closed."
     printf 'Steam is running and would overwrite the change when it exits. Close Steam now? [Y/n] '
-    read -r answer
+    read -r answer < /dev/tty
     case "$answer" in [nN]*) die "Steam is still running. Close it and run this again." ;; esac
   fi
   say "Closing Steam..."
@@ -272,40 +394,63 @@ if [ "$uninstall" = 1 ]; then
         "$config/grid/${id}_logo.png" "$config/grid/${id}_icon.png"
     done
   done
-  rm -rf "$INSTALL_DIR"
-  say "Removed $APP_NAME from Steam and deleted $INSTALL_DIR. Start Steam again to see the change."
+  rm -rf "$INSTALL_DIR" "$STATE_DIR"
+  say "Removed $APP_NAME from Steam and deleted $INSTALL_DIR and $STATE_DIR. Start Steam again to see the change."
   exit 0
 fi
 
 # --- The AppImage ----------------------------------------------------------------------------------------------------
 
 newest_appimage() {
-  # The newest release AppImage in a folder, by version (MarvelChampions-<version>-Linux-x64.AppImage).
-  # A missing folder (no ~/Downloads, or a localized one) is just no AppImage, so the download fallback still runs.
+  # The newest release AppImage in a folder, by version (MarvelChampions-<version>-<LANGUAGE>-Linux-x64.AppImage).
+  # A missing folder (no ~/Downloads, or a localized one) is just no AppImage, so the download still runs.
   [ -d "$1" ] || return 0
-  find "$1" -maxdepth 1 -type f -name 'MarvelChampions-*-Linux-*.AppImage' 2> /dev/null | sort -V | tail -n 1 || true
+  find "$1" -maxdepth 1 -type f -name "MarvelChampions-*-$2-Linux-*.AppImage" 2> /dev/null | sort -V | tail -n 1 || true
 }
+version_of() { basename "$1" | sed -n 's/^MarvelChampions-\([0-9][0-9.]*\)-.*/\1/p'; }
+language_of() { basename "$1" | sed -n 's/^MarvelChampions-[0-9.]*-\([A-Za-z][A-Za-z]\)-Linux-.*/\1/p' | tr '[:upper:]' '[:lower:]'; }
 
-if [ -z "$appimage" ] && [ "$force_download" = 0 ]; then
-  appimage="$(newest_appimage "$SCRIPT_DIR")"
-  [ -n "$appimage" ] || appimage="$(newest_appimage "$HOME/Downloads")"
-fi
+on_disk() {
+  local found
+  found="$(newest_appimage "$SCRIPT_DIR" "$1")"
+  [ -n "$found" ] || found="$(newest_appimage "$HOME/Downloads" "$1")"
+  printf '%s' "$found"
+}
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+[ -n "$language" ] || language="$(marker_value language)"
+[ -n "$language" ] || [ -z "$appimage" ] || language="$(language_of "$appimage")"
+[ -n "$language" ] || language="$(language_of "$(on_disk '[A-Za-z][A-Za-z]')")"
+[ -n "$language" ] || language="en"
+
+version=""
 if [ -z "$appimage" ]; then
-  command -v curl > /dev/null || die "no AppImage found next to this script or in ~/Downloads, and curl isn't installed to download one."
   say "Looking up the latest release..."
-  url="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | python3 -c '
-import json, sys
-assets = json.load(sys.stdin).get("assets", [])
-print(next((a["browser_download_url"] for a in assets if a["name"].endswith(".AppImage")), ""))
-')" || die "couldn't reach GitHub to find the latest release."
-  [ -n "$url" ] || die "the latest release has no AppImage."
-  say "Downloading $(basename "$url")..."
-  curl -fL --progress-bar -o "$tmp_dir/download.AppImage" "$url" || die "the download failed."
-  appimage="$tmp_dir/download.AppImage"
+  local_image=""
+  [ "$force_download" = 1 ] || local_image="$(on_disk "$(printf '%s' "$language" | tr '[:lower:]' '[:upper:]')")"
+  if lookup_latest; then
+    version="$latest_version"
+    if [ "$force_download" = 0 ] && [ -x "$INSTALLED" ] && [ "$(marker_value version)" = "$latest_version" ] &&
+      [ "$(marker_value language)" = "$language" ]; then
+      say "Version $latest_version is already installed."
+      appimage="$INSTALLED"
+    elif [ -n "$local_image" ] && [ "$(version_of "$local_image")" = "$latest_version" ]; then
+      appimage="$local_image"
+    else
+      fetch_appimage "$tmp_dir/download.AppImage"
+      appimage="$tmp_dir/download.AppImage"
+    fi
+  elif [ -n "$local_image" ]; then
+    say "Couldn't reach GitHub; using the newest AppImage on disk."
+    appimage="$local_image"
+    version="$(version_of "$local_image")"
+  else
+    die "couldn't find the latest release on GitHub, and there's no AppImage next to this script or in ~/Downloads."
+  fi
+else
+  version="$(version_of "$appimage")"
 fi
 
 [ -f "$appimage" ] || die "$appimage doesn't exist."
@@ -331,7 +476,7 @@ if [ "$art_dir" = "$tmp_dir/art" ]; then
   if command -v curl > /dev/null; then
     say "Downloading the library art..."
     for file in "${ART_FILES[@]}"; do
-      curl -fsSL -o "$art_dir/$file" "https://raw.githubusercontent.com/$REPO/$ART_REF/scripts/linux/steam-art/$file" ||
+      curl -fsSL -o "$art_dir/$file" "https://raw.githubusercontent.com/$REPO/main/scripts/linux/steam-art/$file" ||
         rm -f "$art_dir/$file"
     done
   fi
@@ -371,9 +516,10 @@ fi
 launch="${options[*]:+${options[*]} }%command%"
 
 if [ "$steam_kind" = flatpak ]; then
-  # Flatpak Steam can only see the folders it is given.
-  flatpak override --user --filesystem="$INSTALL_DIR" com.valvesoftware.Steam > /dev/null 2>&1 ||
-    say "Couldn't give Flatpak Steam access to $INSTALL_DIR; run: flatpak override --user --filesystem=$INSTALL_DIR com.valvesoftware.Steam"
+  # Flatpak Steam can only see the folders it is given, and the game needs the install record too.
+  mkdir -p "$STATE_DIR"
+  flatpak override --user --filesystem="$INSTALL_DIR" --filesystem="$STATE_DIR" com.valvesoftware.Steam > /dev/null 2>&1 ||
+    say "Couldn't give Flatpak Steam access to $INSTALL_DIR and $STATE_DIR; run: flatpak override --user --filesystem=$INSTALL_DIR --filesystem=$STATE_DIR com.valvesoftware.Steam"
 fi
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
@@ -397,6 +543,8 @@ for user in "${users[@]}"; do
   [ -f "$art_dir/icon.png" ] && cp -f "$art_dir/icon.png" "$grid/${id}_icon.png"
   say "Added $APP_NAME to Steam user $user. Launch options: $written"
 done
+
+write_marker "$version" "$steam_kind"
 
 say ""
 if [ "$fuse_ok" = 0 ] && [ "$steam_kind" = native ]; then

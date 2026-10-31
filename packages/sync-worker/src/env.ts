@@ -17,6 +17,7 @@ export interface KeyValueStorage {
   /** Keys in ascending order; `start` is inclusive. */
   list<T>(options: { prefix?: string; start?: string; limit?: number }): Promise<Map<string, T>>;
   deleteAll(): Promise<void>;
+  getAlarm(): Promise<number | null>;
   setAlarm(scheduledTime: number): Promise<void>;
   deleteAlarm(): Promise<void>;
 }
