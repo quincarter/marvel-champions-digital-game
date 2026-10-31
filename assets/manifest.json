@@ -128,11 +128,11 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["60", "61", "62", "63", "64", "65"],
-      "tag": "card-art-fne-7a6ad368863c",
+      "tag": "card-art-fne-19c7442939c7",
       "file": "card-art-fne.zip",
-      "size": 29117088,
-      "sha256": "7a6ad368863cbabbb1a4ddb8af206eeff392647a7c3aa586101125a88ce24c34",
-      "files": 416
+      "size": 35310092,
+      "sha256": "19c7442939c76477e96a927f117dd125e099dacb081346fb7ae4a7fd6fa52f85",
+      "files": 466
     },
     {
       "name": "card-art-promo",

@@ -89,8 +89,8 @@ import { setReportSlot } from "../ui/report-slot.js";
 import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { SHADOWLAND_NOTICE_ON } from "../view/shadowland-notice.js";
-import { drawShadowlandNoticeBar } from "../ui/shadowland-notice-bar.js";
+import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
+import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { captureIntoRegion } from "../ui/scroll-capture.js";
 
@@ -357,7 +357,7 @@ export class TitleScene extends Phaser.Scene {
       update: this.#update !== null,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
-      noticeBar: SHADOWLAND_NOTICE_ON,
+      noticeBar: RELEASE_NOTICE_ON,
     });
     // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
     const reportSize = layout.split ? 44 : 40;
@@ -765,10 +765,10 @@ export class TitleScene extends Phaser.Scene {
       this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows);
     }
 
-    // Temporary: the Shadowland notice bar across the top (`view/shadowland-notice.ts`).
+    // The release notice bar across the top (`view/release-notice.ts`).
     if (layout.noticeBar) {
-      const openNotice = drawShadowlandNoticeBar(this, layout.noticeBar);
-      this.#stops.set("shadowland-notice", { rect: layout.noticeBar, activate: openNotice });
+      const openNotice = drawReleaseNoticeBar(this, layout.noticeBar);
+      this.#stops.set("release-notice", { rect: layout.noticeBar, activate: openNotice });
     }
 
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
@@ -776,7 +776,7 @@ export class TitleScene extends Phaser.Scene {
     this.#route?.set(
       [
         // The notice bar is the top-most control, so it comes first.
-        ...(layout.noticeBar ? ["shadowland-notice"] : []),
+        ...(layout.noticeBar ? ["release-notice"] : []),
         ...titleMenuFocusOrder({
           continuable: this.#continuable !== null,
           civilWar: civilWar !== null,

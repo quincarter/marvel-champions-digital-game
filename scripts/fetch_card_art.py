@@ -922,6 +922,7 @@ def write_owner_scans(rows: dict[str, list[str]]) -> None:
     lines = [
         "# Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never",
         "# replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).",
+        "# The Shadowland (65xxx) rows are from a community scan folder shared by u/Ok-Replacement-9793 on Reddit.",
         "code\tpack\tname\tsaved",
     ]
     lines += ["\t".join(rows[code]) for code in sorted(rows)]
@@ -934,7 +935,6 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
         "# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).",
         "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 900px long edge.",
         "# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.",
-        "# The Shadowland (65xxx) rows are Hall of Heroes' 300 x 426 preview images at their own size; its other faces have no scan.",
         "code\tpack\tname\tsource_page\timage_url\tfetched",
     ]
     for code in sorted(rows):
