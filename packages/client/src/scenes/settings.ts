@@ -55,6 +55,8 @@ import {
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
   achievementPopupPlaceRowInfoOf,
+  heroArtRowInfoOf,
+  nextSettingsAfterHeroArt,
   achievementPopupSizeRowInfoOf,
   nextSettingsAfterAchievementPopupSize,
   achievementPopupTimeRowInfoOf,
@@ -647,6 +649,11 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     segmented("deck-signature", deckSignatureRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterDeckSignature(appSession().settings, v);
+      this.#draw();
+    });
+    const promoShown = earnedItems().has("promo-art") && settings.promoArtOn;
+    segmented("hero-art", heroArtRowInfoOf(settings, promoShown), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterHeroArt(appSession().settings, v);
       this.#draw();
     });
     // The achievement popup: picking a time or a position shows a sample there (`scenes/achievement-toast.ts`).

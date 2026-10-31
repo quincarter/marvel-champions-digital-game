@@ -71,3 +71,21 @@ test("a locked promo tile opens the card hover on a mouse, and no viewer", async
   await settle(page);
   expect(await isSceneUp(page, VIEWER)).toBe(false);
 });
+
+test("the hero select art button steps Game, Card and Promo art, and the choice is saved", async ({ page }) => {
+  const stored = (): Promise<string | undefined> =>
+    page.evaluate(() => {
+      const raw = localStorage.getItem("mc-settings");
+      return raw ? (JSON.parse(raw) as { heroArt?: string }).heroArt : undefined;
+    });
+  await openApp(page, "screen=seats&unlock=all", { landing: "Seats" });
+  await settle(page);
+  await pressStop(page, "Seats", "hero-art");
+  expect(await stored()).toBe("card");
+  const promo = page.waitForRequest(/\/card-art\/promos\/01001a-1\.webp/, { timeout: 15000 });
+  await pressStop(page, "Seats", "hero-art");
+  expect(await stored()).toBe("promo");
+  await promo;
+  await pressStop(page, "Seats", "hero-art");
+  expect(await stored()).toBe("game");
+});

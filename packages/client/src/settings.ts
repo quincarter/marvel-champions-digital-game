@@ -148,6 +148,8 @@ export interface Settings {
   readonly promoArt: readonly string[];
   /** Whether picked promo cards are drawn at all (Settings ▸ More ▸ Earned items). Defaults on. */
   readonly promoArtOn: boolean;
+  /** Which picture the hero tiles on Take Your Seats show (`view/hero-art-choice.ts`). Defaults to the game art. */
+  readonly heroArt: HeroArt;
   /**
    * How the first player token travels to a new first player, on the Set the table screen and around the table
    * (`view/first-player-token-motion.ts`). Defaults to a toss (the owner, 2026-10-16). Reduced motion places it instead.
@@ -238,6 +240,9 @@ export function achievementPopupHoldMs(time: AchievementPopupTime): number {
 }
 
 /** "titleBar" sits in the screens' top bar strip; the rest are centered across the screen at that height. */
+export type HeroArt = "game" | "card" | "promo";
+export const HERO_ART_VALUES: readonly HeroArt[] = ["game", "card", "promo"];
+
 export type AchievementPopupPlace = "titleBar" | "top" | "middle" | "bottom";
 export type AchievementPopupSize = "small" | "medium" | "large";
 export const ACHIEVEMENT_POPUP_SIZE_VALUES: readonly AchievementPopupSize[] = ["small", "medium", "large"];
@@ -460,6 +465,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     ultronDroneArt: true,
     promoArt: [],
     promoArtOn: true,
+    heroArt: "game",
     firstPlayerTokenMotion: "toss",
     displayMode: "windowed",
     resolution: "native",

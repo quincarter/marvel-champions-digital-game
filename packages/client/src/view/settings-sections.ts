@@ -39,6 +39,7 @@ export type SettingsItemId =
   | "controls"
   | "achievement-popup-time"
   | "achievement-popup-place"
+  | "hero-art"
   | "achievement-popup-size";
 
 export type SettingsSectionId =
@@ -114,6 +115,7 @@ export function settingsSectionsOf(input: {
       title: "Cards",
       items: [
         "card-size",
+        "hero-art",
         ...(input.cardLanguage ? (["card-language"] as const) : []),
         ...(input.cardHover ? (["card-hover"] as const) : []),
         ...(input.inspectCard ? (["inspect-card"] as const) : []),

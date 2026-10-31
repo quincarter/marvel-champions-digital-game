@@ -185,10 +185,15 @@ export function earnedItems(): ReadonlySet<EarnedItemId> {
   );
 }
 
+/** The promo sets this player has earned. */
+export function earnedPromoSets(): readonly PromoSet[] {
+  return PROMO_SETS.filter((set) => extras().isOpen(set.earn));
+}
+
 /** The promo sets to draw: earned, picked, and promo card art switched on. */
 function shownPromoSets(): readonly PromoSet[] {
   const { promoArt, promoArtOn } = appSession().settings;
-  return promoArtOn ? PROMO_SETS.filter((set) => promoArt.includes(set.id) && extras().isOpen(set.earn)) : [];
+  return promoArtOn ? earnedPromoSets().filter((set) => promoArt.includes(set.id)) : [];
 }
 
 /** Tells the art which earned pictures to draw: call after progress, unlock preferences or settings change. */

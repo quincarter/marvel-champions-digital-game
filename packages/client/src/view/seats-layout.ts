@@ -116,6 +116,8 @@ export interface SeatsLayout {
   readonly rosterHeader: Rect;
   /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
   readonly usePreconstructed: Rect;
+  /** The hero art button (`view/hero-art-choice.ts`), just left of "Use preconstructed". */
+  readonly heroArt: Rect;
   /** Narrow only: the active seat's details disclosure, the left part of `rosterHeader`. Null on wide. */
   readonly detailsToggle: Rect | null;
   /** The search field. Zero-height on a narrow layout whose toggle is off (`searchOpen`) — nothing is drawn there. */
@@ -246,6 +248,12 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       width: usePreconstructedWidth,
       height: ROSTER_HEADER_HEIGHT,
     };
+    const heroArtWidth = Math.min(170, shelvesWidth * 0.25);
+    const heroArt: Rect = {
+      ...usePreconstructed,
+      x: usePreconstructed.x - heroArtWidth - smallGap,
+      width: heroArtWidth,
+    };
     y += ROSTER_HEADER_HEIGHT + smallGap;
 
     const behindButton = input.filtersButton ?? false;
@@ -292,6 +300,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       notice,
       rosterHeader,
       usePreconstructed,
+      heroArt,
       detailsToggle: null,
       search,
       searchToggle: null,
@@ -336,10 +345,12 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     width: usePreconstructedWidth,
     height: hit.target,
   };
+  const heroArtWidth = Math.min(110, shelvesWidth * 0.26);
+  const heroArt: Rect = { ...usePreconstructed, x: usePreconstructed.x - heroArtWidth - smallGap, width: heroArtWidth };
   const detailsToggle: Rect = {
     x: left,
     y,
-    width: shelvesWidth - usePreconstructedWidth - smallGap,
+    width: shelvesWidth - usePreconstructedWidth - heroArtWidth - smallGap * 2,
     height: hit.target,
   };
   y += hit.target + smallGap;
@@ -421,6 +432,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     notice,
     rosterHeader,
     usePreconstructed,
+    heroArt,
     detailsToggle,
     search,
     searchToggle,

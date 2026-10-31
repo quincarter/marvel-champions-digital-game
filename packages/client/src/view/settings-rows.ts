@@ -51,6 +51,8 @@ import {
   type VillainBeatSpeed,
   type FlipEncounterSpeed,
   type Resolution,
+  HERO_ART_VALUES,
+  type HeroArt,
 } from "../settings.js";
 import {
   CARD_LANGUAGES,
@@ -61,6 +63,7 @@ import {
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { EARNED_ITEMS, type EarnedItemId } from "../progression/earned-items.js";
+import { HERO_ART_LABELS, heroArtChoicesOf, heroArtInForce } from "./hero-art-choice.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -845,6 +848,21 @@ export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementP
     options: ACHIEVEMENT_POPUP_PLACE_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_PLACE_LABELS[value] })),
     selected: settings.achievementPopupPlace,
   };
+}
+
+/** The Hero art row: Game art, Card art, and Promo art once a promo is on offer (`view/hero-art-choice.ts`). */
+export function heroArtRowInfoOf(settings: Settings, promoShown: boolean): AchievementPopupRowInfo<HeroArt> {
+  return {
+    title: "Hero art",
+    detail: "The picture on each hero when you take your seats. Promo art shows on heroes whose promo you've earned.",
+    options: heroArtChoicesOf(promoShown).map((value) => ({ value, label: HERO_ART_LABELS[value] })),
+    selected: heroArtInForce(settings.heroArt, promoShown),
+  };
+}
+
+/** `settings` with the hero art set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterHeroArt(settings: Settings, value: HeroArt): Settings {
+  return HERO_ART_VALUES.includes(value) ? { ...settings, heroArt: value } : settings;
 }
 
 /** `settings` with the popup's time set; a value that is not one of the seven changes nothing. */
