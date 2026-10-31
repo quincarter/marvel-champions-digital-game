@@ -70,10 +70,10 @@ The GitHub release description carries the report as images, cut from the finish
 and easy to read. Every release needs them.
 
 - Cut one JPG per section of the page, in order: the numbers first, then each story, You asked we fixed, Also in, Thank
-  you and Code shipped. Shoot the section's element from with Playwright at a 1424 px
+  you and Code shipped. Shoot the section's element from `/releases/<version>/index.html` with Playwright at a 1424 px
   wide viewport and a device scale factor of 2, so each is about 2848 px wide. v0.40.0 has 14 and v0.39.0 has 9.
-- Save them in , named style.
-- List them in the header as , with the alt text naming what the image holds and the URL
+- Save them in `docs/screenshots/releases/<version>/`, named in the `v0-40-0-release-01-the-numbers.jpg` style.
+- List them in the header as `![what it shows](raw URL)`, with the alt text naming what the image holds and the URL
   pinned to the commit that adds them. Commit the images first, then the header that names that commit.
 
 ## 5. Wire it in
