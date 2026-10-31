@@ -1107,7 +1107,7 @@ export class PauseOverlay extends Phaser.Scene {
         textStyle(typeRole.label, surface.paper.hex, alpha * 0.75),
       )
       .setFontSize(9)
-      .setWordWrapWidth(rect.width - 24);
+      .setWordWrapWidth(rect.width - 36);
     if (enabled)
       label(
         this,

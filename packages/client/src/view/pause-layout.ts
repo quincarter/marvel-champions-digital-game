@@ -321,11 +321,12 @@ const PHONE_GROUP_GAP = 16;
 const QUICK_REFERENCE_ROW_MIN_HEIGHT = 44;
 const QUICK_REFERENCE_DETAIL_TOP = 24;
 const QUICK_REFERENCE_DETAIL_LINE_HEIGHT = 11;
-const QUICK_REFERENCE_DETAIL_CHAR_WIDTH = 5;
+/** The detail is tracked capitals: this errs tall, because a row cut short loses its last line. */
+const QUICK_REFERENCE_DETAIL_CHAR_WIDTH = 7;
 const QUICK_REFERENCE_BOTTOM_PADDING = 8;
 
 function quickReferenceRowHeight(detail: string, columnWidth: number): number {
-  const wrapWidth = Math.max(1, columnWidth - 24);
+  const wrapWidth = Math.max(1, columnWidth - 36);
   const lines = estimateWrappedLines(detail, wrapWidth, QUICK_REFERENCE_DETAIL_CHAR_WIDTH);
   return Math.max(
     QUICK_REFERENCE_ROW_MIN_HEIGHT,
