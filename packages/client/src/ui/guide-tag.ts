@@ -53,6 +53,14 @@ export class McGuideTag {
   /** Repositions the stamp centered on `targetRect`'s top edge — straddling it, the way a real stamp sits on a
    * card's corner. Safe to call every draw: it only ever moves existing objects, never rebuilds them. */
   update(targetRect: Rect): void {
+    this.moveTo(targetRect);
+    this.#scene.children.bringToTop(this.#box);
+    this.#scene.children.bringToTop(this.#label);
+  }
+
+  /** `update`, keeping the stamp's place in the display list: a glide's frames on the board, where the rail and the
+   * callout sit above it. */
+  moveTo(targetRect: Rect): void {
     const { fill, height, pad } = guideTag;
     const width = this.#label.width + pad * 2;
     const x = targetRect.x + targetRect.width / 2 - width / 2;
@@ -66,9 +74,19 @@ export class McGuideTag {
       .lineStyle(border.object, surface.inkOnHue.hex, 1)
       .strokeRect(x, y, width, height);
     this.#label.setPosition(x + width / 2, y + height / 2).setVisible(true);
+  }
 
-    this.#scene.children.bringToTop(this.#box);
-    this.#scene.children.bringToTop(this.#label);
+  /** Takes the stamp out of its sheet's entrance (`enterOverlay` fades and raises every object it finds), which would
+   * fight a glide over its position. */
+  leaveEntrance(): void {
+    this.#scene.tweens.killTweensOf([this.#box, this.#label]);
+    this.#box.setY(0).setAlpha(1);
+    this.#label.setAlpha(1);
+  }
+
+  /** False once the host scene's redraw has destroyed the stamp. */
+  get alive(): boolean {
+    return this.#box.scene !== undefined;
   }
 
   hide(): void {

@@ -34,6 +34,14 @@ export class McGuideSpotlight {
    * table.
    */
   show(viewport: Rect, cutout: Rect): void {
+    this.moveTo(viewport, cutout);
+    this.#scene.children.bringToTop(this.#dim);
+    this.#scene.children.bringToTop(this.#ring);
+  }
+
+  /** Redraws around `cutout` where it already sits in the display list: a glide's frames, which must stay under
+   * whatever the board has since put on top of the spotlight (the rail, the callout). */
+  moveTo(viewport: Rect, cutout: Rect): void {
     const { dimAlpha, dimColor, ringWidth, ringOffset, ringColor } = guideSpotlight;
 
     this.#dim.clear().setVisible(true);
@@ -58,9 +66,6 @@ export class McGuideSpotlight {
       height: cutout.height + ringOffset * 2,
     };
     this.#ring.lineStyle(ringWidth, ringColor.hex, 1).strokeRect(outer.x, outer.y, outer.width, outer.height);
-
-    this.#scene.children.bringToTop(this.#dim);
-    this.#scene.children.bringToTop(this.#ring);
   }
 
   hide(): void {

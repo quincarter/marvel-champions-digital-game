@@ -39,7 +39,8 @@
  * board redraw fired after the panel first drew). So this module keeps only *plain state* across draws
  * (`#collapsed`, the controller itself) and constructs a fresh widget instance inside `draw()` whenever one needs
  * to appear this frame — cheap, and consistent with how every other Board widget already survives this scene's
- * own redraw discipline.
+ * own redraw discipline. The one exception is where the highlight is on screen (`#glide`), since the ring and tag
+ * glide to each new target across those rebuilds (#552).
  */
 import { guideHintText } from "../../view/guide-hint.js";
 import { inputDevice } from "../../platform/input-device.js";
@@ -58,6 +59,7 @@ import {
 import { guidePrefs, setGuideRunLevelOverride } from "../../guide/guide-store.js";
 import { border, hit, signal, surface, threatMeter, typeRole } from "../../tokens.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
+import { glideNow, runGuideGlide } from "../../ui/guide-glide-run.js";
 import { McGuidePanel, type GuidePanelExtraRow, type McGuidePanelContent } from "../../ui/guide-panel.js";
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
 import { McGuideTag } from "../../ui/guide-tag.js";
@@ -72,6 +74,7 @@ import {
   type ResolvedAnchor,
 } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
+import { GuideGlide } from "../../view/guide-glide.js";
 import { calloutFitsDottedWordHint, dottedWordHintFor } from "../../view/dotted-word-hint.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
 import { currentStep, lessonList, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
@@ -190,6 +193,12 @@ export class BoardGuideMount {
   #lastDebriefActive = false;
   /** This frame's resolved anchor, if any — kept only for `debugAnchorRect` (G5c part 2 verification hook). */
   #lastResolved: ResolvedAnchor | null = null;
+  /** Where the ring and tag are right now: they outlive a redraw's widgets, so a new target glides from the old one. */
+  readonly #glide = new GuideGlide();
+  /** Stops this frame's glide, whose widgets the next redraw destroys. */
+  #stopGlide: (() => void) | null = null;
+  /** The window `#glide`'s position belongs to. */
+  #glideViewport: Rect | null = null;
   /** The waiting/complete note's own key (`view/guide-waiting-note.ts`) the player's × last hid, or `null` once
    * nothing is dismissed (the default) — see `#drawWaitingStrip`'s own doc comment (owner phone bug report). */
   #dismissedWaitingNoteKey: string | null = null;
@@ -512,6 +521,12 @@ export class BoardGuideMount {
     return this.#lastResolved?.rect ?? null;
   }
 
+  /** Where the highlight is on screen this moment, `null` once it's been gone too long to glide from. What a sheet's
+   * stamp flies in from (`GuideStampGlide`), and the rect a test reads mid-glide. */
+  highlightRect(): Rect | null {
+    return this.#glide.recentRect(glideNow(this.#scene));
+  }
+
   /** The guide rail's own width to reserve in this frame's `boardLayout` call, or `null` off desktop/tablet
    * landscape, or once the guide is hidden — `BoardScene#draw` reads this *before* laying out the rest of the
    * table, so nothing the rail covers is also a drop target underneath it. */
@@ -570,6 +585,8 @@ export class BoardGuideMount {
    * just returns rather than drawing a second, stale copy on top of what the nested redraw already put down.
    */
   draw(layout: BoardLayout, viewport: Rect): void {
+    this.#stopGlide?.();
+    this.#stopGlide = null;
     // Pauses the guide's own surfaces while the round debrief (guided mode G8 part 2) covers the table: no rail/
     // callout/spotlight/tag draws, and the board's own soft gate is released rather than left stale underneath an
     // overlay the player can't act through. `#scene.requestGuideRedraw()` after the debrief closes (`onNextRound`,
@@ -579,6 +596,7 @@ export class BoardGuideMount {
       this.#lastCallout = null;
       this.#lastWaitingStrip = null;
       this.#lastResolved = null;
+      this.#glide.hide(glideNow(this.#scene));
       this.#syncGate(null, null);
       return;
     }
@@ -957,15 +975,34 @@ export class BoardGuideMount {
     // would sit underneath the choice sheet's scrim, not on top of it). The sheet draws its own `GUIDE PICK`
     // stamp instead, via `#syncChoicePick`.
     this.#syncChoicePick(anchor);
-    if (!resolved || !this.#scene.guideBannerClear()) return;
+    const now = glideNow(this.#scene);
+    if (!resolved || !this.#scene.guideBannerClear()) {
+      this.#glide.hide(now);
+      return;
+    }
     // `resolved.tab` set means the anchor isn't actually on the currently active phone tab right now — either
     // this step's one auto-switch (`#maybeSwitchTab`) hasn't happened yet this exact draw (it would already have
     // returned above), or the player switched away from it on their own since. Either way there's nothing to
     // ring on *this* screen — "hide the spotlight until they come back" (`docs/guided-mode.md` §4 G5c item 1) —
     // while the callout stays up with its text regardless (`#drawCallout`'s own doc comment).
-    if (resolved.tab) return;
-    new McGuideSpotlight(this.#scene).show(viewport, resolved.rect);
-    if (tagVariant) new McGuideTag(this.#scene, tagVariant).update(resolved.rect);
+    if (resolved.tab) {
+      this.#glide.hide(now);
+      return;
+    }
+    if (this.#glideViewport?.width !== viewport.width || this.#glideViewport.height !== viewport.height)
+      this.#glide.forget();
+    this.#glideViewport = viewport;
+    // Named by the anchor, not the step: the payment walk moves the anchor within one step, and two steps that ring
+    // the same button have nothing to glide.
+    const shown = this.#glide.place(JSON.stringify(anchor), resolved.rect, now, !appSession().settings.reducedMotion);
+    const spotlight = new McGuideSpotlight(this.#scene);
+    spotlight.show(viewport, shown);
+    const tag = tagVariant ? new McGuideTag(this.#scene, tagVariant) : null;
+    tag?.update(shown);
+    this.#stopGlide = runGuideGlide(this.#scene, this.#glide, (rect) => {
+      spotlight.moveTo(viewport, rect);
+      tag?.moveTo(rect);
+    });
   }
 
   /**
@@ -1209,6 +1246,8 @@ export class BoardGuideMount {
    * single, uniform "tear the guide down" call at scene shutdown / a fresh game, whether or not that redraw
    * ever actually happens again. */
   destroy(): void {
-    // Nothing owned here outlives a single `draw()` call.
+    // Nothing owned here outlives a single `draw()` call but the glide, which moves that call's widgets.
+    this.#stopGlide?.();
+    this.#stopGlide = null;
   }
 }

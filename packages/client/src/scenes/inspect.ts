@@ -123,7 +123,7 @@ import { createHints } from "./campaign/pad-hints.js";
 import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
 import { glyphSetOf } from "../view/input-mode.js";
 import { glyphsForShortcut } from "../view/input-glyph-model.js";
-import { McGuideTag } from "../ui/guide-tag.js";
+import { GuideStampGlide } from "../ui/guide-glide-run.js";
 import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { tableGame } from "../view/table-game.js";
@@ -321,6 +321,8 @@ export class InspectOverlay extends Phaser.Scene {
    * next) and a compact guide strip (`ui/guide-strip.ts`, reused from the villain-phase/defend-sheet overlays).
    */
   #guidePickInstanceId: InstanceId | null = null;
+  /** This opening's `TRY THIS` stamp, gliding in from the board's highlight (#552). */
+  #guideStamp = new GuideStampGlide();
   /** This rebuild's own Play/Play it button rect, once `#isGuidePick()` stamped it — headless click-through hook
    * only (`__mcInspectDebug`, below), the same "debug accessor only" role `scenes/board/guide-mount.ts#debugPanelRects`
    * plays. `null` on a rebuild with no stamp. */
@@ -388,6 +390,7 @@ export class InspectOverlay extends Phaser.Scene {
   }
 
   create(data: InspectData): void {
+    this.#guideStamp = new GuideStampGlide();
     this.#instanceId = data.instanceId ?? null;
     // Opened on a card with cards under it (or on one of those): ◂ ▸ step through the host and what is tucked under it.
     const game = tableGame(appSession().store.state.game);
@@ -467,6 +470,7 @@ export class InspectOverlay extends Phaser.Scene {
       (window as unknown as { __mcInspectDebug?: unknown }).__mcInspectDebug = {
         playRect: () => this.#lastPlayRect,
         guidePickInstanceId: () => this.#guidePickInstanceId,
+        guideStampRect: () => this.#guideStamp.shownRect(this),
       };
     }
 
@@ -570,6 +574,10 @@ export class InspectOverlay extends Phaser.Scene {
     if (this.#guidePickInstanceId === instanceId) return;
     this.#guidePickInstanceId = instanceId;
     if (this.scene.isActive(SCENES.inspect)) this.#rebuild();
+  }
+
+  #drawGuideStamp(playRect: Rect): void {
+    this.#guideStamp.draw(this, "tryThis", playRect, this.#boardScene()?.guideHighlightRect() ?? null);
   }
 
   /** True while this sheet's own subject is the card the guide wants a `TRY THIS` stamp/strip on. */
@@ -1592,7 +1600,7 @@ export class InspectOverlay extends Phaser.Scene {
       );
       // Guided mode G7b — same stamp as the phone sheet's own Play button (`#drawSheetFooter`'s own comment).
       if (this.#isGuidePick()) {
-        new McGuideTag(this, "tryThis").update(playRect);
+        this.#drawGuideStamp(playRect);
         this.#lastPlayRect = playRect;
       }
       x += width + gap;
@@ -2272,7 +2280,7 @@ export class InspectOverlay extends Phaser.Scene {
         // `#guidePickInstanceId` stamp — see `#guidePickInstanceId`'s own doc comment for why this scene draws
         // its own tag rather than relying on Board's (a later-launched scene renders above it).
         if (canPlay && this.#isGuidePick()) {
-          new McGuideTag(this, "tryThis").update(playRect);
+          this.#drawGuideStamp(playRect);
           this.#lastPlayRect = playRect;
         }
         x += playWidth + gap;

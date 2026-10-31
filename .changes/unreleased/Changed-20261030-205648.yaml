@@ -1,0 +1,3 @@
+kind: Changed
+body: The tutorial's TRY THIS highlight now glides smoothly to each next target (buttons, cards, payment and decision options) instead of jumping, and goes straight there under Reduced motion (#552)
+time: 2026-10-30T20:56:48.875789-04:00
