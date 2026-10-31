@@ -25,6 +25,11 @@ describe("the update panel", () => {
     expect(view.body).toContain("Version 1.1.0");
   });
 
+  it("is not ready once the script waiting has gone", () => {
+    const log = "MC_UPDATE ready 1.1.0\n";
+    expect(steamUpdateViewOf({ running: false, exitCode: null, log }, true, null).phase).toBe("failed");
+  });
+
   it("reads line ends from any system", () => {
     expect(steamUpdateViewOf(running("MC_UPDATE ready 1.1.0\r\n"), true, null).phase).toBe("ready");
     expect(steamUpdateViewOf(exited(1, "Error: the download failed.\r\n"), true, null).body).toContain(

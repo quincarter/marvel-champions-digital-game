@@ -208,6 +208,7 @@ export class TitleScene extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.steamUpdate) ||
         this.scene.isActive(SCENES.gamesList),
       // R3 (and the Expand key, F / ;) snaps focus to the in-progress games, ready to scroll.
       onExpand: () => {

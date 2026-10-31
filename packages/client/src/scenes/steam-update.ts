@@ -42,6 +42,8 @@ export class SteamUpdateOverlay extends Phaser.Scene {
   #data: SteamUpdateSceneData = { version: null, fallbackUrl: "" };
   #status: SteamUpdateStatus | null = null;
   #started = false;
+  /** Asked the shell to start, and it hasn't answered. */
+  #starting = false;
   #startError: string | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
@@ -49,8 +51,11 @@ export class SteamUpdateOverlay extends Phaser.Scene {
   #hints!: GlyphHints;
   #guard!: PressGuard;
   #primary: string | null = null;
-  /** What is on screen, so a poll that changes nothing doesn't rebuild the panel under the player's focus. */
+  /** What is on screen, so a poll that changes nothing doesn't rebuild the panel under the player's press or focus. */
   #shown = "";
+  #phase: SteamUpdatePhase | null = null;
+  /** The download bar's fill, redrawn alone as the percent moves. */
+  #bar: { readonly fill: Phaser.GameObjects.Graphics; readonly rect: Rect } | null = null;
 
   constructor() {
     super(SCENES.steamUpdate);
@@ -60,8 +65,11 @@ export class SteamUpdateOverlay extends Phaser.Scene {
     this.#data = data;
     this.#status = null;
     this.#started = false;
+    this.#starting = false;
     this.#startError = null;
     this.#shown = "";
+    this.#phase = null;
+    this.#bar = null;
     this.#primary = null;
     this.#motion = new OverlayMotion();
     const onResize = (): void => this.#draw();
@@ -106,9 +114,12 @@ export class SteamUpdateOverlay extends Phaser.Scene {
   }
 
   async #start(): Promise<void> {
-    this.#started = true;
+    if (this.#starting) return;
+    this.#starting = true;
     try {
+      // The shell starts a new log before it answers, so no poll can read the last run's as this one's.
       await startSteamUpdate(cardLanguage());
+      this.#started = true;
       await this.#poll();
     } catch (error) {
       this.#startError = String(error);
@@ -131,9 +142,13 @@ export class SteamUpdateOverlay extends Phaser.Scene {
   #draw(always = true): void {
     if (this.#motion.leaving) return;
     const view = this.#view();
-    const fingerprint = `${view.phase}|${view.heading}|${view.body}|${view.percent}`;
+    this.#paintBar(view.percent);
+    const fingerprint = `${view.phase}|${view.heading}|${view.body}`;
     if (!always && fingerprint === this.#shown) return;
     this.#shown = fingerprint;
+    // A new step's buttons appear under the player's thumbs, and "Quit and install" exits at once: no stray press.
+    if (this.#phase !== null && view.phase !== this.#phase) this.#guard.restart();
+    this.#phase = view.phase;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#hints.reset();
@@ -179,8 +194,11 @@ export class SteamUpdateOverlay extends Phaser.Scene {
     y += body.height + 16;
     if (showBar) {
       ground.fillStyle(surface.void.hex, 1).fillRect(x + PAD, y, inner, BAR_HEIGHT);
-      ground.fillStyle(signal.caution.hex, 1).fillRect(x + PAD, y, (inner * (view.percent ?? 0)) / 100, BAR_HEIGHT);
+      this.#bar = { fill: this.add.graphics(), rect: { x: x + PAD, y, width: inner, height: BAR_HEIGHT } };
+      this.#paintBar(view.percent);
       y += BAR_HEIGHT + 16;
+    } else {
+      this.#bar = null;
     }
 
     const stops = new Map<string, FocusStop>();
@@ -203,6 +221,13 @@ export class SteamUpdateOverlay extends Phaser.Scene {
       actions.map((action) => action.id),
       stops,
     );
+  }
+
+  #paintBar(percent: number | null): void {
+    if (this.#bar === null) return;
+    const { fill, rect } = this.#bar;
+    fill.clear().fillStyle(signal.caution.hex, 1);
+    fill.fillRect(rect.x, rect.y, (rect.width * (percent ?? 0)) / 100, rect.height);
   }
 
   #actionsOf(

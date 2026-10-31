@@ -94,8 +94,15 @@ open(my $fh, "<:raw", $ARGV[0]) or exit 0; local $/; print JSON::PP->new->utf8->
 ' "$MARKER" "$1" 2> /dev/null || true
 }
 
+asked_language="$language"
 [ -n "$language" ] || language="$(marker_value language)"
 [ -n "$language" ] || language="en"
+
+# Whether the game at $1 is the latest in the language asked for. With no language asked for, the one it has is fine.
+is_latest() {
+  [ -d "$1" ] && [ "$(app_version "$1")" = "$latest_version" ] &&
+    { [ -z "$asked_language" ] || [ "$(marker_value language)" = "$language" ]; }
+}
 
 # Sets latest_version and latest_url to the latest release and its .dmg for this Mac and the chosen language. GitHub's
 # "latest" is never a draft or a prerelease.
@@ -118,26 +125,32 @@ print "$version\t", ($dmg ? $dmg->{browser_download_url} : ""), "\n";
 # The version in an installed .app's bundle.
 app_version() { defaults read "$1/Contents/Info" CFBundleShortVersionString 2> /dev/null || true; }
 
-# Downloads the release's .dmg and copies its app to "<destination>.new", ready to swap in.
+# Downloads the release's .dmg and copies its app to $staged, beside the destination, ready to swap in. The name is this
+# run's own: one left going by an earlier run of the game must not share it.
+staged=""
 fetch_app() {
   local dmg="$tmp_dir/game.dmg" mount="$tmp_dir/mount" found
+  staged="$1.new.$$"
   say "Downloading version $latest_version..."
   curl -fL --progress-bar -o "$dmg" "$latest_url" || die "the download failed."
   mkdir -p "$mount"
   hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$mount" || die "couldn't open the .dmg."
   found="$(find "$mount" -maxdepth 1 -name '*.app' | head -n 1)"
   [ -n "$found" ] || die "the .dmg has no app in it."
-  rm -rf "$1.new"
-  ditto "$found" "$1.new" || die "couldn't copy the game to $1."
+  ditto "$found" "$staged" || die "couldn't copy the game to $1."
   hdiutil detach "$mount" -quiet || true
   # The files came from the internet, and an unsigned build would be blocked on its first launch.
-  xattr -dr com.apple.quarantine "$1.new" 2> /dev/null || true
+  xattr -dr com.apple.quarantine "$staged" 2> /dev/null || true
 }
 
 swap_app() {
   rm -rf "$1.old"
-  [ ! -d "$1" ] || mv "$1" "$1.old"
-  mv "$1.new" "$1"
+  [ ! -d "$1" ] || mv "$1" "$1.old" || die "couldn't replace $1."
+  if ! mv "$staged" "$1"; then
+    [ ! -d "$1.old" ] || mv "$1.old" "$1"
+    die "couldn't replace $1."
+  fi
+  staged=""
   rm -rf "$1.old"
 }
 
@@ -184,7 +197,7 @@ find_app() {
 }
 
 tmp_dir="$(mktemp -d)"
-trap 'hdiutil detach "$tmp_dir/mount" -quiet > /dev/null 2>&1 || true; rm -rf "$tmp_dir"' EXIT
+trap 'hdiutil detach "$tmp_dir/mount" -quiet > /dev/null 2>&1 || true; rm -rf "$tmp_dir" ${staged:+"$staged"}' EXIT
 
 # --- Update (from the game, or by hand) ----------------------------------------------------------------------------
 
@@ -195,12 +208,14 @@ if [ "$update" = 1 ]; then
   find_app
   [ -n "$app" ] || die "the game isn't in Applications."
   lookup_latest || die "couldn't find the latest release on GitHub."
-  if [ "$(app_version "$app")" = "$latest_version" ] && [ "$(marker_value language)" = "$language" ]; then
+  if is_latest "$app"; then
     say "MC_UPDATE current $latest_version"
     exit 0
   fi
   fetch_app "$app"
   if [ -n "$wait_pid" ]; then
+    # The game went while this downloaded. It may have been started again, so nothing here decides for that one.
+    kill -0 "$wait_pid" 2> /dev/null || die "the game closed before the download finished, so nothing changed."
     say "MC_UPDATE ready $latest_version"
     while kill -0 "$wait_pid" 2> /dev/null; do sleep 1; done
   fi
@@ -253,7 +268,7 @@ if [ "$uninstall" = 0 ]; then
   say "Looking up the latest release..."
   if lookup_latest; then
     version="$latest_version"
-    if [ -z "$app" ] || [ ! -d "$app" ] || [ "$(app_version "$app")" != "$latest_version" ]; then
+    if [ -z "$app" ] || ! is_latest "$app"; then
       if pgrep -x marvel-champions > /dev/null 2>&1; then
         die "the game is running. Close it and run this again."
       fi

@@ -8,7 +8,9 @@
 //! and its output goes to `update.log` in the same folder for the game to show.
 //! It downloads first and then waits for the game to exit, because Windows can't
 //! replace a running exe and every system is better off not swapping the game
-//! out from under itself. It is its own process group and outlives the game.
+//! out from under itself. It is its own process group and outlives the game. If
+//! the game exits before the download ends the script gives up, changing nothing,
+//! so a quit mid-download can't replace a game started again in the meantime.
 
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -148,6 +150,10 @@ pub fn steam_update_start(app: AppHandle, language: String) -> Result<(), String
   if !script.is_file() {
     return Err(format!("{} is missing", script.display()));
   }
+  // An update from an earlier run of the game may still be writing to the last log. It stops by itself when its
+  // download ends (the game it was waiting for has gone), and doesn't belong in this one.
+  #[cfg(not(windows))]
+  let _ = std::fs::remove_file(dir.join(LOG_FILE));
   let log = File::create(dir.join(LOG_FILE)).map_err(|e| e.to_string())?;
   let errors = log.try_clone().map_err(|e| e.to_string())?;
   let child = script_command(&script, &language)

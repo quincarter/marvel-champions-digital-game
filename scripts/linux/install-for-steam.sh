@@ -167,14 +167,18 @@ if [ "$update" = 1 ]; then
     exit 0
   fi
   mkdir -p "$INSTALL_DIR"
-  trap 'rm -f "$INSTALLED.new"' EXIT
-  fetch_appimage "$INSTALLED.new"
-  chmod +x "$INSTALLED.new"
+  # This run's own name: one left going by an earlier run of the game must not share it.
+  staged="$INSTALLED.new.$$"
+  trap 'rm -f "$staged"' EXIT
+  fetch_appimage "$staged"
+  chmod +x "$staged"
   if [ -n "$wait_pid" ]; then
+    # The game went while this downloaded. It may have been started again, so nothing here decides for that one.
+    kill -0 "$wait_pid" 2> /dev/null || die "the game closed before the download finished, so nothing changed."
     say "MC_UPDATE ready $latest_version"
     while kill -0 "$wait_pid" 2> /dev/null; do sleep 1; done
   fi
-  mv -f "$INSTALLED.new" "$INSTALLED"
+  mv -f "$staged" "$INSTALLED"
   write_marker "$latest_version" "$(marker_value steam)"
   say "MC_UPDATE done $latest_version"
   exit 0

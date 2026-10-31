@@ -440,6 +440,7 @@ export class SettingsOverlay extends Phaser.Scene {
       this.scene.isActive(SCENES.saveData) ||
       this.scene.isActive(SCENES.playerStats) ||
       this.scene.isActive(SCENES.controls) ||
+      this.scene.isActive(SCENES.steamUpdate) ||
       this.scene.isActive(SCENES.rules)
     );
   }

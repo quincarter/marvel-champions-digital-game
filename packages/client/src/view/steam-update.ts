@@ -63,8 +63,8 @@ function failureOf(log: string): string {
 }
 
 /**
- * Where the update stands. `started` is false until the panel has asked for it, so the log of an earlier run isn't
- * taken for this one's (the script starts a new log when it runs).
+ * Where the update stands. `started` is false until the shell has started it, so the log of an earlier run isn't taken
+ * for this one's (the shell starts a new log each time).
  */
 export function steamUpdateViewOf(
   status: SteamUpdateStatus | null,
@@ -73,7 +73,8 @@ export function steamUpdateViewOf(
 ): SteamUpdateView {
   if (!started || status === null) return askView(version);
   const report = lastReport(status.log);
-  if (report?.state === "ready") {
+  // Ready means the script is waiting; one that has gone since (killed, or stopped) is waiting for nothing.
+  if (report?.state === "ready" && status.running) {
     return {
       phase: "ready",
       heading: "Ready to install",
@@ -96,7 +97,7 @@ export function steamUpdateViewOf(
     return {
       phase: "working",
       heading: version === null ? "Updating" : `Downloading version ${version}`,
-      body: "You can close this and keep playing. It carries on in the background.",
+      body: "You can close this and keep playing while it downloads. Stay in the game until it's done.",
       percent: lastPercent(status.log),
     };
   }

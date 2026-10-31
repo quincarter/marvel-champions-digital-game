@@ -69,6 +69,7 @@ function Read-Marker {
 }
 
 $record = Read-Marker
+$askedLanguage = $Language
 if ($Language -eq "" -and $null -ne $record) { $Language = [string]$record.language }
 if ($Language -eq "") { $Language = "en" }
 
@@ -334,6 +335,12 @@ function Get-GameVersion([string]$exe) {
   return ([string](Get-Item $exe).VersionInfo.ProductVersion).Trim()
 }
 
+# Whether the game at $exe is the latest in the language asked for. With no language asked for, the one it has is fine.
+function Test-Latest([string]$exe, [string]$version) {
+  if ((Get-GameVersion $exe) -ne $version) { return $false }
+  return $askedLanguage -eq "" -or ($null -ne $record -and $record.language -eq $Language)
+}
+
 function New-TempFolder {
   $folder = Join-Path ([System.IO.Path]::GetTempPath()) ("mc-steam-" + [guid]::NewGuid())
   New-Item -ItemType Directory -Path $folder | Out-Null
@@ -351,7 +358,7 @@ if ($Update) {
   $kind = Get-InstallKind $Path
   $latest = Get-LatestRelease $kind
   if ($null -eq $latest) { Fail "couldn't find the latest release on GitHub." }
-  if ((Get-GameVersion $Path) -eq $latest.Version -and $null -ne $record -and $record.language -eq $Language) {
+  if (Test-Latest $Path $latest.Version) {
     Write-Host "MC_UPDATE current $($latest.Version)"
     exit 0
   }
@@ -360,6 +367,11 @@ if ($Update) {
   Write-Host "Downloading version $($latest.Version)..."
   Save-Download $latest.Url $installer
   if ($WaitPid -gt 0) {
+    # The game went while this downloaded. It may have been started again, and the installer would close it.
+    if ($null -eq (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
+      Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
+      Fail "the game closed before the download finished, so nothing changed."
+    }
     Write-Host "MC_UPDATE ready $($latest.Version)"
     while ($null -ne (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) { Start-Sleep -Seconds 1 }
   }
@@ -383,7 +395,7 @@ if ($Uninstall) {
   $latest = Get-LatestRelease $kind
   if ($null -ne $latest) {
     $version = $latest.Version
-    if ((Get-GameVersion $Path) -eq $latest.Version) {
+    if (Test-Latest $Path $latest.Version) {
       Write-Host "Version $($latest.Version) is already installed."
     } else {
       if ($null -ne (Get-Process -Name marvel-champions -ErrorAction SilentlyContinue)) {

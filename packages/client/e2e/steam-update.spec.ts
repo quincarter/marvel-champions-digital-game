@@ -173,6 +173,8 @@ test("the panel works from the keyboard and a controller's route, and shows the 
   await setStatus(page, { running: true, exitCode: null, log: "" });
   await page.keyboard.press("Enter");
   await waitForPhase(page, "working");
+  // A new step takes no pad or key press for a moment, so a stray one can't land on its buttons.
+  await page.waitForTimeout(700);
   await page.keyboard.press("Escape");
   await waitForPhase(page, null);
   expect(errors).toEqual([]);
