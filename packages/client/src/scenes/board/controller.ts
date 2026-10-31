@@ -156,6 +156,8 @@ export interface BoardControllerHost {
   /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
   hasDiscardStop?(): boolean;
   openDiscard?(): void;
+  hasVictoryDisplayStop?(): boolean;
+  openVictoryDisplay?(): void;
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -482,6 +484,7 @@ export class BoardController {
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
+        ...(this.#host.hasVictoryDisplayStop?.() ? { victoryDisplay: true as const } : {}),
         undo: this.undoOffer() !== null,
         table: this.#host.tableCards?.() ?? [],
         ...(this.#host.hasTile
@@ -537,6 +540,11 @@ export class BoardController {
       this.onCharacterTap(focus.instanceId);
       return;
     }
+    // The pile sends nothing, so it opens on a replayed board too, as a tap does.
+    if (focus.kind === "victoryDisplay") {
+      this.#host.openVictoryDisplay?.();
+      return;
+    }
     if (this.#readOnly) return;
     // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
     if (focus.kind === "cancel") {
@@ -577,7 +585,7 @@ export class BoardController {
       else this.chooseBasic(focus.action);
       return;
     }
-    if (focus.kind === "card" && !this.#guideGate.allowsCard(focus.instanceId)) {
+    if (focus.kind === "card" && !this.#pickOpen && !this.#guideGate.allowsCard(focus.instanceId)) {
       this.#guideGate.noteInertClick();
       return;
     }
@@ -604,6 +612,11 @@ export class BoardController {
     return !(this.#host.marks()?.usableAbilities.has(id) ?? false);
   }
 
+  /** A target or source pick was opened by the taught action, so its own options answer whatever the gate names. */
+  get #pickOpen(): boolean {
+    return this.#selection.kind === "targeting" || this.#selection.kind === "choosingSource";
+  }
+
   /**
    * A tap on a card while a mode is open answers that mode: it spends the card
    * during payment, or aims at it during targeting. Returns false when idle, so
@@ -615,7 +628,7 @@ export class BoardController {
     // reported as "handled" (true) rather than falling through to `onTap`, so a gated card outside the mode's own
     // targets doesn't also try to play itself. Idle falls through to `onTap` (`tapHandCard`/`onCharacterTap`),
     // which gate — and count the inert click — on their own, so this doesn't double-count that tap.
-    if (!this.#guideGate.allowsCard(id)) {
+    if (!this.#pickOpen && !this.#guideGate.allowsCard(id)) {
       if (this.#selection.kind === "idle") return false;
       this.#guideGate.noteInertClick();
       return true;
@@ -1250,6 +1263,10 @@ export class BoardController {
   /** The Inspect sheet's ability picker reports its pick here; it never dispatches itself. */
   useAbilityById(instanceId: InstanceId, abilityId: AbilityId): void {
     if (this.#readOnly) return;
+    if (!this.#guideGate.allowsAbility(instanceId)) {
+      this.#guideGate.noteInertClick();
+      return;
+    }
     const entry = this.usableAbilitiesFor(instanceId).find((candidate) => candidate.action.abilityId === abilityId);
     if (entry) this.#useAbility(entry);
   }

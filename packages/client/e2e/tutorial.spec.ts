@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import {
+  AUNT_MAY_CODE,
   BLACK_CAT_CODE,
+  ENERGY_CODE,
+  FOR_JUSTICE_CODE,
   INTERROGATION_ROOM_CODE,
   activeScenes,
   clickFocus,
@@ -35,8 +38,8 @@ test("plays the tutorial to completion", async ({ page }) => {
   await startTutorialFromTitle(page);
   expect(await guideStepId(page)).not.toBeNull();
 
-  // === Lesson 2: Paying for cards (still Peter Parker) — play Black Cat ===
-  await waitFor(async () => (await guideStepId(page)) === "play-black-cat" || null, "lesson2 play-black-cat step");
+  // === Lesson 2: Paying for cards (still Peter Parker) — Aunt May, Black Cat, Interrogation Room ===
+  await waitFor(async () => (await guideStepId(page)) === "play-aunt-may" || null, "lesson2 play-aunt-may step");
   await settle(page);
 
   const form0 = await page.evaluate(async () => {
@@ -50,7 +53,7 @@ test("plays the tutorial to completion", async ({ page }) => {
   });
   expect(form0, "still Peter Parker (alter-ego) when lesson 2 opens").toBe("alterEgo");
 
-  await clickHandCard(page, BLACK_CAT_CODE);
+  await clickHandCard(page, AUNT_MAY_CODE);
   await settle(page);
 
   const identityId = await page.evaluate(async () => {
@@ -66,15 +69,24 @@ test("plays the tutorial to completion", async ({ page }) => {
   await clickFocus(page, `card:${identityId}`);
   await settle(page);
 
-  await clickHandCard(page, INTERROGATION_ROOM_CODE);
+  await clickFocus(page, "payment:pay");
+  await settle(page);
+  await waitFor(async () => (await guideStepId(page)) === "play-black-cat" || null, "Aunt May played");
+
+  await clickHandCard(page, BLACK_CAT_CODE);
+  await settle(page);
+  await clickHandCard(page, ENERGY_CODE);
   await settle(page);
   await clickFocus(page, "payment:pay");
   await settle(page);
+  await waitFor(async () => (await guideStepId(page)) === "play-interrogation-room" || null, "Black Cat played");
 
-  await waitFor(async () => {
-    const step = await guideStepId(page);
-    return step !== "play-black-cat" ? "advanced" : null;
-  }, "lesson2 complete");
+  await clickHandCard(page, INTERROGATION_ROOM_CODE);
+  await settle(page);
+  await clickHandCard(page, FOR_JUSTICE_CODE);
+  await settle(page);
+  await clickFocus(page, "payment:pay");
+  await settle(page);
 
   // === Lesson 3: Hero & alter-ego — flip ===
   await waitFor(async () => (await guideStepId(page)) === "flip" || null, "lesson3 flip step");

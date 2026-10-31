@@ -120,6 +120,8 @@ export const SCENES = {
   nameConflict: "NameConflictOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
+  /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */
+  searchHelp: "SearchHelpSheet",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Only one option" (`scenes/option-notice.ts`, #412): a choose-one that took its only option, over the Board. */
@@ -144,6 +146,8 @@ export const SCENES = {
   evidence: "EvidenceOverlay",
   /** A pile fanned out: every card in your discard (or the encounter discard) at once (`scenes/pile-view.ts`). */
   pileView: "PileViewOverlay",
+  /** The cards left in your deck or the encounter deck, with counts and never in order (`scenes/deck-left.ts`). */
+  deckLeft: "DeckLeftOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
   /** "Report an issue" (#176, `scenes/report-issue.ts`): copy or download the log, a screenshot tip, a GitHub link. */

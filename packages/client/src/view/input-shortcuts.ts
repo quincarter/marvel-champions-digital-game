@@ -58,7 +58,9 @@ export type ShortcutId =
   | "teamUp"
   | "evidence"
   /** Opens your discard pile from anywhere on the table (L3 on a pad). */
-  | "discard";
+  | "discard"
+  /** Lists the cards left in your decks from the table (R3 on a pad, which Expand only uses on a popup). */
+  | "deckLeft";
 
 /** One key chord: the caps to draw, and what a keydown must carry to match. */
 export interface KeyChord {
@@ -169,6 +171,7 @@ function bindingsFor(hand: KeyboardHand): Readonly<Record<ShortcutId, readonly K
     evidence: [chord(left ? "KeyE" : "KeyO", { shift: true })],
     // Every left-hand letter is taken, so the digit row's spare 5 (6 under the right hand: 7-0 are its abilities).
     discard: [chord(left ? "Digit5" : "Digit6")],
+    deckLeft: [chord(left ? "Digit6" : "Digit5")],
   };
 }
 
@@ -278,6 +281,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "teamUp", keys: shortcutCaps("teamUp", "left"), padIntent: null, label: "Team-Up" },
   { id: "evidence", keys: shortcutCaps("evidence", "left"), padIntent: null, label: "Evidence" },
   { id: "discard", keys: shortcutCaps("discard", "left"), padIntent: "discard", label: "Open your discard pile" },
+  {
+    id: "deckLeft",
+    keys: shortcutCaps("deckLeft", "left"),
+    padIntent: "expand",
+    label: "List the cards left in your decks",
+  },
 ];
 
 const BY_ID: ReadonlyMap<ShortcutId, Shortcut> = new Map(SHORTCUTS.map((shortcut) => [shortcut.id, shortcut]));

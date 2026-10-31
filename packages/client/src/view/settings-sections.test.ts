@@ -14,10 +14,13 @@ describe("settingsSectionsOf", () => {
       ...settingsRowInfoOf(defaultSettings()).map((row) => row.id),
       ...guideRowIds,
       "card-size",
+      "hero-art",
       "card-hover",
       "music-volume",
       "effects-volume",
       "token-motion",
+      "deck-signature",
+      "deck-copy-limits",
       "villain-auto",
       "villain-hold",
       "villain-flip",
@@ -37,9 +40,10 @@ describe("settingsSectionsOf", () => {
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Earned items", () => {
+  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
+      "Cards left",
       "Villain phase",
       "Cards",
       "Animation and display",
@@ -117,7 +121,11 @@ describe("settingsTabsOf", () => {
 
   test("Villain phase sits on the Gameplay tab, and Sound has a tab of its own (#243)", () => {
     const tabs = settingsTabsOf({ guideRowIds, cardHover: true });
-    expect(tabs.find((t) => t.id === "gameplay")!.sections.map((s) => s.id)).toEqual(["gameplay", "villain"]);
+    expect(tabs.find((t) => t.id === "gameplay")!.sections.map((s) => s.id)).toEqual([
+      "gameplay",
+      "cards-left",
+      "villain",
+    ]);
     expect(tabs.find((t) => t.id === "display")!.sections.map((s) => s.id)).toEqual(["motion"]);
     expect(tabs.find((t) => t.id === "sound")!.sections.map((s) => s.id)).toEqual(["sound"]);
   });

@@ -74,6 +74,7 @@ export type BoardKeyAction =
   | { readonly kind: "teamUp" }
   | { readonly kind: "evidence" }
   | { readonly kind: "discard" }
+  | { readonly kind: "deckLeft" }
   /** The `slot`th (0-based) usable ability on your cards in play (`view/ability-slots.ts`). */
   | { readonly kind: "ability"; readonly slot: 0 | 1 | 2 | 3 };
 
@@ -93,6 +94,7 @@ const BOARD_IDS: Readonly<Partial<Record<ShortcutId, BoardKeyAction>>> = {
   teamUp: { kind: "teamUp" },
   evidence: { kind: "evidence" },
   discard: { kind: "discard" },
+  deckLeft: { kind: "deckLeft" },
   ability1: { kind: "ability", slot: 0 },
   ability2: { kind: "ability", slot: 1 },
   ability3: { kind: "ability", slot: 2 },

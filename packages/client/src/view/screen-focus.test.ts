@@ -272,6 +272,7 @@ describe("screen focus routes", () => {
       identityIds: ["hero-a"],
       aspectIds: ["justice", "aggression"],
       typeFilterIds: ["all", "ally", "event", "upgrade", "support", "resource"],
+      quickFilterIds: ["cost:0", "icon:wild"],
       poolCardIds: ["c1", "c2", "c3"],
     });
     expect(building).toEqual([
@@ -284,11 +285,17 @@ describe("screen focus routes", () => {
       "type:upgrade",
       "type:support",
       "type:resource",
+      "quick:cost:0",
+      "quick:icon:wild",
+      "trait:prev",
+      "trait:name",
+      "trait:next",
       "pack:prev",
       "pack:name",
       "pack:next",
       "pack:cycle",
       "pack:sort",
+      "pack:then",
       "name",
       "preconstructed",
       "clear",
@@ -311,7 +318,7 @@ describe("screen focus routes", () => {
       showPreconClear: false,
       rewardIds: ["0:45173"],
     });
-    expect(order.slice(order.indexOf("pack:sort") + 1)).toEqual(["reward:0:45173", "save", "filter-text", "card:c1"]);
+    expect(order.slice(order.indexOf("pack:then") + 1)).toEqual(["reward:0:45173", "save", "filter-text", "card:c1"]);
   });
 
   test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
@@ -410,7 +417,7 @@ describe("screen focus routes", () => {
   test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
     expect(
       pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),
-    ).toEqual(["close", "search", "resume", "save-quit", "concede"]);
+    ).toEqual(["close", "search", "quick-toggle", "resume", "save-quit", "concede"]);
     expect(
       pauseFocusOrder({
         kind: "phone",
@@ -421,6 +428,7 @@ describe("screen focus routes", () => {
     ).toEqual([
       "close",
       "search",
+      "quick-toggle",
       "quick:villainPhase",
       "quick:glossary",
       "table:reduced-motion",
@@ -443,6 +451,7 @@ describe("screen focus routes", () => {
     ).toEqual([
       "close",
       "search",
+      "quick-toggle",
       "quick:villainPhase",
       "guide-stop-tutorial",
       "guide-turn-guide-off",
@@ -703,6 +712,7 @@ describe("screen focus routes", () => {
       "seat:2",
       "seat:3",
       "clear-seat",
+      "hero-art",
       "use-preconstructed",
       "hero-search",
       "hero:a",
@@ -717,6 +727,7 @@ describe("screen focus routes", () => {
       "seat:2",
       "seat:3",
       "clear-seat",
+      "hero-art",
       "use-preconstructed",
       "hero-search",
       "hero-clear",
@@ -730,6 +741,7 @@ describe("screen focus routes", () => {
       "seat:2",
       "seat:3",
       "clear-seat",
+      "hero-art",
       "use-preconstructed",
       "hero-search",
       "hero-chip:aspect:justice",
@@ -744,6 +756,7 @@ describe("screen focus routes", () => {
       "seat:1",
       "seat-details-toggle",
       "clear-seat",
+      "hero-art",
       "use-preconstructed",
       "hero-search-toggle",
       "hero-search",

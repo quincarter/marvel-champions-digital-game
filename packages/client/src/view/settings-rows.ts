@@ -45,10 +45,14 @@ import {
   type DisplayMode,
   type FirstPlayerTokenMotion,
   type Settings,
+  DECK_SIGNATURE_CARDS_VALUES,
+  type DeckSignatureCards,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
   type FlipEncounterSpeed,
   type Resolution,
+  HERO_ART_VALUES,
+  type HeroArt,
 } from "../settings.js";
 import {
   CARD_LANGUAGES,
@@ -59,6 +63,7 @@ import {
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { EARNED_ITEMS, type EarnedItemId } from "../progression/earned-items.js";
+import { HERO_ART_LABELS, heroArtChoicesOf, heroArtInForce } from "./hero-art-choice.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -69,7 +74,11 @@ export type SettingsRowId =
   | "sound"
   | "music-shuffle"
   | "confirm-end-turn"
+  | "deck-copy-limits"
   | "same-name-conflict"
+  | "deck-counts-hero"
+  | "deck-counts-encounter"
+  | "deck-boost-average"
   | "hover-hero"
   | "hover-villain"
   | "discord-presence"
@@ -152,6 +161,25 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       on: settings.sameNameHeroAllyConflict,
     },
     {
+      id: "deck-counts-hero",
+      title: "Your deck's cards left",
+      detail: "Tap your deck to list the cards still in it, with how many of each. Never in draw order.",
+      on: settings.deckCountsHero,
+    },
+    {
+      id: "deck-counts-encounter",
+      title: "Encounter deck's cards left",
+      detail: "Tap the encounter deck for the same list. It can name cards of a scenario you haven't met yet.",
+      on: settings.deckCountsEncounter,
+    },
+    {
+      id: "deck-boost-average",
+      title: "Encounter boost average",
+      detail:
+        "Shows the boost icons per card left in the encounter deck when you tap it. Star boosts are listed apart.",
+      on: settings.deckBoostAverage,
+    },
+    {
       id: "hover-hero",
       title: "Hero card popover",
       detail: "With a mouse, resting on a hero card shows the larger popover. Off leaves hero cards as they are.",
@@ -164,6 +192,20 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       on: settings.hoverVillainCard,
     },
   ];
+}
+
+/**
+ * "Copy limits" under Gameplay (issue #531): the deck builder refuses an add that breaks a copy limit. Only the
+ * Settings screen draws it (not Pause's in-game group), so it is not in `settingsRowInfoOf`.
+ */
+export function deckCopyLimitsRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "deck-copy-limits",
+    title: "Deck builder copy limits",
+    detail:
+      "Refuse a copy past a card's limit (3 by title, Max 1 per deck, a hero's own rule). Off lets you add it; the deck then shows as illegal.",
+    on: settings.deckCopyLimits,
+  };
 }
 
 /** The desktop app's "Show my game on Discord" row. Drawn only there, so it is not in `settingsRowInfoOf` (shared with Pause). */
@@ -223,10 +265,18 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, musicShuffle: !settings.musicShuffle };
     case "confirm-end-turn":
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
+    case "deck-copy-limits":
+      return { ...settings, deckCopyLimits: !settings.deckCopyLimits };
     case "not-offered-notices":
       return { ...settings, notOfferedNotices: !settings.notOfferedNotices };
     case "same-name-conflict":
       return { ...settings, sameNameHeroAllyConflict: !settings.sameNameHeroAllyConflict };
+    case "deck-counts-hero":
+      return { ...settings, deckCountsHero: !settings.deckCountsHero };
+    case "deck-counts-encounter":
+      return { ...settings, deckCountsEncounter: !settings.deckCountsEncounter };
+    case "deck-boost-average":
+      return { ...settings, deckBoostAverage: !settings.deckBoostAverage };
     case "hover-hero":
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
@@ -235,6 +285,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, discordPresence: !settings.discordPresence };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
+    case "promo-art":
+      return { ...settings, promoArtOn: !settings.promoArtOn };
   }
 }
 
@@ -677,6 +729,33 @@ export function nextSettingsAfterCardSize(settings: Settings, value: CardSize): 
 // five-segment choice after Card size, shown on every form factor.
 // ---------------------------------------------------------------------------
 
+export interface DeckSignatureRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: DeckSignatureCards; readonly label: string }[];
+  readonly selected: DeckSignatureCards;
+}
+
+/** "Signature cards" under Gameplay (issue #531): free, standard (kept at the set's count) or hidden from the pool. */
+export function deckSignatureRowInfoOf(settings: Settings): DeckSignatureRowInfo {
+  return {
+    title: "Signature cards",
+    detail:
+      "In the deck builder: Free lets you change your hero's own cards like any other; Standard keeps them at their set's count; Hidden also leaves them out of the card pool.",
+    options: [
+      { value: "free", label: "Free" },
+      { value: "standard", label: "Standard" },
+      { value: "hidden", label: "Hidden" },
+    ],
+    selected: settings.deckSignatureCards,
+  };
+}
+
+/** `settings` with the signature cards rule set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterDeckSignature(settings: Settings, value: DeckSignatureCards): Settings {
+  return DECK_SIGNATURE_CARDS_VALUES.includes(value) ? { ...settings, deckSignatureCards: value } : settings;
+}
+
 export interface TokenMotionRowInfo {
   readonly title: string;
   readonly detail: string;
@@ -769,6 +848,21 @@ export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementP
     options: ACHIEVEMENT_POPUP_PLACE_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_PLACE_LABELS[value] })),
     selected: settings.achievementPopupPlace,
   };
+}
+
+/** The Hero art row: Game art, Card art, and Promo art once a promo is on offer (`view/hero-art-choice.ts`). */
+export function heroArtRowInfoOf(settings: Settings, promoShown: boolean): AchievementPopupRowInfo<HeroArt> {
+  return {
+    title: "Hero art",
+    detail: "The picture on each hero when you take your seats. Promo art shows on heroes whose promo you've earned.",
+    options: heroArtChoicesOf(promoShown).map((value) => ({ value, label: HERO_ART_LABELS[value] })),
+    selected: heroArtInForce(settings.heroArt, promoShown),
+  };
+}
+
+/** `settings` with the hero art set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterHeroArt(settings: Settings, value: HeroArt): Settings {
+  return HERO_ART_VALUES.includes(value) ? { ...settings, heroArt: value } : settings;
 }
 
 /** `settings` with the popup's time set; a value that is not one of the seven changes nothing. */

@@ -1,0 +1,133 @@
+# The official promo cards, one row per scan: earned art that can stand in for a card's normal scan (issue #192).
+# `scan` is the normal scan it stands in for, `set` numbers a card's alternatives, `turn` is the degrees counter-clockwise
+# that stand it the way the normal scan does, and `file` is its name in the owner's promo folder. Each row is saved by
+# `scripts/fetch_card_art.py promos <folder>` to promos/<scan>-<set>.webp. `src/art/promo-art.ts` lists the same scans.
+scan	set	turn	file
+01001a	1	0	Promo_Spider Man_01-2.png
+01001b	1	0	Promo_Spider Man_02-2.png
+01010a	1	0	promo_capt_marvel001.tiff
+01010b	1	0	promo_capt_marvel002.tiff
+01019a	1	0	promo_shehulk001.tiff
+01019b	1	0	promo_shehulk002.tiff
+01029a	1	0	promo_ironman001.tiff
+01029b	1	0	promo_ironman002.tiff
+01040a	1	0	promo_black_panther001.tiff
+01040b	1	0	promo_black_panther002.tiff
+02001a	1	0	Promo_Norman Osborn_01-2.png
+02002a	1	0	Promo_Norman Osborn_02-2.png
+02003a	1	0	Promo_Norman Osborn_03-2.png
+02014	1	0	Promo_Green Goblin_01-2.png
+02015	1	0	Promo_Green Goblin_02-2.png
+02016	1	0	Promo_Green Goblin_03-2.png
+03001a	1	0	promo_capt_america001.tiff
+03001b	1	0	promo_capt_america002.tiff
+03015	1	0	promo_avengers_assemble001.tiff
+05001a	1	0	Promo_Ms.Marvel_01-2.png
+05001b	1	0	Promo_Ms.Marvel_02-2.png
+05015	1	0	Promo_Tackele_Protection-2.png
+06001a	1	0	Promo_Thor_01-2.png
+06001b	1	0	Promo_Thor_02-2.png
+07047	1	0	Promo_Wrecking Crew_Bulldozer_02-2.png
+08001a	1	0	Promo_Black Widow_01-2.png
+08001b	1	0	Promo_Black Widow_02-2.png
+08013	1	0	Promo_Stealth Strike_Leadership-2.png
+09001a	1	0	promo_dr_strange001.tiff
+09001b	1	0	promo_dr_strange002.tiff
+09015	1	0	Promo_Desperate Defense_Protection-2.png
+10001a	1	0	promo_hulk001.tiff
+10001b	1	0	promo_hulk002.tiff
+10014	1	0	promo_drop_kick001.tiff
+32001a	1	0	promo_colossus001.tiff
+32001a	2	0	promo_colossus003.tiff
+32001b	1	0	promo_colossus002.tiff
+32001b	2	0	promo_colossus004.tiff
+32030a	1	0	promo_shadowcat001.tiff
+32030a	2	0	promo_shadowcat003.tiff
+32030b	1	0	promo_shadowcat002.tiff
+32030b	2	0	promo_shadowcat004.tiff
+32060	1	0	promo_sabretooth001.tiff
+32061	1	0	promo_sabretooth002.tiff
+32084	1	0	promo_sentinel001.tiff
+32085	1	0	promo_sentinel002.tiff
+32109	1	0	promo_master_mold001.tiff
+32110	1	0	promo_master_mold002.tiff
+32121a	1	0	promo_avalanche001.tiff
+32121b	1	0	promo_avalanche002.tiff
+32122a	1	0	promo_blob001.tiff
+32122b	1	0	promo_blob002.tiff
+32123a	1	0	promo_pyro001.tiff
+32123b	1	0	promo_pyro002.tiff
+32124a	1	0	promo_toad001.tiff
+32124b	1	0	promo_toad002.tiff
+32138	1	0	promo_magneto001.tiff
+32139	1	0	promo_magneto002.tiff
+33001a	1	0	promo_cyclops001.tiff
+33001a	2	0	promo_cyclops003.tiff
+33001b	1	0	promo_cyclops002.tiff
+33001b	2	0	promo_cyclops004.tif
+34001a	1	0	promo_phoenix001.tiff
+34001a	2	0	promo_phoenix003.tiff
+34001b	1	0	promo_phoenix002.tiff
+34001b	2	0	promo_phoenix004.tiff
+35001a	1	0	promo_wolverine001.tiff
+35001a	2	0	promo_wolverine003.tiff
+35001b	1	0	promo_wolverine002.tiff
+35001b	2	0	promo_wolverine004.tiff
+36001a	1	0	promo_storm001.tiff
+36001a	2	0	promo_storm003.tiff
+36001b	1	0	promo_storm002.tiff
+36001b	2	0	promo_storm004.tiff
+37001a	1	0	promo_gambit001.tiff
+37001a	2	0	promo_gambit003.tiff
+37001b	1	0	promo_gambit002.tiff
+37001b	2	0	promo_gambit004.tiff
+38001a	1	0	promo_rogue001.tiff
+38001a	2	0	promo_rogue003.tiff
+38001b	1	0	promo_rogue002.tiff
+38001b	2	0	promo_rogue004.tiff
+40001a	1	0	promo_cable001.tiff
+40001a	2	0	promo_cable003.tiff
+40001b	1	0	promo_cable002.tiff
+40001b	2	0	promo_cable004.tiff
+40037a	1	0	promo_domino001.tiff
+40037a	2	0	promo_domino003.tiff
+40037b	1	0	promo_domino002.tiff
+40037b	2	0	promo_domino004.tiff
+40070a	1	0	promo_arclight001.tiff
+40070b	1	0	promo_arclight002.tiff
+40071a	1	0	promo_blockbuster001.tiff
+40071b	1	0	promo_blockbuster002.tiff
+40072a	1	0	promo_chimera001.tiff
+40072b	1	0	promo_chimera002.tiff
+40073a	1	0	promo_greycrow001.tiff
+40073b	1	0	promo_greycrow002.tiff
+40074a	1	0	promo_harpoon001.tiff
+40074b	1	0	promo_harpoon002.tiff
+40075a	1	0	promo_riptide001.tiff
+40075b	1	0	promo_riptide002.tiff
+40076a	1	0	promo_vertigo001.tiff
+40076b	1	0	promo_vertigo002.tiff
+40118	1	0	promo_juggernaut001.tiff
+40119	1	0	promo_juggernaut002.tiff
+40136	1	0	promo_mr_sinister001.tiff
+40137	1	0	promo_mr_sinister002.tiff
+40163	1	0	promo_stryfe001.tiff
+40164	1	0	promo_stryfe002.tiff
+41001a	1	0	promo_psylocke001.tiff
+41001a	2	0	promo_psylocke003.tiff
+41001b	1	0	promo_psylocke002.tiff
+41001b	2	0	promo_psylocke004.tiff
+42001a	1	0	promo_angel001.tiff
+42001a	2	0	promo_angel004.tiff
+42001b	1	0	promo_angel002.tiff
+42001b	2	0	promo_angel005.tiff
+42001c	1	90	promo_angel003.tiff
+42001c	2	90	promo_angel006.tiff
+43001a	1	0	promo_x23001.tiff
+43001a	2	0	promo_x23003.tiff
+43001b	1	0	promo_x23002.tiff
+43001b	2	0	promo_x23004.tiff
+44001a	1	0	promo_deadpool001.tiff
+44001a	2	0	promo_deadpool003.tiff
+44001b	1	0	promo_deadpool002.tiff
+44001b	2	0	promo_deadpool004.tiff

@@ -204,7 +204,7 @@ import {
 } from "../view/collection-search.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
-import { McGuideTag } from "../ui/guide-tag.js";
+import { GuideStampGlide } from "../ui/guide-glide-run.js";
 import { drawBoardMemberKey, drawEvidenceGrid } from "../ui/evidence-grid.js";
 import { evidenceGridWantedHeight } from "../view/evidence-layout.js";
 import { accuseSheetOf } from "../view/evidence-model.js";
@@ -281,6 +281,8 @@ export class ChoiceOverlay extends Phaser.Scene {
    * already provides its own "look here" via its scrim and layout, so no separate spotlight ring is drawn either.
    */
   #guidePickInstanceId: InstanceId | null = null;
+  /** This opening's `GUIDE PICK` stamp, gliding in from the board's highlight (#552). */
+  #guideStamp = new GuideStampGlide();
   /** This draw's own bottom guide strip content, if any (§3.10, §7 accessibility fix) — kept so `#activate` can
    * fire its Skip/Stop/primary callback from a later keyboard/pad press, not only `drawGuideStrip`'s own pointer
    * handlers. Set once per `#rebuild`, alongside `#focusRects`. */
@@ -392,6 +394,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#selected = [];
     this.#revealedChoiceId = null;
     this.#idleSince = null;
+    this.#guideStamp = new GuideStampGlide();
     // A relaunch starts uncovered and shown, whatever the last run left (`update` hides a covered sheet).
     this.#wasCovered = false;
     this.#peekingAt = null;
@@ -427,6 +430,9 @@ export class ChoiceOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.optionNotice) ||
+        // Opened from a peek at the table: the pile owns B and A while it is up.
+        this.scene.isActive(SCENES.pileView) ||
+        this.scene.isActive(SCENES.deckLeft) ||
         this.#covered(),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       // A trigger or a bumper held with a face button picks a target tile outright, as on the table's targeting panel.
@@ -2197,7 +2203,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // the stamp's bottom half landed right on top of "Black Cat defends" when both used the same 8px top pad.
     const isGuidePick = option.defenderInstanceId !== null && option.defenderInstanceId === this.#guidePickInstanceId;
     if (isGuidePick) {
-      new McGuideTag(this, "guidePick").update(usual);
+      this.#guideStamp.draw(this, "guidePick", usual, this.#boardScene()?.guideHighlightRect() ?? null);
     }
 
     // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.

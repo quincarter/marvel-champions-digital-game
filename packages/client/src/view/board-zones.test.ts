@@ -47,6 +47,10 @@ describe("zoneOfTarget", () => {
     expect(zoneOfTarget({ kind: "discard" }, members)).toBe("hand");
   });
 
+  it("reads the victory display's pile in the encounter column as the villain's", () => {
+    expect(zoneOfTarget({ kind: "victoryDisplay" }, members)).toBe("villain");
+  });
+
   it("puts the bar's controls and a decision's controls with the action bar", () => {
     for (const target of [basic("attack"), { kind: "undo" }, { kind: "cancel" }, { kind: "confirm" }] as const) {
       expect(zoneOfTarget(target, members)).toBe("actionBar");

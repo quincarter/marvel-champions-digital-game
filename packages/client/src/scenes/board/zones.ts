@@ -88,7 +88,7 @@ import {
 } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
-import { drawPile } from "./piles.js";
+import { drawDeckLeftGlyph, drawPile } from "./piles.js";
 import { drawDealtPile } from "./dealt-pile.js";
 import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
@@ -1047,7 +1047,13 @@ export function drawEncounter(
 ): void {
   const { scene } = ctx;
   type Pile = {
-    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
+    readonly kind:
+      | "encounterDeck"
+      | "encounterDiscard"
+      | "scenarioArea"
+      | "scenarioDeck"
+      | "scenarioDiscard"
+      | "victoryDisplay";
     readonly name: string;
     readonly count: number;
     /** What the count chip reads when it is not the bare count: a scenario area's "3/5" against its limit. */
@@ -1056,7 +1062,7 @@ export function drawEncounter(
     readonly instanceId: InstanceId | null;
     /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
     readonly siblings: readonly InstanceId[];
-    /** A discard pile that fans out on a tap (`ctx.openPile`) names itself here; absent, the tap opens the top card. */
+    /** A pile that fans out on a tap (`ctx.openPile`) names itself here; absent, the tap opens the top card. */
     readonly pileTitle?: string;
   };
   // The pile column is narrow (the same width "ENC DECK"/"DISCARD" are tuned for), so a scenario deck's own
@@ -1116,6 +1122,20 @@ export function drawEncounter(
       instanceId: area.instanceIds[0] ?? null,
       siblings: area.instanceIds,
     })),
+    // Most games never send a card here, so the pile only takes a slot from the column once one has.
+    ...(model.victoryDisplay.length > 0
+      ? [
+          {
+            kind: "victoryDisplay" as const,
+            name: "VICTORY",
+            count: model.victoryDisplay.length,
+            art: model.victoryDisplayTop,
+            instanceId: model.victoryDisplay[0]!,
+            siblings: model.victoryDisplay,
+            pileTitle: "Victory display",
+          },
+        ]
+      : []),
   ];
   // The set-aside footer (MojoMania's genre sets) is one line the board placed beside the column (`splitSetAside`);
   // the piles keep the column whole.
@@ -1125,8 +1145,10 @@ export function drawEncounter(
     const box: Rect = slots[index]!;
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
     // column. A scenario area or scenario deck is not a travel-animation anchor yet — no printed effect moves a
-    // card there with a motion this app plays — so only the two encounter piles register one.
-    if (kind === "encounterDeck" || kind === "encounterDiscard") ctx.frame.pileRects.set(pileKey(kind), box);
+    // card there with a motion this app plays — so only the two encounter piles and the victory display register one.
+    if (kind === "encounterDeck" || kind === "encounterDiscard" || kind === "victoryDisplay")
+      ctx.frame.pileRects.set(pileKey(kind), box);
+    if (kind === "victoryDisplay") ctx.frame.focusRects.set(focusKey({ kind: "victoryDisplay" }), box);
     const g = scene.add.graphics();
     paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
 
@@ -1217,19 +1239,27 @@ export function drawEncounter(
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
     // `faceVisible`; this box only had no tap target to reach that with. A scenario area opens every card it
     // holds, not only the top one — it's a shared, faceup zone, closer to the discard than to a deck.
+    const listsLeft = kind === "encounterDeck" && ctx.deckLeftTabs().includes("encounter");
+    if (listsLeft && ctx.deckLeftTabs()[0] === "encounter") drawDeckLeftGlyph(ctx, box);
     if (count > 0 && instanceId) {
       ctx.frame.hitRects.set(instanceId, box);
       const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
-      // A discard pile fans out; a hold still reads the top card.
+      // A discard pile or the victory display fans out; a hold still reads the top card.
       addTapTarget(scene, box, {
         onTap:
           kind === "encounterDiscard"
             ? () => ctx.openPile("Encounter discard", siblings)
-            : kind === "scenarioDiscard" && pileTitle
+            : pileTitle
               ? () => ctx.openPile(pileTitle, siblings)
-              : open,
+              : listsLeft
+                ? () => ctx.openDeckLeft("encounter")
+                : open,
         onInspect: open,
       });
+    } else if (listsLeft) {
+      // An empty deck can still have cards dealt facedown out of it.
+      const left = (): void => ctx.openDeckLeft("encounter");
+      addTapTarget(scene, box, { onTap: left, onInspect: left });
     }
   });
 }

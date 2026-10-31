@@ -31,6 +31,17 @@ const progress = (played: string[], won = false) => ({
     content.kind === "gallery" ? content.slides.filter((s) => s.unlock.kind === "always" || won) : [],
 });
 
+describe("a promo card", () => {
+  test("is one notice, however many faces it has", () => {
+    const slide = { picture: { key: "k", url: "u" }, caption: "Face", unlock: { kind: "always" } } as ExtrasSlide;
+    const content: ExtrasContent = { kind: "gallery", slides: [slide, slide], lines: [], promoSetId: "marauders" };
+    const open = openExtrasOf({ isOpen: () => true, openSlides: (c) => (c.kind === "gallery" ? c.slides : []) }, [
+      entry("promo:marauders", "promos", "The Marauders", content),
+    ]);
+    expect([...open.keys()]).toEqual(["promo:marauders"]);
+  });
+});
+
 describe("what opened", () => {
   test("an entry, then the picture a win adds inside it", () => {
     const before = openExtrasOf(progress(["villain:rhino"]), entries);

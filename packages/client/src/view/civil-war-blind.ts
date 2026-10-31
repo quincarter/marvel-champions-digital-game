@@ -8,7 +8,9 @@
  *   stage index);
  * - **a modular set** has turned up once any card of it has left the encounter deck and the set-aside pile (revealed,
  *   in play, discarded). A card found some other way also counts, so this errs towards revealing a set early, never
- *   towards hiding one that is on the table.
+ *   towards hiding one that is on the table. A card dealt or given as a boost is still facedown, so it has not turned
+ *   up (RRG 1.8 p. 15 "Dealt": "This card is not revealed at this time"; p. 11 "Boost"). Nothing here remembers a card
+ *   already seen, so one put facedown again (a defeated minion given as a boost) hides its set until it next turns up.
  * Counts are never masked.
  */
 import type { AnyCard, EncounterSet } from "@mc/content";
@@ -44,9 +46,11 @@ export function revealedSetsIn(game: GameState, setIds: readonly string[]): Read
   const wanted = new Set(setIds);
   const waiting = new Set<string>(game.encounterSetAside);
   for (const deck of Object.values(game.encounterDecks)) for (const id of deck.deck) waiting.add(id);
+  for (const player of game.players) for (const id of player.dealtEncounter) waiting.add(id);
+  for (const instance of Object.values(game.instances)) for (const id of instance.boostCards) waiting.add(id);
   const revealed = new Set<string>();
   for (const instance of Object.values(game.instances)) {
-    if (waiting.has(instance.instanceId)) continue;
+    if (waiting.has(instance.instanceId) && !instance.faceup) continue;
     const card = game.cardPool[instance.cardId as string] as AnyCard | undefined;
     if (!card || !("encounterSetIds" in card)) continue;
     for (const id of card.encounterSetIds as readonly string[]) if (wanted.has(id)) revealed.add(id);

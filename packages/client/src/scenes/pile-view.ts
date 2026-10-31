@@ -113,6 +113,7 @@ export class PileViewOverlay extends Phaser.Scene {
             !CHROME_SCENES.has(key) &&
             key !== SCENES.pileView &&
             key !== SCENES.choice &&
+            key !== SCENES.villainPhase &&
             this.scene.isActive(key),
         );
         return villainHoverArea({

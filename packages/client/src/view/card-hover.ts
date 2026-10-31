@@ -4,7 +4,7 @@
  * draws what this decides. It reads state and never changes it: the popover takes no input.
  */
 import { cardHoverFactor, type CardHoverScale } from "../settings.js";
-import type { CardFace } from "../art/art-source.js";
+import type { ArtSource, CardFace } from "../art/art-source.js";
 import type { FormFactor, Rect } from "./layout.js";
 
 /** How long the pointer rests on a card before the popover opens, so sweeping across the table flashes nothing. */
@@ -124,6 +124,8 @@ export interface HoverCardIdRect extends Rect {
   readonly cardId: string;
   /** The face to show when it is not the card's default (`defaultFaceFor`): a villain stage, a scheme's B side. */
   readonly face?: CardFace;
+  /** The picture to show when it is not that face's own: a promo card on its Extras tile. */
+  readonly art?: ArtSource;
   readonly through?: boolean;
 }
 
@@ -216,6 +218,14 @@ export const HOVER_BASE_LONG_SIDE = 168;
  * (the owner, 2026-10-27).
  */
 export const HOVER_MIN_GROWTH = 1.5;
+
+/**
+ * The card drawn in a row or wide panel, `artWidth` across, for `hoverCardSize`: the row's own rect is far wider than the
+ * card. A row with no card drawn in it has nothing to grow from, and its 1px square keeps a shape while the scan loads.
+ */
+export function cardRectInRow(row: Rect, artWidth: number): Rect {
+  return artWidth > 0 ? { ...row, width: artWidth, height: row.height - 6 } : { ...row, width: 1, height: 1 };
+}
 
 /**
  * The popover card's size: a card whose long side is `HOVER_BASE_LONG_SIDE` times the setting, or `HOVER_MIN_GROWTH`

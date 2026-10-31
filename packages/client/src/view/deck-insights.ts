@@ -422,3 +422,20 @@ export function cardPlayOf(
   if (!identityCardId && playedBy.length > 0) lines.push({ label: "Played with", value: playedBy.sort().join(", ") });
   return lines;
 }
+
+/**
+ * The From your games rail's sizes (Decks & Collection and the deck builder). Those two screens opt out of the desktop
+ * type bump (`ui/desktop-type.ts`) to keep their card grids tight, but this rail is reading text, so it sizes up itself.
+ */
+export function fromYourGamesType(desktop: boolean): {
+  readonly text: number;
+  readonly note: number;
+  readonly label: number;
+  /** A card row's text lines beside its picture. */
+  readonly lines: number;
+  readonly thumb: { readonly width: number; readonly height: number };
+} {
+  return desktop
+    ? { text: 14, note: 14, label: 12, lines: 3, thumb: { width: 40, height: 56 } }
+    : { text: 12, note: 12, label: 9, lines: 2, thumb: { width: 30, height: 42 } };
+}

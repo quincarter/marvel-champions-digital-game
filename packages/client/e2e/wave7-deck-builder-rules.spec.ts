@@ -249,22 +249,27 @@ test.describe("Flow 6: collection search and Inspect in the builder", () => {
     await startNewDeck(page, "44001a");
     await press(page, "DeckBuilder", "aspect:pool");
     const builder = await texts(page, "DeckBuilder");
-    expect(builder).toEqual(expect.arrayContaining(["'POOL", "ALL PACKS", "ALL WAVES", "SORT: NAME"]));
+    expect(builder).toEqual(expect.arrayContaining(["'POOL", "ALL PACKS", "ALL WAVES", "SORT: MATCH", "THEN: NONE"]));
 
     // Pack stepper: "<" from ALL PACKS wraps to the newest pack, and every card then listed is from it.
-    await tapText(page, "DeckBuilder", "<");
-    const packLabel = (await texts(page, "DeckBuilder")).find((t, i, all) => all[i - 1] === "<" && all[i + 1] === ">");
+    // (By its stop: the quick filters' trait stepper, issue #531, also reads "< name >", above the pack stepper.)
+    await press(page, "DeckBuilder", "pack:prev");
+    const packLabel = (await texts(page, "DeckBuilder")).find(
+      (t, i, all) => all[i - 1] === "<" && all[i + 1] === ">" && t !== "ALL TRAITS",
+    );
     expect(packLabel, "the pack stepper shows a pack name").toBeTruthy();
     expect(packLabel).not.toBe("ALL PACKS");
     const inPack = await poolIds(page);
     expect(inPack.length).toBeGreaterThan(0);
     await shot(page, "6-pack-filter");
-    await tapText(page, "DeckBuilder", ">");
+    await press(page, "DeckBuilder", "pack:next");
     expect((await texts(page, "DeckBuilder")).some((t) => t === "ALL PACKS")).toBe(true);
 
-    // Sort steps through name, cost, pack.
-    await tapText(page, "DeckBuilder", "SORT: NAME");
-    expect(await texts(page, "DeckBuilder")).toContain("SORT: COST");
+    // Sort steps from Match (the default) to Name, and Then offers a second key (issue #531).
+    await tapText(page, "DeckBuilder", "SORT: MATCH");
+    expect(await texts(page, "DeckBuilder")).toContain("SORT: NAME");
+    await tapText(page, "DeckBuilder", "THEN: NONE");
+    expect(await texts(page, "DeckBuilder")).toContain("THEN: ASPECT");
 
     // Inspect: a tap on the row's text (not the -/+) opens the card; Break Time prints 3 per player.
     await search(page, "Break Time");

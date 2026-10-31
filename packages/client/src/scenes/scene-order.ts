@@ -69,6 +69,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.unlockConfirm,
   SCENES.nameConflict,
   SCENES.heroDecks,
+  SCENES.searchHelp,
   SCENES.saveData,
   SCENES.syncData,
   SCENES.endTurnConfirm,
@@ -82,6 +83,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
   SCENES.extrasViewer,
   SCENES.music,
   // The dark mode toggle (#459): above every screen, below the notices and popups that drop over the top bar.
@@ -157,6 +159,7 @@ const BOARD_SHEETS = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
 ];
 
 /**
@@ -188,6 +191,7 @@ export const COMPANIONS: Readonly<Record<string, readonly string[]>> = {
   [SCENES.setupDeal]: [SCENES.choice, SCENES.inspect],
   [SCENES.setup]: [SCENES.setCards, SCENES.inspect, SCENES.nameConflict],
   [SCENES.seats]: [SCENES.setCards, SCENES.inspect, SCENES.nameConflict, SCENES.heroDecks],
+  [SCENES.deckBuilder]: [SCENES.searchHelp],
   [SCENES.nameConflict]: [SCENES.inspect],
   [SCENES.villainPhase]: [SCENES.choice, SCENES.inspect, SCENES.pause],
   [SCENES.choice]: [SCENES.inspect],

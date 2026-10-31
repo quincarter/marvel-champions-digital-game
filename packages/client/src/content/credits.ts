@@ -133,7 +133,7 @@ export const CREDITS: readonly CreditEntry[] = [
     title: "Card scans",
     shownIn: "Every card face, hover preview and inspect view",
     credit:
-      "Card images from Hall of Heroes and MarvelCDB, fetched by the project's content scripts. Each card's illustrator is printed on the card itself; the artists are Fantasy Flight Games' and Marvel's commissioned illustrators.",
+      "Card images from Hall of Heroes and MarvelCDB, fetched by the project's content scripts, and the owner's own scans. The promo cards in Extras are scans of FFG's official promos from a community folder. Shadowland's scans come from a community folder shared by u/Ok-Replacement-9793 on Reddit. Each card's illustrator is printed on the card itself; the artists are Fantasy Flight Games' and Marvel's commissioned illustrators.",
     notice: FFG_MARVEL,
     url: "https://hallofheroeslcg.com",
     folders: ["assets/card-art"],

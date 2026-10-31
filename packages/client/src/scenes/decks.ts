@@ -92,6 +92,7 @@ import { DeckSearchClient } from "../view/deck-search-client.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { testedCatalog } from "../view/seatable-decks.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { cardArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -170,6 +171,7 @@ import {
   againstVillainOf,
   cardPlayOf,
   fromYourGamesOf,
+  fromYourGamesType,
   villainsFacedOf,
   type DeckInsights,
   type SuggestedCard,
@@ -219,6 +221,8 @@ export interface DecksSceneData {
 
 /** Tall enough for a 1-line title + a 2-line precon meta + a selected row's record line, comfortably. */
 const ROW_HEIGHT = 84;
+/** A row on desktop: its larger description (`readingSize`) still fits the full line under a two-line name. */
+const DESKTOP_ROW_HEIGHT = 100;
 /** A deck row's hero picture, wide for its height: a cover crop of the hero's face and shoulders. */
 const DECK_THUMB_ASPECT = 1.25;
 /** How much of a group-starting row's own top is given to its small group label instead of the card. */
@@ -321,11 +325,18 @@ function packChipsNatural(
   return { placed, bottom: rows.length === 0 ? y : y + rows.length * (rowHeight + CHIP_GAP) - CHIP_GAP };
 }
 
+/**
+ * This screen opts out of the desktop type bump (`ui/desktop-type.ts`) to keep its card grid tight, so its reading text
+ * sizes up here: `px` on a phone or tablet, two sizes up on a desktop.
+ */
+const readingSize = (px: number): number => (isDesktopType() ? px + 2 : px);
+
 /** How tall the compact Import/Export box needs to be at `column` px wide, in its current accordion state — used both to reserve room above it and to draw it, so the two can't drift apart. */
 function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | null, row: number): number {
   const pad = 12;
-  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, 4.6);
-  let height = pad * 2 + 16 + descLines * 13 + 8 + row + 8; // padding + heading + description + button row
+  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, isDesktopType() ? 6.4 : 4.6);
+  const lineHeight = isDesktopType() ? 17 : 13;
+  let height = pad * 2 + 16 + descLines * lineHeight + 8 + row + 8; // padding + heading + description + button row
   if (open === "paste") height += 64 + 8 + row + 8; // textarea + its own Import button
   if (open === "marvelcdb") height += row + 8 + row + 8; // URL field + its own Import button
   return height;
@@ -372,6 +383,8 @@ export class DecksScene extends Phaser.Scene {
   #filter: RosterFilter = { text: "" };
   /** Collapsed by default (2026-09-18 fidelity pass, point 2): the quick-filter chips cost nothing until asked for, so the deck list itself gets the column's room. */
   #filtersExpanded = false;
+  /** Whether a phone's pool chips are open under their Filters button; they start folded to leave the cards the room. */
+  #poolFiltersOpen = false;
   /** Which of the Import/Export box's two fields is open, if either — collapsed by default so the box stays compact and pinned at the column's bottom. */
   #importExportOpen: "paste" | "marvelcdb" | null = null;
   #poolAspectFilter: CoreAspect | "basic" | "identity" | null = null;
@@ -444,6 +457,7 @@ export class DecksScene extends Phaser.Scene {
     this.#marvelcdbText = "";
     this.#filter = { text: "" };
     this.#filtersExpanded = false;
+    this.#poolFiltersOpen = false;
     this.#importExportOpen = null;
     this.#poolAspectFilter = null;
     this.#poolSortByCost = false;
@@ -943,7 +957,9 @@ export class DecksScene extends Phaser.Scene {
           chipIds: this.#activeTab === "decks" ? this.#chipDefs(ownOptions).map((c) => c.id) : [],
           poolCardIds,
           poolChipIds:
-            this.#activeTab === "cards" && selected ? this.#poolChipDefs(selected.deck).map((c) => c.id) : [],
+            this.#activeTab === "cards" && selected
+              ? ["filters", ...this.#poolChipDefs(selected.deck).map((c) => c.id)]
+              : [],
           wide: false,
           activeTab: this.#activeTab,
           hasSelection: selected !== null,
@@ -987,6 +1003,7 @@ export class DecksScene extends Phaser.Scene {
       label(this, left, y, "Reading your games…", typeRole.label, surface.paper.hex, ink.meta);
       return;
     }
+    const type = fromYourGamesType(isDesktopType());
     const view = fromYourGamesOf(
       this.#insights,
       deck.identityCardId as string,
@@ -996,20 +1013,20 @@ export class DecksScene extends Phaser.Scene {
     );
     const buttonTop = bottom - this.#row;
     if (view.headline) {
-      label(this, left, y, view.headline.toUpperCase(), typeRole.label, signal.caution.hex, 1);
-      y += 18;
+      label(this, left, y, view.headline.toUpperCase(), { ...typeRole.label, size: type.label }, signal.caution.hex, 1);
+      y += type.label + 9;
     }
     if (view.insight) {
       const text = this.add
         .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column - 16);
       const box = this.add.graphics();
       box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
       this.children.bringToTop(text);
       y += text.height + 20;
     }
-    const thumb = { width: 30, height: 42 };
+    const { thumb } = type;
     const faced = villainsFacedOf(this.#insights);
     // The Cut and Try lists leave room for the Against stepper and a first card under it: the pane does not scroll.
     let limit = buttonTop - 8 - (faced.length > 0 ? this.#row + 8 + 20 + thumb.height + 16 : 0);
@@ -1039,8 +1056,8 @@ export class DecksScene extends Phaser.Scene {
             `${card?.name ?? entry.cardId}\n${entry.detail}`,
             textStyle(typeRole.body, surface.paper.hex, ink.body),
           )
-          .setFontSize(12);
-        fitWrapped(text, column - thumb.width - 8, 2, 10);
+          .setFontSize(type.text);
+        fitWrapped(text, column - thumb.width - 8, type.lines, type.text);
         y += thumb.height + 6;
       }
       y += 6;
@@ -1094,7 +1111,7 @@ export class DecksScene extends Phaser.Scene {
         if (nothing && y + 30 < buttonTop) {
           const note = this.add
             .text(left, y, nothing, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-            .setFontSize(12)
+            .setFontSize(type.note)
             .setWordWrapWidth(column);
           y += note.height + 8;
         }
@@ -1104,7 +1121,7 @@ export class DecksScene extends Phaser.Scene {
     if (view.note && y + 30 < buttonTop) {
       this.add
         .text(left, y, view.note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-        .setFontSize(12)
+        .setFontSize(type.note)
         .setWordWrapWidth(column);
     }
     // Decks reads; the builder changes. A precon is never changed in place: it starts a deck of your own.
@@ -1222,7 +1239,8 @@ export class DecksScene extends Phaser.Scene {
     // Reserve fixed room at the bottom for the Import/Export box, so the list gets exactly whatever's left.
     const boxHeight = importExportBoxHeight(column, this.#importExportOpen, this.#row);
     const listTop = y;
-    const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - boxHeight - 12 - listTop);
+    const rowHeight = isDesktopType() ? DESKTOP_ROW_HEIGHT : ROW_HEIGHT;
+    const listHeight = Math.max(rowHeight, rect.y + rect.height - boxHeight - 12 - listTop);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
 
     // The community decks are searched too (by name, author and tags), so the worker holds them with the player's own.
@@ -1250,7 +1268,7 @@ export class DecksScene extends Phaser.Scene {
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
-      rowHeight: ROW_HEIGHT,
+      rowHeight,
       count: rows.length,
       renderRow,
       scroll: this.#listScroll,
@@ -1263,7 +1281,7 @@ export class DecksScene extends Phaser.Scene {
     this.#hoverLists.push(() => {
       const found: (readonly [string, HoverCardIdRect])[] = [];
       const view = list.rect;
-      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, ROW_HEIGHT, view.height, rows.length);
+      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, rowHeight, view.height, rows.length);
       for (let index = start; index < end; index++) {
         const row = rows[index];
         if (row?.kind !== "deck") continue;
@@ -1665,9 +1683,13 @@ export class DecksScene extends Phaser.Scene {
     const candidates = row.offer ? communityMetaCandidates(row.offer) : deckMetaCandidates(option, POOL_CARDS);
     const meta = this.add
       .text(textX, metaTop, candidates[0]!, textStyle(typeRole.emphasis, metaColor, metaAlpha))
+      .setFontSize(readingSize(typeRole.emphasis.size))
       .setWordWrapWidth(textWidth, true);
     const lineHeight = Math.max(1, meta.height / Math.max(1, meta.getWrappedText().length));
-    const allowed = Math.max(1, Math.min(showRecord ? 1 : 2, Math.floor(metaRoom / lineHeight)));
+    const allowed = Math.max(
+      1,
+      Math.min(showRecord && !isDesktopType() ? 1 : 2, Math.floor((metaRoom + 4) / lineHeight)),
+    );
     for (const candidate of candidates) {
       meta.setText(candidate);
       if (meta.getWrappedText().length <= allowed) break;
@@ -1682,7 +1704,7 @@ export class DecksScene extends Phaser.Scene {
       if (played && played.wins + played.losses > 0) {
         const chip = this.add
           .text(0, 0, `${played.wins}–${played.losses}`, textStyle(typeRole.label, surface.paper.hex, 1))
-          .setFontSize(10);
+          .setFontSize(readingSize(10));
         const chipRect: Rect = {
           x: card.x + card.width - chip.width - 14,
           y: card.y + card.height - chip.height - 10,
@@ -1707,11 +1729,11 @@ export class DecksScene extends Phaser.Scene {
           : "Never played.";
       const recordLine = this.add.text(
         textX,
-        card.y + card.height - 16,
+        card.y + card.height - (isDesktopType() ? 18 : 16),
         recordText,
         textStyle(typeRole.label, surface.paper.hex, ink.meta),
       );
-      fitText(recordLine, textWidth, typeRole.label.size);
+      fitText(recordLine, textWidth, readingSize(typeRole.label.size));
       objects.push(recordLine);
     }
 
@@ -1733,12 +1755,20 @@ export class DecksScene extends Phaser.Scene {
     const column = rect.width - 24;
     let y = rect.y + 12;
 
-    label(this, left, y, "import / export", typeRole.label, surface.ink.hex, ink.label);
+    label(
+      this,
+      left,
+      y,
+      "import / export",
+      { ...typeRole.label, size: readingSize(typeRole.label.size) },
+      surface.ink.hex,
+      ink.label,
+    );
     y += 16;
     const desc = this.add
       .text(left, y, IMPORT_EXPORT_DESCRIPTION, {
         ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        fontSize: "10px",
+        fontSize: `${isDesktopType() ? 13 : 10}px`,
       })
       .setWordWrapWidth(column);
     y += desc.height + 8;
@@ -2034,9 +2064,31 @@ export class DecksScene extends Phaser.Scene {
       chipDefs.map((chip) => this.#chipWidth(chip)),
     );
     // On a phone the chips would be drawn over the heading ("CARD POOL" clipped to "CA" behind the first chip), so
-    // they take their own row(s) under it, left-aligned.
-    const chipY = beside ? y + (heading.height - chipHeight) / 2 : y + heading.height + 8;
-    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, beside ? "right" : "left", (chip) =>
+    // they fold behind a Filters button beside it, and open onto their own row(s) under it, left-aligned.
+    const toggleWidth = 124;
+    if (!beside) {
+      const active = (this.#poolAspectFilter ? 1 : 0) + (this.#poolSortByCost ? 1 : 0);
+      const rect: Rect = { x: left + column - toggleWidth, y, width: toggleWidth, height: chipHeight };
+      const toggle = (): void => {
+        this.#poolFiltersOpen = !this.#poolFiltersOpen;
+        this.#rebuild();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `Filters ${this.#poolFiltersOpen ? "▴" : "▾"}${active > 0 ? ` · ${active}` : ""}`,
+          type: typeRole.label,
+          rect,
+          selected: active > 0,
+          onClick: toggle,
+        }),
+      );
+      this.#stops.set("pool-chip:filters", { rect, activate: toggle });
+      heading.setY(y + (chipHeight - heading.height) / 2);
+    }
+    const chipY = beside ? y + (heading.height - chipHeight) / 2 : y + chipHeight + 8;
+    const shownChips = beside || this.#poolFiltersOpen ? chipDefs : [];
+    const packed = packChipsNatural(shownChips, left, chipY, column, chipHeight, beside ? "right" : "left", (chip) =>
       this.#chipWidth(chip),
     );
     for (const { chip, rect: cell } of packed.placed) {
@@ -2056,11 +2108,14 @@ export class DecksScene extends Phaser.Scene {
     const chipsLeftEdge =
       beside && packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
     const ruleStart = left + heading.width + 10;
-    const ruleEnd = chipsLeftEdge - 10;
+    const ruleEnd = (beside ? chipsLeftEdge : left + column - toggleWidth) - 10;
     if (ruleEnd > ruleStart) {
       const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 1).fillRect(ruleStart, y + heading.height / 2 - 1.5, ruleEnd - ruleStart, 3);
+      rule
+        .fillStyle(surface.ink.hex, 1)
+        .fillRect(ruleStart, heading.y + heading.height / 2 - 1.5, ruleEnd - ruleStart, 3);
     }
+    if (!beside) return (shownChips.length > 0 ? packed.bottom : y + chipHeight) + 12;
     return Math.max(y + heading.height, packed.bottom + chipHeight) + 12;
   }
 

@@ -90,6 +90,10 @@ Seven commands:
           them, so this is most of an installer's size: the whole pool went
           from 665 MB to 207 MB (2026-10-07), checked by eye at full zoom.
 
+  promos  Saves the official promo cards listed in assets/card-art/promo-scans.tsv
+          to assets/card-art/promos/<scan>-<set>.webp: earned art that can stand
+          in for a card's normal scan. They are WebP at MAX_EDGE like every scan.
+
   localize
           (`pnpm card-art:localize --lang es`)
           Builds one language's art set in assets/card-art-locales/<lang>/:
@@ -171,6 +175,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CARDS_DIR = REPO_ROOT / "assets" / "card-art" / "bundles" / "cards"
 MANIFEST = REPO_ROOT / "assets" / "card-art" / "hall-of-heroes-manifest.tsv"
 OWNER_SCANS = REPO_ROOT / "assets" / "card-art" / "owner-scans.tsv"
+PROMOS_DIR = REPO_ROOT / "assets" / "card-art" / "promos"
+PROMO_SCANS = REPO_ROOT / "assets" / "card-art" / "promo-scans.tsv"
 RAW_DIR = REPO_ROOT / "packages" / "content" / "raw" / "marvelcdb"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "card-art"
 
@@ -922,6 +928,7 @@ def write_owner_scans(rows: dict[str, list[str]]) -> None:
     lines = [
         "# Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never",
         "# replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).",
+        "# The Shadowland (65xxx) rows are from a community scan folder shared by u/Ok-Replacement-9793 on Reddit.",
         "code\tpack\tname\tsaved",
     ]
     lines += ["\t".join(rows[code]) for code in sorted(rows)]
@@ -934,7 +941,6 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
         "# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).",
         "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 900px long edge.",
         "# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.",
-        "# The Shadowland (65xxx) rows are Hall of Heroes' 300 x 426 preview images at their own size; its other faces have no scan.",
         "code\tpack\tname\tsource_page\timage_url\tfetched",
     ]
     for code in sorted(rows):
@@ -1648,6 +1654,33 @@ def scan_sheet(before: list[tuple[str, Image.Image]], after: list[tuple[str, Ima
     sheet.save(out, quality=85)
 
 
+def promos(args: argparse.Namespace) -> None:
+    """
+    Saves the promo scans (issue #192) to `PROMOS_DIR`, one per row of `PROMO_SCANS`: turned as the row says, given
+    transparent corners where the scanner bed shows white, scaled to `MAX_EDGE` and saved as WebP. The promo art is not
+    a card's normal scan, so it can't be matched by art; the rows say which card each file is.
+    """
+    folder = Path(args.folder)
+    rows = [
+        line.split("	")
+        for line in PROMO_SCANS.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith(("#", "scan	"))
+    ]
+    missing_files = [file for *_, file in rows if not (folder / file).is_file()]
+    if missing_files:
+        sys.exit(f"not in {folder}: {missing_files}")
+    PROMOS_DIR.mkdir(parents=True, exist_ok=True)
+    for scan, card_set, turn, file in rows:
+        with Image.open(folder / file) as raw:
+            img = raw.convert("RGB")
+        if turn != "0":
+            img = img.rotate(int(turn), expand=True)
+        img, _ = clear_white_corners(img)
+        if not args.dry_run:
+            save_like(img, PROMOS_DIR / f"{scan}-{card_set}.webp")
+    print(f"[=] {len(rows)} promo scans {'would be ' if args.dry_run else ''}saved to {PROMOS_DIR}")
+
+
 BASE_CODE = re.compile(r"^(\d{5})")
 
 
@@ -1938,6 +1971,9 @@ def main() -> None:
     )
     sc.add_argument("--dry-run", action="store_true", help="report the matches without writing")
     sc.add_argument("-v", "--verbose", action="store_true")
+    pr = sub.add_parser("promos", help="save the promo scans listed in promo-scans.tsv as earned art")
+    pr.add_argument("folder", help="the folder of promo scans")
+    pr.add_argument("--dry-run", action="store_true", help="check the rows without writing")
     args = parser.parse_args()
     if args.self_test:
         self_test()
@@ -1953,6 +1989,7 @@ def main() -> None:
         "compress": compress,
         "localize": localize,
         "scans": scans,
+        "promos": promos,
     }
     commands[args.command](args)
 

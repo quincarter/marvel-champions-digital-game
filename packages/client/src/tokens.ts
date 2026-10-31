@@ -324,4 +324,10 @@ export const motion = {
   dockSlideOutMs: 260,
   /** One full screen giving way to the next (Title → Scenario, Setup → Board). */
   screenFadeMs: 200,
+  /** The guide's highlight gliding to its next target (`view/guide-glide.ts`). */
+  guideGlideMs: 360,
+  /** The highlight fading out, and in again, when its next target sits on top of the last one. */
+  guideFadeMs: 200,
+  /** The table left undimmed between that fade out and fade in, so the player sees what just happened. */
+  guideFadeHoldMs: 320,
 } as const;

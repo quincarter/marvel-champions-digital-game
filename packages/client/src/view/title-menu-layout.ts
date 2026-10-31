@@ -30,7 +30,7 @@ import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import { setupMetrics } from "./setup-metrics.js";
 import { GAME_ROW_GAP, GAME_ROW_HEIGHT } from "./games-list-model.js";
-import { NOTICE_BAR_HEIGHTS } from "./shadowland-notice.js";
+import { NOTICE_BAR_HEIGHTS } from "./release-notice.js";
 
 const TITLE_BLOCK_RATIO = 1.35;
 /** The red divider's own width, and the left art panel's share of a split screen. */
@@ -150,7 +150,7 @@ export interface TitleMenuLayoutInput {
   /** How many games the list shows (`shouldShowGamesList` decides whether it is offered at all; 0 draws neither). */
   readonly games?: number;
   /**
-   * Temporary (`view/shadowland-notice.ts`): a full-width notice bar across the top of the screen. Everything else is
+   * The release notice bar (`view/release-notice.ts`): full width across the top of the screen. Everything else is
    * laid out in the height left under it.
    */
   readonly noticeBar?: boolean;
@@ -212,7 +212,7 @@ export interface TitleMenuLayout {
    * panel; the logo and the art panel stay put.
    */
   readonly menuScroll: Rect | null;
-  /** The temporary notice bar across the top (`noticeBar`), or null. */
+  /** The release notice bar across the top (`noticeBar`), or null. */
   readonly noticeBar: Rect | null;
 }
 

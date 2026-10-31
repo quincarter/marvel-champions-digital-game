@@ -13,6 +13,7 @@ import {
   visibleRowRange,
   hoverArea,
   hoverCandidateAt,
+  cardRectInRow,
   hoverCardSize,
   hoverPlacement,
   hoverStateLines,
@@ -95,6 +96,23 @@ describe("hoverCandidateAt", () => {
 
 describe("hoverCardSize", () => {
   const area = VIEWPORT;
+
+  test("a card in a wide row comes up at the setting's size, not 1.5x the row", () => {
+    const row: Rect = { x: 0, y: 0, width: 830, height: 180 };
+    const landscape = 7 / 5;
+    expect(hoverCardSize(row, landscape, "2.5x", area).width).toBeGreaterThan(HOVER_BASE_LONG_SIDE * 2.5);
+    expect(cardRectInRow(row, 244)).toEqual({ x: 0, y: 0, width: 244, height: 174 });
+    expect(hoverCardSize(cardRectInRow(row, 244), landscape, "2.5x", area).width).toBeCloseTo(
+      HOVER_BASE_LONG_SIDE * 2.5,
+    );
+  });
+
+  test("a row with no card drawn stays a real size while its scan loads", () => {
+    const size = hoverCardSize(cardRectInRow({ x: 0, y: 0, width: 160, height: 80 }, 0), null, "2.5x", area);
+    expect(size.width).toBeCloseTo(HOVER_BASE_LONG_SIDE * 2.5);
+    expect(Number.isFinite(size.height)).toBe(true);
+  });
+
   const handCard: Rect = { x: 0, y: 0, width: 120, height: 168 };
   const heroPanel: Rect = { x: 0, y: 0, width: 175, height: 245 };
   const chip: Rect = { x: 0, y: 0, width: 30, height: 42 };

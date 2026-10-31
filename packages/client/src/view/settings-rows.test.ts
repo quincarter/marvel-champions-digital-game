@@ -50,8 +50,13 @@ const BASE: Settings = {
   musicVolume: 100,
   effectsVolume: 100,
   confirmBeforeEndTurn: true,
+  deckSignatureCards: "free",
+  deckCopyLimits: false,
   notOfferedNotices: true,
   sameNameHeroAllyConflict: true,
+  deckCountsHero: true,
+  deckCountsEncounter: false,
+  deckBoostAverage: false,
   villainAutoAdvance: "off",
   holdEncounterCards: true,
   flipEncounterCards: true,
@@ -64,6 +69,9 @@ const BASE: Settings = {
   hoverHeroCard: true,
   hoverVillainCard: true,
   ultronDroneArt: true,
+  promoArt: [],
+  promoArtOn: true,
+  heroArt: "game",
   firstPlayerTokenMotion: "toss",
   displayMode: "windowed",
   resolution: "native",
@@ -96,8 +104,13 @@ describe("settingsRowInfoOf", () => {
       musicVolume: 60,
       effectsVolume: 80,
       confirmBeforeEndTurn: false,
+      deckSignatureCards: "free",
+      deckCopyLimits: false,
       notOfferedNotices: false,
       sameNameHeroAllyConflict: false,
+      deckCountsHero: false,
+      deckCountsEncounter: true,
+      deckBoostAverage: true,
       villainAutoAdvance: "off",
       holdEncounterCards: true,
       flipEncounterCards: true,
@@ -110,6 +123,9 @@ describe("settingsRowInfoOf", () => {
       hoverHeroCard: true,
       hoverVillainCard: true,
       ultronDroneArt: true,
+      promoArt: [],
+      promoArtOn: true,
+      heroArt: "game",
       firstPlayerTokenMotion: "toss",
       displayMode: "windowed",
       resolution: "native",
@@ -300,6 +316,24 @@ describe("nextSettingsAfterToggle", () => {
     expect(
       nextSettingsAfterToggle({ ...BASE, notOfferedNotices: false }, "not-offered-notices", 1).notOfferedNotices,
     ).toBe(true);
+  });
+
+  test("the three Cards left rows each flip their own setting, and only the hero deck's starts on", () => {
+    const fresh = defaultSettings();
+    expect([fresh.deckCountsHero, fresh.deckCountsEncounter, fresh.deckBoostAverage]).toEqual([true, false, false]);
+    const hero = nextSettingsAfterToggle(fresh, "deck-counts-hero", 1);
+    expect([hero.deckCountsHero, hero.deckCountsEncounter, hero.deckBoostAverage]).toEqual([false, false, false]);
+    const encounter = nextSettingsAfterToggle(fresh, "deck-counts-encounter", 1);
+    expect([encounter.deckCountsHero, encounter.deckCountsEncounter, encounter.deckBoostAverage]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    const boost = nextSettingsAfterToggle(fresh, "deck-boost-average", 1);
+    expect([boost.deckCountsHero, boost.deckCountsEncounter, boost.deckBoostAverage]).toEqual([true, false, true]);
+    const rows = settingsRowInfoOf(boost);
+    expect(rows.find((r) => r.id === "deck-boost-average")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "deck-counts-encounter")?.on).toBe(false);
   });
 
   test("same-name-conflict toggles between on and off, and the table rules follow it", () => {

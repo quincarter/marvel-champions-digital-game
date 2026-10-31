@@ -22,6 +22,13 @@ to = "https://marvelcdb.com/api/public/deck/:id.json"
 status = 200
 force = true
 
+# Builds up to v0.39.0 have a title bar that opens this retired page.
+[[redirects]]
+from = "/shadowland-info.html"
+to = "/releases/v0.40.0/index.html"
+status = 302
+force = true
+
 # SPA client-side routing fallback
 [[redirects]]
 from = "/*"

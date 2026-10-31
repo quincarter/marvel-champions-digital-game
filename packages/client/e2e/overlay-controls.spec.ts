@@ -88,6 +88,10 @@ const settingsJson = (page: Page): Promise<string> =>
   });
 
 /** Opens Pause with the board's own top-right menu control (MENU on desktop, the hamburger on a phone). */
+/** The phone's Reference toggle, which opens the rows under it. */
+const openQuickReference = (page: Page): Promise<void> =>
+  pressStop(page, true, PAUSE, "quick-toggle", async () => (await stopOf(page, PAUSE, "quick:villainPhase")) !== null);
+
 async function openPause(page: Page, phone: boolean): Promise<void> {
   const width = page.viewportSize()!.width;
   await pressUntil(
@@ -149,7 +153,13 @@ test.describe("Pause menu", () => {
 
     if (phone) {
       // The phone's own sheet: a Quick reference row opens Rules reference; the Table rows are toggles.
-      const quick = (await routeStops(page, PAUSE))!.stops.find((s) => s.key.startsWith("quick:"));
+      if (SHOT) await page.screenshot({ path: `${SHOT}/pause-phone-closed.png` });
+      await openQuickReference(page);
+      if (SHOT) {
+        await settle(page);
+        await page.screenshot({ path: `${SHOT}/pause-phone-reference-open.png` });
+      }
+      const quick = (await routeStops(page, PAUSE))!.stops.find((s) => s.key === "quick:villainPhase");
       expect(quick, "Pause lists a Quick reference row").toBeDefined();
       await pressStop(page, phone, PAUSE, quick!.key, sceneUp(page, "RulesOverlay"));
       await pressStop(page, phone, "RulesOverlay", "back", sceneGone(page, "RulesOverlay"));
@@ -224,9 +234,10 @@ test.describe("Pause menu", () => {
     await newGame(page);
     await openPause(page, true);
 
-    // A finger that presses one row, scrolls past the tap slop and lifts over the next row is a scroll, not a tap.
+    await openQuickReference(page);
+    // A finger that presses one row, scrolls past the tap slop and lifts over the row below is a scroll, not a tap.
     const from = (await stopOf(page, PAUSE, "quick:villainPhase"))!;
-    const to = (await stopOf(page, PAUSE, "quick:glossary"))!;
+    const to = (await stopOf(page, PAUSE, "quick:cardList"))!;
     await touchSwipe(page, from.x + from.width / 2, from.y + from.height / 2, to.y + to.height / 2);
     await settle(page);
     expect(await activeScenes(page), "a swipe opened nothing").not.toContain("RulesOverlay");
@@ -250,6 +261,7 @@ test.describe("Pause menu", () => {
         return appSession().settings.cardSize;
       });
     await pressStop(page, true, PAUSE, "table:card-size:large", async () => (await cardSize()) === "large");
+    await openQuickReference(page);
     await pressStop(page, true, PAUSE, "quick:settings", async () =>
       (await activeScenes(page)).includes("SettingsOverlay"),
     );

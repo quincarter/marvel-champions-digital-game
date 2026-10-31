@@ -274,6 +274,14 @@ export function villainDamagedBy(code: CardId): LessonPredicate {
     });
 }
 
+/** True while a card with this code is in the perspective player's play area (live state, like `cardInHand`). */
+export function cardInPlay(code: CardId): LessonPredicate {
+  return (observation) => {
+    const player = observation.game.players.find((p) => p.playerId === observation.perspectiveId);
+    return player?.playArea.some((id) => observation.game.instances[id]?.cardId === code) ?? false;
+  };
+}
+
 /** True once the most recent command removed threat from the main scheme (a thwart landing). */
 export function threatRemovedFromMainScheme(): LessonPredicate {
   return (observation) =>

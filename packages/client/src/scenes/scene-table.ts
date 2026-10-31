@@ -61,6 +61,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.unlockConfirm]: () => import("./unlock-confirm.js").then((m) => m.UnlockConfirmOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),
   [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
+  [SCENES.searchHelp]: () => import("./search-help-sheet.js").then((m) => m.SearchHelpSheet),
   [SCENES.controls]: () => import("./controls.js").then((m) => m.ControlsOverlay),
   [SCENES.padToast]: () => import("./pad-toast.js").then((m) => m.PadToastScene),
   [SCENES.backfillToast]: () => import("./backfill-toast.js").then((m) => m.BackfillToastScene),
@@ -83,6 +84,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.teamUpInfo]: () => import("./team-up-info.js").then((m) => m.TeamUpInfoOverlay),
   [SCENES.evidence]: () => import("./evidence.js").then((m) => m.EvidenceOverlay),
   [SCENES.pileView]: () => import("./pile-view.js").then((m) => m.PileViewOverlay),
+  [SCENES.deckLeft]: () => import("./deck-left.js").then((m) => m.DeckLeftOverlay),
   [SCENES.extrasViewer]: () => import("./extras-viewer.js").then((m) => m.ExtrasViewerScene),
   // Dev-only demo scenes: a production build has no entry for them, so their modules are never emitted.
   ...(import.meta.env.DEV
