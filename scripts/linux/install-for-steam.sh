@@ -104,7 +104,7 @@ import json, sys
 release = json.load(sys.stdin)
 images = [a for a in release.get("assets", []) if a["name"].endswith(".AppImage")]
 tag = f"-{sys.argv[1].upper()}-Linux-"
-image = next((a for a in images if tag in a["name"]), images[0] if images else None)
+image = next((a for a in images if tag in a["name"]), None)
 print(release["tag_name"].lstrip("v"), image["browser_download_url"] if image else "", sep="\t")
 ' "${language:-en}" 2> /dev/null)" || return 1
   IFS=$'\t' read -r latest_version latest_url <<< "$answer"
