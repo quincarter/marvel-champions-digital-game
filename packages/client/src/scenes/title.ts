@@ -74,8 +74,15 @@ import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
+import {
+  CHROME_LANGUAGE_STOP,
+  CHROME_MUSIC_STOP,
+  CHROME_REPORT_STOP,
+  CHROME_THEME_STOP,
+  FocusRoute,
+  type FocusStop,
+} from "./focus-route.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
@@ -90,6 +97,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { setReportSlot } from "../ui/report-slot.js";
 import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
+import { languageSlotBeside } from "../view/language-button.js";
+import { themeSlotBeside } from "../view/theme-button.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
 import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
@@ -192,6 +201,10 @@ export class TitleScene extends Phaser.Scene {
       this.#hints = null;
     });
     this.#route = new FocusRoute(this, {
+      // The whole icon row beside the menu, not just the note and the bug.
+      topRow: true,
+      // The press glyphs on the top row and the notice bar show on the focused stop.
+      onFocusChange: () => this.#hints?.refresh(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
@@ -378,7 +391,8 @@ export class TitleScene extends Phaser.Scene {
     };
     setReportSlot(this.scene.key, reportRect);
     // The music button's (#191), just left of it.
-    setMusicSlot(this.scene.key, musicSlotBeside(reportRect));
+    const musicRect = musicSlotBeside(reportRect);
+    setMusicSlot(this.scene.key, musicRect);
 
     // Ground: split desktop/tablet (ink art panel left, red rule, paper menu panel right); one ink ground on phone.
     if (layout.split) {
@@ -776,8 +790,34 @@ export class TitleScene extends Phaser.Scene {
 
     // The release notice bar across the top (`view/release-notice.ts`).
     if (layout.noticeBar) {
-      const openNotice = drawReleaseNoticeBar(this, layout.noticeBar);
-      this.#stops.set("release-notice", { rect: layout.noticeBar, activate: openNotice });
+      const notice = drawReleaseNoticeBar(this, layout.noticeBar);
+      // The bar runs edge to edge: inset, so the ring is on screen all the way round.
+      const bar = layout.noticeBar;
+      const noticeRing = { x: bar.x + 6, y: bar.y + 6, width: bar.width - 12, height: bar.height - 12 };
+      this.#stops.set("release-notice", { rect: noticeRing, activate: notice.open });
+      this.#hints?.custom(
+        (_set, snapshot) =>
+          this.#route?.focused === "release-notice" ? specsForShortcuts(["activate"], snapshot) : null,
+        Math.min(TOP_ROW_GLYPH_HEIGHT, layout.noticeBar.height - 8),
+        ({ width }) => notice.glyphSpot(width),
+        { ground: "ink" },
+      );
+    }
+
+    // The top row's press glyphs, hung under each button while it has focus. The buttons are chrome scenes of their
+    // own, with no hints.
+    const languageRect = languageSlotBeside(musicRect);
+    const topRow: readonly (readonly [string, Rect])[] = [
+      [CHROME_THEME_STOP, themeSlotBeside(languageRect)],
+      [CHROME_LANGUAGE_STOP, languageRect],
+      [CHROME_MUSIC_STOP, musicRect],
+      [CHROME_REPORT_STOP, reportRect],
+    ];
+    for (const [key, rect] of topRow) {
+      this.#hints?.hang(rect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
+        ground: onDark ? "ink" : "paper",
+        when: () => this.#route?.focused === key,
+      });
     }
 
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
@@ -1140,6 +1180,9 @@ const ART_DEPTH = -2;
 const ART_SCRIM_DEPTH = -1;
 /** The hover note over the buttons below the Continue row. */
 const TIP_DEPTH = 50;
+
+/** The press glyph on a focused top-row button or the notice bar. */
+const TOP_ROW_GLYPH_HEIGHT = 18;
 
 /** How long the rank-up fanfare holds the badge. */
 const RANK_UP_MS = 5000;

@@ -17,6 +17,7 @@ import {
   RELEASE_NOTICE_TAG,
   RELEASE_NOTICE_TEXT,
   noticeBarParts,
+  noticeGlyphSpot,
 } from "../view/release-notice.js";
 
 /** Opens the release report, exactly as the sync screens open their guide. */
@@ -24,8 +25,15 @@ export function openReleaseReport(): void {
   openExternal(releaseReportUrl(globalThis.location?.href ?? "", isNativeShell()));
 }
 
-/** Draws the bar in `rect` and makes all of it one tap target. Returns what a focus stop activates. */
-export function drawReleaseNoticeBar(scene: Phaser.Scene, rect: Rect): () => void {
+export interface DrawnReleaseNoticeBar {
+  /** What a focus stop activates. */
+  readonly open: () => void;
+  /** Where a press glyph of `width` goes while the bar has focus, or null when it would run into the message. */
+  readonly glyphSpot: (width: number) => { readonly x: number; readonly y: number } | null;
+}
+
+/** Draws the bar in `rect` and makes all of it one tap target. */
+export function drawReleaseNoticeBar(scene: Phaser.Scene, rect: Rect): DrawnReleaseNoticeBar {
   scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
   // A thin caution rule under it, so the strip reads apart from the phone's own ink ground.
   scene.add.rectangle(rect.x, rect.y + rect.height - 2, rect.width, 2, signal.caution.hex).setOrigin(0, 0);
@@ -63,5 +71,8 @@ export function drawReleaseNoticeBar(scene: Phaser.Scene, rect: Rect): () => voi
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
   onTap(zone, openReleaseReport, "title:release-notice");
-  return openReleaseReport;
+  return {
+    open: openReleaseReport,
+    glyphSpot: (width) => noticeGlyphSpot(link.x - link.width, message.x + message.displayWidth, midY, width),
+  };
 }

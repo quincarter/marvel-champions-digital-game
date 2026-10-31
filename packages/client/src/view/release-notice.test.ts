@@ -6,6 +6,7 @@ import {
   RELEASE_NOTICE_TEXT,
   RELEASE_NOTICE_VERSION,
   noticeBarParts,
+  noticeGlyphSpot,
 } from "./release-notice.js";
 
 test("the bar names the release it opens, and that release's report is in the site", () => {
@@ -28,5 +29,15 @@ describe("noticeBarParts", () => {
 
   test("a narrow phone bar keeps only the arrow, so the message has room", () => {
     expect(noticeBarParts(bar(320), 70).link).toBe(RELEASE_NOTICE_LINK_SHORT);
+  });
+});
+
+describe("noticeGlyphSpot", () => {
+  test("the press glyph sits just left of the link", () => {
+    expect(noticeGlyphSpot(300, 200, 20, 18)).toEqual({ x: 272, y: 20 });
+  });
+
+  test("a glyph that would run into the message is left out", () => {
+    expect(noticeGlyphSpot(300, 270, 20, 18)).toBeNull();
   });
 });

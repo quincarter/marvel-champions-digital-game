@@ -48,3 +48,17 @@ export function noticeBarParts(bar: Rect, fullLinkWidth: number): NoticeBarParts
 
 /** The gap kept between the tag, the message and the link. */
 export const NOTICE_BAR_GAP = GAP;
+
+/**
+ * Where the press glyph goes while the bar has focus: just left of the link, vertically centred on `midY`. Null when
+ * that would run into the message, which keeps its room.
+ */
+export function noticeGlyphSpot(
+  linkLeft: number,
+  messageRight: number,
+  midY: number,
+  width: number,
+): { readonly x: number; readonly y: number } | null {
+  const x = linkLeft - GAP - width;
+  return x >= messageRight + GAP ? { x, y: midY } : null;
+}

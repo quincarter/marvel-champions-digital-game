@@ -42,11 +42,14 @@ export interface LanguagePopupData {
   readonly mode: LanguagePopupMode;
   /** The language button, which the list hangs from. */
   readonly anchor: Rect;
+  /** Opened by pad or keyboard: focus starts on the current language (or the note's first link), ready to press. */
+  readonly focused?: boolean;
 }
 
 export class LanguagePopupOverlay extends Phaser.Scene {
   #mode: LanguagePopupMode = "menu";
   #anchor: Rect = { x: 0, y: 0, width: 56, height: 34 };
+  #focused = false;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #disabled: { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[] = [];
@@ -58,6 +61,7 @@ export class LanguagePopupOverlay extends Phaser.Scene {
   init(data: Partial<LanguagePopupData>): void {
     this.#mode = data.mode ?? "menu";
     if (data.anchor) this.#anchor = data.anchor;
+    this.#focused = data.focused ?? false;
   }
 
   create(): void {
@@ -85,6 +89,7 @@ export class LanguagePopupOverlay extends Phaser.Scene {
       this.#disabled = [];
     });
     this.#draw();
+    if (this.#focused) this.#route?.focusKey(this.#mode === "menu" ? artLanguageNow() : "downloads");
   }
 
   #choose(language: CardLanguage): void {
