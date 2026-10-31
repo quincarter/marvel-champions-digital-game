@@ -10,9 +10,9 @@
 
 export const SPANISH_REPORT_NOTICE = "Todo el texto en español fue traducido con IA y puede contener errores.";
 
-/** The notice's bar, and room for the accents on a two-line heading. */
+/** The notice's bar, room for the accents on a two-line heading, and a thank-you wider than its column. */
 const SPANISH_STYLES = `.notice { border: 0; background: var(--gold); color: var(--gold-ink); font: 700 16px/1.5 var(--b); margin: 0 0 24px; }
-      h1 { line-height: 1.04; }`;
+      h1 { line-height: 1.04; } .thanks h2 { font-size: clamp(48px, 6vw, 70px); }`;
 
 const NOT_INLINE = "div|p|li|ul|h[1-4]|figure|figcaption|footer|section|header|nav|img|style";
 const BLOCK = new RegExp(
