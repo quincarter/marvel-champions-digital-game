@@ -41,6 +41,16 @@ export const surface = {
    * mode (`view/color-scheme.ts`), which turns ink text light, leaves it dark on its bright ground.
    */
   inkOnHue: token(0x14110f),
+  /**
+   * A bright mark on an ink ground (a bar's track, a scroll thumb, a chart column): paper to the eye, but one step off
+   * `paper` so dark mode, which turns paper fills into a charcoal ground, leaves it bright.
+   */
+  paperOnInk: token(0xf4efe4),
+  /**
+   * The same on a paper ground (a bar's track, a tick): ink in light mode, a step off `ink` so dark mode, which keeps
+   * ink fills dark, turns it cream and it still shows on the charcoal ground.
+   */
+  inkMark: token(0x14110c),
 } as const;
 
 /** Section 01 — the accent. Hero Red has exactly one job per screen. */

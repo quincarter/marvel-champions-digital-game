@@ -141,7 +141,7 @@ export function drawNowPlayingPanel(
       const barWidth = Math.max(0, textRight - textX - (clock.width || 76) - 12);
       const share = progress && progress.duration > 0 ? Math.min(1, progress.seek / progress.duration) : 0;
       bar.clear();
-      bar.fillStyle(surface.paper.hex, 0.22).fillRect(textX, barY, barWidth, 6);
+      bar.fillStyle(surface.paperOnInk.hex, 0.22).fillRect(textX, barY, barWidth, 6);
       bar.fillStyle(accent.heroRed.hex, 1).fillRect(textX, barY, barWidth * share, 6);
     };
     tick();
@@ -273,7 +273,7 @@ function drawVolumeRow(
   const percent = scene.add.text(row.x + width, midY, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(1, 0.5);
   const paint = (): void => {
     bar.clear();
-    bar.fillStyle(surface.ink.hex, 0.18).fillRect(track.x, midY - 3, track.width, 6);
+    bar.fillStyle(surface.inkMark.hex, 0.18).fillRect(track.x, midY - 3, track.width, 6);
     const at = track.x + (track.width * shown) / 100;
     bar.fillStyle(accent.heroRed.hex, 1).fillRect(track.x, midY - 3, at - track.x, 6);
     bar.fillStyle(surface.paper.hex, 1).fillCircle(at, midY, knob);
