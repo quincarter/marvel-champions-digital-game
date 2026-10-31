@@ -153,8 +153,13 @@ test.describe("Pause menu", () => {
 
     if (phone) {
       // The phone's own sheet: a Quick reference row opens Rules reference; the Table rows are toggles.
+      if (SHOT) await page.screenshot({ path: `${SHOT}/pause-phone-closed.png` });
       await openQuickReference(page);
-      const quick = (await routeStops(page, PAUSE))!.stops.find((s) => s.key.startsWith("quick:"));
+      if (SHOT) {
+        await settle(page);
+        await page.screenshot({ path: `${SHOT}/pause-phone-reference-open.png` });
+      }
+      const quick = (await routeStops(page, PAUSE))!.stops.find((s) => s.key === "quick:villainPhase");
       expect(quick, "Pause lists a Quick reference row").toBeDefined();
       await pressStop(page, phone, PAUSE, quick!.key, sceneUp(page, "RulesOverlay"));
       await pressStop(page, phone, "RulesOverlay", "back", sceneGone(page, "RulesOverlay"));
