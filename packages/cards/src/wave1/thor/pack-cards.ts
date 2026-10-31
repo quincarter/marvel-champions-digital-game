@@ -108,6 +108,7 @@ export const THOR_PACK_CARDS = defineAbilities({
   // your hero attacks and defeats a minion, deal 1 damage to your hero and discard Battle Fury → ready your hero.
   "06018.battle-fury-response": response(
     after.attacks(YOUR_HERO, { target: query("minion"), defeats: true }),
+    { costEffects: 2 },
     dealDamage(1, yourIdentity),
     discard(self),
     ready(yourIdentity),

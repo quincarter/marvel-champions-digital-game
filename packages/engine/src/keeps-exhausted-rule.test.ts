@@ -59,7 +59,11 @@ const event = (id: string, effects: readonly EffectSpec[]) => {
   return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
 };
 /** "Ready each ally." */
-const RALLY = event("rally", [{ kind: "ready", target: { kind: "each", query: { categories: ["ally"] } } }]);
+// The heal is a part of its own, so the card stays playable with no card to ready (RRG 1.8 "Target", p. 43).
+const RALLY = event("rally", [
+  { kind: "ready", target: { kind: "each", query: { categories: ["ally"] } } },
+  { kind: "heal", target: { kind: "identityOf", player: { kind: "controller" } }, amount: { kind: "const", value: 1 } },
+]);
 /** "Detach each attached ally and take control of it." */
 const RESCUE = event("rescue", [
   { kind: "detach", card: { kind: "each", query: { categories: ["ally"] } }, controller: you },

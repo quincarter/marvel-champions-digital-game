@@ -1,0 +1,3 @@
+kind: Fixed
+body: A player card ability that only readies a card is no longer offered while that card cannot ready, so Cloak of Levitation is not spent for nothing under Unnatural Storm (#568)
+time: 2026-10-31T07:54:31.2792325-04:00

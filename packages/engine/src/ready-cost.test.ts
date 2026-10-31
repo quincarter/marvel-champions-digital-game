@@ -13,7 +13,7 @@ import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
-import { replay, startSession } from "./engine.js";
+import { applyCommand, replay, startSession } from "./engine.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
@@ -66,19 +66,36 @@ const RALLY_ACTION = stubAbility(
   "rally.action",
   def({
     trigger: { kind: "action" },
-    effects: [{ kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } }],
+    // The heal is a part of its own, so the card stays playable with no card to ready (RRG 1.8 "Target", p. 43).
+    effects: [
+      { kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } },
+      {
+        kind: "heal",
+        target: { kind: "identityOf", player: { kind: "controller" } },
+        amount: { kind: "const", value: 1 },
+      },
+    ],
   }),
 );
 const RALLY = stubEvent({ id: "rally", cost: 0, abilities: [RALLY_ACTION.ref] });
+/** "Action: ready your hero", and nothing else. */
+const LONE_RALLY_ACTION = stubAbility(
+  "lone-rally.action",
+  def({
+    trigger: { kind: "action" },
+    effects: [{ kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } }],
+  }),
+);
+const LONE_RALLY = stubEvent({ id: "lone-rally", cost: 0, abilities: [LONE_RALLY_ACTION.ref] });
 const RECRUIT = stubAlly({ id: "recruit", cost: 0, atk: 1, thw: 1, hp: 3 });
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 
-const deps = depsOf(FEAR_RULE, STORM_RULE, RALLY_ACTION);
-const DECK: readonly CardId[] = [...copiesOf(RALLY.id, 2), ...copiesOf(RECRUIT.id, 2)];
+const deps = depsOf(FEAR_RULE, STORM_RULE, RALLY_ACTION, LONE_RALLY_ACTION);
+const DECK: readonly CardId[] = [...copiesOf(RALLY.id, 2), LONE_RALLY.id, ...copiesOf(RECRUIT.id, 2)];
 
 function start(players: 1 | 2 = 1): GameState {
   const base = gameAtFirstTurn({
-    cards: [FEAR, STORM, RALLY, RECRUIT, BLANK],
+    cards: [FEAR, STORM, RALLY, LONE_RALLY, RECRUIT, BLANK],
     deps,
     deck: DECK,
     players,
@@ -181,6 +198,18 @@ describe("§3.19 an additional cost to ready (Mister Fear)", () => {
 });
 
 describe("§3.19 'cannot be readied by player card effects' (Unnatural Storm)", () => {
+  it("a player card that only readies your hero has no valid target and cannot be played (#568)", () => {
+    const base = start();
+    const storm = encounterCardInVillainArea(base, STORM.id, 5);
+    const lone = giveCard(exhaust(storm.state, identityOf(base)), P1, LONE_RALLY.id);
+    const refused = applyCommand(
+      lone.state,
+      { type: "playCard", playerId: P1, cardInstanceId: lone.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
+    expect(refused.ok ? null : refused.error.code).toBe("no_valid_target");
+  });
+
   it("a player card's 'ready your hero' does nothing, but the end-of-phase ready still readies", () => {
     const base = start();
     const storm = encounterCardInVillainArea(base, STORM.id, 5);
