@@ -904,6 +904,8 @@ today; what is undecided is whether Chaos Control (`scw`, not started) can repla
     - Unclear whether the keyword bars _playing_ the card, bars _triggering its abilities_, or both — and, on a card that enters play some other way, whether it keeps checking while the card is in play or only at the moment it is played.
     - **Implemented: data only.** The schema shape is `{ name: "prerequisite", traits?, form? }` and the engine does nothing with it; a card carrying it cannot be marked playable. Nothing is guessed. Read the rulebook page before building the semantics; `PlayRestrictions.form` / `requiresIdentityTrait` is the likely target.
 
+**Decided 2026-10-31 (owner), Kang stage 3:** a stage 3 completed and its Kang (II) defeated in the same phase schedule two joins. The players of that area join once, the second join does nothing and no other area changes, while the completed stage's other results (the Kang's Dominion under stage 4A) still happen. An engine reading at medium confidence, because no official ruling covers both delayed effects in one phase; `executeJoinGameArea` carries it.
+
 ---
 
 ## 5. For the data pipeline: parser needs and raw-data errors

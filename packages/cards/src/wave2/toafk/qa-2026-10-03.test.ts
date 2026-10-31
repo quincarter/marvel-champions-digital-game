@@ -16,10 +16,14 @@ import { defeatWithAttack, runWave2, startWave2Game, WAVE2_DEPS } from "../testi
 
 const YELLOWJACKET = "12027"; // Ant-Man's nemesis minion (printed parenthetical), in his set-aside area
 
-/** Ant-Man (Leadership) at Kang with Kang (I) and then the area's Kang (II) defeated: the next end of phase advances to 4A/4B. */
+/**
+ * Ant-Man (Leadership) at Kang with Kang (I) and then the area's Kang (II) defeated: the next end of phase advances to
+ * 4A/4B. Seed 7: with Kang's Dominion set aside the deck is smaller, and seed 2026 dealt Shadow of the Past (01190) here,
+ * which reveals Ant-Man's nemesis set early and shuffles the deck a second time, outside what this test pins.
+ */
 function beforeTheWrath(removeNemesis: boolean): GameState {
   let state = settle(
-    runWave2(startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 })), {
+    runWave2(startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "ant-leadership" }], seed: 7 })), {
       type: "changeForm",
       playerId: P1,
       to: { heroForm: 0 },

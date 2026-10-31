@@ -1,6 +1,9 @@
 import {
-  andThen,
+  activationIs,
   after,
+  allOf,
+  andThen,
+  anyOf,
   boost,
   chooseOne,
   chooseTarget,
@@ -37,6 +40,7 @@ import {
   revealCard,
   rule,
   scaled,
+  schemeStartedByAttackBoost,
   self,
   selectCards,
   statOf,
@@ -156,7 +160,12 @@ export const BULLDOZER_SET = defineAbilities({
   // Escaped Convict — same text as Wrecker's copy (07009).
   "07053.boost": boost(
     moveActiveCounterToVillain("lowest"),
-    ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
+    // Ruling 191 (May 16, 2024): a scheme boost ignores "this attack", except a scheme a boost started during an
+    // attack: the new attack follows that scheme (RRG 1.8 "Activation", p. 6).
+    ifThen(
+      allOf(isHero(), anyOf(activationIs("attack"), schemeStartedByAttackBoost)),
+      enemyAttackAfterThisNoBoost(theVillain, you),
+    ),
   ),
 
   // Buddy System — same text as Wrecker's copy (07010).

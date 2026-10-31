@@ -777,6 +777,11 @@ export type StackFrame =
        */
       readonly resumeActivation?: EffectSpec;
       /**
+       * The `resumeActivation` was started by a Boost ability during an enemy attack, which has ended by the time it
+       * initiates; a scheme it initiates carries this (`TriggerEvent enemyScheme.startedByAttackBoost`).
+       */
+      readonly resumeFromAttackBoost?: true;
+      /**
        * On the root frame of an ability that initiated an enemy activation: the abilities that waited behind that
        * activation (`DeferredEffects.suspended`), resumed as this frame finishes, so this ability's remaining sentences
        * resolve first (`resolve/suspend.ts`, `releaseWaitingAbilities`). Absent on every other frame.

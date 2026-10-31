@@ -251,7 +251,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   // Back from waiting behind an activation (`suspendBehindActivation`): the activation it initiated resolves now, then
   // the rest of the ability. The frame passed on still names it, so it is not queued again.
   if (frame.resumeActivation) {
-    const { resumeActivation: _resumed, ...rest } = frame;
+    const { resumeActivation: _resumed, resumeFromAttackBoost: _fromBoost, ...rest } = frame;
     setFrame(ctx, rest);
     applyEffect(ctx, frame.resumeActivation, contextOf(rest, ctx.deps), frame);
     return;
@@ -393,7 +393,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     return executeForEachPlayerOrdered(ctx, frame, effect, context);
   if (effect.kind === "reorderCards") return executeReorderCards(ctx, frame, effect, context);
   if (effect.kind === "changeForm") return executeChangeForm(ctx, frame, effect, context);
-  if (effect.kind === "joinGameArea") return executeJoinGameArea(ctx, frame, context);
+  if (effect.kind === "joinGameArea") return executeJoinGameArea(ctx, frame, effect, context);
   if (effect.kind === "divide") return executeDivide(ctx, frame, effect, context);
   if (effect.kind === "playFromHand") return executePlayFromHand(ctx, frame, effect, context);
   // docs/phase7-wave8.md §3.64: a player makes a basic attack or thwart on a card's instruction.
@@ -1607,9 +1607,21 @@ function formChangeCostAsked(
  * players choose the area when there are several ("choose a game area", The Once and Future Kang insert, "Joining
  * Another Game Area"): the first of them in player order answers. With no other separate area left they join the
  * central area and the split ends.
+ *
+ * A delayed join leaves the area it was queued in (`from`, `atEndOfPhase`). Once that area is gone its players have
+ * joined already, and this join does nothing: the When Defeated of a Kang (II) whose stage was completed earlier in the
+ * phase, say. An engine reading (owner decision, 2026-10-31): no official source covers two joins from one area.
  */
-function executeJoinGameArea(ctx: Ctx, frame: Frame<"effects">, context: EffectContext): void {
-  const from = contextArea(ctx.state, context);
+function executeJoinGameArea(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "joinGameArea" }>,
+  context: EffectContext,
+): void {
+  const from =
+    effect.from === undefined
+      ? contextArea(ctx.state, context)
+      : (ctx.state.gameAreas.find((area) => area.areaId === effect.from) ?? null);
   const others = from ? ctx.state.gameAreas.filter((area) => area.areaId !== from.areaId) : [];
   if (from && others.length > 1 && frame.answer === null) {
     const chooser = controllerOfArea(ctx.state, from) ?? ctx.state.firstPlayerId;

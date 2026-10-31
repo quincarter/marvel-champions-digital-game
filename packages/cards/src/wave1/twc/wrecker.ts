@@ -1,6 +1,9 @@
 import {
-  andThen,
+  activationIs,
   after,
+  allOf,
+  andThen,
+  anyOf,
   boost,
   bindTargets,
   chooseOne,
@@ -39,6 +42,7 @@ import {
   revealCard,
   rule,
   scaled,
+  schemeStartedByAttackBoost,
   self,
   selectCards,
   spend,
@@ -159,7 +163,12 @@ export const WRECKER_SET = defineAbilities({
   // card.
   "07009.boost": boost(
     moveActiveCounterToVillain("lowest"),
-    ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
+    // Ruling 191 (May 16, 2024): a scheme boost ignores "this attack", except a scheme a boost started during an
+    // attack: the new attack follows that scheme (RRG 1.8 "Activation", p. 6).
+    ifThen(
+      allOf(isHero(), anyOf(activationIs("attack"), schemeStartedByAttackBoost)),
+      enemyAttackAfterThisNoBoost(theVillain, you),
+    ),
   ),
 
   // Buddy System — When Revealed: Choose the villain whose side scheme has the least threat. Reveal the top card of
