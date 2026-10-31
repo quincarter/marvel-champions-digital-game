@@ -6,32 +6,32 @@ Winning now earns you the official promo cards: 128 scans of 25 heroes, 12 villa
 
 **[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/v0.41.0/index.es.html)**
 
-![The numbers: 128 promo scans, 3 wins to earn most, 57 releases in the history, 21 wrong scans fixed, Settings search across 6 pages, 3 Steam scripts and 12 fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-01-the-numbers.jpg)
+![The numbers: 128 promo scans, 3 wins to earn most, 57 releases in the history, 21 wrong scans fixed, Settings search across 6 pages, 3 Steam scripts and 12 fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-01-the-numbers.jpg)
 
-![Earn the promos: the Promos tab, how each promo is earned, and Promo art on Take Your Seats](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-02-earn-the-promos.jpg)
+![Earn the promos: the Promos tab, how each promo is earned, and Promo art on Take Your Seats](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-02-earn-the-promos.jpg)
 
-![Every release, in one place: the release history on desktop and phone, older releases, and getting around by controller](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-03-every-release-in-one-place.jpg)
+![Every release, in one place: the release history on desktop and phone, older releases, and getting around by controller](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-03-every-release-in-one-place.jpg)
 
-![Search Settings: a typo still finds Champion Points, on desktop and phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-04-search-settings.jpg)
+![Search Settings: a typo still finds Champion Points, on desktop and phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-04-search-settings.jpg)
 
-![One Steam script, for good: updates from inside the game, and run the new script once](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-05-one-steam-script-for-good.jpg)
+![One Steam script, for good: updates from inside the game, and run the new script once](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-05-one-steam-script-for-good.jpg)
 
-![Cards left knows the villain: Hela's stages at the top of the list, and settings that apply at once](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-06-cards-left-knows-the-villain.jpg)
+![Cards left knows the villain: Hela's stages at the top of the list, and settings that apply at once](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-06-cards-left-knows-the-villain.jpg)
 
-![Everyone's numbers, easier to find: the switch in the deck builder, and sharing from the stats page](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-07-everyone-s-numbers-easier-to-find.jpg)
+![Everyone's numbers, easier to find: the switch in the deck builder, and sharing from the stats page](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-07-everyone-s-numbers-easier-to-find.jpg)
 
-![Back to the printed card: The Once and Future Kang and Escaped Convict's boost](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-08-back-to-the-printed-card.jpg)
+![Back to the printed card: The Once and Future Kang and Escaped Convict's boost](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-08-back-to-the-printed-card.jpg)
 
-![You asked, we fixed: Wounded Hela, Team-Building Exercise's payment, Field Agent's counters, and Cloak of Levitation](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-09-you-asked-we-fixed.jpg)
+![You asked, we fixed: Wounded Hela, Team-Building Exercise's payment, Field Agent's counters, and Cloak of Levitation](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-09-you-asked-we-fixed.jpg)
 
-![Every card on its own scan: before and after, and Hela's set](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-10-every-card-on-its-own-scan.jpg)
+![Every card on its own scan: before and after, and Hela's set](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-10-every-card-on-its-own-scan.jpg)
 
-![Taskmaster gets his face back: the stage-flip splash, before and after](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-11-taskmaster-gets-his-face-back.jpg)
+![Taskmaster gets his face back: the stage-flip splash, before and after](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-11-taskmaster-gets-his-face-back.jpg)
 
-![Fixed along the way: the Title's top row by controller, red rank bars, and sync through a long game](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-12-fixed-along-the-way.jpg)
+![Fixed along the way: the Title's top row by controller, red rank bars, and sync through a long game](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-12-fixed-along-the-way.jpg)
 
-![Also in v0.41.0: Title, builds and contributor changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-13-also-in-v0-41-0.jpg)
+![Also in v0.41.0: Title, builds and contributor changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-13-also-in-v0-41-0.jpg)
 
-![Thank you to PermaKarma and Vasko47](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-14-thank-you.jpg)
+![Thank you to PermaKarma and Vasko47](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-14-thank-you.jpg)
 
-![Code shipped: 20 pull requests, 472 files, 21,632 lines added and 838 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f593b1ef723fc02836db5ee8aa42b72fa4478521/docs/screenshots/releases/v0.41.0/v0-41-0-release-15-code-shipped.jpg)
+![Code shipped: 20 pull requests, 472 files, 21,632 lines added and 838 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/a5b04686d6074cd4f7615788c3f9dac155321c30/docs/screenshots/releases/v0.41.0/v0-41-0-release-15-code-shipped.jpg)
