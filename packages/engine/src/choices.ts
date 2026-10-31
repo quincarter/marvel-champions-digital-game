@@ -164,6 +164,11 @@ export type ChoicePrompt =
        * 1.8 p. 19 and p. 42): their `ref` is `facedownCard` and their option id and label say only whose hand.
        */
       readonly facedown?: true;
+      /**
+       * Every option is a card in the choosing player's own hand, so the prompt shows nobody anything new: a card
+       * played from hand (`playFromHand`). The client's Undo reads it (`view/undo.ts`).
+       */
+      readonly ownHand?: true;
     }
   /**
    * `EffectSpec lookAt`: the options are cards the player is looking at (RRG 1.8 "Look, Looked-At", p. 27), offered

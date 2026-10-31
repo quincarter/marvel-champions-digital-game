@@ -2216,6 +2216,20 @@ export function priceOf(
 }
 
 /**
+ * What these payment options (`paymentOptions`' ids) are worth together toward the card `payingFor`, or null if they
+ * are not a legal payment: the words on a payment sheet, read here rather than counted again in the client.
+ */
+export function paymentOptionsPool(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  optionIds: readonly string[],
+  payingFor: InstanceId | null,
+): ResourcePool | null {
+  return priceOrNull(createCtx(state, deps), playerId, paymentsFromOptionIds(optionIds), null, payingFor);
+}
+
+/**
  * The resource pool a payment is worth toward a cost, or null if it is not a legal payment at all. Every caller asks
  * whether a payment can cover something, so what can only be overpaid (`overpayOnlyPool`) is left out: it covers
  * nothing (RRG 1.8 "Cost", p. 13).
