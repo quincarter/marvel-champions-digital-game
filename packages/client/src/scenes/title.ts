@@ -994,11 +994,7 @@ export class TitleScene extends Phaser.Scene {
       const points = this.add.text(0, rect.y + 4, badge.pointsLabel, textStyle(typeRole.label, paper));
       points.setX(rect.x + rect.width - pad - points.width);
       room = Math.max(20, inner - points.width - 6);
-      const barY = rect.y + 21;
-      this.add.rectangle(rect.x + pad, barY, inner, 4, paper, 0.3).setOrigin(0, 0);
-      if (badge.fraction > 0) {
-        this.add.rectangle(rect.x + pad, barY, Math.max(2, inner * badge.fraction), 4, paper).setOrigin(0, 0);
-      }
+      this.#drawRankBar(rect.x + pad, rect.y + 20, inner, badge.fraction);
       const next = this.add.text(
         rect.x + pad,
         rect.y + 27,
@@ -1028,11 +1024,7 @@ export class TitleScene extends Phaser.Scene {
     });
     fitText(title, inner, typeRole.rowTitle.size);
     if (!up) {
-      const barY = rect.y + 37;
-      this.add.rectangle(rect.x + pad, barY, inner, 4, paper, 0.3).setOrigin(0, 0);
-      if (badge.fraction > 0) {
-        this.add.rectangle(rect.x + pad, barY, Math.max(2, inner * badge.fraction), 4, paper).setOrigin(0, 0);
-      }
+      this.#drawRankBar(rect.x + pad, rect.y + 36, inner, badge.fraction);
       const next = this.add.text(
         rect.x + pad,
         rect.y + 44,
@@ -1041,6 +1033,13 @@ export class TitleScene extends Phaser.Scene {
       );
       fitText(next, inner, typeRole.label.size);
     }
+  }
+
+  /** The bar to the next rank on the ink plate: a paper outline, so the track shows, and a Hero Red fill. */
+  #drawRankBar(x: number, y: number, width: number, fraction: number): void {
+    const g = this.add.graphics();
+    g.lineStyle(1, surface.paper.hex, 1).strokeRect(x, y, width, 6);
+    if (fraction > 0) g.fillStyle(accent.heroRed.hex, 1).fillRect(x + 1, y + 1, Math.max(2, (width - 2) * fraction), 4);
   }
 
   /** Draws this visit's picture if its texture is ready, otherwise loads it once and draws on arrival. */

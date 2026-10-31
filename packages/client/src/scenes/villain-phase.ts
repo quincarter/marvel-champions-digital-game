@@ -2718,7 +2718,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // `signal.heal` fills proportional to *remaining* HP, matching `McHpPlate`'s own meter (`board/zones.ts`).
       const ratio = seat.hp.max > 0 ? Math.max(0, Math.min(1, seat.hp.current / seat.hp.max)) : 0;
       const bg = this.add.graphics();
-      bg.fillStyle(surface.ink.hex, 0.15).fillRect(rect.x + 8, barY, barWidth, 8);
+      bg.fillStyle(surface.inkMark.hex, 0.15).fillRect(rect.x + 8, barY, barWidth, 8);
       bg.fillStyle(signal.heal.hex, 1).fillRect(rect.x + 8, barY, barWidth * ratio, 8);
       label(
         this,
@@ -2756,7 +2756,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const barWidth = rect.width - 24;
       const ratio = Math.min(1, callout.panel.threat / callout.panel.meterMax);
       const bg = this.add.graphics();
-      bg.fillStyle(surface.ink.hex, 0.15).fillRect(rect.x + 12, barY, barWidth, 8);
+      bg.fillStyle(surface.inkMark.hex, 0.15).fillRect(rect.x + 12, barY, barWidth, 8);
       bg.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x + 12, barY, barWidth * ratio, 8);
     }
 

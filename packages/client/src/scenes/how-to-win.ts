@@ -162,7 +162,7 @@ export class HowToWinScene extends Phaser.Scene {
     const segWidth = (layout.progress.width - gap * (segments - 1)) / segments;
     for (let i = 0; i < segments; i++) {
       const sx = layout.progress.x + i * (segWidth + gap);
-      g.fillStyle(i === 0 ? signal.caution.hex : surface.paper.hex, i === 0 ? 1 : 0.3).fillRect(
+      g.fillStyle(i === 0 ? signal.caution.hex : surface.paperOnInk.hex, i === 0 ? 1 : 0.3).fillRect(
         sx,
         layout.progress.y,
         segWidth,

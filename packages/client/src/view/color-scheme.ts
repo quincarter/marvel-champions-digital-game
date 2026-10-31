@@ -15,7 +15,9 @@
  *
  * Every hue (Hero Red, the signals, the status and stat hues, aspect colors) is left alone, and nothing here touches a
  * texture: card art and card faces are pictures and draw exactly as printed. Ink text that sits on a hue (caution
- * yellow, an aspect chip) uses `surface.inkOnHue`, which no scheme changes.
+ * yellow, an aspect chip) uses `surface.inkOnHue`, which no scheme changes. A bright mark on an ink ground uses
+ * `surface.paperOnInk`, which no scheme changes either, and a dark mark on a paper ground uses `surface.inkMark`, which
+ * turns cream: a bar's track and its fill have to show against the ground in both schemes.
  *
  * The values are swapped both ways (`schemeColor(..., from, to)`), so a screen already on the table can be recolored
  * in place when the player flips the toggle (`ui/color-scheme-phaser.ts`). Every dark value is a hex no token uses,
@@ -42,6 +44,8 @@ const DARK: Readonly<Record<ColorChannel, ReadonlyMap<number, number>>> = {
     [0xe4dcc9, 0x2c2722],
     [0xe4dcc6, 0x2b2621],
     [0xd9d2bd, 0x26221d],
+    // `surface.inkMark`.
+    [0x14110c, 0xd8cfbd],
   ]),
   line: new Map([[INK, 0xd8cfbd]]),
   text: new Map([[INK, 0xf0e9db]]),

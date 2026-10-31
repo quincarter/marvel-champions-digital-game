@@ -535,7 +535,7 @@ export class TrophyRoomScene extends Phaser.Scene {
     const track: Rect = { x: rect.x + pad, y: rect.y + rect.height - 24, width: inner, height: 12 };
     g.lineStyle(2, surface.paper.hex, 1).strokeRect(track.x, track.y, track.width, track.height);
     if (header.fraction > 0) {
-      g.fillStyle(surface.paper.hex, 1).fillRect(
+      g.fillStyle(accent.heroRed.hex, 1).fillRect(
         track.x + 3,
         track.y + 3,
         Math.max(2, (track.width - 6) * header.fraction),
@@ -641,7 +641,7 @@ export class TrophyRoomScene extends Phaser.Scene {
       bar.lineStyle(1.5, fg, 1).strokeRect(track.x, track.y, track.width, track.height);
       if (row.progress.fraction > 0) {
         bar
-          .fillStyle(earned ? surface.paper.hex : accent.heroRed.hex, 1)
+          .fillStyle(accent.heroRed.hex, 1)
           .fillRect(track.x + 2, track.y + 2, Math.max(2, (track.width - 4) * row.progress.fraction), track.height - 4);
       }
       const count = this.add

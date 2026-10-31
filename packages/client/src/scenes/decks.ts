@@ -2946,7 +2946,7 @@ export class DecksScene extends Phaser.Scene {
       const x = left + index * (barWidth + gap);
       const highlighted = topCounts.has(bar.count);
       const g = this.add.graphics();
-      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paper.hex, 1).fillRect(
+      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paperOnInk.hex, 1).fillRect(
         x,
         y + (chartHeight - 18 - barHeight),
         barWidth,
