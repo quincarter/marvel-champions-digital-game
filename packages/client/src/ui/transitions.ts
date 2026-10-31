@@ -67,6 +67,14 @@ const fadeables = (objects: readonly Phaser.GameObjects.GameObject[]): Fadeable[
       typeof (object as Fadeable).y === "number",
   );
 
+/** Objects that animate themselves on the way in, so an entrance must leave them alone. */
+const outOfEntrance = new WeakSet<Phaser.GameObjects.GameObject>();
+
+/** Keeps `objects` out of the entrance of the overlay they're drawn in (`enterOverlay`). The exit still fades them. */
+export function skipEntrance(...objects: readonly Phaser.GameObjects.GameObject[]): void {
+  for (const object of objects) outOfEntrance.add(object);
+}
+
 /**
  * Plays the entrance on the objects a scene just drew, from `elapsedMs` into
  * it: a draw that happens mid-entrance places everything where the tween would
@@ -81,7 +89,7 @@ export function enterOverlay(scene: Phaser.Scene, entrance: OverlayEntrance, ela
   const progress = Math.min(1, Math.max(0, elapsedMs / duration));
   const rise = entrance.rise ?? DEFAULT_RISE;
   const scrims = fadeables(entrance.scrim ?? []);
-  const panels = fadeables(entrance.panels);
+  const panels = fadeables(entrance.panels).filter((object) => !outOfEntrance.has(object));
   for (const object of scrims) {
     const to = object.alpha;
     object.setAlpha(to * progress);

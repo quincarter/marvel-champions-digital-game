@@ -237,6 +237,39 @@ test.describe("Inspect's stamp, on a phone, with motion", () => {
   });
 });
 
+test.describe("closing Inspect mid-glide, on a phone, with motion", () => {
+  test.use({ reducedMotion: "no-preference", viewport: { width: 390, height: 844 } });
+
+  test("the sheet still closes, and the table answers again", async ({ page }) => {
+    test.setTimeout(180_000);
+    const errors = trackPageErrors(page);
+    await startJusticeOnPhone(page);
+    await page.evaluate(async () => {
+      const { motion } = (await import("/src/tokens.ts")) as unknown as { motion: { guideGlideMs: number } };
+      motion.guideGlideMs = 8000;
+    });
+    await clickHandCard(page, "01058");
+    await waitFor(
+      async () => ((await hook<Rect>(page, "__mcInspectDebug", "playRect")) ? true : null),
+      "the sheet is up",
+      8000,
+    );
+    await pressUntil(
+      page,
+      () => page.keyboard.press("Escape"),
+      async () => !(await activeScenes(page)).includes("InspectOverlay"),
+      "Escape closes the sheet mid-glide",
+    );
+    await clickHandCard(page, "01058");
+    await waitFor(
+      async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null),
+      "the table opens the sheet again",
+      8000,
+    );
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("with Reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
 

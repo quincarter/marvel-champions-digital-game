@@ -60,10 +60,9 @@ export class GuideStampGlide {
     const shown = this.#glide.place("stamp", target, now, !appSession().settings.reducedMotion, false);
     const tag = new McGuideTag(scene, variant);
     tag.update(shown);
+    if (this.#glide.remainingMs(now) > 0) tag.skipEntrance();
     this.#stop = runGuideGlide(scene, this.#glide, (rect) => {
-      if (!tag.alive) return;
-      tag.leaveEntrance();
-      tag.update(rect);
+      if (tag.alive) tag.update(rect);
     });
   }
 }

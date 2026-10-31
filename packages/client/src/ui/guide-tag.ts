@@ -12,6 +12,7 @@
 import Phaser from "phaser";
 import { border, guideTag, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { textStyle } from "./theme.js";
+import { skipEntrance } from "./transitions.js";
 import type { Rect } from "../view/layout.js";
 
 export type McGuideTagVariant = "tryThis" | "guidePick";
@@ -81,12 +82,9 @@ export class McGuideTag {
     this.#label.setAlpha(alpha);
   }
 
-  /** Takes the stamp out of its sheet's entrance (`enterOverlay` fades and raises every object it finds), which would
-   * fight a glide over its position. */
-  leaveEntrance(): void {
-    this.#scene.tweens.killTweensOf([this.#box, this.#label]);
-    this.#box.setY(0);
-    this.setAlpha(1);
+  /** Keeps the stamp out of its sheet's entrance, which would fight a glide over its position. */
+  skipEntrance(): void {
+    skipEntrance(this.#box, this.#label);
   }
 
   /** False once the host scene's redraw has destroyed the stamp. */
