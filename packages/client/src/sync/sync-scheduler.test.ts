@@ -260,16 +260,41 @@ describe("SyncScheduler", () => {
     expect(t.runs).toHaveLength(2);
   });
 
-  test("leaving the table during a sync pushes the last commands right after it", async () => {
-    const t = setup([], { hold: true });
+  test("leaving the table during a sync pushes the last commands right after it, spent allowance or not", async () => {
+    const t = setup([{ ...good, pushed: 500, batches: 6 }], { hold: true });
     t.scheduler.start();
     await flush();
     t.change("game");
-    void t.scheduler.syncNow();
+    const leaving = t.scheduler.syncNow();
     t.gates.shift()!();
     await flush();
-    await t.clock.advance(2_100);
     expect(t.runs).toHaveLength(2);
+    t.gates.shift()!();
+    await leaving;
+    expect(t.status.get().state).toBe("synced");
+  });
+
+  test("Sync now during a sync that fails does not run again", async () => {
+    const t = setup([failure("not-found")], { hold: true });
+    t.scheduler.start();
+    await flush();
+    t.change("game");
+    const leaving = t.scheduler.syncNow();
+    t.gates.shift()!();
+    await leaving;
+    expect(t.runs).toHaveLength(1);
+  });
+
+  test("a game's commands do not hold back a deck's push", async () => {
+    const t = setup();
+    t.scheduler.start();
+    await flush();
+    t.runs.length = 0;
+    t.change("deck");
+    await t.clock.advance(1_000);
+    t.change("game");
+    await t.clock.advance(7_100);
+    expect(t.runs).toHaveLength(1);
   });
 
   test("a deck saved during a sync goes at the deck's pace, not the idle wait", async () => {

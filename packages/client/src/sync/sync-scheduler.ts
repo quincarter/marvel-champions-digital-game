@@ -134,7 +134,8 @@ export class SyncScheduler {
     this.#halted = false;
     this.#clearTimers();
     // Leaving the table lands here: a run already going may have missed the last commands, so they follow it at once.
-    if (this.#running) this.#held = "round";
+    const running = this.#running;
+    if (running) return running.then((result) => (result?.ok && this.#pending ? this.#run(true) : result));
     return this.#run(true);
   }
 
@@ -227,6 +228,7 @@ export class SyncScheduler {
   #scheduleDebounce(delay: number, firm: boolean, counts = true): void {
     const now = this.#now();
     if (counts) this.#waitingSince ??= now;
+    else if (this.#waitingSince !== null && this.#debounce) return; // a game's commands do not hold back a deck's push
     const longest = this.#waitingSince === null ? Infinity : this.#waitingSince + SYNC_PUSH_INTERVAL_MS;
     const due = Math.min(now + delay, longest);
     const current = this.#debounce;
