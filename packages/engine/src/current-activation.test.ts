@@ -106,3 +106,73 @@ describe("§3.26 currentActivationIs / a Boost ability adjusting its own count (
     expect(replayed.state).toEqual(session.state);
   });
 });
+
+/**
+ * A scheme a Boost ability started during an attack (ruling 191, May 16, 2024; RRG 1.8 "Activation", p. 6): the attack
+ * has ended when the scheme initiates, and `currentSchemeStartedByAttackBoost` still knows where it came from.
+ */
+describe("currentSchemeStartedByAttackBoost", () => {
+  const theVillain = { kind: "villain" } as const;
+  const you = { kind: "controller" } as const;
+  /** "[star] Boost: The villain schemes." */
+  const STARTS = stubAbility("starts.boost", {
+    trigger: { kind: "boost" },
+    effects: [{ kind: "enemyScheme", enemies: theVillain, against: you }],
+  });
+  /** "[star] Boost: If that scheme came from a boost during an attack, this card gets +2 boost icons." */
+  const PROBE = stubAbility("probe.boost", {
+    trigger: { kind: "boost" },
+    effects: [
+      {
+        kind: "if",
+        condition: { kind: "currentSchemeStartedByAttackBoost" },
+        then: [{ kind: "adjustBoostCount", delta: { kind: "const", value: 2 } }],
+      },
+    ],
+  });
+  /** On a side the game keeps in play: announces each card-caused activation (`enemyActivating`). */
+  const LISTENS = stubAbility("listens.interrupt", {
+    trigger: { kind: "interrupt", forced: true, on: { on: "enemyActivating" } },
+    effects: [],
+  });
+  const STARTER = stubMinion({ id: "starter", atk: 1, sch: 1, hp: 1, boostIcons: 0, abilities: [STARTS.ref] });
+  const STARTER2 = stubMinion({ id: "starter2", atk: 1, sch: 1, hp: 1, boostIcons: 0, abilities: [STARTS.ref] });
+  const PROBER = stubMinion({ id: "prober", atk: 1, sch: 1, hp: 1, boostIcons: 1, abilities: [PROBE.ref] });
+  const QUIET = stubVillain({ id: "quiet-stub", stages: [{ hp: flat(30), atk: 1, sch: 1 }] });
+  const HEARD = stubVillain({
+    id: "heard-stub",
+    stages: [{ hp: flat(30), atk: 1, sch: 1, abilities: [LISTENS.ref] }],
+  });
+  const chainDeps: EngineDeps = depsOf(STARTS, PROBE, LISTENS);
+
+  const started = (villain: typeof QUIET, form: "hero" | "alterEgo", ...boosts: readonly (typeof PROBER)[]) => {
+    const encounter = [...boosts.map((card) => card.id), ...copiesOf(TREACHERY.id, 4)];
+    const base = gameAtFirstTurn({ cards: [...boosts, villain], deps: chainDeps, villain, encounter });
+    const stacked = [...boosts].reverse().reduce((s, card) => onTopOfEncounterDeck(s, card.id), base);
+    return {
+      ...stacked,
+      players: stacked.players.map((p) => (p.playerId === P1 ? { ...p, identity: { ...p.identity, form } } : p)),
+    };
+  };
+  const probeIcons = (state: GameState): readonly number[] =>
+    driveSession(startSession(state), chainDeps, [{ type: "endTurn", playerId: P1 }], defaultPick)
+      .events.filter((e): e is Extract<GameEvent, { type: "schemeResolved" }> => e.type === "schemeResolved")
+      .map((e) => e.boostIcons);
+
+  it("true for the scheme a boost started during an attack", () => {
+    expect(probeIcons(started(QUIET, "hero", STARTER, PROBER))).toEqual([3]);
+  });
+
+  it("carried through the `enemyActivating` announcement when an ability listens", () => {
+    expect(probeIcons(started(HEARD, "hero", STARTER, PROBER))).toEqual([3]);
+  });
+
+  it("kept down a chain that began with an attack", () => {
+    expect(probeIcons(started(QUIET, "hero", STARTER, STARTER2, PROBER))).toEqual([0, 3]);
+  });
+
+  it("false for a plain scheme, and for a scheme a boost started during it", () => {
+    expect(probeIcons(started(QUIET, "alterEgo", PROBER))).toEqual([1]);
+    expect(probeIcons(started(QUIET, "alterEgo", STARTER, PROBER))).toEqual([0, 1]);
+  });
+});

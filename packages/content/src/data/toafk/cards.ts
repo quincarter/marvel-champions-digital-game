@@ -414,8 +414,8 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
         image: imageRef("/bundles/cards/11013a.jpg"),
         aSide: {
           text: {
-            printed: "When Revealed: Reveal Kang (III) and add him to the game area. Reveal each face down Kang's Dominion under this stage.",
-            current: "When Revealed: Reveal Kang (III) and add him to the game area. Reveal each face down Kang's Dominion under this stage.",
+            printed: "When Revealed: Reveal Kang (III) and add him to the game area. Reveal each facedown Kang's Dominion under this stage.",
+            current: "When Revealed: Reveal Kang (III) and add him to the game area. Reveal each facedown Kang's Dominion under this stage.",
           },
           abilities: [{ id: abilityId("11013a.when-revealed") }],
           image: imageRef("/bundles/cards/11013b.png"),

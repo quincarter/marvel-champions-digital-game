@@ -462,6 +462,12 @@ export type TriggerEventBody =
       readonly enemyInstanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly noBoost?: boolean;
+      /**
+       * A Boost ability started this scheme during an enemy attack, or during a scheme that was itself so started: it
+       * follows that attack (RRG 1.8 "Activation", p. 6), and a boost card's "after this attack" still has one to answer
+       * (ruling 191, May 16, 2024; `Predicate currentSchemeStartedByAttackBoost`).
+       */
+      readonly startedByAttackBoost?: true;
       /** `EffectSpec enemyScheme.divert` (docs/phase7-wave9.md §3.9), read at this activation's place-threat step. */
       readonly divert?: SchemeThreatDivert;
       /** `EffectSpec enemyScheme.wouldPlaceThreat`, resolved at this activation's place-threat step. */
@@ -1963,6 +1969,8 @@ export interface CardCausedActivation {
   readonly targetInstanceId?: InstanceId;
   readonly additionalResolution?: boolean;
   readonly noBoost?: boolean;
+  /** Handed on to the scheme's event (`TriggerEvent enemyScheme.startedByAttackBoost`). */
+  readonly startedByAttackBoost?: true;
   readonly divert?: SchemeThreatDivert;
   readonly wouldPlaceThreat?: SchemeWouldPlaceThreat;
   /** Handed on to the attack's or scheme's event (`TriggerEvent enemyAttack.deferredBonus`). */
