@@ -1,0 +1,1428 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.40.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v0.40.0 of the fan-made Marvel Champions digital game: Your stats, win rates and why you lose, a smarter deck builder, cards left, rules audit part 6, and fixes from players' reports."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.40.0" />
+    <meta
+      property="og:description"
+      content="Your stats, win rates and why you lose, a smarter deck builder, cards left, rules audit part 6, and fixes from players' reports."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.40.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.40.0 release report, a comic page in the game's own house style. Self-contained like
+   shadowland-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>Every game counts.<br /><span class="g">Build like it.</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.40.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/510">#510</a><br />after v0.39.0
+          (Oct 28)<br />Android · Web · Windows · macOS · Linux<br />Oct 31, 2026
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star moon">▲</div>
+          <div><small>Achievement unlocked</small><span>By the Numbers</span></div>
+        </div>
+        <p>
+          <b>The game now keeps score of how you play.</b> Your stats turns every finished game into a record, streaks,
+          favorite heroes, toughest villains and the cards you lean on, and your older games are counted too. Every
+          villain, modular set and hero gets <b>a win rate and the reason you lost</b>, with everyone's numbers if you
+          opt in. The deck builder learns marvelcdb's search, standard deck rules and draw odds, and suggests cards from
+          your winning decks. In a game you can list what's left in your deck and read the log in a big view from the
+          title bar, the tutorial's highlight glides to each next step, and part 6 closes out the rules audit.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big">
+          <h4>Your stats</h4>
+          <div class="n">8 tabs</div>
+          <p>
+            Overview, Heroes, Villains, Aspects, Encounter, Records, Cards and Cards by hero, built from every game
+            you've finished.
+          </p>
+        </div>
+        <div class="tile">
+          <h4>Loss causes</h4>
+          <div class="n">5</div>
+          <p>Scheme, Villain, Minions, Encounter cards or Other, for every game you lose.</p>
+        </div>
+        <div class="tile">
+          <h4>Fixes</h4>
+          <div class="n c-red">18</div>
+          <p>Rules, phone, Android, controller and Fear No Evil fixes from players' reports and the audit.</p>
+        </div>
+        <div class="tile">
+          <h4>Rulings applied</h4>
+          <div class="n c-blue">7</div>
+          <p>Rules audit part 6, each fix cited to RRG 1.8 or an FFG ruling.</p>
+        </div>
+        <div class="tile">
+          <h4>Ways in</h4>
+          <div class="n c-green">5</div>
+          <p>Your stats opens from the Title, Decks &amp; Collection, the Trophy Room, Settings and Pause.</p>
+        </div>
+        <div class="tile">
+          <h4>Everyone's numbers</h4>
+          <div class="n">20 games</div>
+          <p>before a villain, set or hero shows a shared win rate. Nothing personal is ever sent.</p>
+        </div>
+        <div class="tile">
+          <h4>Fresh scans</h4>
+          <div class="n">11 waves</div>
+          <p>more now use my own scans, plus the rest of the Core Set.</p>
+        </div>
+      </section>
+
+      <!-- ============ YOUR STATS ============ -->
+      <div class="band">
+        <h2>Your stats</h2>
+        <div class="lab">Issue #529 · PR #530 · #539 · #545</div>
+      </div>
+      <p class="lead">
+        <b>A dashboard of how you play.</b> Open it from the Title, the Decks &amp; Collection header, the Trophy Room,
+        Settings ▸ More or Pause. LB/RB switch tabs, LT/RT switch heroes, and
+        <b>every card picture opens the card hover</b>.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/dash-overview-desktop.webp"
+            alt="Your stats Overview: a 15-9 record, how you lose, favorite hero Captain Marvel and the villains that beat you most"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Overview · record, streaks, how you lose, favorite hero</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/dash-overview-phone.webp"
+            alt="Your stats Overview on a phone"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone · one swipeable row of tabs</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/dash-cards-hover-desktop.webp"
+            alt="Cards by hero for Captain Marvel, with the card hover open on a card"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Cards by hero · the hover on any card</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/dash-records-desktop.webp"
+            alt="The Records tab: fastest win, longest game, closest win, most damage in a turn and the final blow"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Records · closest win, best turn, the final blow</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>What's in it</h3>
+          <ul class="ck">
+            <li>
+              <b>Overview:</b> your record and win rate, streaks, fastest win, how you lose, favorite hero and the
+              villains that beat you most.
+            </li>
+            <li>
+              <b>Records:</b> closest win, most damage and threat removed in a turn, the final blow (who finishes the
+              villain most, and with what card), hours played and your busiest month.
+            </li>
+            <li>
+              <b>Cards:</b> most played, most activated, best win rate when a card comes out, allies with the most
+              damage and defenses, and the cards you never play.
+            </li>
+            <li><b>Devices:</b> your record on each platform you play on.</li>
+            <li>Filter it all by hero, villain and difficulty.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Your old games count too</h3>
+          <p>
+            Games finished before this update are <b>replayed once in the background</b> from their saved logs, so the
+            dashboard starts full. A note on the Title says how far it has got.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/backfill-toast-desktop.webp"
+              alt="The Title with a Building your stats note counting older games"
+              width="1280"
+              height="800"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ WIN RATES ============ -->
+      <div class="band gold">
+        <h2>Why you lose</h2>
+        <div class="lab">Issue #542 · PR #541 · suggested by @neopolii on Discord</div>
+      </div>
+      <p class="lead">
+        Every villain, modular set and hero row now has <b>a win rate and a loss bar</b>: Scheme, Villain, Minions,
+        Encounter cards or Other. The Villains tab opens with a <b>Why you lose</b> row, and the filters still apply, so
+        filtering to Rhino shows which heroes do well against him.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/winrates-villains-desktop.webp"
+            alt="The Villains tab with a win rate and a colored loss bar on each villain"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Villains · win rate and why those games were lost</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/winrates-villains-phone.webp"
+            alt="The Villains tab on a phone with Why you lose at the top"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Everyone's numbers, if you want them</h3>
+          <ul class="ck">
+            <li>
+              <b>It's off unless you say yes.</b> After a finished game the Title asks once and spells out what is sent:
+              the villain, difficulty, modular sets, heroes, aspects, deck cards, result and loss cause.
+            </li>
+            <li><b>No name, account, device or save</b> is ever sent.</li>
+            <li>
+              <b>You / Everyone</b> chips switch the Heroes, Villains and Encounter tabs. A row needs 20 games before it
+              shows.
+            </li>
+            <li>Change your mind any time in <b>Settings ▸ More ▸ Save data</b>.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <figure>
+            <img
+              src="img/global-ask-desktop.webp"
+              alt="The Share your results? question on the Title, with Share and No thanks"
+              width="1400"
+              height="875"
+              loading="lazy"
+            />
+            <figcaption>The one-time ask · Share or No thanks</figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ DECK BUILDER ============ -->
+      <div class="band">
+        <h2>A deck builder that knows your games</h2>
+        <div class="lab">Issue #531 · PR #533 · #544</div>
+      </div>
+      <p class="lead">
+        <b>Search like marvelcdb</b>, filter with a thumb, build to the standard deck rules, check your odds, and let
+        <b>your own winning decks</b> suggest what to add.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/531_desktop-search-help.webp"
+            alt="The search cheat sheet listing every search term with Use and Copy buttons"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>The ? cheat sheet · every term, with examples to use or copy</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/531_desktop-odds.webp"
+            alt="The deck builder's odds panel beside the card pool"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>Odds · from your opening hand to Black Cat's top 2</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/winrates-builder-desktop.webp"
+            alt="From your games with Against Rhino: cards to add and cards to cut"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Against Rhino · + Add from your wins, − Cut from your losses</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/531_phone-tab-pool.webp"
+            alt="The phone deck builder's Pool tab"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone · Pool, Deck and From your games tabs</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Find the card</h3>
+          <ul class="ck">
+            <li>
+              <b>Search terms:</b> <code>o:2</code>, <code>t:ally|event</code>, <code>rp:1</code>, <code>k:spy</code>,
+              <code>kw:guard</code>, <code>atk</code>/<code>thw</code>/<code>h</code> and more, with <code>!</code> to
+              exclude.
+            </li>
+            <li><b>Quick filters:</b> cost chips 0 to 5+, resource icon chips and a trait stepper.</li>
+            <li>
+              <b>Sorting that holds:</b> a search no longer overrides your sort, and a second Then sort orders the ties.
+            </li>
+            <li>It <b>remembers</b> your sort, filters and card or list view between visits.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Build it right</h3>
+          <ul class="ck">
+            <li>
+              <b>Standard deck rules, if you want them:</b> Settings ▸ Gameplay ▸ Signature cards (Free, Standard,
+              Hidden) and copy limits.
+            </li>
+            <li><b>Odds:</b> the chance a draw holds 0, 1, 2 or 3+ of a resource icon, a type, a trait or a title.</li>
+            <li>
+              <b>From your games:</b> a card's own numbers in the side pane and Inspect, and Build my own from a precon.
+            </li>
+            <li><b>On a phone:</b> three full-screen tabs with a live card count, one scrolling area at a time.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ CARDS LEFT ============ -->
+      <div class="band gold">
+        <h2>What's left in my deck?</h2>
+        <div class="lab">Issue #540 · PR #543 · suggested by @neopolii on Discord</div>
+      </div>
+      <p class="lead">
+        <b>Tap your deck</b> during a game to list the cards still in it, with counts: "Swinging Web Kick ×2". It's
+        sorted by type and name, <b>never in deck order</b>, so it tells you nothing a careful player couldn't count.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/hero-hover-desktop.webp"
+            alt="Your deck's remaining cards with counts and the card hover open"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>Your deck · with the card hover</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/encounter-desktop.webp"
+            alt="The encounter deck's remaining cards with the boost average line"
+            width="1400"
+            height="953"
+            loading="lazy"
+          />
+          <figcaption>The encounter deck · with the boost average</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>A card dealt facedown or given as a boost stays <b>unseen</b>, so nothing is revealed by elimination.</li>
+          <li>
+            The encounter deck's list and the <b>boost average</b> ("1.1 icons per card") are optional, under
+            <b>Settings ▸ Game ▸ Cards left</b>. They start off, because the encounter list can name cards you haven't
+            met yet.
+          </li>
+          <li><b>R3</b> on a controller, <b>6</b> on the keyboard.</li>
+        </ul>
+      </div>
+
+      <!-- ============ GAME LOG ============ -->
+      <div class="band">
+        <h2>A log you can read</h2>
+        <div class="lab">Issue #550 · PR #551</div>
+      </div>
+      <p class="lead">
+        The game log moved to <b>the title bar</b>. Its newest line runs there, and a click or tap opens
+        <b>a larger view</b>: docked beside the live table on desktop and tablet landscape, and between the title bar
+        and your hand on a phone. The lines are bigger and bolder, up from small grey text.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/log-open-desktop.webp"
+            alt="The game log open beside the table on desktop, with large bold lines"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+          <figcaption>Desktop · the log docks beside the table</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/log-open-phone.webp"
+            alt="The game log open on a phone between the title bar and the hand"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Same keys, more room</h3>
+          <ul class="ck">
+            <li><b>Shift+B</b> (Shift+N right-handed), holding <b>View</b> on a pad, and Escape or B to close.</li>
+            <li>The table's old log panel is gone, so the encounter deck and discard fill that column.</li>
+            <li>The recap's <b>Full log</b> opens the log in place instead of opening Pause.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>In the villain phase</h3>
+          <ul class="ck">
+            <li>
+              A <b>Log</b> button on the phase panel switches to the log, and "◂ Villain phase" switches back. The phase
+              waits while you read.
+            </li>
+            <li>A facedown card's name stays hidden in the log until it's flipped.</li>
+            <li>
+              <b>Pause on phones:</b> Reference folds onto one row with Music, Report and Controls, so the settings get
+              most of the sheet.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ TUTORIAL ============ -->
+      <div class="band gold">
+        <h2>A smoother tutorial</h2>
+        <div class="lab">Issues #552 · #554 · PR #553</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#552</div>
+          <h3>TRY THIS glides</h3>
+          <p>
+            The tutorial's highlight <b>glides from one target to the next</b> instead of jumping: the ring, the dimmed
+            cut-out and the stamp travel together, from an action button to the Attack with picker, a card, each payer
+            and Pay. When the next target sits on top of the last, like Black Cat becoming a Scientist payer in the same
+            slot, it fades out and back in so you see the card being paid for. Reduced motion goes straight there.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/guide-ring.webp"
+              alt="The tutorial ring gliding from Daredevil to each payer during a payment"
+              width="720"
+              height="405"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#554</div>
+          <h3>The lesson stays on track</h3>
+          <p>
+            Clicks outside the control the tutorial is teaching <b>stay inert</b> for as long as the step is up, so a
+            stray click can't leave the lesson behind. Skip this step, Stop tutorial and Escape are still the ways out.
+          </p>
+          <p>
+            Steps you only need to acknowledge hold the table until you answer them, and a step whose card never reached
+            the table moves on by itself.
+          </p>
+          <p>
+            <b>A fuller first turn:</b> the first lesson now plays Aunt May, Black Cat and Interrogation Room before the
+            villain phase.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ INSPECT + PEEK ============ -->
+      <div class="band">
+        <h2>Read before you pick</h2>
+        <div class="lab">Issue #532 by @andy-xxvii27 · PR #535 · PR #523</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#532 · asked for by @andy-xxvii27</div>
+          <h3>Every side of a hero</h3>
+          <p>
+            Inspect on a hero identity now <b>steps through its Hero and Alter-Ego sides and any extra forms</b>, like
+            Ant-Man's Tiny and Giant, so you can read a hero you don't own before picking them.
+          </p>
+          <div class="shots s2" style="margin: 14px 0 0">
+            <figure>
+              <img
+                src="img/desktop-1-tiny.webp"
+                alt="Inspect showing Ant-Man in his Tiny form"
+                width="1400"
+                height="875"
+                loading="lazy"
+              />
+            </figure>
+            <figure>
+              <img
+                src="img/desktop-3-giant.webp"
+                alt="Inspect showing Ant-Man in his Giant form"
+                width="1400"
+                height="875"
+                loading="lazy"
+              />
+            </figure>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="eb">PR #523</div>
+          <h3>Peek at your teammates</h3>
+          <p>
+            Running several heroes yourself? <b>Peek at table</b> switches the table to any seat, hand and all, and a
+            choose-a-player decision has <b>View table</b> beside each player. Decision rows now show the hero, villain,
+            minion or scheme picture, with the card hover.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/2-peek-teammate-hover.webp"
+              alt="Peeking at a teammate's hand during a decision, with a card hover open"
+              width="1400"
+              height="953"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <!-- ============ RULES AUDIT ============ -->
+      <div class="band">
+        <h2>Rules audit, part 6</h2>
+        <div class="lab">PR #498 by @bluefireF5ran · PR #527</div>
+      </div>
+      <p class="lead">
+        <b>@bluefireF5ran</b> finishes the sixth and last part of the audit, one fix per commit, each with its source.
+        The biggest change is <b>when Quickstrike happens</b>: a minion put into play in the middle of a card starts its
+        attack right away, and the attack resolves after the card.
+      </p>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">Keyword timing</div>
+          <h3>Quickstrike waits its turn</h3>
+          <p>
+            A Quickstrike or Teamwork attack made while an ability resolves
+            <b>starts at once and resolves after that ability</b>: Drang III, Planetary Invasion and Shadow of the Past.
+            A Response to a minion entering play, like Hawkeye's, lands after the Quickstrike starts and before its
+            damage.
+          </p>
+          <p>
+            After a loop like Drang III's, the keyword-order prompt names each minion on its own line and says why it's
+            asking.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/loop-desktop-hover.webp"
+              alt="Drang: order the keywords, with each minion on its own line and the card hover"
+              width="1400"
+              height="953"
+              loading="lazy"
+            />
+          </figure>
+          <div class="src">RRG 1.8 p. 6, p. 24, p. 38 · FFG rulings 38, 137, 147 and 194</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Also in this part</div>
+          <h3>Four more rulings</h3>
+          <p>
+            <b>Caps and reductions come first.</b> Titanium Exoskeleton's and Boarding Party's caps apply before
+            Magnetic Bubble sees the damage.
+          </p>
+          <p><b>A card that comes back is a new copy</b>, so a delayed effect no longer follows it back into play.</p>
+          <p><b>An ally defending isn't a basic power</b>, so Melinda May doesn't trigger on it.</p>
+          <p>
+            <b>"Cannot be stunned" keeps a stun you already have</b>; only gaining stalwart removes it (Magneto's
+            Helmet, Ronan the Accuser).
+          </p>
+          <div class="src">RRG 1.8 p. 5, p. 14, p. 27, p. 40 · FFG rulings #145, #205, #206 and Mar 16, 2025</div>
+        </div>
+      </div>
+
+      <!-- ============ PLAYER REPORTS ============ -->
+      <div class="band gold">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issues #514 · #515 · #517 · #518 · #521 · #522 · #534 · #537 · #548 · PR #509</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#514 and #515 · reported by @zackburnley</div>
+          <h3>The top bar stays out of the way</h3>
+          <p>
+            Its buttons no longer cover a choice popup's title on a phone, the dark mode button no longer floats over
+            Pause or Inspect, and the target picker starts below the bar.
+          </p>
+          <div class="shots s2" style="margin: 14px 0 0; max-width: 420px">
+            <figure>
+              <img
+                src="img/choice-phone-before.webp"
+                alt="Before: the top-bar buttons over a choice popup's title"
+                width="360"
+                height="788"
+                loading="lazy"
+              />
+              <figcaption>Before</figcaption>
+            </figure>
+            <figure>
+              <img
+                src="img/choice-phone-after.webp"
+                alt="After: the choice popup's title clear of the top bar"
+                width="360"
+                height="788"
+                loading="lazy"
+              />
+              <figcaption>After</figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="eb">#518 · reported by @zackburnley</div>
+          <h3>The right scheme on the loss screen</h3>
+          <p>
+            It says when <b>Change of Venue</b> swapped your main scheme, and names the scheme that actually won when
+            each player has their own.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/518_game-over-desktop.webp"
+              alt="The Scheme Wins loss screen naming Pawn Shop Showdown"
+              width="1400"
+              height="875"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#522 and #521 · reported by @zackburnley</div>
+          <h3>Fear No Evil, cleaned up</h3>
+          <p>
+            <b>Protection Racket</b> on standard lets each player choose their main scheme in Table setup, instead of
+            always dealing Battle in the Bodega. The scenario tiles' two-line captions now fit on the tile.
+          </p>
+          <figure style="margin-top: 14px">
+            <img
+              src="img/522_table-setup-desktop.webp"
+              alt="Table setup for Protection Racket with a main scheme choice per player"
+              width="1400"
+              height="953"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#517 · reported by @zackburnley</div>
+          <h3>Bloody Mary's armor</h3>
+          <p><b>Assembled Armor</b> shows it breaks at 5 damage in standard mode, not expert's 8.</p>
+          <div class="eb" style="margin-top: 22px">#534 and #537</div>
+          <h3>Android saves and keyboard</h3>
+          <p>
+            <b>Export save data</b> and Download log open Android's own Save dialog, where they did nothing before. The
+            on-screen keyboard now <b>lays over the game</b> instead of shrinking it, in the browser and in the app.
+          </p>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">PR #509 · reported on Discord</div>
+            <h3>A controller walks a full board</h3>
+            <p>
+              With a board full of supports and allies, a controller couldn't reach the far end. Now
+              <b>the D-pad walks the whole play area row</b>, and a sideways push of the right stick scrolls it from
+              anywhere on the table.
+            </p>
+          </div>
+          <figure>
+            <img
+              src="img/pad-play-area-end-d.webp"
+              alt="A controller focus on the last card of a long play area row"
+              width="1400"
+              height="875"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+
+      <div class="paper wide" style="margin-top: 26px">
+        <div>
+          <div class="eb">#548 · reported by @andy-xxvii27</div>
+          <h3>A Victory pile, and side schemes in the filter</h3>
+          <p>
+            Once a card reaches the victory display, <b>a VICTORY pile</b> joins the encounter column with its top card
+            and a count. Tap it to see every card there, hold to inspect the top one, and hover on desktop. Cards fly to
+            it as they arrive.
+          </p>
+          <p>
+            The deck builder and deck check get a <b>Side scheme</b> chip next to Resource, to find player side schemes
+            like Cable's.
+          </p>
+        </div>
+        <figure>
+          <img
+            src="img/pile-hover-desktop.webp"
+            alt="The Victory pile in the encounter column with its card hover open"
+            width="1400"
+            height="875"
+            loading="lazy"
+          />
+        </figure>
+      </div>
+
+      <!-- ============ SCANS ============ -->
+      <div class="band">
+        <h2>More of my own scans</h2>
+        <div class="lab">PR #512 · PR #513 · PR #528</div>
+      </div>
+      <p class="lead">
+        <b>114 more Core Set cards</b> now use my own scans, and they cover <b>11 more waves</b>: the first wave of hero
+        packs, every campaign box and the scenario packs.
+      </p>
+      <div class="cols">
+        <div class="box">
+          <ul class="ck">
+            <li>
+              <b>Core Set:</b> Iron Man, She-Hulk, their nemesis sets, Rhino, Klaw, Ultron and the core encounter sets.
+            </li>
+            <li><b>11 more waves:</b> the first wave of hero packs, every campaign box and the scenario packs.</li>
+            <li><b>Drang II and III</b> show their own scans: stage III no longer shows Drang II's card.</li>
+          </ul>
+        </div>
+        <figure class="a" style="max-width: 300px">
+          <img
+            src="img/card-art-core-01.webp"
+            alt="A grid of new Core Set card scans"
+            width="420"
+            height="665"
+            loading="lazy"
+          />
+          <figcaption>New Core Set scans</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band gold">
+        <h2>Also in v0.40.0</h2>
+        <div class="lab">Table · rules · contributors</div>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3>Table</h3>
+          <ul class="ck">
+            <li>
+              The card hover opens at a <b>normal card size</b> on a scheme, villain or hero panel on a wide screen, and
+              on a row's picture in Your stats.
+            </li>
+            <li>Decks &amp; Collection on a phone folds its chips behind a Filters button.</li>
+            <li>Desktop text is larger in the From your games rail, deck descriptions and the import box.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Rules, fine print</h3>
+          <ul class="ck">
+            <li>The declared-defender tip is worded for the hero or ally it names.</li>
+            <li>The defend sheet shows a keyword attack waiting for its ability as waiting.</li>
+            <li>A hero's logged defeat names the card that defeated it, and whether it was an attack.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>For contributors</h3>
+          <ul class="ck">
+            <li>The game log records each card a payment spends from hand, whichever payment it was.</li>
+            <li>The card scan importer no longer crashes saving over an old JPEG scan.</li>
+            <li>
+              Global win rates run on the sync Worker with an allowlist of real content; a new pack regenerates it
+              (<b>CONTRIBUTING.md</b>).
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            Every report here came from a player who took a minute to tell us. Keep them coming from Pause ▸ Report a
+            problem, a GitHub issue or the community Discord.
+          </p>
+        </div>
+        <div class="people">
+          <div class="person">
+            <h3>@zackburnley</h3>
+            <p>
+              Reported <b>#514</b>, <b>#515</b>, <b>#517</b>, <b>#518</b>, <b>#521</b> and <b>#522</b>: the top bar,
+              Bloody Mary's armor, the loss screen, Protection Racket and the Fear No Evil captions.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@bluefireF5ran</h3>
+            <p>Wrote <b>#498</b>, the sixth and final part of the rules audit, with a source for every fix.</p>
+          </div>
+          <div class="person">
+            <h3>@andy-xxvii27</h3>
+            <p>
+              Asked for every side of a hero in Inspect in <b>#532</b>, and for the Victory pile and Side scheme filter
+              in <b>#548</b>.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@neopolii</h3>
+            <p>Suggested win rates and why games were lost (<b>#542</b>) and Cards left (<b>#540</b>) on Discord.</p>
+          </div>
+          <div class="person wide">
+            <h3>Our Discord</h3>
+            <p>Reported that a controller couldn't reach the end of a full board (<b>#509</b>).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.39.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.39.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">21</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">490</div>
+          <p>across the engine, cards, client and sync Worker.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">30,361</div>
+          <p>Your stats, win rates and the deck builder are most of it.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">2,142</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.40.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
