@@ -109,6 +109,26 @@ test("a release GitHub knows that this build does not links to GitHub", async ({
   await expect(link).toHaveAttribute("href", /\/releases\/tag\/v9\.9\.9$/);
   await expect(page.locator("main")).toContainText("v9.9.9 isn't in this page yet");
   await expect(page.locator(".rail a[data-version='v0.40.0']")).toHaveCount(1);
+  await expect(page.locator(".pager")).toHaveCount(0);
+});
+
+test("a version nobody knows opens the newest release", async ({ page }) => {
+  await page.goto(`${PAGE}#v0.40.9`);
+  await expect(page.locator("#report h1")).toContainText("Every game counts");
+});
+
+test("a hash change while GitHub answers lands once the list is here", async ({ page }) => {
+  let release = (): void => undefined;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(LATEST_RELEASE, async (route) => {
+    await held;
+    await route.abort();
+  });
+  await page.goto(PAGE);
+  await page.evaluate(() => (location.hash = "#older"));
+  release();
+  await expect(page.locator("h2.title")).toHaveText("Older releases");
+  await expect(page.locator('.rail a[data-version="older"]')).toBeAttached();
 });
 
 test("a report keeps its own look and its pictures load", async ({ page }) => {

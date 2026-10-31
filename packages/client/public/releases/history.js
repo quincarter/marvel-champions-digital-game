@@ -7,7 +7,9 @@
  * release is drawn from `history/<version>.json`.
  *
  * The web build carries a release's notes before that release is published, so the list stops at GitHub's latest
- * release. A newer one still opens by its own link, and with GitHub out of reach the list shows everything it has. Lives in `public/` beside the reports, which is why it is plain
+ * release. A newer one still opens by its own link, and with GitHub out of reach the list shows everything it has.
+ *
+ * Lives in `public/` beside the reports, which is why it is plain
  * script with no imports.
  */
 (() => {
@@ -33,6 +35,7 @@
   /** Newest first: what the list shows, and every release this build has notes for. */
   let manifest = [];
   let allReleases = [];
+  let latestOnGithub = null;
   /** The release on the page, and the shadow root of its report if it has one. */
   let current = null;
   let reportRoot = null;
@@ -233,11 +236,11 @@
     if (hadFocus) main.focus({ preventScroll: true });
   }
 
-  /** A release GitHub knows that this build has no notes for yet. */
+  /** GitHub's latest release, when this build has no notes for it yet. */
   function showMissing(version) {
     current = version;
     routeId += 1;
-    listFor(false, () => markCurrent(version, version, "Not here yet", manifest[0], manifest[1]));
+    listFor(false, () => markCurrent(version, version, "Not here yet", undefined, manifest[0]));
     draw(`<p class="state">${escape(version)} isn't in this page yet.
       <a href="${REPO}/releases/tag/${encodeURIComponent(version)}">Read it on GitHub ↗</a></p>`);
     window.scrollTo(0, 0);
@@ -257,10 +260,11 @@
     setSheet(false);
     const isVersion = /^v\d/.test(hash);
     if (current === hash) return;
-    if (isVersion && !allReleases.some((entry) => entry.version === hash)) return showMissing(hash);
-    // A release newer than the list opens with no place in it: its index is -1.
-    const index = isVersion ? manifest.findIndex((entry) => entry.version === hash) : 0;
-    const entry = isVersion ? allReleases.find((candidate) => candidate.version === hash) : manifest[0];
+    if (hash === latestOnGithub && !allReleases.some((entry) => entry.version === hash)) return showMissing(hash);
+    // A release newer than the list opens with no place in it (index -1). A version nobody knows opens the newest.
+    const known = isVersion ? allReleases.find((entry) => entry.version === hash) : undefined;
+    const index = known ? manifest.indexOf(known) : 0;
+    const entry = known ?? manifest[0];
     if (current === entry.version) return;
     current = entry.version;
     const id = ++routeId;
@@ -329,7 +333,6 @@
   openButton.addEventListener("click", () => setSheet(true));
   closeButton.addEventListener("click", () => setSheet(false));
   history.scrollRestoration = "manual";
-  addEventListener("hashchange", route);
   addEventListener("keydown", (event) => {
     if (event.key === "Escape") setSheet(false);
     const inList = event.target.closest?.(".rail .list");
@@ -407,7 +410,7 @@
   function mainStops() {
     const strip = [...main.querySelectorAll(".strip a")];
     const inReport = reportRoot ? [...reportRoot.querySelectorAll("a[href]")] : [];
-    const below = [...main.querySelectorAll(".notes a[href], .notes summary, .page a[href], .pager a")];
+    const below = [...main.querySelectorAll(".state a, .notes a[href], .notes summary, .page a[href], .pager a")];
     return [...new Set([...strip, ...inReport, ...below])].filter(visible);
   }
   function inMain(el) {
@@ -513,15 +516,19 @@
   addEventListener("pointerdown", () => document.documentElement.classList.remove("pad"));
 
   /** The tag of GitHub's latest release, or null when GitHub can't say in time. */
-  const latestTag = () =>
-    fetchOk(LATEST_API, (r) => r.json(), { signal: AbortSignal.timeout(LATEST_TIMEOUT) }).then(
-      (release) => release.tag_name ?? null,
-      () => null,
-    );
+  async function latestTag() {
+    try {
+      const options = { signal: AbortSignal.timeout(LATEST_TIMEOUT) };
+      return (await fetchOk(LATEST_API, (r) => r.json(), options)).tag_name ?? null;
+    } catch {
+      return null;
+    }
+  }
 
   Promise.all([fetchOk(new URL("history/manifest.json", BASE), (r) => r.json()), latestTag()])
     .then(([entries, latest]) => {
       allReleases = entries;
+      latestOnGithub = latest;
       manifest = entries.slice(
         Math.max(
           0,
@@ -530,6 +537,8 @@
       );
       $("rail-count").textContent = `${manifest.length} releases since ${when(manifest.at(-1).date, LONG_DATE)}`;
       if (navigator.getGamepads) requestAnimationFrame(poll);
+      // Not before now: a hash change with no list yet would have nothing to route to.
+      addEventListener("hashchange", route);
       return route();
     })
     .catch(() => {
