@@ -177,10 +177,27 @@ export function checkForUpdate(): Promise<AvailableUpdate | null> {
   return asking;
 }
 
-async function fetchLatestRelease(): Promise<LatestRelease | null> {
-  const response = await fetch(LATEST_RELEASE_API, { headers: { Accept: "application/vnd.github+json" } });
-  if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
-  return parseLatestRelease(await response.json());
+let latestAsked: Promise<LatestRelease | null> | null = null;
+
+/** One ask per launch, shared by the update check and the Title's release notice; a failed ask can be retried. */
+function fetchLatestRelease(): Promise<LatestRelease | null> {
+  latestAsked ??= (async () => {
+    const response = await fetch(LATEST_RELEASE_API, { headers: { Accept: "application/vnd.github+json" } });
+    if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
+    return parseLatestRelease(await response.json());
+  })().catch((error: unknown) => {
+    latestAsked = null;
+    throw error;
+  });
+  return latestAsked;
+}
+
+/** The newest release on GitHub, without its `v`, or null when GitHub can't say. On every platform; never rejects. */
+export function latestReleaseVersion(): Promise<string | null> {
+  return fetchLatestRelease().then(
+    (release) => release?.version ?? null,
+    () => null,
+  );
 }
 
 /** The desktop shell's own answer to "which installer am I from?"; null if it has none to give. */

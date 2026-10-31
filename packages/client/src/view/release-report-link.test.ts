@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { RELEASE_NOTICE_VERSION } from "./release-notice.js";
-import { RELEASE_REPORT_SITE_URL, releaseReportUrl } from "./release-report-link.js";
+import {
+  RELEASE_REPORT_SITE_URL,
+  releaseHistoryUrl,
+  releaseNotesPageUrl,
+  releaseReportUrl,
+} from "./release-report-link.js";
 
 const REPORT = `releases/${RELEASE_NOTICE_VERSION}/index.html`;
 
@@ -20,5 +25,34 @@ describe("releaseReportUrl", () => {
 
   test("a page url that cannot be resolved against falls back to the site", () => {
     expect(releaseReportUrl("not a url", false)).toBe(RELEASE_REPORT_SITE_URL);
+  });
+});
+
+test("a release newer than this build's report opens in the history", () => {
+  expect(releaseReportUrl("http://localhost:5193/", false, "v9.1.0")).toBe(
+    "http://localhost:5193/releases/index.html#v9.1.0",
+  );
+});
+
+describe("releaseHistoryUrl", () => {
+  test("opens the history at the running release, on this site or on the production one", () => {
+    expect(releaseHistoryUrl("0.40.0", "http://localhost:5193/?unlock=all", false)).toBe(
+      "http://localhost:5193/releases/index.html#v0.40.0",
+    );
+    expect(releaseHistoryUrl("0.40.0", "tauri://localhost/", true)).toBe(
+      "https://marvel-champions-digital-game.netlify.app/releases/index.html#v0.40.0",
+    );
+    expect(releaseHistoryUrl("0.40.0", "not a url", false)).toBe(
+      "https://marvel-champions-digital-game.netlify.app/releases/index.html#v0.40.0",
+    );
+  });
+});
+
+describe("releaseNotesPageUrl", () => {
+  test("a packaged app opens its own release, and the web, which can be ahead of it, opens the history", () => {
+    expect(releaseNotesPageUrl("0.40.0", "tauri://localhost/", true)).toContain("/releases/index.html#v0.40.0");
+    expect(releaseNotesPageUrl("0.40.0", "http://localhost:5193/", false)).toBe(
+      "http://localhost:5193/releases/index.html",
+    );
   });
 });

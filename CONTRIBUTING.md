@@ -316,6 +316,10 @@ redirect in `netlify.toml`, which older builds' bar opens.
 
 `mise ship-it` (or `pnpm ship-it`) builds and stages the native packages locally.
 
+The release history page (`/releases/`) picks each release up from `.changes/` at build time. Its headline and images
+come from the release's `docs/screenshots/releases/<version>/release-notes-header.md`, or `docs/releases/history.json`
+for releases older than that, and a release with a report at `public/releases/<version>/` shows the report.
+
 ### macOS signing
 
 The `.dmg` is signed and notarized only when these repository secrets are set: `APPLE_CERTIFICATE` (a Developer ID

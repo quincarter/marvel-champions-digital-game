@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
 import { bundleMode, cardArtPlugin, cardLanguageOf, carriedLanguagesOf, servedLanguages } from "./vite-card-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
+import { releaseHistoryPlugin } from "./vite-release-history.js";
 
 /**
  * The engine runs in a module worker (PLAN.md Phase 4), so the worker format is
@@ -47,7 +48,7 @@ export default defineConfig(({ command }) => ({
       ).join(","),
     ),
   },
-  plugins: [cardArtPlugin(), marvelcdbImportPlugin()],
+  plugins: [cardArtPlugin(), marvelcdbImportPlugin(), releaseHistoryPlugin()],
   worker: { format: "es" },
   build: {
     target: "es2022",
