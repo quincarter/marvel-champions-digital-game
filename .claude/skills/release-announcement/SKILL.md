@@ -1,6 +1,6 @@
 ---
 name: release-announcement
-description: Write a release's announcement from its open `chore(release): vX.Y.Z` pull request - the release-notes header, the report page at /releases/<version>/ and the images, in the design of the v0.39.0 and v0.40.0 reports. Use when someone asks for a release report, announcement, what's-new page or release notes header, or points at a release PR to write up.
+description: Write a release's announcement from its open `chore(release): vX.Y.Z` pull request - the release-notes header, the report page at /releases/<version>/ and the images, in the style of the v0.38.0, v0.39.0 and v0.40.0 announcements. Use when someone asks for a release report, announcement, what's-new page or release notes header, or points at a release PR to write up.
 ---
 
 # Write a release announcement
@@ -10,7 +10,7 @@ ends with its **Special thanks**. Ask for its number only if none is open. The o
 goes in **before** the release PR is merged. The web build carries it first, but nobody sees it on the release
 history's list until GitHub calls that release latest, so it can merge ahead of the release safely.
 
-The v0.39.0 and v0.40.0 reports are the models. Read both before writing: `packages/client/public/releases/` for the pages, and `docs/screenshots/releases/` for their headers and images. Build the page directly in the repo. The PR's Netlify preview is where it gets reviewed, so there is no artifact step.
+The v0.40.0, v0.39.0 and v0.38.0 announcements are the models. Read all three before writing: `packages/client/public/releases/` for the v0.39.0 and v0.40.0 pages, and `docs/screenshots/releases/` for each release's images and headers. v0.38.0 has no page, so read its ten images and `gh release view v0.38.0`; it shows how to carry a call to action, "We need your controller", through a release. Build the page directly in the repo. The PR's Netlify preview is where it gets reviewed, so there is no artifact step.
 
 ## 1. Gather
 
