@@ -100,11 +100,20 @@ function Save-Download([string]$url, [string]$file) {
 
 # Runs a downloaded installer and waits for it. The silent per-user setup keeps the folder the game is installed in.
 function Install-Game([string]$installer, [string]$kind) {
-  if ($kind -eq "msi") {
-    $process = Start-Process msiexec.exe -ArgumentList @("/i", ('"' + $installer + '"'), "/passive", "/norestart") `
-      -Verb RunAs -Wait -PassThru
-  } else {
-    $process = Start-Process $installer -ArgumentList "/S" -Wait -PassThru
+  # A game started now would be closed by the installer or lock its files, so while this file is here it exits at once
+  # (src-tauri/src/steam_install.rs).
+  $installing = Join-Path $StateDir "installing"
+  New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+  New-Item -ItemType File -Force -Path $installing | Out-Null
+  try {
+    if ($kind -eq "msi") {
+      $process = Start-Process msiexec.exe -ArgumentList @("/i", ('"' + $installer + '"'), "/passive", "/norestart") `
+        -Verb RunAs -Wait -PassThru
+    } else {
+      $process = Start-Process $installer -ArgumentList "/S" -Wait -PassThru
+    }
+  } finally {
+    Remove-Item $installing -ErrorAction SilentlyContinue
   }
   # 3010: installed, and Windows would like a restart some time.
   if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { Fail "the installer stopped with code $($process.ExitCode)." }

@@ -68,7 +68,7 @@ new one once to get this.
 
 When a new release is out, the Title's update banner has an **Update** button instead of a download. It runs the saved
 script with its progress on screen, so it works in Game Mode on a Steam Deck, where there is no terminal. Once the
-download is done, quit the game to install it, then start the game again from Steam. You can keep playing first: it
+download is done, quit the game to install it, give it a minute, then start the game again from Steam. You can keep playing first: it
 installs whenever you quit. Settings → More → Steam install runs the same check at any time. If an update fails, its
 output is in `update.log` in the same folder.
 

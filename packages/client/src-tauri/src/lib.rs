@@ -53,6 +53,8 @@ fn installer_kind() -> &'static str {
 }
 
 pub fn run(context: tauri::Context<tauri::Wry>) {
+  #[cfg(windows)]
+  steam_install::leave_for_running_update();
   // The game's own app identity, set before WebView2 starts, so Windows can name the game's sound after it (#243).
   #[cfg(windows)]
   unsafe {

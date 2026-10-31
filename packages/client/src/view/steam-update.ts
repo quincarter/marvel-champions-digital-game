@@ -77,7 +77,7 @@ export function steamUpdateViewOf(
     return {
       phase: "ready",
       heading: "Ready to install",
-      body: `Version ${report.version} is downloaded. Quit the game to install it, then start the game again. You can keep playing: it installs whenever you quit.`,
+      body: `Version ${report.version} is downloaded. Quit the game to install it, then give it a minute before you start the game again. You can keep playing: it installs whenever you quit.`,
       percent: null,
     };
   }

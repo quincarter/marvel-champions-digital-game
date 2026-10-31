@@ -18,6 +18,8 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+#[cfg(any(windows, test))]
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 const STATE_FOLDER: &str = ".marvel-champions";
@@ -30,6 +32,11 @@ const SCRIPT_FILE: &str = "install-for-steam.ps1";
 const SCRIPT_FILE: &str = "install-for-steam.sh";
 /// Enough of the log for the last lines and curl's latest progress.
 const LOG_TAIL_BYTES: u64 = 4096;
+
+/// How long the script's `installing` file counts: past this it was left by a
+/// script that died, and must not stop the game from starting.
+#[cfg(any(windows, test))]
+const INSTALLING_MAX: Duration = Duration::from_secs(180);
 
 /// The running update, kept to ask whether it has finished.
 static UPDATE: Mutex<Option<Child>> = Mutex::new(None);
@@ -88,6 +95,31 @@ fn running_game() -> Option<String> {
     return Some(appimage.to_string_lossy().into_owned());
   }
   Some(std::env::current_exe().ok()?.to_string_lossy().into_owned())
+}
+
+#[cfg(any(windows, test))]
+fn still_installing(age: Duration) -> bool {
+  age < INSTALLING_MAX
+}
+
+/// Called first thing. Windows' installer closes a running game and can't
+/// replace a locked exe, so a game started while the script runs it (the player
+/// quit to install, then pressed Play straight away) gets out of the way. Steam
+/// shows it stop, and the next press plays the new version. Only Windows: the
+/// other systems' swap is a rename.
+#[cfg(windows)]
+pub fn leave_for_running_update() {
+  let Some(home) = std::env::var_os("USERPROFILE") else {
+    return;
+  };
+  let age = std::fs::metadata(Path::new(&home).join(STATE_FOLDER).join("installing"))
+    .and_then(|file| file.modified())
+    .ok()
+    .and_then(|modified| modified.elapsed().ok());
+  if age.is_some_and(still_installing) {
+    eprintln!("an update is installing; start the game again in a moment");
+    std::process::exit(0);
+  }
 }
 
 /// The record of this install, or `None` for a game installed any other way.
@@ -220,6 +252,12 @@ mod tests {
   #[cfg(windows)]
   fn a_windows_record_ignores_case() {
     assert!(is_this_game("G:\\MarvelChampions\\marvel-champions.exe", "g:\\marvelchampions\\Marvel-Champions.exe"));
+  }
+
+  #[test]
+  fn a_left_over_installing_file_stops_counting() {
+    assert!(still_installing(Duration::from_secs(30)));
+    assert!(!still_installing(Duration::from_secs(600)));
   }
 
   #[test]
