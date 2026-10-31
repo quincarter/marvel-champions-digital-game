@@ -51,6 +51,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
 import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../progression/extras.js";
+import { isLessonSave } from "../engine/game-storage.js";
 import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 
@@ -117,8 +118,19 @@ export class GameOverScene extends Phaser.Scene {
     if (game?.outcome && config) {
       const before = extras();
       const heroIds = seated;
+      // A lesson counts for nothing in the saves (`isLessonSave`), so it opens nothing here either.
+      const { guidedRun, guidedRunKind } = appSession();
+      const lesson = guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: guidedRunKind });
       const after = new Extras(
-        withEndedGame(before.progress, { scenarioId: config.scenarioId, result: game.outcome.result, heroIds }),
+        lesson
+          ? before.progress
+          : withEndedGame(before.progress, {
+              scenarioId: config.scenarioId,
+              result: game.outcome.result,
+              heroIds,
+              gameId: appSession().store.state.gameId ?? null,
+              deckCardIds: [...new Set(Object.values(game.instances).map((instance) => instance.cardId as string))],
+            }),
         { everything: before.everything },
       );
       this.#extrasNews = extrasNewsBetween(before, after);

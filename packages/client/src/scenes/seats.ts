@@ -30,6 +30,16 @@ import {
 } from "../view/seat-recommendations.js";
 import { loadRecommendedCollapsed, recommendedStartsCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
+import {
+  HERO_ART_LABELS,
+  heroArtInForce,
+  heroPromoShown,
+  heroTilePicture,
+  nextHeroArt,
+} from "../view/hero-art-choice.js";
+import { earnedPromoSets } from "../progression/progression.js";
+import type { PromoSet } from "../art/promo-art.js";
+import type { HeroArt } from "../settings.js";
 import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
 import type { CardId, CoreAspect, Deck } from "@mc/content";
@@ -355,6 +365,8 @@ export class SeatsScene extends Phaser.Scene {
 
   #seedDecks: readonly Deck[] = [];
   readonly #heroArtCache = new Map<string, Picture | null>();
+  /** The hero tiles' art choice, read once a draw: every tile asks. */
+  #tileArt: { readonly choice: HeroArt; readonly earned: readonly PromoSet[] } = { choice: "game", earned: [] };
 
   /** Open the conflict sheet once the saved decks have loaded (`SeatsData.promptConflicts`). */
   #promptOnOpen = false;
@@ -754,12 +766,12 @@ export class SeatsScene extends Phaser.Scene {
         ink.label,
       );
       rosterLabel.setOrigin(0, 0.5);
-      fitText(rosterLabel, layout.usePreconstructed.x - layout.rosterHeader.x - 12, typeRole.label.size);
+      fitText(rosterLabel, layout.heroArt.x - layout.rosterHeader.x - 12, typeRole.label.size);
       this.#drawHints(
         padMode,
         layout.rosterHeader.y + layout.rosterHeader.height / 2,
         rosterLabel.x + rosterLabel.displayWidth + 18,
-        layout.usePreconstructed.x - 12,
+        layout.heroArt.x - 12,
       );
     }
     const usePreconstructed = (): void => {
@@ -776,6 +788,25 @@ export class SeatsScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("use-preconstructed", { rect: layout.usePreconstructed, activate: usePreconstructed });
+    const earnedPromos = earnedPromoSets();
+    const promoShown = heroPromoShown(earnedPromos, appSession().settings.promoArtOn);
+    const heroArtNow = heroArtInForce(appSession().settings.heroArt, promoShown);
+    this.#tileArt = { choice: heroArtNow, earned: earnedPromos };
+    const stepHeroArt = (): void => {
+      const { settings } = appSession();
+      appSession().settings = { ...settings, heroArt: nextHeroArt(settings.heroArt, promoShown) };
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: HERO_ART_LABELS[heroArtNow],
+        type: typeRole.label,
+        rect: layout.heroArt,
+        onClick: stepHeroArt,
+      }),
+    );
+    this.#stops.set("hero-art", { rect: layout.heroArt, activate: stepHeroArt });
 
     if (layout.search.height > 0) {
       this.#searchInput = drawSearchField(
@@ -1740,9 +1771,12 @@ export class SeatsScene extends Phaser.Scene {
   /**
    * The hero's own artwork (`art/heroes/`, `art/hero-art.ts`), picked once per visit so a redraw doesn't reshuffle a
    * hero with several pictures. A hero printed as more than one identity card (Ironheart's three versions) shares
-   * the picture filed under any of them: same name, same set.
+   * the picture filed under any of them: same name, same set. Card or Promo art (`Settings.heroArt`) goes first.
    */
   #heroPictureFor(identityId: string): Picture | null {
+    const { choice, earned } = this.#tileArt;
+    const chosen = heroTilePicture(choice, CARDS_BY_ID.get(identityId), earned, appSession().settings.promoArt);
+    if (chosen) return chosen;
     if (!this.#heroArtCache.has(identityId)) {
       this.#heroArtCache.set(identityId, heroArtForIdentity(HERO_ART, identityId, POOL_CARDS));
     }

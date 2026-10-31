@@ -15,7 +15,16 @@ const fresh = new Extras(NO_EXTRAS_PROGRESS);
 describe("extras tabs and tiles", () => {
   it("counts each tab's open entries out of its total", () => {
     const tabs = extrasTabsOf(fresh);
-    expect(tabs.map((tab) => tab.id)).toEqual(["stories", "side", "books", "heroes", "villains", "art", "music"]);
+    expect(tabs.map((tab) => tab.id)).toEqual([
+      "stories",
+      "side",
+      "books",
+      "heroes",
+      "villains",
+      "art",
+      "promos",
+      "music",
+    ]);
     expect(tabs[0]!.label).toBe(`Stories 0/${EXTRAS_ENTRIES.stories.length}`);
   });
 
