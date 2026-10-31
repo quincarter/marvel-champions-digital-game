@@ -208,8 +208,14 @@ test("the whole top row and the notice bar answer the pad on Title", async ({ pa
     await page.waitForTimeout(150);
   }
   expect(await focusOf()).toBe("chrome:music");
+  // The press glyph hangs under a button only while it has focus.
+  const theme = await stopRect(page, "Title", "chrome:theme");
+  const underTheme = () =>
+    page.screenshot({ clip: { x: theme.x, y: theme.y + theme.height + 8, width: theme.width, height: 20 } });
+  const withoutGlyph = await underTheme();
   expect(await stepPad(page, DPAD_LEFT, "Title")).toEqual(["chrome:language"]);
   expect(await stepPad(page, DPAD_LEFT, "Title")).toEqual(["chrome:theme"]);
+  expect((await underTheme()).equals(withoutGlyph), "the glyph under the focused button").toBe(false);
 
   // A flips the theme, and focus stays on the button.
   const scheme = await schemeOf();
@@ -228,8 +234,38 @@ test("the whole top row and the notice bar answer the pad on Title", async ({ pa
   expect(await isActive(page, "LanguagePopupOverlay")).toBe(false);
   expect(await focusOf()).toBe("chrome:language");
 
-  // Up from the row is the notice bar, whose "Read more" opens from there.
+  expect((await underTheme()).equals(withoutGlyph), "the glyph left with the focus").toBe(true);
+
+  // Up from the row is the notice bar, and A opens its "Read more".
+  await page.evaluate(() => {
+    const opened: string[] = [];
+    (window as unknown as { __opened: string[] }).__opened = opened;
+    window.open = (url) => (opened.push(String(url)), null);
+  });
   expect(await stepPad(page, DPAD_UP, "Title")).toEqual(["release-notice"]);
+  const opened = () => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
+  await tap(page, A, async () => (await opened()).length > 0);
+  expect((await opened()).join()).toContain("/releases/");
+});
+
+test("a held Enter presses the dark mode button once", async ({ page }) => {
+  await openTitle(page);
+  await waitForChrome(page, "Title");
+  const focusOf = async () => (await stateOf(page, "Title"))?.focus ?? null;
+  for (let i = 0; i < 40 && (await focusOf()) !== "chrome:theme"; i += 1) await page.keyboard.press("Tab");
+  expect(await focusOf()).toBe("chrome:theme");
+  const schemeOf = () =>
+    page.evaluate(() =>
+      (window as unknown as { __mcThemeButtonDebug: { scheme(): string } }).__mcThemeButtonDebug.scheme(),
+    );
+  const scheme = await schemeOf();
+  await page.keyboard.down("Enter");
+  // Playwright marks a second keydown without a keyup as a repeat, as the OS does for a held key.
+  await page.keyboard.down("Enter");
+  await page.keyboard.down("Enter");
+  await page.keyboard.up("Enter");
+  await page.waitForTimeout(300);
+  expect(await schemeOf()).not.toBe(scheme);
 });
 
 test("the theme button is a stop on Title only", async ({ page }) => {

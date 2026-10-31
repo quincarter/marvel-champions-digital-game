@@ -42,13 +42,12 @@ export const CHROME_REPORT_STOP = "chrome:report";
 export const CHROME_LANGUAGE_STOP = "chrome:language";
 export const CHROME_THEME_STOP = "chrome:theme";
 
-/** Where each chrome stop's button is drawn now. */
-const CHROME_SHOWN: Readonly<Record<string, () => Rect | null>> = {
-  [CHROME_MUSIC_STOP]: shownMusicButton,
-  [CHROME_REPORT_STOP]: shownReportButton,
-  [CHROME_LANGUAGE_STOP]: shownLanguageButton,
-  [CHROME_THEME_STOP]: shownThemeButton,
-};
+const CHROME_STOPS: ReadonlySet<string> = new Set([
+  CHROME_MUSIC_STOP,
+  CHROME_REPORT_STOP,
+  CHROME_LANGUAGE_STOP,
+  CHROME_THEME_STOP,
+]);
 
 export interface FocusStop {
   /**
@@ -236,10 +235,19 @@ export class FocusRoute {
     // ring follows its stop (a stale ring sat above and left of the button it marked, Settings on the Deck).
     const follow = (): void => {
       if (!this.#ring || this.#focus === null) return;
-      // Chrome rects are static: only a hidden one (the pad toast covers the bar for a moment) needs a look.
-      const shown = CHROME_SHOWN[this.#focus];
-      if (shown) {
-        if (shown() === null) this.#drawRing();
+      // A chrome button can leave the route (the pad toast covers the bar for a moment), or move a frame after a
+      // redraw (its scene follows the slot in its own update): the ring is drawn again for either.
+      if (CHROME_STOPS.has(this.#focus)) {
+        const chrome = this.#chrome().get(this.#focus)?.rect as Rect | undefined;
+        const ring = this.#ringRect;
+        const same =
+          chrome &&
+          ring &&
+          chrome.x === ring.x &&
+          chrome.y === ring.y &&
+          chrome.width === ring.width &&
+          chrome.height === ring.height;
+        if (!same) this.#drawRing();
         return;
       }
       const stop = this.#ownStops.get(this.#focus);
@@ -504,7 +512,7 @@ export class FocusRoute {
         }
         // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow
         // that finds nothing in its cone still reaches the screen below, so focus there is never stranded.
-        const fromChrome = this.#focus !== null && this.#focus in CHROME_SHOWN;
+        const fromChrome = this.#focus !== null && CHROME_STOPS.has(this.#focus);
         this.#moveTo(
           spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross || fromChrome),
         );
