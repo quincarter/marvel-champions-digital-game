@@ -67,6 +67,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.backfillToast]: () => import("./backfill-toast.js").then((m) => m.BackfillToastScene),
   [SCENES.saveData]: () => import("./save-data.js").then((m) => m.SaveDataOverlay),
   [SCENES.syncData]: () => import("./sync-data.js").then((m) => m.SyncDataOverlay),
+  [SCENES.steamUpdate]: () => import("./steam-update.js").then((m) => m.SteamUpdateOverlay),
   [SCENES.syncConflict]: () => import("./sync-conflict.js").then((m) => m.SyncConflictOverlay),
   [SCENES.syncSetupPrompt]: () => import("./sync-setup-prompt.js").then((m) => m.SyncSetupPromptOverlay),
   [SCENES.globalStatsPrompt]: () => import("./global-ask-prompt.js").then((m) => m.GlobalStatsPromptOverlay),

@@ -4,38 +4,49 @@
 #
 #   bash install-for-steam.sh [options]
 #
-# Install the game first (drag it from the release's .dmg into Applications); the script finds it. Steam must be closed
-# while its shortcut list is written; the script offers to close it.
+# This one file works for every release: it asks GitHub for the latest one, and when the game is missing or older it
+# downloads that release's .dmg and copies the game into Applications. Steam must be closed while its shortcut list is
+# written; the script offers to close it.
+#
+# Each run records the install in ~/.marvel-champions/ with a copy of this script. The game reads that record, says it
+# was installed this way, and offers to run the copy with --update when a new release is out.
 #
 # Options:
 #   --app <path>        the game's .app, when it isn't in /Applications or ~/Applications
 #   --steam-dir <path>  the Steam folder, when it isn't ~/Library/Application Support/Steam
+#   --language <xx>     the card language to install, en or es (default: what the last run installed, else en)
+#   --update            update the game only: leave Steam alone, so it can run while Steam and the game are open
+#   --wait-pid <n>      with --update, download first, then wait for this process to end before replacing the game
 #   --yes               close Steam without asking when it is running
-#   --uninstall         remove the Steam entry and its art (the game itself stays installed)
+#   --uninstall         remove the Steam entry, its art and ~/.marvel-champions (the game itself stays installed)
 #   -h, --help          this text
 #
 # Needs only what macOS ships: bash, perl and curl.
 set -euo pipefail
 
 REPO="quincarter/marvel-champions-digital-game"
-# The release staging step (scripts/stage-release-assets.mjs) stamps the release's tag here, so a script downloaded
-# from a release fetches that release's art. A copy run from the repo uses main's.
-ART_REF="__MC_RELEASE_TAG__"
-case "$ART_REF" in __*) ART_REF="main" ;; esac
 
 APP_NAME="Marvel Champions"
 # The shortcut's name: what Steam, Big Picture and status plugins (Discord) show.
 SHORTCUT_NAME="Marvel Champions Digital Edition"
 BUNDLE_ID="com.quincarter.marvelchampions"
+# The hidden folder the game reads (src-tauri/src/steam_install.rs).
+STATE_DIR="$HOME/.marvel-champions"
+MARKER="$STATE_DIR/install.json"
 ART_FILES=(icon.png portrait.jpg wide.jpg hero.jpg logo.png)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Empty when this runs from a pipe (curl ... | bash).
+SELF="${BASH_SOURCE[0]:-}"
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 
 app=""
 steam_root="$HOME/Library/Application Support/Steam"
 assume_yes=0
 uninstall=0
+update=0
+wait_pid=""
+language=""
 
-usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'; }
+usage() { sed -n '2,/^set -euo/p' "$SELF" | sed '$d; s/^# \{0,1\}//'; }
 say() { printf '%s\n' "$*"; }
 die() {
   printf 'Error: %s\n' "$*" >&2
@@ -52,6 +63,15 @@ while [ $# -gt 0 ]; do
       steam_root="${2:?--steam-dir needs a path}"
       shift
       ;;
+    --language)
+      language="$(printf '%s' "${2:?--language needs a language}" | tr '[:upper:]' '[:lower:]')"
+      shift
+      ;;
+    --update) update=1 ;;
+    --wait-pid)
+      wait_pid="${2:?--wait-pid needs a process id}"
+      shift
+      ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
@@ -63,7 +83,147 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+case "$language" in '' | [a-z][a-z]) ;; *) die "--language takes a two-letter language, en or es." ;; esac
+case "$wait_pid" in *[!0-9]*) die "--wait-pid takes a process id." ;; esac
 command -v perl > /dev/null || die "perl is needed to edit Steam's shortcut list."
+
+# A field of the install record, or nothing when there is no record.
+marker_value() {
+  perl -MJSON::PP -e '
+open(my $fh, "<:raw", $ARGV[0]) or exit 0; local $/; print JSON::PP->new->utf8->decode(<$fh>)->{$ARGV[1]} // "";
+' "$MARKER" "$1" 2> /dev/null || true
+}
+
+asked_language="$language"
+[ -n "$language" ] || language="$(marker_value language)"
+[ -n "$language" ] || language="en"
+
+# Whether the game at $1 is the latest in the language asked for. With no language asked for, the one it has is fine.
+is_latest() {
+  [ -d "$1" ] && [ "$(app_version "$1")" = "$latest_version" ] &&
+    { [ -z "$asked_language" ] || [ "$(marker_value language)" = "$language" ]; }
+}
+
+# Sets latest_version and latest_url to the latest release and its .dmg for this Mac and the chosen language. GitHub's
+# "latest" is never a draft or a prerelease.
+latest_version=""
+latest_url=""
+lookup_latest() {
+  local chip="Intel-x64" answer
+  [ "$(sysctl -n hw.optional.arm64 2> /dev/null || true)" = 1 ] && chip="AppleSilicon-arm64"
+  answer="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2> /dev/null | perl -MJSON::PP -e '
+my ($lang, $chip) = @ARGV; local $/;
+my $release = JSON::PP->new->utf8->decode(scalar <STDIN>);
+(my $version = $release->{tag_name}) =~ s/^v//;
+my ($dmg) = grep { $_->{name} =~ /-\U$lang\E-macOS-\Q$chip\E\.dmg$/ } @{ $release->{assets} };
+print "$version\t", ($dmg ? $dmg->{browser_download_url} : ""), "\n";
+' "$language" "$chip")" || return 1
+  IFS=$'\t' read -r latest_version latest_url <<< "$answer"
+  [ -n "$latest_url" ]
+}
+
+# The version in an installed .app's bundle.
+app_version() { defaults read "$1/Contents/Info" CFBundleShortVersionString 2> /dev/null || true; }
+
+# Downloads the release's .dmg and copies its app to $staged, beside the destination, ready to swap in. The name is this
+# run's own: one left going by an earlier run of the game must not share it.
+staged=""
+fetch_app() {
+  local dmg="$tmp_dir/game.dmg" mount="$tmp_dir/mount" found
+  staged="$1.new.$$"
+  say "Downloading version $latest_version..."
+  curl -fL --progress-bar -o "$dmg" "$latest_url" || die "the download failed."
+  mkdir -p "$mount"
+  hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$mount" || die "couldn't open the .dmg."
+  found="$(find "$mount" -maxdepth 1 -name '*.app' | head -n 1)"
+  [ -n "$found" ] || die "the .dmg has no app in it."
+  ditto "$found" "$staged" || die "couldn't copy the game to $1."
+  hdiutil detach "$mount" -quiet || true
+  # The files came from the internet, and an unsigned build would be blocked on its first launch.
+  xattr -dr com.apple.quarantine "$staged" 2> /dev/null || true
+}
+
+swap_app() {
+  rm -rf "$1.old"
+  [ ! -d "$1" ] || mv "$1" "$1.old" || die "couldn't replace $1."
+  if ! mv "$staged" "$1"; then
+    [ ! -d "$1.old" ] || mv "$1.old" "$1"
+    die "couldn't replace $1."
+  fi
+  staged=""
+  rm -rf "$1.old"
+}
+
+# The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy or a
+# pipe, the latest published one replaces it, so a fix to this script reaches an existing install.
+save_script() {
+  local copy="$STATE_DIR/install-for-steam.sh"
+  if [ -f "$SELF" ] && [ "$SELF" != "$copy" ]; then
+    cp -f "$SELF" "$copy.new"
+  elif ! curl -fsSL -o "$copy.new" \
+    "https://github.com/$REPO/releases/latest/download/MarvelChampions-macOS-Install-for-Steam.sh" 2> /dev/null; then
+    rm -f "$copy.new"
+    return 0
+  fi
+  chmod +x "$copy.new"
+  mv -f "$copy.new" "$copy"
+}
+
+# Records the install: <version>.
+write_marker() {
+  mkdir -p "$STATE_DIR"
+  perl -MJSON::PP -e '
+my ($path, $game, $version, $language, $at) = @ARGV;
+my %record = (method => "steam-script", os => "macos", game => $game, version => $version, language => $language,
+  installedAt => $at);
+open(my $out, ">:raw", "$path.tmp") or die "$path.tmp: $!\n";
+print $out JSON::PP->new->utf8->pretty->canonical->encode(\%record); close $out or die "$path.tmp: $!\n";
+rename("$path.tmp", $path) or die "$path: $!\n";
+' "$MARKER" "$app" "$1" "$language" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  save_script
+}
+
+find_app() {
+  [ -z "$app" ] || return 0
+  for candidate in "/Applications/$APP_NAME.app" "$HOME/Applications/$APP_NAME.app"; do
+    if [ -d "$candidate" ]; then
+      app="$candidate"
+      return 0
+    fi
+  done
+  if command -v mdfind > /dev/null; then
+    app="$(mdfind "kMDItemCFBundleIdentifier == '$BUNDLE_ID'" 2> /dev/null | grep '\.app$' | head -n 1 || true)"
+  fi
+}
+
+tmp_dir="$(mktemp -d)"
+trap 'hdiutil detach "$tmp_dir/mount" -quiet > /dev/null 2>&1 || true; rm -rf "$tmp_dir" ${staged:+"$staged"}' EXIT
+
+# --- Update (from the game, or by hand) ----------------------------------------------------------------------------
+
+# The game shows these MC_UPDATE lines' meaning on screen (packages/client/src/view/steam-update.ts). Steam isn't
+# touched: the entry already points at the app's path, and Steam may be what started the game.
+if [ "$update" = 1 ]; then
+  [ -n "$app" ] || app="$(marker_value game)"
+  find_app
+  [ -n "$app" ] || die "the game isn't in Applications."
+  lookup_latest || die "couldn't find the latest release on GitHub."
+  if is_latest "$app"; then
+    say "MC_UPDATE current $latest_version"
+    exit 0
+  fi
+  fetch_app "$app"
+  if [ -n "$wait_pid" ]; then
+    # The game went while this downloaded. It may have been started again, so nothing here decides for that one.
+    kill -0 "$wait_pid" 2> /dev/null || die "the game closed before the download finished, so nothing changed."
+    say "MC_UPDATE ready $latest_version"
+    while kill -0 "$wait_pid" 2> /dev/null; do sleep 1; done
+  fi
+  swap_app "$app"
+  write_marker "$latest_version"
+  say "MC_UPDATE done $latest_version"
+  exit 0
+fi
 
 # --- Steam -----------------------------------------------------------------------------------------------------------
 
@@ -83,9 +243,11 @@ steam_running() { pgrep -x steam_osx > /dev/null 2>&1; }
 
 if steam_running; then
   if [ "$assume_yes" = 0 ]; then
-    [ -t 0 ] || die "Steam is running. Quit it (Steam > Quit Steam) and run this again, or pass --yes to have it closed."
+    # The terminal, not stdin: run from a pipe (curl ... | bash), stdin is the script itself.
+    { : < /dev/tty; } 2> /dev/null ||
+      die "Steam is running. Quit it (Steam > Quit Steam) and run this again, or pass --yes to have it closed."
     printf 'Steam is running and would overwrite the change when it quits. Quit Steam now? [Y/n] '
-    read -r answer
+    read -r answer < /dev/tty
     case "$answer" in [nN]*) die "Steam is still running. Quit it and run this again." ;; esac
   fi
   say "Quitting Steam..."
@@ -99,24 +261,36 @@ fi
 
 # --- The game --------------------------------------------------------------------------------------------------------
 
-if [ -z "$app" ]; then
-  for candidate in "/Applications/$APP_NAME.app" "$HOME/Applications/$APP_NAME.app"; do
-    if [ -d "$candidate" ]; then
-      app="$candidate"
-      break
-    fi
-  done
-fi
-if [ -z "$app" ] && command -v mdfind > /dev/null; then
-  app="$(mdfind "kMDItemCFBundleIdentifier == '$BUNDLE_ID'" 2> /dev/null | grep '\.app$' | head -n 1 || true)"
-fi
+find_app
+[ -n "$app" ] || [ "$uninstall" = 0 ] || app="/Applications/$APP_NAME.app"
+version=""
 if [ "$uninstall" = 0 ]; then
-  [ -n "$app" ] && [ -d "$app" ] ||
-    die "the game isn't in Applications. Install it from the release's .dmg, or pass --app with the path to $APP_NAME.app."
+  say "Looking up the latest release..."
+  if lookup_latest; then
+    version="$latest_version"
+    if [ -z "$app" ] || ! is_latest "$app"; then
+      if pgrep -x marvel-champions > /dev/null 2>&1; then
+        die "the game is running. Close it and run this again."
+      fi
+      if [ -z "$app" ]; then
+        app="/Applications/$APP_NAME.app"
+        [ -w /Applications ] || app="$HOME/Applications/$APP_NAME.app"
+        mkdir -p "$(dirname "$app")"
+      fi
+      fetch_app "$app"
+      swap_app "$app"
+    else
+      say "Version $latest_version is already installed."
+    fi
+  else
+    [ -n "$app" ] && [ -d "$app" ] ||
+      die "couldn't find the latest release on GitHub, and the game isn't in Applications. Pass --app with the path to $APP_NAME.app."
+    say "Couldn't reach GitHub; using the game that's installed."
+    version="$(app_version "$app")"
+  fi
   app="$(cd "$app" && pwd)"
   say "Game: $app"
 fi
-[ -n "$app" ] || app="/Applications/$APP_NAME.app"
 
 # --- Steam's shortcut list -------------------------------------------------------------------------------------------
 
@@ -207,14 +381,13 @@ if [ "$uninstall" = 1 ]; then
       while read -r file; do rm -f "$config/grid/$file"; done < <(art_names "$id")
     done
   done
-  say "Removed $SHORTCUT_NAME from Steam. Start Steam again to see the change."
+  rm -rf "$STATE_DIR"
+  say "Removed $SHORTCUT_NAME from Steam and deleted $STATE_DIR. Start Steam again to see the change."
   exit 0
 fi
 
 # --- The art ---------------------------------------------------------------------------------------------------------
 
-tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
 art_dir=""
 for dir in "$SCRIPT_DIR/../linux/steam-art" "$SCRIPT_DIR/steam-art"; do
   if [ -f "$dir/hero.jpg" ]; then
@@ -223,10 +396,11 @@ for dir in "$SCRIPT_DIR/../linux/steam-art" "$SCRIPT_DIR/steam-art"; do
   fi
 done
 if [ -z "$art_dir" ]; then
-  art_dir="$tmp_dir"
+  art_dir="$tmp_dir/art"
+  mkdir -p "$art_dir"
   say "Downloading the library art..."
   for file in "${ART_FILES[@]}"; do
-    curl -fsSL -o "$art_dir/$file" "https://raw.githubusercontent.com/$REPO/$ART_REF/scripts/linux/steam-art/$file" ||
+    curl -fsSL -o "$art_dir/$file" "https://raw.githubusercontent.com/$REPO/main/scripts/linux/steam-art/$file" ||
       rm -f "$art_dir/$file"
   done
 fi
@@ -257,6 +431,8 @@ for user in "${users[@]}"; do
   done
   say "Added $SHORTCUT_NAME to Steam user $user."
 done
+
+write_marker "$version"
 
 say ""
 say "Done. Start Steam: $SHORTCUT_NAME is in your library."
