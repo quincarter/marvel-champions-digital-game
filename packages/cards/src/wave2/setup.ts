@@ -85,6 +85,19 @@ const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
 };
 
 /**
+ * Kang's Arrival 1A: "Set each Kang (II), Kang (III), and Kang's Dominion side scheme aside." All 4 copies of Kang's
+ * Dominion (11023, `quantityInSet: 4`) start set aside, never in the encounter deck; each completed stage 3 tucks one
+ * under stage 4A (`kang.ts`). One entry per copy: the engine creates one set-aside instance per list entry.
+ */
+const KANG_DOMINION_ID = "11023" as CardId;
+const KANG_DOMINION_COPIES: readonly CardId[] = [
+  KANG_DOMINION_ID,
+  KANG_DOMINION_ID,
+  KANG_DOMINION_ID,
+  KANG_DOMINION_ID,
+];
+
+/**
  * A single-villain `WAVE2_SCENARIOS` record — every cycle 1 scenario except Kang (`separateGameAreas`, not yet
  * scripted). The wave 1 analog of this function (`wave1/setup.ts`'s `buildSingleVillain`) is the same shape;
  * duplicated rather than shared because the two wave's `*_CARDS`/`*EncounterCardsOf` pools differ and a shared
@@ -167,12 +180,16 @@ function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
     cards: PLAYABLE_CARDS,
     villainCardId: villains.villainCardId,
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: [...encounterCardsOf(sets, PLAYABLE_CARDS), ...modularSetupCardIds(modular, PLAYABLE_CARDS)],
+    encounterDeck: [
+      ...encounterCardsOf(sets, PLAYABLE_CARDS).filter((id) => id !== KANG_DOMINION_ID),
+      ...modularSetupCardIds(modular, PLAYABLE_CARDS),
+    ],
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
     requireLegalDecks: true,
     setAsideVillainCardIds: villains.setAsideVillainCardIds,
+    setAside: KANG_DOMINION_COPIES,
     ...(setSeparateDecks(sets).length > 0 ? { scenarioDecks: setSeparateDecks(sets) } : {}),
     ...(scenario.victory ? { victory: scenario.victory } : {}),
     separateGameAreas: true,

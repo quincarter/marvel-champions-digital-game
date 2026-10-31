@@ -3567,6 +3567,11 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         ? frame.event.kind === "enemyAttack"
         : frame.event.kind === "enemyScheme";
     }
+    case "currentSchemeStartedByAttackBoost": {
+      const id = currentActivationFrameId(state.stack);
+      const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
+      return frame?.kind === "event" && frame.event.kind === "enemyScheme" && frame.event.startedByAttackBoost === true;
+    }
     case "refMatches": {
       const inPlay = predicate.anywhere === true ? null : cardsInPlay(state);
       return resolveRef(state, predicate.ref, context).some(

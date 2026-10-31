@@ -30,6 +30,7 @@ import {
   putIntoPlay,
   query,
   removeMainSchemeStage,
+  removeVillain,
   revealCard,
   self,
   selectCards,
@@ -76,7 +77,7 @@ const TEMPORAL = trait("TEMPORAL");
  *   have joined this game area, advance to stage 4A." is `stateCheck(not(gameAreasSplit), advanceMainScheme(...))`,
  *   the same shape `packages/engine/src/game-areas.test.ts`'s own stage 2 uses.
  * - `11013a.when-revealed` — "Reveal Kang (III) and add him to the game area." is `addVillain(..., { reveal: true
- *   })`. "Reveal each face down Kang's Dominion under this stage." is now `revealCard(tuckedUnderRef(
+ *   })`. "Reveal each facedown Kang's Dominion under this stage." is now `revealCard(tuckedUnderRef(
  *   centralMainScheme), firstPlayer)` (§10.2): `TargetRef { kind: "tuckedUnder" }` names the tucked cards directly
  *   (the `tuckedUnder` `CardSelector` in `dsl/effects.ts` only ever named them for a *selector* position, e.g.
  *   `moveCards`/`chooseCards`; `revealCard` takes a `TargetRef`), and `revealCard` already runs the whole reveal
@@ -136,6 +137,28 @@ const kangIIWhenDefeated = (stageName: string) => ({
   trigger: { kind: "whenDefeated" as const },
   effects: [removeMainSchemeStage(named(stageName)), atEndOfPhase(joinGameArea())],
 });
+
+/**
+ * Stage 3B, Forced Response: "After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage
+ * 4A. At the end of the phase, remove <Kang (II)> and this stage from the game and combine your game area with another
+ * game area." Exactly one Dominion is tucked (`random: 1`; all four start set aside). The villain is removed at the end
+ * of the phase so an undefeated Kang (II) does not follow the players into the joined area; the join itself removes
+ * the stage (`joinGameArea`, engine `game-areas.ts`), so the stage is left in place until then and not removed twice.
+ * The tuck target is the *central* stage 4A, not this area's own scheme: stage 4 stays central until every area has
+ * joined (docs/phase7-wave2.md §3.1).
+ */
+const stage3Completed = (kangName: string) =>
+  forcedResponse(
+    on.mainSchemeCompleted("self"),
+    selectCards("dominion", encounterSetAside({ name: cardName("11023") }, { random: 1 })),
+    {
+      kind: "tuckCards",
+      cards: cards(chosen("dominion")),
+      under: { kind: "mainScheme", of: "central" },
+      facedown: true,
+    },
+    atEndOfPhase(removeVillain(named(kangName)), joinGameArea()),
+  );
 
 export const KANG_SET = defineAbilities({
   // Kang (I) (11001) and its expert copy (11034).
@@ -199,8 +222,9 @@ export const KANG_SET = defineAbilities({
   "11039.kang-the-conqueror-forced-interrupt": KANG_ATTACKS_YOU_FORCED_INTERRUPT,
   "11039.when-defeated": KANG_III_WHEN_DEFEATED,
 
-  // Kang's Arrival 1A — Setup: (Kang II/III and Kang's Dominion set aside — the scenario builder's own
-  // `setAsideVillainCardIds`/`setAside`, the same choice Taskmaster's Captive allies and Red Skull's Sleeper use).
+  // Kang's Arrival 1A — Setup: (Kang II/III set aside via the scenario builder's `setAsideVillainCardIds`, and all
+  // four Kang's Dominion via its `setAside` (`wave2/setup.ts`'s `kangScenario`), the same choice Taskmaster's Captive
+  // allies and Red Skull's Sleeper use).
   // Remove each player's obligation cards from the game. Shuffle the encounter deck.
   //
   // **Fixed this pass (found by testing 11021, kang-encounter-set.ts): `query("obligation")` — every card typed
@@ -273,18 +297,7 @@ export const KANG_SET = defineAbilities({
   // under stage 4A. At the end of the phase, remove Kang (Immortus) and this stage from the game and combine your
   // game area with another game area. (The tuck target is the *central* stage 4A, not this area's own scheme —
   // stage 4 stays central until every area has joined, docs/phase7-wave2.md §3.1.)
-  "11009b.the-chronopolis-forced-response": forcedResponse(
-    on.mainSchemeCompleted("self"),
-    selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    {
-      kind: "tuckCards",
-      cards: cards(chosen("dominion")),
-      under: { kind: "mainScheme", of: "central" },
-      facedown: true,
-    },
-    removeMainSchemeStage(self),
-    atEndOfPhase(joinGameArea()),
-  ),
+  "11009b.the-chronopolis-forced-response": stage3Completed(cardName("11002")),
 
   // Inexorable Fate 3A (Kang (Iron Lad)'s stage).
   "11010a.when-revealed": whenRevealed(
@@ -294,18 +307,7 @@ export const KANG_SET = defineAbilities({
     dealEncounterCard(you),
   ),
   "11010b.inexorable-fate-constant": stateCheck(areaPlayersDefeated, completeMainScheme(self)),
-  "11010b.inexorable-fate-forced-response": forcedResponse(
-    on.mainSchemeCompleted("self"),
-    selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    {
-      kind: "tuckCards",
-      cards: cards(chosen("dominion")),
-      under: { kind: "mainScheme", of: "central" },
-      facedown: true,
-    },
-    removeMainSchemeStage(self),
-    atEndOfPhase(joinGameArea()),
-  ),
+  "11010b.inexorable-fate-forced-response": stage3Completed(cardName("11003")),
 
   // The Realm of Rama-Tut 3A (Kang (Rama-Tut)'s stage).
   "11011a.when-revealed": whenRevealed(
@@ -315,18 +317,7 @@ export const KANG_SET = defineAbilities({
     dealEncounterCard(you),
   ),
   "11011b.the-realm-of-rama-tut-constant": stateCheck(areaPlayersDefeated, completeMainScheme(self)),
-  "11011b.the-realm-of-rama-tut-forced-response": forcedResponse(
-    on.mainSchemeCompleted("self"),
-    selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    {
-      kind: "tuckCards",
-      cards: cards(chosen("dominion")),
-      under: { kind: "mainScheme", of: "central" },
-      facedown: true,
-    },
-    removeMainSchemeStage(self),
-    atEndOfPhase(joinGameArea()),
-  ),
+  "11011b.the-realm-of-rama-tut-forced-response": stage3Completed(cardName("11004")),
 
   // The Present Future War 3A (Kang (Scarlet Centurion)'s stage).
   "11012a.when-revealed": whenRevealed(
@@ -336,20 +327,9 @@ export const KANG_SET = defineAbilities({
     dealEncounterCard(you),
   ),
   "11012b.the-present-future-war-constant": stateCheck(areaPlayersDefeated, completeMainScheme(self)),
-  "11012b.the-present-future-war-forced-response": forcedResponse(
-    on.mainSchemeCompleted("self"),
-    selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    {
-      kind: "tuckCards",
-      cards: cards(chosen("dominion")),
-      under: { kind: "mainScheme", of: "central" },
-      facedown: true,
-    },
-    removeMainSchemeStage(self),
-    atEndOfPhase(joinGameArea()),
-  ),
+  "11012b.the-present-future-war-forced-response": stage3Completed(cardName("11005")),
 
-  // Kang's Wrath 4A — When Revealed: reveal Kang (III) and add him to the game area. Reveal each face down Kang's
+  // Kang's Wrath 4A — When Revealed: reveal Kang (III) and add him to the game area. Reveal each facedown Kang's
   // Dominion under this stage (module docblock, §10.2). `firstPlayer`, not `you`: a main scheme's own ability has
   // no single "revealing player" context the way an encounter card does (`packages/engine/src/game-areas.test.ts`'s
   // own reference test uses the same player for the equivalent effect).

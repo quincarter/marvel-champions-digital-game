@@ -1130,3 +1130,5 @@ was already proven and was checked rather than rebuilt.
     - **Answered (2026-09-13, user decision):** retired, not migrated. A save from before the multi-villain state
       change is marked `incompatible` and no longer offered as Continue (PLAN.md, "Decided by the user (2026-09-13):
       games saved before the multi-villain state change are retired, not migrated").
+
+**Decided 2026-10-31 (owner), Wrecking Crew boosts on a scheme a boost started:** ruling 191 (May 16, 2024) has Escaped Convict's new attack follow a scheme that I've Been Waiting For This! started as an attack's boost, and it is skipped on any other scheme. Chaos In The Prison discards no upgrade in that chain, even if Villain 1's finished attack was undefended, because no attack is being made when its boost resolves (ruling 191; RRG 1.8 "Activation", p. 6).

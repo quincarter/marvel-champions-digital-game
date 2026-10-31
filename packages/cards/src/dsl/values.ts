@@ -1578,6 +1578,11 @@ export const activationIs = (activation: "attack" | "scheme"): Predicate => ({
   kind: "currentActivationIs",
   activation,
 });
+/**
+ * The scheme in progress was started by a Boost ability during an attack (or by a chain of such schemes): the one scheme
+ * on which a boost card's "after this attack" still applies (Escaped Convict; ruling 191, May 16, 2024).
+ */
+export const schemeStartedByAttackBoost: Predicate = { kind: "currentSchemeStartedByAttackBoost" };
 /** "If this is the final step of this sequence" (Wakanda Forever!). */
 export const finalStep: Predicate = varAtLeast("sequence.final", 1);
 /**

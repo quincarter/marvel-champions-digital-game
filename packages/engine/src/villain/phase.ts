@@ -354,6 +354,7 @@ function initiateCardCausedActivation(
           enemyInstanceId: enemyId,
           playerId,
           ...noBoost,
+          ...(made.startedByAttackBoost ? { startedByAttackBoost: true } : {}),
           ...(made.divert ? { divert: made.divert } : {}),
           ...(made.wouldPlaceThreat ? { wouldPlaceThreat: made.wouldPlaceThreat } : {}),
           ...(made.deferredBonus?.schBonus ? { deferredBonus: made.deferredBonus } : {}),
