@@ -7,6 +7,11 @@ import type { TransferStep } from "./save-transfer-model.js";
 
 export const SAVE_DATA_ROW_TITLE = "Save data";
 export const SAVE_DATA_ROW_DETAIL = "Export or import your saved games, decks, campaigns, unlocks and settings.";
+export const EXPORT_ROW_TITLE = "Export";
+export const EXPORT_ROW_DETAIL = "Save everything on this device to a file you can keep or move to another device.";
+export const IMPORT_ROW_TITLE = "Import";
+export const IMPORT_ROW_DETAIL =
+  "Load a save file made by Export. It replaces what's on this device, after you confirm.";
 
 /** A step is the file waiting for the player's yes/no, the send or receive screen, or nothing (the action rows). */
 export type SaveDataStep =

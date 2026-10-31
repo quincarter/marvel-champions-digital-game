@@ -50,6 +50,12 @@ const PILL_HEIGHT = 28;
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
 
+/** Launch data, for a Settings search result: a row to show, or a section of "How it works" to open on. */
+export interface UnlocksSceneData {
+  readonly row?: string;
+  readonly guideSection?: number;
+}
+
 export class UnlocksOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #list: McVirtualList | null = null;
@@ -60,15 +66,22 @@ export class UnlocksOverlay extends Phaser.Scene {
   #guide = false;
   #guideRegion: McScrollRegion | null = null;
   readonly #guideScroll = new VariableListScroll();
+  /** Where each guide section starts, from the top of the text. */
+  #guideTops: number[] = [];
   readonly #scroll = new ListScroll();
 
   constructor() {
     super(SCENES.unlocks);
   }
 
-  create(): void {
+  create(data: UnlocksSceneData = {}): void {
+    // Phaser hands a later launch with no data this same object again: take the row or section once.
+    this.sys.settings.data = {};
     this.#motion = new OverlayMotion();
-    this.#guide = false;
+    // A search result that opened on the guide backs out to the search, as it came.
+    const cameForGuide = data.guideSection !== undefined;
+    this.#guide = cameForGuide;
+    this.#guideScroll.reset();
     this.#scroll.reset();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
@@ -84,7 +97,7 @@ export class UnlocksOverlay extends Phaser.Scene {
         else if (edge === "home") this.#list?.scrollToStart();
         else this.#list?.scrollToEnd();
       },
-      onCancel: () => (this.#guide ? this.#showGuide(false) : this.#close()),
+      onCancel: () => (this.#guide && !cameForGuide ? this.#showGuide(false) : this.#close()),
       onPage: (direction) => {
         if (this.#guide) this.#guideRegion?.scrollByPx(direction * 240);
         else this.#list?.scrollByPage(direction);
@@ -99,6 +112,15 @@ export class UnlocksOverlay extends Phaser.Scene {
       this.#list = null;
     });
     this.#draw();
+    if (data.guideSection !== undefined) this.#guideRegion?.scrollByPx(this.#guideTops[data.guideSection] ?? 0);
+    if (data.row !== undefined) this.#showRow(data.row);
+  }
+
+  /** Brings a row into view and puts the ring on it (a Settings search result). A scenario row has no stop: in view only. */
+  #showRow(id: string): void {
+    const index = unlockListRowsOf(unlocks()).findIndex((row) => row.id === id);
+    if (index >= 0) this.#list?.scrollIntoView(index);
+    this.#route?.focusKey(`row:${id}`);
   }
 
   #close(): void {
@@ -310,7 +332,9 @@ export class UnlocksOverlay extends Phaser.Scene {
     const before = this.children.list.length;
     const textWidth = rect.width - 16;
     let y = rect.y;
+    this.#guideTops = [];
     for (const section of progressionGuideOf()) {
+      this.#guideTops.push(y - rect.y);
       const heading = this.add
         .text(rect.x, y, section.heading, textStyle(typeRole.sectionHeader, surface.paper.hex))
         .setWordWrapWidth(textWidth);

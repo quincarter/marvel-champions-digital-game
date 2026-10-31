@@ -129,6 +129,8 @@ export type RulesScope = "table" | "all";
 export interface RulesSceneData {
   readonly initialTab?: RulesTab;
   readonly initialQuery?: string;
+  /** Settings' search opens on "All rules": the entry it found may not be on the table. */
+  readonly initialScope?: RulesScope;
 }
 
 /** One flattened slot of the Card list tab's `McVariableList`. */
@@ -180,7 +182,7 @@ export class RulesOverlay extends Phaser.Scene {
     this.#activeTab = data.initialTab ?? "glossary";
     this.#query = data.initialQuery ?? "";
     const { game } = appSession().store.state;
-    this.#scope = game ? "table" : "all";
+    this.#scope = data.initialScope ?? (game ? "table" : "all");
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     // A scan that arrives after this scene's first draw (art loads lazily, per card — `art/card-art.ts`'s own

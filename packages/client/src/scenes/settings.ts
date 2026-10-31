@@ -26,6 +26,7 @@
  */
 import Phaser from "phaser";
 import {
+  GUIDE_LEVEL_SEARCH_DETAIL,
   guideRowInfoOf,
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
@@ -79,6 +80,18 @@ import {
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { glyphRightInRow } from "../view/glyph-placement.js";
 import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
+import { SettingsSearchClient } from "../view/settings-search-client.js";
+import type { SettingsRowText, SettingsSearchEntry, SettingsSearchResult } from "../view/settings-search.js";
+import { readConsent } from "../global-stats/global-consent.js";
+import type { ControlsTab } from "../view/controls-rows.js";
+import type { ControlsSceneData } from "./controls.js";
+import type { UnlocksSceneData } from "./unlocks.js";
+import type { StatsTab } from "../view/player-stats-layout.js";
+import { drawSearchField, drawSearchToggle } from "./roster-panel.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
+import { drawSearchResultRow, SEARCH_RESULT_ROW_HEIGHT } from "./settings-search-row.js";
+import { McVirtualList } from "../ui/virtual-list.js";
+import { ListScroll } from "../view/list-scroll.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import { availableCardLanguages, type CardLanguage } from "../art/card-language.js";
 import type {
@@ -113,7 +126,16 @@ import {
 } from "../platform/app-volume.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
-import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
+import {
+  McButton,
+  McTabs,
+  addRowTapZone,
+  fitText,
+  label,
+  paintOnFrame,
+  sectionHeader,
+  type McTextInput,
+} from "../ui/widgets.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import {
@@ -131,7 +153,7 @@ import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { onColorSchemeChange } from "../view/color-scheme.js";
 import { setThemeSlot } from "../ui/theme-slot.js";
 import { detectPlatform } from "../platform/platform.js";
-import { padAvailable } from "../platform/input-device.js";
+import { inputDevice, padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
 import {
   applyScreenSettings,
@@ -176,6 +198,11 @@ const CONTROLS_ROW_DETAIL = "Your controller's buttons, the keyboard shortcuts a
 
 const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
+/** Between the title bar's search and ✕ buttons. */
+const SEARCH_GAP = 10;
+/** The room the Y glyph takes in the title bar, left of the search button, before the LB / RB glyphs. */
+const HINT_GAP = 30;
+
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 
 /** The control widths of the rows that draw a segmented choice. */
@@ -208,6 +235,11 @@ function couchModeShown(game: Phaser.Game, settings: Settings): boolean {
   return settings.couchMode !== "off" || couchModeRowInfoOf(settings, couchBaseOf(game)).options.length > 1;
 }
 
+/** The phone apps show Controls only once a controller is connected (the owner, 2026-10-24). */
+function controlsShown(): boolean {
+  return detectPlatform() !== "capacitor" || padAvailable();
+}
+
 /** The Screen section: every build, unless `?renderscale=off`. */
 function screenSettingsShown(): boolean {
   const env = screenEnvironment();
@@ -233,7 +265,7 @@ interface SegmentedInfo<V extends string> {
 }
 
 /** One row the body can draw: how `settingsLayout` sizes it, and how to draw it once placed (screen space). */
-interface SettingsItem {
+interface SettingsItem extends SettingsRowText {
   readonly spec: SettingsItemSpec;
   readonly draw: (item: SettingsItemLayout, stops: Map<string, FocusStop>) => readonly string[];
 }
@@ -273,6 +305,16 @@ export class SettingsOverlay extends Phaser.Scene {
   /** Where the Resolution field was last drawn (screen space) and what it lists, for the open list. */
   #resolutionField: Rect | null = null;
   #resolutionInfo: SegmentedInfo<Resolution> | null = null;
+  /** The search (#576): shown in the tab rail's place while open, with the results in place of the rows. */
+  #searchOpen = false;
+  #searchInput: McTextInput | null = null;
+  #searchClient: SettingsSearchClient | null = null;
+  /** The newest answer for what is typed; null with nothing typed. */
+  #searchResults: readonly SettingsSearchResult[] | null = null;
+  #resultsList: McVirtualList | null = null;
+  readonly #resultsScroll = new ListScroll();
+  /** Each row's first focus stop, for a search result to land the ring on. */
+  #firstStopOf = new Map<string, string>();
 
   constructor() {
     super(SCENES.settings);
@@ -284,14 +326,31 @@ export class SettingsOverlay extends Phaser.Scene {
     // In the desktop app a resize can also be a move to another monitor, whose sizes the Resolution row lists.
     const onResize = (): void => {
       this.#draw();
+      // A turned phone can move Sound off its tab.
+      this.#refreshSearch();
       if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     };
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
+    this.#searchOpen = false;
+    this.#searchResults = null;
+    // Before the route: A, B or Start takes the caret out of the search field.
+    bindTextFieldEscape(
+      this,
+      () => this.#searchInput,
+      () => this.#covered(),
+    );
     this.#route = new FocusRoute(this, {
-      onScroll: (_dx, dy) => this.#bodyRegion?.scrollByPx(dy),
+      onScroll: (_dx, dy) => (this.#resultsList ?? this.#bodyRegion)?.scrollByPx(dy),
+      // Y opens and shuts the search where a controller is in use; the keyboard's Inspect key stays Inspect.
+      onInspect: (source) => {
+        if (source === "key" || inputDevice().mode !== "pad" || this.#resolutionListOpen) return false;
+        this.#toggleSearch();
+        return true;
+      },
       // LB / RB (R / F on the keyboard) step through the tabs, wrapping at the ends.
       onTab: (direction) => {
+        if (this.#resultsList) this.#resultsList.scrollByPage(direction);
         const ids = this.#tabIds;
         if (ids.length === 0) return;
         if (this.#resolutionListOpen) return;
@@ -301,12 +360,14 @@ export class SettingsOverlay extends Phaser.Scene {
         // The ring goes onto the new tab, as a press on it would leave it.
         this.#route?.focusKey(`tab:${next}`);
       },
-      blocked: () =>
-        this.scene.isActive(SCENES.unlocks) ||
-        this.scene.isActive(SCENES.saveData) ||
-        this.scene.isActive(SCENES.playerStats) ||
-        this.scene.isActive(SCENES.controls),
-      onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList(true) : this.#close()),
+      onPage: (direction) => this.#resultsList?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#resultsList?.scrollToStart() : this.#resultsList?.scrollToEnd()),
+      blocked: () => this.#covered() || (this.#searchInput?.focused ?? false),
+      onCancel: () => {
+        if (this.#resolutionListOpen) this.#closeResolutionList(true);
+        else if (this.#searchOpen) this.#closeSearch();
+        else this.#close();
+      },
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
     // behind it — redraw so this one never shows a stale level/toggle.
@@ -330,6 +391,12 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#tabs = null;
       this.#bodyRegion?.destroy();
       this.#bodyRegion = null;
+      this.#resultsList?.destroy();
+      this.#resultsList = null;
+      this.#searchInput?.destroy();
+      this.#searchInput = null;
+      this.#searchClient?.destroy();
+      this.#searchClient = null;
       this.#hints.dispose();
     });
     this.#draw();
@@ -362,50 +429,191 @@ export class SettingsOverlay extends Phaser.Scene {
     if (this.sys.isActive()) this.#draw();
   }
 
-  #openUnlocks(): void {
+  /** True while a page opened from here is over this one. */
+  #covered(): boolean {
+    return (
+      this.scene.isActive(SCENES.unlocks) ||
+      this.scene.isActive(SCENES.saveData) ||
+      this.scene.isActive(SCENES.playerStats) ||
+      this.scene.isActive(SCENES.controls) ||
+      this.scene.isActive(SCENES.rules)
+    );
+  }
+
+  #toggleSearch(): void {
+    if (this.#searchOpen) this.#closeSearch();
+    else this.#openSearch();
+  }
+
+  #openSearch(): void {
+    this.#searchOpen = true;
+    this.#searchResults = null;
+    this.#draw();
+    this.#indexForSearch();
+    this.#searchInput?.focus();
+    this.#route?.focusKey("search-field");
+  }
+
+  /** Back to the tab the search was opened over. */
+  #closeSearch(focus: string | null = "search-toggle"): void {
+    this.#searchOpen = false;
+    this.#searchResults = null;
+    this.#searchClient?.cancel();
+    this.#searchInput?.destroy();
+    this.#searchInput = null;
+    this.#draw();
+    if (focus) this.#route?.focusKey(focus);
+  }
+
+  /** After a page or the window changed what the results say: reads the index again and asks again. */
+  #refreshSearch(): void {
+    if (!this.#searchOpen) return;
+    this.#indexForSearch();
+    this.#onSearchChange(this.#searchInput?.value ?? "");
+  }
+
+  /** What the rows say now: the worker reads the pages under Settings itself. */
+  #indexForSearch(): void {
+    const { width, height } = this.scale.gameSize;
+    const settings = appSession().settings;
+    const guideRows = guideRowInfoOf(guidePrefs());
+    const rows = this.#itemsOf(settings, guideRows);
+    const { progress, prefs, devUnlockAll, achievementPoints } = unlocks();
+    this.#searchClient ??= new SettingsSearchClient();
+    this.#searchClient.index({
+      tabs: this.#tabsOf(width, height, settings, guideRows),
+      rows: [...rows].map(([id, { title, detail }]) => [id, { title, detail }] as const),
+      settings,
+      pad: inputDevice().pad,
+      unlocks: { progress, prefs, devUnlockAll, achievementPoints },
+      globalConsent: readConsent(),
+      controls: controlsShown(),
+    });
+  }
+
+  #onSearchChange(value: string): void {
+    if (value.trim() === "") {
+      this.#searchClient?.cancel();
+      this.#searchResults = null;
+      this.#draw();
+      return;
+    }
+    this.#searchClient?.search(value, (results) => {
+      this.#searchResults = results;
+      this.#resultsScroll.reset();
+      this.#redrawIfOpen();
+    });
+  }
+
+  /** A press on a result: its page, on the spot it was found. The search stays open behind a page, for the way back. */
+  #openResult(entry: SettingsSearchEntry): void {
+    this.#searchInput?.blur();
+    const target = entry.target;
+    switch (target.kind) {
+      case "setting":
+        lastTab = target.tab;
+        this.#bodyScroll = new VariableListScroll();
+        this.#closeSearch(null);
+        this.#route?.focusKey(`row:${this.#firstStopOf.get(target.item) ?? target.item}`);
+        return;
+      case "rules":
+        this.#openRules({
+          initialTab: target.tab,
+          initialScope: "all",
+          ...(target.query !== undefined ? { initialQuery: target.query } : {}),
+        });
+        return;
+      case "unlocks":
+        this.#openUnlocks({
+          ...(target.row !== undefined ? { row: target.row } : {}),
+          ...(target.guideSection !== undefined ? { guideSection: target.guideSection } : {}),
+        });
+        return;
+      case "saveData":
+        this.#openSaveData(undefined, undefined, target.row);
+        return;
+      case "controls":
+        this.#openControls(target.tab);
+        return;
+      case "stats":
+        this.#openStats(target.tab);
+        return;
+    }
+  }
+
+  /** The tabs this device shows now. */
+  #tabsOf(width: number, height: number, settings: Settings, guideRows: readonly GuideRowInfo[]) {
+    return settingsTabsOf({
+      guideRowIds: guideRows.map((row) => row.id),
+      cardHover: formFactorFor(width, height) === "desktop",
+      cardLanguage: availableCardLanguages().length > 1,
+      inspectCard: formFactorFor(width, height) === "phone",
+      gameVolume: followsWindowsMixer(),
+      // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
+      soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
+      couchMode: couchModeShown(this.game, settings),
+      desktopWindow: hasDesktopWindow(),
+      discord: hasDesktopWindow(),
+      steamDeck: onHandheldLinux(),
+      powerSaving:
+        canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
+      screenSettings: screenSettingsShown(),
+      controls: controlsShown(),
+    });
+  }
+
+  #openUnlocks(data: UnlocksSceneData = {}): void {
     if (this.scene.isActive(SCENES.unlocks)) return;
     // Unlocks' panel sits exactly over this one, so a tap on its blank space must not reach a toggle underneath.
     this.input.enabled = false;
-    this.scene.launch(SCENES.unlocks);
+    this.scene.launch(SCENES.unlocks, data);
     // Back from Unlocks: redraw so the summary line reads what was just changed.
     this.scene.get(SCENES.unlocks).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
+      this.#refreshSearch();
     });
   }
 
   /** Your stats, over this overlay: Back there closes it and gives this one its input again. */
-  #openStats(): void {
+  #openStats(tab?: StatsTab): void {
     if (this.scene.isActive(SCENES.playerStats)) return;
-    this.scene.launch(SCENES.playerStats, { from: SCENES.settings, overlay: true } satisfies PlayerStatsData);
+    this.scene.launch(SCENES.playerStats, {
+      from: SCENES.settings,
+      overlay: true,
+      ...(tab ? { tab } : {}),
+    } satisfies PlayerStatsData);
   }
 
-  #openSaveData(receive?: TransferCode, syncLink?: SyncLinkAddress): void {
+  #openSaveData(receive?: TransferCode, syncLink?: SyncLinkAddress, row?: string): void {
     if (this.scene.isActive(SCENES.saveData)) return;
     this.input.enabled = false;
     this.scene.launch(SCENES.saveData, {
       ...(receive ? { receive } : {}),
       ...(syncLink ? { syncLink } : {}),
+      ...(row ? { row } : {}),
     } satisfies SaveDataSceneData);
     this.scene.get(SCENES.saveData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
+      this.#refreshSearch();
     });
   }
 
-  #openControls(): void {
+  #openControls(tab?: ControlsTab): void {
     if (this.scene.isActive(SCENES.controls)) return;
     this.input.enabled = false;
-    this.scene.launch(SCENES.controls);
+    this.scene.launch(SCENES.controls, (tab ? { tab } : {}) satisfies ControlsSceneData);
     this.scene.get(SCENES.controls).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
+      this.#refreshSearch();
     });
   }
 
-  #openRules(): void {
+  #openRules(data: RulesSceneData = { initialTab: "glossary" }): void {
     if (this.scene.isActive(SCENES.rules)) return;
     this.input.enabled = false;
-    this.scene.launch(SCENES.rules, { initialTab: "glossary" } satisfies RulesSceneData);
+    this.scene.launch(SCENES.rules, data);
     // Rules is registered before Settings, so a plain launch renders it underneath this panel.
     this.scene.bringToTop(SCENES.rules);
     this.scene.get(SCENES.rules).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -466,34 +674,25 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#bodyRegion = null;
     this.#listRegion?.destroy();
     this.#listRegion = null;
+    this.#resultsList?.destroy();
+    this.#resultsList = null;
+    // The field outlives a redraw: rebuilding a DOM <input> mid-keystroke would drop the caret.
+    const kept = this.#searchInput?.gameObjects ?? [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;
     const settings = appSession().settings;
     const guideRows = guideRowInfoOf(guidePrefs());
     const items = this.#itemsOf(settings, guideRows);
-    const tabs = settingsTabsOf({
-      guideRowIds: guideRows.map((row) => row.id),
-      cardHover: formFactorFor(width, height) === "desktop",
-      cardLanguage: availableCardLanguages().length > 1,
-      inspectCard: formFactorFor(width, height) === "phone",
-      gameVolume: followsWindowsMixer(),
-      // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
-      soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
-      couchMode: couchModeShown(this.game, settings),
-      desktopWindow: hasDesktopWindow(),
-      discord: hasDesktopWindow(),
-      steamDeck: onHandheldLinux(),
-      powerSaving:
-        canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
-      screenSettings: screenSettingsShown(),
-      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
-      controls: detectPlatform() !== "capacitor" || padAvailable(),
-    });
+    const tabs = this.#tabsOf(width, height, settings, guideRows);
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
+    // With something typed the results replace the rows; until then the tab stays under the field.
+    const results = this.#searchOpen ? this.#searchResults : null;
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
-      active.sections.map((section) => ({
+      (results ? [] : active.sections).map((section) => ({
         id: section.id,
         // A tab's only section is already named by the tab itself.
         title: active.sections.length > 1 ? section.title : "",
@@ -541,43 +740,100 @@ export class SettingsOverlay extends Phaser.Scene {
       }),
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
-    // The dark mode toggle (#459) sits in the header's middle, clear of the title on the left and the pad hints and
-    // close button on the right, rather than floating over the panel's top border.
-    setThemeSlot(this.scene.key, {
-      x: Math.round(layout.header.x + layout.header.width / 2 - 19),
-      y: Math.round(layout.header.y + (layout.header.height - 30) / 2),
-      width: 38,
-      height: 30,
-    });
-    this.add
+    const searchRect: Rect = { ...closeRect, x: closeRect.x - SEARCH_GAP - closeSize };
+    drawSearchToggle(
+      this,
+      searchRect,
+      "search-toggle",
+      this.#searchOpen,
+      () => this.#toggleSearch(),
+      this.#buttons,
+      stops,
+    );
+    const title = this.add
       .text(layout.header.x + 16, layout.header.y + layout.header.height / 2, caseOf(typeRole.barTitle, "Settings"), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "24px",
       })
       .setOrigin(0, 0.5);
-
-    this.#tabs = new McTabs(this, {
-      rect: layout.tabs,
-      tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
-      activeId: active.id,
-      onSelect: (id) => this.#setTab(id as SettingsTabId),
-    });
-    this.#tabIds = tabs.map((tab) => tab.id);
-    this.#hints.reset();
-    this.#hints.custom(
-      (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
-      22,
-      ({ width }) => glyphRightInRow(layout.panel, layout.header.y, layout.header.height, width, closeSize + 32 + 12),
+    // The dark mode toggle (#459) sits in the header's middle, clear of the title on the left and the pad hints and
+    // the search and close buttons on the right, rather than floating over the panel's top border. Past the title
+    // where the middle would run into it.
+    const themeX = Math.max(
+      Math.round(layout.header.x + layout.header.width / 2 - 19),
+      Math.round(title.x + title.width + 12),
     );
-    const cellWidth = layout.tabs.width / tabs.length;
-    tabs.forEach((tab, index) => {
-      stops.set(`tab:${tab.id}`, {
-        rect: { x: layout.tabs.x + index * cellWidth, y: layout.tabs.y, width: cellWidth, height: layout.tabs.height },
-        activate: () => this.#setTab(tab.id),
-      });
+    setThemeSlot(this.scene.key, {
+      x: themeX,
+      y: Math.round(layout.header.y + (layout.header.height - 30) / 2),
+      width: 38,
+      height: 30,
     });
 
-    const stopIds = this.#drawBody(layout.bodyViewport, layout.content, items, stops);
+    this.#hints.reset();
+    const searchInset = closeSize + 32 + SEARCH_GAP + closeSize + 8;
+    this.#hints.custom(
+      (set, snapshot) => (set === "pad" ? specsForShortcuts(["inspect"], snapshot) : null),
+      22,
+      ({ width }) => glyphRightInRow(layout.panel, layout.header.y, layout.header.height, width, searchInset),
+    );
+    if (this.#searchOpen) {
+      this.#searchInput = drawSearchField(
+        this,
+        layout.tabs,
+        "search-field",
+        "",
+        "Search settings, rules, unlocks…",
+        (value) => this.#onSearchChange(value),
+        this.#searchInput,
+        stops,
+      );
+      this.#tabIds = [];
+    } else {
+      this.#tabs = new McTabs(this, {
+        rect: layout.tabs,
+        tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+        activeId: active.id,
+        onSelect: (id) => this.#setTab(id as SettingsTabId),
+      });
+      this.#tabIds = tabs.map((tab) => tab.id);
+      this.#hints.custom(
+        (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
+        22,
+        ({ width }) => {
+          const place = glyphRightInRow(
+            layout.panel,
+            layout.header.y,
+            layout.header.height,
+            width,
+            searchInset + HINT_GAP,
+          );
+          // A phone's title bar has no room beside the dark mode toggle: the tabs still take LB / RB without it.
+          return place.x < themeX + 38 + 4 ? null : place;
+        },
+      );
+      const cellWidth = layout.tabs.width / tabs.length;
+      tabs.forEach((tab, index) => {
+        stops.set(`tab:${tab.id}`, {
+          rect: {
+            x: layout.tabs.x + index * cellWidth,
+            y: layout.tabs.y,
+            width: cellWidth,
+            height: layout.tabs.height,
+          },
+          activate: () => this.#setTab(tab.id),
+        });
+      });
+    }
+
+    // The open list holds the keyboard; the field is a DOM element over it.
+    this.#searchInput?.setVisible(!this.#resolutionListOpen);
+    const stopIds = results
+      ? this.#drawResults(layout.bodyRoom, results, stops)
+      : this.#drawBody(layout.bodyViewport, layout.content, items, stops).map((id) => `row:${id}`);
+    const head = this.#searchOpen ? ["search-field"] : tabs.map((tab) => `tab:${tab.id}`);
+    // A kept field's ring was first on the list, under the panel drawn since.
+    for (const node of kept) this.children.bringToTop(node);
     if (this.#resolutionListOpen) {
       // While the list is open it owns the pad and keyboard: the route holds only its sizes, so the d-pad never
       // reaches the rows behind it. A picks and closes, B closes unchanged.
@@ -585,9 +841,39 @@ export class SettingsOverlay extends Phaser.Scene {
       const listIds = this.#drawResolutionList({ x: 0, y: 0, width, height }, listStops);
       this.#route?.set(listIds, listStops);
     } else {
-      this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
+      this.#route?.set(["back", "search-toggle", ...head, ...stopIds], stops);
     }
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /** The ranked results, in the room the rows had, or a line saying there are none. Returns their stops in order. */
+  #drawResults(room: Rect, results: readonly SettingsSearchResult[], stops: Map<string, FocusStop>): readonly string[] {
+    if (results.length === 0) {
+      this.add
+        .text(room.x, room.y + 14, "Nothing matches that search.", textStyle(typeRole.body, surface.paper.hex, 0.8))
+        .setFontSize(12);
+      return [];
+    }
+    const list = new McVirtualList(this, {
+      rect: room,
+      rowHeight: SEARCH_RESULT_ROW_HEIGHT,
+      count: results.length,
+      scroll: this.#resultsScroll,
+      background: false,
+      renderRow: (index, rect) => drawSearchResultRow(this, rect, results[index]!),
+      onRowActivate: (index) => this.#openResult(results[index]!.entry),
+    });
+    this.#resultsList = list;
+    return results.map(({ entry }, index) => {
+      const key = `result:${entry.id}`;
+      stops.set(key, {
+        rect: () => list.rectFor(index),
+        view: room,
+        activate: () => this.#openResult(entry),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+      return key;
+    });
   }
 
   /**
@@ -603,6 +889,8 @@ export class SettingsOverlay extends Phaser.Scene {
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
+        title: row.title,
+        detail: row.unavailable ?? row.detail,
         spec: { kind: "toggle", id: row.id, detail: row.unavailable ?? row.detail },
         draw: (item, stops) => {
           this.#drawRow(item.row, row, item.slot, stops);
@@ -618,6 +906,8 @@ export class SettingsOverlay extends Phaser.Scene {
       choose: (value: V) => void,
     ): void => {
       items.set(id, {
+        title: info.title,
+        detail: info.detail,
         spec: { kind: "segmented", id, detail: info.detail, controlWidth },
         draw: (item, stops) => {
           this.#drawSegmentedRow(item, info, id, stops, choose);
@@ -715,6 +1005,8 @@ export class SettingsOverlay extends Phaser.Scene {
       });
       const sizeInfo = resolutionRowInfoOf(settings, sizes, monitor, monitor?.displayModes !== undefined);
       items.set("resolution", {
+        title: sizeInfo.title,
+        detail: sizeInfo.detail,
         spec: {
           kind: "segmented",
           id: "resolution",
@@ -730,6 +1022,8 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const villain = villainRowInfoOf(settings);
     items.set("villain-auto", {
+      title: villain.autoAdvance.title,
+      detail: villain.autoAdvance.detail,
       spec: {
         kind: "tiles",
         id: "villain-auto",
@@ -752,6 +1046,8 @@ export class SettingsOverlay extends Phaser.Scene {
       ["power-saving", powerSavingRowOf(settings, powerSavingState().detected)],
     ] as const) {
       items.set(id, {
+        title: row.title,
+        detail: row.detail,
         spec: { kind: "toggle", id, detail: row.detail },
         draw: (item, stops) => {
           this.#drawVillainToggle(item.row, id, row, item.slot, stops);
@@ -763,6 +1059,8 @@ export class SettingsOverlay extends Phaser.Scene {
     for (const row of guideRows) {
       if (row.kind === "segmented") {
         items.set(row.id, {
+          title: row.title,
+          detail: GUIDE_LEVEL_SEARCH_DETAIL,
           spec: { kind: "level", id: row.id },
           draw: (item, stops) => {
             this.#drawGuideLevelRow(item.row, row, item.slot, stops);
@@ -771,6 +1069,8 @@ export class SettingsOverlay extends Phaser.Scene {
         });
       } else {
         items.set(row.id, {
+          title: row.title,
+          detail: guideRowDetailOf(row),
           spec: { kind: "toggle", id: row.id, detail: guideRowDetailOf(row) },
           draw: (item, stops) => {
             this.#drawGuideRow(item.row, row, item.slot, stops);
@@ -782,6 +1082,8 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const door = (id: SettingsItemId, title: string, detail: string, open: () => void): void => {
       items.set(id, {
+        title,
+        detail,
         spec: { kind: "toggle", id, detail },
         draw: (item, stops) => {
           this.#drawDoorRow(item.row, id, title, detail, item.slot, stops, open);
@@ -797,6 +1099,8 @@ export class SettingsOverlay extends Phaser.Scene {
     door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
     items.set("steam-deck", {
+      title: "Steam Deck",
+      detail: STEAM_DECK_DETAIL,
       spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },
       draw: (item, stops) => {
         const use = (): void => {
@@ -871,7 +1175,11 @@ export class SettingsOverlay extends Phaser.Scene {
           control: item.control ? toScreen(item.control) : null,
           tiles: item.tiles.map(toScreen),
         };
-        this.#captureInto(container, () => stopIds.push(...entry.draw(onScreen, stops)));
+        this.#captureInto(container, () => {
+          const ids = entry.draw(onScreen, stops);
+          if (ids[0] !== undefined) this.#firstStopOf.set(item.id, ids[0]);
+          stopIds.push(...ids);
+        });
       }
     }
     this.#bodyRegion?.syncInteractivity();

@@ -101,6 +101,7 @@ export default defineConfig({
         "tips.spec.ts",
         "overlay-input-block.spec.ts",
         "settings-blocks-presses.spec.ts",
+        "settings-search.spec.ts",
         "overlay-controls.spec.ts",
         "energy-transfer-host.spec.ts",
         "uncanny-controller.spec.ts",
