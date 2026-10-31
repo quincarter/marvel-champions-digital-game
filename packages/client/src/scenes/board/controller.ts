@@ -585,7 +585,7 @@ export class BoardController {
       else this.chooseBasic(focus.action);
       return;
     }
-    if (focus.kind === "card" && !this.#guideGate.allowsCard(focus.instanceId)) {
+    if (focus.kind === "card" && !this.#pickOpen && !this.#guideGate.allowsCard(focus.instanceId)) {
       this.#guideGate.noteInertClick();
       return;
     }
@@ -612,6 +612,11 @@ export class BoardController {
     return !(this.#host.marks()?.usableAbilities.has(id) ?? false);
   }
 
+  /** A target or source pick was opened by the taught action, so its own options answer whatever the gate names. */
+  get #pickOpen(): boolean {
+    return this.#selection.kind === "targeting" || this.#selection.kind === "choosingSource";
+  }
+
   /**
    * A tap on a card while a mode is open answers that mode: it spends the card
    * during payment, or aims at it during targeting. Returns false when idle, so
@@ -623,9 +628,7 @@ export class BoardController {
     // reported as "handled" (true) rather than falling through to `onTap`, so a gated card outside the mode's own
     // targets doesn't also try to play itself. Idle falls through to `onTap` (`tapHandCard`/`onCharacterTap`),
     // which gate — and count the inert click — on their own, so this doesn't double-count that tap.
-    // A target or source pick was opened by the taught action, so its own options answer whatever the gate names.
-    const pickOpen = this.#selection.kind === "targeting" || this.#selection.kind === "choosingSource";
-    if (!pickOpen && !this.#guideGate.allowsCard(id)) {
+    if (!this.#pickOpen && !this.#guideGate.allowsCard(id)) {
       if (this.#selection.kind === "idle") return false;
       this.#guideGate.noteInertClick();
       return true;
