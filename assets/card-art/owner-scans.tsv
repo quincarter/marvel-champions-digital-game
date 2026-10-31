@@ -2959,7 +2959,8 @@ code	pack	name	saved
 50062	aos	Leviathan Soldier	2026-10-28
 50063	aos	Cold Storage	2026-10-28
 50064	aos	Black Widow	2026-10-28
-50066	aos	Black Widow	2026-10-28
+50065	aos	Black Widow	2026-10-30
+50066	aos	Black Widow	2026-10-30
 50067a	aos	The Widow's Web	2026-10-28
 50067b	aos	The Widow's Web	2026-10-28
 50068	aos	Black Widow's Gauntlet	2026-10-28
@@ -2980,7 +2981,8 @@ code	pack	name	saved
 50083	aos	A.I.M. Scientist	2026-10-28
 50084	aos	A.I.M. Soldier	2026-10-28
 50085	aos	Mad Science	2026-10-28
-50086b	aos	Batroc	2026-10-28
+50086a	aos	Batroc	2026-10-30
+50086b	aos	Batroc	2026-10-30
 50087a	aos	Infiltrate A.I.M. Island Embassy	2026-10-28
 50087b	aos	Infiltrate A.I.M. Island Embassy	2026-10-28
 50088a	aos	Locate Missing Person	2026-10-28
@@ -3073,6 +3075,9 @@ code	pack	name	saved
 50163	aos	Batroc the Leaper	2026-10-28
 50164	aos	Parcours du Combattant	2026-10-28
 50165a	aos	Baron Zemo	2026-10-28
+50165b	aos	Baron Zemo	2026-10-30
+50166a	aos	Baron Zemo	2026-10-30
+50166b	aos	Baron Zemo	2026-10-30
 50167a	aos	Zemo's Manipulations	2026-10-28
 50167b	aos	Zemo's Manipulations	2026-10-28
 50168a	aos	The Accusation	2026-10-28
@@ -3096,7 +3101,9 @@ code	pack	name	saved
 50182b	aos	Surveillance Officer's Aid	2026-10-28
 50183a	aos	Chief Tactical Officer	2026-10-28
 50183b	aos	Tactical Officer's Aid	2026-10-28
-50184b	aos	A.I.M. Interference ([mental])	2026-10-28
+50184a	aos	A.I.M. Interference ([energy])	2026-10-30
+50184b	aos	A.I.M. Interference ([mental])	2026-10-30
+50184c	aos	A.I.M. Interference ([physical])	2026-10-30
 50185	aos	Medical Records	2026-10-28
 50186	aos	Wiretap	2026-10-28
 50187	aos	Security Scanner	2026-10-28

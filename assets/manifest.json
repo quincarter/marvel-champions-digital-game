@@ -106,10 +106,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["50", "51", "52", "53", "54", "55"],
-      "tag": "card-art-aos-b70861dbed68",
+      "tag": "card-art-aos-b170b956dceb",
       "file": "card-art-aos.zip",
-      "size": 65219838,
-      "sha256": "b70861dbed683905ce57b4b82e89f3d14eef7bc3f5fd5d81ae94d0b10083b279",
+      "size": 64818338,
+      "sha256": "b170b956dceb8471156d141b62cebde7c2975642f145646e3743755095944e56",
       "files": 783
     },
     {
