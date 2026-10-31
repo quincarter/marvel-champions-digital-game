@@ -570,12 +570,8 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #openSteamUpdate(): void {
     if (this.scene.isActive(SCENES.steamUpdate)) return;
-    this.input.enabled = false;
     // Asks the script itself rather than the update check: this is also how to look again after closing the banner.
     this.scene.launch(SCENES.steamUpdate, { version: null, fallbackUrl: DOWNLOADS_URL } satisfies SteamUpdateSceneData);
-    this.scene.get(SCENES.steamUpdate).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.input.enabled = true;
-    });
   }
 
   #openUnlocks(data: UnlocksSceneData = {}): void {

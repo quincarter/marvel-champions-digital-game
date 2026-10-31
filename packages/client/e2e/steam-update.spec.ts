@@ -70,6 +70,9 @@ const shellCalls = (page: Page): Promise<string[]> =>
 const stopKeys = async (page: Page, scene: string): Promise<string[]> =>
   ((await routeStops(page, scene))?.stops ?? []).map((stop) => stop.key);
 
+const waitForStop = (page: Page, key: string): Promise<boolean> =>
+  waitFor(async () => (await stopKeys(page, "Title")).includes(key), `the ${key} stop on Title`);
+
 async function pressStop(page: Page, scene: string, key: string): Promise<void> {
   const stop = await waitFor(
     async () => (await routeStops(page, scene))?.stops.find((s) => s.key === key) ?? null,
@@ -184,8 +187,8 @@ test("a game with no record keeps the plain download", async ({ page }) => {
   const errors = trackPageErrors(page);
   await openAsSteamInstall(page, null);
   await waitForText(page, "Update available", { sceneKey: "Title" });
+  await waitForStop(page, "update-download");
   expect(await findText(page, "Steam script", "Title")).toEqual([]);
-  expect(await stopKeys(page, "Title")).toContain("update-download");
   expect(errors).toEqual([]);
 });
 
@@ -193,7 +196,7 @@ test("a record with no saved script says how it was installed, but can only offe
   await openAsSteamInstall(page, { canUpdate: false });
   await waitForText(page, "Update available", { sceneKey: "Title" });
   await waitForText(page, "Steam script", { sceneKey: "Title" });
-  expect(await stopKeys(page, "Title")).toContain("update-download");
+  await waitForStop(page, "update-download");
 });
 
 test("Settings ▸ More opens the same panel, which asks the script what's latest", async ({ page }) => {
@@ -202,7 +205,12 @@ test("Settings ▸ More opens the same panel, which asks the script what's lates
   await waitForText(page, "Update available", { sceneKey: "Title" });
   await pressStop(page, "Title", "settings");
   await pressStop(page, "SettingsOverlay", "tab:more");
-  await pressStop(page, "SettingsOverlay", "steam-install");
+  // The row's Open button, at its right end: the stop covers the whole row.
+  const row = await waitFor(
+    async () => (await routeStops(page, "SettingsOverlay"))?.stops.find((s) => s.key === "row:steam-install") ?? null,
+    "the Steam install row",
+  );
+  await page.mouse.click(row.rect.x + row.rect.width - 30, row.rect.y + row.rect.height / 2);
   await waitForPhase(page, "ask");
   await waitForText(page, "the latest version", { sceneKey: "SteamUpdateOverlay" });
   await shoot(page, "settings-ask");

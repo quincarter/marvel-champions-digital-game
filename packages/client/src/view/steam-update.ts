@@ -27,8 +27,7 @@ export interface SteamUpdateView {
 export const STEAM_SCRIPT_TAG = "Steam script";
 
 export const STEAM_INSTALL_ROW_TITLE = "Steam install";
-export const STEAM_INSTALL_ROW_DETAIL =
-  "Installed by the Install for Steam script. Run it again to get the latest version.";
+export const STEAM_INSTALL_ROW_DETAIL = "Installed by the Steam script. Run it again to get the latest version.";
 
 const LOG_PATH = "~/.marvel-champions/update.log";
 
