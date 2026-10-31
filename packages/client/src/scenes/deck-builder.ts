@@ -2230,7 +2230,7 @@ ${entry.detail}`,
       onDark ? surface.paper.hex : surface.ink.hex,
       onDark ? ink.secondary : ink.label,
     );
-    const listTop = this.#drawDeckListControls(left, top + 16, column, deck, onDark);
+    const listTop = this.#drawDeckListControls(left, top + 16, column, onDark);
     const groups = deckListGroupsOf(deck, POOL, this.#deckSort);
     const noteOf = this.#campaign
       ? (entry: DeckListEntry): string | null => {
@@ -2317,7 +2317,7 @@ ${entry.detail}`,
   }
 
   /** The Your deck list's Sort (issue #594) and Review (issue #595) controls; returns where the list starts. */
-  #drawDeckListControls(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
+  #drawDeckListControls(left: number, top: number, column: number, onDark: boolean): number {
     const gap = 8;
     // A campaign deck is judged against its campaign, which Deck check knows nothing of: it has no Review.
     const width = this.#campaign ? column : (column - gap) / 2;
@@ -2340,9 +2340,17 @@ ${entry.detail}`,
     this.#stops.set("deck-sort", { rect: sortRect, activate: sort });
     if (!this.#campaign) {
       const reviewRect: Rect = { x: left + width + gap, y: top, width, height: hit.target };
-      const review = (): void => this.#reviewDeck(deck);
+      // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
+      const review = (): void => this.#reviewDeck(this.#deck!);
       this.#buttons.push(
-        new McButton(this, { kind, label: "Review", type: typeRole.label, rect: reviewRect, onClick: review }),
+        new McButton(this, {
+          kind,
+          label: "Review",
+          type: typeRole.label,
+          rect: reviewRect,
+          enabled: !this.#busy,
+          onClick: review,
+        }),
       );
       this.#stops.set("deck-review", { rect: reviewRect, activate: review });
     }
@@ -2411,7 +2419,8 @@ ${entry.detail}`,
       }
       const precon = resetToPrecon(deck, this.#identity!, POOL_STARTER_DECKS);
       const doPrecon = (): void => {
-        if (precon) this.#setDeck(precon);
+        const fresh = resetToPrecon(this.#deck!, this.#identity!, POOL_STARTER_DECKS);
+        if (fresh) this.#setDeck(fresh);
       };
       this.#buttons.push(
         new McButton(this, {
@@ -2425,7 +2434,7 @@ ${entry.detail}`,
         }),
       );
       this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
-      const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
+      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, POOL));
       this.#buttons.push(
         new McButton(this, {
           kind: onDark ? "onInk" : "secondary",

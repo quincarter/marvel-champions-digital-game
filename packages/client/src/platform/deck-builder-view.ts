@@ -1,6 +1,7 @@
 /**
  * The deck builder's pool view between visits (issue #531): its sort, its quick and pack filters and its card/list
- * view, so a player sets them once, and the sort of a deck's own card list (issue #594), which Deck check shares. Kept in `localStorage` (an `mc-*` entry, so a save file carries it), with the
+ * view, so a player sets them once, and the sort of a deck's own card list (issue #594), which Deck check shares.
+ * Kept in `localStorage` (an `mc-*` entry, so a save file carries it), with the
  * storage passed in so the rule is tested without a browser. The search text and the aspect filter are not kept: they
  * belong to one deck. Anything unreadable falls back to the default for that one field.
  */

@@ -30,6 +30,16 @@ describe("a deck's card list sorts (issue #594)", () => {
     expect(costs).toEqual([...costs].sort((a, b) => a - b));
   });
 
+  test("an X cost has its own group; a dash or star cost reads as no cost", () => {
+    const cards = POOL_CARDS.filter((card) => "specialCost" in card && card.specialCost);
+    const pick = (cost: string) => cards.find((card) => "specialCost" in card && card.specialCost === cost)!;
+    const held = { cards: [pick("X"), pick("star")].map((card) => ({ cardId: card.id, quantity: 1 })) };
+    const labelOf = (id: unknown) =>
+      deckListGroupsOf(held, POOL_CARDS, "cost").find((group) => group.entries.some((e) => e.cardId === id))?.label;
+    expect(labelOf(pick("X").id)).toBe("Cost X");
+    expect(labelOf(pick("star").id)).toBe("No cost");
+  });
+
   test("by type, each group holds only its type", () => {
     for (const group of deckListGroupsOf(deck, POOL_CARDS, "type"))
       expect(new Set(group.entries.map((entry) => entry.type))).toEqual(new Set([group.key]));

@@ -415,7 +415,8 @@ export class DeckCheckScene extends Phaser.Scene {
         const content = layout.content!;
         const top = content.y + hit.target + 8;
         this.#drawSort({ x: content.x, y: content.y, width: SORT_WIDTH, height: hit.target }, "secondary");
-        cardIds = this.#drawCardGrid({ ...content, y: top, height: content.y + content.height - top }, sorted);
+        const height = Math.max(0, content.y + content.height - top);
+        cardIds = this.#drawCardGrid({ ...content, y: top, height }, sorted);
       }
 
       const footerBg = this.add.graphics();
@@ -655,6 +656,7 @@ export class DeckCheckScene extends Phaser.Scene {
     const sort = (): void => {
       this.#deckSort = nextDeckListSort(this.#deckSort);
       rememberDeckListSort(this.#deckSort);
+      this.#cardListScroll.reset();
       this.#rebuild();
     };
     this.#buttons.push(

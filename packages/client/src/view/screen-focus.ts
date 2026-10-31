@@ -246,15 +246,24 @@ export interface DeckCheckFocusInput {
  * be read (the "dashed = not yet real" rule, docs/phase4-screen-gaps.md §0).
  */
 export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
-  const cardStops = [...(input.showSort ? ["deck-sort"] : []), ...input.cardIds.map((id) => `card:${id}`)];
+  const sort = input.showSort ? ["deck-sort"] : [];
+  const cardStops = input.cardIds.map((id) => `card:${id}`);
+  // The sort is drawn in the panel on wide, beside Edit deck, and over the cards on narrow.
   if (input.wide)
-    return ["back", ...(input.filterChipIds ?? []).map((id) => `filter:${id}`), ...cardStops, "edit-deck", "start"];
+    return [
+      "back",
+      ...(input.filterChipIds ?? []).map((id) => `filter:${id}`),
+      ...cardStops,
+      ...sort,
+      "edit-deck",
+      "start",
+    ];
   return [
     "back",
     "tab:curve",
     "tab:cards",
     "tab:aspect",
-    ...(input.activeTab === "cards" ? cardStops : []),
+    ...(input.activeTab === "cards" ? [...sort, ...cardStops] : []),
     "edit-deck",
     "start",
   ];

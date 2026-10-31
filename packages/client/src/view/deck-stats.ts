@@ -262,16 +262,11 @@ export const deckListSortLabel = (sort: DeckListSort): string => `Sort: ${DECK_L
 export const nextDeckListSort = (sort: DeckListSort): DeckListSort =>
   DECK_LIST_SORTS[(DECK_LIST_SORTS.indexOf(sort) + 1) % DECK_LIST_SORTS.length]!;
 
-const TYPE_GROUPS: readonly { readonly key: PlayerCardType; readonly label: string }[] = [
-  { key: "ally", label: "Allies" },
-  { key: "event", label: "Events" },
-  { key: "support", label: "Supports" },
-  { key: "upgrade", label: "Upgrades" },
-  { key: "resource", label: "Resources" },
-  { key: "player_side_scheme", label: "Side schemes" },
-];
+const TYPE_GROUPS: readonly { readonly key: PlayerCardType; readonly label: string }[] = (
+  ["ally", "event", "support", "upgrade", "resource", "player_side_scheme"] as const
+).map((key) => ({ key, label: TYPE_TILE_LABELS[key] }));
 
-/** A cost group's number, for its order: X after every printed cost, then the cards with no cost at all. */
+/** A cost group's number, for its order: X after every printed cost, then the cards with no number to read (a resource, a printed dash or star). */
 const COST_X = Number.MAX_SAFE_INTEGER - 1;
 const NO_COST = Number.MAX_SAFE_INTEGER;
 const costGroupLabel = (rank: number): string =>
@@ -304,7 +299,13 @@ export function deckListGroupsOf(
     const aspectKey = aspect.startsWith("hero:") ? "hero" : CORE_ASPECTS.has(aspect as CoreAspect) ? aspect : null;
     if (!aspectKey) continue;
     const costRank =
-      "specialCost" in card && card.specialCost ? COST_X : "cost" in card ? (card.cost as number) : NO_COST;
+      "specialCost" in card && card.specialCost
+        ? card.specialCost === "X"
+          ? COST_X
+          : NO_COST
+        : "cost" in card
+          ? (card.cost as number)
+          : NO_COST;
     const key =
       sort === "aspect" ? aspectKey : sort === "type" ? card.type : sort === "cost" ? String(costRank) : "all";
     costRanks.set(key, costRank);
