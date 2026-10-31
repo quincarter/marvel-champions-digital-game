@@ -85,9 +85,9 @@ import {
   shuffleZone,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
+import { changeFormTarget } from "../form-change-target.js";
 import { groupVar, podGroupIds, type GroupId } from "../pod.js";
 import {
-  cannotChangeForm,
   formChangeCostsFor,
   formOnlyFault,
   grantedLabeledAbilities,
@@ -166,6 +166,8 @@ import { executeDefeatedTogether } from "./defeated-together.js";
 import { executeResolveSetupsTogether } from "./put-into-play-setup.js";
 import { executeSearchCollection } from "./collection.js";
 import { announceAbilityResolved, labelCancels } from "./ability.js";
+import { releaseSentenceResponses } from "./sentence-hold.js";
+import { resumeWaitingAbilities } from "./suspend.js";
 import { noteDeckDiscardsTaken } from "./deck-discard.js";
 import { settleDeclaredDefenderCost } from "./enemy-activation.js";
 import { executeAccuse } from "./accusation.js";
@@ -195,6 +197,7 @@ import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import { thwartBlockedOn } from "./event.js";
 import { abilityRootFrameId, announceAbilityThwart } from "./thwart-session.js";
+import { releaseLoopFrames } from "./initiated-activation.js";
 import {
   abilityAttackDamage,
   abilityAttackOf,
@@ -245,6 +248,17 @@ export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectCont
 });
 
 export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
+  // Back from waiting behind an activation (`suspendBehindActivation`): the activation it initiated resolves now, then
+  // the rest of the ability. The frame passed on still names it, so it is not queued again.
+  if (frame.resumeActivation) {
+    const { resumeActivation: _resumed, ...rest } = frame;
+    setFrame(ctx, rest);
+    applyEffect(ctx, frame.resumeActivation, contextOf(rest, ctx.deps), frame);
+    return;
+  }
+  // Every pass of its "each time" loop has resolved: the keywords of the minions they put into play now initiate, then
+  // those minions' engagements are announced (FFG ruling 38; `resolve/initiated-activation.ts`).
+  if (releaseLoopFrames(ctx, frame)) return;
   const effect = frame.effects[frame.cursor];
   if (!effect) {
     // A "(thwart)" ability is one thwart: "after you thwart" answers it here, once, after its last effect (RRG 1.8
@@ -305,8 +319,13 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     }
     // A response to a deck discard: the cards it took away are recorded as its (box-heroes B3.3).
     noteDeckDiscardsTaken(ctx, frame);
+    // The abilities that waited behind an activation this ability initiated resume now that it has finished, after the
+    // responses to its resolution and its sentences' held responses, which are pushed above them.
+    resumeWaitingAbilities(ctx, frame);
     // The ability these effects are has now resolved (RRG 1.8 "Resolve", p. 37).
     announceAbilityResolved(ctx, frame, changed);
+    // A sentence has resolved in full: the responses it held open now (`sentence-hold.ts`).
+    releaseSentenceResponses(ctx, frame);
     return;
   }
   if (beginEffectAfterCost(ctx, frame)) return;
@@ -754,7 +773,9 @@ function executePlayFromHand(
   const via = effect.via ? resolveRef(ctx.state, effect.via, context) : [];
   const playBindings = via.length > 0 ? { [PLAYED_VIA_SLOT]: via } : {};
   // "That attack gains piercing" (`whileResolving`): lasts while the play's own frame does (§3.30's scope).
-  const grantWhileResolving = (playFrameId: FrameId | null): void => {
+  // `firstAttackOnly`: "that attack" is the played card's first attack (FFG ruling 190, May 16, 2024), so the rules
+  // end with that attack (`LastingDuration endOfPaidFor.firstAttackVia`), or with the play if it makes none.
+  const grantWhileResolving = (playFrameId: FrameId | null, played: InstanceId): void => {
     if (!playFrameId) return;
     // "It enters play exhausted" (`entersExhausted`, Med Lab; §3.57): read by the play's own enter-play step.
     if (effect.entersExhausted === true)
@@ -766,7 +787,15 @@ function executePlayFromHand(
       bindings: frame.bindings,
     };
     for (const rule of effect.whileResolving ?? [])
-      addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, { kind: "endOfPaidFor", frameId: playFrameId });
+      addLastingEffect(
+        ctx,
+        { kind: "ruleGrant", rule, scope },
+        {
+          kind: "endOfPaidFor",
+          frameId: playFrameId,
+          ...(effect.firstAttackOnly === true ? { firstAttackVia: played } : {}),
+        },
+      );
   };
   const step = frame.vars["_play.step"] ?? 0;
   const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
@@ -885,7 +914,7 @@ function executePlayFromHand(
     const choices = hostChoicesForEffectPlay(ctx, playerId, card);
     if (!paying && choices.length <= 1) {
       finish();
-      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing, into));
+      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing, into), card);
       return;
     }
     setFrame(ctx, {
@@ -928,7 +957,10 @@ function executePlayFromHand(
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   if (!paying) {
     finish();
-    grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, action, timing, into, chosenHost));
+    grantWhileResolving(
+      playIgnoringCost(ctx, playerId, card, from, playBindings, action, timing, into, chosenHost),
+      card,
+    );
     return;
   }
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
@@ -968,6 +1000,7 @@ function executePlayFromHand(
   // `playWithPayment` adds the destination's reduction to the effect's own, and uses it up.
   grantWhileResolving(
     playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action, from, undefined, into),
+    card,
   );
 }
 
@@ -1392,47 +1425,14 @@ const FORM_COST_PAID = 1;
 const FORM_COST_UNPAID = 0;
 
 /**
- * Where a `changeForm` effect takes one player: a form and hero face, `null` for no change (already there, can't change,
- * or "your other hero form" with none to go to), or `"choose"` when the player must pick among several faces.
- */
-function changeFormTarget(
-  state: GameState,
-  deps: EngineDeps,
-  playerId: PlayerId,
-  effect: Extract<EffectSpec, { kind: "changeForm" }>,
-): { readonly to: "hero" | "alterEgo"; readonly heroForm: number } | "choose" | null {
-  const player = getPlayer(state, playerId);
-  if (!player || player.eliminated || cannotChangeForm(state, deps, playerId)) return null;
-  const card = cardOf(state, player.identity.instanceId);
-  const faces = card?.type === "hero_identity" ? heroFacesOf(card) : [];
-  const { form, heroFormIndex } = player.identity;
-  const unchanged = (to: "hero" | "alterEgo", heroForm: number) =>
-    form === to && (to === "alterEgo" || heroFormIndex === heroForm) ? null : { to, heroForm };
-  if (effect.heroForm === "other") {
-    if (form !== "hero" || faces.length !== 2) return null;
-    return unchanged("hero", heroFormIndex === 0 ? 1 : 0);
-  }
-  if (effect.heroForm !== undefined) {
-    // A title names one face (RRG 1.8 "Identity", p. 23): the printed title of a hero face, whichever face is showing.
-    const wanted = effect.heroForm;
-    const index = faces.findIndex((face) =>
-      "named" in wanted ? face.faceName === wanted.named : face.traits.includes(wanted.withTrait),
-    );
-    return index < 0 ? null : unchanged("hero", index);
-  }
-  if (effect.to === "alterEgo") return unchanged("alterEgo", 0);
-  if (form === "alterEgo") return faces.length > 1 ? "choose" : unchanged("hero", 0);
-  // In hero form: "change to hero form" changes nothing, and a bare "change form" goes to the alter-ego face, unless
-  // the identity has another hero face to go to as well (docs/phase7-wave7.md §3.62).
-  if (effect.to === "hero") return null;
-  return faces.length > 1 ? "choose" : unchanged("alterEgo", 0);
-}
-
-/**
  * The faces a player choosing a form may change to, as options: every hero face from alter-ego form; from a hero face,
- * the alter-ego face and each other hero face (only a bare "change form" asks there).
+ * each other hero face, and the alter-ego face first unless the change is to hero form.
  */
-function formChoiceOptions(state: GameState, playerId: PlayerId): readonly ChoiceOption[] {
+function formChoiceOptions(
+  state: GameState,
+  playerId: PlayerId,
+  to: "hero" | "alterEgo" | undefined,
+): readonly ChoiceOption[] {
   const player = getPlayer(state, playerId);
   const card = player ? cardOf(state, player.identity.instanceId) : undefined;
   if (!player || card?.type !== "hero_identity") return [];
@@ -1443,10 +1443,9 @@ function formChoiceOptions(state: GameState, playerId: PlayerId): readonly Choic
     ref,
   }));
   if (player.identity.form === "alterEgo") return heroFaces;
-  return [
-    { optionId: ALTER_EGO_OPTION, label: card.alterEgo.faceName, ref },
-    ...heroFaces.filter((_, index) => index !== player.identity.heroFormIndex),
-  ];
+  const otherHeroFaces = heroFaces.filter((_, index) => index !== player.identity.heroFormIndex);
+  if (to === "hero") return otherHeroFaces;
+  return [{ optionId: ALTER_EGO_OPTION, label: card.alterEgo.faceName, ref }, ...otherHeroFaces];
 }
 
 /**
@@ -1484,7 +1483,7 @@ function executeChangeForm(
     requestChoice(ctx, {
       playerId: next.playerId,
       prompt: { kind: "chooseOption" },
-      options: formChoiceOptions(ctx.state, next.playerId),
+      options: formChoiceOptions(ctx.state, next.playerId, effect.to),
       minSelections: 1,
       maxSelections: 1,
       frameId: frame.frameId,
@@ -1710,12 +1709,23 @@ function executeDiscardFromHand(
 }
 
 const ENEMY_ORDER_SLOT = "_enemyOrder";
+/** The villains' order, chosen before the minions' when one effect activates two or more of each. */
+const VILLAIN_ORDER_SLOT = "_enemyOrderVillains";
 
 /**
- * "Each Masters of Evil minion attacks the hero it is engaged with": one effect
- * makes several enemies attack (or scheme), one at a time. The attacks would
- * resolve simultaneously, so the first player orders them (RRG "First Player").
- * Returns true when it handled the effect (asked for the order, or applied it).
+ * "Each Masters of Evil minion attacks the hero it is engaged with": one effect makes several enemies attack (or
+ * scheme) at once, resolved one at a time. RRG 1.8 "Activation" (p. 6): "If multiple enemies activate against you
+ * simultaneously, resolve the villain's activation first (if any) in the order of your choice, followed by minion
+ * activations in the order of your choice"; ruling June 4, 2024 #202 (correction): "Ultron would have to attack first,
+ * then Black Panther can resolve the 3 Drone attacks in any order"; ruling Dec 8, 2023 #129. So the villains go first,
+ * and each group that has two or more enemies is ordered, the villains' then the minions', each in its own ordered
+ * choice (the villains' kept on the frame meanwhile, `VILLAIN_ORDER_SLOT`). The first player orders them, as the
+ * owner's design records (docs/phase3-encounter-ai.md, "One effect makes several enemies attack/scheme": first player,
+ * `firstPlayerOrders`, RRG "First Player"). Open question for the owner, not changed here: p. 6 says "in the order of
+ * your choice" for enemies activating "against you", which could make it the attacked player's choice. Only one
+ * effect's enemies are simultaneous: two effects (two responses, two sentences) each making an enemy activate are
+ * sequential, and nothing is asked here.
+ * Returns true when it handled the effect (asked for the order, or applied it in its order).
  */
 function orderEnemies(
   ctx: Ctx,
@@ -1723,29 +1733,62 @@ function orderEnemies(
   effect: Extract<EffectSpec, { kind: "enemyAttack" | "enemyScheme" | "enemyActivation" }>,
   context: EffectContext,
 ): boolean {
-  if (frame.answer !== null) {
-    const bindings = { ...frame.bindings, [ENEMY_ORDER_SLOT]: frame.answer.map((id) => asInstanceId(id)) };
-    const next: Frame<"effects"> = { ...frame, answer: null, cursor: frame.cursor + 1, bindings };
-    setFrame(ctx, next);
-    applyEffect(ctx, { ...effect, enemies: { kind: "slot", slot: ENEMY_ORDER_SLOT } }, { ...context, bindings }, next);
-    return true;
-  }
   const inPlay = cardsInPlay(ctx.state);
   const enemies = [...new Set(resolveRef(ctx.state, effect.enemies, context))].filter(
     (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
   );
+  const isVillain = (id: InstanceId): boolean => categoriesOf(ctx.state, id).includes("villain");
+  const villains = enemies.filter(isVillain);
+  const minions = enemies.filter((id) => !isVillain(id));
+  const apply = (order: readonly InstanceId[]): boolean => {
+    const { [VILLAIN_ORDER_SLOT]: _villainOrder, ...kept } = frame.bindings;
+    const bindings = { ...kept, [ENEMY_ORDER_SLOT]: order };
+    const next: Frame<"effects"> = { ...frame, answer: null, cursor: frame.cursor + 1, bindings };
+    setFrame(ctx, next);
+    applyEffect(ctx, { ...effect, enemies: { kind: "slot", slot: ENEMY_ORDER_SLOT } }, { ...context, bindings }, next);
+    return true;
+  };
+  // One ordered choice per group of two or more, villains first, both of the first player.
+  const ask = (group: readonly InstanceId[], at: Frame<"effects">): boolean => {
+    requestChoice(ctx, {
+      playerId: simultaneousOrderer(ctx.state),
+      authority: "firstPlayerOrders",
+      prompt: { kind: "orderEnemies", activation: orderedActivation(ctx, effect, context, enemies) },
+      options: cardOptions(ctx, group),
+      minSelections: group.length,
+      maxSelections: group.length,
+      frameId: at.frameId,
+      ordered: true,
+    });
+    return true;
+  };
+  const chosen = (group: readonly InstanceId[], answer: readonly string[]): readonly InstanceId[] => {
+    const answered = answer.map((id) => asInstanceId(id)).filter((id) => group.includes(id));
+    return answered.length === group.length ? answered : group;
+  };
+  if (frame.answer !== null) {
+    // The villains' order is asked first, when there are two or more, and kept on the frame for the minions' question.
+    if (villains.length >= 2 && frame.bindings[VILLAIN_ORDER_SLOT] === undefined) {
+      const villainOrder = chosen(villains, frame.answer);
+      if (minions.length < 2) return apply([...villainOrder, ...minions]);
+      const next: Frame<"effects"> = {
+        ...frame,
+        answer: null,
+        bindings: { ...frame.bindings, [VILLAIN_ORDER_SLOT]: villainOrder },
+      };
+      setFrame(ctx, next);
+      return ask(minions, next);
+    }
+    const kept = (frame.bindings[VILLAIN_ORDER_SLOT] ?? []).filter((id) => villains.includes(id));
+    const villainOrder = kept.length === villains.length ? kept : villains;
+    return apply([...villainOrder, ...chosen(minions, frame.answer)]);
+  }
   if (enemies.length < 2) return false;
-  requestChoice(ctx, {
-    playerId: simultaneousOrderer(ctx.state),
-    authority: "firstPlayerOrders",
-    prompt: { kind: "orderEnemies", activation: orderedActivation(ctx, effect, context, enemies) },
-    options: cardOptions(ctx, enemies),
-    minSelections: enemies.length,
-    maxSelections: enemies.length,
-    frameId: frame.frameId,
-    ordered: true,
-  });
-  return true;
+  if (villains.length >= 2) return ask(villains, frame);
+  if (minions.length >= 2) return ask(minions, frame);
+  // Nothing to choose; the villain still activates first.
+  const order = [...villains, ...minions];
+  return order.every((id, i) => id === enemies[i]) ? false : apply(order);
 }
 
 /**

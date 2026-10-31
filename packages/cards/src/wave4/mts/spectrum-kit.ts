@@ -19,6 +19,7 @@ import {
   printedForm,
   query,
   removeThreatFromAScheme,
+  sentence,
   setup,
   thwart,
   turnFacedown,
@@ -103,26 +104,33 @@ export const SPECTRUM_KIT = defineAbilities({
   // Gamma Blast (21007) — Hero Action (attack): Change to Gamma energy form and deal 7 damage to an enemy. If you
   // were already in Gamma energy form, this attack gains overkill. Read "already in Gamma" *before* the change
   // (docs/phase7-wave4.md §3.1's own scripting note): both branches still make the change (idempotent if already
-  // there, per the same section's "already there: nothing changes and nothing triggers").
+  // there, per the same section's "already there: nothing changes and nothing triggers"). The first sentence is one
+  // `sentence`: the form's response waits for the 7 damage (FFG ruling December 8, 2023 - Ruling 126).
   "21007.gamma-blast-action": heroAction(
     { label: "attack" },
     chooseTarget("enemy", query("enemy", { attackableBy: yourIdentity })),
     ifThen(
       inAdditionalForm("energy", "Gamma"),
-      [changeAdditionalForm("energy", { toName: "Gamma" }), attack(7, chosen("enemy"), { overkill: true })],
-      [changeAdditionalForm("energy", { toName: "Gamma" }), attack(7, chosen("enemy"))],
+      [sentence(changeAdditionalForm("energy", { toName: "Gamma" }), attack(7, chosen("enemy"), { overkill: true }))],
+      [sentence(changeAdditionalForm("energy", { toName: "Gamma" }), attack(7, chosen("enemy")))],
     ),
   ),
 
   // Photon Speed (21008) — Hero Action (thwart): Change to Photon energy form and remove 4 threat from a scheme. If
-  // you were already in Photon energy form, ignore crisis icon for this thwart.
+  // you were already in Photon energy form, ignore crisis icon for this thwart. One `sentence`, as Gamma Blast's
+  // (by analogy to ruling 126 (Gamma Blast)): the Photon response waits for the 4 threat removed.
   "21008.photon-speed-action": heroAction(
     { label: "thwart" },
     chooseTarget("scheme", query("scheme")),
     ifThen(
       inAdditionalForm("energy", "Photon"),
-      [changeAdditionalForm("energy", { toName: "Photon" }), thwart(4, chosen("scheme"), { ignoreCrisis: true })],
-      [changeAdditionalForm("energy", { toName: "Photon" }), thwart(4, chosen("scheme"))],
+      [
+        sentence(
+          changeAdditionalForm("energy", { toName: "Photon" }),
+          thwart(4, chosen("scheme"), { ignoreCrisis: true }),
+        ),
+      ],
+      [sentence(changeAdditionalForm("energy", { toName: "Photon" }), thwart(4, chosen("scheme")))],
     ),
   ),
 

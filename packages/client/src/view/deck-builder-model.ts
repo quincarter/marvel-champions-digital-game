@@ -16,6 +16,7 @@ import {
   type Deck,
   type DeckCardEntry,
   type HeroIdentityCard,
+  type ResourceIconType,
   type StarterDeck,
   type Trait,
 } from "@mc/content";
@@ -28,6 +29,7 @@ import {
   type DeckValidation,
 } from "@mc/engine";
 import { perPlayerCostOf } from "./per-player-cost.js";
+import { matchesClauses, parsePoolQuery, type QueryClause } from "./pool-query.js";
 
 export interface PoolFilter {
   readonly text?: string;
@@ -39,10 +41,43 @@ export interface PoolFilter {
   readonly packCode?: string | null;
   /** One release wave/cycle, by `Cycle.id` (the card's `cycleId`). */
   readonly cycleId?: string | null;
+  /** The quick Cost chip: exactly this cost, or `QUICK_COST_MAX` and up. A card with no printed cost never matches. */
+  readonly cost?: number | null;
+  /** The quick resource chip: a card with at least one of this icon (a resource card's own icons count). */
+  readonly resource?: ResourceIconType | null;
+  /** Search terms such as `o:2` or `kw:guard` (`pool-query.ts`), each of which a card must meet. */
+  readonly clauses?: readonly QueryClause[];
 }
 
-/** The pool list's order. `default` is alphabetical by name — what the list has always shown. */
-export type PoolSort = "default" | "name" | "cost" | "pack";
+/** The last quick Cost chip, "5+": this cost and every higher one. */
+export const QUICK_COST_MAX = 5;
+
+/** A card's resource icons: what it gives when spent (a resource card's own icons count). */
+export const resourceIconsOf = (card: AnyCard): Readonly<Partial<Record<ResourceIconType, number>>> =>
+  "producesIcons" in card && card.producesIcons
+    ? card.producesIcons
+    : "resourceIcons" in card && card.resourceIcons
+      ? card.resourceIcons
+      : {};
+
+/**
+ * One key the pool list can be ordered by. `match` is the text search's relevance, best first (only as a primary key;
+ * with no search typed every card ties on it, so the list falls through to the next key).
+ */
+export type PoolSortKey = "match" | "name" | "cost" | "type" | "aspect" | "pack";
+
+/**
+ * The pool list's order (issue #531): a primary key, an optional secondary key for its ties, then always the name. A
+ * text search only narrows the list and reorders it only under `match`, so any other order a player picked holds
+ * while they type.
+ */
+export interface PoolSort {
+  readonly primary: PoolSortKey;
+  readonly secondary: PoolSortKey | null;
+}
+
+/** Best search match first, so a typed name lands on top; with no search typed that is alphabetical by name. */
+export const DEFAULT_POOL_SORT: PoolSort = { primary: "match", secondary: null };
 
 /** A pack's display facts, in release order — the client's `POOL_PACKS` joined to its cycle (`POOL_HERO_SHELF_PACKS`). */
 export interface PackInfo {
@@ -172,10 +207,18 @@ const textMatch = (card: AnyCard, text: string): boolean => {
   return searchTermsOf(text).every((term) => haystack.includes(term));
 };
 
-const matchesFilter = (card: AnyCard, filter: PoolFilter): boolean => {
+const matchesFilter = (card: AnyCard, filter: PoolFilter, packs: readonly PackInfo[]): boolean => {
   if (filter.type && card.type !== filter.type) return false;
   if (filter.text && !textMatch(card, filter.text)) return false;
-  if ("traits" in card && filter.trait && !(card.traits as readonly Trait[]).includes(filter.trait)) return false;
+  if (filter.clauses?.length && !matchesClauses(card, filter.clauses, packs)) return false;
+  if (typeof filter.cost === "number") {
+    // An X, dash or star cost (stored as 0 with `specialCost`) is no number a chip names, as with the `o:` term.
+    const cost = "specialCost" in card && card.specialCost ? Infinity : costOf(card);
+    if (filter.cost >= QUICK_COST_MAX ? !(cost >= QUICK_COST_MAX && cost !== Infinity) : cost !== filter.cost)
+      return false;
+  }
+  if (filter.resource && !((resourceIconsOf(card)[filter.resource] ?? 0) > 0)) return false;
+  if (filter.trait && !("traits" in card && (card.traits as readonly Trait[]).includes(filter.trait))) return false;
   if ("cost" in card && typeof filter.maxCost === "number" && (card as { cost: number }).cost > filter.maxCost)
     return false;
   if (filter.packCode && (card.setCode as string) !== filter.packCode) return false;
@@ -199,15 +242,21 @@ export function browsablePool(
   identity: HeroIdentityCard,
   chosenAspects: readonly CoreAspect[],
   filter: PoolFilter = {},
-  sort: PoolSort = "default",
+  sort: PoolSort | PoolSortKey = DEFAULT_POOL_SORT,
   packs: readonly PackInfo[] = [],
   held: ReadonlySet<string> = new Set(),
+  relevance?: ReadonlyMap<string, number>,
 ): readonly AnyCard[] {
+  // A search's `field:value` terms filter exactly; only its other words are text to match (`pool-query.ts`).
+  if (filter.text) {
+    const query = parsePoolQuery(filter.text);
+    filter = { ...filter, text: query.text, clauses: [...(filter.clauses ?? []), ...query.clauses] };
+  }
   // `held` is the ids the deck already contains: they stay listed even when the deck's rules now refuse them, so each
   // can still be removed from the list (the legality line says why it is refused).
   const filtered = cardsOf(pool)
     .filter((card) => held.has(card.id as string) || cardOfferedToDeck(card, identity, chosenAspects).offered)
-    .filter((card) => matchesFilter(card, filter));
+    .filter((card) => matchesFilter(card, filter, packs));
 
   // Wave 1 reprints the same basic/aspect card (by title) across several packs
   // under a different card id each time — Energy, For Justice!, and so on —
@@ -227,41 +276,85 @@ export function browsablePool(
     const have = seen.get(key);
     if (!have || (held.has(card.id as string) && !held.has(have.id as string))) seen.set(key, card);
   }
-  return nameMatchesFirst(sortPool([...seen.values()], sort, packs), filter.text);
+  return sortPool([...seen.values()], sort, packs, relevance ?? nameMatchRelevance([...seen.values()], filter.text));
 }
 
-/** With a text search, cards whose name matches come before cards matching only by trait or type (order kept within each). */
-function nameMatchesFirst(cards: readonly AnyCard[], text: string | undefined): readonly AnyCard[] {
+/** With no ranked search to go by, a text search's relevance is whether a card's name matches every word (1) or not (0). */
+function nameMatchRelevance(cards: readonly AnyCard[], text: string | undefined): ReadonlyMap<string, number> {
   const terms = searchTermsOf(text);
-  if (terms.length === 0) return cards;
+  if (terms.length === 0) return new Map();
   const nameMatches = (card: AnyCard): boolean => terms.every((term) => card.name.toLowerCase().includes(term));
-  return [...cards.filter(nameMatches), ...cards.filter((card) => !nameMatches(card))];
+  return new Map(cards.map((card) => [card.id as string, nameMatches(card) ? 1 : 0]));
 }
 
 const costOf = (card: AnyCard): number => ("cost" in card && typeof card.cost === "number" ? card.cost : Infinity);
 
-/**
- * `cards` in `sort` order, always ending ties by name. `cost` puts a card with no printed cost last; `pack` is
- * release order (`packs`' own order; a pack it doesn't list sorts after every listed one), then collector number
- * compared numerically ("2" before "10", "12a" after "12").
- */
-export function sortPool(cards: readonly AnyCard[], sort: PoolSort, packs: readonly PackInfo[]): readonly AnyCard[] {
-  const byName = (a: AnyCard, b: AnyCard): number => a.name.localeCompare(b.name);
-  if (sort === "cost") return cards.slice().sort((a, b) => costOf(a) - costOf(b) || byName(a, b));
-  if (sort === "pack") {
-    const order = new Map(packs.map((p, i) => [p.code, i]));
-    const rank = (card: AnyCard): number => order.get(card.setCode as string) ?? Infinity;
-    return cards
-      .slice()
-      .sort(
-        (a, b) =>
-          rank(a) - rank(b) ||
-          (a.setCode as string).localeCompare(b.setCode as string) ||
-          a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true }) ||
-          byName(a, b),
-      );
+/** A hero's own cards ("hero:<id>") first, then the four aspects, then pool, then basic. */
+const ASPECT_ORDER = ["aggression", "justice", "leadership", "protection", "pool", "basic"];
+
+function aspectRank(card: AnyCard): number {
+  const aspect = "aspect" in card && typeof card.aspect === "string" ? card.aspect : null;
+  if (aspect?.startsWith("hero:")) return 0;
+  const at = aspect === null ? -1 : ASPECT_ORDER.indexOf(aspect);
+  return at === -1 ? ASPECT_ORDER.length + 1 : at + 1;
+}
+
+const typeLabelOf = (card: AnyCard): string => card.type.replace(/_/g, " ");
+
+/** `a - b`, but 0 when they are equal: two costless cards (Infinity each) tie rather than compare NaN. */
+const byNumber = (a: number, b: number): number => (a === b ? 0 : a - b);
+
+/** How two cards compare on one key, 0 for a tie. */
+function compareBy(
+  key: PoolSortKey,
+  packOrder: ReadonlyMap<string, number>,
+  relevance: ReadonlyMap<string, number>,
+): (a: AnyCard, b: AnyCard) => number {
+  switch (key) {
+    case "match":
+      return (a, b) => (relevance.get(b.id as string) ?? 0) - (relevance.get(a.id as string) ?? 0);
+    case "name":
+      return (a, b) => a.name.localeCompare(b.name);
+    case "cost":
+      return (a, b) => byNumber(costOf(a), costOf(b));
+    case "type":
+      return (a, b) => typeLabelOf(a).localeCompare(typeLabelOf(b));
+    case "aspect":
+      return (a, b) => byNumber(aspectRank(a), aspectRank(b));
+    case "pack": {
+      const rank = (card: AnyCard): number => packOrder.get(card.setCode as string) ?? Infinity;
+      return (a, b) =>
+        byNumber(rank(a), rank(b)) ||
+        (a.setCode as string).localeCompare(b.setCode as string) ||
+        a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true });
+    }
   }
-  return cards.slice().sort(byName);
+}
+
+/**
+ * `cards` in `sort` order: the primary key, then the secondary, always ending ties by name. `cost` puts a card with no
+ * printed cost last; `type` is alphabetical by type; `aspect` is the hero's own cards, then aggression, justice,
+ * leadership, protection, pool and basic; `pack` is release order (`packs`' own order; a pack it doesn't list sorts
+ * after every listed one), then collector number compared numerically ("2" before "10", "12a" after "12"); `match` is
+ * `relevance` by card id, highest first. A bare key is that key alone.
+ */
+export function sortPool(
+  cards: readonly AnyCard[],
+  sort: PoolSort | PoolSortKey,
+  packs: readonly PackInfo[],
+  relevance: ReadonlyMap<string, number> = new Map(),
+): readonly AnyCard[] {
+  const { primary, secondary } = typeof sort === "string" ? { primary: sort, secondary: null } : sort;
+  const packOrder = new Map(packs.map((p, i) => [p.code, i]));
+  const keys = [primary, ...(secondary && secondary !== primary ? [secondary] : []), "name" as const];
+  const comparers = keys.map((key) => compareBy(key, packOrder, relevance));
+  return cards.slice().sort((a, b) => {
+    for (const compare of comparers) {
+      const order = compare(a, b);
+      if (order !== 0) return order;
+    }
+    return 0;
+  });
 }
 
 /**
@@ -276,7 +369,9 @@ export function packFilterChoices(
   packs: readonly PackInfo[],
 ): { readonly cycles: readonly FilterChoice[]; readonly packs: readonly FilterChoice[] } {
   const { packCode: _p, cycleId: _c, ...rest } = filter;
-  const present = new Set(browsablePool(pool, identity, chosenAspects, rest).map((c) => c.setCode as string));
+  const present = new Set(
+    browsablePool(pool, identity, chosenAspects, rest, DEFAULT_POOL_SORT, packs).map((c) => c.setCode as string),
+  );
   const have = packs.filter((p) => present.has(p.code));
   const cycles: FilterChoice[] = [];
   for (const p of have) if (!cycles.some((c) => c.id === p.cycleId)) cycles.push({ id: p.cycleId, name: p.cycleName });
@@ -322,6 +417,27 @@ export function stepChoice(
   const at = Math.max(0, ids.indexOf(current ?? null));
   return ids[(at + dir + ids.length) % ids.length] ?? null;
 }
+
+/**
+ * The traits the quick Trait stepper can land on: every trait some browsable card has under the *other* filters (so
+ * stepping never lands on an empty list), alphabetical.
+ */
+export function traitFilterChoices(
+  pool: CardPool,
+  identity: HeroIdentityCard,
+  chosenAspects: readonly CoreAspect[],
+  filter: PoolFilter,
+  packs: readonly PackInfo[],
+): readonly FilterChoice[] {
+  const { trait: _t, ...rest } = filter;
+  const traits = new Set<string>();
+  for (const card of browsablePool(pool, identity, chosenAspects, rest, DEFAULT_POOL_SORT, packs))
+    if ("traits" in card) for (const trait of card.traits as readonly string[]) traits.add(trait);
+  return [...traits].sort((a, b) => a.localeCompare(b)).map((trait) => ({ id: trait, name: traitLabelOf(trait) }));
+}
+
+/** A trait as a player reads it: "S.H.I.E.L.D._Agent" is "S.H.I.E.L.D. Agent". */
+export const traitLabelOf = (trait: string): string => trait.replace(/_/g, " ");
 
 /** `filter` with a new cycle: the pack choice is dropped when it isn't in that cycle. */
 export function withCycle(filter: PoolFilter, cycleId: string | null, packs: readonly PackInfo[]): PoolFilter {
@@ -474,3 +590,71 @@ export function repairedStoredDeck(deck: Deck, precon: Deck | null, id: string, 
 
 /** The aspects selectable in the picker, in a stable order. */
 export const SELECTABLE_ASPECTS: readonly CoreAspect[] = CHOOSABLE_ASPECTS;
+
+/**
+ * The deck-building rule settings (issue #531, Settings › Gameplay). The builder lets a player go past the deck rules
+ * by default (extra copies of a signature card, a fourth copy): `validateDeck` still says what is illegal. These make
+ * it refuse the step instead, for a player who wants the standard rules.
+ *
+ * `signature`: "free" lets the identity's own set be changed like any card; "standard" keeps each of its cards at its
+ * set count; "hidden" does that and also leaves the set out of the pool list (it stays in the deck).
+ */
+export interface DeckBuildingRules {
+  readonly signature: "free" | "standard" | "hidden";
+  /** Refuse an add that would break a copy limit (3 by title, a card's own "Max 1 per deck", a hero's own rule). */
+  readonly copyLimits: boolean;
+}
+
+export const FREE_DECK_BUILDING: DeckBuildingRules = { signature: "free", copyLimits: false };
+
+/**
+ * Why `rules` refuse adding (`+1`) or removing (`-1`) one copy of a card, or null when they allow it: a function built
+ * once per deck, since a draw asks it for every visible + and −. The identity set is read once; a copy-limit verdict
+ * runs `validateDeck` once per card asked about, then is kept.
+ */
+export function deckRuleRefusals(
+  deck: Deck,
+  identity: HeroIdentityCard,
+  pool: CardPool,
+  rules: DeckBuildingRules,
+): (cardId: CardId, step: 1 | -1) => string | null {
+  const setCounts =
+    rules.signature === "free"
+      ? new Map<CardId, number>()
+      : new Map(requiredIdentitySet(identity, pool).map((line) => [line.cardId, line.quantity]));
+  const held = (cardId: CardId): number => deck.cards.find((line) => line.cardId === cardId)?.quantity ?? 0;
+  const limitBroken = (validation: DeckValidation, cardId: CardId): readonly string[] =>
+    validation.ok
+      ? []
+      : validation.problems
+          .filter((p) => (p.code === "copy_limit" || p.code === "unique_match") && p.cardIds.includes(cardId))
+          .map((p) => p.message);
+  let before: DeckValidation | null = null;
+  const addRefusals = new Map<CardId, string | null>();
+  return (cardId, step) => {
+    const setCount = setCounts.get(cardId);
+    // A signature card may only move toward its set's count, so a deck changed under Free can still be put back.
+    if (setCount !== undefined && (step === 1 ? held(cardId) >= setCount : held(cardId) <= setCount))
+      return "Signature cards stay at their set's count (Settings › Gameplay › Signature cards).";
+    if (step === -1 || !rules.copyLimits) return null;
+    if (!addRefusals.has(cardId)) {
+      before ??= validateDeck(deck, pool);
+      const was = limitBroken(before, cardId);
+      const fresh = limitBroken(validateDeck(addCard(deck, cardId), pool), cardId).find((m) => !was.includes(m));
+      addRefusals.set(cardId, fresh ?? null);
+    }
+    return addRefusals.get(cardId) ?? null;
+  };
+}
+
+/** One step's refusal (`deckRuleRefusals` for a single question). */
+export function deckRuleRefusal(
+  deck: Deck,
+  identity: HeroIdentityCard,
+  pool: CardPool,
+  cardId: CardId,
+  step: 1 | -1,
+  rules: DeckBuildingRules,
+): string | null {
+  return deckRuleRefusals(deck, identity, pool, rules)(cardId, step);
+}

@@ -65,7 +65,9 @@
 
 import type { PerPlayerCost } from "../view/per-player-cost.js";
 import Phaser from "phaser";
-import { cardOf, type InstanceId } from "@mc/engine";
+import { cardOf, getInstance, type InstanceId } from "@mc/engine";
+import { cardPlaySectionOf, deckInsightsNow, type CardPlaySection } from "../progression/card-play.js";
+import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import type { AnyCard, CardId, ResourceIconType } from "@mc/content";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -106,7 +108,7 @@ import {
   type InspectPayment,
 } from "../view/inspect-model.js";
 import { tuckedSiblings, type CardLink } from "../view/inspect-notes.js";
-import { schemeSideToggle, type SchemeSideToggle } from "../view/scheme-side-toggle.js";
+import { cardSideToggle, printedIdentitySide, type CardSideToggle } from "../view/card-side-toggle.js";
 import { faceOf } from "../view/board-model.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { PressArm } from "../view/press-arm.js";
@@ -121,10 +123,13 @@ import { createHints } from "./campaign/pad-hints.js";
 import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
 import { glyphSetOf } from "../view/input-mode.js";
 import { glyphsForShortcut } from "../view/input-glyph-model.js";
-import { McGuideTag } from "../ui/guide-tag.js";
+import { GuideStampGlide } from "../ui/guide-glide-run.js";
 import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { tableGame } from "../view/table-game.js";
+
+/** One "Your play" line's height. */
+const YOUR_PLAY_LINE = 18;
 
 /** What the caller hands over when it launches this overlay. */
 export interface InspectData {
@@ -276,8 +281,11 @@ export class InspectOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   /** Phone only — "Full rules text" grows the sheet to the full viewport (P14's own instruction). Resets on step/reopen. */
   #expanded = false;
-  /** A main scheme shown on its other side (the "Show A side" / "Show B side" toggle, issue #295). Resets on step/reopen. */
-  #flipped = false;
+  /**
+   * Presses of the side toggle since the sheet opened: a main scheme's A/B sides (issue #295), an identity's Hero,
+   * Alter-Ego and extra forms (issue #532). Resets on step/reopen.
+   */
+  #sideStep = 0;
   /**
    * Phone only — the sheet's own scroll position (`ui/scroll-region.ts`'s convention: caller-owned, persisted
    * across rebuilds so an ordinary store-driven redraw doesn't snap the sheet back to the top). Reset on step/reopen,
@@ -313,6 +321,8 @@ export class InspectOverlay extends Phaser.Scene {
    * next) and a compact guide strip (`ui/guide-strip.ts`, reused from the villain-phase/defend-sheet overlays).
    */
   #guidePickInstanceId: InstanceId | null = null;
+  /** This opening's `TRY THIS` stamp, gliding in from the board's highlight (#552). */
+  #guideStamp = new GuideStampGlide();
   /** This rebuild's own Play/Play it button rect, once `#isGuidePick()` stamped it — headless click-through hook
    * only (`__mcInspectDebug`, below), the same "debug accessor only" role `scenes/board/guide-mount.ts#debugPanelRects`
    * plays. `null` on a rebuild with no stamp. */
@@ -322,7 +332,65 @@ export class InspectOverlay extends Phaser.Scene {
     super({ key: SCENES.inspect });
   }
 
+  /** "Your play" for this card (#529): what your finished games say about it, once the stats worker has answered. */
+  #yourPlay: CardPlaySection | null = null;
+
+  /** The card and hero "Your play" is about: a player card, with its owner's hero in a game. Null for anything else. */
+  #playSubject(): { readonly cardId: string; readonly identityCardId: string | null } | null {
+    if (this.#reference) return null;
+    if (this.#card) return { cardId: this.#card.cardId as string, identityCardId: null };
+    const game = tableGame(appSession().store.state.game);
+    if (!game || !this.#instanceId) return null;
+    const instance = getInstance(game, this.#instanceId);
+    if (!instance?.ownerId) return null;
+    const owner = game.players.find((player) => player.playerId === instance.ownerId);
+    return {
+      cardId: instance.cardId as string,
+      identityCardId: (owner?.identity.cardId as string | undefined) ?? null,
+    };
+  }
+
+  /** Reads "Your play" for the card now shown, and draws it in when it arrives (the sheet may have moved on). */
+  #loadYourPlay(): void {
+    this.#yourPlay = null;
+    const subject = this.#playSubject();
+    if (!subject) return;
+    void deckInsightsNow(() => appSession().store.listSaves()).then(
+      (insights) => {
+        const now = this.#playSubject();
+        if (!this.sys.isActive() || now?.cardId !== subject.cardId) return;
+        this.#yourPlay = cardPlaySectionOf(insights, subject.cardId, subject.identityCardId, POOL_STATS_NAMES);
+        if (this.#yourPlay) this.#rebuild();
+      },
+      () => undefined,
+    );
+  }
+
+  /** The "Your play" section's height in the rules panel. */
+  #yourPlayHeight(): number {
+    return this.#yourPlay ? 16 + this.#yourPlay.lines.length * YOUR_PLAY_LINE : 0;
+  }
+
+  /** Draws "Your play" at `y` in `color`, label left and value right; returns where it ends. */
+  #drawYourPlay(x: number, y: number, width: number, color: number, labelAlpha: number): number {
+    const play = this.#yourPlay;
+    if (!play) return y;
+    label(this, x, y, play.title, typeRole.label, color, labelAlpha);
+    let ty = y + 16;
+    for (const line of play.lines) {
+      const name = this.add.text(x, ty, line.label, textStyle(typeRole.body, color, 0.85)).setFontSize(12);
+      const value = this.add
+        .text(x + width, ty, line.value, textStyle(typeRole.rowTitle, color, 1))
+        .setOrigin(1, 0)
+        .setFontSize(12);
+      fitText(value, Math.max(40, width - name.width - 10), 12);
+      ty += YOUR_PLAY_LINE;
+    }
+    return ty;
+  }
+
   create(data: InspectData): void {
+    this.#guideStamp = new GuideStampGlide();
     this.#instanceId = data.instanceId ?? null;
     // Opened on a card with cards under it (or on one of those): ◂ ▸ step through the host and what is tucked under it.
     const game = tableGame(appSession().store.state.game);
@@ -334,7 +402,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.#reference = data.reference;
     this.#note = data.note;
     this.#expanded = false;
-    this.#flipped = false;
+    this.#sideStep = 0;
     this.#sheetScroll = new VariableListScroll();
     this.#motion = new OverlayMotion();
     this.#hints = createHints(this);
@@ -402,9 +470,11 @@ export class InspectOverlay extends Phaser.Scene {
       (window as unknown as { __mcInspectDebug?: unknown }).__mcInspectDebug = {
         playRect: () => this.#lastPlayRect,
         guidePickInstanceId: () => this.#guidePickInstanceId,
+        guideStampRect: () => this.#guideStamp.shownRect(this),
       };
     }
 
+    this.#loadYourPlay();
     this.#rebuild();
   }
 
@@ -421,7 +491,8 @@ export class InspectOverlay extends Phaser.Scene {
   /**
    * ◂ ▸ (and Tab) step through the list the sheet was opened from, Enter or
    * Space presses the primary button — Select, the first ability, or Play it —
-   * and Escape closes. `inspect` means nothing here: this already is Inspect.
+   * and Escape closes. `inspect` steps the side toggle (a scheme's A/B sides, an identity's forms) when the sheet has
+   * one, and means nothing otherwise: this already is Inspect.
    */
   #onIntent(intent: GamepadIntent): void {
     // The overlay is on its way out — a second Escape, or a stray Enter during the fade, does nothing.
@@ -439,6 +510,9 @@ export class InspectOverlay extends Phaser.Scene {
         break;
       case "cancel":
         this.#close();
+        break;
+      case "inspect":
+        if (this.#sideToggle()) this.#stepSide();
         break;
       default:
         break;
@@ -466,8 +540,9 @@ export class InspectOverlay extends Phaser.Scene {
     if (!this.#siblings.includes(id) && game) this.#siblings = [...tuckedSiblings(game, id)];
     this.#instanceId = id;
     this.#expanded = false;
-    this.#flipped = false;
+    this.#sideStep = 0;
     this.#sheetScroll = new VariableListScroll();
+    this.#loadYourPlay();
     this.#rebuild();
   }
 
@@ -480,8 +555,9 @@ export class InspectOverlay extends Phaser.Scene {
     if (next) {
       this.#instanceId = next;
       this.#expanded = false;
-      this.#flipped = false;
+      this.#sideStep = 0;
       this.#sheetScroll = new VariableListScroll();
+      this.#loadYourPlay();
       this.#rebuild();
     }
   }
@@ -498,6 +574,10 @@ export class InspectOverlay extends Phaser.Scene {
     if (this.#guidePickInstanceId === instanceId) return;
     this.#guidePickInstanceId = instanceId;
     if (this.scene.isActive(SCENES.inspect)) this.#rebuild();
+  }
+
+  #drawGuideStamp(playRect: Rect): void {
+    this.#guideStamp.draw(this, "tryThis", playRect, this.#boardScene()?.guideHighlightRect() ?? null);
   }
 
   /** True while this sheet's own subject is the card the guide wants a `TRY THIS` stamp/strip on. */
@@ -660,38 +740,37 @@ export class InspectOverlay extends Phaser.Scene {
           ),
         }
       : null;
-    return inspectModel(
-      tableGame(state.game)!,
-      this.#instanceId,
-      state.legal?.actions ?? null,
-      state.perspectiveId,
-      POOL_DEPS,
-      {
-        history: board?.cardHistory() ?? emptyCardHistoryLog(),
-        payment,
-        ...(this.#flipped ? this.#flippedFace() : {}),
-      },
-    );
+    const game = tableGame(state.game)!;
+    // An identity stepped to a side it is not on reads that side as printed (issue #532): the live sheet's stats,
+    // traits and "Use" buttons are the side in play's, and would read as the other side's.
+    const card = cardOf(game, this.#instanceId);
+    const printedSide = printedIdentitySide(card, faceOf(game, this.#instanceId), this.#sideStep);
+    if (printedSide) return cardInspectModel(card, printedSide);
+    return inspectModel(game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS, {
+      history: board?.cardHistory() ?? emptyCardHistoryLog(),
+      payment,
+      ...(this.#sideStep > 0 ? this.#steppedFace() : {}),
+    });
   }
 
-  /** The "Show A side" / "Show B side" toggle for this sheet's subject, or null when it is not a main scheme stage. */
-  #sideToggle(): SchemeSideToggle | null {
+  /** The side toggle for this sheet's subject (a main scheme stage, a hero identity), or null when it has none. */
+  #sideToggle(): CardSideToggle | null {
     if (this.#reference) return null;
     if (this.#card)
-      return schemeSideToggle(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face, this.#flipped);
+      return cardSideToggle(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face, this.#sideStep);
     const game = tableGame(appSession().store.state.game);
     if (!game || !this.#instanceId) return null;
-    return schemeSideToggle(cardOf(game, this.#instanceId), faceOf(game, this.#instanceId), this.#flipped);
+    return cardSideToggle(cardOf(game, this.#instanceId), faceOf(game, this.#instanceId), this.#sideStep);
   }
 
-  /** The face an in-game scheme shows once flipped, as `inspectModel`'s `face` option; nothing without a toggle. */
-  #flippedFace(): { readonly face?: CardFace } {
+  /** The face an in-game card shows once its side is stepped, as `inspectModel`'s `face` option; nothing without a toggle. */
+  #steppedFace(): { readonly face?: CardFace } {
     const toggle = this.#sideToggle();
     return toggle ? { face: toggle.face } : {};
   }
 
-  #flipSide(): void {
-    this.#flipped = !this.#flipped;
+  #stepSide(): void {
+    this.#sideStep += 1;
     this.#rebuild();
   }
 
@@ -1046,6 +1125,7 @@ export class InspectOverlay extends Phaser.Scene {
             28,
       );
     if (model.traits.length > 0) heights.push(16 + estimateChipRows(model.traits, inner) * 28);
+    if (this.#yourPlay) heights.push(this.#yourPlayHeight());
     return heights;
   }
 
@@ -1258,18 +1338,19 @@ export class InspectOverlay extends Phaser.Scene {
         })
         .setWordWrapWidth(inner);
 
-    // A main scheme's other side (issue #295): a secondary button, never the Enter default (`#primaryAction` below).
+    // A main scheme's other side (issue #295), an identity's other sides (issue #532): a secondary button, never the
+    // Enter default (`#primaryAction` below). A pad steps it with the Inspect button, whose glyph it wears.
     const sideToggle = this.#sideToggle();
     if (sideToggle) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: sideToggle.label,
-          type: typeRole.label,
-          rect: { x: rect.x + pad, y, width: inner, height: hit.target },
-          onClick: () => this.#flipSide(),
-        }),
-      );
+      const sideButton = new McButton(this, {
+        kind: "onInk",
+        label: sideToggle.label,
+        type: typeRole.label,
+        rect: { x: rect.x + pad, y, width: inner, height: hit.target },
+        onClick: () => this.#stepSide(),
+      });
+      this.#buttons.push(sideButton);
+      this.#hints.button(sideButton, ["inspect"], "ink", { when: (set) => set === "pad" });
       y += hit.target + RULES_SECTION_GAP;
     }
 
@@ -1379,6 +1460,11 @@ export class InspectOverlay extends Phaser.Scene {
           "traits",
           model.traits.map((trait) => ({ text: trait, glossaryId: null })),
         ) + RULES_SECTION_GAP;
+    }
+
+    // "Your play" (#529): this card in your finished games, when there is room above the history.
+    if (this.#yourPlay && y + this.#yourPlayHeight() <= buttonsTop - RULES_SECTION_GAP) {
+      y = this.#drawYourPlay(rect.x + pad, y, inner, surface.paper.hex, ink.meta) + RULES_SECTION_GAP;
     }
 
     if (model.history.length > 0) {
@@ -1514,7 +1600,7 @@ export class InspectOverlay extends Phaser.Scene {
       );
       // Guided mode G7b — same stamp as the phone sheet's own Play button (`#drawSheetFooter`'s own comment).
       if (this.#isGuidePick()) {
-        new McGuideTag(this, "tryThis").update(playRect);
+        this.#drawGuideStamp(playRect);
         this.#lastPlayRect = playRect;
       }
       x += width + gap;
@@ -1666,7 +1752,7 @@ export class InspectOverlay extends Phaser.Scene {
     const box = this.add.graphics();
     const heading = this.add.text(x + pad, y + pad, caseOf(typeRole.label, notice.heading), {
       ...textStyle(typeRole.label, signal.caution.hex),
-      color: cssOf(surface.ink.hex),
+      color: cssOf(surface.inkOnHue.hex),
       fontSize: "14px",
       fontStyle: "700",
     });
@@ -1674,7 +1760,7 @@ export class InspectOverlay extends Phaser.Scene {
     const body = this.add
       .text(x + pad, ty, notice.text, {
         ...textStyle(typeRole.body, signal.caution.hex),
-        color: cssOf(surface.ink.hex),
+        color: cssOf(surface.inkOnHue.hex),
       })
       .setFontSize(13)
       .setLineSpacing(4)
@@ -1683,14 +1769,14 @@ export class InspectOverlay extends Phaser.Scene {
     const link = this.add
       .text(x + pad, ty + 4, `${notice.linkLabel} →`, {
         ...textStyle(typeRole.body, signal.caution.hex),
-        color: cssOf(surface.ink.hex),
+        color: cssOf(surface.inkOnHue.hex),
         fontStyle: "700",
       })
       .setFontSize(12)
       .setWordWrapWidth(textWidth);
     const linkHeight = link.height + 8;
     const underline = this.add.graphics();
-    underline.lineStyle(1, surface.ink.hex, 1);
+    underline.lineStyle(1, surface.inkOnHue.hex, 1);
     underline.lineBetween(
       x + pad,
       ty + 4 + link.height + 1,
@@ -1700,7 +1786,7 @@ export class InspectOverlay extends Phaser.Scene {
     ty += linkHeight;
     const height = ty + pad - y;
     box.fillStyle(signal.caution.hex, 1).fillRect(x, y, width, height);
-    box.lineStyle(border.object, surface.ink.hex, 1).strokeRect(x, y, width, height);
+    box.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRect(x, y, width, height);
     for (const part of [heading, body, link, underline]) this.children.bringToTop(part);
 
     // The tap target is the full hit height, centred on the link and spilling into the box's padding, so the box
@@ -1940,6 +2026,10 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (model.keywordDefinitions.length > 0) {
       y = this.#drawSheetKeywords(rect.x + pad, y, rect.width - pad * 2, model) + SHEET_ROW_GAP;
+    }
+
+    if (this.#yourPlay) {
+      y = this.#drawYourPlay(rect.x + pad, y, rect.width - pad * 2, surface.ink.hex, ink.meta) + SHEET_ROW_GAP;
     }
 
     if (model.history.length > 0) {
@@ -2190,7 +2280,7 @@ export class InspectOverlay extends Phaser.Scene {
         // `#guidePickInstanceId` stamp — see `#guidePickInstanceId`'s own doc comment for why this scene draws
         // its own tag rather than relying on Board's (a later-launched scene renders above it).
         if (canPlay && this.#isGuidePick()) {
-          new McGuideTag(this, "tryThis").update(playRect);
+          this.#drawGuideStamp(playRect);
           this.#lastPlayRect = playRect;
         }
         x += playWidth + gap;
@@ -2225,21 +2315,21 @@ export class InspectOverlay extends Phaser.Scene {
       );
       return;
     }
-    // A main scheme's other side (issue #295) takes a third of the quiet row; it is never the primary action.
+    // The side toggle (issues #295, #532) takes a third of the quiet row; it is never the primary action.
     const sideToggle = this.#sideToggle();
     const quietCount = sideToggle ? 3 : 2;
     const quietWidth = (quietRow.width - 6 * (quietCount - 1)) / quietCount;
     if (sideToggle) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: sideToggle.label,
-          type: typeRole.label,
-          rect: { x: quietRow.x + quietWidth * 2 + 12, y: quietRow.y, width: quietWidth, height: quietRow.height },
-          onClick: () => this.#flipSide(),
-          wrap: true,
-        }),
-      );
+      const sideButton = new McButton(this, {
+        kind: "onInk",
+        label: sideToggle.label,
+        type: typeRole.label,
+        rect: { x: quietRow.x + quietWidth * 2 + 12, y: quietRow.y, width: quietWidth, height: quietRow.height },
+        onClick: () => this.#stepSide(),
+        wrap: true,
+      });
+      this.#buttons.push(sideButton);
+      this.#hints.button(sideButton, ["inspect"], "ink", { when: (set) => set === "pad" });
     }
     this.#buttons.push(
       new McButton(this, {

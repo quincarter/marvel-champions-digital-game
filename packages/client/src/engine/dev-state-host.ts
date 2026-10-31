@@ -45,7 +45,7 @@ export class DevStateHost implements EngineHost {
   async start(config: SessionConfig): Promise<EngineUpdate> {
     this.#session = startSession(this.#initial);
     this.#version = 0;
-    this.#record = recordEvents(emptyRecord(), [], this.#initial);
+    this.#record = recordEvents(emptyRecord(), [], this.#initial, this.#deps);
     return this.#publish([], config);
   }
 
@@ -59,7 +59,7 @@ export class DevStateHost implements EngineHost {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
-    this.#record = recordEvents(this.#record, result.events, result.session.state);
+    this.#record = recordEvents(this.#record, result.events, result.session.state, this.#deps);
     return { ok: true, update: this.#publish(result.events, null) };
   }
 
@@ -101,6 +101,10 @@ export class DevStateHost implements EngineHost {
 
   async listSaves(): Promise<readonly SaveMeta[]> {
     return [];
+  }
+
+  async backfillSummaries(): Promise<number> {
+    return 0;
   }
 
   dispose(): void {

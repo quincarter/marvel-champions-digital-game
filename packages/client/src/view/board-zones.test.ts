@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { InstanceId } from "@mc/engine";
+import type { BoardModel } from "./board-model.js";
 import type { FocusTarget } from "./focus.js";
 import {
   rowScrollOf,
   scrollTargetOf,
   tabOfStop,
+  tableCardsOf,
   zoneJump,
   zoneOfTarget,
   type ZoneMembers,
@@ -43,6 +45,10 @@ describe("zoneOfTarget", () => {
 
   it("reads the discard pile on the hand row as the hand's", () => {
     expect(zoneOfTarget({ kind: "discard" }, members)).toBe("hand");
+  });
+
+  it("reads the victory display's pile in the encounter column as the villain's", () => {
+    expect(zoneOfTarget({ kind: "victoryDisplay" }, members)).toBe("villain");
   });
 
   it("puts the bar's controls and a decision's controls with the action bar", () => {
@@ -120,6 +126,17 @@ describe("scrollTargetOf", () => {
     expect(scrollTargetOf(false, basic("attack"), members, both)).toBe("table");
     expect(scrollTargetOf(false, null, members, both)).toBe("table");
   });
+
+  it("scrolls a full play area row on a sideways push the focused region cannot take", () => {
+    expect(scrollTargetOf(false, card("rhino"), members, both, true)).toBe("playArea");
+    expect(scrollTargetOf(false, basic("attack"), members, both, true)).toBe("playArea");
+    expect(scrollTargetOf(false, null, members, both, true)).toBe("playArea");
+    expect(scrollTargetOf(false, card("h1"), members, { hand: false, playArea: true }, true)).toBe("playArea");
+    // The hand row and the log keep the stick while they hold focus, and a row that fits leaves it to the table.
+    expect(scrollTargetOf(false, card("h1"), members, both, true)).toBe("hand");
+    expect(scrollTargetOf(true, card("rhino"), members, both, true)).toBe("log");
+    expect(scrollTargetOf(false, card("rhino"), members, { hand: true, playArea: false }, true)).toBe("table");
+  });
 });
 
 describe("rowScrollOf", () => {
@@ -127,5 +144,38 @@ describe("rowScrollOf", () => {
     expect(rowScrollOf(5, 2)).toBe(5);
     expect(rowScrollOf(-1, 4)).toBe(4);
     expect(rowScrollOf(0, 0)).toBe(0);
+  });
+});
+
+describe("tableCardsOf", () => {
+  const chip = (value: string) => ({ instanceId: id(value) });
+  const host = (value: string, attached: readonly string[] = []) => ({
+    instanceId: id(value),
+    attachments: attached.map(chip),
+  });
+  const model = {
+    me: host("me", ["armor"]),
+    myPlayArea: [host("ally", ["webs"])],
+    villains: [{ panel: host("rhino", ["tough"]) }],
+    minions: [host("goon", ["gun"])],
+    environments: [host("env")],
+    mainScheme: host("main", ["focused"]),
+    extraMainSchemes: [],
+    sideSchemes: [host("side")],
+    scenarioPlayAreas: [
+      { neutral: true, cards: [{ instanceId: id("pod"), panel: host("pod") }] },
+      { neutral: false, cards: [{ instanceId: id("area"), panel: host("area") }] },
+    ],
+    team: [{ identityInstanceId: id("mate") }],
+  } as unknown as BoardModel;
+
+  it("lists every card on the table, each host followed by what is attached to it", () => {
+    const table = tableCardsOf(model);
+    expect(table.playArea).toEqual([id("me"), id("armor"), id("ally"), id("webs")]);
+    expect(table.villain).toEqual(
+      ["rhino", "tough", "goon", "gun", "env", "main", "focused", "side", "pod", "area"].map(id),
+    );
+    expect(table.threat).toEqual(["main", "focused", "side", "pod"].map(id));
+    expect(table.team).toEqual([id("mate")]);
   });
 });

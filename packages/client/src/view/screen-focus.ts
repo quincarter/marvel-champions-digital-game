@@ -121,11 +121,26 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     ? []
     : input.community
       ? [...(input.wide ? [] : ["stats-preview"]), "stats-copy-link", "stats-open-link", "stats-check", "stats-add"]
-      : ["stats-check", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-duplicate", "stats-play"];
-  if (input.wide) return ["back", ...listGroup, ...poolGroup, ...statsGroup];
+      : [
+          // A pool card shown in the pane: its way back and Inspect (the route drops them while the deck shows).
+          "card-back",
+          "card-inspect",
+          // The pane's two tabs, then the tab showing: the deck's own actions, or From your games' one button (the
+          // route drops whichever is not drawn).
+          "pane:deck",
+          "pane:games",
+          "stats-check",
+          ...(input.editable ? ["stats-edit", "stats-delete"] : []),
+          "games-against",
+          "games-open",
+          "stats-duplicate",
+          "stats-play",
+        ];
+  // "Your stats" sits on the header bar beside Back.
+  if (input.wide) return ["back", "player-stats", ...listGroup, ...poolGroup, ...statsGroup];
   const tabs = ["tab:decks", "tab:cards", "tab:stats"];
   const activeGroup = input.activeTab === "decks" ? listGroup : input.activeTab === "cards" ? poolGroup : statsGroup;
-  return ["back", ...tabs, ...activeGroup];
+  return ["back", "player-stats", ...tabs, ...activeGroup];
 }
 
 export interface DeckBuilderFocusInput {
@@ -135,6 +150,10 @@ export interface DeckBuilderFocusInput {
   readonly aspectIds: readonly string[];
   /** W1's type filter chips ("All, Ally, Event, Upgrade, Support, Resource"), by `PoolFilter.type` value (`"all"` for the null/no-filter case). */
   readonly typeFilterIds: readonly string[];
+  /** The deck builder's quick cost/icon chip ids (`quick:<id>`); present, the trait stepper follows them. */
+  readonly quickFilterIds?: readonly string[];
+  /** The Cost curve / Odds tabs and the odds' steppers (`chart:*`, `odds:*`), in the order drawn, after the sort. */
+  readonly chartIds?: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
   /**
@@ -147,6 +166,8 @@ export interface DeckBuilderFocusInput {
   readonly showPreconClear?: boolean;
   /** Campaign deck-edit mode's rewards strip: one stop per reward's in/out toggle, by the id the scene registers it under. */
   readonly rewardIds?: readonly string[];
+  /** The deck rail's Your deck / From your games tabs and the From your games rows' Cut and Add, in the order drawn. */
+  readonly railIds?: readonly string[];
   /** Before an identity is chosen: stops drawn ahead of the hero rows (the hero search, a "Start from" step's choices). */
   readonly identityExtraIds?: readonly string[];
   /** A deck already saved can be deleted from the builder: its Delete button follows Clear. */
@@ -171,16 +192,22 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
     ...input.typeFilterIds.map((id) => `type:${id}`),
-    // The pack stepper (both arrows and its name), the wave button and the sort button, in the order they are drawn.
+    // The quick cost and icon chips, then the trait stepper (issue #531).
+    ...(input.quickFilterIds ?? []).map((id) => `quick:${id}`),
+    ...(input.quickFilterIds ? ["trait:prev", "trait:name", "trait:next"] : []),
+    // The pack stepper (both arrows and its name), the wave button and the two sort buttons, in the order they are drawn.
     "pack:prev",
     "pack:name",
     "pack:next",
     "pack:cycle",
     "pack:sort",
+    "pack:then",
+    ...(input.chartIds ?? []),
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     ...(input.showDelete ? ["delete"] : []),
     ...(input.rewardIds ?? []).map((id) => `reward:${id}`),
+    ...(input.railIds ?? []),
     "save",
     "filter-text",
     ...(input.filterExtraIds ?? []),
@@ -347,6 +374,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "full-game-log",
       "rules-reference",
       "settings",
+      "stats",
       "save-quit",
       "music",
       "report",
@@ -359,6 +387,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
   return [
     "close",
     "search",
+    "quick-toggle",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
     ...(input.momentIds ?? []).map((id) => `moment:${id}`),
     ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
@@ -433,6 +462,7 @@ export function titleMenuFocusOrder(input: {
     ...(input.civilWar ? ["civil-war"] : []),
     "extras",
     "trophies",
+    "stats",
     "how-to-play",
     "settings",
     ...(input.quit ? ["quit"] : []),

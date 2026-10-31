@@ -1,0 +1,340 @@
+{
+  "$comment": "Media bundles on the content repo's releases (issue #495). pnpm assets:fetch installs them; pnpm assets:pack <bundle> uploads a changed one and rewrites its tag, file, size and sha256. Card-art prefixes are the pack numbers that start a card code. CONTRIBUTING.md#media-assets.",
+  "repo": "quincarter/marvel-champions-content",
+  "bundles": [
+    {
+      "name": "card-art-core",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["01"],
+      "tag": "card-art-core-7c7ca580ae2b",
+      "file": "card-art-core.zip",
+      "size": 15779450,
+      "sha256": "7c7ca580ae2b906df2b35eaa989291d07eb862b9a37fbef32919a176b56bb6c0",
+      "files": 210
+    },
+    {
+      "name": "card-art-wave1",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["02", "03", "05", "06", "07", "08", "09", "10"],
+      "tag": "card-art-wave1-82a6cb488e0e",
+      "file": "card-art-wave1.zip",
+      "size": 20922344,
+      "sha256": "82a6cb488e0e4e22bad86875da7bfe0dcb50927eff97d9117c9c8dfc8ed560bc",
+      "files": 303
+    },
+    {
+      "name": "card-art-trors",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["04", "11", "12", "13", "14", "15"],
+      "tag": "card-art-trors-1a3a15eef293",
+      "file": "card-art-trors.zip",
+      "size": 26474378,
+      "sha256": "1a3a15eef2938f848bfcc62f52824b4c68f30f258aa8ca6ce7357d049cdf96d2",
+      "files": 361
+    },
+    {
+      "name": "card-art-gmw",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["16", "17", "18", "19", "20"],
+      "tag": "card-art-gmw-b65fb612272b",
+      "file": "card-art-gmw.zip",
+      "size": 18529698,
+      "sha256": "b65fb612272bff4b26fa9a35406e8f5f567d653ee0b9368495bf039f79e2d38c",
+      "files": 302
+    },
+    {
+      "name": "card-art-mts",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["21", "22", "23", "24", "25", "26"],
+      "tag": "card-art-mts-2e9d40442ac4",
+      "file": "card-art-mts.zip",
+      "size": 26343802,
+      "sha256": "2e9d40442ac40dab7f19395132d52467351836a36087a23406d6958b88ceb1fe",
+      "files": 397
+    },
+    {
+      "name": "card-art-sm",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["27", "28", "29", "30", "31"],
+      "tag": "card-art-sm-2f36a121c951",
+      "file": "card-art-sm.zip",
+      "size": 24499988,
+      "sha256": "2f36a121c9513097ea640ae9f49666497b92f4a0e1bf88efc4c1eb60f6343e0b",
+      "files": 358
+    },
+    {
+      "name": "card-art-mutgen",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["32", "33", "34", "35", "36", "37", "38", "39"],
+      "tag": "card-art-mutgen-580c3afc0e5c",
+      "file": "card-art-mutgen.zip",
+      "size": 37461722,
+      "sha256": "580c3afc0e5ce28f01f8f0b42c07d93d32946879b893da842f417aed541b1f88",
+      "files": 520
+    },
+    {
+      "name": "card-art-next",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["40", "41", "42", "43", "44"],
+      "tag": "card-art-next-87a0e14753b1",
+      "file": "card-art-next.zip",
+      "size": 26772420,
+      "sha256": "87a0e14753b1599602b1aa475c562ecc8029debe7cdde92dab4f2a20d3f9bf8e",
+      "files": 409
+    },
+    {
+      "name": "card-art-aoa",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["45", "46", "47", "48", "49"],
+      "tag": "card-art-aoa-5315143546d5",
+      "file": "card-art-aoa.zip",
+      "size": 55522112,
+      "sha256": "5315143546d55071c99df0078af43e7b641b7d22e6293fa46c66a32a317b8408",
+      "files": 664
+    },
+    {
+      "name": "card-art-aos",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["50", "51", "52", "53", "54", "55"],
+      "tag": "card-art-aos-3caf868996dc",
+      "file": "card-art-aos.zip",
+      "size": 65100296,
+      "sha256": "3caf868996dce448b7ac7d986a6cd218f48ecb3cb3ef0278913312d9da0cf87d",
+      "files": 783
+    },
+    {
+      "name": "card-art-civil-war",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["56", "57", "58", "59"],
+      "tag": "card-art-civil-war-76d3ac60fb00",
+      "file": "card-art-civil-war.zip",
+      "size": 53528192,
+      "sha256": "76d3ac60fb00c84fb427305781786f5c6de70dd1fcd46707cb87c6708a6ce1c5",
+      "files": 698
+    },
+    {
+      "name": "card-art-fne",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["60", "61", "62", "63", "64", "65"],
+      "tag": "card-art-fne-19c7442939c7",
+      "file": "card-art-fne.zip",
+      "size": 35310092,
+      "sha256": "19c7442939c76477e96a927f117dd125e099dacb081346fb7ae4a7fd6fa52f85",
+      "files": 466
+    },
+    {
+      "name": "card-art-promo",
+      "group": "card-art",
+      "dir": "assets/card-art/bundles/cards",
+      "prefixes": ["90"],
+      "tag": "card-art-promo-8c5c6633d52a",
+      "file": "card-art-promo.zip",
+      "size": 103924,
+      "sha256": "8c5c6633d52aa98f7521f611d2bb216f1e24eb607889b0fe5c3af9dfaf063178",
+      "files": 5
+    },
+    {
+      "name": "card-art-es",
+      "group": "card-art-es",
+      "dir": "assets/card-art-locales/es/bundles/cards",
+      "tag": "card-art-es-7c4c76d4af4d",
+      "file": "card-art-es.zip",
+      "size": 450617184,
+      "sha256": "7c4c76d4af4d179ca3e70b893124d9af2f19ad7ed2149e66660fba017225be8a",
+      "files": 5100
+    },
+    {
+      "name": "music-soundtrack",
+      "group": "music",
+      "dir": "music/soundtrack",
+      "tag": "music-soundtrack-c8e88b0b9709",
+      "file": "music-soundtrack.zip",
+      "size": 590695518,
+      "sha256": "c8e88b0b970950e3be80845638745e63ae409cfa0830a468bb9679073009c0b5",
+      "files": 183
+    },
+    {
+      "name": "music-scenarios",
+      "group": "music",
+      "dir": "music/scenarios",
+      "tag": "music-scenarios-fe741c7fff3a",
+      "file": "music-scenarios.zip",
+      "size": 504260565,
+      "sha256": "fe741c7fff3a169aa48c9d353372f9a487d85660450896c63feb079714d8e22d",
+      "files": 160
+    },
+    {
+      "name": "music-campaigns",
+      "group": "music",
+      "dir": "music/campaigns",
+      "tag": "music-campaigns-5437a41ffde8",
+      "file": "music-campaigns.zip",
+      "size": 66791063,
+      "sha256": "5437a41ffde8e5e6c8dc43442c84c2a49e215ae4bafb65c0d18459b935082ad9",
+      "files": 18
+    },
+    {
+      "name": "music-gameplay",
+      "group": "music",
+      "dir": "music/gameplay",
+      "tag": "music-gameplay-92233dd104f3",
+      "file": "music-gameplay.zip",
+      "size": 4257487,
+      "sha256": "92233dd104f352a58dbbda927f9aa1072771b410cf61ae7602859f40c9bf1cd6",
+      "files": 1
+    },
+    {
+      "name": "music-title",
+      "group": "music",
+      "dir": "music/title",
+      "tag": "music-title-b49fc2987240",
+      "file": "music-title.zip",
+      "size": 3864383,
+      "sha256": "b49fc2987240d034ab2894020d048efbf967f1e409f5579e0f29f63ea50fa35c",
+      "files": 1
+    },
+    {
+      "name": "music-outcomes",
+      "group": "music",
+      "dir": "music/outcomes",
+      "tag": "music-outcomes-29c355324ef8",
+      "file": "music-outcomes.zip",
+      "size": 7267930,
+      "sha256": "29c355324ef83f5984764630b33cf98c8afb822c497fa5594322fe9339d72a75",
+      "files": 2
+    },
+    {
+      "name": "music-packs",
+      "group": "music",
+      "dir": "music/packs",
+      "tag": "music-packs-5d7eeed0fe08",
+      "file": "music-packs.zip",
+      "size": 8595822,
+      "sha256": "5d7eeed0fe08508b3ed1ddbf7d6311e96076de143628b7428cd65ab4421b5ab6",
+      "files": 2
+    },
+    {
+      "name": "art-campaigns",
+      "group": "art",
+      "dir": "art/campaigns",
+      "tag": "art-campaigns-9bb2f748b64c",
+      "file": "art-campaigns.zip",
+      "size": 145339818,
+      "sha256": "9bb2f748b64c22d805f9fc1465c2b045ccef8ee0035521c97f7789795cb56a90",
+      "files": 238
+    },
+    {
+      "name": "art-extras",
+      "group": "art",
+      "dir": "art/extras",
+      "tag": "art-extras-69c2323c7139",
+      "file": "art-extras.zip",
+      "size": 3017221,
+      "sha256": "69c2323c7139d115289478672109ec4fe7c2bc80dabdbbf9e438acc93115c284",
+      "files": 2
+    },
+    {
+      "name": "art-heroes",
+      "group": "art",
+      "dir": "art/heroes",
+      "tag": "art-heroes-487834176cd9",
+      "file": "art-heroes.zip",
+      "size": 22276114,
+      "sha256": "487834176cd93a1df7a791221e9eeb25112e21558d697269271bd0fbd09ebcd3",
+      "files": 69
+    },
+    {
+      "name": "art-outcomes",
+      "group": "art",
+      "dir": "art/outcomes",
+      "tag": "art-outcomes-f7262297e17b",
+      "file": "art-outcomes.zip",
+      "size": 145313,
+      "sha256": "f7262297e17b3ba14efb4380f5aff796467711f187caa4ce4c2b5f252783038d",
+      "files": 1
+    },
+    {
+      "name": "art-packs",
+      "group": "art",
+      "dir": "art/packs",
+      "tag": "art-packs-b36304af6faa",
+      "file": "art-packs.zip",
+      "size": 1805615,
+      "sha256": "b36304af6faa8fafb6a6dcd58721e4c68d327242445a4e87290df9bb470f457f",
+      "files": 3
+    },
+    {
+      "name": "art-scenarios",
+      "group": "art",
+      "dir": "art/scenarios",
+      "tag": "art-scenarios-9dbbd4bb5109",
+      "file": "art-scenarios.zip",
+      "size": 35237987,
+      "sha256": "9dbbd4bb510999a30c0aceeb7c9dcd2337ddd47d33650b75d86786ad9e2eda0c",
+      "files": 93
+    },
+    {
+      "name": "art-side-stories",
+      "group": "art",
+      "dir": "art/side-stories",
+      "tag": "art-side-stories-2f8aec7c556c",
+      "file": "art-side-stories.zip",
+      "size": 5295188,
+      "sha256": "2f8aec7c556c566d1477142d520ec651c9aec625dd69dc78d9dc7a71baab3fe4",
+      "files": 4
+    },
+    {
+      "name": "art-teamups",
+      "group": "art",
+      "dir": "art/teamups",
+      "tag": "art-teamups-de652db2ada6",
+      "file": "art-teamups.zip",
+      "size": 9968292,
+      "sha256": "de652db2ada6b8b3e60e9d6a87a60ec7c412e0eef7d4250c59e48822494f1b58",
+      "files": 40
+    },
+    {
+      "name": "art-title",
+      "group": "art",
+      "dir": "art/title",
+      "tag": "art-title-bb131ca7b3e6",
+      "file": "art-title.zip",
+      "size": 8471568,
+      "sha256": "bb131ca7b3e6557bf6b63dda38304d57d6640f5dd66e15665a5805aa67168e19",
+      "files": 12
+    },
+    {
+      "name": "art-villains",
+      "group": "art",
+      "dir": "art/villains",
+      "tag": "art-villains-08d0d8fd26c6",
+      "file": "art-villains.zip",
+      "size": 2081069,
+      "sha256": "08d0d8fd26c6e8942e090ab1dafbf2156e89b96119320461bcc0d9d94b46e73d",
+      "files": 6
+    },
+    {
+      "name": "artifacts",
+      "group": "artifacts",
+      "kind": "archive",
+      "dir": "artifacts",
+      "tag": "artifacts-90004aa2c3b2",
+      "file": "artifacts.zip",
+      "size": 828840883,
+      "sha256": "90004aa2c3b2d4bb4dd0796e0e61963840de5209444d75ee11c00e0d2abcee45",
+      "files": 1669
+    }
+  ]
+}

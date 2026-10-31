@@ -121,6 +121,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Card art in the build language (English too, its fallback), music and art: on the content repo's
+      # releases, not in git (#495).
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art${{ inputs.lang == 'es' && ' card-art-es' || '' }}
+
       # Signs and notarizes the macOS bundle once the Apple secrets exist (see
       # README, "macOS signing"). Only the secrets that are set are exported:
       # Tauri treats an empty APPLE_CERTIFICATE or APPLE_ID as present and

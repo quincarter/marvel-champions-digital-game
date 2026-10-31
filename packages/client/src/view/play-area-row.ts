@@ -79,6 +79,12 @@ export class PlayAreaScroll {
     return this.#order.includes(id);
   }
 
+  /** The card beside `id` in the row (`step` -1 is left, 1 right), scrolled into view or not; null at either end. */
+  neighbor(id: InstanceId, step: 1 | -1): InstanceId | null {
+    const at = this.#order.indexOf(id);
+    return at < 0 ? null : (this.#order[at + step] ?? null);
+  }
+
   /**
    * Scrolls the row, outside a draw, just far enough that card `id` sits wholly in view (the pad's RT layer showing
    * its glyphs on a card the row had scrolled off). False when the card is not in the row.

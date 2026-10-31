@@ -1567,6 +1567,19 @@ export type Predicate =
       readonly terms?: BasicPowerTerms;
     }
   /**
+   * A `changeForm` effect aimed as `to` / `heroForm` say would change the first player `player` names right now
+   * (`changeFormTarget`): they can change form and are not already in the form it names. In a hero form, a change to
+   * hero form is possible for an identity with another hero face (FFG ruling June 8, 2023, #22: Bodyslide lets a Tiny
+   * Ant-Man change to Giant). Gates a "may change form" option on the change being possible (RRG 1.8 "Choose
+   * (Option)", p. 12).
+   */
+  | {
+      readonly kind: "canChangeForm";
+      readonly player: PlayerRef;
+      readonly to?: Form;
+      readonly heroForm?: { readonly withTrait: Trait } | { readonly named: string } | "other";
+    }
+  /**
    * The card has a status card of this type. `active`: it *is* stunned/confused by the rules, which with steady takes two
    * cards (RRG 1.8 "Steady", p. 41: "not stunned unless they have two stunned status cards") — "When a stunned or
    * confused friendly character would take any amount of damage" (Beast Mode, `hood` 24014), where Warehouse District
@@ -2862,8 +2875,9 @@ export type EffectSpec =
    *   Several attacks from that one effect ("each X attacks you") scope it to the last of them, which resolves
    *   last. If no attack is made (the enemy is not in play, or a stun cancels it), or the frame finishes without
    *   reaching an `enemyAttack`, the rule ends then: it never outlives an attack that did not happen. An
-   *   `enemyAttack` deferred behind the current activation (`after: "currentActivation"`) runs in a later frame, so
-   *   it is not one this frame initiates.
+   *   `enemyAttack` that waits behind the activation in progress (RRG 1.8 "Activation", p. 6) waits with the rest of
+   *   its ability in this same frame (`suspendBehindActivation`), so it is still the one this frame initiates and the
+   *   rule is retimed to it when it is made; the rule is in force while it waits.
    *
    * The attack's frame id comes from the state's frame sequence, so replay retimes it identically.
    *
@@ -3094,6 +3108,8 @@ export type EffectSpec =
    * - absent with `to` absent too ("change form"), from a hero face of an identity with more than one: that player
    *   chooses among every face other than the one showing, the alter-ego face first (option id `alterEgo`, then each
    *   hero face's index).
+   * - `to: "hero"` from a hero face: the other hero face of a two-faced identity (FFG ruling June 17, 2025:
+   *   Ready for a Fight takes a Tiny Ant-Man to Giant); unaffected with only one hero face.
    * A player already in the named form is unaffected, so no `formChanged` is announced.
    */
   | {
@@ -3965,6 +3981,15 @@ export type EffectSpec =
        * created when no card is played.
        */
       readonly whileResolving?: readonly RuleSpec[];
+      /**
+       * "That attack" read as the **first attack** the played card makes (Wolverine's Claws with Slice and Dice; FFG
+       * ruling 190, May 16, 2024, post-RRG 1.5: "only the first attack gains piercing", and when a stun replaces the
+       * first attack "no attack is made; therefore, the second attack … does gain piercing"). With it, the
+       * `whileResolving` rules end as the first attack made with the played card as its source finishes
+       * (`LastingDuration endOfPaidFor.firstAttackVia`), or with the play if it makes none. An attack a stun replaced
+       * was never made, so the next one is the first.
+       */
+      readonly firstAttackOnly?: true;
       /**
        * "Hero Response: After Warpath defends against an attack, play an event with a 'Hero Action' ability from your
        * hand (paying its costs)" (Warpath, `angel` 42013; owner ruling 2026-10-06, docs/phase7-wave7.md §4.1: "His
@@ -5531,6 +5556,27 @@ export type EffectSpec =
    * no such ally in hand it cannot be used.
    */
   | { readonly kind: "then"; readonly effects: readonly EffectSpec[] }
+  /**
+   * One printed sentence whose effects must all resolve before the responses to what they cause: "Change to Gamma
+   * energy form and deal 7 damage to an enemy" (Gamma Blast 21007). FFG ruling December 8, 2023 - Ruling 126 ("You must
+   * resolve the first sentence of Gamma Blast in full before resolving the Response on Gamma form") and January 11,
+   * 2024 - Ruling 137 ("In most cases, yes, a sentence in an ability must fully resolve before responses to that
+   * sentence can occur"); RRG 1.8 p. 4 ("resolve the ability one sentence at a time") and "'And'" (p. 7). A flat
+   * effects list cannot tell "X and Y" from "X. Y." (Mutant Protectors 32017: a response window opens between its two
+   * sentences, ruling post-RRG 1.5), so a script marks the sentence explicitly.
+   *
+   * Resolves `effects` in order in a nested frame (bindings and vars go back to the enclosing list, as `then`'s do).
+   * Every response window raised while the sentence resolves, the last effect's included, is held on the sentence
+   * frame (`resolve/sentence-hold.ts`); interrupts never wait. Once the sentence has resolved the held windows open as
+   * one window, each occurrence its own condition group (`Frame<"window">.conditionGroups`): RRG 1.8 "Triggering
+   * Condition" (p. 45), the abilities of one window "may be used in any order", and forced before optional only within
+   * one condition (p. 5 chart, "Forced" p. 20), so an optional response to a condition no forced one answers is
+   * offered first, and again after the forced ones if declined. A sentence that ends an "(attack)" or "(thwart)"
+   * ability hands its held windows to that attack's or thwart's own window, so the end-of-attack order (RRG 1.8 p. 5
+   * item 1, pp. 8-9 steps 6-9) still applies. A card entering play while the sentence holds them does not answer the
+   * held conditions.
+   */
+  | { readonly kind: "sentence"; readonly effects: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**

@@ -389,16 +389,28 @@ describe("conflicts", () => {
   });
 
   test("Continue does not time out while a question about that game is waiting", async () => {
-    const quick: Timers = {
-      set: (fn, ms) => setTimeout(fn, ms >= 4000 ? 20 : ms),
-      clear: (h) => clearTimeout(h as never),
+    // Continue's 4-second timeout is held and fired by hand once the question is up. A real 20 ms one raced the run
+    // on a slow CI runner and could fire before the question was asked.
+    let fireResumeTimeout: (() => void) | null = null;
+    const held: Timers = {
+      set: (fn, ms) => {
+        if (ms !== 4000) return setTimeout(fn, ms);
+        fireResumeTimeout = fn;
+        return null;
+      },
+      clear: (h) => {
+        if (h !== null) clearTimeout(h as never);
+      },
     };
-    const { a, b } = await conflictSetup(undefined, { timers: quick });
+    const { a, b } = await conflictSetup(undefined, { timers: held });
     await a.service.syncNow();
     let done: string | null = null;
     const resume = b.service.syncBeforeResume("g1").then((r) => (done = r));
     await settle();
     expect(b.service.pendingConflicts()).toHaveLength(1);
+    expect(fireResumeTimeout).not.toBeNull();
+    fireResumeTimeout!();
+    await settle();
     expect(done).toBeNull();
     b.service.pendingConflicts()[0]!.answer("keep-remote");
     await resume;

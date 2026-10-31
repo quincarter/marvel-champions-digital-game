@@ -111,6 +111,7 @@ import {
 import { attackCostBars } from "./attack-cost.js";
 import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
+import { changeFormTarget } from "./form-change-target.js";
 import { uniqueEntryBlocker } from "./unique.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
 import { playFromHandCandidates } from "./resolve/effects-frame.js";
@@ -135,6 +136,7 @@ import {
   playerAttackInProgress,
 } from "./rules.js";
 import {
+  awaitingAbility,
   currentActivationFrameId,
   PAID_AS_PREFIX,
   PLAY_NOTE_PREFIX,
@@ -2661,8 +2663,9 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       // constant or boost abilities that refer to 'you' refer to the defending player"), and the player it was
       // initiated against, which `retargetAttack` rewrites and a declared defender does not (p. 8).
       const attackers = ref.attacker ? resolveRef(state, ref.attacker, context) : null;
+      // A keyword's attack waiting for its ability (`awaitingAbility`) is skipped: no defender yet, nor a target player.
       const frame = state.stack.find((f) => {
-        if (f.kind !== "event") return false;
+        if (f.kind !== "event" || awaitingAbility(f)) return false;
         const event = f.event;
         const attacker =
           event.kind === "enemyAttack"
@@ -2736,14 +2739,20 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
         return acting === null ? [] : [acting];
       });
     case "defendingCharacter": {
-      // The stack is innermost-first, so a nested or queued attack names its own defender.
-      const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack");
+      // The stack is innermost-first, so a nested or queued attack names its own defender. A keyword's attack waiting
+      // for its ability (`awaitingAbility`) has none yet: the attack around it is read.
+      const attack = state.stack.find(
+        (f) => f.kind === "event" && f.event.kind === "enemyAttack" && !awaitingAbility(f),
+      );
       if (attack?.kind !== "event") return [];
       const inPlay = cardsInPlay(state);
       return (attack.slots[DEFENDER_SLOT] ?? []).filter((id) => inPlay.includes(id));
     }
     case "attackingEnemy": {
-      // docs/phase7-wave4.md §3.34: the sibling of `defendingCharacter`, the same innermost attack.
+      // docs/phase7-wave4.md §3.34: the sibling of `defendingCharacter`, the innermost attack. Unlike it, a keyword's
+      // attack waiting for its ability counts from its initiation (RRG 1.8 FAQ "Nova (#12)", p. 59; ruling August 7,
+      // 2025; ruling 147). Engine reading awaiting the owner: a later, non-dependent sentence of that ability naming "the
+      // attacking enemy" names it.
       const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack");
       if (attack?.kind !== "event" || attack.event.kind !== "enemyAttack") return [];
       const enemy = attack.event.enemyInstanceId;
@@ -2753,7 +2762,8 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
       // The innermost attack (by one of `attacker`, when given), as `PlayerRef attackedPlayer` finds it.
       const attackers = ref.attacker ? resolveRef(state, ref.attacker, context) : null;
       for (const f of state.stack) {
-        if (f.kind !== "event") continue;
+        // A keyword's attack waiting for its ability (`awaitingAbility`) is skipped, as `defendingCharacter` skips it.
+        if (f.kind !== "event" || awaitingAbility(f)) continue;
         const event = f.event;
         const attacker =
           event.kind === "enemyAttack"
@@ -3347,6 +3357,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         canPaySpend(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.resources, predicate.distinctTypes ?? 0)
       );
     }
+    case "canChangeForm": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      return (
+        playerId !== undefined && changeFormTarget(state, context.deps ?? DEFAULT_DEPS, playerId, predicate) !== null
+      );
+    }
     case "canPlayFromHand":
       return (
         playFromHandCandidates(
@@ -3480,6 +3496,9 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "attackInProgress": {
       // The stack is innermost-first: a nested attack (a boost's, a retaliation's) is the one "while attacking" reads.
+      // A keyword's attack waiting for its ability (`awaitingAbility`) is attacking from its initiation (RRG 1.8 FAQ
+      // "Nova (#12)", p. 59; ruling August 7, 2025; ruling February 15, 2024 - Ruling 147). Engine reading awaiting the
+      // owner: that holds for a later, non-dependent sentence of the ability too.
       const frame = state.stack.find(
         (f) =>
           f.kind === "event" &&

@@ -164,13 +164,18 @@ export class RoundDebriefScene extends Phaser.Scene {
       const g = this.add.graphics().setDepth(BANNER_DEPTH);
       g.fillStyle(surface.ink.hex, 1).fillRect(banner.x + 3, banner.y + 3, banner.width, banner.height);
       g.fillStyle(signal.caution.hex, 1).fillRect(banner.x, banner.y, banner.width, banner.height);
-      g.lineStyle(3, surface.ink.hex, 1).strokeRect(banner.x, banner.y, banner.width, banner.height);
+      g.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(banner.x, banner.y, banner.width, banner.height);
       this.add
-        .text(banner.x + 14, banner.y + 12, content.title.toUpperCase(), textStyle(EYEBROW_TYPE, surface.ink.hex, 0.75))
+        .text(
+          banner.x + 14,
+          banner.y + 12,
+          content.title.toUpperCase(),
+          textStyle(EYEBROW_TYPE, surface.inkOnHue.hex, 0.75),
+        )
         .setDepth(BANNER_DEPTH);
       this.add
         .text(banner.x + 14, banner.y + 30, content.headline.toUpperCase(), {
-          ...textStyle(HEADLINE_TYPE, surface.ink.hex),
+          ...textStyle(HEADLINE_TYPE, surface.inkOnHue.hex),
           fontSize: "20px",
         })
         .setWordWrapWidth(banner.width - 28)
@@ -195,9 +200,11 @@ export class RoundDebriefScene extends Phaser.Scene {
 
   #drawLessonRow(rect: { x: number; y: number; width: number; height: number }, row: RoundDebriefLessonRow): void {
     const g = this.add.graphics();
-    const fill = row.status === "upNext" ? signal.caution.hex : surface.card.hex;
+    const onHue = row.status === "upNext";
+    const rowInk = onHue ? surface.inkOnHue.hex : surface.ink.hex;
+    const fill = onHue ? signal.caution.hex : surface.card.hex;
     g.fillStyle(fill, 1).fillRect(rect.x, rect.y, rect.width, rect.height - 2);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 4);
+    g.lineStyle(2, rowInk, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 4);
 
     const iconX = rect.x + 12;
     const iconCy = rect.y + (row.subline ? 18 : rect.height / 2 - 1);
@@ -209,24 +216,24 @@ export class RoundDebriefScene extends Phaser.Scene {
         .setOrigin(0.5);
     } else {
       const box = this.add.graphics();
-      box.lineStyle(2, surface.ink.hex, 0.6).strokeRect(iconX, iconCy - 8, 16, 16);
+      box.lineStyle(2, rowInk, 0.6).strokeRect(iconX, iconCy - 8, 16, 16);
     }
 
     const textX = iconX + 26;
     this.add
-      .text(textX, iconCy, row.title, textStyle(ROW_TITLE_TYPE, surface.ink.hex, row.status === "done" ? 0.6 : 1))
+      .text(textX, iconCy, row.title, textStyle(ROW_TITLE_TYPE, rowInk, row.status === "done" ? 0.6 : 1))
       .setOrigin(0, 0.5)
       .setFontSize(12);
 
     if (row.subline) {
       this.add
-        .text(textX, iconCy + 15, row.subline, textStyle(SUBLINE_TYPE, surface.ink.hex, 0.7))
+        .text(textX, iconCy + 15, row.subline, textStyle(SUBLINE_TYPE, rowInk, 0.7))
         .setWordWrapWidth(rect.width - (textX - rect.x) - 16, true);
       // The tag sits at the row's top-right corner, not vertically centered, so a two-line subline (a narrow
       // column wraps "Next round · …" more often than the wide desktop split) never runs under it.
       this.add
         .text(rect.x + rect.width - 12, rect.y + 10, "UP NEXT", {
-          ...textStyle(CAPTION_TYPE, surface.ink.hex),
+          ...textStyle(CAPTION_TYPE, rowInk),
           fontSize: "9px",
         })
         .setOrigin(1, 0);
@@ -283,7 +290,7 @@ export class RoundDebriefScene extends Phaser.Scene {
         cellRect.width,
         cellRect.height,
       );
-      g.lineStyle(2, surface.ink.hex, 1).strokeRect(
+      g.lineStyle(2, selected ? surface.inkOnHue.hex : surface.ink.hex, 1).strokeRect(
         cellRect.x + 1,
         cellRect.y + 1,
         cellRect.width - 2,
@@ -291,13 +298,13 @@ export class RoundDebriefScene extends Phaser.Scene {
       );
       this.add
         .text(cellRect.x + cellRect.width / 2, cellRect.y + 14, option.label.toUpperCase(), {
-          ...textStyle(ROW_TITLE_TYPE, surface.ink.hex),
+          ...textStyle(ROW_TITLE_TYPE, selected ? surface.inkOnHue.hex : surface.ink.hex),
           fontSize: "12px",
         })
         .setOrigin(0.5);
       this.add
         .text(cellRect.x + cellRect.width / 2, cellRect.y + 32, option.detail, {
-          ...textStyle(SUBLINE_TYPE, surface.ink.hex, 0.7),
+          ...textStyle(SUBLINE_TYPE, selected ? surface.inkOnHue.hex : surface.ink.hex, 0.7),
         })
         .setOrigin(0.5)
         .setWordWrapWidth(cellWidth - 10);

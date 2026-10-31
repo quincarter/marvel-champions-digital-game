@@ -13,15 +13,19 @@
  * owns, the card the engine named as the source".
  */
 
+import type { CardId } from "@mc/content";
 import {
   cardOf,
   controllerOf,
   getInstance,
   isMinion,
+  playerCardOwnerOf,
+  type EngineDeps,
   type GameEvent,
   type GameState,
   type InstanceId,
   type PlayerId,
+  type ResourcePool,
 } from "@mc/engine";
 
 /** A card with the Team-Up keyword (RRG 1.8 "Team-Up", p. 43). */
@@ -46,6 +50,69 @@ export interface SeatRecord {
    * the table's per-player numbers. Absent on a record written before the field existed, which reads as false.
    */
   readonly satOut?: true;
+  /**
+   * Plays by card id (each `cardPlayed` this seat made), for the stats screen's "most played" lists. Absent on a record
+   * written before the field existed, and while the seat has played nothing.
+   */
+  readonly plays?: Readonly<Record<string, number>>;
+  /**
+   * Abilities this seat chose to use, by the card whose text they are (`abilityResolved`; a granted ability counts for
+   * the granting card): actions, resource abilities, and interrupts and responses that are not forced, on player cards
+   * (identity abilities, supports, upgrades and allies alike). Forced and setup abilities, state checks and keyword
+   * abilities (Temporary, Villainous) are the game's, not the player's, and are left out; so is an event's own play,
+   * which is a play. Counted for the seat that controls the ability, so a card from one seat's deck another seat
+   * controls counts for the seat using it. Absent while there are none.
+   */
+  readonly activations?: Readonly<Record<string, number>>;
+  /** Cards of this seat's that came into play (any `cardMoved` into a play area), played or put. Absent while none. */
+  readonly entered?: Readonly<Record<string, number>>;
+  /**
+   * The seat's deck when the record began (its deck and hand after setup), by card id once each: the cards it could
+   * have played. A card set aside or put into play by setup is not in it. Absent on a record written before it existed.
+   */
+  readonly deck?: readonly string[];
+  /** Cards this seat drew (`cardDrawn`). Absent on a record written before the field existed. */
+  readonly drawn?: number;
+  /**
+   * Resources this seat generated paying costs, by type: each resource ability's (`resourcesGenerated`), and each card
+   * it spent from hand as the payment priced it (`paymentCommitted`). Absent while there are none.
+   */
+  readonly resources?: ResourcePool;
+  /**
+   * The cards this seat paid costs with, by card id: a card spent from hand (`paymentCommitted`, whichever payment
+   * spent it: a play's, an ability's, a prompt's or an effect's), or a card in play whose resource ability the payment
+   * used (`resourcesGenerated`). Absent while there are none.
+   */
+  readonly paidWith?: Readonly<Record<string, number>>;
+  /** How many of `paidWith` were cards spent from hand (discarded to pay), not cards in play. Absent while none. */
+  readonly discardedToPay?: number;
+  /**
+   * The seat's best single turn (between its `turnStarted` and `turnEnded`): the most damage to enemies, and the most
+   * threat removed, counted as `damage` and `thwart` are. Each is its own best, not one turn's pair. Folded in as a
+   * turn ends, or as the game ends during one (not after each command, so an Overkill excess taken back in a later
+   * command never stands as a best). Absent until the seat has finished a turn.
+   */
+  readonly bestTurn?: { readonly damage: number; readonly thwart: number };
+  /** Damage each of this seat's allies dealt to the villain and minions, by ally card id (Overkill as `damage`). */
+  readonly allyDamage?: Readonly<Record<string, number>>;
+  /** Times each of this seat's allies was declared the defender of an enemy attack (`defenderDeclared`), by card id. */
+  readonly allyBlocks?: Readonly<Record<string, number>>;
+  /**
+   * Times each of this seat's allies was defeated defending (`GameRecord.allyDefending`): before the attack it defended
+   * resolved, or by that attack's damage. By card id; absent while none.
+   */
+  readonly allyDiedBlocking?: Readonly<Record<string, number>>;
+}
+
+/** An ally declared the defender of an attack, until that attack is over (`GameRecord.allyDefending`). */
+export interface AllyDefense {
+  readonly allyInstanceId: InstanceId;
+  readonly allyCardId: string;
+  readonly playerId: PlayerId;
+  /** The attack has resolved (`attackResolved`): from here only its own damage to the ally makes a defeat count. */
+  readonly resolved?: true;
+  /** The attack's damage reached the ally. */
+  readonly hit?: true;
 }
 
 export interface RoundRecord {
@@ -79,6 +146,35 @@ export interface DamageMark {
   readonly targetInstanceId: InstanceId;
   readonly amount: number;
   readonly sourceInstanceId: InstanceId | null;
+  /** The source's card as it was at the hit (a double-sided card can flip later in the same command). */
+  readonly sourceCardId?: string;
+  readonly round: number;
+}
+
+/**
+ * The last hit on a character, kept until an Overkill spill from it is dealt: the spill waits for the defeat's
+ * interrupt window (`beginDefeat`, engine `resolve/event.ts`), so it can land in a later command than the hit.
+ */
+export interface HitMark {
+  readonly sourceInstanceId: InstanceId | null;
+  /** The source's card at the hit. */
+  readonly sourceCardId?: string;
+  /** The hit counted in `GameRecord.hurtBy` (an encounter card's on a player character). */
+  readonly hurt?: true;
+  /** The blow was an attack's (`characterDefeated.fromAttack`). */
+  readonly attack?: true;
+  /** What the blow's source was as it fell (`characterDefeated.sourceRole`), whatever its card is. */
+  readonly role?: "villain" | "minion";
+}
+
+/**
+ * One main scheme swap (`mainSchemeSwapped`: Change of Venue), kept so "the scheme wins" can say the scheme that won is
+ * not the one the game started with (issue #518).
+ */
+export interface SchemeSwapMark {
+  readonly outgoing: InstanceId;
+  readonly incoming: InstanceId;
+  readonly outgoingCardId: CardId;
   readonly round: number;
 }
 
@@ -94,13 +190,52 @@ export interface GameRecord {
   readonly damageToVillain: number;
   readonly lastThreat: ThreatMark | null;
   readonly lastVillainDamage: DamageMark | null;
-  readonly lastEliminated: { readonly playerId: PlayerId; readonly round: number } | null;
+  readonly lastEliminated: {
+    readonly playerId: PlayerId;
+    readonly round: number;
+    /** What defeated the seat's identity (`defeatBlowOf`): the stats' defeating blow. Absent when nothing is known. */
+    readonly hit?: HitMark;
+  } | null;
+  /** Main scheme swaps, oldest first. Absent on a record written before the field existed, which reads as none. */
+  readonly schemeSwaps?: readonly SchemeSwapMark[];
+  /**
+   * Times a side scheme came into play (revealed, or put into play by setup or an effect), by card id: a scheme
+   * defeated, shuffled back and revealed again counts twice. Absent while there are none.
+   */
+  readonly sideSchemesSeen?: Readonly<Record<string, number>>;
+  /** Times a side scheme was defeated (`schemeDefeated` of a side scheme), by card id. Absent while none. */
+  readonly sideSchemesDefeated?: Readonly<Record<string, number>>;
+  /**
+   * The side schemes in play now, by instance, with their card ids: one appearance is counted once however many
+   * events report it (the reveal, then its move into play), and a scheme that leaves play can appear again.
+   */
+  readonly sideSchemesInPlay?: Readonly<Record<string, string>>;
   /**
    * The enemy activation in progress. Threat an activation places carries the
    * activating enemy as its source, so matching the two is how a placement
    * learns which player it was scheming against.
    */
   readonly activation: { readonly enemyInstanceId: InstanceId; readonly playerId: PlayerId } | null;
+  /**
+   * The turn in progress (`turnStarted` to `turnEnded`) and what its player did in it so far, for `SeatRecord.bestTurn`.
+   * Absent outside a player's turn and on a record written before the field existed.
+   */
+  readonly turn?: { readonly playerId: PlayerId; readonly damage: number; readonly thwart: number };
+  /**
+   * Allies defending attacks still in progress, by the attacking enemy's instance (`AllyDefense`). The log marks no
+   * attack's end, so one is over once it has resolved and the next attack, turn, round or encounter reveal begins.
+   * Absent while none.
+   */
+  readonly allyDefending?: Readonly<Record<string, AllyDefense>>;
+  /** Encounter cards revealed (`encounterCardRevealed`), by card id. Absent while none. */
+  readonly encounterRevealed?: Readonly<Record<string, number>>;
+  /**
+   * Damage dealt to the players' characters (identities and allies) by encounter cards (enemies, treacheries,
+   * attachments: a source no player owns), by the source's card id. Absent while none.
+   */
+  readonly hurtBy?: Readonly<Record<string, number>>;
+  /** The last hit on each character this round (`HitMark`), by the character's instance. Absent while none. */
+  readonly lastHits?: Readonly<Record<string, HitMark>>;
 }
 
 export const emptyRecord = (): GameRecord => ({
@@ -117,8 +252,9 @@ export const emptyRecord = (): GameRecord => ({
   activation: null,
 });
 
-const blankSeat = (playerId: PlayerId): SeatRecord => ({
+const blankSeat = (state: GameState, playerId: PlayerId): SeatRecord => ({
   playerId,
+  deck: deckAtStart(state, playerId),
   damage: 0,
   thwart: 0,
   cardsPlayed: 0,
@@ -155,18 +291,73 @@ function seatFor(state: GameState, id: InstanceId | null): PlayerId | null {
  */
 const isVillain = (state: GameState, id: InstanceId): boolean => cardOf(state, id)?.type === "villain";
 
+/** Every card in the seat's deck and hand, once each. */
+function deckAtStart(state: GameState, playerId: PlayerId): string[] {
+  const player = state.players.find((p) => p.playerId === playerId);
+  if (!player) return [];
+  const ids = new Set<string>();
+  for (const id of [...player.deck, ...player.hand]) {
+    const instance = getInstance(state, id);
+    if (instance) ids.add(instance.cardId);
+  }
+  return [...ids].sort();
+}
+
+/** In-play zones a side scheme can enter. */
+const IN_PLAY: ReadonlySet<string> = new Set(["villainArea", "playArea", "scenarioPlayArea"]);
+
+/**
+ * Whether the player chose to use this ability (RRG 1.8 "Abilities", p. 9): an action, a resource ability, or an
+ * interrupt or response that is not forced. The same reading as the engine's `byPlayer` (`resolve/ability.ts`).
+ * Without the ability registry only a forced action and a keyword ability can be told apart, so the rest count.
+ */
+function playerChose(event: Extract<GameEvent, { type: "abilityResolved" }>, deps: EngineDeps | undefined): boolean {
+  if ((event.abilityId as string).startsWith("keyword:") || event.forced) return false;
+  if (!deps) return true;
+  const trigger = deps.abilities[event.abilityId]?.trigger;
+  if (!trigger) return false;
+  if (trigger.kind === "action" || trigger.kind === "resource") return true;
+  return (trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced;
+}
+
+const bump = (
+  counts: Readonly<Record<string, number>> | undefined,
+  key: string,
+  by = 1,
+): Readonly<Record<string, number>> => ({
+  ...counts,
+  [key]: (counts?.[key] ?? 0) + by,
+});
+
+const addPool = (sum: ResourcePool | undefined, pool: ResourcePool): ResourcePool => ({
+  physical: (sum?.physical ?? 0) + pool.physical,
+  mental: (sum?.mental ?? 0) + pool.mental,
+  energy: (sum?.energy ?? 0) + pool.energy,
+  wild: (sum?.wild ?? 0) + pool.wild,
+});
+
+const isAlly = (state: GameState, id: InstanceId | null): boolean => !!id && cardOf(state, id)?.type === "ally";
+
+/** An identity (either form) or an ally: a character on the players' side. */
+const isPlayerCharacter = (state: GameState, id: InstanceId): boolean =>
+  isAlly(state, id) || state.players.some((player) => player.identity.instanceId === id);
+
 /**
  * Folds one command's events onto the record. `state` is the state *after*
  * those events — what a host publishes — and is only read for ownership and
  * card types, which don't change within a command in any way that matters here.
  */
-export function recordEvents(record: GameRecord, events: readonly GameEvent[], state: GameState): GameRecord {
+export function recordEvents(
+  record: GameRecord,
+  events: readonly GameEvent[],
+  state: GameState,
+  deps?: EngineDeps,
+): GameRecord {
   let round = record.round;
   const seats = new Map<PlayerId, SeatRecord>(
-    (record.seats.length > 0 ? record.seats : state.players.map((player) => blankSeat(player.playerId))).map((seat) => [
-      seat.playerId,
-      seat,
-    ]),
+    (record.seats.length > 0 ? record.seats : state.players.map((player) => blankSeat(state, player.playerId))).map(
+      (seat) => [seat.playerId, seat],
+    ),
   );
   const rounds = new Map<number, RoundRecord>(record.rounds.map((entry) => [entry.round, entry]));
   let {
@@ -179,6 +370,31 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     lastEliminated,
     activation,
   } = record;
+  let schemeSwaps = record.schemeSwaps ?? [];
+  let { sideSchemesSeen, sideSchemesDefeated, sideSchemesInPlay } = record;
+  let { turn, allyDefending, encounterRevealed, hurtBy, lastHits } = record;
+  /**
+   * Each instance's card as the events reach it: a card that flips to its other face in this command
+   * (`cardFlippedToOtherFace`) was its `from` face until then, whatever `state` (after the command) says.
+   */
+  const faceNow = new Map<InstanceId, CardId>();
+  for (const event of events) {
+    if (event.type === "cardFlippedToOtherFace" && !faceNow.has(event.instanceId)) {
+      faceNow.set(event.instanceId, event.from);
+    }
+  }
+  const cardIdAt = (id: InstanceId): string | undefined => faceNow.get(id) ?? getInstance(state, id)?.cardId;
+  /** A side scheme is in play: a new appearance unless this one is already counted. */
+  const sideScheme = (instanceId: InstanceId, cardId: CardId): void => {
+    if (sideSchemesInPlay?.[instanceId] !== undefined) return;
+    sideSchemesInPlay = { ...sideSchemesInPlay, [instanceId]: cardId };
+    sideSchemesSeen = bump(sideSchemesSeen, cardId);
+  };
+  const sideSchemeGone = (instanceId: InstanceId): void => {
+    if (sideSchemesInPlay?.[instanceId] === undefined) return;
+    const { [instanceId]: _left, ...rest } = sideSchemesInPlay;
+    sideSchemesInPlay = rest;
+  };
 
   const onRound = (patch: (entry: RoundRecord) => RoundRecord): void => {
     rounds.set(round, patch(rounds.get(round) ?? blankRound(round)));
@@ -189,23 +405,134 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     if (seat) seats.set(playerId, patch(seat));
   };
 
-  /** Who last hit each target in this command, so an Overkill spill can take its excess back off the first hit. */
-  const lastHitBy = new Map<InstanceId, InstanceId | null>();
+  const identityOf = (id: InstanceId): boolean => state.players.some((player) => player.identity.instanceId === id);
+  /** Damage placed on an identity in this command, by what placed it (`damagePlaced`). */
+  const placed = new Map<InstanceId, InstanceId | null>();
+  /** What defeated an identity in this command: its `characterDefeated` comes just before its `playerEliminated`. */
+  const identityBlows = new Map<InstanceId, Pick<HitMark, "sourceInstanceId" | "attack" | "role">>();
+  /**
+   * A defeat's source as a `HitMark`: `hurt` for an enemy or a card no player owns. Never an earlier hit: a defeat needs
+   * no damage. A facedown Drone is a player's card underneath, and that card is hidden, so it goes unnamed.
+   */
+  const defeatBlowOf = (blow: Pick<HitMark, "sourceInstanceId" | "attack" | "role">): HitMark | undefined => {
+    const source = blow.sourceInstanceId;
+    const sourceCardId = source ? cardIdAt(source) : undefined;
+    if (!source || !sourceCardId) return undefined;
+    const owned = !!playerCardOwnerOf(state, source);
+    return {
+      sourceInstanceId: source,
+      ...(owned && blow.role ? {} : { sourceCardId }),
+      ...(owned && !blow.role ? {} : { hurt: true as const }),
+      ...(blow.attack ? { attack: true as const } : {}),
+      ...(blow.role ? { role: blow.role } : {}),
+    };
+  };
+
+  const markHit = (target: InstanceId, mark: HitMark): void => {
+    lastHits = { ...lastHits, [target]: mark };
+  };
+  /** The hit an Overkill spill from `target` came from, taken off the record: one hit spills once. */
+  const takeHit = (target: InstanceId): HitMark | undefined => {
+    const mark = lastHits?.[target];
+    if (!lastHits || !mark) return undefined;
+    const { [target]: _taken, ...rest } = lastHits;
+    lastHits = rest;
+    return mark;
+  };
+
+  /** Damage to an enemy from `source` (negative: an Overkill excess taken back), on its seat, its ally and its turn. */
+  const enemyDamage = (source: InstanceId | null, amount: number): void => {
+    const playerId = seatFor(state, source);
+    const allyCardId = source && isAlly(state, source) ? cardIdAt(source) : undefined;
+    onSeat(playerId, (seat) => ({
+      ...seat,
+      damage: seat.damage + amount,
+      ...(allyCardId ? { allyDamage: bump(seat.allyDamage, allyCardId, amount) } : {}),
+    }));
+    if (turn && playerId === turn.playerId) turn = { ...turn, damage: turn.damage + amount };
+  };
+  /** Folds the turn so far into its seat's best: at the turn's end, and at a game's end during one. */
+  const foldTurn = (): void => {
+    const current = turn;
+    if (!current) return;
+    onSeat(current.playerId, (seat) => ({
+      ...seat,
+      bestTurn: {
+        damage: Math.max(seat.bestTurn?.damage ?? 0, current.damage),
+        thwart: Math.max(seat.bestTurn?.thwart ?? 0, current.thwart),
+      },
+    }));
+  };
+  /** Ends every ally defense whose attack has resolved: the next attack means it is over. */
+  const endResolvedDefenses = (): void => {
+    if (!allyDefending) return;
+    allyDefending = Object.fromEntries(Object.entries(allyDefending).filter(([, defense]) => !defense.resolved));
+  };
+  /**
+   * No attack is in progress as a turn or round begins, or as an encounter card is revealed: one that never resolved
+   * (canceled) is over too. (Engine-specific reading: an effect revealing an encounter card in the middle of an attack
+   * would end that attack's defense here early.)
+   */
+  const endAllDefenses = (): void => {
+    allyDefending = undefined;
+  };
+  const patchDefense = (enemy: string, patch: (defense: AllyDefense) => AllyDefense | null): void => {
+    const defense = allyDefending?.[enemy];
+    if (!allyDefending || !defense) return;
+    const { [enemy]: _old, ...rest } = allyDefending;
+    const next = patch(defense);
+    allyDefending = next ? { ...rest, [enemy]: next } : rest;
+  };
+  /** Damage to a player character: an encounter source's hurt, and the hit a defending ally takes from its attack. */
+  const playerCharacterHurt = (event: Extract<GameEvent, { type: "damageDealt" }>): void => {
+    const source = event.sourceInstanceId;
+    const sourceCardId = source ? cardIdAt(source) : undefined;
+    const hurt = !!source && !!sourceCardId && !playerCardOwnerOf(state, source);
+    if (hurt) hurtBy = bump(hurtBy, sourceCardId!, event.amount);
+    markHit(event.targetInstanceId, {
+      sourceInstanceId: source,
+      ...(sourceCardId ? { sourceCardId } : {}),
+      ...(hurt ? { hurt: true as const } : {}),
+    });
+    for (const [enemy, defense] of Object.entries(allyDefending ?? {})) {
+      // Damage before the attack resolved is not its damage (RRG 1.8 "Attack (Enemy Activation)" step 5, p. 9, comes
+      // after step 4's `attackResolved`); after it, the attacker's damage is, and any other damage ends the defense.
+      if (defense.allyInstanceId !== event.targetInstanceId || !defense.resolved) continue;
+      patchDefense(enemy, (current) => (source === enemy ? { ...current, hit: true } : null));
+    }
+  };
+
+  /**
+   * The cards this command's payments spent from hand (`paymentCommitted`): a card's own "when you spend this card"
+   * ability logs a `resourcesGenerated` too (before the payment's event), and the card is counted once, as a hand card.
+   */
+  const handSpent = new Set(
+    events.flatMap((event) => (event.type === "paymentCommitted" ? event.fromHand.map((card) => card.instanceId) : [])),
+  );
+
   for (const event of events) {
     switch (event.type) {
       case "roundStarted":
         round = event.round;
+        endAllDefenses();
+        // No spill waits across a round's start.
+        lastHits = undefined;
+        break;
+      case "cardFlippedToOtherFace":
+        faceNow.set(event.instanceId, event.to);
         break;
       // Overkill (RRG 1.8, p. 31): the defeated enemy took the whole hit, excess included, and the excess then lands
       // again where it spills. It counts where it lands, not twice, so it comes back off the first target here.
       case "overkillSpilled": {
+        const hit = takeHit(event.fromInstanceId);
+        // An enemy's Overkill through a defending ally: the excess counts where it lands (the identity), not twice.
+        if (hit?.hurt && hit.sourceCardId && isPlayerCharacter(state, event.fromInstanceId)) {
+          hurtBy = bump(hurtBy, hit.sourceCardId, -event.amount);
+        }
         const countedFirst = isVillain(state, event.fromInstanceId) || isMinion(state, event.fromInstanceId);
         if (!countedFirst) break;
         damageToEnemies -= event.amount;
-        onSeat(seatFor(state, lastHitBy.get(event.fromInstanceId) ?? null), (seat) => ({
-          ...seat,
-          damage: seat.damage - event.amount,
-        }));
+        enemyDamage(hit?.sourceInstanceId ?? null, -event.amount);
         if (isVillain(state, event.fromInstanceId)) {
           damageToVillain -= event.amount;
           onRound((entry) => ({ ...entry, damageToVillain: entry.damageToVillain - event.amount }));
@@ -214,25 +541,40 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
       }
       case "enemyActivated":
         activation = { enemyInstanceId: event.enemyInstanceId, playerId: event.playerId };
+        endResolvedDefenses();
         break;
       case "damageDealt": {
         const villain = isVillain(state, event.targetInstanceId);
-        if (!villain && !isMinion(state, event.targetInstanceId)) break;
+        if (!villain && !isMinion(state, event.targetInstanceId)) {
+          if (isPlayerCharacter(state, event.targetInstanceId)) playerCharacterHurt(event);
+          break;
+        }
         damageToEnemies += event.amount;
-        lastHitBy.set(event.targetInstanceId, event.sourceInstanceId);
-        onSeat(seatFor(state, event.sourceInstanceId), (seat) => ({ ...seat, damage: seat.damage + event.amount }));
+        const sourceCardId = event.sourceInstanceId ? cardIdAt(event.sourceInstanceId) : undefined;
+        markHit(event.targetInstanceId, {
+          sourceInstanceId: event.sourceInstanceId,
+          ...(sourceCardId ? { sourceCardId } : {}),
+        });
+        enemyDamage(event.sourceInstanceId, event.amount);
         if (villain) {
           damageToVillain += event.amount;
           lastVillainDamage = {
             targetInstanceId: event.targetInstanceId,
             amount: event.amount,
             sourceInstanceId: event.sourceInstanceId,
+            ...(sourceCardId ? { sourceCardId } : {}),
             round,
           };
           onRound((entry) => ({ ...entry, damageToVillain: entry.damageToVillain + event.amount }));
         }
         break;
       }
+      // Engine reading: `hurtBy` counts dealt damage only, but placed damage can still end a hero. The defeat it causes
+      // names no source (`characterDefeated`), so what placed it is kept here for that defeat, this command only: a
+      // defeat that waits on a later command's interrupt reads as having no source.
+      case "damagePlaced":
+        if (identityOf(event.targetInstanceId)) placed.set(event.targetInstanceId, event.sourceInstanceId);
+        break;
       case "threatPlaced": {
         threatPlaced += event.amount;
         const against =
@@ -247,11 +589,14 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
         onRound((entry) => ({ ...entry, threatPlaced: entry.threatPlaced + event.amount }));
         break;
       }
-      case "threatRemoved":
+      case "threatRemoved": {
         threatRemoved += event.amount;
-        onSeat(seatFor(state, event.sourceInstanceId), (seat) => ({ ...seat, thwart: seat.thwart + event.amount }));
+        const playerId = seatFor(state, event.sourceInstanceId);
+        onSeat(playerId, (seat) => ({ ...seat, thwart: seat.thwart + event.amount }));
+        if (turn && playerId === turn.playerId) turn = { ...turn, thwart: turn.thwart + event.amount };
         onRound((entry) => ({ ...entry, threatRemoved: entry.threatRemoved + event.amount }));
         break;
+      }
       case "threatRemovalBlocked":
         if (event.reason === "crisis") onRound((entry) => ({ ...entry, crisisBlocks: entry.crisisBlocks + 1 }));
         break;
@@ -261,13 +606,125 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
           cardsPlayed: seat.cardsPlayed + 1,
           alliesPlayed: (seat.alliesPlayed ?? 0) + (state.cardPool[event.cardId]?.type === "ally" ? 1 : 0),
           teamUpsPlayed: (seat.teamUpsPlayed ?? 0) + (isTeamUpCard(state.cardPool[event.cardId]) ? 1 : 0),
+          plays: bump(seat.plays, event.cardId),
         }));
         break;
-      case "playerEliminated":
+      case "abilityResolved": {
+        const source = event.grantedByInstanceId ?? event.instanceId;
+        // Player cards only (an owned Labor encounter card is not one): an encounter card's ability is the villain side's.
+        const owner = playerCardOwnerOf(state, source);
+        const cardId = getInstance(state, source)?.cardId;
+        if (!owner || !cardId || state.cardPool[cardId]?.type === "event" || !playerChose(event, deps)) break;
+        onSeat(event.controllerId ?? owner, (seat) => ({ ...seat, activations: bump(seat.activations, cardId) }));
+        break;
+      }
+      case "cardMoved": {
+        if (state.cardPool[event.cardId]?.type === "side_scheme") {
+          if (IN_PLAY.has(event.to.kind)) sideScheme(event.instanceId, event.cardId);
+          else sideSchemeGone(event.instanceId);
+        }
+        if (event.to.kind === "playArea") {
+          const owner = playerCardOwnerOf(state, event.instanceId);
+          if (owner) onSeat(owner, (seat) => ({ ...seat, entered: bump(seat.entered, event.cardId) }));
+        }
+        break;
+      }
+      case "encounterCardRevealed":
+        if (state.cardPool[event.cardId]?.type === "side_scheme") sideScheme(event.instanceId, event.cardId);
+        // A player card revealed as if it were an encounter card is not one.
+        if (!playerCardOwnerOf(state, event.instanceId)) encounterRevealed = bump(encounterRevealed, event.cardId);
+        endAllDefenses();
+        break;
+      case "turnStarted":
+        foldTurn();
+        turn = { playerId: event.playerId, damage: 0, thwart: 0 };
+        endAllDefenses();
+        break;
+      case "turnEnded":
+        foldTurn();
+        turn = undefined;
+        break;
+      case "cardDrawn":
+        onSeat(event.playerId, (seat) => ({ ...seat, drawn: (seat.drawn ?? 0) + 1 }));
+        break;
+      case "paymentCommitted":
+        // Each card as the payment priced it, for the player who spent it (the engine's `spentFromHandOf`).
+        for (const spent of event.fromHand) {
+          onSeat(spent.spenderId, (seat) => ({
+            ...seat,
+            paidWith: bump(seat.paidWith, spent.cardId),
+            discardedToPay: (seat.discardedToPay ?? 0) + 1,
+            resources: addPool(seat.resources, spent.resources),
+          }));
+        }
+        break;
+      case "resourcesGenerated": {
+        // A card spent from hand with its own "when you spend this card" ability is counted as a hand card.
+        const cardId = cardIdAt(event.instanceId);
+        // A counter spent as if it were a resource pays but generates nothing (RRG 1.8 "Cost", p. 13). Without the
+        // ability registry it cannot be told apart, and counts.
+        const trigger = deps?.abilities[event.abilityId]?.trigger;
+        const generates = !(trigger?.kind === "resource" && trigger.spentAsIfResource === true);
+        onSeat(event.playerId, (seat) => ({
+          ...seat,
+          ...(generates ? { resources: addPool(seat.resources, event.pool) } : {}),
+          ...(cardId && !handSpent.has(event.instanceId) ? { paidWith: bump(seat.paidWith, cardId) } : {}),
+        }));
+        break;
+      }
+      case "defenderDeclared": {
+        const allyCardId = isAlly(state, event.defenderInstanceId) ? cardIdAt(event.defenderInstanceId) : undefined;
+        if (!allyCardId) break;
+        const playerId = seatFor(state, event.defenderInstanceId) ?? event.playerId;
+        onSeat(playerId, (seat) => ({ ...seat, allyBlocks: bump(seat.allyBlocks, allyCardId) }));
+        allyDefending = {
+          ...allyDefending,
+          [event.attackInstanceId]: { allyInstanceId: event.defenderInstanceId, allyCardId, playerId },
+        };
+        break;
+      }
+      case "attackResolved":
+        patchDefense(event.enemyInstanceId, (defense) => ({ ...defense, resolved: true }));
+        break;
+      case "defenderLeftPlay":
+        patchDefense(event.enemyInstanceId, () => null);
+        break;
+      case "characterDefeated": {
+        if (identityOf(event.instanceId)) {
+          identityBlows.set(event.instanceId, {
+            sourceInstanceId: event.sourceInstanceId ?? placed.get(event.instanceId) ?? null,
+            ...(event.fromAttack ? { attack: true as const } : {}),
+            ...(event.sourceRole ? { role: event.sourceRole } : {}),
+          });
+        }
+        const found = Object.entries(allyDefending ?? {}).find(
+          ([, defense]) => defense.allyInstanceId === event.instanceId && (!defense.resolved || defense.hit),
+        );
+        if (!found) break;
+        const [enemy, defense] = found;
+        onSeat(defense.playerId, (seat) => ({
+          ...seat,
+          allyDiedBlocking: bump(seat.allyDiedBlocking, defense.allyCardId),
+        }));
+        patchDefense(enemy, () => null);
+        break;
+      }
+      case "schemeDefeated":
+        if (state.cardPool[event.cardId]?.type === "side_scheme") {
+          sideScheme(event.instanceId, event.cardId);
+          sideSchemesDefeated = bump(sideSchemesDefeated, event.cardId);
+          sideSchemeGone(event.instanceId);
+        }
+        break;
+      case "playerEliminated": {
         onSeat(event.playerId, (seat) => ({ ...seat, defeatedInRound: seat.defeatedInRound ?? round }));
-        lastEliminated = { playerId: event.playerId, round };
+        const identity = state.players.find((player) => player.playerId === event.playerId)?.identity.instanceId;
+        const blow = identity ? identityBlows.get(identity) : undefined;
+        const hit = blow ? defeatBlowOf(blow) : undefined;
+        lastEliminated = { playerId: event.playerId, round, ...(hit ? { hit } : {}) };
         onRound((entry) => ({ ...entry, heroesDefeated: [...entry.heroesDefeated, event.playerId] }));
         break;
+      }
       case "playerSatOut": {
         // Always follows the seat's `playerEliminated` (sit-out is an elimination with no defeat window): take that
         // defeat back, so the debrief reads a seat that sat out as neither a loss nor a hero down.
@@ -285,10 +742,17 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
       case "villainStageRevealed":
         onRound((entry) => ({ ...entry, villainStageRevealed: true }));
         break;
+      case "mainSchemeSwapped":
+        schemeSwaps = [
+          ...schemeSwaps,
+          { outgoing: event.outgoing, incoming: event.incoming, outgoingCardId: event.cardIds[0], round },
+        ];
+        break;
       default:
         break;
     }
   }
+  if (state.outcome) foldTurn();
 
   return {
     round,
@@ -301,6 +765,15 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
     lastThreat,
     lastVillainDamage,
     lastEliminated,
+    ...(schemeSwaps.length > 0 ? { schemeSwaps } : {}),
+    ...(sideSchemesSeen ? { sideSchemesSeen } : {}),
+    ...(sideSchemesDefeated ? { sideSchemesDefeated } : {}),
+    ...(sideSchemesInPlay && Object.keys(sideSchemesInPlay).length > 0 ? { sideSchemesInPlay } : {}),
     activation,
+    ...(turn ? { turn } : {}),
+    ...(allyDefending && Object.keys(allyDefending).length > 0 ? { allyDefending } : {}),
+    ...(encounterRevealed ? { encounterRevealed } : {}),
+    ...(hurtBy ? { hurtBy } : {}),
+    ...(lastHits && Object.keys(lastHits).length > 0 ? { lastHits } : {}),
   };
 }

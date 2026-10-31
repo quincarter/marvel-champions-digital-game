@@ -10,10 +10,17 @@ export interface EscapeState {
   readonly logFocused: boolean;
   readonly tipShown: boolean;
   readonly selectionIdle: boolean;
+  /** A teammate's side of the table is being looked at (`SessionState.peekSeat`): Esc / B goes back to the acting seat. */
+  readonly seatPeek?: boolean;
 }
 
 export function escapeMeaning(state: EscapeState): "back" | "pause" {
   const somethingOpen =
-    state.guideGateOpen || state.guideStepActive || state.logFocused || state.tipShown || !state.selectionIdle;
+    state.guideGateOpen ||
+    state.guideStepActive ||
+    state.logFocused ||
+    state.tipShown ||
+    !state.selectionIdle ||
+    state.seatPeek === true;
   return somethingOpen ? "back" : "pause";
 }

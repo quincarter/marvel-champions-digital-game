@@ -875,6 +875,8 @@ function attackAhead(
       }
       // Post-"then" text resolves unless the text before it fails to (RRG 1.8 "'Then'", p. 44), which is not known yet.
       case "then":
+      // A sentence's effects resolve inline, in order (spec.ts `sentence`).
+      case "sentence":
         attackAhead(state, instruction.effects, context, identity, ahead);
         break;
       case "chooseOne": {
@@ -1221,7 +1223,13 @@ export function waitBeneathAbility(ctx: Ctx, frame: AttackFrame): void {
   let at = rest.findIndex((other) => other.frameId === root) + 1;
   while (at < rest.length) {
     const below = rest[at];
-    if (below?.kind !== "event" || below.attackOf !== root || !below.attackWaiting) break;
+    if (below?.kind !== "event") break;
+    // After the attacks of this ability already waiting, and a keyword's activation waiting for it (`awaitingAbility`,
+    // `resolve/initiated-activation.ts`), which was initiated first.
+    const waiting =
+      (below.attackOf === root && below.attackWaiting === true) ||
+      (below.stepsAfterAbility === root && below.awaitingAbility === true);
+    if (!waiting) break;
     at++;
   }
   const waiting: Frame<"event"> = { ...frame, attackWaiting: true, reportTo: null };

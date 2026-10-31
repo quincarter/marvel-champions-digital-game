@@ -476,6 +476,15 @@ export const ifThen = (condition: Predicate, then: EffectArg, otherwise?: Effect
  * Element)", p. 12). Plain "and"/a new sentence is not a "then": list those effects after the choice as usual.
  */
 export const andThen = (...effects: readonly EffectArg[]): EffectSpec => ({ kind: "then", effects: flatten(effects) });
+/**
+ * One printed sentence whose responses wait for all of it: "Change to Gamma energy form and deal 7 damage to an enemy"
+ * (engine `EffectSpec sentence`; FFG rulings 126, Dec 8, 2023 and 137, Jan 11, 2024). Use it only where a ruling or the
+ * printed "and" needs it: a flat list keeps the response window between its effects.
+ */
+export const sentence = (...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "sentence",
+  effects: flatten(effects),
+});
 
 export interface ChoiceOption {
   readonly label: string;
@@ -3059,7 +3068,9 @@ export const returnToHandAfterResolving = (card: TargetRef): EffectSpec => ({
  * docs/phase7-wave6.md §3.42 (Wolverine's Claws 35002: "… → play that event, ignoring its resource cost. That attack
  * gains piercing"): `card` is a card picked already (`chooseCardCost`), played without asking; `via` records the
  * ability's card on the play for `playedVia` ("If you exhausted Wolverine's Claws to play this card"); `whileResolving`
- * are rules lasting exactly while the played card resolves, read in this ability's context.
+ * are rules lasting exactly while the played card resolves, read in this ability's context; with `firstAttackOnly`
+ * they end as the played card's first attack does ("that attack" on a card that makes several; FFG ruling 190, May 16,
+ * 2024).
  */
 export const playFromHandIgnoringCost = (
   player: PlayerRef = you,
@@ -3069,6 +3080,7 @@ export const playFromHandIgnoringCost = (
     readonly card?: TargetRef;
     readonly via?: TargetRef;
     readonly whileResolving?: readonly RuleSpec[];
+    readonly firstAttackOnly?: true;
   } = {},
 ): EffectSpec => ({
   kind: "playFromHand",
@@ -3079,6 +3091,7 @@ export const playFromHandIgnoringCost = (
   ...(opts.card ? { card: opts.card } : {}),
   ...(opts.via ? { via: opts.via } : {}),
   ...(opts.whileResolving && opts.whileResolving.length > 0 ? { whileResolving: opts.whileResolving } : {}),
+  ...(opts.firstAttackOnly ? { firstAttackOnly: true as const } : {}),
 });
 /**
  * "Play a card from your hand […], reducing its resource cost by N" (Team-Building Exercise, `ant`/`spiderham`/

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { activeScenes, hasText, pressKey, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, hasText, isPhonePage, pressKey, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { clickStop, routeStops, waitForScene } from "./wave6-helpers-a.js";
 import { openApp, startGame } from "./wave6-helpers-b.js";
 import {
@@ -35,7 +35,7 @@ async function newDevice(browser: Browser, page: Page): Promise<Page> {
   const context = await browser.newContext({
     baseURL: new URL(page.url()).origin,
     viewport: page.viewportSize() ?? { width: 1280, height: 800 },
-    hasTouch: await page.evaluate(() => navigator.maxTouchPoints > 0),
+    hasTouch: isPhonePage(page),
     reducedMotion: "reduce",
   });
   return context.newPage();

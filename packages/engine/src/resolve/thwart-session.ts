@@ -29,6 +29,7 @@ import type { ThwartSession } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { eventFrame, type Frame } from "./frames.js";
+import { takeHeldForThwart } from "./sentence-hold.js";
 
 type Thwart = Extract<TriggerEvent, { kind: "thwart" }>;
 
@@ -142,6 +143,12 @@ export function announceAbilityThwart(ctx: Ctx, frame: Frame<"effects">): boolea
     ...(session.enteredPlaySince !== undefined ? { enteredPlaySince: session.enteredPlaySince } : {}),
   };
   const announced = eventFrame(ctx, event, null, session.results);
-  pushFrames(ctx, [announced.kind === "event" ? { ...announced, stage: "responses" } : announced]);
+  // The responses the ability's last sentence held join this thwart's window (`sentence-hold.ts`).
+  const held = takeHeldForThwart(ctx, frame);
+  pushFrames(ctx, [
+    announced.kind === "event"
+      ? { ...announced, stage: "responses", ...(held.length > 0 ? { sentenceResponses: held } : {}) }
+      : announced,
+  ]);
   return true;
 }

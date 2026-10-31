@@ -37,6 +37,9 @@ export function clampGlyphSize(percent: number): number {
   return Math.min(GLYPH_SIZE_MAX, Math.max(GLYPH_SIZE_MIN, stepped));
 }
 
+export const DECK_SIGNATURE_CARDS_VALUES = ["free", "standard", "hidden"] as const;
+export type DeckSignatureCards = (typeof DECK_SIGNATURE_CARDS_VALUES)[number];
+
 export interface Settings {
   readonly reducedMotion: boolean;
   /** Text resolution multiplier; set from the device pixel ratio so text stays sharp. */
@@ -48,6 +51,11 @@ export interface Settings {
    * than every text object app-wide; a future pass can widen where it applies.
    */
   readonly largeCardText: boolean;
+  /**
+   * Dark mode (#459): the light paper grounds of every screen draw in warm charcoal, with cream text and borders. Card
+   * art is never recolored (`view/color-scheme.ts`). Defaults off.
+   */
+  readonly darkMode: boolean;
   /**
    * Background music and audio across menus and games.
    */
@@ -71,11 +79,26 @@ export interface Settings {
    */
   readonly confirmBeforeEndTurn: boolean;
   /**
+   * The deck builder's signature cards (issue #531, `view/deck-builder-model.ts`'s `DeckBuildingRules`): "free" lets a
+   * player change the identity's own set like any card, "standard" keeps each at its set count, "hidden" also leaves
+   * the set out of the pool list. Defaults to free, as the builder has always been; the deck's legality line still
+   * reports a changed set either way.
+   */
+  readonly deckSignatureCards: DeckSignatureCards;
+  /** The deck builder refuses an add that would break a copy limit (issue #531). Defaults off. */
+  readonly deckCopyLimits: boolean;
+  /**
    * Open a notice the first time in a game that one of your cards' interrupts or responses answered what happened but
    * could not be used: no valid target, or a cost you cannot pay (#431, Iron Lad with no other ready Avenger ally). The
    * notice's "Don't show again" turns it off. The game log and Inspect say it either way. Defaults on.
    */
   readonly notOfferedNotices: boolean;
+  /** Tap your deck for the cards left in it, with counts and never in order (`scenes/deck-left.ts`). Defaults on: you built it. */
+  readonly deckCountsHero: boolean;
+  /** The same for the encounter deck. Defaults off: it can name cards of a scenario you have not met yet. */
+  readonly deckCountsEncounter: boolean;
+  /** Boost icons per card left in the encounter deck, on the same view. Defaults off: an aid some players would rather not have. */
+  readonly deckBoostAverage: boolean;
   /**
    * The table rule "a hero and an ally with the same name can't both be in play" (`TableRules.sameNameHeroAllyConflict`,
    * owner decision 2026-10-03). Unlike the rest of this file it reaches the engine, as the rule set a NEW game is created
@@ -405,12 +428,18 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
           Math.max(1, globalThis.devicePixelRatio || 1, couchModeFactor(device.couchMode ?? "off")),
         ),
     largeCardText: false,
+    darkMode: false,
     sound: true,
     musicShuffle: false,
     musicVolume: MUSIC_VOLUME_MAX,
     effectsVolume: MUSIC_VOLUME_MAX,
     confirmBeforeEndTurn: true,
+    deckSignatureCards: "free",
+    deckCopyLimits: false,
     notOfferedNotices: true,
+    deckCountsHero: true,
+    deckCountsEncounter: false,
+    deckBoostAverage: false,
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,

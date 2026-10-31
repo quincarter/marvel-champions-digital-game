@@ -103,6 +103,9 @@ export interface AftermathChoiceGroup {
    * them, so a preview would show cards that will never actually be offered.
    */
   readonly dealtPerSeat: boolean;
+  /** `true` when a `dealtPerSeat` offer is a random deal (the slot list), not a seat's own recorded card or deck:
+   * only then does the default copy say "dealt". */
+  readonly dealtAtRandom: boolean;
   /** Per-seat catalogs, populated only once each seat's own real prompt has been seen. Only meaningful when
    * `dealtPerSeat` is true; empty (no entry) for a seat not yet dealt to. */
   readonly catalogBySeat: Readonly<Record<number, readonly AftermathOption[]>>;
@@ -122,14 +125,29 @@ export interface AftermathChoiceGroup {
   readonly decisions: Readonly<Record<number, AftermathSeatDecision>>;
 }
 
-/** Slots whose options are dealt fresh per seat rather than drawn from one shared pool — see
- * `AftermathChoiceGroup.dealtPerSeat`'s doc comment. A slot name, the same convention `dev-fixtures.ts`'s
+/** Slots whose options are dealt fresh per seat at random rather than drawn from one shared pool — see
+ * `AftermathChoiceGroup.dealtPerSeat`'s doc comment (`pendingIsDealtPerSeat` also covers a seat's own recorded
+ * card or deck). A slot name, the same convention `dev-fixtures.ts`'s
  * `smAutoAnswer` already uses to recognize this choice. */
 const DEALT_PER_SEAT_SLOTS: ReadonlySet<string> = new Set(["shieldTech", "recordedCard"]);
 
 /** Whether `slot`'s options should never be guessed ahead of a seat's own real turn (`DEALT_PER_SEAT_SLOTS`). */
 export function isDealtPerSeatSlot(slot: string): boolean {
   return DEALT_PER_SEAT_SLOTS.has(slot);
+}
+
+/** Choice sources whose options are the asked seat's own: what was dealt or recorded for it, its own deck or set. */
+const SEAT_OWN_SOURCES: ReadonlySet<string> = new Set(["values", "ownDeck", "perSeatSet"]);
+
+/**
+ * Whether `pending`'s options belong to the seat asked rather than to one pool the table shares, so another seat's
+ * column must wait for its own offer instead of copying this one. MC10 p. 12's "replace their 'Basic' Condition
+ * upgrade" offers each hero only the upgrade recorded for them (#496). The engine's `source` decides it; the slot
+ * list is the fallback for a pending choice stored before `source` existed.
+ */
+export function pendingIsDealtPerSeat(pending: Pick<CampaignPendingChoice, "slot" | "perSeat" | "source">): boolean {
+  if (isDealtPerSeatSlot(pending.slot)) return true;
+  return pending.perSeat === true && pending.source !== undefined && SEAT_OWN_SOURCES.has(pending.source);
 }
 
 /**
@@ -234,7 +252,7 @@ export function startAftermathGroup(
   const catalog = pending.options.map((id) => optionOf(id as CardId));
   const decisions: Record<number, AftermathSeatDecision> = {};
   for (const seat of seats) decisions[seat.seatNumber] = { kind: "undecided" };
-  const dealtPerSeat = isDealtPerSeatSlot(pending.slot);
+  const dealtPerSeat = pendingIsDealtPerSeat(pending);
   const currentSeatNumber = pending.seatNumber ?? seats[0]?.seatNumber ?? 0;
   return settleEmptySeats({
     instructionId: pending.instructionId,
@@ -245,6 +263,7 @@ export function startAftermathGroup(
     copy: aftermathCallCopyFor(pending.instructionId),
     catalog,
     dealtPerSeat,
+    dealtAtRandom: isDealtPerSeatSlot(pending.slot),
     catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
     noExclusivity:
       isNoExclusivitySlot(pending.slot) ||
@@ -365,7 +384,9 @@ export function aftermathColumns(
         : (group.copy?.heading ?? (group.optional ? "Choose one, or stay as you are." : "Takes one")),
       awaitingOffer: !offerKnown(group, seatNumber),
       nothingToPick,
-      waiting: group.copy?.waiting ?? "Waiting to be dealt…",
+      waiting:
+        group.copy?.waiting ??
+        (group.dealtAtRandom ? "Waiting to be dealt…" : "Offered once the hero before has decided."),
       showCost: group.copy?.showCost === true,
     };
   });

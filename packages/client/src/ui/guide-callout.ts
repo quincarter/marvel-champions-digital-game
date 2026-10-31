@@ -183,7 +183,7 @@ export class McGuideCallout {
     const stampWidth = stampLabel?.width ? stampLabel.width + STAMP_PAD * 2 : 0;
     const stepLabel =
       !confirmingStop && content.stepLabel
-        ? scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
+        ? scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.inkOnHue.hex))
         : null;
 
     // "Skip this step" — always drawn whenever `onSkip` is wired (§3.10 "never locked in"); `content.skipLabel`
@@ -194,7 +194,7 @@ export class McGuideCallout {
     let skipZone: Phaser.GameObjects.Zone | null = null;
     if (!confirmingStop && this.#options.onSkip) {
       const label = content.skipLabel ?? "Skip this step";
-      skipLabel = scene.add.text(0, 0, label.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex));
+      skipLabel = scene.add.text(0, 0, label.toUpperCase(), textStyle(STAMP_TYPE, surface.inkOnHue.hex));
       skipUnderline = scene.add.graphics();
     }
     // "Stop tutorial" — always drawn whenever `onStop` is wired, right beside Skip. Drawn as a small ×
@@ -207,14 +207,14 @@ export class McGuideCallout {
     let stopZone: Phaser.GameObjects.Zone | null = null;
     if (!confirmingStop && this.#options.onStop) {
       stopLabel = scene.add
-        .text(0, 0, "×", { ...textStyle(STAMP_TYPE, surface.ink.hex), fontSize: "20px" })
+        .text(0, 0, "×", { ...textStyle(STAMP_TYPE, surface.inkOnHue.hex), fontSize: "20px" })
         .setOrigin(0.5, 0.5);
     }
     let closeLabel: Phaser.GameObjects.Text | null = null;
     let closeZone: Phaser.GameObjects.Zone | null = null;
     if (!confirmingStop && content.showClose) {
       closeLabel = scene.add
-        .text(0, 0, "×", { ...textStyle(TITLE_TYPE, surface.ink.hex), fontSize: "24px" })
+        .text(0, 0, "×", { ...textStyle(TITLE_TYPE, surface.inkOnHue.hex), fontSize: "24px" })
         .setOrigin(0.5, 0.5);
     }
 
@@ -228,19 +228,19 @@ export class McGuideCallout {
         0,
         0,
         "Stop the tutorial?",
-        textStyle({ ...typeRole.label, size: 12 }, surface.ink.hex),
+        textStyle({ ...typeRole.label, size: 12 }, surface.inkOnHue.hex),
       );
       // Red, matching the ATK stat badge's own hue (`statHue.atk`) — the one place in this palette a
       // destructive action is ever singled out — so "Stop" reads distinct from "Keep going" by more than word
       // choice alone (colorblind-safe: the two also carry different labels and different underline treatment).
       confirmStopLabel = scene.add.text(0, 0, "STOP", textStyle(STAMP_TYPE, statHue.atk.hex));
-      confirmKeepGoingLabel = scene.add.text(0, 0, "KEEP GOING", textStyle(STAMP_TYPE, surface.ink.hex));
+      confirmKeepGoingLabel = scene.add.text(0, 0, "KEEP GOING", textStyle(STAMP_TYPE, surface.inkOnHue.hex));
       confirmKeepGoingUnderline = scene.add.graphics();
     }
 
     // --- Title (Bangers). ---
     const title = scene.add
-      .text(0, 0, content.title.toUpperCase(), textStyle(TITLE_TYPE, surface.ink.hex))
+      .text(0, 0, content.title.toUpperCase(), textStyle(TITLE_TYPE, surface.inkOnHue.hex))
       .setWordWrapWidth(innerWidth, true);
 
     // --- Body (McTermText, sharing this callout's own tooltip). ---
@@ -249,7 +249,7 @@ export class McGuideCallout {
       y: 0,
       width: innerWidth,
       text: content.body,
-      color: surface.ink.hex,
+      color: surface.inkOnHue.hex,
       onTermOpen: (term, rect, block) => this.#openTooltip(term, rect, viewport, block),
       onTermClose: () => this.#tooltip.hide(),
     });
@@ -261,7 +261,10 @@ export class McGuideCallout {
     let continueHint: Phaser.GameObjects.Text | null = null;
     if (!hasButtons && content.continueHint) {
       continueHint = scene.add
-        .text(0, 0, content.continueHint, { ...textStyle(typeRole.emphasis, surface.ink.hex), fontStyle: "italic" })
+        .text(0, 0, content.continueHint, {
+          ...textStyle(typeRole.emphasis, surface.inkOnHue.hex),
+          fontStyle: "italic",
+        })
         .setWordWrapWidth(innerWidth, true);
     }
     const hintRowHeight = continueHint ? continueHint.height : 0;
@@ -270,7 +273,7 @@ export class McGuideCallout {
     let nudge: Phaser.GameObjects.Text | null = null;
     if (content.nudge) {
       nudge = scene.add
-        .text(0, 0, content.nudge, { ...textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, 0.7) })
+        .text(0, 0, content.nudge, { ...textStyle({ ...typeRole.body, size: 11 }, surface.inkOnHue.hex, 0.7) })
         .setWordWrapWidth(innerWidth, true);
     }
     const nudgeRowHeight = nudge ? nudge.height + 8 : 0;
@@ -324,7 +327,7 @@ export class McGuideCallout {
         cy - confirmKeepGoingLabel.height / 2,
       );
       confirmKeepGoingUnderline
-        .lineStyle(1.5, surface.ink.hex, 1)
+        .lineStyle(1.5, surface.inkOnHue.hex, 1)
         .lineBetween(
           confirmKeepGoingLabel.x,
           confirmKeepGoingLabel.y + confirmKeepGoingLabel.height,
@@ -361,7 +364,7 @@ export class McGuideCallout {
       if (skipLabel && skipUnderline) {
         skipLabel.setPosition(exits.skip.x + (exits.skip.width - skipLabel.width) / 2, cy - skipLabel.height / 2);
         skipUnderline
-          .lineStyle(1.5, surface.ink.hex, 1)
+          .lineStyle(1.5, surface.inkOnHue.hex, 1)
           .lineBetween(
             skipLabel.x,
             skipLabel.y + skipLabel.height,
@@ -535,7 +538,7 @@ export class McGuideCallout {
     const target = this.#focusables[this.#focusIndex];
     if (!target) return;
     this.#focusRing
-      .lineStyle(border.control, surface.ink.hex, 1)
+      .lineStyle(border.control, surface.inkOnHue.hex, 1)
       .strokeRect(target.rect.x - 3, target.rect.y - 3, target.rect.width + 6, target.rect.height + 6);
   }
 
@@ -609,21 +612,21 @@ function paintCalloutPanel(
   arrowX: number | null,
 ): void {
   g.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-  g.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  g.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
   if (side === "center" || arrowX === null) return;
   g.fillStyle(signal.caution.hex, 1);
   const tipX = arrowX;
   if (side === "below") {
     // The callout sits below its anchor, so the arrow points up at the top edge.
     g.fillTriangle(tipX - ARROW_SIZE, rect.y, tipX + ARROW_SIZE, rect.y, tipX, rect.y - ARROW_SIZE);
-    g.lineStyle(border.object, surface.ink.hex, 1);
+    g.lineStyle(border.object, surface.inkOnHue.hex, 1);
     g.lineBetween(tipX - ARROW_SIZE, rect.y, tipX, rect.y - ARROW_SIZE);
     g.lineBetween(tipX, rect.y - ARROW_SIZE, tipX + ARROW_SIZE, rect.y);
   } else {
     // The callout sits above its anchor, so the arrow points down at the bottom edge.
     const by = rect.y + rect.height;
     g.fillTriangle(tipX - ARROW_SIZE, by, tipX + ARROW_SIZE, by, tipX, by + ARROW_SIZE);
-    g.lineStyle(border.object, surface.ink.hex, 1);
+    g.lineStyle(border.object, surface.inkOnHue.hex, 1);
     g.lineBetween(tipX - ARROW_SIZE, by, tipX, by + ARROW_SIZE);
     g.lineBetween(tipX, by + ARROW_SIZE, tipX + ARROW_SIZE, by);
   }

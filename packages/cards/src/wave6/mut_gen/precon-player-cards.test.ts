@@ -419,6 +419,36 @@ describe("Mutant Protectors (32017)", () => {
     expect(playerOf(result.state, P1).hand).toContain(handIdOf(state, P1, "32017"));
   });
 
+  // Ruling (post-RRG 1.5, Mutant Protectors and Utopia): "The window of opportunity to trigger Utopia is between the
+  // first and second sentences ... The ally enters play, the window ... occurs but the ally isn't a valid target, then
+  // the ally exhausts." Its two sentences are a flat list, not one `sentence`, so the window still opens between them.
+  it("ruling: Utopia's response window opens after the ally enters play and before it exhausts", () => {
+    const base = colossus();
+    // Utopia (33020) in Colossus's play area: a spare deck card relabelled and moved there.
+    const spare = playerOf(base, P1).deck[0]!;
+    const relabelled = patchInstance(base, spare, { cardId: cardId("33020"), faceup: true, exhausted: false });
+    const state: GameState = {
+      ...relabelled,
+      players: relabelled.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((id) => id !== spare), playArea: [...p.playArea, spare] } : p,
+      ),
+    };
+    const nightcrawler = handIdOf(state, P1, "32011");
+    const offeredWhileReady: boolean[] = [];
+    const usual = using(ABILITY, { pay: 1, keep: ["32011"] });
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseTriggers" && choice.options.some((o) => o.optionId.includes("33020.utopia"))) {
+        offeredWhileReady.push(!inst(s, nightcrawler).exhausted);
+        // Declined: only the timing of the window is under test.
+        return choice.minSelections === 0 ? [] : usual(s);
+      }
+      return usual(s);
+    };
+    villainPhase(state, pick);
+    expect(offeredWhileReady[0]).toBe(true);
+  });
+
   // FAQ "Mutant Protectors (#17)" (RRG 1.8 p. 63): "that player becomes the target of the enemy attack and the X-Men
   // ally put into play becomes the defender". The (defense) label does not make the hero a defender too, so no "when/
   // after you defend" ability of the hero hears this defense.

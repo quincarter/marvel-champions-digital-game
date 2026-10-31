@@ -89,7 +89,9 @@ export type TriggerEventBody =
       /**
        * The damage this event is still to deal: what it was created with, less what "prevent N of that damage"
        * interrupts have prevented and plus what "increase that damage" interrupts have added. 0 as the event is
-       * created is 0 damage as it would be dealt, which opens no window at all (owner ruling 2026-10-06).
+       * created is 0 damage as it would be dealt, which opens no window at all (owner ruling 2026-10-06). While its
+       * "would take" interrupts resolve (`constantsApplied`), it also has the constant modifiers to the damage taken in
+       * it, so that is what they answer (`eventAmount`); the resolved event takes them out again.
        */
       readonly amount: number;
       /**
@@ -108,6 +110,15 @@ export type TriggerEventBody =
        * always equal to its `results.amount` (absent there when 0). "After X takes damage" reads it.
        */
       readonly taken?: number;
+      /**
+       * The constant modifiers to the damage taken (increases, reductions and the caps; not doubling) are already in
+       * `amount`: set as the damage reaches its "would take" interrupts (RRG 1.8 "Damage", p. 14, step 3;
+       * `damageConstantsBeforeWouldTake`), so those interrupts answer the modified amount and the damage step re-checks
+       * only the caps, which have the last word over what an interrupt changed since. `removed` is what the modifiers
+       * took off (negative when they added): the resolved event adds it back, so its `amount` reads as it does for
+       * damage that opened no window (the amount before the constants, less what interrupts prevented).
+       */
+      readonly constantsApplied?: { readonly removed: number };
       readonly sourceInstanceId: InstanceId | null;
       /** Damage from an attack; defense, retaliate and overkill key off this. */
       readonly fromAttack: boolean;
@@ -1041,7 +1052,7 @@ export type TriggerEventBody =
    * A status card was discarded from a card (docs/phase7-wave6.md §3.5): "After a tough status card is discarded from
    * Colossus" (Iron Will, Organic Steel, `mut_gen` 32004, 32006). An announcement (response only), one per status card,
    * from every path that discards one: a tough card used up by damage (RRG 1.8 "Tough", p. 44), piercing, a stun or
-   * confuse spent, an effect, a status the card can no longer have (stalwart, `cannotHaveStatus`). Several discarded by
+   * confuse spent, an effect, a status the card can no longer hold (stalwart). Several discarded by
    * one step (piercing on two tough cards) share one response window (§4.1 Q5), so a response with no limit answers
    * each and one that exhausts its card answers once. Pushed only when an ability listens; a status that was never
    * held (a `cannotHaveStatus` refusal) announces nothing.
@@ -1893,7 +1904,7 @@ export type TriggerEventBody =
    * "End of Player Phase" (p. 18) step 5 and "Villain Phase" (p. 47) step 6b: "Resolve any 'when/after the [villain]
    * phase ends' or 'when/after the round ends' effects" — so the villain phase's end **is** the round's end, one timing
    * point, after "until the end of the phase/round" effects have ended (steps 4 and 6a). Its apply step resolves the
-   * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 15) places "immediately after
+   * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 16) places "immediately after
    * their specified timing point [...] and before responses". The Collector's and Hela's ∞ faces, Rogue Vessel (`gmw`),
    * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
    *

@@ -11,6 +11,7 @@
  */
 
 import type { InstanceId } from "@mc/engine";
+import type { AttachmentChip, BoardModel } from "./board-model.js";
 import type { FocusTarget } from "./focus.js";
 import type { PhoneTab } from "./layout.js";
 
@@ -26,6 +27,52 @@ export interface ZoneMembers {
   readonly villain: ReadonlySet<InstanceId>;
   /** The schemes among `villain`: on a phone they are on the Threat tab, the rest on Enemies. */
   readonly threat: ReadonlySet<InstanceId>;
+}
+
+/** The cards on the table a pad can focus, by zone, each in the order a player's eye reads it. */
+export interface TableCards {
+  /** Your identity and your cards in play, each followed by what is attached to it. */
+  readonly playArea: readonly InstanceId[];
+  /** The villain(s), minions, environments, schemes and scenario areas, each followed by its attachments. */
+  readonly villain: readonly InstanceId[];
+  /** The schemes among `villain` (and the pod's neutral area): on a phone they are on the Threat tab. */
+  readonly threat: readonly InstanceId[];
+  /** The other seats' identities, on their rows. */
+  readonly team: readonly InstanceId[];
+}
+
+/** A card and then each card attached to it, as the table draws them (the host, its chips under it). */
+function withAttachments(host: {
+  readonly instanceId: InstanceId;
+  readonly attachments: readonly AttachmentChip[];
+}): InstanceId[] {
+  return [host.instanceId, ...host.attachments.map((chip) => chip.instanceId)];
+}
+
+function areaCard(card: BoardModel["scenarioPlayAreas"][number]["cards"][number]): InstanceId[] {
+  return withAttachments({ instanceId: card.instanceId, attachments: card.panel.attachments });
+}
+
+export function tableCardsOf(model: BoardModel): TableCards {
+  const neutral = model.scenarioPlayAreas.filter((area) => area.neutral);
+  const threat = [
+    ...withAttachments(model.mainScheme),
+    ...model.extraMainSchemes.flatMap(withAttachments),
+    ...model.sideSchemes.flatMap(withAttachments),
+    ...neutral.flatMap((area) => area.cards.flatMap(areaCard)),
+  ];
+  return {
+    playArea: [...withAttachments(model.me), ...model.myPlayArea.flatMap(withAttachments)],
+    villain: [
+      ...model.villains.flatMap((villain) => withAttachments(villain.panel)),
+      ...model.minions.flatMap(withAttachments),
+      ...model.environments.flatMap(withAttachments),
+      ...threat,
+      ...model.scenarioPlayAreas.filter((area) => !area.neutral).flatMap((area) => area.cards.flatMap(areaCard)),
+    ],
+    threat,
+    team: model.team.map((seat) => seat.identityInstanceId),
+  };
 }
 
 /** Which zone a focus stop is in, or null for a stop that belongs to none (a teammate's card, a Team-Up ring). */
@@ -48,6 +95,9 @@ export function zoneOfTarget(target: FocusTarget, members: ZoneMembers): BoardZo
     // The discard pile sits on the hand row, so a zone jump reads it as the hand's.
     case "discard":
       return "hand";
+    // The victory display's pile sits in the encounter column, beside the villain.
+    case "victoryDisplay":
+      return "villain";
     case "teamUp":
     case "music":
       return null;
@@ -103,17 +153,21 @@ export type ScrollTarget = "hand" | "playArea" | "log" | "table";
 /**
  * The right stick scrolls the region that holds focus: the log once it has been focused (View), else the hand row or the
  * play area row when focus is on a card in one and that row has more than fits, else the table itself (the villain side, the action bar, nothing).
+ * A `sideways` push the focused region cannot take scrolls a play area row that has more than fits: the table itself
+ * only scrolls up and down, so a full row of supports and allies is never out of the stick's reach.
  */
 export function scrollTargetOf(
   logFocused: boolean,
   focus: FocusTarget | null,
   members: ZoneMembers,
   canScroll: { readonly hand: boolean; readonly playArea: boolean },
+  sideways = false,
 ): ScrollTarget {
   if (logFocused) return "log";
   const zone = focus ? zoneOfTarget(focus, members) : null;
   if (zone === "hand" && canScroll.hand) return "hand";
   if (zone === "playArea" && canScroll.playArea) return "playArea";
+  if (sideways && canScroll.playArea) return "playArea";
   return "table";
 }
 

@@ -476,6 +476,8 @@ export function promptTitleOf(
     orderTriggers: "Order these effects",
     // A revealed minion with both Quickstrike and Teamwork: the first player picks which resolves first.
     orderKeywords: "Choose which keyword resolves first",
+    // The quickstrikes and teamworks of the minions an "each time" loop put into play (ruling 38): the first player orders them.
+    orderLoopKeywords: "Order the keywords",
     // Incite, printed When Revealed and surge share a timing (FFG ruling, Sep 22, 2026): the first player orders them.
     orderWhenRevealed: "Order the When Revealed abilities",
     chooseTriggers: "Trigger an ability?",
@@ -574,6 +576,9 @@ function pickedFromDeck(state: GameState, choice: PendingChoice): string | null 
   return found;
 }
 
+/** `orderLoopKeywords`' subtitle: why the first player is ordering keywords at all. */
+export const LOOP_KEYWORDS_SUBTITLE = "These minions entered play together: pick the order";
+
 /**
  * The sheet's header as two lines. A card pick out of a deck is titled by what the player is doing ("Choose cards from
  * the encounter deck") with the card or setup instruction that asks as the subtitle, rather than "Iron Man: choose
@@ -586,6 +591,11 @@ export function choiceHeaderOf(
   deps: EngineDeps,
   genericTitle: string,
 ): ChoiceHeader {
+  // Minions an "each time" loop put into play (ruling 38): their keywords wait for the loop, and the player is asked
+  // for an order they may not expect, so the subtitle says why.
+  if (choice.prompt.kind === "orderLoopKeywords") {
+    return { title: choiceHeaderText(state, choice, deps, genericTitle), subtitle: LOOP_KEYWORDS_SUBTITLE };
+  }
   const deck = pickedFromDeck(state, choice);
   if (deck === null) return { title: choiceHeaderText(state, choice, deps, genericTitle), subtitle: null };
   const source = choiceSourceOf(state, choice);

@@ -353,7 +353,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     const chipColors: Readonly<Record<CampaignTileStatus, { fill: number | null; text: number }>> = {
       done: { fill: signal.heal.hex, text: surface.paper.hex },
       live: { fill: 0xc8102e, text: surface.paper.hex },
-      fresh: { fill: signal.caution.hex, text: surface.ink.hex },
+      fresh: { fill: signal.caution.hex, text: surface.inkOnHue.hex },
       sealed: { fill: null, text: surface.ink.hex },
     };
     const colors = chipColors[row.status];
@@ -416,7 +416,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#drawFeaturedArt(artRect, row);
 
     // "VOL. N" tab
-    const tab = this.add.text(0, 0, `VOL. ${row.volume.number}`, textStyle(bangers(18, 1), surface.ink.hex));
+    const tab = this.add.text(0, 0, `VOL. ${row.volume.number}`, textStyle(bangers(18, 1), surface.inkOnHue.hex));
     const tabBg = this.add.graphics();
     tabBg.fillStyle(signal.caution.hex, 1).fillRect(artRect.x, artRect.y, tab.width + 20, tab.height + 12);
     tab.setPosition(artRect.x + 10, artRect.y + 6);

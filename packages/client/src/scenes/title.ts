@@ -77,8 +77,10 @@ import { GlyphHints } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
+import { maybeAskGlobalStats } from "./global-ask-launch.js";
 import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
 import type { Deck } from "@mc/content";
@@ -87,8 +89,8 @@ import { setReportSlot } from "../ui/report-slot.js";
 import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { SHADOWLAND_NOTICE_ON } from "../view/shadowland-notice.js";
-import { drawShadowlandNoticeBar } from "../ui/shadowland-notice-bar.js";
+import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
+import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { captureIntoRegion } from "../ui/scroll-capture.js";
 
@@ -200,6 +202,11 @@ export class TitleScene extends Phaser.Scene {
           ["games-row", "remove-keep"].find((key) => this.#stops.has(key));
         if (stop) this.#route?.focusKey(stop);
       },
+      // X (G / H) closes the Building your stats toast while it shows; its ✕ wears the glyph.
+      onToggle: () => {
+        if (this.scene.isActive(SCENES.backfillToast))
+          (this.scene.get(SCENES.backfillToast) as unknown as { dismiss(): void }).dismiss();
+      },
       // View / Back (and the Peek key) is the Trophy Room, the same as its button.
       onView: () => {
         if (!this.#starting) this.#openTrophies?.();
@@ -228,7 +235,8 @@ export class TitleScene extends Phaser.Scene {
     const syncLink = takeSyncLink();
     if (syncLink) this.scene.launch(SCENES.settings, { syncLink });
     // The one-time "Set up cross-device sync?" question; it decides for itself and stays out of a link's way.
-    else if (!receive) maybeShowSyncSetupPrompt(this);
+    // The global win rates question comes only once that one has been decided, and never in the same visit.
+    else if (!receive) void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     void refreshUnlocks()
       .catch(() => false)
@@ -349,7 +357,7 @@ export class TitleScene extends Phaser.Scene {
       update: this.#update !== null,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
-      noticeBar: SHADOWLAND_NOTICE_ON,
+      noticeBar: RELEASE_NOTICE_ON,
     });
     // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
     const reportSize = layout.split ? 44 : 40;
@@ -594,6 +602,21 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("trophies", { rect: layout.trophies, activate: openTrophies });
 
+    const openStats = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.playerStats, { from: SCENES.title } satisfies PlayerStatsData);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: "Your stats",
+        type: typeRole.menuButton,
+        rect: layout.stats,
+        onClick: openStats,
+      }),
+    );
+    this.#stops.set("stats", { rect: layout.stats, activate: openStats });
+
     // "How to play" (guided mode G6c, `docs/guided-mode.md` §4): the learning hub. Not a guided run by itself —
     // starting a lesson from inside the hub is what sets `appSession().guidedRun` (`guide/start-tutorial.ts`).
     const openHowToPlay = (): void => {
@@ -742,10 +765,10 @@ export class TitleScene extends Phaser.Scene {
       this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows);
     }
 
-    // Temporary: the Shadowland notice bar across the top (`view/shadowland-notice.ts`).
+    // The release notice bar across the top (`view/release-notice.ts`).
     if (layout.noticeBar) {
-      const openNotice = drawShadowlandNoticeBar(this, layout.noticeBar);
-      this.#stops.set("shadowland-notice", { rect: layout.noticeBar, activate: openNotice });
+      const openNotice = drawReleaseNoticeBar(this, layout.noticeBar);
+      this.#stops.set("release-notice", { rect: layout.noticeBar, activate: openNotice });
     }
 
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
@@ -753,7 +776,7 @@ export class TitleScene extends Phaser.Scene {
     this.#route?.set(
       [
         // The notice bar is the top-most control, so it comes first.
-        ...(layout.noticeBar ? ["shadowland-notice"] : []),
+        ...(layout.noticeBar ? ["release-notice"] : []),
         ...titleMenuFocusOrder({
           continuable: this.#continuable !== null,
           civilWar: civilWar !== null,
@@ -825,12 +848,17 @@ export class TitleScene extends Phaser.Scene {
     this.add
       .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
       .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.ink.hex);
+      .setStrokeStyle(2, surface.inkOnHue.hex);
     this.add
-      .text(parts.text.x, parts.text.y, "UPDATE AVAILABLE", textStyle(typeRole.label, surface.ink.hex))
+      .text(parts.text.x, parts.text.y, "UPDATE AVAILABLE", textStyle(typeRole.label, surface.inkOnHue.hex))
       .setLetterSpacing(1);
     this.add
-      .text(parts.text.x, parts.text.y + 16, `Version ${update.version}`, textStyle(typeRole.rowTitle, surface.ink.hex))
+      .text(
+        parts.text.x,
+        parts.text.y + 16,
+        `Version ${update.version}`,
+        textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+      )
       .setWordWrapWidth(parts.textWidth);
     actions.forEach((action, index) => {
       const rect = parts.buttons[index]!;

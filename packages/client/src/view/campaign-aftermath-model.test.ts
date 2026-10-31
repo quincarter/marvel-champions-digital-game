@@ -332,6 +332,62 @@ describe("MC10's shared TECH pool keeps its own decline wording ('No mark for me
   });
 });
 
+describe("MC10 p. 12's Improved upgrade: each hero sees only their own recorded upgrade (#496)", () => {
+  const pending: CampaignPendingChoice = {
+    instructionId: "mc10.s4.victory.improved",
+    slot: "improve",
+    seatNumber: 1,
+    text: "…each player in hero form may replace their “Basic” Condition upgrade with its “Improved” side.",
+    citation: "MC10 p. 12",
+    chooser: "eachSeat",
+    options: ["04161a"],
+    count: 1,
+    optional: true,
+    perSeat: true,
+    source: "values",
+    exclusive: false,
+  };
+  const seats = [
+    { seatNumber: 1, heroName: "Captain America" },
+    { seatNumber: 2, heroName: "Quicksilver" },
+  ];
+  const heroNameOf = (seatNumber: number) => seats.find((s) => s.seatNumber === seatNumber)!.heroName;
+
+  test("a later seat waits for its own offer instead of showing seat 1's upgrade", () => {
+    const group = startAftermathGroup(pending, seats, (cardId) => aftermathOptionOf(cardId, CARDS_BY_ID));
+    expect(group.dealtPerSeat).toBe(true);
+    const [captain, quicksilver] = aftermathColumns(group, heroNameOf);
+    expect(captain!.rows.map((row) => row.option.cardId)).toEqual(["04161a"]);
+    expect(quicksilver!.rows).toEqual([]);
+    expect(quicksilver!.awaitingOffer).toBe(true);
+    expect(captain!.declineLabel).toBe("Keep it Basic");
+  });
+
+  test("seat 2's own prompt fills its column with its own upgrade", () => {
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+    const started = decideForSeat(startAftermathGroup(pending, seats, optionOf), 1, {
+      kind: "picked",
+      cardId: "04161a" as CardId,
+    });
+    const next = advanceAftermathGroup(started, 1, { ...pending, seatNumber: 2, options: ["04159a"] }, optionOf);
+    const [, quicksilver] = aftermathColumns(next!, heroNameOf);
+    expect(quicksilver!.rows.map((row) => row.option.cardId)).toEqual(["04159a"]);
+  });
+
+  test("MC27 node 17's Planning Ahead, a pick from the seat's own deck, waits per seat too and is never 'dealt'", () => {
+    const planning = startAftermathGroup(
+      { ...pending, instructionId: "sm.reputation.mark", slot: "planningAhead", optional: false, source: "ownDeck" },
+      seats,
+      (cardId) => aftermathOptionOf(cardId, CARDS_BY_ID),
+    );
+    expect(planning.dealtPerSeat).toBe(true);
+    expect(planning.dealtAtRandom).toBe(false);
+    const [, quicksilver] = aftermathColumns(planning, heroNameOf);
+    expect(quicksilver!.awaitingOffer).toBe(true);
+    expect(quicksilver!.waiting).not.toMatch(/dealt/i);
+  });
+});
+
 describe("MC27 node 9's non-exclusive collection choice (aspectAdvantage): two seats may pick the same card", () => {
   test("decideForSeat lets seat 2 pick the card seat 1 already picked — the deck-editing rule is per-copy, not per-title", () => {
     const pending: CampaignPendingChoice = {

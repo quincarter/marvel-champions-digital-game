@@ -492,6 +492,12 @@ export async function waitFor<T>(
   throw new Error(`waitFor timed out (${label}), last=${JSON.stringify(last)}`);
 }
 
+/**
+ * The phone project, by its viewport. Not `navigator.maxTouchPoints`: Chromium reads that from the host, and a desktop
+ * project on a machine that reports touch would then tap a context with no touchscreen.
+ */
+export const isPhonePage = (page: Page): boolean => (page.viewportSize()?.width ?? 1280) < 600;
+
 /** Collects `pageerror`s for the duration of a test — zero of these is part of every spec's assertions. */
 export function trackPageErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -499,7 +505,10 @@ export function trackPageErrors(page: Page): string[] {
   return errors;
 }
 
+export const AUNT_MAY_CODE = "01006";
 export const BLACK_CAT_CODE = "01002";
+export const ENERGY_CODE = "01088";
+export const FOR_JUSTICE_CODE = "01060";
 export const INTERROGATION_ROOM_CODE = "01063";
 
 export async function handInstanceFor(page: Page, code: string): Promise<string | null> {

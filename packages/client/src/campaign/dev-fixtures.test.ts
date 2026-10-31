@@ -19,7 +19,7 @@ import {
 } from "./dev-fixtures.js";
 import { deckFreezePolicyOf, frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
 import { GMW_CAMPAIGN_DEFINITION, SM_CAMPAIGN_DEFINITION } from "@mc/cards";
-import type { GameState } from "@mc/engine";
+import type { CampaignChoiceAnswer, CampaignPendingChoice, GameState } from "@mc/engine";
 
 /** Every real card instance in `state`, by printed name — the "is this campaign card actually in play" check every
  * test below needs, since the bug this file guards against (`campaignLaunchConfig` dropping a campaign's composed
@@ -135,6 +135,26 @@ describe("seedGmwWonGame / seedDesignWonGame", () => {
     const { record, won } = await seedDesignWonGame(service());
     expect(record.attempt?.nodeId).toBe("taskmaster");
     expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+
+  test("Zola won in hero form offers each hero only their own Basic upgrade to improve (MC10 p. 12, #496)", async () => {
+    const svc = service();
+    const { record, won } = await seedDesignWonGame(svc, "afterIssue3", { heroForm: true, clearSideSchemes: true });
+    expect(record.attempt?.nodeId).toBe("zola");
+    const answers: CampaignChoiceAnswer[] = [];
+    const offered: CampaignPendingChoice[] = [];
+    for (let guard = 0; guard < 8; guard++) {
+      const result = await svc.foldState(record, won, [], answers);
+      if (result.kind === "done") break;
+      offered.push(result.choice);
+      const { instructionId, slot, seatNumber } = result.choice;
+      answers.push({ instructionId, slot, seatNumber, picked: [] });
+    }
+    // DESIGN_PICKS: seat 1 took Basic Attack, seat 2 Basic Thwart after Absorbing Man.
+    expect(offered.filter((choice) => choice.slot === "improve").map((choice) => choice.options)).toEqual([
+      ["04160a"],
+      ["04159a"],
+    ]);
   });
 });
 

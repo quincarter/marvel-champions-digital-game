@@ -34,3 +34,24 @@ research/discord-raw/
 research/discord-work/
 research/rules-audit/chunks/
 research/rules-audit/sources/
+
+# Media lives in zip bundles on the content repo's releases (issue #495, assets/manifest.json); `pnpm assets:fetch`
+# puts it here. Only the media is ignored: READMEs, SOURCE.md, focus.json, the TSV manifests, .gitkeep files and the
+# card backs stay in git.
+assets/.fetched.json
+assets/card-art/bundles/cards/[0-9]*
+assets/card-art-locales/*/bundles/
+music/**/*.mp3
+music/**/*.ogg
+music/**/*.wav
+music/**/*.m4a
+music/**/*.flac
+music/**/*.opus
+art/**/*.png
+art/**/*.jpg
+art/**/*.jpeg
+art/**/*.webp
+art/**/*.avif
+art/**/*.gif
+# QA and design screenshots: the `artifacts` archive bundle (`pnpm assets:fetch artifacts`); never shipped.
+artifacts/

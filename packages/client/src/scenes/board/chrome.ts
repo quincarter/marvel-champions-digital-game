@@ -5,16 +5,27 @@
 import type Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import { McButton, McTabs } from "../../ui/widgets.js";
+import { onTap } from "../../ui/tap.js";
+import { McButton, McTabs, clipLine } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { lerp } from "../../view/motion-math.js";
-import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+import { CHROME_HEIGHT, CHROME_TICKER_ROW, PHONE_RAIL_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+import type { LogTicker } from "../../view/log-dock.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
 import { setReportSlot } from "../../ui/report-slot.js";
 import { setMusicSlot } from "../../ui/music-slot.js";
 import { languageSlotBeside } from "../../view/language-button.js";
+import { themeSlotBeside } from "../../view/theme-button.js";
 import { musicSlotBeside } from "../../view/music-player.js";
+
+/** The title bar's log line: a word to name it and the newest line, in type that reads at a glance. */
+const TICKER_WORD: TypeSpec = { ...typeRole.label, size: 11 };
+const TICKER_LINE: TypeSpec = { ...typeRole.emphasis, size: 14 };
+/** Beside the step label, on the bar's one row: narrower than this and the phase toggle gives up its room. */
+const TICKER_MIN_WIDTH = 220;
+/** The glyph's room at the line's right end. */
+const TICKER_GLYPH_ROOM = 76;
 
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
 const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0, uppercase: false };
@@ -33,6 +44,10 @@ export interface ChromeOptions {
   readonly hints?: GlyphHints;
   /** Whether the Menu glyph may show for the input in use: Esc only opens Pause when nothing else would take it. */
   readonly menuHintWhen?: (set: "keyboard" | "pad") => boolean;
+  /** The game log's latest line (`view/log-dock.ts`) and what pressing it does (issue #550). */
+  readonly log: LogTicker & { readonly open: boolean; readonly onPress: () => void };
+  /** Hears where the line was drawn, for the e2e specs. */
+  readonly onLogRect?: (rect: Rect) => void;
 }
 
 /**
@@ -55,10 +70,15 @@ export interface ChromeOptions {
  * how much else the bar is showing. It reads "MENU" on the long table
  * (`rect.width >= 640`, the same breakpoint the phase toggle uses) and "≡" on
  * the phone board, matching `Board - Long Table.dc.html` / `Board - Phone.dc.html`.
+ *
+ * The game log's latest line runs in the room left of those, or on a row of its own under them on a phone, which has
+ * no room beside them.
  */
-export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, options: ChromeOptions): void {
+export function drawChrome(scene: Phaser.Scene, whole: Rect, model: BoardModel, options: ChromeOptions): void {
   const g = scene.add.graphics();
-  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(whole.x, whole.y, whole.width, whole.height);
+  const ownRow = whole.height >= CHROME_HEIGHT.phone && whole.width < 768;
+  const rect: Rect = ownRow ? { ...whole, height: whole.height - CHROME_TICKER_ROW } : whole;
 
   const wide = rect.width >= 640;
   const menuWidth = wide ? 76 : 40;
@@ -116,8 +136,9 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
   setReportSlot(scene.scene.key, reportRect);
   const musicRect = musicSlotBeside(reportRect);
   setMusicSlot(scene.scene.key, musicRect);
-  // Where the standing chips on the right edge stop: the card language button's slot (#337), left of the music button's.
-  const anchorX = languageSlotBeside(musicRect).x - 2;
+  // Where the standing chips on the right edge stop: the dark mode toggle's slot (#459), left of the card language
+  // button's (#337), left of the music button's.
+  const anchorX = themeSlotBeside(languageSlotBeside(musicRect)).x - 2;
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
@@ -141,12 +162,39 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
     animateStampScale(scene, cx, cy, scene.children.list.slice(chipFirstDrawn), pop);
   }
 
-  let left = chip.x + chip.width + 10;
-  const showToggle = wide;
+  const notSaving = options.notSaving ?? false;
+  const firstPlayer = !notSaving && model.firstPlayerId === model.perspectiveId && rect.width >= 520;
+  let rightEdge = anchorX - 10 - (firstPlayer ? 86 : 0);
+  if (notSaving) {
+    // A glyph as well as the hue, so the warning never rests on color alone.
+    const warning = scene.add
+      .text(anchorX - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.inkOnHue.hex))
+      .setOrigin(1, 0.5)
+      .setPadding(6, 3, 6, 3)
+      .setBackgroundColor(cssOf(signal.caution.hex));
+    rightEdge = warning.x - warning.width - 8;
+  }
+
+  const stepLeft = chip.x + chip.width + 10;
+  const step = scene.add
+    .text(
+      stepLeft,
+      rect.y + rect.height / 2,
+      model.stepLabel,
+      textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary),
+    )
+    .setOrigin(0, 0.5);
+  const toggleWidth = 86 * 2 + 18;
+  // The toggle says what the step label says, so on a narrow bar the log's line takes its room.
+  const showToggle = wide && (ownRow || rightEdge - stepLeft - toggleWidth - step.width - 16 >= TICKER_MIN_WIDTH);
+  const left = stepLeft + (showToggle ? toggleWidth : 0);
+  step.setX(left);
+  const room = Math.max(40, rightEdge - left);
+  step.setWordWrapWidth(ownRow ? room : Math.round(room * 0.45)).setMaxLines(1);
   if (showToggle) {
     // Two-state phase toggle: whichever side's clock is running is filled.
     (["player", "villain"] as const).forEach((phase, index) => {
-      const box: Rect = { x: left + index * 86, y: chip.y, width: 82, height: chip.height };
+      const box: Rect = { x: stepLeft + index * 86, y: chip.y, width: 82, height: chip.height };
       const active = model.phase === phase;
       const sideFirstDrawn = scene.children.list.length;
       const bg = scene.add.graphics();
@@ -166,37 +214,48 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
         if (fade) animateStampAlpha(scene, scene.children.list.slice(sideFirstDrawn), fade);
       }
     });
-    left += 86 * 2 + 18;
   }
-
-  const notSaving = options.notSaving ?? false;
-  const firstPlayer = !notSaving && model.firstPlayerId === model.perspectiveId && rect.width >= 520;
-  let rightEdge = anchorX - 10 - (firstPlayer ? 86 : 0);
-  if (notSaving) {
-    // A glyph as well as the hue, so the warning never rests on color alone.
-    const warning = scene.add
-      .text(anchorX - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
-      .setOrigin(1, 0.5)
-      .setPadding(6, 3, 6, 3)
-      .setBackgroundColor(cssOf(signal.caution.hex));
-    rightEdge = warning.x - warning.width - 8;
-  }
-  scene.add
-    .text(
-      left,
-      rect.y + rect.height / 2,
-      model.stepLabel,
-      textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary),
-    )
-    .setOrigin(0, 0.5)
-    .setWordWrapWidth(Math.max(40, rightEdge - left))
-    .setMaxLines(1);
 
   if (firstPlayer) {
     scene.add
       .text(anchorX - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
       .setOrigin(1, 0.5);
   }
+
+  const tickerX = left + step.width + 16;
+  drawLogTicker(
+    scene,
+    ownRow
+      ? { x: whole.x + 6, y: rect.y + rect.height, width: whole.width - 12, height: CHROME_TICKER_ROW - 4 }
+      : { x: tickerX, y: chip.y, width: rightEdge - tickerX, height: chip.height },
+    options,
+  );
+}
+
+/** The log's line: LOG, the newest thing that happened cut with an ellipsis, and a press that opens the log. */
+function drawLogTicker(scene: Phaser.Scene, rect: Rect, options: ChromeOptions): void {
+  const { log, hints } = options;
+  if (rect.width < 90) return;
+  const g = scene.add.graphics();
+  g.lineStyle(1.5, surface.paper.hex, log.open ? 1 : ink.disabled).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  if (log.open) g.fillStyle(surface.paper.hex, 0.14).fillRect(rect.x, rect.y, rect.width, rect.height);
+  const middle = rect.y + rect.height / 2;
+  const alpha = log.enabled ? ink.body : ink.meta;
+  const word = scene.add
+    .text(rect.x + 8, middle, `${log.open ? "▾" : "▸"} LOG`, textStyle(TICKER_WORD, signal.caution.hex, alpha))
+    .setOrigin(0, 0.5);
+  const textX = word.x + word.width + 8;
+  const glyphRoom = hints && rect.width > 360 ? TICKER_GLYPH_ROOM : 0;
+  const line = scene.add
+    .text(textX, middle, log.text, textStyle(TICKER_LINE, surface.paper.hex, alpha))
+    .setOrigin(0, 0.5);
+  clipLine(line, rect.x + rect.width - 8 - glyphRoom - textX);
+  options.onLogRect?.(rect);
+  if (!log.enabled) return;
+  if (glyphRoom > 0) hints?.rightInRow(rect, rect.y, rect.height, 6, ["log"], 16, "ink");
+  const zone = scene.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+  zone.setInteractive({ useHandCursor: true });
+  onTap(zone, log.onPress, "chrome-log");
 }
 
 /**
@@ -240,9 +299,6 @@ export interface PhoneTabsState {
   readonly activeTab: PhoneTab;
   /** Changes that landed on a tab the player isn't looking at, per tab. */
   readonly badges: ReadonlyMap<PhoneTab, number>;
-  /** The Log tab's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11, `view/log-gate-model.ts`)
-   * — `{ locked: false }` off a guided run, so a plain game's Log tab is never touched by this. */
-  readonly logGate: { readonly locked: boolean; readonly reason: string | null };
   onSelect(tab: PhoneTab): void;
 }
 
@@ -263,7 +319,7 @@ const TAB_LABELS: Record<PhoneTab, string> = {
  */
 export function drawPhoneTabs(scene: Phaser.Scene, rect: Rect, model: BoardModel, state: PhoneTabsState): McTabs {
   // A solo game has no other seats, so it has no Team tab to offer.
-  const tabs = PHONE_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
+  const tabs = PHONE_RAIL_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
 
   return new McTabs(scene, {
     rect,
@@ -271,8 +327,6 @@ export function drawPhoneTabs(scene: Phaser.Scene, rect: Rect, model: BoardModel
       id: tab,
       label: TAB_LABELS[tab],
       ...(state.badges.get(tab) ? { badge: state.badges.get(tab)! } : {}),
-      ...(tab === "log" && state.logGate.locked ? { enabled: false } : {}),
-      ...(tab === "log" && state.logGate.locked && state.logGate.reason ? { reason: state.logGate.reason } : {}),
     })),
     activeId: state.activeTab,
     onSelect: (id) => state.onSelect(id as PhoneTab),

@@ -3,6 +3,7 @@ import type { EventPattern, RuleSpec } from "./abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec, StatName, TargetQuery, ValueSpec } from "./spec.js";
 import type { Bindings, Vars } from "./stack.js";
+import type { GameState } from "./state.js";
 
 /**
  * Lasting effects (RRG "Lasting Effects"): an effect that persists for a
@@ -42,7 +43,16 @@ export type LastingDuration =
   /** "Until the end of this turn" / "this turn": the active player's turn (docs/phase7-wave2.md §13). */
   | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
-  | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
+  | {
+      readonly kind: "endOfEvent";
+      readonly frameId: FrameId;
+      /**
+       * Set on an effect claimed by a played card's first attack (`startFirstAttackEffects`): what it waited on before.
+       * If that attack is cancelled, it was not made (RRG 1.8 "Cancel", p. 11; FFG ruling 190), so the effect goes back
+       * to waiting for the card's next attack instead of ending (`expireEventLastingEffects`).
+       */
+      readonly ifCancelled?: LastingDuration;
+    }
   /**
    * "Until after that attack resolves", before the attack exists (`applyRuleUntil` with `attack: "initiated"`,
    * spec.ts): waits on the effects frame `frameId`. That frame's next `enemyAttack` retimes it to `endOfEvent` on the
@@ -63,7 +73,16 @@ export type LastingDuration =
    * popped, so as it resolves the effect is retimed to that effects frame (`lastingEffectRetimed`). It ends when that
    * frame finishes — or at once if the ability is not initiated — so a later use of the same ability is untouched.
    */
-  | { readonly kind: "endOfPaidFor"; readonly frameId: FrameId }
+  | {
+      readonly kind: "endOfPaidFor";
+      readonly frameId: FrameId;
+      /**
+       * "That attack" as the first attack of a played card (`playFromHand.firstAttackOnly`; FFG ruling 190, May 16,
+       * 2024): the first `attack` event this card is the source of, as it is initiated, retimes the effect to
+       * `endOfEvent` on that attack (`startFirstAttackEffects`), so a later attack of the same card is untouched.
+       */
+      readonly firstAttackVia?: InstanceId;
+    }
   /**
    * **No time bound at all**: "The next event you play costs 3 additional resources. Discard this obligation after
    * you play an event." (Physical Toll, `drs` pack). It ends when `playerId` finishes playing a card `cardFilter`
@@ -188,8 +207,17 @@ export type LastingEffectBody =
    * always did.
    */
   | { readonly kind: "blankTextBox"; readonly targets: readonly InstanceId[]; readonly sourceCardId?: CardId }
-  /** A delayed effect ("At the end of the round, …"): fires when its duration ends. */
-  | { readonly kind: "delayedEffects"; readonly effects: readonly EffectSpec[]; readonly scope: LastingScope }
+  /**
+   * A delayed effect ("At the end of the round, …"): fires when its duration ends. `leftPlay`: cards its scope names
+   * (its own card, a chosen card) that left play since it was made; one that comes back into play stops being named
+   * (`forgetReturnedInDelayedEffects`).
+   */
+  | {
+      readonly kind: "delayedEffects";
+      readonly effects: readonly EffectSpec[];
+      readonly scope: LastingScope;
+      readonly leftPlay?: readonly InstanceId[];
+    }
   /**
    * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): a
    * bonus on one card, added to every instance of damage dealt (or threat removed) by that card's own effects while
@@ -230,7 +258,7 @@ export type LastingEffectBody =
   /**
    * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."
    * (Schadenfreude, `gmw` 16032): every event matching `on` while this lasts resolves `effects`, automatically, after the
-   * event and before its responses — a delayed effect that repeats (RRG 1.8 "Delayed Effect", p. 15: delayed effects
+   * event and before its responses — a delayed effect that repeats (RRG 1.8 "Delayed Effect", p. 16: delayed effects
    * "resolve automatically and immediately after their specified timing point … and before responses", and are "not
    * treated as a new triggered ability"). `on` is matched with the scope's card as "self" and its controller as "you".
    * docs/phase7-wave3.md §3.17.
@@ -259,3 +287,66 @@ export type LastingEffect = LastingEffectBody & {
   readonly duration: LastingDuration;
   readonly whileAttached?: AttachmentBound;
 };
+
+/**
+ * The cards a delayed effect's scope names: its own card and the cards in its slots ("At the end of the phase, discard
+ * Goliath", Goliath 23015; "return it to hand", To Me, My X-Men! 36020).
+ */
+const namesCard = (scope: LastingScope, id: InstanceId): boolean =>
+  scope.selfInstanceId === id || Object.values(scope.bindings).some((ids) => ids.includes(id));
+
+/**
+ * `id` has just left play: each delayed effect naming it records that (`delayedEffects.leftPlay`). It keeps naming the
+ * card while it is out of play, so the effect can still act on it there, and stops only if a new copy comes back
+ * (`forgetReturnedInDelayedEffects`).
+ * Returns the same state when nothing names it.
+ */
+export function noteLeftPlayInDelayedEffects(state: GameState, id: InstanceId): GameState {
+  let changed = false;
+  const lastingEffects = state.lastingEffects.map((effect) => {
+    if (effect.kind !== "delayedEffects" || effect.leftPlay?.includes(id) || !namesCard(effect.scope, id))
+      return effect;
+    changed = true;
+    return { ...effect, leftPlay: [...(effect.leftPlay ?? []), id] };
+  });
+  return changed ? { ...state, lastingEffects } : state;
+}
+
+/**
+ * `id` has just entered play: a delayed effect that named it before it left play stops naming it. RRG 1.8 "Leaves
+ * Play" (p. 27): "When a card leaves play, there is no memory of its previous state and it is considered to be a new
+ * copy of the card", so an effect bound to the copy that was in play does not touch the copy that came back, though
+ * the instance id is the same; FFG ruling January 26, 2026 - Ruling 6 (marvel-champions-rulings-post-rrg-1-7.md) reads
+ * a card that "leaves and re-enters play" as a new copy for limits too. A card named while out of play (Special
+ * Funding 50007 names the support it pays for, still in hand) has not left play since, so it is still named when it
+ * enters. The effect itself stays and fires with the rest of its body. With its own card forgotten the effect has no
+ * `self` at all, so whatever else reads `self` (a game area, a damage source) reads nothing, which is meant: the card
+ * it had is gone. Returns the same state when nothing names it.
+ *
+ * The leaving is recorded only where a card leaves through `leaveNow` (`leavePlay`, `leavePlayAtOnce`, and so a swap
+ * of cards with different titles, `resolve/swap-cards.ts`). Not covered: a main scheme swapped out
+ * (`resolve/swap-main-scheme.ts`, its own `forgetOutgoing`), a villain replaced in place (`resolve/game-areas.ts`,
+ * `resolve/villain-swap.ts`), a villain card `addVillains` takes from out of play (`takeOutOfZone` in
+ * `resolve/game-areas.ts`: Whisper in the Dark's Dark Protégé villains are removed from the game when they leave play,
+ * so none can return through it today), and a facedown attachment, which is out of play already. A same-title swap neither
+ * leaves nor enters play (RRG 1.8 "'Swap'", p. 42), so it has nothing to record.
+ */
+export function forgetReturnedInDelayedEffects(state: GameState, id: InstanceId): GameState {
+  let changed = false;
+  const lastingEffects = state.lastingEffects.map((effect) => {
+    if (effect.kind !== "delayedEffects" || !effect.leftPlay?.includes(id)) return effect;
+    changed = true;
+    const { scope } = effect;
+    const bindings = Object.fromEntries(
+      Object.entries(scope.bindings).map(([slot, ids]) => [slot, ids.filter((x) => x !== id)]),
+    );
+    const leftPlay = effect.leftPlay.filter((x) => x !== id);
+    const { leftPlay: _old, ...rest } = effect;
+    return {
+      ...rest,
+      scope: { ...scope, selfInstanceId: scope.selfInstanceId === id ? null : scope.selfInstanceId, bindings },
+      ...(leftPlay.length > 0 ? { leftPlay } : {}),
+    };
+  });
+  return changed ? { ...state, lastingEffects } : state;
+}

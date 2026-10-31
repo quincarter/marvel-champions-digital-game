@@ -11,6 +11,9 @@ import { TUTORIAL_CONFIG, TUTORIAL_PLAYER_ID, TUTORIAL_SCRIPT } from "./tutorial
 /** The instance ids this stacked setup always assigns (replay-safe): see `tutorial-config.ts`'s own header note. */
 const SPIDER_MAN_ID = "i3";
 const BLACK_CAT_ID = "i4";
+const AUNT_MAY_ID = "i12";
+const ENERGY_ID = "i38";
+const FOR_JUSTICE_ID = "i22";
 const INTERROGATION_ROOM_ID = "i27";
 const MAIN_SCHEME_ID = "i2";
 const RHINO_ID = "i1";
@@ -35,11 +38,11 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     const player = state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
     expect(player.identity.form).toBe("alterEgo");
     expect(player.hand.map((id) => state.instances[id]!.cardId)).toEqual([
+      "01006",
       "01002",
+      "01088",
       "01063",
       "01060",
-      "01006",
-      "01007",
       "01003",
     ]);
 
@@ -47,37 +50,49 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     expect(started.snapshot.legal?.actions.kind).toBe("choice");
   });
 
-  test("lesson 2 precondition: Black Cat is playable as Peter Parker, paid with Scientist plus Interrogation Room", async () => {
-    const core = new EngineSessionCore();
-    await core.start(TUTORIAL_CONFIG);
-    const afterMulligan = dispatch(core, 0); // keep the mulligan
-
-    const player = afterMulligan.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
-    expect(player.identity.form).toBe("alterEgo");
-
-    const legal = afterMulligan.legal;
-    expect(legal?.actions.kind).toBe("turn");
-    const playBlackCat =
-      legal?.actions.kind === "turn"
-        ? legal.actions.legal.find(
-            (entry) => entry.action.kind === "playCard" && entry.action.instanceId === BLACK_CAT_ID,
-          )
-        : undefined;
-    expect(playBlackCat).toBeDefined();
-
-    const afterPlay = dispatch(core, 1); // play Black Cat, paying with Scientist + Interrogation Room
-    const played = afterPlay.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
-    expect(played.identity.form).toBe("alterEgo"); // still Peter Parker — the flip is lesson 3
-    expect(played.playArea).toContain(BLACK_CAT_ID);
-    expect(played.hand.map((id) => afterPlay.state.instances[id]?.cardId)).not.toContain("01063");
-    expect(played.discard).toContain(INTERROGATION_ROOM_ID); // discarded to pay, not just moved
-  });
-
-  test("lesson 3 precondition: the flip to hero form is legal right after Black Cat is played", async () => {
+  test("lesson 2 precondition: three plays spend the hand, each paying its cost exactly", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
     dispatch(core, 0); // keep the mulligan
-    const afterPlay = dispatch(core, 1); // play Black Cat as Peter Parker
+
+    const afterAuntMay = dispatch(core, 1); // Aunt May, paid with Scientist
+    expect(afterAuntMay.state.players[0]!.playArea).toContain(AUNT_MAY_ID);
+
+    const afterCat = dispatch(core, 2); // Black Cat, paid with Energy
+    const withCat = afterCat.state.players[0]!;
+    expect(withCat.playArea).toContain(BLACK_CAT_ID);
+    expect(withCat.discard).toContain(ENERGY_ID); // discarded to pay, not just moved
+
+    const afterRoom = dispatch(core, 3); // Interrogation Room, paid with For Justice!
+    const played = afterRoom.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
+    expect(played.identity.form).toBe("alterEgo"); // still Peter Parker — the flip is lesson 3
+    expect(played.playArea).toContain(INTERROGATION_ROOM_ID);
+    expect(played.discard).toContain(FOR_JUSTICE_ID);
+    // Backflip stays, and Genius came from Black Cat's response.
+    expect(played.hand.map((id) => afterRoom.state.instances[id]?.cardId)).toEqual(["01003", "01089"]);
+  });
+
+  test("the first villain phase draws a hand with nothing that interrupts lesson 4", async () => {
+    const core = new EngineSessionCore();
+    await core.start(TUTORIAL_CONFIG);
+    for (let i = 0; i < 8; i++) dispatch(core, i);
+    const after = dispatch(core, 8).state;
+    expect(after.players[0]!.hand.map((id) => after.instances[id]?.cardId)).toEqual([
+      "01003",
+      "01089",
+      "01064",
+      "01062",
+      "01005",
+    ]);
+  });
+
+  test("lesson 3 precondition: the flip to hero form is legal right after lesson 2", async () => {
+    const core = new EngineSessionCore();
+    await core.start(TUTORIAL_CONFIG);
+    dispatch(core, 0); // keep the mulligan
+    dispatch(core, 1); // Aunt May
+    dispatch(core, 2); // Black Cat
+    const afterPlay = dispatch(core, 3); // Interrogation Room
 
     const legal = afterPlay.legal;
     expect(legal?.actions.kind).toBe("turn");
@@ -87,7 +102,7 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
         : undefined;
     expect(flip).toBeDefined();
 
-    const afterFlip = dispatch(core, 2); // flip to hero form
+    const afterFlip = dispatch(core, 4); // flip to hero form
     const player = afterFlip.state.players.find((p) => p.playerId === TUTORIAL_PLAYER_ID)!;
     expect(player.identity.form).toBe("hero");
   });
@@ -96,16 +111,16 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
     dispatch(core, 0); // keep the mulligan
-    dispatch(core, 1); // play Black Cat as Peter Parker
-    dispatch(core, 2); // flip to hero
+    for (let i = 1; i < 4; i++) dispatch(core, i); // lesson 2's three plays as Peter Parker
+    dispatch(core, 4); // flip to hero
 
-    const afterCatAttack = dispatch(core, 3); // Black Cat attacks Rhino
+    const afterCatAttack = dispatch(core, 5); // Black Cat attacks Rhino
     expect(afterCatAttack.state.instances[RHINO_ID]!.damage).toBe(1);
     expect(afterCatAttack.state.instances[BLACK_CAT_ID]!.exhausted).toBe(true);
     // Black Cat's own attack has 0 consequential damage (her card data), so she's still full HP after it.
     expect(afterCatAttack.state.instances[BLACK_CAT_ID]!.damage).toBe(0);
 
-    const afterSpideyAttack = dispatch(core, 4); // Spider-Man attacks Rhino
+    const afterSpideyAttack = dispatch(core, 6); // Spider-Man attacks Rhino
     expect(afterSpideyAttack.state.instances[RHINO_ID]!.damage).toBe(3);
     expect(afterSpideyAttack.state.instances[SPIDER_MAN_ID]!.exhausted).toBe(true);
   });
@@ -114,18 +129,18 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
     dispatch(core, 0); // keep the mulligan
-    dispatch(core, 1); // play Black Cat as Peter Parker
-    dispatch(core, 2); // flip to hero
-    dispatch(core, 3); // Black Cat attacks Rhino
-    dispatch(core, 4); // Spider-Man attacks Rhino
-    dispatch(core, 5); // end the turn
-    const afterDiscard = dispatch(core, 6); // end-of-phase discard (nothing to discard)
+    for (let i = 1; i < 4; i++) dispatch(core, i); // lesson 2's three plays as Peter Parker
+    dispatch(core, 4); // flip to hero
+    dispatch(core, 5); // Black Cat attacks Rhino
+    dispatch(core, 6); // Spider-Man attacks Rhino
+    dispatch(core, 7); // end the turn
+    const afterDiscard = dispatch(core, 8); // end-of-phase discard (nothing to discard)
     expect(afterDiscard.legal?.actions.kind).toBe("choice");
 
     // Black Cat readied at the end of the player phase, despite having attacked — she's still a legal defender.
     expect(afterDiscard.state.instances[BLACK_CAT_ID]!.exhausted).toBe(false);
 
-    const afterSpiderSense = dispatch(core, 7); // decline the Spider-Sense interrupt
+    const afterSpiderSense = dispatch(core, 9); // decline the Spider-Sense interrupt
     const declareDefender = afterSpiderSense.legal;
     expect(declareDefender?.actions.kind).toBe("choice");
     if (declareDefender?.actions.kind !== "choice") throw new Error("expected the defend prompt");
@@ -143,8 +158,8 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
   test("lesson 4 outcome and lesson 5 precondition: the first revealed card lands, and round 2 has threat to thwart", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
-    for (let i = 0; i < 8; i++) dispatch(core, i); // through defending with Black Cat
-    const afterDefend = dispatch(core, 8); // declare Black Cat as defender
+    for (let i = 0; i < 10; i++) dispatch(core, i); // through defending with Black Cat
+    const afterDefend = dispatch(core, 10); // declare Black Cat as defender
 
     // Advance ("When Revealed: The villain schemes.") was the first card revealed from the encounter deck.
     const revealed = afterDefend.events.find((event) => event.type === "encounterCardRevealed") as

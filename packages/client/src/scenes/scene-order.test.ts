@@ -39,6 +39,7 @@ describe("scene order and loader table", () => {
       SCENES.boot,
       SCENES.title,
       SCENES.music,
+      SCENES.themeButton,
       SCENES.powerSavingNotice,
       SCENES.achievementToast,
       SCENES.languagePopup,

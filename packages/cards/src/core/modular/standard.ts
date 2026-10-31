@@ -60,6 +60,10 @@ export const STANDARD_SET = defineAbilities({
   // Each step names the nemesis set (RRG 1.8 "Nemesis Encounter Set", p. 30), never the whole set-aside area, which also
   // holds a progressing identity's later versions (Ironheart), a separated identity's other card and cards a player
   // card set aside; those stay out of play (RRG 1.8 "Set Aside, Set-Aside", p. 39).
+  // A quickstrike nemesis minion's attack initiates as it is revealed and resolves after the whole of this card (FFG
+  // ruling May 23, 2024 - Ruling 194; the engine's `resolve/initiated-activation.ts`). That supersedes the reasoning of
+  // the Galaxy's Most Wanted rulebook FAQ (Blackjack O'Hare attacks "before Vendetta enters play"); its answer, no
+  // amplify on that attack, still holds, as a minion's attack is dealt no boost card (RRG 1.8 "Amplify Icon", p. 7).
   "01190.when-revealed": whenRevealed(
     selectCards("nemesisMinion", setAside(you, query("minion", { nemesisMinionOf: you }))),
     revealCard(chosen("nemesisMinion")),

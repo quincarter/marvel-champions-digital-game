@@ -89,6 +89,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
 import type { RulesTab } from "../view/rules-layout.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
@@ -126,6 +127,8 @@ export class PauseOverlay extends Phaser.Scene {
   #confirmingConcede = false;
   /** Wide: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). Phone: the "Game log" row swaps the Table/Guide group for the same log box. */
   #logExpanded = false;
+  /** Phone: the rows under the Reference toggle are open. Closed, the Table and Guide group has the panel. */
+  #quickExpanded = false;
   #motion = new OverlayMotion();
   /** The log moments drawn this pass that a tap rewinds to (`BoardScene.undoMoments`), by line id, in draw order. */
   #momentIds: string[] = [];
@@ -141,6 +144,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#motion = new OverlayMotion();
     this.#confirmingConcede = false;
     this.#logExpanded = false;
+    this.#quickExpanded = false;
     this.#query = "";
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
@@ -153,6 +157,7 @@ export class PauseOverlay extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.playerStats) ||
         this.scene.isActive(SCENES.controls) ||
         this.scene.isActive(SCENES.inspect) ||
         (this.#searchInput?.focused ?? false),
@@ -226,6 +231,12 @@ export class PauseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Your stats, over this sheet: Back there closes it and Pause takes input again. */
+  #openStats(): void {
+    if (this.scene.isActive(SCENES.playerStats)) return;
+    this.scene.launch(SCENES.playerStats, { from: SCENES.pause, overlay: true } satisfies PlayerStatsData);
+  }
+
   /** Saves are continuous (every command is written as it lands), so "quitting" is just leaving — nothing to flush. */
   #saveAndQuit(): void {
     // Fade this sheet first; the existing stop/start sequence runs once that's
@@ -235,6 +246,7 @@ export class PauseOverlay extends Phaser.Scene {
       for (const overlay of [
         SCENES.rules,
         SCENES.settings,
+        SCENES.playerStats,
         SCENES.controls,
         SCENES.choice,
         SCENES.inspect,
@@ -315,6 +327,12 @@ export class PauseOverlay extends Phaser.Scene {
         open: () => this.scene.launch(SCENES.settings),
       },
       {
+        id: "stats",
+        title: "Your stats",
+        detail: "Your record, heroes, villains and the cards you play.",
+        open: () => this.#openStats(),
+      },
+      {
         id: "music",
         title: "Music",
         detail: "What is playing, and the songs you have earned.",
@@ -358,7 +376,10 @@ export class PauseOverlay extends Phaser.Scene {
     const { game, perspectiveId, config } = store.state;
     const { width, height } = this.scale.gameSize;
 
-    const quickReferenceRows = this.#quickReferenceRows(game);
+    const allQuickRows = this.#quickReferenceRows(game);
+    // A typed search's row is the way to run it, so the rows stay open while there is a query.
+    const quickReferenceExpanded = this.#quickExpanded || this.#query.trim().length > 0;
+    const quickReferenceRows = quickReferenceExpanded ? allQuickRows : allQuickRows.filter((row) => row.compact);
     const tableRows = settingsRowInfoOf(settings);
     const keywordEntries = game ? rulesGlossaryOf(game, POOL_DEPS) : [];
     const guideRows = guideRowInfoOf(guidePrefs());
@@ -379,6 +400,7 @@ export class PauseOverlay extends Phaser.Scene {
         })),
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
         quickReferenceCompactTail: quickReferenceRows.filter((row) => row.compact).length,
+        quickReferenceFullWidthHead: quickReferenceRows.filter((row) => row.id === "search").length,
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
@@ -430,7 +452,11 @@ export class PauseOverlay extends Phaser.Scene {
       this.#route?.set(
         pauseFocusOrder({
           kind: "phone",
-          quickReferenceIds: quickReferenceRows.map((row) => row.id),
+          // The compact cells share the toggle's line, so they come before the rows it opens.
+          quickReferenceIds: [
+            ...quickReferenceRows.filter((row) => row.compact),
+            ...quickReferenceRows.filter((row) => !row.compact),
+          ].map((row) => row.id),
           momentIds: this.#momentIds,
           tableRowIds: phoneLogShown
             ? []
@@ -517,6 +543,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
       this.scene.launch(SCENES.settings),
     );
+    this.#menuButton(stops, "stats", "onInk", "Your stats", layout.menu.stats, () => this.#openStats());
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
     this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
     // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
@@ -667,7 +694,7 @@ export class PauseOverlay extends Phaser.Scene {
         rect.width,
         rect.height,
       );
-      g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+      g.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
     } else {
       paintPanel(g, rect, "card", "rest");
     }
@@ -878,14 +905,10 @@ export class PauseOverlay extends Phaser.Scene {
     }
     stops.set("search", { rect: layout.search, activate: () => this.#searchInput?.focus() });
 
-    label(
-      this,
-      layout.quickReferenceHeading.x,
-      layout.quickReferenceHeading.y,
-      "Quick reference",
-      typeRole.label,
-      surface.paper.hex,
-      ink.label,
+    this.#drawQuickReferenceToggle(
+      layout.quickReferenceToggle,
+      quickReferenceRows.some((row) => !row.compact),
+      stops,
     );
     quickReferenceRows.forEach((row, index) =>
       this.#drawQuickReferenceRow(layout.quickReferenceRows[index]!, row, stops),
@@ -1011,6 +1034,40 @@ export class PauseOverlay extends Phaser.Scene {
     return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }
 
+  /** The cell that opens the Reference rows, and closes them unless a typed search is holding them open. */
+  #drawQuickReferenceToggle(rect: Rect, open: boolean, stops: Map<string, FocusStop>): void {
+    const g = this.add.graphics();
+    paintPanel(g, rect, "onInk", "rest");
+    const title = label(
+      this,
+      rect.x + 12,
+      rect.y + rect.height / 2,
+      "Reference",
+      typeRole.rowTitle,
+      surface.paper.hex,
+      1,
+    );
+    title.setOrigin(0, 0.5);
+    fitText(title, rect.width - 40, typeRole.rowTitle.size);
+    label(
+      this,
+      rect.x + rect.width - 16,
+      rect.y + rect.height / 2,
+      open ? "▾" : "▸",
+      typeRole.rowTitle,
+      surface.paper.hex,
+      ink.secondary,
+    ).setOrigin(0.5);
+    const activate = (): void => {
+      this.#quickExpanded = !open;
+      this.#lowerScroll = new VariableListScroll();
+      this.#draw();
+    };
+    stops.set("quick-toggle", { rect, activate });
+    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+    onTap(zone.setInteractive({ useHandCursor: true }), activate, "quick-toggle");
+  }
+
   #drawQuickReferenceRow(rect: Rect, row: QuickReferenceRow, stops: Map<string, FocusStop>): void {
     const enabled = row.open !== undefined;
     const g = this.add.graphics();
@@ -1034,9 +1091,14 @@ export class PauseOverlay extends Phaser.Scene {
       if (enabled) onTap(cell.setInteractive({ useHandCursor: true }), act, `quick:${row.id}`);
       return;
     }
-    this.add
-      .text(rect.x + 12, rect.y + 6, row.title, textStyle(typeRole.rowTitle, surface.paper.hex, alpha))
-      .setWordWrapWidth(rect.width - 60);
+    // One line, clear of the chevron: a half-width cell has no room for a second line above its detail.
+    const title = this.add.text(
+      rect.x + 12,
+      rect.y + 6,
+      row.title,
+      textStyle(typeRole.rowTitle, surface.paper.hex, alpha),
+    );
+    fitText(title, rect.width - 40, typeRole.rowTitle.size);
     this.add
       .text(
         rect.x + 12,
@@ -1045,7 +1107,7 @@ export class PauseOverlay extends Phaser.Scene {
         textStyle(typeRole.label, surface.paper.hex, alpha * 0.75),
       )
       .setFontSize(9)
-      .setWordWrapWidth(rect.width - 24);
+      .setWordWrapWidth(rect.width - 36);
     if (enabled)
       label(
         this,
@@ -1324,7 +1386,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + cellRect.width / 2,
           cellRect.y + cellRect.height / 2,
           option.label,
-          textStyle(typeRole.label, selected ? surface.ink.hex : surface.paper.hex),
+          textStyle(typeRole.label, selected ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setOrigin(0.5);
       fitText(text, cellRect.width - 8, typeRole.label.size);
@@ -1390,7 +1452,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 8,
           option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.ink.hex : surface.paper.hex),
+          textStyle(typeRole.rowTitle, selected ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setFontSize(12);
       this.add
@@ -1398,7 +1460,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 26,
           option.detail,
-          textStyle(typeRole.body, selected ? surface.ink.hex : surface.paper.hex, selected ? 0.85 : 0.7),
+          textStyle(typeRole.body, selected ? surface.inkOnHue.hex : surface.paper.hex, selected ? 0.85 : 0.7),
         )
         .setFontSize(9)
         .setWordWrapWidth(cellWidth - 16);
@@ -1475,6 +1537,7 @@ export class PauseOverlay extends Phaser.Scene {
       for (const overlay of [
         SCENES.rules,
         SCENES.settings,
+        SCENES.playerStats,
         SCENES.controls,
         SCENES.choice,
         SCENES.inspect,

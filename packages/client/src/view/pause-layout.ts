@@ -44,6 +44,11 @@
  * over Save & quit and Concede side by side, matching P16's own footer
  * arrangement rather than three equal-width buttons in one row.
  *
+ * **OWNER DECISION (2026-10-30):** on phone, Reference is one toggle on a
+ * line it shares with Music, Report and Controls, so the scrolling Table and
+ * Guide group gets the panel, and it opens as two columns rather than a stack
+ * of full rows.
+ *
  * Checked at 1440×900, 1870×1050 (desktop), 1024×768, 768×1024, 820×1180
  * (tablet, both orientations) and 390×844 (phone) in `pause-layout.test.ts`.
  */
@@ -90,7 +95,9 @@ export interface PauseMenuLayout {
   readonly resume: Rect;
   readonly fullGameLog: Rect;
   readonly rulesReference: Rect;
+  /** Settings and Your stats share a row, side by side. */
   readonly settings: Rect;
+  readonly stats: Rect;
   /** Not in D13, which has no way to leave a game without conceding it; the phone footer has always had one. */
   readonly saveQuit: Rect;
   /** Music and Report a problem, side by side on one row under Save & quit: the chrome buttons' menu entries. */
@@ -185,7 +192,8 @@ function wideLayout(
     resume: menuRect(0),
     fullGameLog: menuRect(1),
     rulesReference: menuRect(2),
-    settings: menuRect(3),
+    settings: { ...menuRect(3), width: (menuWidth - MENU_GAP) / 2 },
+    stats: { ...menuRect(3), x: title.x + (menuWidth + MENU_GAP) / 2, width: (menuWidth - MENU_GAP) / 2 },
     saveQuit: menuRect(4),
     music: { ...menuRect(5), width: (menuWidth - MENU_GAP) / 2 },
     report: { ...menuRect(5), x: title.x + (menuWidth + MENU_GAP) / 2, width: (menuWidth - MENU_GAP) / 2 },
@@ -298,7 +306,8 @@ const PHONE_FOOTER_HEIGHT = PHONE_RESUME_HEIGHT + PHONE_FOOTER_ROW_GAP + PHONE_S
 const PHONE_COLUMN_GAP = 24;
 const PHONE_ROW_GAP = 6;
 const PHONE_HEADING_HEIGHT = 18;
-const PHONE_SUBHEADING_HEIGHT = 16;
+const PHONE_TOGGLE_GAP = 8;
+const PHONE_TOGGLE_SHARE = 0.34;
 const PHONE_GROUP_GAP = 16;
 
 /**
@@ -312,11 +321,12 @@ const PHONE_GROUP_GAP = 16;
 const QUICK_REFERENCE_ROW_MIN_HEIGHT = 44;
 const QUICK_REFERENCE_DETAIL_TOP = 24;
 const QUICK_REFERENCE_DETAIL_LINE_HEIGHT = 11;
-const QUICK_REFERENCE_DETAIL_CHAR_WIDTH = 5;
+/** The detail is tracked capitals: this errs tall, because a row cut short loses its last line. */
+const QUICK_REFERENCE_DETAIL_CHAR_WIDTH = 7;
 const QUICK_REFERENCE_BOTTOM_PADDING = 8;
 
 function quickReferenceRowHeight(detail: string, columnWidth: number): number {
-  const wrapWidth = Math.max(1, columnWidth - 24);
+  const wrapWidth = Math.max(1, columnWidth - 36);
   const lines = estimateWrappedLines(detail, wrapWidth, QUICK_REFERENCE_DETAIL_CHAR_WIDTH);
   return Math.max(
     QUICK_REFERENCE_ROW_MIN_HEIGHT,
@@ -335,6 +345,20 @@ function stackedRowsOf(top: number, x: number, width: number, heights: readonly 
   return rows;
 }
 
+/** Quick reference's open rows, two to a line from `top`: a line is as tall as its taller row's own detail text needs. */
+function quickReferenceGrid(top: number, x: number, width: number, details: readonly string[]): Rect[] {
+  const cell = (width - PHONE_ROW_GAP) / 2;
+  const rows: Rect[] = [];
+  let y = top;
+  for (let index = 0; index < details.length; index += 2) {
+    const pair = details.slice(index, index + 2);
+    const height = Math.max(...pair.map((detail) => quickReferenceRowHeight(detail, cell)));
+    pair.forEach((_detail, column) => rows.push({ x: x + column * (cell + PHONE_ROW_GAP), y, width: cell, height }));
+    y += height + PHONE_ROW_GAP;
+  }
+  return rows;
+}
+
 export interface PausePhoneLayout {
   readonly kind: "phone";
   readonly panel: Rect;
@@ -344,7 +368,9 @@ export interface PausePhoneLayout {
   readonly blindSheet: Rect | null;
   readonly footer: Rect;
   readonly search: Rect;
-  readonly quickReferenceHeading: Rect;
+  /** "Reference", which opens and closes the rows under it: the first cell of the line the compact tail shares. */
+  readonly quickReferenceToggle: Rect;
+  /** Open, two columns: each pair shares the taller one's height. The compact tail comes last, always, on the toggle's line. */
   readonly quickReferenceRows: readonly Rect[];
   /**
    * Where the "Table"+"Guide" group's own scroll region sits — below Quick reference, bounded above the footer.
@@ -452,6 +478,7 @@ function phoneLayout(
   guidedRunActive = false,
   blindLines = 0,
   compactTail = 0,
+  quickReferenceFullWidthHead = 0,
 ): PausePhoneLayout {
   const { panel, header, body, footer } = overlayPanelLayout(
     bounds,
@@ -483,37 +510,52 @@ function phoneLayout(
     height: Math.max(0, body.height - 12),
   };
   const search: Rect = { x: inset.x, y: inset.y, width: inset.width, height: hit.target };
-  const quickReferenceHeading: Rect = {
-    x: inset.x,
-    y: search.y + search.height + 10,
-    width: inset.width,
-    height: PHONE_SUBHEADING_HEIGHT,
-  };
-  const qrTop = quickReferenceHeading.y + quickReferenceHeading.height + 4;
   const tail = Math.min(Math.max(0, compactTail), quickReferenceDetails.length);
+  // The toggle's word and chevron take a third of the line; the compact cells share the rest.
+  const toggleWidth = tail > 0 ? Math.round(inset.width * PHONE_TOGGLE_SHARE) : inset.width;
+  const quickReferenceToggle: Rect = {
+    x: inset.x,
+    y: search.y + search.height + PHONE_TOGGLE_GAP,
+    width: toggleWidth,
+    height: hit.target,
+  };
+  const lineBottom = quickReferenceToggle.y + quickReferenceToggle.height;
+  const qrTop = lineBottom + PHONE_ROW_GAP;
   const fullDetails = quickReferenceDetails.slice(0, quickReferenceDetails.length - tail);
-  const qrHeights = fullDetails.map((detail) => quickReferenceRowHeight(detail, inset.width));
-  const quickReferenceRows = stackedRowsOf(qrTop, inset.x, inset.width, qrHeights, PHONE_ROW_GAP);
-  if (tail > 0) {
-    // One row of equal cells, each still a full touch-target tall.
-    const last = quickReferenceRows[quickReferenceRows.length - 1];
-    const y = last ? last.y + last.height + PHONE_ROW_GAP : qrTop;
-    const cell = (inset.width - PHONE_ROW_GAP * (tail - 1)) / tail;
-    for (let index = 0; index < tail; index++)
-      quickReferenceRows.push({
-        x: inset.x + index * (cell + PHONE_ROW_GAP),
-        y,
-        width: cell,
-        height: QUICK_REFERENCE_ROW_MIN_HEIGHT,
-      });
-  }
-  const qrBottom =
-    quickReferenceRows.length > 0
-      ? quickReferenceRows[quickReferenceRows.length - 1]!.y + quickReferenceRows[quickReferenceRows.length - 1]!.height
-      : qrTop;
+  const head = Math.min(Math.max(0, quickReferenceFullWidthHead), fullDetails.length);
+  const headRows = stackedRowsOf(
+    qrTop,
+    inset.x,
+    inset.width,
+    fullDetails.slice(0, head).map((detail) => quickReferenceRowHeight(detail, inset.width)),
+    PHONE_ROW_GAP,
+  );
+  const lastHead = headRows[headRows.length - 1];
+  const openRows: Rect[] = [
+    ...headRows,
+    ...quickReferenceGrid(
+      lastHead ? lastHead.y + lastHead.height + PHONE_ROW_GAP : qrTop,
+      inset.x,
+      inset.width,
+      fullDetails.slice(head),
+    ),
+  ];
+  const lastOpen = openRows[openRows.length - 1];
+  const qrBottom = lastOpen ? lastOpen.y + lastOpen.height : lineBottom;
+  const quickReferenceRows: Rect[] = [...openRows];
+  // Each cell still a full touch-target tall.
+  const cellLeft = quickReferenceToggle.x + toggleWidth + PHONE_ROW_GAP;
+  const cell = (inset.x + inset.width - cellLeft - PHONE_ROW_GAP * (tail - 1)) / Math.max(1, tail);
+  for (let index = 0; index < tail; index++)
+    quickReferenceRows.push({
+      x: cellLeft + index * (cell + PHONE_ROW_GAP),
+      y: quickReferenceToggle.y,
+      width: cell,
+      height: QUICK_REFERENCE_ROW_MIN_HEIGHT,
+    });
 
   const lowerContent = lowerContentOf(inset.x, inset.width, tableDetails, guideRowDetails, guidedRunActive);
-  const lowerViewportTop = qrBottom + PHONE_GROUP_GAP;
+  const lowerViewportTop = qrBottom + (lastOpen ? PHONE_GROUP_GAP : PHONE_TOGGLE_GAP);
   const lowerViewportAvailable = Math.max(0, inset.y + inset.height - lowerViewportTop);
   const lowerViewport: Rect = {
     x: inset.x,
@@ -546,7 +588,7 @@ function phoneLayout(
     blindSheet,
     footer,
     search,
-    quickReferenceHeading,
+    quickReferenceToggle,
     quickReferenceRows,
     lowerViewport,
     lowerContent,
@@ -575,6 +617,8 @@ export interface PauseLayoutInput {
    * be read or pressed in. Absent or 0, every row has its own line.
    */
   readonly quickReferenceCompactTail?: number;
+  /** How many of the first Quick reference rows keep the full width: the search row names what was typed. */
+  readonly quickReferenceFullWidthHead?: number;
   /** Phone's own "Table" row details, in row order. */
   readonly tableDetails: readonly string[];
   /** Phone's own Guide group row details after the level row, in row order (`guideRowInfoOf` minus its own `"guide-level"` entry) — wide mode ignores this too; Pause's wide layout has no inline Guide group (only the standalone Settings screen does). */
@@ -600,6 +644,7 @@ export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout 
       input.guidedRunActive,
       input.blindLineCount ?? 0,
       input.quickReferenceCompactTail ?? 0,
+      input.quickReferenceFullWidthHead ?? 0,
     );
   return wideLayout(
     bounds,
@@ -630,6 +675,7 @@ export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
   return [
     layout.closeButton,
     layout.search,
+    layout.quickReferenceToggle,
     ...layout.quickReferenceRows,
     layout.lowerViewport,
     layout.resume,

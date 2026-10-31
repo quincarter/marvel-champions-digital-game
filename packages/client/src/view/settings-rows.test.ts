@@ -44,13 +44,19 @@ const BASE: Settings = {
   reducedMotion: false,
   textResolution: 1,
   largeCardText: false,
+  darkMode: false,
   sound: true,
   musicShuffle: false,
   musicVolume: 100,
   effectsVolume: 100,
   confirmBeforeEndTurn: true,
+  deckSignatureCards: "free",
+  deckCopyLimits: false,
   notOfferedNotices: true,
   sameNameHeroAllyConflict: true,
+  deckCountsHero: true,
+  deckCountsEncounter: false,
+  deckBoostAverage: false,
   villainAutoAdvance: "off",
   holdEncounterCards: true,
   flipEncounterCards: true,
@@ -89,13 +95,19 @@ describe("settingsRowInfoOf", () => {
       reducedMotion: true,
       textResolution: 2,
       largeCardText: true,
+      darkMode: true,
       sound: false,
       musicShuffle: true,
       musicVolume: 60,
       effectsVolume: 80,
       confirmBeforeEndTurn: false,
+      deckSignatureCards: "free",
+      deckCopyLimits: false,
       notOfferedNotices: false,
       sameNameHeroAllyConflict: false,
+      deckCountsHero: false,
+      deckCountsEncounter: true,
+      deckBoostAverage: true,
       villainAutoAdvance: "off",
       holdEncounterCards: true,
       flipEncounterCards: true,
@@ -130,6 +142,7 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "dark-mode")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(false);
     expect(rows.find((r) => r.id === "music-shuffle")?.on).toBe(true);
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(false);
@@ -271,6 +284,7 @@ describe("nextSettingsAfterToggle", () => {
     expect(nextSettingsAfterToggle(BASE, "reduced-motion", 1).reducedMotion).toBe(true);
     expect(nextSettingsAfterToggle({ ...BASE, reducedMotion: true }, "reduced-motion", 1).reducedMotion).toBe(false);
     expect(nextSettingsAfterToggle(BASE, "large-card-text", 1).largeCardText).toBe(true);
+    expect(nextSettingsAfterToggle(BASE, "dark-mode", 1).darkMode).toBe(true);
   });
 
   test("sharper text toggles between 1 and the device's own sharp resolution", () => {
@@ -296,6 +310,24 @@ describe("nextSettingsAfterToggle", () => {
     expect(
       nextSettingsAfterToggle({ ...BASE, notOfferedNotices: false }, "not-offered-notices", 1).notOfferedNotices,
     ).toBe(true);
+  });
+
+  test("the three Cards left rows each flip their own setting, and only the hero deck's starts on", () => {
+    const fresh = defaultSettings();
+    expect([fresh.deckCountsHero, fresh.deckCountsEncounter, fresh.deckBoostAverage]).toEqual([true, false, false]);
+    const hero = nextSettingsAfterToggle(fresh, "deck-counts-hero", 1);
+    expect([hero.deckCountsHero, hero.deckCountsEncounter, hero.deckBoostAverage]).toEqual([false, false, false]);
+    const encounter = nextSettingsAfterToggle(fresh, "deck-counts-encounter", 1);
+    expect([encounter.deckCountsHero, encounter.deckCountsEncounter, encounter.deckBoostAverage]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    const boost = nextSettingsAfterToggle(fresh, "deck-boost-average", 1);
+    expect([boost.deckCountsHero, boost.deckCountsEncounter, boost.deckBoostAverage]).toEqual([true, false, true]);
+    const rows = settingsRowInfoOf(boost);
+    expect(rows.find((r) => r.id === "deck-boost-average")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "deck-counts-encounter")?.on).toBe(false);
   });
 
   test("same-name-conflict toggles between on and off, and the table rules follow it", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { reportButtonSlot, type RunningScene } from "./report-button.js";
+import { chromeBarBottom, reportButtonSlot, topClearOfBar, type RunningScene } from "./report-button.js";
 
 const slot = { x: 300, y: 5, width: 40, height: 26 };
 const slots = new Map([["Board", slot]]);
@@ -40,5 +40,29 @@ describe("reportButtonSlot", () => {
     const title = { x: 0, y: 0, width: 44, height: 44 };
     const both = new Map([...slots, ["Title", title]]);
     expect(reportButtonSlot([scene("Board"), scene("Title")], both)).toEqual({ key: "Title", rect: title });
+  });
+});
+
+describe("chromeBarBottom", () => {
+  test("the bottom of the Board's top bar while a choice keeps the buttons on it (#514)", () => {
+    const running = [scene("Board"), scene("ChoiceOverlay"), scene("ReportButton")];
+    expect(chromeBarBottom(running, slots)).toBe(36);
+  });
+
+  test("0 where the buttons are hidden: over a screen with no slot, or under Pause", () => {
+    expect(chromeBarBottom([scene("SetupDeal"), scene("ChoiceOverlay")], slots)).toBe(0);
+    expect(chromeBarBottom([scene("Board"), scene("PauseOverlay"), scene("ChoiceOverlay")], slots)).toBe(0);
+  });
+});
+
+describe("topClearOfBar", () => {
+  test("below the bar when the sheet fits under it", () => {
+    expect(topClearOfBar(36, 844, 700)).toBe(36);
+  });
+
+  test("only as far down as still fits: a short phone keeps its controls on screen (#514)", () => {
+    // Zemo's accusation at 360x632: 16 px of margins, 238 px of fixed rows and the grid's least 394 px.
+    expect(topClearOfBar(36, 632, 16 + 238 + 394)).toBe(0);
+    expect(topClearOfBar(36, 660, 16 + 238 + 394)).toBe(12);
   });
 });

@@ -413,6 +413,9 @@ export function attackKeywordsOf(
 /**
  * RRG "Status Cards": one of each type per character. Steady allows a second
  * stunned and a second confused; stalwart allows neither; a `statusLimit` rule sets tough's.
+ *
+ * The room for a new status card: a `cannotHaveStatus` rule leaves none. What a character may go on holding is
+ * `heldStatusCapacity`, which that rule does not lower.
  */
 export function statusCapacity(
   state: GameState,
@@ -422,6 +425,22 @@ export function statusCapacity(
 ): number {
   // "Ronan the Accuser cannot be stunned." (`ron` 90001; `cannotHaveStatus`, docs/phase7-wave3.md §3.7).
   if (cannotHaveStatus(state, deps, id, status)) return 0;
+  return heldStatusCapacity(state, id, status, deps);
+}
+
+/**
+ * How many `status` cards a character may keep holding: `statusCapacity` without the `cannotHaveStatus` rule. A
+ * "cannot be stunned / confused" rule that starts to apply only stops new cards being placed; a card already held stays
+ * until stalwart sheds it. FFG ruling Feb 15, 2024 (#145): "If a Steady Magneto has 1 confused status card on him when
+ * Magneto's Helmet attaches to him, the confused status card remains on him unless he gains Stalwart" (RRG 1.8
+ * "Stalwart", p. 40). The owner applied this on 2026-10-28 (PR #498), overriding docs/phase7-wave3.md §3.7's shedding.
+ */
+export function heldStatusCapacity(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): number {
   // "Any number of" / "1 additional" tough status card(s) (docs/phase7-wave5.md §3.19, docs/phase7-wave6.md §3.7).
   // Steady and stalwart name only stunned and confused, so they never touch tough's capacity.
   if (status === "tough") return statusLimit(state, deps, id, "tough") ?? 1;

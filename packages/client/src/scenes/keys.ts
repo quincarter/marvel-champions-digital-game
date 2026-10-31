@@ -44,6 +44,7 @@ export const SCENES = {
   extras: "Extras",
   /** Every achievement, the player's rank and lifetime points (`scenes/trophy-room.ts`), reached from Title and Extras. */
   trophyRoom: "TrophyRoom",
+  playerStats: "PlayerStats",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
@@ -109,6 +110,8 @@ export const SCENES = {
   syncPrompt: "SyncPrompt",
   /** The one-time "Set up cross-device sync?" question (`scenes/sync-setup-prompt.ts`), launched over Title. */
   syncSetupPrompt: "SyncSetupPromptOverlay",
+  /** The one-time "Share your results?" question for the global win rates (`scenes/global-ask-prompt.ts`), launched over Title. */
+  globalStatsPrompt: "GlobalStatsPromptOverlay",
   /** The note that follows its "Not now" (`scenes/sync-setup-prompt.ts`): where to set sync up later. */
   syncSetupNotice: "SyncSetupNotice",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
@@ -117,6 +120,8 @@ export const SCENES = {
   nameConflict: "NameConflictOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
+  /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */
+  searchHelp: "SearchHelpSheet",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Only one option" (`scenes/option-notice.ts`, #412): a choose-one that took its only option, over the Board. */
@@ -141,6 +146,8 @@ export const SCENES = {
   evidence: "EvidenceOverlay",
   /** A pile fanned out: every card in your discard (or the encounter discard) at once (`scenes/pile-view.ts`). */
   pileView: "PileViewOverlay",
+  /** The cards left in your deck or the encounter deck, with counts and never in order (`scenes/deck-left.ts`). */
+  deckLeft: "DeckLeftOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
   /** "Report an issue" (#176, `scenes/report-issue.ts`): copy or download the log, a screenshot tip, a GitHub link. */
@@ -151,6 +158,8 @@ export const SCENES = {
   musicButton: "MusicButton",
   /** The card language button (#337, `scenes/language-button.ts`): a globe and "EN"/"ES", beside the music button. */
   languageButton: "LanguageButton",
+  /** The dark mode toggle (#459, `scenes/theme-button.ts`): a moon or a sun at the top of every screen. */
+  themeButton: "ThemeButton",
   /** What the language button opens (`scenes/language-popup.ts`): the language list, or "Other languages" on a native install. */
   languagePopup: "LanguagePopupOverlay",
   /** The music player (#191, `scenes/music-player.ts`), opened from the music button. */
@@ -161,6 +170,8 @@ export const SCENES = {
   achievementToast: "AchievementToast",
   /** The "Controller connected" toast (`scenes/pad-toast.ts`): runs only while it shows. */
   padToast: "PadToast",
+  /** The "Building your stats" toast (`scenes/backfill-toast.ts`, #529): runs only while older games are filled in. */
+  backfillToast: "BackfillToast",
 } as const;
 
 /** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
@@ -168,9 +179,11 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.reportButton,
   SCENES.musicButton,
   SCENES.languageButton,
+  SCENES.themeButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
   SCENES.padToast,
+  SCENES.backfillToast,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,
 ]);

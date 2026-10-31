@@ -293,6 +293,10 @@ export function pushEffects(
      */
     readonly defeatedLeaving?: InstanceId;
     readonly defeatedLeavingSource?: CardId;
+    /** The frame of an `EffectSpec sentence` (`Frame<"effects">.sentence`, `resolve/sentence-hold.ts`). */
+    readonly sentence?: boolean;
+    /** `Frame<"effects">.eachTimePass`. */
+    readonly eachTimePass?: boolean;
     /** `Frame<"effects">.replacesEvent`. */
     readonly replacesEvent?: TriggerEvent;
   },
@@ -325,6 +329,8 @@ export function pushEffects(
       ...(spec.instruction ? { instruction: spec.instruction } : {}),
       ...(spec.defeatedLeaving !== undefined ? { defeatedLeaving: spec.defeatedLeaving } : {}),
       ...(spec.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: spec.defeatedLeavingSource } : {}),
+      ...(spec.sentence ? { sentence: true as const } : {}),
+      ...(spec.eachTimePass ? { eachTimePass: true as const } : {}),
       ...(spec.replacesEvent !== undefined ? { replacesEvent: spec.replacesEvent } : {}),
     },
   ]);

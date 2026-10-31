@@ -28,7 +28,7 @@ import {
   type DeclineKeyState,
 } from "../view/choice-glyphs.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
-import { pickGlyphSpecs } from "../view/input-glyph-model.js";
+import { pickGlyphSpecs, seatPeekGlyphSpecs } from "../view/input-glyph-model.js";
 import type { PadLayer, PickBumper } from "../view/pad-layer-bindings.js";
 import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
 import { clipHoverRect } from "../view/card-hover.js";
@@ -45,7 +45,16 @@ import {
   setChoicePeeking,
 } from "../view/choice-peek.js";
 import { flipPeekEdge, peekMoveLabel } from "../view/peek-banner.js";
-import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
+import {
+  seatIndexOfSlot,
+  seatPeekChips,
+  seatPeekLabel,
+  seatPeekQuestionPrefix,
+  seatPeekSlot,
+  VIEW_TABLE_LABEL,
+  viewTableWidth,
+} from "../view/seat-peek.js";
+import { declineLabelOf, triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
   cardOf,
@@ -59,6 +68,7 @@ import {
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { unavailableOptionReasons } from "../view/ability-refusal.js";
 import { choiceRowsOf } from "../view/choice-option-rows.js";
+import { optionArtInstance, optionArtOf } from "../view/choice-option-art.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -110,7 +120,7 @@ import {
 } from "../view/choice-source-panel-layout.js";
 import { drawInstructionSourcePanel, drawSourceCardPanel, instructionStripHeight } from "../ui/source-card-panel.js";
 import { aosOptionLabelOf, secretTargetNotesOf, wrapOptionLabel } from "../view/board-secret-notes.js";
-import { optionLabelOf, seatIdentityName } from "../view/names.js";
+import { optionLabelOf, playerName, seatIdentityName, shortSeatName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
 import {
   defendChoiceLayout,
@@ -123,6 +133,7 @@ import {
 } from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
+  toggledSelection,
   canDeclineChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
@@ -170,6 +181,8 @@ import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
 import type { VillainPhaseOverlay } from "./villain-phase.js";
 import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
+import { reportSlots } from "../ui/report-slot.js";
+import { chromeBarBottom, topClearOfBar } from "../view/report-button.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import {
   HoverPreview,
@@ -191,7 +204,7 @@ import {
 } from "../view/collection-search.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
-import { McGuideTag } from "../ui/guide-tag.js";
+import { GuideStampGlide } from "../ui/guide-glide-run.js";
 import { drawBoardMemberKey, drawEvidenceGrid } from "../ui/evidence-grid.js";
 import { evidenceGridWantedHeight } from "../view/evidence-layout.js";
 import { accuseSheetOf } from "../view/evidence-model.js";
@@ -215,6 +228,10 @@ export class ChoiceOverlay extends Phaser.Scene {
   #collectionPage = { choiceId: "", page: 0 };
   /** The taps of the card tiles drawn now by pick slot (`view/pick-assign.ts`): a modifier + a face button. */
   #pickTaps = new Map<number, () => void>();
+  /** The seat buttons' number keys this draw (1 to 4 by seat order, `view/seat-peek.ts`), by seat index. */
+  #seatKeys = new Map<number, () => void>();
+  /** The VIEW TABLE buttons this draw, by their focus stop's option id. */
+  #viewTables = new Map<string, () => void>();
   /** The target tiles' bars for the sheet being drawn (`view/choice-tile-bars.ts`), rebuilt with every draw. */
   #tileBars: ReadonlyMap<string, TileBar> = new Map();
   /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
@@ -264,6 +281,8 @@ export class ChoiceOverlay extends Phaser.Scene {
    * already provides its own "look here" via its scrim and layout, so no separate spotlight ring is drawn either.
    */
   #guidePickInstanceId: InstanceId | null = null;
+  /** This opening's `GUIDE PICK` stamp, gliding in from the board's highlight (#552). */
+  #guideStamp = new GuideStampGlide();
   /** This draw's own bottom guide strip content, if any (§3.10, §7 accessibility fix) — kept so `#activate` can
    * fire its Skip/Stop/primary callback from a later keyboard/pad press, not only `drawGuideStrip`'s own pointer
    * handlers. Set once per `#rebuild`, alongside `#focusRects`. */
@@ -375,6 +394,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#selected = [];
     this.#revealedChoiceId = null;
     this.#idleSince = null;
+    this.#guideStamp = new GuideStampGlide();
     // A relaunch starts uncovered and shown, whatever the last run left (`update` hides a covered sheet).
     this.#wasCovered = false;
     this.#peekingAt = null;
@@ -410,6 +430,9 @@ export class ChoiceOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.optionNotice) ||
+        // Opened from a peek at the table: the pile owns B and A while it is up.
+        this.scene.isActive(SCENES.pileView) ||
+        this.scene.isActive(SCENES.deckLeft) ||
         this.#covered(),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       // A trigger or a bumper held with a face button picks a target tile outright, as on the table's targeting panel.
@@ -433,6 +456,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     bindExtraInput(this, {
       blocked: binding.blocked,
       peekExpand: { peek: () => this.#padAction("peek"), expand: () => this.#padAction("expand") },
+    });
+    // 1 to 4: a seat's look-at button (View table on a choose-a-player row, a seat on the peek banner), by seat order.
+    this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
+      if (binding.blocked() || this.#motion.leaving || this.#covered()) return;
+      if (event.repeat || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      const match = /^(?:Digit|Numpad)([1-4])$/.exec(event.code);
+      if (match) this.#seatKeys.get(Number(match[1]) - 1)?.();
     });
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
     // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.
@@ -497,6 +527,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     return this.scene.get(SCENES.board) as BoardScene;
   }
 
+  /** The bottom of the top bar the chrome buttons stay on over this sheet, or 0 while they are hidden (#514). */
+  #chromeBarBottom(): number {
+    const running = this.scene.manager
+      .getScenes(true)
+      .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
+    return chromeBarBottom(running, reportSlots());
+  }
+
   /** A screen that hosts the sheet (the setup screen's dock) asks for a redraw after it moves the dock. */
   refresh(): void {
     this.#rebuild();
@@ -508,8 +546,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (this.#hoverScrolled.size === 0) return noted;
     const offset = this.#optionScroll.offsetPx;
     const onScreen = new Map<InstanceId, Rect>();
-    for (const [id, rect] of noted)
-      onScreen.set(id, this.#hoverScrolled.has(id) ? { ...rect, y: rect.y - offset } : rect);
+    const viewport = this.#optionRegion?.rect ?? null;
+    for (const [id, rect] of noted) {
+      if (!this.#hoverScrolled.has(id)) {
+        onScreen.set(id, rect);
+        continue;
+      }
+      // Only the part still inside the list: a card scrolled under the header or Confirm opens no popover there.
+      const moved = { ...rect, y: rect.y - offset };
+      const shown = viewport ? clipHoverRect(moved, viewport) : moved;
+      if (shown) onScreen.set(id, shown);
+    }
     return onScreen;
   }
 
@@ -569,6 +616,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing = null;
     this.#focusRects.clear();
     this.#pickTaps.clear();
+    this.#seatKeys.clear();
+    this.#viewTables.clear();
     this.#scrolledRows.clear();
     this.#optionRegion = null;
     this.#guideOptionRects.clear();
@@ -656,7 +705,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         POOL_DEPS,
         promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game),
       ).title;
-      this.#drawPeekBanner(question, width, height, formFactor);
+      this.#drawPeekBanner(state.game, question, width, height, formFactor);
       return;
     }
     const panelMode = docked
@@ -712,9 +761,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     // toast slides in, which covered it there.
     // Portrait only: a phone on its side has no height to spare under the sheet, so it keeps the title bar's control.
     const peekStrip = canPeek && (formFactor === "phone" || formFactor === "tabletPortrait") ? CHOICE_PEEK_STRIP : 0;
+    // Over the table the chrome buttons stay on its top bar (`view/report-button.ts`), so the sheet starts below the
+    // bar: on a phone it used to reach the top edge, and the buttons covered its title (#514).
+    const margin = phone ? 8 : 40;
+    const topEdge = docked ? 0 : Math.max(margin, this.#chromeBarBottom() + (phone ? 4 : 8));
     const sheetHeight = docked
       ? docked.height - DOCK_INSET * 2
-      : Math.min(areaHeight - (phone ? 16 : 80) - peekStrip, (asCards ? 620 : 560) + extraHeight + contextHeight);
+      : Math.min(areaHeight - topEdge - margin - peekStrip, (asCards ? 620 : 560) + extraHeight + contextHeight);
     // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centered and the rail hanging off whichever side has room.
@@ -723,7 +776,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       ? { x: docked.x + DOCK_INSET, y: docked.y + DOCK_INSET, width: sheetWidth, height: sheetHeight }
       : {
           x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
-          y: (areaHeight - peekStrip - sheetHeight) / 2,
+          y: Math.max(topEdge, (areaHeight - peekStrip - sheetHeight) / 2),
           width: sheetWidth,
           height: sheetHeight,
         };
@@ -1112,7 +1165,20 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
     // (never cut): the text stays clear of the glyph on either side.
     const glyphRoom = choice.options.some((o) => this.#pickGlyphFits(o.optionId)) ? DEFEND_PICK_RESERVE * 2 : 0;
-    const maxChars = Math.floor((sheet.width - 48 - glyphRoom) / (typeRole.rowTitle.size * 0.62));
+    // A choose-a-player row in a multi-seat game: VIEW TABLE beside it peeks at that seat's side, hand and all, so a
+    // card that turns on what a teammate holds can be decided with it read (`view/seat-peek.ts`). Only where the sheet
+    // can step aside for PEEK AT TABLE's banner, which is where Back lands.
+    const viewWidth =
+      canPeek && state.game && state.game.players.length > 1 && choice.options.some((o) => o.ref.kind === "player")
+        ? viewTableWidth(phone)
+        : 0;
+    // Each row that names a hero or a card shows its picture at the row's left (the identity, the villain, the minion,
+    // the scheme), and its label centres in the rest (`labelInset`).
+    const withArt = state.game !== null && choice.options.some((o) => optionArtOf(state.game!, o.ref) !== null);
+    const artRoom = withArt ? ROW_ART_INSET : 0;
+    const maxChars = Math.floor(
+      (sheet.width - 48 - glyphRoom - artRoom - (viewWidth > 0 ? viewWidth + 8 : 0)) / (typeRole.rowTitle.size * 0.62),
+    );
     // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
     const rows = choiceRowsOf(
       choice,
@@ -1136,12 +1202,18 @@ export class ChoiceOverlay extends Phaser.Scene {
     const tops = rowsLayout.tops;
     const viewport: Rect = { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: listHeight };
     const rowWidth = sheet.width - 24 - (rowsLayout.scrolls ? 10 : 0);
+    const sheetKey = key;
+    /** Each player row's VIEW TABLE stop, by the row's option id, for the focus route. */
+    const viewStops = new Map<string, string>();
     this.#route = choiceFocusOrder(
       choice.options.map((option) => option.optionId),
       canDeclineChoice(choice),
     );
 
     const rowButtons: McButton[] = [];
+    /** The rows' pictures, which scroll with them. */
+    const rowArt: Phaser.GameObjects.GameObject[] = [];
+    const rowHovers = new Set<InstanceId>();
     rows.forEach((row, index) => {
       const rect: Rect = { x: sheet.x + 12, y: tops[index]!, width: rowWidth, height: heights[index]! };
       if (row.kind === "unavailable") {
@@ -1164,23 +1236,82 @@ export class ChoiceOverlay extends Phaser.Scene {
       const order = this.#selected.indexOf(option.optionId);
       const text = texts[index]!;
       const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${text}` : text;
+      const seatIndex =
+        option.ref.kind === "player" && viewWidth > 0
+          ? state.game!.players.findIndex(
+              (player) => option.ref.kind === "player" && player.playerId === option.ref.playerId,
+            )
+          : -1;
+      const optionRect = seatIndex >= 0 ? { ...rect, width: rect.width - viewWidth - 8 } : rect;
+      if (seatIndex >= 0) {
+        const playerId = state.game!.players[seatIndex]!.playerId;
+        const viewRect: Rect = { x: rect.x + rect.width - viewWidth, y: rect.y, width: viewWidth, height: rect.height };
+        const look = (): void => {
+          appSession().store.peekAtSeat(playerId);
+          // Over the docked villain phase the phase tucks itself away (its own banner has the seats and Back).
+          if (host?.peek) host.peek();
+          else this.#setPeek(sheetKey);
+        };
+        const view = new McButton(this, {
+          kind: "secondary",
+          label: VIEW_TABLE_LABEL,
+          type: typeRole.label,
+          rect: viewRect,
+          ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
+          onClick: look,
+        });
+        this.#buttons.push(view);
+        rowButtons.push(view);
+        // A stop of its own right after its row, so Tab, the arrows and the D-pad reach it too (`#activate`).
+        const viewKey = choiceFocusKey({ kind: "option", optionId: `${VIEW_STOP}${playerId}` });
+        this.#focusRects.set(viewKey, viewRect);
+        if (rowsLayout.scrolls) this.#scrolledRows.set(viewKey, index);
+        this.#viewTables.set(`${VIEW_STOP}${playerId}`, look);
+        viewStops.set(option.optionId, `${VIEW_STOP}${playerId}`);
+        this.#registerSeatPick(viewRect, seatIndex, seatPeekSlot(seatIndex), look, viewKey);
+      }
       const button = new McButton(this, {
         kind: "secondary",
         label: rowLabel,
         type: typeRole.rowTitle,
-        rect,
+        rect: optionRect,
+        ...(state.game && optionArtOf(state.game, option.ref) ? { labelInset: ROW_ART_INSET } : {}),
         selected: order >= 0,
         ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
         onClick: () => this.#toggle(option.optionId, choice.maxSelections),
       });
       this.#buttons.push(button);
       rowButtons.push(button);
+      if (state.game) {
+        rowArt.push(
+          ...this.#drawRowArt(
+            state.game,
+            option.ref,
+            optionRect,
+            rowsLayout.scrolls,
+            () => this.#toggle(option.optionId, choice.maxSelections),
+            option.optionId,
+            rowHovers,
+          ),
+        );
+      }
       const key = choiceFocusKey({ kind: "option", optionId: option.optionId });
-      this.#focusRects.set(key, rect);
+      this.#focusRects.set(key, optionRect);
       if (rowsLayout.scrolls) this.#scrolledRows.set(key, index);
       // RT + A, RT + B, ... press this row as a tap does; the combo hangs at the row's right end.
-      this.#registerTilePick(rect, option.optionId, () => this.#toggle(option.optionId, choice.maxSelections), "row");
+      this.#registerTilePick(
+        optionRect,
+        option.optionId,
+        () => this.#toggle(option.optionId, choice.maxSelections),
+        "row",
+      );
     });
+    if (viewStops.size > 0) {
+      this.#route = this.#route.flatMap((target): ChoiceFocusTarget[] => {
+        const view = target.kind === "option" ? viewStops.get(target.optionId) : undefined;
+        return view ? [target, { kind: "option", optionId: view }] : [target];
+      });
+    }
     if (rowsLayout.scrolls) {
       const region = new McScrollRegion(this, {
         rect: viewport,
@@ -1189,7 +1320,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         clipInteractive: true,
         onScroll: () => this.#drawFocusRing(),
       });
-      region.content.add(rowButtons.map((button) => button.container));
+      region.content.add([...rowButtons.map((button) => button.container), ...rowArt]);
       region.refresh();
       this.#optionRegion = region;
     }
@@ -1213,6 +1344,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** PEEK AT TABLE, or back to the decision (null). */
   #setPeek(choiceKey: string | null): void {
     this.#peekingAt = choiceKey;
+    // Back from any seat: the table beneath goes back to the seat deciding, and the sheet comes back over it.
+    if (choiceKey === null) appSession().store.endSeatPeek();
     this.#rebuild();
   }
 
@@ -1220,8 +1353,13 @@ export class ChoiceOverlay extends Phaser.Scene {
    * The sheet stepped aside (PEEK AT TABLE): a banner at the foot of the screen with the question and BACK TO DECISION,
    * and nothing else of this scene, so the table above it takes the presses (its tabs, Inspect) and the mouse's hover.
    */
-  #drawPeekBanner(question: string, width: number, height: number, formFactor: FormFactor): void {
-    const layout = choicePeekBannerLayout({ x: 0, y: 0, width, height }, formFactor);
+  #drawPeekBanner(game: GameState, question: string, width: number, height: number, formFactor: FormFactor): void {
+    const { store } = appSession();
+    const home = store.state.perspectiveId;
+    const viewing = store.state.peekSeat ?? home;
+    // A multi-seat game: one button per seat switches whose side of the table shows, hand and all (`view/seat-peek.ts`).
+    const seats = seatPeekChips(game, viewing, home, (id) => shortSeatName(game, id, null));
+    const layout = choicePeekBannerLayout({ x: 0, y: 0, width, height }, formFactor, undefined, seats.length);
     this.add
       .zone(layout.banner.x, layout.banner.y, layout.banner.width, layout.banner.height)
       .setOrigin(0, 0)
@@ -1246,7 +1384,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .text(
         layout.text.x,
         layout.text.y + layout.text.height / 2,
-        `Your decision: ${question}`,
+        `${seatPeekQuestionPrefix(store.state.peekSeat !== null ? playerName(game, store.state.peekSeat) : null)}: ${question}`,
         textStyle({ ...typeRole.rowTitle, size: 14 }, surface.paper.hex),
       )
       .setOrigin(0, 0.5);
@@ -1281,8 +1419,28 @@ export class ChoiceOverlay extends Phaser.Scene {
     );
     this.#focusRects.set("peek-move", layout.move);
     this.#focusRects.set("peek-back", layout.back);
+    seats.forEach((seat, index) => {
+      const rect = layout.seats[index];
+      if (!rect) return;
+      const look = (): void => {
+        store.peekAtSeat(seat.playerId);
+      };
+      const button = new McButton(this, {
+        kind: "onInk",
+        label: seatPeekLabel(seat),
+        type: typeRole.label,
+        rect,
+        selected: seat.viewing,
+        onClick: look,
+      });
+      this.#buttons.push(button);
+      const key = `peek-seat:${seat.playerId}`;
+      this.#focusRects.set(key, rect);
+      this.#registerSeatPick(rect, index, seat.slot, look);
+    });
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
+        seatRects: () => layout.seats,
         peeking: () => true,
         backRect: () => layout.back,
         moveRect: () => layout.move,
@@ -1483,12 +1641,14 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setInteractive();
     const panelsFrom = this.children.list.length;
 
+    // Clear of the top bar the chrome buttons stay on (#514), as the generic sheet is.
+    const barBottom = this.#chromeBarBottom();
     const layout = defendChoiceLayout(
       {
         x: guideRailWidth,
-        y: 0,
+        y: barBottom,
         width: width - guideRailWidth,
-        height: height - stripHeight,
+        height: height - stripHeight - barBottom,
       },
       view.options.length,
     );
@@ -1805,11 +1965,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     const COMMIT = hit.primary;
     const fixed = BAR + pad + HINT + 6 + LEGEND + 6 + CHIPS + 4 + SUMMARY + 8 + COMMIT + pad;
     const wantedGrid = evidenceGridWantedHeight(innerWidth);
-    const gridHeight = Math.max(innerWidth < 600 ? 394 : 126, Math.min(wantedGrid, areaHeight - margin * 2 - fixed));
-    const sheetHeight = Math.min(areaHeight - margin * 2, fixed + gridHeight);
+    const minGrid = innerWidth < 600 ? 394 : 126;
+    // Clear of the top bar the chrome buttons stay on (#514), as the generic sheet is, but only as far as the grid's
+    // least height still leaves ACCUSE on screen: this sheet does not scroll, so a short phone keeps the old top.
+    const top = topClearOfBar(this.#chromeBarBottom(), areaHeight, margin * 2 + fixed + minGrid);
+    const room = areaHeight - top;
+    const gridHeight = Math.max(minGrid, Math.min(wantedGrid, room - margin * 2 - fixed));
+    const sheetHeight = Math.min(room - margin * 2, fixed + gridHeight);
     const sheet: Rect = {
       x: areaX + (areaWidth - sheetWidth) / 2,
-      y: Math.max(margin / 2, (areaHeight - sheetHeight) / 2),
+      y: top + Math.max(margin / 2, (room - sheetHeight) / 2),
       width: sheetWidth,
       height: sheetHeight,
     };
@@ -1959,6 +2124,57 @@ export class ChoiceOverlay extends Phaser.Scene {
     noteHoverCard(this, instanceId, rect);
   }
 
+  /**
+   * A text row's picture (`view/choice-option-art.ts`): the hero, villain, minion or scheme the option names, at the
+   * row's left, with the card hover over it on a desktop (inside a scrolling list it follows the scroll). The picture
+   * takes presses of its own, so the popover finds it over the row: a tap picks the row as the row does, and a hold
+   * or right-click opens the card in Inspect. Returns what it drew, for a scrolling list to carry.
+   */
+  #drawRowArt(
+    game: GameState,
+    ref: ChoiceRef,
+    row: Rect,
+    scrolls: boolean,
+    pick: () => void,
+    optionKey: string,
+    /** The cards this list's rows have noted for the hover so far. */
+    hovered: Set<InstanceId>,
+  ): Phaser.GameObjects.GameObject[] {
+    const source = optionArtOf(game, ref);
+    const id = optionArtInstance(game, ref);
+    if (!source || id === null) return [];
+    // The picture, not the whole card shrunk to a stamp: a square crop of the scan's upper part, where the art is.
+    const side = Math.max(0, Math.min(ROW_ART_WIDTH, row.height - 8));
+    const thumb: Rect = { x: row.x + 6, y: row.y + (row.height - side) / 2, width: side, height: side };
+    // Two rows can name one card (two abilities on it): the hover map holds one rect per card, so the first row keeps it.
+    if (!hovered.has(id)) {
+      hovered.add(id);
+      noteHoverCard(this, id, thumb);
+      if (scrolls) this.#hoverScrolled.add(id);
+    }
+    const zone = this.add.zone(thumb.x, thumb.y, thumb.width, thumb.height).setOrigin(0, 0).setInteractive();
+    const inspect = (): void => {
+      this.scene.launch(SCENES.inspect, { instanceId: id });
+      this.scene.bringToTop(SCENES.inspect);
+    };
+    bindHoldTarget(this, zone, { key: `row-art:${optionKey}`, onTap: pick, onInspect: inspect });
+    const key = cardArt(this).request(this, source);
+    if (!key || !this.textures.exists(key)) return [zone];
+    const { width: w, height: h } = this.textures.get(key).getSourceImage();
+    if (!w || !h) return [zone];
+    // About the middle half of the card's width, from just under its title bar: the portrait, at a size that reads.
+    const visible = Math.min(w, h) * ROW_ART_ZOOM;
+    const scale = side / visible;
+    const cropX = (w - visible) / 2;
+    const cropY = Math.min(h - visible, h * 0.1);
+    const image = this.add
+      .image(thumb.x - cropX * scale, thumb.y - cropY * scale, key)
+      .setOrigin(0, 0)
+      .setScale(scale)
+      .setCrop(cropX, cropY, visible, visible);
+    return [image, zone];
+  }
+
   #drawScan(game: GameState, instanceId: InstanceId, rect: Rect): void {
     const source = artFor(cardOf(game, instanceId), faceOf(game, instanceId));
     const key = source ? cardArt(this).request(this, source) : null;
@@ -1987,7 +2203,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // the stamp's bottom half landed right on top of "Black Cat defends" when both used the same 8px top pad.
     const isGuidePick = option.defenderInstanceId !== null && option.defenderInstanceId === this.#guidePickInstanceId;
     if (isGuidePick) {
-      new McGuideTag(this, "guidePick").update(usual);
+      this.#guideStamp.draw(this, "guidePick", usual, this.#boardScene()?.guideHighlightRect() ?? null);
     }
 
     // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.
@@ -2387,6 +2603,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (context.whyNow) add(context.whyNow, 13, "normal", surface.ink.hex, ink.secondary);
     for (const effect of context.effects) add(`If you confirm: ${effect}`, 13, "bold", surface.ink.hex, 1);
     if (context.warning) add(context.warning, 13, "bold", surface.ink.hex, 1);
+    if (context.later) add(context.later, 13, "normal", surface.ink.hex, ink.secondary);
     const used = cursor - y;
     if (measureOnly) made.forEach((object) => object.destroy());
     return used;
@@ -2453,7 +2670,11 @@ export class ChoiceOverlay extends Phaser.Scene {
       // backs out, so it is not Decline's glyph.
       const decline = new McButton(this, {
         kind: "quiet",
-        label: payment ? payment.declineLabel : this.#pairing ? "Assign none" : "Decline",
+        label: payment
+          ? payment.declineLabel
+          : this.#pairing
+            ? "Assign none"
+            : declineLabelOf(appSession().store.state.game, choice),
         type: typeRole.label,
         rect: {
           x: sheet.x + 20 + commitWidth,
@@ -2695,6 +2916,35 @@ export class ChoiceOverlay extends Phaser.Scene {
     return slot === undefined || slot < 0 || padPickBinding(slot) === null ? null : slot;
   }
 
+  /**
+   * A seat button on the peek banner wears its seat's combo, LB + a face button (`view/seat-peek.ts`), and the combo
+   * presses it. There are no option tiles while the sheet is aside, so the slots are free.
+   */
+  #registerSeatPick(rect: Rect, seatIndex: number, slot: number | null, tap: () => void, focusKey?: string): void {
+    if (slot === null || seatIndexOfSlot(slot) === null) return;
+    this.#pickTaps.set(slot, tap);
+    this.#seatKeys.set(seatIndex, tap);
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
+    this.#hints.custom(
+      (_set, snapshot, _layer, held) =>
+        this.#covered() ? null : seatPeekGlyphSpecs(seatIndex, slot, snapshot.state, snapshot.settings, held),
+      18,
+      ({ width: glyphWidth, height: glyphHeight }) => {
+        // Inside a scrolling list the button moves: the glyph follows it, and one scrolled out of view has none.
+        const shown =
+          focusKey === undefined
+            ? rect
+            : this.#optionRegion
+              ? clipHoverRect(this.#screenRect(focusKey) ?? rect, this.#optionRegion.rect)
+              : (this.#screenRect(focusKey) ?? rect);
+        if (!shown || shown.height < glyphHeight + 4) return null;
+        return { x: shown.x + shown.width - glyphWidth - 6, y: shown.y + shown.height / 2 };
+      },
+      { ground: "ink" },
+    );
+  }
+
   #pickGlyphFits(optionId: string): boolean {
     return this.#pickSlotOf(optionId) !== null;
   }
@@ -2776,10 +3026,23 @@ export class ChoiceOverlay extends Phaser.Scene {
         .text(inner.x + pad, inner.y + pad + 22, keywordTile.name, textStyle(typeRole.rowTitle, surface.ink.hex))
         .setFontSize(20);
       fitText(name, inner.width - pad * 2, 20);
+      // The minion a loop's keyword belongs to, on its own line: no source card shows it (`orderLoopKeywords`).
+      const subject = keywordTile.subject
+        ? this.add
+            .text(
+              inner.x + pad,
+              name.y + name.height + 4,
+              keywordTile.subject,
+              textStyle(typeRole.rowTitle, surface.ink.hex, ink.secondary),
+            )
+            .setFontSize(14)
+            .setLineSpacing(2)
+        : null;
+      if (subject) fitWrapped(subject, inner.width - pad * 2, 2, 14);
       const line = this.add
         .text(
           inner.x + pad,
-          name.y + name.height + 8,
+          (subject ?? name).y + (subject ?? name).height + 8,
           keywordTile.line,
           textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
@@ -2917,8 +3180,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
-    // A keyword tile is words, not a picture of the card: nothing to blow up.
-    if (instanceId && !keywordTile) noteHoverCard(this, instanceId, slot);
+    // A keyword tile is words, not a picture of the card: nothing to blow up, unless it names a minion no source card
+    // shows (`orderLoopKeywords`), whose face its hover then shows.
+    if (instanceId && (!keywordTile || keywordTile.instanceId)) noteHoverCard(this, instanceId, slot);
     // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the
     // read is plain: Inspect gets no Select button.
     const tap = (): void => {
@@ -2991,6 +3255,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         break;
       case "cancel":
         // B on the end-of-phase discard sheet is Nevermind (`#takebackOf`); anywhere else it only drops focus.
+        // Peeking at a teammate's side, B first puts the table back on the seat deciding (the action bar's Back).
+        if (this.#peekingAt !== null && appSession().store.state.peekSeat !== null) {
+          appSession().store.endSeatPeek();
+          break;
+        }
         {
           // With a control focused, B first drops that focus; the next press takes the turn back.
           const takeback = backOutOnCancel(this.#focus ? choiceFocusKey(this.#focus) : null, this.#drawnBackOut);
@@ -3109,6 +3378,10 @@ export class ChoiceOverlay extends Phaser.Scene {
       };
       this.#focus = null;
       this.#rebuild();
+      return;
+    }
+    if (focus.kind === "option" && focus.optionId.startsWith(VIEW_STOP)) {
+      this.#viewTables.get(focus.optionId)?.();
       return;
     }
     if (focus.kind === "option" && focus.optionId.startsWith(INSPECT_STOP)) {
@@ -3235,10 +3508,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   #toggle(optionId: string, max: number): void {
     if (this.#motion.leaving) return;
-    const at = this.#selected.indexOf(optionId);
-    if (at >= 0) this.#selected = this.#selected.filter((id) => id !== optionId);
-    else if (max === 1) this.#selected = [optionId];
-    else if (this.#selected.length < max) this.#selected = [...this.#selected, optionId];
+    this.#selected = [...toggledSelection(this.#selected, optionId, max)];
     this.#rebuild();
   }
 
@@ -3294,6 +3564,14 @@ export class ChoiceOverlay extends Phaser.Scene {
 
 /** The accuse sheet's read-only stops (a Board Member key or a chip of the picked row): Enter or I opens that card. */
 const INSPECT_STOP = "inspect:";
+/** A text row's picture (`#drawRowArt`): at most a square of the row's height. */
+const ROW_ART_WIDTH = 48;
+/** How much of the card's width a row's picture shows (`#drawRowArt`). */
+const ROW_ART_ZOOM = 0.55;
+/** The room a row's label keeps clear of its picture. */
+const ROW_ART_INSET = ROW_ART_WIDTH + 12;
+/** A choose-a-player row's VIEW TABLE, as a focus stop (`#activate`). */
+const VIEW_STOP = "view-table:";
 /** A collection search page button's focus stop: `page:-1` and `page:1`. */
 const PAGE_STOP = "page:";
 

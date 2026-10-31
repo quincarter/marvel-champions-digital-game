@@ -110,8 +110,8 @@ describe("pool search reads rules text and every word", () => {
     expect(found.map((c) => c.id)).toContain(card.id);
   });
 
-  test("several words must all match, and name matches come first", () => {
-    const found = browsablePool(CORE_CARDS, spiderMan, ["justice"], { text: "for justice" });
+  test("several words must all match, and name matches come first under the Match sort", () => {
+    const found = browsablePool(CORE_CARDS, spiderMan, ["justice"], { text: "for justice" }, "match");
     expect(found[0]?.name).toBe("For Justice!");
     const both = browsablePool(CORE_CARDS, spiderMan, ["justice"], { text: "zzzz justice" });
     expect(both).toEqual([]);

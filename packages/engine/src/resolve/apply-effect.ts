@@ -65,7 +65,7 @@ import { dealHiddenPiles, gainFromHiddenPile, revealHiddenPile, seedHiddenPiles 
 import { identifyMole } from "./accusation.js";
 import { giveStatusOrAnnounce } from "./status-being-given.js";
 import { listensForWouldDiscard, pickRandomFromHand, splitWouldDiscard } from "./would-discard.js";
-import type { InstanceId, PlayerId } from "../ids.js";
+import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive, usesKeyword } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
@@ -122,6 +122,7 @@ import {
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
 import {
+  awaitingAbility,
   basicPowerUseFrameId,
   currentActivationFrameId,
   currentThwartFrameId,
@@ -235,6 +236,7 @@ import {
   skipUnattackable,
   withMovedAttackTarget,
 } from "./attack-ability.js";
+import { keywordFramesFor } from "./initiated-activation.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck, replacesStatusOn } from "./target-validity.js";
 import { isUnpreventableDamage } from "./unpreventable.js";
@@ -265,6 +267,7 @@ import {
   teamworkFrame,
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
+import { suspendBehindActivation } from "./suspend.js";
 import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
 import { hostOnlyReleaseZone, takeControlAsOwnAlly, treatAsAlly } from "../treat-as.js";
 import {
@@ -531,6 +534,52 @@ function redirectMovedThreat(ctx: Ctx, frame: Frame<"effects">, placed: number):
   });
 }
 
+/**
+ * The activation frame a newly initiated enemy activation waits behind (RRG 1.8 "Activation", p. 6), or null to run it
+ * now.
+ * - `afterCurrent` (`after: "currentActivation"`, "after this attack"): the topmost attack, activation or thwart in
+ *   progress (`currentActivationFrameId`), a hero's included.
+ * - Otherwise the innermost enemy attack or scheme anywhere on the stack: p. 6 is about enemy activations, and one is
+ *   still resolving beneath a hero's attack or thwart made during it (its responses are part of it: ruling Feb 28,
+ *   2026 (1) answer 2). One waiting beneath its "(attack)" ability (`attackWaiting`) is passed over, and so is a
+ *   keyword's activation initiated by an ability and waiting for it to finish (`awaitingAbility`): it has not begun
+ *   its steps. Inside an outer activation the ability waits behind that one, with the keyword's activation
+ *   (`suspendedFramesOf`).
+ * - If that innermost one was replaced ("would attack … schemes instead") or cancelled outright, null: the
+ *   replacement resolves in place of the event it replaces (RRG 1.8 "Replacement Effect", p. 36), not behind an outer
+ *   activation; the abilities waiting behind a replaced activation resume then (`resumeSuspendedOnCancel`).
+ * - One that ended early (`endedEarly`: its enemy left play, or a cancel effect cancelled the attack) is still
+ *   regarded as initiated and then ended (RRG 1.8 "Cancel", p. 11), and what it triggered resolves before a new
+ *   activation begins (p. 6), so a new one queues behind what is left of it; its end effects still drain.
+ * - One whose end effects are resolving (`endEffectsDraining`) has finished resolving, everything it triggered included:
+ *   it is passed over, so an ability resumed from there (its second "attacks you", the next `forEachPlayer` pass)
+ *   initiates its next activation at once.
+ * With none (the villain phase's own activations, a treachery's "the villain attacks you") it runs at once.
+ */
+function activationToQueueBehind(state: GameState, afterCurrent: boolean): FrameId | null {
+  if (afterCurrent) return currentActivationFrameId(state.stack);
+  for (const f of state.stack) {
+    // RRG 1.8 "Activation" p. 6: an initiated-but-unresolved quickstrike attack is not "resolving" (RRG 1.8 FAQ
+    // "Spider-Man (#1A)": initiation precedes the attack's steps), so the ability's own "the villain attacks you"
+    // resolves in place; the quickstrike attack resolves after the whole ability (ruling 194, May 23, 2024). Inside an
+    // outer activation both queue behind it.
+    if (f.kind !== "event" || f.attackWaiting || f.endEffectsDraining || awaitingAbility(f)) continue;
+    if (f.event.kind !== "enemyAttack" && f.event.kind !== "enemyScheme") continue;
+    return f.cancelled && !f.endedEarly ? null : f.frameId;
+  }
+  return null;
+}
+/** Zones a card leaves the game for: a `discardFromPlay` finds nothing to discard there. */
+const OUT_OF_THE_GAME_ZONES: ReadonlySet<string> = new Set([
+  "discard",
+  "encounterDiscard",
+  "separateDiscard",
+  "scenarioDiscard",
+  "removedFromGame",
+  "victoryDisplay",
+]);
+/** How many of its players a paused `drawUpTo` effect has finished refilling; absent when it is not paused. */
+const REFILL_PLAYERS_DONE_VAR = "$refillPlayersDone";
 /**
  * One `forEachPlayer` pass per player of `players`, resolving in that order: each pass is its own effects frame with
  * `scopedPlayerId` = that player, sharing the parent frame's source, bindings and vars.
@@ -2153,6 +2202,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "discardFromPlay": {
       const source = leaveSourceOf(ctx, frame);
       for (const id of targets(effect.target)) {
+        // A card already discarded, or out of the game, is not in play to be discarded from (RRG 1.8 "In Play and Out
+        // of Play", p. 23): "Discard this card" of an ability that resumed after its card left ("Krahllak's Blessing").
+        if (OUT_OF_THE_GAME_ZONES.has(locateCard(ctx.state, id)?.kind ?? "")) continue;
         if (effect.defeated === true) defeatFromPlay(ctx, id, effect.insteadTo, source);
         // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
         else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
@@ -2337,18 +2389,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           instanceId: id,
           playerId: attached.includes(id) ? (controllerOf(ctx.state, id) ?? underOf(id)) : underOf(id),
         }));
-      const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const enteredFrames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const keywords: StackFrame[] = [];
       for (const id of entering) {
         const quickstrike = quickstrikeFrame(ctx, id);
-        if (quickstrike) frames.push(quickstrike);
+        if (quickstrike) keywords.push(quickstrike);
       }
       // Teamwork (trait) after quickstrike, checked as it resolves (docs/phase7-wave6.md §3.1, `resolveTeamwork`).
       for (const id of entering) {
         const teamwork = teamworkFrame(ctx, id);
-        if (teamwork) frames.push(teamwork);
+        if (teamwork) keywords.push(teamwork);
       }
-      // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2).
-      for (const id of entering) frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
+      // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2). In a pass of an "each
+      // time" loop the keywords and every response to the minions entering play or engaging wait for the whole loop
+      // (ruling 38, Drang III; `keywordFramesFor`).
+      const engagements = entering.flatMap((id) => engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
+      const frames = [...keywordFramesFor(ctx, keywords, engagements, enteredFrames)];
       // "If no minion was put into play this way" (docs/phase7-wave4.md §3.59): only what is in play now entered.
       if (effect.bind) {
         const inPlay = cardsInPlay(ctx.state);
@@ -2426,12 +2482,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       bound([id]);
       // Announced as the minion it now is (§4.1 Q43 = A), in the order `putIntoPlay` announces a minion.
       const entered: TriggerEvent[] = [{ kind: "cardEntersPlay", instanceId: id, playerId }];
-      const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
-      const quickstrike = quickstrikeFrame(ctx, id);
-      if (quickstrike) frames.push(quickstrike);
-      const teamwork = teamworkFrame(ctx, id);
-      if (teamwork) frames.push(teamwork);
-      frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));
+      const enteredFrames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const keywords = [quickstrikeFrame(ctx, id), teamworkFrame(ctx, id)].filter((f): f is StackFrame => f !== null);
+      const engagements = engagedEvent(ctx, id).map((event) => eventFrame(ctx, event));
+      const frames = [...keywordFramesFor(ctx, keywords, engagements, enteredFrames)];
       frames.push(
         ...attached
           .filter((event) => announcesAttaching(event, (e) => heard(ctx.state, ctx.deps, e)))
@@ -3186,6 +3240,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       });
       return;
     }
+    case "sentence": {
+      // One printed sentence: its effects in order, its responses held until all of them resolve (spec.ts `sentence`,
+      // `resolve/sentence-hold.ts`). Bindings and vars go back to this list, so a later "then" reads its outcome.
+      pushEffects(ctx, {
+        effects: effect.effects,
+        selfInstanceId: frame.selfInstanceId,
+        abilityId: frame.abilityId,
+        instruction: frame.instruction,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        bindings: frame.bindings,
+        vars: frame.vars,
+        scopedPlayerId: frame.scopedPlayerId,
+        returnBindingsTo: frame.frameId,
+        byPlayer: frame.byPlayer === true,
+        ...(frame.defeatedLeaving !== undefined ? { defeatedLeaving: frame.defeatedLeaving } : {}),
+        ...(frame.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: frame.defeatedLeavingSource } : {}),
+        sentence: true,
+      });
+      return;
+    }
     case "afterResolving": {
       // docs/phase7-wave7.md §3.68: written on the play, read by its `discardEvent` stage (`resolve/play-card.ts`).
       for (const id of targets(effect.card)) {
@@ -3787,8 +3863,35 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "drawUpTo":
       // Every printed "draw up to" reads "up to your hand size" (Split Personality, Grand Strategy, MC16's setup), so
       // it refills: a drawn obligation does not count toward it (`drawUpTo`).
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        drawUpTo(ctx, playerId, () => value(effect.amount));
+      // A refill that stops early so a drawn card's ability can resolve (RRG 1.8 "Hand Size", p. 21; ruling Aug 14,
+      // 2025) puts the frame back on this effect, with the players already done recorded, and the flow runs it
+      // again once what the draw put on the stack has resolved.
+      {
+        const players = resolvePlayers(ctx.state, effect.player, context);
+        const done = frame.vars[REFILL_PLAYERS_DONE_VAR];
+        if (done !== undefined) {
+          updateFrame(ctx, frame.frameId, (f) => {
+            if (f.kind !== "effects") return f;
+            const { [REFILL_PLAYERS_DONE_VAR]: _, ...vars } = f.vars;
+            return { ...f, vars };
+          });
+        }
+        for (let index = done ?? 0; index < players.length; index++) {
+          const playerId = players[index]!;
+          const refill = `frame:${frame.frameId}:${playerId}`;
+          if (drawUpTo(ctx, playerId, () => value(effect.amount), refill) || ctx.state.outcome) continue;
+          updateFrame(ctx, frame.frameId, (f) =>
+            f.kind === "effects"
+              ? {
+                  ...f,
+                  cursor: frame.cursor,
+                  answer: frame.answer,
+                  vars: { ...f.vars, [REFILL_PLAYERS_DONE_VAR]: index },
+                }
+              : f,
+          );
+          return;
+        }
       }
       return;
     case "forEachPlayer":
@@ -3798,23 +3901,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "enemyAttack":
     case "enemyScheme":
     case "enemyActivation": {
-      if (effect.after === "currentActivation") {
-        const activation = currentActivationFrameId(ctx.state.stack);
+      // An activation initiated while an enemy activation resolves waits for it, whatever started it: a Boost ability,
+      // a response to its damage, or a forced response to an effect of either (RRG 1.8 "Activation", p. 6: "the newly
+      // initiated activation resolves after the current activation has finished resolving"; ruling 214, Jun 13, 2024:
+      // "a new activation cannot interrupt an activation currently resolving"). See `activationToQueueBehind`. The rest
+      // of the ability waits with it (`suspendBehindActivation`); resumed, the frame resolves this effect first
+      // (`resumeActivation`) and it is not queued again.
+      if (frame.resumeActivation === undefined) {
+        const activation = activationToQueueBehind(ctx.state, effect.after === "currentActivation");
         if (activation) {
-          // Queued behind the activation in progress: its end-of-event effects run after its response window, so its
-          // Retaliate and responses resolve first (ruling, Feb 28, 2026 (1) answer 2).
-          const { after, ...now } = effect;
-          void after;
-          const deferred: DeferredEffects = {
-            effects: [now],
-            selfInstanceId: frame.selfInstanceId,
-            controllerId: frame.controllerId,
-            bindings: frame.bindings,
-            vars: frame.vars,
-          };
-          updateFrame(ctx, activation, (f) =>
-            f.kind === "event" ? { ...f, endEffects: [...f.endEffects, deferred] } : f,
-          );
+          const { after: _after, ...now } = effect;
+          suspendBehindActivation(ctx, frame, now, activation);
           return;
         }
       }
@@ -4292,6 +4389,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             bindings: { ...frame.bindings, [each.slot]: [id] },
             vars: frame.vars,
             scopedPlayerId: frame.scopedPlayerId,
+            eachTimePass: true,
           });
         }
       }

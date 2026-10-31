@@ -30,7 +30,7 @@ import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import { setupMetrics } from "./setup-metrics.js";
 import { GAME_ROW_GAP, GAME_ROW_HEIGHT } from "./games-list-model.js";
-import { NOTICE_BAR_HEIGHTS } from "./shadowland-notice.js";
+import { NOTICE_BAR_HEIGHTS } from "./release-notice.js";
 
 const TITLE_BLOCK_RATIO = 1.35;
 /** The red divider's own width, and the left art panel's share of a split screen. */
@@ -150,7 +150,7 @@ export interface TitleMenuLayoutInput {
   /** How many games the list shows (`shouldShowGamesList` decides whether it is offered at all; 0 draws neither). */
   readonly games?: number;
   /**
-   * Temporary (`view/shadowland-notice.ts`): a full-width notice bar across the top of the screen. Everything else is
+   * The release notice bar (`view/release-notice.ts`): full width across the top of the screen. Everything else is
    * laid out in the height left under it.
    */
   readonly noticeBar?: boolean;
@@ -189,8 +189,10 @@ export interface TitleMenuLayout {
   /** "Civil War!", directly under Campaign; null until the Civil War box is unlocked. */
   readonly civilWar: Rect | null;
   readonly extras: Rect;
-  /** "Trophy Room": achievements, rank and lifetime points, right under Extras. */
+  /** "Trophy Room": achievements, rank and lifetime points, right under Extras; the left half of its row. */
   readonly trophies: Rect;
+  /** "Your stats", the right half of the Trophy Room's row: the two read the same history. */
+  readonly stats: Rect;
   /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
   readonly howToPlay: Rect;
   readonly settings: Rect;
@@ -210,7 +212,7 @@ export interface TitleMenuLayout {
    * panel; the logo and the art panel stay put.
    */
   readonly menuScroll: Rect | null;
-  /** The temporary notice bar across the top (`noticeBar`), or null. */
+  /** The release notice bar across the top (`noticeBar`), or null. */
   readonly noticeBar: Rect | null;
 }
 
@@ -226,6 +228,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     ...(layout.civilWar ? [layout.civilWar] : []),
     layout.extras,
     layout.trophies,
+    layout.stats,
     layout.howToPlay,
     layout.settings,
     layout.rankBadge,
@@ -415,7 +418,9 @@ function titleMenuLayoutAt(
   }
   const extras: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
-  const trophies: Rect = { x: left, y, width: column, height: hit.target };
+  const halfColumn = Math.floor((column - 10) / 2);
+  const trophies: Rect = { x: left, y, width: halfColumn, height: hit.target };
+  const stats: Rect = { x: left + column - halfColumn, y, width: halfColumn, height: hit.target };
   y += hit.target + gap;
   const howToPlay: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
@@ -481,6 +486,7 @@ function titleMenuLayoutAt(
     civilWar,
     extras,
     trophies,
+    stats,
     howToPlay,
     settings,
     rankBadge,

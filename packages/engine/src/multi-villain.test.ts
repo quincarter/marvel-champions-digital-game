@@ -27,9 +27,12 @@ import {
   stubMainScheme,
   stubMinion,
   stubSideScheme,
+  stubSupport,
   stubTreachery,
   stubVillain,
 } from "./testing/fixtures.js";
+import { driveSession } from "./testing/drive.js";
+import { playerCardIntoPlay } from "./testing/wave3.js";
 import {
   DEFAULT_CARDS,
   DEFAULT_DECK,
@@ -641,5 +644,95 @@ describe('owner\'s answer to matrix Q-M2: a player card that names "the villain"
     }).state;
     expect(damageOf(after, thunderball)).toBe(1);
     expect(damageOf(after, state.activeVillainId!)).toBe(0);
+  });
+});
+
+// RRG 1.8 "Activation" (p. 6): "If multiple enemies activate against you simultaneously, resolve the villain's
+// activation first (if any) in the order of your choice, followed by minion activations in the order of your choice"
+// (ruling June 4, 2024 #202). Two ordered groups: the villains' order is asked, then the minions', each only when it
+// has two or more (by the first player, the owner's design in docs/phase3-encounter-ai.md).
+describe("RRG 1.8 'Activation' (p. 6): one effect makes several villains and minions attack", () => {
+  const TWO_VILLAINS_AND_GOONS = stubAbility("crew-attack.action", {
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "enemyAttack",
+        enemies: {
+          kind: "each",
+          query: {
+            categories: ["enemy"],
+            anyOf: [{ name: "wrecker" }, { name: "thunderball" }, { categories: ["minion"] }],
+          },
+        },
+        against: { kind: "firstPlayer" },
+      },
+    ],
+  });
+  const BUTTON = stubSupport({ id: "crew-attack", cost: 0, abilities: [TWO_VILLAINS_AND_GOONS.ref] });
+
+  function run(goons: readonly Name[]) {
+    const built = crew({
+      abilities: [TWO_VILLAINS_AND_GOONS],
+      extraCards: [BUTTON],
+      deck: [...DEFAULT_DECK, BUTTON.id],
+    });
+    let state = toHero(built.state, built.deps);
+    const engaged: InstanceId[] = [];
+    for (const name of goons) {
+      const placed = engage(state, `goon-${name}`, p1);
+      state = placed.state;
+      engaged.push(placed.id);
+    }
+    const button = playerCardIntoPlay(state, BUTTON.id, p1);
+    const asked: { readonly options: readonly string[]; readonly playerId: PlayerId; readonly authority: string }[] =
+      [];
+    // Each ordering answered in reverse of the options, so the chosen order is never the listed one.
+    const pick = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind !== "orderEnemies") return defaultPick(s);
+      const options = choice.options.map((o) => o.optionId);
+      asked.push({ options, playerId: choice.playerId, authority: choice.authority });
+      return [...options].reverse();
+    };
+    const { events } = driveSession(
+      startSession(button.state),
+      built.deps,
+      [
+        {
+          type: "useAbility",
+          playerId: p1,
+          cardInstanceId: button.id,
+          abilityId: TWO_VILLAINS_AND_GOONS.ref.id as Extract<Command, { type: "useAbility" }>["abilityId"],
+          payment: [],
+        },
+      ],
+      pick,
+    );
+    const attackers = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyAttack"
+        ? [e.event.enemyInstanceId]
+        : [],
+    );
+    const villains = [built.villain("wrecker"), built.villain("thunderball")];
+    return { asked, attackers, villains, engaged };
+  }
+
+  it("two villains and two minions: the villains' order is asked, then the minions', and both are kept", () => {
+    const { asked, attackers, villains, engaged } = run(["wrecker", "thunderball"]);
+    expect(asked).toHaveLength(2);
+    expect([...asked[0]!.options].sort()).toEqual([...villains].sort());
+    expect([...asked[1]!.options].sort()).toEqual([...engaged].sort());
+    for (const question of asked) {
+      expect(question.playerId).toBe(p1);
+      expect(question.authority).toBe("firstPlayerOrders");
+    }
+    expect(attackers).toEqual([...[...asked[0]!.options].reverse(), ...[...asked[1]!.options].reverse()]);
+  });
+
+  it("two villains and one minion: only the villains' order is asked, and the minion attacks last", () => {
+    const { asked, attackers, villains, engaged } = run(["wrecker"]);
+    expect(asked).toHaveLength(1);
+    expect([...asked[0]!.options].sort()).toEqual([...villains].sort());
+    expect(attackers).toEqual([...[...asked[0]!.options].reverse(), engaged[0]]);
   });
 });

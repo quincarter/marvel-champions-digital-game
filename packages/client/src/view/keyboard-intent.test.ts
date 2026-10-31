@@ -166,8 +166,8 @@ describe("boardKeyActionOf", () => {
   it("opens the discard pile on 5 left-handed and 6 right-handed", () => {
     expect(boardKeyActionOf(key("Digit5"), "left")).toEqual({ kind: "discard" });
     expect(boardKeyActionOf(key("Digit6"), "right")).toEqual({ kind: "discard" });
-    expect(boardKeyActionOf(key("Digit6"), "left")).toBeNull();
-    expect(boardKeyActionOf(key("Digit5"), "right")).toBeNull();
+    expect(boardKeyActionOf(key("Digit6"), "left")).toEqual({ kind: "deckLeft" });
+    expect(boardKeyActionOf(key("Digit5"), "right")).toEqual({ kind: "deckLeft" });
     // A held key does not reopen it.
     expect(boardKeyActionOf(key("Digit5", { repeat: true }), "left")).toBeNull();
   });

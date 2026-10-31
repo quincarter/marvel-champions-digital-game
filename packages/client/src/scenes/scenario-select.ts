@@ -1064,7 +1064,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     label(this, rect.x + 16, y, "Your record", typeRole.label, surface.paper.hex, ink.label);
     y += 16;
     const band = this.add.graphics();
-    const textColor = played ? surface.paper.hex : surface.ink.hex;
+    const textColor = played ? surface.paper.hex : surface.inkOnHue.hex;
     const tallyNode = this.add.text(rect.x + 28, y + 10, tally, textStyle(typeRole.menuButton, textColor));
     tallyNode.setWordWrapWidth(rect.width - 56);
     let bandHeight = tallyNode.height + 20;
@@ -1077,7 +1077,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     band
       .fillStyle(beaten ? signal.heal.hex : played ? accent.redDeep.hex : signal.caution.hex, 1)
       .fillRect(rect.x + 16, y, rect.width - 32, bandHeight)
-      .lineStyle(border.detail, surface.ink.hex, 1)
+      .lineStyle(border.detail, surface.inkOnHue.hex, 1)
       .strokeRect(rect.x + 16, y, rect.width - 32, bandHeight);
     y += bandHeight + 14;
     // "Encounter sets" / "Recommended modular" as label-over-value blocks (second-pass item 5), matching the

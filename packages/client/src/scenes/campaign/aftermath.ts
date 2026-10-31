@@ -1481,9 +1481,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (row.selected) {
       const { rect: tagRect } = stamp(this, rect.x + rect.width - 62, rect.y - 12, "Yours", {
         ground: signal.caution.hex,
-        color: surface.ink.hex,
+        color: surface.inkOnHue.hex,
         size: 11,
-        outline: surface.ink.hex,
+        outline: surface.inkOnHue.hex,
       });
       void tagRect;
     } else if (taken) {
@@ -1565,7 +1565,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       if (!phone) {
         const note =
           group.copy?.note ??
-          (group.dealtPerSeat
+          (group.dealtAtRandom
             ? "Dealt at random, one player at a time. A kept card is yours for the rest of the campaign."
             : "One player at a time. A kept card is yours for the rest of the campaign.");
         this.add

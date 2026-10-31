@@ -94,6 +94,7 @@ import { tuckLeavingCard } from "./resolve/tuck.js";
 import type { CardDestination, DefeatPlacement, StatusName } from "./spec.js";
 import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
+import { noteLeftPlayInDelayedEffects } from "./lasting.js";
 
 /**
  * Low-level state mutators. Nothing in this file opens a timing window or
@@ -1334,12 +1335,86 @@ export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): readonly
  * next card on. A drawn obligation is not in hand, so the drawing goes on past it (RRG 1.8 "Obligation", p. 30: "unless
  * they are refilling their hand to their hand size"). Every card drawn leaves deck and discard for good (a reset
  * reshuffles only the discard pile), so this stops at the latest when both are empty.
+ *
+ * Returns false when it stopped early: a drawn card's arrival put something on the stack (a drawn obligation entering
+ * play) or is heard as entering the hand (Shapeshifter Surprise's Forced Response). The caller lets that resolve and
+ * calls this again, which goes on drawing to the target (RRG 1.8 "Hand Size", p. 21, "one at a time").
  */
-export function drawUpTo(ctx: Ctx, playerId: PlayerId, target: () => number): void {
+export function drawUpTo(
+  ctx: Ctx,
+  playerId: PlayerId,
+  target: () => number,
+  /** Which refill this is (`RefillHeldEncounterCard.refill`): its held encounter cards are its own, not the player's. */
+  refill: string,
+): boolean {
+  const recorded = ctx.state.pendingEncounterFromDeck?.length ?? 0;
   // Cards that do not count toward hand size do not fill it (docs/phase7-wave5.md §3.18).
   while (handCountTowardHandSize(ctx.state, playerId, ctx.deps) < target()) {
-    if (drawOne(ctx, playerId) === null) return;
+    const depth = ctx.state.stack.length;
+    const entered = ctx.state.pendingEnteredHand?.length ?? 0;
+    if (drawOne(ctx, playerId) === null) break;
+    // One card at a time: an ability the card's arrival triggers resolves before the next card is drawn (RRG 1.8 "Hand
+    // Size", p. 21; ruling Aug 14, 2025). The caller runs this again once it has resolved.
+    if (ctx.state.stack.length > depth || enteredHandIsHeard(ctx, entered)) {
+      holdRefillEncounterCards(ctx, recorded, refill);
+      return false;
+    }
   }
+  releaseRefillEncounterCards(ctx, refill);
+  return true;
+}
+
+/** Whether a card recorded as entering a hand since `from` (`pendingEnteredHand`) has an ability that answers it. */
+function enteredHandIsHeard(ctx: Ctx, from: number): boolean {
+  return (ctx.state.pendingEnteredHand ?? [])
+    .slice(from)
+    .some((entered) => heard(ctx.state, ctx.deps, { kind: "cardEntersHand", ...entered }));
+}
+
+/**
+ * A refill stopping early holds back the encounter cards it drew (recorded from index `from` on), so the flow does not
+ * deal them while the refill waits. RRG 1.8 "Hand Size" (p. 21) supersedes MC27's "drawn simultaneously" for a refill:
+ * cards are drawn one at a time (ruling Aug 14, 2025). MC27's separate instruction to deal the drawn encounter cards
+ * afterward ("Afterward, deal each encounter card drawn during that process", MC27 p. 21) still applies, because it does
+ * not conflict with drawing one at a time. The MC27 answer covers any multi-card draw from a game step or card ability,
+ * and RRG p. 21's one-at-a-time rule covers only drawing up to hand size, so a plain "draw 3" is still simultaneous.
+ */
+function holdRefillEncounterCards(ctx: Ctx, from: number, refill: string): void {
+  const pending = ctx.state.pendingEncounterFromDeck ?? [];
+  const drawn = pending.slice(from);
+  if (drawn.length === 0) return;
+  const kept = pending.slice(0, from);
+  const { pendingEncounterFromDeck: _, ...rest } = ctx.state;
+  ctx.state = {
+    ...rest,
+    ...(kept.length > 0 ? { pendingEncounterFromDeck: kept } : {}),
+    refillHeldEncounterFromDeck: [
+      ...(ctx.state.refillHeldEncounterFromDeck ?? []),
+      ...drawn.map((card) => ({ ...card, refill })),
+    ],
+  };
+}
+
+/**
+ * A refill that has finished (or will not go on: its player was eliminated) hands back the encounter cards it held,
+ * ahead of any recorded since, to be dealt now. Only its own: a refill nested in another's pause for the same player (a
+ * drawn card's "after this enters your hand, draw up to your hand size") leaves the outer refill's cards held until
+ * that one finishes too (MC27 p. 21 FAQ: "Afterward").
+ */
+export function releaseRefillEncounterCards(ctx: Ctx, refill: string): void {
+  const held = ctx.state.refillHeldEncounterFromDeck ?? [];
+  const mine = held.filter((card) => card.refill === refill);
+  if (mine.length === 0) return;
+  const others = held.filter((card) => card.refill !== refill);
+  const { refillHeldEncounterFromDeck: _, ...rest } = ctx.state;
+  ctx.state = {
+    ...rest,
+    ...(others.length > 0 ? { refillHeldEncounterFromDeck: others } : {}),
+    pendingEncounterFromDeck: [
+      ...mine.map(({ refill: _refill, ...card }) => card),
+      ...(ctx.state.pendingEncounterFromDeck ?? []),
+    ],
+  };
 }
 
 /**
@@ -2289,6 +2364,8 @@ function leaveNow(
       ? { controllerId: to.playerId }
       : {}),
   }));
+  // A delayed effect naming this copy will not name a copy that comes back (RRG 1.8 "Leaves Play", p. 27).
+  ctx.state = noteLeftPlayInDelayedEffects(ctx.state, id);
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);
   if (movedWithHost && leaving) recordMovedWithHost(ctx, leaving.frameId, to.kind);
@@ -2486,7 +2563,25 @@ export function settlePaidForEffects(ctx: Ctx, frameId: FrameId, effectsFrameId:
       endLastingEffect(ctx, effect.id, "expired");
       continue;
     }
-    const duration: LastingDuration = { kind: "endOfPaidFor", frameId: effectsFrameId };
+    const duration: LastingDuration = { ...effect.duration, frameId: effectsFrameId };
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
+  }
+}
+
+/**
+ * "That attack" as the first attack of a played card (`LastingDuration endOfPaidFor.firstAttackVia`; FFG ruling 190,
+ * May 16, 2024): the attack on event frame `attackFrameId`, whose source is `sourceId`, is being initiated. Every
+ * effect still waiting on the first attack of that card is retimed to `endOfEvent` on it, so it applies to this attack
+ * only and ends as the attack finishes.
+ */
+export function startFirstAttackEffects(ctx: Ctx, sourceId: InstanceId, attackFrameId: FrameId): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.duration.kind !== "endOfPaidFor" || effect.duration.firstAttackVia !== sourceId) continue;
+    const duration: LastingDuration = { kind: "endOfEvent", frameId: attackFrameId, ifCancelled: effect.duration };
     ctx.state = {
       ...ctx.state,
       lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
@@ -2503,11 +2598,25 @@ export function expirePaidForEffects(ctx: Ctx, frameId: FrameId): void {
   }
 }
 
-/** "Until the end of this attack": the attack's event frame is finishing. */
-export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
+/**
+ * "Until the end of this attack": the attack's event frame is finishing. When it was cancelled (`cancelled`), an effect
+ * a played card's first attack had claimed waits for the card's next attack again (`ifCancelled`): a cancelled attack
+ * is not considered to have occurred (RRG 1.8 "Cancel", p. 11), and ruling 190 (May 16, 2024) gives "that attack" to
+ * the first attack made, as when a stun replaces the first ("no attack is made"; RRG 1.8 "Stun", p. 41).
+ */
+export function expireEventLastingEffects(ctx: Ctx, frameId: string, cancelled = false): void {
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.duration.kind === "endOfEvent" && effect.duration.frameId === frameId)
+    if (effect.duration.kind !== "endOfEvent" || effect.duration.frameId !== frameId) continue;
+    const back = cancelled ? effect.duration.ifCancelled : undefined;
+    if (!back) {
       endLastingEffect(ctx, effect.id, "expired");
+      continue;
+    }
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration: back } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration: back });
   }
 }
 

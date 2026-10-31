@@ -63,7 +63,7 @@ export interface IntentBinding {
    * face button pressed under it calls `onBumperPick`, and the bumper's own meaning (a zone jump) fires on its release
    * only when no face button was used, so a quick tap keeps its old meaning and a held one never also jumps.
    */
-  pickModifiers?(): boolean;
+  pickModifiers?(bumper?: PickBumper): boolean;
   /** The bumper held as a pick modifier, or null once it is let go (the glyphs drop its half of the combo). */
   onBumper?(bumper: PickBumper | null): void;
   /** A face button (standard-layout index 0-3) pressed under a held pick bumper. */
@@ -161,7 +161,9 @@ export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
   // The one-time "Set up cross-device sync?" question owns them the same way. The sync screen it opens is its own, and
   // so is a conflict prompt raised meanwhile (a Join can end in one): neither is held by it.
   if (key === SCENES.syncSetupPrompt || key === SCENES.syncData || key === SCENES.syncConflict) return false;
-  return manager.isActive(SCENES.syncSetupPrompt) === true;
+  // The global win rates question is held the same way (it opens no screen of its own).
+  if (key === SCENES.globalStatsPrompt) return false;
+  return manager.isActive(SCENES.syncSetupPrompt) === true || manager.isActive(SCENES.globalStatsPrompt) === true;
 }
 
 /** The keyboard hand in use now, read live so a change on the Controls screen applies without a restart. */
@@ -204,6 +206,8 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
       if (inspectHoldOf(scene, binding).press("key", scene.time.now)) inspectKey = event.code;
       return;
     }
+    // A held Inspect key inspects once: Inspect's side toggle (issue #532) would otherwise spin at the repeat rate.
+    if (intent === "inspect" && event.repeat) return;
     binding.onIntent(intent, "key");
   });
 }
@@ -369,7 +373,8 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     }
     if (binding.pickModifiers?.()) {
       const bumper = pickBumperOf(meaning);
-      if (bumper !== null) {
+      // Asked per bumper: a screen may make only one of them a modifier (the Board's seat combos are LB's alone).
+      if (bumper !== null && binding.pickModifiers(bumper)) {
         // The first bumper down is the modifier; a second is swallowed (it would be a zone jump under a combo).
         if (bumperHold.press(pad.index, meaning, bumper, scene.time.now) === "held") binding.onBumper?.(bumper);
         return;

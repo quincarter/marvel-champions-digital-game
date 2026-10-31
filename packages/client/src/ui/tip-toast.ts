@@ -99,11 +99,11 @@ export class McTipToast {
     const stampWidth = stampLabel.width + STAMP_PAD * 2;
 
     const closeLabel = scene.add
-      .text(0, 0, "×", { ...textStyle(TITLE_TYPE, surface.ink.hex), fontSize: "20px" })
+      .text(0, 0, "×", { ...textStyle(TITLE_TYPE, surface.inkOnHue.hex), fontSize: "20px" })
       .setOrigin(0.5, 0.5);
 
     const title = scene.add
-      .text(0, 0, content.title.toUpperCase(), textStyle(TITLE_TYPE, surface.ink.hex))
+      .text(0, 0, content.title.toUpperCase(), textStyle(TITLE_TYPE, surface.inkOnHue.hex))
       .setWordWrapWidth(innerWidth, true);
 
     const body = new McTermText(scene, {
@@ -111,20 +111,20 @@ export class McTipToast {
       y: 0,
       width: innerWidth,
       text: content.body,
-      color: surface.ink.hex,
+      color: surface.inkOnHue.hex,
       onTermOpen: (term, rect, block) => this.#openTooltip(term, rect, viewport, block),
       onTermClose: () => this.#tooltip.hide(),
     });
     this.#body = body;
 
-    const turnOffLabel = scene.add.text(0, 0, "TURN TIPS OFF", textStyle(STAMP_TYPE, surface.ink.hex, 0.75));
+    const turnOffLabel = scene.add.text(0, 0, "TURN TIPS OFF", textStyle(STAMP_TYPE, surface.inkOnHue.hex, 0.75));
     const turnOffUnderline = scene.add.graphics();
 
     // A small hint line above the button row (`McTipToastContent.hint`'s own doc comment) — same styling as
     // `McGuideCallout`'s own `nudge` line, which this mirrors.
     const hintText = content.hint
       ? scene.add
-          .text(0, 0, content.hint, { ...textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, 0.7) })
+          .text(0, 0, content.hint, { ...textStyle({ ...typeRole.body, size: 11 }, surface.inkOnHue.hex, 0.7) })
           .setWordWrapWidth(innerWidth, true)
       : null;
     const hintHeight = hintText ? hintText.height + 8 : 0;
@@ -143,7 +143,7 @@ export class McTipToast {
 
     const panel = scene.add.graphics();
     panel.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    panel.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    panel.lineStyle(border.object, surface.inkOnHue.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(panel);
 
     let cy = rect.y + pad;
@@ -178,7 +178,7 @@ export class McTipToast {
 
     turnOffLabel.setPosition(rect.x + pad, cy + hit.target / 2 - turnOffLabel.height / 2);
     turnOffUnderline
-      .lineStyle(1, surface.ink.hex, 0.75)
+      .lineStyle(1, surface.inkOnHue.hex, 0.75)
       .lineBetween(
         turnOffLabel.x,
         turnOffLabel.y + turnOffLabel.height,
@@ -277,7 +277,7 @@ export class McTipToast {
     const target = this.#focusables[this.#focusIndex];
     if (!target) return;
     this.#focusRing
-      .lineStyle(border.control, surface.ink.hex, 1)
+      .lineStyle(border.control, surface.inkOnHue.hex, 1)
       .strokeRect(target.rect.x - 3, target.rect.y - 3, target.rect.width + 6, target.rect.height + 6);
   }
 

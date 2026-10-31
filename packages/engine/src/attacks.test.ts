@@ -699,7 +699,7 @@ test("ability attacks, defenses and enemy-attack modifications replay to an iden
 });
 
 /**
- * RRG 1.8 "Delayed Effect" (p. 15): "Delayed effects resolve automatically and immediately after their specified
+ * RRG 1.8 "Delayed Effect" (p. 16): "Delayed effects resolve automatically and immediately after their specified
  * timing point or future condition occurs or becomes true, and before responses to that point or condition may be
  * used. Delayed effects have the same timing priority as constant effects."
  * FFG ruling Sep 26, 2024 (post-RRG 1.6 #12): Riposte "creates a delayed effect, which has the same timing priority as

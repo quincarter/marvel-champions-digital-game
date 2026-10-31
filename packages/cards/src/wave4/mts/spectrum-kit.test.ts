@@ -11,10 +11,13 @@ import {
   runWith,
   moveToHand,
   patchInstance,
+  payWith,
+  play,
   settle,
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEventsPicking } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { spectrumScenario } from "./support.js";
@@ -138,6 +141,29 @@ describe("Gamma Blast / Photon Speed / Speed of Light (21007, 21008, 21010)", ()
     expect(inst(after, instancesOf(after, "21003")[0]!).faceup).toBe(true);
   });
 
+  // By analogy to ruling 126 (Gamma Blast), December 8, 2023: the form's response waits for the whole first sentence
+  // ("Change to Photon energy form and remove 4 threat from a scheme"), as Gamma Blast's does (`sentence`).
+  it("21008.photon-speed-action: the Photon response removes its 1 threat after the 4 (one sentence, by analogy to ruling 126)", () => {
+    const start = spectrumVsRhino(9);
+    const pulsar = instancesOf(start, "21004")[0]!;
+    // Hero form with Pulsar up, so Photon Speed is a real change of form and the Photon response triggers.
+    const flipped = settle(runWith(WAVE4_DEPS, start, toHero()), accepting(pulsar), undefined, WAVE4_DEPS);
+    const mainSchemeId = flipped.mainScheme.instanceId;
+    const hero = patchInstance(flipped, mainSchemeId, { threat: 6 });
+    const given = moveToHand(hero, P1, "21008");
+    const [card] = given.ids as [InstanceId];
+    const { events } = driveEventsPicking(
+      WAVE4_DEPS,
+      given.state,
+      accepting(mainSchemeId, "21003.photon-response"),
+      play(P1, card, payWith(given.state, P1, 2, [card])),
+    );
+    const removed = events.flatMap((e) =>
+      e.type === "threatRemoved" && e.schemeInstanceId === mainSchemeId ? [e.amount] : [],
+    );
+    expect(removed).toEqual([4, 1]);
+  });
+
   it("21010.speed-of-light-action: changes energy forms and draws 1 card", () => {
     const hero = settle(runWith(WAVE4_DEPS, spectrumVsRhino(10), toHero()), firstLegal, undefined, WAVE4_DEPS);
     const before = playerOf(hero, P1).hand.length;
@@ -212,7 +238,7 @@ describe("Gamma Blast (21007): the Gamma response waits for the whole first sent
       return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
     };
 
-  it.fails("a tough villain: the 7 damage meets the tough card first, the response's 1 damage comes after (total 1, not 7)", () => {
+  it("a tough villain: the 7 damage meets the tough card first, the response's 1 damage comes after (total 1, not 7)", () => {
     // Change to hero form choosing the Pulsar energy form to flip faceup, so Gamma Blast is a real change of form.
     const start = startWave4Game(spectrumScenario("rhino", { seed: 8 }));
     const pulsarId = instancesOf(start, "21004")[0]!;

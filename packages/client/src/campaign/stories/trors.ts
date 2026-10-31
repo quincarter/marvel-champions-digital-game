@@ -29,11 +29,20 @@
  * no border of its own (07-red-skull's foreground Hawkeye, boxed to the page's own edges the same way GMW's page 5
  * bleeds Ronan's close-up).
  */
-import type { CampaignStory, ComicPage, StorySpeaker } from "../story.js";
+import type { AftermathCallCopy, CampaignStory, ComicPage, StorySpeaker } from "../story.js";
 
 const HAWKEYE: StorySpeaker = { kind: "hero", identityId: "04001a", name: "Hawkeye" };
 const SPIDER_WOMAN: StorySpeaker = { kind: "hero", identityId: "04031a", name: "Spider-Woman" };
 const VILLAIN: StorySpeaker = { kind: "villain" };
+
+/** MC10 p. 12's Zola victory: each hero is offered only the "Basic" upgrade recorded for them, to flip (#496). */
+const IMPROVE_CALL: AftermathCallCopy = {
+  heading: "Flip your Basic upgrade to its Improved side, or keep it.",
+  declineLabel: "Keep it Basic",
+  waiting: "Offered once the hero before has decided.",
+  nothing: "No Basic upgrade to improve.",
+  note: "With Hydra Prison gone, each hero in hero form may flip the Basic upgrade they took after Absorbing Man to its Improved side.",
+};
 
 const PAGES: readonly ComicPage[] = [
   {
@@ -449,6 +458,7 @@ export const TRORS_STORY: CampaignStory = {
       rewindTaunt: "The world was always going to kneel.",
     },
   ],
+  aftermathCalls: { "mc10.s4.victory.improved": IMPROVE_CALL },
   campaignLost: {
     headline: "Hydra\nWins.",
     line: "Red Skull conquered the world. This run of the campaign is over.",

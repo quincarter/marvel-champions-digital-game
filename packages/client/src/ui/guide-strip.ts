@@ -55,7 +55,7 @@ export interface GuideStripRects {
 export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideStripContent): GuideStripRects {
   const g = scene.add.graphics();
   g.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-  g.lineStyle(border.object, surface.ink.hex, 1);
+  g.lineStyle(border.object, surface.inkOnHue.hex, 1);
   g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
   const pad = 12;
@@ -83,7 +83,7 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
   // `McGuideCallout`'s own phone-width exits row uses (`ui/guide-callout.ts`'s own header: no room to spell both
   // out at this width).
   const stopLabel = scene.add
-    .text(0, 0, "×", { ...textStyle({ ...typeRole.label, size: 10 }, surface.ink.hex), fontSize: "20px" })
+    .text(0, 0, "×", { ...textStyle({ ...typeRole.label, size: 10 }, surface.inkOnHue.hex), fontSize: "20px" })
     .setOrigin(0.5, 0.5);
   const stopWidth = Math.max(hit.target, stopLabel.width + 16);
   stopLabel.setPosition(rect.x + rect.width - pad - stopWidth / 2, cy);
@@ -94,7 +94,7 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
   stopZone.on("pointerup", () => content.onStop());
 
   const skipLabel = scene.add
-    .text(0, 0, "Skip", textStyle({ ...typeRole.label, size: 12 }, surface.ink.hex))
+    .text(0, 0, "Skip", textStyle({ ...typeRole.label, size: 12 }, surface.inkOnHue.hex))
     .setOrigin(0.5, 0.5);
   const skipWidth = Math.max(hit.target, skipLabel.width + 16);
   const skipX = rect.x + rect.width - pad - stopWidth - 8 - skipWidth;
@@ -141,7 +141,7 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
   const textX = rect.x + pad + stampWidth + 10;
   const textWidth = Math.max(40, primaryX - 8 - textX);
   scene.add
-    .text(textX, cy, content.text, textStyle(typeRole.body, surface.ink.hex))
+    .text(textX, cy, content.text, textStyle(typeRole.body, surface.inkOnHue.hex))
     .setOrigin(0, 0.5)
     .setWordWrapWidth(textWidth)
     .setMaxLines(3);

@@ -96,6 +96,14 @@ export type ChoicePrompt =
    */
   | { readonly kind: "orderKeywords"; readonly instanceId: InstanceId }
   /**
+   * The quickstrike and teamwork keywords of the minions an "each time" loop put into play (Drang III), held until the
+   * loop has resolved (FFG ruling 38; `resolve/initiated-activation.ts`): two or more initiate at the same moment, so
+   * the first player orders them (RRG 1.8 "Simultaneous Resolution", p. 40; "Activation", p. 6; ruling 129). Each
+   * option is one keyword (`optionId` its index, `ref` its minion), listed in the order the minions were discarded;
+   * all are selected, in the order they resolve.
+   */
+  | { readonly kind: "orderLoopKeywords" }
+  /**
    * Reveal step 3 of the encounter card `instanceId` (RRG 1.8 "Reveal", p. 38): its incite, its printed When Revealed
    * abilities and its surge share one timing, "which allows players to resolve them in any order" (FFG ruling, September
    * 22, 2026), and the first player orders them (RRG 1.8 "Simultaneous Resolution", p. 40). The options are `incite`

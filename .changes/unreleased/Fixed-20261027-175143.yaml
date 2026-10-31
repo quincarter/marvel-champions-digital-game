@@ -1,3 +1,0 @@
-kind: Fixed
-body: A text field (the Seats search bar) stays in place under a card hover popover, with the card drawn over it, instead of blinking out (#470).
-time: 2026-10-27T17:51:43.6362636-04:00

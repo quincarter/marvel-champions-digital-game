@@ -1,33 +1,4016 @@
 # Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never
 # replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).
-code	pack	name	scan	saved
-01001a	core	Spider-Man	0_Spider Man_Hero_A.tif	2026-10-28
-01001b	core	Peter Parker	0_Spider Man_Alter-Ego_B.tif	2026-10-28
-01002	core	Black Cat	1_Black Cat_Ally.tif	2026-10-28
-01003	core	Backflip	2_Backflip_Event.tif	2026-10-28
-01004	core	Enhanced Spider-Sense	4_Enhanced Spider-Sense_Event.tif	2026-10-28
-01005	core	Swinging Web Kick	6_Swinging Web Kick_Event.tif	2026-10-28
-01006	core	Aunt May	9_Aunt May_Support.tif	2026-10-28
-01007	core	Spider-Tracer	10_Spider-Tracker_Upgrade.tif	2026-10-28
-01008	core	Web-Shooter	12_Web-Shooter_Upgrade.tif	2026-10-28
-01009	core	Webbed Up	14_Webbed Up_Upgrade.tif	2026-10-28
-01010a	core	Captain Marvel	0_Captain Marvel_Hero_A.tif	2026-10-28
-01010b	core	Carol Danvers	0_Captain Marvel_Alter-Ego_B.tif	2026-10-28
-01011	core	Spider-Woman	1_Spider-Woman_Ally.tif	2026-10-28
-01012	core	Crisis Interdiction	2_Crisis Interdiction_Event.tif	2026-10-28
-01013	core	Photonic Blast	5_Energy Channel_Upgrade.tif	2026-10-28
-01014	core	Energy Absorption	8_Absorption_Resource.tif	2026-10-28
-01015	core	Alpha Flight Station	10_Alpha Flight Station_Support.tif	2026-10-28
-01016	core	Captain Marvel's Helmet	11_Captain Marvel_sHelmet_Upgrade.tif	2026-10-28
-01017	core	Cosmic Flight	12_Cosmic Flight_Upgrade.tif	2026-10-28
-01018	core	Energy Channel	14_Energy Channel_Upgrade.tif	2026-10-28
-01165	core	Eviction Notice	0_Eviction Notice_Obligation.tif	2026-10-28
-01166	core	Highway Robbery	1_Highway Robbery_Side Scheme.tif	2026-10-28
-01167	core	Vulture	2_Vulture_Minion.tif	2026-10-28
-01168	core	Sweeping Swoop	3_Sweeping Swoop_Treachery.tif	2026-10-28
-01169	core	The Vulture's Plans	5_The Vulture_s Plans_Treachery.tif	2026-10-28
-01175	core	Family Emergency	0_Family Emergency_Obligation.tif	2026-10-28
-01176	core	The Psyche-Magnitron	1_The Psyche-Magnitron_Side Scheme.tif	2026-10-28
-01177	core	Yon-Rogg	2_Yon-Rogg_Minion.tif	2026-10-28
-01178	core	Kree Manipulator	3_Kree Manipulator_Treachery.tif	2026-10-28
-01179	core	Yon-Rogg's Treason	5_Yon-Rogg_s Treason_Treachery.tif	2026-10-28
+# The Shadowland (65xxx) rows are from a community scan folder shared by u/Ok-Replacement-9793 on Reddit.
+code	pack	name	saved
+01001a	core	Spider-Man	2026-10-28
+01001b	core	Peter Parker	2026-10-28
+01002	core	Black Cat	2026-10-28
+01003	core	Backflip	2026-10-28
+01004	core	Enhanced Spider-Sense	2026-10-28
+01005	core	Swinging Web Kick	2026-10-28
+01006	core	Aunt May	2026-10-28
+01007	core	Spider-Tracer	2026-10-28
+01008	core	Web-Shooter	2026-10-28
+01009	core	Webbed Up	2026-10-28
+01010a	core	Captain Marvel	2026-10-28
+01010b	core	Carol Danvers	2026-10-28
+01011	core	Spider-Woman	2026-10-28
+01012	core	Crisis Interdiction	2026-10-28
+01013	core	Photonic Blast	2026-10-28
+01014	core	Energy Absorption	2026-10-28
+01015	core	Alpha Flight Station	2026-10-28
+01016	core	Captain Marvel's Helmet	2026-10-28
+01017	core	Cosmic Flight	2026-10-28
+01018	core	Energy Channel	2026-10-28
+01019a	core	She-Hulk	2026-10-28
+01019b	core	Jennifer Walters	2026-10-28
+01020	core	Hellcat	2026-10-28
+01021	core	Gamma Slam	2026-10-28
+01022	core	Ground Stomp	2026-10-28
+01023	core	Legal Practice	2026-10-28
+01024	core	One-Two Punch	2026-10-28
+01025	core	Split Personality	2026-10-28
+01026	core	Superhuman Law Division	2026-10-28
+01027	core	Focused Rage	2026-10-28
+01028	core	Superhuman Strength	2026-10-28
+01029a	core	Iron Man	2026-10-28
+01029b	core	Tony Stark	2026-10-28
+01030	core	War Machine	2026-10-28
+01031	core	Repulsor Blast	2026-10-28
+01032	core	Supersonic Punch	2026-10-28
+01033	core	Pepper Potts	2026-10-28
+01034	core	Stark Tower	2026-10-28
+01035	core	Arc Reactor	2026-10-28
+01036	core	Mark V Armor	2026-10-28
+01037	core	Mark V Helmet	2026-10-28
+01038	core	Powered Gauntlets	2026-10-28
+01039	core	Rocket Boots	2026-10-28
+01040a	core	Black Panther	2026-10-28
+01040b	core	T'Challa	2026-10-28
+01041	core	Shuri	2026-10-28
+01042	core	Ancestral Knowledge	2026-10-28
+01043a	core	Wakanda Forever!	2026-10-28
+01043b	core	Wakanda Forever!	2026-10-28
+01043c	core	Wakanda Forever!	2026-10-28
+01043d	core	Wakanda Forever!	2026-10-28
+01044	core	Vibranium	2026-10-28
+01045	core	The Golden City	2026-10-28
+01046	core	Energy Daggers	2026-10-28
+01047	core	Panther Claws	2026-10-28
+01048	core	Tactical Genius	2026-10-28
+01049	core	Vibranium Suit	2026-10-28
+01050	core	Hulk	2026-10-28
+01051	core	Tigra	2026-10-28
+01052	core	Chase Them Down	2026-10-28
+01053	core	Relentless Assault	2026-10-28
+01054	core	Uppercut	2026-10-28
+01055	core	The Power of Aggression	2026-10-28
+01056	core	Tac Team	2026-10-28
+01057	core	Combat Training	2026-10-28
+01058	core	Daredevil	2026-10-28
+01059	core	Jessica Jones	2026-10-28
+01060	core	For Justice!	2026-10-28
+01061	core	Great Responsibility	2026-10-28
+01062	core	The Power of Justice	2026-10-28
+01063	core	Interrogation Room	2026-10-28
+01064	core	Surveillance Team	2026-10-28
+01065	core	Heroic Intuition	2026-10-28
+01066	core	Hawkeye	2026-10-28
+01067	core	Maria Hill	2026-10-28
+01068	core	Vision	2026-10-28
+01069	core	Get Ready	2026-10-28
+01070	core	Lead from the Front	2026-10-28
+01071	core	Make the Call	2026-10-28
+01072	core	The Power of Leadership	2026-10-28
+01073	core	The Triskelion	2026-10-28
+01074	core	Inspired	2026-10-28
+01075	core	Black Widow	2026-10-28
+01076	core	Luke Cage	2026-10-28
+01077	core	Counter-Punch	2026-10-28
+01078	core	Get Behind Me!	2026-10-28
+01079	core	The Power of Protection	2026-10-28
+01080	core	Med Team	2026-10-28
+01081	core	Armored Vest	2026-10-28
+01082	core	Indomitable	2026-10-28
+01083	core	Mockingbird	2026-10-28
+01084	core	Nick Fury	2026-10-28
+01085	core	Emergency	2026-10-28
+01086	core	First Aid	2026-10-28
+01087	core	Haymaker	2026-10-28
+01088	core	Energy	2026-10-28
+01089	core	Genius	2026-10-28
+01090	core	Strength	2026-10-28
+01091	core	Avengers Mansion	2026-10-28
+01092	core	Helicarrier	2026-10-28
+01093	core	Tenacity	2026-10-28
+01094	core	Rhino	2026-10-28
+01095	core	Rhino	2026-10-28
+01096	core	Rhino	2026-10-28
+01097	core	The Break-In!	2026-10-28
+01097b	core	The Break-In!	2026-10-28
+01098	core	Armored Rhino Suit	2026-10-28
+01099	core	Charge	2026-10-28
+01100	core	Enhanced Ivory Horn	2026-10-28
+01101	core	Hydra Mercenary	2026-10-28
+01102	core	Sandman	2026-10-28
+01103	core	Shocker	2026-10-28
+01104	core	Hard to Keep Down	2026-10-28
+01105	core	"I'm Tough"	2026-10-28
+01106	core	Stampede	2026-10-28
+01107	core	Breakin' & Takin'	2026-10-28
+01108	core	Crowd Control	2026-10-28
+01109	core	Bomb Scare	2026-10-28
+01110	core	Hydra Bomber	2026-10-28
+01111	core	Explosion	2026-10-28
+01112	core	False Alarm	2026-10-28
+01113	core	Klaw	2026-10-28
+01114	core	Klaw	2026-10-28
+01115	core	Klaw	2026-10-28
+01116	core	Underground Distribution	2026-10-28
+01116b	core	Underground Distribution	2026-10-28
+01117	core	Secret Rendezvous	2026-10-28
+01117b	core	Secret Rendezvous	2026-10-28
+01118	core	Sonic Converter	2026-10-28
+01119	core	Solid-Sound Body	2026-10-28
+01120	core	Armored Guard	2026-10-28
+01121	core	Weapons Runner	2026-10-28
+01122	core	Klaw's Vengeance	2026-10-28
+01123	core	Sonic Boom	2026-10-28
+01124	core	Sound Manipulation	2026-10-28
+01125	core	Defense Network	2026-10-28
+01126	core	Illegal Arms Factory	2026-10-28
+01127	core	The "Immortal" Klaw	2026-10-28
+01128	core	The Masters of Evil	2026-10-28
+01129	core	Radioactive Man	2026-10-28
+01130	core	Whirlwind	2026-10-28
+01131	core	Tiger Shark	2026-10-28
+01132	core	Melter	2026-10-28
+01133	core	Masters of Mayhem	2026-10-28
+01134	core	Ultron	2026-10-28
+01135	core	Ultron	2026-10-28
+01136	core	Ultron	2026-10-28
+01137	core	The Crimson Cowl	2026-10-28
+01137b	core	The Crimson Cowl	2026-10-28
+01138	core	Assault on NORAD	2026-10-28
+01138b	core	Assault on NORAD	2026-10-28
+01139	core	Countdown to Oblivion	2026-10-28
+01139b	core	Countdown to Oblivion	2026-10-28
+01140	core	Ultron Drones	2026-10-28
+01141	core	Program Transmitter	2026-10-28
+01142	core	Upgraded Drones	2026-10-28
+01143	core	Advanced Ultron Drone	2026-10-28
+01144b	core	Android Efficiency	2026-10-28
+01145	core	Rage of Ultron	2026-10-28
+01146	core	Repair Sequence	2026-10-28
+01147	core	Swarm Attack	2026-10-28
+01148	core	Drone Factory	2026-10-28
+01149	core	Invasive AI	2026-10-28
+01150	core	Ultron's Imperative	2026-10-28
+01151	core	Under Attack	2026-10-28
+01152	core	Vibranium Armor	2026-10-28
+01153	core	Concussion Blasters	2026-10-28
+01154	core	Concussive Blast	2026-10-28
+01155	core	Affairs of State	2026-10-28
+01156	core	Usurp The Throne	2026-10-28
+01157	core	Killmonger	2026-10-28
+01158	core	Heart-Shaped Herb	2026-10-28
+01159	core	Ritual Combat	2026-10-28
+01160	core	Legal Work	2026-10-28
+01161	core	Personal Challenge	2026-10-28
+01162	core	Titania	2026-10-28
+01163	core	Genetically Enhanced	2026-10-28
+01164	core	Titania's Fury	2026-10-28
+01165	core	Eviction Notice	2026-10-28
+01166	core	Highway Robbery	2026-10-28
+01167	core	Vulture	2026-10-28
+01168	core	Sweeping Swoop	2026-10-28
+01169	core	The Vulture's Plans	2026-10-28
+01170	core	Business Problems	2026-10-28
+01171	core	Imminent Overload	2026-10-28
+01172	core	Whiplash	2026-10-28
+01173	core	Electric Whip Attack	2026-10-28
+01174	core	Electromagnetic Backlash	2026-10-28
+01175	core	Family Emergency	2026-10-28
+01176	core	The Psyche-Magnitron	2026-10-28
+01177	core	Yon-Rogg	2026-10-28
+01178	core	Kree Manipulator	2026-10-28
+01179	core	Yon-Rogg's Treason	2026-10-28
+01180	core	Legions of Hydra	2026-10-28
+01181	core	Madame Hydra	2026-10-28
+01182	core	Hydra Soldier	2026-10-28
+01183	core	The Doomsday Chair	2026-10-28
+01184	core	M.O.D.O.K.	2026-10-28
+01185	core	Biomechanical Upgrades	2026-10-28
+01186	core	Advance	2026-10-28
+01187	core	Assault	2026-10-28
+01188	core	Caught Off Guard	2026-10-28
+01189	core	Gang-Up	2026-10-28
+01190	core	Shadow of the Past	2026-10-28
+01191	core	Exhaustion	2026-10-28
+01192	core	Masterplan	2026-10-28
+01193	core	Under Fire	2026-10-28
+02001a	gob	Norman Osborn	2026-10-28
+02001b	gob	Green Goblin	2026-10-28
+02002a	gob	Norman Osborn	2026-10-28
+02002b	gob	Green Goblin	2026-10-28
+02003a	gob	Norman Osborn	2026-10-28
+02003b	gob	Green Goblin	2026-10-28
+02004a	gob	Hostile Takeover	2026-10-28
+02004b	gob	Hostile Takeover	2026-10-28
+02005a	gob	Corporate Acquisition	2026-10-28
+02005b	gob	Corporate Acquisition	2026-10-28
+02006a	gob	Criminal Enterprise	2026-10-28
+02006b	gob	State of Madness	2026-10-28
+02007	gob	Hired Gun	2026-10-28
+02008	gob	Private Security Specialist	2026-10-28
+02009	gob	Collapsing Bridge	2026-10-28
+02010	gob	Oscorp Manufacturing	2026-10-28
+02011	gob	Payoff	2026-10-28
+02012	gob	All in a Day's Work	2026-10-28
+02013	gob	Mad Genius	2026-10-28
+02014	gob	Green Goblin	2026-10-28
+02016	gob	Green Goblin	2026-10-28
+02017	gob	Unleashing the Mutagen	2026-10-28
+02017b	gob	Unleashing the Mutagen	2026-10-28
+02018	gob	Mutagen Cloud	2026-10-28
+02018b	gob	Mutagen Cloud	2026-10-28
+02019	gob	Goblin Glider	2026-10-28
+02020	gob	Hysteria	2026-10-28
+02021	gob	Pumpkin Bombs	2026-10-28
+02022	gob	Goblin Knight	2026-10-28
+02023	gob	Goblin Soldier	2026-10-28
+02024	gob	Goblin Thrall	2026-10-28
+02025	gob	Monster	2026-10-28
+02026	gob	Goblin Reinforcements	2026-10-28
+02027	gob	Goblin Nation	2026-10-28
+02028	gob	Overrun	2026-10-28
+02029	gob	Death from Above	2026-10-28
+02030	gob	I See You	2026-10-28
+02031	gob	Overconfidence	2026-10-28
+02032	gob	Wicked Ambitions	2026-10-28
+02035	gob	Intimidation	2026-10-28
+02036	gob	Regenerative Healing	2026-10-28
+02037	gob	A Mess of Things	2026-10-28
+02038	gob	Scorpion	2026-10-28
+02039	gob	Gang-Up	2026-10-28
+02040	gob	Tail Sweep	2026-10-28
+02041	gob	Power Drain	2026-10-28
+02042	gob	Electro	2026-10-28
+02043	gob	Electromagnetic Pulse	2026-10-28
+02044	gob	Lightning Bolt	2026-10-28
+02045	gob	Shock Therapy	2026-10-28
+02046	gob	Running Interference	2026-10-28
+02047	gob	Tombstone	2026-10-28
+02048	gob	All Tied Up	2026-10-28
+02049	gob	Media Coverage	2026-10-28
+03001a	cap	Captain America	2026-10-28
+03001b	cap	Steve Rogers	2026-10-28
+03002	cap	Agent 13	2026-10-28
+03003	cap	Fearless Determination	2026-10-28
+03004	cap	Heroic Strike	2026-10-28
+03005	cap	Shield Block	2026-10-28
+03006	cap	Shield Toss	2026-10-28
+03007	cap	Steve's Apartment	2026-10-28
+03008	cap	Captain America's Helmet	2026-10-28
+03009	cap	Captain America's Shield	2026-10-28
+03010	cap	Super-Soldier Serum	2026-10-28
+03011	cap	Falcon	2026-10-28
+03013	cap	Squirrel Girl	2026-10-28
+03014	cap	Wonder Man	2026-10-28
+03015	cap	Avengers Assemble!	2026-10-28
+03017	cap	Strength In Numbers	2026-10-28
+03019	cap	Quinjet	2026-10-28
+03024	cap	Avengers Tower	2026-10-28
+03025	cap	Honorary Avenger	2026-10-28
+03026	cap	Man Out of Time	2026-10-28
+03027	cap	Hit Squad	2026-10-28
+03028	cap	Baron Zemo	2026-10-28
+03029	cap	Hydra Soldier	2026-10-28
+03030	cap	Hail Hydra!	2026-10-28
+03032	cap	Followed	2026-10-28
+04001a	trors	Hawkeye	2026-10-28
+04001b	trors	Clint Barton	2026-10-28
+04002	trors	Hawkeye's Bow	2026-10-28
+04003	trors	Hawkeye's Quiver	2026-10-28
+04004	trors	Mockingbird	2026-10-28
+04005	trors	Sonic Arrow	2026-10-28
+04006	trors	Explosive Arrow	2026-10-28
+04007	trors	Electric Arrow	2026-10-28
+04008	trors	Cable Arrow	2026-10-28
+04009	trors	Vibranium Arrow	2026-10-28
+04010	trors	Expert Marksman	2026-10-28
+04011	trors	Hawkeye	2026-10-28
+04012	trors	Black Knight	2026-10-28
+04013	trors	Goliath	2026-10-28
+04014	trors	U.S. Agent	2026-10-28
+04015	trors	Sky Cycle	2026-10-28
+04016	trors	Team Training	2026-10-28
+04017	trors	Ready for Action	2026-10-28
+04020	trors	War Machine	2026-10-28
+04022	trors	Earth's Mightiest Heroes	2026-10-28
+04026	trors	Criminal Past	2026-10-28
+04027	trors	Crossfire	2026-10-28
+04028	trors	Marked for Death	2026-10-28
+04029	trors	Crossfire's Rifle	2026-10-28
+04030	trors	Sniper Shot	2026-10-28
+04031a	trors	Spider-Woman	2026-10-28
+04031b	trors	Jessica Drew	2026-10-28
+04032	trors	Captain Marvel	2026-10-28
+04033	trors	Finesse	2026-10-28
+04034	trors	Jessica Drew's Apartment	2026-10-28
+04035	trors	Venom Blast	2026-10-28
+04036	trors	Pheromones	2026-10-28
+04037	trors	Contaminant Immunity	2026-10-28
+04038	trors	Inconspicuous	2026-10-28
+04039	trors	Self-Propelled Glide	2026-10-28
+04040	trors	Spider-Girl	2026-10-28
+04043	trors	Press the Advantage	2026-10-28
+04044	trors	Piercing Strike	2026-10-28
+04047	trors	Skilled Investigator	2026-10-28
+04049	trors	Clear the Area	2026-10-28
+04053	trors	Uncertain Loyalties	2026-10-28
+04054	trors	The Viper	2026-10-28
+04055	trors	The Viper's Ambition	2026-10-28
+04056	trors	Hydra Regular	2026-10-28
+04057	trors	Hail Hydra!	2026-10-28
+04058	trors	Crossbones	2026-10-28
+04059	trors	Crossbones	2026-10-28
+04060	trors	Crossbones	2026-10-28
+04061	trors	Attack on Mount Athena	2026-10-28
+04062	trors	The Infinity Stone	2026-10-28
+04062b	trors	The Infinity Stone	2026-10-28
+04063	trors	The Getaway	2026-10-28
+04064	trors	Crossbones' Machine Gun	2026-10-28
+04065	trors	Crossbones' Armor	2026-10-28
+04066	trors	Hydra Bomber	2026-10-28
+04067	trors	Full Auto	2026-10-28
+04068	trors	Hard as Nails	2026-10-28
+04069	trors	Raid the Armory	2026-10-28
+04070	trors	Crossbones' Assault	2026-10-28
+04071	trors	Cornered Staff	2026-10-28
+04072	trors	Laser Rifle	2026-10-28
+04073	trors	Energy Shield	2026-10-28
+04074	trors	Power Gauntlets	2026-10-28
+04075	trors	Exo-Suit	2026-10-28
+04076	trors	Absorbing Man	2026-10-28
+04077	trors	Absorbing Man	2026-10-28
+04078	trors	Absorbing Man	2026-10-28
+04079b	trors	None Shall Pass	2026-10-28
+04080	trors	Dense Forest	2026-10-28
+04081	trors	Snowy Hillside	2026-10-28
+04083	trors	Abandoned Facility	2026-10-28
+04084	trors	Ball and Chain	2026-10-28
+04085	trors	Stall Tactics	2026-10-28
+04086	trors	Swinging Stone	2026-10-28
+04087	trors	Steel Kick	2026-10-28
+04088	trors	Piercing Thorns	2026-10-28
+04089	trors	Omni-Morph Duplication	2026-10-28
+04090	trors	Icy Grip	2026-10-28
+04091	trors	Avalanche!	2026-10-28
+04092	trors	Super Absorbing Power	2026-10-28
+04093	trors	Taskmaster	2026-10-28
+04095	trors	Taskmaster	2026-10-28
+04096	trors	Hunting Down Heroes	2026-10-28
+04096b	trors	Hunting Down Heroes	2026-10-28
+04097	trors	Moon Knight	2026-10-28
+04098	trors	Shang-Chi	2026-10-28
+04099	trors	White Tiger	2026-10-28
+04100	trors	Elektra	2026-10-28
+04101	trors	Hydra Hunter	2026-10-28
+04102	trors	Taskmaster's Sword	2026-10-28
+04103	trors	Taskmaster's Shield	2026-10-28
+04104	trors	Photographic Reflexes	2026-10-28
+04105	trors	Mimicry	2026-10-28
+04106	trors	Hunted by Hydra	2026-10-28
+04107	trors	Captured by Hydra	2026-10-28
+04108	trors	Taskmaster's Training Camp	2026-10-28
+04109	trors	Zola	2026-10-28
+04110	trors	Zola	2026-10-28
+04111	trors	Zola	2026-10-28
+04112	trors	The Island of Dr. Zola	2026-10-28
+04112b	trors	The Island of Dr. Zola	2026-10-28
+04113	trors	The Mad Doctor	2026-10-28
+04114	trors	Ultimate Bio-Servant	2026-10-28
+04115	trors	Zola's Mutate	2026-10-28
+04116	trors	Berserk Mutate	2026-10-28
+04117	trors	Defensive Programming	2026-10-28
+04118	trors	Pain Inhibitors	2026-10-28
+04119	trors	Neurological Implants	2026-10-28
+04120	trors	Mind Ray	2026-10-28
+04121	trors	Technological Enhancements	2026-10-28
+04122	trors	Hydra Prison	2026-10-28
+04123	trors	Test Subjects	2026-10-28
+04124	trors	Zola's Experiments	2026-10-28
+04125	trors	Red Skull	2026-10-28
+04128	trors	The Rise of the Red Skull	2026-10-28
+04128b	trors	The Rise of Red Skull	2026-10-28
+04129	trors	New World Hydra	2026-10-28
+04129b	trors	New World Hydra	2026-10-28
+04130	trors	The Sleeper	2026-10-28
+04131	trors	Hydra Exo-Soldier	2026-10-28
+04132	trors	Red Skull's Luger	2026-10-28
+04133	trors	Red Skull's Right Hook	2026-10-28
+04134	trors	Master Strategist	2026-10-28
+04135	trors	Twisted Reality	2026-10-28
+04136	trors	Bitter Rival	2026-10-28
+04137	trors	Spreading Lies	2026-10-28
+04138	trors	Infinite Power	2026-10-28
+04139	trors	The Red House	2026-10-28
+04140	trors	The Sleeper Awakened	2026-10-28
+04141	trors	Prison Camps	2026-10-28
+04142	trors	Censor the Past	2026-10-28
+04143	trors	Hydra Reinforcements	2026-10-28
+04144	trors	Mass Chaos	2026-10-28
+04145	trors	Hydra Flame-Soldier	2026-10-28
+04146	trors	Hydra Jet-Trooper	2026-10-28
+04147	trors	Hail Hydra!	2026-10-28
+04148	trors	Combat Knife	2026-10-28
+04149	trors	Hydra Sidearm	2026-10-28
+04150	trors	Weapon Master	2026-10-28
+04151	trors	Concussion Grenade	2026-10-28
+04152	trors	Hydra Regular	2026-10-28
+04153	trors	Hydra Soldier	2026-10-28
+04154	trors	Hydra Patrol	2026-10-28
+04155	trors	Adrenal Stims	2026-10-28
+04156	trors	Tactical Scanner	2026-10-28
+04157	trors	Emergency Teleporter	2026-10-28
+04158	trors	Laser Cannon	2026-10-28
+04159b	trors	Improved Thwart Upgrade	2026-10-28
+04160a	trors	Basic Attack Upgrade	2026-10-28
+04161a	trors	Basic Defense Upgrade	2026-10-28
+04162a	trors	Basic Recovery Upgrade	2026-10-28
+04162b	trors	Improved Recovery Upgrade	2026-10-28
+04163	trors	Zola's Algorithm	2026-10-28
+04164	trors	Medical Emergency	2026-10-28
+04165	trors	Martial Law	2026-10-28
+04166	trors	Anti-Hero Propaganda	2026-10-28
+05001a	msm	Ms. Marvel	2026-10-28
+05001b	msm	Kamala Khan	2026-10-28
+05002	msm	Red Dagger	2026-10-28
+05003	msm	Big Hands	2026-10-28
+05004	msm	Sneak By	2026-10-28
+05005	msm	Wiggle Room	2026-10-28
+05006	msm	Aamir Khan	2026-10-28
+05007	msm	Bruno Carrelli	2026-10-28
+05008	msm	Nakia Bahadir	2026-10-28
+05009	msm	Biokinetic Polymer Suit	2026-10-28
+05010	msm	Embiggen!	2026-10-28
+05011	msm	Shrink	2026-10-28
+05012	msm	Nova	2026-10-28
+05014	msm	Preemptive Strike	2026-10-28
+05015	msm	Tackle	2026-10-28
+05017	msm	Energy Barrier	2026-10-28
+05018	msm	Lockjaw	2026-10-28
+05023	msm	Endurance	2026-10-28
+05025	msm	Home by Dawn	2026-10-28
+05026	msm	Generation Why?	2026-10-28
+05027	msm	Thomas Edison	2026-10-28
+05028	msm	Edison's Giant Robot	2026-10-28
+05029	msm	Harvest	2026-10-28
+05032	msm	Morale Boost	2026-10-28
+06001a	thor	Thor	2026-10-28
+06001b	thor	Odinson	2026-10-28
+06002	thor	Lady Sif	2026-10-28
+06003	thor	Defender of the Nine Realms	2026-10-28
+06004	thor	For Asgard!	2026-10-28
+06005	thor	Hammer Throw	2026-10-28
+06006	thor	Lightning Strike	2026-10-28
+06007	thor	Asgard	2026-10-28
+06008	thor	God of Thunder	2026-10-28
+06009	thor	Mjolnir	2026-10-28
+06010	thor	Thor's Helmet	2026-10-28
+06011	thor	Hercules	2026-10-28
+06012	thor	Valkyrie	2026-10-28
+06014	thor	Get Over Here!	2026-10-28
+06015	thor	Mean Swing	2026-10-28
+06017	thor	Hall of Heroes	2026-10-28
+06018	thor	Battle Fury	2026-10-28
+06019	thor	Jarnbjorn	2026-10-28
+06020	thor	Heimdall	2026-10-28
+06021	thor	Invulnerability	2026-10-28
+06026	thor	Odin's Anger	2026-10-28
+06027	thor	Family Feud	2026-10-28
+06028	thor	Loki	2026-10-28
+06029	thor	Frost Giant	2026-10-28
+06030	thor	Trickster	2026-10-28
+06031	thor	Under Surveillance	2026-10-28
+06032	thor	Teamwork	2026-10-28
+07001	twc	Breakout	2026-10-28
+07001b	twc	Breakout	2026-10-28
+07002	twc	Wrecker	2026-10-28
+07004	twc	Day of Reckoning	2026-10-28
+07006	twc	Magic Crowbar	2026-10-28
+07007	twc	Wrecker's Command	2026-10-28
+07008	twc	Corrupt Prison Guard	2026-10-28
+07010	twc	Buddy System	2026-10-28
+07011	twc	Chaos In the Prison	2026-10-28
+07012	twc	Crowbar Toss	2026-10-28
+07014	twc	I've Been Waiting For This!	2026-10-28
+07015	twc	Mystical Link	2026-10-28
+07016	twc	You're Dead Meat!	2026-10-28
+07018	twc	Thunderball	2026-10-28
+07019	twc	Thunderstruck	2026-10-28
+07020	twc	Ball and Chain	2026-10-28
+07021	twc	Held Hostage	2026-10-28
+07022	twc	Radioactive Buildup	2026-10-28
+07023	twc	Corrupt Prison Guard	2026-10-28
+07024	twc	Escaped Convict	2026-10-28
+07025	twc	Buddy System	2026-10-28
+07026	twc	Chaos In the Prison	2026-10-28
+07027	twc	Energy Projectiles	2026-10-28
+07028	twc	Get Wrecked!	2026-10-28
+07029	twc	I've Been Waiting For This!	2026-10-28
+07030	twc	Lightning Blast	2026-10-28
+07031	twc	Tactical Prowess	2026-10-28
+07033	twc	Piledriver	2026-10-28
+07034	twc	Pile It On!	2026-10-28
+07035	twc	Distracting Taunts	2026-10-28
+07036	twc	Held Hostage	2026-10-28
+07037	twc	Corrupt Prison Guard	2026-10-28
+07038	twc	Escaped Convict	2026-10-28
+07039	twc	Buddy System	2026-10-28
+07040	twc	Get Wrecked!	2026-10-28
+07041	twc	I've Been Waiting For This!	2026-10-28
+07042	twc	Oversized Hands	2026-10-28
+07043	twc	Escape Plan	2026-10-28
+07044	twc	Pummel	2026-10-28
+07045	twc	Uncanny Resilience	2026-10-28
+07046	twc	Bulldozer	2026-10-28
+07048	twc	Clear the Road	2026-10-28
+07049	twc	Bulldozer's Helmet	2026-10-28
+07051	twc	Ramming Speed	2026-10-28
+07055	twc	Bull Rush	2026-10-28
+07056	twc	Chaos In the Prison	2026-10-28
+07058	twc	Headbutt	2026-10-28
+07059	twc	Leading the Charge	2026-10-28
+08001a	bkw	Black Widow	2026-10-28
+08001b	bkw	Natasha Romanoff	2026-10-28
+08002	bkw	Winter Soldier	2026-10-28
+08003	bkw	Covert Ops	2026-10-28
+08004	bkw	Dance of Death	2026-10-28
+08005	bkw	Safe House #29	2026-10-28
+08006	bkw	Attacrobatics	2026-10-28
+08007	bkw	Black Widow's Gauntlet	2026-10-28
+08008	bkw	Grappling Hook	2026-10-28
+08009	bkw	Synth-Suit	2026-10-28
+08010	bkw	Widow's Bite	2026-10-28
+08011	bkw	Agent Coulson	2026-10-28
+08012	bkw	Quake	2026-10-28
+08013	bkw	Stealth Strike	2026-10-28
+08017	bkw	Counterintelligence	2026-10-28
+08018	bkw	Spycraft	2026-10-28
+08023	bkw	Quincarrier	2026-10-28
+08024	bkw	Target Acquired	2026-10-28
+08025	bkw	Burn Notice	2026-10-28
+08026	bkw	Taskmaster	2026-10-28
+08027	bkw	Killer for Hire	2026-10-28
+08028	bkw	Hydra Mercenary	2026-10-28
+08029	bkw	Deadly Shot	2026-10-28
+09001a	drs	Doctor Strange	2026-10-28
+09001b	drs	Stephen Strange	2026-10-28
+09002	drs	Wong	2026-10-28
+09003	drs	Astral Projection	2026-10-28
+09004	drs	Magic Blast	2026-10-28
+09005	drs	Master of the Mystic Arts	2026-10-28
+09006	drs	Mystical Studies	2026-10-28
+09007	drs	Protective Ward	2026-10-28
+09008	drs	Sanctum Sanctorum	2026-10-28
+09009	drs	Cloak of Levitation	2026-10-28
+09010	drs	Magical Enhancements	2026-10-28
+09011	drs	The Eye of Agamotto	2026-10-28
+09012	drs	Brother Voodoo	2026-10-28
+09013	drs	Clea	2026-10-28
+09014	drs	Iron Fist	2026-10-28
+09015	drs	Desperate Defense	2026-10-28
+09016	drs	Momentum Shift	2026-10-28
+09019	drs	The Night Nurse	2026-10-28
+09020	drs	Unflappable	2026-10-28
+09021	drs	Warning	2026-10-28
+09026	drs	The Sorcerer Supreme	2026-10-28
+09027	drs	Physical Toll	2026-10-28
+09028	drs	Baron Mordo	2026-10-28
+09029	drs	Open the Dark Dimension	2026-10-28
+09030	drs	Counterspell	2026-10-28
+09031	drs	Thoughtcasting	2026-10-28
+09032	drs	Crimson Bands of Cyttorak	2026-10-28
+09033	drs	Images of Ikonn	2026-10-28
+09034	drs	Seven Rings of Raggadorr	2026-10-28
+09035	drs	Vapors of Valtorr	2026-10-28
+09036	drs	Winds of Watoomb	2026-10-28
+10001a	hlk	Hulk	2026-10-28
+10001b	hlk	Bruce Banner	2026-10-28
+10002	hlk	Crushing Blow	2026-10-28
+10003	hlk	Hulk Smash	2026-10-28
+10004	hlk	Sub-Orbital Leap	2026-10-28
+10005	hlk	Thunderclap	2026-10-28
+10006	hlk	Unstoppable Force	2026-10-28
+10007	hlk	Limitless Strength	2026-10-28
+10008	hlk	Banner's Laboratory	2026-10-28
+10009	hlk	Boundless Rage	2026-10-28
+10010	hlk	Immovable Object	2026-10-28
+10011	hlk	Brawn	2026-10-28
+10012	hlk	Sentry	2026-10-28
+10013	hlk	She-Hulk	2026-10-28
+10014	hlk	Drop Kick	2026-10-28
+10015	hlk	Toe to Toe	2026-10-28
+10016	hlk	"You'll Pay for That!"	2026-10-28
+10018	hlk	Martial Prowess	2026-10-28
+10019	hlk	To the Rescue!	2026-10-28
+10025	hlk	Inner Demons	2026-10-28
+10026	hlk	Abomination	2026-10-28
+10027	hlk	Total Destruction	2026-10-28
+10028	hlk	Clash Of The Titans	2026-10-28
+10032	hlk	Resourceful	2026-10-28
+11002	toafk	Kang (Immortus)	2026-10-28
+11003	toafk	Kang (Iron Lad)	2026-10-28
+11004	toafk	Kang (Rama-Tut)	2026-10-28
+11005	toafk	Kang (Scarlet Centurion)	2026-10-28
+11006	toafk	Kang (The Conqueror)	2026-10-28
+11007	toafk	Kang's Arrival	2026-10-28
+11007a	toafk	Kang's Arrival	2026-10-28
+11008	toafk	The Master of Time	2026-10-28
+11008a	toafk	The Master of Time	2026-10-28
+11009	toafk	The Chronopolis	2026-10-28
+11009a	toafk	The Chronopolis	2026-10-28
+11010a	toafk	Inexorable Fate	2026-10-28
+11010b	toafk	Inexorable Fate	2026-10-28
+11011a	toafk	The Realm of Rama-Tut	2026-10-28
+11011b	toafk	The Realm of Rama-Tut	2026-10-28
+11012a	toafk	The Present Future War	2026-10-28
+11012b	toafk	The Present Future War	2026-10-28
+11013a	toafk	Kang's Wrath	2026-10-28
+11013b	toafk	Kang's Wrath	2026-10-28
+11014	toafk	Temporal Shield	2026-10-28
+11015	toafk	Future Weapon	2026-10-28
+11016	toafk	Frozen in Time	2026-10-28
+11017	toafk	Macrobots	2026-10-28
+11018	toafk	Weakened	2026-10-28
+11019	toafk	Stolen Memories	2026-10-28
+11020	toafk	Depowered	2026-10-28
+11021	toafk	Time-Travel Hijinks	2026-10-28
+11022	toafk	Corrupted Timestream	2026-10-28
+11023	toafk	Kang's Dominion	2026-10-28
+11024	toafk	Pinned Down	2026-10-28
+11025	toafk	Rampage	2026-10-28
+11026	toafk	Energy Blast	2026-10-28
+11027	toafk	Manipulated Timestream	2026-10-28
+11028	toafk	Time-Travel Tactics	2026-10-28
+11029	toafk	Past Machinations	2026-10-28
+11030	toafk	Ancient Warrior	2026-10-28
+11031	toafk	Chitauri Soldier	2026-10-28
+11032	toafk	Tyrannosaurus Rex	2026-10-28
+11033	toafk	Time Portal	2026-10-28
+11034	toafk	Kang (The Conqueror)	2026-10-28
+11035	toafk	Kang (Immortus)	2026-10-28
+11036	toafk	Kang (Iron Lad)	2026-10-28
+11037	toafk	Kang (Rama-Tut)	2026-10-28
+11038	toafk	Kang (Scarlet Centurion)	2026-10-28
+11039	toafk	Kang (The Conqueror)	2026-10-28
+11040	toafk	Apocryphus	2026-10-28
+11041	toafk	Deathunt 9000	2026-10-28
+11042	toafk	Sir Raston	2026-10-28
+11043	toafk	Terminatrix	2026-10-28
+11044	toafk	Wildrun	2026-10-28
+11045	toafk	The Anachronauts	2026-10-28
+11046	toafk	Kang's Chosen	2026-10-28
+11047	toafk	Kang (Master of Time)	2026-10-28
+11048	toafk	Time-Displaced Soldier	2026-10-28
+11049	toafk	Fear of Kang	2026-10-28
+11050	toafk	Light of Centuries Sphere	2026-10-28
+11051	toafk	Ancient Grudge	2026-10-28
+12001a	ant	Ant-Man	2026-10-28
+12001b	ant	Scott Lang	2026-10-28
+12001c	ant	Ant-Man	2026-10-28
+12002	ant	Wasp	2026-10-28
+12003	ant	Giant Stomp	2026-10-28
+12004	ant	Hive Mind	2026-10-28
+12005	ant	Resize	2026-10-28
+12006	ant	Pym Particles	2026-10-28
+12007	ant	Army of Ants	2026-10-28
+12008	ant	Ant-Man's Helmet	2026-10-28
+12009	ant	Giant Strength	2026-10-28
+12010	ant	Wrist Gauntlets	2026-10-28
+12011	ant	Ant-Man	2026-10-28
+12012	ant	Giant-Man	2026-10-28
+12013	ant	Ronin	2026-10-28
+12014	ant	Stinger	2026-10-28
+12015	ant	Call for Aid	2026-10-28
+12016	ant	Moxie	2026-10-28
+12017	ant	Power Gloves	2026-10-28
+12018	ant	Reinforced Suit	2026-10-28
+12020	ant	Swarm Tactics	2026-10-28
+12024	ant	Team-Building Exercise	2026-10-28
+12025	ant	Care for Cassie	2026-10-28
+12026	ant	Tech Theft	2026-10-28
+12027	ant	Yellowjacket	2026-10-28
+12028	ant	Size Increase	2026-10-28
+12029	ant	Yellowjacket's Plan	2026-10-28
+12031	ant	Lay Down the Law	2026-10-28
+13001a	wsp	Wasp	2026-10-28
+13001b	wsp	Nadia Van Dyne	2026-10-28
+13001c	wsp	Wasp	2026-10-28
+13002	wsp	Ant-Man	2026-10-28
+13003	wsp	Giant Help	2026-10-28
+13004	wsp	Pinpoint Strike	2026-10-28
+13005	wsp	Rapid Growth	2026-10-28
+13006	wsp	Wasp Sting	2026-10-28
+13007	wsp	Pym Particles	2026-10-28
+13008	wsp	Red Room Training	2026-10-28
+13009	wsp	Bio-Synthetic Wings	2026-10-28
+13010	wsp	Wasp's Helmet	2026-10-28
+13011	wsp	Thor	2026-10-28
+13012	wsp	Wasp	2026-10-28
+13013	wsp	Into the Fray	2026-10-28
+13014	wsp	Surprise Attack	2026-10-28
+13016	wsp	Boot Camp	2026-10-28
+13017	wsp	Lie in Wait	2026-10-28
+13018	wsp	Ironheart	2026-10-28
+13019	wsp	Spider-Man	2026-10-28
+13020	wsp	Swarm Tactics	2026-10-28
+13024	wsp	The Power in All of Us	2026-10-28
+13026	wsp	Red Dreams	2026-10-28
+13027	wsp	Mother's Orders	2026-10-28
+13028	wsp	Beetle	2026-10-28
+13029	wsp	Beetle Armor MK IV	2026-10-28
+13030	wsp	Beetle Mania	2026-10-28
+14001a	qsv	Quicksilver	2026-10-28
+14001b	qsv	Pietro Maximoff	2026-10-28
+14002	qsv	Scarlet Witch	2026-10-28
+14003	qsv	Always Be Running	2026-10-28
+14004	qsv	Double Time	2026-10-28
+14005	qsv	Maximum Velocity	2026-10-28
+14006	qsv	Speed Cyclone	2026-10-28
+14007	qsv	Serval Industries	2026-10-28
+14008	qsv	Accelerated Reflex	2026-10-28
+14009	qsv	Friction Resistance	2026-10-28
+14010	qsv	Hyper Perception	2026-10-28
+14011	qsv	Reinforced Sinew	2026-10-28
+14012	qsv	Multiple Man	2026-10-28
+14013	qsv	Warlock	2026-10-28
+14014	qsv	Never Back Down	2026-10-28
+14015	qsv	Side Step	2026-10-28
+14017	qsv	Nerves of Steel	2026-10-28
+14018	qsv	Order and Chaos	2026-10-28
+14022	qsv	Adrenaline Rush	2026-10-28
+14023	qsv	Civic Duty	2026-10-28
+14024	qsv	Need for Speed	2026-10-28
+14025	qsv	Extortion of Seismic Proportion	2026-10-28
+14026	qsv	Avalanche	2026-10-28
+14027	qsv	Vibration Resistance	2026-10-28
+14028	qsv	Earthquake	2026-10-28
+15001a	scw	Scarlet Witch	2026-10-28
+15001b	scw	Wanda Maximoff	2026-10-28
+15002	scw	Quicksilver	2026-10-28
+15003	scw	Chaos Magic	2026-10-28
+15004	scw	Hex Bolt	2026-10-28
+15005	scw	Molecular Decay	2026-10-28
+15006	scw	Warp Reality	2026-10-28
+15007	scw	Agatha Harkness	2026-10-28
+15008	scw	Magic Shield	2026-10-28
+15009	scw	Scarlet Witch's Crest	2026-10-28
+15010	scw	Speed	2026-10-28
+15011	scw	Wiccan	2026-10-28
+15012	scw	Crisis Averted	2026-10-28
+15013	scw	Multitasking	2026-10-28
+15014	scw	Swift Retribution	2026-10-28
+15015	scw	Turn the Tide	2026-10-28
+15019	scw	Spiritual Meditation	2026-10-28
+15023	scw	Slipping Sanity	2026-10-28
+15024	scw	The Next Evolution	2026-10-28
+15025	scw	Luminous	2026-10-28
+15026	scw	Magical Suspension	2026-10-28
+15027	scw	Chaos Manipulation	2026-10-28
+16001a	gmw	Groot	2026-10-28
+16001b	gmw	Groot	2026-10-28
+16002	gmw	Fruition	2026-10-28
+16003	gmw	"I am Groot"	2026-10-28
+16004	gmw	"I. AM. GROOT!"	2026-10-28
+16005	gmw	Root Stomp	2026-10-28
+16006	gmw	"We Are Groot"	2026-10-28
+16007	gmw	Fertile Ground	2026-10-28
+16008	gmw	Entangling Vines	2026-10-28
+16009	gmw	Lashing Vines	2026-10-28
+16010	gmw	Vine Shield	2026-10-28
+16011	gmw	Vine Spikes	2026-10-28
+16012	gmw	Starhawk	2026-10-28
+16014	gmw	Fighting Fit	2026-10-28
+16016	gmw	Dauntless	2026-10-28
+16017	gmw	Hard to Ignore	2026-10-28
+16019	gmw	Rocket Raccoon	2026-10-28
+16020	gmw	Flora and Fauna	2026-10-28
+16024	gmw	Deft Focus	2026-10-28
+16025	gmw	Wilt	2026-10-28
+16026	gmw	Blazing Inferno	2026-10-28
+16027	gmw	Furnax	2026-10-28
+16028	gmw	Fan the Flames	2026-10-28
+16029a	gmw	Rocket Raccoon	2026-10-28
+16029b	gmw	Rocket Raccoon	2026-10-28
+16030	gmw	I've Got a Plan	2026-10-28
+16031	gmw	Reload	2026-10-28
+16032	gmw	Schadenfreude	2026-10-28
+16033	gmw	Salvage	2026-10-28
+16034	gmw	Battery Pack	2026-10-28
+16035	gmw	Cybernetic Skeleton	2026-10-28
+16036	gmw	Particle Cannon	2026-10-28
+16037	gmw	Rocket Launcher	2026-10-28
+16038	gmw	Rocket's Pistol	2026-10-28
+16039	gmw	Thruster Boots	2026-10-28
+16040	gmw	Bug	2026-10-28
+16043	gmw	Looking for Trouble	2026-10-28
+16045	gmw	Follow Through	2026-10-28
+16046	gmw	Hand Cannon	2026-10-28
+16047	gmw	Groot	2026-10-28
+16052	gmw	Booster Boots	2026-10-28
+16053	gmw	Crisis on Halfworld	2026-10-28
+16054	gmw	Vendetta	2026-10-28
+16055	gmw	Blackjack O'Hare	2026-10-28
+16056	gmw	Blackjack's Bazooka	2026-10-28
+16057	gmw	Planetary Invasion	2026-10-28
+16058	gmw	Drang	2026-10-29
+16059	gmw	Drang	2026-10-29
+16060	gmw	Drang	2026-10-29
+16061a	gmw	Terrestrial Invasion	2026-10-28
+16061b	gmw	Terrestrial Invasion	2026-10-28
+16062a	gmw	Protect the Planet	2026-10-28
+16062b	gmw	Protect the Planet	2026-10-28
+16063	gmw	Badoon Ship	2026-10-28
+16064	gmw	Drang's Spear	2026-10-28
+16065	gmw	Badoon Engineer	2026-10-28
+16066	gmw	Blockade	2026-10-28
+16067	gmw	Bombardment	2026-10-28
+16068	gmw	Oppressive Armada	2026-10-28
+16069	gmw	Spatial Positioning	2026-10-28
+16070	gmw	Collector	2026-10-28
+16071	gmw	Collector	2026-10-28
+16072	gmw	Collector	2026-10-28
+16073a	gmw	The Grand Collection	2026-10-28
+16073b	gmw	The Grand Collection	2026-10-28
+16074	gmw	Biogram Image	2026-10-28
+16075	gmw	Monarch Starstalker	2026-10-28
+16076	gmw	Inconspicuous Box	2026-10-28
+16077	gmw	View the Cosmos	2026-10-28
+16078	gmw	Stay Awhile	2026-10-28
+16079	gmw	Caught Off Guard	2026-10-28
+16080a	gmw	Collector	2026-10-28
+16081b	gmw	Collector	2026-10-28
+16082a	gmw	The Missing Milano	2026-10-28
+16082b	gmw	The Missing Milano	2026-10-28
+16083a	gmw	Lost in the Museum	2026-10-28
+16083b	gmw	Lost in the Museum	2026-10-28
+16084a	gmw	The Great Escape	2026-10-28
+16084b	gmw	The Great Escape	2026-10-28
+16085a	gmw	Library Labyrinth	2026-10-28
+16085b	gmw	Museum Ship	2026-10-28
+16086	gmw	"I Have You Now!"	2026-10-28
+16087	gmw	Impossible Geometry	2026-10-28
+16088	gmw	Nebula	2026-10-28
+16089	gmw	Nebula	2026-10-28
+16091a	gmw	The Art of Evasion	2026-10-28
+16091b	gmw	The Art of Evasion	2026-10-28
+16092a	gmw	Warp Drive Initiated	2026-10-28
+16092b	gmw	Warp Drive Initiated	2026-10-28
+16093	gmw	Nebula's Ship	2026-10-28
+16094	gmw	Cutthroat Ambition	2026-10-28
+16095	gmw	Evasive Maneuvering	2026-10-28
+16096	gmw	Unyielding Persistence	2026-10-28
+16097	gmw	Weapon Mastery	2026-10-28
+16098	gmw	Wide Stance	2026-10-28
+16099	gmw	Lethal Intent	2026-10-28
+16100	gmw	Barrel Roll	2026-10-28
+16101	gmw	Combat Ready	2026-10-28
+16102	gmw	Ruthless	2026-10-28
+16103	gmw	Ronan the Accuser	2026-10-28
+16104	gmw	Ronan the Accuser	2026-10-28
+16106a	gmw	Interception Imminent	2026-10-28
+16106b	gmw	Interception Imminent	2026-10-28
+16107a	gmw	"Take What Is Mine"	2026-10-28
+16107b	gmw	"Take What Is Mine"	2026-10-28
+16108	gmw	Kree Command Ship	2026-10-28
+16109	gmw	Universal Weapon	2026-10-28
+16110	gmw	Fanaticism	2026-10-28
+16111	gmw	Cut the Power	2026-10-28
+16112	gmw	Pincer Maneuver	2026-10-28
+16113	gmw	Superior Tactics	2026-10-28
+16114	gmw	Single-Minded Fury	2026-10-28
+16115	gmw	Kree Physiology	2026-10-28
+16116	gmw	"You Stand Accused!"	2026-10-28
+16117	gmw	Badoon Assassin	2026-10-28
+16118	gmw	Badoon Grunt	2026-10-28
+16119	gmw	Badoon Lieutenant	2026-10-28
+16120	gmw	Badoon Sentry	2026-10-28
+16121	gmw	Badoon Warlord	2026-10-28
+16122	gmw	Cloak of Hercules	2026-10-28
+16123	gmw	Obedience Potion	2026-10-28
+16124	gmw	The Beyonder's Blazer	2026-10-28
+16125	gmw	The Poison	2026-10-28
+16126	gmw	Vandarian Power Stone	2026-10-28
+16127	gmw	Hujahdarian Monarch Egg	2026-10-28
+16128	gmw	Magical Teapot	2026-10-28
+16129	gmw	Philosopher's Stone	2026-10-28
+16130	gmw	Crystal Ball	2026-10-28
+16131	gmw	Kree Combat Armor	2026-10-28
+16132	gmw	Kree Commando	2026-10-28
+16133	gmw	Kree Lieutenant	2026-10-28
+16134	gmw	Kree Private	2026-10-28
+16135	gmw	Psionic Ghost	2026-10-28
+16136	gmw	Servant Bot	2026-10-28
+16137	gmw	Starshark	2026-10-28
+16138	gmw	Pirate Commander	2026-10-28
+16139	gmw	Pirate Lackey	2026-10-28
+16140	gmw	Sound the Alarms	2026-10-28
+16141	gmw	Honor Among Thieves	2026-10-28
+16142	gmw	Milano	2026-10-28
+16143	gmw	Rogue Vessel	2026-10-28
+16144	gmw	Cannonade	2026-10-28
+16145	gmw	Blind Side	2026-10-28
+16146	gmw	Hull Breach	2026-10-28
+16147	gmw	Power Siphon	2026-10-28
+16148	gmw	Special Delivery	2026-10-28
+16149	gmw	Power Stone	2026-10-28
+16150	gmw	Brainstorm	2026-10-28
+16151	gmw	By Any Means	2026-10-28
+16152	gmw	Contingency Plan	2026-10-28
+16153	gmw	In Defiance	2026-10-28
+16154	gmw	Calculate the Odds	2026-10-28
+16155	gmw	Creative Solution	2026-10-28
+16156	gmw	Grapple	2026-10-28
+16157	gmw	Wing It	2026-10-28
+16158	gmw	Close Call	2026-10-28
+16159	gmw	Defy Danger	2026-10-28
+16160	gmw	In Harm's Way	2026-10-28
+16161	gmw	Take the Fight to Them	2026-10-28
+16162	gmw	Armor Plating	2026-10-28
+16163	gmw	Heavy Cannon	2026-10-28
+16164	gmw	Hyper Thrusters	2026-10-28
+16165	gmw	Reactor Core	2026-10-28
+16166	gmw	Ardent Resolve	2026-10-28
+16167	gmw	Onrush	2026-10-28
+16168	gmw	Safeguard	2026-10-28
+16169	gmw	Sure Gamble	2026-10-28
+16170	gmw	Cargo Hold	2026-10-28
+16171	gmw	Mounted Laser	2026-10-28
+16172	gmw	Navigation Column	2026-10-28
+16173	gmw	Targeting Screen	2026-10-28
+16174	gmw	Grand Strategy	2026-10-28
+16175	gmw	Power Unleashed	2026-10-28
+16176	gmw	Tried and True	2026-10-28
+16177	gmw	Triple Threat	2026-10-28
+16178a	gmw	Badoon Blitz	2026-10-28
+16178b	gmw	Badoon Blitz	2026-10-28
+16179a	gmw	Gallery of Splendor	2026-10-28
+16179b	gmw	Gallery of Splendor	2026-10-28
+16180a	gmw	"There is No Escape"	2026-10-28
+16180b	gmw	"There is No Escape"	2026-10-28
+16181a	gmw	Guerrilla Tactics	2026-10-28
+16181b	gmw	Guerrilla Tactics	2026-10-28
+16182a	gmw	Kree Supremacy	2026-10-28
+16182b	gmw	Kree Supremacy	2026-10-28
+16183	gmw	Badoon Headhunter	2026-10-28
+16184	gmw	On the Hunt	2026-10-28
+16185	gmw	Dead to Rights	2026-10-28
+16186	gmw	Headhunter's Henchman	2026-10-28
+16187	gmw	Fugitive Recovery	2026-10-28
+17001a	stld	Star-Lord	2026-10-28
+17001b	stld	Peter Quill	2026-10-28
+17002	stld	Nova Prime	2026-10-28
+17003	stld	Daring Escape	2026-10-28
+17004	stld	Gutsy Move	2026-10-28
+17005	stld	Sliding Shot	2026-10-28
+17006	stld	Bad Boy	2026-10-28
+17007	stld	Element Gun	2026-10-28
+17008	stld	Jet Boots	2026-10-28
+17009	stld	Leader of the Guardians	2026-10-28
+17010	stld	Star-Lord's Helmet	2026-10-28
+17011	stld	Adam Warlock	2026-10-28
+17012	stld	Beta Ray Bill	2026-10-28
+17013	stld	Yondu	2026-10-28
+17014	stld	Air Supremacy	2026-10-28
+17015	stld	Blaze of Glory	2026-10-28
+17017	stld	Target Practice	2026-10-28
+17019	stld	Laser Blaster	2026-10-28
+17020	stld	Cosmo	2026-10-28
+17021	stld	C.I.T.T.	2026-10-28
+17022	stld	Knowhere	2026-10-28
+17023	stld	Pulse Grenade	2026-10-28
+17024	stld	Banishment	2026-10-28
+17025	stld	Budding Crime Syndicate	2026-10-28
+17026	stld	Mister Knife	2026-10-28
+17027	stld	Spartoi Cunning	2026-10-28
+18001a	gam	Gamora	2026-10-28
+18001b	gam	Gamora	2026-10-28
+18002	gam	Nebula	2026-10-28
+18003	gam	Acrobatic Move	2026-10-28
+18004	gam	Crosscounter	2026-10-28
+18005	gam	Set the Pace	2026-10-28
+18006	gam	Decisive Blow	2026-10-28
+18007	gam	Forward Momentum	2026-10-28
+18008	gam	Conditioning Room	2026-10-28
+18009	gam	Keen Instincts	2026-10-28
+18010	gam	Gamora's Sword	2026-10-28
+18011	gam	Angela	2026-10-28
+18012	gam	Clobber	2026-10-28
+18013	gam	Plan of Attack	2026-10-28
+18015	gam	First Hit	2026-10-28
+18016	gam	Impede	2026-10-28
+18018	gam	Godslayer	2026-10-28
+18019	gam	Drax	2026-10-28
+18020	gam	Hit and Run	2026-10-28
+18024	gam	Unfulfilled Destiny	2026-10-28
+18025	gam	Sibling Rivalry	2026-10-28
+18026	gam	Nebula	2026-10-28
+18027	gam	In a Bind	2026-10-28
+18028	gam	Waylay	2026-10-28
+19001a	drax	Drax	2026-10-28
+19001b	drax	Drax	2026-10-28
+19002	drax	Mantis	2026-10-28
+19003	drax	"Fight Me, Coward!"	2026-10-28
+19004	drax	Intimidation	2026-10-28
+19005	drax	Knife Leap	2026-10-28
+19006	drax	Parry	2026-10-28
+19007	drax	Payback	2026-10-28
+19008	drax	Drax's Knife	2026-10-28
+19009	drax	Drax's Other Knife	2026-10-28
+19010	drax	DWI Theet Mastery	2026-10-28
+19011	drax	Too Stubborn to Die	2026-10-28
+19012	drax	Martyr	2026-10-28
+19013	drax	Moondragon	2026-10-28
+19015	drax	Deflection	2026-10-28
+19016	drax	Hard Knocks	2026-10-28
+19017	drax	Leading Blow	2026-10-28
+19018	drax	Subdue	2026-10-28
+19020	drax	Gamora	2026-10-28
+19025	drax	Memories of Another Life	2026-10-28
+19026	drax	Cull the Weak	2026-10-28
+19027	drax	Yotat the Destroyer	2026-10-28
+19028	drax	Challenge Accepted	2026-10-28
+19029	drax	"I Will Destroy You!"	2026-10-28
+19030	drax	"Bring It!"	2026-10-28
+20001a	vnm	Venom	2026-10-28
+20001b	vnm	Flash Thompson	2026-10-28
+20002	vnm	Behind Enemy Lines	2026-10-28
+20003	vnm	Grasping Tendrils	2026-10-28
+20004	vnm	Locked and Loaded	2026-10-28
+20005	vnm	Run and Gun	2026-10-28
+20006	vnm	Savage Attack	2026-10-28
+20007	vnm	Project Rebirth 2.0	2026-10-28
+20008	vnm	Multi-Gun	2026-10-28
+20009	vnm	Spider-Sense	2026-10-28
+20010	vnm	Venom's Pistol	2026-10-28
+20011	vnm	Jack Flag	2026-10-28
+20012	vnm	Scare Tactic	2026-10-28
+20013	vnm	Making an Entrance	2026-10-28
+20015	vnm	Sonic Rifle	2026-10-28
+20016	vnm	Star-Lord	2026-10-28
+20021	vnm	Side Holster	2026-10-28
+20022	vnm	Plasma Pistol	2026-10-28
+20023	vnm	Struggle for Control	2026-10-28
+20024	vnm	Klyntar Frenzy	2026-10-28
+20025	vnm	Enraged Symbiote	2026-10-28
+21001a	mts	Spectrum	2026-10-28
+21001b	mts	Monica Rambeau	2026-10-28
+21002	mts	Gamma	2026-10-28
+21003	mts	Photon	2026-10-28
+21004	mts	Pulsar	2026-10-28
+21005	mts	Blue Marvel	2026-10-28
+21006	mts	Energy Duplication	2026-10-28
+21007	mts	Gamma Blast	2026-10-28
+21008	mts	Photon Speed	2026-10-28
+21009	mts	Pulsar Shield	2026-10-28
+21010	mts	Speed of Light	2026-10-28
+21011	mts	Captain America	2026-10-28
+21012	mts	Power Man	2026-10-28
+21013	mts	White Tiger	2026-10-28
+21014	mts	Kaluu	2026-10-28
+21015	mts	Mighty Avengers	2026-10-28
+21016	mts	Mass Attack	2026-10-28
+21018	mts	Band Together	2026-10-28
+21019	mts	Blade	2026-10-28
+21022	mts	Ready to Rumble	2026-10-28
+21026	mts	Loss of Control	2026-10-28
+21027	mts	Radioactive Man	2026-10-28
+21028	mts	Reactor Meltdown	2026-10-28
+21029	mts	Sap Power	2026-10-28
+21030	mts	Radioactive Blast	2026-10-28
+21031a	mts	Adam Warlock	2026-10-28
+21031b	mts	Adam Warlock	2026-10-28
+21032	mts	Pip the Troll	2026-10-28
+21033	mts	Soul World	2026-10-28
+21034	mts	Karmic Staff	2026-10-28
+21035	mts	Warlock's Cape	2026-10-28
+21036	mts	Cosmic Ward	2026-10-28
+21037	mts	Mystic Senses	2026-10-28
+21038	mts	Karmic Blast	2026-10-28
+21039	mts	Cosmic Awareness	2026-10-28
+21040	mts	Quantum Magic	2026-10-28
+21041	mts	Marvel Boy	2026-10-28
+21042	mts	In-Betweener	2026-10-28
+21043	mts	Magic Attack	2026-10-28
+21046	mts	Audacity	2026-10-28
+21047	mts	Quasar	2026-10-28
+21048	mts	Living Tribunal	2026-10-28
+21050	mts	Zone of Silence	2026-10-28
+21052	mts	Determination	2026-10-28
+21053	mts	Major Victory	2026-10-28
+21054	mts	Eternity	2026-10-28
+21055	mts	Summoning Spell	2026-10-28
+21058	mts	Innovation	2026-10-28
+21059	mts	Charlie-27	2026-10-28
+21060	mts	The Gardener	2026-10-28
+21061	mts	Shield Spell	2026-10-28
+21064	mts	Preservation	2026-10-28
+21065	mts	Martinex	2026-10-28
+21066	mts	Regeneration Cycle	2026-10-28
+21067	mts	The Magus	2026-10-28
+21068	mts	Universal Church of Truth	2026-10-28
+21069	mts	Zealot of Truth	2026-10-28
+21070	mts	Cosmic Inquisition	2026-10-28
+21072	mts	Ebony Maw	2026-10-28
+21074	mts	Attack on Knowhere	2026-10-28
+21074b	mts	Attack on Knowhere	2026-10-28
+21075	mts	The Power Stone	2026-10-28
+21075b	mts	The Power Stone	2026-10-28
+21076	mts	Fireball	2026-10-28
+21077	mts	Manipulation	2026-10-28
+21078	mts	Pacification	2026-10-28
+21079	mts	Rubblestorm	2026-10-28
+21080	mts	Agent of Thanos	2026-10-28
+21082	mts	Abjuration	2026-10-28
+21083	mts	Restrained	2026-10-28
+21084	mts	Reactor Overload	2026-10-28
+21085	mts	Black Dwarf	2026-10-28
+21086	mts	Supergiant	2026-10-28
+21087	mts	The Black Order	2026-10-28
+21088	mts	Blood to Spare	2026-10-28
+21089	mts	Black Order Infantry	2026-10-28
+21090	mts	Outrider	2026-10-28
+21091	mts	Landing Craft	2026-10-28
+21093	mts	Proxima Midnight	2026-10-28
+21097	mts	Corvus Glaive	2026-10-28
+21098	mts	Under Siege	2026-10-28
+21098b	mts	Under Siege	2026-10-28
+21099b	mts	The Armies of Thanos	2026-10-28
+21100	mts	Avengers Tower	2026-10-28
+21100b	mts	Avengers Tower	2026-10-28
+21101	mts	Focused Defense	2026-10-28
+21102	mts	Black Order Besieger	2026-10-28
+21103	mts	Proxima's Spear	2026-10-28
+21104	mts	Corvus's Glaive	2026-10-28
+21105	mts	Direct Assault	2026-10-28
+21106	mts	Proxima's Power	2026-10-28
+21107	mts	Corvus's Cunning	2026-10-28
+21108	mts	Bound by Blood	2026-10-28
+21109	mts	Rain Fire	2026-10-28
+21110	mts	City Under Attack	2026-10-28
+21111	mts	Thanos	2026-10-28
+21113	mts	Thanos	2026-10-28
+21114	mts	The Infinity Stones	2026-10-28
+21114b	mts	The Infinity Stones	2026-10-28
+21115	mts	Balance the Scales	2026-10-28
+21115b	mts	Balance the Scales	2026-10-28
+21116	mts	Sanctuary	2026-10-28
+21117	mts	Thanos's Armor	2026-10-28
+21118	mts	Thanos's Helmet	2026-10-28
+21119	mts	Master of the Stones	2026-10-28
+21120	mts	Avatar of Death	2026-10-28
+21121	mts	Deviant Syndrome	2026-10-28
+21122	mts	"I Am Inevitable"	2026-10-28
+21123	mts	The Mad Titan	2026-10-28
+21124	mts	The Titan's Throne	2026-10-28
+21125	mts	Corvus Glaive	2026-10-28
+21126	mts	Proxima Midnight	2026-10-28
+21127	mts	Ebony Maw	2026-10-28
+21128	mts	Tribute	2026-10-28
+21129	mts	Infinity Gauntlet	2026-10-28
+21130	mts	Mind Stone	2026-10-28
+21131	mts	Power Stone	2026-10-28
+21132	mts	Reality Stone	2026-10-28
+21133	mts	Soul Stone	2026-10-28
+21134	mts	Space Stone	2026-10-28
+21135	mts	Time Stone	2026-10-28
+21136a	mts	Hela	2026-10-28
+21138	mts	Odin's Torment	2026-10-28
+21138b	mts	Odin's Torment	2026-10-28
+21139a	mts	Odin	2026-10-28
+21139b	mts	Odin	2026-10-28
+21140	mts	Gnipahellir	2026-10-28
+21141	mts	Hall of Nastrond	2026-10-28
+21142	mts	Gjallerbru	2026-10-28
+21143	mts	Garm	2026-10-28
+21144	mts	Skurge	2026-10-28
+21145	mts	Nidhogg	2026-10-28
+21146	mts	Nightsword	2026-10-28
+21147	mts	Hela's Crown	2026-10-28
+21148	mts	Hela's Cloak	2026-10-28
+21149	mts	Hela's Domain	2026-10-28
+21150	mts	The Queen of Hel	2026-10-28
+21151	mts	The Wastes of Niffleheim	2026-10-28
+21152	mts	Draugr	2026-10-28
+21153	mts	Fallen Warrior	2026-10-28
+21154	mts	No Place for the Living	2026-10-28
+21155	mts	Legions of Hel	2026-10-28
+21156	mts	Laufey	2026-10-28
+21157	mts	Frost Giant	2026-10-28
+21158	mts	Frozen	2026-10-28
+21159	mts	Unnatural Storm	2026-10-28
+21160	mts	Loki	2026-10-28
+21161	mts	Loki	2026-10-28
+21162	mts	Loki	2026-10-28
+21163	mts	Loki	2026-10-28
+21164	mts	Loki	2026-10-28
+21165	mts	All Hail King Loki	2026-10-28
+21165b	mts	All Hail King Loki	2026-10-28
+21166	mts	Casket of Ancient Winters	2026-10-28
+21167	mts	War in Asgard	2026-10-28
+21168	mts	Madness on Midgard	2026-10-28
+21169	mts	Open the Bifrost	2026-10-28
+21170	mts	Loki's Staff	2026-10-28
+21171	mts	Loki's Crown	2026-10-28
+21172	mts	Loki's Cape	2026-10-28
+21173	mts	Master of Illusions	2026-10-28
+21174	mts	Devious Sorcery	2026-10-28
+21175	mts	Infinite Mischief	2026-10-28
+21176	mts	The Trickster	2026-10-28
+21177	mts	Enchantress	2026-10-28
+21178	mts	Beguiled	2026-10-28
+21179	mts	Seduced	2026-10-28
+21180a	mts	Secure the Landing Pad	2026-10-28
+21180b	mts	Cosmo	2026-10-28
+21181	mts	Security Breach	2026-10-28
+21182a	mts	Save the Shawarma Place	2026-10-28
+21182b	mts	Black Swan	2026-10-28
+21183	mts	Shawarma	2026-10-28
+21184a	mts	Hack Sanctuary's Computer	2026-10-28
+21184b	mts	Defensive Protocols	2026-10-28
+21185	mts	System Shock	2026-10-28
+21186a	mts	Find the Norn Stones	2026-10-28
+21186b	mts	Retrieve Odin's Armor	2026-10-28
+21187a	mts	Norn Stone	2026-10-28
+21187b	mts	Norn Stone	2026-10-28
+21188	mts	Summoned Back	2026-10-28
+21189a	mts	Open the Dungeons	2026-10-28
+21189b	mts	Jormungand	2026-10-28
+21190	mts	Lady Sif	2026-10-28
+21191	mts	Fandral	2026-10-28
+21192	mts	Hogun	2026-10-28
+21193	mts	Volstagg	2026-10-28
+22001a	nebu	Nebula	2026-10-28
+22001b	nebu	Nebula	2026-10-28
+22002	nebu	Gamora	2026-10-28
+22003	nebu	Nebula's Ship	2026-10-28
+22004	nebu	Cutthroat Ambition	2026-10-28
+22005	nebu	Evasive Maneuvering	2026-10-28
+22006	nebu	Unyielding Persistence	2026-10-28
+22007	nebu	Weapons Master	2026-10-28
+22008	nebu	Wide Stance	2026-10-28
+22009	nebu	Combat Ready	2026-10-28
+22010	nebu	Lethal Intent	2026-10-28
+22011	nebu	Eros	2026-10-28
+22012	nebu	Wraith	2026-10-28
+22013	nebu	Venom	2026-10-28
+22014	nebu	Justice Served	2026-10-28
+22015	nebu	One Way or Another	2026-10-28
+22018	nebu	Brains Over Brawn	2026-10-28
+22027	nebu	Inferiority Complex	2026-10-28
+22028	nebu	Gamora	2026-10-28
+22029	nebu	Self-Preservation	2026-10-28
+22030	nebu	Lethal Weapon	2026-10-28
+22031	nebu	Old Rivals	2026-10-28
+23001a	warm	War Machine	2026-10-28
+23001b	warm	James Rhodes	2026-10-28
+23002	warm	Iron Man	2026-10-28
+23003	warm	Munitions Bunker	2026-10-28
+23004	warm	Upgraded Chassis	2026-10-28
+23005	warm	Gauntlet Gun	2026-10-28
+23006	warm	Missile Launcher	2026-10-28
+23007	warm	Shoulder Cannon	2026-10-28
+23008	warm	Repulsor Beam	2026-10-28
+23009	warm	Targeted Strike	2026-10-28
+23010	warm	Scorched Earth	2026-10-28
+23011	warm	Full Auto	2026-10-28
+23012	warm	Black Panther	2026-10-28
+23013	warm	Captain Marvel	2026-10-28
+23016	warm	Command Team	2026-10-28
+23017	warm	Sneak Attack	2026-10-28
+23018	warm	Save the Day	2026-10-28
+23019	warm	Go Down Swinging	2026-10-28
+23024	warm	Two Against the World	2026-10-28
+23028	warm	Equipment Malfunction	2026-10-28
+23029	warm	Living Laser	2026-10-28
+23030	warm	Deadly Light Show	2026-10-28
+23031	warm	Laser Strike	2026-10-28
+24001	hood	The Hood	2026-10-28
+24002	hood	The Hood	2026-10-28
+24003	hood	The Hood	2026-10-28
+24004	hood	Making Connections	2026-10-28
+24004b	hood	Making Connections	2026-10-28
+24005a	hood	Promised Prosperity	2026-10-28
+24005b	hood	Promised Prosperity	2026-10-28
+24006a	hood	Crime State	2026-10-28
+24006b	hood	Crime State	2026-10-28
+24007	hood	Established Dominance	2026-10-28
+24008	hood	The Hood's Mantle	2026-10-28
+24009	hood	The Hood's Pistol	2026-10-28
+24010	hood	Madame Masque	2026-10-28
+24011	hood	Unbridled Ambition	2026-10-28
+24012	hood	Field Recruitment	2026-10-28
+24013	hood	Upper Hand	2026-10-28
+24014	hood	Beast Mode	2026-10-28
+24015	hood	Griffin	2026-10-28
+24016	hood	Mandrill	2026-10-28
+24017	hood	Double Trouble	2026-10-28
+24018	hood	Brothers Grimm	2026-10-28
+24019	hood	Blackbird Pellets	2026-10-28
+24020	hood	Corrosive Egg Bomb	2026-10-28
+24021	hood	Paralytic Stardust	2026-10-28
+24022	hood	Unbreakable Thread	2026-10-28
+24023	hood	Out for Blood	2026-10-28
+24024	hood	Controller	2026-10-28
+24025	hood	Corruptor	2026-10-28
+24026	hood	Crossfire	2026-10-28
+24027	hood	Mister Fear	2026-10-28
+24028	hood	Caught in the Crossfire	2026-10-28
+24029	hood	Cruel Intentions	2026-10-28
+24030	hood	Ruination	2026-10-28
+24031	hood	Seek and Destroy	2026-10-28
+24032	hood	Slug It Out	2026-10-28
+24033	hood	Self-Experimentation	2026-10-28
+24034	hood	Calvin Zabo	2026-10-28
+24035	hood	Mister Hyde	2026-10-28
+24036	hood	Hyde Formula	2026-10-28
+24037	hood	Flamethrower	2026-10-28
+24038	hood	Holoshield Generator	2026-10-28
+24039	hood	Jetpack	2026-10-28
+24040	hood	Tech Gauntlets	2026-10-28
+24041	hood	Armored Guard	2026-10-28
+24042	hood	Crime Pays	2026-10-28
+24043	hood	Beetle	2026-10-28
+24044	hood	Boomerang	2026-10-28
+24045	hood	Shocker	2026-10-28
+24046	hood	Speed Demon	2026-10-28
+24047	hood	White Rabbit	2026-10-28
+24048	hood	Sinister Onslaught	2026-10-28
+24049a	hood	Formidable Foe	2026-10-28
+24049b	hood	Formidable Foe	2026-10-28
+24050	hood	Dark Dealings	2026-10-28
+24051	hood	Mob Mentality	2026-10-28
+24052	hood	Overwhelming Force	2026-10-28
+24053	hood	Shadow of the Past	2026-10-28
+24054	hood	Total Annihilation	2026-10-28
+24055	hood	Feisty Heist	2026-10-28
+24056	hood	Disaster at the Docks	2026-10-28
+24057	hood	Offshore Inferno	2026-10-28
+24058	hood	Hot Pursuit	2026-10-28
+24059	hood	Citywide Crisis	2026-10-28
+24060	hood	Back-Alley Enclave	2026-10-28
+24061	hood	Secret Lair	2026-10-28
+24062	hood	Sewer Tunnels	2026-10-28
+24063	hood	Warehouse District	2026-10-28
+24064	hood	Top Talent	2026-10-28
+24065	hood	Wrecker	2026-10-28
+24066	hood	Bulldozer	2026-10-28
+24067	hood	Piledriver	2026-10-28
+24068	hood	Thunderball	2026-10-28
+24069	hood	Combined Effort	2026-10-28
+24070	hood	Magic Muscle	2026-10-28
+25001a	valk	Valkyrie	2026-10-28
+25001b	valk	Brunnhilde	2026-10-28
+25002	valk	Death-Glow	2026-10-28
+25003	valk	Annabelle Riggs	2026-10-28
+25004	valk	Valhalla	2026-10-28
+25005	valk	Valkyrie's Spear	2026-10-28
+25006	valk	Dragonfang	2026-10-28
+25007	valk	Aragorn	2026-10-28
+25008	valk	Flight of the Valkyrior	2026-10-28
+25009	valk	Visit Valhalla	2026-10-28
+25010	valk	Chooser of the Slain	2026-10-28
+25011	valk	Shieldmaiden	2026-10-28
+25012	valk	Have at Thee!	2026-10-28
+25013	valk	Thor	2026-10-28
+25014	valk	Throg	2026-10-28
+25018	valk	Quick Strike	2026-10-28
+25019	valk	Smash the Problem	2026-10-28
+25020	valk	The Best Defense…	2026-10-28
+25023	valk	The Bifrost	2026-10-28
+25024	valk	Godlike Stamina	2026-10-28
+25028	valk	Trouble in Otherworld	2026-10-28
+25029	valk	Enchantress	2026-10-28
+25030	valk	Powerful Enchantments	2026-10-28
+25031	valk	Beguiled	2026-10-28
+25032	valk	Seduced	2026-10-28
+26001a	vision	Vision	2026-10-28
+26001b	vision	Vision	2026-10-28
+26002	vision	Intangible	2026-10-28
+26002b	vision	Intangible	2026-10-28
+26003	vision	Vivian	2026-10-28
+26004	vision	616 Hickory Branch Lane	2026-10-28
+26005	vision	Solar Gem	2026-10-28
+26006	vision	Vision's Cape	2026-10-28
+26007	vision	Density Control	2026-10-28
+26008	vision	Solar Beam	2026-10-28
+26009	vision	Superdense Strike	2026-10-28
+26010	vision	Just Passing Through	2026-10-28
+26011	vision	Phase Disruption	2026-10-28
+26012	vision	Mass Increase	2026-10-28
+26013	vision	Jocasta	2026-10-28
+26014	vision	Protector	2026-10-28
+26015	vision	Victor Mancha	2026-10-28
+26016	vision	Flow Like Water	2026-10-28
+26018	vision	Defiance	2026-10-28
+26022	vision	Machine Man	2026-10-28
+26024	vision	Reboot	2026-10-28
+26028	vision	Corrupted Programming	2026-10-28
+26029	vision	Ultron	2026-10-28
+26030	vision	Ultron Unleashed	2026-10-28
+26031	vision	Ultron Drones	2026-10-28
+26032	vision	Relentless Android	2026-10-28
+26034	vision	Chance Encounter	2026-10-28
+27001a	sm	Ghost-Spider	2026-10-28
+27001b	sm	Gwen Stacy	2026-10-28
+27002	sm	Ghost Kick	2026-10-28
+27003	sm	Parental Guidance	2026-10-28
+27004	sm	Phantom Flip	2026-10-28
+27005	sm	Pirouette and Punch	2026-10-28
+27006	sm	Web Binding	2026-10-28
+27007	sm	George Stacy	2026-10-28
+27008	sm	Ticket to the Multiverse	2026-10-28
+27009	sm	Web-Bracelet	2026-10-28
+27010	sm	Silk	2026-10-28
+27011	sm	Spider-Man	2026-10-28
+27012	sm	Spider-UK	2026-10-28
+27014	sm	Jump Flip	2026-10-28
+27015	sm	Return the Favor	2026-10-28
+27016	sm	What Doesn't Kill Me	2026-10-28
+27017	sm	Spider-Man	2026-10-28
+27018	sm	Across the Spider-Verse	2026-10-28
+27019	sm	Young Love	2026-10-28
+27023	sm	Web of Life and Destiny	2026-10-28
+27024	sm	Plan B	2026-10-28
+27025	sm	Worried Father	2026-10-28
+27026	sm	Regenerative Research	2026-10-28
+27027	sm	The Lizard	2026-10-28
+27028	sm	Experimental Injection	2026-10-28
+27029	sm	In Cold Blood	2026-10-28
+27030a	sm	Spider-Man	2026-10-28
+27030b	sm	Miles Morales	2026-10-28
+27031	sm	Arachnobatics	2026-10-28
+27032	sm	Double Life	2026-10-28
+27033	sm	Swing In	2026-10-28
+27034	sm	Web-Shot	2026-10-28
+27035	sm	Ganke Lee	2026-10-28
+27036	sm	Jefferson Davis	2026-10-28
+27037	sm	Power Within	2026-10-28
+27038	sm	Defense Mechanism	2026-10-28
+27039	sm	Web-Shooter	2026-10-28
+27040	sm	Monica Chang	2026-10-28
+27041	sm	Spider-Woman	2026-10-28
+27042	sm	Homeland Intervention	2026-10-28
+27043	sm	Global Logistics	2026-10-28
+27044	sm	Field Agent	2026-10-28
+27046	sm	Agent 13	2026-10-28
+27047	sm	Dum Dum Dugan	2026-10-28
+27048	sm	Ghost-Spider	2026-10-28
+27049	sm	Spider-Man	2026-10-28
+27054	sm	Government Liaison	2026-10-28
+27055	sm	Sky-Destroyer	2026-10-28
+27056	sm	Keeping Secrets	2026-10-28
+27057	sm	Tracking Prey	2026-10-28
+27058	sm	Prowler	2026-10-28
+27059	sm	Razor Claws	2026-10-28
+27060	sm	Slice and Dice	2026-10-28
+27061	sm	Sandman	2026-10-28
+27062	sm	Sandman	2026-10-28
+27063	sm	Sandman	2026-10-28
+27064	sm	Hapless Pedestrians	2026-10-28
+27064b	sm	Hapless Pedestrians	2026-10-28
+27065	sm	City Streets	2026-10-28
+27066	sm	Sand Form	2026-10-28
+27067	sm	Sand Clone	2026-10-28
+27068	sm	Dirt Trap	2026-10-28
+27069	sm	Tidal Sands	2026-10-28
+27070	sm	Sandslide	2026-10-28
+27071	sm	Sand Storm	2026-10-28
+27072	sm	Sand Smash	2026-10-28
+27073	sm	Venom	2026-10-28
+27074	sm	Venom	2026-10-28
+27075	sm	Venom	2026-10-28
+27076a	sm	"Leave Us Alone!"	2026-10-28
+27076b	sm	"Leave Us Alone!"	2026-10-28
+27077a	sm	Bell Tower	2026-10-28
+27077b	sm	Bell Tower	2026-10-28
+27078	sm	"Now We're Angry!"	2026-10-28
+27079	sm	Guard the Bell Tower	2026-10-28
+27080	sm	Lashing Out	2026-10-28
+27081	sm	Tooth and Nail	2026-10-28
+27082	sm	Biting Retort	2026-10-28
+27083	sm	For Whom the Bell Tolls	2026-10-28
+27084	sm	Mysterio	2026-10-28
+27085	sm	Mysterio	2026-10-28
+27086	sm	Mysterio	2026-10-28
+27087	sm	Maze of Mirrors	2026-10-28
+27087b	sm	Maze of Mirrors	2026-10-28
+27088	sm	Edge of Reality	2026-10-28
+27088b	sm	Edge of Reality	2026-10-28
+27089	sm	Humongous Hallucination	2026-10-28
+27090	sm	Masterful Mirage	2026-10-28
+27091	sm	Shifting Apparition	2026-10-28
+27092	sm	Déjà Vu	2026-10-28
+27093	sm	Fearmonger	2026-10-28
+27094	sm	Doctor Octopus	2026-10-28
+27095	sm	Electro	2026-10-28
+27096	sm	Hobgoblin	2026-10-28
+27097	sm	Kraven the Hunter	2026-10-28
+27098	sm	Scorpion	2026-10-28
+27099	sm	Vulture	2026-10-28
+27100a	sm	Sinister Synchronization	2026-10-28
+27100b	sm	Sinister Synchronization	2026-10-28
+27101a	sm	Sinister Beatdown	2026-10-28
+27101b	sm	Sinister Beatdown	2026-10-28
+27102a	sm	Light at the End	2026-10-28
+27102b	sm	Light at the End	2026-10-28
+27103	sm	Heightened Morale	2026-10-28
+27104	sm	Taunting Presence	2026-10-28
+27105	sm	Team Leader	2026-10-28
+27106	sm	Take One for the Team	2026-10-28
+27107	sm	Brute Force Barricade	2026-10-28
+27108	sm	Frequent Flyers	2026-10-28
+27109	sm	High Fashion	2026-10-28
+27110	sm	Robotic Enhancements	2026-10-28
+27111	sm	Partnership of Pain	2026-10-28
+27112	sm	Surprise!	2026-10-28
+27113	sm	Venom Goblin	2026-10-28
+27114	sm	Venom Goblin	2026-10-28
+27116a	sm	Skies Over New York	2026-10-28
+27116b	sm	Skies Over New York	2026-10-28
+27117a	sm	Lower Manhattan	2026-10-28
+27117b	sm	Lower Manhattan	2026-10-28
+27118a	sm	Midtown Manhattan	2026-10-28
+27118b	sm	Midtown Manhattan	2026-10-28
+27119a	sm	Upper Manhattan	2026-10-28
+27119b	sm	Upper Manhattan	2026-10-28
+27120	sm	We Are One	2026-10-28
+27121	sm	Symbiotic Berserker	2026-10-28
+27122	sm	Symbiotic Monstrosity	2026-10-28
+27123	sm	Symbiotic Thrall	2026-10-28
+27124	sm	Festering Mass	2026-10-28
+27125	sm	Joy Ride	2026-10-28
+27126	sm	Spreading Panic	2026-10-28
+27127	sm	Panic in the Streets	2026-10-28
+27128	sm	Rhino	2026-10-28
+27129	sm	Calling in Favors	2026-10-28
+27130	sm	Now or Never	2026-10-28
+27131	sm	Common Criminal	2026-10-28
+27132	sm	Friends and Family	2026-10-28
+27133	sm	Volunteer Work	2026-10-28
+27134	sm	"Threat or Menace?"	2026-10-28
+27135	sm	Loose Ends	2026-10-28
+27136	sm	Advanced Glider	2026-10-28
+27137	sm	Concussive Bombs	2026-10-28
+27138	sm	Incendiary Bombs	2026-10-28
+27139	sm	Smoke Bombs	2026-10-28
+27140	sm	Limitless Supply	2026-10-28
+27141	sm	Remote Navigation	2026-10-28
+27142	sm	Life-Size Decoy	2026-10-28
+27143	sm	Coordinated Effort	2026-10-28
+27144	sm	Hidden in Shadow	2026-10-28
+27145	sm	Teamwork Makes the Dream Work	2026-10-28
+27146	sm	From Every Direction	2026-10-28
+27147	sm	Arm Cannon	2026-10-28
+27148	sm	Ionic Boots	2026-10-28
+27149	sm	Kinetic Armor	2026-10-28
+27150	sm	Neocarbon Scales	2026-10-28
+27151	sm	Spiked Gauntlet	2026-10-28
+27152	sm	Tracking Display	2026-10-28
+27153	sm	Induced Panic	2026-10-28
+27154	sm	Evil Doppelgänger	2026-10-28
+27155	sm	Fool's Paradise	2026-10-28
+27156	sm	Weakness from Within	2026-10-28
+27157	sm	Deepest Fears	2026-10-28
+27158	sm	Doctor Octopus	2026-10-28
+27159	sm	Electro	2026-10-28
+27160	sm	Hobgoblin	2026-10-28
+27161	sm	Kraven the Hunter	2026-10-28
+27162	sm	Scorpion	2026-10-28
+27163	sm	Vulture	2026-10-28
+27164	sm	Improvised Weapons	2026-10-28
+27165	sm	Violent Tendencies	2026-10-28
+27166	sm	Webbed Up	2026-10-28
+27167	sm	Enraged Symbiote	2026-10-28
+27168	sm	Swinging Assault	2026-10-28
+27169	sm	Unstable Sentience	2026-10-28
+27170	sm	Delusion of Collusion	2026-10-28
+27171	sm	Manipulated Mind	2026-10-28
+27172	sm	Old Grudge	2026-10-28
+27173	sm	Analysis Paralysis	2026-10-28
+27174a	sm	Public Outcry	2026-10-28
+27174b	sm	Public Outcry	2026-10-28
+27175	sm	Smear Campaign	2026-10-28
+27176	sm	Back Alley Burglary	2026-10-28
+27177	sm	Cat in a Tree	2026-10-28
+27178	sm	Henchmen Heist	2026-10-28
+27179	sm	Off the Rails	2026-10-28
+27180	sm	Rubble Rescue	2026-10-28
+27181	sm	Snitches Get Stitches	2026-10-28
+27182a	sm	Compact Darts	2026-10-28
+27182b	sm	Compact Darts	2026-10-28
+27183a	sm	Impact-Dampening Suit	2026-10-28
+27183b	sm	Impact-Dampening Suit	2026-10-28
+27184b	sm	Laser Goggles	2026-10-28
+27186a	sm	Retinal Display	2026-10-28
+27186b	sm	Retinal Display	2026-10-28
+27187a	sm	Shock Knuckles	2026-10-28
+27187b	sm	Shock Knuckles	2026-10-28
+27188a	sm	Wave Bracers	2026-10-28
+27188b	sm	Wave Bracers	2026-10-28
+27189a	sm	Wrist Navigator	2026-10-28
+27189b	sm	Wrist Navigator	2026-10-28
+27190	sm	Venom	2026-10-28
+27191	sm	Symbiote Suit	2026-10-28
+28001a	nova	Nova	2026-10-28
+28001b	nova	Sam Alexander	2026-10-28
+28002	nova	Ms. Marvel	2026-10-28
+28003	nova	Forcefield Projection	2026-10-28
+28004	nova	Lightspeed Flight	2026-10-28
+28005	nova	Pot Shot	2026-10-28
+28006	nova	Unleash Nova Force	2026-10-28
+28007	nova	Connection to the Worldmind	2026-10-28
+28008	nova	Jesse Alexander	2026-10-28
+28009	nova	Supernova Helmet	2026-10-28
+28010	nova	The Locust	2026-10-28
+28012	nova	Pitchback	2026-10-28
+28013	nova	No Quarter	2026-10-28
+28014	nova	One by One	2026-10-28
+28016	nova	Fluid Motion	2026-10-28
+28017	nova	Honed Technique	2026-10-28
+28018	nova	Moon Girl	2026-10-28
+28019	nova	Everyday Hero	2026-10-28
+28020	nova	Champions Mobile Bunker	2026-10-28
+28021	nova	Weight of the World	2026-10-28
+28022	nova	"Bring the War!"	2026-10-28
+28023	nova	Warbringer	2026-10-28
+28024	nova	War Delivery	2026-10-28
+28025	nova	"The War's Been Brought"	2026-10-28
+29001a	ironheart	Ironheart	2026-10-28
+29001b	ironheart	Riri Williams	2026-10-28
+29002a	ironheart	Ironheart	2026-10-28
+29002b	ironheart	Riri Williams	2026-10-28
+29003a	ironheart	Ironheart	2026-10-28
+29003b	ironheart	Riri Williams	2026-10-28
+29004	ironheart	Brawn	2026-10-28
+29005	ironheart	Fly Over	2026-10-28
+29006	ironheart	Photon Beam	2026-10-28
+29007	ironheart	New and Improved	2026-10-28
+29008	ironheart	Sector Scan	2026-10-28
+29009	ironheart	Stroke of Genius	2026-10-28
+29010	ironheart	Ronnie Williams	2026-10-28
+29011	ironheart	Tony Stark A.I.	2026-10-28
+29012	ironheart	Photon Blasters	2026-10-28
+29013	ironheart	Propulsion Jets	2026-10-28
+29014	ironheart	Cloud 9	2026-10-28
+29015	ironheart	Falcon	2026-10-28
+29016	ironheart	Patriot	2026-10-28
+29017	ironheart	Go All Out	2026-10-28
+29018	ironheart	Push Ahead	2026-10-28
+29020	ironheart	R&D Facility	2026-10-28
+29023	ironheart	Snowguard	2026-10-28
+29024	ironheart	Vivian	2026-10-28
+29025	ironheart	"Go for Champions!"	2026-10-28
+29027	ironheart	Ingenuity	2026-10-28
+29028	ironheart	A Minor Setback	2026-10-28
+29029	ironheart	Rule by Force	2026-10-28
+29030	ironheart	Lucia von Bardas	2026-10-28
+29031	ironheart	Cyborg Tech	2026-10-28
+29032	ironheart	Political Retribution	2026-10-28
+30001a	spiderham	Spider-Ham	2026-10-28
+30001b	spiderham	Peter Porker	2026-10-28
+30002	spiderham	Captain Americat	2026-10-28
+30003	spiderham	Ham It Up	2026-10-28
+30004	spiderham	Hogwashed	2026-10-28
+30005	spiderham	"I Don't Think So!"	2026-10-28
+30006	spiderham	Petulant Pig	2026-10-28
+30007	spiderham	Swinging Web Pig	2026-10-28
+30008	spiderham	The Daily Beagle	2026-10-28
+30009	spiderham	Cartoon Physics	2026-10-28
+30010	spiderham	Huge Wooden Hammer	2026-10-28
+30011	spiderham	Organic Webbing	2026-10-28
+30012	spiderham	Lady Spider	2026-10-28
+30013	spiderham	Spider-Man	2026-10-28
+30014	spiderham	Even the Odds	2026-10-28
+30019	spiderham	Overwatch	2026-10-28
+30020	spiderham	Scarlet Spider	2026-10-28
+30021	spiderham	SP//dr	2026-10-28
+30024	spiderham	"I Really Want a Hot Dog!"	2026-10-28
+30025	spiderham	Nefarious Trap	2026-10-28
+30026	spiderham	The Green Gobbler	2026-10-28
+30027	spiderham	Gobbler Glider	2026-10-28
+30028	spiderham	"Feast on This!"	2026-10-28
+31001a	spdr	SP//dr Suit	2026-10-28
+31001b	spdr	SP//dr Suit	2026-10-28
+31002a	?	?	2026-10-28
+31002b	?	?	2026-10-28
+31003	spdr	VEN#m	2026-10-28
+31004	spdr	All Systems Go!	2026-10-28
+31005	spdr	Rapid Deployment	2026-10-28
+31006	spdr	Web-Trap	2026-10-28
+31007	spdr	Aunt May & Uncle Ben	2026-10-28
+31008	spdr	Ejection Protocol	2026-10-28
+31009	spdr	SP//dr Command	2026-10-28
+31010	spdr	Host Spider	2026-10-28
+31011	spdr	Psychic Link	2026-10-28
+31012	spdr	Speed-Metal Alloy	2026-10-28
+31013	spdr	Web-Fluid Compressor	2026-10-28
+31014	spdr	Daredevil	2026-10-28
+31015	spdr	Spider-Man Noir	2026-10-28
+31016	spdr	Repurpose	2026-10-28
+31017	spdr	Thwip Thwip!	2026-10-28
+31019	spdr	Forcefield Generator	2026-10-28
+31020	spdr	Spider-Tingle	2026-10-28
+31021	spdr	Spider-Ham	2026-10-28
+31022	spdr	Spider-Man	2026-10-28
+31023	spdr	Limitless Stamina	2026-10-28
+31024	spdr	Unshakable	2026-10-28
+31025	spdr	Inherited Burden	2026-10-28
+31026	spdr	Giant Monster Attack	2026-10-28
+31027	spdr	M.O.R.B.I.U.S.	2026-10-28
+31028	spdr	Energy Drain	2026-10-28
+32001a	mut_gen	Colossus	2026-10-28
+32001b	mut_gen	Piotr Rasputin	2026-10-28
+32002	mut_gen	Shadowcat	2026-10-28
+32003	mut_gen	Piotr's Studio	2026-10-28
+32004	mut_gen	Iron Will	2026-10-28
+32005	mut_gen	Titanium Muscles	2026-10-28
+32006	mut_gen	Organic Steel	2026-10-28
+32007	mut_gen	Made of Rage	2026-10-28
+32008	mut_gen	Steel Fist	2026-10-28
+32009	mut_gen	Bulletproof Protector	2026-10-28
+32010	mut_gen	Armor Up	2026-10-28
+32011	mut_gen	Nightcrawler	2026-10-28
+32012	mut_gen	Polaris	2026-10-28
+32013	mut_gen	Protective Training	2026-10-28
+32014	mut_gen	Powerful Punch	2026-10-28
+32015	mut_gen	Bait and Switch	2026-10-28
+32016	mut_gen	Perseverance	2026-10-28
+32017	mut_gen	Mutant Protectors	2026-10-28
+32018	mut_gen	Defensive Energy	2026-10-28
+32019	mut_gen	Professor X	2026-10-28
+32020	mut_gen	The X-Jet	2026-10-28
+32021	mut_gen	Shadow and Steel	2026-10-28
+32022	mut_gen	Energy	2026-10-28
+32023	mut_gen	Genius	2026-10-28
+32024	mut_gen	Strength	2026-10-28
+32025	mut_gen	Homesick	2026-10-28
+32026	mut_gen	Juggernaut	2026-10-28
+32027	mut_gen	Rampaging Juggernaut	2026-10-28
+32028	mut_gen	Unstoppable	2026-10-28
+32029	mut_gen	Slammed	2026-10-28
+32030a	mut_gen	Shadowcat	2026-10-28
+32030b	mut_gen	Kitty Pryde	2026-10-28
+32031a	mut_gen	Solid	2026-10-28
+32031b	mut_gen	Phased	2026-10-28
+32032	mut_gen	Lockheed	2026-10-28
+32033	mut_gen	Kitty's Room	2026-10-28
+32034	mut_gen	Acute Control	2026-10-28
+32035	mut_gen	Intangible Interference	2026-10-28
+32036	mut_gen	Phased and Confused	2026-10-28
+32037	mut_gen	Shadowcat Surprise	2026-10-28
+32038	mut_gen	Phase Strike	2026-10-28
+32039	mut_gen	Airwalk	2026-10-28
+32040	mut_gen	Quick Shift	2026-10-28
+32041	mut_gen	Wolverine	2026-10-28
+32042	mut_gen	Magik	2026-10-28
+32043	mut_gen	Attack Training	2026-10-28
+32044	mut_gen	Gatekeeper	2026-10-28
+32045	mut_gen	Team Strike	2026-10-28
+32046	mut_gen	Toe to Toe	2026-10-28
+32047	mut_gen	Aggressive Energy	2026-10-28
+32048	mut_gen	Colossus	2026-10-28
+32049	mut_gen	X-Mansion	2026-10-28
+32051	mut_gen	Ready to Rumble	2026-10-28
+32055	mut_gen	Permanently Phased	2026-10-28
+32056	mut_gen	White Queen	2026-10-28
+32057	mut_gen	The Hellfire Club	2026-10-28
+32058	mut_gen	Hellfire Pawn	2026-10-28
+32059	mut_gen	Telepathic Restraint	2026-10-28
+32060	mut_gen	Sabretooth	2026-10-28
+32062	mut_gen	Sabretooth	2026-10-28
+32063a	mut_gen	Stalked by Sabretooth	2026-10-28
+32063b	mut_gen	Stalked by Sabretooth	2026-10-28
+32064a	mut_gen	The Injured Senator	2026-10-28
+32064b	mut_gen	The Injured Senator	2026-10-28
+32065a	mut_gen	Find the Senator	2026-10-28
+32065b	mut_gen	Protect the Senator	2026-10-28
+32066	mut_gen	Robert Kelly	2026-10-28
+32067	mut_gen	Adamantium Claws	2026-10-28
+32068	mut_gen	Animal Ferocity	2026-10-28
+32069	mut_gen	Sabretooth Strikes	2026-10-28
+32070	mut_gen	Unrelenting Savage	2026-10-28
+32071	mut_gen	Medical Emergency	2026-10-28
+32072	mut_gen	Feral Rage	2026-10-28
+32073	mut_gen	Avalanche	2026-10-28
+32074	mut_gen	Blob	2026-10-28
+32075	mut_gen	Pyro	2026-10-28
+32076	mut_gen	Toad	2026-10-28
+32077	mut_gen	Homo Superior	2026-10-28
+32078	mut_gen	Mutant Terrorists	2026-10-28
+32079	mut_gen	The Brotherhood	2026-10-28
+32080	mut_gen	Mystique	2026-10-28
+32081	mut_gen	Metamorphic Mayhem	2026-10-28
+32082	mut_gen	Infiltration	2026-10-28
+32083	mut_gen	Shapeshifter Surprise	2026-10-28
+32085	mut_gen	Sentinel	2026-10-28
+32086	mut_gen	Sentinel	2026-10-28
+32087a	mut_gen	Night of the Sentinels	2026-10-28
+32087b	mut_gen	Night of the Sentinels	2026-10-28
+32088a	mut_gen	Mutants at the Mall	2026-10-28
+32088b	mut_gen	Jubilee	2026-10-28
+32089	mut_gen	Rictor	2026-10-28
+32090	mut_gen	Boom Boom	2026-10-28
+32091	mut_gen	Cannonball	2026-10-28
+32092	mut_gen	Wolfsbane	2026-10-28
+32093	mut_gen	Sentinel Mark IV	2026-10-28
+32094	mut_gen	Gauntlet Beam	2026-10-28
+32095	mut_gen	Learning A.I.	2026-10-28
+32096	mut_gen	Adaptive Armor	2026-10-28
+32097	mut_gen	Self-Repair	2026-10-28
+32098	mut_gen	Mutant Detected	2026-10-28
+32099	mut_gen	Warn the Others	2026-10-28
+32100	mut_gen	Abduction Protocols	2026-10-28
+32101	mut_gen	Sentinel Mark II	2026-10-28
+32102	mut_gen	Sentinel Mark III	2026-10-28
+32103	mut_gen	Energy Barrier	2026-10-28
+32104	mut_gen	Operation Zero Tolerance	2026-10-28
+32105	mut_gen	Sentinel Mark V	2026-10-28
+32106	mut_gen	Sentinel Mark VI	2026-10-28
+32107	mut_gen	Targeted for Elimination	2026-10-28
+32108	mut_gen	Relentless Robots	2026-10-28
+32111	mut_gen	Master Mold	2026-10-28
+32112a	mut_gen	The Sentinel Factory	2026-10-28
+32112b	mut_gen	The Sentinel Factory	2026-10-28
+32113	mut_gen	Master Mold's Agenda	2026-10-28
+32113b	mut_gen	Master Mold's Agenda	2026-10-28
+32114	mut_gen	Sentinel Mark VIII	2026-10-28
+32115	mut_gen	Unit Upgrade	2026-10-28
+32116	mut_gen	Stun Beam	2026-10-28
+32117	mut_gen	Master Mold's Children	2026-10-28
+32118	mut_gen	Shields Up	2026-10-28
+32119	mut_gen	Intruder Alert!	2026-10-28
+32120	mut_gen	Insert Virus Program	2026-10-28
+32121a	mut_gen	Avalanche	2026-10-28
+32121b	mut_gen	Avalanche	2026-10-28
+32122a	mut_gen	Blob	2026-10-28
+32122b	mut_gen	Blob	2026-10-28
+32123a	mut_gen	Pyro	2026-10-28
+32123b	mut_gen	Pyro	2026-10-28
+32124a	mut_gen	Toad	2026-10-28
+32124b	mut_gen	Toad	2026-10-28
+32125b	mut_gen	The Brotherhood Strikes!	2026-10-28
+32126	mut_gen	The Atrium	2026-10-28
+32126b	mut_gen	The Atrium	2026-10-28
+32127b	mut_gen	The Cafeteria	2026-10-28
+32128b	mut_gen	The Basketball Court	2026-10-28
+32129b	mut_gen	The Courtyard	2026-10-28
+32130	mut_gen	Save the School	2026-10-28
+32131	mut_gen	Brotherhood Beatdown	2026-10-28
+32132	mut_gen	Ground Swell	2026-10-28
+32133	mut_gen	Immovable	2026-10-28
+32134	mut_gen	Pyromaniac	2026-10-28
+32135	mut_gen	Hopping Mad	2026-10-28
+32136	mut_gen	Protect the Students	2026-10-28
+32137	mut_gen	Under Siege	2026-10-28
+32138	mut_gen	Magneto	2026-10-28
+32140	mut_gen	Magneto	2026-10-28
+32141a	mut_gen	Asteroid M	2026-10-28
+32141b	mut_gen	Asteroid M	2026-10-28
+32142a	mut_gen	Factory Online	2026-10-28
+32142b	mut_gen	Factory Online	2026-10-28
+32143a	mut_gen	The Rule of Magnus	2026-10-28
+32143b	mut_gen	The Rule of Magnus	2026-10-28
+32144a	mut_gen	Boarding Party	2026-10-28
+32144b	mut_gen	Sabotage Master Mold	2026-10-28
+32145a	mut_gen	Orbital Decay	2026-10-28
+32145b	mut_gen	Physical Strain	2026-10-28
+32146	mut_gen	M-Type Sentinel	2026-10-28
+32147	mut_gen	Magneto's Helmet	2026-10-28
+32148	mut_gen	Magneto's Armor	2026-10-28
+32149	mut_gen	Magnetic Bubble	2026-10-28
+32150	mut_gen	Wrapped in Metal	2026-10-28
+32151	mut_gen	Master of Magnetism	2026-10-28
+32152	mut_gen	Electric Shock	2026-10-28
+32153	mut_gen	Electromagnetic Blast	2026-10-28
+32154	mut_gen	Metal Shards	2026-10-28
+32155	mut_gen	Magnetic Missile	2026-10-28
+32156	mut_gen	Magnetic Mayhem	2026-10-28
+32157	mut_gen	Magnetically Sealed	2026-10-28
+32158	mut_gen	Seized!	2026-10-28
+32159	mut_gen	Fabian Cortez	2026-10-28
+32160	mut_gen	Amelia Voght	2026-10-28
+32161	mut_gen	Senyaka	2026-10-28
+32162	mut_gen	Delgado	2026-10-28
+32163	mut_gen	Unuscione	2026-10-28
+32164	mut_gen	Zeal for the Cause	2026-10-28
+32165	mut_gen	The Acolytes	2026-10-28
+32166	mut_gen	Nimrod	2026-10-28
+32167	mut_gen	Bastion	2026-10-28
+32168	mut_gen	Nimrod's Portal	2026-10-28
+32169	mut_gen	Bastion's Machinations	2026-10-28
+32170	mut_gen	Nano-Sentinel Tech	2026-10-28
+32171a	mut_gen	Frightened Police	2026-10-28
+32171b	mut_gen	Metro P.D.	2026-10-28
+32172a	mut_gen	Enemy of My Enemy	2026-10-28
+32172b	mut_gen	Magneto	2026-10-28
+32173a	mut_gen	Find the Prisoners	2026-10-28
+32173b	mut_gen	Rescue Captives	2026-10-28
+32174a	mut_gen	Surprise Attack	2026-10-28
+32174b	mut_gen	Reactive Defense	2026-10-28
+32175a	mut_gen	Magneto's Fortress	2026-10-28
+32175b	mut_gen	Magneto's Power	2026-10-28
+32178	mut_gen	Brazen Defense	2026-10-28
+32179	mut_gen	Ferocious Attack	2026-10-28
+32180	mut_gen	War Cry	2026-10-28
+32182	mut_gen	Compassion	2026-10-28
+32183	mut_gen	Group Assault	2026-10-28
+32184	mut_gen	Shock and Awe	2026-10-28
+32185	mut_gen	Improvisation	2026-10-28
+32186	mut_gen	Swagger	2026-10-28
+32188	mut_gen	Heroic Intervention	2026-10-28
+32189	mut_gen	Determined Defense	2026-10-28
+32190	mut_gen	Bodyguard	2026-10-28
+32191	mut_gen	Surprise!	2026-10-28
+32193	mut_gen	Rescue Operation	2026-10-28
+32194	mut_gen	Mentorship	2026-10-28
+32195	mut_gen	Fortitude	2026-10-28
+33001a	cyclops	Cyclops	2026-10-28
+33001b	cyclops	Scott Summers	2026-10-28
+33002	cyclops	Phoenix	2026-10-28
+33003	cyclops	Ruby Quartz Visor	2026-10-28
+33004	cyclops	Field Commander	2026-10-28
+33005	cyclops	Exploit Weakness	2026-10-28
+33006	cyclops	Practiced Defense	2026-10-28
+33007	cyclops	Priority Target	2026-10-28
+33008	cyclops	Full Blast	2026-10-28
+33009	cyclops	Ricochet Beam	2026-10-28
+33010	cyclops	Tactical Brilliance	2026-10-28
+33011	cyclops	Beast	2026-10-28
+33012	cyclops	Dust	2026-10-28
+33013	cyclops	Rockslide	2026-10-28
+33014	cyclops	Blindfold	2026-10-28
+33015	cyclops	Danger Room Training	2026-10-28
+33016	cyclops	Coordinated Attack	2026-10-28
+33017	cyclops	Teamwork	2026-10-28
+33018	cyclops	Effective Leadership	2026-10-28
+33019	cyclops	Angel	2026-10-28
+33020	cyclops	Utopia	2026-10-28
+33021	cyclops	Danger Room	2026-10-28
+33022	cyclops	Game Time	2026-10-28
+33023	cyclops	Psychic Rapport	2026-10-28
+33027	cyclops	Lost Visor	2026-10-28
+33028	cyclops	Mister Sinister	2026-10-28
+33029	cyclops	Genetic Manipulation	2026-10-28
+33030	cyclops	Gene Therapy	2026-10-28
+33031	cyclops	Concussive Force	2026-10-28
+34001a	phoenix	Phoenix	2026-10-28
+34001b	phoenix	Jean Grey	2026-10-28
+34002a	phoenix	Phoenix Force	2026-10-28
+34002b	phoenix	Phoenix Force	2026-10-28
+34003	phoenix	Cyclops	2026-10-28
+34004	phoenix	White Hot Room	2026-10-28
+34005	phoenix	Phoenix Suit	2026-10-28
+34006	phoenix	Rise from the Ashes	2026-10-28
+34007	phoenix	Telekinetic Shield	2026-10-28
+34008	phoenix	Mental Paralysis	2026-10-28
+34009	phoenix	Mind Control	2026-10-28
+34010	phoenix	Telekinetic Attack	2026-10-28
+34011	phoenix	Psychic Blast	2026-10-28
+34012	phoenix	Telepathic Trickery	2026-10-28
+34013	phoenix	Phoenix Firebird	2026-10-28
+34014	phoenix	Banshee	2026-10-28
+34015	phoenix	Marvel Girl	2026-10-28
+34016	phoenix	Mission Training	2026-10-28
+34017	phoenix	Psychic Manipulation	2026-10-28
+34018	phoenix	Mutant Peacekeepers	2026-10-28
+34019	phoenix	Swift Retribution	2026-10-28
+34020	phoenix	Passion for Justice	2026-10-28
+34021	phoenix	Storm	2026-10-28
+34022	phoenix	Cerebro	2026-10-28
+34024	phoenix	Down Time	2026-10-28
+34028	phoenix	Burning Hunger	2026-10-28
+34029	phoenix	Dark Phoenix	2026-10-28
+34030	phoenix	Consume the World	2026-10-28
+34031	phoenix	Fiery Rage	2026-10-28
+35001a	wolv	Wolverine	2026-10-28
+35001b	wolv	Logan	2026-10-28
+35002	wolv	Wolverine's Claws	2026-10-28
+35003	wolv	Jubilee	2026-10-28
+35004	wolv	Adamantium Skeleton	2026-10-28
+35005	wolv	Berserker Frenzy	2026-10-28
+35006	wolv	"I Got Better"	2026-10-28
+35007	wolv	Logan's Cabin	2026-10-28
+35008	wolv	Berserker Barrage	2026-10-28
+35009	wolv	Slice and Dice	2026-10-28
+35010	wolv	Lunging Strike	2026-10-28
+35011	wolv	Track by Scent	2026-10-28
+35012	wolv	Regenerative Healing	2026-10-28
+35013	wolv	Psylocke	2026-10-28
+35014	wolv	Sunfire	2026-10-28
+35015	wolv	Battle Fury	2026-10-28
+35016	wolv	Warrior Skill	2026-10-28
+35017	wolv	Outta My Way!	2026-10-28
+35018	wolv	Precision Strike	2026-10-28
+35019	wolv	Mean Swing	2026-10-28
+35022	wolv	Weapon X	2026-10-28
+35023	wolv	Fastball Special	2026-10-28
+35027	wolv	Past Demons	2026-10-28
+35028	wolv	Omega Red	2026-10-28
+35029	wolv	The Carbonadium Synthesizer	2026-10-28
+35030	wolv	Death Factor	2026-10-28
+35031	wolv	Tentacle Strike	2026-10-28
+36001a	storm	Storm	2026-10-28
+36001b	storm	Ororo Munroe	2026-10-28
+36002	storm	Clear Skies	2026-10-28
+36003	storm	Hurricane	2026-10-28
+36004	storm	Thunderstorm	2026-10-28
+36005	storm	Blizzard	2026-10-28
+36006	storm	Storm's Crown	2026-10-28
+36007	storm	Storm's Cape	2026-10-28
+36008	storm	Ororo's Garden	2026-10-28
+36009	storm	Weather Goddess	2026-10-28
+36010	storm	Torrential Rain	2026-10-28
+36011	storm	Lightning Bolt	2026-10-28
+36012	storm	Flash Freeze	2026-10-28
+36013	storm	Blast of Wind	2026-10-28
+36014	storm	Havok	2026-10-28
+36015	storm	Mirage	2026-10-28
+36016	storm	Gentle	2026-10-28
+36017	storm	Pixie	2026-10-28
+36018	storm	Uncanny X-Men	2026-10-28
+36019	storm	Leadership Skill	2026-10-28
+36020	storm	"To Me, My X-Men!"	2026-10-28
+36022	storm	Forge	2026-10-28
+36026	storm	Endurance	2026-10-28
+36030	storm	Claustrophobia	2026-10-28
+36031	storm	Callisto	2026-10-28
+36032	storm	Leader of the Morlocks	2026-10-28
+36033	storm	Switchblade	2026-10-28
+36034	storm	Knife Fight	2026-10-28
+37001a	gambit	Gambit	2026-10-28
+37001b	gambit	Remy LeBeau	2026-10-28
+37002	gambit	Rogue	2026-10-28
+37003	gambit	The Thieves Guild	2026-10-28
+37004	gambit	Gambit's Staff	2026-10-28
+37005	gambit	Gambit's Guild Armor	2026-10-28
+37006	gambit	Charged Card	2026-10-28
+37007	gambit	Royal Flush	2026-10-28
+37008	gambit	Natural Agility	2026-10-28
+37009	gambit	Creole Charmer	2026-10-28
+37010	gambit	Molecular Acceleration	2026-10-28
+37011	gambit	Bishop	2026-10-28
+37012	gambit	Dazzler	2026-10-28
+37013	gambit	Operative Skill	2026-10-28
+37014	gambit	Stealth Strike	2026-10-28
+37015	gambit	Breaking and Entering	2026-10-28
+37019	gambit	Beauty and the Thief	2026-10-28
+37020	gambit	Hit and Run	2026-10-28
+37021	gambit	Mutant Education	2026-10-28
+37025	gambit	Guild Business	2026-10-28
+37026	gambit	Belladonna	2026-10-28
+37027	gambit	The Assassins Guild	2026-10-28
+37028	gambit	Guild Assassin	2026-10-28
+37029	gambit	Assassination Attempt	2026-10-28
+38001a	rogue	Rogue	2026-10-28
+38001b	rogue	Anna Marie	2026-10-28
+38002	rogue	Touched	2026-10-28
+38003	rogue	Gambit	2026-10-28
+38004	rogue	Rogue's Jacket	2026-10-28
+38005	rogue	Goin' Rogue	2026-10-28
+38006	rogue	Southern Cross	2026-10-28
+38007	rogue	Energy Transfer	2026-10-28
+38008	rogue	Bulletproof Belle	2026-10-28
+38009	rogue	Superpower Adaptation	2026-10-28
+38010	rogue	Iceman	2026-10-28
+38011	rogue	Karma	2026-10-28
+38012	rogue	Armor	2026-10-28
+38013	rogue	Unflappable	2026-10-28
+38014	rogue	Judoka Skill	2026-10-28
+38015	rogue	Preemptive Strike	2026-10-28
+38016	rogue	Not Today!	2026-10-28
+38018	rogue	Moira MacTaggert	2026-10-28
+38019	rogue	X-Gene	2026-10-28
+38024	rogue	Deadly Touch	2026-10-28
+38025	rogue	Mystique	2026-10-28
+38026	rogue	Mystique's Manipulations	2026-10-28
+38027	rogue	Misled	2026-10-28
+39001a	mojo	MaGog	2026-10-28
+39001b	mojo	MaGog	2026-10-28
+39002a	mojo	Melee in the Mojo-seum	2026-10-28
+39002b	mojo	Melee in the Mojo-seum	2026-10-28
+39003a	mojo	The Champion	2026-10-28
+39003b	mojo	The Champion	2026-10-28
+39004a	mojo	The Challengers	2026-10-28
+39004b	mojo	The Challengers	2026-10-28
+39005	mojo	Jolt of Adrenaline	2026-10-28
+39006	mojo	Surge of Aggression	2026-10-28
+39007	mojo	Surprise Contender	2026-10-28
+39008	mojo	Pump Up the Crowd	2026-10-28
+39009	mojo	Break a Leg	2026-10-28
+39010	mojo	Defend the Title	2026-10-28
+39011	mojo	Stage Fright	2026-10-28
+39012a	mojo	Spiral	2026-10-28
+39013b	mojo	Spiral	2026-10-28
+39014b	mojo	Spiral	2026-10-28
+39015a	mojo	Across the Mojoverse	2026-10-28
+39015b	mojo	Across the Mojoverse	2026-10-28
+39016	mojo	The Search for Spiral	2026-10-28
+39017	mojo	Cornered!	2026-10-28
+39018	mojo	Spiral's Swords	2026-10-28
+39019	mojo	Erratic Teleportation	2026-10-28
+39020	mojo	The Show Must Go On	2026-10-28
+39021	mojo	Well-Armed	2026-10-28
+39023	mojo	Mojo	2026-10-28
+39025a	mojo	MojoMania	2026-10-28
+39025b	mojo	MojoMania	2026-10-28
+39026a	mojo	Wheel of Genres	2026-10-28
+39026b	mojo	Wheel of Genres	2026-10-28
+39027	mojo	Major Domo	2026-10-28
+39028	mojo	Stinger Tail	2026-10-28
+39029	mojo	Supporting Actor	2026-10-28
+39030	mojo	Paparazzi	2026-10-28
+39031	mojo	Undercover Mojo	2026-10-28
+39032	mojo	Curtain Call	2026-10-28
+39033	mojo	Director's Directions	2026-10-28
+39034	mojo	Top Billing	2026-10-28
+39035	mojo	Dial M for Mojo	2026-10-28
+39036	mojo	Build the Case	2026-10-28
+39037	mojo	Crime Scene Investigation	2026-10-28
+39038	mojo	Law & Order	2026-10-28
+39039	mojo	Dragnet	2026-10-28
+39040	mojo	Elementary, My Dear Mojo	2026-10-28
+39041	mojo	A Game of Mojo's	2026-10-28
+39042	mojo	Dragon	2026-10-28
+39043	mojo	Goblin	2026-10-28
+39044	mojo	Troll	2026-10-28
+39045	mojo	Fetch Quest	2026-10-28
+39046	mojo	Mana Drain	2026-10-28
+39047	mojo	The Mojo Files	2026-10-28
+39048	mojo	Bandolier of Stakes	2026-10-28
+39049	mojo	Cultist	2026-10-28
+39050	mojo	The Kraken	2026-10-28
+39051	mojo	Vampire	2026-10-28
+39052	mojo	Werewolf Pack	2026-10-28
+39053	mojo	Mojo Runner	2026-10-28
+39054	mojo	Avalanche 9.0	2026-10-28
+39055	mojo	Blob 3.14	2026-10-28
+39056	mojo	Magneto 2.6	2026-10-28
+39057	mojo	Pyro 4.0	2026-10-28
+39058	mojo	Toad 2.0	2026-10-28
+39059	mojo	ICE-Teroid M	2026-10-28
+39060	mojo	Mojo in the Middle	2026-10-28
+39061	mojo	Family Matters	2026-10-28
+39062	mojo	Growing Pains	2026-10-28
+39063	mojo	The Odd Couple	2026-10-28
+39064	mojo	The One with the Breakup	2026-10-28
+39065	mojo	Watch Me Play	2026-10-28
+39066	mojo	Wild Wild Mojo	2026-10-28
+39067	mojo	Dead or Alive	2026-10-28
+39068	mojo	Card Shark	2026-10-28
+39069	mojo	Gunslinger	2026-10-28
+39070	mojo	A Game of Cards	2026-10-28
+39071	mojo	Longshot	2026-10-28
+40001a	next_evol	Cable	2026-10-28
+40001b	next_evol	Nathan Summers	2026-10-28
+40002	next_evol	Bodyslide	2026-10-28
+40003	next_evol	Mind Scan	2026-10-28
+40004	next_evol	Precognition	2026-10-28
+40005	next_evol	Telekinetic Blast	2026-10-28
+40006	next_evol	Technovirus Purge	2026-10-28
+40007	next_evol	Graymalkin	2026-10-28
+40008	next_evol	Professor	2026-10-28
+40009	next_evol	Askani'son	2026-10-28
+40010	next_evol	Forced Amnesia	2026-10-28
+40011	next_evol	Plasma Rifle	2026-10-28
+40012	next_evol	Telekinetic Force Field	2026-10-28
+40013	next_evol	Temporal Leap	2026-10-28
+40014	next_evol	Caliban	2026-10-28
+40015	next_evol	Fantomex	2026-10-28
+40016	next_evol	Sunspot	2026-10-28
+40017	next_evol	Mission Planning	2026-10-28
+40018	next_evol	Call for Backup	2026-10-28
+40019	next_evol	Lock and Load	2026-10-28
+40020	next_evol	Establish Perimeter	2026-10-28
+40021	next_evol	E.V.A.	2026-10-28
+40022	next_evol	Uncanny X-Force	2026-10-28
+40023	next_evol	Mission Leader	2026-10-28
+40024	next_evol	Deadpool	2026-10-28
+40025	next_evol	Deathlok	2026-10-28
+40027	next_evol	Build Support	2026-10-28
+40029	next_evol	Psimitar	2026-10-28
+40030	next_evol	Sidearm	2026-10-28
+40031	next_evol	Technovirus Resurgence	2026-10-28
+40032	next_evol	Stryfe	2026-10-28
+40033	next_evol	Back to the Future	2026-10-28
+40034	next_evol	Telekinetic Force Field	2026-10-28
+40035	next_evol	Mind Scan	2026-10-28
+40036	next_evol	Telekinetic Blast	2026-10-28
+40037a	next_evol	Domino	2026-10-28
+40037b	next_evol	Neena Thurman	2026-10-28
+40038	next_evol	Diamondback	2026-10-28
+40039	next_evol	Outlaw	2026-10-28
+40040	next_evol	A Good Workout	2026-10-28
+40041	next_evol	Luck Be a Lady	2026-10-28
+40042	next_evol	Right Place, Right Time	2026-10-28
+40043	next_evol	Jackpot!	2026-10-28
+40044	next_evol	Pip the Pug	2026-10-28
+40045	next_evol	The Painted Lady	2026-10-28
+40046	next_evol	Domino's Pistol	2026-10-28
+40047	next_evol	Lucky and Good	2026-10-28
+40048	next_evol	Lucky Break	2026-10-28
+40049	next_evol	Probability Field	2026-10-28
+40050	next_evol	Feral	2026-10-28
+40051	next_evol	Wolfsbane	2026-10-28
+40052	next_evol	Even the Odds	2026-10-28
+40053	next_evol	Team Investigation	2026-10-28
+40054	next_evol	Take Out the Guards	2026-10-28
+40055	next_evol	Overwatch	2026-10-28
+40056	next_evol	Atlas Bear	2026-10-28
+40057	next_evol	White Fox	2026-10-28
+40058	next_evol	The Posse	2026-10-28
+40059	next_evol	Superpower Training	2026-10-28
+40060	next_evol	Digging Deep	2026-10-28
+40064	next_evol	Sharpshooter	2026-10-28
+40065	next_evol	Memories of Armageddon	2026-10-28
+40066	next_evol	Topaz	2026-10-28
+40067	next_evol	Not My Lucky Day	2026-10-28
+40068	next_evol	Prototype	2026-10-28
+40069	next_evol	Superpower Feedback	2026-10-28
+40070a	next_evol	Arclight	2026-10-28
+40070b	next_evol	Arclight	2026-10-28
+40071a	next_evol	Blockbuster	2026-10-28
+40071b	next_evol	Blockbuster	2026-10-28
+40072a	next_evol	Chimera	2026-10-28
+40072b	next_evol	Chimera	2026-10-28
+40073a	next_evol	Greycrow	2026-10-28
+40073b	next_evol	Greycrow	2026-10-28
+40074b	next_evol	Harpoon	2026-10-28
+40075a	next_evol	Riptide	2026-10-28
+40075b	next_evol	Riptide	2026-10-28
+40076a	next_evol	Vertigo	2026-10-28
+40076b	next_evol	Vertigo	2026-10-28
+40077a	next_evol	Knock, Knock	2026-10-28
+40077b	next_evol	Knock, Knock	2026-10-28
+40078a	next_evol	Mutant Massacre	2026-10-28
+40078b	next_evol	Mutant Massacre	2026-10-28
+40079	next_evol	Morlock	2026-10-28
+40080	next_evol	Hide!	2026-10-28
+40081a	next_evol	Routed	2026-10-28
+40081b	next_evol	Routed	2026-10-28
+40082	next_evol	Bolstered by Wrath	2026-10-28
+40083	next_evol	Pushed to the Limit	2026-10-28
+40084	next_evol	By Any Means	2026-10-28
+40085	next_evol	In the Midst of Chaos	2026-10-28
+40086	next_evol	Maraudin' Ain't Easy	2026-10-28
+40087	next_evol	Territorial Control	2026-10-28
+40088	next_evol	Back in Action	2026-10-28
+40089	next_evol	Seek the Weak	2026-10-28
+40090	next_evol	Heavy Armament	2026-10-28
+40091	next_evol	Titanium Exoskeleton	2026-10-28
+40092	next_evol	Inhibitor Collar	2026-10-28
+40093	next_evol	The Senator's Support	2026-10-28
+40094	next_evol	Arclight	2026-10-28
+40095	next_evol	Blockbuster	2026-10-28
+40096	next_evol	Chimera	2026-10-28
+40097	next_evol	Greycrow	2026-10-28
+40098	next_evol	Harpoon	2026-10-28
+40099	next_evol	Riptide	2026-10-28
+40100	next_evol	Vertigo	2026-10-28
+40101	next_evol	Mutant Slayers	2026-10-28
+40102	next_evol	Bound by Business	2026-10-28
+40103a	next_evol	Gotta Get Away	2026-10-28
+40103b	next_evol	Gotta Get Away	2026-10-28
+40104a	next_evol	Escaping with Hope	2026-10-28
+40104b	next_evol	Escaping with Hope	2026-10-28
+40105a	next_evol	Hope's Captor	2026-10-28
+40105b	next_evol	Hope's Captor	2026-10-28
+40106	next_evol	Hidden in the Clutter	2026-10-28
+40107	next_evol	Favored Weapon	2026-10-28
+40108	next_evol	Bushwhack	2026-10-28
+40109	next_evol	Pure Force	2026-10-28
+40110	next_evol	Dizzying Deeds	2026-10-28
+40111	next_evol	Tag Team	2026-10-28
+40112	next_evol	Gorgeous George	2026-10-28
+40113	next_evol	Hairbag	2026-10-28
+40114	next_evol	Ramrod	2026-10-28
+40115	next_evol	Ruckus	2026-10-28
+40116	next_evol	Slab	2026-10-28
+40117	next_evol	Get Nasty	2026-10-28
+40118	next_evol	Juggernaut	2026-10-28
+40119	next_evol	Juggernaut	2026-10-28
+40120	next_evol	Juggernaut	2026-10-28
+40121a	next_evol	The Unstoppable Juggernaut	2026-10-28
+40121b	next_evol	The Unstoppable Juggernaut	2026-10-28
+40122a	next_evol	Juggernaut's Helmet	2026-10-28
+40122b	next_evol	Juggernaut Exposed	2026-10-28
+40123	next_evol	Head of Steam	2026-10-28
+40124	next_evol	Building Momentum	2026-10-28
+40125	next_evol	Breakthrough	2026-10-28
+40126	next_evol	Flatten	2026-10-28
+40127	next_evol	Ground Pound	2026-10-28
+40128	next_evol	Trample	2026-10-28
+40129	next_evol	Cyttorak's Exemplar	2026-10-28
+40130	next_evol	Hope Summers	2026-10-28
+40131	next_evol	Captive Hope	2026-10-28
+40132	next_evol	Black Tom Cassidy	2026-10-28
+40133	next_evol	Creeping Willow	2026-10-28
+40134	next_evol	Making Green	2026-10-28
+40135	next_evol	A Sound Thrashing	2026-10-28
+40136	next_evol	Mister Sinister	2026-10-28
+40137	next_evol	Mister Sinister	2026-10-28
+40138	next_evol	Mister Sinister	2026-10-28
+40139a	next_evol	Sinister Intent	2026-10-28
+40139b	next_evol	Sinister Intent	2026-10-28
+40140b	next_evol	Taking Off	2026-10-28
+40141b	next_evol	Bulking Up	2026-10-28
+40142b	next_evol	Focusing In	2026-10-28
+40143a	next_evol	Sinister Ends	2026-10-28
+40143b	next_evol	Sinister Ends	2026-10-28
+40144	next_evol	Sinister Disguise	2026-10-28
+40145	next_evol	Sinister Soldier	2026-10-28
+40146	next_evol	Teleported Away	2026-10-28
+40147	next_evol	Genetic Mastery	2026-10-28
+40148	next_evol	Molecular Control	2026-10-28
+40149	next_evol	Sinister Schemes	2026-10-28
+40150	next_evol	Sinister Strike	2026-10-28
+40151	next_evol	Flight	2026-10-28
+40152	next_evol	Aerial Bombardment	2026-10-28
+40153	next_evol	Out of Reach	2026-10-28
+40154	next_evol	High Ground	2026-10-28
+40155	next_evol	Super Strength	2026-10-28
+40156	next_evol	Impervious	2026-10-28
+40157	next_evol	Thrown Object	2026-10-28
+40158	next_evol	"I'll Take That"	2026-10-28
+40159	next_evol	Telepathy	2026-10-28
+40160	next_evol	Manufactured Drama	2026-10-28
+40161	next_evol	Sowing Discord	2026-10-28
+40162	next_evol	One Step Ahead	2026-10-28
+40163	next_evol	Stryfe	2026-10-28
+40164	next_evol	Stryfe	2026-10-28
+40165	next_evol	Stryfe	2026-10-28
+40166a	next_evol	Uncontrollable Power	2026-10-28
+40166b	next_evol	Uncontrollable Power	2026-10-28
+40167a	next_evol	Left to Your Fate	2026-10-28
+40167b	next_evol	Left to Your Fate	2026-10-28
+40168a	next_evol	Stryfe's Grasp	2026-10-28
+40168b	next_evol	Living Bomb	2026-10-28
+40169	next_evol	Mental Transferal	2026-10-28
+40170	next_evol	Mind Alteration	2026-10-28
+40171	next_evol	Mind Trap	2026-10-28
+40172	next_evol	Psionic Amnesia	2026-10-28
+40173	next_evol	Psychic Inertia	2026-10-28
+40174	next_evol	Zero	2026-10-28
+40175	next_evol	Cerebral Erasure	2026-10-28
+40176	next_evol	Telepathic Camouflage	2026-10-28
+40177	next_evol	Psionic Surge	2026-10-28
+40178	next_evol	Psychic Override	2026-10-28
+40179	next_evol	Telekinetic Wave	2026-10-28
+40180	next_evol	Strobe	2026-10-28
+40181	next_evol	Tempo	2026-10-28
+40182	next_evol	Thumbelina	2026-10-28
+40183	next_evol	Wildside	2026-10-28
+40184	next_evol	Extreme Measures	2026-10-28
+40185	next_evol	Dragoness	2026-10-28
+40186	next_evol	Forearm	2026-10-28
+40187	next_evol	Reaper	2026-10-28
+40188	next_evol	Samurai	2026-10-28
+40189	next_evol	Mutant Insurrection	2026-10-28
+40190a	next_evol	Assemble the Team	2026-10-28
+40190b	next_evol	Team Assembled	2026-10-28
+40191a	next_evol	Establish Safehouse	2026-10-28
+40191b	next_evol	Safehouse Established	2026-10-28
+40192a	next_evol	Gear Up	2026-10-28
+40192b	next_evol	Geared Up	2026-10-28
+40193a	next_evol	Mission Prep	2026-10-28
+40193b	next_evol	Mission Prepped	2026-10-28
+40194a	next_evol	Practice Maneuvers	2026-10-28
+40194b	next_evol	Practiced Maneuvers	2026-10-28
+40195a	next_evol	Prepare Defenses	2026-10-28
+40195b	next_evol	Prepared Defenses	2026-10-28
+40196	next_evol	Pouches	2026-10-28
+40197	next_evol	Safehouse	2026-10-28
+40198	next_evol	Lady Mastermind	2026-10-28
+40199	next_evol	Malice	2026-10-28
+40200	next_evol	Scrambler	2026-10-28
+40201	next_evol	Vanisher	2026-10-28
+40202	next_evol	Under Pressure	2026-10-28
+40203	next_evol	Overburdened	2026-10-28
+40204	next_evol	Hope Summers	2026-10-28
+41001a	psylocke	Psylocke	2026-10-28
+41001b	psylocke	Betsy Braddock	2026-10-28
+41002a	psylocke	Psi-Knife	2026-10-28
+41002b	psylocke	Psi-Katana	2026-10-28
+41003	psylocke	Angel	2026-10-28
+41004	psylocke	Flurry of Blades	2026-10-28
+41005	psylocke	Mental Detection	2026-10-28
+41006	psylocke	Psionic Redirect	2026-10-28
+41007	psylocke	Telepathic Suggestion	2026-10-28
+41008	psylocke	Training Regimen	2026-10-28
+41009	psylocke	Martial Arts Training	2026-10-28
+41010	psylocke	Psionic Training	2026-10-28
+41011	psylocke	Weapons Training	2026-10-28
+41012	psylocke	Captain Britain	2026-10-28
+41013	psylocke	Cypher	2026-10-28
+41014	psylocke	Concussive Blow	2026-10-28
+41015	psylocke	Upside the Head	2026-10-28
+41016	psylocke	Lay the Trap	2026-10-28
+41017	psylocke	Float Like a Butterfly	2026-10-28
+41018	psylocke	Pete Wisdom	2026-10-28
+41019	psylocke	Directed Force	2026-10-28
+41021	psylocke	The Power of the Mind	2026-10-28
+41022	psylocke	IPAC	2026-10-28
+41023	psylocke	X-Bunker	2026-10-28
+41024	psylocke	Telepathy	2026-10-28
+41025	psylocke	Body Swapped	2026-10-28
+41026	psylocke	Chimera	2026-10-28
+41027	psylocke	Interdimensional Plunder	2026-10-28
+41028	psylocke	Psionic Illusion	2026-10-28
+41029	psylocke	Telekinetic Dragon	2026-10-28
+42001a	angel	Angel	2026-10-28
+42001b	angel	Warren Worthington III	2026-10-28
+42001c	angel	Archangel	2026-10-28
+42002	angel	Psylocke	2026-10-28
+42003	angel	Adaptive Plumage	2026-10-28
+42004	angel	Aerial Agility	2026-10-28
+42005	angel	Metamorphosis	2026-10-28
+42006	angel	Natural Flight	2026-10-28
+42007	angel	Razor Dive	2026-10-28
+42008	angel	Avian Anatomy	2026-10-28
+42009	angel	Worthington Industries	2026-10-28
+42010	angel	Techno-Organic Wings	2026-10-28
+42011	angel	Elixir	2026-10-28
+42012	angel	Siryn	2026-10-28
+42013	angel	Warpath	2026-10-28
+42014	angel	Aerial Intervention	2026-10-28
+42015	angel	Ever Vigilant	2026-10-28
+42016	angel	Taunt	2026-10-28
+42017	angel	Render Medical Aid	2026-10-28
+42018	angel	Angel's Aerie	2026-10-28
+42019	angel	Containment Strategy	2026-10-28
+42020	angel	Cannonball	2026-10-28
+42021	angel	Soaring Hearts	2026-10-28
+42022	angel	The Power of Flight	2026-10-28
+42023	angel	Soaring Acrobatics	2026-10-28
+42024	angel	Apocalyptic Influence	2026-10-28
+42025	angel	Harpoon	2026-10-28
+42026	angel	Hook, Line, and Sinker	2026-10-28
+42027	angel	Harpoon's Harpoon	2026-10-28
+42028	angel	Spear Shot	2026-10-28
+43001a	x23	X-23	2026-10-28
+43001b	x23	Laura Kinney	2026-10-28
+43002	x23	X-23's Claws	2026-10-28
+43003	x23	Honey Badger	2026-10-28
+43004	x23	Animal Instinct	2026-10-28
+43005	x23	Claw Mastery	2026-10-28
+43006	x23	Regenerative Longevity	2026-10-28
+43007	x23	Sisterly Bond	2026-10-28
+43008	x23	Sisterhood	2026-10-28
+43009	x23	Adamantium Lacing	2026-10-28
+43010	x23	Grim Resolve	2026-10-28
+43011	x23	Pain Tolerance	2026-10-28
+43012	x23	Puncture Wound	2026-10-28
+43013	x23	Boom Boom	2026-10-28
+43014	x23	Rictor	2026-10-28
+43015	x23	Shatterstar	2026-10-28
+43016	x23	Critical Hit	2026-10-28
+43017	x23	Moment of Triumph	2026-10-28
+43018	x23	Keep Them Busy	2026-10-28
+43019	x23	"Now I'm Mad"	2026-10-28
+43020	x23	The Direct Approach	2026-10-28
+43021	x23	Specialized Training	2026-10-28
+43028	x23	Self-Isolation	2026-10-28
+43029	x23	Lady Deathstrike	2026-10-28
+43030	x23	In the Name of Vengeance	2026-10-28
+43031	x23	Cybermods	2026-10-28
+43032	x23	Critical Wound	2026-10-28
+43033	x23	Hack 'n' Slash	2026-10-28
+44001a	deadpool	Deadpool	2026-10-28
+44001b	deadpool	Wade Wilson	2026-10-28
+44002	deadpool	Cable	2026-10-28
+44003	deadpool	Exhausting Personality	2026-10-28
+44004	deadpool	Maximum Effort	2026-10-28
+44005	deadpool	Metaknowledge	2026-10-28
+44006	deadpool	"Yoo-Hoo!"	2026-10-28
+44007	deadpool	Montage	2026-10-28
+44008	deadpool	Chimichanga Truck	2026-10-28
+44009	deadpool	Armed to the Teeth	2026-10-28
+44010	deadpool	Deadpool's Katana	2026-10-28
+44011	deadpool	It Ain't Over...	2026-10-28
+44012	deadpool	This Card is Fire	2026-10-28
+44013	deadpool	Dogpool	2026-10-28
+44014	deadpool	Headpool	2026-10-28
+44015	deadpool	Kidpool	2026-10-28
+44016	deadpool	Lady Deadpool	2026-10-28
+44017	deadpool	Barely a Scratch	2026-10-28
+44018	deadpool	Cutupper	2026-10-28
+44019	deadpool	Da Bomb	2026-10-28
+44020	deadpool	Get Rage-y	2026-10-28
+44021	deadpool	"I Got This"	2026-10-28
+44022	deadpool	Not my Responsibility	2026-10-28
+44023	deadpool	'Pool Inspection	2026-10-28
+44024	deadpool	Live Dangerously	2026-10-28
+44025	deadpool	Self Confidence	2026-10-28
+44026	deadpool	Self Control	2026-10-28
+44027	deadpool	Self Preservation	2026-10-28
+44028	deadpool	Git Gud	2026-10-28
+44029	deadpool	Healing Factor	2026-10-28
+44030	deadpool	Stick-To-Itiveness	2026-10-28
+44031	deadpool	Frenemies	2026-10-28
+44032	deadpool	The Merc with the Mouth	2026-10-28
+44033	deadpool	Butler	2026-10-28
+44034	deadpool	Involuntary Procedures	2026-10-28
+44035	deadpool	Tabula Rasa 16	2026-10-28
+44036	deadpool	Mutated Soldier	2026-10-28
+44043	deadpool	Bob, Agent of Hydra	2026-10-28
+44044	deadpool	Negasonic Teenage Warhead	2026-10-28
+44045	deadpool	Pandapool	2026-10-28
+44046	deadpool	Break Time	2026-10-28
+44047	deadpool	Get in Front of Me!	2026-10-28
+44048	deadpool	Mulligan	2026-10-28
+44049	deadpool	Deadpool Corps Ship	2026-10-28
+44050	deadpool	Plot Convenience	2026-10-28
+44051	deadpool	Ambush	2026-10-28
+44052	deadpool	Bazooka	2026-10-28
+44053	deadpool	Blackout	2026-10-28
+44054	deadpool	Distraction	2026-10-28
+44055	deadpool	Laser Swords	2026-10-28
+44056	deadpool	Rock, Paper, Scissors	2026-10-28
+44057	deadpool	Tic-Tac-Toe	2026-10-28
+44058	deadpool	War	2026-10-28
+45001a	aoa	Bishop	2026-10-28
+45001b	aoa	Lucas Bishop	2026-10-28
+45002	aoa	Malcolm	2026-10-28
+45003	aoa	Randall	2026-10-28
+45004	aoa	Bishop's Rifle	2026-10-28
+45005	aoa	Bishop's Uniform	2026-10-28
+45006	aoa	Super-Charged	2026-10-28
+45007	aoa	Concussive Blast	2026-10-28
+45008	aoa	Command Authority	2026-10-28
+45009	aoa	Energy Conversion	2026-10-28
+45010	aoa	Stored Energy	2026-10-28
+45011	aoa	Cable	2026-10-28
+45012	aoa	X-23	2026-10-28
+45013	aoa	Team Training	2026-10-28
+45014	aoa	Advanced Suit	2026-10-28
+45015	aoa	Sidekick	2026-10-28
+45016	aoa	Side-by-Side	2026-10-28
+45017	aoa	Suit Up	2026-10-28
+45018	aoa	Lead from the Front	2026-10-28
+45019	aoa	The Power of Leadership	2026-10-28
+45020	aoa	Legion	2026-10-28
+45021	aoa	Marrow	2026-10-28
+45025	aoa	Fear the Future	2026-10-28
+45026	aoa	Trevor Fitzroy	2026-10-28
+45027	aoa	Portal Through Time	2026-10-28
+45028	aoa	Bantam	2026-10-28
+45029	aoa	Temporal Trickery	2026-10-28
+45030a	aoa	Magik	2026-10-28
+45030b	aoa	Illyana Rasputin	2026-10-28
+45031	aoa	Colossus	2026-10-28
+45032	aoa	Limbo	2026-10-28
+45033	aoa	Magik's Crown	2026-10-28
+45034	aoa	Soulsword	2026-10-28
+45035	aoa	Mystical Armor	2026-10-28
+45036	aoa	Scrying	2026-10-28
+45037	aoa	Stepping Disc	2026-10-28
+45038	aoa	Exorcism	2026-10-28
+45039	aoa	Soul Strike	2026-10-28
+45040	aoa	Magic Barrier	2026-10-28
+45041	aoa	Goldballs	2026-10-28
+45042	aoa	Tempus	2026-10-28
+45043	aoa	Blood Rage	2026-10-28
+45044	aoa	Test the Defense	2026-10-28
+45045	aoa	Full-Body Charge	2026-10-28
+45046	aoa	Clobber	2026-10-28
+45047	aoa	The Power of Aggression	2026-10-28
+45048	aoa	Triage	2026-10-28
+45049	aoa	Stepford Cuckoos	2026-10-28
+45050	aoa	Bloodgem	2026-10-28
+45051	aoa	Basic Spell	2026-10-28
+45052	aoa	Spiritual Meditation	2026-10-28
+45053	aoa	Darkchilde	2026-10-28
+45054	aoa	Belasco	2026-10-28
+45055	aoa	Ruler of Limbo	2026-10-28
+45056	aoa	S'ym	2026-10-28
+45057	aoa	Witchfire	2026-10-28
+45058	aoa	Battle for Limbo	2026-10-28
+45059	aoa	Unus	2026-10-28
+45060	aoa	Unus	2026-10-28
+45061	aoa	Unus	2026-10-28
+45062a	aoa	Hunting Gene Traitors	2026-10-28
+45062b	aoa	Hunting Gene Traitors	2026-10-28
+45063	aoa	Prelate Sidearm	2026-10-28
+45064	aoa	Prelate Armor	2026-10-28
+45065	aoa	Infinite Hunter	2026-10-28
+45066	aoa	Genetic Experiments	2026-10-28
+45067	aoa	Infinite Prelate	2026-10-28
+45068	aoa	Endless Ranks	2026-10-28
+45069	aoa	Infinite Soldier	2026-10-28
+45070	aoa	Culling the Weak	2026-10-28
+45071	aoa	Gene Pool	2026-10-28
+45072	aoa	Hunted	2026-10-28
+45073	aoa	War-Weary	2026-10-28
+45074	aoa	Targeted for Extermination	2026-10-28
+45075a	aoa	Pursued by the Past	2026-10-28
+45075b	aoa	Pursued by the Past	2026-10-28
+45076	aoa	Dark Designs	2026-10-28
+45077	aoa	Sinister Strike	2026-10-28
+45078	aoa	Evil Alliance	2026-10-28
+45079	aoa	Nowhere is Safe	2026-10-28
+45080	aoa	Drawing Near	2026-10-28
+45081a	aoa	War	2026-10-28
+45081b	aoa	War	2026-10-28
+45082a	aoa	Famine	2026-10-28
+45082b	aoa	Famine	2026-10-28
+45083a	aoa	Pestilence	2026-10-28
+45083b	aoa	Pestilence	2026-10-28
+45084a	aoa	Death	2026-10-28
+45084b	aoa	Death	2026-10-28
+45085a	aoa	The Horsemen of Apocalypse	2026-10-28
+45085b	aoa	The Horsemen of Apocalypse	2026-10-28
+45086	aoa	The Ravages of War	2026-10-28
+45087	aoa	A Time of Famine	2026-10-28
+45088	aoa	Plague and Pestilence	2026-10-28
+45089	aoa	The Specter of Death	2026-10-28
+45090	aoa	Golden Horse	2026-10-28
+45091	aoa	Metal Wings	2026-10-28
+45092	aoa	Horseman of War	2026-10-28
+45093	aoa	Horseman of Famine	2026-10-28
+45094	aoa	Horseman of Pestilence	2026-10-28
+45095	aoa	Horseman of Death	2026-10-28
+45096	aoa	Rough Riders	2026-10-28
+45097	aoa	Ahab	2026-10-28
+45098	aoa	Hound	2026-10-28
+45099	aoa	Ahab's Energy Spear	2026-10-28
+45100	aoa	Release the Hounds	2026-10-28
+45101a	aoa	Apocalypse	2026-10-28
+45101b	aoa	Apocalypse	2026-10-28
+45102a	aoa	Apocalypse	2026-10-28
+45102b	aoa	Apocalypse	2026-10-28
+45103a	aoa	The Age of Apocalypse	2026-10-28
+45103b	aoa	The Age of Apocalypse	2026-10-28
+45104a	aoa	Heart of the Empire	2026-10-28
+45104b	?	?	2026-10-28
+45105a	aoa	The Tyrant's Throne	2026-10-28
+45105b	aoa	No Longer Worthy	2026-10-28
+45106	aoa	Cyberpathy	2026-10-28
+45107	aoa	Biomorphing	2026-10-28
+45108	aoa	Molecular Control	2026-10-28
+45109	aoa	The Fittest	2026-10-28
+45110	aoa	Wolf Among Sheep	2026-10-28
+45111	aoa	The Apocalypse Solution	2026-10-28
+45112	aoa	Gauntlet	2026-10-28
+45113	aoa	Barrage	2026-10-28
+45114	aoa	Hard-Drive	2026-10-28
+45115	aoa	Tusk	2026-10-28
+45116	aoa	Psynapse	2026-10-28
+45117	aoa	The Dark Riders	2026-10-28
+45118	aoa	Dark Beast	2026-10-28
+45119	aoa	Dark Beast	2026-10-28
+45120	aoa	Dark Beast	2026-10-28
+45121a	aoa	Dark Beast's Bogus Journey	2026-10-28
+45121b	aoa	Dark Beast's Bogus Journey	2026-10-28
+45122	aoa	High-Tech Goggles	2026-10-28
+45123	aoa	Genetic Enhancement	2026-10-28
+45124	aoa	Cruel Experiment	2026-10-28
+45125	aoa	Evil Genius	2026-10-28
+45126	aoa	Time-Travel Shenanigans	2026-10-28
+45127	aoa	The Savage Land	2026-10-28
+45128	aoa	Pterosaur	2026-10-28
+45129	aoa	Velociraptor	2026-10-28
+45130	aoa	Giant Ape	2026-10-28
+45131	aoa	Land Out of Time	2026-10-28
+45132	aoa	Village Under Attack	2026-10-28
+45133	aoa	Genosha	2026-10-28
+45134	aoa	Magistrate	2026-10-28
+45135	aoa	Armored Unibike	2026-10-28
+45136	aoa	Genoshan Mech	2026-10-28
+45137	aoa	Escaped Mutant	2026-10-28
+45138	aoa	Police State	2026-10-28
+45139	aoa	Blue Area of the Moon	2026-10-28
+45140	aoa	Gladiator	2026-10-28
+45141	aoa	Oracle	2026-10-28
+45142	aoa	Manta	2026-10-28
+45143	aoa	Earthquake	2026-10-28
+45144	aoa	Warstar	2026-10-28
+45145	aoa	Imperial Guardsman	2026-10-28
+45146	aoa	Trial by Combat	2026-10-28
+45147a	aoa	En Sabah Nur's Pyramid	2026-10-28
+45147b	aoa	En Sabah Nur's Pyramid	2026-10-28
+45148a	aoa	The Rise of Apocalypse	2026-10-28
+45148b	aoa	The Rise of Apocalypse	2026-10-28
+45149	aoa	Staggering Strength	2026-10-28
+45150	aoa	Biomorphic Blast	2026-10-28
+45151	aoa	Technological Interface	2026-10-28
+45152	aoa	Giant-Sized Despot	2026-10-28
+45153	aoa	Source of Power	2026-10-28
+45154	aoa	Plugged In	2026-10-28
+45155	aoa	Giant Growth	2026-10-28
+45156	aoa	Celestial Armor	2026-10-28
+45157	aoa	Celestial Weapon	2026-10-28
+45158	aoa	Celestial Tech	2026-10-28
+45159	aoa	Ozymandias	2026-10-28
+45160	aoa	Scarab	2026-10-28
+45161	aoa	Clan Akkaba Zealot	2026-10-28
+45162	aoa	Tyrant Worship	2026-10-28
+45163	aoa	Ancient Ritual	2026-10-28
+45164	aoa	Agent of Apocalypse	2026-10-28
+45165	aoa	Worldwide Crisis	2026-10-28
+45166a	aoa	Liberate the Seattle Core	2026-10-28
+45166b	aoa	Liberate the Seattle Core	2026-10-28
+45167a	aoa	Evacuate Survivors	2026-10-28
+45167b	aoa	Evacuate Survivors	2026-10-28
+45168a	aoa	Sabotage the Sea Wall	2026-10-28
+45168b	aoa	Sabotage the Sea Wall	2026-10-28
+45169a	aoa	Find Lost Mutants	2026-10-28
+45169b	aoa	Find Lost Mutants	2026-10-28
+45170a	aoa	Protect the Professor	2026-10-28
+45170b	aoa	Protect the Professor	2026-10-28
+45171a	aoa	Mission Team	2026-10-28
+45171b	aoa	Mission Team	2026-10-28
+45172	aoa	Destiny	2026-10-28
+45173	aoa	Blink	2026-10-28
+45174	aoa	Morph	2026-10-28
+45175	aoa	X-Man	2026-10-28
+45176	aoa	Desperate Measures	2026-10-28
+45177	aoa	North American Sea Wall	2026-10-28
+45178	aoa	Panicked Refugees	2026-10-28
+45179a	aoa	Mister Sinister	2026-10-28
+45179b	aoa	Mister Sinister	2026-10-28
+45180a	aoa	The Shadow King	2026-10-28
+45180b	aoa	The Shadow King	2026-10-28
+45181a	aoa	Abyss	2026-10-28
+45181b	aoa	Abyss	2026-10-28
+45182a	aoa	Sugar Man	2026-10-28
+45182b	aoa	Sugar Man	2026-10-28
+45183a	aoa	Mikhail Rasputin	2026-10-28
+45183b	aoa	Mikhail Rasputin	2026-10-28
+45184a	aoa	Apocalypse	2026-10-28
+45184b	aoa	Apocalypse	2026-10-28
+46001a	iceman	Iceman	2026-10-28
+46001b	iceman	Bobby Drake	2026-10-28
+46002	iceman	Frostbite	2026-10-28
+46003	iceman	Snow Clone	2026-10-28
+46004	iceman	Power Belt	2026-10-28
+46005	iceman	Cryokinetic Perception	2026-10-28
+46006	iceman	Ice Slide	2026-10-28
+46007	iceman	Frozen Solid	2026-10-28
+46008	iceman	Ice Wall	2026-10-28
+46009	iceman	Arctic Attack	2026-10-28
+46010	iceman	Ice Blast	2026-10-28
+46011	iceman	Chill Out!	2026-10-28
+46012	iceman	Shark-Girl	2026-10-28
+46013	iceman	Glob	2026-10-28
+46014	iceman	Suppressing Fire	2026-10-28
+46015	iceman	Surprise Move	2026-10-28
+46016	iceman	Take That!	2026-10-28
+46017	iceman	Looking for Trouble	2026-10-28
+46018	iceman	Keep Up the Pressure	2026-10-28
+46019	iceman	Shadowcat	2026-10-28
+46020	iceman	Beak	2026-10-28
+46021	iceman	Team-Building Exercise	2026-10-28
+46022	iceman	Recuperation	2026-10-28
+46023	iceman	The Power in All of Us	2026-10-28
+46024	iceman	Hot-Headed	2026-10-28
+46025	iceman	Pyro	2026-10-28
+46026	iceman	Playing with Fire	2026-10-28
+46027	iceman	Pyro's Flamethrower	2026-10-28
+46028	iceman	Burn!	2026-10-28
+47001a	jubilee	Jubilee	2026-10-28
+47001b	jubilee	Jubilation Lee	2026-10-28
+47002	jubilee	Wolverine	2026-10-28
+47003	jubilee	Shopping Spree	2026-10-28
+47004	jubilee	Jubilee's Coat	2026-10-28
+47005	jubilee	Jubilee's Sunglasses	2026-10-28
+47006	jubilee	Blinding Flash	2026-10-28
+47007a	jubilee	Firecracker	2026-10-28
+47007b	jubilee	Firecracker	2026-10-28
+47007c	jubilee	Firecracker	2026-10-28
+47008a	jubilee	Flash of Light	2026-10-28
+47008b	jubilee	Flash of Light	2026-10-28
+47008c	jubilee	Flash of Light	2026-10-28
+47009	jubilee	Grande Finale	2026-10-28
+47010a	jubilee	Plasmoid Energy	2026-10-28
+47010b	jubilee	Plasmoid Energy	2026-10-28
+47010c	jubilee	Plasmoid Energy	2026-10-28
+47011	jubilee	Chamber	2026-10-28
+47012	jubilee	Husk	2026-10-28
+47013	jubilee	Disguise	2026-10-28
+47014	jubilee	Waylay	2026-10-28
+47015	jubilee	Three Steps Ahead	2026-10-28
+47016	jubilee	Generation X	2026-10-28
+47017	jubilee	The Power of Justice	2026-10-28
+47018	jubilee	Synch	2026-10-28
+47019	jubilee	Cell Phone	2026-10-28
+47021	jubilee	Multitalented	2026-10-28
+47022	jubilee	Unlikely Duo	2026-10-28
+47023	jubilee	Grounded	2026-10-28
+47024	jubilee	Nanny	2026-10-28
+47025	jubilee	Naughty Children	2026-10-28
+47026	jubilee	Battle Suit	2026-10-28
+47027	jubilee	"Lost" Child	2026-10-28
+47028	jubilee	Mutant Mayhem	2026-10-28
+47029	jubilee	Serve and Protect	2026-10-28
+48001a	ncrawler	Nightcrawler	2026-10-28
+48001b	ncrawler	Kurt Wagner	2026-10-28
+48002	ncrawler	Daytripper	2026-10-28
+48003	ncrawler	Kurt's Chapel	2026-10-28
+48004	ncrawler	Kurt's Cutlasses	2026-10-28
+48005	ncrawler	Prehensile Tail	2026-10-28
+48006	ncrawler	Bamf!	2026-10-28
+48007	ncrawler	'Port and Punch	2026-10-28
+48008	ncrawler	Teleport Drop	2026-10-28
+48009	ncrawler	Scout Ahead	2026-10-28
+48010	ncrawler	'Port Away	2026-10-28
+48011	ncrawler	Tally Ho!	2026-10-28
+48012	ncrawler	Rogue	2026-10-28
+48013	ncrawler	Northstar	2026-10-28
+48014	ncrawler	Change of Fortune	2026-10-28
+48015	ncrawler	Under Control	2026-10-28
+48016	ncrawler	"Come Get Me, Bub!"	2026-10-28
+48018	ncrawler	Riposte	2026-10-28
+48019	ncrawler	The Power of Protection	2026-10-28
+48020	ncrawler	Astonishing X-Men	2026-10-28
+48021	ncrawler	Gambit	2026-10-28
+48026	ncrawler	Crisis of Faith	2026-10-28
+48027	ncrawler	Azazel	2026-10-28
+48028	ncrawler	Brimstone Dimension	2026-10-28
+48029	ncrawler	Azazel's Sword	2026-10-28
+48030	ncrawler	Brimstone Strike	2026-10-28
+49001a	magneto	Magneto	2026-10-28
+49001b	magneto	Erik Lehnsherr	2026-10-28
+49002	magneto	Asteroid M	2026-10-28
+49003	magneto	Magneto's Helmet	2026-10-28
+49004	magneto	Magneto's Armor	2026-10-28
+49005	magneto	Magneto's Cape	2026-10-28
+49006	magneto	Magnetic Bubble	2026-10-28
+49007	magneto	Wrapped in Metal	2026-10-28
+49008	magneto	Electromagnetic Blast	2026-10-28
+49009	magneto	Metal Shards	2026-10-28
+49010	magneto	Magnetic Missile	2026-10-28
+49011	magneto	Master of Magnetism	2026-10-28
+49012	magneto	M	2026-10-28
+49013	magneto	Kid Omega	2026-10-28
+49014	magneto	Phoenix	2026-10-28
+49015	magneto	Cyclops	2026-10-28
+49016	magneto	Won't Stay Down	2026-10-28
+49017	magneto	Squared Off	2026-10-28
+49018	magneto	Noble Sacrifice	2026-10-28
+49019	magneto	"You Got This!"	2026-10-28
+49020	magneto	New Recruits	2026-10-28
+49021	magneto	White Queen	2026-10-28
+49022	magneto	Face the Past	2026-10-28
+49023	magneto	Deft Focus	2026-10-28
+49027	magneto	Old Grievances	2026-10-28
+49028	magneto	Exodus	2026-10-28
+49029	magneto	Martyr for Mutants	2026-10-28
+49030	magneto	Fabian Cortez	2026-10-28
+49031	magneto	Frenzy	2026-10-28
+49032	magneto	Angry Acolyte	2026-10-28
+49033	magneto	Surge	2026-10-28
+49034	magneto	Anole	2026-10-28
+49035	magneto	Bling!	2026-10-28
+49036	magneto	Indra	2026-10-28
+50001a	aos	Maria Hill	2026-10-28
+50001b	aos	Maria Hill	2026-10-28
+50002	aos	Nick Fury	2026-10-28
+50003	aos	All-Points Bulletin	2026-10-28
+50004	aos	On the Double	2026-10-28
+50005	aos	Reinforcements	2026-10-28
+50006	aos	The Hard Call	2026-10-28
+50007	aos	Special Funding	2026-10-28
+50008	aos	Support Staff	2026-10-28
+50009	aos	The Iliad	2026-10-28
+50010	aos	Life Model Decoy	2026-10-28
+50011	aos	S.H.I.E.L.D. Director	2026-10-28
+50012	aos	Victoria Hand	2026-10-28
+50013	aos	Slingshot	2026-10-28
+50014	aos	Organizational Support	2026-10-28
+50015	aos	Agents of S.H.I.E.L.D.	2026-10-28
+50017	aos	The Circe	2026-10-28
+50018	aos	The Bellerophon	2026-10-28
+50019	aos	The Douglass	2026-10-28
+50020	aos	The Pericles	2026-10-28
+50022	aos	Grant Ward	2026-10-28
+50023	aos	Melinda May	2026-10-28
+50024	aos	Super Spies	2026-10-28
+50025	aos	Energy	2026-10-28
+50026	aos	Genius	2026-10-28
+50027	aos	Strength	2026-10-28
+50028	aos	Front Organization	2026-10-28
+50029	aos	Press Conference	2026-10-28
+50030	aos	Controller	2026-10-28
+50031	aos	Army of the Controlled	2026-10-28
+50032	aos	Controlled Innocents	2026-10-28
+50033	aos	Diabolical Discs	2026-10-28
+50034a	aos	Nick Fury	2026-10-28
+50034b	aos	Nick Fury	2026-10-28
+50035a	aos	Assault	2026-10-28
+50035b	aos	Stealth	2026-10-28
+50036	aos	Maria Hill	2026-10-28
+50037	aos	Concentrated Fire	2026-10-28
+50038	aos	Covert Surveillance	2026-10-28
+50039	aos	Spray Fire	2026-10-28
+50040	aos	Fury's Flying Car	2026-10-28
+50041	aos	Safe House #221	2026-10-28
+50042	aos	EM Shield	2026-10-28
+50043	aos	Eyepatch Camera	2026-10-28
+50044	aos	Fury's Watch	2026-10-28
+50045	aos	Intelligence Analysis	2026-10-28
+50046	aos	Secret Agent	2026-10-28
+50050	aos	Informant	2026-10-28
+50051	aos	Intelligence	2026-10-28
+50052	aos	Prism Dust	2026-10-28
+50054	aos	Nick Fury, Sr.	2026-10-28
+50055	aos	Jemma Simmons	2026-10-28
+50056	aos	Leo Fitz	2026-10-28
+50058	aos	Practiced Plan	2026-10-28
+50059	aos	Discovered	2026-10-28
+50060	aos	Orion	2026-10-28
+50061	aos	Acquire Infinity Formula	2026-10-28
+50062	aos	Leviathan Soldier	2026-10-28
+50063	aos	Cold Storage	2026-10-28
+50064	aos	Black Widow	2026-10-28
+50066	aos	Black Widow	2026-10-28
+50067a	aos	The Widow's Web	2026-10-28
+50067b	aos	The Widow's Web	2026-10-28
+50068	aos	Black Widow's Gauntlet	2026-10-28
+50069	aos	Grappling Hook	2026-10-28
+50070	aos	Night Vision Goggles	2026-10-28
+50071	aos	Stun Net	2026-10-28
+50072	aos	A.I.M. Commando	2026-10-28
+50073	aos	A.I.M. Grunt	2026-10-28
+50074	aos	Automated Defenses	2026-10-28
+50075	aos	Destroy Evidence	2026-10-28
+50076	aos	Attacrobatics	2026-10-28
+50077	aos	Covert Ops	2026-10-28
+50078	aos	Dance of Death	2026-10-28
+50079	aos	Widow's Bite	2026-10-28
+50080	aos	A.I.M. Abductor	2026-10-28
+50081	aos	Abduct Superhumans	2026-10-28
+50082	aos	Nabbed!	2026-10-28
+50083	aos	A.I.M. Scientist	2026-10-28
+50084	aos	A.I.M. Soldier	2026-10-28
+50085	aos	Mad Science	2026-10-28
+50086b	aos	Batroc	2026-10-28
+50087a	aos	Infiltrate A.I.M. Island Embassy	2026-10-28
+50087b	aos	Infiltrate A.I.M. Island Embassy	2026-10-28
+50088a	aos	Locate Missing Person	2026-10-28
+50088b	aos	Locate Missing Person	2026-10-28
+50089a	aos	Extract Captives	2026-10-28
+50089b	aos	Extract Captives	2026-10-28
+50090a	aos	Alert Level	2026-10-28
+50090b	aos	Alert Level	2026-10-28
+50091	aos	Rescued Captive	2026-10-28
+50092	aos	Heightened Reflexes	2026-10-28
+50093	aos	Embassy Guard	2026-10-28
+50094	aos	Embassy Patrol	2026-10-28
+50095	aos	Commandeer Security Office	2026-10-28
+50096	aos	Leaping Kick	2026-10-28
+50097	aos	Security Cameras	2026-10-28
+50098	aos	Machete	2026-10-28
+50099	aos	Rapido	2026-10-28
+50100	aos	Zaran	2026-10-28
+50101	aos	Batroc's Brigade	2026-10-28
+50102	aos	Soldiers of Fortune	2026-10-28
+50103a	aos	M.O.D.O.K.	2026-10-28
+50103b	aos	M.O.D.O.K.	2026-10-28
+50104a	aos	Upgrading Adaptoids	2026-10-28
+50104b	aos	Upgrading Adaptoids	2026-10-28
+50105a	aos	Holding Cell	2026-10-28
+50105b	aos	Flying Inhuman	2026-10-28
+50106a	aos	Holding Cell	2026-10-28
+50106b	aos	Psionic Inhuman	2026-10-28
+50107a	aos	Holding Cell	2026-10-28
+50107b	aos	Sarah Garza	2026-10-28
+50108a	aos	Holding Cell	2026-10-28
+50108b	aos	Strong Inhuman	2026-10-28
+50109	aos	Flying Upgrade	2026-10-28
+50110	aos	Psionic Upgrade	2026-10-28
+50111	aos	Sarah Garza Upgrade	2026-10-28
+50112	aos	Strong Upgrade	2026-10-28
+50113	aos	Adaptoid	2026-10-28
+50114	aos	Automated Mobile Unit	2026-10-28
+50115	aos	Focusing Crystal	2026-10-28
+50116	aos	Nanobots	2026-10-28
+50117	aos	Psionic Force Field	2026-10-28
+50118	aos	Psionic Machetes	2026-10-28
+50119	aos	Reverse Engineering	2026-10-28
+50120	aos	A.I.M. Jailer	2026-10-28
+50121	aos	Hostage Situation	2026-10-28
+50122	aos	Psionic Enhancement	2026-10-28
+50123	aos	"It's Alive!"	2026-10-28
+50124	aos	Psionic Blast	2026-10-28
+50125	aos	Scientist Supreme	2026-10-28
+50126	aos	Monica Rappaccini	2026-10-28
+50127	aos	Diplomatic Immunity	2026-10-28
+50128	aos	Diplomatic Sanctions	2026-10-28
+50129a	aos	Citizen V	2026-10-28
+50129b	aos	Citizen V	2026-10-28
+50130a	aos	Apprehending Rogue Agents	2026-10-28
+50130b	aos	Apprehending Rogue Agents	2026-10-28
+50131a	aos	Justice, Like Lightning	2026-10-28
+50131b	aos	Thunderbolt Backup	2026-10-28
+50132	aos	Citizen V's Sword	2026-10-28
+50133	aos	Jolt	2026-10-28
+50134	aos	Innocent Bystanders	2026-10-28
+50135	aos	The Coming Storm	2026-10-28
+50136	aos	Rumbling Thunder	2026-10-28
+50137	aos	Down but Not Out	2026-10-28
+50138	aos	Tap In	2026-10-28
+50139	aos	Moonstone	2026-10-28
+50140	aos	Rule the Skies	2026-10-28
+50141	aos	Gravitational Pull	2026-10-28
+50142	aos	Psychological Manipulation	2026-10-28
+50143	aos	Songbird	2026-10-28
+50144	aos	Solid Sound Constructs	2026-10-28
+50145	aos	Hard Sound Bindings	2026-10-28
+50146	aos	Sonic Bubble	2026-10-28
+50147	aos	Hard Sound	2026-10-28
+50148	aos	Black Widow	2026-10-28
+50149	aos	Handspring	2026-10-28
+50150	aos	Pride of the Red Room	2026-10-28
+50151	aos	Pale Little Spider	2026-10-28
+50152	aos	Radioactive Man	2026-10-28
+50153	aos	Radiation Exposure	2026-10-28
+50154	aos	Runaway Nuclear Reaction	2026-10-28
+50155	aos	Power of the Atom	2026-10-28
+50156	aos	MACH-IV	2026-10-28
+50157	aos	Blasters	2026-10-28
+50158	aos	Heat-Seeking Missiles	2026-10-28
+50159	aos	Aerial Dogfight	2026-10-28
+50160	aos	Supersonic	2026-10-28
+50161	aos	Batroc	2026-10-28
+50162	aos	Coup de Foudre	2026-10-28
+50163	aos	Batroc the Leaper	2026-10-28
+50164	aos	Parcours du Combattant	2026-10-28
+50165a	aos	Baron Zemo	2026-10-28
+50167a	aos	Zemo's Manipulations	2026-10-28
+50167b	aos	Zemo's Manipulations	2026-10-28
+50168a	aos	The Accusation	2026-10-28
+50168b	aos	The Accusation	2026-10-28
+50169a	aos	Fighting Zemo	2026-10-28
+50169b	aos	Fighting Zemo	2026-10-28
+50170	aos	Baron Zemo's Sword	2026-10-28
+50171	aos	Reluctant Foe	2026-10-28
+50172	aos	S.H.I.E.L.D. Agent	2026-10-28
+50173	aos	Divided Loyalties	2026-10-28
+50174	aos	Undermine Support	2026-10-28
+50175	aos	Battle of Wits	2026-10-28
+50176	aos	Might Makes Right	2026-10-28
+50177	aos	The Ends Justify the Means	2026-10-28
+50178	aos	S.H.I.E.L.D. Trooper	2026-10-28
+50179	aos	Arrest Warrant	2026-10-28
+50180	aos	Disavowed	2026-10-28
+50181a	aos	Chief Medical Officer	2026-10-28
+50181b	aos	Medical Officer's Aid	2026-10-28
+50182a	aos	Chief Surveillance Officer	2026-10-28
+50182b	aos	Surveillance Officer's Aid	2026-10-28
+50183a	aos	Chief Tactical Officer	2026-10-28
+50183b	aos	Tactical Officer's Aid	2026-10-28
+50184b	aos	A.I.M. Interference ([mental])	2026-10-28
+50185	aos	Medical Records	2026-10-28
+50186	aos	Wiretap	2026-10-28
+50187	aos	Security Scanner	2026-10-28
+50188	aos	Money	2026-10-28
+50189	aos	Blackmail	2026-10-28
+50190	aos	Ideology	2026-10-28
+50191	aos	Security Clearance	2026-10-28
+50192	aos	Travel	2026-10-28
+50193	aos	Authority	2026-10-28
+51001a	bp	Black Panther	2026-10-28
+51001b	bp	Shuri	2026-10-28
+51002	bp	T'Challa	2026-10-28
+51003	bp	Clawed Strike	2026-10-28
+51004	bp	On the Prowl	2026-10-28
+51005	bp	Wakanda Forever!	2026-10-28
+51006	bp	Vibranium	2026-10-28
+51007	bp	The Elephant's Trunk	2026-10-28
+51008	bp	Queen Ramonda	2026-10-28
+51009	bp	Aja-Adanna	2026-10-28
+51010	bp	Kimoyo Beads	2026-10-28
+51011	bp	Panther Claws	2026-10-28
+51012	bp	Spider Bites	2026-10-28
+51013	bp	Vibranium Suit	2026-10-28
+51014	bp	Manifold	2026-10-28
+51015	bp	Infiltration	2026-10-28
+51016	bp	Going Undercover	2026-10-28
+51017	bp	Show of Empathy	2026-10-28
+51018	bp	The Raft	2026-10-28
+51019	bp	Invisibility Gear	2026-10-28
+51021	bp	Sting Operation	2026-10-28
+51022	bp	Aneka	2026-10-28
+51023	bp	Ayo	2026-10-28
+51024	bp	Okoye	2026-10-28
+51025	bp	Heart of the Panther	2026-10-28
+51026	bp	Build Support	2026-10-28
+51030	bp	Dora Milaje	2026-10-28
+51031	bp	T'Challa's Shadow	2026-10-28
+51032	bp	Klaw	2026-10-28
+51033	bp	Manipulated M.U.S.I.C.	2026-10-28
+51034	bp	M.U.S.I.C.	2026-10-28
+51035	bp	The Scream	2026-10-28
+51036	bp	Redemption	2026-10-28
+52001a	silk	Silk	2026-10-28
+52001b	silk	Cindy Moon	2026-10-28
+52002	silk	Smooth as Silk	2026-10-28
+52003	silk	Swinging Silk Kick	2026-10-28
+52004	silk	Wallcrawl	2026-10-28
+52005	silk	Get the Scoop	2026-10-28
+52006	silk	Albert Moon	2026-10-28
+52007	silk	J. Jonah Jameson	2026-10-28
+52008	silk	Eidetic Memory	2026-10-28
+52009	silk	Organic Webbing	2026-10-28
+52010	silk	Outwit	2026-10-28
+52011	silk	Spider Claws	2026-10-28
+52012	silk	Spider Reflexes	2026-10-28
+52013	silk	Scarlet Spider	2026-10-28
+52014	silk	Spider-Byte	2026-10-28
+52015	silk	Not Today!	2026-10-28
+52016	silk	"Stop Hitting Yourself"	2026-10-28
+52017	silk	Dr. Sinclair	2026-10-28
+52018	silk	Energy Shield	2026-10-28
+52019	silk	Ready for a Fight	2026-10-28
+52020	silk	Stun Gun	2026-10-28
+52021	silk	Madame Web	2026-10-28
+52024	silk	Investigative Journalism	2026-10-28
+52028	silk	Silk Sense Overload	2026-10-28
+52029	silk	Morlun	2026-10-28
+52030	silk	The Great Hunt	2026-10-28
+52031	silk	Hunting the Spider-Bride	2026-10-28
+53001a	falcon	Falcon	2026-10-28
+53001b	falcon	Sam Wilson	2026-10-28
+53002	falcon	Redwing	2026-10-28
+53003	falcon	Bird of Prey	2026-10-28
+53004	falcon	Bird's-Eye View	2026-10-28
+53005	falcon	Up, Up, and Away	2026-10-28
+53006	falcon	Falcon's Flock	2026-10-28
+53007	falcon	Soup Kitchen	2026-10-28
+53008	falcon	Aerial Evacuation	2026-10-28
+53009	falcon	Aerial Recon	2026-10-28
+53010	falcon	Battlefield Awareness	2026-10-28
+53011	falcon	Draw Their Fire	2026-10-28
+53012	falcon	Talon Line	2026-10-28
+53013	falcon	Vibranium Microweave	2026-10-28
+53015	falcon	Aero	2026-10-28
+53017	falcon	Hugin & Munin	2026-10-28
+53018	falcon	Spectrum	2026-10-28
+53019	falcon	Strength in Diversity	2026-10-28
+53020	falcon	Flight Squadron	2026-10-28
+53021	falcon	Resource Reserve	2026-10-28
+53023	falcon	Captain America	2026-10-28
+53024	falcon	Wingman	2026-10-28
+53028	falcon	The Power of Flight	2026-10-28
+53029	falcon	Harlem's Protector	2026-10-28
+53030	falcon	Viper	2026-10-28
+53031	falcon	Serpent Solutions	2026-10-28
+53032	falcon	Serpent Soldier	2026-10-28
+53033	falcon	Adder-tisement	2026-10-28
+53034	falcon	Captain America's Shield	2026-10-28
+54001a	winter	Winter Soldier	2026-10-28
+54001b	winter	Bucky Barnes	2026-10-28
+54002	winter	Cybernetic Arm	2026-10-28
+54003	winter	Black Widow	2026-10-28
+54004	winter	Arm Block	2026-10-28
+54005	winter	Metal Punch	2026-10-28
+54006	winter	Electrical Discharge	2026-10-28
+54007	winter	Safe House #30	2026-10-28
+54008	winter	Silent Infiltration	2026-10-28
+54009	winter	Winter Armor	2026-10-28
+54010	winter	Winter Mask	2026-10-28
+54011	winter	Winter Rifle	2026-10-28
+54012	winter	Captain America	2026-10-28
+54013	winter	Deathlok	2026-10-28
+54014	winter	Firepower	2026-10-28
+54016	winter	Spoiling for a Fight	2026-10-28
+54017	winter	Aggressive Stance	2026-10-28
+54018	winter	Bambino	2026-10-28
+54019	winter	Man on the Wall	2026-10-28
+54020	winter	S.H.I.E.L.D. Sidearm	2026-10-28
+54022	winter	Super-Soldiers	2026-10-28
+54023	winter	Winter, Widow, Soldier, Spy	2026-10-28
+54027	winter	Red Room Programming	2026-10-28
+54028	winter	Crossbones	2026-10-28
+54029	winter	Hydra Hit Squad	2026-10-28
+54030	winter	High-Tech Armament	2026-10-28
+54031	winter	Hydra Mercenary	2026-10-28
+55001	tt	Enchantress	2026-10-28
+55003	tt	Enchantress	2026-10-28
+55004a	tt	Prime Real Estate	2026-10-28
+55004b	tt	Prime Real Estate	2026-10-28
+55005a	tt	Sovereign Sorceress	2026-10-28
+55005b	tt	Sovereign Sorceress	2026-10-28
+55006	tt	Future of Despair	2026-10-28
+55007a	tt	Hypnotic Gaze	2026-10-28
+55007b	tt	Trance of Envy	2026-10-28
+55008b	tt	Trance of Greed	2026-10-28
+55009b	tt	Trance of Pride	2026-10-28
+55010b	tt	Trance of Sloth	2026-10-28
+55011b	tt	Trance of Wrath	2026-10-28
+55012	tt	Alluring Call	2026-10-28
+55013	tt	Kiss of Temptation	2026-10-28
+55014	tt	Love Concoction	2026-10-28
+55015	tt	Seduced	2026-10-28
+55016	tt	Crown of the Enchantress	2026-10-28
+55017	tt	Enthralled Lackey	2026-10-28
+55018	tt	Enthralled Brute	2026-10-28
+55019	tt	Sindr	2026-10-28
+55020	tt	Ulik	2026-10-28
+55021	tt	Law of Attraction	2026-10-28
+55022	tt	Spellbound	2026-10-28
+55023	tt	"Do My Bidding"	2026-10-28
+55024	tt	Magical Restraints	2026-10-28
+55025	tt	Spell Blast	2026-10-28
+55026	tt	Spell Shards	2026-10-28
+55027a	tt	Loki, God of Lies	2026-10-28
+55028a	tt	Worlds Collide	2026-10-28
+55028b	tt	Worlds Collide	2026-10-28
+55029a	tt	Loki the Rascal	2026-10-28
+55029b	tt	Fading Figment	2026-10-28
+55030a	tt	Loki the Miscreant	2026-10-28
+55030b	tt	Fading Figment	2026-10-28
+55031a	tt	Loki the Knave	2026-10-28
+55031b	tt	Fading Figment	2026-10-28
+55032a	tt	Loki the Wretch	2026-10-28
+55033a	tt	Mischief and Mayhem	2026-10-28
+55033b	tt	Mischief and Mayhem	2026-10-28
+55034a	tt	Intense Focus	2026-10-28
+55034b	tt	Total Focus	2026-10-28
+55035	tt	Wrapped in Chains	2026-10-28
+55036	tt	Dark Scepter	2026-10-28
+55037	tt	Draugr Buddy	2026-10-28
+55038	tt	Grendell	2026-10-28
+55039	tt	Malekith	2026-10-28
+55040	tt	Minotaur	2026-10-28
+55041	tt	The Mangog	2026-10-28
+55042	tt	Fenris Wolf	2026-10-28
+55043	tt	Hraesvelgr	2026-10-28
+55044	tt	Laufey	2026-10-28
+55045	tt	Aura of Stasis	2026-10-28
+55046	tt	Door Between Worlds	2026-10-28
+55047	tt	Lofty Goals	2026-10-28
+55048	tt	New Jotunheim	2026-10-28
+55049	tt	Dark Arts	2026-10-28
+55050	tt	Dirty Trick	2026-10-28
+55051	tt	Stories and Lies	2026-10-28
+55052	tt	Domineering Force	2026-10-28
+55053	tt	Feigned Retreat	2026-10-28
+55054	tt	Mounting Resistance	2026-10-28
+55055	tt	Unified Front	2026-10-28
+55056	tt	Absorbing Man	2026-10-28
+55057	tt	Titania	2026-10-28
+55058	tt	Whirlwind	2026-10-28
+55059	tt	Zzzax	2026-10-28
+55060	tt	The Trickster Tango	2026-10-28
+55061	tt	Puppet Master	2026-10-28
+55062	tt	Love Triangle	2026-10-28
+55063	tt	Absorbing Man	2026-10-28
+55064	tt	Titania	2026-10-28
+55065	tt	Whirlwind	2026-10-28
+55066	tt	Zzzax	2026-10-28
+56001a	cw	Tigra	2026-10-28
+56001b	cw	Greer Nelson	2026-10-28
+56002	cw	Moon Knight	2026-10-28
+56003	cw	Precinct HQ	2026-10-28
+56004	cw	Cat's Head Amulet	2026-10-28
+56005	cw	Sharp Claws	2026-10-28
+56006	cw	Cat-Like Reflexes	2026-10-28
+56007	cw	Hunted	2026-10-28
+56008	cw	Tooth and Claw	2026-10-28
+56009	cw	Feline Senses	2026-10-28
+56010	cw	Two-Gun Kid	2026-10-28
+56012	cw	Air Cover	2026-10-28
+56013	cw	Aggressive Conditioning	2026-10-28
+56014	cw	Suppressing Fire	2026-10-28
+56016	cw	Coup de Grâce	2026-10-28
+56017	cw	Savage Strike	2026-10-28
+56019	cw	Yellow Jacket	2026-10-28
+56020	cw	Energy	2026-10-28
+56021	cw	Genius	2026-10-28
+56022	cw	Strength	2026-10-28
+56023	cw	In Too Deep	2026-10-28
+56024	cw	The Hood	2026-10-28
+56025	cw	Criminal Underworld	2026-10-28
+56026	cw	The Hood's Mantle	2026-10-28
+56027	cw	Madame Masque	2026-10-28
+56028	cw	Jigsaw	2026-10-28
+56029a	cw	Hulkling	2026-10-28
+56029b	cw	Teddy Altman	2026-10-28
+56030	cw	Wiccan	2026-10-28
+56031	cw	Altman Residence	2026-10-28
+56032	cw	Winged Shape	2026-10-28
+56033	cw	Hulk Shape	2026-10-28
+56034	cw	Armored Shape	2026-10-28
+56035	cw	Imitation Shape	2026-10-28
+56036	cw	Alien Physiology	2026-10-28
+56037	cw	Shapeshifter Strike	2026-10-28
+56038	cw	Armored Defense	2026-10-28
+56039	cw	Impersonation	2026-10-28
+56040	cw	Shapeshifter	2026-10-28
+56041	cw	Patriot	2026-10-28
+56043	cw	Hidden Base	2026-10-28
+56045	cw	Excelsior	2026-10-28
+56046	cw	Defensive Conditioning	2026-10-28
+56047	cw	"I Can Do This All Day"	2026-10-28
+56048	cw	Taunt	2026-10-28
+56050	cw	Cuts Both Ways	2026-10-28
+56052	cw	Iron Lad	2026-10-28
+56054	cw	Complicated Lineage	2026-10-28
+56055	cw	Super Skrull	2026-10-28
+56056	cw	Skrull Business	2026-10-28
+56057	cw	Fantastic Powers	2026-10-28
+56058	cw	You're Coming With Me!	2026-10-28
+56059	cw	Iron Man	2026-10-28
+56062	cw	Iron Man	2026-10-28
+56063b	cw	Cut Off Support	2026-10-28
+56064b	cw	Negative Zone Prison	2026-10-28
+56065	cw	Powered Gauntlets	2026-10-28
+56066	cw	Rocket Boots	2026-10-28
+56067	cw	Mark V Helmet	2026-10-28
+56068	cw	Arc Reactor	2026-10-28
+56069	cw	Mark V Armor	2026-10-28
+56070	cw	Repulsor Blast	2026-10-28
+56071	cw	Supersonic Punch	2026-10-28
+56072	cw	Stark Tower	2026-10-28
+56073	cw	Yellow Jacket	2026-10-28
+56074	cw	Wasp	2026-10-28
+56075	cw	U.S. Agent	2026-10-28
+56076	cw	Mighty Avengers	2026-10-28
+56077	cw	Earth's Mightiest Heroes	2026-10-28
+56078	cw	Doc Samson	2026-10-28
+56079	cw	Hellcat	2026-10-28
+56080	cw	Drafted	2026-10-28
+56081	cw	Mighty Avengers	2026-10-28
+56082	cw	The Fifty State Initiative	2026-10-28
+56083	cw	Maria Hill	2026-10-28
+56084	cw	Life Model Decoy	2026-10-28
+56085	cw	Executive Order	2026-10-28
+56086	cw	S.H.I.E.L.D. Helicarrier	2026-10-28
+56087	cw	Venom	2026-10-28
+56088	cw	Bullseye	2026-10-28
+56089	cw	Justice Like Lightning	2026-10-28
+56090	cw	Excessive Force	2026-10-28
+56091	cw	Dangerous Recruits	2026-10-28
+56092	cw	Captain Marvel	2026-10-28
+56094	cw	Captain Marvel	2026-10-28
+56095	cw	Captain Marvel	2026-10-28
+56096b	cw	S.H.I.E.L.D. Recruits	2026-10-28
+56097b	cw	Hunting Rebel Heroes	2026-10-28
+56098	cw	Energy Channel	2026-10-28
+56099	cw	Captain Marvel's Helmet	2026-10-28
+56100	cw	Cosmic Flight	2026-10-28
+56101	cw	Photonic Blast	2026-10-28
+56102	cw	Crisis Interdiction	2026-10-28
+56103	cw	Energy Absorption	2026-10-28
+56104	cw	Alpha Flight Station	2026-10-28
+56105	cw	Cape-Killer	2026-10-28
+56106	cw	Unregistered Super	2026-10-28
+56107	cw	Bring Them In	2026-10-28
+56108	cw	Arrest Order	2026-10-28
+56109	cw	S.H.I.E.L.D. Soldier	2026-10-28
+56110	cw	Rapid Response	2026-10-28
+56111	cw	S.H.I.E.L.D. Patrol	2026-10-28
+56112	cw	Colleen Wing	2026-10-28
+56113	cw	Shang-Chi	2026-10-28
+56115	cw	Bounty Hunting	2026-10-28
+56116	cw	Heroes for Hire	2026-10-28
+56117	cw	Paladin	2026-10-28
+56118	cw	Paladin's Pistol	2026-10-28
+56119	cw	Bounty Hunting	2026-10-28
+56120	cw	Government Contractor	2026-10-28
+56121b	cw	Homeland Security	2026-10-28
+56122b	cw	Public Outrage	2026-10-28
+56123b	cw	The Initiative	2026-10-28
+56124b	cw	No Going Back	2026-10-28
+56126	cw	Whatever It Takes	2026-10-28
+56127	cw	Targeted Strike	2026-10-28
+56128a	cw	Choosing Sides	2026-10-28
+56128b	cw	Now It's Personal	2026-10-28
+56129	cw	The Futurist	2026-10-28
+56130	cw	Target Lock	2026-10-28
+56131	cw	High-Tech Suit	2026-10-28
+56132	cw	Suit Up	2026-10-28
+56133	cw	Provoked Response	2026-10-28
+56134	cw	You Started This	2026-10-28
+56135	cw	Alpha Flight Recruit	2026-10-28
+56136	cw	Raw Power	2026-10-28
+56137	cw	Captain America	2026-10-28
+56138	cw	Captain America	2026-10-28
+56141b	cw	Gathering Support	2026-10-28
+56142b	cw	Secret Avengers	2026-10-28
+56143	cw	Cap's Shield	2026-10-28
+56144	cw	Cap's Helmet	2026-10-28
+56145	cw	Super-Soldier Serum	2026-10-28
+56146	cw	Shield Block	2026-10-28
+56147	cw	Shield Toss	2026-10-28
+56148	cw	Heroic Strike	2026-10-28
+56149	cw	Fearless Determination	2026-10-28
+56150	cw	Falcon	2026-10-28
+56151	cw	Hercules	2026-10-28
+56152	cw	Goliath	2026-10-28
+56153	cw	Freedom Fighters	2026-10-28
+56154	cw	New Avengers	2026-10-28
+56155	cw	Black Panther	2026-10-28
+56156	cw	Spectrum	2026-10-28
+56158	cw	Switching Sides	2026-10-28
+56159	cw	Secret Avengers	2026-10-28
+56160	cw	Namor	2026-10-28
+56161	cw	Neptune's Trident	2026-10-28
+56162	cw	Horn of Proteus	2026-10-28
+56163	cw	Imperius Rex!	2026-10-28
+56164	cw	Ruler of Atlantis	2026-10-28
+56165	cw	Atlantean Guard	2026-10-28
+56166	cw	Atlanteans	2026-10-28
+56167	cw	Atlantis Attacks	2026-10-28
+56168	cw	Spider-Woman	2026-10-28
+56169	cw	Spider-Woman	2026-10-28
+56170	cw	Spider-Woman	2026-10-28
+56172b	cw	Open Rebellion	2026-10-28
+56173b	cw	Neighborhood Protectors	2026-10-28
+56174	cw	Finesse	2026-10-28
+56175	cw	Contaminant Immunity	2026-10-28
+56176	cw	Pheromones	2026-10-28
+56177	cw	Venom Blast	2026-10-28
+56178	cw	Inconspicuous	2026-10-28
+56179	cw	Self-propelled Glide	2026-10-28
+56180	cw	Spider-Man	2026-10-28
+56181	cw	Tangled Up	2026-10-28
+56182	cw	Spectacular!	2026-10-28
+56183	cw	Neighborhood Hero	2026-10-28
+56184	cw	Luke Cage	2026-10-28
+56185	cw	Jessica Jones	2026-10-28
+56186	cw	Protect the Innocent	2026-10-28
+56188	cw	The Defenders	2026-10-28
+56189	cw	Daredevil	2026-10-28
+56190	cw	Iron Fist	2026-10-28
+56191	cw	Resistance Fighter	2026-10-28
+56192	cw	Street Defenders	2026-10-28
+56193	cw	Defend Hell's Kitchen	2026-10-28
+56194	cw	Cloak	2026-10-28
+56195	cw	Dagger	2026-10-28
+56196	cw	Darkforce	2026-10-28
+56197	cw	Lightforce	2026-10-28
+56198	cw	Cloak and Dagger	2026-10-28
+56199b	cw	Rallying Call	2026-10-28
+56200b	cw	Going Underground	2026-10-28
+56201b	cw	Guerilla Warfare	2026-10-28
+56202b	cw	Superhero Jailbreak	2026-10-28
+56203	cw	Righteous Cause	2026-10-28
+56205	cw	Targeted Strike	2026-10-28
+56207	cw	No, You Move!	2026-10-28
+56208	cw	Fighting Dirty	2026-10-28
+56209	cw	Recruited by Cap	2026-10-28
+56210	cw	The People's Hero	2026-10-28
+56211	cw	Double Agent	2026-10-28
+56212	cw	Spider-Blast	2026-10-28
+56213	cw	Hard to Hit	2026-10-28
+56214	cw	Secret Contact	2026-10-28
+57001	synthezoid	She-Hulk	2026-10-28
+57002	synthezoid	She-Hulk	2026-10-28
+57004	synthezoid	She-Hulk	2026-10-28
+57005a	synthezoid	Superhero Registration Act	2026-10-28
+57005b	synthezoid	Enforce the Law	2026-10-28
+57006a	synthezoid	Pro-Registration Tactics	2026-10-28
+57006b	synthezoid	Mighty Avengers	2026-10-28
+57007	synthezoid	Superhuman Strength	2026-10-28
+57008	synthezoid	Focused Rage	2026-10-28
+57009	synthezoid	One-Two Punch	2026-10-28
+57010	synthezoid	Ground Stomp	2026-10-28
+57011	synthezoid	Gamma Slam	2026-10-28
+57012	synthezoid	Legal Practice	2026-10-28
+57013	synthezoid	S.H.I.E.L.D. Operator	2026-10-28
+57014	synthezoid	Strategic Overwatch	2026-10-28
+57015	synthezoid	Rapid Response	2026-10-28
+57016	synthezoid	Homeland Security	2026-10-28
+57017	synthezoid	Atlas	2026-10-28
+57018	synthezoid	Songbird	2026-10-28
+57019	synthezoid	Penance	2026-10-28
+57020	synthezoid	Justice Like Lightning	2026-10-28
+57021	synthezoid	The Thunderbolts	2026-10-28
+57022	synthezoid	Taskmaster	2026-10-28
+57023	synthezoid	Taskmaster's Sword	2026-10-28
+57024	synthezoid	Taskmaster's Shield	2026-10-28
+57025	synthezoid	Mimicked Move	2026-10-28
+57026	synthezoid	Taskmaster's Academy	2026-10-28
+57027	synthezoid	Jester	2026-10-28
+57028	synthezoid	Jack O'Lantern	2026-10-28
+57029	synthezoid	Mad Jack's Platform	2026-10-28
+57030	synthezoid	Jester's Yo-Yo	2026-10-28
+57031	synthezoid	Deadly Duo	2026-10-28
+57032	synthezoid	You're Out of Order!	2026-10-28
+57033	synthezoid	She-Hulk Smash	2026-10-28
+57034	synthezoid	Make Me Angry	2026-10-28
+57035	synthezoid	Legal Counsel	2026-10-28
+57040	synthezoid	Vision	2026-10-28
+57041	synthezoid	Vision	2026-10-28
+57042	synthezoid	Vision	2026-10-28
+57043	synthezoid	Vision	2026-10-28
+57044a	synthezoid	Superhero Resistance	2026-10-28
+57044b	synthezoid	Protect Secret Identities	2026-10-28
+57045a	synthezoid	Resistance Tactics	2026-10-28
+57045b	synthezoid	Expose Overreach	2026-10-28
+57046a	synthezoid	Dense	2026-10-28
+57046b	synthezoid	Intangible	2026-10-28
+57047	synthezoid	Solar Gem	2026-10-28
+57048	synthezoid	Vision's Cape	2026-10-28
+57049	synthezoid	Mass Increase	2026-10-28
+57050	synthezoid	Density Control	2026-10-28
+57051	synthezoid	Solar Beam	2026-10-28
+57052	synthezoid	Superdense Strike	2026-10-28
+57053	synthezoid	Phase Disruption	2026-10-28
+57054	synthezoid	Just Passing Through	2026-10-28
+57055	synthezoid	Patriot	2026-10-28
+57056	synthezoid	Hawkeye	2026-10-28
+57057	synthezoid	Stature	2026-10-28
+57058	synthezoid	Teenage Superheroes	2026-10-28
+57059	synthezoid	Young Avengers	2026-10-28
+57060	synthezoid	Speed	2026-10-28
+57061	synthezoid	Wiccan	2026-10-28
+57062	synthezoid	Superspeed	2026-10-28
+57063	synthezoid	Spellcasting	2026-10-28
+57064	synthezoid	Superpowered Siblings	2026-10-28
+57065	synthezoid	Moon Knight	2026-10-28
+57066	synthezoid	Crescent Dart	2026-10-28
+57067	synthezoid	Fist of Khonshu	2026-10-28
+57068	synthezoid	Khonshu's Avatar	2026-10-28
+57069	synthezoid	Janus	2026-10-28
+57070	synthezoid	Amir	2026-10-28
+57071	synthezoid	Atlanteans	2026-10-28
+57072	synthezoid	Blood Debt	2026-10-28
+57073	synthezoid	The Royal Guard	2026-10-28
+57074	synthezoid	Calculated Risk	2026-10-28
+57075	synthezoid	Synthezoid Strike	2026-10-28
+57076	synthezoid	Phased Out	2026-10-28
+57077	synthezoid	Android Assistance	2026-10-28
+58001a	wonder_man	Wonder Man	2026-10-28
+58001b	wonder_man	Simon Williams	2026-10-28
+58002	wonder_man	Ionic Physiology	2026-10-28
+58003	wonder_man	Active Altruism	2026-10-28
+58004	wonder_man	Ionic Blast	2026-10-28
+58005	wonder_man	Starstruck	2026-10-28
+58006	wonder_man	Energy Siphon	2026-10-28
+58007	wonder_man	Wonder Fans	2026-10-28
+58008	wonder_man	Jet Belt	2026-10-28
+58009	wonder_man	Mr. Hollywood	2026-10-28
+58010	wonder_man	Signature Sunglasses	2026-10-28
+58011	wonder_man	"What Are You?"	2026-10-28
+58012	wonder_man	Firebird	2026-10-28
+58013	wonder_man	Hawkeye	2026-10-28
+58014	wonder_man	Scarlet Witch	2026-10-28
+58015	wonder_man	Sentry	2026-10-28
+58016	wonder_man	Battlefield Benevolence	2026-10-28
+58017	wonder_man	Bombs Away	2026-10-28
+58018	wonder_man	Everywhere All at Once	2026-10-28
+58019	wonder_man	Stronger Together	2026-10-28
+58020	wonder_man	Unified Strike	2026-10-28
+58021	wonder_man	Heroic Conditioning	2026-10-28
+58022	wonder_man	Swordsman	2026-10-28
+58024	wonder_man	Jarvis	2026-10-28
+58025	wonder_man	Pacifism	2026-10-28
+58026	wonder_man	Grim Reaper	2026-10-28
+58027	wonder_man	Brother vs. Brother	2026-10-28
+58028	wonder_man	Scythe Strike	2026-10-28
+58029	wonder_man	Death Cannot Die	2026-10-28
+58030	wonder_man	Caught in the Crossfire	2026-10-28
+58031	wonder_man	Cameo	2026-10-28
+58032	wonder_man	Coordinated Effort	2026-10-28
+58033	wonder_man	Disarming Defense	2026-10-28
+58034	wonder_man	Avengers Compound	2026-10-28
+59001a	hercules	Hercules	2026-10-28
+59001b	hercules	Hercules	2026-10-28
+59002	hercules	Defeat the Hydra	2026-10-28
+59003	hercules	Embody Pathos	2026-10-28
+59004	hercules	Protect Humanity	2026-10-28
+59005	hercules	Nemean Lion Skin	2026-10-28
+59006	hercules	Shield of Perseus	2026-10-28
+59007	hercules	Sword of Peleus	2026-10-28
+59008	hercules	Amadeus Cho	2026-10-28
+59009	hercules	The Gift of Battle	2026-10-28
+59010	hercules	Son of Zeus	2026-10-28
+59011	hercules	Wisdom of Athena	2026-10-28
+59012	hercules	Olympus	2026-10-28
+59013	hercules	Gauntlets of Hercules	2026-10-28
+59014	hercules	Golden Mace	2026-10-28
+59015	hercules	Herc's Helm	2026-10-28
+59016	hercules	Lion of Olympus	2026-10-28
+59017	hercules	Prince of Power	2026-10-28
+59018	hercules	Deathcry	2026-10-28
+59019	hercules	Namora	2026-10-28
+59020	hercules	Thor	2026-10-28
+59022	hercules	Call for Backup	2026-10-28
+59023	hercules	Recruitment Drive	2026-10-28
+59024	hercules	"Avenge Me!"	2026-10-28
+59025	hercules	Gilgamesh	2026-10-28
+59026	hercules	Ancient Rivalry	2026-10-28
+59028	hercules	Evaluate Threat	2026-10-28
+59035	hercules	Appeal to Athena	2026-10-28
+59036	hercules	Ares	2026-10-28
+59037	hercules	Lernean Hydra	2026-10-28
+59038	hercules	Olympic Feud	2026-10-28
+59039	hercules	Ares's Axe	2026-10-28
+59040	hercules	God of War	2026-10-28
+59041	hercules	All Versus All	2026-10-28
+59042	hercules	Hecate	2026-10-28
+59043	hercules	Kyknos	2026-10-28
+59044	hercules	Bewitched Officer	2026-10-28
+59045	hercules	Roving Mobs	2026-10-28
+60001a	fne	Daredevil	2026-10-28
+60001b	fne	Matt Murdock	2026-10-28
+60002	fne	Acute Tactility	2026-10-28
+60003	fne	Enhanced Olfaction	2026-10-28
+60004	fne	Heightened Hearing	2026-10-28
+60005	fne	Radar Sense	2026-10-28
+60006	fne	Superior Taste	2026-10-28
+60007	fne	Elektra	2026-10-28
+60008	fne	Cross-Examination	2026-10-28
+60009	fne	Deposition	2026-10-28
+60010	fne	Living Lie Detector	2026-10-28
+60011	fne	Raising Hell	2026-10-28
+60012	fne	Focus the Senses	2026-10-28
+60013	fne	Foggy Nelson	2026-10-28
+60014	fne	Karen Page	2026-10-28
+60015	fne	Nelson and Murdock	2026-10-28
+60016	fne	Sister Maggie	2026-10-28
+60017	fne	Daredevil's Billy Club	2026-10-28
+60018	fne	The Man Without Fear	2026-10-28
+60019	fne	Blindspot	2026-10-28
+60020	fne	Cloak	2026-10-28
+60021	fne	Dagger	2026-10-28
+60022	fne	Ghost Rider	2026-10-28
+60023	fne	Know Your Enemy	2026-10-28
+60024	fne	De-escalation	2026-10-28
+60026	fne	Legal Trouble	2026-10-28
+60027	fne	Move in Shadow	2026-10-28
+60028	fne	Stealth Training	2026-10-28
+60029	fne	Stick	2026-10-28
+60030	fne	Contingency Planning	2026-10-28
+60031	fne	Dance with the Devil	2026-10-28
+60032	fne	Sensory Overload	2026-10-28
+60033	fne	Bullseye	2026-10-28
+60034	fne	Deadliest Man Alive	2026-10-28
+60035	fne	Stolen Sai	2026-10-28
+60036	fne	Eye on the Target	2026-10-28
+60037a	fne	Echo	2026-10-28
+60037b	fne	Maya Lopez	2026-10-28
+60038	fne	Innate Reflexes	2026-10-28
+60039	fne	Daredevil	2026-10-28
+60040a	fne	Photographic Reflexes	2026-10-28
+60040b	fne	Photographic Reflexes	2026-10-28
+60040c	fne	Photographic Reflexes	2026-10-28
+60041	fne	Study the Tape	2026-10-28
+60042	fne	The Rez	2026-10-28
+60043	fne	American Sign Language	2026-10-28
+60044	fne	Choreography	2026-10-28
+60045	fne	Echo's Katana	2026-10-28
+60046	fne	Improvisation	2026-10-28
+60047	fne	Muscle Memory	2026-10-28
+60048	fne	Army of One	2026-10-28
+60049	fne	Get Their Attention	2026-10-28
+60050	fne	In Harm's Way	2026-10-28
+60051	fne	Powerful Punch	2026-10-28
+60052	fne	The Best Offense...	2026-10-28
+60053	fne	Ronin	2026-10-28
+60054	fne	Stand Alone	2026-10-28
+60055	fne	See No Evil, Hear No Evil	2026-10-28
+60056	fne	Superpower Training	2026-10-28
+60057	fne	Energy	2026-10-28
+60058	fne	Genius	2026-10-28
+60059	fne	Strength	2026-10-28
+60060	fne	Raised by the Kingpin	2026-10-28
+60061	fne	Kingpin	2026-10-28
+60062	fne	Master Manipulator	2026-10-28
+60063	fne	Kingpin's Henchman	2026-10-28
+60064	fne	Pawn of the Kingpin	2026-10-28
+60066	fne	Bullseye	2026-10-28
+60067	fne	Bullseye	2026-10-28
+60068a	fne	Adamantium-Laced Spine	2026-10-28
+60068b	fne	Damaged Spine	2026-10-28
+60069	fne	Raise the Stakes	2026-10-28
+60070	fne	Deadly Sai	2026-10-28
+60071	fne	Incessant Pursuit	2026-10-28
+60072	fne	Lady Bullseye	2026-10-28
+60073	fne	Deranged Bloodlust	2026-10-28
+60074	fne	Everything is a Weapon	2026-10-28
+60075	fne	Unerring Desire	2026-10-28
+60076	fne	Electro	2026-10-28
+60077	fne	Electro	2026-10-28
+60078	fne	Electro	2026-10-28
+60079	fne	Electric Charge	2026-10-28
+60080	fne	Drained of Power	2026-10-28
+60081	fne	Whiplash	2026-10-28
+60082	fne	Charging Up	2026-10-28
+60083	fne	Chain Lightning	2026-10-28
+60084	fne	Energy Overload	2026-10-28
+60085	fne	Shocking Revelation	2026-10-28
+60086	fne	Hammerhead	2026-10-28
+60087	fne	Hammerhead	2026-10-28
+60088	fne	Hammerhead	2026-10-28
+60089	fne	Energy Gatling Gun	2026-10-28
+60090	fne	Hardheaded	2026-10-28
+60091	fne	Chameleon	2026-10-28
+60092	fne	Maggia Enforcers	2026-10-28
+60093	fne	Maggia Underboss	2026-10-28
+60094	fne	Consolidate Power	2026-10-28
+60095	fne	Power Struggle	2026-10-28
+60096	fne	"Head First!"	2026-10-28
+60098	fne	Purple Man	2026-10-28
+60099	fne	Purple Man	2026-10-28
+60100	fne	Converted	2026-10-28
+60101	fne	Firefighter	2026-10-28
+60102	fne	Judge	2026-10-28
+60103	fne	Security Guard	2026-10-28
+60104	fne	Skater Punk	2026-10-28
+60105	fne	"Fight."	2026-10-28
+60106	fne	"Protect."	2026-10-28
+60107	fne	"Serve."	2026-10-28
+60108	fne	Power of Suggestion	2026-10-28
+60109	fne	Sway the Masses	2026-10-28
+60110a	fne	Typhoid Mary	2026-10-28
+60110b	fne	Bloody Mary	2026-10-28
+60111b	fne	Bloody Mary	2026-10-28
+60112	fne	Disturbed Psyche	2026-10-28
+60113a	fne	Establish Trust	2026-10-28
+60113b	fne	Mary Walker	2026-10-28
+60114	fne	Telekinesis	2026-10-28
+60115	fne	Psionic Slash	2026-10-28
+60116	fne	Psi Nova	2026-10-28
+60117	fne	Assembled Armor	2026-10-28
+60118	fne	Hail of Blades	2026-10-28
+60119	fne	Scavenged Bulwark	2026-10-28
+60120	fne	Hand Lookout	2026-10-28
+60121a	fne	Art Museum Heist	2026-10-28
+60121b	fne	Art Museum Heist	2026-10-28
+60122	fne	Impossible Object	2026-10-28
+60123	fne	Inspiring Pottery	2026-10-28
+60124	fne	Replica Shield	2026-10-28
+60125	fne	Stunning Landscape	2026-10-28
+60126	fne	Art Thief	2026-10-28
+60127	fne	Tug of War	2026-10-28
+60128a	fne	The Getaway	2026-10-28
+60128b	fne	The Getaway	2026-10-28
+60129a	fne	Out Front	2026-10-28
+60129b	fne	Alongside	2026-10-28
+60130	fne	Escort Vehicle	2026-10-28
+60131	fne	Jackknifed Tanker Truck	2026-10-28
+60132	fne	Burning Rubber	2026-10-28
+60133	fne	Pedestrians	2026-10-28
+60134a	fne	Protection Racket	2026-10-28
+60134b	fne	Battle in the Bodega	2026-10-28
+60135b	fne	Bull in a China Shop	2026-10-28
+60136b	fne	Hung Out to Dry	2026-10-28
+60137b	fne	Pawn Shop Showdown	2026-10-28
+60138b	fne	A Slice of the Pizza Dough	2026-10-28
+60139	fne	Shop Proprietor	2026-10-28
+60140	fne	Man-Bull	2026-10-28
+60141	fne	Change of Venue	2026-10-28
+60142a	fne	The Raft Breakout	2026-10-28
+60142b	fne	The Raft Breakout	2026-10-28
+60143	fne	Master Key	2026-10-28
+60144	fne	Absorbing Man	2026-10-28
+60145	fne	Baron Zemo	2026-10-28
+60146	fne	Drang	2026-10-28
+60147	fne	Mysterio	2026-10-28
+60148	fne	Proxima Midnight	2026-10-28
+60149	fne	Rhino	2026-10-28
+60150	fne	Imprisoned	2026-10-28
+60151a	fne	Stop the Presses!	2026-10-28
+60151b	fne	Stop the Presses!	2026-10-28
+60152	fne	Daily Bugle	2026-10-28
+60153	fne	Ben Urich	2026-10-28
+60154	fne	Betty Brant	2026-10-28
+60155	fne	J. Jonah Jameson	2026-10-28
+60156	fne	Robbie Robertson	2026-10-28
+60157	fne	Exclusive Interview	2026-10-28
+60158	fne	Breaking News	2026-10-28
+60159a	fne	Kingpin	2026-10-28
+60159b	fne	Kingpin	2026-10-28
+60161a	fne	The King's Gambit	2026-10-28
+60161b	fne	The King's Gambit	2026-10-28
+60162a	fne	Endgame	2026-10-28
+60162b	fne	Endgame	2026-10-28
+60163a	fne	Public Support	2026-10-28
+60163b	fne	Public Support	2026-10-28
+60164	fne	Bear Hug	2026-10-28
+60165	fne	James Wesley	2026-10-28
+60166	fne	Kingpin's Cane	2026-10-28
+60167	fne	Mountain of Muscle	2026-10-28
+60168	fne	Vanessa Fisk	2026-10-28
+60169	fne	Black Cat	2026-10-28
+60170	fne	Diamondback	2026-10-28
+60171	fne	Spot	2026-10-28
+60172	fne	Stilt-Man	2026-10-28
+60173	fne	Kingpin's Influence	2026-10-28
+60174	fne	Organized Crime	2026-10-28
+60175	fne	Bag of Tricks	2026-10-28
+60176	fne	Unrelenting Hate	2026-10-28
+60177	fne	Mystic Incursion	2026-10-28
+60178	fne	Sinking Ferry	2026-10-28
+60179	fne	Towering Inferno	2026-10-28
+60180	fne	Collapsing Bridge	2026-10-28
+60181	fne	Bystanders in Peril	2026-10-28
+60182	fne	Cop	2026-10-28
+60183	fne	Crooked Cop	2026-10-28
+60184	fne	Wanted	2026-10-28
+60185	fne	Police Cordon	2026-10-28
+60186	fne	Sports Car	2026-10-28
+60187	fne	Motorcycle	2026-10-28
+60188	fne	Utility Van	2026-10-28
+60189	fne	Traffic Jam	2026-10-28
+60190	fne	Carjacking	2026-10-28
+60191	fne	Flight Serum	2026-10-28
+60192	fne	Mister Fish	2026-10-28
+60193	fne	The Owl	2026-10-28
+60194	fne	Swoop Down	2026-10-28
+60195	fne	Cold as Ice	2026-10-28
+60196	fne	Hard as Marble	2026-10-28
+60197	fne	Beetle	2026-10-28
+60198	fne	Tombstone	2026-10-28
+60199	fne	Hit List	2026-10-28
+60200	fne	Ivan Banionis	2026-10-28
+60201	fne	The Clown	2026-10-28
+60202	fne	Tracksuit Mafioso	2026-10-28
+60203	fne	Tracksuit Bro	2026-10-28
+60204	fne	Tracksuit Mafia	2026-10-28
+60205a	fne	Art Museum Heist	2026-10-28
+60205b	fne	Art Museum Heist	2026-10-28
+60206a	fne	The Getaway	2026-10-28
+60206b	fne	The Getaway	2026-10-28
+60207a	fne	Protection Racket	2026-10-28
+60207b	fne	Protection Racket	2026-10-28
+60208a	fne	The Raft Breakout	2026-10-28
+60208b	fne	The Raft Breakout	2026-10-28
+60209a	fne	Stop the Presses!	2026-10-28
+60209b	fne	Stop the Presses!	2026-10-28
+60210a	fne	Typhoid Mary	2026-10-28
+60210b	fne	Bloody Mary	2026-10-28
+61001a	jj	Jessica Jones	2026-10-28
+61001b	jj	Jessica Jones	2026-10-28
+61002	jj	Alias Investigations	2026-10-28
+61003	jj	Luke Cage	2026-10-28
+61004	jj	"Big Mistake"	2026-10-28
+61005	jj	Breakthrough	2026-10-28
+61006	jj	Snooping Around	2026-10-28
+61007	jj	Piecing It All Together	2026-10-28
+61008	jj	Calling in Favors	2026-10-28
+61009	jj	4K Digital Camcorder	2026-10-28
+61010	jj	Circumstantial Evidence	2026-10-28
+61011	jj	Leather Jacket	2026-10-28
+61012	jj	"Now I'm Ticked Off!"	2026-10-28
+61013	jj	Reluctant Flier	2026-10-28
+61014	jj	Stakeout	2026-10-28
+61015	jj	Captain Marvel	2026-10-28
+61016	jj	Spider-Woman	2026-10-28
+61017	jj	Squirrel Girl	2026-10-28
+61019	jj	Strategy Session	2026-10-28
+61020	jj	Run Them to Ground	2026-10-28
+61021	jj	Lay the Trap	2026-10-28
+61023	jj	Grapnel Launcher	2026-10-28
+61024	jj	Entrapment	2026-10-28
+61025	jj	Hellcat	2026-10-28
+61026	jj	Joys of Life	2026-10-28
+61027	jj	Unbreakable Bond	2026-10-28
+61028	jj	Second Chance	2026-10-28
+61029	jj	Defend Our City	2026-10-28
+61030	jj	Work-Life Balance	2026-10-28
+61031	jj	Purple Man	2026-10-28
+61032	jj	Indomitable Will	2026-10-28
+61033a	jj	Suggestion ([energy])	2026-10-28
+61033b	jj	Suggestion ([mental])	2026-10-28
+61034	jj	Innate Aggression	2026-10-28
+61035	jj	Shakedown	2026-10-28
+61036	jj	Innate Perception	2026-10-28
+61037	jj	Innate Inspiration	2026-10-28
+61038	jj	Echo	2026-10-28
+61039	jj	Lay Low	2026-10-28
+61040	jj	Mitigated Threat	2026-10-28
+62001a	luke_cage	Luke Cage	2026-10-28
+62001b	luke_cage	Luke Cage	2026-10-28
+62002	luke_cage	Jessica Jones	2026-10-28
+62003	luke_cage	Harlem's Hero	2026-10-28
+62004	luke_cage	Knuckle Sandwich	2026-10-28
+62005	luke_cage	"Stand with Me!"	2026-10-28
+62006	luke_cage	"Sweet Christmas!"	2026-10-28
+62007	luke_cage	Fogwell's Gym	2026-10-28
+62008	luke_cage	Burstein Process	2026-10-28
+62009	luke_cage	Cruisin' for a Bruisin'	2026-10-28
+62010	luke_cage	Metal Bracer	2026-10-28
+62011	luke_cage	Power Man	2026-10-28
+62012	luke_cage	Iron Fist	2026-10-28
+62013	luke_cage	Misty Knight	2026-10-28
+62014	luke_cage	Valkyrie	2026-10-28
+62015	luke_cage	Take a Stand	2026-10-28
+62016	luke_cage	Innovation	2026-10-28
+62017	luke_cage	The Power of Leadership	2026-10-28
+62018	luke_cage	Defensive Formation	2026-10-28
+62019	luke_cage	Righteous Purpose	2026-10-28
+62020	luke_cage	Hulk	2026-10-28
+62021	luke_cage	She-Hulk	2026-10-28
+62022	luke_cage	Dynamic Duo	2026-10-28
+62023	luke_cage	Power Man and Iron Fist	2026-10-28
+62028	luke_cage	Internal Injury	2026-10-28
+62029	luke_cage	Cottonmouth	2026-10-28
+62030	luke_cage	Venomous Whispers	2026-10-28
+62031	luke_cage	Augmented Jaws	2026-10-28
+62032	luke_cage	Asp	2026-10-28
+62033	luke_cage	Sidewinder	2026-10-28
+62034	luke_cage	Size Advantage	2026-10-28
+62035	luke_cage	Observe	2026-10-28
+62036	luke_cage	Toughen Up	2026-10-28
+62037	luke_cage	Black Belt	2026-10-28
+65001a	shadowland	A Barricade of Blades	2026-10-30
+65001b	shadowland	A Barricade of Blades	2026-10-30
+65002a	shadowland	Fortress Lockdown	2026-10-30
+65002b	shadowland	Fortress Lockdown	2026-10-30
+65003a	shadowland	The Streets Below	2026-10-30
+65003b	shadowland	Atop the Tenshu	2026-10-30
+65004a	shadowland	The Streets Below	2026-10-30
+65004b	shadowland	Atop the Tenshu	2026-10-30
+65005	shadowland	Black Tarantula	2026-10-30
+65006	shadowland	Ghost Maker	2026-10-30
+65007	shadowland	Sealed Entrances	2026-10-30
+65008	shadowland	Strategic Positioning	2026-10-30
+65009	shadowland	Surround the Fortress	2026-10-30
+65010	shadowland	Chaos in Hell's Kitchen	2026-10-30
+65011	shadowland	Moonlit Silhouette	2026-10-30
+65012a	shadowland	Archpriestess	2026-10-30
+65012b	shadowland	Archpriestess	2026-10-30
+65013a	shadowland	Daredevil	2026-10-30
+65013b	shadowland	Daredevil	2026-10-30
+65014a	shadowland	Elektra	2026-10-30
+65014b	shadowland	Elektra	2026-10-30
+65015a	shadowland	Gorgon	2026-10-30
+65015b	shadowland	Gorgon	2026-10-30
+65016a	shadowland	Lady Bullseye	2026-10-30
+65016b	shadowland	Lady Bullseye	2026-10-30
+65017a	shadowland	White Tiger	2026-10-30
+65017b	shadowland	White Tiger	2026-10-30
+65018	shadowland	Art of the Kill	2026-10-30
+65019	shadowland	Krahllak's Blessing	2026-10-30
+65020	shadowland	Archpriestess	2026-10-30
+65021	shadowland	Gorgon	2026-10-30
+65022	shadowland	Lady Bullseye	2026-10-30
+65023	shadowland	White Tiger	2026-10-30
+65024	shadowland	Rite of Offering	2026-10-30
+65025	shadowland	Shadowy Plot	2026-10-30
+65026	shadowland	Darkness Within	2026-10-30
+65027	shadowland	Embraced by Darkness	2026-10-30
+65028	shadowland	Black Mountain	2026-10-30
+65029	shadowland	Kirigi	2026-10-30
+65030	shadowland	Bo Staff Ninja	2026-10-30
+65031	shadowland	Fukiya Ninja	2026-10-30
+65032	shadowland	Katana Ninja	2026-10-30
+65033	shadowland	Kusarigama Ninja	2026-10-30
+65034	shadowland	Shuriken Ninja	2026-10-30
+65035	shadowland	Dancing Shadows	2026-10-30
+65036	shadowland	Countless Numbers	2026-10-30
+65037	shadowland	Shifting Corridors	2026-10-30
+65038a	shadowland	Into the Labyrinth	2026-10-30
+65038b	shadowland	Into the Labyrinth	2026-10-30
+65039a	shadowland	Chamber of Vile Secrets	2026-10-30
+65039b	shadowland	Chamber of Vile Secrets	2026-10-30
+65040	shadowland	Whisper in the Dark	2026-10-30
+65041	shadowland	Lord Deathstrike	2026-10-30
+65042	shadowland	Dead End	2026-10-30
+65043	shadowland	Hall of Hidden Doors	2026-10-30
+65044	shadowland	No Time to Think!	2026-10-30
+65045	shadowland	Sudden Shift	2026-10-30
+65046	shadowland	Nervous Jitters	2026-10-30
+65047	shadowland	Iron Monk	2026-10-30
+65048	shadowland	Hall of Punishment	2026-10-30
+65049	shadowland	Path of a Thousand Cuts	2026-10-30
+65050	shadowland	Blinding Powder	2026-10-30
+65051	shadowland	Caltrops	2026-10-30
+65052	shadowland	Flame Spout	2026-10-30
+65053	shadowland	Oil Slick	2026-10-30
+65054	shadowland	Poison Darts	2026-10-30
+65055	shadowland	Pressure Plate	2026-10-30
+65056	shadowland	Tripwire	2026-10-30
+65057	shadowland	Krahllak	2026-10-30
+65058	shadowland	Krahllak	2026-10-30
+65059	shadowland	Krahllak	2026-10-30
+65060a	shadowland	Dark Invitation	2026-10-30
+65060b	shadowland	Dark Invitation	2026-10-30
+65061a	shadowland	Beast Be Praised	2026-10-30
+65061b	shadowland	Beast Be Praised	2026-10-30
+65062	shadowland	Dark Shroud	2026-10-30
+65063	shadowland	Fear Projection	2026-10-30
+65064	shadowland	Mark of the Wicked	2026-10-30
+65065	shadowland	Pull of Power	2026-10-30
+65066	shadowland	Fist	2026-10-30
+65067	shadowland	Hellbride	2026-10-30
+65068	shadowland	Retainer	2026-10-30
+65069	shadowland	Snakeroot Elders	2026-10-30
+65070	shadowland	Veil of Nightmares	2026-10-30
+65071	shadowland	Submit or Suffer	2026-10-30
+65072a	shadowland	Creeping Corruption	2026-10-30
+65072b	shadowland	Creeping Corruption	2026-10-30
+65073	shadowland	Aka	2026-10-30
+65074	shadowland	Tongue of the Beast	2026-10-30
+65075	shadowland	Binding Ritual	2026-10-30
+65076	shadowland	Roots of a Black Flower	2026-10-30
+65077	shadowland	Malediction	2026-10-30
+65078	shadowland	Invasive Thoughts	2026-10-30

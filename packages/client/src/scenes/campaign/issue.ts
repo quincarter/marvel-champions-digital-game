@@ -268,7 +268,7 @@ export class CampaignIssueScene extends Phaser.Scene {
       const captionRect: Rect = { x: rect.x, y: artRect.y + artRect.height, width: rect.width, height: captionHeight };
       const g2 = this.add.graphics();
       g2.fillStyle(signal.caution.hex, 1).fillRect(captionRect.x, captionRect.y, captionRect.width, captionRect.height);
-      g2.lineStyle(2, surface.ink.hex, 1).strokeRect(
+      g2.lineStyle(2, surface.inkOnHue.hex, 1).strokeRect(
         captionRect.x,
         captionRect.y,
         captionRect.width,
@@ -279,7 +279,7 @@ export class CampaignIssueScene extends Phaser.Scene {
           fontFamily: '"Public Sans", sans-serif',
           fontSize: "12px",
           fontStyle: "italic 800",
-          color: cssOf(surface.ink.hex),
+          color: cssOf(surface.inkOnHue.hex),
           wordWrap: { width: captionRect.width - 24, useAdvancedWrap: true },
         })
         .setOrigin(0, 0.5);

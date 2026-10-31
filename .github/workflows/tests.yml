@@ -28,6 +28,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # The scripts' own tests (node:test; the media bundle tooling, #495). Seconds, so they ride along here.
+      - run: pnpm test:scripts
 
   plan:
     name: Plan the unit tests
@@ -74,6 +76,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The client's tests read the real card art, music and art folders, and the content package's
+      # watermarked-scans.test.ts reads every English scan (#495). Without them those tests pass on an empty folder.
+      - name: Fetch media assets
+        if: contains(matrix.args, '@mc/client') || contains(matrix.args, '@mc/content')
+        uses: ./.github/actions/assets
+        with:
+          bundles: ${{ contains(matrix.args, '@mc/client') && 'card-art music art' || 'card-art' }}
       - run: pnpm test ${{ matrix.args }}
         env:
           # Heads this job's report on the run's summary page (vitest.config.ts).

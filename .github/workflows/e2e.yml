@@ -41,6 +41,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art
       - name: Read the Playwright version
         id: playwright
         run: echo "version=$(pnpm --filter @mc/client exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"

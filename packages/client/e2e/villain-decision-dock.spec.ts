@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pressAt, settle, waitFor } from "./helpers.js";
+import { activeScenes, pressAt, pressUntil, settle, waitFor } from "./helpers.js";
 import { villainDebugRect } from "./overlay-helpers.js";
 import { answerChoiceSheet, installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
 import type { Rect } from "./wave6-helpers-b.js";
@@ -279,6 +279,45 @@ test("issue #231: a swipe that lifts on PEEK AT TABLE or EXPAND presses neither"
     expect(await presentation(page), `a swipe that lifted on ${name} changed nothing`).toBe("tab");
     expect(await villainDebugRect(page, "decisionDockRect"), "still docked").not.toBeNull();
   }
+  expect(errors).toEqual([]);
+});
+
+test("Cards left, opened from the table beside a docked decision, keeps its card hover", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "hover is a mouse's");
+  test.setTimeout(150_000);
+  const errors = trackErrors(page);
+  await reachDockedDecision(page, false);
+  const deck = await page.evaluate(
+    () =>
+      (window as unknown as { __mcBoardDebug: { allPileRects(): [string, Rect][] } }).__mcBoardDebug
+        .allPileRects()
+        .find(([key]) => key.startsWith("deck"))?.[1] ?? null,
+  );
+  expect(deck, "your deck on the table").not.toBeNull();
+  await pressUntil(
+    page,
+    () => pressAt(page, deck!.x + deck!.width / 2, deck!.y + deck!.height / 2),
+    async () => (await activeScenes(page)).includes("DeckLeftOverlay"),
+    "the deck opens Cards left",
+  );
+  await settle(page);
+  interface LeftDebug {
+    cards(): Rect[];
+    hoverShown(): string | null;
+  }
+  const card = await page.evaluate(
+    () => (window as unknown as { __mcDeckLeftDebug: LeftDebug }).__mcDeckLeftDebug.cards()[0] ?? null,
+  );
+  expect(card, "a card in the list").not.toBeNull();
+  const x = card!.x + card!.width / 2;
+  const y = card!.y + card!.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.move(x + 4, y + 4, { steps: 4 });
+  await waitFor(
+    () => page.evaluate(() => (window as unknown as { __mcDeckLeftDebug: LeftDebug }).__mcDeckLeftDebug.hoverShown()),
+    "the list's hover popover",
+    10_000,
+  );
   expect(errors).toEqual([]);
 });
 

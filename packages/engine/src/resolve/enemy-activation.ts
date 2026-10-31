@@ -68,7 +68,7 @@ import {
   gainedBoostAbilities,
   isAlly,
 } from "../select.js";
-import { type BoostInProgress, currentActivationFrameId, type Vars } from "../stack.js";
+import { type BoostInProgress, defendedActivationFrameId, type Vars } from "../stack.js";
 import type { BoostGiven, GameState, ZoneId } from "../state.js";
 import { type SchemeThreatDivert, TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
 import {
@@ -779,8 +779,14 @@ export function setDefender(
  * ability says to 'declare [a hero] the defender' of an attack, that hero is considered to be making a basic
  * defense"). Each caller announces it once per defense. Resolving a "(defense)"-labeled ability is not one (p. 16:
  * "Resolving a defense-labeled ability is not a basic defense"), so the label alone never reaches here.
+ *
+ * Only a hero announces it. Defense is a hero's basic power (p. 15), and FFG ruling Mar 16, 2025: "Because allies
+ * don't have a DEF stat, they aren't considered to 'use a basic power' when they defend attacks" (Melinda May). The
+ * owner applied this on 2026-10-28 (PR #498), narrowing wave 8 §4.1 Q55 to heroes: an ally defending, at the step or
+ * declared by an ability, uses no basic power.
  */
 function announceBasicDefense(ctx: Ctx, defenderId: InstanceId, defenderPlayer: PlayerId): void {
+  if (cardOf(ctx.state, defenderId)?.type !== "hero_identity") return;
   // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
   const used: TriggerEvent = {
     kind: "basicPowerUsed",
@@ -827,8 +833,8 @@ export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
     return;
   }
   // Interrupting the attack itself ("When the villain attacks you"): the procedure
-  // hasn't started, so record the defender on the attack event.
-  const activation = currentActivationFrameId(ctx.state.stack);
+  // hasn't started, so record the defender on the attack event. Not a keyword's attack waiting for its ability.
+  const activation = defendedActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
   // "…if there is not already a defender" (p. 14): one an effect declared while the attack was being initiated, this
@@ -871,7 +877,7 @@ export function declareDefenderByLabeledEffect(
   if (!declareDefenderByEffect(ctx, defenderId, exhaust)) return;
   if (hero === null || defenderId === hero) return;
   const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && !f.versusEnemy);
-  addFrameSlots(ctx, attack?.eventFrameId ?? currentActivationFrameId(ctx.state.stack), {
+  addFrameSlots(ctx, attack?.eventFrameId ?? defendedActivationFrameId(ctx.state.stack), {
     [LABELED_DEFENSE_HERO_SLOT]: [hero],
   });
 }
@@ -932,7 +938,8 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
     }
     return true;
   }
-  const activation = currentActivationFrameId(ctx.state.stack);
+  // Not a keyword's attack waiting for its ability (`defendedActivationFrameId`): the defense bar reads the outer one.
+  const activation = defendedActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return false;
   const already = (frame.slots[DEFENDER_SLOT] ?? [])[0] === defenderId;

@@ -29,6 +29,7 @@ import type { AbilityId } from "@mc/content";
 import type { CardId } from "@mc/content";
 import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phase.js";
+import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from "../view/villain-end-of-turn.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
@@ -48,14 +49,22 @@ import { playerName } from "../view/names.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
 import { primaryPressOf, sameTarget, stepFocus, turnKeyOf, turnStartFocus, type FocusTarget } from "../view/focus.js";
-import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
+import {
+  rowScrollOf,
+  scrollTargetOf,
+  tabOfStop,
+  tableCardsOf,
+  zoneJump,
+  type ZoneMembers,
+} from "../view/board-zones.js";
 import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
 import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
 import { eventOnce } from "../view/event-once.js";
 import {
-  PHONE_TABS,
+  PHONE_RAIL_TABS,
   boardLayout,
   formFactorFor,
+  isTabbed,
   scrollLayout,
   type BoardLayout,
   type PhoneTab,
@@ -144,10 +153,13 @@ import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
+import { logDockRect, logDockWidthFor, logTickerOf, logTypeFor } from "../view/log-dock.js";
 import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/encounter-pile-layout.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import { evidenceInputOf } from "../view/evidence-model.js";
 import type { PileViewData } from "./pile-view.js";
+import type { DeckLeftData } from "./deck-left.js";
+import { deckLeftTabsOf, type DeckLeftTab } from "../view/deck-left-model.js";
 import type { TeamUpSplashData } from "./team-up-splash.js";
 import type { TeamUpInfoData } from "./team-up-info.js";
 import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
@@ -187,6 +199,11 @@ export const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
 const VILLAIN_DOCK_TWEEN_MS = 280;
 /** The form cards' fan-out and fold beside the play area (issue #308). */
 const FORM_FAN_TWEEN_MS = 280;
+
+/** The seat whose side the table draws: a looked-at teammate's (`SessionState.peekSeat`), else the board's own. */
+function shownSeat(state: SessionState): PlayerId | null {
+  return state.peekSeat ?? state.perspectiveId;
+}
 
 /** A card's name and traits, for its sound (`view/sound-effects.ts`). An identity's traits sit on its faces and never count. */
 function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
@@ -235,7 +252,10 @@ export class BoardScene extends Phaser.Scene {
    * The table log and card history as they stood at each command version, so a Back out (`SessionStore.rewindTo`)
    * restores them exactly instead of keeping lines for the play it undid.
    */
-  #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
+  #logAt = new Map<
+    number,
+    { readonly log: LogState; readonly cardHistory: CardHistoryLog; readonly refill: RefillTracker }
+  >();
   #choiceOpen = false;
   /** The hold layer LT / RT has the pad in (`view/pad-layers.ts`), its ability page, and the sheet drawn for it. */
   #padLayer: PadLayer | null = null;
@@ -246,6 +266,13 @@ export class BoardScene extends Phaser.Scene {
   #pageWord: Phaser.GameObjects.Text | null = null;
   /** Set by `#openVillainWalkthrough`'s launch until the walkthrough is actually running (`#tableCoveredForBand`). */
   #walkthroughLaunching = false;
+  /**
+   * The draw up to hand size that ends the player phase, folded across commands: it stops for a drawn card's ability
+   * and resumes once that resolves (`view/villain-end-of-turn.ts`). `#refillEnded` is the whole refill when this
+   * command began the villain phase, for the walkthrough's launch.
+   */
+  #refill: RefillTracker = NO_REFILL;
+  #refillEnded: EndOfTurnDraws | null = null;
   #saveFailureAnnounced = false;
   /** Which zone the phone board is showing. Ignored on wider layouts. */
   #activeTab: PhoneTab = "me";
@@ -262,8 +289,14 @@ export class BoardScene extends Phaser.Scene {
    * what the right stick scrolls and what the ring is drawn round. Any move of the board's own focus ends it.
    */
   #logFocused = false;
-  /** Where the log panel was drawn last, or null while this layout is not showing it (another phone tab, a guided lock). */
+  /** The game log is open: docked beside the table, or in the tab area on a tabbed layout (`view/log-dock.ts`). */
+  #logOpen = false;
+  /** Where the table was scrolled when the log opened: the tab area's log clamps it away. */
+  #scrollBeforeLog = 0;
+  /** Where the log panel was drawn last, or null while it is shut. */
   #logRect: Rect | null = null;
+  /** Where the title bar's log line was drawn last, for the e2e specs. */
+  #logTickerRect: Rect | null = null;
   /**
    * Which surface keyboard/pad focus is currently in (§3.10, §7 accessibility fix — guided mode's rail/callout
    * and opportunistic tip toast were unreachable by keyboard/pad). "G"/the pad's X toggles between them
@@ -310,6 +343,11 @@ export class BoardScene extends Phaser.Scene {
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
     hasTile: (id) => this.#frame.focusRects.has(focusKey({ kind: "card", instanceId: id })),
+    tableCards: () => {
+      if (!this.#model) return [];
+      const table = tableCardsOf(this.#model);
+      return [...table.playArea, ...table.villain, ...table.team];
+    },
     // A ring on the tab being shown is a stop at the end of the focus route; Enter opens its panel.
     teamUpKeys: () =>
       [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("teamUp:")).map((key) => key.slice(7)),
@@ -318,6 +356,10 @@ export class BoardScene extends Phaser.Scene {
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
     hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
     openDiscard: () => this.#openMyDiscard(),
+    hasVictoryDisplayStop: () => this.#frame.focusRects.has(focusKey({ kind: "victoryDisplay" })),
+    openVictoryDisplay: () => {
+      if (this.#model) this.#openPile("Victory display", this.#model.victoryDisplay);
+    },
     pressBarStop: (index) => {
       const stop = this.#frame.barStops[index];
       if (stop?.enabled) stop.press();
@@ -456,6 +498,7 @@ export class BoardScene extends Phaser.Scene {
     this.#debugFirstPlayer = null;
     this.#log = emptyLog();
     this.#cardHistory = emptyCardHistoryLog();
+    this.#logOpen = false;
     appSession().gameLog = this.#log;
     // A fresh game has no villain phase to look back on yet.
     appSession().villainReview = null;
@@ -467,6 +510,8 @@ export class BoardScene extends Phaser.Scene {
     this.#soundTrail = -1;
     this.#previousGame = null;
     this.#logAt.clear();
+    this.#refill = NO_REFILL;
+    this.#refillEnded = null;
     this.#tabBadges.clear();
     this.#tabChanged.clear();
     this.#focus = null;
@@ -495,6 +540,7 @@ export class BoardScene extends Phaser.Scene {
     // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
+      sizeRects: () => this.#frame.hoverSizeRects,
       facedown: () => this.#frame.facedownHovers,
       area: (pointer) => this.#hoverArea(isMousePointer(pointer)),
     });
@@ -549,6 +595,7 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.teamUpInfo) ||
         this.scene.isActive(SCENES.evidence) ||
         this.scene.isActive(SCENES.pileView) ||
+        this.scene.isActive(SCENES.deckLeft) ||
         // Device sync's "which copy?" question owns the keyboard and pad (`conflictPromptOwnsInput`).
         this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
@@ -570,11 +617,15 @@ export class BoardScene extends Phaser.Scene {
       zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
       onLayerPress: (layer, index) => this.#pressLayer(layer, index),
       // While a direct pick is open LB / RB are modifiers too, and a quick tap of one keeps its zone jump on release.
-      pickModifiers: () => this.#controller.pickIds() !== null,
+      // The team rail's View buttons make LB one as well: LB + a face button views that seat (`view/seat-peek.ts`).
+      pickModifiers: (bumper) =>
+        this.#controller.pickIds() !== null || (this.#frame.seatViews.size > 0 && bumper !== "rb"),
       onBumper: (bumper) => this.#hints.setBumper(bumper),
       onBumperPick: (bumper, index) => {
         const slot = padPickSlotOf(bumper, index);
-        if (slot !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
+        if (slot === null) return;
+        if (this.#controller.pickIds() !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
+        else this.#frame.seatViews.get(slot)?.();
       },
     };
     bindKeyboard(this, binding);
@@ -635,6 +686,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.choice,
         SCENES.inspect,
         SCENES.pileView,
+        SCENES.deckLeft,
         SCENES.villainPhase,
         SCENES.pause,
         SCENES.rules,
@@ -659,6 +711,9 @@ export class BoardScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       (window as unknown as { __mcBoardDebug?: unknown }).__mcBoardDebug = {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
+        logTickerRect: () => this.#logTickerRect,
+        logOpen: () => this.#logOpen,
+        logRect: () => this.#logRect,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         hoverShown: () => this.#hover?.shownKey ?? null,
         // The focus ring's key (keyboard or pad moved it), null when nothing is focused.
@@ -684,6 +739,8 @@ export class BoardScene extends Phaser.Scene {
         guideCalloutRects: () => this.#guide?.debugCalloutRects() ?? null,
         guideWaitingStripRects: () => this.#guide?.debugWaitingStripRects() ?? null,
         guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
+        guideHighlightRect: () => this.guideHighlightRect(),
+        guideHighlightAlpha: () => this.#guide?.debugHighlightAlpha() ?? null,
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,
@@ -775,6 +832,9 @@ export class BoardScene extends Phaser.Scene {
       this.#tabChanged.clear();
       this.#tabBadges.clear();
       this.#logBeforePhase = null;
+      // Back out may land inside a refill that waits on a drawn card's ability: its cards so far come back with it.
+      this.#refill = rewound.refill;
+      this.#refillEnded = null;
     } else if (fresh) {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
@@ -792,6 +852,11 @@ export class BoardScene extends Phaser.Scene {
       logBefore = this.#log;
       this.#log = appendEvents(this.#log, latest, state.game, state.perspectiveId, POOL_DEPS);
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
+      // A game resumed mid-refill has the refill's earlier draws only in its history.
+      if (state.resumedHistory.length > 0) this.#refill = trackRefill(NO_REFILL, state.resumedHistory).tracker;
+      const refill = trackRefill(this.#refill, state.lastEvents);
+      this.#refill = refill.tracker;
+      this.#refillEnded = refill.ended;
       // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`). `#logBeforePhase` is set
       // by `#openVillainWalkthrough` below, so the mirror is repeated there: while the rail holds the phase back the
       // engine's lines about it stay out of Pause and the report.
@@ -826,27 +891,32 @@ export class BoardScene extends Phaser.Scene {
         this.#motion.announce("Game not saving", "It may not survive a refresh");
       }
       this.#version = state.version;
-      this.#logAt.set(state.version, { log: this.#log, cardHistory: this.#cardHistory });
+      this.#logAt.set(state.version, { log: this.#log, cardHistory: this.#cardHistory, refill: this.#refill });
       // A new state invalidates any half-made selection: the engine may have
       // changed what is legal, and a stale target would just be rejected.
       this.#controller.reset();
     }
 
-    const mine = state.legal?.playerId === state.perspectiveId ? state.legal.actions : null;
-    this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS, mine));
-    this.#marks = state.legal
-      ? withDefenseLockout(
-          withForcedActions(
-            withAttackBarWording(highlights(state.legal.actions), state.legal.actions, state.game, POOL_DEPS),
-            state.legal.actions,
+    // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
+    const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
+    this.#model = this.#withDebugSideSchemes(
+      boardModel(state.game, state.peekSeat ?? state.perspectiveId, POOL_DEPS, mine),
+    );
+    // A looked-at seat (`peekSeat`) is read-only: the acting seat's legal moves light nothing on its side of the table.
+    this.#marks =
+      state.legal && state.peekSeat === null
+        ? withDefenseLockout(
+            withForcedActions(
+              withAttackBarWording(highlights(state.legal.actions), state.legal.actions, state.game, POOL_DEPS),
+              state.legal.actions,
+              state.game,
+              POOL_DEPS,
+            ),
             state.game,
+            state.perspectiveId,
             POOL_DEPS,
-          ),
-          state.game,
-          state.perspectiveId,
-          POOL_DEPS,
-        )
-      : null;
+          )
+        : null;
     this.#focusTurnStart(turnKeyOf(state.game));
     const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
     this.#teamUps = present.map((entry) => entry.pair);
@@ -907,6 +977,7 @@ export class BoardScene extends Phaser.Scene {
       this.#choiceOpen ||
       this.scene.isActive(SCENES.inspect) ||
       this.scene.isActive(SCENES.pileView) ||
+      this.scene.isActive(SCENES.deckLeft) ||
       this.scene.isActive(SCENES.villainPhase) ||
       this.scene.isActive(SCENES.pause) ||
       this.scene.isActive(SCENES.rules) ||
@@ -958,7 +1029,7 @@ export class BoardScene extends Phaser.Scene {
           onLeave: () => this.#leaveLesson({ scene: SCENES.aspectLesson, data: { aspect, backTo: "howToPlay" } }),
         },
         observation,
-        { lockLog: false, roundDebrief: false },
+        { lockLog: false, roundDebrief: false, holdGate: false },
       );
       return;
     }
@@ -978,7 +1049,7 @@ export class BoardScene extends Phaser.Scene {
           onLeave: () => this.#leaveLesson({ scene: SCENES.howToPlay, data: {} }),
         },
         observation,
-        { lockLog: false, roundDebrief: false },
+        { lockLog: false, roundDebrief: false, holdGate: false },
       );
       return;
     }
@@ -1171,8 +1242,8 @@ export class BoardScene extends Phaser.Scene {
    * Opens the villain-phase walkthrough when a villain phase begins.
    *
    * This is the whole of the Board's side of the contract documented at the top
-   * of `scenes/villain-phase.ts`: one launch carrying only the game as it stood before the command that began the
-   * phase (the recap's "what changed" tiles read it). The overlay subscribes to the store itself, accumulates the
+   * of `scenes/villain-phase.ts`: one launch carrying the game as it stood before the command that began the
+   * phase (the recap's "what changed" tiles read it) and who drew what as the player phase ended (`#refill`). The overlay subscribes to the store itself, accumulates the
    * phase's beats across the several commands one phase can span, and shows its recap when the phase ends.
    *
    * `placeThreat` is villain-phase step one, so this fires exactly once per
@@ -1194,7 +1265,7 @@ export class BoardScene extends Phaser.Scene {
     if (!begins) return;
     this.#logBeforePhase = logBefore;
     appSession().gameLog = this.#tableLog();
-    this.scene.launch(SCENES.villainPhase, { before } satisfies VillainPhaseLaunchData);
+    this.scene.launch(SCENES.villainPhase, { before, endOfTurn: this.#refillEnded } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
     // does not run while the walkthrough is up, so on a slow machine no draw may have seen it, and the flag then
@@ -1260,7 +1331,7 @@ export class BoardScene extends Phaser.Scene {
     this.#debugPad = pad;
     const state = appSession().store.state;
     if (state.game && state.perspectiveId) {
-      this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
+      this.#model = this.#withDebugSideSchemes(boardModel(state.game, shownSeat(state)!, POOL_DEPS));
     }
     this.#draw();
   }
@@ -1357,9 +1428,14 @@ export class BoardScene extends Phaser.Scene {
     const atRest = boardLayout(viewport, {
       playerCount: model.team.length + 1,
       neutralArea: model.scenarioPlayAreas.some((area) => area.neutral),
-      activeTab: this.#activeTab,
+      // The open log takes the tab area; the tab under it comes back when it shuts.
+      activeTab: this.#logOpen ? "log" : this.#activeTab,
       ...(guideRail ? { guideRail } : {}),
-      ...(dock?.request === "rail" ? { villainDock: this.#dockShown.width } : {}),
+      ...(dock?.request === "rail"
+        ? { villainDock: this.#dockShown.width }
+        : this.#logOpen && !isTabbed(formFactorFor(width, height))
+          ? { villainDock: logDockWidthFor(width) }
+          : {}),
       ...(dock?.request === "band" && this.#dockShown.grow > 0
         ? { villainBand: { tall: true, grow: this.#dockShown.grow } }
         : {}),
@@ -1405,6 +1481,8 @@ export class BoardScene extends Phaser.Scene {
       },
       inspect: (id, siblings) => this.#inspect(id, siblings),
       openPile: (name, ids) => this.#openPile(name, ids),
+      deckLeftTabs: () => deckLeftTabsOf(appSession().settings),
+      openDeckLeft: (tab) => this.#openDeckLeft(tab),
       inspectReference: (reference) => this.scene.launch(SCENES.inspect, { reference }),
     };
 
@@ -1425,6 +1503,14 @@ export class BoardScene extends Phaser.Scene {
               menuHintWhen: (set: "keyboard" | "pad") => set === "pad" || this.#escapeMeaning() === "pause",
             }
           : {}),
+        log: {
+          ...logTickerOf(this.#tableLog(), this.#guide?.logGate() ?? { locked: false, reason: null }),
+          open: this.#logOpen || this.#villainOverlay()?.logShown() === true,
+          onPress: () => this.toggleLog(),
+        },
+        onLogRect: (rect) => {
+          this.#logTickerRect = rect;
+        },
       });
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
       // The top bar's music note is a stop at the end of the focus route, so a pad can open the player (Pause has Music too).
@@ -1451,32 +1537,15 @@ export class BoardScene extends Phaser.Scene {
       : { enemies: null, area: null };
     if (missionSplit.enemies) drawEnemies(ctx, missionSplit.enemies, model);
     if (missionSplit.area) drawScenarioPlayAreas(ctx, missionSplit.area, stripAreas, references);
-    // The set-aside footer's line comes out of the log's space, never the deck and discard's.
     const setAside =
       model.setAside && zones.encounter
         ? splitSetAside(
             zones.encounter,
-            zones.log,
-            setAsideFooterHeight(
-              setAsideLines(model.setAside.count, model.setAside.names, (zones.log ?? zones.encounter).width),
-            ),
+            null,
+            setAsideFooterHeight(setAsideLines(model.setAside.count, model.setAside.names, zones.encounter.width)),
           )
         : null;
     if (zones.encounter) drawEncounter(ctx, setAside?.encounter ?? zones.encounter, model, setAside?.footer ?? null);
-    // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
-    // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson
-    // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
-    const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
-    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
-    else if (zones.log)
-      this.#logPanel.draw(
-        this,
-        setAside?.log ?? zones.log,
-        this.#tableLog(),
-        glyphsFitLayout(layout.tabbed) ? this.#hints : undefined,
-      );
-    else this.#logPanel.hide();
-    this.#logRect = zones.log && !logGate.locked ? (setAside?.log ?? zones.log) : null;
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
     const compactRow = layout.compactPlayerRow === true;
@@ -1486,7 +1555,6 @@ export class BoardScene extends Phaser.Scene {
     if (zones.me) drawDealtPile(ctx, zones.me, compactRow ? "compact" : "wide", model.perspectiveId, model.myDealt);
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model, compactRow ? { compact: true } : {});
     if (zones.team) drawTeam(ctx, zones.team, model);
-    if (zones.log && !logGate.locked) this.#frame.innerScroll.push(setAside?.log ?? zones.log);
     this.#rowWheelRect = zones.playArea && this.#playAreaScroll.row.canScroll ? zones.playArea : null;
     if (scrolling) {
       this.#drawScrollBands(layout);
@@ -1496,14 +1564,33 @@ export class BoardScene extends Phaser.Scene {
     }
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
+    // After the pinned bands: on a scrolling table they run the full width of the screen, under the docked log.
+    const logRect = this.#logOpen ? (zones.log ?? logDockRect(layout, logDockWidthFor(width))) : null;
+    if (logRect) {
+      this.#logPanel.draw(this, logRect, this.#tableLog(), {
+        type: logTypeFor(layout.formFactor),
+        closeLabel: "Close",
+        onClose: () => this.toggleLog(),
+        onCloseButton: (button) => {
+          this.#frame.buttons.push(button);
+          if (glyphsFitLayout(layout.tabbed)) this.#hints.button(button, ["log"], "paper");
+        },
+      });
+      this.#frame.innerScroll.push(logRect);
+    } else this.#logPanel.hide();
+    this.#logRect = logRect;
     this.#layerAssign = null;
     this.#registerLayerHints(layout);
-    this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
+    // Both sheets lay out below the top bar, where the chrome buttons (Report, music, language, dark mode) stay drawn
+    // over them (#515).
+    const barBottom = layout.zones.chrome ? layout.zones.chrome.y + layout.zones.chrome.height : 0;
+    const sheetUp = this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height }, barBottom);
     const searchedPick = this.#controller.searchedPick();
-    if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
+    if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick, barBottom);
     this.#drawTargetRings();
     this.#drawFocusRing();
-    this.#drawFirstPlayerToken(model, layout);
+    // The token draws above the table's panels, so it would sit on top of a sheet over the table: it waits under one.
+    if (!sheetUp && !searchedPick) this.#drawFirstPlayerToken(model, layout);
     this.#revealTargets();
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
@@ -1579,7 +1666,7 @@ export class BoardScene extends Phaser.Scene {
     // On a phone the first player's card can be on another tab: the token then sits on that tab (Me or Team).
     const chrome = layout.zones.chrome;
     const tabs = layout.zones.tabs;
-    const tabIds = PHONE_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
+    const tabIds = PHONE_RAIL_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
     const holderTab = tabIds.indexOf(
       (this.#debugFirstPlayer ?? model.firstPlayerId) === model.perspectiveId ? "me" : "team",
     );
@@ -1619,10 +1706,10 @@ export class BoardScene extends Phaser.Scene {
 
   #drawTabs(rect: Rect, model: BoardModel): void {
     this.#tabs = drawPhoneTabs(this, rect, model, {
-      activeTab: this.#activeTab,
+      activeTab: this.#logOpen ? "log" : this.#activeTab,
       badges: this.#tabBadges,
-      logGate: this.#guide?.logGate() ?? { locked: false, reason: null },
       onSelect: (tab) => {
+        this.#shutLog();
         if (tab !== this.#activeTab) this.#tableScroll = 0;
         this.#activeTab = tab;
         // Looking at a tab is what clears its badge.
@@ -1638,7 +1725,8 @@ export class BoardScene extends Phaser.Scene {
    * in target-select mode, so the "Choose a target" title bar, each option's outcome, "why not the others?" and the
    * tablet inspector rail sit over the same board a plain pulsing ring used to be the only affordance for.
    */
-  #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
+  /** Whether it drew the panel. */
+  #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
     const kind = this.#controller.selection.kind;
     // The same panel carries two more questions: which cards pay a cost with a range, and whose play area a card goes to.
     if (
@@ -1647,12 +1735,13 @@ export class BoardScene extends Phaser.Scene {
       kind !== "choosingController" &&
       kind !== "dividingPower"
     ) {
-      return;
+      return false;
     }
     const panel = this.#controller.targetingPanel();
-    if (!panel) return;
+    if (!panel) return false;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
-    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused);
+    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top);
+    return true;
   }
 
   /** Pulsing rings on the valid targets while a target is being chosen. */
@@ -1755,10 +1844,17 @@ export class BoardScene extends Phaser.Scene {
         this.#openVillainReview();
         break;
       case "view":
-        this.#toggleLogFocus();
+        if (this.#focusRegion === "board") this.toggleLog(true);
         break;
       case "discard":
         if (this.#focusRegion === "board" && !this.#controller.readOnly) this.#openMyDiscard();
+        break;
+      case "expand":
+        // On the table R3 lists the cards left: the decision popups that Expand belongs to own the pad while up.
+        if (this.#focusRegion === "board") {
+          const first = deckLeftTabsOf(appSession().settings)[0];
+          if (first) this.#openDeckLeft(first);
+        }
         break;
       case "pageNext":
         this.#jumpZone(1);
@@ -1786,10 +1882,9 @@ export class BoardScene extends Phaser.Scene {
         // A zone/choice-anchored step never sets a board gate at all (nothing to release above), but §3.10
         // still promises Escape always works there too — see `BoardGuideMount.handleEscape`'s own doc comment.
         if (this.#guide?.handleEscape()) break;
-        // Backing out of the log's focus comes before Pause, like backing out of any other mode.
-        if (this.#logFocused) {
-          this.#logFocused = false;
-          this.#draw();
+        // Backing out of the log comes before Pause, like backing out of any other mode.
+        if (this.#logFocused || (this.#logOpen && this.#controller.selection.kind === "idle")) {
+          this.toggleLog();
           break;
         }
         // A visible tip toast dismisses on Escape, like its own "Got it" (guided mode G10e).
@@ -1800,6 +1895,8 @@ export class BoardScene extends Phaser.Scene {
         // open"). `binding.blocked()` already keeps this from firing while an
         // overlay owns input, so reaching here means the board itself is idle.
         if (this.#controller.selection.kind !== "idle") this.#controller.cancel();
+        // Looking at a teammate's side (the team rail's View): back to the seat that acts.
+        else if (appSession().store.state.peekSeat !== null) appSession().store.endSeatPeek();
         else this.#openPause();
         break;
     }
@@ -1847,26 +1944,12 @@ export class BoardScene extends Phaser.Scene {
   #zoneMembers(): ZoneMembers | null {
     const model = this.#model;
     if (!model) return null;
-    const threat = new Set<InstanceId>([
-      model.mainScheme.instanceId,
-      ...model.extraMainSchemes.map((scheme) => scheme.instanceId),
-      ...model.sideSchemes.map((scheme) => scheme.instanceId),
-      // The pod's neutral area is on the phone's Threat tab, not Enemies (`splitNeutralTab`).
-      ...model.scenarioPlayAreas
-        .filter((area) => area.neutral)
-        .flatMap((area) => area.cards.map((card) => card.instanceId)),
-    ]);
+    const table = tableCardsOf(model);
     return {
       hand: new Set(model.hand.map((card) => card.instanceId)),
-      playArea: new Set([model.me.instanceId, ...model.myPlayArea.map((card) => card.instanceId)]),
-      villain: new Set<InstanceId>([
-        ...threat,
-        ...model.villains.map((villain) => villain.panel.instanceId),
-        ...model.minions.map((minion) => minion.instanceId),
-        ...model.environments.map((environment) => environment.instanceId),
-        ...model.scenarioPlayAreas.flatMap((area) => area.cards.map((card) => card.instanceId)),
-      ]),
-      threat,
+      playArea: new Set(table.playArea),
+      villain: new Set(table.villain),
+      threat: new Set(table.threat),
     };
   }
 
@@ -1877,39 +1960,84 @@ export class BoardScene extends Phaser.Scene {
     if (!members) return;
     // From the log, the jump starts over from the top (or bottom) of the table.
     const from = this.#logFocused ? null : this.#focus;
-    const stop = zoneJump(this.#controller.focusOrder(), members, from, step);
+    // A phone draws only the tab it shows, so the other tab's cards count as drawn here: the jump switches to that tab.
+    const onTable = (id: InstanceId): boolean => members.playArea.has(id) || members.villain.has(id);
+    const stop = zoneJump(this.#controller.focusOrder(onTable), members, from, step);
     if (!stop) return;
     const tab = tabOfStop(stop, members);
     if (this.#layout?.tabbed && tab) this.switchToTab(tab);
     this.#setFocus(stop.target);
   }
 
-  /** View / L: the log takes focus (the right stick then scrolls it), or gives it back. */
-  #toggleLogFocus(): void {
-    if (this.#focusRegion !== "board") return;
-    if (this.#logFocused) {
-      this.#logFocused = false;
-      this.#draw();
+  /**
+   * The log's key, holding View, or a press of the title bar's line: opens the log or shuts it. Opened from a key or a
+   * pad it takes focus, with the ring round it. Inside a villain phase the toggle is the phase's: it has the screen.
+   */
+  toggleLog(focus = false): void {
+    const phase = this.#villainOverlay();
+    if (phase) {
+      phase.toggleLog();
       return;
     }
-    const layout = this.#layout;
-    // A guided run keeps the log locked until its last lesson; there is nothing to scroll then.
-    if (!layout || !this.#model || this.#guide?.logGate().locked) return;
-    if (layout.tabbed) this.switchToTab("log");
-    else if (!layout.zones.log) return;
-    this.#logFocused = true;
+    if (!this.#model || (!this.#logOpen && this.logLocked())) return;
+    if (this.#logOpen) this.#shutLog();
+    else {
+      this.#logOpen = true;
+      this.#logFocused = focus;
+      this.#scrollBeforeLog = this.#tableScroll;
+    }
     this.#draw();
   }
 
-  /** The right stick: scrolls the log, the hand or play area row focus is in, or else the table (`view/board-zones.ts`). */
+  /** A guided run keeps the log locked until its last lesson (`view/log-gate-model.ts`). */
+  logLocked(): boolean {
+    return this.#guide?.logGate().locked === true;
+  }
+
+  /** The tab under the log is back (a tab press), or the villain phase has the screen. */
+  #shutLog(): void {
+    if (this.#logOpen) this.#tableScroll = this.#scrollBeforeLog;
+    this.#logOpen = false;
+    this.#logFocused = false;
+  }
+
+  /** The villain phase running over this table, or null. */
+  #villainOverlay(): VillainPhaseOverlay | null {
+    if (!this.scene.isActive(SCENES.villainPhase)) return null;
+    return this.scene.get(SCENES.villainPhase) as VillainPhaseOverlay;
+  }
+
+  /** The villain phase toggled its log: the title bar's line says so. */
+  refreshChrome(): void {
+    this.#draw();
+  }
+
+  /** The log as the table has it, for the view the villain phase opens. */
+  tableLog(): LogState {
+    return this.#tableLog();
+  }
+
+  /** The table's log is waiting where the phase began, behind the rail (`#tableLog`). */
+  logHeldBehindPhase(): boolean {
+    return this.#tableLog() !== this.#log;
+  }
+
+  /**
+   * The right stick: scrolls the log, the hand or play area row focus is in, a sideways push the play area row while it
+   * is on screen, or else the table (`view/board-zones.ts`).
+   */
   #scrollFocused(dx: number, dy: number): void {
     const members = this.#zoneMembers();
     if (!members) return;
+    const rowShown = !this.#layout?.tabbed || (this.#activeTab === "me" && !this.#logOpen);
     switch (
-      scrollTargetOf(this.#logFocused, this.#focus, members, {
-        hand: this.#hand.canScroll,
-        playArea: this.#playAreaScroll.row.canScroll,
-      })
+      scrollTargetOf(
+        this.#logOpen,
+        this.#focus,
+        members,
+        { hand: this.#hand.canScroll, playArea: this.#playAreaScroll.row.canScroll },
+        rowShown && Math.abs(dx) > Math.abs(dy),
+      )
     ) {
       case "log":
         this.#logPanel.onPadScroll(dy);
@@ -1989,7 +2117,7 @@ export class BoardScene extends Phaser.Scene {
           this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
           break;
         case "log":
-          this.#actOnIntent("view");
+          this.toggleLog(true);
           break;
         case "teamUp":
           // The keyboard route to the badge's click: the first active pair's panel.
@@ -1997,6 +2125,9 @@ export class BoardScene extends Phaser.Scene {
           break;
         case "discard":
           this.#actOnIntent("discard");
+          break;
+        case "deckLeft":
+          this.#actOnIntent("expand");
           break;
         case "evidence":
           // Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
@@ -2298,12 +2429,41 @@ export class BoardScene extends Phaser.Scene {
 
   /** An arrow or D-pad press: the nearest focus stop drawn that way on the table (`view/spatial-nav.ts`). */
   #moveFocusToward(direction: FocusDirection): void {
+    if ((direction === "left" || direction === "right") && this.#stepAlongPlayArea(direction === "left" ? -1 : 1)) {
+      return;
+    }
     const order = this.#controller.focusOrder();
     const keys = order.map(focusKey);
     const current =
       this.#focus && order.some((target) => sameTarget(target, this.#focus)) ? focusKey(this.#focus) : null;
     const next = spatialStep(keys, (key) => this.#frame.focusRects.get(key), current, direction);
     this.#setFocus(next === null ? null : (order[keys.indexOf(next)] ?? null));
+  }
+
+  /**
+   * Left or right from a card in a play area row that scrolls, onto the next stop along the row scrolled wholly off it:
+   * that card has no rect this frame for `spatialStep` to find, so the row scrolls it in and focus moves onto it. A pad
+   * then walks the whole row, the way the phone's hand already does; in a mode whose stops are only some of the row
+   * (targets, payment) it skips the cards that are not stops. False (nothing done) when that stop is on screen, there is
+   * none, or focus is not on a card of the row (an attachment's strip: up or down onto its card first).
+   */
+  #stepAlongPlayArea(step: 1 | -1): boolean {
+    const focus = this.#focus;
+    if (focus?.kind !== "card" || this.#focusRegion !== "board") return false;
+    const route = this.#controller.focusOrder((id) => this.#playAreaScroll.has(id));
+    for (let at = this.#playAreaScroll.neighbor(focus.instanceId, step); at !== null;) {
+      const target: FocusTarget = { kind: "card", instanceId: at };
+      if (route.some((stop) => sameTarget(stop, target))) {
+        if (this.#frame.focusRects.has(focusKey(target))) return false;
+        // Scrolled in before the focus moves, so the card has its rect (and a place on the route) in the draw that
+        // rings it.
+        this.#playAreaScroll.revealCard(at);
+        this.#setFocus(target);
+        return true;
+      }
+      at = this.#playAreaScroll.neighbor(at, step);
+    }
+    return false;
   }
 
   /**
@@ -2334,7 +2494,7 @@ export class BoardScene extends Phaser.Scene {
       scale: appSession().settings.cardHoverScale,
       overlays,
       villainPhaseKey: SCENES.villainPhase,
-      dockPanel: this.#villainDockRects?.panel ?? null,
+      dockPanel: this.#villainDockRects?.panel ?? (this.#layout?.tabbed ? null : this.#logRect),
       viewport: { x: 0, y: 0, width, height },
     });
   }
@@ -2441,6 +2601,7 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.evidence) ||
       this.scene.isActive(SCENES.pileView) ||
+      this.scene.isActive(SCENES.deckLeft) ||
       this.scene.isActive(SCENES.holdOn) ||
       this.scene.isActive(SCENES.optionNotice)
     );
@@ -2487,12 +2648,19 @@ export class BoardScene extends Phaser.Scene {
     setTapOccluders(this, bands);
   }
 
+  /** What A does on the focused stop, for its legend: a card on the table with nothing to use there only opens. */
+  #activateMeaning(): "Select" | "Inspect" {
+    const focus = this.#focus;
+    if (focus?.kind !== "card" || this.#controller.selection.kind !== "idle") return "Select";
+    return this.#controller.opensOnActivate(focus.instanceId) ? "Inspect" : "Select";
+  }
+
   #drawFocusRing(): void {
     const card = this.#placeFocusRing();
     // The legend strip above a focused card: what Select / Inspect / Esc do with it. Moved, not rebuilt, as focus steps.
     const { width, height } = this.scale.gameSize;
     // While a hold layer's sheet is up the legend strip gives way to it (they would share the same strip of table).
-    this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning());
+    this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning(), this.#activateMeaning());
     // Whatever a hint's `when` reads (the Esc glyph under MENU) may have changed with the focus.
     this.#hints.refresh();
   }
@@ -2502,9 +2670,10 @@ export class BoardScene extends Phaser.Scene {
     return escapeMeaning({
       guideGateOpen: this.#controller.hasGuideGate(),
       guideStepActive: this.#guide?.escapeActs() ?? false,
-      logFocused: this.#logFocused,
+      logFocused: this.#logOpen,
       tipShown: this.#tip?.escapeActs() ?? false,
       selectionIdle: this.#controller.selection.kind === "idle",
+      seatPeek: appSession().store.state.peekSeat !== null,
     });
   }
 
@@ -2652,6 +2821,12 @@ export class BoardScene extends Phaser.Scene {
   #openPile(name: string, ids: readonly InstanceId[]): void {
     if (ids.length === 0 || this.scene.isActive(SCENES.pileView)) return;
     this.scene.launch(SCENES.pileView, { from: SCENES.board, name, ids } satisfies PileViewData);
+  }
+
+  #openDeckLeft(tab: DeckLeftTab): void {
+    const perspectiveId = this.#model?.perspectiveId;
+    if (!perspectiveId || this.scene.isActive(SCENES.deckLeft)) return;
+    this.scene.launch(SCENES.deckLeft, { from: SCENES.board, tab, perspectiveId } satisfies DeckLeftData);
   }
 
   #onInspectPlay(instanceId: InstanceId): void {
@@ -2854,7 +3029,7 @@ export class BoardScene extends Phaser.Scene {
     const cached = this.#heldModelCache;
     if (cached && cached.base === live && cached.game === game && cached.key === key) return cached.model;
     const model = this.#withDebugSideSchemes(
-      boardModel(withFacedownHeld(game, facedown), state.perspectiveId, POOL_DEPS),
+      boardModel(withFacedownHeld(game, facedown), shownSeat(state)!, POOL_DEPS),
     );
     this.#heldModelCache = { base: live, game, key, model };
     return model;
@@ -2885,6 +3060,11 @@ export class BoardScene extends Phaser.Scene {
    */
   setVillainPhaseOpen(open: boolean): void {
     this.#controller.setReadOnly(open);
+    // The phase takes priority over an open log (issue #550); its own Log button is the way back to it.
+    if (open && this.#logOpen) {
+      this.#shutLog();
+      this.#draw();
+    }
   }
 
   /**
@@ -2900,7 +3080,9 @@ export class BoardScene extends Phaser.Scene {
     const play = layout.zones.playArea;
     const top = play ? play.y : chrome ? chrome.y + chrome.height : viewport.y;
     const bottom = play ? play.y + play.height : (layout.zones.hand?.y ?? viewport.y + viewport.height);
-    const rect = reviewHandleRect(viewport, top, bottom);
+    // Beside the docked log, not under it: the handle keeps to the table's own right edge.
+    const docked = this.#logRect && !layout.tabbed ? { ...viewport, width: this.#logRect.x } : viewport;
+    const rect = reviewHandleRect(docked, top, bottom);
     const g = this.add.graphics().setDepth(HANDLE_DEPTH);
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width, rect.height - 2);
@@ -2944,6 +3126,8 @@ export class BoardScene extends Phaser.Scene {
   #reviewHandleShown(): boolean {
     const game = appSession().store.state.game ?? null;
     if (!showReviewHandle(appSession().villainReview, game) || this.#choiceOpen) return false;
+    // The log over the tab area has the screen; the handle comes back with the table.
+    if (this.#logOpen && this.#layout?.tabbed) return false;
     return !this.scene.isActive(SCENES.villainPhase) && !this.scene.isActive(SCENES.inspect);
   }
 
@@ -2972,6 +3156,10 @@ export class BoardScene extends Phaser.Scene {
    * already has (clear that tab's badge, then a full redraw so the newly-active tab's zones actually appear) but
    * from outside a pointer event, where `#drawTabs` keeps its handler private. A no-op already on `tab`. */
   switchToTab(tab: PhoneTab): void {
+    if (this.#logOpen) {
+      this.#shutLog();
+      if (this.#activeTab === tab) this.#draw();
+    }
     if (this.#activeTab === tab) return;
     this.#activeTab = tab;
     this.#tabBadges.delete(tab);
@@ -3046,6 +3234,11 @@ export class BoardScene extends Phaser.Scene {
    * like `guideStripContent` above. `null` off a guided run, same as `guideStripContent`. */
   inspectStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
     return this.#guide?.inspectStripContent() ?? null;
+  }
+
+  /** Where the guide's highlight is right now, for a sheet's stamp to glide in from (`BoardGuideMount.highlightRect`). */
+  guideHighlightRect(): Rect | null {
+    return this.#guide?.highlightRect() ?? null;
   }
 
   /** "Stop tutorial" from Pause (§3.10, G5c part 3): the same path the guide panel/callout's own Stop already

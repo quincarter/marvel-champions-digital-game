@@ -36,6 +36,11 @@ export const surface = {
   parchment: token(0xeae3d3),
   /** Anything liftable off the paper: cards, rows, stat tiles. */
   card: token(0xffffff),
+  /**
+   * Ink text or an ink icon on a hue (caution yellow, an aspect color): ink to the eye, but one step off `ink` so dark
+   * mode (`view/color-scheme.ts`), which turns ink text light, leaves it dark on its bright ground.
+   */
+  inkOnHue: token(0x14110f),
 } as const;
 
 /** Section 01 — the accent. Hero Red has exactly one job per screen. */
@@ -319,4 +324,10 @@ export const motion = {
   dockSlideOutMs: 260,
   /** One full screen giving way to the next (Title → Scenario, Setup → Board). */
   screenFadeMs: 200,
+  /** The guide's highlight gliding to its next target (`view/guide-glide.ts`). */
+  guideGlideMs: 360,
+  /** The highlight fading out, and in again, when its next target sits on top of the last one. */
+  guideFadeMs: 200,
+  /** The table left undimmed between that fade out and fade in, so the player sees what just happened. */
+  guideFadeHoldMs: 320,
 } as const;

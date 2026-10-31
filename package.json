@@ -1,6 +1,6 @@
 {
   "name": "marvel-champions-game",
-  "version": "0.38.1",
+  "version": "0.40.0",
   "private": true,
   "homepage": "https://github.com/quincarter/marvel-champions-digital-game#readme",
   "bugs": {
@@ -25,6 +25,7 @@
     "build": "pnpm -r build",
     "test": "vitest run",
     "test:affected": "node scripts/test-affected.mjs",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "typecheck": "pnpm -r typecheck",
     "e2e": "pnpm --filter @mc/client e2e",
     "e2e:verify": "sh .githooks/e2e-gate.sh HEAD",
@@ -41,6 +42,8 @@
     "card-art": "uv run scripts/fetch_card_art.py",
     "card-art:compress": "uv run scripts/fetch_card_art.py compress",
     "card-art:localize": "uv run scripts/fetch_card_art.py localize",
+    "assets:fetch": "node scripts/assets-fetch.mjs",
+    "assets:pack": "node scripts/assets-pack.mjs",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "node scripts/clean.mjs",
     "refs": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false refs-report",

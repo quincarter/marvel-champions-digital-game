@@ -13,7 +13,8 @@
  * How it is recorded. Nothing is stamped on a card or an event until the rule has something to say: the moment a card
  * moves from out of play into play (`relocateCard`), every condition that has already occurred and whose response
  * window is still to open, or is open now, gets that card's id appended (`noteEnteredPlay`). The list travels with the
- * event wherever it waits (its event frame, a list of deferred, joined or held conditions, an open window), and
+ * event wherever it waits (its event frame, a list of deferred, joined or held conditions, a sentence's held windows
+ * (`heldSentenceResponses`, `sentenceResponses`), an open window), and
  * appears on the event in the log's `resolved` line and in the state, so a trace shows why a card in play was not
  * offered a response. `resolve/triggers.ts` reads it for the Response timing only.
  *
@@ -132,6 +133,9 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
     return { ...event, enteredPlaySince: [...(event.enteredPlaySince ?? []), id] };
   };
   const markAll = (events: readonly TriggerEvent[]): readonly TriggerEvent[] => events.map(mark);
+  /** A sentence's held windows, one entry per occurrence (`resolve/sentence-hold.ts`). */
+  const markHeld = (held: readonly (readonly TriggerEvent[])[]): readonly (readonly TriggerEvent[])[] =>
+    held.map(markAll);
 
   const stack = state.stack.map((frame): StackFrame => {
     switch (frame.kind) {
@@ -147,6 +151,7 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
           frame.joinedResponses !== undefined ||
           frame.announceAfter !== undefined ||
           frame.keywordsIgnored !== undefined ||
+          frame.sentenceResponses !== undefined ||
           (held !== undefined && held.length > 0);
         if (!occurred && !lists) return frame;
         return {
@@ -158,6 +163,7 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
           ...(frame.joinedResponses !== undefined ? { joinedResponses: markAll(frame.joinedResponses) } : {}),
           ...(frame.announceAfter !== undefined ? { announceAfter: markAll(frame.announceAfter) } : {}),
           ...(frame.keywordsIgnored !== undefined ? { keywordsIgnored: markAll(frame.keywordsIgnored) } : {}),
+          ...(frame.sentenceResponses !== undefined ? { sentenceResponses: markHeld(frame.sentenceResponses) } : {}),
         };
       }
       case "window": {
@@ -189,16 +195,43 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
           session.instances.some((instance) => instance.schemeInstanceId === id) &&
           !session.enteredPlaySince?.includes(id);
         if (thwarted) changed = true;
-        const marked: typeof frame = thwarted
+        const sessionMarked: typeof frame = thwarted
           ? { ...frame, thwart: { ...session, enteredPlaySince: [...(session.enteredPlaySince ?? []), id] } }
           : frame;
+        // The windows a sentence (or a "(thwart)" ability's root, for its thwart) holds: occurred, still to open.
+        const marked: typeof frame =
+          sessionMarked.heldSentenceResponses !== undefined
+            ? { ...sessionMarked, heldSentenceResponses: markHeld(sessionMarked.heldSentenceResponses) }
+            : sessionMarked;
         // Characters defeated together (`resolve/defeated-together.ts`): each defeat that has happened.
-        const step = marked.effects[marked.cursor];
-        if (step?.kind !== "defeatedTogether" || step.stage === "apply") return marked;
+        // The responses an "each time" loop holds (`heldLoopFrames`, `resolve/initiated-activation.ts`) for events that
+        // have occurred: an announcement held whole, or a split frame whose event has applied (`heldOccurred`).
+        const loop = marked.heldLoopFrames;
+        // A minion whose split frame has not applied yet: nothing held for it has occurred, its whole-held announcements
+        // (its engagement) included.
+        const pending = new Set(
+          (loop?.after ?? []).flatMap((f) =>
+            f.kind === "event" && f.responsesFor !== undefined && f.heldOccurred !== true
+              ? eventSubjects(f.event).targets
+              : [],
+          ),
+        );
+        const after = loop?.after.map((f): StackFrame => {
+          if (f.kind !== "event" || (f.responsesFor !== undefined && f.heldOccurred !== true)) return f;
+          if (f.responsesFor === undefined && eventSubjects(f.event).targets.some((t) => pending.has(t))) return f;
+          const event = mark(f.event);
+          return event === f.event ? f : { ...f, event };
+        });
+        const held: typeof frame =
+          loop && after && after.some((f, i) => f !== loop.after[i])
+            ? { ...marked, heldLoopFrames: { ...loop, after } }
+            : marked;
+        const step = held.effects[held.cursor];
+        if (step?.kind !== "defeatedTogether" || step.stage === "apply") return held;
         const members = step.members.map((member) =>
           member.defeated && !member.cancelled ? { ...member, event: mark(member.event) } : member,
         );
-        return { ...marked, effects: marked.effects.map((e, i) => (i === marked.cursor ? { ...step, members } : e)) };
+        return { ...held, effects: held.effects.map((e, i) => (i === held.cursor ? { ...step, members } : e)) };
       }
       default:
         return frame;

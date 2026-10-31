@@ -44,6 +44,11 @@ A client can label these, for example "Choosing for the villain: Genetically Enh
 | "Choose to either …" / "choose and discard …" on an encounter card                                                       | the resolving player                             | player             | RRG "Choose"                     |
 | Optional abilities on encounter cards (Hero Actions, responses)                                                          | the first player is offered them                 | player             | unchanged Phase 1 simplification |
 
+In multiplayer, the "you" of RRG 1.8 "Activation" (p. 6: "If multiple activations are initiated this way, the first player
+decides the order") and of other encounter wording means the player controlling the effect, not the host of the table.
+The single-player, multi-seat engine asks the first player for now (`orderEnemies`); revisit this row when multiplayer
+is built (owner note, 2026-10-28, #410).
+
 ## Behavior changes
 
 - **Attachment host ties** (Genetically Enhanced, Biomechanical Upgrades, any `anyCharacter`/`hero`/… host with several candidates): the first player picks, not the revealing player.

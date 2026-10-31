@@ -18,6 +18,8 @@ describe("settingsSectionsOf", () => {
       "music-volume",
       "effects-volume",
       "token-motion",
+      "deck-signature",
+      "deck-copy-limits",
       "villain-auto",
       "villain-hold",
       "villain-flip",
@@ -26,6 +28,7 @@ describe("settingsSectionsOf", () => {
       "villain-dock",
       "unlocks",
       "save-data",
+      "stats",
       "controls",
       "rules",
       "achievement-popup-time",
@@ -36,9 +39,10 @@ describe("settingsSectionsOf", () => {
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Earned items", () => {
+  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
+      "Cards left",
       "Villain phase",
       "Cards",
       "Animation and display",
@@ -116,7 +120,11 @@ describe("settingsTabsOf", () => {
 
   test("Villain phase sits on the Gameplay tab, and Sound has a tab of its own (#243)", () => {
     const tabs = settingsTabsOf({ guideRowIds, cardHover: true });
-    expect(tabs.find((t) => t.id === "gameplay")!.sections.map((s) => s.id)).toEqual(["gameplay", "villain"]);
+    expect(tabs.find((t) => t.id === "gameplay")!.sections.map((s) => s.id)).toEqual([
+      "gameplay",
+      "cards-left",
+      "villain",
+    ]);
     expect(tabs.find((t) => t.id === "display")!.sections.map((s) => s.id)).toEqual(["motion"]);
     expect(tabs.find((t) => t.id === "sound")!.sections.map((s) => s.id)).toEqual(["sound"]);
   });
@@ -145,8 +153,8 @@ describe("the desktop app's Window section", () => {
       (s) => s.id === "motion",
     )!.items;
     expect(withCouch[0]).toBe("couch-mode");
-    expect(motion(true)).toEqual(["power-saving", "reduced-motion", "token-motion", "sharper-text"]);
-    expect(motion(false)).toEqual(["reduced-motion", "token-motion", "sharper-text"]);
+    expect(motion(true)).toEqual(["power-saving", "dark-mode", "reduced-motion", "token-motion", "sharper-text"]);
+    expect(motion(false)).toEqual(["dark-mode", "reduced-motion", "token-motion", "sharper-text"]);
   });
 
   test("the web and the phone apps don't show it", () => {

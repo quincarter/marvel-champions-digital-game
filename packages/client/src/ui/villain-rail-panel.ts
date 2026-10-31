@@ -167,6 +167,8 @@ export interface RailPanelArgs {
   readonly hintSecondary?: (button: McButton, stop: string) => void;
   readonly onSkip: () => void;
   readonly onHide: () => void;
+  /** The game log in this panel, and back (issue #550); null while a lesson keeps the log locked. */
+  readonly onLog: (() => void) | null;
   readonly onToggle: () => void;
   readonly onInspect: (instanceId: InstanceId) => void;
 }
@@ -224,6 +226,7 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
   const takesBack = args.gate?.kind === "start" && args.gate.onNevermind !== undefined;
   button("skip", "Skip", layout.skip, args.onSkip, takesBack ? null : "cancel");
   button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide, "peek");
+  if (args.onLog && layout.logButton.width > 0) button("log", "Log", layout.logButton, args.onLog, "log");
 
   if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
 
@@ -478,7 +481,10 @@ function tag(scene: Phaser.Scene, x: number, y: number, text: string, filled: bo
       x + 8,
       y + 3,
       text.toUpperCase(),
-      textStyle({ ...typeRole.label, size: 10 }, filled ? surface.ink.hex : color),
+      textStyle(
+        { ...typeRole.label, size: 10 },
+        filled ? (color === surface.paper.hex ? surface.ink.hex : surface.inkOnHue.hex) : color,
+      ),
     )
     .setOrigin(0, 0);
   const width = t.width + 16;
@@ -1162,7 +1168,7 @@ function drawFooter(
 function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvance): void {
   const x = rect.x;
   label(scene, x, rect.y + 6, "Auto-advance", { ...typeRole.label, size: 12 }, surface.paper.hex, ink.body);
-  label(
+  const line = label(
     scene,
     x,
     rect.y + 26,
@@ -1171,6 +1177,7 @@ function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvanc
     surface.paper.hex,
     ink.secondary,
   );
+  fitText(line, rect.width, 12);
 }
 
 /** AUTO-ADVANCE OFF | ON, the side in force filled in paper. */

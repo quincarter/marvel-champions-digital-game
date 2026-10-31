@@ -617,6 +617,14 @@ export type AbilityTriggerSpec =
       readonly costModifiers?: readonly CostModifierSpec[];
       /** "You can only spend [physical] resources to pay for this card." (Crushing Blow). Read from the card being paid for. */
       readonly paymentOnly?: readonly TypedResource[];
+      /**
+       * Read from the card being paid for: a card whose text has you overpay for its cost when you play it ("for each
+       * resource you overpaid for Ant-Man's cost"). Nothing spent on it is "paying for" it, so a `whilePayingFor`
+       * multiplier does not apply to its payment (FFG ruling Sep 21, 2023, post-RRG 1.5 #87: "The Power Of cards will
+       * only generate one resource for these allies"; RRG 1.8 "Cost", p. 13: overpaid resources "were not paid for
+       * that cost").
+       */
+      readonly overpaidWhenPlayed?: true;
       /** "Spend this card only in hero form." (Limitless Strength). Read from a hand card when it is spent. */
       readonly spendableIn?: Form;
       /**

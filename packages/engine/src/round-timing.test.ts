@@ -7,7 +7,7 @@
  * villain phase ends").
  *
  * Sources: RRG 1.8 "Round Overview" (p. 4), "End of Player Phase" (p. 18), "Villain Phase" (p. 47) steps 1 and 6,
- * "Delayed Effect" (p. 15), "Lasting Effects" (p. 26).
+ * "Delayed Effect" (p. 16), "Lasting Effects" (p. 26).
  */
 
 import { type AnyCard, type CardId } from "@mc/content";

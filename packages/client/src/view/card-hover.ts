@@ -218,6 +218,14 @@ export const HOVER_BASE_LONG_SIDE = 168;
 export const HOVER_MIN_GROWTH = 1.5;
 
 /**
+ * The card drawn in a row or wide panel, `artWidth` across, for `hoverCardSize`: the row's own rect is far wider than the
+ * card. A row with no card drawn in it has nothing to grow from, and its 1px square keeps a shape while the scan loads.
+ */
+export function cardRectInRow(row: Rect, artWidth: number): Rect {
+  return artWidth > 0 ? { ...row, width: artWidth, height: row.height - 6 } : { ...row, width: 1, height: 1 };
+}
+
+/**
  * The popover card's size: a card whose long side is `HOVER_BASE_LONG_SIDE` times the setting, or `HOVER_MIN_GROWTH`
  * times the long side it is drawn at when that is larger, in the scan's shape (a sideways scheme's long side is its
  * width), never larger than the area less its margins. `aspect` is the scan's width over height; without one the

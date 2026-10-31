@@ -131,7 +131,7 @@ export interface CampaignTileOptions {
 const TILE_CHIP_COLOR: Readonly<Record<CampaignTileStatus, { readonly fill: number | null; readonly text: number }>> = {
   done: { fill: signal.heal.hex, text: surface.paper.hex },
   live: { fill: accent.heroRed.hex, text: surface.paper.hex },
-  fresh: { fill: signal.caution.hex, text: surface.ink.hex },
+  fresh: { fill: signal.caution.hex, text: surface.inkOnHue.hex },
   sealed: { fill: null, text: surface.paper.hex },
 };
 

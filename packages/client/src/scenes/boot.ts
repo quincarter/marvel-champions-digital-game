@@ -54,6 +54,8 @@ export class BootScene extends Phaser.Scene {
         this.scene.launch(SCENES.musicButton);
         // The card language button (#337), beside that.
         this.scene.launch(SCENES.languageButton);
+        // The dark mode toggle (#459), at the top of every screen.
+        this.scene.launch(SCENES.themeButton);
         // The power saving notice (`scenes/power-saving-notice.ts`), hidden until the mode turns on or off.
         this.scene.launch(SCENES.powerSavingNotice);
         // The "Achievement unlocked" popup (`scenes/achievement-toast.ts`), hidden until one is earned.

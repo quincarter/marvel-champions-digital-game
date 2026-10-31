@@ -151,12 +151,15 @@ const of = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) 
 const heroId = (state: GameState) => mustPlayer(state, P1).identity.instanceId;
 
 describe("§3.25 an attachment with no 'attach to' finds its host from its own When Revealed", () => {
-  it("two cards are discarded, the minion is revealed in full (its quickstrike attack at its own ATK), then the card attaches", () => {
+  // "Reveal that minion and attach … to it": the attach resolves with the reveal ("And", RRG 1.8 p. 7), and the
+  // minion's quickstrike attack, initiated in its reveal, resolves its steps after it (FFG ruling January 11, 2024 -
+  // Ruling 137; RRG 1.8 "Reveal", p. 38). This corrects the "As read" of docs/phase7-wave8.md §3.25 (attack first, ATK 1).
+  it("two cards are discarded, the minion is revealed, the card attaches, then its quickstrike attack resolves at ATK 1 + 1", () => {
     const start = game(BLANK.id, HARNESS.id, BLANK.id, PLOT.id, RAPTOR.id, BLANK.id, BLANK.id);
     const harness = find(start, HARNESS.id);
     const raptor = find(start, RAPTOR.id);
     const plot = find(start, PLOT.id);
-    // What the card is while the minion it found attacks, read at that attack's defender prompt.
+    // What the card is while the minion it found attacks, read at that attack's defender prompt: attached by then.
     const seen: { faceup: boolean; attachedTo: InstanceId | null; zone: string | undefined; inPlay: boolean }[] = [];
     const watching = (state: GameState) => {
       const prompt = state.pendingChoice?.prompt;
@@ -174,18 +177,17 @@ describe("§3.25 an attachment with no 'attach to' finds its host from its own W
     const run = runCommandsPicking(start, deps, watching, endTurn);
     const state = run.state;
 
-    // Faceup in front of the revealing player, out of play and on nothing, while its When Revealed resolves.
-    expect(seen).toEqual([{ faceup: true, attachedTo: null, zone: "dealtEncounter", inPlay: false }]);
+    expect(seen).toEqual([{ faceup: true, attachedTo: raptor, zone: "attachment", inPlay: true }]);
     // The treachery and the side scheme above the minion were discarded, not revealed.
     expect(activeEncounterDeck(state).discard).toContain(plot);
     expect(cardsInPlay(state)).not.toContain(plot);
     expect(of(run.events, "encounterCardRevealed").map((e) => e.instanceId)).toEqual([harness, raptor]);
-    // The minion engaged and its quickstrike attack resolved before the card attached: ATK 1, not 1 + 1.
+    // The minion engaged; the card attached before its quickstrike attack's steps resolved: ATK 1 + 1.
     expect(mustInstance(state, raptor).engagedWith).toBe(P1);
     const attacks = of(run.events, "attackResolved").filter((e) => e.enemyInstanceId === raptor);
-    expect(attacks).toMatchObject([{ baseAtk: 1, damageDealt: 1 }]);
-    expect(mustInstance(state, heroId(state)).damage).toBe(1);
-    // Then it attached: +2 hit points and guard from its text, +1 ATK and +1 SCH from its stat box.
+    expect(attacks).toMatchObject([{ baseAtk: 2, damageDealt: 2 }]);
+    expect(mustInstance(state, heroId(state)).damage).toBe(2);
+    // It attached: +2 hit points and guard from its text, +1 ATK and +1 SCH from its stat box.
     expect(mustInstance(state, harness).attachedTo).toBe(raptor);
     expect(cardsInPlay(state)).toContain(harness);
     expect(maxHitPoints(state, raptor, deps)).toBe(5);
@@ -201,7 +203,7 @@ describe("§3.25 an attachment with no 'attach to' finds its host from its own W
         ? [{ type: e.type, at }]
         : [],
     );
-    expect(order.map((e) => e.type)).toEqual(["attackResolved", "cardMoved"]);
+    expect(order.map((e) => e.type)).toEqual(["cardMoved", "attackResolved"]);
     const replayed = replay(run.session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(state);

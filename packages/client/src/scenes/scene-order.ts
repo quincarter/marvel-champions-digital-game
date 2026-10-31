@@ -63,10 +63,13 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.rules,
   SCENES.settings,
   SCENES.controls,
+  // Above Settings and Pause: Your stats opens over either as an overlay (and as a screen of its own elsewhere).
+  SCENES.playerStats,
   SCENES.unlocks,
   SCENES.unlockConfirm,
   SCENES.nameConflict,
   SCENES.heroDecks,
+  SCENES.searchHelp,
   SCENES.saveData,
   SCENES.syncData,
   SCENES.endTurnConfirm,
@@ -80,16 +83,22 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
   SCENES.extrasViewer,
   SCENES.music,
+  // The dark mode toggle (#459): above every screen, below the notices and popups that drop over the top bar.
+  SCENES.themeButton,
   // Above every screen and overlay, below the chrome that takes input.
   SCENES.powerSavingNotice,
   // Device sync's prompt over everything but the music and report chrome, and the watcher that opens it.
   SCENES.syncSetupPrompt,
+  SCENES.globalStatsPrompt,
   // The achievement popup draws above the setup question (it takes no input; a stack's own tap target is its own).
   SCENES.achievementToast,
   // The controller toast: a notice with one button, over everything but the sync prompts and the chrome.
   SCENES.padToast,
+  // The stats backfill toast: the same kind of notice, at the bottom.
+  SCENES.backfillToast,
   SCENES.syncConflict,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,
@@ -108,6 +117,7 @@ export const EAGER_SCENES: readonly string[] = [
   SCENES.boot,
   SCENES.title,
   SCENES.music,
+  SCENES.themeButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
   SCENES.languagePopup,
@@ -149,6 +159,7 @@ const BOARD_SHEETS = [
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.pileView,
+  SCENES.deckLeft,
 ];
 
 /**
@@ -180,6 +191,7 @@ export const COMPANIONS: Readonly<Record<string, readonly string[]>> = {
   [SCENES.setupDeal]: [SCENES.choice, SCENES.inspect],
   [SCENES.setup]: [SCENES.setCards, SCENES.inspect, SCENES.nameConflict],
   [SCENES.seats]: [SCENES.setCards, SCENES.inspect, SCENES.nameConflict, SCENES.heroDecks],
+  [SCENES.deckBuilder]: [SCENES.searchHelp],
   [SCENES.nameConflict]: [SCENES.inspect],
   [SCENES.villainPhase]: [SCENES.choice, SCENES.inspect, SCENES.pause],
   [SCENES.choice]: [SCENES.inspect],

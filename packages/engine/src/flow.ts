@@ -17,6 +17,7 @@ import {
 import {
   drawCards,
   drawUpTo,
+  releaseRefillEncounterCards,
   endLastingEffect,
   expireLastingEffects,
   expirePlayerTurnEffects,
@@ -184,7 +185,7 @@ function executeStep(ctx: Ctx): void {
     case "endPhaseDiscard":
       return executeEndPhaseDiscard(ctx, step.remainingPlayerIds);
     case "endPhaseDraw":
-      return executeEndPhaseDraw(ctx);
+      return executeEndPhaseDraw(ctx, step);
     case "endPhaseReady":
       return executeEndPhaseReady(ctx, step.readied === true);
     // Villain phase steps one to five live in villain/phase.ts.
@@ -452,7 +453,7 @@ function pushIfHeard(ctx: Ctx, event: TriggerEvent): boolean {
 /**
  * The apply step of `phaseEnding` (docs/phase7-wave3.md §3.2): the "at the end of the phase" delayed effects, and at the
  * villain phase's end, which is the round's, or at the round's end alone when its villain phase was skipped
- * (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7), the "at the end of the round" ones too. RRG 1.8 "Delayed Effect" (p. 15):
+ * (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7), the "at the end of the round" ones too. RRG 1.8 "Delayed Effect" (p. 16):
  * they resolve "immediately after their specified timing point [...] and before responses to that point".
  */
 export function pushPhaseEndDelayed(ctx: Ctx, phase: "player" | "villain" | "round"): void {
@@ -601,15 +602,40 @@ export function afterDiscardChoice(ctx: Ctx, playerId: PlayerId): void {
   setStep(ctx, { phase: "player", kind: "endPhaseDiscard", remainingPlayerIds: rest });
 }
 
-function executeEndPhaseDraw(ctx: Ctx): void {
-  for (const player of playerOrder(ctx.state)) {
+/**
+ * RRG 1.8 "End of Player Phase" (p. 18) step 2: "Each player simultaneously draws up to their hand size". When two or
+ * more effects would resolve simultaneously the first player decides their order ("First Player", p. 19), and player
+ * order is the engine's default, so the refill runs player by player. A refill that stops early so a drawn card's ability
+ * can resolve (`drawUpTo`; RRG 1.8 "Hand Size", p. 21; ruling Aug 14, 2025) leaves the step on that player, with
+ * the cards drawn so far, and the flow runs it again once the stack is empty: that player finishes before the next
+ * draws, and `handRefilled` counts every card of the refill.
+ */
+/** The end-of-phase refill of `playerId` (`RefillHeldEncounterCard.refill`). */
+const endPhaseRefill = (playerId: PlayerId): string => `endPhase:${playerId}`;
+
+function executeEndPhaseDraw(ctx: Ctx, step: Extract<GameStep, { kind: "endPhaseDraw" }>): void {
+  const resumed = step.remainingPlayerIds;
+  const order = resumed ?? playerOrder(ctx.state).map((player) => player.playerId);
+  let drawnSoFar = step.drawn ?? 0;
+  for (const [index, playerId] of order.entries()) {
+    if (resumed && getPlayer(ctx.state, playerId)?.eliminated !== false) {
+      // Eliminated while its refill waited: nothing more is drawn, and what it held is dealt.
+      releaseRefillEncounterCards(ctx, endPhaseRefill(playerId));
+      drawnSoFar = 0;
+      continue;
+    }
     const before = ctx.events.length;
-    drawUpTo(ctx, player.playerId, () => handSize(ctx.state, player.playerId, ctx.deps));
-    const drawn = ctx.events
-      .slice(before)
-      .filter((event) => event.type === "cardDrawn" && event.playerId === player.playerId).length;
-    const size = handSize(ctx.state, player.playerId, ctx.deps);
-    emit(ctx, { type: "handRefilled", playerId: player.playerId, drawn, handSize: size });
+    const finished = drawUpTo(ctx, playerId, () => handSize(ctx.state, playerId, ctx.deps), endPhaseRefill(playerId));
+    const drawn =
+      drawnSoFar +
+      ctx.events.slice(before).filter((event) => event.type === "cardDrawn" && event.playerId === playerId).length;
+    if (!finished) {
+      setStep(ctx, { phase: "player", kind: "endPhaseDraw", remainingPlayerIds: order.slice(index), drawn });
+      return;
+    }
+    drawnSoFar = 0;
+    const size = handSize(ctx.state, playerId, ctx.deps);
+    emit(ctx, { type: "handRefilled", playerId, drawn, handSize: size });
   }
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }

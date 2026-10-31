@@ -1,0 +1,28 @@
+# Fetches the media bundles (card art, music, art) that live on the content repo's releases instead of in git
+# (issue #495; scripts/assets-fetch.mjs). The downloaded zips are cached by the manifest's hash, so a run whose
+# manifest hasn't changed downloads nothing. A changed manifest restores the last cache for the same selection and
+# downloads only the bundles that changed; `--prune` drops the zips the manifest no longer names before the save.
+# Needs the checkout and Node first.
+name: Fetch media assets
+description: Download, verify and unpack the media bundles assets/manifest.json names.
+inputs:
+  bundles:
+    description: Bundle and group names for pnpm assets:fetch (e.g. "card-art music art"); "all" is every media bundle.
+    default: all
+runs:
+  using: composite
+  steps:
+    - name: Cache the media bundles
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/mc-assets/zips
+        key: mc-assets-${{ runner.os }}-${{ inputs.bundles }}-${{ hashFiles('assets/manifest.json') }}
+        restore-keys: mc-assets-${{ runner.os }}-${{ inputs.bundles }}-
+    - name: Fetch the media bundles
+      shell: bash
+      env:
+        # In the runner's temp folder: the same disk as the checkout, so the files are hard-linked, not copied.
+        MC_ASSETS_CACHE: ${{ runner.temp }}/mc-assets
+        BUNDLES: ${{ inputs.bundles }}
+      # $BUNDLES is split into words on purpose.
+      run: node scripts/assets-fetch.mjs --prune $BUNDLES

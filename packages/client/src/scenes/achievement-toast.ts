@@ -25,6 +25,7 @@ import { appSession } from "../session.js";
 import { achievementPopupHoldMs, achievementPopupScale } from "../settings.js";
 import { ACHIEVEMENTS } from "../progression/achievements.js";
 import { earnedAchievementIds, refreshUnlocks } from "../progression/progression.js";
+import { backfillProgress } from "../progression/stats-backfill.js";
 import { onGuidePrefsChange } from "../guide/guide-store.js";
 import { achievementsSeen, rememberAchievementsSeen } from "../platform/achievements-seen.js";
 import {
@@ -209,6 +210,8 @@ export class AchievementToastScene extends Phaser.Scene {
   }
 
   #check(): void {
+    // Older games being filled in (#529) earn quietly: what they unlock is announced together when it ends.
+    if (backfillProgress().running) return;
     const earned = earnedAchievementIds();
     if (earned === null) return;
     const seen = achievementsSeen();
@@ -319,9 +322,10 @@ export class AchievementToastScene extends Phaser.Scene {
     const radius = badge.r * badgeScale;
     if (radius > 0.5) {
       g.fillStyle(signal.caution.hex, alpha).fillCircle(badge.cx, badge.cy, radius);
-      g.lineStyle(3, surface.ink.hex, alpha).strokeCircle(badge.cx, badge.cy, radius - 1.5);
-      if (showing.toast.badge === "trophy") drawTrophy(g, badge.cx, badge.cy, radius, surface.ink.hex, alpha);
-      else if (showing.toast.badge === "music") drawMusicIcon(g, badge.cx, badge.cy, radius * 1.1, surface.ink.hex);
+      g.lineStyle(3, surface.inkOnHue.hex, alpha).strokeCircle(badge.cx, badge.cy, radius - 1.5);
+      if (showing.toast.badge === "trophy") drawTrophy(g, badge.cx, badge.cy, radius, surface.inkOnHue.hex, alpha);
+      else if (showing.toast.badge === "music")
+        drawMusicIcon(g, badge.cx, badge.cy, radius * 1.1, surface.inkOnHue.hex);
       else
         g.fillStyle(surface.ink.hex, alpha).fillPoints(
           starPoints(badge.cx, badge.cy, radius * 0.62, radius * 0.27),

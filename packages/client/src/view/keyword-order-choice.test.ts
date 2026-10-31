@@ -86,6 +86,25 @@ describe("the keyword-order choice tiles", () => {
     expect(panel?.name).toBe("Hydra Bomber");
   });
 
+  test("orderLoopKeywords: each option reads as the keyword its label names, with its glossary line", () => {
+    // The engine's shape (`releaseLoopFrames`): options by index, labelled "<Keyword>: <minion>", each ref the minion.
+    const loop: PendingChoice = {
+      ...asked!.choice,
+      prompt: { kind: "orderLoopKeywords" },
+      options: [
+        { ...asked!.choice.options[0]!, optionId: "0", label: "Quickstrike: Hydra Bomber" },
+        { ...asked!.choice.options[1]!, optionId: "1", label: "Teamwork: Hydra Bomber" },
+      ],
+    };
+    const tiles = keywordOrderTilesOf(loop)!;
+    expect([...tiles.keys()]).toEqual(["0", "1"]);
+    // The keyword is the tile's name and the minion its own line; one minion's two keywords share that line.
+    expect([...tiles.values()].map((t) => t.name)).toEqual(["Quickstrike", "Teamwork"]);
+    expect([...tiles.values()].map((t) => t.subject)).toEqual(["Hydra Bomber", "Hydra Bomber"]);
+    expect(tiles.get("0")!.line).toBe(firstSentence(glossaryEntry("quickstrike")!.definition));
+    expect(tiles.get("1")!.line).toBe(firstSentence(glossaryEntry("teamwork")!.definition));
+  });
+
   test("any other choice has no tiles", () => {
     expect(keywordOrderTilesOf({ ...asked!.choice, prompt: { kind: "orderPlayers" } as never })).toBeNull();
   });

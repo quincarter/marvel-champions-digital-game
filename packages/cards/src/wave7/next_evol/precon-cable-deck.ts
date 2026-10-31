@@ -46,6 +46,7 @@ import {
   response,
   rule,
   self,
+  sentence,
   shuffleDeck,
   stateCheckFromEntering,
   takesConsequentialDamage,
@@ -142,7 +143,7 @@ const eachPlayerMaySearchFor = (found: ReturnType<typeof query>) =>
  *   upgrade), attached to him. An upgrade another player owns is then controlled by Deathlok's controller (RRG 1.8
  *   "Ownership and Control", p. 31). With no such upgrade the response is not offered.
  * - **Frenemies (40026)**: Team-Up is data. Hero Action (thwart): 1 damage each to Cable and Deadpool, then 3 threat
- *   from a scheme and 3 from a different one, both thwarts by the identity.
+ *   from a scheme and 3 from a different one, both thwarts by the identity, both schemes chosen first (simultaneous).
  * - **The Power of the Mind (40028)**: its [mental] counts double while paying for a PSIONIC card.
  * - **Psimitar (40029)**: Restricted is data. After you play another PSIONIC card, exhaust: 2 damage to an enemy, an
  *   attack (so Guard, Retaliate and Toughness apply).
@@ -238,10 +239,15 @@ export const NEXT_EVOL_PRECON_CABLE_DECK: AbilityRegistry = defineAbilities({
   "40026.frenemies-action": heroAction(
     { label: "thwart" },
     dealDamage(1, teamUpCharacters()),
+    // Both schemes are chosen before either removal: the two are simultaneous, so a crisis icon the first removal
+    // defeats still bars the main scheme from the second (ruling December 8, 2023 - Ruling 127 answer 2: "simultaneous,
+    // not consecutive"; RRG 1.8 "And" p. 7; Wasp FAQ p. 61). Answer 1: with two schemes you cannot remove from just one,
+    // so the second choice has no skip option. `sentence` holds the first removal's responses until the second has
+    // happened (a flat list would open a response window between them). It is not `divide`: each scheme loses 3, not a
+    // total of 3 shared out as chosen.
     chooseTarget("first", query("scheme")),
-    thwart(3, chosen("first")),
     chooseTarget("second", query("scheme", { excludeSlots: ["first"] })),
-    thwart(3, chosen("second")),
+    sentence(thwart(3, chosen("first")), thwart(3, chosen("second"))),
   ),
 
   "40028.the-power-of-the-mind-constant": constant(doublesResourcesWhilePayingFor({ trait: PSIONIC })),

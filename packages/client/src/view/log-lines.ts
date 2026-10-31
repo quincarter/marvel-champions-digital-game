@@ -34,6 +34,7 @@ import { abilityShortLabelOf } from "./ability-label.js";
 import { facedownRoleName, facedownUntilLater } from "./facedown-history.js";
 import { foeWord } from "./foe-words.js";
 import { unavailableOptionLines, unofferedReason } from "./ability-refusal.js";
+import { heroFaceNameAt } from "./hero-names.js";
 import { cardName, faceUpName, formWords, optionLabelOf, playerName, seatName } from "./names.js";
 
 /** A line that opens with a card named only as far as the table may see it ("a facedown card") starts with a capital. */
@@ -472,11 +473,22 @@ function describe(
       };
     case "turnStarted":
       return { text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} a turn.`, voice: "player" };
-    case "formChanged":
+    case "formChanged": {
+      // An identity with more than one hero face names the face it changed to ("You changed to Giant Ant-Man."), and
+      // a change between two hero faces is not a flip to hero form.
+      const seat = state.players.find((player) => player.playerId === event.playerId);
+      const identity = seat ? cardOf(state, seat.identity.instanceId) : undefined;
+      const face =
+        event.to === "hero" && identity?.type === "hero_identity" && (identity.additionalHeroForms ?? []).length > 0
+          ? heroFaceNameAt(identity, event.heroFormIndex ?? 0)
+          : null;
+      const moved = face !== null && event.fromHeroFormIndex != null ? "changed" : "flipped";
+      const done = event.byEffect ? verb(event.playerId, `were ${moved}`, `was ${moved}`) : moved;
       return {
-        text: `${who(event.playerId)} ${event.byEffect ? verb(event.playerId, "were flipped", "was flipped") : "flipped"} to ${event.to === "hero" ? "hero" : "alter-ego"} form.`,
+        text: `${who(event.playerId)} ${done} to ${face ?? (event.to === "hero" ? "hero form" : "alter-ego form")}.`,
         voice: "player",
       };
+    }
     case "cardPlayed":
       return {
         text: `${who(event.playerId)} played ${card(event.instanceId)}${event.resourcesPaid > 0 ? ` for ${event.resourcesPaid}` : ""}.`,
@@ -831,6 +843,7 @@ function describe(
       };
     // Bookkeeping: the attack's own damage line and its "after the attack" lines say everything a player reads.
     case "attackAwaitsAbility":
+    case "activationAwaitsAbility":
       return null;
     // An "(attack)" ability's damage instruction took over the attack its ability began (the attack takes its target
     // and amount now); the damage itself has its own line right after.

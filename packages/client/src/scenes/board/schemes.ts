@@ -7,6 +7,7 @@
  * keyboard focus brings a scheme into view), so a row is never drawn outside the panel.
  */
 
+import { cardRectInRow } from "../../view/card-hover.js";
 import { drawArt } from "../../art/card-art.js";
 import { countTween } from "../../ui/bound-tween.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
@@ -226,6 +227,7 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // dropped the main scheme's card on every narrower panel.
   // ...and the column widens with a taller row, so a grown row shows a bigger card, not the same 96px one.
   const artWidth = schemeArtWidth(rect, ctx.cardScale);
+  ctx.frame.hoverSizeRects.set(scheme.instanceId, cardRectInRow(rect, artWidth));
   if (artWidth > 0) {
     const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
     const frame = scene.add.graphics();

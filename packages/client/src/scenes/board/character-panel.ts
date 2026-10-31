@@ -7,6 +7,7 @@
  * panel, where the scan *is* the panel and the live numbers ride on top.
  */
 
+import { cardRectInRow } from "../../view/card-hover.js";
 import { footStripLayout, FOOT_STRIP_HEIGHT } from "../../view/foot-strip-layout.js";
 import { activeKeywordTag, inactiveKeywordNote, stripKeepsStats, tagCapacity } from "../../view/keyword-tags.js";
 import { countTween } from "../../ui/bound-tween.js";
@@ -172,6 +173,7 @@ export function drawCharacter(
     0,
     Math.round(Math.min(rect.width - PANEL_TEXT_MIN_WIDTH - PANEL_TEXT_INSETS, (rect.height - 6) * CARD_ASPECT)),
   );
+  ctx.frame.hoverSizeRects.set(panel.instanceId, cardRectInRow(rect, artWidth));
   const artColumn: Rect | null =
     artWidth > 0
       ? {
@@ -1023,9 +1025,9 @@ function drawExhaustedBadge(scene: Phaser.Scene, x: number, y: number, maxWidth:
 
 /** Lettering on each status hue, as the design's token cards set it: ink on the light two, paper on violet. */
 const STATUS_TEXT: Record<CharacterPanel["statuses"][number]["status"], number> = {
-  stunned: surface.ink.hex,
+  stunned: surface.inkOnHue.hex,
   confused: surface.paper.hex,
-  tough: surface.ink.hex,
+  tough: surface.inkOnHue.hex,
 };
 
 /** A real status pip/tag, plus the ghosts of any just-removed ones not already among the real ones — the shared list both `drawStatusPips` and `drawStatusTags` lay out. */
@@ -1067,7 +1069,7 @@ function drawStatusPips(ctx: BoardDrawContext, rect: Rect, panel: CharacterPanel
     const firstDrawn = scene.children.list.length;
     const pg = scene.add.graphics();
     pg.fillStyle(statusTokens[status].hex, dim).fillRect(pip.x, pip.y, pip.width, pip.height);
-    pg.lineStyle(2.5, surface.ink.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
+    pg.lineStyle(2.5, surface.inkOnHue.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
     scene.add
       .text(pip.x + pip.width / 2, pip.y + pip.height / 2, status.charAt(0).toUpperCase(), {
         ...textStyle(typeRole.statSmall, STATUS_TEXT[status], dim),

@@ -371,7 +371,7 @@ export class HowToPlayScene extends Phaser.Scene {
         )
         .setOrigin(1, 0.5);
     } else if (lesson.recommended) {
-      const stampLabel = this.add.text(0, 0, "NEXT", textStyle(STAMP_TYPE, surface.ink.hex)).setVisible(false);
+      const stampLabel = this.add.text(0, 0, "NEXT", textStyle(STAMP_TYPE, surface.inkOnHue.hex)).setVisible(false);
       const stampWidth = stampLabel.width + 16;
       const stampHeight = 20;
       const sx = rect.x + rect.width - stampWidth - 12;

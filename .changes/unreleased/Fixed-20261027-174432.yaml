@@ -1,3 +1,0 @@
-kind: Fixed
-body: The Windows Install for Steam script now ships as a .cmd you double-click, so it runs after downloading with no execution policy change (#474)
-time: 2026-10-27T17:44:32.1390134-04:00

@@ -75,6 +75,9 @@ import {
 } from "../../view/environment-layout.js";
 import { POOL_DEPS } from "../../content/pool.js";
 import { otherSeatAbilityCards, type OtherSeatAbilityCard } from "../../view/other-seat-abilities.js";
+import { seatPeekSlot } from "../../view/seat-peek.js";
+import { pickGlyphSpecs } from "../../view/input-glyph-model.js";
+import { glyphsFitLayout } from "../../view/glyph-placement.js";
 import { seatLineOffsets, teamLayout, type TeamLayout } from "../../view/team-layout.js";
 import {
   encounterPileSlots,
@@ -85,7 +88,7 @@ import {
 } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
-import { drawPile } from "./piles.js";
+import { drawDeckLeftGlyph, drawPile } from "./piles.js";
 import { drawDealtPile } from "./dealt-pile.js";
 import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
@@ -1044,7 +1047,13 @@ export function drawEncounter(
 ): void {
   const { scene } = ctx;
   type Pile = {
-    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
+    readonly kind:
+      | "encounterDeck"
+      | "encounterDiscard"
+      | "scenarioArea"
+      | "scenarioDeck"
+      | "scenarioDiscard"
+      | "victoryDisplay";
     readonly name: string;
     readonly count: number;
     /** What the count chip reads when it is not the bare count: a scenario area's "3/5" against its limit. */
@@ -1053,7 +1062,7 @@ export function drawEncounter(
     readonly instanceId: InstanceId | null;
     /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
     readonly siblings: readonly InstanceId[];
-    /** A discard pile that fans out on a tap (`ctx.openPile`) names itself here; absent, the tap opens the top card. */
+    /** A pile that fans out on a tap (`ctx.openPile`) names itself here; absent, the tap opens the top card. */
     readonly pileTitle?: string;
   };
   // The pile column is narrow (the same width "ENC DECK"/"DISCARD" are tuned for), so a scenario deck's own
@@ -1113,6 +1122,20 @@ export function drawEncounter(
       instanceId: area.instanceIds[0] ?? null,
       siblings: area.instanceIds,
     })),
+    // Most games never send a card here, so the pile only takes a slot from the column once one has.
+    ...(model.victoryDisplay.length > 0
+      ? [
+          {
+            kind: "victoryDisplay" as const,
+            name: "VICTORY",
+            count: model.victoryDisplay.length,
+            art: model.victoryDisplayTop,
+            instanceId: model.victoryDisplay[0]!,
+            siblings: model.victoryDisplay,
+            pileTitle: "Victory display",
+          },
+        ]
+      : []),
   ];
   // The set-aside footer (MojoMania's genre sets) is one line the board placed beside the column (`splitSetAside`);
   // the piles keep the column whole.
@@ -1122,8 +1145,10 @@ export function drawEncounter(
     const box: Rect = slots[index]!;
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
     // column. A scenario area or scenario deck is not a travel-animation anchor yet — no printed effect moves a
-    // card there with a motion this app plays — so only the two encounter piles register one.
-    if (kind === "encounterDeck" || kind === "encounterDiscard") ctx.frame.pileRects.set(pileKey(kind), box);
+    // card there with a motion this app plays — so only the two encounter piles and the victory display register one.
+    if (kind === "encounterDeck" || kind === "encounterDiscard" || kind === "victoryDisplay")
+      ctx.frame.pileRects.set(pileKey(kind), box);
+    if (kind === "victoryDisplay") ctx.frame.focusRects.set(focusKey({ kind: "victoryDisplay" }), box);
     const g = scene.add.graphics();
     paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
 
@@ -1214,19 +1239,27 @@ export function drawEncounter(
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
     // `faceVisible`; this box only had no tap target to reach that with. A scenario area opens every card it
     // holds, not only the top one — it's a shared, faceup zone, closer to the discard than to a deck.
+    const listsLeft = kind === "encounterDeck" && ctx.deckLeftTabs().includes("encounter");
+    if (listsLeft && ctx.deckLeftTabs()[0] === "encounter") drawDeckLeftGlyph(ctx, box);
     if (count > 0 && instanceId) {
       ctx.frame.hitRects.set(instanceId, box);
       const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
-      // A discard pile fans out; a hold still reads the top card.
+      // A discard pile or the victory display fans out; a hold still reads the top card.
       addTapTarget(scene, box, {
         onTap:
           kind === "encounterDiscard"
             ? () => ctx.openPile("Encounter discard", siblings)
-            : kind === "scenarioDiscard" && pileTitle
+            : pileTitle
               ? () => ctx.openPile(pileTitle, siblings)
-              : open,
+              : listsLeft
+                ? () => ctx.openDeckLeft("encounter")
+                : open,
         onInspect: open,
       });
+    } else if (listsLeft) {
+      // An empty deck can still have cards dealt facedown out of it.
+      const left = (): void => ctx.openDeckLeft("encounter");
+      addTapTarget(scene, box, { onTap: left, onInspect: left });
     }
   });
 }
@@ -1421,7 +1454,17 @@ export function drawPlayArea(
   // Fitted to the row once its width is known (a fanned-out form column leaves a phone's row narrow).
   const wideCaption = compact
     ? null
-    : label(scene, rect.x + 8, rect.y + 6, "your play area", typeRole.label, surface.ink.hex, ink.label);
+    : label(
+        scene,
+        rect.x + 8,
+        rect.y + 6,
+        // A looked-at teammate's side is not yours (`SessionState.peekSeat`); the bar names whose it is. The caption keeps
+        // its width: the RT layer marker sits right after it (`view/layer-marker.ts`).
+        appSession().store.state.peekSeat !== null ? "their play area" : "your play area",
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
 
   // A second deck the identity brings (Doctor Strange's Invocation deck) gets
   // its own column beside the play area, the way the encounter piles sit
@@ -1868,17 +1911,31 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     );
     const drawn = beside.row;
     ctx.frame.hitRects.set(seat.identityInstanceId, drawn);
+    // A seat holding an Action for this turn (RRG "Player Turn", pp. 34-35): a button takes the board to that seat.
+    const acts = !seat.eliminated && appSession().store.state.offTurnSeats.includes(seat.playerId);
+    // View: only from an idle table the board's own seat is on (a selection in progress, or acting off turn, keeps it).
+    const views =
+      !seat.eliminated &&
+      !ctx.actionsHeld &&
+      ctx.controller.selection.kind === "idle" &&
+      appSession().store.state.offTurnSeat === null;
+    // The row's text keeps clear of the chips at its right end, and of View's combo glyph left of it.
+    const chips = (acts ? 70 : 0) + (views ? 70 : 0);
+    const chipReserve = chips + (views && glyphsFitLayout(ctx.tabbed) ? 46 : 0);
     if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat, layout.rowStyle);
-    else drawLiveSeat(ctx, drawn, seat, layout.rowStyle);
+    else drawLiveSeat(ctx, drawn, seat, layout.rowStyle, chipReserve, chips);
     ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
     if (!seat.eliminated)
       drawDealtPile(ctx, drawn, "seat", seat.playerId, seat.dealtFacedown, layout.rowStyle === "one-line");
-    // A seat holding an Action for this turn (RRG "Player Turn", pp. 34-35): a button takes the board to that seat.
-    if (!seat.eliminated && appSession().store.state.offTurnSeats.includes(seat.playerId)) {
-      const oneLine = layout.rowStyle === "one-line";
-      const chip: Rect = oneLine
-        ? { x: drawn.x + drawn.width - 66, y: drawn.y + 1, width: 64, height: drawn.height - 2 }
-        : { x: drawn.x + drawn.width - 70, y: drawn.y + drawn.height - 28, width: 64, height: 24 };
+    const oneLine = layout.rowStyle === "one-line";
+    const chipAt = (fromRight: number): Rect =>
+      oneLine
+        ? { x: drawn.x + drawn.width - 66 - fromRight, y: drawn.y + 1, width: 64, height: drawn.height - 2 }
+        : { x: drawn.x + drawn.width - 70 - fromRight, y: drawn.y + drawn.height - 28, width: 64, height: 24 };
+    // One person plays every seat: View shows this seat's side of the table, hand and all, to read (`view/seat-peek.ts`).
+    if (views) drawSeatView(ctx, chipAt(acts ? 70 : 0), seat.playerId);
+    if (acts) {
+      const chip = chipAt(0);
       ctx.frame.buttons.push(
         new McButton(scene, {
           kind: "secondary",
@@ -1903,6 +1960,43 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       }
     }
   });
+}
+
+/**
+ * The team rail's View (or Back, on the row of the seat a peek left): it shows that seat's side of the table to read,
+ * and wears the seat's combo, LB + a face button by seat order, which presses it from the pad.
+ */
+function drawSeatView(ctx: BoardDrawContext, chip: Rect, playerId: PlayerId): void {
+  const { store } = appSession();
+  const game = store.state.game;
+  if (!game) return;
+  const home = store.state.peekSeat !== null && store.state.perspectiveId === playerId;
+  const look = (): void => {
+    if (home) store.endSeatPeek();
+    else store.peekAtSeat(playerId);
+  };
+  const button = new McButton(ctx.scene, {
+    kind: home ? "primary" : "secondary",
+    label: home ? "Back" : "View",
+    type: typeRole.label,
+    rect: chip,
+    onClick: look,
+  });
+  ctx.frame.buttons.push(button);
+  const slot = seatPeekSlot(game.players.findIndex((player) => player.playerId === playerId));
+  if (slot === null) return;
+  ctx.frame.seatViews.set(slot, look);
+  if (!glyphsFitLayout(ctx.tabbed)) return;
+  ctx.hints.custom(
+    // Under a hold layer the triggers mean other things, and a direct pick owns the combos while it is open.
+    (set, snapshot, layer, held) =>
+      set === "pad" && layer === null && ctx.controller.pickIds() === null
+        ? pickGlyphSpecs(slot, snapshot.state, snapshot.settings, held)
+        : null,
+    14,
+    ({ width, height }) => (chip.height < height ? null : { x: chip.x - width - 4, y: chip.y + chip.height / 2 }),
+    { ground: "ink" },
+  );
 }
 
 /** One chip per usable card, side by side under the seat's row: "▶ Plot Convenience". A tap opens it in Inspect. */
@@ -1931,7 +2025,19 @@ function drawSeatChips(ctx: BoardDrawContext, strip: Rect, cards: readonly Other
   });
 }
 
-function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle: TeamLayout["rowStyle"]): void {
+function drawLiveSeat(
+  ctx: BoardDrawContext,
+  row: Rect,
+  seat: SeatRow,
+  rowStyle: TeamLayout["rowStyle"],
+  /** Width the Act and View chips take at the row's right end, and View's combo glyph, which text on their lines keeps clear of. */
+  chipReserve = 0,
+  /**
+   * The chips alone: the yellow Team-Up blurb wraps to two short lines and keeps clear of only these, since View's
+   * glyph (shown only with a pad in hand) would leave it too narrow to read.
+   */
+  chipsOnly = chipReserve,
+): void {
   const { scene } = ctx;
   const rg = scene.add.graphics();
   paintPanel(rg, row, "card", targetState(ctx.controller.selection, seat.identityInstanceId));
@@ -1944,7 +2050,7 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
     // No room for a second line: the name left, and what matters most (turn marker, HP) on the right.
     const right = label(
       scene,
-      row.x + row.width - 6,
+      row.x + row.width - 6 - chipReserve,
       row.y + row.height / 2,
       [
         seat.dealtFacedown.length > 0 ? dealtWords(seat.dealtFacedown.length) : "",
@@ -1963,7 +2069,7 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
       scene.add
         .text(row.x + 6, row.y + row.height / 2, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
         .setOrigin(0, 0.5),
-      row.width - 18 - right.width,
+      row.width - 18 - right.width - chipReserve,
       typeRole.rowTitle.size,
     );
     return;
@@ -1979,7 +2085,9 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   // fit, it drops its least important part first (the hand count, then the form) rather than shrink to nothing.
   // The first player token takes the row's top right corner (`board/first-player-token.ts`), so "turn done" sits left of it.
   const tokenReserve = seat.isFirstPlayer ? 40 : 0;
-  const room = row.width - 12 - (seat.done ? 84 : 0) - tokenReserve;
+  // A two-line row's chips sit on its detail line.
+  const lineReserve = row.height < 52 ? chipReserve : 0;
+  const room = row.width - 12 - (seat.done ? 84 : 0) - tokenReserve - lineReserve;
   const detail = label(scene, row.x + 6, row.y + offsets.detail, "", typeRole.label, surface.ink.hex, ink.label * dim);
   // A row too short for the status pips below spells its statuses out on this line instead, so "stunned" is never lost.
   const flags = row.height < 52 ? seat.statuses.map((entry) => `${entry.status} \u00b7 `).join("") : "";
@@ -1994,7 +2102,7 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   if (seat.done) {
     label(
       scene,
-      row.x + row.width - 6 - tokenReserve,
+      row.x + row.width - 6 - tokenReserve - lineReserve,
       row.y + offsets.detail,
       "turn done",
       typeRole.label,
@@ -2011,10 +2119,10 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   for (const { status: name } of seat.statuses) {
     const pip = scene.add.graphics();
     pip.fillStyle(status[name].hex, dim).fillRect(cursor, lineY, 16, 16);
-    pip.lineStyle(2, surface.ink.hex, dim).strokeRect(cursor, lineY, 16, 16);
+    pip.lineStyle(2, surface.inkOnHue.hex, dim).strokeRect(cursor, lineY, 16, 16);
     scene.add
       .text(cursor + 8, lineY + 8, name.charAt(0).toUpperCase(), {
-        ...textStyle(typeRole.statSmall, name === "confused" ? surface.paper.hex : surface.ink.hex, dim),
+        ...textStyle(typeRole.statSmall, name === "confused" ? surface.paper.hex : surface.inkOnHue.hex, dim),
         fontSize: "11px",
       })
       .setOrigin(0.5);
@@ -2027,11 +2135,11 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   const blurbTop = lineY + (seat.statuses.length > 0 || notes.length > 0 ? 20 : 0);
   if (ctx.teamUpRings?.waiting.has(seat.playerId) && blurbTop + 14 <= row.y + row.height) {
     // Clear of the Act button that sits at the row's bottom right while this seat holds an Action for the turn.
-    const actReserve = appSession().store.state.offTurnSeats.includes(seat.playerId) ? 70 : 0;
-    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12 - actReserve, dim);
+    // And clear of View beside it (`drawSeatView`).
+    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12 - chipsOnly, dim);
   }
   if (notes.length > 0) {
-    const room = row.x + row.width - 6 - cursor;
+    const room = Math.max(0, row.x + row.width - 6 - cursor - chipReserve);
     const chip: Rect = { x: cursor, y: lineY, width: room, height: 16 };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.ink.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);

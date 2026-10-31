@@ -132,6 +132,8 @@ Corridors removes threat from it, removing the last threat advances to 2A). The 
 of `UNSCRIPTED_ENCOUNTER_SET_IDS` on `feature/shadowland-unlock` (PR #355). The rest of this section is kept as the
 record of the lock.
 
+**Superseded 2026-10-30:** all 93 faces now use the community scan folder [u/Ok-Replacement-9793 shared on Reddit](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) (`assets/card-art/owner-scans.tsv`), and `artUnavailable` is gone. The rest of this section is the history.
+
 **Scans: Hall of Heroes only (owner, 2026-10-23).** The full-size copies of all 93 faces that PR #355 and #360 had
 saved came from another site, so they were removed: the 43 preview faces Hall of Heroes posted are back as its own 300 x
 426 scans (`assets/card-art/hall-of-heroes-manifest.tsv`), and the 50 faces it has not posted have no scan. Those

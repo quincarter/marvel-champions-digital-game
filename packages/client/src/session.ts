@@ -24,6 +24,7 @@ import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
+import { colorSchemeOf, setColorScheme } from "./view/color-scheme.js";
 import { setArtLanguage } from "./art/art-source.js";
 import { onLanguageChange } from "./language-change.js";
 import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
@@ -123,6 +124,7 @@ export function appSession(): AppSession {
       }),
     );
     setArtLanguage(settingsStore.current.cardLanguage);
+    setColorScheme(colorSchemeOf(settingsStore.current.darkMode));
     onPowerSavingChange(() => settingsStore.refreshDefaults());
     onHardwareChange(() => settingsStore.refreshDefaults());
     session = {
@@ -135,6 +137,7 @@ export function appSession(): AppSession {
         settingsStore.set(next);
         setPowerSavingIgnored(!next.powerSavingAdjust);
         setArtLanguage(next.cardLanguage);
+        setColorScheme(colorSchemeOf(next.darkMode));
       },
       gameLog: emptyLog(),
       villainReview: null,

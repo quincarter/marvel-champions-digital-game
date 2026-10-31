@@ -3,6 +3,7 @@
  * the cards and before Cancel, Cancel appears once, the music note ends the idle route, and Enter on each does its job.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { InstanceId } from "@mc/engine";
 import { LocalEngineHost } from "../../engine/local-host.js";
 import type { SessionConfig } from "../../engine/host.js";
 import { appSession } from "../../session.js";
@@ -37,6 +38,8 @@ let bar = { count: 2, cancel: true };
 let music = true;
 const pressed: number[] = [];
 const openMusic = vi.fn();
+const inspect = vi.fn();
+let table: readonly InstanceId[] = [];
 const host = (): BoardControllerHost => ({
   model: (): BoardModel | null => ({ hand: [] }) as unknown as BoardModel,
   marks: (): Highlights | null => ({ playable, usableAbilities: new Set(), basics: [] }) as unknown as Highlights,
@@ -46,7 +49,8 @@ const host = (): BoardControllerHost => ({
   openMusic,
   tabbed: (): boolean => false,
   redraw: (): void => {},
-  inspect: vi.fn(),
+  inspect,
+  tableCards: () => table,
   confirmEndTurn: vi.fn(),
   holdOn: vi.fn(),
 });
@@ -79,6 +83,8 @@ beforeEach(async () => {
   music = true;
   pressed.length = 0;
   openMusic.mockClear();
+  inspect.mockClear();
+  table = [];
 });
 
 describe("the pad route through a mode bar", () => {
@@ -109,5 +115,33 @@ describe("the pad route through a mode bar", () => {
     // A bar with no Cancel of its own adds none to a payment's route.
     bar = { count: 1, cancel: false };
     expect(controller.focusOrder().map((target) => target.kind)).not.toContain("cancel");
+  });
+});
+
+describe("the pad route over the table", () => {
+  test("every card on the table is an idle stop, and A on one opens it in Inspect", () => {
+    const villain = "villain-1" as InstanceId;
+    const scheme = "scheme-1" as InstanceId;
+    table = [villain, scheme];
+    const cards = controller.focusOrder().filter((target) => target.kind === "card");
+    expect(cards).toEqual([
+      { kind: "card", instanceId: villain },
+      { kind: "card", instanceId: scheme },
+    ]);
+    controller.activate({ kind: "card", instanceId: scheme });
+    expect(inspect).toHaveBeenCalledWith(scheme);
+    // Its legend says so: A reads "Inspect" on it, since there is nothing on it to use.
+    expect(controller.opensOnActivate(scheme)).toBe(true);
+  });
+
+  test("a guided step's gate does not stop A from reading a table card, as it never stops a tap", () => {
+    const villain = "villain-1" as InstanceId;
+    table = [villain];
+    const onGateEscaped = vi.fn();
+    controller.setGuideGate({ actions: new Set(), cards: new Set(), onGateEscaped });
+    controller.activate({ kind: "card", instanceId: villain });
+    controller.activate({ kind: "card", instanceId: villain });
+    expect(inspect).toHaveBeenCalledTimes(2);
+    expect(onGateEscaped).not.toHaveBeenCalled();
   });
 });

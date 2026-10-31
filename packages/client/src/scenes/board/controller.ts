@@ -144,6 +144,8 @@ export interface BoardControllerHost {
   teamUpKeys?(): readonly string[];
   /** True when the card has a tile or chip on screen right now (it has a focus rect). */
   hasTile?(id: InstanceId): boolean;
+  /** Every card on the table in reading order (`view/board-zones.ts#tableCardsOf`): idle stops a pad can inspect. */
+  tableCards?(): readonly InstanceId[];
   openTeamUp?(pairKey: string): void;
   /** How many mode-bar buttons the last draw made focus stops, and whether the bar has a Cancel; pressing one. */
   barStops?(): { readonly count: number; readonly cancel: boolean };
@@ -154,6 +156,8 @@ export interface BoardControllerHost {
   /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
   hasDiscardStop?(): boolean;
   openDiscard?(): void;
+  hasVictoryDisplayStop?(): boolean;
+  openVictoryDisplay?(): void;
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -480,7 +484,9 @@ export class BoardController {
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
+        ...(this.#host.hasVictoryDisplayStop?.() ? { victoryDisplay: true as const } : {}),
         undo: this.undoOffer() !== null,
+        table: this.#host.tableCards?.() ?? [],
         ...(this.#host.hasTile
           ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
           : {}),
@@ -529,6 +535,16 @@ export class BoardController {
       this.#host.openTeamUp?.(focus.pairKey);
       return;
     }
+    // So does reading a card on the table: it opens on a replayed board, and past a guided step's gate, as a tap does.
+    if (focus.kind === "card" && this.#selection.kind === "idle" && this.opensOnActivate(focus.instanceId)) {
+      this.onCharacterTap(focus.instanceId);
+      return;
+    }
+    // The pile sends nothing, so it opens on a replayed board too, as a tap does.
+    if (focus.kind === "victoryDisplay") {
+      this.#host.openVictoryDisplay?.();
+      return;
+    }
     if (this.#readOnly) return;
     // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
     if (focus.kind === "cancel") {
@@ -569,7 +585,7 @@ export class BoardController {
       else this.chooseBasic(focus.action);
       return;
     }
-    if (focus.kind === "card" && !this.#guideGate.allowsCard(focus.instanceId)) {
+    if (focus.kind === "card" && !this.#pickOpen && !this.#guideGate.allowsCard(focus.instanceId)) {
       this.#guideGate.noteInertClick();
       return;
     }
@@ -584,8 +600,21 @@ export class BoardController {
     // A card in play with a usable ability, not a hand card: `playCard` only
     // ever looks for a `playCard` entry, so a card that's on the focus route
     // solely because of `usableAbilities` opens the card, whose sheet offers the ability.
-    if (this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
+    // Any other card on the table (the villain, a scheme, an attachment) is on the route to be read: it opens too.
+    const inHand = this.#host.model()?.hand.some((card) => card.instanceId === focus.instanceId) ?? false;
+    if (!inHand || this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
     else void this.playCard(focus.instanceId, { confirmFree: true });
+  }
+
+  /** True when A on this idle card only opens it in Inspect: a card on the table with no ability to use now. */
+  opensOnActivate(id: InstanceId): boolean {
+    if (this.#host.model()?.hand.some((card) => card.instanceId === id) ?? true) return false;
+    return !(this.#host.marks()?.usableAbilities.has(id) ?? false);
+  }
+
+  /** A target or source pick was opened by the taught action, so its own options answer whatever the gate names. */
+  get #pickOpen(): boolean {
+    return this.#selection.kind === "targeting" || this.#selection.kind === "choosingSource";
   }
 
   /**
@@ -599,7 +628,7 @@ export class BoardController {
     // reported as "handled" (true) rather than falling through to `onTap`, so a gated card outside the mode's own
     // targets doesn't also try to play itself. Idle falls through to `onTap` (`tapHandCard`/`onCharacterTap`),
     // which gate — and count the inert click — on their own, so this doesn't double-count that tap.
-    if (!this.#guideGate.allowsCard(id)) {
+    if (!this.#pickOpen && !this.#guideGate.allowsCard(id)) {
       if (this.#selection.kind === "idle") return false;
       this.#guideGate.noteInertClick();
       return true;
@@ -959,7 +988,12 @@ export class BoardController {
   tapHandCard(instanceId: InstanceId): void {
     // Read-only: a tap can still open the card to read it, same as the
     // tabbed layout's own idle behavior below, but never offers to play it.
-    if (this.#readOnly || (this.#host.tabbed() && this.#selection.kind === "idle")) {
+    // A teammate's hand being looked at (`peekSeat`) is read-only the same way.
+    if (
+      this.#readOnly ||
+      appSession().store.state.peekSeat !== null ||
+      (this.#host.tabbed() && this.#selection.kind === "idle")
+    ) {
       this.#host.inspect(instanceId);
       return;
     }
@@ -1210,7 +1244,8 @@ export class BoardController {
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
   usableAbilitiesFor(instanceId: InstanceId): readonly UsableAbilityAction[] {
-    const actions = appSession().store.state.legal?.actions;
+    const { legal, peekSeat } = appSession().store.state;
+    const actions = peekSeat === null ? legal?.actions : undefined;
     return actions ? abilityActionsFor(actions, instanceId) : [];
   }
 
@@ -1228,6 +1263,10 @@ export class BoardController {
   /** The Inspect sheet's ability picker reports its pick here; it never dispatches itself. */
   useAbilityById(instanceId: InstanceId, abilityId: AbilityId): void {
     if (this.#readOnly) return;
+    if (!this.#guideGate.allowsAbility(instanceId)) {
+      this.#guideGate.noteInertClick();
+      return;
+    }
     const entry = this.usableAbilitiesFor(instanceId).find((candidate) => candidate.action.abilityId === abilityId);
     if (entry) this.#useAbility(entry);
   }
@@ -2113,7 +2152,8 @@ export class BoardController {
 
   #legalEntries(): readonly LegalAction[] {
     const { store } = appSession();
-    const actions = store.state.legal?.actions;
+    // While a teammate's side is only being looked at (`peekSeat`), the table offers nothing to do.
+    const actions = store.state.peekSeat === null ? store.state.legal?.actions : undefined;
     return actions ? legalEntriesOf(actions) : [];
   }
 

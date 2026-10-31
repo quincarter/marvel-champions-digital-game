@@ -54,6 +54,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm fmt:check
+      # Media a pull request adds under incoming/ must join a bundle, or it would block every later pack (#495).
+      - run: node scripts/assets-incoming.mjs --check
 
   # Every YAML file (workflows, issue templates, changie config and fragments) through yamllint (.yamllint.yaml).
   yaml:
@@ -115,6 +117,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Card art (both languages), music and art: they live on the content repo's releases, not in git (#495).
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
       # Each job is a fresh runner, so the install repeats; the pnpm store comes from the cache, so it takes seconds.
       # A PR labelled "Spanish preview" makes Spanish its preview's build language (MC_CARD_LANG, issue #337): what a
       # player who never picked a language sees. The labels are read now rather than from the event, so re-running the
@@ -206,6 +211,10 @@ jobs:
       - name: Accept the Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - run: pnpm install --frozen-lockfile
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art
 
       # The release key only (release-on-merge.yml's Setup Keystore): an APK signed with any other key won't install
       # over the player's app.
@@ -319,6 +328,10 @@ jobs:
           workspaces: packages/client/src-tauri -> target
           key: linux-preview
       - run: pnpm install --frozen-lockfile
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art
       - name: Build the AppImage
         working-directory: packages/client
         env:

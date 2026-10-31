@@ -150,6 +150,11 @@ export interface BoostInProgress {
   readonly appliedAsBoost?: readonly { readonly instanceId: InstanceId; readonly iconsCancelled: boolean }[];
 }
 
+/** `Frame<"effects">.resolvedCount.from` of a suspended ability whose effects had changed the game before it waited. */
+export const RESOLVED_SO_FAR_CHANGED = "suspended:changed";
+/** The same, for one whose effects had changed nothing yet: its digest is taken again as it resumes. */
+export const RESOLVED_SO_FAR_UNCHANGED = "suspended:unchanged";
+
 /** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */
 export interface DeferredEffects {
   readonly effects: readonly EffectSpec[];
@@ -160,10 +165,18 @@ export interface DeferredEffects {
   /**
    * An "at the end of this attack" delayed effect (`atEndOfAttack`): it resolves as the attack finishes, before the
    * attack's step 6 responses (RRG 1.8 "Delayed Effect", p. 16; `pushDelayedEndEffects`). Unset for an effect queued
-   * behind the activation (an "after this activation ends" effect, or an activation queued behind this one), which
+   * behind the activation (an "after this activation ends" effect, or an ability suspended behind this one), which
    * waits for those responses.
    */
   readonly delayed?: true;
+  /**
+   * The rest of an ability that initiated an activation behind this one (RRG 1.8 "Activation", p. 6: "An effect that
+   * initiates an enemy activation is considered resolved after that activation has fully resolved"): the ability's
+   * frames, top first, taken off the stack as they were, the top one holding the initiating effect
+   * (`Frame<"effects">.resumeActivation`). They are put back as they were in place of `effects`, which is empty
+   * (`pushEndEffects`), so the ability initiates its activation and then goes on with its later instructions.
+   */
+  readonly suspended?: readonly StackFrame[];
 }
 
 /**
@@ -239,6 +252,11 @@ export type StackFrame =
        */
       readonly endEffects: readonly DeferredEffects[];
       /**
+       * The activation has finished and its `endEffects` are resolving (`pushEndEffects`): an activation initiated now
+       * does not wait behind it (`activationToQueueBehind`).
+       */
+      readonly endEffectsDraining?: true;
+      /**
        * An enemy activation or attack that began and then ended before resolving: its enemy left play (RRG 1.8
        * "Activation", p. 6; ruling January 11, 2026 - Ruling 1, answer 3), or a cancel effect cancelled the enemy
        * attack in its interrupt window (FFG ruling Feb 15, 2024, Ruling 148: "the attack is still considered to 'end'").
@@ -285,6 +303,13 @@ export type StackFrame =
       /** Events handed over by frames whose `responsesWith` is this one; this frame's response window gathers them. */
       readonly joinedResponses?: readonly TriggerEvent[];
       /**
+       * The response windows a sentence held (`Frame<"effects">.heldSentenceResponses`, one entry per occurrence) and
+       * handed to this event, the attack or thwart of the "(attack)"/"(thwart)" ability that sentence ended: they join
+       * this event's own response window, each as a triggering condition group of its own (`Frame<"window">
+       * .conditionGroups`; `resolve/sentence-hold.ts`).
+       */
+      readonly sentenceResponses?: readonly (readonly TriggerEvent[])[];
+      /**
        * Announcements of moves made during this event's own interrupt window, pushed once this frame finishes, after
        * its "cancelled" line if it was cancelled (docs/phase7-wave5.md §4.1 Q34): a replacement ("tuck it here
        * instead") moved the leaving card, and its `cardLeavesPlay` (responses only) follows the replaced one's end.
@@ -328,6 +353,38 @@ export type StackFrame =
        * "after … attacks" window and its "at the end of this attack" effects.
        */
       readonly attackWaiting?: true;
+      /**
+       * An enemy activation a keyword initiated while an ability was resolving (quickstrike, teamwork): the root
+       * effects frame of that ability. The activation is initiated where it is (its status check and its "when …
+       * attacks / schemes" interrupt window), and its steps resolve once that ability has finished
+       * (`resolve/initiated-activation.ts`; FFG rulings 129, 137, 147 and 194). Once that ability is done, the frame of
+       * an encounter card's reveal still in its steps, when the ability resolved inside it (`waitForReveal`: the
+       * responses that reveal holds resolve before the steps, ruling 137).
+       */
+      readonly stepsAfterAbility?: FrameId;
+      /**
+       * With `stepsAfterAbility`: initiated, and waiting beneath that ability's root frame for it to finish. While it
+       * waits it is still "this attack" to `currentActivationFrameId` and attacking to `attackInProgress` (ruling 147),
+       * but no defense lookup reads it (`awaitingAbility`, the shared predicate): it has no attack procedure yet.
+       * Cleared, with `stepsAfterAbility`, as its steps begin.
+       */
+      readonly awaitingAbility?: true;
+      /**
+       * A response to a minion entering play or engaging that an "each time" loop held and released
+       * (`releaseLoopFrames`) for the ability whose root frame is `heldForAbility`: it answers after the minion's
+       * quickstrike or teamwork has fully resolved (FFG ruling 38), so a released keyword's activation that parks
+       * beneath that root takes it along, after the activations waiting there (or, later, beneath the reveal frame they
+       * wait for in turn, which it then names). Outside a loop no response is held this way: it resolves after the
+       * initiation, before the activation's steps (rulings 137, 147; `resolve/initiated-activation.ts`).
+       */
+      readonly heldForAbility?: FrameId;
+      /**
+       * A responses frame held by an "each time" loop for the event of the frame `responsesFor`, which resolved its
+       * interrupts and apply step in the loop's pass (`responsesLater`; `resolve/initiated-activation.ts`).
+       */
+      readonly responsesFor?: FrameId;
+      /** With `responsesFor`: that frame has applied, so the event has occurred (`refreshHeldResponses`). */
+      readonly heldOccurred?: true;
       /**
        * With `attackOf`: the attack's target was changed in its "when … attacks" window (`EffectSpec retargetAttack`),
        * off `from` (the enemy it was made against) onto `to`. The event's own target is `to` from then on. Kept on the
@@ -413,6 +470,20 @@ export type StackFrame =
        * one of them can cancel or replace that one. Absent (or null) for a condition whose frame has finished.
        */
       readonly alsoEventFrameIds?: readonly (FrameId | null)[];
+      /**
+       * Response windows only: which occurrence each condition belongs to, by index, `alsoEvents` first and `event`
+       * last. Absent when they are all one occurrence's (every window but the one a sentence's held responses open,
+       * `resolve/sentence-hold.ts`). RRG 1.8 p. 5 puts forced before optional only among "abilities with the same
+       * triggering condition" ("Forced", p. 20: "for any given triggering condition"), so with several groups an
+       * optional response to a group no forced response answers is offered before the forced tier too
+       * (`earlyOptional`), as well as after it.
+       */
+      readonly conditionGroups?: readonly number[];
+      /**
+       * With `conditionGroups`: `"offering"` while the optional responses to groups no forced response answers are
+       * offered ahead of the forced tier, `"done"` once that round has ended. Absent when there was no such round.
+       */
+      readonly earlyOptional?: "offering" | "done";
       readonly timing: WindowTiming;
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
@@ -560,7 +631,9 @@ export type StackFrame =
        * (`gameFingerprint`). When they finish with the game changed, the ability resolved: each var in `to` (its
        * `Frame<"ability">.resolvedCounts`) goes up by 1, a Special is listed in `<prefix>.resolved` and
        * `abilityResolved` is announced; when nothing changed, none of them (RRG 1.8 "Resolve", p. 37). Absent when
-       * nothing reads it, which reads as changed.
+       * nothing reads it, which reads as changed. While the ability waits behind an activation
+       * (`DeferredEffects.suspended`), `RESOLVED_SO_FAR_CHANGED` or `RESOLVED_SO_FAR_UNCHANGED`: the frames beneath it
+       * are not the same when it resumes, so the digest is taken again then, unless the game had already changed.
        */
       readonly resolvedCount?: { readonly from: string; readonly to: readonly ResolvedCountVar[] };
       /**
@@ -666,6 +739,49 @@ export type StackFrame =
       readonly costEffectsPending?: number;
       /** With `costEffects`: the cursor at which the effect began, once the cost has been paid (step 6). */
       readonly effectBeganAt?: number;
+      /**
+       * The frame of an `EffectSpec sentence`: one printed sentence, whose responses wait for all of it (FFG rulings
+       * 126, Dec 8, 2023 and 137, Jan 11, 2024; `resolve/sentence-hold.ts`).
+       */
+      readonly sentence?: true;
+      /**
+       * One pass of an "each time a card is discarded this way" loop (`EffectSpec discardEncounterCards
+       * forEachDiscarded`): a quickstrike or teamwork made in it waits for the whole loop before it initiates (FFG
+       * ruling 38, November 19, 2024, Drang III; `resolve/initiated-activation.ts`).
+       */
+      readonly eachTimePass?: true;
+      /**
+       * On the frame whose effect runs an "each time" loop (`eachTimePass`): the quickstrike and teamwork frames of the
+       * minions its passes put into play (`keywords`), and the announcements of those minions engaging (`after`), held
+       * until every pass has resolved. Pushed, keywords first, as the frame resumes (FFG ruling 38, Drang III: "after
+       * they've all engaged, resolve all Quickstrike and Teamwork abilities on those minions, then any Response
+       * abilities"; `resolve/initiated-activation.ts`).
+       */
+      readonly heldLoopFrames?: {
+        readonly keywords: readonly StackFrame[];
+        readonly after: readonly StackFrame[];
+        /** The first player has been asked to order the keywords (`orderLoopKeywords`): the frame's answer is theirs. */
+        readonly asked?: true;
+      };
+      /**
+       * On a `sentence` frame: the response windows raised while it resolves, oldest first, each the conditions of one
+       * occurrence in the order `pushWindow` lists them (the window's own event last). Opened together, as one window,
+       * once the sentence has resolved (`resolve/sentence-hold.ts`). On the root frame of a "(thwart)" ability: the ones
+       * its last sentence handed over, for the window of its one thwart (`announceAbilityThwart`).
+       */
+      readonly heldSentenceResponses?: readonly (readonly TriggerEvent[])[];
+      /**
+       * An enemy activation this frame's ability initiated while another was resolving, waiting behind it with the rest
+       * of the ability (`DeferredEffects.suspended`): resolved first when the frame is back on the stack, and not
+       * queued again. The frame's cursor is already past it. Absent on every other frame.
+       */
+      readonly resumeActivation?: EffectSpec;
+      /**
+       * On the root frame of an ability that initiated an enemy activation: the abilities that waited behind that
+       * activation (`DeferredEffects.suspended`), resumed as this frame finishes, so this ability's remaining sentences
+       * resolve first (`resolve/suspend.ts`, `releaseWaitingAbilities`). Absent on every other frame.
+       */
+      readonly waitingAbilities?: readonly DeferredEffects[];
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -1122,6 +1238,24 @@ export const attackPreventedVars = (
  * attack", "this activation"): the topmost `attack` / `enemyAttack` /
  * `enemyScheme` event on the stack.
  */
+/**
+ * A keyword's enemy activation initiated and waiting beneath its ability for that ability to finish
+ * (`Frame<"event">.awaitingAbility`, `resolve/initiated-activation.ts`). It has no attack procedure yet, so the lookups
+ * of an attack's defense (the defender, the defense bar, the attacked player or character) skip it and read the attack
+ * around it, if any.
+ */
+export const awaitingAbility = (frame: StackFrame): boolean => frame.kind === "event" && frame.awaitingAbility === true;
+
+/**
+ * The activation a defense is declared against: `currentActivationFrameId`, but never a keyword's attack waiting for its
+ * ability (`awaitingAbility`), which has no attack procedure yet. The defense bar reads the same attack
+ * (`currentEnemyAttackFrame`), so a defender declared, and "after … defends" held, while such an attack waits go to the
+ * attack around it.
+ */
+export function defendedActivationFrameId(stack: readonly StackFrame[]): FrameId | null {
+  return currentActivationFrameId(stack.filter((frame) => !awaitingAbility(frame)));
+}
+
 export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId | null {
   for (const frame of stack) {
     if (frame.kind !== "event") continue;
@@ -1129,6 +1263,9 @@ export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId 
     // ability's later instructions name what they named before it waited, the activation around it if there is one.
     // The flag is cleared as the attack starts to finish, so its retaliate and "after … attacks" abilities name it.
     if (frame.attackWaiting) continue;
+    // A keyword's activation initiated and waiting for the ability around it (`awaitingAbility`) is "this attack" to
+    // that ability's later instructions (ruling February 15, 2024 - Ruling 147: "dependent" effects resolve with the
+    // initiated activation).
     const kind = frame.event.kind;
     // `enemyAttacksEnemy` is an attack, so "this attack" names it, though not an activation (docs/phase7-wave3.md §3.23).
     if (

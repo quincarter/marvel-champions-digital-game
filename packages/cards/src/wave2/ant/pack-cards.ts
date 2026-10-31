@@ -26,6 +26,7 @@ import {
   modifyStat,
   moveCards,
   on,
+  overpaidWhenPlayed,
   paidWith,
   playFromHandReducingCost,
   query,
@@ -68,7 +69,11 @@ const AVENGER = trait("AVENGER");
  */
 export const ANT_PACK_CARDS = defineAbilities({
   // Ant-Man (12011, ally, Hank Pym) — Ant-Man gets +1 hit point for each pym counter on him.
-  "12011.ant-man-constant": constant(gets("hp", countersOn(self, "pym"), query("ally", { self: true }))),
+  // Overpaid, not paid, when played: no "while paying for" doubling (ruling #87, Sep 21, 2023).
+  "12011.ant-man-constant": constant(
+    gets("hp", countersOn(self, "pym"), query("ally", { self: true })),
+    overpaidWhenPlayed,
+  ),
   // Ant-Man — Interrupt: when Ant-Man enters play, place 1 pym counter on him (to a maximum of 4) for each
   // resource overpaid for his cost (docs/phase7-wave2.md §18.3, module docblock).
   "12011.ant-man-interrupt": forcedInterrupt(

@@ -170,13 +170,15 @@ function placeInVillainArea(state: GameState, code: string): { readonly state: G
 }
 
 describe("Ronan the Accuser (90001)", () => {
-  it("cannot be stunned: a stunned status is shed on the next state-trigger sweep (90001.ronan-the-accuser-constant)", () => {
+  // "Cannot be stunned" stops new stunned cards only; one already held stays (FFG ruling Feb 15, 2024, #145; the owner,
+  // 2026-10-28, PR #498, overriding docs/phase7-wave3.md §3.7, which shed it).
+  it("cannot be stunned: a stunned status he already holds is not shed by the state checks (90001.ronan-the-accuser-constant)", () => {
     const state = withKreeFanatic();
     const { state: engaged, id: ronan } = engageMinion(state, "90001");
     const stunned = patchInstance(engaged, ronan, { statuses: { stunned: 1, confused: 0, tough: 0 } });
     expect(inst(stunned, ronan).statuses.stunned).toBe(1);
     const { state: after } = driveEvents(WAVE3_DEPS, stunned, { type: "endTurn", playerId: P1 });
-    expect(inst(after, ronan).statuses.stunned).toBe(0);
+    expect(inst(after, ronan).statuses.stunned).toBe(1);
   });
 
   it("Forced Interrupt: engages the hero with the fewest remaining hit points when the villain phase begins (90001.ronan-the-accuser-forced-interrupt)", () => {

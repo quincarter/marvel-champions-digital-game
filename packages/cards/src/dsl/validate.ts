@@ -1435,6 +1435,7 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
       return effect.options.map((o) => o.effects);
     case "forEachPlayer":
     case "inGroup":
+    case "sentence":
     case "atEndOfAttack":
     case "atEndOfActivation":
     case "atEndOfThwart":

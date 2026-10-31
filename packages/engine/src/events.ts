@@ -994,6 +994,20 @@ export type GameEvent =
       readonly reason: "dashedStat" | "leftPlay";
     }
   /**
+   * A keyword's enemy activation (quickstrike's attack, teamwork's activation) was initiated while an ability was
+   * resolving: its status check and its "when … attacks / schemes" interrupt window are done, and it now waits beneath
+   * that ability's root frame `abilityFrameId` until the ability has finished, then resolves its steps
+   * (`resolve/initiated-activation.ts`; FFG rulings 137 and 194). No `framePushed` or `framePopped` is logged for the
+   * move: the frame never left the stack.
+   */
+  | {
+      readonly type: "activationAwaitsAbility";
+      readonly activationFrameId: FrameId;
+      readonly abilityFrameId: FrameId;
+      readonly enemyInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme";
+    }
+  /**
    * An "(attack)" ability's attack has dealt its own damage and now waits for the rest of its ability (RRG 1.8 "Attack
    * (Player Ability Type)", p. 10: the ability is a single attack; `resolve/attack-ability.ts`). From here until the
    * ability's last effect, damage it deals to enemies is this attack's, and the attack finishes after it: each enemy
@@ -1242,6 +1256,19 @@ export type GameEvent =
        * would name its earlier moments ("Drone attacks you") by the card underneath (#291).
        */
       readonly facedownAs?: FacedownRole;
+      /**
+       * An identity's defeat only: the card that defeated it, the source of the defeating damage or the card whose
+       * ability says "defeat" (`TriggerEvent characterDefeated.sourceInstanceId`). Absent when nothing named one (damage
+       * placed on it, a "cannot be defeated" rule ending), and always on an ally, minion or villain.
+       */
+      readonly sourceInstanceId?: InstanceId;
+      /** An identity's defeat only: the defeating damage was an attack's (`TriggerEvent characterDefeated.fromAttack`). */
+      readonly fromAttack?: true;
+      /**
+       * An identity's defeat only: `sourceInstanceId` was a villain or a minion as it defeated the hero, read then, since
+       * a facedown Drone or a card treated as a minion is not one by its card, and the elimination can move it from play.
+       */
+      readonly sourceRole?: "villain" | "minion";
     }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   /**
@@ -1790,6 +1817,25 @@ export type GameEvent =
   | { readonly type: "preThenUnresolved"; readonly cause: PreThenFailure; readonly instanceId?: InstanceId }
   /** RRG 1.8 "'Then'" (p. 44): the pre-"then" text did not fully resolve, so the post-"then" text was skipped. */
   | { readonly type: "thenSkipped" }
+  /**
+   * A payment spent cards from a hand (`payPayment`: a play's, an ability's, a basic power's, a form change's, or one an
+   * effect or a prompt asked for), logged once after its spending: each card, the player who spent it (the hand it was
+   * in, or the payer for a tucked card spent as if in hand) and the resources it generated as the payment priced it
+   * (`handCardResources`: a doubling or a conversion counted). A card's own "when you spend this card" resource ability
+   * logs its own `resourcesGenerated` besides. `payingForInstanceId`: the card paid for, as the payment read it, else
+   * null. Not logged for a payment of resource abilities in play alone.
+   */
+  | {
+      readonly type: "paymentCommitted";
+      readonly playerId: PlayerId;
+      readonly payingForInstanceId: InstanceId | null;
+      readonly fromHand: readonly {
+        readonly instanceId: InstanceId;
+        readonly cardId: CardId;
+        readonly spenderId: PlayerId;
+        readonly resources: ResourcePool;
+      }[];
+    }
   | {
       readonly type: "resourcesGenerated";
       readonly playerId: PlayerId;
@@ -2298,8 +2344,9 @@ export type GameEventType = GameEvent["type"];
 
 /**
  * Why status cards were discarded (`GameEvent statusRemoved.reason`, `TriggerEvent statusDiscarded.cause`).
- * `preventedDamage`: a tough card used up by damage; `cannotHave`: stalwart, or a `cannotHaveStatus` rule, began to
- * apply (docs/phase7-wave3.md §3.7); `cost`: paid as an `AbilityCost.discardStatus` (docs/phase7-wave6.md §3.6).
+ * `preventedDamage`: a tough card used up by damage; `cannotHave`: stalwart began to apply, or a status limit fell below
+ * what is held (a `cannotHaveStatus` rule sheds nothing: ruling Feb 15, 2024, #145); `cost`: paid as an
+ * `AbilityCost.discardStatus` (docs/phase7-wave6.md §3.6).
  */
 export type StatusDiscardCause =
   | "cost"

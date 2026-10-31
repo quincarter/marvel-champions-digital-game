@@ -21,6 +21,22 @@ export function heroFaceDisplayName(identity: HeroIdentityCard): string {
   return qualifiedHeroName(identity, identity.hero.faceName);
 }
 
+/**
+ * The name of one of an identity's hero faces, by `heroFormIndex` (`hero` first, then `additionalHeroForms`), qualified
+ * as above; null when the card has no such face. Ant-Man's and Wasp's Tiny and Giant faces print the same name, so a
+ * face sharing its name with another hero face of the card is told apart by the trait only it has: "Giant Ant-Man".
+ */
+export function heroFaceNameAt(identity: HeroIdentityCard, index: number): string | null {
+  const faces = [identity.hero, ...(identity.additionalHeroForms ?? [])];
+  const face = faces[index];
+  if (!face) return null;
+  const name = qualifiedHeroName(identity, face.faceName);
+  const sharing = faces.filter((other) => other !== face && other.faceName === face.faceName);
+  if (sharing.length === 0) return name;
+  const own = face.traits.find((trait) => !sharing.every((other) => other.traits.includes(trait)));
+  return own ? `${own.charAt(0)}${own.slice(1).toLowerCase()} ${name}` : name;
+}
+
 /** Any card's display name: a hero identity qualified as above, everything else its printed name. */
 export function cardDisplayName(card: AnyCard): string {
   return card.type === "hero_identity" ? qualifiedHeroName(card) : card.name;

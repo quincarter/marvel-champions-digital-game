@@ -64,6 +64,9 @@ import {
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
   discordRowInfoOf,
+  deckCopyLimitsRowInfoOf,
+  deckSignatureRowInfoOf,
+  nextSettingsAfterDeckSignature,
   earnedItemRowInfoOf,
   villainRowInfoOf,
   type GuideRowInfo,
@@ -123,6 +126,8 @@ import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
+import { onColorSchemeChange } from "../view/color-scheme.js";
+import { setThemeSlot } from "../ui/theme-slot.js";
 import { detectPlatform } from "../platform/platform.js";
 import { padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
@@ -137,6 +142,7 @@ import { knownHardware, onHardwareChange } from "../platform/device-hardware.js"
 import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { PlayerStatsData } from "./player-stats.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -152,6 +158,7 @@ const UNLOCKS_ROW = "unlocks";
 
 /** The Save data row's own id: a door to `scenes/save-data.ts`, right after Unlocks. */
 const SAVE_DATA_ROW = "save-data";
+const STATS_ROW = "stats";
 
 /** The Rules reference row: a door to `scenes/rules.ts`'s glossary, right after Save data (owner, 2026-10-01). */
 const RULES_ROW = "rules";
@@ -294,6 +301,7 @@ export class SettingsOverlay extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.unlocks) ||
         this.scene.isActive(SCENES.saveData) ||
+        this.scene.isActive(SCENES.playerStats) ||
         this.scene.isActive(SCENES.controls),
       onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList(true) : this.#close()),
     });
@@ -304,11 +312,15 @@ export class SettingsOverlay extends Phaser.Scene {
     const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
     // The hardware check finishing changes the Screen rows' recommendation.
     const unsubscribeHardware = onHardwareChange(() => this.#redrawIfOpen());
+    // The top-of-screen dark mode toggle (#459) flips the same setting as the Dark mode row: the row follows it.
+    const unsubscribeScheme = onColorSchemeChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
       unsubscribePowerSaving();
       unsubscribeHardware();
+      unsubscribeScheme();
+      setThemeSlot(this.scene.key, null);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -357,6 +369,12 @@ export class SettingsOverlay extends Phaser.Scene {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
     });
+  }
+
+  /** Your stats, over this overlay: Back there closes it and gives this one its input again. */
+  #openStats(): void {
+    if (this.scene.isActive(SCENES.playerStats)) return;
+    this.scene.launch(SCENES.playerStats, { from: SCENES.settings, overlay: true } satisfies PlayerStatsData);
   }
 
   #openSaveData(receive?: TransferCode, syncLink?: SyncLinkAddress): void {
@@ -520,6 +538,14 @@ export class SettingsOverlay extends Phaser.Scene {
       }),
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
+    // The dark mode toggle (#459) sits in the header's middle, clear of the title on the left and the pad hints and
+    // close button on the right, rather than floating over the panel's top border.
+    setThemeSlot(this.scene.key, {
+      x: Math.round(layout.header.x + layout.header.width / 2 - 19),
+      y: Math.round(layout.header.y + (layout.header.height - 30) / 2),
+      width: 38,
+      height: 30,
+    });
     this.add
       .text(layout.header.x + 16, layout.header.y + layout.header.height / 2, caseOf(typeRole.barTitle, "Settings"), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
@@ -570,6 +596,7 @@ export class SettingsOverlay extends Phaser.Scene {
     for (const row of [
       ...settingsRowInfoOf(settings, powerSavingOn()),
       ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
+      deckCopyLimitsRowInfoOf(settings),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
@@ -618,6 +645,10 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("card-language", cardLanguageRowInfoOf(settings), SPEED_CONTROL_WIDTH, (v) => this.#setCardLanguage(v));
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
+    segmented("deck-signature", deckSignatureRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterDeckSignature(appSession().settings, v);
+      this.#draw();
+    });
     // The achievement popup: picking a time or a position shows a sample there (`scenes/achievement-toast.ts`).
     const setPopup = (next: Settings): void => {
       appSession().settings = next;
@@ -751,6 +782,9 @@ export class SettingsOverlay extends Phaser.Scene {
       });
     };
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
+    door(STATS_ROW, "Your stats", "Your record, heroes, villains, side schemes and the cards you play.", () =>
+      this.#openStats(),
+    );
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
     door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
@@ -888,7 +922,7 @@ export class SettingsOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 8,
           option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.ink.hex : surface.paper.hex),
+          textStyle(typeRole.rowTitle, selected ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setFontSize(12);
       this.add
@@ -896,7 +930,7 @@ export class SettingsOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 26,
           option.detail,
-          textStyle(typeRole.body, selected ? surface.ink.hex : surface.paper.hex, selected ? 0.85 : 0.7),
+          textStyle(typeRole.body, selected ? surface.inkOnHue.hex : surface.paper.hex, selected ? 0.85 : 0.7),
         )
         .setFontSize(9)
         .setWordWrapWidth(cellWidth - 16);
@@ -945,7 +979,12 @@ export class SettingsOverlay extends Phaser.Scene {
       cell.width - 2,
       cell.height - 2,
     );
-    const ink_ = selected ? surface.ink.hex : surface.paper.hex;
+    // Ink on a hue (the caution-filled auto-advance pick) stays ink in dark mode; ink on paper follows the scheme.
+    const ink_ = selected
+      ? texts.fill === surface.paper.hex
+        ? surface.ink.hex
+        : surface.inkOnHue.hex
+      : surface.paper.hex;
     if (texts.detail === undefined) {
       const cellLabel = this.add
         .text(

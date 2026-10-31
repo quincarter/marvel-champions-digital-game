@@ -6,6 +6,8 @@
  */
 
 import type { DurableObjectStateLike } from "./env.js";
+import { parseGlobalResult } from "./global-protocol.js";
+import { GlobalStatsLogic } from "./global-stats.js";
 import { PROOF_HEADER } from "./protocol.js";
 import { RateLimiterLogic } from "./rate-limiter.js";
 import { RoomLogic } from "./room.js";
@@ -81,6 +83,11 @@ export class RateLimiter {
       await this.limiter.releaseCreate(now, now);
       return Response.json({ ok: true });
     }
+    if (pathname === "/global-result" || pathname === "/global-read") {
+      const result =
+        pathname === "/global-result" ? await this.limiter.takeGlobalResult(now) : this.limiter.takeGlobalRead(now);
+      return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
+    }
     if (pathname === "/refund") {
       await this.limiter.refund(now, now);
       return Response.json({ ok: true });
@@ -138,5 +145,44 @@ export class SyncSpace {
 
   async alarm(): Promise<void> {
     await this.space.expire();
+  }
+}
+
+/**
+ * The global win rate store: one instance, named "global". Its input is a body the Worker already validated, but it is
+ * parsed again here, so no caller can write a row the protocol would refuse.
+ */
+export class GlobalStats {
+  private readonly stats: GlobalStatsLogic;
+
+  constructor(state: DurableObjectStateLike, _env?: unknown) {
+    this.stats = new GlobalStatsLogic(state.storage);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const now = nowOf(request);
+    if (url.pathname === "/result" && request.method === "POST") {
+      let parsed;
+      try {
+        parsed = parseGlobalResult(JSON.parse(await request.text()));
+      } catch {
+        parsed = null;
+      }
+      if (!parsed) return Response.json({ reason: "bad-request" }, { status: 400 });
+      const outcome = await this.stats.record(parsed, now);
+      if (outcome.ok) return Response.json({ counted: outcome.counted });
+      return Response.json(outcome, { status: outcome.reason === "full" ? 507 : 429 });
+    }
+    if (url.pathname === "/stats") return Response.json(await this.stats.stats(now));
+    if (url.pathname === "/cards") {
+      const cards = await this.stats.cards(url.searchParams.get("villain") ?? "");
+      return cards ? Response.json(cards) : new Response(null, { status: 404 });
+    }
+    return new Response(null, { status: 404 });
+  }
+
+  async alarm(): Promise<void> {
+    await this.stats.expire(Date.now());
   }
 }

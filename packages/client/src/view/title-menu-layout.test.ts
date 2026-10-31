@@ -6,7 +6,7 @@ import {
   updateBannerActionCount,
   updateBannerParts,
 } from "./title-menu-layout.js";
-import { NOTICE_BAR_HEIGHT, NOTICE_BAR_HEIGHTS } from "./shadowland-notice.js";
+import { NOTICE_BAR_HEIGHT, NOTICE_BAR_HEIGHTS } from "./release-notice.js";
 
 const SIZES: readonly { readonly width: number; readonly height: number }[] = [
   { width: 440, height: 900 },
@@ -323,7 +323,7 @@ describe("the phone rank badge", () => {
   });
 });
 
-describe("the temporary notice bar", () => {
+describe("the release notice bar", () => {
   const sizes = [
     { width: 360, height: 640 },
     { width: 360, height: 740 },

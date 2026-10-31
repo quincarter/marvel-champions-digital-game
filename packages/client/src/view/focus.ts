@@ -37,6 +37,8 @@ export type FocusTarget =
   | { readonly kind: "bar"; readonly index: number }
   /** Your discard pile, bottom right of the table: Enter opens the pile view, as a click on it does. */
   | { readonly kind: "discard" }
+  /** The victory display's pile in the encounter column: Enter opens the pile view, as a click on it does. */
+  | { readonly kind: "victoryDisplay" }
   /** The top bar's music note: Enter opens the music player. The last stop on the idle route. */
   | { readonly kind: "music" };
 
@@ -50,8 +52,16 @@ export type FocusMode =
       readonly music?: true;
       /** True while the discard pile has a card to open: a stop just after the hand, where the table draws it. */
       readonly discard?: true;
+      /** True while the victory display has a pile on the table: a stop after the table's cards. */
+      readonly victoryDisplay?: true;
       /** True while the action bar draws Undo, so it is a stop just before End turn. */
       readonly undo?: boolean;
+      /**
+       * Every card on the table in reading order (your play area, then the villain side: villains, minions, schemes and
+       * the attachments on each, then the other seats), so a pad can reach any of them to inspect it, not only the
+       * ones with an ability to use. Each is a stop only while it is tiled.
+       */
+      readonly table?: readonly InstanceId[];
       /** True when the card is drawn as a tile or chip right now; a usable card with none is not a stop. */
       readonly tiled?: (id: InstanceId) => boolean;
     }
@@ -92,11 +102,17 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   // already excludes anything not currently legal, so nothing here decides
   // that itself (PLAN.md Phase 4, "abilities on cards in play are not
   // reachable from the UI").
-  const abilityCards: FocusTarget[] = marks
-    ? [...marks.usableAbilities]
-        .filter((id) => !mode.hand.includes(id) && (mode.tiled?.(id) ?? true))
-        .map((instanceId) => ({ kind: "card", instanceId }))
-    : [];
+  //
+  // Every other card on the table joins them in the table's own order: Y (Inspect) needs a focused card, and a pad has
+  // no pointer to hover the villain, a scheme or an attachment with (reported from a Steam Deck). A press on one opens
+  // it in Inspect (`BoardController#activate`), as a tap does.
+  const tiled = (id: InstanceId): boolean => !mode.hand.includes(id) && (mode.tiled?.(id) ?? true);
+  const usable = marks ? [...marks.usableAbilities] : [];
+  const tableIds = (mode.table ?? []).filter(tiled);
+  const tableCards: FocusTarget[] = [...new Set([...tableIds, ...usable.filter(tiled)])].map((instanceId) => ({
+    kind: "card",
+    instanceId,
+  }));
   // An unusable control still takes focus: "why can't I attack?" is a question
   // the player has to be able to reach the answer to, and the reason lives on
   // the button. Only controls the engine never offers at all are skipped.
@@ -110,7 +126,8 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   return [
     ...cards,
     ...(mode.discard ? [{ kind: "discard" as const }] : []),
-    ...abilityCards,
+    ...tableCards,
+    ...(mode.victoryDisplay ? [{ kind: "victoryDisplay" as const }] : []),
     ...basics,
     ...teamUps,
     ...(mode.music ? [{ kind: "music" as const }] : []),

@@ -1113,7 +1113,7 @@ export class CampaignMarketScene extends Phaser.Scene {
           0,
           0,
           tagText.toUpperCase(),
-          textStyle({ ...typeRole.label, size: 10 }, inCart ? surface.ink.hex : surface.paper.hex),
+          textStyle({ ...typeRole.label, size: 10 }, inCart ? surface.inkOnHue.hex : surface.paper.hex),
         )
         .setOrigin(0, 0);
       const tag: Rect = {
@@ -1129,7 +1129,7 @@ export class CampaignMarketScene extends Phaser.Scene {
         tag.width,
         tag.height,
       );
-      if (inCart) tg.lineStyle(1.5, surface.ink.hex, 1).strokeRect(tag.x, tag.y, tag.width, tag.height);
+      if (inCart) tg.lineStyle(1.5, surface.inkOnHue.hex, 1).strokeRect(tag.x, tag.y, tag.width, tag.height);
       t.setPosition(tag.x + 8, tag.y + 4);
       this.children.bringToTop(t);
       tagWidth = style.tagInside ? tag.width + 10 : 0;
@@ -1159,7 +1159,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     };
     const bg = this.add.graphics();
     bg.fillStyle(signal.cost.hex, dim ? 0.55 : 1).fillRect(badge.x, badge.y, badge.width, badge.height);
-    bg.lineStyle(border.detail, surface.ink.hex, 1).strokeRect(badge.x, badge.y, badge.width, badge.height);
+    bg.lineStyle(border.detail, surface.inkOnHue.hex, 1).strokeRect(badge.x, badge.y, badge.width, badge.height);
     this.add
       .text(
         badge.x + badge.width / 2,

@@ -192,7 +192,8 @@ describe("Wasp pack aggression cards, from She-Hulk (Aggression)'s own deck", ()
     };
     // Wasp costs 0, so every icon of the payment is overpaid: Energy (01088) = 2 [energy].
     expect(pymAfterPaying("01088")).toBe(2);
-    // Energy plus The Power of Aggression (01055, a doubled [wild] while paying for an Aggression card) = 4 [energy] overpaid, capped at 3 counters.
+    // Energy plus The Power of Aggression (01055): its [wild] is not doubled for Wasp, so 3 [energy] overpaid = 3 counters
+    // (FFG ruling Sep 21, 2023, post-RRG 1.5 #87: "The Power Of cards will only generate one resource for these allies").
     expect(pymAfterPaying("01088", "01055")).toBe(3);
     // A [physical] overpayment counts nothing: Wasp has 0 printed hit points, so with no pym counter she is
     // defeated as she enters play (RRG 1.8 "Hit Points", p. 21).
@@ -398,7 +399,7 @@ describe("Wasp pack protection card, from Black Panther (Protection)'s own deck"
 // resources. The Power Of cards will only generate one resource for these allies." RRG 1.8 "Cost" (p. 13): resources
 // beyond the cost are overpaid, not paid.
 describe("The Power Of cards and overpaying (Wasp, 13012)", () => {
-  it.fails("Wasp (cost 0) paid with only The Power of Aggression: the card generates 1 resource, so 1 pym counter", () => {
+  it("Wasp (cost 0) paid with only The Power of Aggression: the card generates 1 resource, so 1 pym counter", () => {
     const { state: opened, id } = openHandFor("13012", SHE_HULK);
     const given = moveToHand(opened, P1, "01055");
     const after = settle(

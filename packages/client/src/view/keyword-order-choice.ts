@@ -6,12 +6,21 @@
  * the keyword's own card help uses, so the two always agree.
  */
 import { glossaryEntry, type GlossaryId } from "@mc/content";
-import type { GameState, PendingChoice } from "@mc/engine";
+import type { GameState, InstanceId, PendingChoice } from "@mc/engine";
+import { cardName } from "./names.js";
 
 export interface KeywordOrderTile {
   readonly optionId: string;
-  /** "Quickstrike", "Teamwork": the name the engine gave the option. */
+  /** "Quickstrike", "Teamwork": the name the engine gave the option (for `orderLoopKeywords`, the keyword alone). */
   readonly name: string;
+  /**
+   * `orderLoopKeywords` only: the minion the keyword belongs to, which no source card shows (several minions can be
+   * ordered at once). Two minions sharing a name read apart by the order the loop discarded them ("Kree Private, 2nd
+   * of 2 discarded"); one minion's two keywords share the line.
+   */
+  readonly subject?: string;
+  /** `orderLoopKeywords` only: that minion, for the tile's hover and press-and-hold read. */
+  readonly instanceId?: InstanceId;
   /** The first sentence of the keyword's glossary definition; "" when the glossary has no entry. */
   readonly line: string;
 }
@@ -31,19 +40,32 @@ export function firstSentence(text: string): string {
  *   paragraph of the card's text (the n-th "When Revealed" paragraph for the n-th printed option), when `state` is given.
  * - `orderSpecials`: only its incite and surge options (`<instance>:incite`, `<instance>:surge`), which would otherwise
  *   repeat the face of the card whose printed abilities are offered beside them; those keep their faces.
+ * - `orderLoopKeywords` (FFG ruling 38, Drang III): the quickstrikes and teamworks of the minions an "each time" loop
+ *   put into play. Each option is labelled "<Keyword>: <minion>", so the keyword's line is read from the label's head,
+ *   and a minion with both keywords is not drawn as two identical faces. The tile names the keyword, with the minion
+ *   on its own line (`subject`), so a long minion name is never squeezed into the keyword's.
  */
 export function keywordOrderTilesOf(
   choice: PendingChoice,
   state?: GameState,
 ): ReadonlyMap<string, KeywordOrderTile> | null {
   const kind = choice.prompt.kind;
-  if (kind !== "orderKeywords" && kind !== "orderWhenRevealed" && kind !== "orderSpecials") return null;
+  if (
+    kind !== "orderKeywords" &&
+    kind !== "orderWhenRevealed" &&
+    kind !== "orderSpecials" &&
+    kind !== "orderLoopKeywords"
+  )
+    return null;
+  const labels = new Map(choice.options.map((option) => [option.optionId, option.label ?? ""]));
   const keywordOf = (optionId: string): string | null => {
+    if (kind === "orderLoopKeywords") return (labels.get(optionId) ?? "").split(":")[0]!.trim().toLowerCase() || null;
     if (kind !== "orderSpecials") return optionId;
     const match = /:(incite|surge)$/.exec(optionId);
     return match ? match[1]! : null;
   };
   const paragraphs = kind === "orderWhenRevealed" && state ? whenRevealedParagraphs(state, choice) : [];
+  const subjects = kind === "orderLoopKeywords" ? loopSubjects(choice, state) : null;
   let printedIndex = 0;
   const tiles: [string, KeywordOrderTile][] = [];
   for (const option of choice.options) {
@@ -56,9 +78,51 @@ export function keywordOrderTilesOf(
     const keyword = keywordOf(option.optionId);
     if (keyword === null) continue;
     const line = firstSentence(glossaryEntry(keyword as GlossaryId)?.definition ?? "");
+    const subject = subjects?.get(option.optionId);
+    if (subject) {
+      const name = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+      tiles.push([option.optionId, { optionId: option.optionId, name, line, ...subject }]);
+      continue;
+    }
     tiles.push([option.optionId, { optionId: option.optionId, name: option.label, line }]);
   }
   return tiles.length > 0 ? new Map(tiles) : null;
+}
+
+const ORDINALS = ["1st", "2nd", "3rd"];
+const ordinal = (n: number): string => ORDINALS[n - 1] ?? `${n}th`;
+
+/**
+ * Each `orderLoopKeywords` option's minion: its name (the face in play when `state` is given, else the label's tail),
+ * and, where two minions in the prompt share it, their order among them. The engine lists the options in the order
+ * the loop discarded the minions (`releaseLoopFrames`). Counted among this prompt's options only: a copy already in
+ * play, or one whose keyword would do nothing now (not offered), is not counted, so the words say "of 2 discarded",
+ * never "2nd to enter play".
+ */
+function loopSubjects(
+  choice: PendingChoice,
+  state: GameState | undefined,
+): ReadonlyMap<string, { readonly subject: string; readonly instanceId?: InstanceId }> {
+  const minions = choice.options.map((option) => {
+    const instanceId = option.ref.kind === "card" ? option.ref.instanceId : undefined;
+    const tail = option.label.split(":").slice(1).join(":").trim();
+    const name = state && instanceId && state.instances[instanceId] ? cardName(state, instanceId) : tail;
+    return { optionId: option.optionId, instanceId, name };
+  });
+  const byName = new Map<string, (InstanceId | undefined)[]>();
+  for (const { name, instanceId } of minions) {
+    const seen = byName.get(name) ?? [];
+    if (!seen.includes(instanceId)) seen.push(instanceId);
+    byName.set(name, seen);
+  }
+  return new Map(
+    minions.map(({ optionId, instanceId, name }) => {
+      const twins = byName.get(name)!;
+      const at = twins.indexOf(instanceId) + 1;
+      const subject = twins.length > 1 ? `${name}, ${ordinal(at)} of ${twins.length} discarded` : name;
+      return [optionId, instanceId ? { subject, instanceId } : { subject }];
+    }),
+  );
 }
 
 /** The "When Revealed" paragraphs of the text of the card an `orderWhenRevealed` choice is about, in printed order. */

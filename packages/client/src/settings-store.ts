@@ -28,6 +28,7 @@ import {
   clampGlyphSize,
   clampMusicVolume,
   defaultSettings,
+  DECK_SIGNATURE_CARDS_VALUES,
   resolutionPixelsOf,
   type Settings,
   type Resolution,
@@ -45,10 +46,15 @@ export type SettingsOverrides = Partial<Settings>;
 const BOOLEAN_FIELDS = [
   "reducedMotion",
   "largeCardText",
+  "darkMode",
   "sound",
   "musicShuffle",
   "confirmBeforeEndTurn",
+  "deckCopyLimits",
   "notOfferedNotices",
+  "deckCountsHero",
+  "deckCountsEncounter",
+  "deckBoostAverage",
   "sameNameHeroAllyConflict",
   "holdEncounterCards",
   "flipEncounterCards",
@@ -128,6 +134,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (typeof effectsVolume === "number" && Number.isFinite(effectsVolume)) {
     out.effectsVolume = clampMusicVolume(effectsVolume);
   }
+  const signatureValue = DECK_SIGNATURE_CARDS_VALUES.find((value) => value === source["deckSignatureCards"]);
+  if (signatureValue !== undefined) out.deckSignatureCards = signatureValue;
   const cardLanguage = source["cardLanguage"];
   if (typeof cardLanguage === "string" && isCardLanguage(cardLanguage)) out.cardLanguage = cardLanguage;
   const resolution = source["textResolution"];
