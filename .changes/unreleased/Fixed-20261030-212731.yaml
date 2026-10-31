@@ -1,0 +1,3 @@
+kind: Fixed
+body: Clicks outside the tutorial's current step now stay blocked until you use Skip this step, Stop tutorial or Escape, steps waiting on Got it hold the table, and a step that needs a card you skipped moves on by itself (#554)
+time: 2026-10-30T21:27:31.7760665-04:00

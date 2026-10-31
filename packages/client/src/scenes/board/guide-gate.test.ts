@@ -46,7 +46,7 @@ describe("GuideGateHolder — set", () => {
   });
 });
 
-describe("GuideGateHolder — two inert clicks lift the gate (owner: 'no one should feel locked in')", () => {
+describe("GuideGateHolder — two inert clicks", () => {
   it("stays gated after one inert click", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
@@ -56,40 +56,50 @@ describe("GuideGateHolder — two inert clicks lift the gate (owner: 'no one sho
     expect(onGateEscaped).not.toHaveBeenCalled();
   });
 
-  it("lifts the gate and fires onGateEscaped on the second inert click", () => {
+  it("lifts a gate that doesn't hold, and fires onGateEscaped", () => {
     const holder = new GuideGateHolder();
     const onGateEscaped = vi.fn();
     holder.set(gate({ onGateEscaped }));
     holder.noteInertClick();
     holder.noteInertClick();
-    expect(holder.current).toBeNull();
     expect(onGateEscaped).toHaveBeenCalledOnce();
+    expect(holder.current).toBeNull();
+    expect(holder.allowsAction("attack")).toBe(true);
   });
 
-  it("never swallows a third click — it's checked against 'no gate at all'", () => {
+  it("keeps blocking with a gate that holds, and still fires onGateEscaped (#554)", () => {
+    const holder = new GuideGateHolder();
+    const onGateEscaped = vi.fn();
+    holder.set(gate({ onGateEscaped, holds: true }));
+    holder.noteInertClick();
+    holder.noteInertClick();
+    expect(onGateEscaped).toHaveBeenCalledOnce();
+    expect(holder.current).not.toBeNull();
+    expect(holder.allowsAction("attack")).toBe(false);
+    expect(holder.allowsCard(toInstanceId("i5"))).toBe(false);
+  });
+
+  it("only a gate that holds covers abilities", () => {
     const holder = new GuideGateHolder();
     holder.set(gate());
-    holder.noteInertClick();
-    holder.noteInertClick();
-    // The gate is gone now; a click on something it used to block works.
-    expect(holder.allowsAction("attack")).toBe(true);
-    expect(holder.allowsCard(toInstanceId("i9"))).toBe(true);
+    expect(holder.allowsAbility(toInstanceId("i5"))).toBe(true);
+    holder.set(gate({ holds: true }));
+    expect(holder.allowsAbility(toInstanceId("i4"))).toBe(true);
+    expect(holder.allowsAbility(toInstanceId("i5"))).toBe(false);
   });
 
-  it("does not fire onGateReleased — that's Escape's own event, not the two-strikes fallback", () => {
+  it("nudges again on every second inert click after that", () => {
     const holder = new GuideGateHolder();
-    const onGateReleased = vi.fn();
     const onGateEscaped = vi.fn();
-    holder.set(gate({ onGateReleased, onGateEscaped }));
-    holder.noteInertClick();
-    holder.noteInertClick();
-    expect(onGateEscaped).toHaveBeenCalledOnce();
-    expect(onGateReleased).not.toHaveBeenCalled();
+    holder.set(gate({ onGateEscaped, holds: true }));
+    for (let i = 0; i < 4; i++) holder.noteInertClick();
+    expect(onGateEscaped).toHaveBeenCalledTimes(2);
   });
 
   it("is a no-op with no gate open", () => {
     const holder = new GuideGateHolder();
-    expect(() => holder.noteInertClick()).not.toThrow();
+    holder.noteInertClick();
+    holder.noteInertClick();
     expect(holder.current).toBeNull();
   });
 });

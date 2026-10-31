@@ -739,6 +739,8 @@ export class BoardScene extends Phaser.Scene {
         guideCalloutRects: () => this.#guide?.debugCalloutRects() ?? null,
         guideWaitingStripRects: () => this.#guide?.debugWaitingStripRects() ?? null,
         guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
+        guideHighlightRect: () => this.guideHighlightRect(),
+        guideHighlightAlpha: () => this.#guide?.debugHighlightAlpha() ?? null,
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,
@@ -1027,7 +1029,7 @@ export class BoardScene extends Phaser.Scene {
           onLeave: () => this.#leaveLesson({ scene: SCENES.aspectLesson, data: { aspect, backTo: "howToPlay" } }),
         },
         observation,
-        { lockLog: false, roundDebrief: false },
+        { lockLog: false, roundDebrief: false, holdGate: false },
       );
       return;
     }
@@ -1047,7 +1049,7 @@ export class BoardScene extends Phaser.Scene {
           onLeave: () => this.#leaveLesson({ scene: SCENES.howToPlay, data: {} }),
         },
         observation,
-        { lockLog: false, roundDebrief: false },
+        { lockLog: false, roundDebrief: false, holdGate: false },
       );
       return;
     }
@@ -3232,6 +3234,11 @@ export class BoardScene extends Phaser.Scene {
    * like `guideStripContent` above. `null` off a guided run, same as `guideStripContent`. */
   inspectStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
     return this.#guide?.inspectStripContent() ?? null;
+  }
+
+  /** Where the guide's highlight is right now, for a sheet's stamp to glide in from (`BoardGuideMount.highlightRect`). */
+  guideHighlightRect(): Rect | null {
+    return this.#guide?.highlightRect() ?? null;
   }
 
   /** "Stop tutorial" from Pause (§3.10, G5c part 3): the same path the guide panel/callout's own Stop already
