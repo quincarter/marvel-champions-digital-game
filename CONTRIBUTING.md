@@ -150,6 +150,9 @@ the command.
 - **Branches**: `feature/<descriptive-name>` or `bug-fix/<descriptive-name-and-issue-id>`, off `main`.
 - **Pull requests**: describe what a player would see, before and after. Include screenshots for UI changes. Anywhere
   the client shows a card face, desktop mouseover should open the card hover popover; show it in the screenshots.
+- **Screen sizes**: check and screenshot a changed screen at each `scripts/shoot-app.mjs --size` preset that matters:
+  `se` (the smallest phone we design for), `pixel`, `tablet-portrait`, `tablet` (landscape) and `desktop`. A tablet is its
+  own layout, not a small desktop. The e2e suite runs only desktop and phone.
 - **Changelog**: every change that lands on `main` carries a [changie](https://github.com/miniscruff/changie)
   fragment. Run `changie new -k <Kind> -b "<one line>"` (kinds in `.changie.yaml`: Added, Changed, Fixed, Engine,
   Content, Docs) and commit the `.changes/unreleased/*.yaml` file with the code. Wait a second between two

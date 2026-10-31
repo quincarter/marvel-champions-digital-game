@@ -137,6 +137,7 @@ import {
   STAMP_CHIP_TYPE,
   clampLines,
   fitText,
+  fitWrapped,
   label,
   paintDotGrid,
   paintPanel,
@@ -149,19 +150,27 @@ import {
   againstVillainOf,
   fromYourGamesOf,
   fromYourGamesType,
-  villainsFacedOf,
+  againstStepOf,
   type DeckInsights,
   type SuggestedCard,
 } from "../view/deck-insights.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { loadGlobalVillainCards, type GlobalLoad } from "../global-stats/global-stats-client.js";
 import { globalVillainDecksOf } from "../global-stats/global-stats-model.js";
+import { askAnswerAllowed } from "../view/global-ask.js";
+import { readConsent } from "../global-stats/global-consent.js";
+import { shareFinishedGamesNow } from "../global-stats/share-now.js";
 import {
   AGAINST_LABELS,
+  AGAINST_NOTE_FINISH,
   AGAINST_NOTE_NONE,
   AGAINST_NOTE_READING,
+  AGAINST_NOTE_SHARE_IN_SETTINGS,
   AGAINST_NOTE_STALE,
   AGAINST_NOTE_UNAVAILABLE,
+  GLOBAL_ROW_FAILED,
+  SHARE_LABEL,
+  SHARE_LINE,
   type AgainstSource,
 } from "../view/global-stats-ui.js";
 import type { GlobalVillainCards } from "@mc/sync-worker/global-protocol";
@@ -262,6 +271,12 @@ const POOL_SEARCH_DOCUMENTS = (): readonly SearchDocument[] =>
   (poolSearchDocuments ??= POOL.map((card) =>
     cardSearchDocumentOf(card, PACK_INFOS.find((pack) => pack.code === (card.setCode as string))?.name),
   ));
+/** Every villain's name in the pool (what the Worker keys its villains by), for Everyone's Against stepper. */
+let poolVillains: readonly string[] | null = null;
+const poolVillainNames = (): readonly string[] =>
+  (poolVillains ??= [
+    ...new Set([...CARDS_BY_ID.values()].filter((card) => card.type === "villain").map((c) => c.name)),
+  ]);
 let heroSearchDocuments: readonly SearchDocument[] | null = null;
 const HERO_SEARCH_DOCUMENTS = (): readonly SearchDocument[] =>
   (heroSearchDocuments ??= IDENTITIES.map((identity) => ({
@@ -441,8 +456,15 @@ export class DeckBuilderScene extends Phaser.Scene {
   #againstVillain: string | null = null;
   /** Whose decks the Against block reads: your own games' (from `#insights`) or everyone's (read on first use). */
   #againstSource: AgainstSource = "yours";
-  /** Everyone's decks by villain, read when Everyone is chosen or the stepper moves while it is on; absent: not asked. */
+  /** Everyone's decks by villain, read when Everyone is chosen or the stepper rests on one; absent: not asked. */
   readonly #againstGlobal = new Map<string, GlobalLoad<GlobalVillainCards> | { readonly kind: "reading" }>();
+  /** A press on "Share my games" is being saved (a second press waits), or the last one failed. */
+  #shareBusy = false;
+  #shareFailed = false;
+  /** When Share first appeared (ms), for the 400 ms grace; null while it is not shown. */
+  #shareShownAt: number | null = null;
+  /** The stepper's read, waiting for it to rest on a villain (the Worker allows 120 reads an hour). */
+  #stepTimer: Phaser.Time.TimerEvent | null = null;
   /** Which of the deck rail's two tabs shows: the deck list, or "From your games" (LB / RB). Not in campaign mode. */
   #railTab: "deck" | "games" = "deck";
   /** The rail tabs' and the From your games rows' stops, in the order drawn, for the focus route. */
@@ -524,6 +546,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#againstSource = "yours";
     this.#againstVillain = null;
     this.#againstGlobal.clear();
+    this.#shareFailed = false;
+    this.#shareBusy = false;
+    this.#shareShownAt = null;
+    this.#stepTimer = null;
     this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
     this.#tab = startTab(data.railTab, this.#campaign !== null);
     this.#hints = new GlyphHints(this);
@@ -555,6 +581,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       area: (pointer) => screenHoverArea(this, pointer),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#stepTimer?.remove();
+      this.#stepTimer = null;
       this.scale.off("resize", onResize, this);
       offArt();
       this.#hover?.destroy();
@@ -1852,10 +1880,35 @@ export class DeckBuilderScene extends Phaser.Scene {
       y += text.height + 20;
     }
     const { thumb } = type;
-    const faced = villainsFacedOf(this.#insights);
+    // What the stepper walks: your faced villains, or on Everyone those and then every other villain in the pool.
+    const stepList = (source: AgainstSource): readonly string[] =>
+      againstStepOf(this.#insights!, poolVillainNames(), source);
+    const villainIn = (source: AgainstSource): string | undefined => {
+      const list = stepList(source);
+      return list.includes(this.#againstVillain ?? "") ? this.#againstVillain! : list[0];
+    };
+    const faced = stepList(this.#againstSource);
     // The Cut and Try lists leave room for the Against stepper and a first card under it: the rail does not scroll.
-    // The room is the stepper's, the You / Everyone toggle's under it, and a first card.
-    let limit = faced.length > 0 ? bottom - (hit.target + 8) * 2 - 20 - thumb.height - 16 : bottom;
+    // The room is the stepper's, the You / Everyone toggle's under it, and a first card. It is kept even with no villain
+    // faced yet, so the switch is always there.
+    // On Everyone with sharing off, Share and its line take room too (measured, at most two lines).
+    const shareLine = (): Phaser.GameObjects.Text => {
+      const text = this.add.text(
+        left,
+        y,
+        this.#shareFailed ? `${GLOBAL_ROW_FAILED} ${SHARE_LINE}` : SHARE_LINE,
+        textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label),
+      );
+      fitWrapped(text, column, 2, type.note);
+      return text;
+    };
+    let shareRoom = 0;
+    if (this.#againstSource === "everyone" && readConsent() !== "on" && Number.isFinite(bottom)) {
+      const probe = shareLine();
+      shareRoom = hit.target + 6 + probe.height + 8;
+      probe.destroy();
+    }
+    let limit = bottom - (hit.target + 8) * 2 - shareRoom - 20 - thumb.height - 16;
     const section = (
       title: string,
       cards: readonly SuggestedCard[],
@@ -1926,16 +1979,17 @@ ${entry.detail}`,
       { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
     );
     limit = bottom;
-    if (faced.length > 0 && y + (hit.target + 8) * 2 <= bottom) {
-      const villain = faced.includes(this.#againstVillain ?? "") ? this.#againstVillain! : faced[0]!;
+    let shareDrawn = false;
+    if (y + (hit.target + 8) * 2 <= bottom) {
+      const villain = villainIn(this.#againstSource);
       const everyone = this.#againstSource === "everyone";
-      const theirs = everyone ? this.#againstGlobal.get(villain) : undefined;
+      const theirs = everyone && villain !== undefined ? this.#againstGlobal.get(villain) : undefined;
       const insightsHere: DeckInsights =
-        theirs?.kind === "ready"
+        villain !== undefined && theirs?.kind === "ready"
           ? { heroes: {}, decks: {}, villains: { [villain]: globalVillainDecksOf(theirs.data) } }
           : this.#insights;
       const against =
-        everyone && theirs?.kind !== "ready"
+        villain === undefined || (everyone && theirs?.kind !== "ready")
           ? null
           : againstVillainOf(
               insightsHere,
@@ -1945,30 +1999,56 @@ ${entry.detail}`,
               deck.aspects,
               POOL_STATS_NAMES,
             );
-      const rect: Rect = { x: left, y, width: column, height: hit.target };
-      const step = (): void => {
-        const next = faced[(faced.indexOf(villain) + 1) % faced.length]!;
-        this.#againstVillain = next;
-        // Everyone's decks for the new villain are read now, not before.
-        if (this.#againstSource === "everyone") void this.#loadAgainstGlobal(next);
-        this.#rebuild();
-        this.#route?.focusKey("games:against");
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: onDark ? "onInk" : "secondary",
-          label: `${against?.headline ?? `Against ${villain}`}${faced.length > 1 ? " ▸" : ""}`,
-          type: typeRole.label,
-          rect,
-          onClick: step,
-          enabled: faced.length > 1,
-        }),
-      );
-      if (faced.length > 1) {
-        this.#stops.set("games:against", { rect, activate: step });
-        this.#railStops.push("games:against");
+      if (villain !== undefined) {
+        // Previous and next: with 129 villains a late-alphabet one is not 128 presses away.
+        const prevWidth = faced.length > 1 ? hit.target + 12 : 0;
+        const rect: Rect = { x: left + prevWidth, y, width: column - prevWidth, height: hit.target };
+        const stepBy = (delta: number): void => {
+          const next = faced[(faced.indexOf(villain) + delta + faced.length) % faced.length]!;
+          this.#againstVillain = next;
+          // Everyone's decks are read once the stepper rests on a villain, not on each press passing through.
+          this.#stepTimer?.remove();
+          this.#stepTimer = null;
+          if (this.#againstSource === "everyone") {
+            this.#stepTimer = this.time.delayedCall(400, () => {
+              this.#stepTimer = null;
+              void this.#loadAgainstGlobal(next);
+            });
+          }
+          this.#rebuild();
+          this.#route?.focusKey(delta < 0 ? "games:previous" : "games:against");
+        };
+        const step = (): void => stepBy(1);
+        if (prevWidth > 0) {
+          const prevRect: Rect = { x: left, y, width: prevWidth - 8, height: hit.target };
+          this.#buttons.push(
+            new McButton(this, {
+              kind: onDark ? "onInk" : "secondary",
+              label: "◂",
+              type: typeRole.label,
+              rect: prevRect,
+              onClick: () => stepBy(-1),
+            }),
+          );
+          this.#stops.set("games:previous", { rect: prevRect, activate: () => stepBy(-1) });
+          this.#railStops.push("games:previous");
+        }
+        this.#buttons.push(
+          new McButton(this, {
+            kind: onDark ? "onInk" : "secondary",
+            label: `${against?.headline ?? `Against ${villain}`}${faced.length > 1 ? " ▸" : ""}`,
+            type: typeRole.label,
+            rect,
+            onClick: step,
+            enabled: faced.length > 1,
+          }),
+        );
+        if (faced.length > 1) {
+          this.#stops.set("games:against", { rect, activate: step });
+          this.#railStops.push("games:against");
+        }
+        y += hit.target + 8;
       }
-      y += hit.target + 8;
       // Whose decks: yours, or everyone's. Two equal buttons; the chosen one is filled and ticked.
       const half = Math.floor((column - 8) / 2);
       for (const [at, source] of (["yours", "everyone"] as const).entries()) {
@@ -1977,7 +2057,12 @@ ${entry.detail}`,
         const choose = (): void => {
           if (this.#againstSource === source) return;
           this.#againstSource = source;
-          if (source === "everyone") void this.#loadAgainstGlobal(villain);
+          // A read still waiting for the stepper to rest belongs to the other source.
+          this.#stepTimer?.remove();
+          this.#stepTimer = null;
+          // Everyone with no villain chosen yet starts on the first of its list, read now (this press), not before.
+          const first = villainIn(source);
+          if (source === "everyone" && first !== undefined) void this.#loadAgainstGlobal(first);
           this.#rebuild();
           this.#route?.focusKey(`games:source:${source}`);
         };
@@ -1995,21 +2080,70 @@ ${entry.detail}`,
       }
       y += hit.target + 8;
       const sourceNote =
-        everyone && theirs?.kind !== "ready"
-          ? theirs === undefined || theirs.kind === "reading"
-            ? AGAINST_NOTE_READING
-            : theirs.kind === "none"
-              ? AGAINST_NOTE_NONE
-              : AGAINST_NOTE_UNAVAILABLE
-          : theirs?.kind === "ready" && theirs.stale
-            ? AGAINST_NOTE_STALE
-            : null;
+        villain === undefined
+          ? AGAINST_NOTE_FINISH
+          : everyone && theirs?.kind !== "ready"
+            ? theirs === undefined || theirs.kind === "reading"
+              ? AGAINST_NOTE_READING
+              : theirs.kind === "none"
+                ? AGAINST_NOTE_NONE
+                : AGAINST_NOTE_UNAVAILABLE
+            : theirs?.kind === "ready" && theirs.stale
+              ? AGAINST_NOTE_STALE
+              : null;
       if (sourceNote && y + 30 < bottom) {
         const note = this.add
           .text(left, y, sourceNote, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
           .setFontSize(type.note)
           .setWordWrapWidth(column);
         y += note.height + 8;
+      }
+      // Sharing is off: one press turns it on (the games finished so far are never sent), where the block has room.
+      // Without room, a note says where Settings has it. Turning it off stays in Settings.
+      if (everyone && readConsent() !== "on") {
+        if (bottom - y >= shareRoom || !Number.isFinite(bottom)) {
+          shareDrawn = true;
+          this.#shareShownAt ??= performance.now();
+          const shareRect: Rect = { x: left, y, width: column, height: hit.target };
+          const share = (byFocus: boolean): void => {
+            if (this.#shareBusy) return;
+            // A tap meant for something else that lands as the button appears is not a press on it.
+            if (this.#shareShownAt === null || !askAnswerAllowed(this.#shareShownAt, performance.now())) return;
+            this.#shareBusy = true;
+            void shareFinishedGamesNow().then((saved) => {
+              this.#shareBusy = false;
+              this.#shareFailed = !saved;
+              if (!this.scene.isActive() || !this.#showsGames()) return;
+              this.#rebuild();
+              // A pad or keyboard press: the button is gone, so focus goes to the switch above it.
+              if (saved && byFocus) this.#route?.focusKey("games:source:everyone");
+            });
+          };
+          this.#buttons.push(
+            new McButton(this, {
+              kind: onDark ? "onInk" : "secondary",
+              label: SHARE_LABEL,
+              type: typeRole.label,
+              rect: shareRect,
+              onClick: () => share(false),
+            }),
+          );
+          this.#stops.set("games:share", { rect: shareRect, activate: () => share(true) });
+          this.#railStops.push("games:share");
+          y += hit.target + 6;
+          y += shareLine().height + 8;
+        } else if (bottom - y >= 30) {
+          const line = this.add
+            .text(
+              left,
+              y,
+              AGAINST_NOTE_SHARE_IN_SETTINGS,
+              textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label),
+            )
+            .setFontSize(type.note)
+            .setWordWrapWidth(column);
+          y += line.height + 8;
+        }
       }
       if (against) {
         // A card the lists above already offer keeps its one button (and its one stop).
@@ -2034,6 +2168,7 @@ ${entry.detail}`,
         }
       }
     }
+    if (!shareDrawn) this.#shareShownAt = null;
     section("Keep: your staples", view.keep, null);
     if (view.note && y + 30 < bottom) {
       const note = this.add

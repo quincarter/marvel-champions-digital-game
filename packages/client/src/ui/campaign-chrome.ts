@@ -65,6 +65,8 @@ export interface TopBarOptions {
   readonly title: string;
   /** The small uppercase label at the right edge ("ISSUE 3 OF 5", "AFTER ISSUE #2"). */
   readonly right?: string;
+  /** Room to keep clear at the right edge for a control the scene draws itself (a switch), so the title stops short of it. */
+  readonly reserveRight?: number;
   /** A red chip before the title ("ROUND 4" on the in-game beat). */
   readonly chip?: string;
   /** The scene's glyph hints: the back button then carries the Cancel glyph (B, Esc) on a pad or keyboard. */
@@ -135,6 +137,7 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
       .setLetterSpacing(1.1);
     rightWidth = right.width + 16;
   }
+  rightWidth = Math.max(rightWidth, options.reserveRight ?? 0);
   const title = scene.add
     .text(x, height / 2, options.title.toUpperCase(), textStyle(bangers(frame.phone ? 22 : 28), surface.paper.hex))
     .setOrigin(0, 0.5)
@@ -494,7 +497,7 @@ export function pixelateHeavy(image: Phaser.GameObjects.Image, amount = 14): voi
 }
 
 /** A rough Bangers width before the text exists — for sizing the back button box. */
-function estimateBangersWidth(text: string, size: number): number {
+export function estimateBangersWidth(text: string, size: number): number {
   return text.length * size * 0.42;
 }
 
