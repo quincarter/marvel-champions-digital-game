@@ -203,3 +203,10 @@ describe("abilityFirst", () => {
     expect(abilityFirst("Response: A.\nSetup: B.", "Response")).toBe("Response: A.\nSetup: B.");
   });
 });
+
+describe("abilityFirst, with the form printed on the paragraph (issue #571)", () => {
+  test("Field Agent's Hero Interrupt comes before its Uses line", () => {
+    const text = "Uses (3 backup counters).\nHero Interrupt: When an ally would take damage, prevent 1 of it.";
+    expect(abilityFirst(text, "Hero Interrupt").startsWith("Hero Interrupt:")).toBe(true);
+  });
+});

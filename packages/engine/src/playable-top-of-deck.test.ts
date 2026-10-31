@@ -700,7 +700,8 @@ describe("§3.49 playing the top card of your deck as if it was in your hand", (
     // Stop at the card choice to read "why not Colossus?".
     const asking = applyCommand(used.state, playHand(TEAM_BUILDING)(used.state), deps);
     if (!asking.ok) throw new Error(asking.error.message);
-    expect(asking.state.pendingChoice?.prompt).toEqual({ kind: "chooseCards", slot: "playFromHand" });
+    // Only hand cards are offered, so nothing is shown that Undo would have to keep (`ownHand`).
+    expect(asking.state.pendingChoice?.prompt).toEqual({ kind: "chooseCards", slot: "playFromHand", ownHand: true });
     expect(asking.state.pendingChoice?.options.map((option) => option.ref)).toEqual([
       { kind: "card", instanceId: inHand(used.state, TRIAGE) },
     ]);
