@@ -827,7 +827,11 @@ function executePlayFromHand(
     if (frame.answer === null && playerId && candidates.length > 0 && named === null) {
       requestChoice(ctx, {
         playerId,
-        prompt: { kind: "chooseCards", slot: "playFromHand" },
+        prompt: {
+          kind: "chooseCards",
+          slot: "playFromHand",
+          ...(candidates.every((id) => mustPlayer(ctx.state, playerId).hand.includes(id)) ? { ownHand: true } : {}),
+        },
         options: cardOptions(ctx, candidates),
         minSelections: effect.optional ? 0 : 1,
         maxSelections: 1,

@@ -339,6 +339,10 @@ export function eventStopsUndo(event: GameEvent, mover: PlayerId): boolean {
       // a boost, another seat's hand) taught someone something.
       return !(OPEN_ZONE_KINDS.has(event.from.kind) || (event.from.kind === "hand" && event.from.playerId === mover));
     case "choiceRequested":
+      // A pick from the mover's own hand looks through nothing (Team-Building Exercise, issue #569).
+      if (event.choice.prompt.kind === "chooseCards" && event.choice.prompt.ownHand === true) {
+        return event.choice.playerId !== mover;
+      }
       return event.choice.playerId !== mover || DECK_LOOKING_PROMPT_KINDS.has(event.choice.prompt.kind);
     case "choiceFoundNothing":
       // No scheme or character in play to choose is open to everyone (issue #330). A required card choice that found

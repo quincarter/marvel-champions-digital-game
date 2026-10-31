@@ -92,7 +92,8 @@ export function abilityFirst(rulesText: string, triggerName: string): string {
     const head = paragraph.replace(/^[^A-Za-z]+/, "").toLowerCase();
     // "Response: ..." or a named ability, "Steel Skin - Response: ...".
     const named = head.match(/^[^:]{1,40}?\s[-\u2013\u2014]\s+/);
-    const rest = named ? head.slice(named[0].length) : head;
+    // "Hero Interrupt: ...": the form is printed on the paragraph as well as on the trigger (Field Agent, issue #571).
+    const rest = (named ? head.slice(named[0].length) : head).replace(/^(hero|alter-ego) /, "");
     return rest.startsWith(keyword) && /^[:\s(]|^$/.test(rest.slice(keyword.length));
   };
   const matches = paragraphs.flatMap((paragraph, index) => (starts(paragraph) ? [index] : []));
