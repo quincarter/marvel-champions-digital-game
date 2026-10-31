@@ -38,7 +38,7 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
 2. One paragraph naming the big changes and thanking people, with `#123` and `@handle`.
 3. `**[Read the full <version> report on the site ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/)**:`
    and a line of what's in it.
-4. The report images (step 4), if there are any.
+4. The section images (step 4). They are required: this is what the GitHub release description shows.
 
 ## 3. Build the report
 
@@ -64,11 +64,17 @@ Rules for the page:
 Copy and voice: plain sentences, in the first person where it's Quin speaking, with no em dashes. State only what the
 release PR and the code confirm.
 
-## 4. Images for the GitHub notes
+## 4. Section images for the GitHub release
 
-One JPG per story, cut from the report at 2x, in `docs/screenshots/releases/<version>/`, named
-`v0-40-0-release-01-the-numbers.jpg` style. List them in the header as `![what it shows](raw URL)`, with the URL
-pinned to the commit that adds them. Commit the images first, then the header that names that commit.
+The GitHub release description carries the report as images, cut from the finished page in sections so it stays small
+and easy to read. Every release needs them.
+
+- Cut one JPG per section of the page, in order: the numbers first, then each story, You asked we fixed, Also in, Thank
+  you and Code shipped. Shoot the section's element from with Playwright at a 1424 px
+  wide viewport and a device scale factor of 2, so each is about 2848 px wide. v0.40.0 has 14 and v0.39.0 has 9.
+- Save them in , named style.
+- List them in the header as , with the alt text naming what the image holds and the URL
+  pinned to the commit that adds them. Commit the images first, then the header that names that commit.
 
 ## 5. Wire it in
 
