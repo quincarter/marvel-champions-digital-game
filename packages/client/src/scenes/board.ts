@@ -70,7 +70,7 @@ import {
   type PhoneTab,
   type Rect,
 } from "../view/layout.js";
-import { cardHoverFactor, cardSizeFactor } from "../settings.js";
+import { cardHoverFactor, cardSizeFactor, type Settings } from "../settings.js";
 import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { choiceDock } from "../view/choice-dock.js";
@@ -411,8 +411,8 @@ export class BoardScene extends Phaser.Scene {
   readonly #tableDrag = new TableDrag();
   /** A crowded play area row takes the wheel over it as a sideways scroll; a vertical drag over it still scrolls the table. */
   #rowWheelRect: Rect | null = null;
-  /** The Card size the last draw used: a change (Settings opened from Pause) redraws the table at the new size. */
-  #drawnCardSize: string | null = null;
+  /** The settings the last draw used: a change (Settings opened from Pause) redraws the table under them. */
+  #drawnSettings: Settings | null = null;
   /** The target set a reveal last ran for, so a target prompt scrolls its first target into view once, not every draw. */
   #revealedTargets: string | null = null;
 
@@ -439,8 +439,9 @@ export class BoardScene extends Phaser.Scene {
 
   /** The hand's flick coasts frame by frame; everything else on the table moves by tween or by redraw. */
   override update(_time: number, deltaMs: number): void {
-    // Settings can be opened over the board from Pause and change the Card size under it; a wheel or drag asked for a scroll.
-    if (this.#scrollDirty || (this.#model && appSession().settings.cardSize !== this.#drawnCardSize)) this.#draw();
+    // Settings can be opened over the board from Pause and change what it draws and wires (Card size, the piles' Cards
+    // left taps, #575) under it; a wheel or drag asked for a scroll.
+    if (this.#scrollDirty || (this.#model && appSession().settings !== this.#drawnSettings)) this.#draw();
     // A drawn card's ghost starting or landing: the ghost is redrawn from its own clock, so something has to ask.
     else if (this.#model && this.#motion.needsRedraw()) this.#draw();
     // The first player token passed while the table was covered: its flight starts the moment the table is back.
@@ -1421,9 +1422,9 @@ export class BoardScene extends Phaser.Scene {
     const dock = this.#villainDock;
     // The Card size setting: above Standard the table is laid out taller than its window and scrolls (`scrollLayout`
     // moves the table's zones to the current offset, so every rect below is a screen rect, scrolled or not).
-    const cardSize = appSession().settings.cardSize;
+    this.#drawnSettings = appSession().settings;
+    const cardSize = this.#drawnSettings.cardSize;
     const cardScale = cardSizeFactor(cardSize);
-    this.#drawnCardSize = cardSize;
     this.#scrollDirty = false;
     const atRest = boardLayout(viewport, {
       playerCount: model.team.length + 1,

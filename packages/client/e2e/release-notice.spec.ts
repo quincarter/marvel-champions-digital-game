@@ -39,7 +39,8 @@ test("the notice bar sits across the top of Title and opens the release report",
 
   const bar = await stopRect(page, "release-notice");
   const width = page.viewportSize()!.width;
-  expect(bar).toMatchObject({ x: 0, y: 0, width });
+  // The stop is the bar inset 6 px, so the ring stays on screen.
+  expect(bar).toMatchObject({ x: 6, y: 6, width: width - 12 });
   // Nothing else on Title starts under it.
   const others = (await routeStops(page, "Title"))!.stops.filter((s) => s.key !== "release-notice");
   for (const stop of others) expect(stop.rect.y, stop.key).toBeGreaterThanOrEqual(bar.y + bar.height);
