@@ -22,6 +22,7 @@ import { debugSnapshot } from "../ui/debug-dump.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { appVersionText, buildCommit } from "../view/app-version.js";
+import { knownSteamInstall } from "../platform/steam-install.js";
 import {
   DECK_REQUEST_URL,
   DISCORD_INVITE_URL,
@@ -153,7 +154,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const platform = detectPlatform();
     return {
-      version: appVersionText(CLIENT_VERSION, platform, buildCommit(), cardLanguage()),
+      version: appVersionText(CLIENT_VERSION, platform, buildCommit(), cardLanguage(), knownSteamInstall() !== null),
       platform,
       cardLanguage: artLanguageNow(),
       userAgent: navigator.userAgent,

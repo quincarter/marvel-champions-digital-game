@@ -1,8 +1,10 @@
 // Centralized logic for gathering release artifacts (Desktop installers, Android APK)
 // into the unified <repoRoot>/release/ directory and generating checksum manifests.
 
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -164,14 +166,16 @@ export function collectDesktopBundles(releaseDir = defaultReleaseDir) {
 }
 
 /**
- * The "Install for Steam" script for this machine's OS (scripts/<os>/install-for-steam.*), which adds the installed
- * game to Steam as a non-Steam game with its library art. Each desktop leg of the release stages its own OS's, with
- * the release's tag stamped in so it fetches that release's art; both macOS legs stage the same file. Windows ships a
- * .cmd: the launcher (scripts/windows/install-for-steam-launcher.cmd) with the .ps1 after it, which runs on a
- * double-click where a downloaded unsigned .ps1 is blocked (#474).
+ * The "Install for Steam" script for this machine's OS (scripts/<os>/install-for-steam.*), which installs the latest
+ * release and adds it to Steam as a non-Steam game with its library art. It is the same file in every release, with no
+ * version in its name or contents: it asks GitHub for the latest release itself, and
+ * `releases/latest/download/<name>` is a link that never changes. Each desktop leg of the release stages its own OS's;
+ * both macOS legs stage the same file. Windows ships a .cmd: the launcher (scripts/windows/install-for-steam-launcher.cmd)
+ * with the .ps1 after it, which runs on a double-click where a downloaded unsigned .ps1 is blocked (#474). Linux also
+ * ships a .tar.gz of the script and its art, because a browser download of a bare file is never executable.
  */
 const STEAM_INSTALLERS = {
-  linux: { source: path.join("linux", "install-for-steam.sh"), name: "Linux-Install-for-Steam.sh" },
+  linux: { source: path.join("linux", "install-for-steam.sh"), name: "Linux-Install-for-Steam.sh", archive: true },
   win32: {
     source: path.join("windows", "install-for-steam.ps1"),
     launcher: path.join("windows", "install-for-steam-launcher.cmd"),
@@ -180,29 +184,52 @@ const STEAM_INSTALLERS = {
   darwin: { source: path.join("macos", "install-for-steam.sh"), name: "macOS-Install-for-Steam.sh" },
 };
 
-export function steamInstallerName(platform, version) {
+export function steamInstallerName(platform) {
   const installer = STEAM_INSTALLERS[platform];
-  return installer ? `${ASSET_PREFIX}-${version}-${installer.name}` : null;
+  return installer ? `${ASSET_PREFIX}-${installer.name}` : null;
+}
+
+export const steamInstallerArchiveName = (platform) => steamInstallerName(platform).replace(/\.sh$/, ".tar.gz");
+
+function stagedAsset(file) {
+  return { name: path.basename(file), path: file, size: fs.statSync(file).size, sha256: computeSha256(file) };
+}
+
+/** The script, executable, beside its art in one folder: extract it and double-click or run the script. */
+function writeSteamArchive(script, dest) {
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), "mc-steam-"));
+  const folder = `${ASSET_PREFIX}-Install-for-Steam`;
+  const inner = path.join(staging, folder);
+  fs.mkdirSync(inner);
+  fs.cpSync(path.join(repoRoot, "scripts", "linux", "steam-art"), path.join(inner, "steam-art"), { recursive: true });
+  const inside = path.join(inner, "install-for-steam.sh");
+  fs.writeFileSync(inside, script);
+  fs.chmodSync(inside, 0o755);
+  execFileSync("tar", ["-czf", dest, "-C", staging, folder]);
+  fs.rmSync(staging, { recursive: true, force: true });
 }
 
 /**
  * Stages this OS's Install for Steam script into the release directory.
- * @returns {{ name: string, path: string, size: number, sha256: string } | null}
+ * @returns {{ name: string, path: string, size: number, sha256: string }[]} the files staged
  */
 export function collectSteamInstaller(platform = process.platform, releaseDir = defaultReleaseDir) {
   const installer = STEAM_INSTALLERS[platform];
-  if (!installer) return null;
+  if (!installer) return [];
   fs.mkdirSync(releaseDir, { recursive: true });
-  const version = getProjectVersion();
-  const name = steamInstallerName(platform, version);
-  const dest = path.join(releaseDir, name);
+  const dest = path.join(releaseDir, steamInstallerName(platform));
   const read = (file) => fs.readFileSync(path.join(repoRoot, "scripts", file), "utf8");
-  let script = read(installer.source).replaceAll("__MC_RELEASE_TAG__", `v${version}`);
+  let script = read(installer.source);
   // cmd misreads labels and jumps in a batch file with bare LF line ends, so the stitched .cmd uses CRLF throughout.
   if (installer.launcher) script = (read(installer.launcher) + script).replace(/\r?\n/g, "\r\n");
   fs.writeFileSync(dest, script, { mode: 0o755 });
-  const stat = fs.statSync(dest);
-  return { name, path: dest, size: stat.size, sha256: computeSha256(dest) };
+  const staged = [stagedAsset(dest)];
+  if (installer.archive) {
+    const archive = path.join(releaseDir, steamInstallerArchiveName(platform));
+    writeSteamArchive(script, archive);
+    staged.push(stagedAsset(archive));
+  }
+  return staged;
 }
 
 /**

@@ -36,6 +36,8 @@ import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
+import { steamInstall, type SteamInstall } from "../platform/steam-install.js";
+import type { SteamUpdateSceneData } from "./steam-update.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -151,6 +153,8 @@ export class TitleScene extends Phaser.Scene {
   #removeError: string | null = null;
   /** A newer release with an installer for this platform (native apps only), once GitHub has answered. */
   #update: AvailableUpdate | null = null;
+  /** The Install for Steam script's record of this install, once read (`platform/steam-install.ts`). */
+  #steam: SteamInstall | null = null;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
   #art: TitleArt | null = null;
   #artPanel: { x: number; y: number; width: number; height: number } | null = null;
@@ -204,6 +208,7 @@ export class TitleScene extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.steamUpdate) ||
         this.scene.isActive(SCENES.gamesList),
       // R3 (and the Expand key, F / ;) snaps focus to the in-progress games, ready to scroll.
       onExpand: () => {
@@ -259,6 +264,11 @@ export class TitleScene extends Phaser.Scene {
         this.#rebuild();
       });
     void this.#refreshSaves();
+    void steamInstall().then((install) => {
+      if (!install || !this.sys.isActive()) return;
+      this.#steam = install;
+      this.#rebuild();
+    });
     void checkForUpdate().then((update) => {
       // A banner the player closed for this very release stays closed; a newer release brings it back.
       if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
@@ -691,7 +701,7 @@ export class TitleScene extends Phaser.Scene {
     const versionText = this.add.text(
       0,
       layout.footer.y,
-      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit(), cardLanguage()),
+      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit(), cardLanguage(), this.#steam !== null),
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
@@ -707,6 +717,8 @@ export class TitleScene extends Phaser.Scene {
     const releaseNotes = (): void => openExternal(releaseNotesUrl(CLIENT_VERSION));
     const linkText = this.add.text(0, layout.footer.y, "Release notes ↗", textStyle(typeRole.label, textColor));
     linkText.setX(versionText.x - 16 - linkText.width);
+    // A phone's footer has no room for all three once the version names its language and install.
+    coverageText.setVisible(coverageText.x + coverageText.width + 8 <= linkText.x - 6);
     this.add
       .graphics()
       .fillStyle(textColor, 0.6)
@@ -877,12 +889,13 @@ export class TitleScene extends Phaser.Scene {
 
   /**
    * The update banner (native apps, `platform/update-check.ts`): caution yellow, the advisory color, with the new
-   * version and a button per action: the changelog and this install's own installer. Returns its focus stops.
+   * version and a button per action: the changelog and this install's own installer, or the update panel for an
+   * install the Install for Steam script can update. Returns its focus stops.
    */
   #drawUpdateBanner(banner: Rect | null): readonly string[] {
     const update = this.#update;
     if (!update || !banner) return [];
-    const all = updateActions(update);
+    const all = updateActions(update, this.#steam?.canUpdate === true);
     const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
     const parts = updateBannerParts(banner, actions.length);
     this.add
@@ -902,10 +915,11 @@ export class TitleScene extends Phaser.Scene {
       .setWordWrapWidth(parts.textWidth);
     actions.forEach((action, index) => {
       const rect = parts.buttons[index]!;
-      const open = (): void => openExternal(action.url);
+      const { url } = action;
+      const open = (): void => (url === null ? this.#openSteamUpdate(update) : openExternal(url));
       this.#buttons.push(
         new McButton(this, {
-          kind: action.id === "update-download" ? "primary" : "secondary",
+          kind: action.id === "update-notes" ? "secondary" : "primary",
           label: action.label,
           type: typeRole.rowTitle,
           rect,
@@ -930,6 +944,14 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set(UPDATE_DISMISS_ID, { rect: parts.dismiss, activate: close });
     return actions.map((action) => action.id);
+  }
+
+  #openSteamUpdate(update: AvailableUpdate): void {
+    if (this.scene.isActive(SCENES.steamUpdate)) return;
+    this.scene.launch(SCENES.steamUpdate, {
+      version: update.version,
+      fallbackUrl: update.downloadUrl ?? update.notesUrl,
+    } satisfies SteamUpdateSceneData);
   }
 
   /**
