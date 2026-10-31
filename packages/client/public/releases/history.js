@@ -1,0 +1,756 @@
+/**
+ * The release history page (issue #588). The list comes from `history/manifest.json`, which
+ * `vite-release-history.ts` writes from the changelog. The address's hash picks the release, so a link in the list is
+ * a plain `#v0.33.0`: the browser's back and forward work, a link can be shared, and nothing reloads.
+ *
+ * A release with a report gets that report, fetched and mounted in a shadow root so its styles stay its own. Any other
+ * release is drawn from `history/<version>.json`.
+ *
+ * The web build carries a release's notes before that release is published, so the list stops at GitHub's latest
+ * release. A newer one still opens by its own link, and with GitHub out of reach the list shows everything it has.
+ *
+ * The page reads in English or Spanish. `?lang=` picks one (the game's links carry it), then the toggle's last choice,
+ * then the game's own card language: its saved setting, else the same browser language check the game starts from.
+ * Spanish data lives in `history/es/` and each report's `index.es.html`. While Spanish is on, a bar above the page says
+ * the text is AI translated; a report carries its own for when it's opened alone, which is dropped here.
+ *
+ * Lives in `public/` beside the reports, which is why it is plain
+ * script with no imports.
+ */
+(() => {
+  const BASE = new URL(".", document.currentScript.src);
+  const REPO = "https://github.com/quincarter/marvel-champions-digital-game";
+  const LATEST_API = "https://api.github.com/repos/quincarter/marvel-champions-digital-game/releases/latest";
+  const LATEST_TIMEOUT = 3000;
+  const SHORT_DATE = { month: "short", day: "numeric", timeZone: "UTC" };
+  const LONG_DATE = { ...SHORT_DATE, year: "numeric" };
+  const MONTH = { month: "long", year: "numeric", timeZone: "UTC" };
+
+  const LANGUAGES = ["en", "es"];
+  const LANGUAGE_KEY = "mc-release-language";
+  /** The game's settings (`settings-store.ts`): same origin on the web, so a choice made in the game shows here. */
+  const SETTINGS_KEY = "mc-settings";
+  const LOCALE = { en: "en-US", es: "es" };
+  const WORDS = {
+    en: {
+      title: "Release history",
+      titleWords: ["Release", "history"],
+      game: "Marvel Champions: Digital Edition",
+      skip: "Skip to the release",
+      play: "Play in your browser ↗",
+      releasesLabel: "Releases",
+      closeList: "Close the release list",
+      newerRelease: "Newer release",
+      olderRelease: "Older release",
+      languageLabel: "Language",
+      releases: (n) => `${n} releases`,
+      releasesSince: (n, date) => `${n} releases since ${date}`,
+      showOlder: "Show older releases",
+      allOlder: "‹ All older releases",
+      latest: "‹ Latest releases",
+      olderTitle: "Older releases",
+      backToOlder: "‹ Older releases",
+      range: (from, to) => `${from} to ${to}`,
+      notes: "Release notes",
+      newer: "‹ Newer",
+      older: "Older ›",
+      pagerLabel: "Newer and older releases",
+      ownPage: "Open on its own page ↗",
+      notHere: "Not here yet",
+      missing: (version) => `${version} isn't in this page yet.`,
+      failed: "This release didn't load.",
+      onGithub: "Read it on GitHub ↗",
+      listFailed: "The release list didn't load.",
+      allOnGithub: "Every release is on GitHub ↗",
+      hints: {
+        move: "Move",
+        open: "Open",
+        newerOlder: "Newer / older",
+        scroll: "Scroll",
+        list: "List",
+        close: "Close",
+      },
+      kinds: {},
+    },
+    es: {
+      title: "Historial de versiones",
+      titleWords: ["Historial", "de versiones"],
+      game: "Marvel Champions: Digital Edition",
+      skip: "Ir a la versión",
+      play: "Jugar en el navegador ↗",
+      releasesLabel: "Versiones",
+      closeList: "Cerrar la lista de versiones",
+      newerRelease: "Versión más reciente",
+      olderRelease: "Versión anterior",
+      languageLabel: "Idioma",
+      releases: (n) => `${n} versiones`,
+      releasesSince: (n, date) => `${n} versiones desde el ${date}`,
+      showOlder: "Ver versiones anteriores",
+      allOlder: "‹ Todas las anteriores",
+      latest: "‹ Últimas versiones",
+      olderTitle: "Versiones anteriores",
+      backToOlder: "‹ Versiones anteriores",
+      range: (from, to) => `Del ${from} al ${to}`,
+      notes: "Notas de la versión",
+      newer: "‹ Más reciente",
+      older: "Anterior ›",
+      pagerLabel: "Versiones más recientes y anteriores",
+      ownPage: "Abrir en su propia página ↗",
+      notHere: "Aún no está aquí",
+      missing: (version) => `${version} aún no está en esta página.`,
+      failed: "Esta versión no se cargó.",
+      onGithub: "Leerla en GitHub ↗",
+      listFailed: "La lista de versiones no se cargó.",
+      allOnGithub: "Todas las versiones están en GitHub ↗",
+      hints: {
+        move: "Mover",
+        open: "Abrir",
+        newerOlder: "Reciente / anterior",
+        scroll: "Desplazar",
+        list: "Lista",
+        close: "Cerrar",
+      },
+      kinds: {
+        Added: "Añadido",
+        Changed: "Cambiado",
+        Fixed: "Corregido",
+        Content: "Contenido",
+        Engine: "Motor",
+        Docs: "Documentación",
+        "Special thanks": "Agradecimientos",
+      },
+    },
+  };
+
+  const storageRead = (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+  const storageWrite = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Private windows and blocked storage just don't remember.
+    }
+  };
+  /** The game's card language: its saved setting, else what `preferredCardLanguage` starts a new player in. */
+  function gameLanguage() {
+    try {
+      const saved = JSON.parse(storageRead(SETTINGS_KEY) ?? "{}").cardLanguage;
+      if (LANGUAGES.includes(saved)) return saved;
+    } catch {
+      // A settings record this page can't read says nothing about the language.
+    }
+    const tags = navigator.languages ?? [];
+    return tags.map((tag) => tag.toLowerCase().split("-")[0]).find((tag) => LANGUAGES.includes(tag)) ?? "en";
+  }
+  function startingLanguage() {
+    const asked = new URLSearchParams(location.search).get("lang");
+    if (LANGUAGES.includes(asked)) return asked;
+    const chosen = storageRead(LANGUAGE_KEY);
+    return LANGUAGES.includes(chosen) ? chosen : gameLanguage();
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const main = $("content");
+  const rail = $("rail");
+  const list = $("list");
+  const openButton = $("bar-open");
+  const closeButton = $("rail-close");
+  const narrow = matchMedia("(max-width: 900px)");
+  const languageGroup = $("language");
+  /** The list shows this many; the rest live behind Show older releases. */
+  const RECENT = 10;
+  const OLDER = "older";
+
+  let language = startingLanguage();
+  /** Counts the toggle's presses, and says when the last language's list didn't load, so a press can try again. */
+  let languageRun = 0;
+  let listBroken = false;
+  const words = () => WORDS[language];
+  const kindName = (kind) => words().kinds[kind] ?? kind;
+  /** Where this language's generated data lives. */
+  const dataUrl = (file) => new URL(`history/${language === "es" ? "es/" : ""}${file}`, BASE);
+
+  /** Newest first: what the list shows, and every release this build has notes for. */
+  let manifest = [];
+  let allReleases = [];
+  let latestOnGithub = null;
+  /** The release on the page, and the shadow root of its report if it has one. */
+  let current = null;
+  let reportRoot = null;
+  let routeId = 0;
+  /** Which list is drawn, and how far down the older releases page was. */
+  let archiveDrawn = null;
+  let olderScroll = 0;
+  const notes = new Map();
+  const reports = new Map();
+
+  const when = (date, format) => new Date(`${date}T00:00:00Z`).toLocaleDateString(LOCALE[language], format);
+  const escape = (text) =>
+    String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const fetchOk = async (url, read, options) => {
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error(`${response.status} ${url}`);
+    return read(response);
+  };
+
+  /** Rows for `entries`, under a heading for each month. */
+  function rowsHtml(entries) {
+    let month = "";
+    return entries
+      .map(({ version, date, title, report }) => {
+        const next = when(date, MONTH);
+        const heading = next === month ? "" : `<h2>${next}</h2>`;
+        month = next;
+        return `${heading}<a href="#${version}" data-version="${version}"${report ? ' class="full"' : ""}>
+          <span class="v">${version}</span><small>${when(date, SHORT_DATE)}</small><b>${escape(title)}</b></a>`;
+      })
+      .join("");
+  }
+
+  /** The list: the latest releases, or the older ones while one of those is open, with the way back above them. */
+  function drawList(archive) {
+    if (archive === archiveDrawn) return;
+    archiveDrawn = archive;
+    const older = manifest.length - RECENT;
+    list.innerHTML = archive
+      ? `<a class="more" href="#${OLDER}"><b>${words().allOlder}</b></a>
+         <a class="more" href="#${manifest[0].version}"><b>${words().latest}</b></a>${rowsHtml(manifest.slice(RECENT))}`
+      : `${rowsHtml(manifest.slice(0, RECENT))}${
+          older > 0
+            ? `<a class="more" href="#${OLDER}" data-version="${OLDER}"><b>${words().showOlder}</b><small>${older}</small></a>`
+            : ""
+        }`;
+    list.scrollTop = 0;
+  }
+
+  /** The older releases, as a page of their own: the list a release opens from, and the one back returns to. */
+  function olderHtml() {
+    const entries = manifest.slice(RECENT);
+    return `<article class="page archive">
+      <header>
+        <span class="tag">${words().releases(entries.length)}</span>
+        <h2 class="title">${words().olderTitle}</h2>
+        <div class="kick" style="margin-top: 12px">
+          ${words().range(when(entries.at(-1).date, LONG_DATE), when(entries[0].date, LONG_DATE))}
+        </div>
+      </header>
+      <div class="list">${rowsHtml(entries)}</div>
+    </article>`;
+  }
+
+  /** A report's styles, made to work inside a shadow root and to answer to its own width rather than the window's. */
+  function reportStyles(css) {
+    return `
+      :host { display: block; container: report / inline-size; }
+      a:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+      ${css
+        .replace(/@font-face\s*\{[^}]*\}/g, "")
+        .replace(/(^|\})\s*html\s*\{[^}]*\}/g, "$1")
+        .replace(/(^|[}\s])body(\s*\{)/g, "$1:host$2")
+        .replace(/:root/g, ":host")
+        .replace(/@media\s*\(((?:max|min)-width:[^)]+)\)/g, "@container report ($1)")
+        .replace(/(\d)vw\b/g, "$1cqw")}`;
+  }
+
+  async function loadReport({ version, reportFile }) {
+    const url = new URL(`${version}/${reportFile}`, BASE);
+    const key = url.href;
+    if (reports.has(key)) return reports.get(key);
+    const page = new DOMParser().parseFromString(await fetchOk(url, (r) => r.text()), "text/html");
+    page.querySelectorAll("[data-history-link]").forEach((link) => link.remove());
+    for (const el of page.querySelectorAll("[src]")) el.src = new URL(el.getAttribute("src"), url).href;
+    for (const el of page.querySelectorAll("[href]")) el.href = new URL(el.getAttribute("href"), url).href;
+    const report = {
+      css: reportStyles([...page.querySelectorAll("style")].map((s) => s.textContent).join("\n")),
+      html: page.body.innerHTML,
+    };
+    reports.set(key, report);
+    return report;
+  }
+
+  async function loadNotes(version) {
+    const url = dataUrl(`${version}.json`);
+    if (!notes.has(url.href)) notes.set(url.href, await fetchOk(url, (r) => r.json()));
+    return notes.get(url.href);
+  }
+
+  function pageHtml(release) {
+    const { version, date, title, summaryHtml, counts, images } = release;
+    const tiles = counts
+      .map(
+        ({ kind, count }) =>
+          `<div class="tile ${escape(kind)}"><h4>${escape(kindName(kind))}</h4><div>${count}</div></div>`,
+      )
+      .join("");
+    const shots = images
+      .map(
+        ({ src, alt }) =>
+          `<a href="${escape(src)}"><img src="${escape(src)}" alt="${escape(alt)}" loading="lazy" /></a>`,
+      )
+      .join("");
+    return `<article class="page">
+      <header>
+        <span class="tag">${version}</span>
+        <h2 class="title">${escape(title)}</h2>
+        <div class="kick" style="margin-top: 12px">${when(date, LONG_DATE)}</div>
+        <p class="lede">${summaryHtml}</p>
+      </header>
+      <div class="tiles">${tiles}</div>
+      ${shots ? `<div class="shots">${shots}</div>` : ""}
+    </article>`;
+  }
+
+  /** The changelog, under the announcement on every release. */
+  function notesHtml(release) {
+    if (!release) return "";
+    const { sections } = release;
+    const body = (sections ?? [])
+      .map(
+        ({ kind, open, itemsHtml }) => `<details${open ? " open" : ""}>
+          <summary>${escape(kindName(kind))}<span>${itemsHtml.length}</span></summary>
+          <ul>${itemsHtml.map((item) => `<li>${item}</li>`).join("")}</ul></details>`,
+      )
+      .join("");
+    return `<section class="page notes"><h2 class="notes-title">${words().notes}</h2>${body}</section>`;
+  }
+
+  function pagerHtml(index) {
+    const link = (entry, cls, label) =>
+      entry
+        ? `<a class="${cls}" href="#${entry.version}"><small>${label} · ${entry.version}</small><b>${escape(entry.title)}</b></a>`
+        : "";
+    return `<nav class="pager" aria-label="${words().pagerLabel}">
+      ${link(manifest[index - 1], "newer", words().newer)}${link(manifest[index + 1], "older", words().older)}</nav>`;
+  }
+
+  function stripHtml({ version, date, report, reportFile }, index, release) {
+    const link = report
+      ? `<a href="${version}/${reportFile}">${words().ownPage}</a>`
+      : `<a href="${escape(release.linkUrl)}">${escape(release.linkLabel)}</a>`;
+    const back = index >= RECENT ? `<a href="#${OLDER}">${words().backToOlder}</a> · ` : "";
+    return `<div class="strip"><span>${back}${version} · ${when(date, LONG_DATE)}</span><span>${link}</span></div>`;
+  }
+
+  /** Only the list moves: `scrollIntoView` would drag the page along with it. */
+  function revealInList(link) {
+    const top = link.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top + link.offsetHeight > list.scrollTop + list.clientHeight)
+      list.scrollTop = top - list.clientHeight / 2;
+  }
+
+  function markCurrent(key, barVersion, barTitle, newer, older) {
+    for (const link of list.querySelectorAll("a")) {
+      if (link.dataset.version === key) {
+        link.setAttribute("aria-current", "page");
+        revealInList(link);
+      } else link.removeAttribute("aria-current");
+    }
+    $("bar-version").textContent = barVersion;
+    $("bar-title").textContent = `${barTitle} ▾`;
+    const step = (link, neighbor) => {
+      // No `href` at the ends of the list: a bare `#` would go to the newest release.
+      if (neighbor) link.href = `#${neighbor.version}`;
+      else link.removeAttribute("href");
+      link.setAttribute("aria-disabled", String(!neighbor));
+      if (!neighbor && document.activeElement === link) openButton.focus();
+    };
+    step($("bar-newer"), newer);
+    step($("bar-older"), older);
+    const name = key === OLDER ? words().olderTitle : key;
+    document.title = `${name} · ${words().title} · ${words().game}`;
+    $("status").textContent = `${name}: ${barTitle}`;
+  }
+
+  /** Redraws the list, with focus staying in it if it was there. */
+  function listFor(archive, mark) {
+    const hadFocus = list.contains(document.activeElement);
+    drawList(archive);
+    mark();
+    if (hadFocus && !list.contains(document.activeElement))
+      list.querySelector('[aria-current="page"]')?.focus({ preventScroll: true });
+  }
+
+  /** Swaps the page. Focus on what was replaced would fall out of the page, so it holds on `main`. */
+  function draw(html) {
+    const hadFocus = inMain(focusedEl()) && !languageGroup.contains(focusedEl());
+    reportRoot = null;
+    main.innerHTML = html;
+    if (hadFocus) main.focus({ preventScroll: true });
+  }
+
+  /** GitHub's latest release, when this build has no notes for it yet. */
+  function showMissing(version) {
+    current = version;
+    routeId += 1;
+    listFor(false, () => markCurrent(version, version, words().notHere, undefined, manifest[0]));
+    draw(`<p class="state">${escape(words().missing(version))}
+      <a href="${REPO}/releases/tag/${encodeURIComponent(version)}">${words().onGithub}</a></p>`);
+    window.scrollTo(0, 0);
+  }
+
+  function showFailure(entry) {
+    main.innerHTML = `<p class="state">${words().failed}
+      <a href="${REPO}/releases/tag/${entry.version}">${words().onGithub}</a></p>`;
+  }
+
+  /** `target` redraws that release whatever the address says; a hash that is the skip link's stays out of it. */
+  async function route(target) {
+    const hash = target ?? location.hash.slice(1);
+    if (current === OLDER) olderScroll = window.scrollY;
+    if (hash === OLDER) return showOlder();
+    // Any other hash is the skip link's, which the browser handles, once a release is showing.
+    if (current && hash && !/^v\d/.test(hash)) return;
+    setSheet(false);
+    const isVersion = /^v\d/.test(hash);
+    if (current === hash) return;
+    if (hash === latestOnGithub && !allReleases.some((entry) => entry.version === hash)) return showMissing(hash);
+    // A release newer than the list opens with no place in it (index -1). A version nobody knows opens the newest.
+    const known = isVersion ? allReleases.find((entry) => entry.version === hash) : undefined;
+    const index = known ? manifest.indexOf(known) : 0;
+    const entry = known ?? manifest[0];
+    if (current === entry.version) return;
+    current = entry.version;
+    const id = ++routeId;
+    listFor(index >= RECENT, () =>
+      markCurrent(
+        entry.version,
+        `${entry.version} · ${when(entry.date, SHORT_DATE)}`,
+        entry.title,
+        manifest[index - 1],
+        manifest[index + 1],
+      ),
+    );
+    try {
+      if (entry.report) {
+        const [report, release] = await Promise.all([loadReport(entry), loadNotes(entry.version).catch(() => null)]);
+        if (id !== routeId) return;
+        draw(`${stripHtml(entry, index)}<div id="report"></div>${notesHtml(release)}${pagerHtml(index)}`);
+        reportRoot = main.querySelector("#report").attachShadow({ mode: "open" });
+        reportRoot.innerHTML = `<style>${report.css}</style>${report.html}`;
+      } else {
+        const release = await loadNotes(entry.version);
+        if (id !== routeId) return;
+        draw(`${stripHtml(entry, index, release)}${pageHtml(release)}${notesHtml(release)}${pagerHtml(index)}`);
+      }
+    } catch {
+      if (id === routeId) {
+        // So picking it again tries again.
+        current = null;
+        showFailure(entry);
+      }
+      return;
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function showOlder() {
+    setSheet(false);
+    if (current === OLDER) return;
+    current = OLDER;
+    routeId += 1;
+    listFor(false, () =>
+      markCurrent(
+        OLDER,
+        words().releases(manifest.length - RECENT),
+        words().olderTitle,
+        manifest[RECENT - 1],
+        manifest[RECENT],
+      ),
+    );
+    draw(olderHtml());
+    window.scrollTo(0, olderScroll);
+  }
+
+  function setSheet(open) {
+    const wasOpen = rail.classList.contains("open");
+    rail.classList.toggle("open", open);
+    openButton.setAttribute("aria-expanded", String(open));
+    if (open && !wasOpen) (list.querySelector('[aria-current="page"]') ?? closeButton).focus();
+    else if (!open && wasOpen) openButton.focus();
+    if (family) drawHints();
+  }
+
+  openButton.addEventListener("click", () => setSheet(true));
+  closeButton.addEventListener("click", () => setSheet(false));
+  history.scrollRestoration = "manual";
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setSheet(false);
+    const inList = event.target.closest?.(".rail .list");
+    if (inList && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+      event.preventDefault();
+      step(event.key === "ArrowDown" ? 1 : -1);
+    }
+  });
+
+  /* The controller. The page runs outside the game, so this is its own small version of the game's input: buttons by
+     standard-layout position, and the same family detection as `view/pad-family.ts`. */
+
+  const FAMILY_GLYPHS = {
+    xbox: { confirm: "A", back: "B", list: "Y", left: "LB", right: "RB" },
+    playstation: { confirm: "✕", back: "○", list: "△", left: "L1", right: "R1" },
+    nintendo: { confirm: "A", back: "B", list: "X", left: "L", right: "R" },
+  };
+  const DPAD_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg>`;
+  const REPEAT_DELAY = 350;
+  const REPEAT_EVERY = 110;
+  const DEADZONE = 0.3;
+  const SCROLL_PER_FRAME = 22;
+  const [A, B, X, Y, LB, RB] = [0, 1, 2, 3, 4, 5];
+  const [UP, DOWN, LEFT, RIGHT] = [12, 13, 14, 15];
+
+  /** What `Gamepad.id` says this pad is, by the same rules as `detectPad` in `view/pad-family.ts`. */
+  function familyOf(id) {
+    const name = id.toLowerCase();
+    const vendorId = /vendor:\s*([0-9a-f]{4})/.exec(name)?.[1] ?? /^([0-9a-f]{1,4})-[0-9a-f]{1,4}-/.exec(name)?.[1];
+    const vendor = vendorId?.padStart(4, "0");
+    if (vendor === "28de" || name.includes("steam")) return "xbox";
+    if (vendor === "2dc8") return /switch|\bns\b|\bpro\b/.test(name) ? "nintendo" : "xbox";
+    if (vendor === "054c") return "playstation";
+    if (vendor === "057e") return "nintendo";
+    if (vendor === "045e") return "xbox";
+    const noIds = !vendor || vendor === "0000";
+    if (/dualsense|dualshock|playstation/.test(name) || (noIds && name.startsWith("wireless controller")))
+      return "playstation";
+    if (name.startsWith("8bitdo") && !/switch|\bns\b|\bpro\b/.test(name)) return "xbox";
+    if (/pro controller|joy-con|nintendo|switch/.test(name)) return "nintendo";
+    return "xbox";
+  }
+
+  let family = null;
+  /** Per button: when it went down, and when it last repeated. */
+  const held = new Map();
+
+  function drawHints() {
+    const glyphs = FAMILY_GLYPHS[family];
+    const sheetOpen = rail.classList.contains("open");
+    const hint = (glyph, label) => `<span class="hint">${glyph}${label}</span>`;
+    const face = (text) => `<span class="glyph">${text}</span>`;
+    const shoulder = (text) => `<span class="glyph shoulder">${text}</span>`;
+    $("hints").innerHTML = [
+      hint(`<span class="glyph dpad">${DPAD_SVG}</span>`, words().hints.move),
+      hint(face(glyphs.confirm), words().hints.open),
+      hint(`${shoulder(glyphs.left)}${shoulder(glyphs.right)}`, words().hints.newerOlder),
+      hint(`<span class="glyph stick">R</span>`, words().hints.scroll),
+      narrow.matches && !sheetOpen ? hint(face(glyphs.list), words().hints.list) : "",
+      narrow.matches && sheetOpen ? hint(face(glyphs.back), words().hints.close) : "",
+    ].join("");
+  }
+
+  const visible = (el) => el.getClientRects().length > 0;
+  const focusedEl = () => reportRoot?.activeElement ?? document.activeElement;
+
+  /** The two columns a controller moves between: the releases (or the bar) and whatever is on the page. */
+  function railStops() {
+    if (narrow.matches && !rail.classList.contains("open")) {
+      return [$("bar-newer"), openButton, $("bar-older")].filter((el) => el.getAttribute("aria-disabled") !== "true");
+    }
+    return [...rail.querySelectorAll("a, button")].filter(visible);
+  }
+  function mainStops() {
+    const toggle = [...languageGroup.querySelectorAll("button")];
+    const strip = [...main.querySelectorAll(".strip a")];
+    const inReport = reportRoot ? [...reportRoot.querySelectorAll("a[href]")] : [];
+    const below = [...main.querySelectorAll(".state a, .notes a[href], .notes summary, .page a[href], .pager a")];
+    return [...new Set([...toggle, ...strip, ...inReport, ...below])].filter(visible);
+  }
+  function inMain(el) {
+    return !!el && (el.getRootNode() === reportRoot || main.contains(el) || languageGroup.contains(el));
+  }
+
+  function focusStop(el) {
+    el.focus({ preventScroll: true });
+    if (list.contains(el)) revealInList(el);
+    else if (inMain(el)) el.scrollIntoView({ block: "center" });
+  }
+
+  function step(delta) {
+    const active = focusedEl();
+    const column = inMain(active) ? mainStops() : railStops();
+    const at = column.indexOf(active);
+    const next = at === -1 ? column.find((el) => !languageGroup.contains(el)) : column[at + delta];
+    if (next) focusStop(next);
+    // Past the last link there may still be page to read.
+    else if (inMain(active)) window.scrollBy({ top: delta * innerHeight * 0.7 });
+  }
+
+  function intoMain() {
+    // The toggle is one Up above the page's first stop, so moving across lands on the release.
+    const stops = mainStops().filter((el) => !languageGroup.contains(el));
+    const first = stops.find((el) => el.getBoundingClientRect().top >= 0) ?? stops[0];
+    if (first) focusStop(first);
+  }
+
+  function intoRail() {
+    const stops = railStops();
+    const here = stops.find((el) => el.getAttribute("aria-current") === "page");
+    (here ?? stops[0])?.focus();
+  }
+
+  function goBy(delta) {
+    const at = current === OLDER ? RECENT - (delta > 0 ? 1 : 0) : manifest.findIndex((e) => e.version === current);
+    const entry = manifest[at + delta];
+    if (entry) location.hash = entry.version;
+  }
+
+  function confirm() {
+    const active = focusedEl();
+    if (active && active !== document.body && active !== main) active.click();
+    else intoRail();
+  }
+
+  function back() {
+    if (rail.classList.contains("open")) setSheet(false);
+    else if (inMain(focusedEl())) intoRail();
+  }
+
+  function press(button) {
+    // With the game's default Use Nintendo Switch layout, a Nintendo pad's buttons act by their printed label.
+    const [yes, no] = family === "nintendo" ? [B, A] : [A, B];
+    if (button === yes) confirm();
+    else if (button === no) back();
+    else if (button === Y && narrow.matches) setSheet(true);
+    else if (button === UP) step(-1);
+    else if (button === DOWN) step(1);
+    else if (button === RIGHT) intoMain();
+    else if (button === LEFT) intoRail();
+    else if (button === LB) goBy(-1);
+    else if (button === RB) goBy(1);
+  }
+
+  const REPEATS = new Set([UP, DOWN]);
+
+  function poll(now) {
+    requestAnimationFrame(poll);
+    const pad = [...(navigator.getGamepads?.() ?? [])].find(Boolean);
+    if (!pad) return;
+    let used = false;
+    for (const button of [A, B, X, Y, LB, RB, UP, DOWN, LEFT, RIGHT]) {
+      const down = pad.buttons[button]?.pressed;
+      const seen = held.get(button);
+      if (!down) held.delete(button);
+      else if (!seen) {
+        held.set(button, { since: now, last: now });
+        used = true;
+        wake(pad);
+        press(button);
+      } else if (REPEATS.has(button) && now - seen.since > REPEAT_DELAY && now - seen.last > REPEAT_EVERY) {
+        seen.last = now;
+        press(button);
+      }
+    }
+    const scroll = [pad.axes[3] ?? 0, pad.axes[1] ?? 0].find((axis) => Math.abs(axis) > DEADZONE);
+    if (scroll) {
+      wake(pad);
+      const scroller = rail.classList.contains("open") ? list : window;
+      scroller.scrollBy({ top: scroll * SCROLL_PER_FRAME, behavior: "instant" });
+      used = true;
+    }
+    if (used) drawHints();
+  }
+
+  function wake(pad) {
+    family = familyOf(pad.id);
+    document.documentElement.classList.add("pad");
+  }
+
+  /** The mouse or a finger takes over from the controller, and its hints leave. */
+  addEventListener("pointerdown", () => document.documentElement.classList.remove("pad"));
+
+  /** The tag of GitHub's latest release, or null when GitHub can't say in time. */
+  async function latestTag() {
+    try {
+      const options = { signal: AbortSignal.timeout(LATEST_TIMEOUT) };
+      return (await fetchOk(LATEST_API, (r) => r.json(), options)).tag_name ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Everything on the page that isn't drawn with a release: the page's own words, in the language now on. */
+  function drawChrome() {
+    const text = words();
+    document.documentElement.lang = language;
+    $("skip").textContent = text.skip;
+    rail.setAttribute("aria-label", text.releasesLabel);
+    $("rail-game").textContent = text.game;
+    $("rail-title").innerHTML = `${text.titleWords[0]} <span>${text.titleWords[1]}</span>`;
+    $("rail-play").textContent = text.play;
+    closeButton.setAttribute("aria-label", text.closeList);
+    $("bar-newer").setAttribute("aria-label", text.newerRelease);
+    $("bar-older").setAttribute("aria-label", text.olderRelease);
+    languageGroup.setAttribute("aria-label", text.languageLabel);
+    $("ai-note").hidden = language !== "es";
+    for (const button of languageGroup.querySelectorAll("button"))
+      button.setAttribute("aria-pressed", String(button.dataset.language === language));
+  }
+
+  function useEntries(entries) {
+    allReleases = entries;
+    manifest = entries.slice(
+      Math.max(
+        0,
+        entries.findIndex((entry) => entry.version === latestOnGithub),
+      ),
+    );
+    $("rail-count").textContent = words().releasesSince(manifest.length, when(manifest.at(-1).date, LONG_DATE));
+  }
+
+  function showListFailure() {
+    main.innerHTML = `<p class="state">${words().listFailed}
+      <a href="${REPO}/releases">${words().allOnGithub}</a></p>`;
+  }
+
+  /** Redraws the page in `next`, staying on the same release, with the address saying which language is on. */
+  async function setLanguage(next) {
+    if (next === language && !listBroken) return;
+    const run = ++languageRun;
+    listBroken = false;
+    language = next;
+    storageWrite(LANGUAGE_KEY, next);
+    const address = new URL(location.href);
+    address.searchParams.set("lang", next);
+    history.replaceState(history.state, "", address);
+    drawChrome();
+    if (family) drawHints();
+    try {
+      // The list has to exist first, and only the last press counts: a late answer is another language's.
+      await started;
+      const entries = await fetchOk(dataUrl("manifest.json"), (r) => r.json());
+      if (run !== languageRun) return;
+      useEntries(entries);
+      const shown = current;
+      current = null;
+      archiveDrawn = null;
+      if (shown === OLDER) showOlder();
+      else await route(shown ?? undefined);
+    } catch {
+      if (run !== languageRun) return;
+      listBroken = true;
+      showListFailure();
+    }
+  }
+
+  for (const button of languageGroup.querySelectorAll("button"))
+    button.addEventListener("click", () => void setLanguage(button.dataset.language));
+
+  drawChrome();
+  const started = Promise.all([fetchOk(dataUrl("manifest.json"), (r) => r.json()), latestTag()])
+    .then(([entries, latest]) => {
+      latestOnGithub = latest;
+      useEntries(entries);
+      if (navigator.getGamepads) requestAnimationFrame(poll);
+      // Not before now: a hash change with no list yet would have nothing to route to.
+      addEventListener("hashchange", () => route());
+      return route();
+    })
+    .catch(() => {
+      listBroken = true;
+      showListFailure();
+    });
+})();

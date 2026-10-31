@@ -150,6 +150,9 @@ the command.
 - **Branches**: `feature/<descriptive-name>` or `bug-fix/<descriptive-name-and-issue-id>`, off `main`.
 - **Pull requests**: describe what a player would see, before and after. Include screenshots for UI changes. Anywhere
   the client shows a card face, desktop mouseover should open the card hover popover; show it in the screenshots.
+- **Screen sizes**: check and screenshot a changed screen at each `scripts/shoot-app.mjs --size` preset that matters:
+  `se` (the smallest phone we design for), `pixel`, `tablet-portrait`, `tablet` (landscape) and `desktop`. A tablet is its
+  own layout, not a small desktop. The e2e suite runs only desktop and phone.
 - **Changelog**: every change that lands on `main` carries a [changie](https://github.com/miniscruff/changie)
   fragment. Run `changie new -k <Kind> -b "<one line>"` (kinds in `.changie.yaml`: Added, Changed, Fixed, Engine,
   Content, Docs) and commit the `.changes/unreleased/*.yaml` file with the code. Wait a second between two
@@ -312,6 +315,12 @@ to it: set `RELEASE_NOTICE_VERSION` in `packages/client/src/view/release-notice.
 redirect in `netlify.toml`, which older builds' bar opens.
 
 `mise ship-it` (or `pnpm ship-it`) builds and stages the native packages locally.
+
+The release history page (`/releases/`) picks each release up from `.changes/` at build time. Its headline and images
+come from the release's `docs/screenshots/releases/<version>/release-notes-header.md`, or `docs/releases/history.json`
+for releases older than that, and a release with a report at `public/releases/<version>/` shows the report.
+The `release-announcement` Claude skill (`.claude/skills/release-announcement/`) writes the header and report from the open
+release PR. A report may merge before its release: the list stops at GitHub's latest release.
 
 ### macOS signing
 

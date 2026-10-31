@@ -15,24 +15,16 @@
  *
  * Pure over a path → URL map, like `scenario-art.ts`, so it is tested without the glob.
  */
+import { parseFocus } from "./focus.js";
 import { pickPicture, type Picture, type PictureFocus } from "./pictures.js";
+
+export { parseFocus };
 
 export interface HeroArtCatalog {
   /** By identity card id. */
   readonly heroes: ReadonlyMap<string, readonly Picture[]>;
   /** Files under `art/heroes/` that fit no slot, or sit at the wrong depth. */
   readonly unrecognized: readonly string[];
-}
-
-/** A `focus.json`'s content as a focus, or null when it names no usable axis. Values outside 0 to 1 are clamped. */
-export function parseFocus(raw: unknown): PictureFocus | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const axis = (value: unknown): number | undefined =>
-    typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : undefined;
-  const x = axis((raw as { x?: unknown }).x);
-  const y = axis((raw as { y?: unknown }).y);
-  if (x === undefined && y === undefined) return null;
-  return { ...(x === undefined ? {} : { x }), ...(y === undefined ? {} : { y }) };
 }
 
 export function parseHeroArt(

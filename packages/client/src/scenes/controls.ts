@@ -72,6 +72,11 @@ export const REMAP_KEYS_LABEL = "Remap keys · coming next";
 /** The tab Controls last showed, so it reopens where the player left it (the keyboard when no pad is in use). */
 let lastTab: ControlsTab | null = null;
 
+/** Launch data: `tab` opens on that tab (a Settings search result). */
+export interface ControlsSceneData {
+  readonly tab?: ControlsTab;
+}
+
 /** The connected pad's `Gamepad.id`, or null when none is. */
 function connectedPadId(): string | null {
   return connectedPad()?.id ?? null;
@@ -101,11 +106,13 @@ export class ControlsOverlay extends Phaser.Scene {
     super(SCENES.controls);
   }
 
-  create(): void {
+  create(data: ControlsSceneData = {}): void {
+    // Phaser hands a later launch with no data this same object again: take the tab once.
+    this.sys.settings.data = {};
     this.#motion = new OverlayMotion();
     this.input.enabled = true;
     this.#scroll = new VariableListScroll();
-    this.#tab = lastTab ?? (inputDevice().mode === "keyboard" ? "keyboard" : "controller");
+    this.#tab = data.tab ?? lastTab ?? (inputDevice().mode === "keyboard" ? "keyboard" : "controller");
     this.#inputSeen = null;
     // The input test reads the browser's own pad each frame while this screen is up, and rewrites its line only on a
     // new input.

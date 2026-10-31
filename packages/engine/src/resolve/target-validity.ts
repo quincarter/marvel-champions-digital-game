@@ -59,8 +59,15 @@
  * is one of the listed effects on a target (p. 42), and moving damage off a character heals it (ruling, Dec 8, 2023,
  * Ruling 125: "you cannot target him with Tic-Tac-Toe while Protect the Senator is in play").
  *
+ * A card that cannot ready is no target for a ready (`canBeReadied`; #568): RRG 1.8 "Target" (p. 43), "a character with
+ * an attachment that says 'attached character cannot ready' is not a valid target for a card that readies a character".
+ * "Hero Action: Exhaust Cloak of Levitation → ready Doctor Strange" is therefore not offered and pays nothing under
+ * Unnatural Storm ("Cost", p. 14; the cost is not considered, "Target", p. 43). FFG's ruling on Unnatural Storm and What
+ * Doesn't Kill Me reads it the same way (docs/rulings/rrg-1-0-to-1-4/43-sinister-motives-miles-and-gwen.md). A card that
+ * is simply ready already is not judged yet, and a ready beside a part of its own stays initiable.
+ *
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
- * `attack`, `discardFromPlay`, `flipCard`, `defeat`, `heal` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
+ * `attack`, `discardFromPlay`, `flipCard`, `defeat`, `heal`, `ready` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
  * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
  * cannot judge never makes a target invalid.
  *
@@ -94,6 +101,7 @@ import {
   cannotBeHealed,
   cannotFlip,
   cannotLeavePlay,
+  cannotReady,
   cannotBeDealtDamage,
   cannotTakeDamage,
   type DamageAttackInfo,
@@ -162,6 +170,14 @@ export const canRemoveThreatFrom = (
 ): boolean => threatRemovalBlocked(state, deps, schemeId, source, false, ignoreCrisis) === null;
 
 /**
+ * Whether a ready by `source` is allowed on this card: no `cannotReady` rule stops it (the check `readyOrAnnounce` makes
+ * as it applies). An additional cost to ready and a "would ready" replacement leave it a target: the player may decline
+ * the cost, and the ready is what the replacement answers (RRG 1.8 "Ready", p. 36).
+ */
+export const canBeReadied = (state: GameState, deps: EngineDeps, id: InstanceId, source: InstanceId | null): boolean =>
+  !cannotReady(state, deps, id, source);
+
+/**
  * Whether threat can be moved off this scheme by an effect of `source`: it holds threat, and that threat can be
  * removed. RRG 1.8 "Move" (p. 30): "If threat is moved off a scheme, the moved threat is considered to be removed from
  * that scheme", and "If there is no valid source or destination for a move, the move cannot be made." So a crisis icon,
@@ -201,7 +217,18 @@ const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot"
 type JudgedEffect =
   | Extract<
       EffectSpec,
-      { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" | "defeat" | "heal" }
+      {
+        kind:
+          | "thwart"
+          | "removeThreat"
+          | "dealDamage"
+          | "attack"
+          | "discardFromPlay"
+          | "flipCard"
+          | "defeat"
+          | "heal"
+          | "ready";
+      }
     >
   | ReplaceStatus;
 
@@ -233,6 +260,7 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "flipCard" ||
   effect.kind === "defeat" ||
   effect.kind === "heal" ||
+  effect.kind === "ready" ||
   isReplaceStatus(effect);
 
 /**
@@ -431,6 +459,7 @@ function judgedCanAffect(
   if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
   // A card a `cannotBeHealed` rule names for this source is no target for its heal (Ruling 125, Dec 8, 2023).
   if (effect.kind === "heal") return !cannotBeHealed(state, deps, id, context.selfInstanceId);
+  if (effect.kind === "ready") return canBeReadied(state, deps, id, context.selfInstanceId);
   if (effect.kind === "giveStatus") return replacesStatusOn(state, deps, id, effect.replacing, effect.status);
   // A card already defeated, in play only while its When Defeated abilities resolve, cannot be defeated again
   // (`alreadyDefeated`; RRG 1.8 "When Defeated Abilities", p. 48). The rules that stop a defeat as it applies
@@ -586,7 +615,7 @@ function partCanAffect(
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
  * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage`,
- * `cannotLeavePlay`, `cannotFlip` or `cannotBeHealed` rule, a Permanent card in play, or a defeated card still in play for its When
+ * `cannotLeavePlay`, `cannotFlip`, `cannotBeHealed` or `cannotReady` rule, a Permanent card in play, or a defeated card still in play for its When
  * Defeated abilities. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
@@ -602,6 +631,7 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||
     activeRules(state, deps, "cannotFlip").length > 0 ||
     activeRules(state, deps, "cannotBeHealed").length > 0 ||
+    activeRules(state, deps, "cannotReady").length > 0 ||
     anyAlreadyDefeated(state) ||
     cardsInPlay(state).some((id) => isPermanent(state, id, deps))
   );
@@ -742,8 +772,8 @@ const movesOnlyItself = (effect: EffectSpec): boolean =>
  *   among what the effects before it leave (a card one of them drew or discarded), which cannot be known until they
  *   resolve, so it is judged as it resolves. A choice that reads what the cost binds (a var, a slot: Shield Toss's X)
  *   is judged only as it resolves;
- * - `spent`: its removals of threat with no threat to take (`spentRemovals`), each `if` whose every branch that could
- *   run is lost (`branchLost`), and each "choose one" none of whose options can be chosen (`noOptionAvailable`).
+ * - `spent`: its removals of threat with no threat to take (`spentRemovals`), its readies with no card they can ready
+ *   (`spentReadies`), each `if` whose every branch that could run is lost (`branchLost`), and each "choose one" none of whose options can be chosen (`noOptionAvailable`).
  */
 function lostParts(
   judging: Judging,
@@ -763,7 +793,9 @@ function lostParts(
     const rest = effects.slice(index + 1);
     if (choiceCandidates(state, deps, effect, rest, context, judge).length === 0) dead.push(effect.slot);
   }
-  const spent: EffectSpec[] = judge ? [...spentRemovals(state, deps, effects, context)] : [];
+  const spent: EffectSpec[] = judge
+    ? [...spentRemovals(state, deps, effects, context), ...spentReadies(state, deps, effects, context)]
+    : [];
   // A branch opens its ability when nothing comes before it but choices and parts that can affect nothing: the game
   // is then as it stands now when the branch runs, so its own opening choices can be judged now ("Remove 3 threat
   // from a scheme. If you paid …, remove 3 threat from a scheme" with no threat anywhere: Rapid Deployment).
@@ -934,6 +966,24 @@ function spentRemovals(
     if (effect.kind === "thwart" && effect.thwarter && readsBindings(effect.thwarter)) return false;
     const named = resolveRef(state, effect.target, context);
     return named.length > 0 && !named.some((id) => judgedCanAffect(state, deps, effect, id, context));
+  });
+}
+
+/**
+ * The ability's own readies that name their cards and can ready none of them right now (`canBeReadied`): each is a part
+ * of the ability that can affect no target, read as `spentRemovals` reads a removal. A ready aimed at a slot is its
+ * choice's to judge, one that reads a binding is judged as it resolves, and a ref that names nothing is left alone.
+ */
+function spentReadies(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): readonly EffectSpec[] {
+  return effects.filter((effect) => {
+    if (effect.kind !== "ready" || effect.target.kind === "slot" || readsBindings(effect.target)) return false;
+    const named = resolveRef(state, effect.target, context);
+    return named.length > 0 && !named.some((id) => canBeReadied(state, deps, id, context.selfInstanceId));
   });
 }
 

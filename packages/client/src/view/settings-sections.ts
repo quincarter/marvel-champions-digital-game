@@ -34,6 +34,7 @@ export type SettingsItemId =
   | GuideSettingsRowId
   | "unlocks"
   | "save-data"
+  | "steam-install"
   | "stats"
   | "rules"
   | "controls"
@@ -93,6 +94,8 @@ export function settingsSectionsOf(input: {
   readonly controls?: boolean;
   /** The desktop app: the "Show my game on Discord" row under More. */
   readonly discord?: boolean;
+  /** A game the Install for Steam script can update: a row under More that opens its update. */
+  readonly steamInstall?: boolean;
 }): readonly SettingsSection[] {
   return [
     {
@@ -169,6 +172,7 @@ export function settingsSectionsOf(input: {
         "save-data",
         ...(input.controls === false ? [] : (["controls"] as const)),
         ...(input.discord ? (["discord-presence"] as const) : []),
+        ...(input.steamInstall ? (["steam-install"] as const) : []),
         "rules",
       ],
     },

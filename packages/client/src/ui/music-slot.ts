@@ -25,3 +25,14 @@ export function shownMusicButton(): Rect | null {
 export function setShownMusicButton(rect: Rect | null): void {
   shown = rect;
 }
+
+let shownLanguage: Rect | null = null;
+
+/** Where the card language button, which follows these slots too, is drawn now, or null while it is hidden. */
+export function shownLanguageButton(): Rect | null {
+  return shownLanguage;
+}
+
+export function setShownLanguageButton(rect: Rect | null): void {
+  shownLanguage = rect;
+}

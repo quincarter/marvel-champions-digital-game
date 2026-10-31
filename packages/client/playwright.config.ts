@@ -94,6 +94,7 @@ export default defineConfig({
       // here unchanged.
       testMatch: [
         "holdon.spec.ts",
+        "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",
         "victory-display.spec.ts",
         "deck-builder-search-help.spec.ts",
@@ -101,6 +102,7 @@ export default defineConfig({
         "tips.spec.ts",
         "overlay-input-block.spec.ts",
         "settings-blocks-presses.spec.ts",
+        "settings-search.spec.ts",
         "overlay-controls.spec.ts",
         "energy-transfer-host.spec.ts",
         "uncanny-controller.spec.ts",

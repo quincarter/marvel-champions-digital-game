@@ -511,6 +511,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=team-building-pay`: issue #569's game, at the payment Team-Building Exercise opens
+  // (`store/dev-team-building-pay-game.ts`).
+  if (screen === "board" && params.get("fixture") === "team-building-pay") {
+    const { startTeamBuildingPayGame } = await import("../store/dev-team-building-pay-game.js");
+    const { store } = appSession();
+    if (!gameRunning(store)) await startTeamBuildingPayGame(store);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=enchantress`: a real Enchantress game stopped at round 3's turn with a Kiss of Temptation owed, the Crown
   // on Enchantress and the Gaze still hidden (`store/dev-enchantress-game.ts`).
   if (screen === "board" && params.get("fixture") === "enchantress") {

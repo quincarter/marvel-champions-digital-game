@@ -35,6 +35,11 @@ research/discord-work/
 research/rules-audit/chunks/
 research/rules-audit/sources/
 
+# The release history page's data, written from the changelog (vite-release-history.ts)
+packages/client/public/releases/history/
+# Each Spanish report, written from its page and text map (docs/releases/es/reports/).
+packages/client/public/releases/*/index.es.html
+
 # Media lives in zip bundles on the content repo's releases (issue #495, assets/manifest.json); `pnpm assets:fetch`
 # puts it here. Only the media is ignored: READMEs, SOURCE.md, focus.json, the TSV manifests, .gitkeep files and the
 # card backs stay in git.

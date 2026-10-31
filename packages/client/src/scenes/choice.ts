@@ -94,6 +94,8 @@ import { authorityTagOf, decisionLabel, enemyTeamNoticeOf } from "../view/villai
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
+import { optionCounterNotesOf, spendCaptionsOf, tileCounterNote } from "../view/choice-tile-notes.js";
+import { isSpendChoice, shownSpendChoice, spendAnswerOf, toggleSpendPick } from "../view/spend-choice.js";
 import {
   chosenResourcesNoteOf,
   paymentSheetView,
@@ -224,6 +226,9 @@ function fitBarTitle(title: Phaser.GameObjects.Text, maxWidth: number): void {
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
+  /** What each card tile's copy holds, and a payment tile's caption (`view/choice-tile-notes.ts`), by shown option id. */
+  #tileCounters: ReadonlyMap<string, string> = new Map();
+  #tileCaptions: ReadonlyMap<string, string> = new Map();
   /** The collection search's page (`view/collection-search.ts`), kept for the choice it belongs to across redraws. */
   #collectionPage = { choiceId: "", page: 0 };
   /** The taps of the card tiles drawn now by pick slot (`view/pick-assign.ts`): a modifier + a face button. */
@@ -342,7 +347,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#wasCovered = covered;
     const state = appSession().store.state;
     const pending = state.game?.pendingChoice;
-    const pendingChoiceId = pending ? choiceSheetKey(shownDivideChoice(pending)) : null;
+    const pendingChoiceId = pending ? choiceSheetKey(shownChoiceOf(pending)) : null;
     const idle =
       this.#motion.leaving && !state.inFlight && pendingChoiceId !== null && pendingChoiceId === this.#choiceId;
     if (!idle) {
@@ -571,7 +576,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #draw(): void {
     const { store } = appSession();
     const state = store.state;
-    const choice = state.game?.pendingChoice ? shownDivideChoice(state.game.pendingChoice) : undefined;
+    const choice = state.game?.pendingChoice ? shownChoiceOf(state.game.pendingChoice) : undefined;
     const key = choice ? choiceSheetKey(choice) : null;
     const action = choiceSheetAction({
       leaving: this.#motion.leaving,
@@ -1007,7 +1012,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         textStyle(typeRole.body, surface.ink.hex, ink.secondary),
       )
       .setWordWrapWidth(sheet.width - 24);
-    label(
+    const countNote = label(
       this,
       sheet.x + 12,
       advisory.y + advisory.height + 6,
@@ -1023,6 +1028,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       surface.ink.hex,
       ink.label,
     );
+    fitText(countNote, sheet.width - 24, typeRole.label.size);
 
     // The options: every legal answer the engine listed.
     const listTop = advisory.y + advisory.height + 26;
@@ -1153,14 +1159,18 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     const rowHeight = hit.target;
     // An option can carry a second line (Agents of S.H.I.E.L.D.'s "Flips a Board Member"), so rows are not all one height.
-    const optionText = (option: (typeof choice.options)[number]): string =>
-      aosOptionLabelOf(
+    const rowCounters = state.game ? optionCounterNotesOf(state.game, choice) : new Map<string, string>();
+    const optionText = (option: (typeof choice.options)[number]): string => {
+      const text = aosOptionLabelOf(
         state.game,
         // The engine labels a seat by its id; the table knows it by its hero.
         option.ref.kind === "player" && state.game
           ? playerOptionLabel(state.game, option.ref.playerId, state.perspectiveId)
           : optionLabelOf(state.game, option),
       );
+      const held = rowCounters.get(option.optionId);
+      return held ? `${text}\n${held}` : text;
+    };
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
     // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
     // (never cut): the text stays clear of the glyph on either side.
@@ -2306,6 +2316,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (collection) return this.#drawCollectionGrid(area, choice, collection);
     const barState = appSession().store.state.game;
     this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, POOL_DEPS) : new Map();
+    this.#tileCounters = barState ? optionCounterNotesOf(barState, choice) : new Map();
+    this.#tileCaptions = barState?.pendingChoice
+      ? spendCaptionsOf(barState, barState.pendingChoice, choice, POOL_DEPS)
+      : new Map();
     const byId = new Map(choice.options.map((option) => [option.optionId, option] as const));
     // Pick order, not list order: the last thing you touched is the last drawn,
     // and the last drawn is the one on top.
@@ -2559,9 +2573,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#rebuild();
   }
 
-  #paymentSheet(choice: PendingChoice): PaymentSheetView | null {
+  #paymentSheet(): PaymentSheetView | null {
     const game = appSession().store.state.game;
-    return game ? paymentSheetView(game, choice, this.#selected, POOL_DEPS) : null;
+    const pending = game?.pendingChoice;
+    if (!game || !pending) return null;
+    return paymentSheetView(game, pending, spendAnswerOf(pending, this.#selected), POOL_DEPS);
   }
 
   /** True when Confirm can be pressed with the current picks (a payment asks the engine; the rest count). */
@@ -2572,7 +2588,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #canCommit(choice: PendingChoice): boolean {
-    const payment = this.#paymentSheet(choice);
+    const payment = this.#paymentSheet();
     return payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
   }
 
@@ -2644,7 +2660,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     // A payment is judged by the engine, and declining it is its own, named control (view/payment-sheet.ts).
-    const payment = this.#paymentSheet(choice);
+    const payment = this.#paymentSheet();
     const canCommit = payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
@@ -2912,7 +2928,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #pickSlotOf(optionId: string): number | null {
     const { width, height } = this.scale.gameSize;
     if (!glyphsFitFormFactor(formFactorFor(width, height))) return null;
-    const slot = appSession().store.state.game?.pendingChoice?.options.findIndex((o) => o.optionId === optionId);
+    const pending = appSession().store.state.game?.pendingChoice;
+    const slot = pending ? shownChoiceOf(pending).options.findIndex((o) => o.optionId === optionId) : undefined;
     return slot === undefined || slot < 0 || padPickBinding(slot) === null ? null : slot;
   }
 
@@ -2988,11 +3005,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     // card's own text; the scan is drawn in what is left.
     const bar = this.#tileBars.get(option.optionId);
     const barHeight = bar ? (bar.kind === "threat" ? 24 : 34) : 0;
+    // What this copy holds, in a line of its own under the scan (issue #571): a card's own face never shows its counters.
+    const counters = this.#tileCounters.get(option.optionId);
+    const countersHeight = counters ? 18 : 0;
     const inner: Rect = {
       x: slot.x + 3,
       y: slot.y + 3,
       width: slot.width - 6,
-      height: slot.height - 6 - (bar ? barHeight + 6 : 0),
+      height: slot.height - 6 - (bar ? barHeight + 6 : 0) - countersHeight,
     };
     // Which keyword resolves first, or the order of a card's When Revealed abilities (incite, printed, surge): the card
     // is the one source card beside the sheet, so each option is drawn in words, never a second copy of the same face
@@ -3067,10 +3087,20 @@ export class ChoiceOverlay extends Phaser.Scene {
         .setMaxLines(3);
     }
 
+    if (counters) {
+      const held = this.add
+        .text(inner.x + inner.width / 2, inner.y + inner.height + countersHeight / 2, tileCounterNote(counters), {
+          ...textStyle(typeRole.label, surface.ink.hex),
+          fontSize: "11px",
+        })
+        .setOrigin(0.5);
+      fitText(held, inner.width - 4, 11);
+    }
+
     if (bar)
       this.#drawTileBar(bar, {
         x: inner.x + 4,
-        y: inner.y + inner.height + 6,
+        y: inner.y + inner.height + countersHeight + 6,
         width: inner.width - 8,
         height: barHeight,
       });
@@ -3083,10 +3113,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     // (the same source the board's own ability affordance uses) — never a
     // guess from `option.label`, which is only ever the card's name here
     // (`resolve/window.ts`).
-    if (state && instanceId && option.ref.kind === "ability") {
-      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
+    // A payment's tile says what that way of spending takes instead (`view/choice-tile-notes.ts`).
+    const spendCaption = this.#tileCaptions.get(option.optionId);
+    if (state && instanceId && (spendCaption || option.ref.kind === "ability")) {
+      const captionText =
+        spendCaption ??
+        (option.ref.kind === "ability"
+          ? `${triggerCaption(state, instanceId, abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS))}${this.#twinOrdinal(state, option)}`
+          : "");
       const caption = this.add
-        .text(0, 0, `${triggerCaption(state, instanceId, short)}${this.#twinOrdinal(state, option)}`, {
+        .text(0, 0, captionText, {
           ...textStyle(typeRole.label, surface.paper.hex),
           fontSize: "11px",
         })
@@ -3214,8 +3250,9 @@ export class ChoiceOverlay extends Phaser.Scene {
    */
   #onIntent(intent: GamepadIntent, source?: "key"): void {
     if (this.#motion.leaving) return;
-    const choice = appSession().store.state.game?.pendingChoice;
-    if (!choice) return;
+    const pending = appSession().store.state.game?.pendingChoice;
+    if (!pending) return;
+    const choice = shownChoiceOf(pending);
     switch (intent) {
       case "next":
       case "previous":
@@ -3508,13 +3545,18 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   #toggle(optionId: string, max: number): void {
     if (this.#motion.leaving) return;
-    this.#selected = [...toggledSelection(this.#selected, optionId, max)];
+    const pending = appSession().store.state.game?.pendingChoice;
+    this.#selected =
+      pending && isSpendChoice(pending)
+        ? [...toggleSpendPick(pending, this.#selected, optionId)]
+        : [...toggledSelection(this.#selected, optionId, max)];
     this.#rebuild();
   }
 
   async #confirm(): Promise<void> {
     if (this.#motion.leaving) return;
-    const selected = this.#selected;
+    const pending = appSession().store.state.game?.pendingChoice;
+    const selected = pending && isSpendChoice(pending) ? spendAnswerOf(pending, this.#selected) : this.#selected;
     // Fade the moment the answer is sent, not once the store update lands —
     // dispatch is a round trip through the worker, so this runs while the
     // engine is still answering. If the Board stops this scene mid-fade
@@ -3561,6 +3603,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 }
+
+/** The choice as the sheet draws it (`view/divide-sheet.ts`, `view/spend-choice.ts`); answers are still the engine's ids. */
+const shownChoiceOf = (choice: PendingChoice): PendingChoice => shownSpendChoice(shownDivideChoice(choice));
 
 /** The accuse sheet's read-only stops (a Board Member key or a chip of the picked row): Enter or I opens that card. */
 const INSPECT_STOP = "inspect:";

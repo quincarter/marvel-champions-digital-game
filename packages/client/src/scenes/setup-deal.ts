@@ -760,9 +760,9 @@ export class SetupDealScene extends Phaser.Scene {
     if (layout.indicator && thumb) {
       const track = this.add.graphics();
       track
-        .fillStyle(surface.paper.hex, 0.15)
+        .fillStyle(surface.paperOnInk.hex, 0.15)
         .fillRect(layout.indicator.x, layout.indicator.y, layout.indicator.width, layout.indicator.height);
-      track.fillStyle(surface.paper.hex, 0.7).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
+      track.fillStyle(surface.paperOnInk.hex, 0.7).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
     }
   }
 

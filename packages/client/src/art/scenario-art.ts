@@ -20,10 +20,16 @@
  * `core`, `twc`) the same way. A folder whose name starts with `_` (`art/scenarios/_pending/`) is a holding area for
  * art whose scenario isn't in the pool yet, and is never read, the same as `art/heroes/_pending/`.
  *
+ * An optional `art/scenarios/<scenarioId>/focus.json`, `{ "y": 0.14 }`, says where the villain's face is in its
+ * `villain*` pictures (0 left/top to 1 right/bottom), the way a hero's does (`hero-art.ts`): every crop of that art
+ * (the stage-flip splash, the issue page, the Run) centers on it instead of the screen's own default. It rides on
+ * each `villain` slot `Picture.focus`, never on the outcome scenes, which are other pictures.
+ *
  * The parsing and the lookups are pure functions over a path → URL map, so
  * they are tested without the glob.
  */
-import { pickPicture, type Picture } from "./pictures.js";
+import { parseFocus } from "./focus.js";
+import { pickPicture, type Picture, type PictureFocus } from "./pictures.js";
 
 /** Longest first: `villain-wins-2` must match `villain-wins`, not read as a variant of `villain`. */
 const SCENARIO_SLOTS = ["villain-wins", "villain-loses", "villain", "intro"] as const;
@@ -65,7 +71,16 @@ function slotOf<S extends string>(stem: string, slots: readonly S[]): S | null {
  * Builds the catalog from a path → URL map. Only the part of each path from
  * `art/` on is read, so the map's keys may be relative to anywhere.
  */
-export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCatalog {
+export function parseArtCatalog(
+  files: Readonly<Record<string, string>>,
+  focusFiles: Readonly<Record<string, unknown>> = {},
+): ArtCatalog {
+  const focusOf = new Map<string, PictureFocus>();
+  for (const [fullPath, raw] of Object.entries(focusFiles)) {
+    const folder = fullPath.slice(fullPath.indexOf("art/scenarios/") + "art/scenarios/".length).split("/")[0] ?? "";
+    const focus = parseFocus(raw);
+    if (focus && !folder.startsWith("_")) focusOf.set(folder, focus);
+  }
   const scenarios = new Map<string, Record<ScenarioArtSlot, Picture[]>>();
   const outcomes: Record<OutcomeArtSlot, Picture[]> = { defeat: [], victory: [] };
   const villains = new Map<string, Record<"villain-wins" | "villain-loses", Picture[]>>();
@@ -100,7 +115,8 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
       }
       const scenarioId = parts[1]!;
       const entry = scenarios.get(scenarioId) ?? { villain: [], "villain-wins": [], "villain-loses": [], intro: [] };
-      entry[slot].push(picture);
+      const focus = slot === "villain" ? focusOf.get(scenarioId) : undefined;
+      entry[slot].push(focus ? { ...picture, focus } : picture);
       scenarios.set(scenarioId, entry);
     } else if (parts[0] === "villains" && parts.length === 3) {
       const slot = slotOf(stem, ["villain-wins", "villain-loses"] as const);
@@ -213,5 +229,10 @@ const files = {
   }) as Record<string, string>),
 };
 
+const focusFiles = import.meta.glob("../../../../art/scenarios/*/focus.json", {
+  eager: true,
+  import: "default",
+}) as Record<string, unknown>;
+
 /** Everything in `art/scenarios/`, `art/outcomes/` and `art/packs/`. */
-export const ART_CATALOG: ArtCatalog = parseArtCatalog(files);
+export const ART_CATALOG: ArtCatalog = parseArtCatalog(files, focusFiles);

@@ -64,7 +64,7 @@ import type { RulesCardType } from "./card-types.js";
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
 import type { Command } from "./commands.js";
-import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { GroupRef, SharedThreatCause } from "./pod.js";
 import type { GameMode } from "./game-mode.js";
 import type { ReportedFact, SetupOutsideFact } from "./outside-facts.js";
@@ -1914,6 +1914,12 @@ export type Predicate =
    * attack/thwart is a different event kind and doesn't match either reading).
    */
   | { readonly kind: "currentActivationIs"; readonly activation: "attack" | "scheme" }
+  /**
+   * The activation in progress is a scheme a Boost ability started during an enemy attack, directly or through a chain
+   * of such schemes (`TriggerEvent enemyScheme.startedByAttackBoost`). A boost card's "after this attack" is ignored on
+   * a scheme, except this one: the new attack follows the scheme (ruling 191, May 16, 2024; RRG 1.8 "Activation", p. 6).
+   */
+  | { readonly kind: "currentSchemeStartedByAttackBoost" }
   /**
    * "While attacking the enemy with Death-Glow attached" (Dragonfang, 25006) / "while defending against the enemy with
    * Death Glow attached" (Valkyrie's Spear, 25005) / "while attacking a character with the [Aerial] trait" (Harpoon):
@@ -5192,8 +5198,10 @@ export type EffectSpec =
    * remains, the players join the central area and the game is no longer split ("Players cannot join this game area
    * unless there are no other game areas remaining", The Master of Time 2B). Duplicate unique cards are then discarded,
    * the first player choosing ("If the players cannot agree which one to discard, the first player decides").
+   *
+   * `from` is set by the engine as `atEndOfPhase` queues the join: the area it leaves, read then. Not written in a script.
    */
-  | { readonly kind: "joinGameArea" }
+  | { readonly kind: "joinGameArea"; readonly from?: GameAreaId }
   /**
    * "At the end of the phase, …": a delayed effect, the phase counterpart of `atEndOfRound`. It fires when the current
    * phase ends: after the player phase's ready step, or with the round's end for the villain phase.

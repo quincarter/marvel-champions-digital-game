@@ -3118,12 +3118,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "joinGameArea":
       throw new EngineInvariantError("joinGameArea is handled before applyEffect");
-    case "atEndOfPhase":
+    case "atEndOfPhase": {
+      // A join leaves the area this ability is resolving in, which may be gone by the end of the phase.
+      const area = contextArea(ctx.state, context);
+      const effects = area
+        ? effect.effects.map((delayed) =>
+            delayed.kind === "joinGameArea" ? { ...delayed, from: area.areaId } : delayed,
+          )
+        : effect.effects;
       addLastingEffect(
         ctx,
         {
           kind: "delayedEffects",
-          effects: effect.effects,
+          effects,
           scope: {
             selfInstanceId: frame.selfInstanceId,
             controllerId: frame.controllerId,
@@ -3134,6 +3141,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         { kind: "endOfPhase" },
       );
       return;
+    }
     case "moveThreat": {
       // A card a slot still names after it left play is neither a source nor a destination: a scheme put into play
       // and then discarded for the player side scheme limit takes no threat (docs/phase7-wave7.md §3.49).
@@ -3924,6 +3932,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           : [];
       const characterController = character ? controllerOf(ctx.state, character) : null;
       const noBoost = effect.boost === false ? { noBoost: true } : {};
+      // Ruling 191 (May 16, 2024): a scheme a Boost ability started during an attack remembers it (`suspend.ts`).
+      const fromBoost = frame.resumeFromAttackBoost ? { startedByAttackBoost: true as const } : {};
       // "Place 1 threat from that activation here instead of on the main scheme if …" (docs/phase7-wave9.md §3.9):
       // the card and the amount are fixed now and travel with each scheme this effect initiates; its place-threat
       // step reads the condition in this ability's scope.
@@ -4038,6 +4048,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               ...(character ? { targetInstanceId: character } : {}),
               ...(effect.kind === "enemyAttack" && effect.additionalResolution ? { additionalResolution: true } : {}),
               ...noBoost,
+              ...(attacking ? {} : fromBoost),
               ...(attacking ? {} : divert),
               ...(attacking ? {} : wouldPlace),
               ...deferred,
@@ -4063,6 +4074,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                   enemyInstanceId: enemy,
                   playerId,
                   ...noBoost,
+                  ...fromBoost,
                   ...divert,
                   ...wouldPlace,
                   ...(deferSch ? deferred : {}),

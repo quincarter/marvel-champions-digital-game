@@ -1,0 +1,328 @@
+{
+  "v0.38.1": {
+    "title": "Sharper text at 100%",
+    "summary": "Text stops looking blurry at 100% display scaling, SKIP leaves a comic, and Couch mode and Fear No Evil get fixes."
+  },
+  "v0.38.0": {
+    "title": "Pick up a controller. Then tell us what breaks.",
+    "summary": "**Controller support is new and will have bugs**: if you have a pad, play with it and report what goes wrong from Pause ▸ Report a problem or on GitHub. Thanks to @Lemantia, @zackburnley, @chainsawash, @NoeM94, @AlecHolland1582, @Perezh21 and @bluefireF5ran.",
+    "images": [
+      {
+        "alt": "The numbers: 4 controller families, LT and RT hold layers, couch mode up to 300%, Install for Steam on 3 OSes, 29 and 13 fixes, 580 browser tests.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-01-the-numbers.jpg"
+      },
+      {
+        "alt": "Pick up a controller: the Controls screen for Xbox, PlayStation, Switch and Steam Deck, the hold layers and button icons.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-02-controller-support.jpg"
+      },
+      {
+        "alt": "We need your controller: how to report a controller bug, and the setups we most want tested.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-03-we-need-your-controller.jpg"
+      },
+      {
+        "alt": "Every screen, by pad: the villain phase, picking attackers and targets, Nevermind, and the one-handed keyboard.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-04-every-screen-by-pad.jpg"
+      },
+      {
+        "alt": "From the couch: couch mode, Install for Steam, the Linux app, Discord status and new card scans.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-05-from-the-couch.jpg"
+      },
+      {
+        "alt": "Why wasn't I asked? A notice and Inspect now say why an interrupt or response can't be used (Iron Lad, #431).",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-06-why-wasnt-i-asked.jpg"
+      },
+      {
+        "alt": "Just made it in: rulebook covers and comic pages (#446), Retaliate in the recap (#444), the community Discord (#438) and START VILLAIN PHASE by pad (#442).",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-07-just-made-it-in.jpg"
+      },
+      {
+        "alt": "Also new, v0.37.0: every option shown (#412), Make the Call (#419), Heart of the Panther (#425), Earth's Mightiest Heroes (#415), Stakeout (#411), rules audit part 4 and new music.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-08-v0-37-0-bug-fixes.jpg"
+      },
+      {
+        "alt": "Thank you to Lemantia, zackburnley, chainsawash, NoeM94, AlecHolland1582, Perezh21 and bluefireF5ran.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-09-thank-you.jpg"
+      },
+      {
+        "alt": "Code shipped: 21 pull requests, 1,208 files, 40,022 lines added, and the art and icon credits.",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/25876fa84cc07dac2853063b5597e850917eac7e/docs/screenshots/releases/v0.38.0/v0-38-0-release-10-code-shipped.jpg"
+      }
+    ]
+  },
+  "v0.37.0": {
+    "title": "Every option shown",
+    "summary": "A choice lists every option, with the ones you can't pick disabled and a reason why. Plus 13 fixes."
+  },
+  "v0.36.5": {
+    "title": "The Sleeper, one more time",
+    "summary": "The Sleeper Awakened stays out of the game however The Sleeper is defeated, with tests for every way."
+  },
+  "v0.36.4": {
+    "title": "Overpaying, fixed",
+    "summary": "Moon Girl, Eros, Sunspot, Hulk and Venom all read overpaid and wild resources correctly."
+  },
+  "v0.36.3": {
+    "title": "Sync on the desktop",
+    "summary": "Online sync works in the desktop apps."
+  },
+  "v0.36.2": {
+    "title": "Numbers you can read",
+    "summary": "An interrupt no longer cuts off a narrow phone's damage total, and a batch of schemes get fixed."
+  },
+  "v0.36.1": {
+    "title": "No spoilers from the deck",
+    "summary": "Revealing encounter cards one at a time stops showing what's coming, and the sync recovery code screen is easier to close."
+  },
+  "v0.36.0": {
+    "title": "A call for scans",
+    "summary": "A title-screen notice explains the missing Shadowland cards and asks for fresh scans."
+  },
+  "v0.35.1": {
+    "title": "Shadowland scans, kept honest",
+    "summary": "Strategy Session explains itself, and Shadowland keeps only its Hall of Heroes scans while the rest stay placeholders."
+  },
+  "v0.35.0": {
+    "title": "Lighter card scans",
+    "summary": "900px card scans cut the art from 828 MB to 552 MB, and the villain phase's windows say what is about to happen."
+  },
+  "v0.34.0": {
+    "title": "Into Shadowland. Your saves come too.",
+    "summary": "Shadowland (MC65) is playable: Shadows in the Night, Shadow Labyrinth, Heart of Shadow and the full campaign, which makes every released product playable end to end. Your saves can now follow you between devices with no login, by a one-time code or by sync, as @acompanys asked in #276. Seven players filed ten issues and every one is fixed here: thanks to @acompanys (#276), @zackburnley (#342, #358), @Lemantia (#346, #348, #349), @PermaKarma (#356), @benhgomez (#357), @Perezh21 (#361) and @AlecHolland1582 (#365), and to @bluefireF5ran for four pull requests, including part 3 of the RRG 1.8 rules audit (#312).",
+    "images": [
+      {
+        "alt": "Into Shadowland, part 1: the numbers, and Shadowland's scenarios and campaign",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6588a226d54a7dfd0f748ae1a14467c098285b3f/docs/screenshots/releases/v0.34.0/v0-34-0-release-1-of-4.jpg"
+      },
+      {
+        "alt": "Into Shadowland, part 2: saves on every device, by a one-time code or sync",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6588a226d54a7dfd0f748ae1a14467c098285b3f/docs/screenshots/releases/v0.34.0/v0-34-0-release-2-of-4.jpg"
+      },
+      {
+        "alt": "Into Shadowland, part 3: bigger Inspect cards, Tower Defense villain panels, Ultron Drone targets, reduced motion, the rules fixes, Side Stories and cleaner card scans",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6588a226d54a7dfd0f748ae1a14467c098285b3f/docs/screenshots/releases/v0.34.0/v0-34-0-release-3-of-4.jpg"
+      },
+      {
+        "alt": "Into Shadowland, part 4: thank you to the seven reporters and one contributor, and the code shipped",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6588a226d54a7dfd0f748ae1a14467c098285b3f/docs/screenshots/releases/v0.34.0/v0-34-0-release-4-of-4.jpg"
+      }
+    ]
+  },
+  "v0.33.0": {
+    "title": "Five reporters. Six fixes.",
+    "summary": "Every outside fix in this release started as a player's issue, filed and fixed on the same day. Thanks to @zackburnley (#328), @PermaKarma (#326), @blorimer18 (#329), @benhgomez (#330) and @Lemantia (#335). Phones scroll smoothly at full resolution again (Zack tested two preview builds on his own phone before the fix merged), every pull request now builds an Android preview APK, Organizational Support and the Peek at table banner get out of your way, and two rules bugs are gone.",
+    "images": [
+      {
+        "alt": "Five reporters, six fixes, part 1: the numbers, smooth scrolling at native resolution, and preview APKs",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/008384c26c467711b0718c382509aeba9feefed5/docs/screenshots/releases/v0.33.0/v0-33-0-release-1-of-3.jpg"
+      },
+      {
+        "alt": "Five reporters, six fixes, part 2: Organizational Support before and after, the Peek at table banner, the Baron Zemo and Make the Call rules fixes, and play-area swiping",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/008384c26c467711b0718c382509aeba9feefed5/docs/screenshots/releases/v0.33.0/v0-33-0-release-2-of-3.jpg"
+      },
+      {
+        "alt": "Five reporters, six fixes, part 3: thank you to the five reporters, and the code shipped",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/008384c26c467711b0718c382509aeba9feefed5/docs/screenshots/releases/v0.33.0/v0-33-0-release-3-of-3.jpg"
+      }
+    ]
+  },
+  "v0.32.1": {
+    "title": "Wasp divides her attack",
+    "summary": "Giant Wasp can split her basic attack among enemies and her thwart among schemes."
+  },
+  "v0.32.0": {
+    "title": "Sharper on every screen",
+    "summary": "Huge thanks to @zackburnley (u/electricpenguin7) for this one. He noticed the Android app looked low-res and sent one line from the debug log (#320). That report led to sharper drawing on every platform: the game now renders at your screen's own resolution on Android, iOS, the web and desktop, supports 120 Hz phones, and picks Render resolution and Frame rate settings that suit your hardware. On a phone, Native at 120 Hz uses more battery; the last image shows how to trade a little sharpness for battery life.",
+    "images": [
+      {
+        "alt": "Sharper on every screen, part 1: the numbers and the Android before and after",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/87c93b4edd93fb93c5b4b8d9b699eb9dd708e59b/docs/screenshots/releases/v0.32.0/sharper-on-every-screen-part-1.jpg"
+      },
+      {
+        "alt": "Sharper on every screen, part 2: desktop and web, the resolution table, hardware tiers and the new Screen settings",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/87c93b4edd93fb93c5b4b8d9b699eb9dd708e59b/docs/screenshots/releases/v0.32.0/sharper-on-every-screen-part-2.jpg"
+      },
+      {
+        "alt": "Sharper on every screen, part 3: saving battery, a thank-you to Zack, and the code shipped",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/87c93b4edd93fb93c5b4b8d9b699eb9dd708e59b/docs/screenshots/releases/v0.32.0/sharper-on-every-screen-part-3-battery-and-thanks.jpg"
+      }
+    ]
+  },
+  "v0.31.0": {
+    "title": "Fear No Evil, and the Trophy Room",
+    "summary": "Daredevil, Echo, Jessica Jones and Luke Cage arrive with the Fear No Evil campaign, plus 232 achievements and a Trophy Room to keep them in.",
+    "images": [
+      {
+        "alt": "Fear No Evil + More, part 1 of 3",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/24b76aa6531cd34cc8eb94fd0553019f3bd8ea61/artifacts/release/v0.31.0/fear-no-evil-plus-more-1-of-3.jpg"
+      },
+      {
+        "alt": "Fear No Evil + More, part 2 of 3",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/24b76aa6531cd34cc8eb94fd0553019f3bd8ea61/artifacts/release/v0.31.0/fear-no-evil-plus-more-2-of-3.jpg"
+      },
+      {
+        "alt": "Fear No Evil + More, part 3 of 3",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/24b76aa6531cd34cc8eb94fd0553019f3bd8ea61/artifacts/release/v0.31.0/fear-no-evil-plus-more-3-of-3.jpg"
+      }
+    ]
+  },
+  "v0.30.0": {
+    "title": "Read both sides",
+    "summary": "Payment rows show what a resource can't pay for, main scheme sheets flip between sides, and 19 fixes go in."
+  },
+  "v0.29.0": {
+    "title": "Flip the encounter card",
+    "summary": "Each facedown encounter card stops on its back and turns over on your press, and cards dealt to a player show as a pile of backs."
+  },
+  "v0.28.1": {
+    "title": "The Sleeper stays down",
+    "summary": "The Sleeper no longer comes back from the encounter deck, and the release job and thanks lists get repaired."
+  },
+  "v0.28.0": {
+    "title": "Thank you, in the notes",
+    "summary": "Every release now thanks the people who reported or wrote its changes, and the README gets a Special thanks wall."
+  },
+  "v0.27.0": {
+    "title": "Paying stops freezing",
+    "summary": "Pressing Pay responds in 0.09 s instead of 1.6 s on a slowed device, and Ironheart's Level Up! gets its own band across the table.",
+    "images": [
+      {
+        "alt": "Paying for a card: the pay step's timing before and after the fix",
+        "src": "https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0acb9839a13224da13f121ac18f30f89f736ff84/artifacts/perf/pay-step-timing-258.png"
+      }
+    ]
+  },
+  "v0.26.0": {
+    "title": "Android plays nice",
+    "summary": "The Android app respects power saving mode and pauses the music in the background."
+  },
+  "v0.25.0": {
+    "title": "Faster first load",
+    "summary": "Opening the app freezes less on slower devices, Settings gets a Sound tab, and the music player gets Pause and a volume slider. Plus 36 fixes."
+  },
+  "v0.24.0": {
+    "title": "A card search for everything",
+    "summary": "The deck builder shows card pictures and searches card text, Take your seats groups decks by hero, and every decision can step aside to show the table."
+  },
+  "v0.23.0": {
+    "title": "Sound, windows and a music player",
+    "summary": "Desktop window and resolution settings, a music player with Now playing, sounds for attacks, thwarts and cards, and notices for what a game unlocks."
+  },
+  "v0.22.0": {
+    "title": "The villain phase, rebuilt",
+    "summary": "The villain phase keeps your hand and the table in view on desktop, tablet and phone. Hover any card to see it larger, and choose how large cards are drawn."
+  },
+  "v0.21.1": {
+    "title": "Kang's clock and a clearer log",
+    "summary": "The log says when an encounter card exhausts someone, Kang's stage 3 schemes show properly, and Scenario select's record follows your pick."
+  },
+  "v0.21.0": {
+    "title": "Civil War",
+    "summary": "The Civil War box with Tigra and Hulkling, four leaders and a custom scenario builder, plus Wonder Man and Hercules."
+  },
+  "v0.20.0": {
+    "title": "Undo",
+    "summary": "Undo takes back the hero's last move, payments show the order your cards are discarded, and the apps tell you when an update is out."
+  },
+  "v0.19.1": {
+    "title": "Issue forms",
+    "summary": "GitHub issue forms for bug reports, feature requests and tested community decks."
+  },
+  "v0.19.0": {
+    "title": "Agents of S.H.I.E.L.D.",
+    "summary": "Maria Hill, Nick Fury, Shuri, Silk, Falcon and Winter Soldier, five new villains, the Trickster Takeover scenarios and guided mode for the wave."
+  },
+  "v0.18.0": {
+    "title": "Age of Apocalypse",
+    "summary": "Wave 8 is scripted: six heroes, five scenarios and thirteen modular sets, with each hero's precon checked in seeded games."
+  },
+  "v0.17.0": {
+    "title": "NeXt Evolution",
+    "summary": "Cable, Domino, Psylocke, Angel, X-23 and Deadpool, the five-scenario campaign and its comic, shipped together with v0.16.0. macOS splits into Intel and Apple Silicon builds, and every image moves to WebP."
+  },
+  "v0.16.0": {
+    "title": "Mutant Genesis",
+    "summary": "Cycle 6 joins the pool with its five scenarios, both precons, its campaign and a five-issue comic. It reached players as part of v0.17.0, after build trouble.",
+    "noGithubRelease": true
+  },
+  "v0.15.0": {
+    "title": "Pictures in the deck builder",
+    "summary": "Hero art beside every identity and deck, and pool rows that show each card's picture and text."
+  },
+  "v0.14.0": {
+    "title": "Take your saves with you",
+    "summary": "Export and import every save, deck, campaign and unlock from Settings, and the deck builder filters by pack and wave. A batch of action timing fixes too."
+  },
+  "v0.13.0": {
+    "title": "Tips you can tap",
+    "summary": "Aspect chips get a proper info segment, and a phone scroll no longer opens the Scenario stages panel."
+  },
+  "v0.12.1": {
+    "title": "Arrows cost what they cost",
+    "summary": "Hawkeye's Arrows must be played from the Quiver, Windows builds link again, and Madame Hydra asks which side scheme to use."
+  },
+  "v0.12.0": {
+    "title": "Sinister Motives",
+    "summary": "Cycle 4 arrives: Ghost-Spider, Miles Morales, Nova, Ironheart, Spider-Ham and SP//dr, with villain art and music for Sandman, Venom, Mysterio, The Sinister Six and Venom Goblin."
+  },
+  "v0.11.1": {
+    "title": "The opening band is back",
+    "summary": "The Round 1 band shows again at the start of a game."
+  },
+  "v0.11.0": {
+    "title": "Rewind a campaign issue",
+    "summary": "Lost an issue? Rewind deals a fresh game or replays the exact same hands, and web deploys move to GitHub Actions."
+  },
+  "v0.10.0": {
+    "title": "New screens for guided mode",
+    "summary": "The screens that guided mode is built on."
+  },
+  "v0.9.0": {
+    "title": "Then, done right",
+    "summary": "Roster cards paint off the main thread so Seats and Scenario select scroll smoothly, and a sweep makes every \"Then\" on the cards wait the way the rules say."
+  },
+  "v0.8.0": {
+    "title": "The Mad Titan's Shadow",
+    "summary": "Cycle 3 arrives: Spectrum, Adam Warlock, Nebula, War Machine, Valkyrie and Vision, with the campaign, new briefing screens and the Title footer's release notes link."
+  },
+  "v0.7.0": {
+    "title": "Who attacks?",
+    "summary": "Attack and Thwart ask which character goes when more than one can, Rhino gets a comic intro, and tapping a card in play inspects it instead of using it."
+  },
+  "v0.6.0": {
+    "title": "Crossbones gets a soundtrack",
+    "summary": "Battle, defeat and victory music for Crossbones, plus clearer macOS signing in the release build."
+  },
+  "v0.5.1": {
+    "title": "Cleaner desktop builds",
+    "summary": "macOS builds can be signed and notarized, Android keystore errors explain themselves, and the Linux .rpm packs in a second instead of 18 minutes.",
+    "noGithubRelease": true
+  },
+  "v0.5.0": {
+    "title": "Campaigns and The Galaxy's Most Wanted",
+    "summary": "The Rise of Red Skull campaign reaches the client with briefings, comic openers and between-issue deck edits, and cycle 2 joins the pool with its own campaign story."
+  },
+  "v0.4.0": {
+    "title": "Campaign groundwork",
+    "summary": "The engine learns campaigns: composable play modes, the campaign log, the between-games runner and a save database of its own."
+  },
+  "v0.3.1": {
+    "title": "A downed hero stops the freeze",
+    "summary": "The game no longer freezes when a hero is defeated."
+  },
+  "v0.3.0": {
+    "title": "Room on a phone",
+    "summary": "The phone setup screens reclaim the top of the screen, filter chips wear their aspect colors, and choice sheets stop going missing mid-decision."
+  },
+  "v0.2.0": {
+    "title": "One card pool",
+    "summary": "Core, wave 1 and cycle 1 run as one unified pool, phones get an Inspect sheet, and the missing hero and villain art arrives."
+  },
+  "v0.1.1": {
+    "title": "Release paperwork",
+    "summary": "Documents the cross-platform release artifacts and the changelog workflow."
+  },
+  "v0.1.0": {
+    "title": "First playable",
+    "summary": "The first public build: a 2D tabletop client with the Wave 1 and Wave 2 heroes, scenarios and modular sets, packaged for Windows and Android."
+  }
+}

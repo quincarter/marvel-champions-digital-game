@@ -16,7 +16,9 @@ import {
 } from "@mc/engine";
 import {
   P1,
+  applyOk,
   endTurn,
+  firstLegal,
   identityOf,
   inst,
   patchInstance,
@@ -26,7 +28,8 @@ import {
   toHero,
   use,
 } from "../../testing/harness.js";
-import { drive, rhino } from "../../testing/qa-bench.js";
+import { DEPS, drive, intoPlay, rhino } from "../../testing/qa-bench.js";
+import { driveStepwise, withForm } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -82,6 +85,131 @@ describe("Escaped Convict boost (07009)", () => {
     state = stackEncounterDeck(state, "07009");
     state = play(state, toHero(), endTurn());
     expect(state.round).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("Escaped Convict boost (07009), hero form", () => {
+  const countOf = (events: readonly GameEvent[], kind: "enemyAttack" | "enemyScheme") =>
+    events.filter((e) => e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === kind).length;
+  const withTopCards = (state: GameState, ...codes: string[]): GameState =>
+    codes.reduce(
+      (s, code, i) => patchInstance(s, activeEncounterDeck(state).deck[i]!, { cardId: cardId(code) }),
+      state,
+    );
+  // Breakout gives each villain its own encounter deck: an activation's boost comes off its villain's deck, so the
+  // scheme that I've Been Waiting For This! causes (on the villain the counter moved to) draws from that deck's top.
+  const withTopOfOtherDecks = (state: GameState, code: string, depth = 0): GameState => {
+    const active = state.activeVillainId;
+    return state.villains.reduce((s, villain) => {
+      if (villain.instanceId === active || !villain.encounterDeckId) return s;
+      const card = s.encounterDecks[villain.encounterDeckId]?.deck[depth];
+      return card ? patchInstance(s, card, { cardId: cardId(code) }) : s;
+    }, state);
+  };
+  const baseline = () => {
+    const base = rhino(5, "core-spider-man-justice", "breakout");
+    return patchInstance(base, base.mainScheme.instanceId, { threat: 0 });
+  };
+
+  it("as an attack's boost: the counter moves, then that villain attacks the hero in hero form (a second attack)", () => {
+    // The top card is the first attack's boost. A plain card as the boost gives the single-attack baseline.
+    const plain = drive(withTopCards(baseline(), "07016"), endTurn(P1), {});
+    const convict = drive(withTopCards(baseline(), "07009"), endTurn(P1), {});
+    expect(countOf(convict.events, "enemyAttack")).toBe(countOf(plain.events, "enemyAttack") + 1);
+  });
+
+  // Escaped Convict's attack is the only one with no boost card in these games.
+  const convictAttacks = (events: readonly GameEvent[]) =>
+    events.flatMap((e, index) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyAttack" && e.event.noBoost
+        ? [index]
+        : [],
+    );
+
+  describe("ruling 191 (May 16, 2024): the scheme I've Been Waiting For This! starts during an attack", () => {
+    const firstScheme = (events: readonly GameEvent[]) =>
+      events.findIndex((e) => e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyScheme");
+
+    it.each(["07009", "07024", "07038", "07053"])(
+      "Escaped Convict (%s) as that scheme's boost: a new attack with no boost card follows the scheme",
+      (convict) => {
+        // Villain 1 attacks, 07014 is that attack's boost, Villain 2 schemes after the attack; the copy is the scheme's boost.
+        const chain = drive(withTopOfOtherDecks(withTopCards(baseline(), "07014"), convict), endTurn(P1), {});
+        const filler = drive(withTopOfOtherDecks(withTopCards(baseline(), "07014"), "07016"), endTurn(P1), {});
+        expect(firstScheme(chain.events)).toBeGreaterThanOrEqual(0);
+        expect(countOf(chain.events, "enemyAttack")).toBe(countOf(filler.events, "enemyAttack") + 1);
+        expect(convictAttacks(chain.events)).toHaveLength(1);
+        expect(convictAttacks(chain.events)[0]).toBeGreaterThan(firstScheme(chain.events));
+        expect(convictAttacks(filler.events)).toHaveLength(0);
+      },
+    );
+
+    it("a nested chain that began with an attack keeps it: 07014 on that scheme, then Escaped Convict", () => {
+      // Each other deck: 07014 for the first scheme, then 07009 for the scheme that one starts.
+      const nested = (second: string) =>
+        withTopOfOtherDecks(withTopOfOtherDecks(withTopCards(baseline(), "07014"), "07014"), second, 1);
+      const chain = drive(nested("07009"), endTurn(P1), {});
+      expect(convictAttacks(chain.events)).toHaveLength(1);
+      expect(convictAttacks(chain.events)[0]).toBeGreaterThan(firstScheme(chain.events));
+      expect(convictAttacks(drive(nested("07016"), endTurn(P1), {}).events)).toHaveLength(0);
+    });
+
+    it("no attack follows in alter-ego form", () => {
+      // The player flips while Villain 1's attack is resolving, so the chain's scheme finds them in alter-ego form.
+      const toAlterEgoAtDefense = (s: GameState) =>
+        s.pendingChoice?.prompt.kind === "declareDefender" ? withForm(s, "alterEgo") : s;
+      const staged = withTopOfOtherDecks(withTopCards(baseline(), "07014"), "07009");
+      const first = applyOk(staged, endTurn(P1), DEPS);
+      const { events } = driveStepwise(DEPS, first.state, firstLegal, toAlterEgoAtDefense);
+      const all = [...first.events, ...events];
+      expect(firstScheme(all)).toBeGreaterThanOrEqual(0);
+      expect(convictAttacks(all)).toHaveLength(0);
+    });
+  });
+
+  describe("in hero form, a scheme no attack started: Escape Plan (07043) on a confused hero", () => {
+    // The attack takes a plain boost card, 07043 is dealt, and the scheme it causes boosts off the active deck.
+    const escapePlan = (schemeBoost: string) => {
+      const base = baseline();
+      const hero = identityOf(base);
+      const confused = patchInstance(base, hero, { statuses: { ...inst(base, hero).statuses, confused: 1 } });
+      return withTopCards(confused, "07016", "07043", schemeBoost);
+    };
+    const noAttackAfter = (staged: GameState, expectedSchemes: number) => {
+      const { events } = drive(staged, endTurn(P1), {});
+      const revealed = events.findIndex((e) => e.type === "encounterCardDealt");
+      const schemes = events.filter(
+        (e, i) =>
+          i > revealed && e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyScheme",
+      );
+      expect(revealed).toBeGreaterThanOrEqual(0);
+      expect(schemes).toHaveLength(expectedSchemes);
+      expect(convictAttacks(events)).toHaveLength(0);
+    };
+
+    it("Escaped Convict as that scheme's boost: no attack", () => {
+      noAttackAfter(escapePlan("07009"), 1);
+    });
+
+    it("I've Been Waiting For This! as that scheme's boost, Escaped Convict on the scheme it starts: no attack", () => {
+      noAttackAfter(withTopOfOtherDecks(escapePlan("07014"), "07009"), 2);
+    });
+  });
+
+  describe("Chaos In the Prison (07011) boost, ruling 191 (May 16, 2024): an upgrade goes only on an undefended attack", () => {
+    const UNDEFENDED = { defend: "no such defender" };
+    const upgradeLeft = (staged: GameState) => {
+      const { state, id } = intoPlay(staged, "01008");
+      return playerOf(drive(state, endTurn(P1), UNDEFENDED).state, P1).playArea.includes(id);
+    };
+
+    it("discards the upgrade as an undefended attack's boost", () => {
+      expect(upgradeLeft(withTopCards(baseline(), "07011"))).toBe(false);
+    });
+
+    it("keeps it as the boost on a scheme I've Been Waiting For This! started: Villain 1's attack is over", () => {
+      expect(upgradeLeft(withTopOfOtherDecks(withTopCards(baseline(), "07014"), "07011"))).toBe(true);
+    });
   });
 });
 

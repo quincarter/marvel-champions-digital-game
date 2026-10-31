@@ -20,29 +20,59 @@ Title screen when one exists. The web app always runs the latest version.
 
 ## Play it from Steam
 
-Each release has an "Install for Steam" script for Windows, macOS and Linux. It adds the installed game to Steam as a
-non-Steam game, with its icon and library art (the grid, wide and Big Picture banners), so it plays from your library
-and Big Picture with a controller. The entry is named "Marvel Champions Digital Edition", which is what Steam and status
-plugins such as Discord show. Running it again updates the entry instead of adding a second one, keeps its collections
-and play time, and also replaces an entry you added by hand (named after the AppImage or exe file). Steam has to be closed while it runs; the script offers to close it.
+There is one "Install for Steam" script for each system, and it never changes from release to release: it asks GitHub
+for the latest release itself, so the links below always work and an old copy still installs the newest game. It
+installs or updates the game, then adds it to Steam as a non-Steam game, with its icon and library art (the grid, wide
+and Big Picture banners), so it plays from your library and Big Picture with a controller. The entry is named "Marvel
+Champions Digital Edition", which is what Steam and status plugins such as Discord show. Running it again updates the
+game and the entry instead of adding a second one, keeps its collections and play time, and also replaces an entry you
+added by hand (named after the AppImage or exe file). Steam has to be closed while it runs; the script offers to close
+it.
 
-- **Windows**: install the game, then download `-Windows-Install-for-Steam.cmd` and double-click it. Windows may ask
-  first because the file came from the internet: choose **Run** (or **More info**, then **Run anyway**). It needs no
-  execution policy change: the `.cmd` carries the PowerShell script and runs it as text, because Windows won't run a
-  downloaded, unsigned `.ps1` under its default policy (#474). The window stays open at the end so you can read it.
-  From a terminal it takes the same options, e.g. `.\MarvelChampions-<version>-Windows-Install-for-Steam.cmd -Uninstall`.
-- **macOS**: drag the game into Applications from the `.dmg`, then download `-macOS-Install-for-Steam.sh` and run
-  `bash ~/Downloads/MarvelChampions-*-macOS-Install-for-Steam.sh`.
-- **Linux, Steam Deck and Bazzite**: download the `.AppImage` and `-Linux-Install-for-Steam.sh` (on a Steam Deck, in
-  Desktop Mode), then run `bash ~/Downloads/MarvelChampions-*-Linux-Install-for-Steam.sh`. It takes the newest
-  AppImage from Downloads (or downloads the latest), installs it to `~/Applications/MarvelChampions/`, works with
-  native and Flatpak Steam on any distro (without libfuse2 it adds `APPIMAGE_EXTRACT_AND_RUN=1` to the launch
-  options so the AppImage still starts). The app sets the [launch options](#linux-launch-options) below itself, so the
-  entry doesn't need them. Launch options you add in Steam yourself are kept when you run it again for a new version.
+- **Windows**: download
+  [`MarvelChampions-Windows-Install-for-Steam.cmd`](https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Windows-Install-for-Steam.cmd)
+  and double-click it. Windows may ask first because the file came from the internet: choose **Run** (or **More
+  info**, then **Run anyway**). It needs no execution policy change: the `.cmd` carries the PowerShell script and runs
+  it as text, because Windows won't run a downloaded, unsigned `.ps1` under its default policy (#474). The window stays
+  open at the end so you can read it. From a terminal it takes the same options, e.g.
+  `.\MarvelChampions-Windows-Install-for-Steam.cmd -Uninstall`.
+- **macOS**: download
+  [`MarvelChampions-macOS-Install-for-Steam.sh`](https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-macOS-Install-for-Steam.sh)
+  and run `bash ~/Downloads/MarvelChampions-macOS-Install-for-Steam.sh`.
+- **Linux, Steam Deck and Bazzite**: on a Steam Deck, do this in Desktop Mode. Download
+  [`MarvelChampions-Linux-Install-for-Steam.tar.gz`](https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Linux-Install-for-Steam.tar.gz),
+  extract it, and run `install-for-steam.sh` from the folder; it is already executable, and the art is beside it. Or
+  in one line in a terminal:
 
-Every script takes `--help` (`-?` on Windows) and an uninstall option (`--uninstall`, or `-Uninstall` on Windows) that
-removes the Steam entry and its art. The scripts live in `scripts/linux/`, `scripts/macos/` and `scripts/windows/`;
-the art is in `scripts/linux/steam-art/`, built by `scripts/linux/make-steam-art.py` from the title screen pictures.
+  ```bash
+  curl -fsSL https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Linux-Install-for-Steam.sh | bash
+  ```
+
+  It installs to `~/Applications/MarvelChampions/`, and works with native and Flatpak Steam on any distro (without
+  libfuse2 it adds `APPIMAGE_EXTRACT_AND_RUN=1` to the launch options so the AppImage still starts). An AppImage of the
+  latest version next to the script or in Downloads is used instead of downloading it again, and one you name on the
+  command line is used whatever its version. The app sets the [launch options](#linux-launch-options) below itself, so
+  the entry doesn't need them. Launch options you add in Steam yourself are kept when you run it again.
+
+Every script takes `--help` (`-?` on Windows), `--language es` (`-Language es`) for the Spanish cards, and an uninstall
+option (`--uninstall`, or `-Uninstall` on Windows) that removes the Steam entry and its art. The scripts live in
+`scripts/linux/`, `scripts/macos/` and `scripts/windows/`; the art is in `scripts/linux/steam-art/`, built by
+`scripts/linux/make-steam-art.py` from the title screen pictures.
+
+### Updating from inside the game
+
+Each run records the install in a hidden folder in your home directory, `~/.marvel-champions/` (on Windows,
+`C:\Users\<you>\.marvel-champions\`): `install.json` and a copy of the script. The game reads that record and shows
+"Steam script" beside its version on the Title screen. If you installed with an earlier version of the script, run the
+new one once to get this.
+
+When a new release is out, the Title's update banner has an **Update** button instead of a download. It runs the saved
+script with its progress on screen, so it works in Game Mode on a Steam Deck, where there is no terminal. Once the
+download is done, quit the game to install it, give it a minute, then start the game again from Steam. You can keep playing first: it
+installs whenever you quit. Settings → More → Steam install runs the same check at any time. If an update fails, its
+output is in `update.log` in the same folder.
+
+An install from the MSI on Windows asks for administrator rights when it installs.
 
 ## Linux launch options
 

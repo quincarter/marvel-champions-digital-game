@@ -95,9 +95,13 @@ async function press(page: Page, phone: boolean, rect: Rect): Promise<void> {
 
 /** A tab's stop, wheeled into view first: a phone's tabs are one sideways-scrolling row. */
 async function tabStop(page: Page, key: string): Promise<{ key: string; rect: Rect }> {
-  const room = page.viewportSize()!.width;
+  const screen = page.viewportSize()!.width;
   for (let i = 0; i < 12; i++) {
-    const stop = (await stopsOf(page)).find((s) => s.key === key)!;
+    const stops = await stopsOf(page);
+    // The Filters chip sits at the right end of the tab row on a phone: the tabs end where it begins.
+    const filters = stops.find((s) => s.key === "filter:toggle");
+    const room = filters ? filters.rect.x - 8 : screen;
+    const stop = stops.find((s) => s.key === key)!;
     if (stop.rect.x >= 0 && stop.rect.x + stop.rect.width <= room - 8) return stop;
     await page.mouse.move(room / 2, stop.rect.y + stop.rect.height / 2);
     await page.mouse.wheel(stop.rect.x > 0 ? 120 : -120, 0);
@@ -812,7 +816,7 @@ test("a swipe of a phone's tab row scrolls it and opens no tab; a tap does", asy
   const heroes = (await stopsOf(page)).find((s) => s.key === "tab:heroes")!;
   const y = heroes.rect.y + heroes.rect.height / 2;
   // Starts on a tab and lifts on another: the row moves, and Overview stays open.
-  await swipe(page, { x: 340, y }, { x: 90, y });
+  await swipe(page, { x: 230, y }, { x: 40, y });
   await page.waitForTimeout(500);
   expect(await keys(page)).toContain("tile:record");
   const moved = (await stopsOf(page)).find((s) => s.key === "tab:heroes")!;
@@ -827,4 +831,23 @@ test("a swipe of a phone's tab row scrolls it and opens no tab; a tap does", asy
     "a tap opens Records",
     10_000,
   );
+});
+
+test("a swipe of a phone's tab row that lifts over the Filters chip opens no filters", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a finger");
+  test.setTimeout(120_000);
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const stops = await stopsOf(page);
+  const toggle = stops.find((s) => s.key === "filter:toggle")!;
+  const heroes = stops.find((s) => s.key === "tab:heroes")!;
+  expect(toggle, "the Filters chip is on the tab row").toBeTruthy();
+  expect(toggle.rect.y).toBe(heroes.rect.y);
+  const y = heroes.rect.y + heroes.rect.height / 2;
+  // Down on a tab, lifted over the Filters chip.
+  await swipe(page, { x: toggle.rect.x - 30, y }, { x: toggle.rect.x + toggle.rect.width / 2, y });
+  await page.waitForTimeout(500);
+  expect(await keys(page)).toContain("tile:record");
+  expect(await keys(page)).not.toContain("filter:hero");
 });

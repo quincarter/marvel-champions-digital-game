@@ -4,7 +4,7 @@
 
 # Marvel Champions: Digital Edition (Unofficial Fan Game)
 
-[![Latest release](https://img.shields.io/badge/version-v0.40.0-e8730c)](https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.40.0)
+[![Latest release](https://img.shields.io/badge/version-v0.41.0-e8730c)](https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.41.0)
 [![Tests and build on main](https://img.shields.io/github/actions/workflow/status/quincarter/marvel-champions-digital-game/netlify-deploy.yml?branch=main&event=push&label=tests%20%26%20build&logo=github)](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/netlify-deploy.yml?query=branch%3Amain)
 [![Release](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/release-on-merge.yml/badge.svg?branch=main)](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/release-on-merge.yml?query=branch%3Amain)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/487c224e-254f-42a0-a2b3-a6192b9e70c8/deploy-status)](https://app.netlify.com/projects/marvel-champions-digital-game/deploys)
@@ -20,14 +20,14 @@ to be a genuinely playable video game driven by a deterministic rules engine.
 </p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-EN-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-EN-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon.svg" alt="Download for a Mac with Apple silicon" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-EN-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel.svg" alt="Download for an Intel Mac" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-EN-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-EN-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon.svg" alt="Download for a Mac with Apple silicon" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-EN-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel.svg" alt="Download for an Intel Mac" height="48"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-EN-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux (AppImage)" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-EN-Android.apk"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-EN-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux (AppImage)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-EN-Android.apk"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases"><img src=".github/assets/readme/all-releases.svg" alt="View all releases" height="48"></a>
 </p>
 
@@ -38,14 +38,14 @@ to be a genuinely playable video game driven by a deterministic rules engine.
 Cartas en español, con los escaneos de <a href="https://github.com/alaintxu/mc-ocr">mc-ocr</a> de alaintxu. Cada instalador reemplaza la versión en inglés y conserva tus partidas guardadas.</p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-ES-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows-es.svg" alt="Descargar para Windows (español)" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-ES-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon-es.svg" alt="Descargar para Mac con Apple silicon (español)" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-ES-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel-es.svg" alt="Descargar para Mac con Intel (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-ES-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows-es.svg" alt="Descargar para Windows (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-ES-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon-es.svg" alt="Descargar para Mac con Apple silicon (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-ES-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel-es.svg" alt="Descargar para Mac con Intel (español)" height="48"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-ES-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux-es.svg" alt="Descargar para Linux, AppImage (español)" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.40.0/MarvelChampions-0.40.0-ES-Android.apk"><img src=".github/assets/readme/download-android-es.svg" alt="Descargar para Android (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-ES-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux-es.svg" alt="Descargar para Linux, AppImage (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.41.0/MarvelChampions-0.41.0-ES-Android.apk"><img src=".github/assets/readme/download-android-es.svg" alt="Descargar para Android (español)" height="48"></a>
   <a href="https://marvel-champions-digital-game.netlify.app/"><img src=".github/assets/readme/play-in-browser-es.svg" alt="Jugar en el navegador" height="48"></a>
 </p>
 
@@ -220,7 +220,7 @@ Every Spanish build shows the Spanish card scans that [alaintxu](https://github.
 Reported something on Discord or through the in-game bug button and want to be listed? Add yourself to
 [`.github/credits.json`](.github/credits.json) or ask in an issue.
 
-### Shadowland card scans
+### Shadowland and promo card scans
 
 Shadowland's cards use the scans from a community folder that
-[u/Ok-Replacement-9793](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) shared on Reddit. Thank you!
+[u/Ok-Replacement-9793](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) shared on Reddit, and the promo cards use the scans they shared too. Thank you!

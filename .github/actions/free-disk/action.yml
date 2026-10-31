@@ -1,0 +1,12 @@
+# An Android build fills a hosted runner: the media bundles, Gradle and the signed APK together ran one out of disk
+# ("No space left on device" in apksigner, PR #581). This drops the runner's preinstalled toolchains no job here uses,
+# about 20 GB. Needs the checkout first.
+name: Free disk space
+description: Remove the runner's unused .NET, Haskell and CodeQL toolchains.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+        df -h /

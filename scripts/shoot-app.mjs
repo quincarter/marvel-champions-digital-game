@@ -18,7 +18,8 @@
  * Options:
  *   --screen <name>        `?screen=<name>` on localhost:5173 (inspect, board, pause, rules, settings, decks, …)
  *   --url <url>            A full URL instead of --screen
- *   --size <preset|WxH>    phone (390x844) · tablet (1024x768) · tablet-portrait (768x1024) · desktop (1440x980) · WxH
+ *   --size <preset|WxH>    se (375x667) · pixel (412x924) · phone (390x844) · tablet (1024x768) · tablet-portrait (768x1024) ·
+ *                          desktop (1440x980) · WxH
  *   --wait <ms>            After load, before actions (default 5000 — the board, its art and fonts)
  *   --click <x,y>          Left-click, then wait 300 ms. Repeatable, in order with the other actions.
  *   --rightclick <x,y>     Right-click (opens Inspect on a card), then wait 300 ms.
@@ -42,6 +43,8 @@ import path from "node:path";
 
 const SIZES = {
   phone: { width: 390, height: 844 },
+  se: { width: 375, height: 667 },
+  pixel: { width: 412, height: 924 },
   tablet: { width: 1024, height: 768 },
   "tablet-portrait": { width: 768, height: 1024 },
   desktop: { width: 1440, height: 980 },

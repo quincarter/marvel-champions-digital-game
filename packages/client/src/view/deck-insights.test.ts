@@ -3,7 +3,14 @@ import type { SessionConfig } from "../engine/host.js";
 import { SAVE_SCHEMA, type SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import type { StatsNames } from "./player-stats-model.js";
-import { againstVillainOf, cardPlayOf, deckInsightsOf, fromYourGamesOf, villainsFacedOf } from "./deck-insights.js";
+import {
+  againstStepOf,
+  againstVillainOf,
+  cardPlayOf,
+  deckInsightsOf,
+  fromYourGamesOf,
+  villainsFacedOf,
+} from "./deck-insights.js";
 
 const CARDS: Record<string, { name: string; type: string; aspect?: string }> = {
   spidey: { name: "Spider-Man (Peter Parker)", type: "hero_identity" },
@@ -97,6 +104,16 @@ describe("against a villain", () => {
 
   test("villains faced, most first", () => {
     expect(villainsFacedOf(insights)).toEqual(["Klaw", "Rhino"]);
+  });
+
+  test("the stepper: Your decks walks faced villains; Everyone adds the rest of the pool, sorted by name", () => {
+    const pool = ["Zzax", "Rhino", "Absorbing Man", "Klaw", "Rhino"];
+    expect(againstStepOf(insights, pool, "yours")).toEqual(["Klaw", "Rhino"]);
+    expect(againstStepOf(insights, pool, "everyone")).toEqual(["Klaw", "Rhino", "Absorbing Man", "Zzax"]);
+    // No games at all: Your decks has nothing to walk, Everyone starts on the first villain by name.
+    const none = deckInsightsOf([], NAMES);
+    expect(againstStepOf(none, pool, "yours")).toEqual([]);
+    expect(againstStepOf(none, pool, "everyone")).toEqual(["Absorbing Man", "Klaw", "Rhino", "Zzax"]);
   });
 
   test("try: cards leaning to your wins that this deck lacks and may take; cut: those leaning to your losses", () => {

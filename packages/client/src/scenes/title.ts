@@ -16,6 +16,7 @@
  */
 
 import Phaser from "phaser";
+import { artLanguageNow } from "../art/art-source.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { cssOf, skin, textStyle } from "../ui/theme.js";
@@ -27,15 +28,18 @@ import { ensurePictureLoaded } from "../art/pictures.js";
 import { cardLanguage } from "../art/card-language.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
-import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
+import { UPDATE_DISMISS_ID, appVersionText, buildCommit, updateActions } from "../view/app-version.js";
+import { releaseNotesPageUrl } from "../view/release-report-link.js";
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
-import { detectPlatform, openExternal } from "../platform/platform.js";
+import { detectPlatform, isNativeShell, openExternal } from "../platform/platform.js";
 import { DISCORD_INVITE_URL } from "../view/issue-report.js";
 import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
+import { steamInstall, type SteamInstall } from "../platform/steam-install.js";
+import type { SteamUpdateSceneData } from "./steam-update.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -72,8 +76,15 @@ import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
+import {
+  CHROME_LANGUAGE_STOP,
+  CHROME_MUSIC_STOP,
+  CHROME_REPORT_STOP,
+  CHROME_THEME_STOP,
+  FocusRoute,
+  type FocusStop,
+} from "./focus-route.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
@@ -88,6 +99,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { setReportSlot } from "../ui/report-slot.js";
 import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
+import { languageSlotBeside } from "../view/language-button.js";
+import { themeSlotBeside } from "../view/theme-button.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
 import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
@@ -142,6 +155,8 @@ export class TitleScene extends Phaser.Scene {
   #removeError: string | null = null;
   /** A newer release with an installer for this platform (native apps only), once GitHub has answered. */
   #update: AvailableUpdate | null = null;
+  /** The Install for Steam script's record of this install, once read (`platform/steam-install.ts`). */
+  #steam: SteamInstall | null = null;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
   #art: TitleArt | null = null;
   #artPanel: { x: number; y: number; width: number; height: number } | null = null;
@@ -188,9 +203,14 @@ export class TitleScene extends Phaser.Scene {
       this.#hints = null;
     });
     this.#route = new FocusRoute(this, {
+      // The whole icon row beside the menu, not just the note and the bug.
+      topRow: true,
+      // The press glyphs on the top row and the notice bar show on the focused stop.
+      onFocusChange: () => this.#hints?.refresh(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.steamUpdate) ||
         this.scene.isActive(SCENES.gamesList),
       // R3 (and the Expand key, F / ;) snaps focus to the in-progress games, ready to scroll.
       onExpand: () => {
@@ -246,6 +266,11 @@ export class TitleScene extends Phaser.Scene {
         this.#rebuild();
       });
     void this.#refreshSaves();
+    void steamInstall().then((install) => {
+      if (!install || !this.sys.isActive()) return;
+      this.#steam = install;
+      this.#rebuild();
+    });
     void checkForUpdate().then((update) => {
       // A banner the player closed for this very release stays closed; a newer release brings it back.
       if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
@@ -369,7 +394,8 @@ export class TitleScene extends Phaser.Scene {
     };
     setReportSlot(this.scene.key, reportRect);
     // The music button's (#191), just left of it.
-    setMusicSlot(this.scene.key, musicSlotBeside(reportRect));
+    const musicRect = musicSlotBeside(reportRect);
+    setMusicSlot(this.scene.key, musicRect);
 
     // Ground: split desktop/tablet (ink art panel left, red rule, paper menu panel right); one ink ground on phone.
     if (layout.split) {
@@ -677,7 +703,7 @@ export class TitleScene extends Phaser.Scene {
     const versionText = this.add.text(
       0,
       layout.footer.y,
-      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit(), cardLanguage()),
+      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit(), cardLanguage(), this.#steam !== null),
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
@@ -688,11 +714,16 @@ export class TitleScene extends Phaser.Scene {
       powerText.setX(layout.footer.x + layout.footer.width - powerText.width);
     }
 
-    // The release this build is on, on GitHub: its notes and downloads. Underlined in the footer's own ink rather
-    // than red, which is the screen's one forward action.
-    const releaseNotes = (): void => openExternal(releaseNotesUrl(CLIENT_VERSION));
+    // The release history. Underlined in the footer's own ink rather than red, which
+    // is the screen's one forward action.
+    const releaseNotes = (): void =>
+      openExternal(
+        releaseNotesPageUrl(CLIENT_VERSION, globalThis.location?.href ?? "", isNativeShell(), artLanguageNow()),
+      );
     const linkText = this.add.text(0, layout.footer.y, "Release notes ↗", textStyle(typeRole.label, textColor));
     linkText.setX(versionText.x - 16 - linkText.width);
+    // A phone's footer has no room for all three once the version names its language and install.
+    coverageText.setVisible(coverageText.x + coverageText.width + 8 <= linkText.x - 6);
     this.add
       .graphics()
       .fillStyle(textColor, 0.6)
@@ -767,8 +798,34 @@ export class TitleScene extends Phaser.Scene {
 
     // The release notice bar across the top (`view/release-notice.ts`).
     if (layout.noticeBar) {
-      const openNotice = drawReleaseNoticeBar(this, layout.noticeBar);
-      this.#stops.set("release-notice", { rect: layout.noticeBar, activate: openNotice });
+      const notice = drawReleaseNoticeBar(this, layout.noticeBar);
+      // The bar runs edge to edge: inset, so the ring is on screen all the way round.
+      const bar = layout.noticeBar;
+      const noticeRing = { x: bar.x + 6, y: bar.y + 6, width: bar.width - 12, height: bar.height - 12 };
+      this.#stops.set("release-notice", { rect: noticeRing, activate: notice.open });
+      this.#hints?.custom(
+        (_set, snapshot) =>
+          this.#route?.focused === "release-notice" ? specsForShortcuts(["activate"], snapshot) : null,
+        Math.min(TOP_ROW_GLYPH_HEIGHT, layout.noticeBar.height - 8),
+        ({ width }) => notice.glyphSpot(width),
+        { ground: "ink" },
+      );
+    }
+
+    // The top row's press glyphs, hung under each button while it has focus. The buttons are chrome scenes of their
+    // own, with no hints.
+    const languageRect = languageSlotBeside(musicRect);
+    const topRow: readonly (readonly [string, Rect])[] = [
+      [CHROME_THEME_STOP, themeSlotBeside(languageRect)],
+      [CHROME_LANGUAGE_STOP, languageRect],
+      [CHROME_MUSIC_STOP, musicRect],
+      [CHROME_REPORT_STOP, reportRect],
+    ];
+    for (const [key, rect] of topRow) {
+      this.#hints?.hang(rect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
+        ground: onDark ? "ink" : "paper",
+        when: () => this.#route?.focused === key,
+      });
     }
 
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
@@ -837,12 +894,13 @@ export class TitleScene extends Phaser.Scene {
 
   /**
    * The update banner (native apps, `platform/update-check.ts`): caution yellow, the advisory color, with the new
-   * version and a button per action: the changelog and this install's own installer. Returns its focus stops.
+   * version and a button per action: the changelog and this install's own installer, or the update panel for an
+   * install the Install for Steam script can update. Returns its focus stops.
    */
   #drawUpdateBanner(banner: Rect | null): readonly string[] {
     const update = this.#update;
     if (!update || !banner) return [];
-    const all = updateActions(update);
+    const all = updateActions(update, this.#steam?.canUpdate === true);
     const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
     const parts = updateBannerParts(banner, actions.length);
     this.add
@@ -862,10 +920,11 @@ export class TitleScene extends Phaser.Scene {
       .setWordWrapWidth(parts.textWidth);
     actions.forEach((action, index) => {
       const rect = parts.buttons[index]!;
-      const open = (): void => openExternal(action.url);
+      const { url } = action;
+      const open = (): void => (url === null ? this.#openSteamUpdate(update) : openExternal(url));
       this.#buttons.push(
         new McButton(this, {
-          kind: action.id === "update-download" ? "primary" : "secondary",
+          kind: action.id === "update-notes" ? "secondary" : "primary",
           label: action.label,
           type: typeRole.rowTitle,
           rect,
@@ -890,6 +949,14 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set(UPDATE_DISMISS_ID, { rect: parts.dismiss, activate: close });
     return actions.map((action) => action.id);
+  }
+
+  #openSteamUpdate(update: AvailableUpdate): void {
+    if (this.scene.isActive(SCENES.steamUpdate)) return;
+    this.scene.launch(SCENES.steamUpdate, {
+      version: update.version,
+      fallbackUrl: update.downloadUrl ?? update.notesUrl,
+    } satisfies SteamUpdateSceneData);
   }
 
   /**
@@ -932,11 +999,7 @@ export class TitleScene extends Phaser.Scene {
       const points = this.add.text(0, rect.y + 4, badge.pointsLabel, textStyle(typeRole.label, paper));
       points.setX(rect.x + rect.width - pad - points.width);
       room = Math.max(20, inner - points.width - 6);
-      const barY = rect.y + 21;
-      this.add.rectangle(rect.x + pad, barY, inner, 4, paper, 0.3).setOrigin(0, 0);
-      if (badge.fraction > 0) {
-        this.add.rectangle(rect.x + pad, barY, Math.max(2, inner * badge.fraction), 4, paper).setOrigin(0, 0);
-      }
+      this.#drawRankBar(rect.x + pad, rect.y + 20, inner, badge.fraction);
       const next = this.add.text(
         rect.x + pad,
         rect.y + 27,
@@ -966,11 +1029,7 @@ export class TitleScene extends Phaser.Scene {
     });
     fitText(title, inner, typeRole.rowTitle.size);
     if (!up) {
-      const barY = rect.y + 37;
-      this.add.rectangle(rect.x + pad, barY, inner, 4, paper, 0.3).setOrigin(0, 0);
-      if (badge.fraction > 0) {
-        this.add.rectangle(rect.x + pad, barY, Math.max(2, inner * badge.fraction), 4, paper).setOrigin(0, 0);
-      }
+      this.#drawRankBar(rect.x + pad, rect.y + 36, inner, badge.fraction);
       const next = this.add.text(
         rect.x + pad,
         rect.y + 44,
@@ -979,6 +1038,13 @@ export class TitleScene extends Phaser.Scene {
       );
       fitText(next, inner, typeRole.label.size);
     }
+  }
+
+  /** The bar to the next rank on the ink plate: a paper outline, so the track shows, and a Hero Red fill. */
+  #drawRankBar(x: number, y: number, width: number, fraction: number): void {
+    const g = this.add.graphics();
+    g.lineStyle(1, surface.paper.hex, 1).strokeRect(x, y, width, 6);
+    if (fraction > 0) g.fillStyle(accent.heroRed.hex, 1).fillRect(x + 1, y + 1, Math.max(2, (width - 2) * fraction), 4);
   }
 
   /** Draws this visit's picture if its texture is ready, otherwise loads it once and draws on arrival. */
@@ -1121,6 +1187,9 @@ const ART_DEPTH = -2;
 const ART_SCRIM_DEPTH = -1;
 /** The hover note over the buttons below the Continue row. */
 const TIP_DEPTH = 50;
+
+/** The press glyph on a focused top-row button or the notice bar. */
+const TOP_ROW_GLYPH_HEIGHT = 18;
 
 /** How long the rank-up fanfare holds the badge. */
 const RANK_UP_MS = 5000;

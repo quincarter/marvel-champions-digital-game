@@ -4,7 +4,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { BackOutTrailEntry } from "./back-out.js";
-import { UNDO_REASONS, undoOf, undoTargetsOf } from "./undo.js";
+import { UNDO_REASONS, eventStopsUndo, undoOf, undoTargetsOf } from "./undo.js";
 
 const P1 = "p1" as PlayerId;
 const P2 = "p2" as PlayerId;
@@ -234,5 +234,20 @@ describe("undoOf: randomness and reveals beyond the old denylist", () => {
       kind: "unavailable",
       reason: UNDO_REASONS.revealed,
     });
+  });
+});
+
+describe("a card picked from the mover's own hand (issue #569)", () => {
+  const asked = (playerId: string, prompt: object) =>
+    ({ type: "choiceRequested", choice: { playerId, prompt } }) as unknown as GameEvent;
+  const fromHand = { kind: "chooseCards", slot: "playFromHand", ownHand: true };
+
+  test("looks through nothing, so it does not stop Undo", () => {
+    expect(eventStopsUndo(asked("p1", fromHand), "p1" as PlayerId)).toBe(false);
+  });
+
+  test("another seat's pick, and a pick that may read a deck, still stop it", () => {
+    expect(eventStopsUndo(asked("p2", fromHand), "p1" as PlayerId)).toBe(true);
+    expect(eventStopsUndo(asked("p1", { kind: "chooseCards", slot: "x" }), "p1" as PlayerId)).toBe(true);
   });
 });
