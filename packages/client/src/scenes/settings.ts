@@ -177,6 +177,10 @@ import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
+import { knownSteamInstall } from "../platform/steam-install.js";
+import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE } from "../view/steam-update.js";
+import { DOWNLOADS_URL } from "../view/language-button.js";
+import type { SteamUpdateSceneData } from "./steam-update.js";
 
 /** The Unlocks row's own id: a door to `scenes/unlocks.ts`, drawn after the Table toggles and only on this screen. */
 const UNLOCKS_ROW = "unlocks";
@@ -554,11 +558,22 @@ export class SettingsOverlay extends Phaser.Scene {
       couchMode: couchModeShown(this.game, settings),
       desktopWindow: hasDesktopWindow(),
       discord: hasDesktopWindow(),
+      steamInstall: knownSteamInstall()?.canUpdate === true,
       steamDeck: onHandheldLinux(),
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
       screenSettings: screenSettingsShown(),
       controls: controlsShown(),
+    });
+  }
+
+  #openSteamUpdate(): void {
+    if (this.scene.isActive(SCENES.steamUpdate)) return;
+    this.input.enabled = false;
+    // Asks the script itself rather than the update check: this is also how to look again after closing the banner.
+    this.scene.launch(SCENES.steamUpdate, { version: null, fallbackUrl: DOWNLOADS_URL } satisfies SteamUpdateSceneData);
+    this.scene.get(SCENES.steamUpdate).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
     });
   }
 
@@ -1098,6 +1113,7 @@ export class SettingsOverlay extends Phaser.Scene {
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
     door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
+    door("steam-install", STEAM_INSTALL_ROW_TITLE, STEAM_INSTALL_ROW_DETAIL, () => this.#openSteamUpdate());
     items.set("steam-deck", {
       title: "Steam Deck",
       detail: STEAM_DECK_DETAIL,

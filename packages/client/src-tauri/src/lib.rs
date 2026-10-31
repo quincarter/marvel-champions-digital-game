@@ -7,6 +7,7 @@ mod native_audio;
 #[cfg(any(target_os = "linux", test))]
 mod native_audio_engine;
 mod save_file;
+mod steam_install;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
 // here: expanded in this lib crate, the embedded assets were also written into
@@ -82,6 +83,10 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       app_volume::start_app_volume_watch,
       app_volume::stop_app_volume_watch,
       save_file::save_text_file,
+      steam_install::steam_install_info,
+      steam_install::steam_update_start,
+      steam_install::steam_update_status,
+      steam_install::steam_update_quit,
       discord_presence::discord_set_activity,
       discord_presence::discord_status,
       gamepad_bridge::gamepad_bridge_status,
