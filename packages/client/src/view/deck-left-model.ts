@@ -16,8 +16,12 @@
  * the cards of Shadow Labyrinth's drawn villain while it waits facedown (docs/phase7-shadowland.md, question 2: it
  * "stays facedown until Whisper in the Dark or 2A reveals it"), whose linked cards would name it. That villain's set
  * holds only it and its linked cards; back in the set-aside area facedown, it is masked again.
+ *
+ * Above the encounter deck's cards sit the faces of the villain in play: the stage showing and the ones still ahead, on
+ * every side (Hela's A1 and A2). The stages already beaten have left the game (RRG 1.8 p. 47), a stage before the
+ * game's first was never in it, and a villain still set aside is not listed.
  */
-import type { AnyCard } from "@mc/content";
+import type { AnyCard, VillainCard } from "@mc/content";
 import {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -63,6 +67,8 @@ export interface DeckLeftRow {
   /** The printed card; null for the unnamed cards, which have no hover and no Inspect. */
   readonly face: FaceRef | null;
   readonly art: ArtSource | null;
+  /** A villain stage's row, which has no count: whether it is the face up now. Absent on a deck card's. */
+  readonly inPlay?: boolean;
 }
 
 /** RRG 1.8 p. 11: a star is not a boost icon; stars are reported separately from the icon average. */
@@ -86,6 +92,8 @@ export interface DeckLeftView {
   readonly facedown: number;
   /** Empty when the list is off and only the boost line shows. */
   readonly rows: readonly DeckLeftRow[];
+  /** The villain's faces above the cards (see the file comment); empty off the encounter tab or with the list off. */
+  readonly stages: readonly DeckLeftRow[];
   /** Null when the boost line is off, and on the hero tab. */
   readonly boost: BoostTally | null;
   /** The lines above the list. */
@@ -181,6 +189,46 @@ export function boostSummaryOf(boost: BoostTally): string {
   );
 }
 
+const NUMERALS: readonly string[] = ["", "I", "II", "III", "IV", "V"];
+
+/** The villain stages in play and still ahead, printed side first: see the file comment. */
+function villainStagesOf(state: GameState): readonly DeckLeftRow[] {
+  return state.villains.flatMap((villain) => {
+    if (villain.defeated) return [];
+    const card = cardOf(state, villain.instanceId) as VillainCard | undefined;
+    if (card?.type !== "villain") return [];
+    return card.sides.flatMap((side, sideIndex) =>
+      side.stages.flatMap((stage, stageIndex): readonly DeckLeftRow[] => {
+        if (stageIndex < villain.stageIndex || stageIndex > villain.lastStageIndex) return [];
+        const label = stage.stageLabel ?? NUMERALS[stage.stageNumber] ?? String(stage.stageNumber);
+        const name = `${side.name} ${label}`;
+        const face = faceRefOf(card, { kind: "villainStage", sideIndex, stageIndex }, name);
+        return [
+          {
+            key: `stage:${villain.instanceId as string}:${sideIndex}:${stageIndex}`,
+            name,
+            count: 1,
+            face,
+            art: artFor(card, face.face),
+            inPlay: side.side === villain.side && stageIndex === villain.stageIndex,
+          },
+        ];
+      }),
+    );
+  });
+}
+
+/**
+ * The grid's cells, left to right: the villain's stages, blanks to the end of their last row so the cards start on a
+ * new one, then the cards.
+ */
+export function deckLeftCellsOf(view: DeckLeftView | null, columns: number): readonly (DeckLeftRow | null)[] {
+  if (!view) return [];
+  const stages = view.stages.length;
+  const blanks = stages === 0 || view.rows.length === 0 ? 0 : (columns - (stages % columns)) % columns;
+  return [...view.stages, ...Array<null>(blanks).fill(null), ...view.rows];
+}
+
 export function deckLeftViewOf(
   state: GameState,
   deps: EngineDeps,
@@ -245,10 +293,13 @@ export function deckLeftViewOf(
   });
   const hiddenWord = hidden > 0 ? [plural(hidden, "hidden card", "hidden cards")] : [];
   const typeLine = [...typeCounts, ...hiddenWord].join(" · ");
+  const stages = tab === "encounter" && shown.list ? villainStagesOf(state) : [];
   const summary = [
     ...(facedown.length > 0 ? [`${pool.length} unseen: ${deck.length} in deck, ${facedown.length} facedown`] : []),
     ...(shown.list && typeLine !== "" ? [typeLine] : []),
     ...(boost ? [boostSummaryOf(boost)] : []),
+    // Last, over the tiles it names.
+    ...(stages.length > 0 ? [`Villain stages: ${stages.map((stage) => stage.name).join(" · ")}`] : []),
   ];
-  return { tab, inDeck: deck.length, facedown: facedown.length, rows, boost, summary };
+  return { tab, inDeck: deck.length, facedown: facedown.length, rows, stages, boost, summary };
 }

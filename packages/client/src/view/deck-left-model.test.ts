@@ -13,7 +13,13 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { revealedSetsIn, type BlindReveal } from "./civil-war-blind.js";
-import { boostSummaryOf, deckLeftTabsOf, deckLeftViewOf, type DeckLeftTab } from "./deck-left-model.js";
+import {
+  boostSummaryOf,
+  deckLeftCellsOf,
+  deckLeftTabsOf,
+  deckLeftViewOf,
+  type DeckLeftTab,
+} from "./deck-left-model.js";
 
 let state: GameState;
 
@@ -309,5 +315,48 @@ describe("deckLeftTabsOf", () => {
       "hero",
       "encounter",
     ]);
+  });
+});
+
+describe("the villain's stages above the encounter deck", () => {
+  const start = async (scenarioId: string, difficulty: "standard" | "expert"): Promise<GameState> => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({ scenarioId, difficulty, players: [{ starterDeckId: "core-spider-man-justice" }], seed: 7 });
+    return store.state.game!;
+  };
+  const stagesOf = (game: GameState) => viewOf(game, "encounter").stages;
+
+  test("Hela lists both sides of the card in this game, and marks the one up", async () => {
+    const standard = await start("hela", "standard");
+    expect(stagesOf(standard).map((row) => [row.name, row.inPlay])).toEqual([
+      ["Hela A1", true],
+      ["Hela A2", false],
+    ]);
+    const wounded = { ...standard, villains: [{ ...standard.villains[0]!, side: "B" as const }] };
+    expect(stagesOf(wounded).map((row) => row.inPlay)).toEqual([false, true]);
+    expect(stagesOf(await start("hela", "expert")).map((row) => row.name)).toEqual(["Hela B1", "Hela B2"]);
+  });
+
+  test("a stage already beaten is gone, and a stage shows its own face", () => {
+    expect(stagesOf(state).map((row) => row.name)).toEqual(["Rhino I", "Rhino II"]);
+    const next = { ...state, villains: [{ ...state.villains[0]!, stageIndex: 1 }] };
+    const [stage, ...rest] = stagesOf(next);
+    expect([stage?.name, stage?.inPlay, rest.length]).toEqual(["Rhino II", true, 0]);
+    expect(stage?.face?.face).toEqual({ kind: "villainStage", sideIndex: 0, stageIndex: 1 });
+  });
+
+  test("they follow the list: not on the hero tab, and not with only the boost line on", () => {
+    expect(viewOf(state, "hero").stages).toEqual([]);
+    expect(viewOf(state, "encounter", { list: false, boost: true }).stages).toEqual([]);
+    expect(viewOf(state, "encounter").summary.at(-1)).toBe("Villain stages: Rhino I · Rhino II");
+  });
+
+  test("the cards start on a new row", () => {
+    const view = viewOf(state, "encounter");
+    const cells = deckLeftCellsOf(view, 5);
+    expect(cells.slice(0, 5).map((cell) => cell?.name ?? null)).toEqual(["Rhino I", "Rhino II", null, null, null]);
+    expect(cells[5]).toBe(view.rows[0]);
+    expect(deckLeftCellsOf(view, 2)[2]).toBe(view.rows[0]);
+    expect(deckLeftCellsOf(viewOf(state, "hero"), 5)).toEqual(viewOf(state, "hero").rows);
   });
 });
