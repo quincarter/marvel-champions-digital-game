@@ -149,12 +149,6 @@ end.
 | 8     | Polish: onboarding, settings, audio, packaging, undo                                                          | ✅ Done, with ongoing improvements: Guided mode, settings, music, desktop and Android builds and undo                                                                                                                                                                                                                                     |
 | 9     | Decks: precons, MarvelCDB import, in-app deck builder                                                         | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
 
-> [!NOTE]
-> **Looking for Shadowland card scans.** Shadowland is fully playable, and its card pictures could use an upgrade. If
-> you own it and can scan or photograph its cards in decent quality (straight on, readable text, around 900px wide or
-> larger), please share them by opening an
-> [issue](https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose).
-
 Next up:
 
 1. **Online multiplayer** (Phase 5): live 2–4 player games over the network, built on the save sync that already
@@ -225,3 +219,8 @@ Every Spanish build shows the Spanish card scans that [alaintxu](https://github.
 
 Reported something on Discord or through the in-game bug button and want to be listed? Add yourself to
 [`.github/credits.json`](.github/credits.json) or ask in an issue.
+
+### Shadowland card scans
+
+Shadowland's cards use the scans from a community folder that
+[u/Ok-Replacement-9793](https://www.reddit.com/r/marvelchampionslcg/comments/1cl3ebl/comment/19rwl0p0ibq5g/) shared on Reddit. Thank you!

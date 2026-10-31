@@ -1,28 +1,28 @@
 /**
- * TEMPORARY: the title screen's "Where did the Shadowland content go?" notice bar, which opens
- * `public/shadowland-info.html`. To take it down, set `SHADOWLAND_NOTICE_ON` to false (or delete this file,
- * `ui/shadowland-notice-bar.ts`, `view/shadowland-info-link.ts`, their tests, the page, `e2e/shadowland-notice.spec.ts`
- * and the `noticeBar` lines in `scenes/title.ts` and `view/title-menu-layout.ts`).
+ * The title screen's release notice bar, which opens the current release report (`public/releases/<version>/`). Point
+ * `RELEASE_NOTICE_VERSION` at each new report; to take the bar down, set `RELEASE_NOTICE_ON` to false.
  */
 import type { Rect } from "./layout.js";
 
-export const SHADOWLAND_NOTICE_ON = true;
+export const RELEASE_NOTICE_ON = true;
+/** The release whose report the bar opens. */
+export const RELEASE_NOTICE_VERSION = "v0.40.0";
 
 /** The bar's height: a slim strip, still a touch-sized target. */
 export const NOTICE_BAR_HEIGHT = 40;
 /** The heights tried in turn on a screen too short for the full bar (`view/title-menu-layout.ts`). */
 export const NOTICE_BAR_HEIGHTS: readonly number[] = [NOTICE_BAR_HEIGHT, 32, 26];
 
-export const SHADOWLAND_NOTICE_TAG = "NOTICE";
-export const SHADOWLAND_NOTICE_TEXT = "Where did the Shadowland content go?";
-export const SHADOWLAND_NOTICE_LINK = "Read more ↗";
+export const RELEASE_NOTICE_TAG = "NEW";
+export const RELEASE_NOTICE_TEXT = `What's new in ${RELEASE_NOTICE_VERSION}`;
+export const RELEASE_NOTICE_LINK = "Read more ↗";
 /** The link's label when the bar is too narrow for the whole of it (a small phone). */
-export const SHADOWLAND_NOTICE_LINK_SHORT = "↗";
+export const RELEASE_NOTICE_LINK_SHORT = "↗";
 
 const PAD = 12;
 const GAP = 10;
 /** Below this much room for the tag and the message together, the link shortens to its arrow. */
-const MESSAGE_MIN = 380;
+const MESSAGE_MIN = 240;
 
 export interface NoticeBarParts {
   /** Where the tag's left edge goes. */
@@ -40,8 +40,7 @@ export function noticeBarParts(bar: Rect, fullLinkWidth: number): NoticeBarParts
   const linkRight = bar.x + bar.width - PAD;
   return {
     tagX,
-    link:
-      bar.width - PAD * 2 - fullLinkWidth - GAP < MESSAGE_MIN ? SHADOWLAND_NOTICE_LINK_SHORT : SHADOWLAND_NOTICE_LINK,
+    link: bar.width - PAD * 2 - fullLinkWidth - GAP < MESSAGE_MIN ? RELEASE_NOTICE_LINK_SHORT : RELEASE_NOTICE_LINK,
     linkRight,
     midY: bar.y + bar.height / 2,
   };

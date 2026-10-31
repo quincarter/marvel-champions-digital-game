@@ -1,5 +1,6 @@
 # Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never
 # replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).
+# The Shadowland (65xxx) rows are from a community scan folder shared by u/Ok-Replacement-9793 on Reddit.
 code	pack	name	saved
 01001a	core	Spider-Man	2026-10-28
 01001b	core	Peter Parker	2026-10-28
@@ -3920,3 +3921,96 @@ code	pack	name	saved
 62035	luke_cage	Observe	2026-10-28
 62036	luke_cage	Toughen Up	2026-10-28
 62037	luke_cage	Black Belt	2026-10-28
+65001a	shadowland	A Barricade of Blades	2026-10-30
+65001b	shadowland	A Barricade of Blades	2026-10-30
+65002a	shadowland	Fortress Lockdown	2026-10-30
+65002b	shadowland	Fortress Lockdown	2026-10-30
+65003a	shadowland	The Streets Below	2026-10-30
+65003b	shadowland	Atop the Tenshu	2026-10-30
+65004a	shadowland	The Streets Below	2026-10-30
+65004b	shadowland	Atop the Tenshu	2026-10-30
+65005	shadowland	Black Tarantula	2026-10-30
+65006	shadowland	Ghost Maker	2026-10-30
+65007	shadowland	Sealed Entrances	2026-10-30
+65008	shadowland	Strategic Positioning	2026-10-30
+65009	shadowland	Surround the Fortress	2026-10-30
+65010	shadowland	Chaos in Hell's Kitchen	2026-10-30
+65011	shadowland	Moonlit Silhouette	2026-10-30
+65012a	shadowland	Archpriestess	2026-10-30
+65012b	shadowland	Archpriestess	2026-10-30
+65013a	shadowland	Daredevil	2026-10-30
+65013b	shadowland	Daredevil	2026-10-30
+65014a	shadowland	Elektra	2026-10-30
+65014b	shadowland	Elektra	2026-10-30
+65015a	shadowland	Gorgon	2026-10-30
+65015b	shadowland	Gorgon	2026-10-30
+65016a	shadowland	Lady Bullseye	2026-10-30
+65016b	shadowland	Lady Bullseye	2026-10-30
+65017a	shadowland	White Tiger	2026-10-30
+65017b	shadowland	White Tiger	2026-10-30
+65018	shadowland	Art of the Kill	2026-10-30
+65019	shadowland	Krahllak's Blessing	2026-10-30
+65020	shadowland	Archpriestess	2026-10-30
+65021	shadowland	Gorgon	2026-10-30
+65022	shadowland	Lady Bullseye	2026-10-30
+65023	shadowland	White Tiger	2026-10-30
+65024	shadowland	Rite of Offering	2026-10-30
+65025	shadowland	Shadowy Plot	2026-10-30
+65026	shadowland	Darkness Within	2026-10-30
+65027	shadowland	Embraced by Darkness	2026-10-30
+65028	shadowland	Black Mountain	2026-10-30
+65029	shadowland	Kirigi	2026-10-30
+65030	shadowland	Bo Staff Ninja	2026-10-30
+65031	shadowland	Fukiya Ninja	2026-10-30
+65032	shadowland	Katana Ninja	2026-10-30
+65033	shadowland	Kusarigama Ninja	2026-10-30
+65034	shadowland	Shuriken Ninja	2026-10-30
+65035	shadowland	Dancing Shadows	2026-10-30
+65036	shadowland	Countless Numbers	2026-10-30
+65037	shadowland	Shifting Corridors	2026-10-30
+65038a	shadowland	Into the Labyrinth	2026-10-30
+65038b	shadowland	Into the Labyrinth	2026-10-30
+65039a	shadowland	Chamber of Vile Secrets	2026-10-30
+65039b	shadowland	Chamber of Vile Secrets	2026-10-30
+65040	shadowland	Whisper in the Dark	2026-10-30
+65041	shadowland	Lord Deathstrike	2026-10-30
+65042	shadowland	Dead End	2026-10-30
+65043	shadowland	Hall of Hidden Doors	2026-10-30
+65044	shadowland	No Time to Think!	2026-10-30
+65045	shadowland	Sudden Shift	2026-10-30
+65046	shadowland	Nervous Jitters	2026-10-30
+65047	shadowland	Iron Monk	2026-10-30
+65048	shadowland	Hall of Punishment	2026-10-30
+65049	shadowland	Path of a Thousand Cuts	2026-10-30
+65050	shadowland	Blinding Powder	2026-10-30
+65051	shadowland	Caltrops	2026-10-30
+65052	shadowland	Flame Spout	2026-10-30
+65053	shadowland	Oil Slick	2026-10-30
+65054	shadowland	Poison Darts	2026-10-30
+65055	shadowland	Pressure Plate	2026-10-30
+65056	shadowland	Tripwire	2026-10-30
+65057	shadowland	Krahllak	2026-10-30
+65058	shadowland	Krahllak	2026-10-30
+65059	shadowland	Krahllak	2026-10-30
+65060a	shadowland	Dark Invitation	2026-10-30
+65060b	shadowland	Dark Invitation	2026-10-30
+65061a	shadowland	Beast Be Praised	2026-10-30
+65061b	shadowland	Beast Be Praised	2026-10-30
+65062	shadowland	Dark Shroud	2026-10-30
+65063	shadowland	Fear Projection	2026-10-30
+65064	shadowland	Mark of the Wicked	2026-10-30
+65065	shadowland	Pull of Power	2026-10-30
+65066	shadowland	Fist	2026-10-30
+65067	shadowland	Hellbride	2026-10-30
+65068	shadowland	Retainer	2026-10-30
+65069	shadowland	Snakeroot Elders	2026-10-30
+65070	shadowland	Veil of Nightmares	2026-10-30
+65071	shadowland	Submit or Suffer	2026-10-30
+65072a	shadowland	Creeping Corruption	2026-10-30
+65072b	shadowland	Creeping Corruption	2026-10-30
+65073	shadowland	Aka	2026-10-30
+65074	shadowland	Tongue of the Beast	2026-10-30
+65075	shadowland	Binding Ritual	2026-10-30
+65076	shadowland	Roots of a Black Flower	2026-10-30
+65077	shadowland	Malediction	2026-10-30
+65078	shadowland	Invasive Thoughts	2026-10-30

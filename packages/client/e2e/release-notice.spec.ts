@@ -1,11 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { RELEASE_NOTICE_VERSION } from "../src/view/release-notice.js";
 import { settle, trackPageErrors, waitFor } from "./helpers.js";
 import { routeStops } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * The title screen's temporary Shadowland notice bar (`view/shadowland-notice.ts`): a tap anywhere on it opens
- * `shadowland-info.html` in a new tab, and on a phone a swipe that lifts over it opens nothing (`ui/tap.ts`).
+ * The title screen's release notice bar (`view/release-notice.ts`): a tap anywhere on it opens the release report
+ * in a new tab, and on a phone a swipe that lifts over it opens nothing (`ui/tap.ts`).
  */
 
 const stopRect = (page: Page, key: string) =>
@@ -30,17 +31,17 @@ async function touchSwipe(page: Page, from: { x: number; y: number }, to: { x: n
   await cdp.detach();
 }
 
-test("the notice bar sits across the top of Title and opens the Shadowland page", async ({ page, context }, info) => {
+test("the notice bar sits across the top of Title and opens the release report", async ({ page, context }, info) => {
   const phone = info.project.name === "phone";
   const errors = trackPageErrors(page);
   await openApp(page);
   await settle(page, { quietMs: 500, maxMs: 4000 });
 
-  const bar = await stopRect(page, "shadowland-notice");
+  const bar = await stopRect(page, "release-notice");
   const width = page.viewportSize()!.width;
   expect(bar).toMatchObject({ x: 0, y: 0, width });
   // Nothing else on Title starts under it.
-  const others = (await routeStops(page, "Title"))!.stops.filter((s) => s.key !== "shadowland-notice");
+  const others = (await routeStops(page, "Title"))!.stops.filter((s) => s.key !== "release-notice");
   for (const stop of others) expect(stop.rect.y, stop.key).toBeGreaterThanOrEqual(bar.y + bar.height);
 
   const opened: string[] = [];
@@ -63,10 +64,10 @@ test("the notice bar sits across the top of Title and opens the Shadowland page"
   // One plain click: `clickStop` presses again when the screen does not change, and a new tab is no screen change.
   else await page.mouse.click(bar.x + bar.width / 2, bar.y + bar.height / 2);
   const tab = await popup;
-  expect(tab.url()).toMatch(/\/shadowland-info\.html$/);
+  expect(tab.url()).toContain(`/releases/${RELEASE_NOTICE_VERSION}/index.html`);
   await settle(page, { quietMs: 400, maxMs: 2000 });
   expect(opened, "one press opens one tab").toHaveLength(1);
   await tab.waitForLoadState("domcontentloaded");
-  await expect(tab.locator("h1")).toHaveText("Where did the Shadowland content go?");
+  expect(await tab.title()).toContain(RELEASE_NOTICE_VERSION);
   expect(errors).toEqual([]);
 });
