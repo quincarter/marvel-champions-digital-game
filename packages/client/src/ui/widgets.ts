@@ -981,6 +981,22 @@ export const CAPTION_FLOOR = minType.phoneLabel;
  */
 export const CAPTION_HEIGHT = 26;
 
+/** Cuts a line to `maxWidth` with an ellipsis at the size it has: the title bar's log line, which must stay readable. */
+export function clipLine(text: Phaser.GameObjects.Text, maxWidth: number): void {
+  if (text.width <= maxWidth) return;
+  const full = text.text;
+  const clipped = (length: number): string => `${full.slice(0, length).trimEnd()}…`;
+  let short = 0;
+  let long = full.length - 1;
+  while (short < long) {
+    const length = (short + long + 1) >> 1;
+    text.setText(clipped(length));
+    if (text.width <= maxWidth) short = length;
+    else long = length - 1;
+  }
+  text.setText(clipped(short));
+}
+
 /**
  * Shrinks a label to fit, then clips it with an ellipsis if shrinking alone
  * isn't enough. Down to the design's phone-label floor and no further: below

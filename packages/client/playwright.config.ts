@@ -118,6 +118,7 @@ export default defineConfig({
         "assault-thwart-preview.spec.ts",
         "undo.spec.ts",
         "pause-undo-moment.spec.ts",
+        "game-log-title-bar.spec.ts",
         "wave10-discard-sheet.spec.ts",
         "wave10-hunted-sheet.spec.ts",
         "make-the-call-sheet.spec.ts",

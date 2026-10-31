@@ -127,6 +127,8 @@ export class PauseOverlay extends Phaser.Scene {
   #confirmingConcede = false;
   /** Wide: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). Phone: the "Game log" row swaps the Table/Guide group for the same log box. */
   #logExpanded = false;
+  /** Phone: the rows under the Reference toggle are open. Closed, the Table and Guide group has the panel. */
+  #quickExpanded = false;
   #motion = new OverlayMotion();
   /** The log moments drawn this pass that a tap rewinds to (`BoardScene.undoMoments`), by line id, in draw order. */
   #momentIds: string[] = [];
@@ -142,6 +144,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#motion = new OverlayMotion();
     this.#confirmingConcede = false;
     this.#logExpanded = false;
+    this.#quickExpanded = false;
     this.#query = "";
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
@@ -373,7 +376,10 @@ export class PauseOverlay extends Phaser.Scene {
     const { game, perspectiveId, config } = store.state;
     const { width, height } = this.scale.gameSize;
 
-    const quickReferenceRows = this.#quickReferenceRows(game);
+    const allQuickRows = this.#quickReferenceRows(game);
+    // A typed search's row is the way to run it, so the rows stay open while there is a query.
+    const quickReferenceExpanded = this.#quickExpanded || this.#query.trim().length > 0;
+    const quickReferenceRows = quickReferenceExpanded ? allQuickRows : allQuickRows.filter((row) => row.compact);
     const tableRows = settingsRowInfoOf(settings);
     const keywordEntries = game ? rulesGlossaryOf(game, POOL_DEPS) : [];
     const guideRows = guideRowInfoOf(guidePrefs());
@@ -394,6 +400,7 @@ export class PauseOverlay extends Phaser.Scene {
         })),
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
         quickReferenceCompactTail: quickReferenceRows.filter((row) => row.compact).length,
+        quickReferenceFullWidthHead: quickReferenceRows.filter((row) => row.id === "search").length,
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
@@ -445,7 +452,11 @@ export class PauseOverlay extends Phaser.Scene {
       this.#route?.set(
         pauseFocusOrder({
           kind: "phone",
-          quickReferenceIds: quickReferenceRows.map((row) => row.id),
+          // The compact cells share the toggle's line, so they come before the rows it opens.
+          quickReferenceIds: [
+            ...quickReferenceRows.filter((row) => row.compact),
+            ...quickReferenceRows.filter((row) => !row.compact),
+          ].map((row) => row.id),
           momentIds: this.#momentIds,
           tableRowIds: phoneLogShown
             ? []
@@ -894,14 +905,10 @@ export class PauseOverlay extends Phaser.Scene {
     }
     stops.set("search", { rect: layout.search, activate: () => this.#searchInput?.focus() });
 
-    label(
-      this,
-      layout.quickReferenceHeading.x,
-      layout.quickReferenceHeading.y,
-      "Quick reference",
-      typeRole.label,
-      surface.paper.hex,
-      ink.label,
+    this.#drawQuickReferenceToggle(
+      layout.quickReferenceToggle,
+      quickReferenceRows.some((row) => !row.compact),
+      stops,
     );
     quickReferenceRows.forEach((row, index) =>
       this.#drawQuickReferenceRow(layout.quickReferenceRows[index]!, row, stops),
@@ -1027,6 +1034,40 @@ export class PauseOverlay extends Phaser.Scene {
     return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }
 
+  /** The cell that opens the Reference rows, and closes them unless a typed search is holding them open. */
+  #drawQuickReferenceToggle(rect: Rect, open: boolean, stops: Map<string, FocusStop>): void {
+    const g = this.add.graphics();
+    paintPanel(g, rect, "onInk", "rest");
+    const title = label(
+      this,
+      rect.x + 12,
+      rect.y + rect.height / 2,
+      "Reference",
+      typeRole.rowTitle,
+      surface.paper.hex,
+      1,
+    );
+    title.setOrigin(0, 0.5);
+    fitText(title, rect.width - 40, typeRole.rowTitle.size);
+    label(
+      this,
+      rect.x + rect.width - 16,
+      rect.y + rect.height / 2,
+      open ? "▾" : "▸",
+      typeRole.rowTitle,
+      surface.paper.hex,
+      ink.secondary,
+    ).setOrigin(0.5);
+    const activate = (): void => {
+      this.#quickExpanded = !open;
+      this.#lowerScroll = new VariableListScroll();
+      this.#draw();
+    };
+    stops.set("quick-toggle", { rect, activate });
+    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+    onTap(zone.setInteractive({ useHandCursor: true }), activate, "quick-toggle");
+  }
+
   #drawQuickReferenceRow(rect: Rect, row: QuickReferenceRow, stops: Map<string, FocusStop>): void {
     const enabled = row.open !== undefined;
     const g = this.add.graphics();
@@ -1050,9 +1091,14 @@ export class PauseOverlay extends Phaser.Scene {
       if (enabled) onTap(cell.setInteractive({ useHandCursor: true }), act, `quick:${row.id}`);
       return;
     }
-    this.add
-      .text(rect.x + 12, rect.y + 6, row.title, textStyle(typeRole.rowTitle, surface.paper.hex, alpha))
-      .setWordWrapWidth(rect.width - 60);
+    // One line, clear of the chevron: a half-width cell has no room for a second line above its detail.
+    const title = this.add.text(
+      rect.x + 12,
+      rect.y + 6,
+      row.title,
+      textStyle(typeRole.rowTitle, surface.paper.hex, alpha),
+    );
+    fitText(title, rect.width - 40, typeRole.rowTitle.size);
     this.add
       .text(
         rect.x + 12,
@@ -1061,7 +1107,7 @@ export class PauseOverlay extends Phaser.Scene {
         textStyle(typeRole.label, surface.paper.hex, alpha * 0.75),
       )
       .setFontSize(9)
-      .setWordWrapWidth(rect.width - 24);
+      .setWordWrapWidth(rect.width - 36);
     if (enabled)
       label(
         this,

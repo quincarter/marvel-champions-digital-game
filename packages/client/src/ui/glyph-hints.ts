@@ -271,9 +271,17 @@ export class GlyphHints {
     });
   }
 
-  /** A glyph on the right edge of a panel's header row (the log's). */
-  rightInRow(panel: Rect, top: number, row: number, padX: number, ids: readonly ShortcutId[], height: number): void {
-    this.#add(ids, "paper", height, { place: ({ width }) => glyphRightInRow(panel, top, row, width, padX) });
+  /** A glyph on the right edge of a panel's header row (the log's line in the title bar). */
+  rightInRow(
+    panel: Rect,
+    top: number,
+    row: number,
+    padX: number,
+    ids: readonly ShortcutId[],
+    height: number,
+    ground: GlyphGround = "paper",
+  ): void {
+    this.#add(ids, ground, height, { place: ({ width }) => glyphRightInRow(panel, top, row, width, padX) });
   }
 
   /**

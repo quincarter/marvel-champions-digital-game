@@ -417,7 +417,7 @@ describe("screen focus routes", () => {
   test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
     expect(
       pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),
-    ).toEqual(["close", "search", "resume", "save-quit", "concede"]);
+    ).toEqual(["close", "search", "quick-toggle", "resume", "save-quit", "concede"]);
     expect(
       pauseFocusOrder({
         kind: "phone",
@@ -428,6 +428,7 @@ describe("screen focus routes", () => {
     ).toEqual([
       "close",
       "search",
+      "quick-toggle",
       "quick:villainPhase",
       "quick:glossary",
       "table:reduced-motion",
@@ -450,6 +451,7 @@ describe("screen focus routes", () => {
     ).toEqual([
       "close",
       "search",
+      "quick-toggle",
       "quick:villainPhase",
       "guide-stop-tutorial",
       "guide-turn-guide-off",
