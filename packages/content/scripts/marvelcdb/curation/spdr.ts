@@ -27,11 +27,9 @@
  * noted on the raw record (`errata: "Counters and attachments now move to Peni Parker, instead of the reverse.
  * (RRG 1.6)"`): the scan's own text is the *pre-errata* wording ("moving all counters on her ... to this card"),
  * the reverse direction of MarvelCDB's current `real_text` ("moving all counters on this card ... to her"). No
- * `errata` correction is added for `31001b` here since MarvelCDB's cached text is already the current wording and
- * ingestion reads `real_text` as current by design (`normalize.ts`'s header comment) — flagged for whoever adds
- * the pre-errata `printed` text for `31001b` later (not attempted this pass: the physical print itself was never
- * independently re-verified beyond this one gallery scan, and doing it properly needs the errata's own citation,
- * which is out of scope for unblocking this pack).
+ * `corrections` entry is needed for `31001b` since MarvelCDB's cached text is already the current wording and
+ * ingestion reads `real_text` as current by design (`normalize.ts`'s header comment). The `errata` entry below records
+ * the pre-errata `printed` text (RRG 1.8 p. 68; the owner's own scan shows the same print).
  *
  * No corrections/errata beyond the above; the rest of the pack (35 other cards) normalizes cleanly once the
  * identity resolves.
@@ -62,6 +60,17 @@ export const SPDR_CURATION: PackCuration = {
 
   corrections: [],
   errata: [
+    {
+      code: "31001b",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: "Counters and attachments now move to Peni Parker, instead of the reverse.",
+      evidence: "RRG 1.8 errata p. 68, SP//dr Suit (#1B); the printed card",
+      printedReplace: {
+        find: "moving all counters on this card and cards attached to this card to her",
+        replace: "moving all counters on her and cards attached to her to this card",
+      },
+    },
     // docs/phase7-wave5.md §1.9, RRG 1.8 p. 68: MarvelCDB's own `errata` field is unset for this record, and its
     // text still reads the pre-errata "engaged hero"/"that hero" — the printed wording is reconstructed by
     // reversing the errata (`printedReplace`), the ordinary direction every other `Errata` entry in this pipeline

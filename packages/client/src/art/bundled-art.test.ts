@@ -41,6 +41,11 @@ describe("bundledArtPaths", () => {
     }
   });
 
+  test("carries a separated identity's other sides, which are cards the pool never lists (issue #599)", () => {
+    const paths = bundledArtPaths(POOL_CARDS);
+    for (const scan of ["31001a", "31001b", "31002a", "31002b"]) expect(paths).toContain(`bundles/cards/${scan}.png`);
+  });
+
   test("is sorted and free of duplicates", () => {
     const paths = bundledArtPaths(POOL_CARDS);
     expect([...paths]).toEqual([...new Set(paths)].sort());

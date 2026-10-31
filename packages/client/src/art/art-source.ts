@@ -336,6 +336,16 @@ export function allArtFor(card: AnyCard): readonly ArtSource[] {
     const art = artFor(card, face);
     if (art) byKey.set(art.key, art);
   }
+  // A separated identity's other sides (SP//dr Suit's support side, the SP//dr pilot upgrade) are cards in play the pool
+  // never lists: the engine makes them from these fields, so without this no build carries their scans (issue #599).
+  if (card.type === "hero_identity" && card.separatedIdentity) {
+    const { heroCardOtherSide, alterEgoCardOtherSide } = card.separatedIdentity;
+    for (const side of [heroCardOtherSide, alterEgoCardOtherSide]) {
+      if (!side.image) continue;
+      const art = promoOrFace(side.image as string);
+      byKey.set(art.key, art);
+    }
+  }
   return [...byKey.values()];
 }
 

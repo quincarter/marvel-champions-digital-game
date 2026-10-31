@@ -57,10 +57,13 @@ export function handSizeNoteOf(state: GameState, playerId: PlayerId, deps: Engin
   return { handSize: size, held, willDraw: Math.max(0, size - held), why };
 }
 
-/** The confirm's body, or null when the hand size is `SMALL_HAND_SIZE` or more. */
+/**
+ * The confirm's body, or null when the hand size is `SMALL_HAND_SIZE` or more, or when the hand is empty: the draw then
+ * fills the whole hand, so there is no missed draw to explain (SP//dr, hand size 3, asked on every empty hand; #600).
+ */
 export function smallHandSizeConfirmOf(state: GameState, playerId: PlayerId, deps: EngineDeps): string | null {
   const note = handSizeNoteOf(state, playerId, deps);
-  if (!note || note.handSize >= SMALL_HAND_SIZE) return null;
+  if (!note || note.handSize >= SMALL_HAND_SIZE || note.held === 0) return null;
   const name = seatFormName(state, playerId);
   // RRG 1.8 "End of Player Phase" (p. 18) step 1 comes first: a hand over its size is discarded down to it.
   const draws =

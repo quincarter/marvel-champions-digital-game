@@ -207,6 +207,38 @@ describe("payment mode", () => {
     expect(spentOptionIds).toEqual(new Set(view.spent.keys()));
   });
 
+  test("a resource ability whose cost picks one card shows that card, so Sync Ratio tiles differ (issue #601)", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const suit = "suit" as never;
+    const pick = "interface" as never;
+    const pool = { physical: 0, mental: 1, energy: 0, wild: 0 };
+    const view = paymentView(
+      state,
+      me,
+      {
+        ...opened,
+        query: {
+          ...opened.query,
+          sources: [
+            {
+              optionId: "ability:suit:sync@a",
+              kind: "resourceAbility",
+              instanceId: suit,
+              label: "SP//dr Suit (VEN#m)",
+              pool,
+              costChoices: { exhausted: [pick] },
+            },
+            { optionId: "ability:suit:plain", kind: "resourceAbility", instanceId: suit, label: "Plain", pool },
+          ],
+        },
+      },
+      "test",
+      CORE_DEPS,
+    );
+    expect(view.sources.map((source) => source.pickedCard)).toEqual([pick, undefined]);
+  });
+
   test("keys spendable/spent by option id, so several options off one card (Sync Ratio, spdr 31001a's own several Interface picks) each get their own entry rather than collapsing to one", () => {
     const entry = costedPlay();
     const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;

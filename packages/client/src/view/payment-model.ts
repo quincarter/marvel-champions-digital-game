@@ -101,6 +101,11 @@ export interface PaymentState {
 export interface PaymentSourceView extends PaymentSource {
   readonly spent: boolean;
   /**
+   * The card this source's own cost exhausts, when it picks exactly one in play: the card its tile shows, since every
+   * option of Sync Ratio names the same SP//dr Suit and only the pick tells them apart (issue #601). Absent otherwise.
+   */
+  readonly pickedCard?: InstanceId;
+  /**
    * Another player's hand card offered toward an alliance card (RRG 1.8 "Alliance", p. 6): the hero name of the
    * hand it sits in, so the strip can say whose card it is. Null for the payer's own cards and for resource
    * abilities.
@@ -639,8 +644,10 @@ export function paymentView(
     const place = order.get(source.optionId);
     const underSubject = place?.underSubject && landing ? cardName(state, landing.id) : null;
     const onTop = place?.onTop ?? false;
+    const picks = source.kind === "resourceAbility" ? picksOf(source) : [];
     return {
       ...source,
+      ...(picks.length === 1 ? { pickedCard: picks[0]! } : {}),
       spent: picked.includes(source.optionId),
       helperName: helperNameOf(state, playerId, source),
       amountNote: amountNoteOf(source),
