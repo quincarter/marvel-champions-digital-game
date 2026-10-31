@@ -18,10 +18,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["02", "03", "05", "06", "07", "08", "09", "10"],
-      "tag": "card-art-wave1-82a6cb488e0e",
+      "tag": "card-art-wave1-1b82c67e562b",
       "file": "card-art-wave1.zip",
-      "size": 20922344,
-      "sha256": "82a6cb488e0e4e22bad86875da7bfe0dcb50927eff97d9117c9c8dfc8ed560bc",
+      "size": 20101178,
+      "sha256": "1b82c67e562b6c381620f139d16e838375944458f8d3eebc0cef0e4129910de8",
       "files": 303
     },
     {
@@ -29,10 +29,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["04", "11", "12", "13", "14", "15"],
-      "tag": "card-art-trors-1a3a15eef293",
+      "tag": "card-art-trors-5f803937a99c",
       "file": "card-art-trors.zip",
-      "size": 26474378,
-      "sha256": "1a3a15eef2938f848bfcc62f52824b4c68f30f258aa8ca6ce7357d049cdf96d2",
+      "size": 26568902,
+      "sha256": "5f803937a99c86c25a599dcfaca9c297a43ebaab25828d2509f6a4db2e6732d9",
       "files": 361
     },
     {
@@ -51,10 +51,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["21", "22", "23", "24", "25", "26"],
-      "tag": "card-art-mts-2e9d40442ac4",
+      "tag": "card-art-mts-b6ef16e809fe",
       "file": "card-art-mts.zip",
-      "size": 26343802,
-      "sha256": "2e9d40442ac40dab7f19395132d52467351836a36087a23406d6958b88ceb1fe",
+      "size": 26178126,
+      "sha256": "b6ef16e809fee412825254a547e298679f6cd2fd7929cfdaed344b424de7aa72",
       "files": 397
     },
     {
@@ -73,10 +73,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["32", "33", "34", "35", "36", "37", "38", "39"],
-      "tag": "card-art-mutgen-580c3afc0e5c",
+      "tag": "card-art-mutgen-26a3b8a79ddf",
       "file": "card-art-mutgen.zip",
-      "size": 37461722,
-      "sha256": "580c3afc0e5ce28f01f8f0b42c07d93d32946879b893da842f417aed541b1f88",
+      "size": 37223786,
+      "sha256": "26a3b8a79ddf415cd38993452c1a0f1dc45f45ea648b74f59d33e9f6409c12bb",
       "files": 520
     },
     {
@@ -106,10 +106,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["50", "51", "52", "53", "54", "55"],
-      "tag": "card-art-aos-3caf868996dc",
+      "tag": "card-art-aos-b70861dbed68",
       "file": "card-art-aos.zip",
-      "size": 65100296,
-      "sha256": "3caf868996dce448b7ac7d986a6cd218f48ecb3cb3ef0278913312d9da0cf87d",
+      "size": 65219838,
+      "sha256": "b70861dbed683905ce57b4b82e89f3d14eef7bc3f5fd5d81ae94d0b10083b279",
       "files": 783
     },
     {
@@ -117,10 +117,10 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["56", "57", "58", "59"],
-      "tag": "card-art-civil-war-76d3ac60fb00",
+      "tag": "card-art-civil-war-e268a1bf1d20",
       "file": "card-art-civil-war.zip",
-      "size": 53528192,
-      "sha256": "76d3ac60fb00c84fb427305781786f5c6de70dd1fcd46707cb87c6708a6ce1c5",
+      "size": 53112252,
+      "sha256": "e268a1bf1d205bef9db62959639eeb2ef3142ea205feaf7f6199205988835322",
       "files": 698
     },
     {

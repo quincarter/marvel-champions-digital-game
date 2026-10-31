@@ -4,7 +4,6 @@
 # Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.
 code	pack	name	source_page	image_url	fetched
 02005	gob	Corporate Acquisition	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky5a.jpg	2026-10-22
-02018a	gob	Mutagen Cloud	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/mutagen5a.jpg	2026-10-22
 04061b	trors	Attack on Mount Athena	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/c4b.jpg	2026-09-26
 04063b	trors	The Getaway	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/c6b.jpg	2026-09-26
 04082	trors	Rocky Outcrop	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/a7.jpg	2026-10-22
@@ -21,7 +20,6 @@ code	pack	name	source_page	image_url	fetched
 21099	mts	The Armies of Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t8a.jpg	2026-09-26
 21112	mts	Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t2-1.jpg	2026-09-26
 21137a	mts	Hela	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h2a.jpg	2026-09-26
-24004a	hood	Making Connections	https://hallofheroeslcg.com/the-hood/	https://hallofheroeslcg.com/wp-content/uploads/2022/02/24004a.jpg	2026-10-22
 26002a	vision	Intangible	https://hallofheroeslcg.com/vision/	https://hallofheroeslcg.com/wp-content/uploads/2022/01/2.jpg	2026-09-26
 40074a	next_evol	Harpoon	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40074a.jpg	2026-10-22
 40140a	next_evol	Taking Off	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40140a.jpg	2026-10-22
@@ -40,12 +38,6 @@ code	pack	name	source_page	image_url	fetched
 50166b	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50166b.jpg	2026-10-22
 50184a	aos	A.I.M. Interference ([energy])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184a.jpg	2026-10-22
 50184c	aos	A.I.M. Interference ([physical])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184c.jpg	2026-10-22
-55008a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55008a.jpg	
-55009a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55009a.jpg	
-55010a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55010a.jpg	
-55011a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55011a.jpg	
-55027b	tt	Loki, God of Lies	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55027b.jpg	
-55032b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55032b.jpg	
 56063a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56063a.jpg	2026-10-22
 56064a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56064a.jpg	2026-10-22
 56096a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56096a.jpg	2026-10-22
@@ -62,7 +54,6 @@ code	pack	name	source_page	image_url	fetched
 56200a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56200a.jpg	2026-10-22
 56201a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56201a.jpg	
 56202a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56202a.jpg	
-56206b	cw	Now It's Personal	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56206b.jpg	
 60065	fne	Bullseye	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60065-1.jpg	2026-10-18
 60097	fne	Purple Man	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60097.jpg	2026-10-18
 60111a	fne	Typhoid Mary	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60111a.jpg	2026-10-18

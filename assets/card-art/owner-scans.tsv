@@ -215,9 +215,9 @@ code	pack	name	saved
 02002b	gob	Green Goblin	2026-10-28
 02003a	gob	Norman Osborn	2026-10-28
 02003b	gob	Green Goblin	2026-10-28
-02004a	gob	Hostile Takeover	2026-10-28
+02004a	gob	Hostile Takeover	2026-10-30
 02004b	gob	Hostile Takeover	2026-10-28
-02005a	gob	Corporate Acquisition	2026-10-28
+02005a	gob	Corporate Acquisition	2026-10-30
 02005b	gob	Corporate Acquisition	2026-10-28
 02006a	gob	Criminal Enterprise	2026-10-28
 02006b	gob	State of Madness	2026-10-28
@@ -229,14 +229,17 @@ code	pack	name	saved
 02012	gob	All in a Day's Work	2026-10-28
 02013	gob	Mad Genius	2026-10-28
 02014	gob	Green Goblin	2026-10-28
-02016	gob	Green Goblin	2026-10-28
+02015	gob	Green Goblin	2026-10-30
+02016	gob	Green Goblin	2026-10-30
 02017	gob	Unleashing the Mutagen	2026-10-28
+02017a	gob	Unleashing the Mutagen	2026-10-30
 02017b	gob	Unleashing the Mutagen	2026-10-28
 02018	gob	Mutagen Cloud	2026-10-28
+02018a	gob	Mutagen Cloud	2026-10-30
 02018b	gob	Mutagen Cloud	2026-10-28
-02019	gob	Goblin Glider	2026-10-28
+02019	gob	Goblin Glider	2026-10-30
 02020	gob	Hysteria	2026-10-28
-02021	gob	Pumpkin Bombs	2026-10-28
+02021	gob	Pumpkin Bombs	2026-10-30
 02022	gob	Goblin Knight	2026-10-28
 02023	gob	Goblin Soldier	2026-10-28
 02024	gob	Goblin Thrall	2026-10-28
@@ -248,6 +251,8 @@ code	pack	name	saved
 02030	gob	I See You	2026-10-28
 02031	gob	Overconfidence	2026-10-28
 02032	gob	Wicked Ambitions	2026-10-28
+02033	gob	Goblin Glider	2026-10-30
+02034	gob	Pumpkin Bombs	2026-10-30
 02035	gob	Intimidation	2026-10-28
 02036	gob	Regenerative Healing	2026-10-28
 02037	gob	A Mess of Things	2026-10-28
@@ -498,17 +503,22 @@ code	pack	name	saved
 07001	twc	Breakout	2026-10-28
 07001b	twc	Breakout	2026-10-28
 07002	twc	Wrecker	2026-10-28
+07003	twc	Wrecker	2026-10-30
 07004	twc	Day of Reckoning	2026-10-28
+07005	twc	Held Hostage	2026-10-30
 07006	twc	Magic Crowbar	2026-10-28
 07007	twc	Wrecker's Command	2026-10-28
 07008	twc	Corrupt Prison Guard	2026-10-28
+07009	twc	Escaped Convict	2026-10-30
 07010	twc	Buddy System	2026-10-28
 07011	twc	Chaos In the Prison	2026-10-28
 07012	twc	Crowbar Toss	2026-10-28
+07013	twc	Get Wrecked!	2026-10-30
 07014	twc	I've Been Waiting For This!	2026-10-28
 07015	twc	Mystical Link	2026-10-28
 07016	twc	You're Dead Meat!	2026-10-28
-07018	twc	Thunderball	2026-10-28
+07017	twc	Thunderball	2026-10-30
+07018	twc	Thunderball	2026-10-30
 07019	twc	Thunderstruck	2026-10-28
 07020	twc	Ball and Chain	2026-10-28
 07021	twc	Held Hostage	2026-10-28
@@ -518,17 +528,18 @@ code	pack	name	saved
 07025	twc	Buddy System	2026-10-28
 07026	twc	Chaos In the Prison	2026-10-28
 07027	twc	Energy Projectiles	2026-10-28
-07028	twc	Get Wrecked!	2026-10-28
+07028	twc	Get Wrecked!	2026-10-30
 07029	twc	I've Been Waiting For This!	2026-10-28
 07030	twc	Lightning Blast	2026-10-28
 07031	twc	Tactical Prowess	2026-10-28
-07033	twc	Piledriver	2026-10-28
+07032	twc	Piledriver	2026-10-30
+07033	twc	Piledriver	2026-10-30
 07034	twc	Pile It On!	2026-10-28
 07035	twc	Distracting Taunts	2026-10-28
-07036	twc	Held Hostage	2026-10-28
-07037	twc	Corrupt Prison Guard	2026-10-28
-07038	twc	Escaped Convict	2026-10-28
-07039	twc	Buddy System	2026-10-28
+07036	twc	Held Hostage	2026-10-30
+07037	twc	Corrupt Prison Guard	2026-10-30
+07038	twc	Escaped Convict	2026-10-30
+07039	twc	Buddy System	2026-10-30
 07040	twc	Get Wrecked!	2026-10-28
 07041	twc	I've Been Waiting For This!	2026-10-28
 07042	twc	Oversized Hands	2026-10-28
@@ -536,11 +547,17 @@ code	pack	name	saved
 07044	twc	Pummel	2026-10-28
 07045	twc	Uncanny Resilience	2026-10-28
 07046	twc	Bulldozer	2026-10-28
+07047	twc	Bulldozer	2026-10-30
 07048	twc	Clear the Road	2026-10-28
 07049	twc	Bulldozer's Helmet	2026-10-28
+07050	twc	Held Hostage	2026-10-30
 07051	twc	Ramming Speed	2026-10-28
+07052	twc	Corrupt Prison Guard	2026-10-30
+07053	twc	Escaped Convict	2026-10-30
+07054	twc	Buddy System	2026-10-30
 07055	twc	Bull Rush	2026-10-28
 07056	twc	Chaos In the Prison	2026-10-28
+07057	twc	Get Wrecked!	2026-10-30
 07058	twc	Headbutt	2026-10-28
 07059	twc	Leading the Charge	2026-10-28
 08001a	bkw	Black Widow	2026-10-28
@@ -621,24 +638,25 @@ code	pack	name	saved
 10027	hlk	Total Destruction	2026-10-28
 10028	hlk	Clash Of The Titans	2026-10-28
 10032	hlk	Resourceful	2026-10-28
+11001	toafk	Kang (The Conqueror)	2026-10-30
 11002	toafk	Kang (Immortus)	2026-10-28
 11003	toafk	Kang (Iron Lad)	2026-10-28
 11004	toafk	Kang (Rama-Tut)	2026-10-28
 11005	toafk	Kang (Scarlet Centurion)	2026-10-28
 11006	toafk	Kang (The Conqueror)	2026-10-28
 11007	toafk	Kang's Arrival	2026-10-28
-11007a	toafk	Kang's Arrival	2026-10-28
+11007a	toafk	Kang's Arrival	2026-10-30
 11008	toafk	The Master of Time	2026-10-28
-11008a	toafk	The Master of Time	2026-10-28
+11008a	toafk	The Master of Time	2026-10-30
 11009	toafk	The Chronopolis	2026-10-28
-11009a	toafk	The Chronopolis	2026-10-28
-11010a	toafk	Inexorable Fate	2026-10-28
+11009a	toafk	The Chronopolis	2026-10-30
+11010a	toafk	Inexorable Fate	2026-10-30
 11010b	toafk	Inexorable Fate	2026-10-28
-11011a	toafk	The Realm of Rama-Tut	2026-10-28
+11011a	toafk	The Realm of Rama-Tut	2026-10-30
 11011b	toafk	The Realm of Rama-Tut	2026-10-28
-11012a	toafk	The Present Future War	2026-10-28
+11012a	toafk	The Present Future War	2026-10-30
 11012b	toafk	The Present Future War	2026-10-28
-11013a	toafk	Kang's Wrath	2026-10-28
+11013a	toafk	Kang's Wrath	2026-10-30
 11013b	toafk	Kang's Wrath	2026-10-28
 11014	toafk	Temporal Shield	2026-10-28
 11015	toafk	Future Weapon	2026-10-28
@@ -660,7 +678,7 @@ code	pack	name	saved
 11031	toafk	Chitauri Soldier	2026-10-28
 11032	toafk	Tyrannosaurus Rex	2026-10-28
 11033	toafk	Time Portal	2026-10-28
-11034	toafk	Kang (The Conqueror)	2026-10-28
+11034	toafk	Kang (The Conqueror)	2026-10-30
 11035	toafk	Kang (Immortus)	2026-10-28
 11036	toafk	Kang (Iron Lad)	2026-10-28
 11037	toafk	Kang (Rama-Tut)	2026-10-28
@@ -1302,10 +1320,11 @@ code	pack	name	saved
 24002	hood	The Hood	2026-10-28
 24003	hood	The Hood	2026-10-28
 24004	hood	Making Connections	2026-10-28
+24004a	hood	Making Connections	2026-10-30
 24004b	hood	Making Connections	2026-10-28
-24005a	hood	Promised Prosperity	2026-10-28
+24005a	hood	Promised Prosperity	2026-10-30
 24005b	hood	Promised Prosperity	2026-10-28
-24006a	hood	Crime State	2026-10-28
+24006a	hood	Crime State	2026-10-30
 24006b	hood	Crime State	2026-10-28
 24007	hood	Established Dominance	2026-10-28
 24008	hood	The Hood's Mantle	2026-10-28
@@ -2114,7 +2133,10 @@ code	pack	name	saved
 39010	mojo	Defend the Title	2026-10-28
 39011	mojo	Stage Fright	2026-10-28
 39012a	mojo	Spiral	2026-10-28
-39013b	mojo	Spiral	2026-10-28
+39012b	mojo	Spiral	2026-10-30
+39013a	mojo	Spiral	2026-10-30
+39013b	mojo	Spiral	2026-10-30
+39014a	mojo	Spiral	2026-10-30
 39014b	mojo	Spiral	2026-10-28
 39015a	mojo	Across the Mojoverse	2026-10-28
 39015b	mojo	Across the Mojoverse	2026-10-28
@@ -2124,7 +2146,9 @@ code	pack	name	saved
 39019	mojo	Erratic Teleportation	2026-10-28
 39020	mojo	The Show Must Go On	2026-10-28
 39021	mojo	Well-Armed	2026-10-28
-39023	mojo	Mojo	2026-10-28
+39022	mojo	Mojo	2026-10-30
+39023	mojo	Mojo	2026-10-30
+39024	mojo	Mojo	2026-10-30
 39025a	mojo	MojoMania	2026-10-28
 39025b	mojo	MojoMania	2026-10-28
 39026a	mojo	Wheel of Genres	2026-10-28
@@ -3198,7 +3222,8 @@ code	pack	name	saved
 54029	winter	Hydra Hit Squad	2026-10-28
 54030	winter	High-Tech Armament	2026-10-28
 54031	winter	Hydra Mercenary	2026-10-28
-55001	tt	Enchantress	2026-10-28
+55001	tt	Enchantress	2026-10-30
+55002	tt	Enchantress	2026-10-30
 55003	tt	Enchantress	2026-10-28
 55004a	tt	Prime Real Estate	2026-10-28
 55004b	tt	Prime Real Estate	2026-10-28
@@ -3207,9 +3232,13 @@ code	pack	name	saved
 55006	tt	Future of Despair	2026-10-28
 55007a	tt	Hypnotic Gaze	2026-10-28
 55007b	tt	Trance of Envy	2026-10-28
+55008a	tt	Hypnotic Gaze	2026-10-30
 55008b	tt	Trance of Greed	2026-10-28
+55009a	tt	Hypnotic Gaze	2026-10-30
 55009b	tt	Trance of Pride	2026-10-28
+55010a	tt	Hypnotic Gaze	2026-10-30
 55010b	tt	Trance of Sloth	2026-10-28
+55011a	tt	Hypnotic Gaze	2026-10-30
 55011b	tt	Trance of Wrath	2026-10-28
 55012	tt	Alluring Call	2026-10-28
 55013	tt	Kiss of Temptation	2026-10-28
@@ -3227,6 +3256,7 @@ code	pack	name	saved
 55025	tt	Spell Blast	2026-10-28
 55026	tt	Spell Shards	2026-10-28
 55027a	tt	Loki, God of Lies	2026-10-28
+55027b	tt	Loki, God of Lies	2026-10-30
 55028a	tt	Worlds Collide	2026-10-28
 55028b	tt	Worlds Collide	2026-10-28
 55029a	tt	Loki the Rascal	2026-10-28
@@ -3236,6 +3266,7 @@ code	pack	name	saved
 55031a	tt	Loki the Knave	2026-10-28
 55031b	tt	Fading Figment	2026-10-28
 55032a	tt	Loki the Wretch	2026-10-28
+55032b	tt	Fading Figment	2026-10-30
 55033a	tt	Mischief and Mayhem	2026-10-28
 55033b	tt	Mischief and Mayhem	2026-10-28
 55034a	tt	Intense Focus	2026-10-28
@@ -3386,8 +3417,9 @@ code	pack	name	saved
 56122b	cw	Public Outrage	2026-10-28
 56123b	cw	The Initiative	2026-10-28
 56124b	cw	No Going Back	2026-10-28
-56126	cw	Whatever It Takes	2026-10-28
-56127	cw	Targeted Strike	2026-10-28
+56125	cw	Righteous Cause	2026-10-30
+56126	cw	Whatever It Takes	2026-10-30
+56127	cw	Targeted Strike	2026-10-30
 56128a	cw	Choosing Sides	2026-10-28
 56128b	cw	Now It's Personal	2026-10-28
 56129	cw	The Futurist	2026-10-28
@@ -3459,8 +3491,11 @@ code	pack	name	saved
 56200b	cw	Going Underground	2026-10-28
 56201b	cw	Guerilla Warfare	2026-10-28
 56202b	cw	Superhero Jailbreak	2026-10-28
-56203	cw	Righteous Cause	2026-10-28
-56205	cw	Targeted Strike	2026-10-28
+56203	cw	Righteous Cause	2026-10-30
+56204	cw	Whatever It Takes	2026-10-30
+56205	cw	Targeted Strike	2026-10-30
+56206a	cw	Choosing Sides	2026-10-30
+56206b	cw	Now It's Personal	2026-10-30
 56207	cw	No, You Move!	2026-10-28
 56208	cw	Fighting Dirty	2026-10-28
 56209	cw	Recruited by Cap	2026-10-28
@@ -3471,6 +3506,7 @@ code	pack	name	saved
 56214	cw	Secret Contact	2026-10-28
 57001	synthezoid	She-Hulk	2026-10-28
 57002	synthezoid	She-Hulk	2026-10-28
+57003	synthezoid	She-Hulk	2026-10-30
 57004	synthezoid	She-Hulk	2026-10-28
 57005a	synthezoid	Superhero Registration Act	2026-10-28
 57005b	synthezoid	Enforce the Law	2026-10-28
