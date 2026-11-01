@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { POOL_SCENARIOS, buildScenario } from "../content/pool.js";
+import { progressOf } from "../progression/unlocks.js";
 import { applyIssueMode, issueModeRowsOf } from "./campaign-modes-model.js";
 import { difficultyLabelOf } from "./difficulty-label.js";
 import { applySetupOption, optionActionsOf, reconcileWithOffer, setupOptionRowsOf } from "./setup-options.js";
@@ -77,6 +78,19 @@ describe("the session config", () => {
     const sent = config(draft);
     expect(sent.difficulty).toBe("expert");
     expect(sent.modes).toEqual({ expert: true, heroic: 1, skirmish: { villainVersion: "3" } });
+  });
+});
+
+describe("a Skirmish win", () => {
+  it("is a win, not an Expert win, and stays out of the global numbers", () => {
+    const save = (modes?: object) => ({
+      status: "won",
+      config: { scenarioId: "rhino", difficulty: "expert", ...(modes ? { modes } : {}) },
+    });
+    const progress = progressOf([save({ expert: true, skirmish: { villainVersion: "3" } })], []);
+    expect(progress.wonScenarioIds).toEqual(["rhino"]);
+    expect(progress.wonExpertScenarioIds).toEqual([]);
+    expect(progressOf([save({ expert: true })], []).wonExpertScenarioIds).toEqual(["rhino"]);
   });
 });
 

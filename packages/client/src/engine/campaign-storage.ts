@@ -26,7 +26,6 @@
 
 import type { CampaignId, PlayModes } from "@mc/content";
 import type { CampaignLog, CampaignPosition, CampaignStatus, TableRules } from "@mc/engine";
-import type { IssueModes } from "../view/campaign-modes-model.js";
 
 /** Bumped when the stored record shape changes, so an old campaign is recognized instead of misread. */
 export const CAMPAIGN_STORAGE_SCHEMA = 1;
@@ -73,6 +72,9 @@ export interface CampaignRecord extends CampaignLog {
    */
   readonly issueModes?: IssueModes;
 }
+
+/** The modes one issue is played under, beside the campaign's own. Absent is standard mode. */
+export type IssueModes = Pick<PlayModes, "expert" | "heroic" | "skirmish">;
 
 /** The lightweight row `list()` returns — everything `campaign-list-model.ts` renders, nothing a deck or a seat's full field set. */
 export interface CampaignSummary {

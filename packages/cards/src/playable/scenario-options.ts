@@ -166,6 +166,10 @@ export interface SkirmishOffer {
  * - Anything else is null. The villain leaves play by card text a removed stage would break (Kang, Apocalypse, The
  *   God of Lies), several villains share the game with no printed rule (RRG 1.8 p. 29's "any one version of the villain"
  *   does not say which), or the villain deck has one version already, so there is nothing to shorten.
+ *
+ * A Civil War leader's stage II or IV prints no Setup, and picking it runs none: RRG 1.8 p. 29 removes the other versions
+ * at step 8, and step 12c resolves Setup only on the villain in play. A Permanent attachment stays set aside (p. 32),
+ * effects naming it do nothing, and the stage's When Revealed still resolves.
  */
 export function skirmishOffer(
   scenario:

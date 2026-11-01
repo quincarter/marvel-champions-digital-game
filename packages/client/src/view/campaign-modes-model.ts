@@ -8,12 +8,9 @@
  * and a retry after a loss (issue #611 question 4), starts from standard and may be chosen anew.
  */
 import { playableScenarioOffer, type SkirmishOffer } from "@mc/cards";
-import type { PlayModes } from "@mc/content";
+import type { IssueModes } from "../engine/campaign-storage.js";
 import { applyPlayModeOption, modesOfChoice, playModeRows, reconcileSkirmish } from "./play-mode-options.js";
 import type { OptionChip, SetupOptionRow } from "./setup-options.js";
-
-/** The modes one issue is played under, beside the campaign's own. Absent is standard mode. */
-export type IssueModes = Pick<PlayModes, "expert" | "heroic" | "skirmish">;
 
 /** One row of the Briefing's mode section: a name, its line of state, and the row's chips. */
 export interface IssueModeRow {

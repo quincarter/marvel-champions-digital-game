@@ -33,11 +33,15 @@ import {
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { activeAttemptGamesOf } from "./unfolded-game.js";
-import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
+import {
+  CAMPAIGN_STORAGE_SCHEMA,
+  type CampaignRecord,
+  type CampaignStorage,
+  type IssueModes,
+} from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
-import type { IssueModes } from "../view/campaign-modes-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
@@ -224,7 +228,7 @@ export class CampaignService {
         position: before.position,
         rng: before.rng,
       },
-      { keepEasierStart: true },
+      { composedAgain: true },
     );
   }
 
@@ -441,21 +445,21 @@ export class CampaignService {
   }
 
   /**
-   * `keepEasierStart`: the easier start rides along when the new log still holds that node's composed issue, or when no
+   * `composedAgain`: the easier start rides along when the new log still holds that node's composed issue, or when no
    * issue was composed on either side (a deck edit); a fold (an attempt before, none after) drops it, so a retry of the
    * node starts with it off. A discarded attempt is composed again, so it passes the flag to keep it.
    */
   async #put(
     previous: CampaignRecord,
     log: CampaignLog,
-    options: { readonly keepEasierStart?: boolean } = {},
+    options: { readonly composedAgain?: boolean } = {},
   ): Promise<CampaignRecord> {
     const keepEasierStart =
       previous.easierStartNodeId !== undefined &&
-      (options.keepEasierStart === true ||
+      (options.composedAgain === true ||
         log.attempt?.nodeId === previous.easierStartNodeId ||
         (!log.attempt && !previous.attempt));
-    const keepIssueModes = options.keepEasierStart === true || log.attempt !== undefined || !previous.attempt;
+    const keepIssueModes = options.composedAgain === true || log.attempt !== undefined || !previous.attempt;
     // The runner spreads the whole record into the log it returns, so a stale flag must be taken off before it is decided.
     const {
       easierStartNodeId: _stale,

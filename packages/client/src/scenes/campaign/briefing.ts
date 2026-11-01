@@ -661,7 +661,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
         () => void this.#toggleEasierStart(),
       );
     }
-    if (issueModes.length > 0 && !schemeBeside) {
+    // On a wide screen they sit at the foot of the right column, which scrolls when it runs long.
+    if (issueModes.length > 0 && phone) {
       leftBottom = drawIssueModes(
         this.#schemeContext({ ...leftRect, y: leftBottom + 20 }, phone, stops),
         leftBottom + 20,
@@ -723,68 +724,61 @@ export class CampaignBriefingScene extends Phaser.Scene {
         width: width - gutter - (leftRect.x + leftRect.width + columnGap),
         height: contentBottom - (top.height + 20),
       };
-      if (hasPool) this.#drawHandled(rightRect, view, stops);
-      else {
-        const columnStart = this.children.list.length;
-        const columnStopsBefore = new Set(stops.keys());
-        const decksBottom = this.#drawDecks(rightRect, view, stops);
-        let rightBottom = decksBottom;
-        if (missionBrief) {
-          rightBottom = drawMissionBriefing(
-            this.#schemeContext(rightRect, phone, stops),
-            decksBottom + 24,
-            missionBrief,
-          );
-        } else if (scheme) {
-          rightBottom = drawSideSchemeSettled(
-            this.#schemeContext(rightRect, phone, stops),
-            decksBottom + 24,
-            scheme,
-            (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
-          );
-        }
-        if (shieldBrief) {
-          rightBottom = drawShieldBriefing(this.#schemeContext(rightRect, phone, stops), rightBottom + 24, shieldBrief);
-        }
-        if (easierStart) {
-          rightBottom = drawEasierStart(
-            this.#schemeContext(rightRect, phone, stops),
-            rightBottom + 24,
-            easierStart,
-            () => void this.#toggleEasierStart(),
-          );
-        }
-        if (issueModes.length > 0) {
-          drawIssueModes(
-            this.#schemeContext(rightRect, phone, stops),
-            rightBottom + 24,
-            issueModes,
-            (action) => void this.#setIssueMode(action),
-          );
-        }
-        // Taller than the screen: the column scrolls on its own rather than running under the action bar.
-        const columnEnd = this.children.list.length;
-        const columnBottom = this.#bottomOf(columnStart, columnEnd);
-        if (columnBottom > contentBottom) {
-          const columnHeights = [1_000_000];
-          this.#columnRegion = new McScrollRegion(this, {
-            rect: { x: rightRect.x, y: rightRect.y, width: rightRect.width, height: rightRect.height },
-            heights: columnHeights,
-            scroll: this.#columnScroll,
-            clipInteractive: true,
-          });
-          this.#captureIntoRegion(
-            this.#columnRegion,
-            columnHeights,
-            columnStart,
-            stops,
-            columnStopsBefore,
-            rightRect.y,
-            contentBottom,
-            this.#columnScroll,
-            columnEnd,
-          );
-        }
+      const columnStart = this.children.list.length;
+      const columnStopsBefore = new Set(stops.keys());
+      const decksBottom = hasPool ? this.#drawHandled(rightRect, view, stops) : this.#drawDecks(rightRect, view, stops);
+      let rightBottom = decksBottom;
+      if (missionBrief && !hasPool) {
+        rightBottom = drawMissionBriefing(this.#schemeContext(rightRect, phone, stops), decksBottom + 24, missionBrief);
+      } else if (scheme && !hasPool) {
+        rightBottom = drawSideSchemeSettled(
+          this.#schemeContext(rightRect, phone, stops),
+          decksBottom + 24,
+          scheme,
+          (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+        );
+      }
+      if (shieldBrief && !hasPool) {
+        rightBottom = drawShieldBriefing(this.#schemeContext(rightRect, phone, stops), rightBottom + 24, shieldBrief);
+      }
+      if (easierStart && !hasPool) {
+        rightBottom = drawEasierStart(
+          this.#schemeContext(rightRect, phone, stops),
+          rightBottom + 24,
+          easierStart,
+          () => void this.#toggleEasierStart(),
+        );
+      }
+      if (issueModes.length > 0) {
+        drawIssueModes(
+          this.#schemeContext(rightRect, phone, stops),
+          rightBottom + 24,
+          issueModes,
+          (action) => void this.#setIssueMode(action),
+        );
+      }
+      // Taller than the screen: the column scrolls on its own rather than running under the action bar.
+      const columnEnd = this.children.list.length;
+      const columnBottom = this.#bottomOf(columnStart, columnEnd);
+      if (columnBottom > contentBottom) {
+        const columnHeights = [1_000_000];
+        this.#columnRegion = new McScrollRegion(this, {
+          rect: { x: rightRect.x, y: rightRect.y, width: rightRect.width, height: rightRect.height },
+          heights: columnHeights,
+          scroll: this.#columnScroll,
+          clipInteractive: true,
+        });
+        this.#captureIntoRegion(
+          this.#columnRegion,
+          columnHeights,
+          columnStart,
+          stops,
+          columnStopsBefore,
+          rightRect.y,
+          contentBottom,
+          this.#columnScroll,
+          columnEnd,
+        );
       }
     } else if (hasPool && !seatCall) {
       const handledTop = scrolled
@@ -952,6 +946,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const record = this.#record;
     if (!record?.attempt || this.#starting || this.#toggling) return;
     const scenarioId = campaignService().launchConfig(record).scenarioId;
+    // The calls this issue already answered ride along, as they do through a deck edit (`#editDecks`): composing again
+    // never asks them twice, and an issue picked on this visit does not replay its comic.
+    if (record.attempt) {
+      this.#answers = [...this.#answers, ...answersOfAttempt(record.attempt)];
+      this.#data = { ...this.#data, openerReadNodeId: record.attempt.nodeId };
+    }
     this.#toggling = true;
     this.#startError = null;
     this.#draw();

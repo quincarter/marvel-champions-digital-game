@@ -520,7 +520,7 @@ class PhaseTracker {
     }
   }
 
-  /** What step three is to deal, from the shadow as it is now: one card each (1 + the heroic level), then one per hazard icon. */
+  /** What step three is to deal, from the shadow as it is now: 1 + the heroic level each, then one per hazard icon. */
   private expectDeal(shadow: Shadow): void {
     this.dealAtStep = {
       players: this.order.filter((p) => !shadow.eliminated.has(p)),

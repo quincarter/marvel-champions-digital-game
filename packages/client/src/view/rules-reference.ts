@@ -495,7 +495,8 @@ export function villainPhaseOrder(state?: GameState): readonly VillainPhaseStep[
     {
       id: "dealEncounterCards",
       label: "3. Deal encounter cards",
-      detail: "Each player is dealt one encounter card facedown, plus one more per hazard icon in play.",
+      detail:
+        "Each player is dealt one encounter card facedown (plus the heroic level, in Heroic mode), then one more per hazard icon in play.",
       art: "encounterBack",
     },
     {

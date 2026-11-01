@@ -29,9 +29,10 @@ export function drawIssueModes(
     const name = scene.add
       .text(rect.x, y, row.name.toUpperCase(), textStyle(bangers(16), surface.ink.hex, 1))
       .setOrigin(0, 0);
-    scene.add
+    const meta = scene.add
       .text(rect.x + name.width + 10, y + 2, row.meta, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
       .setOrigin(0, 0);
+    fitText(meta, rect.width - name.width - 10, typeRole.body.size);
     y += NAME_HEIGHT;
     const width = Math.min(
       CHIP_MAX_WIDTH,

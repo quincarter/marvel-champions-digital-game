@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { findText, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, findText, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { clickStop, installWave6Helpers, routeStops, waitForScene } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 
@@ -17,7 +17,7 @@ test("Set the table: heroic and skirmish combine with expert and show in the sum
   const errors = trackPageErrors(page);
   await installWave6Helpers(page);
   await openApp(page, "unlock=all&screen=table-setup&scenario=rhino&seed=1", { landing: "Setup" });
-  const scene = "TableSetup";
+  const scene = "Setup";
 
   const before = await stopKeys(page, scene);
   for (const key of ["option:heroic:up", "option:skirmish:off", "option:skirmish:1", "option:skirmish:2"])
@@ -38,7 +38,8 @@ test("Set the table: heroic and skirmish combine with expert and show in the sum
   expect(expert).not.toContain("option:skirmish:1");
 
   await clickStop(page, "deal-it-out", scene);
-  await waitForScene(page, "SetupDeal");
+  // The game built: the screen moves on to the scenario's comic.
+  await waitFor(async () => !(await activeScenes(page)).includes(scene), "the game dealt");
   expect(errors).toEqual([]);
 });
 
@@ -48,7 +49,7 @@ test("Set the table: a scenario where one version cannot stand alone has no Skir
   test.setTimeout(60_000);
   await installWave6Helpers(page);
   await openApp(page, "unlock=all&screen=table-setup&scenario=kang&seed=1", { landing: "Setup" });
-  const keys = await stopKeys(page, "TableSetup");
+  const keys = await stopKeys(page, "Setup");
   expect(keys).toContain("option:heroic:up");
   expect(keys.some((key) => key.startsWith("option:skirmish:"))).toBe(false);
 });

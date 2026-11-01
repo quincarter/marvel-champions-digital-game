@@ -4,9 +4,10 @@
  */
 
 import { CORE_STARTER_DECKS, type PlayModes } from "@mc/content";
+import { createGame } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { PLAYABLE_SCENARIO_RECORDS } from "../modular-pool.js";
-import { playableScenario } from "./index.js";
+import { PLAYABLE_DEPS, playableScenario } from "./index.js";
 import { playableScenarioOffer } from "./scenario-options.js";
 
 const seats = [{ starterDeckId: CORE_STARTER_DECKS[0]!.id }];
@@ -75,12 +76,17 @@ describe("skirmish mode", () => {
     },
   );
 
-  it("builds at every scenario that offers a version", () => {
+  it("sets up a game at every scenario and version, in both difficulties", () => {
     for (const scenario of PLAYABLE_SCENARIO_RECORDS) {
-      const offer = playableScenarioOffer(scenario.id).skirmish;
-      for (const villainVersion of offer?.versions ?? []) {
-        const config = build(scenario.id, { skirmish: { villainVersion } });
-        expect(config.villainStartStageIndex, scenario.id).toBe(config.villainLastStageIndex);
+      for (const expert of [{}, { expert: true as const }]) {
+        const offer = playableScenarioOffer(scenario.id, { modes: expert }).skirmish;
+        for (const villainVersion of offer?.versions ?? []) {
+          const config = build(scenario.id, { ...expert, heroic: 2, skirmish: { villainVersion } });
+          expect(config.villainStartStageIndex, scenario.id).toBe(Number(villainVersion) - 1);
+          expect(config.villainLastStageIndex, scenario.id).toBe(Number(villainVersion) - 1);
+          const game = createGame(config, PLAYABLE_DEPS);
+          expect(game.ok && game.state.scenarioRules.heroicLevel, scenario.id).toBe(2);
+        }
       }
     }
   });
