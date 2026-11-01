@@ -1,9 +1,11 @@
 import { cardId } from "@mc/content";
 import {
+  activeEncounterDeckId,
   activeVillain,
   cardsInPlay,
   characterProfile,
   createGame,
+  discardZoneFor,
   encounterDeckOf,
   villainOf,
   type GameState,
@@ -11,6 +13,7 @@ import {
 } from "@mc/engine";
 import { P1, endTurn, identityOf, inst, patchInstance, settle } from "../../testing/harness.js";
 import { conjure, playOut, rhino } from "../../testing/qa-bench.js";
+import { withActive } from "../../testing/staging.js";
 import { PLAYABLE_DEPS, playableScenario } from "../../playable/index.js";
 import { wave1Scenario } from "../setup.js";
 import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
@@ -50,6 +53,24 @@ describe("wave1Scenario('breakout')", () => {
       expect(state.encounterSetAside.map((id) => nameOf(state, id))).toContain(name);
     }
     expect(state.encounterSetAside.map((id) => nameOf(state, id))).not.toContain("Crisis of Infinite Deadpools");
+  });
+
+  it("a Dreadpool card discards to the active villain's pile, having no villain's deck of its own", () => {
+    const created = createGame(
+      playableScenario("breakout", { players: [{ starterDeckId: "deadpool-pool" }], seed: 41 }),
+      PLAYABLE_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const { state } = created;
+    const metacidal = state.encounterSetAside.find((id) => nameOf(state, id) === "Metacidal Tendencies")!;
+    const pileOf = (villain: string) => {
+      const active = withActive(state, villainNamed(state, villain));
+      return { kind: "encounterDiscard", deckId: activeEncounterDeckId(active) };
+    };
+    expect(discardZoneFor(state, metacidal)).toEqual(pileOf("Wrecker"));
+    expect(discardZoneFor(withActive(state, villainNamed(state, "Thunderball")), metacidal)).toEqual(
+      pileOf("Thunderball"),
+    );
   });
 
   it("1A's setup puts all four villains and their signature side schemes into play, Wrecker active", () => {
