@@ -1,3 +1,0 @@
-kind: Added
-body: A deck's card list sorts by aspect, type, cost or name, in the builder and in Deck check, and the choice is remembered (#594)
-time: 2026-10-31T18:36:19.3566729-04:00
