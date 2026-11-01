@@ -33,7 +33,12 @@ import {
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { activeAttemptGamesOf } from "./unfolded-game.js";
-import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
+import {
+  CAMPAIGN_STORAGE_SCHEMA,
+  type CampaignRecord,
+  type CampaignStorage,
+  type IssueModes,
+} from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
@@ -204,7 +209,8 @@ export class CampaignService {
   async compose(record: CampaignRecord, answers: readonly CampaignChoiceAnswer[] = []): Promise<CampaignStepResult> {
     if (record.attempt) return { kind: "done", record };
     const definition = this.definitionFor(record);
-    const result = resolveBetweenGames(definition, record, this.#campaignDeps, record.modes, answers);
+    const modes = { ...record.modes, ...record.issueModes };
+    const result = resolveBetweenGames(definition, record, this.#campaignDeps, modes, answers);
     if (result.kind === "pending") return result;
     return { kind: "done", record: await this.#put(record, result.value) };
   }
@@ -232,7 +238,7 @@ export class CampaignService {
         position: before.position,
         rng: before.rng,
       },
-      { keepEasierStart: true },
+      { composedAgain: true },
     );
   }
 
@@ -272,6 +278,21 @@ export class CampaignService {
     const next: CampaignRecord = {
       ...rest,
       ...(on ? { easierStartNodeId: attempt.nodeId } : {}),
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    return next;
+  }
+
+  /**
+   * Sets the modes the composed issue is played under (the Briefing's choice) and throws the attempt away, so the Briefing
+   * composes it again under them: a mode can change what the issue's setup instructions do.
+   */
+  async setIssueModes(record: CampaignRecord, modes: IssueModes): Promise<CampaignRecord> {
+    const { issueModes: _old, ...rest } = await this.discardAttempt(record);
+    const next: CampaignRecord = {
+      ...rest,
+      ...(Object.keys(modes).length > 0 ? { issueModes: modes } : {}),
       updatedAt: this.#now(),
     };
     await this.storage.put(next);
@@ -434,22 +455,27 @@ export class CampaignService {
   }
 
   /**
-   * `keepEasierStart`: the easier start rides along when the new log still holds that node's composed issue, or when no
+   * `composedAgain`: the easier start rides along when the new log still holds that node's composed issue, or when no
    * issue was composed on either side (a deck edit); a fold (an attempt before, none after) drops it, so a retry of the
    * node starts with it off. A discarded attempt is composed again, so it passes the flag to keep it.
    */
   async #put(
     previous: CampaignRecord,
     log: CampaignLog,
-    options: { readonly keepEasierStart?: boolean } = {},
+    options: { readonly composedAgain?: boolean } = {},
   ): Promise<CampaignRecord> {
     const keepEasierStart =
       previous.easierStartNodeId !== undefined &&
-      (options.keepEasierStart === true ||
+      (options.composedAgain === true ||
         log.attempt?.nodeId === previous.easierStartNodeId ||
         (!log.attempt && !previous.attempt));
+    const keepIssueModes = options.composedAgain === true || log.attempt !== undefined || !previous.attempt;
     // The runner spreads the whole record into the log it returns, so a stale flag must be taken off before it is decided.
-    const { easierStartNodeId: _stale, ...bare } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId">;
+    const {
+      easierStartNodeId: _stale,
+      issueModes: _staleModes,
+      ...bare
+    } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId" | "issueModes">;
     const next: CampaignRecord = {
       ...bare,
       recordSchema: previous.recordSchema,
@@ -460,6 +486,7 @@ export class CampaignService {
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
+      ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
     };
     await this.storage.put(next);
     return next;
