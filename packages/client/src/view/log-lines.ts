@@ -280,6 +280,11 @@ function describe(
      * same command.
      */
     case "cardMoved":
+      // A boost card whose Boost ability attaches it (Red Skull's Luger: "[star] Boost: Attach to Red Skull") moved
+      // with no line, so the keyword it gave the attack in progress came from nowhere on the log (issue #623).
+      if (event.from.kind === "boost" && event.to.kind === "attachment") {
+        return { text: `${card(event.instanceId)} attaches to ${card(event.to.hostInstanceId)}.`, voice: "villain" };
+      }
       if (event.to.kind === "dealtEncounter") {
         // A card parked there from anywhere but an encounter deck (`revealCard`: MojoMania 1B's SHOW environment from
         // a set-aside set, a search, a discard pile) is not dealt to anyone: the reveal's own line follows.
@@ -744,7 +749,9 @@ function describe(
       };
     case "boostCardFlipped":
       return {
-        text: `Boost: ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
+        // The boost card is named: its own Boost ability can change the attack (Red Skull's Luger attaches and gives
+        // the attack ranged, so retaliate is ignored; issue #623), and an unnamed card left that unexplained.
+        text: `Boost: ${card(event.instanceId)}, ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
         voice: "villain",
       };
     // docs/phase7-wave11-scenarios.md §S3.7: a villainous ally or hero turns up its boost card as its basic power
@@ -1367,6 +1374,12 @@ function describe(
     case "villainStageRevealed":
       return {
         text: `${card(event.instanceId)} moves to stage ${event.toStageNumber}, at full hit points.`,
+        voice: "villain",
+      };
+    // RRG 1.8 "Ranged" (p. 36): the attack ignores the attacked character's retaliate (issue #623).
+    case "retaliateIgnoredByRanged":
+      return {
+        text: `${card(event.attackerInstanceId)}'s attack is ranged, so it ignores ${card(event.targetInstanceId)}'s retaliate ${event.amount}.`,
         voice: "villain",
       };
     // docs/phase7-wave8.md §3.21: an ability that had triggered but a rule says to ignore.
