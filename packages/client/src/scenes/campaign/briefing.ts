@@ -59,6 +59,7 @@ import { aspectStampOf, type AspectStamp } from "../../view/aspect-stamp.js";
 import { drawAspectChips } from "../../ui/aspect-chips.js";
 import { deckRowLayout, deckRowTitleWidth } from "../../view/campaign-deck-row-layout.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
+import { onTap } from "../../ui/tap.js";
 import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
@@ -2206,7 +2207,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       .setOrigin(0, 1)
       .setWordWrapWidth(width - 24);
     const zone = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    zone.on(Phaser.Input.Events.POINTER_UP, onPick);
+    onTap(zone, onPick, `role:${tile.id}`);
     stops.set(`role:${tile.id}`, { rect: tileRect, activate: onPick });
   }
 
@@ -2312,12 +2313,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#seatPicker = false;
       this.#draw();
     };
-    this.add
-      .rectangle(0, 0, width, height, 0x000000, 0.55)
-      .setOrigin(0, 0)
-      .setDepth(depth)
-      .setInteractive()
-      .on(Phaser.Input.Events.POINTER_UP, close);
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.55).setOrigin(0, 0).setDepth(depth);
+    onTap(
+      this.add.zone(0, 0, width, height).setOrigin(0, 0).setDepth(depth).setInteractive(),
+      close,
+      "seat-picker-close",
+    );
     const panelWidth = Math.min(420, width - 32);
     const rowHeight = 56;
     const panelHeight = 72 + (record.seats.length + 1) * (rowHeight + 10);
@@ -2423,7 +2424,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         .zone(rect.x, top, rect.width, rowHeight)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on(Phaser.Input.Events.POINTER_UP, open);
+      onTap(zone, open, `deck-seat-${row.seatNumber}`);
       stops.set(`deck-seat-${row.seatNumber}`, {
         rect: { x: rect.x, y: top, width: rect.width, height: rowHeight },
         activate: open,
