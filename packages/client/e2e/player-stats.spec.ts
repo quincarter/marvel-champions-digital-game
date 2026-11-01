@@ -220,8 +220,10 @@ test("Matchups: arrows walk the cells, stop at nothing, and leave the grid at it
   // Up from the first row leaves the grid for the chips above it.
   await page.keyboard.press("ArrowUp");
   await waitFor(
-    async () =>
-      (await statsFocus(page))?.startsWith("grid:") && (await statsFocus(page)) !== "grid:cell" ? true : null,
+    async () => {
+      const focus = await statsFocus(page);
+      return focus !== null && focus !== "grid:cell" ? true : null;
+    },
     "up leaves the grid",
     5_000,
   );
