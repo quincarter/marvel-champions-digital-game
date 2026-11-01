@@ -110,6 +110,7 @@ import {
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   applySetupOption,
+  draftModes,
   scenarioOfDraft,
   isSetChoiceRow,
   optionActionsOf,
@@ -118,6 +119,7 @@ import {
   type OptionChip,
   type SetupOptionRow,
 } from "../view/setup-options.js";
+import { difficultyLabelOf } from "../view/difficulty-label.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
   COMPACT_FIRST_PLAYER_ROW_HEIGHT,
@@ -504,6 +506,7 @@ export class TableSetupScene extends Phaser.Scene {
         POOL_ENCOUNTER_SETS,
         undefined,
         blindRevealOf(sessionOptions, null),
+        sessionOptions.modes?.skirmish?.villainVersion,
       );
       compositionRows = compositionRowsOf(preview.encounterDeck);
       whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
@@ -1175,7 +1178,7 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
     if (id === "towerDefenseSetupDamage") {
-      const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty);
+      const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty, this.#draft.heroicLevel);
       this.#drawCompactToggleRow(rect, {
         selected: this.#draft.towerDefenseSetupDamage,
         name: "Black Order's initial attack",
@@ -1694,11 +1697,13 @@ export class TableSetupScene extends Phaser.Scene {
     // The villain's starting stage reads "Stage II", never a bare numeral beside the difficulty (it read as the Standard set chip).
     const villainLabel = preview ? `${villainName} · Stage ${preview.villainStageLabel}` : villainName;
     const heroCount = players.length;
+    const modes = draftModes(this.#draft);
+    const difficultyLabel = difficultyLabelOf({ difficulty: this.#draft.difficulty, ...(modes ? { modes } : {}) });
     const summary = this.#dealBlocked
       ? this.#dealBlocked
       : preview
-        ? `${villainLabel} · ${this.#draft.difficulty} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
-        : `${villainName} · ${this.#draft.difficulty}`;
+        ? `${villainLabel} · ${difficultyLabel} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
+        : `${villainName} · ${difficultyLabel}`;
     const summaryText = label(
       this,
       layout.footerSummary.x,
@@ -1757,8 +1762,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   /**
-   * DIFFICULTY: equal-width cards (Heroic stays out of scope, §4), each with a real description wrapped to as many
-   * lines as it needs. `slots` is how many equal slots the row has (`TableSetupLayout.difficultySlots`): the cards and,
+   * DIFFICULTY: equal-width cards, each with a real description wrapped to as many lines as it needs. Heroic and
+   * Skirmish combine with these, so they are option cards under the row (`view/play-mode-options.ts`). `slots` is how many equal slots the row has (`TableSetupLayout.difficultySlots`): the cards and,
    * when the scenario offers Standard or Expert set choices, the card that holds their chips in the spare slot
    * (`#drawSetsCard`) — the owner's 2026-10-08 decision, so those choices cost no row of their own.
    */
@@ -2138,7 +2143,7 @@ export class TableSetupScene extends Phaser.Scene {
    */
   #drawTowerDefenseDamageRow(rect: Rect): void {
     const selected = this.#draft.towerDefenseSetupDamage;
-    const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty);
+    const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty, this.#draft.heroicLevel);
     const onClick = (): void => {
       this.#draft = toggleTowerDefenseSetupDamage(this.#draft);
       this.#rebuild();
