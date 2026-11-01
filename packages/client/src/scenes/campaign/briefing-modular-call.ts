@@ -5,6 +5,7 @@
  */
 import Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { onTap } from "../../ui/tap.js";
 import { bangers } from "../../ui/campaign-chrome.js";
 import { textStyle } from "../../ui/theme.js";
 import { fitText, label } from "../../ui/widgets.js";
@@ -98,6 +99,6 @@ function drawTile(
   if (!tile.available) return;
   const zone = scene.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
   const pick = (): void => onPick(tile.id);
-  zone.on(Phaser.Input.Events.POINTER_UP, pick);
+  onTap(zone, pick, `call-option:${tile.id}`);
   stops.set(`call-option:${tile.id}`, { rect: tileRect, activate: pick });
 }

@@ -6,6 +6,7 @@
  * dispatch" rule from PLAN.md Phase 4.
  */
 
+import type Phaser from "phaser";
 import type { VillainReview } from "./view/villain-review.js";
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CampaignDefinition } from "@mc/engine";
@@ -25,7 +26,8 @@ import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
 import { colorSchemeOf, setColorScheme } from "./view/color-scheme.js";
-import { setArtLanguage } from "./art/art-source.js";
+import { setArtLanguage, setShownBalancedScans } from "./art/art-source.js";
+import { BalancedArtGate } from "./art/balanced-art.js";
 import { onLanguageChange } from "./language-change.js";
 import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
@@ -106,6 +108,20 @@ export interface AppSession {
 
 let session: AppSession | null = null;
 
+/** Which Balanced scans show, and when (`art/balanced-art.ts`): while a game screen is up, for that game's config. */
+const balancedArt = new BalancedArtGate(setShownBalancedScans);
+
+/**
+ * A game screen calls this as it opens: the game's Balanced scans (issue #609) show until it closes. A resume and a
+ * rematch enter the same way, so each reads its own game's config; leaving (Save & quit included) puts the normal
+ * scans back for every screen that follows.
+ */
+export function holdGameArt(scene: Phaser.Scene): void {
+  appSession();
+  balancedArt.enter();
+  scene.events.once("shutdown", () => balancedArt.leave());
+}
+
 export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
@@ -148,6 +164,8 @@ export function appSession(): AppSession {
     // A language switch: every screen built from the game state builds again, now in the new language.
     const current = session;
     onLanguageChange(() => current.store.republish());
+    // A Balanced Galaxy's Most Wanted game's edited scans (issue #609) follow the game screens' lifetime, below.
+    current.store.subscribe((state) => balancedArt.setConfig(state.config));
   }
   return session;
 }

@@ -93,6 +93,8 @@ export class CampaignRosterScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   #campaignId = "";
   #expertCampaign = false;
+  /** Galaxy's Most Wanted's Balanced house rule, as chosen on the prompt before this screen (issue #609); null for Normal. */
+  #balanced: CampaignRosterData["balanced"] | null = null;
   #seats: (Deck | null)[] = Array.from({ length: ROSTER_SEAT_COUNT }, () => null);
   #savedDecks: readonly Deck[] = [];
   #model: RosterModel | null = null;
@@ -189,6 +191,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     });
     this.#campaignId = data.campaignId;
     this.#expertCampaign = data.expertCampaign ?? false;
+    this.#balanced = data.balanced ?? null;
     this.#seats = preconRosterOf(
       (storyFor(this.#campaignId)?.castIdentityIds ?? []) as readonly CardId[],
       POOL_VERSION,
@@ -344,7 +347,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       backLabel: frame.phone ? "◂" : "◂ Cover",
       onBack: () => this.#onCancel(),
       hints: this.#hints,
-      title: this.#expertCampaign ? "Sign the roster · Expert" : "Sign the roster",
+      title: `Sign the roster${this.#expertCampaign ? " · Expert" : ""}${this.#balanced ? " · Balanced" : ""}`,
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => this.#onCancel() });
 
@@ -1033,6 +1036,7 @@ export class CampaignRosterScene extends Phaser.Scene {
         campaignId: this.#campaignId,
         seats,
         ...(this.#expertCampaign ? { expertCampaign: true } : {}),
+        ...(this.#balanced ? { balanced: this.#balanced } : {}),
         poolVersion: POOL_VERSION,
         seed: rollSeed(),
         ...(tableRules ? { tableRules } : {}),

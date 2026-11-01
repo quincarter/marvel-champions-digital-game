@@ -16,7 +16,7 @@ import type {
   VillainSide,
   VillainStage,
 } from "@mc/content";
-import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps, type MainSchemeStageRef } from "./abilities.js";
 import { EngineInvariantError } from "./errors.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { baseOverride, statBonus } from "./modifiers.js";
@@ -857,6 +857,16 @@ export function mainSchemeStageOf(state: GameState, scheme: MainSchemeState): Ma
   const stage = card.stages[scheme.stageIndex];
   if (!stage) throw new EngineInvariantError(`main scheme has no stage ${scheme.stageIndex}`);
   return stage;
+}
+
+/** Whether a main scheme is showing the stage a `MainSchemeStageRef` names. */
+export function mainSchemeStageMatches(state: GameState, scheme: MainSchemeState, ref: MainSchemeStageRef): boolean {
+  if (scheme.cardId !== ref.cardId) return false;
+  const stage = mainSchemeStageOf(state, scheme);
+  return (
+    (ref.stageNumber === undefined || stage.stageNumber === ref.stageNumber) &&
+    (ref.name === undefined || stage.name === ref.name)
+  );
 }
 
 export function mainSchemeStage(state: GameState): MainSchemeStage {

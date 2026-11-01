@@ -143,7 +143,10 @@ export {
   campaignDefinitionOf,
   campaignModularPickProblem,
   cardsOfComposedSets,
+  GMW_BALANCED_FIELD,
+  GMW_BALANCED_TOGGLES,
   GMW_CAMPAIGN_DEFINITION,
+  gmwBalancedHiddenFields,
   MOJO_CAMPAIGN_DEFINITION,
   mojoCheckedOffSets,
   mojoModularSetPicks,
@@ -153,6 +156,7 @@ export {
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
+export type { GmwBalancedToggle, GmwBalancedToggleId } from "./campaigns/index.js";
 export {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,

@@ -52,6 +52,7 @@ import {
   type TargetQuery,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import { balancedTextOf } from "../art/balanced-art.js";
 import { abilityActionsFor } from "./highlights.js";
 import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
@@ -413,8 +414,9 @@ export function inspectModel(
       liveResourceNote(state, instanceId, card, deps) ??
       resourceAbilityNote(state, instanceId, deps, payment) ??
       notForNote(state, instanceId, deps),
-    rulesText: cardTextDisplay(textOf(card, face).current),
-    printedText: errataDiff(card, face),
+    // A Balanced scan on screen (issue #609): its own written text, and no errata diff against the printed card.
+    rulesText: cardTextDisplay(balancedTextOf(artFor(card, face)) ?? textOf(card, face).current),
+    printedText: balancedTextOf(artFor(card, face)) === null ? errataDiff(card, face) : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     // The shared builder the board uses, so a buff reads the same in both places.
@@ -865,8 +867,11 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
     currentCost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
-    rulesText: cardTextDisplay(text.current),
-    printedText: text.printed && text.printed !== text.current ? text.printed : null,
+    rulesText: cardTextDisplay(balancedTextOf(artFor(card, face)) ?? text.current),
+    printedText:
+      balancedTextOf(artFor(card, face)) === null && text.printed && text.printed !== text.current
+        ? text.printed
+        : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     stats: [],
