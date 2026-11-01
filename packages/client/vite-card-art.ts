@@ -98,7 +98,11 @@ function artRoots(lang: CardLanguage): readonly string[] {
   return [root, ART_ROOT];
 }
 
-/** `relative`'s scan from the first of `roots` that has it, and which root that was; null when none does. */
+/**
+ * `relative`'s scan from the first of `roots` that has it, and which root that was; null when none does. A Balanced
+ * scan (`16070-balanced.png`, issue #609) that no root has is answered by the normal scan it stands in for, so a build
+ * or an install without the edited scans still draws the card rather than a generated frame.
+ */
 async function readArt(
   roots: readonly string[],
   relative: string,
@@ -108,7 +112,8 @@ async function readArt(
     const bytes = file === null ? null : await readFile(file).catch(() => null);
     if (bytes !== null) return { bytes, root };
   }
-  return null;
+  const normal = relative.replace(/-balanced(.w+)$/, "$1");
+  return normal === relative ? null : readArt(roots, normal);
 }
 
 /**

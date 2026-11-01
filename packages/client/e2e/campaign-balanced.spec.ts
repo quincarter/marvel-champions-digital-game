@@ -15,12 +15,14 @@ import { quietGuide } from "./wave6-helpers-b.js";
 
 /**
  * Issue #609: starting a Galaxy's Most Wanted campaign asks "Play as normal" or "Rebalance the campaign" before the
- * Roster. Normal is the default; Rebalance shows the four toggles (all off); Continue carries the choice to the Roster.
+ * Roster. Normal is the default; Rebalance shows the toggles (all off); Continue carries the choice to the Roster.
  * On a phone, a swipe that lifts over a toggle or the credit must press nothing (the no-tap-on-finger-lift rule).
  */
 
 const GMW = campaignSagaRows([]).find((row) => row.volume.campaignId === "gmw")!.volume;
-const TOGGLES = ["spacePirates", "expertGallery", "trimStandard", "milanoExhausted"].map((id) => `toggle-${id}`);
+const TOGGLES = ["spacePirates", "expertGallery", "trimStandard", "milanoExhausted", "kreeSupremacy"].map(
+  (id) => `toggle-${id}`,
+);
 
 const texts = async (page: Page): Promise<string[]> =>
   (await visibleTexts(page)).filter((t) => t.scene === "CampaignBalanced").map((t) => t.text.trim());
@@ -99,13 +101,13 @@ test("issue #609: Normal is the default; Rebalance and a toggle carry to the Ros
   expect(await hasStop(page, "mode-normal", "CampaignBalanced")).toBe(true);
   for (const key of TOGGLES) expect(await hasStop(page, key, "CampaignBalanced"), `${key} hidden`).toBe(false);
 
-  // Rebalance: the four toggles appear, all off.
+  // Rebalance: the toggles appear, all off.
   await revealAndPress(page, "mode-rebalance");
   await waitFor(async () => ((await hasStop(page, TOGGLES[0]!, "CampaignBalanced")) ? true : null), "the toggles");
   await settle(page);
   for (const key of TOGGLES) expect(await hasStop(page, key, "CampaignBalanced"), key).toBe(true);
   const off = await texts(page);
-  expect(count(off, "OFF")).toBe(4);
+  expect(count(off, "OFF")).toBe(TOGGLES.length);
   expect(count(off, "ON")).toBe(0);
 
   // A toggle turns on with a press.
@@ -220,10 +222,13 @@ test("issue #609: the pane fills the right side and, on a big screen, Rebalance 
     "the pane names the option",
   ).toBe(true);
   await clickStop(page, "mode-rebalance", "CampaignBalanced");
-  await waitFor(async () => ((await hasStop(page, TOGGLES[3]!, "CampaignBalanced")) ? true : null), "the toggles");
+  await waitFor(
+    async () => ((await hasStop(page, TOGGLES[TOGGLES.length - 1]!, "CampaignBalanced")) ? true : null),
+    "the toggles",
+  );
   await settle(page);
   const stops = (await routeStops(page, "CampaignBalanced"))!.stops;
-  const last = stops.find((s) => s.key === TOGGLES[3])!;
+  const last = stops.find((s) => s.key === TOGGLES[TOGGLES.length - 1])!;
   expect(last.rect.x, "the toggles sit in the pane").toBeGreaterThan(608);
   expect(last.rect.y + last.rect.height, "the last toggle is above the action bar").toBeLessThanOrEqual(980 - 88);
   const panes = (await visibleTexts(page)).filter(

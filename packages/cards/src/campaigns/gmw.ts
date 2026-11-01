@@ -111,6 +111,8 @@ import {
 } from "../dsl/index.js";
 import {
   expertGallerySetup,
+  kreeRevealIsPrinted,
+  kreeSupremacyShuffleSetup,
   GMW_BALANCED_LOG_FIELDS,
   milanoModsAttach,
   milanoModsPick,
@@ -935,8 +937,10 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
           marketShoppingSetup("mc16.s5", "MC16 p. 5"),
           milanoModsPick,
           milanoModsAttach,
+          kreeSupremacyShuffleSetup,
           {
             id: "mc16.s5.setup.kree-decide",
+            when: kreeRevealIsPrinted,
             text: "(Optional) Reveal the Kree Supremacy side scheme (use the reverse side for expert mode).",
             citation: "RRG 1.8 p. 67 errata; MC16 p. 18",
             step: {
@@ -960,6 +964,7 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
           },
           {
             id: "mc16.s5.setup.kree-reveal-standard",
+            when: kreeRevealIsPrinted,
             text: "(Optional) Reveal the Kree Supremacy side scheme.",
             citation: "RRG 1.8 p. 67 errata; MC16 p. 18",
             whenModes: { expert: false },
@@ -976,6 +981,7 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
           },
           {
             id: "mc16.s5.setup.kree-reveal-expert",
+            when: kreeRevealIsPrinted,
             text: "(Optional) Reveal the Kree Supremacy side scheme (use the reverse side for expert mode).",
             citation: "RRG 1.8 p. 67 errata; MC16 p. 18",
             whenModes: { expert: true },

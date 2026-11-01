@@ -1,3 +1,4 @@
+import { GMW_BALANCED_TOGGLES } from "@mc/cards";
 import { describe, expect, it } from "vitest";
 import {
   BALANCED_CREDIT,
@@ -23,7 +24,8 @@ describe("the Balanced prompt's model", () => {
     const screen = balancedScreenOf(NORMAL_CHOICE, false);
     expect(screen.normal.selected).toBe(true);
     expect(screen.rebalance.selected).toBe(false);
-    expect(screen.toggles).toHaveLength(4);
+    expect(screen.toggles).toHaveLength(GMW_BALANCED_TOGGLES.length);
+    expect(screen.toggles.length).toBeGreaterThanOrEqual(5);
     expect(screen.toggles.every((row) => !row.on)).toBe(true);
     expect(balancedStartOf(NORMAL_CHOICE)).toBeUndefined();
   });
@@ -66,8 +68,8 @@ describe("the Balanced prompt's model", () => {
   it("reaches the toggles by controller only once Rebalance is picked, Continue last", () => {
     expect(balancedStopOrder(NORMAL_CHOICE)).toEqual(["back", "mode-normal", "mode-rebalance", "credit", "cta"]);
     const order = balancedStopOrder(withBalanced(NORMAL_CHOICE, true));
-    expect(order).toHaveLength(9);
-    expect(order.filter((key) => key.startsWith("toggle-"))).toHaveLength(4);
+    expect(order).toHaveLength(5 + GMW_BALANCED_TOGGLES.length);
+    expect(order.filter((key) => key.startsWith("toggle-"))).toHaveLength(GMW_BALANCED_TOGGLES.length);
     expect(order.at(-1)).toBe("cta");
   });
 

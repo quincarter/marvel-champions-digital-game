@@ -337,12 +337,12 @@ export class CampaignBalancedScene extends Phaser.Scene {
         .setLetterSpacing(1);
       y += label.height + 2;
       for (const line of group.lines) y = this.#bullet(x, y, width, line, layout.textSize, light) + 2;
-      y += 6;
+      y += 2;
     }
-    y = this.#paragraph(x, y, width, pane.footnote, layout.textSize, 1, true, light) + 8;
+    y = this.#paragraph(x, y, width, pane.footnote, layout.textSize, 1, true, light) + 4;
     if (pane.showToggles) {
-      y = ruleHeading(this, x, y + 6, width, screen.togglesHeading, light, layout.headingSize - 2);
-      y = this.#paragraph(x, y - 6, width, screen.togglesNote, layout.textSize, 1, false, light) + 8;
+      y = ruleHeading(this, x, y + 2, width, screen.togglesHeading, light, layout.headingSize - 2);
+      y = this.#paragraph(x, y - 6, width, screen.togglesNote, layout.textSize, 1, false, light) + 4;
       for (const row of screen.toggles) {
         y = this.#toggleRow(layout, row, { x, y, width }, () => this.#toggle(row.id), body, stops) + layout.gap;
       }
