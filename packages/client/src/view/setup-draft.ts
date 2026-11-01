@@ -253,7 +253,8 @@ export function difficultyOptionsFor(scenario: Scenario | undefined): readonly S
 export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, scenarioId: string): SetupDraft {
   const difficulty = difficultyOptionsFor(scenario).includes(draft.difficulty) ? draft.difficulty : "standard";
   // A missing `scenarioPicked` already means picked: dropping the `false` keeps a picked draft's shape unchanged.
-  const { scenarioPicked: _unpicked, ...rest } = draft;
+  // Skirmish goes with it: its versions belong to the scenario. Off is absent, so a draft that never had it keeps its shape.
+  const { scenarioPicked: _unpicked, skirmish: _skirmish, ...rest } = draft;
   return {
     ...rest,
     scenarioId,
@@ -261,7 +262,6 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
     modularSetIds: scenarioId === draft.scenarioId ? draft.modularSetIds : null,
     difficultySets: null,
-    skirmish: null,
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
     easierStart: false,

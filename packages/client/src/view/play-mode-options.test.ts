@@ -53,7 +53,7 @@ describe("the Heroic and Skirmish rows", () => {
   it("clears skirmish on a scenario change and keeps the heroic level", () => {
     const draft = applySetupOption(applySetupOption(draftAt("rhino"), "skirmish:2"), "heroic:up");
     const next = setScenario(draft, scenario("klaw"), "klaw");
-    expect(next.skirmish).toBeNull();
+    expect(next.skirmish).toBeUndefined();
     expect(next.heroicLevel).toBe(1);
   });
 
