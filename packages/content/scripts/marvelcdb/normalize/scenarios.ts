@@ -167,6 +167,7 @@ export function normalizeScenarios(
           activation: "activeVillainOnly",
           winCondition: mv.winCondition ?? "allVillainsDefeated",
           ...(mv.atSetup ? { atSetup: mv.atSetup } : {}),
+          ...(mv.theVillain ? { theVillain: mv.theVillain } : {}),
         };
       }
     }

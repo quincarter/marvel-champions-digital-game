@@ -108,6 +108,9 @@ export const TWC_CURATION: PackCuration = {
       multipleVillains: {
         villainSetCodes: ["wrecker", "thunderball", "piledriver", "bulldozer"],
         signatureSideSchemeCodes: ["07004", "07019", "07034", "07048"],
+        // The insert, "The Active Villain": "Any card effect that refers to 'the villain' only refers to the active
+        // villain." FFG ruling Jun 13, 2024 (#212): player cards too, with no choice.
+        theVillain: "activeVillain",
       },
       evidence:
         'Wrecking Crew insert "New Rules" ("The Active Villain", "Prepare Encounter Decks", "Signature Side Schemes", "Adjustable Difficulty" — quoted docs/phase7-wave1.md §1.1, §2.3); Breakout 1A Contents/Setup text (raw 07001a); HoH Wrecking Crew page ("Wrecking Crew - Standard (Side A), Expert (Side B), Extreme Challenge...")',

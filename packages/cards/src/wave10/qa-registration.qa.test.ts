@@ -331,7 +331,7 @@ describe("one-candidate enemy-team choices", () => {
     expect(JSON.stringify(enemyTeamPrompts(asked))).toBe("[]");
   });
 
-  it.fails("56112 Colleen Wing: an Unregistered player controls exactly one ally, so the enemy team's choice is forced and the first player is not asked", () => {
+  it("56112 Colleen Wing: an Unregistered player controls exactly one ally, so the enemy team's choice is forced and the first player is not asked", () => {
     let s = heroForm(bareIronMan());
     s = stagedInPlay(s, MOON_KNIGHT).state;
     s = inPlayAreaOf(s, "56106");
@@ -416,17 +416,14 @@ describe("56118 Paladin's Pistol: 'this attack gains ranged and overkill' (RRG '
   });
 });
 
-describe("56069 Mark V Armor with a tough status card on Iron Man (RRG 'Tough' p. 44: a tough card is itself a Forced Interrupt; 'Forced Abilities' p. 17: the first player orders forced abilities that initiate at the same moment)", () => {
-  it.fails("56069 Mark V Armor: Iron Man holds a tough card and the Armor, a hero's attack makes two Forced Interrupts initiate on the same damage, so the first player is asked to order them", () => {
-    let s = heroForm(bareIronMan({ modularSetIds: IRON_SETS }));
-    s = attachToHost(s, ARMOR, leaderOf(s)).state;
-    s = patchInstance(s, leaderOf(s), { statuses: { ...inst(s, leaderOf(s)).statuses, tough: 1 } });
-    const asked: Asked[] = [];
-    heroAttacks(DEPS, s, leaderOf(s), { pick: recording(asked) });
-    expect(asked.map((a) => a.kind)).toContain("orderTriggers");
-  });
-
-  it("pin: without asking, the engine resolves the tough card first: it is discarded, nothing is placed on the Armor and Iron Man takes nothing", () => {
+/*
+ * QA finding F3 is retired: RRG 1.8 "Simultaneous Timing Priority" (p. 5) resolves status-card Forced Interrupts (2a)
+ * before other Forced Interrupts (2b), and "Damage" (p. 14) takes tough status cards (step 2) before "would take any
+ * amount of damage" abilities (step 3). The first player orders only forced abilities of equal priority ("Forced",
+ * p. 20), so no order is offered here.
+ */
+describe("56069 Mark V Armor with a tough status card on Iron Man (RRG 1.8 'Simultaneous Timing Priority' p. 5, 'Damage' p. 14: the tough card resolves first)", () => {
+  it("the tough card resolves first, with no order asked: it is discarded, nothing is placed on the Armor and Iron Man takes nothing", () => {
     const base = heroForm(bareIronMan({ modularSetIds: IRON_SETS }));
     const armed = attachToHost(base, ARMOR, leaderOf(base));
     const s = patchInstance(armed.state, leaderOf(base), {

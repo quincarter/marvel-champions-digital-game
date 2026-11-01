@@ -1000,7 +1000,8 @@ function hostOfSelfId(state: GameState, context: EffectContext): InstanceId | nu
 
 /**
  * The binding slot the "which villain?" choice fills for a player card's ability with more than one villain in play
- * (owner, 2026-10-04, matrix Q-M2): a player card that targets "the villain" lets its player choose any villain in play.
+ * (owner, 2026-10-04, matrix Q-M2): a player card that targets "the villain" lets its player choose any villain in play,
+ * unless the scenario's `ScenarioRules.theVillain` makes it the active villain (The Wrecking Crew).
  * A constant effect or keyword on a player card that says "the villain" is not asked and means the active villain.
  */
 export const VILLAIN_CHOICE = "_villain";

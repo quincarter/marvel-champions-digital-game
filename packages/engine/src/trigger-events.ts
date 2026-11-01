@@ -188,6 +188,16 @@ export type TriggerEventBody =
        */
       readonly notAttacked?: true;
       /**
+       * A share of an attack's damage dealt to a character that is not the attacked character: indirect damage assigned
+       * to another character (RRG 1.8 "Indirect Damage", p. 24: "Only the defending character, or the attacked player's
+       * identity if the attack was undefended, is considered to have been attacked, even if other characters were
+       * assigned some or all of the indirect damage"), or a divided attack's share (`divideDamageEvenly`). The attack's
+       * piercing discards tough status cards "from the attacked character" only ("Piercing", p. 32; ruling January 24,
+       * 2025 #64), so not this character's. Narrower than `notAttacked`: the share is still the attack's damage for
+       * everything else (its totals, its keywords as the damage-taken rules read them).
+       */
+      readonly pierceExempt?: true;
+      /**
        * Damage no player deals although a player controls its source (`EffectSpec dealDamage.by` naming nobody;
        * docs/phase7-wave7.md §4.1 Q2): nothing keyed to the source's controller answers it and a defeat it causes has
        * no defeating player (`sourcePlayerOf`). What applies to any damage still applies: a tough status card absorbs it.

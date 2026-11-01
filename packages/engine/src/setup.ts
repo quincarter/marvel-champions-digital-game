@@ -218,6 +218,8 @@ export interface GameSetupConfig {
   readonly villainsStartSetAside?: true;
   /** `ScenarioRules.activeCounter` (The Sinister Six's activation order; docs/phase7-wave5.md §3.1). */
   readonly activeCounter?: "nextInActivationOrder";
+  /** `ScenarioRules.theVillain` (`MultipleVillains.theVillain`; The Wrecking Crew insert, "The Active Villain"). */
+  readonly theVillain?: "activeVillain";
   /**
    * RRG Appendix II: each identity's obligation (`HeroIdentityCard.obligationCardId`) is shuffled into the
    * encounter deck and its nemesis set (`nemesisEncounterSetId`, `quantityInSet` copies of each card) is set
@@ -1695,6 +1697,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     scenarioRules: {
       victory: config.victory ?? "finalVillainStage",
       ...(config.activeCounter ? { activeCounter: config.activeCounter } : {}),
+      ...(config.theVillain ? { theVillain: config.theVillain } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
       ...(scenarioRuleSpecs.length > 0 ? { rules: scenarioRuleSpecs } : {}),
