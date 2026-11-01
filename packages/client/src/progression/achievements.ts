@@ -78,7 +78,7 @@ export interface AchievementSave {
 export interface AchievementCampaign {
   readonly status: string;
   readonly campaignId: string;
-  readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean } };
+  readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean; readonly balanced?: boolean } };
 }
 
 /** The whole history an achievement can be read from. */
@@ -105,6 +105,8 @@ interface Facts {
   readonly wonAspects: ReadonlySet<string>;
   readonly wonCampaigns: ReadonlySet<string>;
   readonly expertWonCampaigns: ReadonlySet<string>;
+  /** Campaigns won under the opt-in Balanced house rule (`CampaignModeRef.balanced`), Expert or not. */
+  readonly balancedWonCampaigns: ReadonlySet<string>;
   readonly heroicWins: number;
   readonly fastWins: number;
   readonly fourPlayerWins: number;
@@ -194,6 +196,9 @@ export function factsOf(history: AchievementHistory): Facts {
     wonCampaigns: new Set(campaigns.map((c) => c.campaignId)),
     expertWonCampaigns: new Set(
       campaigns.filter((c) => c.modes?.campaign?.expertCampaign === true).map((c) => c.campaignId),
+    ),
+    balancedWonCampaigns: new Set(
+      campaigns.filter((c) => c.modes?.campaign?.balanced === true).map((c) => c.campaignId),
     ),
     heroicWins: wonSaves.filter((s) => (s.config.modes?.heroic ?? 0) > 0).length,
     fastWins: wonSaves.filter((s) => s.round !== undefined && s.round <= 2).length,
@@ -346,6 +351,15 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
       measure: (f) => count(f.expertWonCampaigns.has(c.campaignId) ? 1 : 0, 1),
     }),
   ]),
+  // Issue #609: a Galaxy's Most Wanted run on the Balanced house rule, with any toggles, Expert or standard.
+  def({
+    id: "campaign-gmw-balanced",
+    name: "The Galaxy Is Unfair",
+    description: "Complete The Galaxy's Most Wanted campaign on the Balanced house rule.",
+    family: "campaigns",
+    points: 100,
+    measure: (f) => count(f.balancedWonCampaigns.has("gmw") ? 1 : 0, 1),
+  }),
   def({
     id: "every-campaign",
     name: "Binge-Watched the Multiverse",

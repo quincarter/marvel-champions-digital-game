@@ -64,6 +64,7 @@ import {
   yourIdentity,
   exhaust,
 } from "../../dsl/index.js";
+import { isBalanced } from "../../campaigns/gmw-balanced.js";
 
 /**
  * Ronan the Accuser: the villain Ronan the Accuser I–III (16103–16105), the main scheme Interception Imminent →
@@ -136,11 +137,13 @@ export const RONAN = defineAbilities({
   // set-aside area at Appendix II step 11, so the Milano half finds none.
   "16106a.setup": setup(
     selectCards("ship", encounterCards(["deck"], { name: "Kree Command Ship" })),
-    putIntoPlay(chosen("ship"), firstPlayer),
+    // Balanced house rule, issue #609, Gideon's Gaming: the Kree Command Ship is removed from the game instead of put
+    // into play, and the Universal Weapon is not attached: it stays where the encounter deck's shuffle put it.
+    ifThen(isBalanced, moveCards(cards(chosen("ship")), "removedFromGame"), putIntoPlay(chosen("ship"), firstPlayer)),
     selectCards("milano", encounterSetAside({ name: "Milano" })),
     putIntoPlay(chosen("milano"), firstPlayer),
     selectCards("weapon", encounterCards(["deck"], { name: "Universal Weapon" })),
-    attachCard(chosen("weapon"), theVillain),
+    ifThen(not(isBalanced), attachCard(chosen("weapon"), theVillain)),
     attachCard(named("Power Stone"), identityOf(firstPlayer)),
   ),
   // 1B — First Player Action: Exhaust the Milano → remove 3 threat from this scheme.

@@ -17,7 +17,7 @@ import {
   type AchievementSave,
 } from "./achievements.js";
 import type { GameSummary } from "../engine/game-summary.js";
-import { UNLOCK_HEROES } from "./unlocks.js";
+import { UNLOCK_HEROES, progressOf } from "./unlocks.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
 
 const heroId = (name: string): string => UNLOCK_HEROES.find((h) => h.name === name)!.identityCardId;
@@ -333,5 +333,48 @@ describe("achievements read from the game summary", () => {
     expect(earned("feat-no-allies", hist([game("rhino", "lost", { summary: summary({ alliesPlayed: 0 }) })]))).toBe(
       false,
     );
+  });
+});
+
+describe("The Galaxy Is Unfair (issue #609)", () => {
+  const balancedWin = (expert = false): AchievementHistory["campaigns"] => [
+    {
+      status: "won",
+      campaignId: "gmw",
+      modes: { campaign: { balanced: true, ...(expert ? { expertCampaign: true } : {}) } },
+    },
+  ];
+  const balancedRow = (status: string, campaignId: string): AchievementHistory["campaigns"] => [
+    { status, campaignId, modes: { campaign: { balanced: true } } },
+  ];
+
+  it("is earned by winning Galaxy's Most Wanted on the Balanced house rule, Expert or not", () => {
+    expect(earned("campaign-gmw-balanced", hist([], balancedWin()))).toBe(true);
+    expect(earned("campaign-gmw-balanced", hist([], balancedWin(true)))).toBe(true);
+  });
+
+  it("is not earned by a Normal win, a lost Balanced run, or another campaign's Balanced win", () => {
+    expect(earned("campaign-gmw-balanced", hist([], [{ status: "won", campaignId: "gmw" }]))).toBe(false);
+    expect(earned("campaign-gmw-balanced", hist([], balancedRow("lost", "gmw")))).toBe(false);
+    expect(earned("campaign-gmw-balanced", hist([], balancedRow("won", "trors")))).toBe(false);
+  });
+
+  it("docks nothing: a Balanced win counts as the campaign win, and an Expert one as the Expert win", () => {
+    const h = hist([], balancedWin(true));
+    expect(earned("campaign-gmw", h)).toBe(true);
+    expect(earned("campaign-expert-gmw", h)).toBe(true);
+    const normal = hist([], [{ status: "won", campaignId: "gmw", modes: { campaign: { expertCampaign: true } } }]);
+    expect(basePointsOf(h)).toBe(basePointsOf(normal));
+    const progress = progressOf([], balancedWin(true));
+    expect(progress.wonCampaignIds).toEqual(["gmw"]);
+    expect(progress.wonExpertCampaignIds).toEqual(["gmw"]);
+    expect(progressOf([], balancedWin()).wonExpertCampaignIds).toEqual([]);
+  });
+
+  it("does not depend on Expert, and is worth points", () => {
+    const def = ACHIEVEMENTS.find((a) => a.id === "campaign-gmw-balanced")!;
+    expect(def.name).toBe("The Galaxy Is Unfair");
+    expect(def.points).toBeGreaterThan(0);
+    expect(earned("campaign-expert-gmw", hist([], balancedWin()))).toBe(false);
   });
 });

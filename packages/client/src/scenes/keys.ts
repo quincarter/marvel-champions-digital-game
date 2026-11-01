@@ -26,6 +26,8 @@ export const SCENES = {
   // `scenes/campaign/routes.ts`.
   campaignSaga: "CampaignSaga",
   campaignCover: "CampaignCover",
+  /** Galaxy's Most Wanted only (issue #609): Play as normal or Rebalance the campaign, between the Cover and the Roster. */
+  campaignBalanced: "CampaignBalanced",
   campaignRoster: "CampaignRoster",
   campaignOpener: "CampaignOpener",
   campaignBriefing: "CampaignBriefing",

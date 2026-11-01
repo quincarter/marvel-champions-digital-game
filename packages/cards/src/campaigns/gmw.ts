@@ -109,6 +109,17 @@ import {
   theVillain,
   thatPlayer,
 } from "../dsl/index.js";
+import {
+  expertGallerySetup,
+  GMW_BALANCED_LOG_FIELDS,
+  milanoModsAttach,
+  milanoModsPick,
+  MUSEUM_BALANCED_RULES,
+  NEBULA_BALANCED_RULES,
+  RONAN_BALANCED_RULES,
+  spacePiratesComposition,
+  trimStandardSetup,
+} from "./gmw-balanced.js";
 
 // The same sentinel `@mc/engine`'s `random`-with-`optional` uses for "yes, take it" (`CAMPAIGN_ACCEPT`), reused
 // here for a plain optional `choose` over a single non-card option: MC16 prints two binary "may you …?" setup
@@ -510,6 +521,8 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
       type: { kind: "flag" },
       citation: "MC16 p. 18",
     },
+    // The Balanced house rule (issue #609): hidden flags seeded when the run starts, none in a Normal log.
+    ...GMW_BALANCED_LOG_FIELDS,
   ],
   // MC16 p. 4: "If the players lost, they may reset the scenario and try again with no penalty" — for every
   // scenario except one Expert Campaign Only exception on Ronan (MC16 p. 18), the same shape `trors.ts` uses.
@@ -595,10 +608,13 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "infiltrate-the-museum",
         label: "Scenario #2 - Infiltrate the Museum",
         scenario: { kind: "fixed", scenarioId: scenarioId("infiltrate-the-museum") },
-        composition: [composition("mc16.s2", "MC16 p. 10")],
+        composition: [composition("mc16.s2", "MC16 p. 10"), spacePiratesComposition],
+        scenarioRuleSpecs: MUSEUM_BALANCED_RULES,
         setup: [
           marketShoppingSetup("mc16.s2", "MC16 p. 5"),
           ...revealChallengeSideScheme("mc16.s2", "MC16 p. 10", "Gallery of Splendor", GALLERY_OF_SPLENDOR),
+          expertGallerySetup,
+          trimStandardSetup,
           headhunterLadder("mc16.s2", "MC16 p. 10", 1),
           hpSetSetup("mc16.s2", "MC16 p. 10"),
           ...healSetup("mc16.s2", "MC16 p. 10"),
@@ -806,6 +822,7 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
         label: "Scenario #4 - Nebula",
         scenario: { kind: "fixed", scenarioId: scenarioId("nebula") },
         composition: [composition("mc16.s4", "MC16 p. 14", [GALACTIC_ARTIFACTS_SET])],
+        scenarioRuleSpecs: NEBULA_BALANCED_RULES,
         setup: [
           marketShoppingSetup("mc16.s4", "MC16 p. 5"),
           ...revealChallengeSideScheme("mc16.s4", "MC16 p. 14", "Guerrilla Tactics", GUERRILLA_TACTICS),
@@ -913,8 +930,11 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
         label: "Scenario #5 - Ronan the Accuser",
         scenario: { kind: "fixed", scenarioId: scenarioId("ronan-the-accuser") },
         composition: [composition("mc16.s5", "MC16 p. 18")],
+        scenarioRuleSpecs: RONAN_BALANCED_RULES,
         setup: [
           marketShoppingSetup("mc16.s5", "MC16 p. 5"),
+          milanoModsPick,
+          milanoModsAttach,
           {
             id: "mc16.s5.setup.kree-decide",
             text: "(Optional) Reveal the Kree Supremacy side scheme (use the reverse side for expert mode).",

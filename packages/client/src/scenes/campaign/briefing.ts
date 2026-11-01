@@ -27,6 +27,7 @@ import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, STAMP_CHIP_TYPE, fitText, label } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
+import { balancedTagOf } from "../../view/campaign-balanced-model.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { bottomOfDrawn, captureIntoRegion } from "../../ui/scroll-capture.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
@@ -507,7 +508,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       onBack: back,
       // Not under the "which deck?" scrim.
       hints: this.#seatPicker ? null : this.#hints,
-      title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}`,
+      title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}${balancedTagOf(record.modes) ? " · Balanced" : ""}`,
       ...(hiddenEvidence
         ? {
             right: hiddenEvidence.revealedCards

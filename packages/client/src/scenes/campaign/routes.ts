@@ -15,6 +15,7 @@
  * `CampaignDeckEdit` is reachable from Briefing, Rewind and Dossier › Heroes and returns to `returnTo`.
  */
 import type { CampaignChoiceAnswer } from "@mc/engine";
+import type { GmwBalancedToggleId } from "@mc/cards";
 import type { SCENES } from "../keys.js";
 
 /** Where a screen goes back to, as a scene key plus that scene's own start data. */
@@ -34,6 +35,14 @@ export interface CampaignCoverData {
 
 /** C02. Signing a new run of `campaignId`. `expertCampaign` is the Expert Campaign modifier (MC10 p. 17). */
 export interface CampaignRosterData {
+  readonly campaignId: string;
+  readonly expertCampaign?: boolean;
+  /** Galaxy's Most Wanted's Balanced house rule (issue #609), chosen on C01b: absent for Normal. */
+  readonly balanced?: { readonly toggles: readonly GmwBalancedToggleId[] };
+}
+
+/** C01b. Galaxy's Most Wanted only: Play as normal or Rebalance, then on to the Roster (`CampaignRosterData`). */
+export interface CampaignBalancedData {
   readonly campaignId: string;
   readonly expertCampaign?: boolean;
 }
