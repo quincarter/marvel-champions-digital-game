@@ -3,13 +3,14 @@
  * (`view/player-stats-model.ts`, laid out by `view/player-stats-layout.ts`).
  *
  * Tabs: Overview (tiles: the record, how you lose, per-game figures, the favorite hero and the villains with their
- * art), Heroes, Villains, Matchups (villains against heroes and modular sets, four views: two grids, `ui/matchup-grid.ts`,
- * and two lists, `ui/matchup-rows.ts`), Side schemes, Devices (once a synced game says where it was played) and Cards by hero (each hero's most played, most used
- * and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes (on Matchups, the two grids); a
- * pad or keyboard walks every tile, row, card and grid cell, and the list follows the ring. Each card picture, in a
- * strip or leading a row, opens the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and
- * "Share my games" on Everyone), the tabs, the chips, a Matchups shelf or side row, and Back press anything, and none
- * of them sits over the scrolling list.
+ * art), Heroes, Villains, Matchups (villains against heroes and modular sets, four views: two grids,
+ * `ui/matchup-grid.ts`, and two lists, `ui/matchup-rows.ts`), Side schemes, Devices (once a synced game says where it
+ * was played) and Cards by hero (each hero's most played, most used and rarely played cards as pictures). LB / RB
+ * switch tabs and LT / RT switch heroes (on Matchups, the two grids); a pad or keyboard walks every tile, row, card and
+ * grid cell, and the list follows the ring. Each card picture, in a strip, leading a row or in a Matchups view, opens
+ * the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and "Share my games" on
+ * Everyone), the tabs, the chips, a Matchups shelf or side row, and Back press anything, and none of them sits over the
+ * scrolling list.
  *
  * Opened two ways (`PlayerStatsData`): as a screen from the Title, Decks & Collection or the Trophy Room (Back goes to
  * that screen), or as an overlay over Settings or Pause (Back closes it, and the scene under it takes input again).
@@ -56,6 +57,7 @@ import {
   type MatchupKind,
   type MatchupView,
 } from "../view/matchup-grid.js";
+import { scenarioCardIdOf } from "../view/random-villain.js";
 import { loadPlayerStats } from "../view/player-stats-client.js";
 import { loadGlobalStats } from "../global-stats/global-stats-client.js";
 import {
@@ -222,7 +224,7 @@ interface StatsChip {
 
 /** Each hero's picture by identity, kept while the app runs. */
 const heroPictures = new Map<string, string | null>();
-/** The scenarios by id: a Matchups row's picture hovers as that scenario's villain. */
+/** The scenarios by id: a Matchups row's picture hovers as that scenario's card (`scenarioCardIdOf`). */
 const SCENARIOS_BY_ID = new Map<string, (typeof POOL_SCENARIOS)[number]>(POOL_SCENARIOS.map((s) => [s.id, s]));
 /** The Focus view's list of rows, and the screen width it needs beside the tiles; narrower, a stepper takes its place. */
 const SIDE_LIST_WIDTH = 240;
@@ -804,10 +806,11 @@ export class PlayerStatsScene extends Phaser.Scene {
     return heroPictures.get(id) ?? null;
   }
 
-  /** The card a row's or a column's picture stands for, for the hover: the same rule as `#pictureOf`. */
+  /** The card a row's or a column's picture stands for, for the hover: the axes read as in `#pictureOf`. */
   #cardOf(axis: "row" | "column", id: string): string | null {
     const scenarios = (axis === "row") !== gridFlipped;
-    const cardId = scenarios ? SCENARIOS_BY_ID.get(id)?.villainCardId : lastGrid === "heroes" ? id : null;
+    const scenario = scenarios ? SCENARIOS_BY_ID.get(id) : undefined;
+    const cardId = scenario ? scenarioCardIdOf(scenario) : !scenarios && lastGrid === "heroes" ? id : null;
     return cardId && CARDS_BY_ID.has(cardId) ? cardId : null;
   }
 

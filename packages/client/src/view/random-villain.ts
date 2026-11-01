@@ -40,6 +40,10 @@ export const hasRandomVillain = (scenario: Scenario): boolean =>
   scenario.startingVillain === "bySetup" ||
   hasRandomChosenVillain(scenario);
 
+/** The card to show for a scenario: its villain, or its main scheme while the villain is not known until the deal. */
+export const scenarioCardIdOf = (scenario: Scenario): string =>
+  (hasRandomVillain(scenario) ? scenario.mainSchemeCardId : scenario.villainCardId) as string;
+
 /**
  * The label for a random opening villain, or undefined for a scenario that names its villain. `setNames` (encounter
  * set id to name) names the pool a random chosen villain comes from ("Dark Protégé").

@@ -22,9 +22,10 @@ function villainNames(): ReadonlySet<string> {
 let axes: MatchupAxes | undefined;
 /** Everything the Matchups grids can show, in release order: the scenarios, one column per hero, every modular set. */
 function matchupAxes(): MatchupAxes {
+  if (axes) return axes;
   // Once per scenario, never per set: a stats worker lives for one fold, so this runs on every read of the stats.
   const modulars = new Set(POOL_SCENARIOS.flatMap((scenario) => modularCandidatesFor(scenario).map((set) => set.id)));
-  axes ??= {
+  axes = {
     scenarios: POOL_SCENARIOS.map((scenario) => ({ id: scenario.id as string, name: scenario.name })),
     heroes: [...new Set(POOL_STARTER_DECKS.map((deck) => deck.identityCardId as string))].map((id) => {
       const card = CARDS_BY_ID.get(id);
