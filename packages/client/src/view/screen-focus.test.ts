@@ -322,7 +322,24 @@ describe("screen focus routes", () => {
   });
 
   test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
-    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual([
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "cards", cardIds: ["c1"], showSort: true })).toEqual([
+      "back",
+      "tab:curve",
+      "tab:cards",
+      "tab:aspect",
+      "deck-sort",
+      "card:c1",
+      "edit-deck",
+      "start",
+    ]);
+    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1"], showSort: true })).toEqual([
+      "back",
+      "card:c1",
+      "deck-sort",
+      "edit-deck",
+      "start",
+    ]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"], showSort: false })).toEqual([
       "back",
       "tab:curve",
       "tab:cards",

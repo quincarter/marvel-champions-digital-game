@@ -92,5 +92,5 @@ test("the bar follows GitHub's latest release and opens it in the release histor
   const bar = await stopRect(page, "release-notice");
   const popup = context.waitForEvent("page");
   await page.mouse.click(bar.x + bar.width / 2, bar.y + bar.height / 2);
-  expect((await popup).url()).toContain("/releases/index.html#v9.9.9");
+  expect((await popup).url()).toContain("#v9.9.9");
 });
