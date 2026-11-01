@@ -33,7 +33,11 @@ import {
   panToShow,
   readoutOf,
   stepCursor,
+  stampColumnPictureRect,
+  stampPicturesOf,
+  stampRowPictureRect,
   visibleRange,
+  type StampPicture,
   type CellLook,
   type GridCursor,
   type GridPoint,
@@ -65,6 +69,8 @@ export interface McMatchupGridOptions {
   /** A row's and a column's picture, for the stamp grid. */
   readonly rowPicture: (index: number) => string | null;
   readonly columnPicture: (index: number) => string | null;
+  /** The headers have moved under a resting pointer. */
+  readonly onPanned: () => void;
 }
 
 const CELL_GAP = 2;
@@ -282,6 +288,11 @@ export class McMatchupGrid {
     return cellRect(this.#shape, this.#state.pan, this.#state.cursor);
   }
 
+  /** The header pictures in view, for the card hover: none on the heat grid. */
+  get pictures(): readonly StampPicture[] {
+    return this.#options.style === "stamps" ? stampPicturesOf(this.#shape, this.#state.pan, this.#options.phone) : [];
+  }
+
   get bodyRect(): Rect {
     return bodyOf(this.#shape);
   }
@@ -328,8 +339,10 @@ export class McMatchupGrid {
 
   #moveCursor(cursor: GridCursor): void {
     this.#state.cursor = cursor;
+    const { x, y } = this.#state.pan;
     this.#state.pan = panToShow(this.#shape, this.#state.pan, cursor);
     this.#redraw();
+    if (this.#state.pan.x !== x || this.#state.pan.y !== y) this.#options.onPanned();
   }
 
   /** True when the view moved. */
@@ -339,6 +352,7 @@ export class McMatchupGrid {
     this.#state.pan = next;
     this.#state.cursor = cursorInView(this.#shape, next, this.#state.cursor);
     this.#redraw();
+    this.#options.onPanned();
     return true;
   }
 
@@ -509,16 +523,12 @@ export class McMatchupGrid {
     const keep = new Set<string>();
     const pictures = new Set<number>();
     // On a phone a stamp row's picture sits over its name; wider, beside it.
-    const picture = !stamps
-      ? null
-      : phone
-        ? { width: metrics.rowHeader - 10, height: 24 }
-        : { width: 52, height: metrics.cell - 8 };
     for (let row = from; row < to; row++) {
       const key = String(row);
       keep.add(key);
       const top = body.y + row * metrics.cell - pan.y;
       const { text, fresh } = this.#rowLabels.take(key);
+      const picture = stamps ? stampRowPictureRect(this.#shape, pan, row, phone) : null;
       const textWidth = metrics.rowHeader - 14 - (picture && !phone ? picture.width + 8 : 0);
       if (fresh) {
         text.setText(this.#grid.rows[row]!.name);
@@ -527,7 +537,7 @@ export class McMatchupGrid {
       }
       if (picture) {
         pictures.add(row);
-        this.#rowPictures.place(row, () => rowPicture(row), picture.width, picture.height, rect.x + 2, top + 4);
+        this.#rowPictures.place(row, () => rowPicture(row), picture.width, picture.height, picture.x, picture.y);
       }
       if (picture && phone) text.setPosition(rect.x + 2, top + 28 + (metrics.cell - 28) / 2);
       else text.setPosition(rect.x + 4 + (picture ? picture.width + 6 : 0), top + metrics.cell / 2);
@@ -543,7 +553,6 @@ export class McMatchupGrid {
     const stamps = style === "stamps";
     const keep = new Set<string>();
     const pictures = new Set<number>();
-    const pictureHeight = metrics.columnHeader - 38;
     for (let column = from; column < to; column++) {
       const key = String(column);
       keep.add(key);
@@ -556,9 +565,9 @@ export class McMatchupGrid {
       }
       if (stamps) {
         pictures.add(column);
-        const width = metrics.cell - 6;
-        this.#columnPictures.place(column, () => columnPicture(column), width, pictureHeight, left + 3, rect.y + 2);
-        text.setPosition(left + metrics.cell / 2, rect.y + pictureHeight + 5);
+        const { x, y, width, height } = stampColumnPictureRect(this.#shape, pan, column);
+        this.#columnPictures.place(column, () => columnPicture(column), width, height, x, y);
+        text.setPosition(left + metrics.cell / 2, y + height + 3);
       } else {
         text.setPosition(left + metrics.cell / 2, rect.y + metrics.columnHeader - 6);
       }

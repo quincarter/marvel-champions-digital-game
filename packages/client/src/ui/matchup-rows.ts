@@ -6,7 +6,15 @@
 import type Phaser from "phaser";
 import { surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import type { LegendLayout, MatchupTile, ShelfView, WinTier } from "../view/matchup-grid.js";
+import {
+  TILE_RIBBON_HEIGHT,
+  shelfPictureRect,
+  tilePictureRect,
+  type LegendLayout,
+  type MatchupTile,
+  type ShelfView,
+  type WinTier,
+} from "../view/matchup-grid.js";
 import { renderArtThumb } from "../scenes/roster-panel.js";
 import { bangers } from "./campaign-chrome.js";
 import { textStyle } from "./theme.js";
@@ -32,7 +40,6 @@ const LEGEND_SWATCH = 14;
 /** A shelf's pips, across and down, on a screen wide enough to show them. */
 const PIP = 12;
 const PIP_GAP = 3;
-const SHELF_PICTURE = 64;
 const SHELF_NAMES = 230;
 const BADGE_WIDTH = 92;
 
@@ -87,10 +94,9 @@ export function renderShelf(
   g.fillStyle(surface.parchment.hex, 1).fillRect(box.x, box.y, box.width, box.height);
   g.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
   const objects: Phaser.GameObjects.GameObject[] = [g];
-  const size = phone ? box.height - 12 : SHELF_PICTURE;
-  const thumb: Rect = { x: box.x + 6, y: box.y + (box.height - size) / 2, width: size, height: size };
+  const thumb = shelfPictureRect(rect, phone);
   objects.push(renderArtThumb(scene, thumb, picture));
-  const left = thumb.x + size + 10;
+  const left = thumb.x + thumb.width + 10;
   const right = box.x + box.width - 10;
   const name = scene.add
     .text(left, box.y + 8, shelf.name.toUpperCase(), textStyle(bangers(phone ? 18 : 22), surface.ink.hex))
@@ -155,19 +161,12 @@ export function renderTile(
   const played = tile.look.kind === "played";
   g.fillStyle(surface.parchment.hex, 1).fillRect(box.x, box.y, box.width, box.height);
   objects.push(g);
-  const ribbonHeight = 20;
-  const nameHeight = phone ? 26 : 30;
-  const art: Rect = {
-    x: box.x + 2,
-    y: box.y + 2,
-    width: box.width - 4,
-    height: box.height - ribbonHeight - nameHeight - 4,
-  };
+  const art = tilePictureRect(box, phone);
   const thumb = renderArtThumb(scene, art, picture);
   // Pairings not beaten stay in view but stand back, so the wins read first.
   if (!won) (thumb as Phaser.GameObjects.Image).setAlpha(played ? 0.75 : 0.35);
   objects.push(thumb);
-  const ribbon: Rect = { x: box.x, y: art.y + art.height, width: box.width, height: ribbonHeight };
+  const ribbon: Rect = { x: box.x, y: art.y + art.height, width: box.width, height: TILE_RIBBON_HEIGHT };
   const over = scene.add.graphics();
   objects.push(over);
   if (tile.look.kind === "won")

@@ -14,9 +14,12 @@ import {
   matchupsOf,
   panToShow,
   readoutOf,
+  shelfPictureRect,
   shelfRowsOf,
   shelvesOf,
+  stampPicturesOf,
   stepCursor,
+  tilePictureRect,
   tileRowsOf,
   tilesOf,
   visibleRange,
@@ -280,6 +283,38 @@ describe("the grid's geometry", () => {
     expect(stepCursor(shape, { row: 3, column: 3 }, "right")).toEqual({ row: 3, column: 4 });
     expect(stepCursor(shape, { row: 0, column: 3 }, "up")).toBeNull();
     expect(stepCursor(shape, { row: 3, column: 11 }, "right")).toBeNull();
+  });
+
+  test("a stamp grid's pictures are those in view, each in the header band it scrolls in", () => {
+    const pictures = stampPicturesOf(shape, { x: 20, y: 0 }, false);
+    const rows = pictures.filter((p) => p.axis === "row");
+    const columns = pictures.filter((p) => p.axis === "column");
+    expect(rows.map((p) => p.index)).toEqual([0, 1, 2, 3, 4]);
+    expect(columns.map((p) => p.index)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(rows[1]!.rect).toEqual({ x: 12, y: 104, width: 52, height: 32 });
+    expect(rows[1]!.band).toEqual({ x: 10, y: 60, width: 100, height: 200 });
+    expect(columns[1]!.rect).toEqual({ x: 133, y: 22, width: 34, height: 2 });
+    expect(columns[1]!.band).toEqual({ x: 110, y: 20, width: 200, height: 40 });
+  });
+
+  test("a stamp row's picture on a phone spans the names' band", () => {
+    const row = stampPicturesOf(shape, { x: 0, y: 0 }, true).find((p) => p.axis === "row")!;
+    expect(row.rect).toEqual({ x: 12, y: 64, width: 90, height: 24 });
+  });
+
+  test("a shelf's and a tile's picture sit where their rows draw them", () => {
+    expect(shelfPictureRect({ x: 0, y: 100, width: 800, height: 88 }, false)).toEqual({
+      x: 6,
+      y: 112,
+      width: 64,
+      height: 64,
+    });
+    expect(tilePictureRect({ x: 10, y: 20, width: 100, height: 150 }, false)).toEqual({
+      x: 12,
+      y: 22,
+      width: 96,
+      height: 96,
+    });
   });
 
   test("a cursor left past a smaller grid comes back on it", () => {

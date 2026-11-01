@@ -16,7 +16,7 @@
  * The stats are folded in a worker (`view/player-stats-client.ts`) from the saves' rows this scene reads when it opens.
  */
 import Phaser from "phaser";
-import { CARDS_BY_ID, POOL_CARDS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_CARDS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -47,8 +47,10 @@ import {
   MATCHUP_VIEWS,
   MATCHUP_VIEW_LABELS,
   flipGrid,
+  shelfPictureRect,
   shelfRowsOf,
   shelvesOf,
+  tilePictureRect,
   tileRowsOf,
   type MatchupGrid,
   type MatchupKind,
@@ -220,6 +222,8 @@ interface StatsChip {
 
 /** Each hero's picture by identity, kept while the app runs. */
 const heroPictures = new Map<string, string | null>();
+/** The scenarios by id: a Matchups row's picture hovers as that scenario's villain. */
+const SCENARIOS_BY_ID = new Map<string, (typeof POOL_SCENARIOS)[number]>(POOL_SCENARIOS.map((s) => [s.id, s]));
 /** The Focus view's list of rows, and the screen width it needs beside the tiles; narrower, a stepper takes its place. */
 const SIDE_LIST_WIDTH = 240;
 const SIDE_LIST_MIN_SCREEN = 720;
@@ -362,6 +366,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       (window as unknown as { __mcStatsDebug?: unknown }).__mcStatsDebug = {
         hoverShown: () => this.#hover?.shownKey ?? null,
         hoverRect: () => this.#hover?.shownRect ?? null,
+        hoverCards: () => [...this.#hoverCardIds().values()],
         grid: () =>
           this.#grid ? { ...gridPlaceOf(gridKey()), readout: this.#grid.readout, counts: gridCounts } : null,
       };
@@ -477,15 +482,41 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (key) this.#route?.focusKey(key);
   }
 
-  /** The card pictures on screen now, in strips and leading stat rows, each clipped to the list. */
+  /** The card pictures on screen now, in strips, leading stat rows and the Matchups views, each clipped to its view. */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
+    // `through`: the list and the grid take input by position, so nothing in them is an interactive object of its own.
+    const note = (cardId: string | null, slot: string, rect: Rect, clip: Rect): void => {
+      const shown = cardId ? clipHoverRect(rect, clip) : null;
+      if (cardId && shown) found.set(hoverSlotOf(cardId, slot), { ...shown, cardId, through: true });
+    };
+    if (this.#grid) {
+      const matchup = this.#matchup();
+      for (const { axis, index, rect, band } of this.#grid.pictures) {
+        const id = (axis === "row" ? matchup.rows : matchup.columns)[index]!.id;
+        note(this.#cardOf(axis, id), `${axis}:${index}`, rect, band);
+      }
+      return found;
+    }
     const list = this.#list;
     const view = this.#listRect;
     if (!list || !view) return found;
     this.#rows.forEach((row, index) => {
       const r = list.rectFor(index);
-      // `through`: the list takes taps by position, so nothing in a row is an interactive object of its own.
+      // The popover is desktop only, so these are never a phone's pictures.
+      if (row.kind === "matchup" && row.matchup.kind === "shelf") {
+        const id = this.#matchup().rows[row.matchup.shelf.row]!.id;
+        note(this.#cardOf("row", id), `${index}`, shelfPictureRect(r, false), view);
+      }
+      if (row.kind === "matchup" && row.matchup.kind === "tiles") {
+        const { tiles, tileWidth, tileHeight } = row.matchup;
+        const columns = this.#matchup().columns;
+        for (const tile of tiles) {
+          const box = { x: r.x + tile.x, y: r.y, width: tileWidth, height: tileHeight };
+          const cardId = this.#cardOf("column", columns[tile.column]!.id);
+          note(cardId, `${index}:${tile.column}`, tilePictureRect(box, false), view);
+        }
+      }
       if (row.kind === "stat" && row.row.cardId && CARDS_BY_ID.has(row.row.cardId)) {
         const shown = clipHoverRect(statRowPicture(statBox(r)), view);
         if (shown) found.set(hoverSlotOf(row.row.cardId, index), { ...shown, cardId: row.row.cardId, through: true });
@@ -773,6 +804,13 @@ export class PlayerStatsScene extends Phaser.Scene {
     return heroPictures.get(id) ?? null;
   }
 
+  /** The card a row's or a column's picture stands for, for the hover: the same rule as `#pictureOf`. */
+  #cardOf(axis: "row" | "column", id: string): string | null {
+    const scenarios = (axis === "row") !== gridFlipped;
+    const cardId = scenarios ? SCENARIOS_BY_ID.get(id)?.villainCardId : lastGrid === "heroes" ? id : null;
+    return cardId && CARDS_BY_ID.has(cardId) ? cardId : null;
+  }
+
   /** Opens the Focus view on `row`. */
   #openFocus(row: number, byFocus: boolean): void {
     const place = gridPlaceOf(gridKey());
@@ -864,6 +902,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       style: lastView === "stamps" ? "stamps" : "heat",
       rowPicture: (index) => this.#pictureOf("row", matchup.rows[index]!.id),
       columnPicture: (index) => this.#pictureOf("column", matchup.columns[index]!.id),
+      onPanned: () => this.#hover?.onDraw(),
     });
     this.#grid = grid;
     stops.set(GRID_STOP, {

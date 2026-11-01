@@ -252,6 +252,42 @@ test("Matchups: four views behind the toggle, and a shelf opens that villain's F
   expect((await findText(page, "Tried".toUpperCase(), "PlayerStats")).length, "Klaw's loss").toBeGreaterThan(0);
 });
 
+test("Matchups: every view's pictures open the card hover", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "a mouse hover");
+  test.setTimeout(120_000);
+  await openMatchups(page, false);
+  interface Hovered extends Rect {
+    cardId: string;
+  }
+  const stats = () =>
+    page.evaluate(() => {
+      const debug = (window as unknown as { __mcStatsDebug: { hoverShown(): string | null; hoverCards(): Hovered[] } })
+        .__mcStatsDebug;
+      return { shown: debug.hoverShown(), cards: debug.hoverCards() };
+    });
+  expect((await stats()).cards, "the heat grid has no pictures").toEqual([]);
+
+  // The first hero, and the first scenario: Spider-Man's identity card, and Rhino, the pool's first villain.
+  const hoverOn = async (view: string, cardId: string): Promise<void> => {
+    await page.mouse.move(2, 2);
+    await press(page, false, (await tabStop(page, `view:${view}`)).rect);
+    await settle(page);
+    const card = await waitFor(
+      async () => (await stats()).cards.find((c) => c.cardId === cardId) ?? null,
+      `${cardId} on ${view}`,
+      10_000,
+    );
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+    await page.mouse.move(card.x + card.width / 2 + 2, card.y + card.height / 2 + 2);
+    const shown = await waitFor(async () => (await stats()).shown, `the popover on ${view}`, 10_000);
+    expect(shown, `the popover on ${view}`).toContain(cardId);
+  };
+  await hoverOn("stamps", "01001a");
+  await hoverOn("stamps", "01094");
+  await hoverOn("shelves", "01094");
+  await hoverOn("focus", "01001a");
+});
+
 test("Matchups: a swipe pans the grid, and a swipe lifted over a chip does not press it", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "a phone's finger");
   test.setTimeout(120_000);

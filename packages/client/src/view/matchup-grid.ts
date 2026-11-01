@@ -416,6 +416,30 @@ export function tileRowsOf(
   return rows;
 }
 
+/** The side of a shelf's picture, past a phone, whose picture fits its shelf. */
+const SHELF_PICTURE = 64;
+
+/** A shelf's picture in its list row, `rect`. */
+export function shelfPictureRect(rect: Rect, phone: boolean): Rect {
+  const height = rect.height - 6;
+  const size = phone ? height - 12 : SHELF_PICTURE;
+  return { x: rect.x + 6, y: rect.y + 3 + (height - size) / 2, width: size, height: size };
+}
+
+/** The strip under a Focus tile's picture that says what you did. */
+export const TILE_RIBBON_HEIGHT = 20;
+
+/** A Focus tile's picture in the tile's `box`: all of it above the ribbon and the name. */
+export function tilePictureRect(box: Rect, phone: boolean): Rect {
+  const nameHeight = phone ? 26 : 30;
+  return {
+    x: box.x + 2,
+    y: box.y + 2,
+    width: box.width - 4,
+    height: box.height - TILE_RIBBON_HEIGHT - nameHeight - 4,
+  };
+}
+
 export interface GridMetrics {
   readonly cell: number;
   /** The row names' column. */
@@ -493,6 +517,51 @@ export function cellRect(shape: GridShape, pan: GridPoint, { row, column }: Grid
   const { cell } = shape.metrics;
   const body = bodyOf(shape);
   return { x: body.x + column * cell - pan.x, y: body.y + row * cell - pan.y, width: cell, height: cell };
+}
+
+/** A stamp row's picture on screen: over its name on a phone, beside it wider. It may lie outside the row names' band. */
+export function stampRowPictureRect(shape: GridShape, pan: GridPoint, row: number, phone: boolean): Rect {
+  const { cell, rowHeader } = shape.metrics;
+  return {
+    x: shape.rect.x + 2,
+    y: bodyOf(shape).y + row * cell - pan.y + 4,
+    width: phone ? rowHeader - 10 : 52,
+    height: phone ? 24 : cell - 8,
+  };
+}
+
+/** A stamp column's picture on screen, above its name. It may lie outside the column names' band. */
+export function stampColumnPictureRect(shape: GridShape, pan: GridPoint, column: number): Rect {
+  const { cell, columnHeader } = shape.metrics;
+  return {
+    x: bodyOf(shape).x + column * cell - pan.x + 3,
+    y: shape.rect.y + 2,
+    width: cell - 6,
+    height: columnHeader - 38,
+  };
+}
+
+/** A stamp grid's header picture in view; `band` is the header it scrolls in, which clips it. */
+export interface StampPicture {
+  readonly axis: "row" | "column";
+  readonly index: number;
+  readonly rect: Rect;
+  readonly band: Rect;
+}
+
+/** Every header picture in view of a stamp grid. */
+export function stampPicturesOf(shape: GridShape, pan: GridPoint, phone: boolean): readonly StampPicture[] {
+  const { rect, metrics } = shape;
+  const body = bodyOf(shape);
+  const rowBand: Rect = { x: rect.x, y: body.y, width: metrics.rowHeader, height: body.height };
+  const columnBand: Rect = { x: body.x, y: rect.y, width: body.width, height: metrics.columnHeader };
+  const { rowFrom, rowTo, columnFrom, columnTo } = visibleRange(shape, pan);
+  const pictures: StampPicture[] = [];
+  for (let index = rowFrom; index < rowTo; index++)
+    pictures.push({ axis: "row", index, rect: stampRowPictureRect(shape, pan, index, phone), band: rowBand });
+  for (let index = columnFrom; index < columnTo; index++)
+    pictures.push({ axis: "column", index, rect: stampColumnPictureRect(shape, pan, index), band: columnBand });
+  return pictures;
 }
 
 /** The cell under a point of the screen, or null off the body or past the grid's last row or column. */
