@@ -8,8 +8,8 @@
  * and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes (on Matchups, the two grids); a
  * pad or keyboard walks every tile, row, card and grid cell, and the list follows the ring. Each card picture, in a strip or
  * leading a row, opens the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and
- * "Share my games" on Everyone), the tabs, the chips, a Matchups shelf or side row, and Back press anything, and none of them sits over the
- * scrolling list.
+ * "Share my games" on Everyone), the tabs, the chips, a Matchups shelf or side row, and Back press anything, and none
+ * of them sits over the scrolling list.
  *
  * Opened two ways (`PlayerStatsData`): as a screen from the Title, Decks & Collection or the Trophy Room (Back goes to
  * that screen), or as an overlay over Settings or Pause (Back closes it, and the scene under it takes input again).
