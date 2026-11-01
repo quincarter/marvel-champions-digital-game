@@ -24,7 +24,8 @@ import {
   type PlayableScenarioOffer,
   type VillainChoiceOffer,
 } from "@mc/cards";
-import { encounterSetId, type DifficultySetChoice, type Scenario } from "@mc/content";
+import { encounterSetId, type DifficultySetChoice, type PlayModes, type Scenario } from "@mc/content";
+import { applyPlayModeOption, modesOfChoice, playModeRows, reconcileSkirmish } from "./play-mode-options.js";
 import type { SetupDraft } from "./setup-draft.js";
 
 /** What every scenario offers when it is not in the playable pool (a draft naming it never builds). */
@@ -43,13 +44,25 @@ const NO_OFFER: PlayableScenarioOffer = {
   mainSchemePicks: null,
 };
 
-/** The offer for the draft's scenario under its difficulty and modular picks; nothing is offered for an unknown id. */
+/**
+ * The full mode set of a draft, or null when it says nothing `difficulty` does not (`SessionConfig.modes`: absent then,
+ * so a plain game's config is the same as it has always been).
+ */
+export function draftModes(draft: Pick<SetupDraft, "difficulty" | "heroicLevel" | "skirmish">): PlayModes | null {
+  const added = modesOfChoice(draft);
+  if (Object.keys(added).length === 0) return null;
+  return { ...(draft.difficulty === "expert" ? { expert: true as const } : {}), ...added };
+}
+
+/** The offer for the draft's scenario under its difficulty, modes and modular picks; nothing is offered for an unknown id. */
 export function offerOf(
-  draft: Pick<SetupDraft, "scenarioId" | "difficulty" | "modularSetIds" | "civilWar">,
+  draft: Pick<SetupDraft, "scenarioId" | "difficulty" | "modularSetIds" | "civilWar" | "heroicLevel" | "skirmish">,
 ): PlayableScenarioOffer {
+  const modes = draftModes(draft);
   try {
     return playableScenarioOffer(draft.scenarioId, {
       difficulty: draft.difficulty,
+      ...(modes ? { modes } : {}),
       ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds } : {}),
       ...(draft.civilWar && draft.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: draft.civilWar.stageIds } : {}),
     });
@@ -100,6 +113,7 @@ export function reconcileWithOffer(draft: SetupDraft, offer: PlayableScenarioOff
     villainId:
       offer.villains && villainStepIds(offer.villains).includes(draft.villainId ?? "") ? draft.villainId : null,
     easierStart: offer.easierStart ? draft.easierStart : false,
+    ...(draft.skirmish ? { skirmish: reconcileSkirmish(draft.skirmish, offer.skirmish) } : {}),
     // Absent stays absent, so reconciling a draft that never had picks changes nothing (the builder's idempotence).
     ...(draft.mainSchemePicks !== undefined
       ? { mainSchemePicks: offer.mainSchemePicks ? draft.mainSchemePicks : null }
@@ -192,6 +206,8 @@ export interface SetupOptionRow {
     | "horsemanSides"
     | "easierStart"
     | "villain"
+    | "heroic"
+    | "skirmish"
     /** One per seat, `mainScheme:<seat index>`. */
     | `mainScheme:${number}`;
   /** The card's name: a few words. */
@@ -265,6 +281,8 @@ export function setupOptionRowsOf(
     rows.push(setRow("standard", offer.difficultySets.standard, draft.difficultySets?.standard as string | undefined));
   if (expertSetApplies(draft) && offer.difficultySets.expert.length > 0)
     rows.push(setRow("expert", offer.difficultySets.expert, draft.difficultySets?.expert as string | undefined));
+
+  rows.push(...playModeRows(draft, offer.skirmish));
 
   const genePool = offer.genePoolThreat;
   if (genePool) {
@@ -572,6 +590,11 @@ export function applySetupOption(
 
   if (kind === "easierStart") {
     return offer.easierStart ? { ...draft, easierStart: !draft.easierStart } : draft;
+  }
+
+  if (kind === "heroic" || kind === "skirmish") {
+    // The Horsemen's default sides and the Gene Pool recommendation follow the modes, as they do the difficulty.
+    return { ...draft, ...applyPlayModeOption(draft, action, offer.skirmish) };
   }
   return draft;
 }

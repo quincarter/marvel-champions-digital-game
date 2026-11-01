@@ -26,6 +26,7 @@
 
 import type { CampaignId, PlayModes } from "@mc/content";
 import type { CampaignLog, CampaignPosition, CampaignStatus, TableRules } from "@mc/engine";
+import type { IssueModes } from "../view/campaign-modes-model.js";
 
 /** Bumped when the stored record shape changes, so an old campaign is recognized instead of misread. */
 export const CAMPAIGN_STORAGE_SCHEMA = 1;
@@ -65,6 +66,12 @@ export interface CampaignRecord extends CampaignLog {
    * when its game is folded (so a retry starts with it off). Optional: absent is off, and so is every older record.
    */
   readonly easierStartNodeId?: string;
+  /**
+   * The modes the next issue is played under, beside the campaign's own (`view/campaign-modes-model.ts`; the Briefing's
+   * choice, RRG 1.8 p. 29). Kept while that issue is composed or composed again, dropped when its game is folded.
+   * Optional: absent is standard mode, and so is every older record.
+   */
+  readonly issueModes?: IssueModes;
 }
 
 /** The lightweight row `list()` returns — everything `campaign-list-model.ts` renders, nothing a deck or a seat's full field set. */

@@ -85,6 +85,7 @@ import {
   easierStartIsOn,
   type EasierStartBriefing,
 } from "../../view/campaign-easier-start-model.js";
+import { applyIssueMode, issueModeRowsOf, type IssueModeRow } from "../../view/campaign-modes-model.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
@@ -99,6 +100,7 @@ import {
 } from "../../view/campaign-modular-call-model.js";
 import { drawModularCall } from "./briefing-modular-call.js";
 import { drawEasierStart } from "./briefing-easier-start.js";
+import { drawIssueModes } from "./briefing-modes.js";
 import { drawMissionBriefing } from "./briefing-mission.js";
 import { drawShieldBriefing } from "./briefing-shield.js";
 import { drawSideSchemeCall, drawSideSchemeSettled, type SideSchemeDrawContext } from "./briefing-side-scheme.js";
@@ -629,6 +631,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       );
     }
     const easierStart = !seatCall && record.attempt ? this.#easierStartFor(record) : null;
+    const issueModes = !seatCall && record.attempt && !this.#inProgress ? this.#issueModesFor(record) : [];
     const missionBrief = !seatCall ? (view?.missions ?? null) : null;
     if (missionBrief && !schemeBeside) {
       const missionRect: Rect = {
@@ -656,6 +659,14 @@ export class CampaignBriefingScene extends Phaser.Scene {
         leftBottom + 20,
         easierStart,
         () => void this.#toggleEasierStart(),
+      );
+    }
+    if (issueModes.length > 0 && !schemeBeside) {
+      leftBottom = drawIssueModes(
+        this.#schemeContext({ ...leftRect, y: leftBottom + 20 }, phone, stops),
+        leftBottom + 20,
+        issueModes,
+        (action) => void this.#setIssueMode(action),
       );
     }
     if (this.#pending) {
@@ -736,11 +747,19 @@ export class CampaignBriefingScene extends Phaser.Scene {
           rightBottom = drawShieldBriefing(this.#schemeContext(rightRect, phone, stops), rightBottom + 24, shieldBrief);
         }
         if (easierStart) {
-          drawEasierStart(
+          rightBottom = drawEasierStart(
             this.#schemeContext(rightRect, phone, stops),
             rightBottom + 24,
             easierStart,
             () => void this.#toggleEasierStart(),
+          );
+        }
+        if (issueModes.length > 0) {
+          drawIssueModes(
+            this.#schemeContext(rightRect, phone, stops),
+            rightBottom + 24,
+            issueModes,
+            (action) => void this.#setIssueMode(action),
           );
         }
         // Taller than the screen: the column scrolls on its own rather than running under the action bar.
@@ -917,6 +936,36 @@ export class CampaignBriefingScene extends Phaser.Scene {
     } catch {
       return null;
     }
+  }
+
+  /** The Briefing's mode rows for the composed issue; empty when it cannot be launched. */
+  #issueModesFor(record: CampaignRecord): readonly IssueModeRow[] {
+    try {
+      return issueModeRowsOf(campaignService().launchConfig(record).scenarioId, record.issueModes ?? {});
+    } catch {
+      return [];
+    }
+  }
+
+  /** One mode chip: stores the modes and composes the issue again under them. */
+  async #setIssueMode(action: string): Promise<void> {
+    const record = this.#record;
+    if (!record?.attempt || this.#starting || this.#toggling) return;
+    const scenarioId = campaignService().launchConfig(record).scenarioId;
+    this.#toggling = true;
+    this.#startError = null;
+    this.#draw();
+    try {
+      this.#record = await campaignService().setIssueModes(
+        record,
+        applyIssueMode(scenarioId, record.issueModes ?? {}, action),
+      );
+    } catch (error) {
+      this.#startError = error instanceof Error ? error.message : "Couldn't save the mode";
+    } finally {
+      this.#toggling = false;
+    }
+    if (this.sys.isActive()) void this.#compose();
   }
 
   /** Flips the toggle (stored on the run, off by default) and redraws; nothing is composed again. */

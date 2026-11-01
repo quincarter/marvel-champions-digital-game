@@ -127,7 +127,7 @@ export function horsemanSidesOffer(
 ): HorsemanSidesOffer | null {
   const villains = scenario?.multipleVillains?.villains ?? [];
   if (villains.length === 0 || villains.some((entry) => entry.sideBCardId === undefined)) return null;
-  const side: HorsemanSide = modes.expert || modes.heroic ? "B" : "A";
+  const side: HorsemanSide = !modes.skirmish && (modes.expert || modes.heroic) ? "B" : "A";
   return {
     villainNames: villains.map(
       (entry) => PLAYABLE_CARDS.find((card) => card.id === entry.villainCardId)?.name ?? entry.villainCardId,

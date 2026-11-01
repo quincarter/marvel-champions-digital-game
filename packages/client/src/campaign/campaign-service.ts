@@ -37,6 +37,7 @@ import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } fr
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
+import type { IssueModes } from "../view/campaign-modes-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
@@ -194,7 +195,8 @@ export class CampaignService {
   async compose(record: CampaignRecord, answers: readonly CampaignChoiceAnswer[] = []): Promise<CampaignStepResult> {
     if (record.attempt) return { kind: "done", record };
     const definition = this.definitionFor(record);
-    const result = resolveBetweenGames(definition, record, this.#campaignDeps, record.modes, answers);
+    const modes = { ...record.modes, ...record.issueModes };
+    const result = resolveBetweenGames(definition, record, this.#campaignDeps, modes, answers);
     if (result.kind === "pending") return result;
     return { kind: "done", record: await this.#put(record, result.value) };
   }
@@ -262,6 +264,21 @@ export class CampaignService {
     const next: CampaignRecord = {
       ...rest,
       ...(on ? { easierStartNodeId: attempt.nodeId } : {}),
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    return next;
+  }
+
+  /**
+   * Sets the modes the composed issue is played under (the Briefing's choice) and throws the attempt away, so the Briefing
+   * composes it again under them: a mode can change what the issue's setup instructions do.
+   */
+  async setIssueModes(record: CampaignRecord, modes: IssueModes): Promise<CampaignRecord> {
+    const { issueModes: _old, ...rest } = await this.discardAttempt(record);
+    const next: CampaignRecord = {
+      ...rest,
+      ...(Object.keys(modes).length > 0 ? { issueModes: modes } : {}),
       updatedAt: this.#now(),
     };
     await this.storage.put(next);
@@ -438,8 +455,13 @@ export class CampaignService {
       (options.keepEasierStart === true ||
         log.attempt?.nodeId === previous.easierStartNodeId ||
         (!log.attempt && !previous.attempt));
+    const keepIssueModes = options.keepEasierStart === true || log.attempt !== undefined || !previous.attempt;
     // The runner spreads the whole record into the log it returns, so a stale flag must be taken off before it is decided.
-    const { easierStartNodeId: _stale, ...bare } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId">;
+    const {
+      easierStartNodeId: _stale,
+      issueModes: _staleModes,
+      ...bare
+    } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId" | "issueModes">;
     const next: CampaignRecord = {
       ...bare,
       recordSchema: previous.recordSchema,
@@ -450,6 +472,7 @@ export class CampaignService {
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
+      ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
     };
     await this.storage.put(next);
     return next;

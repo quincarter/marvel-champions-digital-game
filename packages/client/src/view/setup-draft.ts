@@ -44,7 +44,13 @@ import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSwap, KeptConflict } from "./name-conflicts.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
-import { effectiveMainSchemePicks, offerOf, reconcileWithOffer, villainSessionFields } from "./setup-options.js";
+import {
+  draftModes,
+  effectiveMainSchemePicks,
+  offerOf,
+  reconcileWithOffer,
+  villainSessionFields,
+} from "./setup-options.js";
 
 export type SetupDifficulty = "standard" | "expert" | "extreme";
 
@@ -61,6 +67,10 @@ export interface SetupDraft {
    */
   readonly scenarioPicked?: boolean;
   readonly difficulty: SetupDifficulty;
+  /** The heroic level (RRG 1.8 p. 29; `view/play-mode-options.ts`): absent or 0 is off. Kept when the scenario changes. */
+  readonly heroicLevel?: number;
+  /** Skirmish mode and its villain version: absent or `null` is off. Only ever what the offer lists (`reconcileWithOffer`). */
+  readonly skirmish?: { readonly villainVersion?: string } | null;
   /** `null` = the scenario's own recommended modular set(s) (`Scenario.recommendedModularSetIds`), the same default `SessionConfig.modularSetIds` documents. */
   readonly modularSetIds: readonly string[] | null;
   /** Deck ids (`Deck.id`), one per seat, 1–4 — a single namespace covering precons, saved and imported decks alike. */
@@ -251,6 +261,7 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
     modularSetIds: scenarioId === draft.scenarioId ? draft.modularSetIds : null,
     difficultySets: null,
+    skirmish: null,
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
     easierStart: false,
@@ -306,9 +317,8 @@ export function toggleTowerDefenseSetupDamage(draft: SetupDraft): SetupDraft {
 /**
  * Whether the setup screen should offer Tower Defense's own damage toggle at all (docs/phase7-wave4.md §4 Q4):
  * only Tower Defense itself prints the recommendation (`checkScenarioSetupOptions`, `@mc/cards`), and only outside
- * skirmish mode (`towerDefenseSetupDamage` in `@mc/cards`' `mts/tower-defense.ts` refuses `modes.skirmish`). The
- * client has no skirmish-mode picker yet, so the mode half of this check is always true today; it's written out
- * so a future skirmish toggle only needs to pass its own state in, not change this function's shape.
+ * skirmish mode (`towerDefenseSetupDamage` in `@mc/cards`' `mts/tower-defense.ts` refuses `modes.skirmish`). Tower
+ * Defense's two villains offer no skirmish mode (`skirmishOffer`), so no caller passes `skirmish` today.
  */
 export function hasTowerDefenseSetupDamageOption(scenario: Scenario | undefined, skirmish = false): boolean {
   return (scenario?.id as string | undefined) === "tower-defense" && !skirmish;
@@ -316,11 +326,10 @@ export function hasTowerDefenseSetupDamageOption(scenario: Scenario | undefined,
 
 /**
  * MC21 p. 11's printed recommendation for the mode being played — 1/2/3 damage per hero for standard/expert/
- * heroic. The client has no heroic-mode picker yet (`SetupDifficulty`), so `difficulty === "expert"` is the only
- * way to reach the 2-per-hero row today; kept as a switch (rather than a two-value lookup) so a future heroic
- * toggle only needs a new case here, not a new function.
+ * heroic, any heroic level (the builder's own reading, `mts/tower-defense.ts`).
  */
-export function towerDefenseSetupDamagePerHero(difficulty: SetupDifficulty): number {
+export function towerDefenseSetupDamagePerHero(difficulty: SetupDifficulty, heroicLevel = 0): number {
+  if (heroicLevel > 0) return 3;
   switch (difficulty) {
     case "expert":
       return 2;
@@ -603,9 +612,11 @@ export function toSessionConfig(
   const options = reconcileWithOffer(draft);
   const schemes = offerOf(draft).mainSchemePicks;
   const mainSchemePicks = schemes ? effectiveMainSchemePicks(options, schemes, players.length) : undefined;
+  const modes = draftModes(options);
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
+    ...(modes ? { modes } : {}),
     players,
     seed: draft.seed,
     ...(modularSetIds ? { modularSetIds } : {}),
