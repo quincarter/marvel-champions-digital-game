@@ -169,7 +169,8 @@ test("a release GitHub knows that this build does not links to GitHub", async ({
 
 test("a version nobody knows opens the newest release", async ({ page }) => {
   await page.goto(`${PAGE}#v0.40.9`);
-  await expect(page.locator("#report h1")).toContainText("Win the game");
+  await expect(page.locator(".list a").first()).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("#report h1")).not.toBeEmpty();
 });
 
 test("a hash change while GitHub answers lands once the list is here", async ({ page }) => {
