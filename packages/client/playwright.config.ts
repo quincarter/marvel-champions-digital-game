@@ -98,6 +98,7 @@ export default defineConfig({
         "deck-builder-quick-filters.spec.ts",
         "victory-display.spec.ts",
         "deck-builder-search-help.spec.ts",
+        "deck-builder-review.spec.ts",
         "ironheart-level-up.spec.ts",
         "tips.spec.ts",
         "overlay-input-block.spec.ts",

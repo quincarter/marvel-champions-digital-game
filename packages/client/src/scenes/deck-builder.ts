@@ -109,7 +109,16 @@ import {
   type PoolSortKey,
   DEFAULT_POOL_SORT,
 } from "../view/deck-builder-model.js";
-import { costCurveBars, deckCountText, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
+import {
+  costCurveBars,
+  deckCountText,
+  deckListGroupsOf,
+  deckListSortLabel,
+  deckStatsOf,
+  nextDeckListSort,
+  type DeckListEntry,
+  type DeckListSort,
+} from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import {
@@ -214,6 +223,7 @@ import { isDesktopType } from "../ui/desktop-type.js";
 import type { SearchHelpSheetData } from "./search-help-sheet.js";
 import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
+import type { DeckCheckSceneData } from "./deck-check.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 
@@ -245,6 +255,8 @@ export interface DeckBuilderSceneData {
   readonly campaign?: DeckBuilderCampaignData;
   /** Open on the deck rail's From your games tab (Decks & Collection's "Build my own from this" / "Edit with these"). */
   readonly railTab?: "deck" | "games";
+  /** Open on this narrow tab: coming back from Deck check, on the Deck tab that opened it. */
+  readonly tab?: DeckBuilderTab;
 }
 
 /** The identity row's art window, wide for its height: a cover crop of the hero's face and shoulders. */
@@ -396,6 +408,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   } | null = null;
   #filterText = "";
   #sort: PoolSort = DEFAULT_POOL_SORT;
+  /** How the Your deck list is sorted (issue #594). */
+  #deckSort: DeckListSort = "aspect";
   #status: string | null = null;
   /** The id of the deck this visit last saved, so Back can hand it to Decks to select. */
   #savedDeckId: string | null = null;
@@ -524,6 +538,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#filter = { ...view.filter };
     this.#sort = view.sort;
     this.#poolView = view.poolView;
+    this.#deckSort = view.deckSort;
     this.#filterText = "";
     this.#status =
       given && this.#deck !== given
@@ -558,7 +573,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#shareShownAt = null;
     this.#stepTimer = null;
     this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
-    this.#tab = startTab(data.railTab, this.#campaign !== null);
+    this.#tab = data.tab ?? startTab(data.railTab, this.#campaign !== null);
     this.#hints = new GlyphHints(this);
     if (!this.#campaign) {
       void appSession()
@@ -828,6 +843,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         quickFilterIds: QUICK_FILTERS.map((f) => f.id),
         chartIds: [...this.#stops.keys()].filter((key) => key.startsWith("chart:") || key.startsWith("odds:")),
         poolCardIds: pool.map((card) => card.id as string),
+        deckListIds: ["deck-sort", ...(this.#campaign ? [] : ["deck-review"])],
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
         showDelete: !this.#campaign && this.#savedDeck !== null,
@@ -874,7 +890,12 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   /** Keeps the pool's sort, filters and view for the next visit (`platform/deck-builder-view.ts`). */
   #rememberView(): void {
-    rememberDeckBuilderView({ sort: this.#sort, filter: this.#filter, poolView: this.#poolView });
+    rememberDeckBuilderView({
+      sort: this.#sort,
+      filter: this.#filter,
+      poolView: this.#poolView,
+      deckSort: this.#deckSort,
+    });
   }
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
@@ -2216,7 +2237,8 @@ ${entry.detail}`,
       onDark ? surface.paper.hex : surface.ink.hex,
       onDark ? ink.secondary : ink.label,
     );
-    const groups = deckListGroupsOf(deck, POOL);
+    const listTop = this.#drawDeckListControls(left, top + 16, column, onDark);
+    const groups = deckListGroupsOf(deck, POOL, this.#deckSort);
     const noteOf = this.#campaign
       ? (entry: DeckListEntry): string | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
@@ -2265,7 +2287,7 @@ ${entry.detail}`,
     const bottom = drawGroupedCardList(
       this,
       left,
-      top + 16,
+      listTop,
       column,
       groups,
       Infinity,
@@ -2281,7 +2303,12 @@ ${entry.detail}`,
         }),
     );
     if (maxHeight === undefined || bottom - top <= maxHeight) return bottom;
-    const rect: Rect = { x: left, y: top + 16, width: column, height: Math.max(hit.target * 2, maxHeight - 16) };
+    const rect: Rect = {
+      x: left,
+      y: listTop,
+      width: column,
+      height: Math.max(hit.target * 2, maxHeight - (listTop - top)),
+    };
     const added = this.children.list.slice(before);
     this.#yourDeckRect = rect;
     const region = new McScrollRegion(this, {
@@ -2294,6 +2321,56 @@ ${entry.detail}`,
     region.content.add(added);
     region.syncInteractivity();
     return rect.y + rect.height + 8;
+  }
+
+  /** The Your deck list's Sort (issue #594) and Review (issue #595) controls; returns where the list starts. */
+  #drawDeckListControls(left: number, top: number, column: number, onDark: boolean): number {
+    const gap = 8;
+    // A campaign deck is judged against its campaign, which Deck check knows nothing of: it has no Review.
+    const width = this.#campaign ? column : (column - gap) / 2;
+    const sortRect: Rect = { x: left, y: top, width, height: hit.target };
+    const kind = onDark ? "onInk" : "secondary";
+    const sort = (): void => {
+      this.#deckSort = nextDeckListSort(this.#deckSort);
+      this.#rememberView();
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind,
+        label: deckListSortLabel(this.#deckSort),
+        type: typeRole.label,
+        rect: sortRect,
+        onClick: sort,
+      }),
+    );
+    this.#stops.set("deck-sort", { rect: sortRect, activate: sort });
+    if (!this.#campaign) {
+      const reviewRect: Rect = { x: left + width + gap, y: top, width, height: hit.target };
+      // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
+      const review = (): void => this.#reviewDeck(this.#deck!);
+      this.#buttons.push(
+        new McButton(this, {
+          kind,
+          label: "Review",
+          type: typeRole.label,
+          rect: reviewRect,
+          enabled: !this.#busy,
+          onClick: review,
+        }),
+      );
+      this.#stops.set("deck-review", { rect: reviewRect, activate: review });
+    }
+    return top + hit.target + gap;
+  }
+
+  /** Opens Deck check on the deck as it stands, saved or not; its Back and Edit deck come back here with that deck. */
+  #reviewDeck(deck: Deck): void {
+    const data: DeckBuilderSceneData = { deck, ...(this.#isWide() ? {} : { tab: "deck" as const }) };
+    goToScreen(this, SCENES.deckCheck, {
+      deck,
+      returnTo: { scene: SCENES.deckBuilder, data },
+    } satisfies DeckCheckSceneData);
   }
 
   /**
@@ -2349,7 +2426,8 @@ ${entry.detail}`,
       }
       const precon = resetToPrecon(deck, this.#identity!, POOL_STARTER_DECKS);
       const doPrecon = (): void => {
-        if (precon) this.#setDeck(precon);
+        const fresh = resetToPrecon(this.#deck!, this.#identity!, POOL_STARTER_DECKS);
+        if (fresh) this.#setDeck(fresh);
       };
       this.#buttons.push(
         new McButton(this, {
@@ -2363,7 +2441,7 @@ ${entry.detail}`,
         }),
       );
       this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
-      const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
+      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, POOL));
       this.#buttons.push(
         new McButton(this, {
           kind: onDark ? "onInk" : "secondary",
