@@ -70,8 +70,9 @@ describe("on.damage: damage dealt or damage taken", () => {
       "55020.ulik-forced-response",
     ]);
     // 20 with wave 8 in the playable pool: Bishop's Energy Absorption (45001a, "After Bishop takes any amount of damage").
-    // 22 with wave 9 in the playable pool (two more "takes damage" readers); 23 with wave 11's Mary Walker (60113b).
-    expect(byReading.taken).toHaveLength(23);
+    // 22 with wave 9 in the playable pool (two more "takes damage" readers); 23 with wave 11's Mary Walker (60113b); 24 with
+    // the Balanced Galaxy's Most Wanted guard on Nebula's Ship (16093.balanced-evasion-guard, issue #609).
+    expect(byReading.taken).toHaveLength(24);
     expect(byReading.taken).toContain("60113b.mary-walker-forced-response");
     expect(byReading.taken).toContain("45001a.energy-absorption");
     // Schadenfreude's lasting "each time you deal any amount of damage" is the third dealt reader.
