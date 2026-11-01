@@ -153,6 +153,7 @@ export default defineConfig({
         "peek-banner-move.spec.ts",
         "payment-table-tile-tap.spec.ts",
         "org-support-one-way.spec.ts",
+        "play-modes.spec.ts",
         "music-volume-pause.spec.ts",
         "villain-boost-breakdown.spec.ts",
         "treachery-scheme-boost.spec.ts",

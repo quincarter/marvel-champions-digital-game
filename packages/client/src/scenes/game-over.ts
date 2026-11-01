@@ -143,7 +143,8 @@ export class GameOverScene extends Phaser.Scene {
       // status yet; the cache itself catches up on the refresh below.
       const before = unlocks();
       const after = new Unlocks({
-        progress: withWin(before.progress, config.scenarioId, config.difficulty),
+        // A Skirmish game is shorter: a win, but not an Expert win.
+        progress: withWin(before.progress, config.scenarioId, config.modes?.skirmish ? "standard" : config.difficulty),
         prefs: before.prefs,
         devUnlockAll: before.devUnlockAll,
       });

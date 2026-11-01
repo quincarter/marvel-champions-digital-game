@@ -731,6 +731,8 @@ export interface ScenarioRules {
    * standard. Read by the mode-only faces rule (`modeOnlyFlipped`; docs/phase7-wave4.md §3.18).
    */
   readonly difficulty?: "expert";
+  /** `GameSetupConfig.heroicLevel`: extra encounter cards per player each villain phase. Absent is 0. */
+  readonly heroicLevel?: number;
   /** `GameSetupConfig.scenarioRuleSpecs`: rules the scenario imposes without a card (docs/phase7-wave4.md §3.40). */
   readonly rules?: readonly RuleSpec[];
   /**
