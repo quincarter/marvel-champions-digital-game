@@ -24,6 +24,7 @@ import {
   CHOOSABLE_ASPECTS,
   cardOfferedToDeck,
   requiredIdentitySet,
+  uniqueLabel,
   validateDeck,
   type CardPool,
   type DeckValidation,
@@ -184,8 +185,9 @@ export function duplicateDeck(deck: Deck, id: string, now: string, existingNames
   };
 }
 
-/** The words a text search reads on a card besides its name: its traits, its type ("event", "player side scheme") and its rules text. */
+/** What a text search reads on a card besides its name: subtitle, traits, type ("event") and rules text. */
 const searchWordsOf = (card: AnyCard): readonly string[] => [
+  ...("subtitle" in card && card.subtitle ? [card.subtitle] : []),
   ...("traits" in card ? (card.traits as readonly string[]) : []),
   card.type.replace(/_/g, " "),
   ...("text" in card && card.text ? [rulesTextOf(card.text)] : []),
@@ -264,19 +266,34 @@ export function browsablePool(
   // already reads it that way). Listing every printing separately showed
   // "Energy" seven times over, once per pack that happened to reprint it,
   // which reads as seven different cards rather than one. One row per
-  // distinct (name, type): the first printing found — `pool` is Core-first,
+  // reprint: the first printing found — `pool` is Core-first,
   // then wave 1 in pack order (`content/pool.ts`), so a Core reprint's own
   // id wins when one exists, matching what a player already has in an
   // existing Core deck. `addCard`/`removeCard` then always add against that
-  // one id, so a deck never splits the same titled card across two ids.
+  // one id, so a deck never splits a reprint across two ids.
+  // A reprint matches on title, subtitle, type, aspect and cost: the same name
+  // alone is not the same card (issue #598, the seven Spider-Man allies). This
+  // only folds rows: two rows of one title are still copies (RRG 1.8 "Copy",
+  // p. 13), and `validateDeck` judges them.
   const seen = new Map<string, AnyCard>();
   for (const card of filtered) {
-    const key = `${card.name} ${card.type}`;
+    const key = reprintKeyOf(card);
     // A printing the deck holds wins over an earlier one, so the row's "-" removes what is actually in the deck.
     const have = seen.get(key);
     if (!have || (held.has(card.id as string) && !held.has(have.id as string))) seen.set(key, card);
   }
   return sortPool([...seen.values()], sort, packs, relevance ?? nameMatchRelevance([...seen.values()], filter.text));
+}
+
+/** The subtitle `fitText` dropped from a pool title drawn as `shownTitle`, for the line below; null when it still shows. */
+export function subtitleCutFrom(card: AnyCard, shownTitle: string): string | null {
+  return "subtitle" in card && card.subtitle && !shownTitle.includes(card.subtitle) ? card.subtitle : null;
+}
+
+/** Printings of one card share this: the title and subtitle, and what would make a player choose between them. */
+function reprintKeyOf(card: AnyCard): string {
+  const aspect = "aspect" in card ? card.aspect : null;
+  return [uniqueLabel(card), card.type, aspect, costOf(card)].join("|");
 }
 
 /** With no ranked search to go by, a text search's relevance is whether a card's name matches every word (1) or not (0). */
@@ -314,7 +331,7 @@ function compareBy(
     case "match":
       return (a, b) => (relevance.get(b.id as string) ?? 0) - (relevance.get(a.id as string) ?? 0);
     case "name":
-      return (a, b) => a.name.localeCompare(b.name);
+      return (a, b) => uniqueLabel(a).localeCompare(uniqueLabel(b));
     case "cost":
       return (a, b) => byNumber(costOf(a), costOf(b));
     case "type":

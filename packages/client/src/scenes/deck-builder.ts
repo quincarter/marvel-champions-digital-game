@@ -53,7 +53,13 @@
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
-import { DECK_MIN_CARDS, requiredIdentitySet, type CampaignDeckContext, type CampaignGrant } from "@mc/engine";
+import {
+  DECK_MIN_CARDS,
+  requiredIdentitySet,
+  uniqueLabel,
+  type CampaignDeckContext,
+  type CampaignGrant,
+} from "@mc/engine";
 import type { CardId } from "@mc/content";
 import {
   CARDS_BY_ID,
@@ -89,6 +95,7 @@ import {
   touch,
   poolRowNote,
   poolTypeLine,
+  subtitleCutFrom,
   identityOptions,
   legalityOf,
   removeCard,
@@ -2709,15 +2716,24 @@ ${entry.detail}`,
       }
 
       const captionY = cardRect.y + geometry.artHeight;
-      const name = this.add.text(cardRect.x + 6, captionY, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
+      const name = this.add.text(
+        cardRect.x + 6,
+        captionY,
+        uniqueLabel(card),
+        textStyle(typeRole.rowTitle, surface.ink.hex),
+      );
       fitText(name, cardRect.width - 12);
       objects.push(name);
+      // A narrow tile drops the subtitle from the title line; it moves to the line below, to tell the card apart.
+      const subtitleCut = subtitleCutFrom(card, name.text);
       const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
       const captionText = campaignRow?.locked
         ? "campaign grant"
         : campaignRow?.refused
           ? "removed from campaign"
-          : (note ?? poolTypeLine(card));
+          : subtitleCut && note
+            ? `${subtitleCut} · ${note}`
+            : (note ?? subtitleCut ?? poolTypeLine(card));
       const caption = label(
         this,
         cardRect.x + 6,
@@ -3123,10 +3139,11 @@ ${entry.detail}`,
     );
     const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
     const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
-    const name = this.add.text(textX, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
+    const name = this.add.text(textX, row.y + 6, uniqueLabel(card), textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(name, textWidth);
     objects.push(name);
-    const typeText = poolTypeLine(card);
+    const subtitleCut = subtitleCutFrom(card, name.text);
+    const typeText = subtitleCut ? `${subtitleCut} · ${poolTypeLine(card)}` : poolTypeLine(card);
     // Why a card is listed when the chosen aspect would not allow it, or why it is refused (held, but not allowed).
     const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
     // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so

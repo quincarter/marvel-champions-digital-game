@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "@mc/content";
+import { POOL_CARDS } from "../content/pool.js";
 import { cardSearchDocumentOf, plainRulesTextOf } from "./card-search-document.js";
 import { prepareDocuments, rankDocuments } from "./deck-search.js";
 
@@ -13,6 +14,19 @@ const ranked = (query: string): string[] =>
 const nameOf = (id: string): string => CORE_CARDS.find((card) => (card.id as string) === id)!.name;
 
 describe("cardSearchDocumentOf", () => {
+  test("a subtitle tells apart allies that share a name (issue #596)", () => {
+    const allies = POOL_CARDS.filter((card) => card.name === "Spider-Man" && card.type === "ally");
+    const found = rankDocuments(prepareDocuments(allies.map((card) => cardSearchDocumentOf(card))), "otto");
+    expect(found.map((r) => r.id)).toEqual(["31022"]);
+  });
+
+  test(`"spdr" finds SP//dr (issue #597)`, () => {
+    const named = POOL_CARDS.filter((card) => card.name.includes("SP//dr"));
+    expect(named.length).toBeGreaterThan(0);
+    const found = rankDocuments(prepareDocuments(named.map((card) => cardSearchDocumentOf(card))), "spdr");
+    expect(found).toHaveLength(named.length);
+  });
+
   test("a name match ranks above a card that only mentions the word in its rules", () => {
     const found = ranked("for justice");
     expect(nameOf(found[0]!)).toBe("For Justice!");
