@@ -1,6 +1,6 @@
 ## The Galaxy Is Unfair
 
-The Galaxy's Most Wanted gets an opt-in Balanced option, asked for by Borja and built on the fixes by Gideon's Gaming, with @bluefireF5ran's edited scans (#609). Heroic and Skirmish arrive from the Rules Reference, suggested by @zackburnley (#611). Every campaign's Briefing wears its box art (#613), and @PermaKarma's ideas bring 45 more trophies, plus The Galaxy Is Unfair itself (#615). @bluefireF5ran also wrote this release's rules fixes (#607). Thank you!
+The Galaxy's Most Wanted gets an opt-in Balanced option, asked for by Borja and built on the fixes by Gideon's Gaming, with @bluefireF5ran's edited scans (#609). Heroic and Skirmish arrive from the Rules Reference, suggested by @zackburnley (#611). Every campaign's Briefing wears its box art (#613), and @PermaKarma's ideas bring 45 more trophies, plus The Galaxy Is Unfair itself (#615). @bluefireF5ran also wrote this release's rules fixes (#607) and tracked down Breakout's Dreadpool bug (#619). Thank you!
 
 **[Read the full v0.43.0 report on the site ↗](https://marvel-champions-digital-game.netlify.app/releases/v0.43.0/)**: the Balanced campaign, Heroic and Skirmish, box art on every Briefing, the new trophies, the rules fixes, and the thank-you wall.
 
@@ -16,7 +16,7 @@ The Galaxy's Most Wanted gets an opt-in Balanced option, asked for by Borja and 
 
 ![45 more trophies: doppelgangers, arch-enemies, team-ups and their art in Extras](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-05-45-more-trophies.jpg)
 
-![You asked, we fixed: five rules fixes from bluefireF5ran and the card scan fallback](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-06-you-asked-we-fixed.jpg)
+![You asked, we fixed: seven fixes from bluefireF5ran and more](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-06-you-asked-we-fixed.jpg)
 
 ![Also in v0.43.0: engine and docs changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-07-also-in-v0-43-0.jpg)
 
