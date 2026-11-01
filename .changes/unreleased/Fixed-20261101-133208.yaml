@@ -1,0 +1,3 @@
+kind: Fixed
+body: A press on the Briefing's deck rows, role tiles and pick tiles needs a real tap, so a swipe that lifts on one no longer opens it
+time: 2026-11-01T13:32:08.9036265-05:00
