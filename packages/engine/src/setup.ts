@@ -1318,7 +1318,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       for (const included of includedSets) {
         const ids = included.setup.shuffledIn.map((cardId) => {
           const cardInstanceId = nextId();
-          instances[cardInstanceId] = blankInstance(cardInstanceId, cardId, null, { kind: "encounterDeck", deckId });
+          instances[cardInstanceId] = blankInstance(cardInstanceId, cardId, null, ACTIVE_DECK_HOME);
           return cardInstanceId;
         });
         deck.push(...ids);
@@ -1348,11 +1348,13 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     );
     encounterSetAside.push(id);
   }
-  // The rest of each included set waits in the set-aside area, homed to the deck its `shuffledIn` cards joined.
+  // The rest of each included set waits in the set-aside area. No included card has a villain's deck of its own (MC03
+  // insert p. 4), so it discards to the active villain's pile, as ruling Jan 17, 2026 (5) for a nemesis minion
+  // (docs/phase7-wave1.md §3.2). The insert does not name the Dreadpool's own cards: engine reading.
   for (const entry of autoIncluded) {
     for (const cardId of entry.included.remainder) {
       const id = nextId();
-      instances[id] = blankInstance(id, cardId, null, { kind: "encounterDeck", deckId: entry.deckId });
+      instances[id] = blankInstance(id, cardId, null, ACTIVE_DECK_HOME);
       encounterSetAside.push(id);
       entry.setAside.push(id);
     }
