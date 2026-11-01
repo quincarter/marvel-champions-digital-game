@@ -31,6 +31,7 @@ import type { SetupDraft } from "./setup-draft.js";
 const NO_OFFER: PlayableScenarioOffer = {
   difficultySets: { standard: [], expert: [] },
   horsemanSides: null,
+  skirmish: null,
   easierStart: false,
   genePoolThreat: null,
   modularSetCount: { min: 0, max: 0, problem: null },

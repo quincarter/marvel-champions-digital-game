@@ -331,6 +331,11 @@ export interface GameSetupConfig {
    * side faceup if the players are playing expert mode". docs/phase7-wave4.md §3.18.
    */
   readonly difficulty?: "standard" | "expert";
+  /**
+   * The heroic level X (RRG 1.8 "Modes of Play", p. 29): "during step three of each villain phase, deal X additional
+   * encounter cards to each player". Absent is 0, so every older save deals as it did.
+   */
+  readonly heroicLevel?: number;
   /** The table's own options (`TableRules`, `state.ts`): each defaults to off; stored in the state when on. */
   readonly tableRules?: TableRules;
   /**
@@ -1697,6 +1702,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.activeCounter ? { activeCounter: config.activeCounter } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+      ...(config.heroicLevel ? { heroicLevel: config.heroicLevel } : {}),
       ...(scenarioRuleSpecs.length > 0 ? { rules: scenarioRuleSpecs } : {}),
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }

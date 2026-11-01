@@ -20,6 +20,8 @@
  *   Evil scenario may be played against and its default, answered as `PlayableScenarioOptions.villainSetId`; at a
  *   card-keyed choice (Shadowland's Dark Protégé, docs/phase7-shadowland.md §4.1) answered as `villainCardId`, with
  *   "random" the default. Null at every scenario whose villain is fixed (`Scenario.villainOptions` absent).
+ * - **Skirmish mode** (`skirmishOffer`; RRG 1.8 p. 29, issue #611): the villain versions to choose from, an offer with no
+ *   choice where the rulebook prints its own skirmish rule, or null where one version cannot stand alone.
  */
 import {
   PLAYABLE_CARDS,
@@ -142,6 +144,43 @@ export function horsemanSidesOffer(
 export function scenarioGameSetIds(scenario: Scenario, modularSetIds?: readonly string[]): readonly string[] {
   const picks = modularSetIds ?? (scenario.modularSetPool ? [] : scenario.recommendedModularSetIds);
   return [...new Set<string>([...scenarioOwnSetIds(scenario), ...picks])];
+}
+
+export interface SkirmishOffer {
+  /**
+   * The stage numbers to choose from, as `PlayModes.skirmish.villainVersion` takes them: the stages the scenario uses
+   * for the modes being played (issue #611 question 1), since RRG 1.8 p. 29 removes "each other version in the villain
+   * deck". Empty at a `printed` scenario.
+   */
+  readonly versions: readonly string[];
+  /** The rulebook prints what skirmish does here (Loki and Mansion Attack's counts, the Horsemen's sides): no choice. */
+  readonly printed: boolean;
+}
+
+/**
+ * Whether a game of `scenario` can be played in skirmish mode. Three shapes (issue #611 question 3):
+ *
+ * - The rulebook has its own skirmish rule: offered with no choice. Mansion Attack and Loki print the count of villains
+ *   to defeat (`Scenario.victoryCondition`), the Four Horsemen their sides (MC45 p. 11).
+ * - One villain that wins when its last stage is defeated, with more than one stage in the deck: the version picker.
+ * - Anything else is null. The villain leaves play by card text a removed stage would break (Kang, Apocalypse, The
+ *   God of Lies), several villains share the game with no printed rule (RRG 1.8 p. 29's "any one version of the villain"
+ *   does not say which), or the villain deck has one version already, so there is nothing to shorten.
+ */
+export function skirmishOffer(
+  scenario:
+    | Pick<Scenario, "villainStages" | "multipleVillains" | "villainOptions" | "victory" | "victoryCondition">
+    | undefined,
+  modes: PlayModes = {},
+): SkirmishOffer | null {
+  if (!scenario) return null;
+  if (scenario.victoryCondition?.skirmish !== undefined || horsemanSidesOffer(scenario, modes) !== null)
+    return { versions: [], printed: true };
+  if (scenario.multipleVillains || scenario.villainOptions) return null;
+  if ((scenario.victory ?? "finalVillainStage") !== "finalVillainStage") return null;
+  const [first, last] = scenario.villainStages[modes.expert ? "expert" : "standard"];
+  if (first === last) return null;
+  return { versions: Array.from({ length: last - first + 1 }, (_, i) => String(first + i)), printed: false };
 }
 
 export interface GenePoolThreatOffer {
@@ -276,6 +315,8 @@ export interface PlayableScenarioChoices {
 export interface PlayableScenarioOffer {
   readonly difficultySets: DifficultySetAlternatives;
   readonly horsemanSides: HorsemanSidesOffer | null;
+  /** Skirmish mode at this scenario (`skirmishOffer`); null where it cannot be played. */
+  readonly skirmish: SkirmishOffer | null;
   readonly easierStart: boolean;
   readonly genePoolThreat: GenePoolThreatOffer | null;
   /** How many modular sets the scenario takes, and what is wrong with the number picked so far. */
@@ -441,6 +482,7 @@ export function playableScenarioOffer(
   return {
     difficultySets: difficultySetAlternativesFor(scenario),
     horsemanSides: horsemanSidesOffer(scenario, modes),
+    skirmish: skirmishOffer(scenario, modes),
     easierStart: offersEasierStart(scenarioId, modes.expert ? "expert" : "standard"),
     genePoolThreat: genePoolThreatOffer(scenarioGameSetIds(scenario, choices.modularSetIds), modes),
     modularSetCount: {

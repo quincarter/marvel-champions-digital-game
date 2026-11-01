@@ -97,6 +97,7 @@ export {
   offersGenePoolThreat,
   playableScenarioOffer,
   scenarioGameSetIds,
+  skirmishOffer,
   standardSetReplaceable,
   villainChoiceOffer,
 } from "./playable/scenario-options.js";
@@ -107,6 +108,7 @@ export type {
   GameModeOption,
   GenePoolThreatOffer,
   HorsemanSidesOffer,
+  SkirmishOffer,
   MainSchemePickOption,
   MainSchemePicksOffer,
   MainSchemeStagesChoiceOffer,
