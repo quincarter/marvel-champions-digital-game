@@ -447,6 +447,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `&fixture=sync-ratio`: SP//dr in hero form with two ready Interface upgrades and a card to pay for (issue #601).
+  if (screen === "board" && params.get("fixture") === "sync-ratio") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startSyncRatioGame } = await import("../store/dev-sync-ratio-game.js");
+      await startSyncRatioGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=crowded`: three seats (Doctor Strange first) with the table full, for the Card size QA
   // (`store/dev-crowded-game.ts`).
   if (screen === "board" && params.get("fixture") === "crowded") {

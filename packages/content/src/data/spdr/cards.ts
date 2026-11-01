@@ -60,7 +60,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
         traits: [trait("INACTIVE"), trait("TECH")],
         keywords: [{ name: "permanent" }],
         text: {
-          printed: "Permanent. This card's printed text box cannot be treated as if it were blank.\nReturn to Base — Forced Interrupt: When you flip to this side, flip SP//dr to Peni Parker. Detach Peni Parker from here, moving all counters on this card and cards attached to this card to her.",
+          printed: "Permanent. This card's printed text box cannot be treated as if it were blank.\nReturn to Base — Forced Interrupt: When you flip to this side, flip SP//dr to Peni Parker. Detach Peni Parker from here, moving all counters on her and cards attached to her to this card.",
           current: "Permanent. This card's printed text box cannot be treated as if it were blank.\nReturn to Base — Forced Interrupt: When you flip to this side, flip SP//dr to Peni Parker. Detach Peni Parker from here, moving all counters on this card and cards attached to this card to her.",
         },
         abilities: [

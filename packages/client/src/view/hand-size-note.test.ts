@@ -89,16 +89,16 @@ describe("Iron Man's hand size, explained (issue #150)", () => {
   });
 
   test("each Tech upgrade in play counts: two make it 3, still under 4, so it still asks", async () => {
-    let state = holding(await heroTurn("core-iron-man-aggression"), 0);
+    let state = holding(await heroTurn("core-iron-man-aggression"), 1);
     state = intoPlay(intoPlay(state, "01035"), "01039");
     const me = state.players[0]!.playerId;
 
     const note = handSizeNoteOf(state, me, POOL_DEPS)!;
     expect(note.handSize).toBe(3);
-    expect(note.willDraw).toBe(3);
+    expect(note.willDraw).toBe(2);
     expect(note.why[1]).toBe(`Iron Man: +2 now. ${TECH_TEXT}`);
     expect(smallHandSizeConfirmOf(state, me, POOL_DEPS)).toMatch(
-      /^Iron Man's hand size is only 3: you hold 0, so the end-of-turn draw adds 3\./,
+      /^Iron Man's hand size is only 3: you hold 1, so the end-of-turn draw adds 2\./,
     );
   });
 
@@ -107,6 +107,11 @@ describe("Iron Man's hand size, explained (issue #150)", () => {
     expect(smallHandSizeConfirmOf(state, state.players[0]!.playerId, POOL_DEPS)).toMatch(
       /^Iron Man's hand size is only 1: you hold 3, so you will discard down to 1 and draw nothing\./,
     );
+  });
+
+  test("an empty hand: the draw fills it, so it does not ask (issue #600)", async () => {
+    const state = holding(await heroTurn("core-iron-man-aggression"), 0);
+    expect(smallHandSizeConfirmOf(state, state.players[0]!.playerId, POOL_DEPS)).toBeNull();
   });
 
   test("a third makes it 4: no confirm", async () => {
