@@ -218,7 +218,7 @@ export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
     id: "faded-campaign-art",
     title: "Faded art on campaign pages",
     detail:
-      "Shows the campaign box art, faded, behind the side panel of a campaign page. Off leaves the panel a plain color.",
+      "Shows the campaign box art, faded, behind the side panel of campaign pages (the Briefing and the start-a-campaign prompt). Off leaves the panel a plain color.",
     on: settings.fadedCampaignArt,
   };
 }

@@ -139,6 +139,7 @@ export default defineConfig({
         "settings-close-after-card-size.spec.ts",
         "villain-phase-gate.spec.ts",
         "campaign-balanced.spec.ts",
+        "briefing-deck-row-tap.spec.ts",
         "discard-stale-pick.spec.ts",
         "villain-review-handle.spec.ts",
         "player-stats.spec.ts",
