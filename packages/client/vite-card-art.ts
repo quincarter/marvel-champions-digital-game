@@ -44,6 +44,7 @@ import path from "node:path";
 import { runnerImport, type Plugin, type Connect } from "vite";
 import { CARD_ART_ROUTE } from "./src/art/art-source.js";
 import { BASE_CARD_LANGUAGE, CARD_LANGUAGES, isCardLanguage, type CardLanguage } from "./src/art/card-language.js";
+import { normalScansFor } from "./src/art/balanced-fallback.js";
 
 export { CARD_ART_ROUTE };
 
@@ -112,8 +113,11 @@ async function readArt(
     const bytes = file === null ? null : await readFile(file).catch(() => null);
     if (bytes !== null) return { bytes, root };
   }
-  const normal = relative.replace(/-balanced(.w+)$/, "$1");
-  return normal === relative ? null : readArt(roots, normal);
+  for (const normal of normalScansFor(relative)) {
+    const art = await readArt(roots, normal);
+    if (art !== null) return art;
+  }
+  return null;
 }
 
 /**
