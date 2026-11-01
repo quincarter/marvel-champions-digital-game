@@ -254,6 +254,13 @@ export async function seedGmwRun(
 }
 
 /** Stores a run at `stop` and returns it. Each call makes a new run. */
+/** A fresh run of any campaign, signed with two precons, for its first Briefing. */
+export async function seedFreshRun(service: CampaignService, campaignId: string): Promise<CampaignRecord> {
+  const decks = preconDecks(POOL_VERSION);
+  const seats = [decks[0]!, decks[1]!].map((deck) => ({ identityCardId: deck.identityCardId, deck }));
+  return service.start({ campaignId, seats, poolVersion: POOL_VERSION, seed: 1616 });
+}
+
 export async function seedDesignRun(
   service: CampaignService,
   stop: DesignRunStop = "afterIssue2",

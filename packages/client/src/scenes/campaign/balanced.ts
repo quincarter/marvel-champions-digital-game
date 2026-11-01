@@ -12,10 +12,7 @@ import { accent, ink, surface, typeRole } from "../../tokens.js";
 import {
   actionBarCta,
   bangers,
-  campaignCoverPicture,
   campaignFrame,
-  drawPicture,
-  villainPicture,
   drawActionBar,
   drawTopBar,
   ruleHeading,
@@ -25,15 +22,7 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { captureIntoRegion } from "../../ui/scroll-capture.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import {
-  PANE_ART_ALPHA,
-  PANE_VEIL_ALPHA,
-  PANE_VEIL_COLOR,
-  campaignFadeFillOf,
-} from "../../view/campaign-fade-color.js";
-import type { CampaignFadeColor } from "../../settings.js";
-import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
-import { appSession } from "../../session.js";
+import { drawCampaignPaneGround } from "../../ui/campaign-pane.js";
 import { fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { openExternal } from "../../platform/platform.js";
@@ -76,9 +65,10 @@ export class CampaignBalancedScene extends Phaser.Scene {
   #scroll = new VariableListScroll();
   #region: McScrollRegion | null = null;
   #firstDraw = true;
-  /** The faded-art setting as last drawn; null before the first draw. */
-  #artShown: boolean | null = null;
-  #fadeShown: CampaignFadeColor = "grey";
+  /** One callback for the pane art, so repeated draws while it loads share one waiter. */
+  readonly #redraw = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
 
   constructor() {
     super(SCENES.campaignBalanced);
@@ -89,9 +79,6 @@ export class CampaignBalancedScene extends Phaser.Scene {
     this.#choice = NORMAL_CHOICE;
     this.#scroll = new VariableListScroll();
     this.#firstDraw = true;
-    // Settings never opens over this page, so the faded-art choices are read once, as it opens.
-    this.#artShown = this.#artOn();
-    this.#fadeShown = appSession().settings.campaignFadeColor;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#hints = createHints(this);
     // Start and A with nothing focused: Continue to the roster.
@@ -212,36 +199,9 @@ export class CampaignBalancedScene extends Phaser.Scene {
     }
   }
 
-  /** The faded-art setting, read as the page is drawn. */
-  #artOn(): boolean {
-    return appSession().settings.fadedCampaignArt;
-  }
-
-  /**
-   * The coloured pane's ground: the chosen fade color (Settings, grey to begin with) with the box art faded over it
-   * (cover-fitted into the pane, never stretched) unless Settings turns the art off, and a dark veil that keeps the
-   * pale text readable on any picture. `moveTo` slots it under text already drawn (the phone's stacked pane).
-   */
+  /** The pane's ground (`ui/campaign-pane.ts`); `moveTo` slots it under text already drawn (the phone's stacked pane). */
   #drawPaneBackground(rect: Rect, moveTo?: number): void {
-    const made: Phaser.GameObjects.GameObject[] = [];
-    const ground = this.add.graphics();
-    ground.fillStyle(campaignFadeFillOf(this.#fadeShown), 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    made.push(ground);
-    if (this.#artShown) {
-      const id = this.#data.campaignId;
-      const finale = CAMPAIGN_RECORDS[id]?.scenarioIds.at(-1) as string | undefined;
-      const picture = campaignCoverPicture(id) ?? (finale ? villainPicture(finale) : null);
-      const image = drawPicture(this, picture, rect, () => this.sys.isActive() && this.#draw(), {
-        focusY: 0.2,
-        alpha: PANE_ART_ALPHA,
-      });
-      if (image) made.push(image);
-    }
-    const veil = this.add.graphics();
-    veil.fillStyle(PANE_VEIL_COLOR, PANE_VEIL_ALPHA).fillRect(rect.x, rect.y, rect.width, rect.height);
-    veil.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
-    made.push(veil);
-    if (moveTo !== undefined) made.forEach((object, index) => this.children.moveTo(object, moveTo + index));
+    drawCampaignPaneGround(this, this.#data.campaignId, rect, this.#redraw, moveTo);
   }
 
   // ---- Left column: why, the choice, the credit -------------------------------------------------------------------

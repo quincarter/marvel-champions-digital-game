@@ -28,6 +28,7 @@ import { McButton, STAMP_CHIP_TYPE, fitText, label } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { balancedTagOf } from "../../view/campaign-balanced-model.js";
+import { drawCampaignPaneGround, drawPanePaper } from "../../ui/campaign-pane.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { bottomOfDrawn, captureIntoRegion } from "../../ui/scroll-capture.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
@@ -193,6 +194,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
    * when the pending call changes.
    */
   #briefingRegion: McScrollRegion | null = null;
+  /** One callback for the pane art, so repeated draws while it loads share one waiter. */
+  readonly #redrawPane = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
   #briefingScroll = new VariableListScroll();
   /** The wide layout's right column, scrolled alone when its stack is taller than the screen (four seats, issue #3). */
   #columnRegion: McScrollRegion | null = null;
@@ -706,15 +711,40 @@ export class CampaignBriefingScene extends Phaser.Scene {
       }
     }
 
+    // Where a phone's stacked pane ends: the scroll runs to it, not to the art's full bounds.
+    let stackPaneBottom: number | null = null;
     if (!phone) {
+      // The right column sits on the coloured pane (flush right, top bar to action bar). Its ink text sits on a paper
+      // panel that hugs the content, with the pane's own inset around it (28 on a tablet, 40 wide), so the color and
+      // the art show below it.
+      const paneX = leftRect.x + leftRect.width + columnGap / 2;
+      const inset = width >= 1000 ? 40 : 28;
+      const paperPad = 16;
+      const paperX = paneX + inset;
+      const paperWidth = width - paperX - inset;
+      const paperTop = top.height + inset;
       const rightRect: Rect = {
-        x: leftRect.x + leftRect.width + columnGap,
-        y: top.height + 20,
-        width: width - gutter - (leftRect.x + leftRect.width + columnGap),
-        height: contentBottom - (top.height + 20),
+        x: paperX + paperPad,
+        y: paperTop + paperPad,
+        width: paperWidth - paperPad * 2,
+        height: contentBottom - (paperTop + paperPad),
       };
-      if (hasPool) this.#drawHandled(rightRect, view, stops);
-      else {
+      drawCampaignPaneGround(
+        this,
+        record.campaignId as string,
+        { x: paneX, y: top.height, width: width - paneX, height: actionBar.y - top.height },
+        this.#redrawPane,
+      );
+      const paperAt = (bottom: number, slot: number): void =>
+        drawPanePaper(this, { x: paperX, y: paperTop, width: paperWidth, height: bottom + paperPad - paperTop }, slot);
+      if (hasPool) {
+        const handledStart = this.children.list.length;
+        const handledBottom = this.#drawHandled(rightRect, view, stops);
+        paperAt(
+          Math.min(Math.max(handledBottom, this.#bottomOf(handledStart)), contentBottom - paperPad),
+          handledStart,
+        );
+      } else {
         const columnStart = this.children.list.length;
         const columnStopsBefore = new Set(stops.keys());
         const decksBottom = this.#drawDecks(rightRect, view, stops);
@@ -737,7 +767,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
           rightBottom = drawShieldBriefing(this.#schemeContext(rightRect, phone, stops), rightBottom + 24, shieldBrief);
         }
         if (easierStart) {
-          drawEasierStart(
+          rightBottom = drawEasierStart(
             this.#schemeContext(rightRect, phone, stops),
             rightBottom + 24,
             easierStart,
@@ -746,7 +776,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
         }
         // Taller than the screen: the column scrolls on its own rather than running under the action bar.
         const columnEnd = this.children.list.length;
-        const columnBottom = this.#bottomOf(columnStart, columnEnd);
+        const columnBottom = Math.max(this.#bottomOf(columnStart, columnEnd), rightBottom);
+        // The paper hugs the content; a column that scrolls gets one as tall as its window, outside the scroll.
+        paperAt(columnBottom > contentBottom ? contentBottom - paperPad : columnBottom, columnStart);
         if (columnBottom > contentBottom) {
           const columnHeights = [1_000_000];
           this.#columnRegion = new McScrollRegion(this, {
@@ -758,13 +790,13 @@ export class CampaignBriefingScene extends Phaser.Scene {
           this.#captureIntoRegion(
             this.#columnRegion,
             columnHeights,
-            columnStart,
+            columnStart + 1,
             stops,
             columnStopsBefore,
             rightRect.y,
             contentBottom,
             this.#columnScroll,
-            columnEnd,
+            columnEnd + 1,
           );
         }
       }
@@ -772,10 +804,19 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const handledTop = scrolled
         ? Math.max(leftBottom, this.#bottomOf(contentStart)) + 20
         : leftBottom + (this.#pending ? 140 : 20);
-      this.#drawHandled(
+      const stackStart = this.children.list.length;
+      const handledBottom = this.#drawHandled(
         { x: gutter, y: handledTop, width: width - gutter * 2, height: Math.max(1, contentBottom - handledTop) },
         view,
         stops,
+      );
+      stackPaneBottom = this.#paneUnderStack(
+        record.campaignId as string,
+        stackStart,
+        handledTop,
+        Math.max(handledBottom, this.#bottomOf(stackStart)),
+        width,
+        gutter,
       );
     } else if (scrolled || view) {
       // The Decks panel is there while a call is pending too (its placeholder says it waits on the answer).
@@ -785,11 +826,31 @@ export class CampaignBriefingScene extends Phaser.Scene {
         width: width - gutter * 2,
         height: 0,
       };
-      this.#drawDecks(decksRect, view, stops);
+      const stackStart = this.children.list.length;
+      const decksBottom = this.#drawDecks(decksRect, view, stops);
+      stackPaneBottom = this.#paneUnderStack(
+        record.campaignId as string,
+        stackStart,
+        decksRect.y,
+        Math.max(decksBottom, this.#bottomOf(stackStart)),
+        width,
+        gutter,
+      );
     }
 
     if (region)
-      this.#captureIntoRegion(region, scrollHeights, contentStart, stops, stopsBefore, top.height, actionBar.y);
+      this.#captureIntoRegion(
+        region,
+        scrollHeights,
+        contentStart,
+        stops,
+        stopsBefore,
+        top.height,
+        actionBar.y,
+        undefined,
+        undefined,
+        stackPaneBottom ?? undefined,
+      );
 
     // Bottom action bar: "EDIT DECKS"/"DECKS" outlined, "OPEN ISSUE #N ▸" the one red CTA — disabled until the
     // issue is composed and nothing is still being asked.
@@ -956,6 +1017,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     viewportBottom: number,
     scroll: VariableListScroll = this.#briefingScroll,
     toIndex?: number,
+    bottom?: number,
   ): void {
     captureIntoRegion(this, {
       region,
@@ -967,6 +1029,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       stopsBefore,
       viewportTop,
       viewportBottom,
+      ...(bottom === undefined ? {} : { bottom }),
     });
   }
 
@@ -1274,6 +1337,28 @@ export class CampaignBriefingScene extends Phaser.Scene {
       }
     });
     return listTop + listHeight;
+  }
+
+  /** A phone's stacked Decks / Handled column: the coloured pane full width with a paper panel, slotted under it. */
+  #paneUnderStack(
+    campaignId: string,
+    startIndex: number,
+    top: number,
+    bottom: number,
+    width: number,
+    gutter: number,
+  ): number {
+    const pad = 12;
+    // The pane runs 20 above the content (the gap above it) and 16 below; the paper hugs the content.
+    const rect: Rect = { x: 0, y: top - 20, width, height: bottom - top + 20 + 16 };
+    const drawn = drawCampaignPaneGround(this, campaignId, rect, this.#redrawPane, startIndex);
+    drawPanePaper(
+      this,
+      { x: gutter - pad, y: top - 12, width: width - (gutter - pad) * 2, height: bottom - top + 12 + 4 },
+      startIndex + drawn,
+    );
+    // Where the scroll should end: the pane's bottom less the region's own 16px end padding.
+    return rect.y + rect.height - 16;
   }
 
   #measureHandledRow(row: HandledRow, width: number): number {
