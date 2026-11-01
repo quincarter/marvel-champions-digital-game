@@ -347,8 +347,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
-  // Two or more villains (Tower Defense, Breakout, The Sinister Six): a player card that names "the villain" asks which
-  // (owner, 2026-10-04, matrix Q-M2), once per ability, just before the first effect that names it.
+  // Two or more villains (Tower Defense, The Sinister Six, the Four Horsemen): a player card that names "the villain"
+  // asks which (owner, 2026-10-04, matrix Q-M2), once per ability, just before the first effect that names it. Not where
+  // the scenario makes "the villain" the active one for every card (`ScenarioRules.theVillain`, Breakout).
   if (needsVillainChoice(ctx, frame, effect, context)) {
     const choose: EffectSpec = {
       kind: "chooseTarget",
@@ -658,11 +659,13 @@ function askPutIntoPlayHost(
 /**
  * Whether a player card's effect about to resolve names "the villain" while more than one villain is in play and the
  * player has not yet chosen one for this ability (owner, 2026-10-04, matrix Q-M2). Not in a separate game area, where
- * the area's own villain is meant.
+ * the area's own villain is meant, nor in a scenario whose rules make "the villain" the active villain for every card
+ * (`ScenarioRules.theVillain`: The Wrecking Crew insert, "The Active Villain"; FFG ruling Jun 13, 2024, #212).
  */
 function needsVillainChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec, context: EffectContext): boolean {
   if (frame.bindings[VILLAIN_CHOICE] || frame.controllerId === null) return false;
   if (!isPlayerCard(ctx.state, frame.selfInstanceId) || contextArea(ctx.state, context)) return false;
+  if (ctx.state.scenarioRules.theVillain === "activeVillain") return false;
   if (undefeatedVillains(ctx.state).length < 2) return false;
   return JSON.stringify(effect).includes('{"kind":"villain"}');
 }
@@ -2120,6 +2123,17 @@ function choseNothing(
 const forcedEnemyTeamSearch = (effect: Extract<EffectSpec, { kind: "chooseCards" }>): boolean =>
   effect.chooser.kind === "enemyTeamDecider" && isRequiredSearch(effect);
 
+/**
+ * A target choice with nothing to decide, resolved without a prompt: a required choice (`isRequiredChoice`: neither
+ * "may" nor "up to") made by "the enemy team" (`chooser: enemyTeamDecider`, MC56 p. 6) with exactly one legal target.
+ * docs/phase7-wave10.md section 3.5: "Where there is one candidate there is no prompt" (QA finding F2,
+ * docs/phase7-wave10-qa-registration.md), as for the enemy team's search (`forcedEnemyTeamSearch`). Kept to the enemy
+ * team's choices, as that one is: a player's own required choice with one candidate still shows its prompt. The target
+ * is logged as any pick is (`targetChosen`).
+ */
+const forcedEnemyTeamChoice = (effect: Extract<EffectSpec, { kind: "chooseTarget" }>): boolean =>
+  effect.chooser.kind === "enemyTeamDecider" && isRequiredChoice(effect);
+
 function executeChooseCards(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -3278,18 +3292,37 @@ function executeDealIndirectDamage(
   pushFrames(ctx, [
     damageGroupFrame(
       ctx,
-      shares.map(([key, points]) => ({
-        kind: "dealDamage",
-        targetInstanceId: asInstanceId(key.slice(`${INDIRECT}to.`.length)),
-        amount: points,
-        sourceInstanceId: frame.selfInstanceId,
-        fromAttack: effect.fromAttack === true,
-        indirect: true as const,
-        ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
-      })),
+      shares.map(([key, points]) => {
+        const targetInstanceId = asInstanceId(key.slice(`${INDIRECT}to.`.length));
+        return {
+          kind: "dealDamage",
+          targetInstanceId,
+          amount: points,
+          sourceInstanceId: frame.selfInstanceId,
+          fromAttack: effect.fromAttack === true,
+          indirect: true as const,
+          ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
+          ...attackShareKeywords(effect, targetInstanceId),
+        };
+      }),
       effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
     ),
   ]);
+}
+
+/**
+ * Piercing on one share of an attack's damage split among several characters (indirect, or divided evenly). Only the
+ * attacked character is attacked (RRG 1.8 "Indirect Damage", p. 24), and piercing discards tough status cards "from the
+ * attacked character" (p. 32; ruling January 24, 2025 #64): its share carries the attack's piercing, whatever granted
+ * it, and every other share is exempt, even from the attacker's own keyword.
+ */
+function attackShareKeywords(
+  effect: { readonly attackedInstanceId?: InstanceId; readonly piercingFor?: InstanceId },
+  targetInstanceId: InstanceId,
+): { readonly piercing?: true; readonly pierceExempt?: true } {
+  if (effect.piercingFor === targetInstanceId) return { piercing: true };
+  const attacked = effect.attackedInstanceId ?? effect.piercingFor;
+  return attacked !== undefined && attacked !== targetInstanceId ? { pierceExempt: true } : {};
 }
 
 /**
@@ -3340,7 +3373,7 @@ function executeDivideDamageEvenly(
         sourceInstanceId: frame.selfInstanceId,
         fromAttack: effect.fromAttack === true,
         ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
-        ...(effect.piercingFor === id ? { piercing: true } : {}),
+        ...attackShareKeywords(effect, id),
       })),
       null,
     ),
@@ -3696,6 +3729,12 @@ function requestTargetChoice(
     return;
   }
   const count = Math.min(wanted, legal.length);
+  // One legal target for a choice the enemy team must make: nothing to decide, so no prompt (`forcedEnemyTeamChoice`).
+  if (forcedEnemyTeamChoice(effect) && legal.length === 1) {
+    emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: legal });
+    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: legal } });
+    return;
+  }
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),

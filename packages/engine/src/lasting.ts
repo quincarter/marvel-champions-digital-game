@@ -141,6 +141,11 @@ export interface LastingScope {
 export interface LastingReach {
   readonly targets: readonly InstanceId[] | null;
   readonly affects: TargetQuery | null;
+  /**
+   * Cards in `targets` that left play since the effect was made; one that comes back into play is a new copy and stops
+   * being a target (`noteLeftPlayInLastingEffects`, `forgetReturnedInLastingEffects`).
+   */
+  readonly leftPlay?: readonly InstanceId[];
 }
 
 /** What a lasting effect does. Extend this union for new lasting mechanics. */
@@ -206,11 +211,17 @@ export type LastingEffectBody =
    * made before it was recorded (an older save) or with no card behind it: such a blank reaches a permanent card as it
    * always did.
    */
-  | { readonly kind: "blankTextBox"; readonly targets: readonly InstanceId[]; readonly sourceCardId?: CardId }
+  | {
+      readonly kind: "blankTextBox";
+      readonly targets: readonly InstanceId[];
+      readonly sourceCardId?: CardId;
+      /** As `LastingReach.leftPlay`. */
+      readonly leftPlay?: readonly InstanceId[];
+    }
   /**
    * A delayed effect ("At the end of the round, …"): fires when its duration ends. `leftPlay`: cards its scope names
    * (its own card, a chosen card) that left play since it was made; one that comes back into play stops being named
-   * (`forgetReturnedInDelayedEffects`).
+   * (`forgetReturnedInLastingEffects`).
    */
   | {
       readonly kind: "delayedEffects";
@@ -295,33 +306,54 @@ export type LastingEffect = LastingEffectBody & {
 const namesCard = (scope: LastingScope, id: InstanceId): boolean =>
   scope.selfInstanceId === id || Object.values(scope.bindings).some((ids) => ids.includes(id));
 
+/** The cards a lasting effect names that left play since it was made (`delayedEffects`, `LastingReach`, a blank). */
+const leftPlayOf = (effect: LastingEffect): readonly InstanceId[] | undefined =>
+  "leftPlay" in effect ? effect.leftPlay : undefined;
+
+/** The fixed cards a lasting effect is on ("Goliath gets +4 ATK until the end of the phase", Goliath 23015). */
+const fixedTargetsOf = (effect: LastingEffect): readonly InstanceId[] | null =>
+  effect.kind === "blankTextBox" ||
+  effect.kind === "statModifier" ||
+  effect.kind === "traitGrant" ||
+  effect.kind === "keywordGrant"
+    ? effect.targets
+    : null;
+
 /**
- * `id` has just left play: each delayed effect naming it records that (`delayedEffects.leftPlay`). It keeps naming the
- * card while it is out of play, so the effect can still act on it there, and stops only if a new copy comes back
- * (`forgetReturnedInDelayedEffects`).
- * Returns the same state when nothing names it.
+ * `id` has just left play: each lasting effect naming it records that (`leftPlay`) — a delayed effect whose scope names
+ * it, or an effect whose fixed `targets` include it. It keeps naming the card while it is out of play, so a delayed
+ * effect can still act on it there and anything reading the card as it left still sees it, and stops only if a new copy
+ * comes back (`forgetReturnedInLastingEffects`). Returns the same state when nothing names it.
  */
-export function noteLeftPlayInDelayedEffects(state: GameState, id: InstanceId): GameState {
+export function noteLeftPlayInLastingEffects(state: GameState, id: InstanceId): GameState {
   let changed = false;
   const lastingEffects = state.lastingEffects.map((effect) => {
-    if (effect.kind !== "delayedEffects" || effect.leftPlay?.includes(id) || !namesCard(effect.scope, id))
-      return effect;
+    if (leftPlayOf(effect)?.includes(id)) return effect;
+    const names =
+      effect.kind === "delayedEffects" ? namesCard(effect.scope, id) : (fixedTargetsOf(effect)?.includes(id) ?? false);
+    if (!names) return effect;
     changed = true;
-    return { ...effect, leftPlay: [...(effect.leftPlay ?? []), id] };
+    return { ...effect, leftPlay: [...(leftPlayOf(effect) ?? []), id] };
   });
   return changed ? { ...state, lastingEffects } : state;
 }
 
 /**
- * `id` has just entered play: a delayed effect that named it before it left play stops naming it. RRG 1.8 "Leaves
+ * `id` has just entered play: a lasting effect that named it before it left play stops naming it. RRG 1.8 "Leaves
  * Play" (p. 27): "When a card leaves play, there is no memory of its previous state and it is considered to be a new
  * copy of the card", so an effect bound to the copy that was in play does not touch the copy that came back, though
  * the instance id is the same; FFG ruling January 26, 2026 - Ruling 6 (marvel-champions-rulings-post-rrg-1-7.md) reads
  * a card that "leaves and re-enters play" as a new copy for limits too. A card named while out of play (Special
  * Funding 50007 names the support it pays for, still in hand) has not left play since, so it is still named when it
- * enters. The effect itself stays and fires with the rest of its body. With its own card forgotten the effect has no
- * `self` at all, so whatever else reads `self` (a game area, a damage source) reads nothing, which is meant: the card
- * it had is gone. Returns the same state when nothing names it.
+ * enters.
+ *
+ * - A delayed effect stays and fires with the rest of its body. With its own card forgotten it has no `self` at all,
+ *   so whatever else reads `self` (a game area, a damage source) reads nothing, which is meant: the card it had is gone.
+ * - An effect with fixed `targets` ("Goliath gets +4 ATK until the end of the phase") drops the card from them; one
+ *   left with no target is returned in `emptied`, for the caller to end (`targetLeftPlay`), as a main scheme swapped
+ *   out does (`resolve/swap-main-scheme.ts` `forgetOutgoing`). An effect that reaches cards by query (`affects`: "each
+ *   minion") reads the new copy on its own terms, and an effect's own source (`scope.selfInstanceId` of a stat or
+ *   keyword grant) is not a target and is left as it is.
  *
  * The leaving is recorded only where a card leaves through `leaveNow` (`leavePlay`, `leavePlayAtOnce`, and so a swap
  * of cards with different titles, `resolve/swap-cards.ts`). Not covered: a main scheme swapped out
@@ -331,22 +363,43 @@ export function noteLeftPlayInDelayedEffects(state: GameState, id: InstanceId): 
  * so none can return through it today), and a facedown attachment, which is out of play already. A same-title swap neither
  * leaves nor enters play (RRG 1.8 "'Swap'", p. 42), so it has nothing to record.
  */
-export function forgetReturnedInDelayedEffects(state: GameState, id: InstanceId): GameState {
+export function forgetReturnedInLastingEffects(
+  state: GameState,
+  id: InstanceId,
+): { readonly state: GameState; readonly emptied: readonly string[] } {
   let changed = false;
-  const lastingEffects = state.lastingEffects.map((effect) => {
-    if (effect.kind !== "delayedEffects" || !effect.leftPlay?.includes(id)) return effect;
+  const emptied: string[] = [];
+  const lastingEffects = state.lastingEffects.map((effect): LastingEffect => {
+    const left = leftPlayOf(effect);
+    if (!left?.includes(id)) return effect;
     changed = true;
-    const { scope } = effect;
-    const bindings = Object.fromEntries(
-      Object.entries(scope.bindings).map(([slot, ids]) => [slot, ids.filter((x) => x !== id)]),
-    );
-    const leftPlay = effect.leftPlay.filter((x) => x !== id);
-    const { leftPlay: _old, ...rest } = effect;
-    return {
-      ...rest,
-      scope: { ...scope, selfInstanceId: scope.selfInstanceId === id ? null : scope.selfInstanceId, bindings },
-      ...(leftPlay.length > 0 ? { leftPlay } : {}),
-    };
+    const stillOut = left.filter((x) => x !== id);
+    const kept = stillOut.length > 0 ? { leftPlay: stillOut } : {};
+    if (effect.kind === "delayedEffects") {
+      const { leftPlay: _old, scope, ...rest } = effect;
+      const bindings = Object.fromEntries(
+        Object.entries(scope.bindings).map(([slot, ids]) => [slot, ids.filter((x) => x !== id)]),
+      );
+      return {
+        ...rest,
+        scope: { ...scope, selfInstanceId: scope.selfInstanceId === id ? null : scope.selfInstanceId, bindings },
+        ...kept,
+      };
+    }
+    if (effect.kind === "blankTextBox") {
+      const { leftPlay: _old, targets, ...rest } = effect;
+      const remaining = targets.filter((x) => x !== id);
+      if (remaining.length === 0) emptied.push(effect.id);
+      return { ...rest, targets: remaining, ...kept };
+    }
+    if (effect.kind === "statModifier" || effect.kind === "traitGrant" || effect.kind === "keywordGrant") {
+      const { leftPlay: _old, targets, ...rest } = effect;
+      if (targets === null) return { ...rest, targets, ...kept };
+      const remaining = targets.filter((x) => x !== id);
+      if (remaining.length === 0) emptied.push(effect.id);
+      return { ...rest, targets: remaining, ...kept };
+    }
+    return effect;
   });
-  return changed ? { ...state, lastingEffects } : state;
+  return { state: changed ? { ...state, lastingEffects } : state, emptied };
 }

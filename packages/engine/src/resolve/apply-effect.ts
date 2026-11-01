@@ -122,7 +122,6 @@ import {
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
 import {
-  awaitingAbility,
   basicPowerUseFrameId,
   currentActivationFrameId,
   currentThwartFrameId,
@@ -131,6 +130,7 @@ import {
   PLAY_NOTE_PREFIX,
   playFrameOf,
   type ReportTarget,
+  resolvingEnemyActivation,
   type StackFrame,
 } from "../stack.js";
 import {
@@ -558,16 +558,11 @@ function redirectMovedThreat(ctx: Ctx, frame: Frame<"effects">, placed: number):
  */
 function activationToQueueBehind(state: GameState, afterCurrent: boolean): FrameId | null {
   if (afterCurrent) return currentActivationFrameId(state.stack);
-  for (const f of state.stack) {
-    // RRG 1.8 "Activation" p. 6: an initiated-but-unresolved quickstrike attack is not "resolving" (RRG 1.8 FAQ
-    // "Spider-Man (#1A)": initiation precedes the attack's steps), so the ability's own "the villain attacks you"
-    // resolves in place; the quickstrike attack resolves after the whole ability (ruling 194, May 23, 2024). Inside an
-    // outer activation both queue behind it.
-    if (f.kind !== "event" || f.attackWaiting || f.endEffectsDraining || awaitingAbility(f)) continue;
-    if (f.event.kind !== "enemyAttack" && f.event.kind !== "enemyScheme") continue;
-    return f.cancelled && !f.endedEarly ? null : f.frameId;
-  }
-  return null;
+  // RRG 1.8 "Activation" p. 6: an initiated-but-unresolved quickstrike attack is not "resolving" (RRG 1.8 FAQ
+  // "Spider-Man (#1A)": initiation precedes the attack's steps), so the ability's own "the villain attacks you"
+  // resolves in place; the quickstrike attack resolves after the whole ability (ruling 194, May 23, 2024). Inside an
+  // outer activation both queue behind it.
+  return resolvingEnemyActivation(state.stack);
 }
 /** Zones a card leaves the game for: a `discardFromPlay` finds nothing to discard there. */
 const OUT_OF_THE_GAME_ZONES: ReadonlySet<string> = new Set([

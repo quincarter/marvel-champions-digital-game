@@ -103,6 +103,8 @@ interface CrewOptions {
   readonly includeIdentitySets?: boolean;
   /** Resolve Breakout 1A's setup (default true). */
   readonly setup?: boolean;
+  /** `GameSetupConfig.theVillain` (absent by default, as in Tower Defense, The Sinister Six and the Four Horsemen). */
+  readonly theVillain?: "activeVillain";
 }
 
 /** A Breakout-shaped game straight out of `createGame`, still on the mulligan choices. */
@@ -137,6 +139,7 @@ function crewAtMulligan(options: CrewOptions = {}): { readonly state: GameState;
     encounterDeck: [],
     includeIdentitySets: options.includeIdentitySets ?? false,
     players: identities.map((identity) => ({ identityCardId: identity.id, deck: options.deck ?? DEFAULT_DECK })),
+    ...(options.theVillain ? { theVillain: options.theVillain } : {}),
   };
   const result = createGame(config, deps);
   if (!result.ok) throw new Error(`setup failed: ${result.error.message}`);
@@ -610,8 +613,9 @@ describe('owner\'s answer to matrix Q-M2: a player card that names "the villain"
   const STRIKE_CARD = stubEvent({ id: "strike", cost: 0, abilities: [STRIKE.ref] });
   const damageOf = (state: GameState, id: InstanceId): number => mustInstance(state, id).damage;
 
-  const played = () => {
+  const played = (theVillain?: "activeVillain") => {
     const { state, deps, villain } = crew({
+      ...(theVillain ? { theVillain } : {}),
       abilities: [STRIKE],
       extraCards: [STRIKE_CARD],
       deck: [...DEFAULT_DECK, STRIKE_CARD.id],
@@ -629,6 +633,7 @@ describe('owner\'s answer to matrix Q-M2: a player card that names "the villain"
     return { state: result.state, deps, villain };
   };
 
+  // The fixture has no `theVillain` rule, so it stands for Tower Defense, The Sinister Six and the Four Horsemen.
   it("lets the player choose any villain in play, not only the active one", () => {
     const { state, deps, villain } = played();
     const choice = state.pendingChoice;
@@ -644,6 +649,16 @@ describe('owner\'s answer to matrix Q-M2: a player card that names "the villain"
     }).state;
     expect(damageOf(after, thunderball)).toBe(1);
     expect(damageOf(after, state.activeVillainId!)).toBe(0);
+  });
+
+  // The Wrecking Crew insert, "The Active Villain": "Any card effect that refers to 'the villain' only refers to the
+  // active villain" (FFG ruling June 13, 2024 #212).
+  it("with the scenario's 'the villain' rule (The Wrecking Crew), it means the active villain and nobody is asked", () => {
+    const { state, villain } = played("activeVillain");
+    expect(state.pendingChoice).toBeNull();
+    const active = state.activeVillainId!;
+    expect(damageOf(state, active)).toBe(1);
+    for (const name of NAMES) if (villain(name) !== active) expect(damageOf(state, villain(name))).toBe(0);
   });
 });
 
