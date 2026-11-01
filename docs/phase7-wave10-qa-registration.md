@@ -64,6 +64,9 @@ where the engine's choice or ordering machinery does something the rules do not 
   staged (Recruits' prompt is already pending when `createGame` returns, so its candidates cannot be pruned first).
 - Owner: `game-rules-architect` (a forced `enemyTeam` chooser, or any chooser with one option and a minimum of one,
   resolves without a prompt). Severity "wrong prompt": the outcome is the same.
+- **Retired (issue #525, item 4):** a required `enemyTeam` target choice with one legal candidate now resolves without a
+  prompt (`forcedEnemyTeamChoice`, `resolve/effects-frame.ts`), as required enemy-team searches already did. A "may" or
+  "up to" choice still prompts, and so does a player's own choice. All three proofs (56072, 56123b, 56112) pass.
 
 ### F3. 56069 Mark V Armor and a tough status card: no order is offered
 
@@ -78,6 +81,10 @@ where the engine's choice or ordering machinery does something the rules do not 
 - The game: no ordering prompt; the tough card always resolves first (tough 1 to 0, nothing on the Armor, Iron Man
   undamaged). Pinned by a passing test.
 - Proof: `it.fails` expects an `orderTriggers` prompt during the attack.
+- **Retired (issue #525, item 5):** RRG 1.8 "Simultaneous Timing Priority" (p. 5, revised in v1.8) resolves status-card
+  Forced Interrupts (2a) before other Forced Interrupts (2b), and "Damage" (p. 14) takes tough status cards (step 2)
+  before "would take any amount of damage" abilities (step 3). "Forced" (p. 20) orders only abilities of equal priority,
+  so the game's order is right; the `it.fails` is removed and the pinning test kept.
 - Owner: `game-rules-architect` (status cards as forced interrupts for ordering). This may be a deliberate engine
   choice (tough as a prevention, not a trigger); then the RRG sentence "resolves like" is what to decide on. Severity
   "wrong prompt" (the choice is missing, the engine has picked the order that is worse for the enemy).
@@ -256,7 +263,7 @@ In sum: 106 refs checked and correct, 9 with a finding (56069, 56072, 56079, 560
    ally 12011 (same subtitle). Not a script problem; two pairs the unique rule will refuse.
 3. **§3.5, "Where there is one candidate there is no prompt"** is true of the "a copy of" cases only. Either the engine
    builds the rule for every forced chooser (F2) or §3.5 and the Stark Tower / Recruits tests it prescribes say that a
-   prompt with one option is shown.
+   prompt with one option is shown. Settled the first way (issue #525, item 4): the engine now follows §3.5 for required enemy-team choices.
 4. **Bring Them In (§3.5, §3.16)** states no
    reading of "Otherwise" for an already exhausted Unregistered identity; the
    module chose "counts"; RRG p. 31, p. 19 and the FAQ on p. 57 point to "does not count" (F1). The spec should record

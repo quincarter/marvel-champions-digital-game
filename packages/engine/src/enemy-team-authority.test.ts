@@ -295,3 +295,84 @@ describe("two teams: a player of the other team chooses", () => {
     expect(fromTwo.onBehalfOf).toEqual({ kind: "enemyTeam", teamId: TEAM_ONE, facingPlayerId: P4 });
   });
 });
+
+// docs/phase7-wave10.md §3.5: "Where there is one candidate there is no prompt" (QA finding F2). Only a required choice
+// is forced: a printed "may" can choose none and "up to" is the chooser's to make (RRG 1.8 "Choose (Game Element)",
+// p. 12; spec §4 Q16), so both still ask with one candidate.
+describe("one candidate: the enemy team's required choice is forced", () => {
+  /** "The enemy team chooses the villain. Deal 2 damage to it.", with `extra` on the choice. */
+  const villainEvent = (id: string, extra: Partial<Extract<EffectSpec, { kind: "chooseTarget" }>>) => {
+    const ability = stubAbility(`${id}.action`, {
+      trigger: { kind: "action" },
+      effects: [
+        {
+          kind: "chooseTarget",
+          slot: "picked",
+          query: { categories: ["villain"] },
+          chooser: ENEMY_TEAM_CHOOSES,
+          ...extra,
+        },
+        { kind: "dealDamage", target: { kind: "slot", slot: "picked" }, amount: { kind: "const", value: 2 } },
+      ],
+    });
+    return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
+  };
+  const REQUIRED = villainEvent("forced", {});
+  const MAY = villainEvent("may", { optional: true });
+  const UP_TO = villainEvent("upto", { count: 2, upTo: true });
+  const ONE = [REQUIRED, MAY, UP_TO];
+  const oneDeps: EngineDeps = depsOf(...ONE.map((e) => e.ability));
+  const play = (card: AnyCard) => {
+    const opening = gameAtFirstTurn({
+      cards: ONE.map((e) => e.card),
+      deck: ONE.map((e) => e.card.id),
+      deps: oneDeps,
+      players: 2,
+    });
+    const given = giveCard(opening, P2, card.id);
+    const result = sessionApply(
+      startSession(given.state),
+      { type: "playCard", playerId: P2, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      oneDeps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    return { opening, session: result.session, events: result.events };
+  };
+  const enemyTeamRequests = (events: readonly GameEvent[]) =>
+    events.filter((e) => e.type === "choiceRequested" && e.choice.authority === "enemyTeam");
+
+  it("required, one legal target: no prompt, the pick is logged as `targetChosen` and resolves", () => {
+    const { opening, session, events } = play(REQUIRED.card);
+    const villain = opening.activeVillainId;
+    expect(enemyTeamRequests(events)).toEqual([]);
+    expect(session.state.pendingChoice).toBeNull();
+    expect(events.filter((e) => e.type === "targetChosen")).toEqual([
+      { type: "targetChosen", slot: "picked", instanceIds: [villain] },
+    ]);
+    expect(damageOn(session.state, villain)).toBe(damageOn(opening, villain) + 2);
+  });
+
+  it("a printed 'may' with one legal target still asks the first player, who may choose none", () => {
+    const { opening, session } = play(MAY.card);
+    const choice = session.state.pendingChoice!;
+    expect([choice.playerId, choice.authority, choice.minSelections, choice.maxSelections]).toEqual([
+      P1,
+      "enemyTeam",
+      0,
+      1,
+    ]);
+    expect(choice.options.map((option) => option.optionId)).toEqual([opening.activeVillainId]);
+  });
+
+  it("'up to 2' with one legal target still asks the first player", () => {
+    const { opening, session } = play(UP_TO.card);
+    const choice = session.state.pendingChoice!;
+    expect([choice.playerId, choice.authority, choice.minSelections, choice.maxSelections]).toEqual([
+      P1,
+      "enemyTeam",
+      1,
+      1,
+    ]);
+    expect(choice.options.map((option) => option.optionId)).toEqual([opening.activeVillainId]);
+  });
+});

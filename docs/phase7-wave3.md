@@ -452,7 +452,8 @@ Starshark (Menagerie Medley): "[star] Starshark's attacks deal indirect damage."
 
 - **`RuleSpec attacksDealIndirectDamage { attacker, while? }`.** At the enemy attack's damage step, a matching attacker's damage (ATK + boost − the basic defense's DEF, as usual) becomes a `dealIndirectDamage` to the attack's target player, who assigns it (the existing assignment prompt); `characterAttacked` still names only the defender or identity and resolves after it, so retaliate and "after X is attacked" behave as printed.
 - **`dealIndirectDamage.fromAttack`** (set by the engine) makes the shares attack damage, reported to the attack's own event (`damage`, `damaged`).
-- **Not handled:** an attack that deals indirect damage _and_ has piercing or overkill. No cycle 2 card has both.
+- **Piercing (issue #525):** an attack that deals indirect damage and has piercing discards tough status cards from the attacked character only (the defender, or the identity if the attack was undefended; RRG 1.8 "Piercing", p. 32, and ruling January 24, 2025 #64). The engine passes the attacked character on the `dealIndirectDamage` effect (`attackedInstanceId`, and `piercingFor` when the attack has piercing, however it got it): that share carries the attack's piercing and every other share is stamped `pierceExempt`, so a tough status card on a character assigned one prevents it as usual. A divided attack (`divideDamageEvenly`, Bombshell) shares the same rule.
+- **Not handled:** an attack that deals indirect damage _and_ has overkill. No cycle 2 card has both.
 
 ### 3.17 A lasting "each time …" effect
 

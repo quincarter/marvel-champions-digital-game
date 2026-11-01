@@ -259,12 +259,15 @@ describe("Daredevil (56189)", () => {
     expect(card.traits).toEqual([trait("DEFENDER")]);
   });
 
-  it("WHEN REVEALED with one character: the first player is still asked, as the enemy team, then your hero is exhausted", () => {
+  // docs/phase7-wave10.md section 3.5: "Where there is one candidate there is no prompt" (QA finding F2).
+  it("WHEN REVEALED with one character: the enemy team's choice is forced, so the first player is not asked, and your hero is exhausted", () => {
     const start = game();
-    const asked = villainPhaseUntil(start, [BLANK, DAREDEVIL, FILLER_A], ANY_CHOICE);
-    expect(asked.state.pendingChoice).toMatchObject({ playerId: P1, authority: "enemyTeam" });
-    expect(optionIds(asked.state)).toEqual([hero(start)]);
-    const run = answer(asked.state, P1, hero(start));
+    const run = villainPhaseUntil(
+      start,
+      [BLANK, DAREDEVIL, FILLER_A],
+      (s) => s.pendingChoice?.authority === "enemyTeam",
+    );
+    expect(run.events.filter((e) => e.type === "choiceRequested" && e.choice.authority === "enemyTeam")).toEqual([]);
     expect(exhaustedIds(run.events)).toEqual([hero(start)]);
     expect(inst(run.state, inPlayCard(run.state, DAREDEVIL)!).engagedWith).toBe(P1);
   });
