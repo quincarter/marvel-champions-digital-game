@@ -21,6 +21,8 @@ describe("settingsSectionsOf", () => {
       "token-motion",
       "deck-signature",
       "deck-copy-limits",
+      "faded-campaign-art",
+      "fade-color",
       "villain-auto",
       "villain-hold",
       "villain-flip",
@@ -161,6 +163,7 @@ describe("the desktop app's Window section", () => {
       "token-motion",
       "sharper-text",
       "faded-campaign-art",
+      "fade-color",
     ]);
     expect(motion(false)).toEqual([
       "dark-mode",
@@ -168,6 +171,7 @@ describe("the desktop app's Window section", () => {
       "token-motion",
       "sharper-text",
       "faded-campaign-art",
+      "fade-color",
     ]);
   });
 

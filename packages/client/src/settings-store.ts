@@ -25,6 +25,7 @@ import {
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
+  CAMPAIGN_FADE_COLOR_VALUES,
   FLIP_ENCOUNTER_SPEED_VALUES,
   clampGlyphSize,
   clampMusicVolume,
@@ -104,6 +105,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
   const inspectCardValue = INSPECT_CARD_VALUES.find((value) => value === source["inspectCard"]);
   if (inspectCardValue !== undefined) out.inspectCard = inspectCardValue;
+  const fadeColorValue = CAMPAIGN_FADE_COLOR_VALUES.find((value) => value === source["campaignFadeColor"]);
+  if (fadeColorValue !== undefined) out.campaignFadeColor = fadeColorValue;
   const tokenMotionValue = FIRST_PLAYER_TOKEN_MOTION_VALUES.find((value) => value === source["firstPlayerTokenMotion"]);
   if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
   const popupTimeValue = ACHIEVEMENT_POPUP_TIME_VALUES.find((value) => value === source["achievementPopupTime"]);

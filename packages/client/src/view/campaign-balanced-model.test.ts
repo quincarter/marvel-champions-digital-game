@@ -59,7 +59,7 @@ describe("the Balanced prompt's model", () => {
   });
 
   it("lists the always-on changes for the Museum, Nebula and Ronan", () => {
-    const groups = balancedScreenOf(withBalanced(NORMAL_CHOICE, true), false).changes;
+    const groups = balancedPaneOf(withBalanced(NORMAL_CHOICE, true)).groups;
     expect(groups.map((group) => group.heading)).toEqual(["The Museum", "Nebula", "Ronan"]);
   });
 
@@ -88,7 +88,7 @@ describe("the Balanced prompt's model", () => {
     expect(pane.intro).toMatch(/exactly as written/);
     expect(pane.groups.map((group) => group.heading)).toEqual(["The Museum", "Nebula", "Ronan"]);
     expect(pane.groups.flatMap((group) => group.lines).join(" ")).toMatch(/Collection.*evasion.*threat/);
-    expect(pane.footnote).toMatch(/same points and achievements/);
+    expect(pane.footnote).toMatch(/full points and achievements/);
     expect(pane.showToggles).toBe(false);
   });
 

@@ -40,12 +40,12 @@ export function balancedLayoutOf(width: number, gutter: number): BalancedLayout 
   if (width < WIDE_MIN_WIDTH) {
     const leftWidth = Math.floor((width - gutter * 3) * 0.46);
     const paneX = gutter * 2 + leftWidth;
-    const padLeft = 20;
+    const padLeft = 28;
     return {
       kind: "tablet",
       primary: { x: gutter, width: leftWidth },
       pane: { x: paneX, width: width - paneX },
-      paneInner: { x: paneX + padLeft, width: width - paneX - padLeft - gutter },
+      paneInner: { x: paneX + padLeft, width: width - paneX - padLeft * 2 },
       textSize: 14,
       headingSize: 19,
       gap: 16,
@@ -53,12 +53,12 @@ export function balancedLayoutOf(width: number, gutter: number): BalancedLayout 
   }
   const leftWidth = Math.min(560, Math.max(400, Math.floor(width * 0.4)));
   const paneX = gutter * 2 + leftWidth;
-  const pad = 28;
+  const pad = 40;
   return {
     kind: "wide",
     primary: { x: gutter, width: leftWidth },
     pane: { x: paneX, width: width - paneX },
-    paneInner: { x: paneX + pad, width: Math.min(620, width - paneX - pad * 2) },
+    paneInner: { x: paneX + pad, width: Math.min(680, width - paneX - pad * 2) },
     textSize: width >= 1400 ? 15 : 14,
     headingSize: 20,
     gap: 18,

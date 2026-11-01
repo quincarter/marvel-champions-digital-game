@@ -44,6 +44,8 @@ import {
   type CardSize,
   type DisplayMode,
   type FirstPlayerTokenMotion,
+  CAMPAIGN_FADE_COLOR_VALUES,
+  type CampaignFadeColor,
   type Settings,
   DECK_SIGNATURE_CARDS_VALUES,
   type DeckSignatureCards,
@@ -60,6 +62,7 @@ import {
   availableCardLanguages,
   type CardLanguage,
 } from "../art/card-language.js";
+import { CAMPAIGN_FADE_COLOR_LABELS } from "./campaign-fade-color.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { EARNED_ITEMS, type EarnedItemId } from "../progression/earned-items.js";
@@ -192,13 +195,6 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       detail: "With a mouse, resting on a villain card shows the larger popover. Off leaves villain cards as they are.",
       on: settings.hoverVillainCard,
     },
-    {
-      id: "faded-campaign-art",
-      title: "Faded art on campaign pages",
-      detail:
-        "Shows the campaign box art, faded, behind the side panel of a campaign page. Off leaves the panel a plain colour.",
-      on: settings.fadedCampaignArt,
-    },
   ];
 }
 
@@ -213,6 +209,17 @@ export function deckCopyLimitsRowInfoOf(settings: Settings): SettingsRowInfo {
     detail:
       "Refuse a copy past a card's limit (3 by title, Max 1 per deck, a hero's own rule). Off lets you add it; the deck then shows as illegal.",
     on: settings.deckCopyLimits,
+  };
+}
+
+/** "Faded art on campaign pages" under Animation and display (issue #609). Settings only, not Pause's in-game group, so it is not in `settingsRowInfoOf`. */
+export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "faded-campaign-art",
+    title: "Faded art on campaign pages",
+    detail:
+      "Shows the campaign box art, faded, behind the side panel of a campaign page. Off leaves the panel a plain color.",
+    on: settings.fadedCampaignArt,
   };
 }
 
@@ -767,6 +774,28 @@ export function deckSignatureRowInfoOf(settings: Settings): DeckSignatureRowInfo
 /** `settings` with the signature cards rule set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterDeckSignature(settings: Settings, value: DeckSignatureCards): Settings {
   return DECK_SIGNATURE_CARDS_VALUES.includes(value) ? { ...settings, deckSignatureCards: value } : settings;
+}
+
+export interface FadeColorRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: CampaignFadeColor; readonly label: string }[];
+  readonly selected: CampaignFadeColor;
+}
+
+/** "Fade color" under Animation and display, after Faded art on campaign pages (issue #609). */
+export function fadeColorRowInfoOf(settings: Settings): FadeColorRowInfo {
+  return {
+    title: "Fade color",
+    detail: "The color of the side panel on campaign pages, and the color the faded art blends into.",
+    options: CAMPAIGN_FADE_COLOR_VALUES.map((value) => ({ value, label: CAMPAIGN_FADE_COLOR_LABELS[value] })),
+    selected: settings.campaignFadeColor,
+  };
+}
+
+/** `settings` with the fade color set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterFadeColor(settings: Settings, value: CampaignFadeColor): Settings {
+  return CAMPAIGN_FADE_COLOR_VALUES.includes(value) ? { ...settings, campaignFadeColor: value } : settings;
 }
 
 export interface TokenMotionRowInfo {

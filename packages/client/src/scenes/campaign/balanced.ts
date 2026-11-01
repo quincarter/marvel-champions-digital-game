@@ -8,7 +8,7 @@
  * outside the region, so no control sits over a scrolling area. Every other control uses `McButton`'s press rule.
  */
 import Phaser from "phaser";
-import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { accent, ink, surface, typeRole } from "../../tokens.js";
 import {
   actionBarCta,
   bangers,
@@ -25,6 +25,13 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { captureIntoRegion } from "../../ui/scroll-capture.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import {
+  PANE_ART_ALPHA,
+  PANE_VEIL_ALPHA,
+  PANE_VEIL_COLOR,
+  campaignFadeFillOf,
+} from "../../view/campaign-fade-color.js";
+import type { CampaignFadeColor } from "../../settings.js";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { appSession } from "../../session.js";
 import { fitText, McButton } from "../../ui/widgets.js";
@@ -54,14 +61,11 @@ import type { CampaignBalancedData } from "./routes.js";
 
 /** A mode card or toggle row never gets shorter than a comfortable touch target. */
 const ROW_MIN_HEIGHT = 64;
-const ROW_PAD = 12;
-/** The radio ring or switch glyph column at a row's left. */
-const MARK_COLUMN = 34;
+const ROW_PAD = 14;
+/** The radio ring or checkbox at a row's left. */
+const MARK_SIZE = 20;
 /** The ON / OFF pill at a toggle row's right. */
 const PILL_WIDTH = 52;
-/** The faded box art over the pane's blue, and the dark veil that keeps pale text readable on it. */
-const PANE_ART_ALPHA = 0.3;
-const PANE_VEIL_ALPHA = 0.28;
 
 export class CampaignBalancedScene extends Phaser.Scene {
   #data: CampaignBalancedData = { campaignId: "" };
@@ -74,6 +78,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
   #firstDraw = true;
   /** The faded-art setting as last drawn; null before the first draw. */
   #artShown: boolean | null = null;
+  #fadeShown: CampaignFadeColor = "grey";
 
   constructor() {
     super(SCENES.campaignBalanced);
@@ -84,6 +89,9 @@ export class CampaignBalancedScene extends Phaser.Scene {
     this.#choice = NORMAL_CHOICE;
     this.#scroll = new VariableListScroll();
     this.#firstDraw = true;
+    // Settings never opens over this page, so the faded-art choices are read once, as it opens.
+    this.#artShown = this.#artOn();
+    this.#fadeShown = appSession().settings.campaignFadeColor;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#hints = createHints(this);
     // Start and A with nothing focused: Continue to the roster.
@@ -154,7 +162,6 @@ export class CampaignBalancedScene extends Phaser.Scene {
     stops.set("cta", { rect: ctaRect, activate: () => this.#continue() });
 
     const body: Rect = { x: 0, y: top.height, width: frame.width, height: bar.y - top.height };
-    this.#artShown = this.#artOn();
     // The tablet and desktop pane is fixed: drawn under the scrolling body, as tall as the body.
     if (layout.pane)
       this.#drawPaneBackground({ x: layout.pane.x, y: body.y, width: layout.pane.width, height: body.height });
@@ -210,20 +217,15 @@ export class CampaignBalancedScene extends Phaser.Scene {
     return appSession().settings.fadedCampaignArt;
   }
 
-  /** Settings can be opened over this page: when the faded-art switch changes, the page is drawn again. */
-  override update(): void {
-    if (this.#artShown !== null && this.#artOn() !== this.#artShown) this.#draw();
-  }
-
   /**
-   * The coloured pane's ground: a saturated blue (a signal token, the same in light and dark mode), the box art faded
-   * over it (cover-fitted into the pane, never stretched) unless Settings turns it off, and a dark veil that keeps the
+   * The coloured pane's ground: the chosen fade color (Settings, grey to begin with) with the box art faded over it
+   * (cover-fitted into the pane, never stretched) unless Settings turns the art off, and a dark veil that keeps the
    * pale text readable on any picture. `moveTo` slots it under text already drawn (the phone's stacked pane).
    */
   #drawPaneBackground(rect: Rect, moveTo?: number): void {
     const made: Phaser.GameObjects.GameObject[] = [];
     const ground = this.add.graphics();
-    ground.fillStyle(signal.cost.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    ground.fillStyle(campaignFadeFillOf(this.#fadeShown), 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     made.push(ground);
     if (this.#artShown) {
       const id = this.#data.campaignId;
@@ -236,7 +238,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
       if (image) made.push(image);
     }
     const veil = this.add.graphics();
-    veil.fillStyle(surface.inkOnHue.hex, PANE_VEIL_ALPHA).fillRect(rect.x, rect.y, rect.width, rect.height);
+    veil.fillStyle(PANE_VEIL_COLOR, PANE_VEIL_ALPHA).fillRect(rect.x, rect.y, rect.width, rect.height);
     veil.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
     made.push(veil);
     if (moveTo !== undefined) made.forEach((object, index) => this.children.moveTo(object, moveTo + index));
@@ -342,7 +344,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
       y = ruleHeading(this, x, y + 6, width, screen.togglesHeading, light, layout.headingSize - 2);
       y = this.#paragraph(x, y - 6, width, screen.togglesNote, layout.textSize, 1, false, light) + 8;
       for (const row of screen.toggles) {
-        y = this.#toggleRow(layout, row, { x, y, width }, () => this.#toggle(row.id), body, stops) + 8;
+        y = this.#toggleRow(layout, row, { x, y, width }, () => this.#toggle(row.id), body, stops) + layout.gap;
       }
     }
     return y;
@@ -397,7 +399,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
     body: Rect,
     stops: Map<string, FocusStop>,
   ): number {
-    const textX = at.x + MARK_COLUMN + 8;
+    const textX = at.x + ROW_PAD + MARK_SIZE + 12;
     const textWidth = at.width - (textX - at.x) - ROW_PAD - spec.rightRoom;
     const size = layout.kind === "phone" ? 15 : 17;
     const name = this.add
@@ -450,7 +452,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
         rightRoom: card.selected ? 86 : 0,
         mark: (rect) => {
           const g = this.add.graphics();
-          const cx = rect.x + 6 + MARK_COLUMN / 2;
+          const cx = rect.x + ROW_PAD + MARK_SIZE / 2;
           const cy = rect.y + ROW_PAD + 10;
           g.lineStyle(2, surface.ink.hex, 1).strokeCircle(cx, cy, 9);
           if (card.selected) g.fillStyle(accent.heroRed.hex, 1).fillCircle(cx, cy, 5);
@@ -494,7 +496,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
         rightRoom: PILL_WIDTH + 8,
         mark: (rect) => {
           const g = this.add.graphics();
-          const bx = rect.x + 6;
+          const bx = rect.x + ROW_PAD;
           const by = rect.y + ROW_PAD + 1;
           g.lineStyle(2, surface.ink.hex, 1).strokeRect(bx, by, 20, 20);
           if (row.on) {

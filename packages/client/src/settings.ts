@@ -146,6 +146,8 @@ export interface Settings {
   readonly ultronDroneArt: boolean;
   /** Draw the campaign box art, faded, behind the side pane of campaign pages (the Balanced prompt, issue #609). Off leaves the pane a plain colour. Defaults on. */
   readonly fadedCampaignArt: boolean;
+  /** The colour the side pane of campaign pages fades into, with the art on or off (issue #609). Defaults to grey. */
+  readonly campaignFadeColor: CampaignFadeColor;
   /** The promo cards the player picked in Extras ▸ Promos (`art/promo-art.ts`; issue #192), by set id. */
   readonly promoArt: readonly string[];
   /** Whether picked promo cards are drawn at all (Settings ▸ More ▸ Earned items). Defaults on. */
@@ -301,6 +303,9 @@ export function resolutionPixelsOf(
   if (match === null) return null;
   return { width: Number(match[1]), height: Number(match[2]) };
 }
+
+export type CampaignFadeColor = "grey" | "blue" | "red" | "purple" | "green";
+export const CAMPAIGN_FADE_COLOR_VALUES: readonly CampaignFadeColor[] = ["grey", "blue", "red", "purple", "green"];
 
 export type FirstPlayerTokenMotion = "toss" | "slide" | "bounce" | "spin" | "instant";
 export const FIRST_PLAYER_TOKEN_MOTION_VALUES: readonly FirstPlayerTokenMotion[] = [
@@ -466,6 +471,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     hoverVillainCard: true,
     ultronDroneArt: true,
     fadedCampaignArt: true,
+    campaignFadeColor: "grey",
     promoArt: [],
     promoArtOn: true,
     heroArt: "game",

@@ -75,9 +75,6 @@ export interface BalancedScreen {
   readonly cost: string;
   readonly normal: { readonly title: string; readonly detail: string; readonly selected: boolean };
   readonly rebalance: { readonly title: string; readonly detail: string; readonly selected: boolean };
-  /** Only while Rebalance is picked. */
-  readonly changesHeading: string;
-  readonly changes: readonly BalancedChangeGroup[];
   readonly togglesHeading: string;
   readonly togglesNote: string;
   readonly toggles: readonly BalancedToggleRow[];
@@ -144,7 +141,7 @@ export function balancedPaneOf(choice: BalancedChoice): BalancedPane {
     intro: "The cards exactly as written. Nothing is changed, and nothing is held back.",
     groupsHeading: "The three that bite",
     groups: HARD_SPOTS,
-    footnote: "It earns the same points and achievements as Rebalance.",
+    footnote: "It earns full points and achievements.",
     showToggles: false,
   };
 }
@@ -168,8 +165,6 @@ export function balancedScreenOf(choice: BalancedChoice, expert: boolean): Balan
       detail: "Eases the Museum, Nebula and Ronan scenarios.",
       selected: choice.balanced,
     },
-    changesHeading: "What changes",
-    changes: CHANGES,
     togglesHeading: "Optional extra challenge",
     togglesNote: "Each is off to begin with. Turn on any you want back.",
     toggles: GMW_BALANCED_TOGGLES.map((toggle) => ({
@@ -183,14 +178,14 @@ export function balancedScreenOf(choice: BalancedChoice, expert: boolean): Balan
   };
 }
 
-/** Focus order for the screen: Back, the two modes, each toggle (Rebalance only), the credit, then Continue. */
+/** Focus order for the screen: Back, the two modes, the credit, each toggle (Rebalance only), then Continue. */
 export function balancedStopOrder(choice: BalancedChoice): readonly string[] {
   return [
     "back",
     "mode-normal",
     "mode-rebalance",
-    ...(choice.balanced ? GMW_BALANCED_TOGGLES.map((toggle) => `toggle-${toggle.id}`) : []),
     "credit",
+    ...(choice.balanced ? GMW_BALANCED_TOGGLES.map((toggle) => `toggle-${toggle.id}`) : []),
     "cta",
   ];
 }

@@ -32,7 +32,7 @@ describe("the Balanced prompt's layout", () => {
   });
 
   it("caps the pane's text so lines stay readable on a big screen", () => {
-    expect(balancedLayoutOf(1920, 24).paneInner.width).toBe(620);
+    expect(balancedLayoutOf(1920, 24).paneInner.width).toBe(680);
   });
 
   it("keeps body text legible at every size", () => {
