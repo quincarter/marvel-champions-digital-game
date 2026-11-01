@@ -85,6 +85,45 @@ const section = (sections: readonly StatsSection[], id: string): StatsSection =>
 const row = (s: StatsSection, id: string): Extract<StatRow, { kind: "stat" }> =>
   s.rows.find((r) => r.id === id) as Extract<StatRow, { kind: "stat" }>;
 
+test("Matchups: every finished game on the pool's axes, none before the first game", () => {
+  expect(playerStatsOf([], NAMES).matchups).toBeNull();
+  const names: StatsNames = {
+    ...NAMES,
+    matchupAxes: () => ({
+      scenarios: [
+        { id: "rhino", name: "Rhino" },
+        { id: "klaw", name: "Klaw" },
+      ],
+      heroes: [
+        { id: "spidey", name: "Spider-Man" },
+        { id: "cap", name: "Captain America" },
+      ],
+      modulars: [{ id: "bomb", name: "Bomb Scare" }],
+    }),
+  };
+  const expert = { ...CONFIG, difficulty: "expert" as const, modularSetIds: ["bomb"] };
+  const stats = playerStatsOf(
+    [
+      meta({ config: expert }),
+      meta({ config: { ...CONFIG, modularSetIds: ["bomb"] }, status: "lost" }),
+      meta({ config: { ...CONFIG, scenarioId: "klaw" }, status: "abandoned" }),
+    ],
+    names,
+  );
+  expect(stats.matchups?.heroes.columns.map((c) => c.id)).toEqual(["spidey", "cap"]);
+  expect(stats.matchups?.heroes.cells).toEqual([{ row: 0, column: 0, wins: { expert: 1 }, losses: 1 }]);
+  expect(stats.matchups?.modulars.cells).toEqual([{ row: 0, column: 0, wins: { expert: 1 }, losses: 1 }]);
+});
+
+test("Matchups follow the filter chips", () => {
+  const stats = playerStatsOf(
+    [meta({ config: { ...CONFIG, difficulty: "expert" } }), meta({ status: "lost" })],
+    NAMES,
+    { difficulty: "expert" },
+  );
+  expect(stats.matchups?.heroes.cells).toEqual([{ row: 0, column: 0, wins: { expert: 1 }, losses: 0 }]);
+});
+
 describe("playerStatsOf: which games count", () => {
   test("no games: an overview with nothing in it, and no other sections", () => {
     const stats = playerStatsOf([], NAMES);
