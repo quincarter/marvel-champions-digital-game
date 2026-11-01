@@ -179,7 +179,9 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     await openDecks(page);
     await startNewDeck(page, "42001a");
     expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["IDENTITY — ANGEL", "HERO · 15"]));
-    expect(await deckPanel(page)).toEqual(expect.arrayContaining(["Adaptive Plumage", "Metamorphosis", "Psylocke"]));
+    expect(await deckPanel(page)).toEqual(
+      expect.arrayContaining(["Adaptive Plumage", "Metamorphosis", "Psylocke (Betsy Braddock)"]),
+    );
     await press(page, "DeckBuilder", "aspect:protection");
     expect(await legalityLine(page)).toContain("a deck must have between 40 and 50");
     await shot(page, "5-angel");
