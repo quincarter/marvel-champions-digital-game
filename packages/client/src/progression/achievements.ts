@@ -75,7 +75,7 @@ export interface AchievementSave {
   readonly config: {
     readonly scenarioId: string;
     readonly difficulty?: string;
-    readonly modes?: { readonly expert?: boolean; readonly heroic?: number };
+    readonly modes?: { readonly expert?: boolean; readonly heroic?: number; readonly skirmish?: unknown };
     readonly players: readonly object[];
   };
 }
@@ -166,7 +166,8 @@ export interface AchievementDef {
 }
 
 const isExpert = (save: AchievementSave): boolean =>
-  save.config.difficulty === "expert" || save.config.difficulty === "extreme" || save.config.modes?.expert === true;
+  !save.config.modes?.skirmish &&
+  (save.config.difficulty === "expert" || save.config.difficulty === "extreme" || save.config.modes?.expert === true);
 
 const seatAspects = (seat: object): readonly string[] => {
   if ("aspects" in seat && Array.isArray(seat.aspects)) return seat.aspects as string[];

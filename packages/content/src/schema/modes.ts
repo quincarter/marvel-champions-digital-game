@@ -8,10 +8,10 @@
  * `ScenarioDifficulty` ("standard" | "expert") is one two-value **projection** of the set rather than the set
  * itself (`difficultyOf` below).
  *
- * Only `expert` is consumed today: it selects the villain stage range (`Scenario.villainStages`), the Expert
- * encounter set (`Scenario.expertEncounterSetIds`) and any substituted villain (`Scenario.expertVillains`), all
- * through `difficultyOf`. `campaign`, `heroic` and `skirmish` are typed now and read by nothing — the point of
- * the set is that adding a consumer later does not move a single call site.
+ * `expert` selects the villain stage range (`Scenario.villainStages`), the Expert encounter set
+ * (`Scenario.expertEncounterSetIds`) and any substituted villain (`Scenario.expertVillains`), all through
+ * `difficultyOf`. `heroic` and `skirmish` leave that projection alone: `playableScenario` turns them into the game's
+ * heroic level and its one villain version (`@mc/cards`' `withPlayModes`).
  *
  * Nothing here reaches `GameState`. What reaches the engine is the *resolved consequence* of the modes (a stage
  * range, a list of encounter sets), which is why this file lives in `@mc/content` and names no card, scenario or
@@ -43,10 +43,14 @@ export interface CampaignModeRef {
 export interface PlayModes {
   /** Expert mode: the Expert encounter set is added and the villain starts one stage later. */
   readonly expert?: true;
-  /** Heroic level X: X extra encounter cards per player in the villain phase. Typed, not built. */
+  /** Heroic level X: X extra encounter cards per player in the villain phase (RRG 1.8 p. 29). */
   readonly heroic?: number;
-  /** Skirmish (a.k.a. rookie) mode: one chosen villain version is used and the rest are removed. Typed, not built. */
-  readonly skirmish?: { readonly villainVersion: string };
+  /**
+   * Skirmish (a.k.a. rookie) mode: one chosen villain version is used and the rest are removed (RRG 1.8 p. 29).
+   * `villainVersion` is the chosen stage number as text; absent at a scenario whose rulebook prints what skirmish does
+   * there (`SkirmishOffer.printed`), which has no version to choose.
+   */
+  readonly skirmish?: { readonly villainVersion?: string };
   /** Campaign mode: which campaign this scenario belongs to, and whether it is the expert campaign. */
   readonly campaign?: CampaignModeRef;
 }
@@ -61,6 +65,9 @@ export interface ModePredicate {
   readonly expertCampaign?: boolean;
   readonly heroicAtLeast?: number;
 }
+
+/** The highest heroic level the setup screen offers. A product choice: the RRG prints no maximum (its examples are 1 and 4). */
+export const HEROIC_LEVEL_MAX = 4;
 
 /** Standard mode: no modification at all (RRG 1.8 p. 28). */
 export const STANDARD_MODES: PlayModes = {};
