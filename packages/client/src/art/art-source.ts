@@ -27,6 +27,7 @@
 import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
 import { availableCardLanguages, cardLanguage, type CardLanguage } from "./card-language.js";
 import { announceLanguageChange } from "../language-change.js";
+import { BALANCED_SCANS, BALANCED_SCAN_STEMS } from "./balanced-scans.js";
 
 /** The URL prefix every scan is served under. `vite-card-art.ts` imports this, so the two cannot drift. */
 export const CARD_ART_ROUTE = "/card-art/";
@@ -130,6 +131,23 @@ export function setShownPromos(promos: ReadonlyMap<string, ArtSource>): void {
   shownPromos = promos;
 }
 
+/**
+ * The normal scans a Balanced Galaxy's Most Wanted game shows an edited version of (`art/balanced-scans.ts`, issue
+ * #609), by file stem. Set when such a game starts or resumes and cleared when it ends (`session.ts`); empty otherwise,
+ * so `allArtFor` lists the normal scans. A Balanced scan wins over a promo for the same card.
+ */
+let shownBalanced: ReadonlySet<string> = new Set();
+
+export function setShownBalancedScans(scans: ReadonlySet<string>): void {
+  shownBalanced = scans;
+}
+
+/** The stem of the normal scan a Balanced picture stands in for, or null when this picture is not a Balanced one. */
+export function balancedScanOf(art: ArtSource | null): string | null {
+  const found = art ? /\/bundles\/cards\/(\w+)-balanced(?:-(\w+))?\.png$/.exec(art.url) : null;
+  return found ? (found[2] ? `${found[1]}-${found[2]}` : found[1]!) : null;
+}
+
 /** The ATKs the Drone pictures print; a Drone's ATK outside them shows the nearest one. */
 export const DRONE_STAND_IN_ATKS = [1, 2, 3, 4] as const;
 
@@ -156,6 +174,8 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
 /** The promo picture chosen for this scan, else the scan. A promo is the same picture in every card language. */
 function promoOrFace(refPath: string): ArtSource {
   const scan = refPath.slice(refPath.lastIndexOf("/") + 1).replace(/\.\w+$/, "");
+  const balanced = BALANCED_SCANS.find((entry) => entry.scan === scan && shownBalanced.has(entry.id));
+  if (balanced) return faceSource(balanced.path);
   return shownPromos.get(scan) ?? faceSource(refPath);
 }
 
@@ -335,6 +355,16 @@ export function allArtFor(card: AnyCard): readonly ArtSource[] {
   for (const face of faces) {
     const art = artFor(card, face);
     if (art) byKey.set(art.key, art);
+  }
+  // The Balanced versions of this card's scans, which the build carries so a Balanced game can show them.
+  for (const art of [...byKey.values()]) {
+    const stem = /([^/]+?)(\.\w+)?$/.exec(artPathOf(art))?.[1] ?? "";
+    if (!BALANCED_SCAN_STEMS.has(stem)) continue;
+    for (const entry of BALANCED_SCANS) {
+      if (entry.scan !== stem) continue;
+      const balanced = faceSource(entry.path);
+      byKey.set(balanced.key, balanced);
+    }
   }
   // A separated identity's other sides (SP//dr Suit's support side, the SP//dr pilot upgrade) are cards in play the pool
   // never lists: the engine makes them from these fields, so without this no build carries their scans (issue #599).

@@ -17,6 +17,7 @@ export type SettingsItemId =
   | "music-volume"
   | "effects-volume"
   | "token-motion"
+  | "fade-color"
   | "deck-signature"
   | "display-mode"
   | "resolution"
@@ -149,6 +150,8 @@ export function settingsSectionsOf(input: {
         "reduced-motion",
         "token-motion",
         "sharper-text",
+        "faded-campaign-art",
+        "fade-color",
       ],
     },
     {

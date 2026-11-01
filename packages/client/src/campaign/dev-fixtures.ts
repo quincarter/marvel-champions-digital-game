@@ -210,7 +210,7 @@ function withHeadhunterDefeated(state: GameState): GameState {
 export async function seedGmwRun(
   service: CampaignService,
   stop: GmwRunStop = "afterIssue1",
-  options: { readonly expertCampaign?: boolean } = {},
+  options: { readonly expertCampaign?: boolean; readonly balanced?: boolean } = {},
 ): Promise<CampaignRecord> {
   const decks = preconDecks(POOL_VERSION);
   const deck = (hero: string) => {
@@ -222,6 +222,7 @@ export async function seedGmwRun(
     campaignId: "gmw",
     seats: [deck("groot"), deck("rocket-raccoon")],
     expertCampaign: options.expertCampaign ?? stop === "expertAfterIssue1",
+    ...(options.balanced ? { balanced: { toggles: [] } } : {}),
     poolVersion: POOL_VERSION,
     seed: 1616,
   });

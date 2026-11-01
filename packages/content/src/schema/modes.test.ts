@@ -93,6 +93,17 @@ describe("matchesModes", () => {
     expect(matchesModes({}, { heroicAtLeast: 0 })).toBe(true);
   });
 
+  test("`balanced` reads the campaign's own flag, independent of expert and expert campaign", () => {
+    const balanced: PlayModes = { campaign: { campaignId: TRORS, balanced: true } };
+    expect(matchesModes(balanced, { balanced: true })).toBe(true);
+    expect(matchesModes(balanced, { balanced: false })).toBe(false);
+    expect(matchesModes(STANDARD_CAMPAIGN, { balanced: true })).toBe(false);
+    expect(matchesModes(STANDARD_CAMPAIGN, { balanced: false })).toBe(true);
+    expect(matchesModes({}, { balanced: false })).toBe(true);
+    expect(matchesModes(EXPERT_CAMPAIGN, { balanced: true })).toBe(false);
+    expect(matchesModes(balanced, { expertCampaign: true })).toBe(false);
+  });
+
   test("every stated condition must hold at once", () => {
     const modes: PlayModes = { expert: true, heroic: 3, ...EXPERT_CAMPAIGN };
     expect(matchesModes(modes, { expert: true, expertCampaign: true, heroicAtLeast: 3 })).toBe(true);

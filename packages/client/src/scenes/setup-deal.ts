@@ -105,7 +105,7 @@ import {
 import type { LogLine } from "../view/log-lines.js";
 import type { HandCardView } from "../view/board-model.js";
 import type { SessionState } from "../store/session-store.js";
-import { appSession } from "../session.js";
+import { appSession, holdGameArt } from "../session.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
@@ -237,6 +237,7 @@ export class SetupDealScene extends Phaser.Scene {
   }
 
   create(): void {
+    holdGameArt(this);
     this.#version = -1;
     this.#handedOff = false;
     this.#choiceOpen = false;

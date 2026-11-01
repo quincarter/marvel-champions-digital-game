@@ -816,6 +816,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=saga`: the Saga shelf. `?screen=campaign-opener&campaign=shadowland&node=heart-of-shadow`: that issue's opener
   // read from Extras (no run needed), for checking a story's pictures. Dev builds only.
   if (screen === "saga" && import.meta.env.DEV) return { key: SCENES.campaignSaga, data: {} };
+  // `?screen=campaign-balanced[&expert=1]`: the Galaxy's Most Wanted Balanced prompt (issue #609). Dev builds only.
+  if (screen === "campaign-balanced" && import.meta.env.DEV) {
+    return {
+      key: SCENES.campaignBalanced,
+      data: { campaignId: "gmw", ...(params.get("expert") === "1" ? { expertCampaign: true } : {}) },
+    };
+  }
   if (screen === "campaign-opener" && import.meta.env.DEV) {
     return {
       key: SCENES.campaignOpener,
@@ -856,6 +863,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       await service.storage.put(record);
     }
     return { key: SCENES.campaignMarket, data: { runId: record.id } };
+  }
+
+  // `?screen=campaign-gmw-balanced-ronan`: a Balanced Galaxy's Most Wanted run at Ronan's Briefing, on its free Milano
+  // Mods pick (issue #609). `&won=1` plays the run to its win instead, for the Trophy Room. Dev builds only.
+  if (screen === "campaign-gmw-balanced-ronan" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const won = params.get("won") === "1";
+    const record = await fixtures.seedGmwRun(campaignService(), won ? "finished" : "afterIssue4", { balanced: true });
+    if (won) return { key: SCENES.trophyRoom, data: {} };
+    return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }
 
   return null;

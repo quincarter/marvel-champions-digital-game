@@ -33,6 +33,7 @@ import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { createHints, forwardHintAtEnd } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
+import { goToCampaignStart } from "./start-route.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignCoverData } from "./routes.js";
 
@@ -121,6 +122,13 @@ export class CampaignCoverScene extends Phaser.Scene {
     this.#route?.set(order, this.#stops);
   }
 
+  /** The box chip, with the run's "Balanced" marker when it was signed on the house rule (issue #609). */
+  #chipText(model: CoverModel): string {
+    return model.balancedTag
+      ? `${model.boxCode} · Campaign box · ${model.balancedTag}`
+      : `${model.boxCode} · Campaign box`;
+  }
+
   #back(): void {
     goToScreen(this, SCENES.campaignSaga);
   }
@@ -169,7 +177,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     const pad = 36;
     let y = pad;
     const chipLabel = this.add
-      .text(0, 0, `${model.boxCode} · Campaign box`.toUpperCase(), textStyle(typeRole.label, surface.paper.hex, 1))
+      .text(0, 0, this.#chipText(model).toUpperCase(), textStyle(typeRole.label, surface.paper.hex, 1))
       .setLetterSpacing(1);
     const chipRect: Rect = { x: panelRect.x + pad, y, width: chipLabel.width + 20, height: 26 };
     const chipBg = this.add.graphics();
@@ -209,7 +217,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     this.#drawBack(16, 16);
 
     const chip = this.add
-      .text(0, 0, `${model.boxCode} · Campaign box`.toUpperCase(), textStyle(typeRole.label, surface.paper.hex, 1))
+      .text(0, 0, this.#chipText(model).toUpperCase(), textStyle(typeRole.label, surface.paper.hex, 1))
       .setLetterSpacing(1);
     const chipRect: Rect = { x: frame.width - 16 - chip.width - 20, y: 16, width: chip.width + 20, height: 26 };
     const chipBg = this.add.graphics();
@@ -308,12 +316,12 @@ export class CampaignCoverScene extends Phaser.Scene {
       subtitle: model.expertUnlocked ? "Ready to sign" : "Finish standard to unlock",
       chevron: model.expertUnlocked,
       enabled: model.expertUnlocked,
-      onClick: () => goToScreen(this, SCENES.campaignRoster, { campaignId: model.campaignId, expertCampaign: true }),
+      onClick: () => goToCampaignStart(this, model.campaignId, true),
       titleSize: 15,
     });
     this.#stops.set("expert", {
       rect: expertRect,
-      activate: () => goToScreen(this, SCENES.campaignRoster, { campaignId: model.campaignId, expertCampaign: true }),
+      activate: () => goToCampaignStart(this, model.campaignId, true),
     });
     y -= 10;
 
@@ -424,7 +432,7 @@ export class CampaignCoverScene extends Phaser.Scene {
       return {
         title: "Sign the roster",
         enabled: true,
-        onClick: () => goToScreen(this, SCENES.campaignRoster, { campaignId: model.campaignId }),
+        onClick: () => goToCampaignStart(this, model.campaignId),
       };
     }
     if (model.canReadIssue && model.issueNumber !== null) {

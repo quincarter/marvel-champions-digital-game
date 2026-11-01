@@ -1,4 +1,4 @@
-import type { AbilityId, KeywordInstance, SchemeIcon, Trait } from "@mc/content";
+import type { AbilityId, CardId, KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { PaidTypesRead, ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
 import type {
@@ -802,6 +802,17 @@ export interface StatModifierSpec {
    * Additive modifiers still apply on top.
    */
   readonly setBase?: boolean;
+}
+
+/**
+ * One or every stage of a main scheme card, for text that names a stage rather than a card in play: the stages of a card
+ * are one instance, so a `TargetQuery` cannot tell them apart. Without `stageNumber`, every stage of the card; `name`
+ * separates stages that share a number, as `EffectSpec advanceMainScheme.to` does.
+ */
+export interface MainSchemeStageRef {
+  readonly cardId: CardId;
+  readonly stageNumber?: number;
+  readonly name?: string;
 }
 
 /** "X gains [keyword]" while the granting card is in play. */
@@ -1660,6 +1671,26 @@ export type RuleSpec =
       readonly cards: TargetQuery;
       readonly while?: Predicate;
       readonly player?: PlayerRef;
+    }
+  /**
+   * A change to one threat value of a named main scheme stage, for a scenario or campaign rule with no card to carry a
+   * `StatModifierSpec` (`GameSetupConfig.scenarioRuleSpecs`, `CampaignNode.scenarioRuleSpecs`). It holds only while
+   * `stage` is showing, so it reaches a first stage at setup and a later stage as it is placed, and it is one more
+   * modifier in `mainSchemeValue`: added before the single floor at 0 of RRG 1.8 "Modifiers" (p. 29), and not applied
+   * to a dashed value (p. 15).
+   *
+   * `amount` is added, negative to lower the value, and is read in the rule's context, so with no card behind it nothing
+   * is "self" and a per player value counts every player who started. `setBase` replaces the printed value as
+   * `StatModifierSpec.setBase` does ("has a base X of"): an engine reading, not the "set" of RRG 1.8 "Modifiers" (p. 29),
+   * so other modifiers still add to it. A card's own `setBase` is read after a rule's and is the one that holds.
+   */
+  | {
+      readonly kind: "mainSchemeValue";
+      readonly field: SchemeValueName;
+      readonly stage: MainSchemeStageRef;
+      readonly amount: number | ValueSpec;
+      readonly setBase?: true;
+      readonly while?: Predicate;
     }
   /**
    * "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (Corrupted Timestream): an action ability of a

@@ -79,6 +79,7 @@ describe("SettingsStore", () => {
     ["villainAutoAdvance", "afterPause"],
     ["holdEncounterCards", false],
     ["discordPresence", false],
+    ["fadedCampaignArt", false],
     ["flipEncounterCards", false],
     ["flipEncounterSpeed", "off"],
     ["villainBeatSpeed", "fast"],
@@ -208,6 +209,13 @@ describe("parseSettingsOverrides", () => {
       villainBeatSpeed: "slow",
       holdEncounterCards: false,
     });
+  });
+
+  test("campaignFadeColor: only the five known colors are read; anything else reads the default", () => {
+    expect(parseSettingsOverrides('{"campaignFadeColor":"red"}')).toEqual({ campaignFadeColor: "red" });
+    expect(parseSettingsOverrides('{"campaignFadeColor":"pink"}')).toEqual({});
+    expect(parseSettingsOverrides('{"campaignFadeColor":3}')).toEqual({});
+    expect(parseSettingsOverrides("{}")).toEqual({});
   });
 
   test("firstPlayerTokenMotion: only the five known styles are read", () => {

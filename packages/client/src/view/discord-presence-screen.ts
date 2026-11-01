@@ -24,6 +24,7 @@ const DECK_SCREENS: ReadonlySet<string> = new Set([
 const CAMPAIGN_SCREENS: ReadonlySet<string> = new Set([
   SCENES.campaignSaga,
   SCENES.campaignCover,
+  SCENES.campaignBalanced,
   SCENES.campaignRoster,
   SCENES.campaignOpener,
   SCENES.campaignBriefing,
