@@ -53,6 +53,8 @@ import {
   nextSettingsAfterCardHover,
   nextSettingsAfterInspectCard,
   inspectCardRowInfoOf,
+  fadeColorRowInfoOf,
+  nextSettingsAfterFadeColor,
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
   achievementPopupPlaceRowInfoOf,
@@ -68,6 +70,7 @@ import {
   settingsRowInfoOf,
   discordRowInfoOf,
   deckCopyLimitsRowInfoOf,
+  fadedCampaignArtRowInfoOf,
   deckSignatureRowInfoOf,
   nextSettingsAfterDeckSignature,
   earnedItemRowInfoOf,
@@ -898,6 +901,7 @@ export class SettingsOverlay extends Phaser.Scene {
       ...settingsRowInfoOf(settings, powerSavingOn()),
       ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
       deckCopyLimitsRowInfoOf(settings),
+      fadedCampaignArtRowInfoOf(settings),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
@@ -949,6 +953,10 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     segmented("card-language", cardLanguageRowInfoOf(settings), SPEED_CONTROL_WIDTH, (v) => this.#setCardLanguage(v));
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
+    segmented("fade-color", fadeColorRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterFadeColor(appSession().settings, v);
+      this.#draw();
+    });
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     segmented("deck-signature", deckSignatureRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterDeckSignature(appSession().settings, v);

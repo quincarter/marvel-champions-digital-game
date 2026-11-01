@@ -44,6 +44,7 @@ import { ListScroll } from "../../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { createHints, forwardHintAtEnd } from "./pad-hints.js";
+import { goToCampaignStart } from "./start-route.js";
 import { SCENES } from "../keys.js";
 import { refreshUnlocks, unlocks } from "../../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "../unlock-confirm.js";
@@ -687,15 +688,14 @@ export class CampaignSagaScene extends Phaser.Scene {
         {
           label: "New run",
           enabled: true,
-          onClick: () => goToScreen(this, SCENES.campaignRoster, { campaignId: row.volume.campaignId }),
+          onClick: () => goToCampaignStart(this, row.volume.campaignId),
         },
       ];
       if (row.wonStandard) {
         actions.push({
           label: "Expert run ▸",
           enabled: true,
-          onClick: () =>
-            goToScreen(this, SCENES.campaignRoster, { campaignId: row.volume.campaignId, expertCampaign: true }),
+          onClick: () => goToCampaignStart(this, row.volume.campaignId, true),
         });
       }
       return actions;
@@ -715,7 +715,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     void campaignService()
       .abandon(runId)
       .then(() => {
-        if (this.sys.isActive()) goToScreen(this, SCENES.campaignRoster, { campaignId: row.volume.campaignId });
+        if (this.sys.isActive()) goToCampaignStart(this, row.volume.campaignId);
       });
   }
 }
