@@ -34,6 +34,7 @@ import type { GameRecord } from "../engine/game-record.js";
 import type { SessionConfig } from "../engine/host.js";
 import { describeCivilWar } from "./civil-war-label.js";
 import type { CivilWarRandomizer } from "./civil-war-builder-model.js";
+import { difficultyLabelOf } from "./difficulty-label.js";
 import { foeWord } from "./foe-words.js";
 import { hpFraction, hpNumber } from "./hp-format.js";
 import { inspectModel } from "./inspect-model.js";
@@ -228,7 +229,7 @@ export function gameOverModel(
   const heroesDown = record.seats.filter((seat) => seat.defeatedInRound !== null);
   const firstDown = [...heroesDown].sort((a, b) => (a.defeatedInRound ?? 0) - (b.defeatedInRound ?? 0))[0];
 
-  const difficulty = config ? sentenceCase(config.difficulty) : null;
+  const difficulty = difficultyLabelOf(config ?? null);
   const meta = [`Round ${round}`, difficulty, plural(state.startingPlayerCount, "hero", "heroes")]
     .filter(Boolean)
     .join(" · ");
