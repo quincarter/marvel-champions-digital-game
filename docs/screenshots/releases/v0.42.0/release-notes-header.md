@@ -6,18 +6,18 @@ The card lists were hiding cards: any two with the same name and type shared one
 
 **[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/v0.42.0/index.es.html)**
 
-![The numbers: 7 Spider-Man allies listed, 8 reports closed, 4 deck list sorts and 23 more Spanish scans](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-01-the-numbers.jpg)
+![The numbers: 7 Spider-Man allies listed, 8 reports closed, 4 deck list sorts and 23 more Spanish scans](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-01-the-numbers.jpg)
 
-![Every card, its own row: searching web-warrior in the deck builder, and subtitles on a phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-02-every-card-its-own-row.jpg)
+![Every card, its own row: searching web-warrior in the deck builder, and subtitles on a phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-02-every-card-its-own-row.jpg)
 
-![Your deck, your order: Sort and Review in the deck builder, and the same sort in Deck check](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-03-your-deck-your-order.jpg)
+![Your deck, your order: Sort and Review in the deck builder, and the same sort in Deck check](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-03-your-deck-your-order.jpg)
 
-![You asked, we fixed: Sync Ratio's tiles, SP//dr's missing scans, and no warning on an empty hand](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-04-you-asked-we-fixed.jpg)
+![You asked, we fixed: Sync Ratio's tiles, SP//dr's missing scans, and no warning on an empty hand](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-04-you-asked-we-fixed.jpg)
 
-![More of the game in Spanish: Peni Parker and the SP//dr pilot](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-05-more-of-the-game-in-spanish.jpg)
+![More of the game in Spanish: Peni Parker and the SP//dr pilot](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-05-more-of-the-game-in-spanish.jpg)
 
-![Also in v0.42.0: card data, docs and contributor changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-06-also-in-v0-42-0.jpg)
+![Also in v0.42.0: card data, docs and contributor changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-06-also-in-v0-42-0.jpg)
 
-![Thank you to bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-07-thank-you.jpg)
+![Thank you to bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-07-thank-you.jpg)
 
-![Code shipped: 4 pull requests, 73 files, 4,100 lines added and 2,165 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.42.0/v0-42-0-release-08-code-shipped.jpg)
+![Code shipped: 4 pull requests, 73 files, 4,082 lines added and 2,165 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/12097f51b2b79473144109dfc77f778766749735/docs/screenshots/releases/v0.42.0/v0-42-0-release-08-code-shipped.jpg)
