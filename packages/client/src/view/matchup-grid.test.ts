@@ -6,6 +6,7 @@ import {
   cellRect,
   clampCursor,
   clampPan,
+  cursorInView,
   flipGrid,
   hardestWin,
   legendLayoutOf,
@@ -267,6 +268,12 @@ describe("the grid's geometry", () => {
     expect(panToShow(shape, { x: 0, y: 0 }, { row: 1, column: 1 })).toEqual({ x: 0, y: 0 });
     expect(panToShow(shape, { x: 0, y: 0 }, { row: 6, column: 5 })).toEqual({ x: 40, y: 80 });
     expect(panToShow(shape, { x: 200, y: 200 }, { row: 1, column: 1 })).toEqual({ x: 40, y: 40 });
+  });
+
+  test("a pan carries the cursor to the nearest cell wholly in view", () => {
+    expect(cursorInView(shape, { x: 0, y: 0 }, { row: 2, column: 2 })).toEqual({ row: 2, column: 2 });
+    expect(cursorInView(shape, { x: 100, y: 90 }, { row: 0, column: 0 })).toEqual({ row: 3, column: 3 });
+    expect(cursorInView(shape, { x: 0, y: 0 }, { row: 9, column: 9 })).toEqual({ row: 4, column: 4 });
   });
 
   test("the cursor steps a cell and stops at the edge", () => {

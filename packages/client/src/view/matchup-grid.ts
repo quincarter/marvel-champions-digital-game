@@ -519,6 +519,18 @@ export function panToShow(shape: GridShape, pan: GridPoint, { row, column }: Gri
 
 export type GridStep = "up" | "down" | "left" | "right";
 
+/** The cursor moved the least that leaves it wholly in view, for a pan that would carry it off the body. */
+export function cursorInView(shape: GridShape, pan: GridPoint, { row, column }: GridCursor): GridCursor {
+  const { cell } = shape.metrics;
+  const body = bodyOf(shape);
+  const along = (at: number, offset: number, view: number, count: number): number => {
+    const first = Math.ceil(offset / cell);
+    const last = Math.min(count, Math.floor((offset + view) / cell)) - 1;
+    return last < first ? at : Math.min(last, Math.max(first, at));
+  };
+  return { row: along(row, pan.y, body.height, shape.rows), column: along(column, pan.x, body.width, shape.columns) };
+}
+
 /** The cursor one cell along, or null at the grid's edge (the arrow then leaves the grid). */
 export function stepCursor(shape: GridShape, { row, column }: GridCursor, step: GridStep): GridCursor | null {
   const next = {

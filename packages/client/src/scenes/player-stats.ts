@@ -6,8 +6,8 @@
  * art), Heroes, Villains, Matchups (villains against heroes and modular sets, four views: two grids, `ui/matchup-grid.ts`,
  * and two lists, `ui/matchup-rows.ts`), Side schemes, Devices (once a synced game says where it was played) and Cards by hero (each hero's most played, most used
  * and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes (on Matchups, the two grids); a
- * pad or keyboard walks every tile, row, card and grid cell, and the list follows the ring. Each card picture, in a strip or
- * leading a row, opens the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and
+ * pad or keyboard walks every tile, row, card and grid cell, and the list follows the ring. Each card picture, in a
+ * strip or leading a row, opens the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and
  * "Share my games" on Everyone), the tabs, the chips, a Matchups shelf or side row, and Back press anything, and none
  * of them sits over the scrolling list.
  *
@@ -218,6 +218,8 @@ interface StatsChip {
   width?: number;
 }
 
+/** Each hero's picture by identity, kept while the app runs. */
+const heroPictures = new Map<string, string | null>();
 /** The Focus view's list of rows, and the screen width it needs beside the tiles; narrower, a stepper takes its place. */
 const SIDE_LIST_WIDTH = 240;
 const SIDE_LIST_MIN_SCREEN = 720;
@@ -243,6 +245,10 @@ export class PlayerStatsScene extends Phaser.Scene {
   #grid: McMatchupGrid | null = null;
   /** The Focus view's list of villains, beside its tiles. */
   #sideList: McVirtualList | null = null;
+  /** On Shelves and Focus, draws the list's rows again in place, for pictures that have arrived. */
+  #listRefresh: (() => void) | null = null;
+  /** The grid on show as last flipped: the rows ask for it often. */
+  #shown: { readonly source: MatchupGrid; readonly grid: MatchupGrid } | null = null;
   #listRect: Rect | null = null;
   #route: FocusRoute | null = null;
   #hover: HoverPreview | null = null;
@@ -299,8 +305,9 @@ export class PlayerStatsScene extends Phaser.Scene {
       this.#redrawQueued = true;
       this.time.delayedCall(0, () => {
         this.#redrawQueued = false;
-        // The grid asks again itself: a whole redraw would drop the drag in progress as each picture lands.
+        // The Matchups views ask again themselves: a whole redraw would drop a drag in progress as each picture lands.
         if (this.#grid) this.#grid.refreshArt();
+        else if (this.#listRefresh) this.#listRefresh();
         else this.#draw();
       });
     };
@@ -334,7 +341,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       onLog: () => this.#chooseSource(lastSource === "you" ? "everyone" : "you", true),
       blocked: () => this.scene.isActive(SCENES.inspect),
       // The grid's chips and its cursor can sit far apart across the screen: an arrow still goes from one to the other.
-      reachAcross: true,
+      reachAcross: () => this.#grid !== null,
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
@@ -509,6 +516,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#grid = null;
     this.#sideList?.destroy();
     this.#sideList = null;
+    this.#listRefresh = null;
   }
 
   /** A row of chip buttons from `top`, wrapping to more rows; returns where they end. */
@@ -749,22 +757,31 @@ export class PlayerStatsScene extends Phaser.Scene {
 
   /** The grid on show, flipped if the Flip chip is on. */
   #matchup(): MatchupGrid {
-    const matchups = this.#stats!.matchups!;
-    return gridFlipped ? flipGrid(matchups[lastGrid]) : matchups[lastGrid];
+    const source = this.#stats!.matchups![lastGrid];
+    if (!gridFlipped) return source;
+    if (this.#shown?.source !== source) this.#shown = { source, grid: flipGrid(source) };
+    return this.#shown.grid;
   }
 
   /** A row's or a column's picture: rows are scenarios unless flipped, and a modular set has none. */
   #pictureOf(axis: "row" | "column", id: string): string | null {
     const scenarios = (axis === "row") !== gridFlipped;
     if (scenarios) return villainArtFor(ART_CATALOG, id, () => 0)?.url ?? null;
-    return lastGrid === "heroes" ? (heroArtForIdentity(HERO_ART, id, POOL_CARDS, () => 0)?.url ?? null) : null;
+    if (lastGrid !== "heroes") return null;
+    // Walks the whole pool, so once per hero.
+    if (!heroPictures.has(id)) heroPictures.set(id, heroArtForIdentity(HERO_ART, id, POOL_CARDS, () => 0)?.url ?? null);
+    return heroPictures.get(id) ?? null;
   }
 
   /** Opens the Focus view on `row`. */
   #openFocus(row: number, byFocus: boolean): void {
     const place = gridPlaceOf(gridKey());
     place.cursor = { ...place.cursor, row };
-    this.#setView("focus", byFocus ? `side:${row}` : null);
+    this.#scrolls.delete(`matchups:focus:${gridKey()}`);
+    // Where the side list has no room, the stepper is what focus can land on.
+    const landing = this.scale.width < SIDE_LIST_MIN_SCREEN ? "focus:next" : `side:${row}`;
+    this.#setView("focus", byFocus ? landing : null);
+    this.#sideList?.scrollIntoView(row);
   }
 
   /** Picks the row the Focus view shows, by the side list or the stepper; `key`: the stop to stay on. */
@@ -774,6 +791,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     place.cursor = { ...place.cursor, row: ((row % count) + count) % count };
     this.#scrolls.delete(`matchups:focus:${gridKey()}`);
     this.#draw();
+    this.#sideList?.scrollIntoView(place.cursor.row);
     if (byFocus) this.#route?.focusKey(key);
   }
 
@@ -1267,6 +1285,9 @@ export class PlayerStatsScene extends Phaser.Scene {
     });
     this.#list = list;
     this.#listRect = listRect;
+    if (matchupRows) {
+      this.#listRefresh = () => list.update(rows.length, (index, rect) => this.#renderRow(rows[index]!, rect, phone));
+    }
 
     // Every tile, stat row and card picture is a stop, so a pad or keyboard can walk the whole tab.
     const listKeys: string[] = [];
@@ -1362,7 +1383,6 @@ export class PlayerStatsScene extends Phaser.Scene {
       onRowActivate: (index) => this.#stepFocus(index, `side:${index}`, false),
     });
     this.#sideList = list;
-    list.scrollIntoView(selected);
     shelves.forEach((_, index) => {
       const key = `side:${index}`;
       stops.set(key, {

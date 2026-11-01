@@ -271,6 +271,21 @@ test("Matchups: a swipe pans the grid, and a swipe lifted over a chip does not p
   expect(after.counts, "the lift over Counts pressed nothing").toBe(false);
 });
 
+test("Matchups: a swipe of the Focus tiles lifted over the stepper does not step", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's finger");
+  test.setTimeout(120_000);
+  await openMatchups(page, true);
+  await press(page, true, (await tabStop(page, "view:focus")).rect);
+  await waitFor(async () => ((await keys(page)).includes("tile:0") ? true : null), "the tiles", 10_000);
+  await settle(page);
+
+  const next = (await stopsOf(page)).find((s) => s.key === "focus:next")!.rect;
+  const x = next.x + next.width / 2;
+  await swipe(page, { x, y: page.viewportSize()!.height - 40 }, { x, y: next.y + next.height / 2 });
+  await page.waitForTimeout(400);
+  expect((await findText(page, "RHINO", "PlayerStats")).length, "still on Rhino").toBeGreaterThan(0);
+});
+
 test("from the Trophy Room: the record, then a tab with a tap and the next with RB", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";

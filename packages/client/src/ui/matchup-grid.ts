@@ -25,6 +25,7 @@ import {
   cellRect,
   clampCursor,
   clampPan,
+  cursorInView,
   gridMetricsOf,
   legendLayoutOf,
   legendOf,
@@ -135,10 +136,11 @@ class PicturePool {
     this.#layer = layer;
   }
 
-  place(index: number, url: string | null, width: number, height: number, x: number, y: number): void {
+  /** `urlOf` runs only for a picture not yet made: this is called on every frame of a pan. */
+  place(index: number, urlOf: () => string | null, width: number, height: number, x: number, y: number): void {
     let picture = this.#live.get(index);
     if (!picture) {
-      const made = renderArtThumb(this.#scene, { x: 0, y: 0, width, height }, url);
+      const made = renderArtThumb(this.#scene, { x: 0, y: 0, width, height }, urlOf());
       picture = made as Phaser.GameObjects.Image;
       this.#layer.addAt(picture, 0);
       this.#live.set(index, picture);
@@ -240,7 +242,7 @@ export class McMatchupGrid {
     };
     this.#cells = new Map(this.#grid.cells.map((cell) => [`${cell.row}:${cell.column}`, cell]));
     this.#state.cursor = clampCursor(this.#shape, this.#state.cursor);
-    this.#state.pan = clampPan(this.#shape, this.#state.pan);
+    this.#state.pan = panToShow(this.#shape, this.#state.pan, this.#state.cursor);
 
     const below = gridRect.y + gridRect.height;
     // The covers: the corner over the column names, the screen's edge past the last column, and the panel under the grid.
@@ -275,7 +277,7 @@ export class McMatchupGrid {
     this.#redraw();
   }
 
-  /** The cursor's square, for the focus ring. Panned out of the body, the ring hides (`FocusStop.view`). */
+  /** The cursor's square, for the focus ring. A pan brings the cursor along, so it is always in the body. */
   get cursorRect(): Rect {
     return cellRect(this.#shape, this.#state.pan, this.#state.cursor);
   }
@@ -335,11 +337,15 @@ export class McMatchupGrid {
     const next = clampPan(this.#shape, pan);
     if (next.x === this.#state.pan.x && next.y === this.#state.pan.y) return false;
     this.#state.pan = next;
+    this.#state.cursor = cursorInView(this.#shape, next, this.#state.cursor);
     this.#redraw();
     return true;
   }
 
   destroy(): void {
+    // A pad's press redraws the scene inside the UPDATE emit, and `#onUpdate` still runs that frame (`scroll-region.ts`).
+    this.#momentumX.stop();
+    this.#momentumY.stop();
     const { input, events } = this.#scene;
     input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
@@ -521,7 +527,7 @@ export class McMatchupGrid {
       }
       if (picture) {
         pictures.add(row);
-        this.#rowPictures.place(row, rowPicture(row), picture.width, picture.height, rect.x + 2, top + 4);
+        this.#rowPictures.place(row, () => rowPicture(row), picture.width, picture.height, rect.x + 2, top + 4);
       }
       if (picture && phone) text.setPosition(rect.x + 2, top + 28 + (metrics.cell - 28) / 2);
       else text.setPosition(rect.x + 4 + (picture ? picture.width + 6 : 0), top + metrics.cell / 2);
@@ -551,7 +557,7 @@ export class McMatchupGrid {
       if (stamps) {
         pictures.add(column);
         const width = metrics.cell - 6;
-        this.#columnPictures.place(column, columnPicture(column), width, pictureHeight, left + 3, rect.y + 2);
+        this.#columnPictures.place(column, () => columnPicture(column), width, pictureHeight, left + 3, rect.y + 2);
         text.setPosition(left + metrics.cell / 2, rect.y + pictureHeight + 5);
       } else {
         text.setPosition(left + metrics.cell / 2, rect.y + metrics.columnHeader - 6);
