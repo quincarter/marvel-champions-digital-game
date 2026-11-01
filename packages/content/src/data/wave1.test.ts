@@ -277,6 +277,8 @@ describe("The Wrecking Crew — curated corrections and structure", () => {
     expect(s?.multipleVillains?.encounterDecks).toBe("perVillain");
     expect(s?.multipleVillains?.activation).toBe("activeVillainOnly");
     expect(s?.multipleVillains?.winCondition).toBe("allVillainsDefeated");
+    // The insert, "The Active Villain": a card's "the villain" is the active villain (ruling June 13, 2024 #212).
+    expect(s?.multipleVillains?.theVillain).toBe("activeVillain");
     expect(s?.usesIdentityEncounterSets).toBe(false);
     // Per FFG ruling Jan 17, 2026 (Ruling 5); the insert says otherwise and the owner follows the ruling (row 86).
     expect(s?.nemesisSetsSetAside).toBe(true);

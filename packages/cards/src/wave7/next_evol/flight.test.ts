@@ -96,14 +96,13 @@ describe("Flight as a modular set: Setup, Attach to the villain, Permanent", () 
 });
 
 /**
- * Ruling 165 (May 10, 2024, post-RRG 1.5; its follow-up answer) keeps Flight in play and attaches it to the next
- * eligible villain that enters play. RRG 1.8 "Permanent" (p. 32) resolves the "attach to" text at once and removes the
- * attachment from the game when it has no valid target. The engine re-attaches it when a legal host is in play and
- * otherwise discards it (owner call, docs/phase7-wave5.md §4.1 row 26; `discardWithLeavingHost`). This proof stays
- * `it.fails`: the older ruling is superseded by v1.8 where they conflict.
+ * Morlock Siege's own rule (NeXt Evolution rulebook, MC40 p. 9): "Unlike other scenarios, when one of these villains is
+ * defeated, all tokens, status cards, and attachments on the just-defeated villain are discarded instead of carrying
+ * over to the next villain." A scenario's rules take precedence over the permanent rules (FFG ruling Feb 28, 2026 #3),
+ * so ruling 165 (May 10, 2024: Flight moves to the next villain) does not apply here (issue #525, item 8).
  */
-describe("Ruling 165, 2024 + RRG 1.8 'Permanent' (p. 32): a permanent attachment re-resolves its 'attach to' when its host leaves play", () => {
-  it.fails("Flight (40151) on a Morlock Siege villain: the next villain gets it, it is not discarded", () => {
+describe("Morlock Siege (MC40 p. 9): attachments on a defeated villain are discarded, Flight's permanent included", () => {
+  it("Flight (40151) on a Morlock Siege villain: it is discarded, the next villain does not get it", () => {
     let s: GameState | null = null;
     for (let seed = 1; seed < 400 && !s; seed++) {
       const created = createGame(
@@ -147,8 +146,8 @@ describe("Ruling 165, 2024 + RRG 1.8 'Permanent' (p. 32): a permanent attachment
     } as never);
     const next = activeVillain(run.state).instanceId;
     expect(next).not.toBe(target);
-    // Actual: Flight goes to the encounter discard pile and the new villain has no attachments.
-    expect(run.state.instances[flight]!.attachedTo).toBe(next);
+    expect(run.state.instances[flight]!.attachedTo).not.toBe(next);
+    expect(attachmentsOf(run.state, next)).not.toContain("Flight");
   });
 });
 

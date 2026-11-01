@@ -39,6 +39,10 @@
  *   response windows that the ability's end opens, as the sentence hold leaves the responses to a sentence's last
  *   effect alone (`sentence-hold.ts`). So "reveal the top card of the encounter deck" and nothing else keeps the
  *   order of a villain-phase reveal (FAQ "Widow's Bite (#10)", RRG 1.8 p. 60; the owner's answers 30B and 32B).
+ * - Whenever its steps would resolve (its ability has finished, or has nothing left), an enemy activation still
+ *   resolving beneath it makes it wait behind that one (`queueBehindResolvingActivation`; RRG 1.8 "Activation", p. 6),
+ *   as an ability's activation does (`activationToQueueBehind`): a minion put into play by an interrupt to the
+ *   villain's attack attacks after the villain's attack.
  * - "Each time" loops (ruling 38, Drang III: "after they've all engaged, resolve all Quickstrike and Teamwork
  *   abilities on those minions, then any Response abilities"; RRG 1.8 p. 38 agrees): a keyword made in a pass of the
  *   loop is held by the frame running the loop (`keywordFramesFor`), with every response to its minion entering play or
@@ -68,7 +72,7 @@
 import { type Ctx, emit, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId } from "../ids.js";
 import { getInstance } from "../query.js";
-import type { StackFrame } from "../stack.js";
+import { type DeferredEffects, resolvingEnemyActivation, type StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import { simultaneousOrderer } from "../villain/authority.js";
 import { displayNameOf } from "../visibility.js";
@@ -409,6 +413,60 @@ function waitForReveal(ctx: Ctx, frame: Frame<"event">, at: number): boolean {
 }
 
 /**
+ * `frame`, a keyword's activation ready to resolve its steps (its ability has finished, or has nothing left after the
+ * effect that initiated it), waits instead behind an enemy activation still resolving beneath it
+ * (`resolvingEnemyActivation`): RRG 1.8 "Activation" (p. 6): "If an effect initiates an activation during the
+ * resolution of another activation, the newly initiated activation resolves after the current activation has finished
+ * resolving".
+ *
+ * Conflict, flagged: ruling May 23, 2024 - Ruling 194 says the attack "resolves as soon as the ability that put her
+ * into play finishes". Inside an outer activation that would resolve one activation within another, which p. 6 forbids.
+ * RRG 1.8 (authority tier 1) wins over an older FFG ruling (tier 4) where they disagree, so here ruling 194 only sets
+ * the earliest point the steps can resolve at, and p. 6 pushes them past the outer activation. So a forced interrupt
+ * to the villain's attack that puts a quickstrike minion into play makes the minion attack after the villain's attack,
+ * whether or not anything of the interrupt follows the effect that put it into play. Outside an outer activation
+ * ruling 194 applies as written.
+ *
+ * It leaves the stack, `cleared` (its steps resolve as it comes back), and waits in that activation's `endEffects` as
+ * an ability suspended behind it does (`DeferredEffects.suspended`, `resolve/suspend.ts`): put back once that
+ * activation, its Retaliate and its responses have resolved (`pushEndEffects`), in the order the activations queued.
+ * With it go what waited for the same ability just beneath it (`parkedFor`: the other keyword activations parked
+ * there and the responses an "each time" loop held after them, ruling 38), so they keep their order after it. That
+ * holds whether it parked first (more of the ability after the loop) or not (the loop is the ability's last effect):
+ * the last keyword the loop released carries the loop's held responses, so they resolve after every released
+ * keyword's steps either way. The keyword activations initiated with it and not yet resolving (`stepsAfterAbility`)
+ * are not "resolving": it does not wait behind them.
+ *
+ * Known gap (issue #524): RRG 1.8 p. 6 answers the order of several activations queued this way ("If multiple
+ * activations are initiated this way, the first player decides the order"), but no prompt asks it yet: they resolve in
+ * the order they queued, which is the order they were initiated in. True when it moved.
+ */
+function queueBehindResolvingActivation(ctx: Ctx, frame: Frame<"event">, cleared: Frame<"event">, at: number): boolean {
+  const stack = ctx.state.stack;
+  const beneath = stack.slice(at + 1).filter((f) => f.kind !== "event" || f.stepsAfterAbility === undefined);
+  const outer = resolvingEnemyActivation(beneath);
+  if (outer === null) return false;
+  const root = frame.stepsAfterAbility;
+  let end = at + 1;
+  if (root !== undefined) while (end < stack.length && parkedFor(stack[end], root)) end++;
+  const group: readonly StackFrame[] = [cleared, ...stack.slice(at + 1, end)];
+  ctx.state = { ...ctx.state, stack: [...stack.slice(0, at), ...stack.slice(end)] };
+  // Logged as they leave the stack; `framePushed` follows as they come back (as `suspendBehindActivation` logs).
+  for (const f of group) emit(ctx, { type: "framePopped", frameId: f.frameId, frame: f.kind });
+  const event = frame.event;
+  const queued: DeferredEffects = {
+    effects: [],
+    selfInstanceId: event.kind === "enemyAttack" || event.kind === "enemyScheme" ? event.enemyInstanceId : null,
+    controllerId: null,
+    bindings: {},
+    vars: {},
+    suspended: group,
+  };
+  updateFrame(ctx, outer, (f) => (f.kind === "event" ? { ...f, endEffects: [...f.endEffects, queued] } : f));
+  return true;
+}
+
+/**
  * The apply step of an activation marked `stepsAfterAbility`. While its ability is still on the stack it moves beneath
  * the ability's root frame and true is returned: nothing more of it resolves until it is on top again. Otherwise (it
  * has waited, or the ability is gone) the marks are cleared and the cleared frame is returned for the apply step.
@@ -421,6 +479,7 @@ export function awaitEnclosingAbility(ctx: Ctx, frame: Frame<"event">): true | F
   const rootAt = root === undefined ? -1 : stack.findIndex((f) => f.frameId === root);
   if (frame.awaitingAbility && !frame.cancelled && waitForReveal(ctx, frame, at)) return true;
   if (frame.awaitingAbility || frame.cancelled || rootAt < 0 || rootAt < at || !abilityHasMore(stack, at, rootAt)) {
+    if (!frame.cancelled && queueBehindResolvingActivation(ctx, frame, cleared, at)) return true;
     setFrame(ctx, cleared);
     return cleared;
   }
