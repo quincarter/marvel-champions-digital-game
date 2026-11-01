@@ -77,6 +77,11 @@ export interface FocusStop {
   /** A slider: Left / Right (and the pad's d-pad) step it instead of moving focus. */
   readonly adjust?: (direction: -1 | 1) => void;
   /**
+   * A stop with a cursor of its own (a grid of cells): the arrows move inside it. Return false at its edge, and the
+   * arrow moves focus as usual, so the stop never traps it.
+   */
+  readonly steer?: (direction: "up" | "down" | "left" | "right") => boolean;
+  /**
    * The right stick while this stop is focused, for a stop that holds its own scroll (a text block, a card's rules, a
    * nested list): pixels to scroll this frame (positive down) and the frame's length. Return true when it scrolled;
    * false (at its end, or nothing to scroll) hands the stick on to the screen's `onScroll`.
@@ -507,6 +512,10 @@ export class FocusRoute {
             : undefined;
         if (adjust) {
           adjust(intent === "left" ? -1 : 1);
+          break;
+        }
+        if (this.#focus !== null && this.#stopOf(this.#focus)?.steer?.(intent)) {
+          this.#drawRing();
           break;
         }
         // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow

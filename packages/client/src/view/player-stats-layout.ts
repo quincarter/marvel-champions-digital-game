@@ -4,6 +4,7 @@
  * cards come as strips of card pictures, as many across as fit. Pure: sizes and positions only, no Phaser.
  */
 import type { Rect } from "./layout.js";
+import type { MatchupRow } from "./matchup-grid.js";
 import type {
   AspectShare,
   HeroCardsView,
@@ -13,7 +14,16 @@ import type {
   StatsSection,
 } from "./player-stats-model.js";
 
-export type StatsTab = "overview" | "heroes" | "villains" | "aspects" | "encounter" | "records" | "all-cards" | "cards";
+export type StatsTab =
+  | "overview"
+  | "heroes"
+  | "villains"
+  | "matchups"
+  | "aspects"
+  | "encounter"
+  | "records"
+  | "all-cards"
+  | "cards";
 
 /** The sections a list tab shows, in order; a tab with more than one heads each. */
 const TAB_SECTIONS: Partial<Record<StatsTab, readonly string[]>> = {
@@ -36,6 +46,7 @@ export function statsTabsOf(stats: PlayerStats): readonly StatsTabEntry[] {
     { id: "overview", label: "Overview" },
     ...(has("heroes") ? [{ id: "heroes" as const, label: "Heroes" }] : []),
     ...(has("villains") ? [{ id: "villains" as const, label: "Villains" }] : []),
+    ...(stats.matchups ? [{ id: "matchups" as const, label: "Matchups" }] : []),
     ...(has("aspects") ? [{ id: "aspects" as const, label: "Aspects" }] : []),
     // Side schemes and modular sets share Encounter; devices sit under Records.
     ...(has("side-schemes") || has("encounter") ? [{ id: "encounter" as const, label: "Encounter" }] : []),
@@ -77,6 +88,8 @@ export type DashRow =
       readonly height: number;
       readonly aspects: HeroCardsView["aspects"];
     }
+  /** A row of the Matchups tab's Shelves or Focus view. */
+  | { readonly kind: "matchup"; readonly id: string; readonly height: number; readonly matchup: MatchupRow }
   | {
       readonly kind: "cards";
       readonly id: string;

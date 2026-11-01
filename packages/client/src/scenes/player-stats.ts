@@ -3,9 +3,10 @@
  * (`view/player-stats-model.ts`, laid out by `view/player-stats-layout.ts`).
  *
  * Tabs: Overview (tiles: the record, how you lose, per-game figures, the favorite hero and the villains with their
- * art), Heroes, Villains, Side schemes, Devices (once a synced game says where it was played) and Cards by hero (each
- * hero's most played, most used and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes; a
- * pad or keyboard walks every tile, row and card, and the list follows the ring. Each card picture, in a strip or
+ * art), Heroes, Villains, Matchups (villains against heroes and modular sets, four views: two grids, `ui/matchup-grid.ts`,
+ * and two lists, `ui/matchup-rows.ts`), Side schemes, Devices (once a synced game says where it was played) and Cards by hero (each hero's most played, most used
+ * and rarely played cards as pictures). LB / RB switch tabs and LT / RT switch heroes (on Matchups, the two grids); a
+ * pad or keyboard walks every tile, row, card and grid cell, and the list follows the ring. Each card picture, in a strip or
  * leading a row, opens the card hover popover under a resting mouse. Read-only: only the You / Everyone switch (and
  * "Share my games" on Everyone), the tabs, the hero chips and Back press anything, and none of them sits over the
  * scrolling list.
@@ -32,6 +33,8 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
 import { McChipRail } from "../ui/chip-rail.js";
+import { McMatchupGrid, type MatchupGridState } from "../ui/matchup-grid.js";
+import { drawLegend, renderShelf, renderSideRow, renderTile } from "../ui/matchup-rows.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
@@ -40,6 +43,17 @@ import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
+import {
+  MATCHUP_VIEWS,
+  MATCHUP_VIEW_LABELS,
+  flipGrid,
+  shelfRowsOf,
+  shelvesOf,
+  tileRowsOf,
+  type MatchupGrid,
+  type MatchupKind,
+  type MatchupView,
+} from "../view/matchup-grid.js";
 import { loadPlayerStats } from "../view/player-stats-client.js";
 import { loadGlobalStats } from "../global-stats/global-stats-client.js";
 import {
@@ -152,6 +166,22 @@ let lastCameFrom: StatsTab | null = null;
 let hideSignature = false;
 /** On a phone the filter chips fold behind one "Filters" chip, so the tabs and the stats keep the screen. */
 let filtersOpen = false;
+/** The Matchups tab's choices, kept across visits like the tab: which grid, and how it shows. */
+let lastGrid: MatchupKind = "heroes";
+let gridCounts = false;
+let gridPlayed = true;
+let gridFlipped = false;
+let lastView: MatchupView = "heat";
+/** Each grid keeps its own place, a flipped one apart from the other. */
+const gridPlaces = new Map<string, MatchupGridState>();
+const gridPlaceOf = (key: string): MatchupGridState => {
+  let place = gridPlaces.get(key);
+  if (!place) {
+    place = { pan: { x: 0, y: 0 }, cursor: { row: 0, column: 0 } };
+    gridPlaces.set(key, place);
+  }
+  return place;
+};
 
 const DIFFICULTY_CHIP: Readonly<Record<NonNullable<StatsFilter["difficulty"]>, string>> = {
   standard: "Standard",
@@ -188,6 +218,14 @@ interface StatsChip {
   width?: number;
 }
 
+/** The Focus view's list of rows, and the screen width it needs beside the tiles; narrower, a stepper takes its place. */
+const SIDE_LIST_WIDTH = 240;
+const SIDE_LIST_MIN_SCREEN = 720;
+/** The Matchups grid's one focus stop: the arrows move its cursor from cell to cell (`FocusStop.steer`). */
+const GRID_STOP = "grid:cell";
+/** Where the grid on show keeps its place. */
+const gridKey = (): string => `${lastGrid}:${gridFlipped}`;
+
 export class PlayerStatsScene extends Phaser.Scene {
   /** Counts reads of the saves, so a fold that answers after a newer one began is dropped (`#load`). */
   #loads = 0;
@@ -197,10 +235,14 @@ export class PlayerStatsScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   #data: PlayerStatsData = {};
   #buttons: McButton[] = [];
-  /** A phone's tabs, one swipeable row; the scroll outlives each redraw. */
-  #tabRail: McChipRail | null = null;
+  /** A phone's tabs and the Matchups chips, a swipeable row each; the scrolls outlive each redraw. */
+  #rails: McChipRail[] = [];
   #tabScroll = new RailScroll();
+  #gridChipScroll = new RailScroll();
   #list: McVirtualList | null = null;
+  #grid: McMatchupGrid | null = null;
+  /** The Focus view's list of villains, beside its tiles. */
+  #sideList: McVirtualList | null = null;
   #listRect: Rect | null = null;
   #route: FocusRoute | null = null;
   #hover: HoverPreview | null = null;
@@ -257,7 +299,9 @@ export class PlayerStatsScene extends Phaser.Scene {
       this.#redrawQueued = true;
       this.time.delayedCall(0, () => {
         this.#redrawQueued = false;
-        this.#draw();
+        // The grid asks again itself: a whole redraw would drop the drag in progress as each picture lands.
+        if (this.#grid) this.#grid.refreshArt();
+        else this.#draw();
       });
     };
     this.#offArt = [
@@ -272,10 +316,16 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       onTab: (direction) => this.#stepTab(direction),
-      onTrigger: (trigger) => this.#stepHero(trigger === "lt" ? -1 : 1),
+      onTrigger: (trigger) => {
+        if (lastTab === "matchups") this.#setGrid(trigger === "lt" ? "heroes" : "modulars", !this.#gridFocused());
+        else this.#stepHero(trigger === "lt" ? -1 : 1);
+      },
       onPage: (direction) => this.#pageFocus(direction),
       onHomeEnd: (edge) => this.#focusEdge(edge),
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onScroll: (dx, dy) => {
+        this.#grid?.panBy(dx, dy);
+        this.#list?.scrollByPx(dy);
+      },
       // X (G / H): to the filter chips, opening them on a phone (on Everyone, which has none, to the You / Everyone
       // chips); the chip it lands on wears the glyph.
       onToggle: () => this.#focusFilters(),
@@ -283,6 +333,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       // (Not View's own key R / P, which is LB's on the keyboard.)
       onLog: () => this.#chooseSource(lastSource === "you" ? "everyone" : "you", true),
       blocked: () => this.scene.isActive(SCENES.inspect),
+      // The grid's chips and its cursor can sit far apart across the screen: an arrow still goes from one to the other.
+      reachAcross: true,
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
@@ -303,6 +355,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       (window as unknown as { __mcStatsDebug?: unknown }).__mcStatsDebug = {
         hoverShown: () => this.#hover?.shownKey ?? null,
         hoverRect: () => this.#hover?.shownRect ?? null,
+        grid: () =>
+          this.#grid ? { ...gridPlaceOf(gridKey()), readout: this.#grid.readout, counts: gridCounts } : null,
       };
     }
     this.#draw();
@@ -389,6 +443,11 @@ export class PlayerStatsScene extends Phaser.Scene {
   #listKeys: string[] = [];
 
   #pageFocus(direction: 1 | -1): void {
+    if (this.#grid) {
+      this.#grid.page(direction);
+      this.#route?.focusKey(GRID_STOP);
+      return;
+    }
     const keys = this.#listKeys;
     const at = keys.indexOf(this.#route?.focused ?? "");
     const step = Math.max(1, Math.floor((this.#listRect?.height ?? 300) / 80));
@@ -402,6 +461,11 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   #focusEdge(edge: "home" | "end"): void {
+    if (this.#grid) {
+      this.#grid.edge(edge);
+      this.#route?.focusKey(GRID_STOP);
+      return;
+    }
     const key = edge === "home" ? this.#listKeys[0] : this.#listKeys.at(-1);
     if (key) this.#route?.focusKey(key);
   }
@@ -434,13 +498,17 @@ export class PlayerStatsScene extends Phaser.Scene {
   }
 
   #destroyWidgets(): void {
-    this.#tabRail?.destroy();
-    this.#tabRail = null;
+    for (const rail of this.#rails) rail.destroy();
+    this.#rails = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#list?.destroy();
     this.#list = null;
     this.#listRect = null;
+    this.#grid?.destroy();
+    this.#grid = null;
+    this.#sideList?.destroy();
+    this.#sideList = null;
   }
 
   /** A row of chip buttons from `top`, wrapping to more rows; returns where they end. */
@@ -663,6 +731,133 @@ export class PlayerStatsScene extends Phaser.Scene {
     return chips;
   }
 
+  #gridFocused(): boolean {
+    return this.#route?.focused === GRID_STOP;
+  }
+
+  #setGrid(kind: MatchupKind, byFocus: boolean): void {
+    lastGrid = kind;
+    this.#draw();
+    if (byFocus) this.#route?.focusKey(`grid:${kind}`);
+  }
+
+  #setView(view: MatchupView, focus: string | null): void {
+    lastView = view;
+    this.#draw();
+    if (focus) this.#route?.focusKey(focus);
+  }
+
+  /** The grid on show, flipped if the Flip chip is on. */
+  #matchup(): MatchupGrid {
+    const matchups = this.#stats!.matchups!;
+    return gridFlipped ? flipGrid(matchups[lastGrid]) : matchups[lastGrid];
+  }
+
+  /** A row's or a column's picture: rows are scenarios unless flipped, and a modular set has none. */
+  #pictureOf(axis: "row" | "column", id: string): string | null {
+    const scenarios = (axis === "row") !== gridFlipped;
+    if (scenarios) return villainArtFor(ART_CATALOG, id, () => 0)?.url ?? null;
+    return lastGrid === "heroes" ? (heroArtForIdentity(HERO_ART, id, POOL_CARDS, () => 0)?.url ?? null) : null;
+  }
+
+  /** Opens the Focus view on `row`. */
+  #openFocus(row: number, byFocus: boolean): void {
+    const place = gridPlaceOf(gridKey());
+    place.cursor = { ...place.cursor, row };
+    this.#setView("focus", byFocus ? `side:${row}` : null);
+  }
+
+  /** Picks the row the Focus view shows, by the side list or the stepper; `key`: the stop to stay on. */
+  #stepFocus(row: number, key: string, byFocus: boolean): void {
+    const place = gridPlaceOf(gridKey());
+    const count = this.#matchup().rows.length;
+    place.cursor = { ...place.cursor, row: ((row % count) + count) % count };
+    this.#scrolls.delete(`matchups:focus:${gridKey()}`);
+    this.#draw();
+    if (byFocus) this.#route?.focusKey(key);
+  }
+
+  /** The Matchups tab's chips: which grid, and how it shows. LT and RT pick the grid too. */
+  #gridChips(phone: boolean, wide: boolean): readonly StatsChip[] {
+    const toggle = (key: string, label: string, selected: boolean, flip: () => void): StatsChip => ({
+      key,
+      label,
+      selected,
+      onClick: (byFocus) => {
+        flip();
+        this.#draw();
+        if (byFocus) this.#route?.focusKey(key);
+      },
+    });
+    const views: readonly StatsChip[] =
+      phone || wide
+        ? MATCHUP_VIEWS.map((view) => ({
+            key: `view:${view}`,
+            label: MATCHUP_VIEW_LABELS[view],
+            selected: lastView === view,
+            onClick: (byFocus) => this.#setView(view, byFocus ? `view:${view}` : null),
+          }))
+        : [
+            {
+              // One chip that steps through the views, where four would wrap to another row above the grid.
+              key: "view:step",
+              label: `View: ${MATCHUP_VIEW_LABELS[lastView]}`,
+              selected: true,
+              onClick: (byFocus) => {
+                const next = MATCHUP_VIEWS[(MATCHUP_VIEWS.indexOf(lastView) + 1) % MATCHUP_VIEWS.length]!;
+                this.#setView(next, byFocus ? "view:step" : null);
+              },
+            },
+          ];
+    return [
+      ...views,
+      {
+        key: "grid:heroes",
+        label: "By hero",
+        selected: lastGrid === "heroes",
+        onClick: (byFocus) => this.#setGrid("heroes", byFocus),
+        glyph: phone ? null : triggerSpecs("lt"),
+      },
+      {
+        key: "grid:modulars",
+        label: "By modular",
+        selected: lastGrid === "modulars",
+        onClick: (byFocus) => this.#setGrid("modulars", byFocus),
+        glyph: phone ? null : triggerSpecs("rt"),
+      },
+      ...(lastView === "shelves"
+        ? []
+        : [toggle("grid:counts", "Counts", gridCounts, () => (gridCounts = !gridCounts))]),
+      toggle("grid:played", phone ? "Not beaten" : "Played, not beaten", gridPlayed, () => (gridPlayed = !gridPlayed)),
+      toggle("grid:flip", "Flip axes", gridFlipped, () => (gridFlipped = !gridFlipped)),
+    ];
+  }
+
+  /** The Matchups grid in `rect`, with one stop whose arrows walk its cells. */
+  #drawGrid(rect: Rect, phone: boolean, stops: Map<string, FocusStop>, order: string[]): void {
+    const matchup = this.#matchup();
+    const grid = new McMatchupGrid(this, {
+      rect,
+      grid: matchup,
+      state: gridPlaceOf(gridKey()),
+      showPlayed: gridPlayed,
+      showCounts: gridCounts,
+      phone,
+      style: lastView === "stamps" ? "stamps" : "heat",
+      rowPicture: (index) => this.#pictureOf("row", matchup.rows[index]!.id),
+      columnPicture: (index) => this.#pictureOf("column", matchup.columns[index]!.id),
+    });
+    this.#grid = grid;
+    stops.set(GRID_STOP, {
+      rect: () => grid.cursorRect,
+      view: () => grid.bodyRect,
+      activate: () => undefined,
+      ensureVisible: () => grid.reveal(),
+      steer: (direction) => grid.step(direction),
+    });
+    order.push(GRID_STOP);
+  }
+
   #drawChips(
     top: number,
     left: number,
@@ -715,9 +910,11 @@ export class PlayerStatsScene extends Phaser.Scene {
     left: number,
     width: number,
     chips: readonly StatsChip[],
-    at: number,
+    /** The chip to bring into view; null leaves the row where the player swiped it. */
+    at: number | null,
     stops: Map<string, FocusStop>,
     order: string[],
+    scroll = this.#tabScroll,
   ): number {
     const height = 44;
     const rail = new McChipRail(this, {
@@ -731,10 +928,10 @@ export class PlayerStatsScene extends Phaser.Scene {
           chip.onClick(false);
         },
       })),
-      scroll: this.#tabScroll,
+      scroll,
     });
-    this.#tabRail = rail;
-    rail.scrollIntoView(at);
+    this.#rails.push(rail);
+    if (at !== null) rail.scrollIntoView(at);
     chips.forEach((chip, index) => {
       stops.set(chip.key, {
         rect: () => rail.rectFor(index),
@@ -816,6 +1013,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     const everyone = lastSource === "everyone";
     // The hero / villain / difficulty filters fold your games only: they are not offered on Everyone.
     const filters = everyone ? [] : this.#filterChips(stats, phone);
+    const onMatchups = !everyone && lastTab === "matchups" && stats.matchups !== null;
+    const gridChips = onMatchups ? this.#gridChips(phone, width >= 1280) : [];
     const tabChips = tabs.map((tab, index) => ({
       key: `tab:${tab.id}`,
       label: tab.label,
@@ -855,9 +1054,12 @@ export class PlayerStatsScene extends Phaser.Scene {
           phone,
         );
       if (rest.length > 0) y = this.#drawChips(y + CHIP_GAP, gutter, inner, rest, stops, order, phone);
+      if (gridChips.length > 0)
+        y = this.#drawTabRail(y + CHIP_GAP, gutter, inner, gridChips, null, stops, order, this.#gridChipScroll);
     } else {
       y = this.#drawChips(y, gutter, inner, tabChips, stops, order, phone);
       if (filters.length > 0) y = this.#drawChips(y + 10, gutter, inner, filters, stops, order, phone);
+      if (gridChips.length > 0) y = this.#drawChips(y + 10, gutter, inner, gridChips, stops, order, phone);
     }
     if (showShare) {
       y = this.#drawChips(y + 10, gutter, inner, [this.#shareChip()], stops, order, phone);
@@ -928,6 +1130,46 @@ export class PlayerStatsScene extends Phaser.Scene {
       );
     }
 
+    // Where there is no room for the side list, the Focus view steps through its rows as Cards by hero does its heroes.
+    const focusStepper = onMatchups && lastView === "focus" && width < SIDE_LIST_MIN_SCREEN;
+    if (focusStepper) {
+      const rows = this.#matchup().rows;
+      const place = gridPlaceOf(gridKey());
+      const at = Math.min(place.cursor.row, rows.length - 1);
+      const arrow = 64;
+      y = this.#drawChips(
+        y + 10,
+        gutter,
+        inner,
+        [
+          {
+            key: "focus:previous",
+            label: "◂",
+            selected: false,
+            onClick: (byFocus) => this.#stepFocus(at - 1, "focus:previous", byFocus),
+            width: arrow,
+          },
+          {
+            key: "focus:name",
+            label: rows[at]!.name,
+            selected: true,
+            onClick: () => undefined,
+            width: inner - (arrow + CHIP_GAP) * 2,
+          },
+          {
+            key: "focus:next",
+            label: "▸",
+            selected: false,
+            onClick: (byFocus) => this.#stepFocus(at + 1, "focus:next", byFocus),
+            width: arrow,
+          },
+        ],
+        stops,
+        order,
+        phone,
+      );
+    }
+
     if (lastTab === "cards" || lastTab === "all-cards") {
       y = this.#drawChips(
         y + 10,
@@ -952,28 +1194,50 @@ export class PlayerStatsScene extends Phaser.Scene {
     }
 
     const listTop = y + 12;
-    const listRect: Rect = { x: gutter, y: listTop, width: inner, height: Math.max(60, height - listTop - gutter) };
-    const rowWidth = inner - GUTTER;
+    const fullRect: Rect = { x: gutter, y: listTop, width: inner, height: Math.max(60, height - listTop - gutter) };
+    // The Focus view's side list takes the left of the rect; its tiles keep the rest.
+    const sided = onMatchups && lastView === "focus" && !focusStepper;
+    const sideRoom = sided ? SIDE_LIST_WIDTH + 12 : 0;
+    const listRect: Rect = { ...fullRect, x: fullRect.x + sideRoom, width: fullRect.width - sideRoom };
+    if (onMatchups && (lastView === "heat" || lastView === "stamps")) {
+      this.#rows = [];
+      this.#listKeys = [];
+      this.#drawGrid(fullRect, phone, stops, order);
+      this.#stops = stops;
+      this.#route?.set(order, stops);
+      this.#hover?.onDraw();
+      return;
+    }
+    const focusRow = Math.min(gridPlaceOf(gridKey()).cursor.row, onMatchups ? this.#matchup().rows.length - 1 : 0);
+    if (sided) this.#drawSideList({ ...fullRect, width: SIDE_LIST_WIDTH }, focusRow, stops, order);
+    const rowWidth = listRect.width - GUTTER;
     const backfill = backfillProgress();
     if (everyone && this.#global.kind === "idle") void this.#fetchGlobal();
     const filtered =
       lastFilter.hero !== undefined || lastFilter.villain !== undefined || lastFilter.difficulty !== undefined;
     const globalView = everyone ? globalTabViewOf(this.#global, lastTab, POOL_STATS_NAMES, filtered) : null;
-    const rows: DashRow[] = globalView
-      ? globalRowsOf(globalView.notes, globalView.section, phone)
-      : [
-          ...(lastTab === "overview" && backfill.running
-            ? [
-                {
-                  kind: "note" as const,
-                  id: "ov:backfill",
-                  height: phone ? 52 : 40,
-                  text: `Filling in your older games from their saved logs: ${backfill.done} of ${backfill.total}. Their card numbers appear here when it is done.`,
-                },
-              ]
-            : []),
-          ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone, hideSignature),
-        ];
+    const matchupRows = !onMatchups
+      ? null
+      : lastView === "shelves"
+        ? shelfRowsOf(this.#matchup(), gridPlayed, rowWidth, phone)
+        : tileRowsOf(this.#matchup(), focusRow, { showPlayed: gridPlayed, showCounts: gridCounts }, rowWidth, phone);
+    const rows: DashRow[] = matchupRows
+      ? matchupRows.map(({ id, height, row }) => ({ kind: "matchup", id, height, matchup: row }))
+      : globalView
+        ? globalRowsOf(globalView.notes, globalView.section, phone)
+        : [
+            ...(lastTab === "overview" && backfill.running
+              ? [
+                  {
+                    kind: "note" as const,
+                    id: "ov:backfill",
+                    height: phone ? 52 : 40,
+                    text: `Filling in your older games from their saved logs: ${backfill.done} of ${backfill.total}. Their card numbers appear here when it is done.`,
+                  },
+                ]
+              : []),
+            ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone, hideSignature),
+          ];
     this.#rows = rows;
     const list = new McVirtualList(this, {
       rect: listRect,
@@ -981,21 +1245,43 @@ export class PlayerStatsScene extends Phaser.Scene {
       rowHeightOf: (index) => rows[index]!.height,
       count: rows.length,
       // Everyone's list keeps its own scroll, apart from You's on the same tab.
-      scroll: this.#scrollOf(everyone ? `global:${lastTab}` : lastTab === "cards" ? `cards:${lastHero}` : lastTab),
+      scroll: this.#scrollOf(
+        everyone
+          ? `global:${lastTab}`
+          : lastTab === "cards"
+            ? `cards:${lastHero}`
+            : onMatchups
+              ? `matchups:${lastView}:${gridKey()}`
+              : lastTab,
+      ),
       background: false,
       renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, phone),
+      ...(onMatchups && lastView === "shelves"
+        ? {
+            onRowActivate: (index: number) => {
+              const row = rows[index]!;
+              if (row.kind === "matchup" && row.matchup.kind === "shelf") this.#openFocus(row.matchup.shelf.row, false);
+            },
+          }
+        : {}),
     });
     this.#list = list;
     this.#listRect = listRect;
 
     // Every tile, stat row and card picture is a stop, so a pad or keyboard can walk the whole tab.
     const listKeys: string[] = [];
-    const addStop = (key: string, index: number, part: (r: Rect) => Rect, cardId?: string): void => {
+    const addStop = (
+      key: string,
+      index: number,
+      part: (r: Rect) => Rect,
+      cardId?: string,
+      activate?: () => void,
+    ): void => {
       listKeys.push(key);
       stops.set(key, {
         rect: () => clipToView(part(list.rectFor(index)), listRect),
         view: listRect,
-        activate: cardId ? () => this.#inspectCard(cardId) : () => undefined,
+        activate: activate ?? (cardId ? () => this.#inspectCard(cardId) : () => undefined),
         ...(cardId ? { inspect: () => this.#inspectCard(cardId) } : {}),
         ensureVisible: () => list.scrollIntoView(index),
       });
@@ -1010,6 +1296,24 @@ export class PlayerStatsScene extends Phaser.Scene {
             height: row.height - 14,
           }));
         }
+      } else if (row.kind === "matchup") {
+        const { matchup } = row;
+        if (matchup.kind === "shelf")
+          addStop(
+            `row:${row.id}`,
+            index,
+            (r) => ({ ...r, width: r.width - GUTTER }),
+            undefined,
+            () => this.#openFocus(matchup.shelf.row, true),
+          );
+        else if (matchup.kind === "tiles")
+          for (const tile of matchup.tiles)
+            addStop(`tile:${tile.column}`, index, (r) => ({
+              x: r.x + tile.x,
+              y: r.y,
+              width: matchup.tileWidth,
+              height: matchup.tileHeight,
+            }));
       } else if (row.kind === "stat") {
         addStop(`row:${row.id}`, index, (r) => ({ ...r, width: r.width - GUTTER }), row.row.cardId);
       } else if (row.kind === "cards") {
@@ -1035,10 +1339,69 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#hover?.onDraw();
   }
 
+  /** The Focus view's side list: every row of the grid, the one shown filled. A press shows another. */
+  #drawSideList(rect: Rect, selected: number, stops: Map<string, FocusStop>, order: string[]): void {
+    const shelves = shelvesOf(this.#matchup(), gridPlayed);
+    const rowHeight = 46;
+    const list = new McVirtualList(this, {
+      rect,
+      rowHeight,
+      count: shelves.length,
+      scroll: this.#scrollOf(`matchups:side:${gridKey()}`),
+      background: false,
+      renderRow: (index, rowRect) => ({
+        objects: renderSideRow(
+          this,
+          shelves[index]!.name,
+          shelves[index]!.score,
+          rowRect,
+          index === selected,
+          accent.heroRed.hex,
+        ),
+      }),
+      onRowActivate: (index) => this.#stepFocus(index, `side:${index}`, false),
+    });
+    this.#sideList = list;
+    list.scrollIntoView(selected);
+    shelves.forEach((_, index) => {
+      const key = `side:${index}`;
+      stops.set(key, {
+        rect: () => clipToView({ ...list.rectFor(index), width: rect.width - 10 }, rect),
+        view: rect,
+        activate: () => this.#stepFocus(index, key, true),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+      order.push(key);
+    });
+  }
+
+  #renderMatchupRow(matchup: Extract<DashRow, { kind: "matchup" }>["matchup"], rect: Rect, phone: boolean) {
+    const width = rect.width - GUTTER;
+    if (matchup.kind === "legend") return drawLegend(this, matchup.layout, rect.x, rect.y + 2);
+    if (matchup.kind === "shelf") {
+      const { shelf } = matchup;
+      const id = this.#matchup().rows[shelf.row]!.id;
+      return renderShelf(this, shelf, { ...rect, width }, this.#pictureOf("row", id), phone);
+    }
+    const columns = this.#matchup().columns;
+    return matchup.tiles.flatMap((tile) =>
+      renderTile(
+        this,
+        tile,
+        { x: rect.x + tile.x, y: rect.y, width: matchup.tileWidth, height: matchup.tileHeight },
+        this.#pictureOf("column", columns[tile.column]!.id),
+        phone,
+      ),
+    );
+  }
+
   #renderRow(row: DashRow, rect: Rect, phone: boolean): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const width = rect.width - GUTTER;
     switch (row.kind) {
+      case "matchup":
+        objects.push(...this.#renderMatchupRow(row.matchup, rect, phone));
+        break;
       case "tiles":
         for (const placed of row.tiles) {
           objects.push(
