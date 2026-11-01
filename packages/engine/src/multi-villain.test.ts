@@ -74,7 +74,11 @@ const NEMESIS = stubMinion({
 const BREAKOUT_SETUP = stubAbility("breakout.setup", {
   trigger: { kind: "setup" },
   effects: [
-    { kind: "selectCards", slot: "signature", cards: { kind: "encounterSetAside" } },
+    {
+      kind: "selectCards",
+      slot: "signature",
+      cards: { kind: "encounterSetAside", filter: { categories: ["sideScheme"], signatureSideScheme: true } },
+    },
     { kind: "putIntoPlay", card: { kind: "slot", slot: "signature" }, controller: { kind: "firstPlayer" } },
     { kind: "setActiveVillain", villain: { kind: "named", name: "wrecker" } },
   ],
