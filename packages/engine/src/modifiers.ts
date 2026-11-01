@@ -1,8 +1,9 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf } from "./query.js";
+import { cardOf, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
+  activeRules,
   AFFECTED_SLOT,
   cardsInPlay,
   constantAbilityRefs,
@@ -32,12 +33,15 @@ export type ModifiedStat =
   | "consequentialAttack"
   | "consequentialThwart";
 
+const isSchemeValue = (stat: ModifiedStat): stat is SchemeValueName =>
+  stat === "acceleration" || stat === "targetThreat" || stat === "startingThreat";
+
 export interface ActiveModifier {
   /** The card whose printed stat box, constant ability, or lasting effect produced this. */
   readonly sourceInstanceId: InstanceId | null;
   readonly stat: ModifiedStat;
   readonly amount: number;
-  readonly origin: "attachment" | "constant" | "lasting";
+  readonly origin: "attachment" | "constant" | "lasting" | "rule";
   /** Replaces the printed base value instead of adding to it ("has a base ATK of 1"). */
   readonly setBase?: boolean;
 }
@@ -57,6 +61,22 @@ export function modifiersFor(
 ): readonly ActiveModifier[] {
   const found: ActiveModifier[] = [];
   const wanted = (s: ModifiedStat) => stat === undefined || stat === s;
+
+  // `RuleSpec mainSchemeValue`, first because it is the oldest: a `setBase` later in this list wins (`baseOverride`).
+  const scheme = stat === undefined || isSchemeValue(stat) ? mainSchemeStateOf(state, targetId) : undefined;
+  if (scheme) {
+    for (const { rule, context } of activeRules(state, deps, "mainSchemeValue")) {
+      if (!wanted(rule.field) || !mainSchemeStageMatches(state, scheme, rule.stage)) continue;
+      const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
+      found.push({
+        sourceInstanceId: context.selfInstanceId,
+        stat: rule.field,
+        amount: typeof rule.amount === "number" ? rule.amount : resolveValue(state, rule.amount, reading, deps),
+        origin: "rule",
+        ...(rule.setBase ? { setBase: true } : {}),
+      });
+    }
+  }
 
   // Printed stat boxes on an attachment modify its host while attached (Charge +3 ATK). A flipped double-sided
   // attachment's are its showing face's (Dense +1 ATK / Intangible +1 SCH, `synthezoid` 57046a/b): RRG 1.8 "Flip"

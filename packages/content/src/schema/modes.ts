@@ -33,6 +33,11 @@ export interface CampaignModeRef {
   readonly campaignId: CampaignId;
   /** Gates the printed `Expert Campaign Only` instructions. Independent of `PlayModes.expert`. */
   readonly expertCampaign?: true;
+  /**
+   * An opt-in house rule (no RRG or rulebook mode): a campaign's rebalanced version, chosen when the run starts. Like
+   * `expertCampaign` it modifies campaign mode and is independent of every other flag, so an instruction can gate on it.
+   */
+  readonly balanced?: true;
 }
 
 /**
@@ -59,6 +64,7 @@ export interface PlayModes {
 export interface ModePredicate {
   readonly expert?: boolean;
   readonly expertCampaign?: boolean;
+  readonly balanced?: boolean;
   readonly heroicAtLeast?: number;
 }
 
@@ -71,6 +77,7 @@ export const matchesModes = (modes: PlayModes, gate?: ModePredicate): boolean =>
   if (gate.expert !== undefined && gate.expert !== (modes.expert === true)) return false;
   if (gate.expertCampaign !== undefined && gate.expertCampaign !== (modes.campaign?.expertCampaign === true))
     return false;
+  if (gate.balanced !== undefined && gate.balanced !== (modes.campaign?.balanced === true)) return false;
   if (gate.heroicAtLeast !== undefined && (modes.heroic ?? 0) < gate.heroicAtLeast) return false;
   return true;
 };
