@@ -19,6 +19,7 @@ import {
 import type { GameSummary } from "../engine/game-summary.js";
 import { UNLOCK_HEROES, progressOf } from "./unlocks.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
+import { TEAM_UP_TROPHIES, teamUpTrophyId } from "./team-up-trophies.js";
 
 const heroId = (name: string): string => UNLOCK_HEROES.find((h) => h.name === name)!.identityCardId;
 const deckOf = (name: string, aspects?: string[]) => ({
@@ -195,6 +196,69 @@ describe("reading the save history", () => {
     expect(earned("campaign-trors", h)).toBe(true);
     expect(earned("campaign-expert-trors", h)).toBe(true);
     expect(earned("campaign-gmw", h)).toBe(false);
+  });
+});
+
+describe("doppelgangers, arch-enemies and team-ups (#615)", () => {
+  const ids = (family: string): string[] => ACHIEVEMENTS.filter((a) => a.family === family).map((a) => a.id);
+  const seated = (...names: string[]) => ({ players: names.map((name) => deckOf(name)) });
+
+  it("finds every villain who shares a hero's name", () => {
+    expect(ids("doppelgangers").sort()).toEqual(
+      [
+        "black-widow",
+        "magneto",
+        "nebula",
+        "registration-captain-marvel",
+        "registration-iron-man",
+        "registration-she-hulk",
+        "resistance-captain-america",
+        "resistance-spider-woman",
+        "resistance-vision",
+        "venom",
+        "all",
+      ]
+        .map((id) => `doppelganger-${id}`)
+        .sort(),
+    );
+  });
+
+  it("needs the hero seated in a win over the villain of their name", () => {
+    expect(earned("doppelganger-nebula", hist([game("nebula", "won", seated("Gamora"))]))).toBe(false);
+    expect(earned("doppelganger-nebula", hist([game("nebula", "lost", seated("Nebula"))]))).toBe(false);
+    expect(earned("doppelganger-nebula", hist([game("rhino", "won", seated("Nebula"))]))).toBe(false);
+    expect(earned("doppelganger-nebula", hist([game("nebula", "won", seated("Gamora", "Nebula"))]))).toBe(true);
+  });
+
+  it("counts toward Hall of Mirrors one pair at a time", () => {
+    const h = hist([game("nebula", "won", seated("Nebula")), game("venom", "won", seated("Venom"))]);
+    const all = achievementStatuses(h).find((s) => s.def.id === "doppelganger-all")!;
+    expect(all.earned).toBe(false);
+    expect(all.progress).toEqual({ current: 2, target: 10 });
+  });
+
+  it("has one arch-enemy trophy for each hero on the issue's list, and an all-of", () => {
+    expect(ids("archenemies")).toHaveLength(13);
+  });
+
+  it("earns a foe's trophy from any of that foe's scenarios", () => {
+    const hero = heroId("Spider-Man (Peter Parker)");
+    expect(earned(`archenemy-${hero}`, hist([game("rhino", "won")]))).toBe(false);
+    expect(earned(`archenemy-${hero}`, hist([game("risky-business", "won")]))).toBe(true);
+    expect(earned(`archenemy-${hero}`, hist([game("mutagen-formula", "won")]))).toBe(true);
+    const widow = `archenemy-${heroId("Black Widow")}`;
+    expect(earned(widow, hist([game("taskmaster", "won", seated("Black Widow"))]))).toBe(true);
+    expect(earned(widow, hist([game("black-widow", "won", seated("Black Widow"))]))).toBe(true);
+    const thor = `archenemy-${heroId("Thor")}`;
+    expect(earned(thor, hist([game("god-of-lies", "won", seated("Thor"))]))).toBe(true);
+  });
+
+  it("gives every pair in the team-up table a trophy, earned with both seated in a win", () => {
+    for (const trophy of TEAM_UP_TROPHIES) expect(ids("teamups")).toContain(teamUpTrophyId(trophy));
+    const id = "teamup-cable-deadpool";
+    expect(earned(id, hist([game("rhino", "won", seated("Cable"))]))).toBe(false);
+    expect(earned(id, hist([game("rhino", "lost", seated("Cable", "Deadpool"))]))).toBe(false);
+    expect(earned(id, hist([game("rhino", "won", seated("Deadpool", "Hulk", "Cable"))]))).toBe(true);
   });
 });
 
