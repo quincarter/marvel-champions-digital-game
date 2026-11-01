@@ -6,20 +6,20 @@ The Galaxy's Most Wanted gets an opt-in Balanced option, asked for by Borja and 
 
 **[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/v0.43.0/index.es.html)**
 
-![The numbers: 46 new trophies, 4 Heroic levels, 5 extra challenges and 11 campaign Briefings](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-01-the-numbers.jpg)
+![The numbers: 46 new trophies, 4 Heroic levels, 5 extra challenges and 11 campaign Briefings](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-01-the-numbers.jpg)
 
-![The Galaxy Is Unfair: the Balanced choice, what changes, free Milano Mods and the edited scans](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-02-the-galaxy-is-unfair.jpg)
+![The Galaxy Is Unfair: the Balanced choice, what changes, free Milano Mods and the edited scans](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-02-the-galaxy-is-unfair.jpg)
 
-![Heroic and Skirmish on Set the table, on desktop and on a phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-03-heroic-and-skirmish.jpg)
+![Heroic and Skirmish on Set the table, on desktop and on a phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-03-heroic-and-skirmish.jpg)
 
-![Box art on every Briefing, and the five fade colors](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-04-box-art-on-every-briefing.jpg)
+![Box art on every Briefing, and the five fade colors](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-04-box-art-on-every-briefing.jpg)
 
-![45 more trophies: doppelgangers, arch-enemies, team-ups and their art in Extras](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-05-45-more-trophies.jpg)
+![45 more trophies: doppelgangers, arch-enemies, team-ups and their art in Extras](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-05-45-more-trophies.jpg)
 
-![You asked, we fixed: five rules fixes from bluefireF5ran and the card scan fallback](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-06-you-asked-we-fixed.jpg)
+![You asked, we fixed: five rules fixes from bluefireF5ran and the card scan fallback](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-06-you-asked-we-fixed.jpg)
 
-![Also in v0.43.0: engine and docs changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-07-also-in-v0-43-0.jpg)
+![Also in v0.43.0: engine and docs changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-07-also-in-v0-43-0.jpg)
 
-![Thank you to Borja, Gideon's Gaming, bluefireF5ran, zackburnley and PermaKarma](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-08-thank-you.jpg)
+![Thank you to Borja, Gideon's Gaming, bluefireF5ran, zackburnley and PermaKarma](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-08-thank-you.jpg)
 
-![Code shipped since v0.42.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e983522cad53991a7c621bc494d50d79a5f861d7/docs/screenshots/releases/v0.43.0/v0-43-0-release-09-code-shipped.jpg)
+![Code shipped since v0.42.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6bb509164bfc17391b5beeb1ffeeeeaca2f397dd/docs/screenshots/releases/v0.43.0/v0-43-0-release-09-code-shipped.jpg)
