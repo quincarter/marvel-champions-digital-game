@@ -128,13 +128,16 @@ export interface TableSetupPreview {
  * The villain stage-number range this difficulty covers — `Scenario.villainStages[difficulty]`, or the union of
  * standard and expert for Breakout's own "extreme". `startStageIndex` is the game's own start (`GameSetupConfig.
  * villainStartStageIndex`): an earlier start than the difficulty's printed one (Apocalypse's easier start, which begins
- * a stage sooner) widens the range down to it; a later or equal one changes nothing.
+ * a stage sooner) widens the range down to it; a later or equal one changes nothing. `skirmishVersion` is skirmish
+ * mode's one villain version (`PlayModes.skirmish`), the whole villain deck when it is given.
  */
 export function stageRangeFor(
   scenario: Scenario,
   difficulty: SetupDifficulty,
   startStageIndex?: number,
+  skirmishVersion?: string,
 ): readonly [number, number] {
+  if (skirmishVersion !== undefined) return [Number(skirmishVersion), Number(skirmishVersion)];
   const [lo, hi] = stageRangeOfDifficulty(scenario, difficulty);
   return startStageIndex !== undefined && startStageIndex + 1 < lo ? [startStageIndex + 1, hi] : [lo, hi];
 }
@@ -153,8 +156,9 @@ function villainTotalHp(
   playerCount: number,
   startStageIndex?: number,
   villains?: GameSetupConfig["villains"],
+  skirmishVersion?: string,
 ): { readonly total: number; readonly infinite: boolean } {
-  const [lo, hi] = stageRangeFor(scenario, difficulty, startStageIndex);
+  const [lo, hi] = stageRangeFor(scenario, difficulty, startStageIndex, skirmishVersion);
   const configured = scenario.multipleVillains ? villains : undefined;
   const villainCardIds: readonly CardId[] = configured
     ? configured.map((v) => v.villainCardId)
@@ -440,9 +444,11 @@ export function tableSetupPreviewOf(
   deps: EngineDeps = POOL_DEPS,
   /** A Civil War game started blind (`blindRevealOf`): the deck's unrevealed modular sets print under the hidden word. */
   blind: BlindReveal | null = null,
+  /** Skirmish mode's chosen villain version (`PlayModes.skirmish`). */
+  skirmishVersion?: string,
 ): TableSetupPreview {
   const playerCount = config.players.length;
-  const stageRange = stageRangeFor(scenario, difficulty, config.villainStartStageIndex);
+  const stageRange = stageRangeFor(scenario, difficulty, config.villainStartStageIndex, skirmishVersion);
   const mainScheme = cardsById.get(scenario.mainSchemeCardId as string);
   if (!mainScheme || mainScheme.type !== "main_scheme")
     throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
@@ -479,6 +485,7 @@ export function tableSetupPreviewOf(
     playerCount,
     config.villainStartStageIndex,
     config.villains,
+    skirmishVersion,
   );
   const villainCard = cardsById.get(scenario.villainCardId as string);
   const villainSide =

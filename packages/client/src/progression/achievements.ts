@@ -19,11 +19,12 @@
  */
 import { NO_DECK_FEATS, type DeckFeats } from "./deck-feats.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
-import { POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
 import { isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
+import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId } from "./team-up-trophies.js";
 import {
   DEFAULT_UNLOCK_PREFS,
   POINTS,
@@ -39,6 +40,8 @@ import {
 export type AchievementFamily =
   | "wins"
   | "villains"
+  | "doppelgangers"
+  | "archenemies"
   | "campaigns"
   | "heroes"
   | "expert"
@@ -51,6 +54,8 @@ export type AchievementFamily =
 export const ACHIEVEMENT_FAMILIES: readonly { readonly id: AchievementFamily; readonly label: string }[] = [
   { id: "wins", label: "Battles won" },
   { id: "villains", label: "Villains" },
+  { id: "doppelgangers", label: "Doppelgangers" },
+  { id: "archenemies", label: "Arch-enemies" },
   { id: "campaigns", label: "Boxes and campaigns" },
   { id: "heroes", label: "Heroes" },
   { id: "expert", label: "Expert and Heroic" },
@@ -70,7 +75,7 @@ export interface AchievementSave {
   readonly config: {
     readonly scenarioId: string;
     readonly difficulty?: string;
-    readonly modes?: { readonly expert?: boolean; readonly heroic?: number };
+    readonly modes?: { readonly expert?: boolean; readonly heroic?: number; readonly skirmish?: unknown };
     readonly players: readonly object[];
   };
 }
@@ -113,6 +118,8 @@ interface Facts {
   readonly round1Losses: number;
   /** Each won game's seated heroes, for pair achievements. */
   readonly wonTables: readonly ReadonlySet<string>[];
+  /** `<scenarioId>|<identityCardId>` for each hero seated in a won game, whoever landed the last blow. */
+  readonly wonMatchups: ReadonlySet<string>;
   /** Hero defeats summed over the games that recorded a summary. */
   readonly heroesDefeated: number;
   /** Losses to the main scheme completing. */
@@ -159,7 +166,8 @@ export interface AchievementDef {
 }
 
 const isExpert = (save: AchievementSave): boolean =>
-  save.config.difficulty === "expert" || save.config.difficulty === "extreme" || save.config.modes?.expert === true;
+  !save.config.modes?.skirmish &&
+  (save.config.difficulty === "expert" || save.config.difficulty === "extreme" || save.config.modes?.expert === true);
 
 const seatAspects = (seat: object): readonly string[] => {
   if ("aspects" in seat && Array.isArray(seat.aspects)) return seat.aspects as string[];
@@ -201,6 +209,7 @@ export function factsOf(history: AchievementHistory): Facts {
     soloWonScenarios: new Set(wonSaves.filter((s) => s.config.players.length === 1).map((s) => s.config.scenarioId)),
     round1Losses: lostSaves.filter((s) => s.round === 1).length,
     wonTables: wonSaves.map((s) => new Set(heroesOf(s))),
+    wonMatchups: new Set(wonSaves.flatMap((s) => heroesOf(s).map((hero) => `${s.config.scenarioId}|${hero}`))),
     heroesDefeated: real.reduce((sum, s) => sum + (s.summary?.heroesDefeated ?? 0), 0),
     schemeLosses: lostSaves.filter((s) => s.summary?.lossReason === "schemeCompleted").length,
     oneHitPointWinners: new Set(
@@ -264,6 +273,50 @@ const wavesWithScenarios = UNLOCK_WAVES.map((wave) => ({
   heroes: UNLOCK_HEROES.filter((h) => h.cycleId === wave.cycleId).map((h) => h.identityCardId),
 })).filter((w) => w.scenarios.length > 0 || w.heroes.length > 0);
 
+/** Beat one of these scenarios with this hero seated. */
+interface Matchup {
+  readonly heroId: string;
+  readonly scenarioIds: readonly string[];
+}
+
+const beatenBy = (m: Matchup, f: Facts): boolean => m.scenarioIds.some((id) => f.wonMatchups.has(`${id}|${m.heroId}`));
+
+/**
+ * Every scenario whose own villain carries a hero's name (#615), found from the cards, so a new box needs no row. A
+ * villain drawn per game (Shadowland's Daredevil) is left out: the save does not record the draw.
+ */
+const DOPPELGANGERS: readonly (Matchup & { readonly name: string })[] = POOL_SCENARIOS.flatMap((s) => {
+  const name = CARDS_BY_ID.get(s.villainCardId as string)?.name;
+  const heroId = name === undefined ? undefined : heroIdNamed(name);
+  return name !== undefined && heroId ? [{ heroId, scenarioIds: [s.id as string], name }] : [];
+});
+
+/** Each hero's arch-enemy, from the list on #615: the hero, the foe, the foe's scenarios and the trophy's name. */
+const ARCH_ENEMIES: readonly (Matchup & { readonly hero: string; readonly foe: string; readonly name: string })[] = (
+  [
+    [
+      "Spider-Man (Peter Parker)",
+      "the Green Goblin",
+      ["risky-business", "mutagen-formula", "venom-goblin"],
+      "Grounded, Mr. Osborn",
+    ],
+    ["Black Panther (T'Challa)", "Klaw", ["klaw"], "A Sound Defeat"],
+    ["Iron Man", "Ultron", ["ultron"], "Have You Tried Turning It Off?"],
+    ["Black Widow", "Black Widow or Taskmaster", ["black-widow", "taskmaster"], "Clearing the Ledger"],
+    ["Winter Soldier", "Crossbones", ["crossbones"], "Bucky Breaks Bones"],
+    ["Gamora", "Nebula", ["nebula"], "Sibling Rivalry"],
+    ["Drax", "Thanos", ["thanos"], "The Destroyer Delivers"],
+    ["Thor", "Loki", ["loki", "god-of-lies"], "Get Help"],
+    ["Captain America", "the Red Skull", ["red-skull"], "Hail No"],
+    ["Wolverine", "Sabretooth", ["sabretooth"], "Snikt Happens"],
+    ["Cable", "Stryfe", ["stryfe"], "Send in the Clone"],
+    ["Daredevil", "Kingpin", ["kingpin"], "Kitchen's Closed, Fisk"],
+  ] as const
+).flatMap(([hero, foe, scenarioIds, name]) => {
+  const heroId = heroIdNamed(hero);
+  return heroId ? [{ heroId, scenarioIds, hero, foe, name }] : [];
+});
+
 const hulk = heroIdNamed("Hulk") ?? "10001a";
 const thor = heroIdNamed("Thor");
 const sheHulk = heroIdNamed("She-Hulk");
@@ -325,6 +378,48 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     points: 500,
     showProgress: true,
     measure: (f) => allOf(scenarioIds, f.wonScenarios),
+  }),
+
+  // Doppelgangers (#615)
+  ...DOPPELGANGERS.map((d) =>
+    def({
+      id: `doppelganger-${d.scenarioIds[0]}`,
+      name: `Seeing Double: ${d.name}`,
+      description: `Beat the villain ${d.name} with the hero ${d.name} seated.`,
+      family: "doppelgangers",
+      points: 50,
+      measure: (f) => count(beatenBy(d, f) ? 1 : 0, 1),
+    }),
+  ),
+  def({
+    id: "doppelganger-all",
+    name: "Hall of Mirrors",
+    description: "Earn every Seeing Double trophy.",
+    family: "doppelgangers",
+    points: 200,
+    showProgress: true,
+    measure: (f) => count(DOPPELGANGERS.filter((d) => beatenBy(d, f)).length, DOPPELGANGERS.length),
+  }),
+
+  // Arch-enemies (#615)
+  ...ARCH_ENEMIES.map((a) =>
+    def({
+      id: `archenemy-${a.heroId}`,
+      name: a.name,
+      description: `Beat ${a.foe} with ${a.hero} seated.`,
+      family: "archenemies",
+      points: 50,
+      measure: (f) => count(beatenBy(a, f) ? 1 : 0, 1),
+    }),
+  ),
+  def({
+    id: "archenemy-all",
+    name: "Every Score Settled",
+    description: "Earn every other Arch-enemy trophy.",
+    family: "archenemies",
+    points: 200,
+    showProgress: true,
+    measure: (f) => count(ARCH_ENEMIES.filter((a) => beatenBy(a, f)).length, ARCH_ENEMIES.length),
   }),
 
   // Boxes and campaigns
@@ -595,6 +690,22 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     points: 150,
     measure: (f) =>
       count(thor && sheHulk && f.wonTables.some((table) => table.has(thor) && table.has(sheHulk)) ? 1 : 0, 1),
+  }),
+  // A pair with a picture in `art/teamups/` (#615): the win opens it in Extras ▸ Artwork.
+  ...TEAM_UP_TROPHIES.flatMap((trophy) => {
+    const [a, b] = trophy.heroes.map(heroIdNamed);
+    return a && b
+      ? [
+          def({
+            id: teamUpTrophyId(trophy),
+            name: trophy.name,
+            description: `Win a game with ${teamUpPairLabel(trophy)} seated together. Opens their art in Extras.`,
+            family: "teamups" as const,
+            points: 50,
+            measure: (f: Facts) => count(f.wonTables.some((table) => table.has(a) && table.has(b)) ? 1 : 0, 1),
+          }),
+        ]
+      : [];
   }),
 
   // The funny ones: losses count, no points, a silly pack instead
