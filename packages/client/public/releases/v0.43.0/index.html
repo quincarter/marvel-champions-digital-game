@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.43.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v0.43.0 of the fan-made Marvel Champions digital game: a Balanced Galaxy's Most Wanted, Heroic and Skirmish modes, box art on every Briefing, and 46 new trophies."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.43.0" />
+    <meta
+      property="og:description"
+      content="A Balanced Galaxy's Most Wanted, Heroic and Skirmish modes, box art on every Briefing, and 46 new trophies."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.43.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.43.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>The Galaxy<br /><span class="g">Is Unfair</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.43.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/616">#616</a><br />after v0.42.0
+          (Nov 1)<br />Android · Web · Windows · macOS · Linux<br />Nov 1, 2026<span data-history-link
+            ><br /><a href="../index.html#v0.43.0">All releases</a> ·
+            <a href="index.es.html" lang="es">Español</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star moon">★</div>
+          <div><small>Achievement unlocked</small><span>The Galaxy Is Unfair</span></div>
+        </div>
+        <p>
+          <b>The Galaxy's Most Wanted is a hard box, and now you can choose to even it out.</b> A new Balanced option
+          eases the campaign's three worst scenarios. <b>Heroic and Skirmish</b> arrive from the Rules Reference, for
+          when you want it harder or shorter. Every campaign's Briefing gets its box art, and there are
+          <b>46 new trophies</b> to chase, most of them ideas from players.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big" style="grid-column: auto">
+          <h4>New trophies</h4>
+          <div class="n">46</div>
+          <p>Doppelgangers, arch-enemies, team-ups, and The Galaxy Is Unfair itself.</p>
+        </div>
+        <div class="tile">
+          <h4>Heroic levels</h4>
+          <div class="n c-red">4</div>
+          <p>extra encounter cards in every villain phase, up to 4 each.</p>
+        </div>
+        <div class="tile">
+          <h4>Extra challenges</h4>
+          <div class="n c-blue">5</div>
+          <p>optional switches that put some of the Balanced run's bite back.</p>
+        </div>
+        <div class="tile">
+          <h4>Campaign Briefings</h4>
+          <div class="n c-green">11</div>
+          <p>boxes with their art faded behind the Briefing, in 5 colors.</p>
+        </div>
+      </section>
+
+      <!-- ============ BALANCED ============ -->
+      <div class="band">
+        <h2>The Galaxy Is Unfair</h2>
+        <div class="lab">Issue #609 · PR #610 · Requested by Borja · Fixes by Gideon's Gaming</div>
+      </div>
+      <p class="lead">
+        <b>The Galaxy's Most Wanted is known for being swingy, and punishing at low player counts.</b> Starting the
+        campaign now asks how you want to play it. <b>Play as normal</b> is the default, and it plays exactly as the
+        cards are written. <b>Rebalance the campaign</b> is an opt-in house rule, unofficial and locked for the whole
+        run. It takes its fixes from Gideon's Gaming's write-up, which the screen credits and links.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/balanced-prompt-desktop.webp"
+            alt="How do you want to play this campaign? Rebalance the campaign is selected, with what changes listed on a pane over faded box art, and five optional challenges"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The choice, with Rebalance selected</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/balanced-prompt-phone.webp"
+            alt="The same choice on a phone, with the pane stacked under the options"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3>The Museum</h3>
+          <ul class="ck">
+            <li>Collector's redirect catches player cards only, so <b>encounter cards discard as usual</b>.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Nebula</h3>
+          <ul class="ck">
+            <li>
+              Once per round, 3 or more damage from one attack on Nebula <b>removes an evasion counter</b> from her
+              ship.
+            </li>
+            <li>With one hero, The Art of Evasion breaks at 12.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Ronan</h3>
+          <ul class="ck">
+            <li>No Kree Command Ship, and main schemes start with no threat and accelerate 1 per hero.</li>
+            <li>Universal Weapon starts in the encounter deck.</li>
+            <li>The group picks <b>free Milano Mods</b> nobody bought, attached for that scenario.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shots s2" style="margin-top: 26px">
+        <figure class="a">
+          <img
+            src="img/ronan-mod-pick.webp"
+            alt="Ronan's Briefing asking the group to pick free Milano Mods"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Picking the free Milano Mods on Ronan's Briefing</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/scan-inspect.webp"
+            alt="Inspect showing a card with its edited Balanced scan and text"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Inspect shows the edited scan and its text</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Want some challenge back?</h3>
+          <ul class="ck">
+            <li>Space Pirates in the Museum, with their removals going to The Collection.</li>
+            <li>Expert Gallery of Splendor in the Museum deck, for 3 or more players in standard.</li>
+            <li>The Museum's Standard set trimmed to Shadow of the Past.</li>
+            <li>Milano Mods can't be used while the Milano is exhausted.</li>
+            <li>Kree Supremacy in Ronan's deck, with 2 or more heroes.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>It costs you nothing</h3>
+          <ul class="ck">
+            <li><b>Full points and full credit</b>, Expert Campaign included.</li>
+            <li>Beating a Balanced run earns <b>The Galaxy Is Unfair</b>, worth 100 points.</li>
+            <li>
+              @bluefireF5ran edited the scans, in English and Spanish, so the cards on the table match the house rule.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ HEROIC AND SKIRMISH ============ -->
+      <div class="band gold">
+        <h2>Heroic and Skirmish</h2>
+        <div class="lab">Issue #611 by @zackburnley · PR #612</div>
+      </div>
+      <p class="lead">
+        <b>Two more ways to play from the Rules Reference, and they combine with Expert however you like.</b> Pick them
+        on Set the table, or for one campaign issue under Modes for this issue on the Briefing. A game can be Expert
+        Heroic 2 Skirmish, and that's what the footer, Pause and Game over will call it.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/heroic-setup-desktop.webp"
+            alt="Set the table with Heroic level 2 and Skirmish on Rhino II. The Game You'll Get shows Rhino II at 15 hit points"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Heroic 2 and Skirmish on Set the table</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/heroic-setup-phone.webp"
+            alt="The same modes on a phone"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Heroic</h3>
+          <ul class="ck">
+            <li>Level 1 to 4 deals that many <b>extra encounter cards to each player</b> in every villain phase.</li>
+            <li>It doesn't add the Expert set. It only adds cards.</li>
+            <li>Cards go around the table one at a time, and each player reveals them in the order dealt.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Skirmish</h3>
+          <ul class="ck">
+            <li>Play <b>one version of the villain</b> and remove the rest, so defeating it wins the game.</li>
+            <li>Loki, Mansion Attack and the Four Horsemen get a plain switch that uses the rulebook's own rule.</li>
+            <li>Kang, Apocalypse, The God of Lies and other multi-villain scenarios don't offer it.</li>
+            <li>A Skirmish win is a win, but not an Expert win for unlocks or achievements.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ BRIEFING ============ -->
+      <div class="band">
+        <h2>Box art on every Briefing</h2>
+        <div class="lab">Issue #613 · PR #614</div>
+      </div>
+      <p class="lead">
+        <b>Every campaign's Briefing now has a colored pane with that box's art faded behind it,</b> the same pane as
+        the Balanced choice. Your decks sit on paper inside it on tablet and desktop, and on a phone it stacks with the
+        rest of the page.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/briefing-gmw.webp"
+            alt="The Briefing for The Galaxy's Most Wanted, with Groot and Rocket faded behind the Decks panel"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The Galaxy's Most Wanted</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/briefing-sm.webp"
+            alt="The Briefing for Sinister Motives, with its box art faded behind the Decks panel"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Sinister Motives</figcaption>
+        </figure>
+      </div>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/fade-colors.webp"
+            alt="The pane in grey, blue, red, purple and green, over the faded art"
+            width="1280"
+            height="95"
+            loading="lazy"
+          />
+          <figcaption>The five fade colors</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <h3>Make it yours</h3>
+        <ul class="ck">
+          <li><b>Faded art on campaign pages</b> in Settings turns the art off.</li>
+          <li><b>Fade color</b> picks grey, blue, red, purple or green.</li>
+        </ul>
+      </div>
+
+      <!-- ============ TROPHIES ============ -->
+      <div class="band gold">
+        <h2>45 more trophies</h2>
+        <div class="lab">Issue #615 by @PermaKarma · PR #617</div>
+      </div>
+      <p class="lead">
+        <b>@PermaKarma sent in a list of trophy ideas, and they all made it in.</b> The Trophy Room has two new families
+        and a much longer team-up list. They read your saved games, so <b>wins you already have count</b> the moment you
+        update.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/trophies-doppelgangers.webp"
+            alt="The Trophy Room's Doppelgangers family, with Seeing Double: Nebula and Seeing Double: Iron Man earned"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Doppelgangers · earned rows from test games</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/trophies-arch-phone.webp"
+            alt="Arch-enemy trophies on a phone: Grounded, Mr. Osborn, A Sound Defeat, Have You Tried Turning It Off? and Clearing the Ledger"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>Arch-enemies on a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3>Doppelgangers</h3>
+          <p>
+            Beat a villain with the hero of the same name seated: Nebula, Venom, Magneto, Black Widow and all six Civil
+            War leaders. All ten earn <b>Hall of Mirrors</b>.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Arch-enemies</h3>
+          <p>
+            Twelve grudges settled, like <b>Hail No</b> for Captain America against Red Skull and <b>Get Help</b> for
+            Thor against Loki. All twelve earn <b>Every Score Settled</b>.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Team-ups</h3>
+          <p>
+            Win with both heroes of a pair seated. All <b>21 pairs</b> open their team-up art in Extras ▸ Artwork.
+            Rocket and Groot's is called <b>We Are Groot</b>.
+          </p>
+        </div>
+      </div>
+      <div class="shots" style="margin-top: 26px">
+        <figure class="a">
+          <img
+            src="img/team-up-art.webp"
+            alt="Extras Artwork with team-up pictures: Cable and Deadpool and Cyclops and Phoenix open, the others locked with the trophy that opens them"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Team-up art in Extras, each opened by its trophy</figcaption>
+        </figure>
+      </div>
+      <p class="lead" style="margin-top: 26px">
+        <b>New trophies raise the top of the rank ladder,</b> because rank 9 still takes everything. If you sit just
+        above a rank's line, you may show one rank lower until these trophies count for you. Nothing in the game depends
+        on rank.
+      </p>
+
+      <!-- ============ FIXES ============ -->
+      <div class="band">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">PR #607 by @bluefireF5ran · PR #610</div>
+      </div>
+      <p class="lead">
+        <b>The first five are @bluefireF5ran's rules audit follow-ups,</b> so the game plays closer to the Rules
+        Reference and FFG's rulings.
+      </p>
+      <div class="cards cards3">
+        <div class="paper">
+          <div class="eb">Breakout · The Wrecking Crew</div>
+          <h3>"The villain" means the active one</h3>
+          <p>A player card that names the villain now means the active villain, with <b>no choice of villain</b>.</p>
+          <div class="src">Insert, "The Active Villain" · FFG ruling Jun 13, 2024</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Piercing</div>
+          <h3>Piercing hits the right character</h3>
+          <p>
+            Damage dealt as indirect or divided <b>pierces only the attacked character</b>. Everyone else keeps their
+            tough status cards.
+          </p>
+          <div class="src">RRG 1.8 pp. 24, 32</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Lasting effects</div>
+          <h3>A new copy starts clean</h3>
+          <p>
+            Goliath's +4 ATK until the end of the phase no longer applies once the card
+            <b>leaves play and comes back</b> as a new copy.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">Enemy choices</div>
+          <h3>One target, no question</h3>
+          <p>
+            A choice the enemy team must make with one legal target, like Colleen Wing or Daredevil,
+            <b>resolves without asking</b> the first player.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">Quickstrike and teamwork</div>
+          <h3>Wait your turn</h3>
+          <p>
+            An activation started inside an enemy's activation <b>always waits for that activation to finish</b>, even
+            when nothing follows the effect that put the minion into play.
+          </p>
+          <div class="src">RRG 1.8 p. 6</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Card scans</div>
+          <h3>No more generated frames</h3>
+          <p>A scan missing from a build now <b>falls back to the normal scan</b> rather than a generated frame.</p>
+        </div>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band gold">
+        <h2>Also in v0.43.0</h2>
+        <div class="lab">Engine · this report</div>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Engine</h3>
+          <ul class="ck">
+            <li>A scenario rule can change a named main scheme stage's values.</li>
+            <li>A campaign log can start with hidden fields already set.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Docs</h3>
+          <ul class="ck">
+            <li>This report, in English and Spanish.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            This release is built on what you asked for. Keep it coming from Pause ▸ Report a problem, a GitHub issue or
+            the community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person">
+            <h3>Borja</h3>
+            <p>Asked on Discord for a way to even out The Galaxy's Most Wanted. ¡Gracias!</p>
+          </div>
+          <div class="person">
+            <h3>Gideon's Gaming</h3>
+            <p>Wrote <b>Fixing Galaxy's Most Wanted</b>, the fixes the Balanced option is built on.</p>
+          </div>
+          <div class="person">
+            <h3>@bluefireF5ran</h3>
+            <p>Made the edited Balanced scans in two languages, and wrote the rules fixes in <b>#607</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@zackburnley</h3>
+            <p>Suggested Heroic and Skirmish, <b>#611</b>.</p>
+          </div>
+          <div class="person wide">
+            <h3>@PermaKarma</h3>
+            <p>Sent in the doppelganger, arch-enemy and team-up trophy ideas, <b>#615</b>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.42.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.42.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">6</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">230</div>
+          <p>across the engine, the client, card data and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">8,500</div>
+          <p>Heroic, Skirmish and the Balanced campaign lead.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">300</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v0.43.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.43.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>

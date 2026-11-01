@@ -4,6 +4,11 @@
   "watcherMinimum": 2,
   "reporters": [],
   "contributors": [],
-  "release": { "v0.41.0": ["u/Ok-Replacement-9793 shared the promo card scans."] },
+  "release": {
+    "v0.41.0": ["u/Ok-Replacement-9793 shared the promo card scans."],
+    "v0.43.0": [
+      "Borja asked for the Balanced Galaxy's Most Wanted, and Gideon's Gaming wrote the fixes it is built on."
+    ]
+  },
   "exclude": []
 }
