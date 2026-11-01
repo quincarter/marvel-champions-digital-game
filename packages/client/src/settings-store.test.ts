@@ -79,6 +79,7 @@ describe("SettingsStore", () => {
     ["villainAutoAdvance", "afterPause"],
     ["holdEncounterCards", false],
     ["discordPresence", false],
+    ["fadedCampaignArt", false],
     ["flipEncounterCards", false],
     ["flipEncounterSpeed", "off"],
     ["villainBeatSpeed", "fast"],

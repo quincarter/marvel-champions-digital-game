@@ -88,7 +88,10 @@ export interface BalancedScreen {
 const CHANGES: readonly BalancedChangeGroup[] = [
   {
     heading: "The Museum",
-    lines: ["Encounter cards don't enter The Collection through Collector's redirect."],
+    lines: [
+      "Encounter cards no longer enter The Collection through Collector's redirect.",
+      "Three optional extras below can put some of its challenge back.",
+    ],
   },
   {
     heading: "Nebula",
@@ -101,11 +104,50 @@ const CHANGES: readonly BalancedChangeGroup[] = [
     heading: "Ronan",
     lines: [
       "No Kree Command Ship, and no starting threat.",
-      "Universal Weapon starts in the deck, and threat comes in slower.",
-      "Free Milano Mods at setup.",
+      "Universal Weapon starts in the deck, and threat comes in more slowly.",
+      "The Milano Mods come free at setup.",
     ],
   },
 ];
+
+/** The hard scenarios as printed, for the pane beside Play as normal. */
+const HARD_SPOTS: readonly BalancedChangeGroup[] = [
+  { heading: "The Museum", lines: ["Cards lost to The Collection can swing the whole scenario."] },
+  { heading: "Nebula", lines: ["Her evasion counters can be close to impossible to strip with a small team."] },
+  { heading: "Ronan", lines: ["The threat and the hazard build faster than few heroes can answer."] },
+];
+
+/** What the side pane says for the option picked; it follows the selection. */
+export interface BalancedPane {
+  readonly heading: string;
+  readonly intro: string;
+  readonly groupsHeading: string;
+  readonly groups: readonly BalancedChangeGroup[];
+  readonly footnote: string;
+  /** Rebalance only: the optional challenge toggles sit under the changes. */
+  readonly showToggles: boolean;
+}
+
+export function balancedPaneOf(choice: BalancedChoice): BalancedPane {
+  if (choice.balanced) {
+    return {
+      heading: "Rebalance the campaign",
+      intro: "A fan-made house rule that eases the three scenarios people find hardest. These changes are always on.",
+      groupsHeading: "What changes",
+      groups: CHANGES,
+      footnote: "It earns the same points and achievements as Normal, plus The Galaxy Is Unfair.",
+      showToggles: true,
+    };
+  }
+  return {
+    heading: "Play as normal",
+    intro: "The cards exactly as written. Nothing is changed, and nothing is held back.",
+    groupsHeading: "The three that bite",
+    groups: HARD_SPOTS,
+    footnote: "It earns the same points and achievements as Rebalance.",
+    showToggles: false,
+  };
+}
 
 export function balancedScreenOf(choice: BalancedChoice, expert: boolean): BalancedScreen {
   return {
@@ -123,7 +165,7 @@ export function balancedScreenOf(choice: BalancedChoice, expert: boolean): Balan
     },
     rebalance: {
       title: "Rebalance the campaign",
-      detail: "Eases the Museum, Nebula and Ronan scenarios with the changes below.",
+      detail: "Eases the Museum, Nebula and Ronan scenarios.",
       selected: choice.balanced,
     },
     changesHeading: "What changes",

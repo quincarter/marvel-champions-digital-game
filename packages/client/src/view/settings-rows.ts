@@ -81,6 +81,7 @@ export type SettingsRowId =
   | "deck-boost-average"
   | "hover-hero"
   | "hover-villain"
+  | "faded-campaign-art"
   | "discord-presence"
   | EarnedItemId;
 
@@ -191,6 +192,13 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       detail: "With a mouse, resting on a villain card shows the larger popover. Off leaves villain cards as they are.",
       on: settings.hoverVillainCard,
     },
+    {
+      id: "faded-campaign-art",
+      title: "Faded art on campaign pages",
+      detail:
+        "Shows the campaign box art, faded, behind the side panel of a campaign page. Off leaves the panel a plain colour.",
+      on: settings.fadedCampaignArt,
+    },
   ];
 }
 
@@ -281,6 +289,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
+    case "faded-campaign-art":
+      return { ...settings, fadedCampaignArt: !settings.fadedCampaignArt };
     case "discord-presence":
       return { ...settings, discordPresence: !settings.discordPresence };
     case "ultron-drone-art":

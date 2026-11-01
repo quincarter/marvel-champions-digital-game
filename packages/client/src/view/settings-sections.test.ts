@@ -154,8 +154,21 @@ describe("the desktop app's Window section", () => {
       (s) => s.id === "motion",
     )!.items;
     expect(withCouch[0]).toBe("couch-mode");
-    expect(motion(true)).toEqual(["power-saving", "dark-mode", "reduced-motion", "token-motion", "sharper-text"]);
-    expect(motion(false)).toEqual(["dark-mode", "reduced-motion", "token-motion", "sharper-text"]);
+    expect(motion(true)).toEqual([
+      "power-saving",
+      "dark-mode",
+      "reduced-motion",
+      "token-motion",
+      "sharper-text",
+      "faded-campaign-art",
+    ]);
+    expect(motion(false)).toEqual([
+      "dark-mode",
+      "reduced-motion",
+      "token-motion",
+      "sharper-text",
+      "faded-campaign-art",
+    ]);
   });
 
   test("the web and the phone apps don't show it", () => {

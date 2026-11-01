@@ -8,11 +8,14 @@
  * outside the region, so no control sits over a scrolling area. Every other control uses `McButton`'s press rule.
  */
 import Phaser from "phaser";
-import { accent, ink, surface, typeRole } from "../../tokens.js";
+import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import {
   actionBarCta,
   bangers,
+  campaignCoverPicture,
   campaignFrame,
+  drawPicture,
+  villainPicture,
   drawActionBar,
   drawTopBar,
   ruleHeading,
@@ -22,6 +25,8 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { captureIntoRegion } from "../../ui/scroll-capture.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
+import { appSession } from "../../session.js";
 import { fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { openExternal } from "../../platform/platform.js";
@@ -29,6 +34,7 @@ import { inputDevice } from "../../platform/input-device.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import type { Rect } from "../../view/layout.js";
 import {
+  balancedPaneOf,
   balancedScreenOf,
   balancedStartOf,
   balancedStopOrder,
@@ -36,6 +42,7 @@ import {
   withBalanced,
   withToggle,
   type BalancedChoice,
+  type BalancedPane,
   type BalancedScreen,
 } from "../../view/campaign-balanced-model.js";
 import { balancedLayoutOf, type BalancedLayout } from "../../view/campaign-balanced-layout.js";
@@ -52,6 +59,9 @@ const ROW_PAD = 12;
 const MARK_COLUMN = 34;
 /** The ON / OFF pill at a toggle row's right. */
 const PILL_WIDTH = 52;
+/** The faded box art over the pane's blue, and the dark veil that keeps pale text readable on it. */
+const PANE_ART_ALPHA = 0.3;
+const PANE_VEIL_ALPHA = 0.28;
 
 export class CampaignBalancedScene extends Phaser.Scene {
   #data: CampaignBalancedData = { campaignId: "" };
@@ -62,6 +72,8 @@ export class CampaignBalancedScene extends Phaser.Scene {
   #scroll = new VariableListScroll();
   #region: McScrollRegion | null = null;
   #firstDraw = true;
+  /** The faded-art setting as last drawn; null before the first draw. */
+  #artShown: boolean | null = null;
 
   constructor() {
     super(SCENES.campaignBalanced);
@@ -142,6 +154,10 @@ export class CampaignBalancedScene extends Phaser.Scene {
     stops.set("cta", { rect: ctaRect, activate: () => this.#continue() });
 
     const body: Rect = { x: 0, y: top.height, width: frame.width, height: bar.y - top.height };
+    this.#artShown = this.#artOn();
+    // The tablet and desktop pane is fixed: drawn under the scrolling body, as tall as the body.
+    if (layout.pane)
+      this.#drawPaneBackground({ x: layout.pane.x, y: body.y, width: layout.pane.width, height: body.height });
     const heights: number[] = [1_000_000];
     const region = new McScrollRegion(this, { rect: body, heights, scroll: this.#scroll, clipInteractive: true });
     this.#region = region;
@@ -150,15 +166,19 @@ export class CampaignBalancedScene extends Phaser.Scene {
 
     const pad = frame.gutter;
     const startY = body.y + pad;
-    let leftBottom = this.#drawIntro(layout, screen, startY, body, stops);
-    let rightBottom = startY;
-    if (layout.secondary) {
-      if (this.#choice.balanced) rightBottom = this.#drawChanges(layout, layout.secondary, screen, startY, body, stops);
-      leftBottom = this.#drawCredit(layout, layout.primary, screen, leftBottom + layout.gap, body, stops);
+    const pane = balancedPaneOf(this.#choice);
+    let bottom = this.#drawIntro(layout, screen, startY, body, stops);
+    bottom = this.#drawCredit(layout, layout.primary, screen, bottom + layout.gap, body, stops);
+    if (layout.pane) {
+      bottom = Math.max(bottom, this.#drawPane(layout, screen, pane, layout.paneInner, startY, body, stops));
     } else {
-      let y = leftBottom;
-      if (this.#choice.balanced) y = this.#drawChanges(layout, layout.primary, screen, y + layout.gap, body, stops);
-      leftBottom = this.#drawCredit(layout, layout.primary, screen, y + layout.gap, body, stops);
+      // A phone: the pane stacks below the choice, full width, scrolling with it.
+      const paneTop = bottom + layout.gap;
+      const paneStart = this.children.list.length;
+      const inner = { x: pad, width: frame.width - pad * 2 };
+      const paneBottom = this.#drawPane(layout, screen, pane, inner, paneTop + pad, body, stops);
+      this.#drawPaneBackground({ x: 0, y: paneTop, width: frame.width, height: paneBottom + pad - paneTop }, paneStart);
+      bottom = paneBottom + pad;
     }
 
     captureIntoRegion(this, {
@@ -170,8 +190,8 @@ export class CampaignBalancedScene extends Phaser.Scene {
       stopsBefore,
       viewportTop: body.y,
       viewportBottom: body.y + body.height,
-      bottom: Math.max(leftBottom, rightBottom),
-      padBottom: pad,
+      bottom,
+      padBottom: layout.pane ? pad : 0,
     });
     region.syncInteractivity();
 
@@ -183,6 +203,43 @@ export class CampaignBalancedScene extends Phaser.Scene {
       const mode = inputDevice().mode;
       if (mode === "pad" || mode === "keyboard") this.#route?.focusKey("mode-normal");
     }
+  }
+
+  /** The faded-art setting, read as the page is drawn. */
+  #artOn(): boolean {
+    return appSession().settings.fadedCampaignArt;
+  }
+
+  /** Settings can be opened over this page: when the faded-art switch changes, the page is drawn again. */
+  override update(): void {
+    if (this.#artShown !== null && this.#artOn() !== this.#artShown) this.#draw();
+  }
+
+  /**
+   * The coloured pane's ground: a saturated blue (a signal token, the same in light and dark mode), the box art faded
+   * over it (cover-fitted into the pane, never stretched) unless Settings turns it off, and a dark veil that keeps the
+   * pale text readable on any picture. `moveTo` slots it under text already drawn (the phone's stacked pane).
+   */
+  #drawPaneBackground(rect: Rect, moveTo?: number): void {
+    const made: Phaser.GameObjects.GameObject[] = [];
+    const ground = this.add.graphics();
+    ground.fillStyle(signal.cost.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    made.push(ground);
+    if (this.#artShown) {
+      const id = this.#data.campaignId;
+      const finale = CAMPAIGN_RECORDS[id]?.scenarioIds.at(-1) as string | undefined;
+      const picture = campaignCoverPicture(id) ?? (finale ? villainPicture(finale) : null);
+      const image = drawPicture(this, picture, rect, () => this.sys.isActive() && this.#draw(), {
+        focusY: 0.2,
+        alpha: PANE_ART_ALPHA,
+      });
+      if (image) made.push(image);
+    }
+    const veil = this.add.graphics();
+    veil.fillStyle(surface.inkOnHue.hex, PANE_VEIL_ALPHA).fillRect(rect.x, rect.y, rect.width, rect.height);
+    veil.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    made.push(veil);
+    if (moveTo !== undefined) made.forEach((object, index) => this.children.moveTo(object, moveTo + index));
   }
 
   // ---- Left column: why, the choice, the credit -------------------------------------------------------------------
@@ -251,32 +308,42 @@ export class CampaignBalancedScene extends Phaser.Scene {
     return rect.y + rect.height;
   }
 
-  // ---- Right column (or below the choice): what changes, and the toggles --------------------------------------------
+  // ---- The pane: more about the option picked, and the toggles --------------------------------------------------------
 
-  #drawChanges(
+  #drawPane(
     layout: BalancedLayout,
-    column: { readonly x: number; readonly width: number },
     screen: BalancedScreen,
+    pane: BalancedPane,
+    column: { readonly x: number; readonly width: number },
     top: number,
     body: Rect,
     stops: Map<string, FocusStop>,
   ): number {
     const { x, width } = column;
-    let y = ruleHeading(this, x, top, width, screen.changesHeading, surface.ink.hex, layout.headingSize);
-    for (const group of screen.changes) {
-      const heading = this.add
-        .text(x, y, group.heading.toUpperCase(), textStyle(typeRole.label, surface.ink.hex, 1))
+    // Pale on the blue in light and dark mode alike (the ink text color turns light in dark mode, so it is not used).
+    const light = surface.paperOnInk.hex;
+    const heading = this.add
+      .text(x, top, pane.heading.toUpperCase(), textStyle(bangers(layout.headingSize + 6), light))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(width);
+    let y = top + heading.height + 8;
+    y = this.#paragraph(x, y, width, pane.intro, layout.textSize, 1, false, light) + 10;
+    y = ruleHeading(this, x, y, width, pane.groupsHeading, light, layout.headingSize - 2);
+    for (const group of pane.groups) {
+      const label = this.add
+        .text(x, y, group.heading.toUpperCase(), textStyle(typeRole.label, light, 1))
         .setLetterSpacing(1);
-      y += heading.height + 2;
-      for (const line of group.lines) {
-        y = this.#bullet(x, y, width, line, layout.textSize) + 2;
-      }
+      y += label.height + 2;
+      for (const line of group.lines) y = this.#bullet(x, y, width, line, layout.textSize, light) + 2;
       y += 6;
     }
-    y = ruleHeading(this, x, y + 4, width, screen.togglesHeading, surface.ink.hex, layout.headingSize);
-    y = this.#paragraph(x, y - 6, width, screen.togglesNote, layout.textSize, ink.secondary) + 8;
-    for (const row of screen.toggles) {
-      y = this.#toggleRow(layout, row, { x, y, width }, () => this.#toggle(row.id), body, stops) + 10;
+    y = this.#paragraph(x, y, width, pane.footnote, layout.textSize, 1, true, light) + 8;
+    if (pane.showToggles) {
+      y = ruleHeading(this, x, y + 6, width, screen.togglesHeading, light, layout.headingSize - 2);
+      y = this.#paragraph(x, y - 6, width, screen.togglesNote, layout.textSize, 1, false, light) + 8;
+      for (const row of screen.toggles) {
+        y = this.#toggleRow(layout, row, { x, y, width }, () => this.#toggle(row.id), body, stops) + 8;
+      }
     }
     return y;
   }
@@ -284,9 +351,18 @@ export class CampaignBalancedScene extends Phaser.Scene {
   // ---- Pieces ------------------------------------------------------------------------------------------------------
 
   /** Wrapped body text at `(x, y)`; returns its bottom edge. */
-  #paragraph(x: number, y: number, width: number, text: string, size: number, alpha: number, bold = false): number {
+  #paragraph(
+    x: number,
+    y: number,
+    width: number,
+    text: string,
+    size: number,
+    alpha: number,
+    bold = false,
+    color: number = surface.ink.hex,
+  ): number {
     const t = this.add.text(x, y, text, {
-      ...textStyle(bold ? typeRole.emphasis : typeRole.body, surface.ink.hex, alpha),
+      ...textStyle(bold ? typeRole.emphasis : typeRole.body, color, alpha),
       fontSize: `${size}px`,
       wordWrap: { width, useAdvancedWrap: true },
     });
@@ -294,9 +370,9 @@ export class CampaignBalancedScene extends Phaser.Scene {
   }
 
   /** A change line with a square bullet (shape, not color, marks the list). */
-  #bullet(x: number, y: number, width: number, text: string, size: number): number {
-    this.add.rectangle(x + 4, y + size * 0.6, 5, 5, surface.ink.hex).setOrigin(0.5);
-    return this.#paragraph(x + 16, y, width - 16, text, size, 1);
+  #bullet(x: number, y: number, width: number, text: string, size: number, color: number = surface.ink.hex): number {
+    this.add.rectangle(x + 4, y + size * 0.6, 5, 5, color).setOrigin(0.5);
+    return this.#paragraph(x + 16, y, width - 16, text, size, 1, false, color);
   }
 
   /**

@@ -144,6 +144,8 @@ export interface Settings {
    * `progression/earned-items.ts`; issue #291). Defaults on: earning it is what turns it on.
    */
   readonly ultronDroneArt: boolean;
+  /** Draw the campaign box art, faded, behind the side pane of campaign pages (the Balanced prompt, issue #609). Off leaves the pane a plain colour. Defaults on. */
+  readonly fadedCampaignArt: boolean;
   /** The promo cards the player picked in Extras ▸ Promos (`art/promo-art.ts`; issue #192), by set id. */
   readonly promoArt: readonly string[];
   /** Whether picked promo cards are drawn at all (Settings ▸ More ▸ Earned items). Defaults on. */
@@ -463,6 +465,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     hoverHeroCard: true,
     hoverVillainCard: true,
     ultronDroneArt: true,
+    fadedCampaignArt: true,
     promoArt: [],
     promoArtOn: true,
     heroArt: "game",

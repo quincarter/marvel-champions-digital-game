@@ -866,10 +866,12 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
 
   // `?screen=campaign-gmw-balanced-ronan`: a Balanced Galaxy's Most Wanted run at Ronan's Briefing, on its free Milano
-  // Mods pick (issue #609). Dev builds only.
+  // Mods pick (issue #609). `&won=1` plays the run to its win instead, for the Trophy Room. Dev builds only.
   if (screen === "campaign-gmw-balanced-ronan" && import.meta.env.DEV) {
     const fixtures = await import("../campaign/dev-fixtures.js");
-    const record = await fixtures.seedGmwRun(campaignService(), "afterIssue4", { balanced: true });
+    const won = params.get("won") === "1";
+    const record = await fixtures.seedGmwRun(campaignService(), won ? "finished" : "afterIssue4", { balanced: true });
+    if (won) return { key: SCENES.trophyRoom, data: {} };
     return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }
 

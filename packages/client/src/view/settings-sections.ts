@@ -149,6 +149,7 @@ export function settingsSectionsOf(input: {
         "reduced-motion",
         "token-motion",
         "sharper-text",
+        "faded-campaign-art",
       ],
     },
     {

@@ -69,6 +69,7 @@ const BASE: Settings = {
   hoverHeroCard: true,
   hoverVillainCard: true,
   ultronDroneArt: true,
+  fadedCampaignArt: true,
   promoArt: [],
   promoArtOn: true,
   heroArt: "game",
@@ -123,6 +124,7 @@ describe("settingsRowInfoOf", () => {
       hoverHeroCard: true,
       hoverVillainCard: true,
       ultronDroneArt: true,
+      fadedCampaignArt: true,
       promoArt: [],
       promoArtOn: true,
       heroArt: "game",
@@ -301,6 +303,13 @@ describe("nextSettingsAfterToggle", () => {
   test("sound toggles between on and off", () => {
     expect(nextSettingsAfterToggle(BASE, "sound", 1).sound).toBe(false);
     expect(nextSettingsAfterToggle({ ...BASE, sound: false }, "sound", 1).sound).toBe(true);
+  });
+
+  test("faded campaign art toggles between on and off", () => {
+    expect(nextSettingsAfterToggle(BASE, "faded-campaign-art", 1).fadedCampaignArt).toBe(false);
+    expect(
+      nextSettingsAfterToggle({ ...BASE, fadedCampaignArt: false }, "faded-campaign-art", 1).fadedCampaignArt,
+    ).toBe(true);
   });
 
   test("confirm-end-turn toggles between on and off", () => {

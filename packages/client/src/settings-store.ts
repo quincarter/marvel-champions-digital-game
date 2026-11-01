@@ -63,6 +63,7 @@ const BOOLEAN_FIELDS = [
   "hoverHeroCard",
   "hoverVillainCard",
   "ultronDroneArt",
+  "fadedCampaignArt",
   "promoArtOn",
   "powerSavingAdjust",
   "nintendoLayout",

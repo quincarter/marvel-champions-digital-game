@@ -50,13 +50,17 @@ async function drag(page: Page, phone: boolean, from: { x: number; y: number }, 
 async function revealAndPress(page: Page, key: string): Promise<void> {
   const size = page.viewportSize()!;
   const phone = size.width < 600;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 16; i++) {
     const stop = (await routeStops(page, "CampaignBalanced"))?.stops.find((s) => s.key === key);
     if (stop && stop.rect.y > 60 && stop.rect.y + stop.rect.height < size.height - 90) break;
-    if (phone) await drag(page, true, { x: size.width / 2, y: size.height - 140 }, { x: size.width / 2, y: 140 });
-    else {
+    // Above the body: scroll back up; below it: scroll down.
+    const up = !!stop && stop.rect.y <= 60;
+    if (phone) {
+      const from = { x: size.width / 2, y: up ? 140 : size.height - 140 };
+      await drag(page, true, from, { x: size.width / 2, y: up ? size.height - 140 : 140 });
+    } else {
       await page.mouse.move(size.width / 2, size.height / 2);
-      await page.mouse.wheel(0, 300);
+      await page.mouse.wheel(0, up ? -300 : 300);
     }
     await settle(page);
   }
@@ -197,4 +201,33 @@ test("issue #609: on a phone, a swipe that lifts over a toggle or the credit pre
   // A real tap still works.
   await clickStop(page, TOGGLES[1]!, "CampaignBalanced");
   await waitFor(async () => (count(await texts(page), "ON") === 1 ? true : null), "a tap flips the toggle");
+});
+
+test("issue #609: the pane fills the right side and, on a big screen, Rebalance needs no scroll", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "a desktop layout");
+  test.setTimeout(180_000);
+  await installWave6Helpers(page);
+  await quietGuide(page);
+  await page.setViewportSize({ width: 1440, height: 980 });
+  await page.goto("/?unlock=all&screen=campaign-balanced");
+  await waitForScene(page, "CampaignBalanced");
+  await settle(page);
+  const heading = (await visibleTexts(page)).filter((t) => t.scene === "CampaignBalanced");
+  expect(
+    heading.some((t) => /^PLAY AS NORMAL$/i.test(t.text.trim()) && t.x > 608),
+    "the pane names the option",
+  ).toBe(true);
+  await clickStop(page, "mode-rebalance", "CampaignBalanced");
+  await waitFor(async () => ((await hasStop(page, TOGGLES[3]!, "CampaignBalanced")) ? true : null), "the toggles");
+  await settle(page);
+  const stops = (await routeStops(page, "CampaignBalanced"))!.stops;
+  const last = stops.find((s) => s.key === TOGGLES[3])!;
+  expect(last.rect.x, "the toggles sit in the pane").toBeGreaterThan(608);
+  expect(last.rect.y + last.rect.height, "the last toggle is above the action bar").toBeLessThanOrEqual(980 - 88);
+  const panes = (await visibleTexts(page)).filter(
+    (t) => t.scene === "CampaignBalanced" && /^WHAT CHANGES$/i.test(t.text.trim()),
+  );
+  expect(panes.length).toBe(1);
 });
