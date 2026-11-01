@@ -974,6 +974,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   if (requested.gameMode !== undefined && requested.gameMode !== "cooperative") {
     return invalid(`gameMode must be "cooperative" or "competitive", not ${String(requested.gameMode)}`);
   }
+  if (requested.heroicLevel !== undefined && (!Number.isInteger(requested.heroicLevel) || requested.heroicLevel < 0)) {
+    return invalid(`the heroic level must be a whole number of at least 0, not ${String(requested.heroicLevel)}`);
+  }
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
   let rng = createRng(requested.seed);
   let config = requested;

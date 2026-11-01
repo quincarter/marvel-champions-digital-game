@@ -35,6 +35,11 @@ describe("heroic mode", () => {
     expect(() => build("rhino", { heroic: 1.5 })).toThrow(/whole number/);
     expect(() => build("rhino", { heroic: -1 })).toThrow(/whole number/);
   });
+
+  it.each([-1, 1.5, Infinity])("refuses heroic level %s at the engine's own door", (heroicLevel) => {
+    const game = createGame({ ...build("rhino", {}), heroicLevel }, PLAYABLE_DEPS);
+    expect(game.ok).toBe(false);
+  });
 });
 
 describe("skirmish mode", () => {
