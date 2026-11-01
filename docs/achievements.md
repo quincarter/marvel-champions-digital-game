@@ -61,7 +61,14 @@ spread so a new player ranks up within the first few sessions.
   with a bibliography (title, issue, year, creators, publisher, link) (owner, 2026-10-20). They are read on their own
   Extras tab, Side Stories, apart from the campaign issues, in the comic reader: panel by panel so the printed
   lettering is readable, each page ending on the whole page (owner, 2026-10-22). A new one is a row in
-  `content/side-stories.ts` (its pages and their panel rectangles) and a folder of pages.
+  `content/side-stories.ts` (its pages and their panel rectangles) and a folder of pages. Every pair with a picture in
+  `art/teamups/` also has a trophy (#615; `progression/team-up-trophies.ts`) that opens the picture in Extras ▸ Artwork.
+
+- **Doppelgangers (#615):** beat a villain who shares a hero's name with that hero seated. The pairs are read from the
+  cards, so a new box needs no row; a villain drawn per game (Shadowland's Daredevil) is left out, since the save does
+  not record the draw. Earning all of them is "Hall of Mirrors".
+- **Arch-enemies (#615):** beat a hero's great foe with that hero seated, one row each in `ARCH_ENEMIES`
+  (`progression/achievements.ts`). Beating all of them is "Every Score Settled".
 
 - **Earned items already built:** PR #294 (Ultron Drone art, stacked on this branch) adds an earned item, "Drone art",
   toggled under Settings > More > Earned items and for now gated on "win a game against Ultron" read from the save
