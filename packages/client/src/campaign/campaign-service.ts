@@ -11,7 +11,7 @@
  * untouched, and only a `done` result is persisted. Reloading the page mid-choice therefore asks the same
  * question again with the same options, and a `random` op cannot be rerolled by refreshing.
  */
-import { campaignDefinitionOf } from "@mc/cards";
+import { campaignDefinitionOf, gmwBalancedHiddenFields, type GmwBalancedToggleId } from "@mc/cards";
 import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CardId, type Deck, type PlayModes } from "@mc/content";
 import {
   applyCommands,
@@ -42,6 +42,7 @@ import {
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
+import { BALANCED_CAMPAIGN_ID } from "../view/campaign-balanced-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
@@ -64,6 +65,11 @@ export interface StartCampaignInput {
   readonly seats: readonly CampaignSeatChoice[];
   /** The Expert Campaign modifier (MC10 p. 17), stored as `modes.campaign.expertCampaign`. */
   readonly expertCampaign?: boolean;
+  /**
+   * The Balanced house rule (issue #609), chosen once at signing: stored as `modes.campaign.balanced`, with its toggles
+   * seeded as hidden log fields. Absent for Normal; a run without it reads as Normal, so older runs need no migration.
+   */
+  readonly balanced?: { readonly toggles: readonly GmwBalancedToggleId[] };
   readonly poolVersion: string;
   readonly seed: number;
   /** The table rules this run plays under, stored with it (`CampaignRecord.tableRules`). Absent when none is on. */
@@ -147,12 +153,15 @@ export class CampaignService {
     const content = CAMPAIGN_RECORDS[input.campaignId];
     const definition = this.#definitionOf(input.campaignId);
     if (!content || !definition) throw new Error(`campaign "${input.campaignId}" is not playable in this build`);
+    // One choice for both halves: the mode gates between-game steps, the seeded fields the rules in a game.
+    const balanced = input.campaignId === BALANCED_CAMPAIGN_ID ? input.balanced : undefined;
     // Expert campaign is a modification of *campaign* mode (`CampaignModeRef.expertCampaign`), which is where
     // `matchesModes` reads it — never a top-level `PlayModes` key.
     const modes: PlayModes = {
       campaign: {
         campaignId: definition.campaignId,
         ...(input.expertCampaign ? { expertCampaign: true as const } : {}),
+        ...(balanced ? { balanced: true as const } : {}),
       },
     };
     const log = createCampaignLog(definition, {
@@ -164,6 +173,7 @@ export class CampaignService {
         deck: { identityCardId: seat.deck.identityCardId, aspects: seat.deck.aspects, cards: seat.deck.cards },
       })),
       modes,
+      ...(balanced ? { hiddenFields: gmwBalancedHiddenFields({ enabled: true, toggles: balanced.toggles }) } : {}),
       poolVersion: input.poolVersion,
       seed: input.seed,
     });

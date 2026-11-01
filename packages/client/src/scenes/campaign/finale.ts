@@ -44,6 +44,7 @@ import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { createHints, forwardHint } from "./pad-hints.js";
+import { goToCampaignStart } from "./start-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignFinaleData } from "./routes.js";
 
@@ -587,7 +588,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     if (view.alreadyExpert) {
       goToScreen(this, SCENES.campaignSaga);
     } else {
-      goToScreen(this, SCENES.campaignRoster, { campaignId: record.campaignId as string, expertCampaign: true });
+      goToCampaignStart(this, record.campaignId as string, true);
     }
   }
 

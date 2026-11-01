@@ -1,6 +1,8 @@
 import { trait } from "@mc/content";
+import type { EventPattern } from "@mc/engine";
 import {
   addCounters,
+  allOf,
   andThen,
   atEndOfActivation,
   attachCard,
@@ -17,6 +19,7 @@ import {
   discardEncounterUntil,
   each,
   eachPlayer,
+  exists,
   encounterCards,
   encounterSetAside,
   eventSource,
@@ -36,6 +39,7 @@ import {
   moveCards,
   named,
   on,
+  oncePerRound,
   option,
   perHero,
   placeThreat,
@@ -55,6 +59,7 @@ import {
   stun,
   sum,
   takeDamage,
+  valueAtLeast,
   theMainScheme,
   theVillain,
   thatPlayer,
@@ -65,6 +70,7 @@ import {
   yourIdentity,
   zone,
 } from "../../dsl/index.js";
+import { NEBULAS_SHIP_GUARD_ABILITY, toggleIsOn } from "../../campaigns/gmw-balanced.js";
 
 /**
  * Nebula: the villain Nebula I–III (16088–16090), the main scheme The Art of Evasion → Warp Drive Initiated
@@ -116,6 +122,18 @@ const TECHNIQUE_IN_PLAY = query("attachment", { trait: TECHNIQUE, host: theVilla
 const NEBULAS_SHIP = named("Nebula's Ship");
 const evasionCounters = countersOn(NEBULAS_SHIP, "evasion");
 const exhaustMilano = exhaustCardsCost(query("support", { name: "Milano" }));
+
+/**
+ * Balanced house rule, issue #609, Gideon's Gaming: Pirate Commander / Pirate Lackey put the card they would remove
+ * from the game faceup into The Collection instead, but only in Infiltrate the Museum, the one scenario with a
+ * Collection. The Space Pirates toggle is on, and The Grand Collection is the main scheme in play: Nebula's own
+ * Space Pirates keep the printed text.
+ */
+const PIRATES_TO_COLLECTION = allOf(
+  toggleIsOn("spacePirates"),
+  exists(query("mainScheme", { name: "The Grand Collection" })),
+);
+const COLLECTION = "The Collection";
 
 /** "The first Technique attachment revealed each round gains surge." (Nebula I/II/III, identical text.) */
 const firstTechniqueGainsSurge = () =>
@@ -222,6 +240,19 @@ export const NEBULA = defineAbilities({
     { cost: [exhaustMilano, spendUpTo(2)] },
     removeCountersFrom(self, "evasion", varOf("x")),
   ),
+  // Balanced house rule, issue #609, Gideon's Gaming (registry-only, granted to the ship by the node's `gainsAbility`
+  // rule while `balanced`): Forced Response (limit once per round): after Nebula takes 3 or more damage from a single
+  // attack, remove 1 evasion counter from here. Damage *taken*, so a tough status card or Wide Stance stops it (and
+  // Nebula's retaliate, damage to a hero, never counts). With no counter here it is not offered, so it does not spend
+  // the limit.
+  [NEBULAS_SHIP_GUARD_ABILITY]: forcedResponse(
+    {
+      ...on.damage(query("villain"), { fromAttack: true, taken: true }),
+      eventAtLeast: { taken: 3 },
+    } satisfies EventPattern,
+    { limit: oncePerRound, while: valueAtLeast(evasionCounters, 1) },
+    removeCountersFrom(self, "evasion", 1),
+  ),
 
   // Techniques (16094–16098, attachments; Attach to Nebula is data-driven `attachesTo`) --------------------------
 
@@ -300,7 +331,11 @@ export const NEBULA = defineAbilities({
   // activation.
   "16138.pirate-commander-forced-response": forcedResponse(
     on.enemyAttacks("self", { damagesYou: true }),
-    moveCards(zone("hand", you, { random: 1 }), "removedFromGame"),
+    ifThen(
+      PIRATES_TO_COLLECTION,
+      moveCards(zone("hand", you, { random: 1 }), { scenarioArea: COLLECTION }),
+      moveCards(zone("hand", you, { random: 1 }), "removedFromGame"),
+    ),
   ),
   // "Give the villain 1 additional boost card for this activation" is `modifyAttack({ extraBoostCards })`, not
   // `giveBoostCard` (which deals a facedown card *outside* an activation, flipped next time — the validator
@@ -311,7 +346,11 @@ export const NEBULA = defineAbilities({
   // card of your deck from the game. [star] Boost: Give the villain 1 additional boost card for this activation.
   "16139.pirate-lackey-forced-response": forcedResponse(
     on.enemyAttacks("self", { damagesYou: true }),
-    moveCards(topOfDeck(1, you), "removedFromGame"),
+    ifThen(
+      PIRATES_TO_COLLECTION,
+      moveCards(topOfDeck(1, you), { scenarioArea: COLLECTION }),
+      moveCards(topOfDeck(1, you), "removedFromGame"),
+    ),
   ),
   "16139.boost": boost(extraBoostCardsForVillain()),
 

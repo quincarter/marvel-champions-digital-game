@@ -223,6 +223,7 @@ export type {
   ResourceGeneration,
   ResourceMultiplierSpec,
   RuleSpec,
+  MainSchemeStageRef,
   StatModifierSpec,
   TraitGrantSpec,
 } from "./abilities.js";
@@ -700,6 +701,7 @@ export {
   mainSchemeStageOf,
   mainSchemeStagePosition,
   mainSchemeStateOf,
+  mainSchemeStageMatches,
   mainSchemeValue,
   startingThreatOf,
   minionsEngagedWith,

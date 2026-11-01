@@ -21,6 +21,8 @@ describe("settingsSectionsOf", () => {
       "token-motion",
       "deck-signature",
       "deck-copy-limits",
+      "faded-campaign-art",
+      "fade-color",
       "villain-auto",
       "villain-hold",
       "villain-flip",
@@ -154,8 +156,23 @@ describe("the desktop app's Window section", () => {
       (s) => s.id === "motion",
     )!.items;
     expect(withCouch[0]).toBe("couch-mode");
-    expect(motion(true)).toEqual(["power-saving", "dark-mode", "reduced-motion", "token-motion", "sharper-text"]);
-    expect(motion(false)).toEqual(["dark-mode", "reduced-motion", "token-motion", "sharper-text"]);
+    expect(motion(true)).toEqual([
+      "power-saving",
+      "dark-mode",
+      "reduced-motion",
+      "token-motion",
+      "sharper-text",
+      "faded-campaign-art",
+      "fade-color",
+    ]);
+    expect(motion(false)).toEqual([
+      "dark-mode",
+      "reduced-motion",
+      "token-motion",
+      "sharper-text",
+      "faded-campaign-art",
+      "fade-color",
+    ]);
   });
 
   test("the web and the phone apps don't show it", () => {
