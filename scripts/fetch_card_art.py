@@ -195,6 +195,11 @@ LOCALE_MAX_DISTANCE = 10
 LOCALE_MARGIN = 6
 # A card with a single face and a single translated picture pairs by its code within this distance (`pair_faces`).
 LOCALE_SINGLE_DISTANCE = 16
+# English faces viewed beside their same-named translated scan and confirmed as one face, though the hash calls them
+# different: an owner scan's colours moved them 12 or 14 bits from the translated scan. Applies to every language.
+LOCALE_CHECKED_FACES = frozenset(
+    {"11010a.jpg", "21099.png", "24049b.png", "27064a.png", "29001a.png", "32144a.png", "50105a.png"}
+)
 
 HOH = "https://hallofheroeslcg.com"
 MARVELCDB_BASE = "https://marvelcdb.com"
@@ -1689,7 +1694,12 @@ def _get_url(url: str, accept: str = "*/*") -> bytes | None:
     import urllib.error
     import urllib.request
 
-    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "mc-card-art"})
+    headers = {"Accept": accept, "User-Agent": "mc-card-art"}
+    # GitHub allows an anonymous caller 60 API requests an hour, shared by everything on the machine.
+    token = os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
     for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=60) as res:
@@ -1873,7 +1883,14 @@ def localize(args: argparse.Namespace) -> None:
     for en, tr in groups.values():
         got = pair_faces({e: en_hash[e] for e in en}, {t: tr_hash[t] for t in tr if t in tr_hash})
         pairs.update(got)
-        left_out.extend(e for e in en if e not in got and Path(e).stem in tr_hash)
+        for e in en:
+            stem = Path(e).stem
+            if e in got or stem not in tr_hash:
+                continue
+            if e in LOCALE_CHECKED_FACES:
+                pairs[e] = FacePair(stem, hamming(en_hash[e][0], tr_hash[stem][0][0]), 0)
+            else:
+                left_out.append(e)
     crossed = sorted((e, pair.scan) for e, pair in pairs.items() if Path(e).stem != pair.scan)
     turned = sorted(e for e, pair in pairs.items() if pair.turn)
 

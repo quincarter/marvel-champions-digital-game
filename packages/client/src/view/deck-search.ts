@@ -48,9 +48,10 @@ const SECONDARY_SCALE = 0.6;
 const NOTES_SCALE = 0.2;
 
 export function normalizeText(text: string): string {
-  // Periods go entirely, so "S.H.I.E.L.D." reads "shield" (and a query of either spelling finds it).
+  // Periods go entirely, so "S.H.I.E.L.D." reads "shield" (and a query of either spelling finds it). So does a double
+  // slash, so "SP//dr" reads "spdr" (issue #597); one slash still separates two words.
   return text
-    .replace(/\./g, "")
+    .replace(/\.|\/\//g, "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();

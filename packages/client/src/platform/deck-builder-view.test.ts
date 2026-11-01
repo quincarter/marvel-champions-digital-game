@@ -4,6 +4,7 @@ import {
   DEFAULT_DECK_BUILDER_VIEW,
   deckBuilderView,
   rememberDeckBuilderView,
+  rememberDeckListSort,
 } from "./deck-builder-view.js";
 
 const memory = (initial: Record<string, string> = {}) => {
@@ -35,6 +36,7 @@ describe("deck builder view between visits (issue #531)", () => {
           aspect: "justice",
         },
         poolView: "list",
+        deckSort: "name",
       },
       storage,
     );
@@ -42,6 +44,7 @@ describe("deck builder view between visits (issue #531)", () => {
       sort: { primary: "aspect", secondary: "type" },
       filter: { type: "ally", cost: 2, resource: "mental", trait: "Avenger", packCode: "core" },
       poolView: "list",
+      deckSort: "name",
     });
   });
 
@@ -57,6 +60,17 @@ describe("deck builder view between visits (issue #531)", () => {
       sort: { primary: "match", secondary: "cost" },
       filter: {},
       poolView: "grid",
+      deckSort: "aspect",
     });
+  });
+
+  test("a deck list sort comes back, and setting it leaves the rest of the view alone (issue #594)", () => {
+    const storage = memory();
+    rememberDeckBuilderView({ ...DEFAULT_DECK_BUILDER_VIEW, poolView: "list" }, storage);
+    rememberDeckListSort("cost", storage);
+    expect(deckBuilderView(storage).deckSort).toBe("cost");
+    expect(deckBuilderView(storage).poolView).toBe("list");
+    rememberDeckBuilderView({ ...deckBuilderView(storage), deckSort: "nonsense" as "cost" }, storage);
+    expect(deckBuilderView(storage).deckSort).toBe("aspect");
   });
 });

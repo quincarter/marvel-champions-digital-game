@@ -118,7 +118,7 @@ describe("deck builder narrow focus order", () => {
 
   test("the deck tab ends at Save and leaves the pool out", () => {
     const order = deckBuilderNarrowFocusOrder({ ...base, tab: "deck", showDelete: true });
-    expect(order.slice(-5)).toEqual(["name", "preconstructed", "clear", "delete", "save"]);
+    expect(order.slice(-7)).toEqual(["name", "deck-sort", "deck-review", "preconstructed", "clear", "delete", "save"]);
     expect(order).toContain("aspect:justice");
     expect(order.some((key) => key.startsWith("card:") || key === "filter-text")).toBe(false);
   });
@@ -142,6 +142,15 @@ describe("deck builder narrow focus order", () => {
       rewardIds: ["0:27001"],
       showFreeze: true,
     });
-    expect(order).toEqual(["back", "tab:pool", "tab:deck", "aspect:justice", "reward:0:27001", "freeze-deck", "save"]);
+    expect(order).toEqual([
+      "back",
+      "tab:pool",
+      "tab:deck",
+      "aspect:justice",
+      "reward:0:27001",
+      "deck-sort",
+      "freeze-deck",
+      "save",
+    ]);
   });
 });

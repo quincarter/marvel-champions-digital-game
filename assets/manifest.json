@@ -159,11 +159,11 @@
       "name": "card-art-es",
       "group": "card-art-es",
       "dir": "assets/card-art-locales/es/bundles/cards",
-      "tag": "card-art-es-7c4c76d4af4d",
+      "tag": "card-art-es-8d99786e67d0",
       "file": "card-art-es.zip",
-      "size": 450617184,
-      "sha256": "7c4c76d4af4d179ca3e70b893124d9af2f19ad7ed2149e66660fba017225be8a",
-      "files": 5100
+      "size": 452395314,
+      "sha256": "8d99786e67d032613c919cccc7262c10f1201e1bec1185130194c0417a210283",
+      "files": 5123
     },
     {
       "name": "music-soundtrack",

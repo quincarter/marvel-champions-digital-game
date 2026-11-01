@@ -8,7 +8,14 @@
 
 import { beforeEach, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
-import { applyCommand, type GameState, type InstanceId, type LegalAction, type PlayerId } from "@mc/engine";
+import {
+  applyCommand,
+  type GameState,
+  type InstanceId,
+  type LegalAction,
+  type PaymentSource,
+  type PlayerId,
+} from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -24,7 +31,7 @@ import {
   spentTagText,
   togglePayment,
 } from "./payment-model.js";
-import type { PaymentState } from "./payment-model.js";
+import type { PaymentSourceView, PaymentState } from "./payment-model.js";
 import { requiredLabelOf } from "./payment-model.js";
 
 const SPIDER_MAN_SOLO: SessionConfig = {
@@ -205,6 +212,60 @@ describe("payment mode", () => {
     // options can come off one card) already reports, just as one flat, ordered list instead of two maps.
     const spentOptionIds = new Set(view.sources.filter((source) => source.spent).map((source) => source.optionId));
     expect(spentOptionIds).toEqual(new Set(view.spent.keys()));
+  });
+
+  test("a resource ability whose cost picks one card shows that card, so Sync Ratio tiles differ (issue #601)", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const suit = "suit" as never;
+    const pick = "interface" as never;
+    const pool = { physical: 0, mental: 1, energy: 0, wild: 0 };
+    const view = paymentView(
+      state,
+      me,
+      {
+        ...opened,
+        query: {
+          ...opened.query,
+          sources: [
+            {
+              optionId: "ability:suit:sync@a",
+              kind: "resourceAbility",
+              instanceId: suit,
+              label: "SP//dr Suit (VEN#m)",
+              pool,
+              costChoices: { exhausted: [pick] },
+            },
+            { optionId: "ability:suit:plain", kind: "resourceAbility", instanceId: suit, label: "Plain", pool },
+          ],
+        },
+      },
+      "test",
+      CORE_DEPS,
+    );
+    expect(view.sources.map((source) => source.pickedCard)).toEqual([pick, undefined]);
+  });
+
+  test("each Sync Ratio pick is its own stop: a press on the card spends its own option (issue #601)", () => {
+    const source = (optionId: string, pick: string): PaymentSource => ({
+      optionId,
+      kind: "resourceAbility",
+      instanceId: "suit" as never,
+      label: "SP//dr Suit",
+      pool: { physical: 0, mental: 1, energy: 0, wild: 0 },
+      costChoices: { exhausted: [pick as never] },
+    });
+    const payment = {
+      picked: [],
+      query: { sources: [source("first", "a"), source("second", "b")] },
+    } as unknown as PaymentState;
+    expect(cardTapOption(payment, "a" as never)).toBe("first");
+    expect(cardTapOption(payment, "b" as never)).toBe("second");
+  });
+
+  test("a pick tucked under a card is tagged as tucked, not in play", () => {
+    const view = { pickedTucked: true, helperName: null, amountNote: null } as unknown as PaymentSourceView;
+    expect(sourceTagText(view)).toBe("tucked");
   });
 
   test("keys spendable/spent by option id, so several options off one card (Sync Ratio, spdr 31001a's own several Interface picks) each get their own entry rather than collapsing to one", () => {
