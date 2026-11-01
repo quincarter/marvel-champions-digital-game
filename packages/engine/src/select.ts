@@ -1000,7 +1000,8 @@ function hostOfSelfId(state: GameState, context: EffectContext): InstanceId | nu
 
 /**
  * The binding slot the "which villain?" choice fills for a player card's ability with more than one villain in play
- * (owner, 2026-10-04, matrix Q-M2): a player card that targets "the villain" lets its player choose any villain in play.
+ * (owner, 2026-10-04, matrix Q-M2): a player card that targets "the villain" lets its player choose any villain in play,
+ * unless the scenario's `ScenarioRules.theVillain` makes it the active villain (The Wrecking Crew).
  * A constant effect or keyword on a player card that says "the villain" is not asked and means the active villain.
  */
 export const VILLAIN_CHOICE = "_villain";
@@ -3566,6 +3567,11 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return predicate.activation === "attack"
         ? frame.event.kind === "enemyAttack"
         : frame.event.kind === "enemyScheme";
+    }
+    case "currentSchemeStartedByAttackBoost": {
+      const id = currentActivationFrameId(state.stack);
+      const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
+      return frame?.kind === "event" && frame.event.kind === "enemyScheme" && frame.event.startedByAttackBoost === true;
     }
     case "refMatches": {
       const inPlay = predicate.anywhere === true ? null : cardsInPlay(state);

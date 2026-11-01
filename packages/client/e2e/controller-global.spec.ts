@@ -14,6 +14,7 @@ const RB = 5;
 const START = 9;
 const DPAD_UP = 12;
 const DPAD_DOWN = 13;
+const DPAD_LEFT = 14;
 const DPAD_RIGHT = 15;
 
 interface FocusState {
@@ -168,11 +169,9 @@ test("the music note is reachable by the D-pad from Title, and A opens the playe
     await page.waitForTimeout(150);
   }
   expect(await focusOf()).toBe("new-game");
-  // Up from the first button reaches the note in a press or two.
-  const seen: string[] = [];
-  for (let i = 0; i < 3 && !seen.includes("chrome:music"); i += 1)
-    seen.push(...(await stepPad(page, DPAD_UP, "Title")));
-  expect(seen).toContain("chrome:music");
+  // Up from the first button reaches the top row.
+  const seen = await stepPad(page, DPAD_UP, "Title");
+  expect(seen[0]).toMatch(/^chrome:/);
   // The keyboard settles on the note, and the pad presses it.
   for (let i = 0; i < 4 && (await focusOf()) !== "chrome:music"; i += 1) {
     await page.keyboard.press("ArrowRight");
@@ -188,6 +187,109 @@ test("the music note is reachable by the D-pad from Title, and A opens the playe
   expect((await stateOf(page, "Title"))?.focus).toBe(before);
   await tap(page, B, async () => !(await isActive(page, "MusicPlayerOverlay")));
   expect(await isActive(page, "MusicPlayerOverlay")).toBe(false);
+});
+
+test("the whole top row and the notice bar answer the pad on Title", async ({ page }) => {
+  await openTitle(page);
+  await waitForChrome(page, "Title");
+  const focusOf = async () => (await stateOf(page, "Title"))?.focus ?? null;
+  const schemeOf = () =>
+    page.evaluate(() =>
+      (window as unknown as { __mcThemeButtonDebug: { scheme(): string } }).__mcThemeButtonDebug.scheme(),
+    );
+  for (let i = 0; i < 5 && (await focusOf()) !== "new-game"; i += 1) {
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(150);
+  }
+  for (let i = 0; i < 4 && (await focusOf()) !== "chrome:music"; i += 1) {
+    await page.keyboard.press(i === 0 ? "ArrowUp" : "ArrowRight");
+    await page.waitForTimeout(150);
+  }
+  expect(await focusOf()).toBe("chrome:music");
+  // The press glyph hangs under a button only while it has focus.
+  const theme = await stopRect(page, "Title", "chrome:theme");
+  const underTheme = () =>
+    page.screenshot({ clip: { x: theme.x, y: theme.y + theme.height + 8, width: theme.width, height: 20 } });
+  const withoutGlyph = await underTheme();
+  expect(await stepPad(page, DPAD_LEFT, "Title")).toEqual(["chrome:language"]);
+  expect(await stepPad(page, DPAD_LEFT, "Title")).toEqual(["chrome:theme"]);
+  expect((await underTheme()).equals(withoutGlyph), "the glyph under the focused button").toBe(false);
+
+  // A flips the theme, and focus stays on the button.
+  const scheme = await schemeOf();
+  await tap(page, A, async () => (await schemeOf()) !== scheme);
+  expect(await schemeOf()).not.toBe(scheme);
+  expect(await focusOf()).toBe("chrome:theme");
+  await tap(page, A, async () => (await schemeOf()) === scheme);
+
+  // A opens the language list with focus on the current language; the same press does not choose it.
+  expect(await stepPad(page, DPAD_RIGHT, "Title")).toEqual(["chrome:language"]);
+  await tap(page, A, () => isActive(page, "LanguagePopupOverlay"));
+  expect(await isActive(page, "LanguagePopupOverlay")).toBe(true);
+  expect((await stateOf(page, "LanguagePopupOverlay"))?.focus).toBe("en");
+  // B closes it and leaves Title's focus where it was.
+  await tap(page, B, async () => !(await isActive(page, "LanguagePopupOverlay")));
+  expect(await isActive(page, "LanguagePopupOverlay")).toBe(false);
+  expect(await focusOf()).toBe("chrome:language");
+
+  expect((await underTheme()).equals(withoutGlyph), "the glyph left with the focus").toBe(true);
+
+  // Up from the row is the notice bar, and A opens its "Read more".
+  await page.evaluate(() => {
+    const opened: string[] = [];
+    (window as unknown as { __opened: string[] }).__opened = opened;
+    window.open = (url) => (opened.push(String(url)), null);
+  });
+  expect(await stepPad(page, DPAD_UP, "Title")).toEqual(["release-notice"]);
+  const opened = () => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
+  await tap(page, A, async () => (await opened()).length > 0);
+  expect((await opened()).join()).toContain("/releases/");
+});
+
+test("a held Enter presses the dark mode button once", async ({ page }) => {
+  await openTitle(page);
+  await waitForChrome(page, "Title");
+  const focusOf = async () => (await stateOf(page, "Title"))?.focus ?? null;
+  for (let i = 0; i < 40 && (await focusOf()) !== "chrome:theme"; i += 1) await page.keyboard.press("Tab");
+  expect(await focusOf()).toBe("chrome:theme");
+  const schemeOf = () =>
+    page.evaluate(() =>
+      (window as unknown as { __mcThemeButtonDebug: { scheme(): string } }).__mcThemeButtonDebug.scheme(),
+    );
+  const scheme = await schemeOf();
+  await page.keyboard.down("Enter");
+  // Playwright marks a second keydown without a keyup as a repeat, as the OS does for a held key.
+  await page.keyboard.down("Enter");
+  await page.keyboard.down("Enter");
+  await page.keyboard.up("Enter");
+  await page.waitForTimeout(300);
+  expect(await schemeOf()).not.toBe(scheme);
+});
+
+test("the theme button is a stop on Title only", async ({ page }) => {
+  await openTitle(page);
+  await waitForChrome(page, "Title");
+  const keys = () =>
+    page.evaluate(() =>
+      (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string }[]> }).__mcFocusRoutes.Title!().map(
+        (stop) => stop.key,
+      ),
+    );
+  expect(await keys()).toEqual(expect.arrayContaining(["chrome:theme", "chrome:language"]));
+  const decksButton = await stopRect(page, "Title", "decks");
+  await page.mouse.click(decksButton.x + decksButton.width / 2, decksButton.y + decksButton.height / 2);
+  await page.waitForFunction(
+    () => (window as unknown as { __mcFocusRoutes: Record<string, unknown> }).__mcFocusRoutes.Decks !== undefined,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.waitForTimeout(500);
+  const decks = await page.evaluate(() =>
+    (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string }[]> }).__mcFocusRoutes.Decks!().map(
+      (stop) => stop.key,
+    ),
+  );
+  expect(decks).not.toContain("chrome:theme");
 });
 
 test("the music player: RB changes the track, B closes it", async ({ page }) => {

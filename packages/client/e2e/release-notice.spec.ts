@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { RELEASE_NOTICE_VERSION } from "../src/view/release-notice.js";
-import { settle, trackPageErrors, waitFor } from "./helpers.js";
+import { settle, trackPageErrors, waitFor, waitForText } from "./helpers.js";
 import { routeStops } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 
@@ -15,6 +15,8 @@ const stopRect = (page: Page, key: string) =>
     `Title control ${key}`,
     10000,
   );
+
+const LATEST_RELEASE = "https://api.github.com/**/releases/latest";
 
 /** One finger pressed at `from`, dragged to `to` in small steps and lifted there. */
 async function touchSwipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
@@ -34,12 +36,14 @@ async function touchSwipe(page: Page, from: { x: number; y: number }, to: { x: n
 test("the notice bar sits across the top of Title and opens the release report", async ({ page, context }, info) => {
   const phone = info.project.name === "phone";
   const errors = trackPageErrors(page);
+  await page.route(LATEST_RELEASE, (route) => route.abort());
   await openApp(page);
   await settle(page, { quietMs: 500, maxMs: 4000 });
 
   const bar = await stopRect(page, "release-notice");
   const width = page.viewportSize()!.width;
-  expect(bar).toMatchObject({ x: 0, y: 0, width });
+  // The stop is the bar inset 6 px, so the ring stays on screen.
+  expect(bar).toMatchObject({ x: 6, y: 6, width: width - 12 });
   // Nothing else on Title starts under it.
   const others = (await routeStops(page, "Title"))!.stops.filter((s) => s.key !== "release-notice");
   for (const stop of others) expect(stop.rect.y, stop.key).toBeGreaterThanOrEqual(bar.y + bar.height);
@@ -70,4 +74,23 @@ test("the notice bar sits across the top of Title and opens the release report",
   await tab.waitForLoadState("domcontentloaded");
   expect(await tab.title()).toContain(RELEASE_NOTICE_VERSION);
   expect(errors).toEqual([]);
+});
+
+test("the bar follows GitHub's latest release and opens it in the release history", async ({ page, context }) => {
+  await page.route(LATEST_RELEASE, (route) =>
+    route.fulfill({
+      json: {
+        tag_name: "v9.9.9",
+        html_url: "https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v9.9.9",
+        assets: [],
+      },
+    }),
+  );
+  await openApp(page);
+  await settle(page, { quietMs: 500, maxMs: 4000 });
+  await waitForText(page, "What's new in v9.9.9", { sceneKey: "Title" });
+  const bar = await stopRect(page, "release-notice");
+  const popup = context.waitForEvent("page");
+  await page.mouse.click(bar.x + bar.width / 2, bar.y + bar.height / 2);
+  expect((await popup).url()).toContain("#v9.9.9");
 });

@@ -1322,6 +1322,8 @@ export function validateScenario(scenario: Scenario): ValidationResult {
     // docs/phase7-wave5.md §1.5.
     if (multi.atSetup !== undefined && multi.atSetup !== "setAside")
       errors.push("scenario multipleVillains.atSetup must be 'setAside' when present");
+    if (multi.theVillain !== undefined && multi.theVillain !== "activeVillain")
+      errors.push("scenario multipleVillains.theVillain must be 'activeVillain' when present");
   }
   if (scenario.usesIdentityEncounterSets !== undefined && typeof scenario.usesIdentityEncounterSets !== "boolean") {
     errors.push("scenario usesIdentityEncounterSets must be a boolean");

@@ -4,8 +4,13 @@ Install for Steam: adds the installed Marvel Champions to Steam as a non-Steam g
 art, so it plays from the library and Big Picture with a controller.
 
 .DESCRIPTION
-Install the game first (the -Windows-x64-Setup.exe or -AllUsers.msi from the release); the script finds it. Steam must
-be closed while its shortcut list is written; the script offers to close it. Running it again updates the entry.
+This one file works for every release: it asks GitHub for the latest one, and when the game is missing or older it
+downloads that release's installer and runs it. Steam must be closed while its shortcut list is written; the script
+offers to close it. Running it again updates the game and the entry.
+
+Each run records the install in the hidden folder .marvel-champions in your user folder, with a copy of this script.
+The game reads that record, says it was installed this way, and offers to run the copy with -Update when a new release
+is out.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\install-for-steam.ps1
@@ -17,51 +22,150 @@ a double-click and takes the same options: MarvelChampions-<version>-Windows-Ins
 The game's marvel-champions.exe, when it isn't where the installer put it.
 .PARAMETER SteamPath
 The Steam folder, when the registry doesn't say.
+.PARAMETER Language
+The card language to install, en or es (default: what the last run installed, else en).
+.PARAMETER Update
+Update the game only: leave Steam alone, so it can run while Steam and the game are open.
+.PARAMETER WaitPid
+With -Update, download first, then wait for this process to end before running the installer.
 .PARAMETER Yes
 Close Steam without asking when it is running.
 .PARAMETER Uninstall
-Remove the Steam entry and its art (the game itself stays installed).
+Remove the Steam entry, its art and the .marvel-champions folder (the game itself stays installed).
 #>
 param(
   [string]$Path = "",
   [string]$SteamPath = "",
+  [string]$Language = "",
+  [switch]$Update,
+  [int]$WaitPid = 0,
   [switch]$Yes,
   [switch]$Uninstall
 )
 $ErrorActionPreference = "Stop"
 
 $Repo = "quincarter/marvel-champions-digital-game"
-# The release staging step (scripts/stage-release-assets.mjs) stamps the release's tag here, so a script downloaded
-# from a release fetches that release's art. A copy run from the repo uses main's.
-$ArtRef = "__MC_RELEASE_TAG__"
-if ($ArtRef.StartsWith("__")) { $ArtRef = "main" }
 $AppName = "Marvel Champions"
 # The shortcut's name: what Steam, Big Picture and status plugins (Discord) show.
 $ShortcutName = "Marvel Champions Digital Edition"
 $ExeName = "marvel-champions.exe"
 $ArtFiles = @("icon.png", "portrait.jpg", "wide.jpg", "hero.jpg", "logo.png")
+# The hidden folder the game reads (src-tauri/src/steam_install.rs).
+$StateDir = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".marvel-champions"
+$Marker = Join-Path $StateDir "install.json"
 
 function Fail([string]$message) {
   Write-Host "Error: $message" -ForegroundColor Red
   exit 1
 }
 
+if ($Language -notmatch '^([a-zA-Z]{2})?$') { Fail "-Language takes a two-letter language, en or es." }
+$Language = $Language.ToLowerInvariant()
+
+# The install record, or $null when there is none.
+function Read-Marker {
+  if (-not (Test-Path $Marker)) { return $null }
+  try { return [System.IO.File]::ReadAllText($Marker) | ConvertFrom-Json } catch { return $null }
+}
+
+$record = Read-Marker
+$askedLanguage = $Language
+if ($Language -eq "" -and $null -ne $record) { $Language = [string]$record.language }
+if ($Language -eq "") { $Language = "en" }
+
+# The latest release and its installer of the given kind in the chosen language, or $null when GitHub can't say. GitHub's
+# "latest" is never a draft or a prerelease.
+function Get-LatestRelease([string]$kind) {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  $suffix = if ($kind -eq "msi") { "-Windows-x64-AllUsers.msi" } else { "-Windows-x64-Setup.exe" }
+  try {
+    $release = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$Repo/releases/latest"
+  } catch { return $null }
+  $name = "-" + $Language.ToUpperInvariant() + $suffix
+  $asset = @($release.assets | Where-Object { $_.name.EndsWith($name) }) | Select-Object -First 1
+  if ($null -eq $asset) { return $null }
+  return @{ Version = $release.tag_name.TrimStart("v"); Url = $asset.browser_download_url; Name = $asset.name }
+}
+
+function Save-Download([string]$url, [string]$file) {
+  # curl.exe ships with Windows and shows progress, which the game reads to fill its bar; Invoke-WebRequest doesn't.
+  $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+  if ($null -ne $curl) {
+    & $curl.Source -fL --progress-bar -o $file $url
+    if ($LASTEXITCODE -ne 0) { Fail "the download failed." }
+  } else {
+    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $file
+  }
+}
+
+# Runs a downloaded installer and waits for it. The silent per-user setup keeps the folder the game is installed in.
+function Install-Game([string]$installer, [string]$kind) {
+  # A game started now would be closed by the installer or lock its files, so while this file is here it exits at once
+  # (src-tauri/src/steam_install.rs).
+  $installing = Join-Path $StateDir "installing"
+  New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+  New-Item -ItemType File -Force -Path $installing | Out-Null
+  try {
+    if ($kind -eq "msi") {
+      $process = Start-Process msiexec.exe -ArgumentList @("/i", ('"' + $installer + '"'), "/passive", "/norestart") `
+        -Verb RunAs -Wait -PassThru
+    } else {
+      $process = Start-Process $installer -ArgumentList "/S" -Wait -PassThru
+    }
+  } finally {
+    Remove-Item $installing -ErrorAction SilentlyContinue
+  }
+  # 3010: installed, and Windows would like a restart some time.
+  if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { Fail "the installer stopped with code $($process.ExitCode)." }
+}
+
+# The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy, the
+# latest published one replaces it, so a fix to this script reaches an existing install. The release's .cmd is this
+# script with a launcher in a comment at the top, so it runs as a .ps1 too.
+function Save-Script {
+  $copy = Join-Path $StateDir "install-for-steam.ps1"
+  if ($PSCommandPath -and $PSCommandPath -ne $copy) {
+    Copy-Item $PSCommandPath $copy -Force
+    return
+  }
+  try {
+    $url = "https://github.com/$Repo/releases/latest/download/MarvelChampions-Windows-Install-for-Steam.cmd"
+    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile "$copy.new"
+    Move-Item "$copy.new" $copy -Force
+  } catch {
+    Remove-Item "$copy.new" -ErrorAction SilentlyContinue
+  }
+}
+
+function Write-Marker([string]$version) {
+  New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+  (Get-Item $StateDir -Force).Attributes = "Hidden, Directory"
+  $json = [ordered]@{
+    method = "steam-script"; os = "windows"; game = $Path; version = $version; language = $Language
+    installedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  } | ConvertTo-Json
+  # Not Set-Content: PowerShell 5.1 starts UTF-8 with a byte order mark.
+  [System.IO.File]::WriteAllText($Marker, $json, (New-Object System.Text.UTF8Encoding($false)))
+  Save-Script
+}
+
 # --- Steam -----------------------------------------------------------------------------------------------------------
 
-if ($SteamPath -eq "") {
-  $key = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue
-  if ($null -ne $key -and $key.SteamPath) { $SteamPath = $key.SteamPath }
+function Find-Steam {
+  if ($script:SteamPath -eq "") {
+    $key = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue
+    if ($null -ne $key -and $key.SteamPath) { $script:SteamPath = $key.SteamPath }
+  }
+  if ($script:SteamPath -eq "") { $script:SteamPath = "${env:ProgramFiles(x86)}\Steam" }
+  $script:SteamPath = [System.IO.Path]::GetFullPath($script:SteamPath.Replace("/", "\"))
+  if (-not (Test-Path (Join-Path $script:SteamPath "userdata"))) {
+    Fail "no Steam install with a signed-in user was found at $($script:SteamPath). Start Steam and sign in once, or pass -SteamPath."
+  }
+  Write-Host "Steam: $($script:SteamPath)"
+  $script:users = @(Get-ChildItem (Join-Path $script:SteamPath "userdata") -Directory |
+      Where-Object { $_.Name -match '^\d+$' -and $_.Name -ne "0" })
+  if ($script:users.Count -eq 0) { Fail "Steam has no signed-in user yet. Start Steam and sign in once, then run this again." }
 }
-if ($SteamPath -eq "") { $SteamPath = "${env:ProgramFiles(x86)}\Steam" }
-$SteamPath = [System.IO.Path]::GetFullPath($SteamPath.Replace("/", "\"))
-if (-not (Test-Path (Join-Path $SteamPath "userdata"))) {
-  Fail "no Steam install with a signed-in user was found at $SteamPath. Start Steam and sign in once, or pass -SteamPath."
-}
-Write-Host "Steam: $SteamPath"
-
-$users = @(Get-ChildItem (Join-Path $SteamPath "userdata") -Directory |
-    Where-Object { $_.Name -match '^\d+$' -and $_.Name -ne "0" })
-if ($users.Count -eq 0) { Fail "Steam has no signed-in user yet. Start Steam and sign in once, then run this again." }
 
 function Get-SteamProcess {
   # Only this Steam install counts, not another copy somewhere else.
@@ -70,7 +174,8 @@ function Get-SteamProcess {
     })
 }
 
-if ((Get-SteamProcess).Count -gt 0) {
+function Close-Steam {
+  if ((Get-SteamProcess).Count -eq 0) { return }
   if (-not $Yes) {
     $answer = Read-Host "Steam is running and would overwrite the change when it exits. Close Steam now? [Y/n]"
     if ($answer -match '^[nN]') { Fail "Steam is still running. Close it and run this again." }
@@ -220,12 +325,107 @@ function Find-Game {
   return $null
 }
 
+# Which installer the game at $exe came from: the .msi registers itself with Windows Installer, the per-user setup
+# doesn't. A game that isn't installed yet gets the per-user setup, which needs no admin rights.
+function Get-InstallKind([string]$exe) {
+  $keys = @("HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+  $msi = @(Get-ItemProperty $keys -ErrorAction SilentlyContinue |
+      Where-Object { $_.DisplayName -eq $AppName -and $_.WindowsInstaller -eq 1 })
+  if ($msi.Count -gt 0 -and $exe -and -not $exe.StartsWith($env:LOCALAPPDATA, [System.StringComparison]::OrdinalIgnoreCase)) {
+    return "msi"
+  }
+  return "nsis"
+}
+
+# The version the installed game says it is, or "" when it can't be read.
+function Get-GameVersion([string]$exe) {
+  if (-not $exe -or -not (Test-Path $exe)) { return "" }
+  return ([string](Get-Item $exe).VersionInfo.ProductVersion).Trim()
+}
+
+# Whether the game at $exe is the latest in the language asked for. With no language asked for, the one it has is fine.
+function Test-Latest([string]$exe, [string]$version) {
+  if ((Get-GameVersion $exe) -ne $version) { return $false }
+  return $askedLanguage -eq "" -or ($null -ne $record -and $record.language -eq $Language)
+}
+
+function New-TempFolder {
+  $folder = Join-Path ([System.IO.Path]::GetTempPath()) ("mc-steam-" + [guid]::NewGuid())
+  New-Item -ItemType Directory -Path $folder | Out-Null
+  return $folder
+}
+
+# --- Update (from the game, or by hand) ----------------------------------------------------------------------------
+
+# The game shows these MC_UPDATE lines' meaning on screen (packages/client/src/view/steam-update.ts). Steam isn't
+# touched: the entry already points at the game's path, and Steam may be what started the game.
+if ($Update) {
+  if ($Path -eq "" -and $null -ne $record) { $Path = [string]$record.game }
+  if ($Path -eq "") { $Path = Find-Game }
+  if (-not $Path) { Fail "the game isn't installed where its installer puts it." }
+  $kind = Get-InstallKind $Path
+  $latest = Get-LatestRelease $kind
+  if ($null -eq $latest) { Fail "couldn't find the latest release on GitHub." }
+  if (Test-Latest $Path $latest.Version) {
+    Write-Host "MC_UPDATE current $($latest.Version)"
+    exit 0
+  }
+  $temp = New-TempFolder
+  $installer = Join-Path $temp $latest.Name
+  Write-Host "Downloading version $($latest.Version)..."
+  Save-Download $latest.Url $installer
+  if ($WaitPid -gt 0) {
+    # The game went while this downloaded. It may have been started again, and the installer would close it.
+    if ($null -eq (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
+      Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
+      Fail "the game closed before the download finished, so nothing changed."
+    }
+    Write-Host "MC_UPDATE ready $($latest.Version)"
+    while ($null -ne (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) { Start-Sleep -Seconds 1 }
+  }
+  Install-Game $installer $kind
+  Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
+  Write-Marker $latest.Version
+  Write-Host "MC_UPDATE done $($latest.Version)"
+  exit 0
+}
+
+Find-Steam
+Close-Steam
+
 if ($Path -eq "") { $Path = Find-Game }
+$version = ""
 if ($Uninstall) {
   if (-not $Path) { $Path = "$env:LOCALAPPDATA\$AppName\$ExeName" }
-} elseif (-not $Path -or -not (Test-Path $Path)) {
-  Fail "the game isn't installed where its installer puts it. Install it from the release, or pass -Path to marvel-champions.exe."
 } else {
+  Write-Host "Looking up the latest release..."
+  $kind = Get-InstallKind $Path
+  $latest = Get-LatestRelease $kind
+  if ($null -ne $latest) {
+    $version = $latest.Version
+    if (Test-Latest $Path $latest.Version) {
+      Write-Host "Version $($latest.Version) is already installed."
+    } else {
+      if ($null -ne (Get-Process -Name marvel-champions -ErrorAction SilentlyContinue)) {
+        Fail "the game is running. Close it and run this again."
+      }
+      $temp = New-TempFolder
+      $installer = Join-Path $temp $latest.Name
+      Write-Host "Downloading version $($latest.Version)..."
+      Save-Download $latest.Url $installer
+      Write-Host "Installing..."
+      Install-Game $installer $kind
+      Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
+      if (-not $Path -or -not (Test-Path $Path)) { $Path = Find-Game }
+    }
+  } else {
+    Write-Host "Couldn't reach GitHub; using the game that's installed."
+    $version = Get-GameVersion $Path
+  }
+  if (-not $Path -or -not (Test-Path $Path)) {
+    Fail "the game isn't installed where its installer puts it. Install it from the release, or pass -Path to marvel-champions.exe."
+  }
   $Path = (Resolve-Path $Path).Path
   Write-Host "Game: $Path"
 }
@@ -243,13 +443,14 @@ if ($Uninstall) {
       }
     }
   }
-  Write-Host "Removed $ShortcutName from Steam. Start Steam again to see the change."
+  Remove-Item $StateDir -Recurse -Force -ErrorAction SilentlyContinue
+  Write-Host "Removed $ShortcutName from Steam and deleted $StateDir. Start Steam again to see the change."
   exit 0
 }
 
 # --- The art ---------------------------------------------------------------------------------------------------------
 
-# The release's .cmd runs this as a script block, which has no $PSScriptRoot; it downloads the art.
+# The release's .cmd runs a copy of this from the temp folder, with no art beside it; it downloads the art.
 $artDir = ""
 if ($PSScriptRoot) {
   $artDir = Join-Path $PSScriptRoot "..\linux\steam-art"
@@ -264,7 +465,7 @@ if (-not $artDir -or -not (Test-Path (Join-Path $artDir "hero.jpg"))) {
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   foreach ($file in $ArtFiles) {
     try {
-      $url = "https://raw.githubusercontent.com/$Repo/$ArtRef/scripts/linux/steam-art/$file"
+      $url = "https://raw.githubusercontent.com/$Repo/main/scripts/linux/steam-art/$file"
       Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile (Join-Path $temp $file)
     } catch {
       Write-Host "Couldn't download $file; the entry goes without it."
@@ -305,6 +506,7 @@ foreach ($user in $users) {
   Write-Host "Added $ShortcutName to Steam user $($user.Name)."
 }
 if ($temp) { Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue }
+Write-Marker $version
 
 Write-Host ""
 Write-Host "Done. Start Steam: $ShortcutName is in your library."

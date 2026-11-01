@@ -188,6 +188,16 @@ export type TriggerEventBody =
        */
       readonly notAttacked?: true;
       /**
+       * A share of an attack's damage dealt to a character that is not the attacked character: indirect damage assigned
+       * to another character (RRG 1.8 "Indirect Damage", p. 24: "Only the defending character, or the attacked player's
+       * identity if the attack was undefended, is considered to have been attacked, even if other characters were
+       * assigned some or all of the indirect damage"), or a divided attack's share (`divideDamageEvenly`). The attack's
+       * piercing discards tough status cards "from the attacked character" only ("Piercing", p. 32; ruling January 24,
+       * 2025 #64), so not this character's. Narrower than `notAttacked`: the share is still the attack's damage for
+       * everything else (its totals, its keywords as the damage-taken rules read them).
+       */
+      readonly pierceExempt?: true;
+      /**
        * Damage no player deals although a player controls its source (`EffectSpec dealDamage.by` naming nobody;
        * docs/phase7-wave7.md §4.1 Q2): nothing keyed to the source's controller answers it and a defeat it causes has
        * no defeating player (`sourcePlayerOf`). What applies to any damage still applies: a tough status card absorbs it.
@@ -462,6 +472,12 @@ export type TriggerEventBody =
       readonly enemyInstanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly noBoost?: boolean;
+      /**
+       * A Boost ability started this scheme during an enemy attack, or during a scheme that was itself so started: it
+       * follows that attack (RRG 1.8 "Activation", p. 6), and a boost card's "after this attack" still has one to answer
+       * (ruling 191, May 16, 2024; `Predicate currentSchemeStartedByAttackBoost`).
+       */
+      readonly startedByAttackBoost?: true;
       /** `EffectSpec enemyScheme.divert` (docs/phase7-wave9.md §3.9), read at this activation's place-threat step. */
       readonly divert?: SchemeThreatDivert;
       /** `EffectSpec enemyScheme.wouldPlaceThreat`, resolved at this activation's place-threat step. */
@@ -1963,6 +1979,8 @@ export interface CardCausedActivation {
   readonly targetInstanceId?: InstanceId;
   readonly additionalResolution?: boolean;
   readonly noBoost?: boolean;
+  /** Handed on to the scheme's event (`TriggerEvent enemyScheme.startedByAttackBoost`). */
+  readonly startedByAttackBoost?: true;
   readonly divert?: SchemeThreatDivert;
   readonly wouldPlaceThreat?: SchemeWouldPlaceThreat;
   /** Handed on to the attack's or scheme's event (`TriggerEvent enemyAttack.deferredBonus`). */

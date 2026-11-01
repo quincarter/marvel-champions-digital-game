@@ -11,7 +11,10 @@
 
 import {
   applyCommand,
+  cardOf,
   handCardResources,
+  locateCard,
+  paymentOptionsPool,
   poolTotal,
   type EngineDeps,
   type GameState,
@@ -64,7 +67,7 @@ const requirementTotal = (requirement: ResourceRequirement): number =>
  * The card a required payment is for, read off the effects frame that asked (`_play.card`, `playFromHand.mustPay`):
  * "Alluring Call" and "Trance of Greed" make the player play a card, and this is that card.
  */
-function playedCardOf(state: GameState, choice: PendingChoice): InstanceId | null {
+export function playedCardOf(state: GameState, choice: PendingChoice): InstanceId | null {
   const frame = choice.frameId === null ? undefined : state.stack?.find((entry) => entry.frameId === choice.frameId);
   const bound = frame && "bindings" in frame ? frame.bindings["_play.card"]?.[0] : undefined;
   return bound ?? null;
@@ -75,9 +78,22 @@ function playedCardOf(state: GameState, choice: PendingChoice): InstanceId | nul
  * has to be played, so the sheet says so in a few words and has no way to skip it. The full text stays in Inspect.
  */
 export function requiredPaymentNoteOf(state: GameState, choice: PendingChoice): string | null {
-  if (choice.prompt.kind !== "spendResources" || choice.prompt.required !== true) return null;
+  if (choice.prompt.kind !== "spendResources") return null;
   const card = playedCardOf(state, choice);
+  if (choice.prompt.required !== true) return card ? skippablePlayNoteOf(state, choice, card) : null;
   return card ? `You must play ${cardName(state, card)}. Pick what pays.` : "You must play this card. Pick what pays.";
+}
+
+/**
+ * The line a play's payment shows when it may be skipped (Team-Building Exercise): a payment that falls short plays
+ * nothing and the card that asked has already been used, so that is said before the player commits (issue #569).
+ */
+export function skippablePlayNoteOf(state: GameState, choice: PendingChoice, card: InstanceId): string {
+  const frame = choice.frameId === null ? undefined : state.stack?.find((entry) => entry.frameId === choice.frameId);
+  const source = frame && "selfInstanceId" in frame ? frame.selfInstanceId : null;
+  const used = source !== null && cardOf(state, source) && state.instances[source]?.exhausted === true;
+  const name = cardName(state, card);
+  return used ? `Pay for ${name}, or ${cardName(state, source)} stays exhausted.` : `Pay for ${name}.`;
 }
 
 export function paymentSheetView(
@@ -90,13 +106,27 @@ export function paymentSheetView(
   if (prompt.kind === "spendResources" && prompt.required === true) {
     return requiredPaymentView(state, choice, prompt.requirement, selected, deps);
   }
+  if (prompt.kind === "spendResources") {
+    const card = playedCardOf(state, choice);
+    if (!card) return null;
+    return {
+      ...requiredPaymentView(state, choice, prompt.requirement, selected, deps),
+      declineLabel: "Don't play it",
+    };
+  }
   if (prompt.kind !== "payForCard" && prompt.kind !== "payForAbility") return null;
   let paid = 0;
   for (const optionId of selected) {
     const option = choice.options.find((candidate) => candidate.optionId === optionId);
     if (!option) continue;
-    paid +=
-      option.ref.kind === "card"
+    // A hand card spent with its own ability is worth what the engine says: the card and what the ability generates.
+    const spent =
+      option.ref.kind === "ability" && optionId.startsWith("hand:")
+        ? paymentOptionsPool(state, deps, choice.playerId, [optionId], prompt.instanceId)
+        : null;
+    paid += spent
+      ? poolTotal(spent)
+      : option.ref.kind === "card"
         ? poolTotal(handCardResources(state, deps, option.ref.instanceId, choice.playerId, prompt.instanceId))
         : 1;
   }
@@ -137,16 +167,9 @@ function requiredPaymentView(
 ): PaymentSheetView {
   const cost = requirementTotal(requirement);
   const card = playedCardOf(state, choice);
-  let paid = 0;
-  for (const optionId of selected) {
-    const option = choice.options.find((candidate) => candidate.optionId === optionId);
-    if (!option) continue;
-    paid +=
-      option.ref.kind === "card" && card
-        ? poolTotal(handCardResources(state, deps, option.ref.instanceId, choice.playerId, card))
-        : 1;
-  }
-  const canConfirm = selected.length > 0 && pays(state, choice, selected, deps);
+  const pool = paymentOptionsPool(state, deps, choice.playerId, selected, card);
+  const paid = pool ? poolTotal(pool) : selected.length;
+  const canConfirm = selected.length > 0 && pays(state, choice, selected, deps, card);
   return {
     note: requiredPaymentNoteOf(state, choice),
     cost,
@@ -157,14 +180,25 @@ function requiredPaymentView(
   };
 }
 
-/** The engine's own verdict: a payment that pays changes the table; an under-payment only closes the question. */
-function pays(state: GameState, choice: PendingChoice, selected: readonly string[], deps: EngineDeps): boolean {
+/**
+ * The engine's own verdict: a payment that pays changes the table; an under-payment only closes the question. For a
+ * play (`played`) the card itself has to move: the effect carries on after a refused payment and may change the table
+ * by itself (Squared Off is discarded, The Bifrost shuffles).
+ */
+function pays(
+  state: GameState,
+  choice: PendingChoice,
+  selected: readonly string[],
+  deps: EngineDeps,
+  played: InstanceId | null = null,
+): boolean {
   const result = applyCommand(
     state,
     { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: selected },
     deps,
   );
   if (!result.ok) return false;
+  if (played) return JSON.stringify(locateCard(result.state, played)) !== JSON.stringify(locateCard(state, played));
   return (
     JSON.stringify(result.state.players) !== JSON.stringify(state.players) ||
     JSON.stringify(result.state.instances) !== JSON.stringify(state.instances)

@@ -352,6 +352,7 @@ describe("pushing", () => {
     const result = ok(await a.sync());
     expect(result.pushed).toBe(250);
     expect(server.batches).toEqual([100, 100, 50]);
+    expect(result.batches).toBe(3);
   });
 
   test("batches split over the byte limit; a record over the record limit is skipped", async () => {

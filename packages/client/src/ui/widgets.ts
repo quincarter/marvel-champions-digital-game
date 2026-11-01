@@ -1140,7 +1140,7 @@ export class McScrollPanel {
     const type = options.type ?? typeRole.body;
     const onInk = options.onInk ?? false;
     const textColor = options.color ?? (onInk ? surface.paper.hex : surface.ink.hex);
-    const trackFill = onInk ? surface.paper.hex : surface.ink.hex;
+    const trackFill = onInk ? surface.paperOnInk.hex : surface.inkMark.hex;
 
     const textObject = scene.add.text(0, 0, "", textStyle(type, textColor, options.alpha ?? 1));
 

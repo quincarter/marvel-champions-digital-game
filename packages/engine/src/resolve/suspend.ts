@@ -20,6 +20,19 @@ import type { GameState } from "../state.js";
 import type { Frame } from "./frames.js";
 
 /**
+ * Whether a Boost ability's frame is starting an activation during an enemy attack, directly or through a scheme that
+ * such a boost started (ruling 191, May 16, 2024; RRG 1.8 "Activation", p. 6). Read now: the attack is gone when the
+ * new activation initiates.
+ */
+function startsFromAttackBoost(ctx: Ctx, frame: Frame<"effects">, activation: FrameId): boolean {
+  if (frame.abilityId === undefined || ctx.deps.abilities[frame.abilityId]?.trigger.kind !== "boost") return false;
+  const behind = findFrame(ctx.state, activation);
+  if (behind?.kind !== "event") return false;
+  if (behind.event.kind === "enemyAttack") return true;
+  return behind.event.kind === "enemyScheme" && behind.event.startedByAttackBoost === true;
+}
+
+/**
  * Suspends the ability that is initiating `effect` (an enemy activation) behind the activation `activation` in progress
  * (RRG 1.8 "Activation", p. 6): "the newly initiated activation resolves after the current activation has finished
  * resolving", and "An effect that initiates an enemy activation is considered resolved after that activation has fully
@@ -55,9 +68,13 @@ export function suspendBehindActivation(
   activation: FrameId,
 ): void {
   const run = suspendedFramesOf(ctx.state, frame.frameId, activation);
+  const fromAttackBoost = startsFromAttackBoost(ctx, frame, activation);
   const suspended = run.map((f): StackFrame => {
     if (f.kind !== "effects") return f;
-    const resumes = f.frameId === frame.frameId ? { resumeActivation: effect } : {};
+    const resumes =
+      f.frameId === frame.frameId
+        ? { resumeActivation: effect, ...(fromAttackBoost ? { resumeFromAttackBoost: true as const } : {}) }
+        : {};
     // Whether the ability resolved (RRG 1.8 "Resolve", p. 37) is read against the frames beneath its root, which are
     // not the same when it resumes: what it changed so far is kept, and the digest is taken again then (`resumeSuspended`).
     if (!f.resolvedCount || f.resolvedCount.from === RESOLVED_SO_FAR_CHANGED) return { ...f, ...resumes };

@@ -192,6 +192,9 @@ working with Claude too.
   touching a screen, check its controls for this and fix any you find; a new or changed control next to a scrolling
   region gets a phone e2e spec that swipes the region, lifts over the control and expects nothing to fire
   (`e2e/villain-review-handle.spec.ts` shows how, with a real touch sequence over CDP).
+- **Screen sizes (the user, 2026-10-31, standing rule):** check and screenshot a changed screen at `scripts/shoot-app.mjs`
+  sizes `se` (375x667), `pixel` (412x924), `tablet-portrait` (768x1024), `tablet` (1024x768) and `desktop`. A tablet is
+  its own layout, not a small desktop. The e2e suite stays desktop and phone.
 - **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only the CI workflow
   (`.github/workflows/netlify-deploy.yml`), which lints, format-checks, typechecks, runs the unit tests, builds the
   client and deploys the preview; its "All checks" job is the one required check. The Playwright suite

@@ -142,7 +142,7 @@ export function startGlobalUploads(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const run = (): void => void runGlobalUpload(store, overrides).catch(() => undefined);
   const off = onSaveDataChanged((reason) => {
-    if (reason !== "game" && reason !== "turn") return;
+    if (reason !== "game" && reason !== "round") return;
     // Sharing off: no timer, no listing.
     if (readConsent(overrides.storage ?? browserStorage()) !== "on") return;
     // A game still being played has not finished; the listing waits for its end (outcome) or for no game on the table.

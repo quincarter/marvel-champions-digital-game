@@ -129,12 +129,12 @@ describe("June 13, 2024 - Ruling 212 (post-RRG 1.5): 'the villain' in The Wrecki
   // Ruling 212: "any card ability (played, triggered, Action, constant, keyword) that refers to 'the villain' always
   // refers to the active villain" in Wrecking Crew (Tower Defense / Sinister Six / Four Horsemen let the player choose;
   // Wrecking Crew does not). RRG 1.8 is silent on this (the scenario insert is the source).
-  it.fails("Spider-Woman (01011, 'confuse the villain') played in Breakout confuses the active villain; the player is not asked", () => {
+  it("Spider-Woman (01011, 'confuse the villain') played in Breakout confuses the active villain; the player is not asked", () => {
     const start = rhino(1, "core-spider-man-justice", "breakout");
     const active = start.activeVillainId!;
     const other = start.villains.find((v) => v.instanceId !== active)!.instanceId;
     const { state, id } = conjure(start, "01011");
-    // The player (wrongly) is offered the other villains; steer the pick at a non-active one.
+    // Were the player (wrongly) offered the villains, the pick would go to a non-active one.
     const played = playOut(state, id, 3, { use: ["spider-woman"], target: other });
     expect(played.accepted).toBe(true);
     const confused = (v: InstanceId) => inst(played.state, v).statuses.confused ?? 0;

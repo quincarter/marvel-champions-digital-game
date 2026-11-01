@@ -313,6 +313,17 @@ export interface MultipleVillains {
    * docs/phase7-wave5.md §1.5. Data only until §3.1.
    */
   readonly atSetup?: "setAside";
+  /**
+   * `activeVillain`: every card effect that names "the villain", a player card's too, means the active villain, with no
+   * choice. The Wrecking Crew insert, "The Active Villain": "Any card effect that refers to 'the villain' only refers to
+   * the active villain." FFG ruling Jun 13, 2024 (#212) confirms it for every kind of player card ability, and keeps
+   * basic attacks and abilities that target "enemies" free to pick any villain.
+   *
+   * Absent: a player card that names "the villain" asks its player which villain, while encounter cards, constant
+   * abilities and keywords mean the active villain (Tower Defense MC21 p. 10, The Sinister Six MC27, the Four Horsemen
+   * MC45 p. 11; owner, 2026-10-04, matrix Q-M2).
+   */
+  readonly theVillain?: "activeVillain";
 }
 
 /**

@@ -5,7 +5,7 @@ import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import { playerId, type InstanceId } from "./ids.js";
-import { characterProfile, handSize, mustInstance, mustPlayer } from "./query.js";
+import { characterProfile, handSize, mustInstance, mustPlayer, textBoxBlank } from "./query.js";
 import type { EffectSpec } from "./spec.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
@@ -659,8 +659,9 @@ test("lasting and delayed effects replay to an identical state", () => {
  * RRG 1.8 "Leaves Play" (p. 27): "When a card leaves play, there is no memory of its previous state and it is
  * considered to be a new copy of the card." A delayed effect "At the end of the phase, discard Goliath" (Goliath 23015;
  * To Me, My X-Men! 36020 "return it to hand") is bound to the copy that was in play when it was created, so it stops
- * naming the card once a new copy enters play under the same instance id (`noteLeftPlayInDelayedEffects`,
- * `forgetReturnedInDelayedEffects`).
+ * naming the card once a new copy enters play under the same instance id (`noteLeftPlayInLastingEffects`,
+ * `forgetReturnedInLastingEffects`). So is a lasting effect on fixed targets ("Goliath gets +4 ATK until the end of the
+ * phase").
  * FFG ruling January 26, 2026 - Ruling 6 (marvel-champions-rulings-post-rrg-1-7.md) applies the same rule to limits:
  * they "do not apply to 'new copies' of a card, which is what a card becomes when it leaves and re-enters play".
  * Special Funding 50007's card named while in hand and still named as it enters play is covered by
@@ -755,7 +756,46 @@ describe("a delayed 'discard this at the end of the phase' and a copy that left 
     kind: "discardFromPlay",
     target: { kind: "each", query: { categories: ["ally"], name: GROWN.name } },
   });
+  // A second ally, so one lasting effect can have two fixed targets.
+  const OTHER = stubAlly({ id: "other", cost: 0, atk: 1, thw: 1, hp: 5 });
+  const PAIR = action("pair", {
+    kind: "modifyStatUntil",
+    stat: "atk",
+    amount: { kind: "const", value: 1 },
+    target: { kind: "each", query: { categories: ["ally"] } },
+    until: "endOfPhase",
+  });
+  // "Each Grown ally gets +2 ATK until the end of the phase", read by query (`affects`), not fixed targets.
+  const RALLY = action("rally", {
+    kind: "modifyStatUntil",
+    stat: "atk",
+    amount: { kind: "const", value: 2 },
+    affects: { categories: ["ally"], name: GROWN.name },
+    until: "endOfPhase",
+  });
+  // An in-play move with a change of control: the ally is attached to the villain as a captive, still in play.
+  const CAPTURE = action("capture", {
+    kind: "attach",
+    card: { kind: "each", query: { categories: ["ally"], name: GROWN.name } },
+    to: { kind: "villain" },
+    as: "captive",
+  });
+  // "Treat this card's printed text box as if it were blank until the end of the phase", on itself.
+  const MUTE_ACTION = stubAbility("mute.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "blankTextBox", target: { kind: "self" }, until: "endOfPhase" }],
+  });
+  const MUTED = stubAlly({ id: "muted", cost: 0, atk: 1, thw: 1, hp: 3, abilities: [MUTE_ACTION.ref] });
+  const OUT_MUTED = action("out-muted", {
+    kind: "discardFromPlay",
+    target: { kind: "each", query: { categories: ["ally"], name: MUTED.name } },
+  });
   const deps = depsOf(
+    PAIR.ability,
+    RALLY.ability,
+    CAPTURE.ability,
+    MUTE_ACTION,
+    OUT_MUTED.ability,
     GOLIATH_ACTION,
     OUT.ability,
     BACK.ability,
@@ -840,12 +880,12 @@ describe("a delayed 'discard this at the end of the phase' and a copy that left 
   });
 
   /**
-   * Known limit, tracked for follow-up: only delayed effects forget a copy that left play and came back
-   * (`forgetReturnedInDelayedEffects`); a lasting effect with fixed targets still names the instance id, so the copy that
-   * returned keeps the +4 ATK. RRG 1.8 "Leaves Play" (p. 27): "there is no memory of its previous state and it is
-   * considered to be a new copy of the card"; FFG ruling January 26, 2026 - Ruling 6.
+   * A lasting effect with fixed targets forgets a copy that left play and came back, as a delayed effect does
+   * (`forgetReturnedInLastingEffects`), and ends when that was its only target. RRG 1.8 "Leaves Play" (p. 27): "there is
+   * no memory of its previous state and it is considered to be a new copy of the card"; FFG ruling January 26, 2026 -
+   * Ruling 6.
    */
-  it.fails("a lasting '+4 ATK until the end of the phase' on itself (Goliath's shape) does not follow the copy that returned", () => {
+  it("a lasting '+4 ATK until the end of the phase' on itself (Goliath's shape) does not follow the copy that returned", () => {
     let state = startWith([GROWN, OUT_GROWN.card, BACK.card], [GROWN.id, OUT_GROWN.card.id, BACK.card.id]);
     const put = playerCardIntoPlay(state, GROWN.id);
     state = runCommands(put.state, deps, {
@@ -862,6 +902,110 @@ describe("a delayed 'discard this at the end of the phase' and a copy that left 
     expect(mustPlayer(state, P1).playArea).toContain(put.id);
     // Still the same phase: the effect has not expired, but the returned copy is a new card.
     expect(characterProfile(state, put.id, deps)?.atk).toBe(1);
+    expect(state.lastingEffects.some((e) => e.kind === "statModifier")).toBe(false);
+  });
+
+  it("a lasting '+4 ATK' on a card that left play and has not come back still names it", () => {
+    let state = startWith([GROWN, OUT_GROWN.card], [GROWN.id, OUT_GROWN.card.id]);
+    const put = playerCardIntoPlay(state, GROWN.id);
+    state = runCommands(put.state, deps, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: put.id,
+      abilityId: GROWN_ACTION.ref.id,
+      payment: [],
+    }).state;
+    state = playEvent(state, OUT_GROWN.card);
+    expect(mustPlayer(state, P1).discard).toContain(put.id);
+    const modifier = state.lastingEffects.find((e) => e.kind === "statModifier");
+    expect(modifier?.kind === "statModifier" && modifier.targets).toEqual([put.id]);
+    expect(modifier?.kind === "statModifier" && modifier.leftPlay).toEqual([put.id]);
+  });
+
+  const grow = (s: GameState, id: InstanceId): GameState =>
+    runCommands(s, deps, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: id,
+      abilityId: GROWN_ACTION.ref.id,
+      payment: [],
+    }).state;
+
+  it("an effect on two fixed targets drops only the one that left play and came back, and stays on the other", () => {
+    let state = startWith(
+      [GROWN, OTHER, PAIR.card, OUT_GROWN.card, BACK.card],
+      [GROWN.id, OTHER.id, PAIR.card.id, OUT_GROWN.card.id, BACK.card.id],
+    );
+    const grown = playerCardIntoPlay(state, GROWN.id);
+    const other = playerCardIntoPlay(grown.state, OTHER.id);
+    state = playEvent(other.state, PAIR.card);
+    expect(characterProfile(state, grown.id, deps)?.atk).toBe(2);
+    expect(characterProfile(state, other.id, deps)?.atk).toBe(2);
+    state = playEvent(state, OUT_GROWN.card);
+    state = playEvent(state, BACK.card);
+    expect(mustPlayer(state, P1).playArea).toContain(grown.id);
+    expect(characterProfile(state, grown.id, deps)?.atk).toBe(1);
+    expect(characterProfile(state, other.id, deps)?.atk).toBe(2);
+    const modifier = state.lastingEffects.find((e) => e.kind === "statModifier");
+    expect(modifier?.kind === "statModifier" && modifier.targets).toEqual([other.id]);
+    expect(modifier && "leftPlay" in modifier ? modifier.leftPlay : undefined).toBeUndefined();
+  });
+
+  it("a move that does not leave play (attached to the villain as a captive, no controller) keeps the effect", () => {
+    let state = startWith([GROWN, CAPTURE.card], [GROWN.id, CAPTURE.card.id]);
+    const put = playerCardIntoPlay(state, GROWN.id);
+    state = grow(put.state, put.id);
+    state = playEvent(state, CAPTURE.card);
+    expect(mustInstance(state, put.id).attachedTo).toBe(state.activeVillainId);
+    expect(mustInstance(state, put.id).controllerId).toBeNull();
+    expect(characterProfile(state, put.id, deps)?.atk).toBe(5);
+    const modifier = state.lastingEffects.find((e) => e.kind === "statModifier");
+    expect(modifier?.kind === "statModifier" && modifier.targets).toEqual([put.id]);
+    expect(modifier && "leftPlay" in modifier ? modifier.leftPlay : undefined).toBeUndefined();
+  });
+
+  it("a blank text box on a card that left play and came back does not blank the new copy, and ends", () => {
+    let state = startWith([MUTED, OUT_MUTED.card, BACK.card], [MUTED.id, OUT_MUTED.card.id, BACK.card.id]);
+    const put = playerCardIntoPlay(state, MUTED.id);
+    const used = runCommands(put.state, deps, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: put.id,
+      abilityId: MUTE_ACTION.ref.id,
+      payment: [],
+    });
+    state = used.state;
+    expect(textBoxBlank(state, put.id)).toBe(true);
+    state = playEvent(state, OUT_MUTED.card);
+    expect(textBoxBlank(state, put.id)).toBe(true);
+    const blankId = state.lastingEffects.find((e) => e.kind === "blankTextBox")?.id;
+    const given = giveCard(state, P1, BACK.card.id);
+    const back = runCommands(given.state, deps, {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
+    state = back.state;
+    expect(mustPlayer(state, P1).playArea).toContain(put.id);
+    expect(textBoxBlank(state, put.id)).toBe(false);
+    expect(state.lastingEffects.some((e) => e.kind === "blankTextBox")).toBe(false);
+    expect(back.events).toContainEqual({ type: "lastingEffectEnded", id: blankId, reason: "targetLeftPlay" });
+  });
+
+  it("an effect that reaches cards by query ('each Grown ally') reaches the copy that came back", () => {
+    let state = startWith(
+      [GROWN, RALLY.card, OUT_GROWN.card, BACK.card],
+      [GROWN.id, RALLY.card.id, OUT_GROWN.card.id, BACK.card.id],
+    );
+    const put = playerCardIntoPlay(state, GROWN.id);
+    state = playEvent(put.state, RALLY.card);
+    expect(characterProfile(state, put.id, deps)?.atk).toBe(3);
+    state = playEvent(state, OUT_GROWN.card);
+    state = playEvent(state, BACK.card);
+    expect(mustPlayer(state, P1).playArea).toContain(put.id);
+    expect(characterProfile(state, put.id, deps)?.atk).toBe(3);
   });
 
   it("a card that left play and has not come back is still named: the delayed effect acts on it out of play", () => {

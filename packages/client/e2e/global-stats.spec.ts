@@ -4,14 +4,17 @@ import { waitForScene } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import {
   fakeWorker,
+  fewGames,
   globalRequests,
   hasStop,
   isPhone,
   openSaveData,
   press,
   seedFinishedGames,
+  stopKeys,
   stopRect,
   stored,
+  swipeOver,
 } from "./global-stats-helpers.js";
 
 /**
@@ -176,9 +179,7 @@ test("Your stats: Everyone reads the Worker on first use and shows its rows; the
     10_000,
   );
   expect(globalRequests(worker)).toEqual(["GET /global/stats"]);
-  // The choice is kept across tabs; Overview has no Everyone.
-  await press(page, STATS, "tab:overview");
-  await waitFor(async () => ((await hasStop(page, STATS, "source:you")) ? null : true), "Overview", 10_000);
+  // The choice is kept across Everyone's tabs, and You goes back to the tab Everyone was chosen from (Heroes).
   await press(page, STATS, "tab:heroes");
   await press(page, STATS, "source:you");
   await waitFor(async () => ((await hasStop(page, STATS, "row:hero:favorite")) ? true : null), "back to You", 10_000);
@@ -192,9 +193,10 @@ test("Your stats: with the Worker down, Everyone says so and the screen still wo
   await press(page, STATS, "tab:villains");
   await press(page, STATS, "source:everyone");
   await waitFor(textUp(page, "Everyone's numbers aren't available right now.", STATS), "the unavailable note", 15_000);
-  // Still usable: another tab, and back to your own numbers.
+  // Still usable: another tab, and back to your own numbers (You returns to Villains, where Everyone was chosen).
   await press(page, STATS, "tab:heroes");
   await press(page, STATS, "source:you");
+  await press(page, STATS, "tab:heroes");
   await waitFor(async () => ((await hasStop(page, STATS, "row:hero:favorite")) ? true : null), "your rows", 10_000);
   // The Worker comes back: choosing Everyone again tries again.
   worker.down = false;
@@ -259,17 +261,13 @@ test("the deck builder: Everyone swaps the Against block to everyone's decks, re
 
   // The stepper still walks your own faced villains; Everyone has nothing for Klaw (404), and says so.
   await press(page, BUILDER, "games:against");
-  await waitFor(textUp(page, "Not enough games against this villain yet.", BUILDER), "the none note", 15_000);
+  await waitFor(textUp(page, "Rows appear once this villain has 20 shared games.", BUILDER), "the none note", 15_000);
   expect(globalRequests(worker)).toContain("GET /global/cards?villain=Klaw");
 
   // Back to your own decks: the stepper, Klaw's own numbers and no request.
   const before = globalRequests(worker).length;
   await press(page, BUILDER, "games:source:yours");
-  await waitFor(
-    async () => ((await hasText(page, "Not enough games against", BUILDER)) ? null : true),
-    "yours",
-    10_000,
-  );
+  await waitFor(async () => ((await hasText(page, "Rows appear once", BUILDER)) ? null : true), "yours", 10_000);
   expect(globalRequests(worker).length).toBe(before);
 });
 
@@ -290,3 +288,277 @@ test("the deck builder with the Worker down: a note, and the builder keeps worki
   await press(page, BUILDER, "rail:deck");
   await waitFor(async () => ((await hasStop(page, BUILDER, "games:against")) ? null : true), "the deck tab", 10_000);
 });
+
+const tabsOf = async (page: Page): Promise<string[]> =>
+  (await stopKeys(page, STATS)).filter((k) => k.startsWith("tab:"));
+
+/** Loads Your stats with no finished game at all. */
+async function emptyStats(page: Page): Promise<void> {
+  await openApp(page, "unlock=all");
+  await page.goto("/?screen=stats&unlock=all");
+  await waitForScene(page, STATS, 30_000);
+  await settle(page);
+}
+
+test("Your stats: the You / Everyone switch is on every tab, Everyone narrows the tabs and lands on Villains", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const worker = await fakeWorker(page);
+  worker.stats = fewGames(4);
+  await seededAt(page, "/?screen=stats&unlock=all", STATS);
+  await waitFor(async () => ((await hasStop(page, STATS, "source:everyone")) ? true : null), "the switch", 15_000);
+  // On Overview, first in the route after Back, with games.
+  const keys = await stopKeys(page, STATS);
+  expect(keys.slice(0, 3)).toEqual(["back", "source:you", "source:everyone"]);
+  expect(await tabsOf(page)).toContain("tab:overview");
+  const you = await stopRect(page, STATS, "source:you");
+  const first = await stopRect(page, STATS, "tab:overview");
+  expect(you.y + you.height).toBeLessThanOrEqual(first.y);
+  expect(globalRequests(worker)).toEqual([]);
+
+  await press(page, STATS, "source:everyone");
+  await waitFor(textUp(page, "4 games shared so far.", STATS), "the empty note with the count", 15_000);
+  expect(await hasText(page, "Rows appear once a villain, hero or set has 20 shared games.", STATS)).toBe(true);
+  // Only the tabs Everyone has, filters hidden, and the switch still in its place.
+  expect(await tabsOf(page)).toEqual(["tab:heroes", "tab:villains", "tab:encounter"]);
+  expect(await hasStop(page, STATS, "filter:hero")).toBe(false);
+  expect(await hasStop(page, STATS, "filter:toggle")).toBe(false);
+  expect(await stopRect(page, STATS, "source:you")).toEqual(you);
+  expect(globalRequests(worker)).toEqual(["GET /global/stats"]);
+
+  // You returns to the tab Everyone was chosen from: Overview.
+  await press(page, STATS, "source:you");
+  await waitFor(async () => ((await tabsOf(page)).includes("tab:overview") ? true : null), "Overview again", 10_000);
+  expect((await stopKeys(page, STATS)).some((k) => k.startsWith("tile:"))).toBe(true);
+});
+
+test("Your stats: with no finished game the switch is still there and Everyone has its three tabs", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const worker = await fakeWorker(page);
+  worker.stats = fewGames(0);
+  await emptyStats(page);
+  await waitFor(async () => ((await hasStop(page, STATS, "source:everyone")) ? true : null), "the switch", 15_000);
+  expect(await tabsOf(page)).toEqual(["tab:overview"]);
+  expect((await stopKeys(page, STATS)).slice(0, 3)).toEqual(["back", "source:you", "source:everyone"]);
+  expect(globalRequests(worker)).toEqual([]);
+  await press(page, STATS, "source:everyone");
+  await waitFor(textUp(page, "0 games shared so far.", STATS), "the empty note", 15_000);
+  expect(await tabsOf(page)).toEqual(["tab:heroes", "tab:villains", "tab:encounter"]);
+  await press(page, STATS, "source:you");
+  await waitFor(async () => ((await tabsOf(page)).length === 1 ? true : null), "back to Overview", 10_000);
+});
+
+test("Your stats: Share my games turns sharing on with one press, marks finished games sent, then goes", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const worker = await fakeWorker(page);
+  worker.stats = fewGames(4);
+  await seededAt(page, "/?screen=stats&unlock=all", STATS);
+  // Not on You, and choosing Everyone turns nothing on by itself.
+  expect(await hasStop(page, STATS, "share:global")).toBe(false);
+  await press(page, STATS, "source:everyone");
+  await waitFor(async () => ((await hasStop(page, STATS, "share:global")) ? true : null), "Share my games", 15_000);
+  expect(await hasText(page, "Shares each game you finish from now on", STATS)).toBe(true);
+  await page.waitForTimeout(500);
+  expect(await stored(page, "global-stats-consent")).toBeNull();
+
+  await page.waitForTimeout(500);
+  await press(page, STATS, "share:global");
+  await waitFor(async () => ((await hasStop(page, STATS, "share:global")) ? null : true), "the button goes", 10_000);
+  expect(await stored(page, "global-stats-consent")).toBe("on");
+  const sent = JSON.parse((await stored(page, "global-stats-sent")) ?? "[]") as string[];
+  expect(sent).toEqual(expect.arrayContaining(["e2e-global-0", "e2e-global-4"]));
+  expect(await hasText(page, "SHARING ON", STATS)).toBe(true);
+});
+
+test("Your stats: already sharing, there is no Share my games", async ({ page }) => {
+  test.setTimeout(120_000);
+  const worker = await fakeWorker(page);
+  worker.stats = fewGames(4);
+  await openApp(page, "unlock=all");
+  await seedFinishedGames(page);
+  await page.evaluate(() => localStorage.setItem("global-stats-consent", "on"));
+  await page.goto("/?screen=stats&unlock=all");
+  await waitForScene(page, STATS, 30_000);
+  await settle(page);
+  await press(page, STATS, "source:everyone");
+  await waitFor(textUp(page, "4 games shared so far.", STATS), "the empty note", 15_000);
+  expect(await hasStop(page, STATS, "share:global")).toBe(false);
+  expect(await hasText(page, "SHARING ON", STATS)).toBe(true);
+});
+
+test("phone: a swipe of the list that lifts over Share my games does not turn sharing on", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a finger");
+  test.setTimeout(120_000);
+  await fakeWorker(page);
+  await seededAt(page, "/?screen=stats&unlock=all", STATS);
+  await press(page, STATS, "source:everyone");
+  await waitFor(async () => ((await hasStop(page, STATS, "row:global:villain:Rhino")) ? true : null), "rows", 15_000);
+  await settle(page);
+  const share = await stopRect(page, STATS, "share:global");
+  const row = await stopRect(page, STATS, "row:global:villain:Rhino");
+  await swipeOver(page, row, share);
+  await settle(page);
+  expect(await hasStop(page, STATS, "share:global")).toBe(true);
+  expect(await stored(page, "global-stats-consent")).toBeNull();
+});
+
+test("the deck builder with no games: the switch is there and Everyone walks the pool's villains", async ({
+  page,
+}, info) => {
+  test.skip(isPhone(page) || info.project.name === "phone", "the wide deck rail");
+  test.setTimeout(120_000);
+  const worker = await fakeWorker(page);
+  await openApp(page, "unlock=all");
+  await page.goto("/?screen=deck-builder&unlock=all");
+  await waitForScene(page, BUILDER, 30_000);
+  await settle(page);
+  await press(page, BUILDER, "rail:games");
+  await waitFor(
+    async () => ((await hasStop(page, BUILDER, "games:source:everyone")) ? true : null),
+    "the pair",
+    30_000,
+  );
+  expect(await hasStop(page, BUILDER, "games:source:yours")).toBe(true);
+  expect(await hasStop(page, BUILDER, "games:against")).toBe(false);
+  expect(await hasText(page, "Finish a game to see your decks here. Everyone works now.", BUILDER)).toBe(true);
+  expect(globalRequests(worker)).toEqual([]);
+
+  await press(page, BUILDER, "games:source:everyone");
+  await waitFor(async () => ((await hasStop(page, BUILDER, "games:against")) ? true : null), "the stepper", 15_000);
+  await waitFor(async () => (globalRequests(worker).length > 0 ? true : null), "the first villain's read", 15_000);
+  const first = globalRequests(worker)[0]!;
+  expect(first).toMatch(/^GET \/global\/cards\?villain=/);
+  // Sharing is off: nothing turns it on by itself.
+  expect(await stored(page, "global-stats-consent")).toBeNull();
+  await press(page, BUILDER, "games:against");
+  await waitFor(async () => (globalRequests(worker).length > 1 ? true : null), "the next villain's read", 15_000);
+  expect(globalRequests(worker)[1]).not.toBe(first);
+});
+
+test("Your stats: View on a pad and Shift+B on a keyboard switch You / Everyone", async ({ page }) => {
+  test.setTimeout(120_000);
+  await fakeWorker(page);
+  await seededAt(page, "/?screen=stats&unlock=all", STATS);
+  await waitFor(async () => ((await hasStop(page, STATS, "source:everyone")) ? true : null), "the switch", 15_000);
+  await page.keyboard.press("Shift+B");
+  await waitFor(
+    async () => ((await tabsOf(page)).join() === "tab:heroes,tab:villains,tab:encounter" ? true : null),
+    "Everyone's tabs",
+    10_000,
+  );
+  await page.keyboard.press("Shift+B");
+  await waitFor(async () => ((await tabsOf(page)).includes("tab:overview") ? true : null), "You again", 10_000);
+});
+
+test("Your stats: a named tab opens on You even when Everyone was kept from before", async ({ page }) => {
+  test.setTimeout(120_000);
+  await fakeWorker(page);
+  await seededAt(page, "/?screen=stats&unlock=all", STATS);
+  await press(page, STATS, "source:everyone");
+  await waitFor(async () => ((await tabsOf(page)).length === 3 ? true : null), "Everyone", 10_000);
+  // Reopen the screen the way a deck\x27s "Open in Your stats" does, on a named tab.
+  await page.evaluate(() => {
+    const game = (
+      window as unknown as { __mcGame: { scene: { stop(k: string): void; start(k: string, d: object): void } } }
+    ).__mcGame;
+    game.scene.stop("PlayerStats");
+    game.scene.start("PlayerStats", { tab: "overview" });
+  });
+  await waitFor(async () => ((await tabsOf(page)).includes("tab:overview") ? true : null), "You on Overview", 15_000);
+  expect(await hasStop(page, STATS, "share:global")).toBe(false);
+});
+
+test("the deck builder: Share my games turns sharing on with one press and marks finished games sent", async ({
+  page,
+}, info) => {
+  test.skip(isPhone(page) || info.project.name === "phone", "the wide deck rail");
+  test.setTimeout(120_000);
+  const worker = await fakeWorker(page);
+  await seededAt(page, "/?screen=deck-builder&unlock=all", BUILDER);
+  await press(page, BUILDER, "rail:games");
+  await press(page, BUILDER, "games:source:everyone");
+  await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? true : null), "Share my games", 15_000);
+  expect(await stored(page, "global-stats-consent")).toBeNull();
+  await page.waitForTimeout(500);
+  await press(page, BUILDER, "games:share");
+  await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? null : true), "the button goes", 10_000);
+  expect(await stored(page, "global-stats-consent")).toBe("on");
+  const sent = JSON.parse((await stored(page, "global-stats-sent")) ?? "[]") as string[];
+  expect(sent).toEqual(expect.arrayContaining(["e2e-global-0", "e2e-global-4"]));
+  expect(globalRequests(worker).every((r) => r.startsWith("GET /global/cards"))).toBe(true);
+});
+
+test("phone, the deck builder\x27s From your games tab: Share my games works, and a swipe lifted over it fires nothing", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "phone", "a finger");
+  test.setTimeout(120_000);
+  await fakeWorker(page);
+  await seededAt(page, "/?screen=deck-builder&unlock=all", BUILDER);
+  await press(page, BUILDER, "tab:games");
+  await press(page, BUILDER, "games:source:everyone");
+  await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? true : null), "Share my games", 15_000);
+  await settle(page);
+  const share = await stopRect(page, BUILDER, "games:share");
+  const view = page.viewportSize()!;
+  const start = {
+    x: share.x + share.width / 2,
+    y: Math.min(view.height - 20, share.y + share.height + 140),
+    width: 0,
+    height: 0,
+  };
+  await swipeOver(page, start, share);
+  await settle(page);
+  expect(await hasStop(page, BUILDER, "games:share")).toBe(true);
+  expect(await stored(page, "global-stats-consent")).toBeNull();
+  await page.waitForTimeout(500);
+  await press(page, BUILDER, "games:share");
+  await waitFor(async () => ((await hasStop(page, BUILDER, "games:share")) ? null : true), "the button goes", 10_000);
+  expect(await stored(page, "global-stats-consent")).toBe("on");
+});
+
+for (const size of [
+  { name: "iPhone SE", width: 375, height: 667 },
+  { name: "320 wide", width: 320, height: 568 },
+  { name: "Pixel 10", width: 412, height: 924 },
+]) {
+  test(`phone ${size.name}: the You / Everyone switch is in the top bar and the list starts no lower than without it`, async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== "phone", "a finger");
+    test.setTimeout(120_000);
+    await fakeWorker(page);
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await seededAt(page, "/?screen=stats&unlock=all", STATS);
+    await waitFor(async () => ((await hasStop(page, STATS, "source:everyone")) ? true : null), "the switch", 15_000);
+    await settle(page);
+    const barHeight = 52;
+    const back = await stopRect(page, STATS, "back");
+    const you = await stopRect(page, STATS, "source:you");
+    const everyone = await stopRect(page, STATS, "source:everyone");
+    for (const rect of [you, everyone]) {
+      expect(rect.y).toBeGreaterThanOrEqual(0);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(barHeight);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(size.width);
+    }
+    expect(you.x).toBeGreaterThanOrEqual(back.x + back.width);
+    // Clear of the dark mode button's press zone (hit.target wide) at the top centre.
+    expect(you.x).toBeGreaterThanOrEqual(size.width / 2 + 22);
+    // Main's You view with no chips: bar 52 + 12, tab row 44, 12 to the list.
+    const tile = (await stopKeys(page, STATS)).find((k) => k.startsWith("tile:"))!;
+    const first = await stopRect(page, STATS, tile);
+    expect(first.y).toBeLessThanOrEqual(barHeight + 12 + 44 + 12);
+    // Share stays below the tab row.
+    await press(page, STATS, "source:everyone");
+    await waitFor(async () => ((await hasStop(page, STATS, "share:global")) ? true : null), "Share", 15_000);
+    const tab = await stopRect(page, STATS, "tab:villains");
+    const share = await stopRect(page, STATS, "share:global");
+    expect(share.y).toBeGreaterThanOrEqual(tab.y + tab.height);
+  });
+}

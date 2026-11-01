@@ -21,8 +21,9 @@
  *   transfers none of its tokens). It is a new copy of the card once it is out of play (RRG 1.8 "Leaves Play", p. 26):
  *   its ability uses (`abilityUses` keys `<instance>:…`) are cleared, and each lasting effect naming it by instance
  *   (`targets`) no longer does, ending (`targetLeftPlay`) when it named nothing else. A lasting effect that reaches cards
- *   by query (`affects`) reads the new card on its own terms. `leaveNow` (`effects.ts`) does neither for a card leaving
- *   play the usual way: an engine-wide gap to close separately, not a main scheme rule;
+ *   by query (`affects`) reads the new card on its own terms. For a card leaving play the usual way, `leaveNow`
+ *   (`effects.ts`) keeps naming it out of play and drops it from a lasting effect's targets only once a new copy comes
+ *   back (`noteLeftPlayInLastingEffects`); it does not clear its ability uses, an engine-wide gap to close separately;
  * - `placePreviousThreat` ("Place the threat from the previous scheme on the new scheme") then places as much threat on
  *   the new scheme as the old one had, through the ordinary `placeThreat` event: a placement, so it can complete the
  *   new scheme, and it is not threat moved (RRG 1.8 "Move", p. 29, needs both cards in play).

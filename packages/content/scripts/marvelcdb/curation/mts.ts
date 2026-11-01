@@ -457,20 +457,11 @@ export const MTS_CURATION: PackCuration = {
   // Four of them did, with Norn Stone's flip side (issue #356, 2026-10-22): the campaign cards' backs are on the `the-mad-titans-shadow` page as
   // `c<n>b.jpg` beside their fronts' `c<n>a.jpg` (Black Swan c3b, Defensive Protocols c8b, Retrieve Odin's Armor
   // c13b, Norn Stone's flip side c17b, Jormungand c19b), each read by eye against its printed name and collector
-  // number, so they are bundled scans now (assets/card-art/hall-of-heroes-manifest.tsv). Hela's two backs remain.
+  // number, so they are bundled scans now (assets/card-art/hall-of-heroes-manifest.tsv). Hela's two backs followed
+  // as owner scans (21136b, 21137b, 2026-10-31; assets/card-art/owner-scans.tsv), which the ingest finds on disk.
   // MarvelCDB hosts only the A side of each main scheme stage here (the aggregate `21075.png` is stamped "2A"); the
   // B sides were fetched from Hall of Heroes' encounter gallery (assets/card-art/hall-of-heroes-manifest.tsv) and
   // checked by eye against their stage stamps (issue #295).
   printedBSideSchemeScans: ["21074b", "21075b", "21098b", "21099b", "21114b", "21115b", "21138b", "21165b"],
-  artUnavailable: {
-    // Hela's own hidden linked back faces — 21136a/21137a (the fronts, mode digit "1") already have MarvelCDB
-    // art; only their backs (digit "2") don't.
-    "21136b":
-      "MarvelCDB /bundles/cards/21136b.png and the live API both 404/null (checked 2026-09-24). No second-source " +
-      "scan of Hela's Mystic-side back found (MC21 rulebook has no card plates; Hall of Heroes' galleries have no " +
-      "per-image captions).",
-    "21137b":
-      "MarvelCDB /bundles/cards/21137b.png and the live API both 404/null (checked 2026-09-24). Same search as " +
-      "21136b, for Hela's expert-mode Mystic-side back.",
-  },
+  artUnavailable: {},
 };

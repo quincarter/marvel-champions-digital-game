@@ -206,8 +206,9 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
       if (inspectHoldOf(scene, binding).press("key", scene.time.now)) inspectKey = event.code;
       return;
     }
-    // A held Inspect key inspects once: Inspect's side toggle (issue #532) would otherwise spin at the repeat rate.
-    if (intent === "inspect" && event.repeat) return;
+    // A held Inspect key inspects once: Inspect's side toggle (issue #532) would otherwise spin at the repeat rate. A
+    // held Enter presses once too: it would flip the dark mode button over and over, or open and close a list.
+    if ((intent === "inspect" || intent === "activate") && event.repeat) return;
     binding.onIntent(intent, "key");
   });
 }

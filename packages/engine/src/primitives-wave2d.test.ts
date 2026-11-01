@@ -685,7 +685,15 @@ describe("§21 the `cardReadied` announcement", () => {
     "surge.action",
     def({
       trigger: { kind: "action", form: "hero" },
-      effects: [{ kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } }],
+      // The heal is a part of its own, so the card stays playable with no card to ready (RRG 1.8 "Target", p. 43).
+      effects: [
+        { kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } },
+        {
+          kind: "heal",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          amount: { kind: "const", value: 1 },
+        },
+      ],
     }),
   );
   const SURGE = stubEvent({ id: "surge", cost: 0, abilities: [surge.ref] });

@@ -447,6 +447,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `&fixture=sync-ratio`: SP//dr in hero form with two ready Interface upgrades and a card to pay for (issue #601).
+  if (screen === "board" && params.get("fixture") === "sync-ratio") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startSyncRatioGame } = await import("../store/dev-sync-ratio-game.js");
+      await startSyncRatioGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=crowded`: three seats (Doctor Strange first) with the table full, for the Card size QA
   // (`store/dev-crowded-game.ts`).
   if (screen === "board" && params.get("fixture") === "crowded") {
@@ -508,6 +517,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     const { startDevZemoGame } = await import("../store/dev-zemo-game.js");
     const bare = params.get("bare");
     await startDevZemoGame(bare === "all" || bare === "none" ? bare : "tactical");
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=team-building-pay`: issue #569's game, at the payment Team-Building Exercise opens
+  // (`store/dev-team-building-pay-game.ts`).
+  if (screen === "board" && params.get("fixture") === "team-building-pay") {
+    const { startTeamBuildingPayGame } = await import("../store/dev-team-building-pay-game.js");
+    const { store } = appSession();
+    if (!gameRunning(store)) await startTeamBuildingPayGame(store);
     return { key: SCENES.board, data: {} };
   }
 

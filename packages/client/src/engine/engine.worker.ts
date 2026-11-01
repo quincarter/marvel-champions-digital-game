@@ -11,6 +11,7 @@
 
 import { EngineSessionCore, SetupError } from "./session-core.js";
 import { IdbGameStorage } from "./idb-game-storage.js";
+import { saveReason } from "./save-reason.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
 import { playPlatformOfWorkerName } from "../platform/play-platform.js";
 import { POOL_VERSION } from "../content/pool.js";
@@ -47,7 +48,7 @@ const reply = (response: HostResponse): void => {
 };
 
 /** Tells the main thread once the writes queued so far have committed (device sync pushes only what is on disk). */
-const announceSaved = (reason: "game" | "turn"): void => {
+const announceSaved = (reason: "game" | "round"): void => {
   void core.flushed().then(() => reply({ kind: "saved", id: 0, reason }));
 };
 
@@ -105,7 +106,7 @@ async function handle(request: HostRequest): Promise<void> {
         const result = core.dispatch(request.command);
         reply({ kind: "dispatched", id: request.id, result });
         if (result.ok) {
-          announceSaved(result.snapshot.events.some((event) => event.type === "turnEnded") ? "turn" : "game");
+          announceSaved(saveReason(result.snapshot));
           publishPresence();
         }
         return;
@@ -141,6 +142,7 @@ async function handle(request: HostRequest): Promise<void> {
       case "retireSave": {
         await core.retireSave(request.gameId);
         reply({ kind: "retired", id: request.id });
+        announceSaved("round");
         return;
       }
       case "listSaves": {

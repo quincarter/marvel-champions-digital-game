@@ -174,7 +174,9 @@ export interface DeferredEffects {
    * initiates an enemy activation is considered resolved after that activation has fully resolved"): the ability's
    * frames, top first, taken off the stack as they were, the top one holding the initiating effect
    * (`Frame<"effects">.resumeActivation`). They are put back as they were in place of `effects`, which is empty
-   * (`pushEndEffects`), so the ability initiates its activation and then goes on with its later instructions.
+   * (`pushEndEffects`), so the ability initiates its activation and then goes on with its later instructions. Or a
+   * keyword's activation (quickstrike's attack, teamwork's activation) whose steps wait behind this one, with what
+   * waited beneath it for the same ability (`queueBehindResolvingActivation`, `resolve/initiated-activation.ts`).
    */
   readonly suspended?: readonly StackFrame[];
 }
@@ -777,6 +779,11 @@ export type StackFrame =
        */
       readonly resumeActivation?: EffectSpec;
       /**
+       * The `resumeActivation` was started by a Boost ability during an enemy attack, which has ended by the time it
+       * initiates; a scheme it initiates carries this (`TriggerEvent enemyScheme.startedByAttackBoost`).
+       */
+      readonly resumeFromAttackBoost?: true;
+      /**
        * On the root frame of an ability that initiated an enemy activation: the abilities that waited behind that
        * activation (`DeferredEffects.suspended`), resumed as this frame finishes, so this ability's remaining sentences
        * resolve first (`resolve/suspend.ts`, `releaseWaitingAbilities`). Absent on every other frame.
@@ -1254,6 +1261,27 @@ export const awaitingAbility = (frame: StackFrame): boolean => frame.kind === "e
  */
 export function defendedActivationFrameId(stack: readonly StackFrame[]): FrameId | null {
   return currentActivationFrameId(stack.filter((frame) => !awaitingAbility(frame)));
+}
+
+/**
+ * The enemy activation resolving on `stack` that an activation initiated now waits behind (RRG 1.8 "Activation", p. 6:
+ * "the newly initiated activation resolves after the current activation has finished resolving"), or null: the
+ * innermost enemy attack or scheme. Passed over: one waiting beneath its "(attack)" ability (`attackWaiting`), a
+ * keyword's activation waiting for its ability (`awaitingAbility`: it has not begun its steps), and one whose end
+ * effects are resolving (`endEffectsDraining`: it has finished). Null when that innermost one was replaced or cancelled
+ * outright (not `endedEarly`): what replaces it resolves in its place (RRG 1.8 "Replacement Effect", p. 36). Used by
+ * an ability's activation (`activationToQueueBehind`, `resolve/apply-effect.ts`) and a keyword's
+ * (`queueBehindResolvingActivation`, `resolve/initiated-activation.ts`). A keyword's activation initiated but not yet
+ * resolving its steps (`stepsAfterAbility` without `awaitingAbility`) is not passed over here: the keyword caller
+ * filters those out of `stack` before asking.
+ */
+export function resolvingEnemyActivation(stack: readonly StackFrame[]): FrameId | null {
+  for (const f of stack) {
+    if (f.kind !== "event" || f.attackWaiting || f.endEffectsDraining || awaitingAbility(f)) continue;
+    if (f.event.kind !== "enemyAttack" && f.event.kind !== "enemyScheme") continue;
+    return f.cancelled && !f.endedEarly ? null : f.frameId;
+  }
+  return null;
 }
 
 export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId | null {

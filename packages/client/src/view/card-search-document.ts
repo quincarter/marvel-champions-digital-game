@@ -1,6 +1,6 @@
 /**
- * A player card as a search document for the search worker (`view/deck-search.ts`): its name first, then its traits,
- * type, aspect and pack, then its rules text as the weakest field. The deck builder's and Decks' card searches use it,
+ * A player card as a search document for the search worker (`view/deck-search.ts`): its name and subtitle first, then
+ * its traits, type, aspect and pack, then its rules text as the weakest field. The deck builder's and Decks' card searches use it,
  * so a card is found the same way on both screens.
  */
 import type { AnyCard } from "@mc/content";
@@ -15,13 +15,13 @@ export function plainRulesTextOf(card: AnyCard): string {
 }
 
 export function cardSearchDocumentOf(card: AnyCard, packName?: string): SearchDocument {
-  const subname = "subname" in card && typeof card.subname === "string" ? card.subname : null;
+  const subtitle = "subtitle" in card && typeof card.subtitle === "string" ? card.subtitle : null;
   const traits = "traits" in card ? (card.traits as readonly string[]) : [];
   const aspect = "aspect" in card && typeof card.aspect === "string" ? card.aspect : null;
   const rules = plainRulesTextOf(card);
   return {
     id: card.id as string,
-    primary: [card.name, ...(subname ? [subname] : [])],
+    primary: [card.name, ...(subtitle ? [subtitle] : [])],
     secondary: [...traits, card.type.replace(/_/g, " "), ...(aspect ? [aspect] : []), ...(packName ? [packName] : [])],
     notes: rules ? [rules] : [],
   };

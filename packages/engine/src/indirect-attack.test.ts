@@ -117,13 +117,10 @@ describe("§3.16 an attack that deals indirect damage", () => {
  * undefended, is considered to have been attacked, even if other characters were assigned some or all of the indirect
  * damage." RRG 1.8 "Piercing" (p. 32): "An attack with the piercing keyword discards any tough status cards from the
  * attacked character before dealing damage." So an undefended piercing attack that deals indirect damage pierces the
- * identity only; an ally assigned the damage keeps its tough status card, which prevents the damage.
- * NOTE (order of authority): the Piercing entry's "equivalent ability" bullet says "discard each tough status card from
- * that character" (any character the attack deals damage to), so the RRG supports a second reading; this test pins the
- * reading taken from the Piercing summary sentence ("the attacked character") plus the Indirect Damage bullet. Treat
- * as an Interpretation proof, not a settled bug.
- * (`resolve/effects-frame.ts` `executeDealIndirectDamage` builds the shares with `fromAttack: true` and never
- * `notAttacked: true`, so `attackPierces` in `resolve/event.ts` treats every share as pierced.)
+ * identity only; an ally assigned the damage keeps its tough status card, which prevents the damage. Ruling January 24,
+ * 2025 #64 agrees ("the chosen enemy is not affected by piercing": piercing affects the attacked character only).
+ * (The engine passes the attacked character on the `dealIndirectDamage` effect; `executeDealIndirectDamage` gives its
+ * share the attack's piercing and marks every other share `pierceExempt`, which `attackPierces` reads.)
  */
 const SANDMAN = stubMinion({
   id: "sandman-ish",
@@ -136,7 +133,7 @@ const SANDMAN = stubMinion({
 });
 
 describe("undefended piercing attack that deals indirect damage (RRG 1.8 pp. 24, 32)", () => {
-  it.fails("an ally assigned the damage was not attacked: its tough status card is not pierced and prevents it", () => {
+  it("an ally assigned the damage was not attacked: its tough status card is not pierced and prevents it", () => {
     const base = gameAtFirstTurn({ cards: [SANDMAN, QUIET], deps, villain: QUIET, encounter: [SANDMAN.id] });
     const heroes: GameState = {
       ...base,
@@ -165,8 +162,179 @@ describe("undefended piercing attack that deals indirect damage (RRG 1.8 pp. 24,
     };
     const { session } = driveSession(startSession(engaged.state), deps, [{ type: "endTurn", playerId: P1 }], pick);
     const after = session.state;
-    // Expected: Tough absorbed all 3, ally undamaged and still in play. Actual: tough discarded first, ally defeated.
+    // Tough absorbed all 3: the ally is undamaged and still in play.
     expect(mustPlayer(after, P1).discard).not.toContain(allyId);
     expect(mustInstance(after, allyId).damage).toBe(0);
+  });
+
+  it("the undefended identity was attacked: its tough status card is pierced and it takes the damage", () => {
+    const base = gameAtFirstTurn({ cards: [SANDMAN, QUIET], deps, villain: QUIET, encounter: [SANDMAN.id] });
+    const heroes: GameState = {
+      ...base,
+      players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+    };
+    const identityId = mustPlayer(heroes, P1).identity.instanceId;
+    const toughHero: GameState = {
+      ...heroes,
+      instances: {
+        ...heroes.instances,
+        [identityId]: { ...mustInstance(heroes, identityId), statuses: { stunned: 0, confused: 0, tough: 1 } },
+      },
+    };
+    const engaged = minionEngagedWith(toughHero, SANDMAN.id);
+    const { session } = driveSession(
+      startSession(engaged.state),
+      deps,
+      [{ type: "endTurn", playerId: P1 }],
+      defaultPick,
+    );
+    const after = session.state;
+    expect(mustInstance(after, identityId).statuses.tough).toBe(0);
+    expect(mustInstance(after, identityId).damage).toBe(3);
+  });
+});
+
+/** "When this enemy attacks, that attack gains piercing": piercing granted to the attack alone, not printed. */
+const GRANT_PIERCING = stubAbility("granted-piercing.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source" } },
+  effects: [{ kind: "modifyAttack", keywords: ["piercing"] }],
+});
+const GRANTED = stubMinion({
+  id: "granted-piercing",
+  atk: 3,
+  sch: 1,
+  hp: 7,
+  boostIcons: 0,
+  abilities: [STARSHARK_RULE.ref, GRANT_PIERCING.ref],
+});
+/**
+ * "When a character defends against this enemy, deal 3 damage to the defending character." An interrupt: responses to
+ * a defense wait for the attack to end (RRG 1.8 "Defend, Defense", p. 16).
+ */
+const SNIPE = stubAbility("sniper.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "defended" } },
+  effects: [{ kind: "dealDamage", target: { kind: "defendingCharacter" }, amount: { kind: "const", value: 3 } }],
+});
+const SNIPER = stubMinion({
+  id: "sniper",
+  atk: 3,
+  sch: 1,
+  hp: 7,
+  boostIcons: 0,
+  keywords: [{ name: "piercing" }],
+  abilities: [STARSHARK_RULE.ref, SNIPE.ref],
+});
+/** Bombshell-shaped (`spdr` 31031), with piercing: "Divide damage from this enemy's attack … as evenly as possible." */
+const DIVIDE_RULE = stubAbility("divider.constant", {
+  trigger: { kind: "constant", rules: [{ kind: "attacksDividedEvenly", attacker: { self: true } }] },
+  effects: [],
+});
+const PIERCING_DIVIDER = stubMinion({
+  id: "piercing-divider",
+  atk: 4,
+  sch: 1,
+  hp: 7,
+  boostIcons: 0,
+  keywords: [{ name: "piercing" }],
+  abilities: [DIVIDE_RULE.ref],
+});
+const pierceDeps: EngineDeps = depsOf(STARSHARK_RULE, GRANT_PIERCING, SNIPE, DIVIDE_RULE);
+
+/** p1 in hero form with an ally in play and `minion` engaged; `tough` puts a tough status card on those characters. */
+function pierceTable(
+  minion: ReturnType<typeof stubMinion>,
+  tough: { identity?: boolean; ally?: boolean },
+): { state: GameState; identity: InstanceId; ally: InstanceId } {
+  const base = gameAtFirstTurn({
+    cards: [SANDMAN, GRANTED, SNIPER, PIERCING_DIVIDER, QUIET],
+    deps: pierceDeps,
+    villain: QUIET,
+    encounter: [minion.id],
+  });
+  const heroes: GameState = {
+    ...base,
+    players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+  };
+  const played = playerCardIntoPlay(heroes, ALLY.id);
+  const identity = mustPlayer(played.state, P1).identity.instanceId;
+  const withTough = (state: GameState, id: InstanceId): GameState => {
+    const card = mustInstance(state, id);
+    return { ...state, instances: { ...state.instances, [id]: { ...card, statuses: { ...card.statuses, tough: 1 } } } };
+  };
+  let state = played.state;
+  if (tough.identity) state = withTough(state, identity);
+  if (tough.ally) state = withTough(state, played.id);
+  return { state: minionEngagedWith(state, minion.id).state, identity, ally: played.id };
+}
+
+/**
+ * Plays p1's turn out into the villain phase: `defender` defends (else none), indirect damage is assigned by `split`
+ * (points per character), and divided damage's leftover points go to `split`'s characters first.
+ */
+function pierceVillainPhase(
+  state: GameState,
+  picks: { defender?: InstanceId; split?: Readonly<Record<string, number>> },
+) {
+  const pick = (current: GameState): readonly string[] => {
+    const choice = current.pendingChoice;
+    if (choice?.prompt.kind === "declareDefender") return picks.defender ? [picks.defender] : ["decline"];
+    if (choice?.prompt.kind === "assignIndirectDamage" && picks.split) {
+      const split = picks.split;
+      return Object.entries(split).flatMap(([id, points]) =>
+        choice.options
+          .filter((o) => o.optionId.startsWith(`${id}#`))
+          .slice(0, points)
+          .map((o) => o.optionId),
+      );
+    }
+    return defaultPick(current);
+  };
+  return driveSession(startSession(state), pierceDeps, [{ type: "endTurn", playerId: P1 }], pick);
+}
+
+/** The characters whose tough status cards piercing discarded, in order. */
+const pierced = (events: readonly GameEvent[]) =>
+  events.flatMap((event) =>
+    event.type === "statusRemoved" && event.status === "tough" && event.reason === "piercing" ? [event.instanceId] : [],
+  );
+
+describe("piercing on an attack whose damage is split among characters (RRG 1.8 pp. 24, 32; ruling Jan 24, 2025 #64)", () => {
+  it("a defended indirect attack pierces the defending ally only; the identity's tough card prevents its share", () => {
+    const { state, identity, ally } = pierceTable(SANDMAN, { identity: true, ally: true });
+    const { session, events } = pierceVillainPhase(state, { defender: ally, split: { [ally]: 2, [identity]: 1 } });
+    expect(pierced(events)).toEqual([ally]);
+    expect(mustInstance(session.state, ally).damage).toBe(2);
+    expect(mustInstance(session.state, identity).damage).toBe(0);
+    expect(mustInstance(session.state, identity).statuses.tough).toBe(0);
+  });
+
+  it("a defending ally that leaves play before the damage makes the identity the attacked character: it is pierced", () => {
+    const { state, identity, ally } = pierceTable(SNIPER, { identity: true });
+    const { session, events } = pierceVillainPhase(state, { defender: ally });
+    expect(mustPlayer(session.state, P1).discard).toContain(ally);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "defenderLeftPlay", defenderInstanceId: ally, targetInstanceId: identity }),
+    );
+    expect(pierced(events)).toEqual([identity]);
+    expect(mustInstance(session.state, identity).damage).toBe(3);
+  });
+
+  it("piercing granted to this attack alone reaches the attacked identity's share, and no one else's", () => {
+    const { state, identity, ally } = pierceTable(GRANTED, { identity: true, ally: true });
+    const { session, events } = pierceVillainPhase(state, { split: { [identity]: 2, [ally]: 1 } });
+    expect(pierced(events)).toEqual([identity]);
+    expect(mustInstance(session.state, identity).damage).toBe(2);
+    expect(mustInstance(session.state, ally).damage).toBe(0);
+    expect(mustInstance(session.state, ally).statuses.tough).toBe(0);
+  });
+
+  it("a divided piercing attack pierces the attacked identity only, even with the attacker's printed piercing", () => {
+    const { state, identity, ally } = pierceTable(PIERCING_DIVIDER, { identity: true, ally: true });
+    const { session, events } = pierceVillainPhase(state, {});
+    expect(pierced(events)).toEqual([identity]);
+    // 4 damage split 2/2: the identity's tough card is pierced, the ally's prevents its share.
+    expect(mustInstance(session.state, identity).damage).toBe(2);
+    expect(mustInstance(session.state, ally).damage).toBe(0);
+    expect(mustInstance(session.state, ally).statuses.tough).toBe(0);
   });
 });

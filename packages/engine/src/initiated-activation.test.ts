@@ -308,6 +308,55 @@ const CALL_LAST = stubSupport({
     }),
   ],
 });
+/** CALL_LAST with more of it after: "… put the minions … into play engaged with you. Leave a mark." Once per round. */
+const CALL_THEN = stubSupport({
+  id: "call-then",
+  cost: 0,
+  abilities: [
+    ability("call-then.interrupt", {
+      trigger: {
+        kind: "interrupt",
+        forced: true,
+        on: { on: "enemyAttack", playerIs: "controller", sourceIs: { categories: ["villain"] } },
+      },
+      limit: { count: 1, period: "round" },
+      effects: [...putTopMinion, mark("after")],
+    }),
+  ],
+});
+/** A forced interrupt to the villain's attack on you, once per round, resolving `effects`. */
+const onVillainAttack = (id: string, effects: readonly EffectSpec[]) =>
+  stubSupport({
+    id,
+    cost: 0,
+    abilities: [
+      ability(`${id}.interrupt`, {
+        trigger: {
+          kind: "interrupt",
+          forced: true,
+          on: { on: "enemyAttack", playerIs: "controller", sourceIs: { categories: ["villain"] } },
+        },
+        limit: { count: 1, period: "round" },
+        effects,
+      }),
+    ],
+  });
+/** "Forced Interrupt: When the villain attacks you, (Drang III's loop)." The loop is its last effect. */
+const CALL_LOOP = onVillainAttack("call-loop", [DISCARD_LOOP]);
+/** CALL_LOOP with more of it after the loop: "… put it into play engaged with you. Leave a mark." */
+const CALL_LOOP_THEN = onVillainAttack("call-loop-then", [DISCARD_LOOP, mark("after")]);
+/** "Forced Interrupt: When the villain attacks you, cancel that attack. Leave a mark." */
+const CANCEL_ATTACK = onVillainAttack("cancel-attack", [{ kind: "cancelTriggeringEvent" }, mark("cancel")]);
+/** "Forced Interrupt: When the villain would attack you, leave a mark instead." A replacement. */
+const REPLACE_ATTACK = onVillainAttack("replace-attack", [
+  { kind: "replaceTriggeringEvent", with: [mark("replaced")] },
+]);
+/** "Boost: Put the minions of the encounter deck into play engaged with you." */
+const BOOSTER = stubTreachery({
+  id: "booster",
+  boostIcons: 0,
+  abilities: [ability("booster.boost", { trigger: { kind: "boost" }, effects: putTopMinion })],
+});
 /**
  * Planetary Invasion's shape (16057): "When Revealed: Reveal the minion of the encounter deck. Leave a mark." The mark
  * stands for "then give it a tough status card": more of the When Revealed after the reveal.
@@ -352,6 +401,11 @@ const PLAYER_CARDS: readonly AnyCard[] = [
   SNIPER,
   ENGAGED,
   CALL_LAST,
+  CALL_THEN,
+  CALL_LOOP,
+  CALL_LOOP_THEN,
+  CANCEL_ATTACK,
+  REPLACE_ATTACK,
 ];
 const deps: EngineDeps = depsOf(...abilities);
 
@@ -363,7 +417,7 @@ function game(top: AnyCard | readonly AnyCard[], inPlay: readonly AnyCard[] = []
     villain: VILLAIN,
     mainScheme: SCHEME,
     deps,
-    extraCards: [SENTRY, RAIDER, DECKHAND, MATE, LOOKOUT, INVASION, ...PLAYER_CARDS, BLANK],
+    extraCards: [SENTRY, RAIDER, DECKHAND, MATE, LOOKOUT, INVASION, BOOSTER, ...PLAYER_CARDS, BLANK],
     encounterDeck: [...tops.map((card) => card.id), ...inPlay.map((card) => card.id), ...copies(BLANK.id, 15)],
     deck: [...DEFAULT_DECK, ...PLAYER_CARDS.map((card) => card.id)],
   });
@@ -419,6 +473,15 @@ const attack = (events: readonly GameEvent[], phase: "initiated" | "resolved", b
       e.event.kind === "enemyAttack" &&
       e.event.enemyInstanceId === by,
   );
+/** How many attacks by `by` resolved. */
+const attackCount = (events: readonly GameEvent[], by: InstanceId): number =>
+  events.filter(
+    (e) =>
+      e.type === "triggerEvent" &&
+      e.phase === "resolved" &&
+      e.event.kind === "enemyAttack" &&
+      e.event.enemyInstanceId === by,
+  ).length;
 const firstDamage = (events: readonly GameEvent[]): number => events.findIndex((e) => e.type === "damageDealt");
 const awaited = (events: readonly GameEvent[]) => events.filter((e) => e.type === "activationAwaitsAbility");
 /** The indexes of the cards moved from the encounter deck to its discard pile. */
@@ -611,20 +674,108 @@ describe("an ability's own enemy activation does not wait behind the keyword act
   });
 });
 
-describe("an activation initiated by an ability's last effect inside an outer enemy activation (known limit)", () => {
+describe("an activation initiated by an ability's last effect inside an outer enemy activation", () => {
   /**
-   * Known limit, tracked for follow-up: with nothing of the ability left after the effect that initiated it
-   * (`abilityHasMore` false) the activation resolves in place, so inside the villain's attack it resolves before that
-   * attack ends. An activation cannot resolve within another one (RRG 1.8 "Activation", p. 6), and the attack waits for
-   * the ability that put the minion into play (ruling May 23, 2024 - Ruling 194), so it should resolve after the
-   * villain's attack.
+   * With nothing of the ability left after the effect that initiated it (`abilityHasMore` false) the activation still
+   * waits for the villain's attack: an activation cannot resolve within another one (RRG 1.8 "Activation", p. 6), and
+   * the attack waits at least for the ability that put the minion into play (ruling May 23, 2024 - Ruling 194).
    */
-  it.fails("a forced interrupt to the villain's attack whose last effect puts a quickstrike minion into play: the minion attacks after the villain's attack resolves", () => {
+  it("a forced interrupt to the villain's attack whose last effect puts a quickstrike minion into play: the minion attacks after the villain's attack resolves", () => {
     const withCall = play(game(SENTRY), CALL_LAST).state;
     const villain = withCall.villains[0]!.instanceId;
     const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
     const sentry = idOf(state, SENTRY);
     expect(attack(events, "resolved", villain)).toBeGreaterThanOrEqual(0);
+    expect(attack(events, "resolved", sentry)).toBeGreaterThan(attack(events, "resolved", villain));
+  });
+
+  it("with more of the interrupt after it, the minion waits for the interrupt, then for the villain's attack", () => {
+    const withCall = play(game(SENTRY), CALL_THEN).state;
+    const villain = withCall.villains[0]!.instanceId;
+    const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
+    const sentry = idOf(state, SENTRY);
+    expect(awaited(events)).toMatchObject([{ enemyInstanceId: sentry }]);
+    expect(attack(events, "initiated", sentry)).toBeLessThan(marked(events, "after"));
+    expect(marked(events, "after")).toBeLessThan(attack(events, "resolved", villain));
+    expect(attack(events, "resolved", sentry)).toBeGreaterThan(attack(events, "resolved", villain));
+  });
+
+  it("teamwork: the minion's activation waits for the villain's attack the same way", () => {
+    const withCall = play(game(DECKHAND, [MATE]), CALL_LAST).state;
+    const villain = withCall.villains[0]!.instanceId;
+    const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
+    const deckhand = idOf(state, DECKHAND);
+    expect(attack(events, "initiated", deckhand)).toBeLessThan(attack(events, "resolved", villain));
+    expect(attack(events, "resolved", deckhand)).toBeGreaterThan(attack(events, "resolved", villain));
+  });
+
+  it("an 'each time' loop as the interrupt's last effect: the minion attacks after the villain's attack, then the held response (ruling 38)", () => {
+    const withCall = play(play(game(SENTRY), BITE).state, CALL_LOOP).state;
+    const villain = withCall.villains[0]!.instanceId;
+    const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
+    const sentry = idOf(state, SENTRY);
+    expect(attack(events, "initiated", sentry)).toBeGreaterThan(discards(events)[2]!);
+    expect(attack(events, "resolved", sentry)).toBeGreaterThan(attack(events, "resolved", villain));
+    expect(marked(events, "bite")).toBeGreaterThan(attack(events, "resolved", sentry));
+  });
+
+  it("the villain's attack cancelled after the minion's attack queued behind it: the minion still attacks (ruling 148)", () => {
+    const withCall = play(play(game(SENTRY), CALL_LAST).state, CANCEL_ATTACK).state;
+    const villain = withCall.villains[0]!.instanceId;
+    const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
+    const sentry = idOf(state, SENTRY);
+    const initiated = attack(events, "initiated", sentry);
+    expect(initiated).toBeGreaterThanOrEqual(0);
+    expect(initiated).toBeLessThan(marked(events, "cancel"));
+    expect(attack(events, "resolved", villain)).toBe(-1);
+    expect(attack(events, "resolved", sentry)).toBeGreaterThan(marked(events, "cancel"));
+    // Its quickstrike attack, not lost, then its own activation in the minion step.
+    expect(attackCount(events, sentry)).toBe(2);
+  });
+
+  it("the villain's attack replaced after the minion's attack queued behind it: the minion still attacks", () => {
+    const withCall = play(play(game(SENTRY), CALL_LAST).state, REPLACE_ATTACK).state;
+    const villain = withCall.villains[0]!.instanceId;
+    const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
+    const sentry = idOf(state, SENTRY);
+    const initiated = attack(events, "initiated", sentry);
+    expect(initiated).toBeGreaterThanOrEqual(0);
+    expect(initiated).toBeLessThan(marked(events, "replaced"));
+    expect(attack(events, "resolved", villain)).toBe(-1);
+    expect(attack(events, "resolved", sentry)).toBeGreaterThan(marked(events, "replaced"));
+    // Its quickstrike attack, not lost, then its own activation in the minion step.
+    expect(attackCount(events, sentry)).toBe(2);
+  });
+
+  it.each([
+    ["the loop is the interrupt's last effect", CALL_LOOP],
+    ["more of the interrupt follows the loop", CALL_LOOP_THEN],
+  ] as const)(
+    "two minions from an 'each time' loop inside the villain's attack (%s): villain, Sentry, Raider, then the held responses (ruling 38; RRG 1.8 p. 6)",
+    (_shape, call) => {
+      const withCall = play(play(game([SENTRY, RAIDER]), BITE).state, call).state;
+      const villain = withCall.villains[0]!.instanceId;
+      const { state, events } = runCommandsPicking(withCall, deps, defaultPick, { type: "endTurn", playerId: p1 });
+      const [sentry, raider] = [idOf(state, SENTRY), idOf(state, RAIDER)];
+      const bites = events.flatMap((e, at) => (e.type === "counterAdded" && e.counterType === "bite" ? [at] : []));
+      expect(bites).toHaveLength(2);
+      expect(attack(events, "resolved", villain)).toBeLessThan(attack(events, "resolved", sentry));
+      expect(attack(events, "resolved", sentry)).toBeLessThan(attack(events, "resolved", raider));
+      expect(attack(events, "resolved", raider)).toBeLessThan(bites[0]!);
+      expect(attack(events, "resolved", raider)).toBeLessThan(bites[1]!);
+    },
+  );
+
+  it("a Boost ability that puts the minion into play during the villain's attack: the minion attacks after it (RRG 1.8 p. 6)", () => {
+    const { state, events } = runCommandsPicking(game([BOOSTER, SENTRY]), deps, defaultPick, {
+      type: "endTurn",
+      playerId: p1,
+    });
+    const villain = state.villains[0]!.instanceId;
+    const sentry = idOf(state, SENTRY);
+    const initiated = attack(events, "initiated", sentry);
+    expect(initiated).toBeGreaterThan(attack(events, "initiated", villain));
+    expect(initiated).toBeLessThan(attack(events, "resolved", villain));
     expect(attack(events, "resolved", sentry)).toBeGreaterThan(attack(events, "resolved", villain));
   });
 });

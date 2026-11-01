@@ -84,7 +84,7 @@ import {
   type HeroIdentityCard,
 } from "@mc/content";
 import { communityDecks } from "@mc/cards";
-import { DECK_MIN_CARDS } from "@mc/engine";
+import { DECK_MIN_CARDS, uniqueLabel } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_HERO_SHELF_PACKS, POOL_VERSION, packNameOf } from "../content/pool.js";
 import { aspectLabelOf } from "../view/seat-slots.js";
 import { heroPacksOf } from "../view/hero-deck-groups.js";
@@ -99,7 +99,7 @@ import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { drawArt } from "../art/card-art.js";
-import { browsablePool, duplicateDeck, type PoolFilter } from "../view/deck-builder-model.js";
+import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
 import {
   exportDecklistText,
   importFromMarvelCdbResponseText,
@@ -2280,10 +2280,16 @@ export class DecksScene extends Phaser.Scene {
 
       const entry = ("deckLimit" in card ? (card as unknown as { deckLimit: number }).deckLimit : null) ?? null;
       const inDeckQuantity = deck.cards.find((c) => (c.cardId as string) === (card.id as string))?.quantity ?? 0;
-      const name = this.add.text(cardRect.x + 8, ruleY + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
+      const name = this.add.text(
+        cardRect.x + 8,
+        ruleY + 6,
+        uniqueLabel(card),
+        textStyle(typeRole.rowTitle, surface.ink.hex),
+      );
       fitText(name, cardRect.width - 16);
       objects.push(name);
-      const typeLabel = card.type.replace(/_/g, " ");
+      const subtitleCut = subtitleCutFrom(card, name.text);
+      const typeLabel = `${subtitleCut ? `${subtitleCut} · ` : ""}${card.type.replace(/_/g, " ")}`;
       const caption = entry !== null ? `${typeLabel} · ${inDeckQuantity} of ${entry} in deck` : typeLabel;
       // `label()` (not a bare `this.add.text`) so `typeRole.label`'s own uppercase rule actually applies —
       // "EVENT · 2 OF 3 IN DECK", not the lowercase caption this cell used to draw (2026-09-18 fidelity pass, point 4).
@@ -2946,7 +2952,7 @@ export class DecksScene extends Phaser.Scene {
       const x = left + index * (barWidth + gap);
       const highlighted = topCounts.has(bar.count);
       const g = this.add.graphics();
-      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paper.hex, 1).fillRect(
+      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paperOnInk.hex, 1).fillRect(
         x,
         y + (chartHeight - 18 - barHeight),
         barWidth,

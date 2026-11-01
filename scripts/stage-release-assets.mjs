@@ -11,7 +11,6 @@ if (staged.length === 0) {
   console.error("[stage-release-assets] No Tauri bundles found.");
   process.exit(1);
 }
-const steam = collectSteamInstaller(process.platform, defaultReleaseDir);
-if (steam) staged.push(steam);
+staged.push(...collectSteamInstaller(process.platform, defaultReleaseDir));
 for (const asset of staged)
   console.log(`[stage-release-assets] ${asset.name} (${(asset.size / 2 ** 20).toFixed(1)} MB)`);

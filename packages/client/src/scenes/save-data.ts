@@ -35,6 +35,10 @@ import {
   replaceConfirmOf,
   type SaveDataStatus,
   type SaveDataStep,
+  EXPORT_ROW_DETAIL,
+  EXPORT_ROW_TITLE,
+  IMPORT_ROW_DETAIL,
+  IMPORT_ROW_TITLE,
 } from "../view/save-data-model.js";
 import {
   codeTextOf,
@@ -78,6 +82,8 @@ export interface SaveDataSceneData {
   readonly receive?: TransferCode;
   /** Opened from a `#link=` link: land on Sync across devices asking to join with it (device sync, #276). */
   readonly syncLink?: SyncLinkAddress;
+  /** Opened from a Settings search result: the action row to put the ring on. */
+  readonly row?: string;
 }
 
 interface PairButton {
@@ -143,6 +149,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     subscribed = true;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribe);
     this.#draw();
+    if (data.row !== undefined) this.#route?.focusKey(`row:${data.row}`);
     if (data.syncLink) this.#openSync(data.syncLink);
   }
 
@@ -434,15 +441,15 @@ export class SaveDataOverlay extends Phaser.Scene {
   ): number {
     const rows = [
       {
-        title: "Export",
-        detail: "Save everything on this device to a file you can keep or move to another device.",
+        title: EXPORT_ROW_TITLE,
+        detail: EXPORT_ROW_DETAIL,
         label: "Export",
         run: () => void this.#export(),
         id: "export",
       },
       {
-        title: "Import",
-        detail: "Load a save file made by Export. It replaces what's on this device, after you confirm.",
+        title: IMPORT_ROW_TITLE,
+        detail: IMPORT_ROW_DETAIL,
         label: "Import",
         run: () => void this.#import(),
         id: "import",

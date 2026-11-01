@@ -179,6 +179,7 @@ function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: 
     cards: PLAYABLE_CARDS,
     villainCardId: scenario.villainCardId,
     villains,
+    ...(multi.theVillain ? { theVillain: multi.theVillain } : {}),
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: [],
     players: seatsOf(options.players),

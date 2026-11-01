@@ -97,6 +97,20 @@ describe("RoomLogic", () => {
 });
 
 describe("RateLimiterLogic", () => {
+  it("sets its alarm only when the last window moves later, so a sync request writes just its state rows", async () => {
+    const storage = new MemoryStorage();
+    const limiter = new RateLimiterLogic(storage);
+    const hour = 60 * 60 * 1000;
+    const start = 100 * hour;
+    for (let now = start; now < start + 50 * 1000; now += 1000) {
+      await limiter.reserveSync(now, "space");
+      await limiter.refundSync(now, "space", 7, now);
+    }
+    expect(storage.alarmsSet).toBe(1);
+    await limiter.reserveSync(start + hour, "space");
+    expect(storage.alarmsSet).toBe(2);
+  });
+
   it("refuses the 11th upload in an hour with a retry time, and rolls the window", async () => {
     const limiter = new RateLimiterLogic(new MemoryStorage());
     for (let i = 0; i < UPLOADS_PER_HOUR; i++) expect(await limiter.takeUpload(1000 + i)).toEqual({ ok: true });

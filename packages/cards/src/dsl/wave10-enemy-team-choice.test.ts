@@ -315,14 +315,19 @@ describe("a real solo game against Rhino", () => {
     expect(damageOn(answered.session.state, state.activeVillainId)).toBe(damageOn(state, state.activeVillainId) + 2);
   });
 
-  it("with one candidate the mark changes nothing about whether a prompt is shown: the unmarked script asks the same", () => {
+  // docs/phase7-wave10.md section 3.5: "Where there is one candidate there is no prompt" (QA finding F2).
+  it("with one candidate the enemy team's choice is forced and nobody is asked; the unmarked script still asks its player", () => {
     const game = rhinoGame(GRIM, 1, 1);
-    const marked = drive(startSession(game.state), game.deps, game.turns, revealChoice).session.state.pendingChoice!;
+    const run = drive(startSession(game.state), game.deps, game.turns, revealChoice);
+    expect(revealChoice(run.session.state)).toBe(false);
+    expect(run.events.filter((e) => e.type === "choiceRequested" && e.choice.authority === "enemyTeam")).toEqual([]);
+    const picked = run.events.flatMap((e) => (e.type === "targetChosen" && e.slot === "picked" ? [e.instanceIds] : []));
+    expect(picked).toEqual([[identityInstance(game.state, P1)]]);
+    const again = replay(run.session.log, game.deps);
+    expect(again.ok && again.state).toEqual(run.session.state);
     const own = rhinoGame(chooseAndHit(you), 1, 1);
     const unmarked = drive(startSession(own.state), own.deps, own.turns, revealChoice).session.state.pendingChoice!;
-    expect(optionIds(marked)).toEqual([identityInstance(game.state, P1)]);
-    expect(optionIds(unmarked)).toEqual(optionIds(marked));
-    expect([marked.playerId, marked.authority]).toEqual([P1, "enemyTeam"]);
+    expect(optionIds(unmarked)).toEqual([identityInstance(own.state, P1)]);
     expect([unmarked.playerId, unmarked.authority]).toEqual([P1, "player"]);
   });
 });

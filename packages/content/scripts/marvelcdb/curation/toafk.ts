@@ -44,8 +44,8 @@
  * **Normalized to the common wording, not confirmed from a scan (2026-10-09):** Chronopolis (11009) read "this
  * stage is complete" (twice) where the other three stage 3 alternatives (11010, 11011, 11012) and every other
  * main scheme in the pool read "completed"; Inexorable Fate (11010) read "at the stage" where the other three read
- * "at this stage". No image exists for any stage-3 B side, so both are set to the majority wording. Revisit if a
- * scan of either card turns up.
+ * "at this stage". Both are set to the majority wording (scans of the stage-3 B sides now exist: revisit against them
+ * if either differs).
  *
  * **Scenario setup** (docs/phase7-wave2.md §2.3, §1.8): one `ScenarioCuration` entry, `villainCardCode: "11001"`
  * (Kang (I)) — `villainIdBySet` has no entry for the "kang" set (`normalize/villains.ts` deliberately leaves it
@@ -89,7 +89,7 @@ export const TOAFK_CURATION: PackCuration = {
       reason:
         "The Chronopolis reads 'complete' where Kang's other three stage 3 alternatives and every other main scheme read 'completed'. Set to the common wording.",
       evidence:
-        "raw (11009b); the other stage 3 alternatives' text (11010 to 11012); no scan exists for any stage-3 B side, so this is a normalization, not a confirmed print reading",
+        "raw (11009b); the other stage 3 alternatives' text (11010 to 11012); a normalization to the common wording, not a transcription error confirmed against the stage-3 B scan",
       textReplace: { find: "After this stage is complete,", replace: "After this stage is completed," },
     },
     {
@@ -97,7 +97,7 @@ export const TOAFK_CURATION: PackCuration = {
       reason:
         "The Chronopolis reads 'complete' where Kang's other three stage 3 alternatives and every other main scheme read 'completed'. Set to the common wording.",
       evidence:
-        "raw (11009b); the other stage 3 alternatives' text (11010 to 11012); no scan exists for any stage-3 B side, so this is a normalization, not a confirmed print reading",
+        "raw (11009b); the other stage 3 alternatives' text (11010 to 11012); a normalization to the common wording, not a transcription error confirmed against the stage-3 B scan",
       textReplace: { find: "this stage is complete.", replace: "this stage is completed." },
     },
     {
@@ -105,8 +105,15 @@ export const TOAFK_CURATION: PackCuration = {
       reason:
         "Inexorable Fate reads 'at the stage' where Kang's other three stage 3 alternatives read 'at this stage'. Set to the common wording.",
       evidence:
-        "raw (11010b); the other stage 3 alternatives' text (11010 to 11012); no scan exists for any stage-3 B side, so this is a normalization, not a confirmed print reading",
+        "raw (11010b); the other stage 3 alternatives' text (11010 to 11012); a normalization to the common wording, not a transcription error confirmed against the stage-3 B scan",
       textReplace: { find: "at the stage are defeated", replace: "at this stage are defeated" },
+    },
+    {
+      code: "11013a",
+      reason:
+        "Kang's Wrath reads 'face down' where the card prints the one word 'facedown' (as Kang's Dominion and the stage 3 B sides do).",
+      evidence: "raw (11013a); the printed card and the stage 3 B sides' 'facedown'",
+      textReplace: { find: "each face down Kang's Dominion", replace: "each facedown Kang's Dominion" },
     },
   ],
   errata: [],

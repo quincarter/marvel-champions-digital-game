@@ -80,6 +80,7 @@ export function initialChoiceSelection(
 }
 
 const NEVER_PRESELECTED: ReadonlySet<string> = new Set([
+  "spendResources",
   "discardDownToHandSize",
   "discardOverAllyLimit",
   "discardOverPlayerSideSchemeLimit",

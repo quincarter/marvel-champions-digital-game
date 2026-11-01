@@ -48,9 +48,10 @@ const SECONDARY_SCALE = 0.6;
 const NOTES_SCALE = 0.2;
 
 export function normalizeText(text: string): string {
-  // Periods go entirely, so "S.H.I.E.L.D." reads "shield" (and a query of either spelling finds it).
+  // Periods go entirely, so "S.H.I.E.L.D." reads "shield" (and a query of either spelling finds it). So does a double
+  // slash, so "SP//dr" reads "spdr" (issue #597); one slash still separates two words.
   return text
-    .replace(/\./g, "")
+    .replace(/\.|\/\//g, "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
@@ -102,11 +103,14 @@ export function editDistance(a: string, b: string, limit: number): number {
   return prev[b.length]!;
 }
 
-function isSubsequence(needle: string, haystack: string): boolean {
+export function isSubsequence(needle: string, haystack: string): boolean {
   let at = 0;
   for (const ch of haystack) if (ch === needle[at] && ++at === needle.length) return true;
   return needle.length === 0;
 }
+
+/** How many typos a query word may carry. Short words take none ("capt" one letter from "cast" matched Black Panther). */
+export const typoLimitOf = (token: string): number => (token.length >= 8 ? 2 : token.length >= 5 ? 1 : 0);
 
 /** How well one query word matches one field, 0 for no match. `fuzzy` is off for notes. */
 function wordScore(token: string, field: PreparedField, fuzzy: boolean, loose = false): number {
@@ -120,8 +124,8 @@ function wordScore(token: string, field: PreparedField, fuzzy: boolean, loose = 
   if (best > 0) return best;
   if (field.text.includes(token)) return 65;
   if (!fuzzy || token.length < 3) return 0;
-  // Short words take no typo ("capt" one letter from "cast" matched Black Panther), and a typo keeps the first letter.
-  const limit = token.length >= 8 ? 2 : token.length >= 5 ? 1 : 0;
+  // A typo keeps the first letter.
+  const limit = typoLimitOf(token);
   for (const word of field.words) {
     if (limit > 0 && word[0] === token[0]) {
       // A typo anywhere, including in the part not yet typed: compare against the word's own start too.
