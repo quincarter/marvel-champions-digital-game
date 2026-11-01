@@ -3,7 +3,7 @@
  * campaign is started, and the choice it carries to the Roster. Pure and Vitest-tested.
  *
  * Normal plays the cards exactly as printed and is the default. Rebalance is a fan-made house rule (not an official
- * ruling) that eases the Museum, Nebula and Ronan scenarios, with four optional toggles that put some challenge back.
+ * ruling) that eases the Museum, Nebula and Ronan scenarios, with optional toggles that put some challenge back.
  * The choice is made once, at signing, and stored on the run (`CampaignModeRef.balanced`, plus the toggles as hidden
  * log fields): this screen is never reached from a Resume.
  */

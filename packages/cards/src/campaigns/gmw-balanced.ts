@@ -49,7 +49,12 @@ const CITATION = "Balanced house rule, issue #609, Gideon's Gaming";
 export const GMW_BALANCED_FIELD = "balanced";
 export const BALANCED_MODS_FIELD = "balancedMods";
 
-export type GmwBalancedToggleId = "spacePirates" | "expertGallery" | "trimStandard" | "milanoExhausted";
+export type GmwBalancedToggleId =
+  | "spacePirates"
+  | "expertGallery"
+  | "trimStandard"
+  | "milanoExhausted"
+  | "kreeSupremacy";
 
 export interface GmwBalancedToggle {
   readonly id: GmwBalancedToggleId;
@@ -63,7 +68,7 @@ export interface GmwBalancedToggle {
   readonly nodeId: string;
 }
 
-/** The four optional toggles, each off by default and only meaningful with `balanced`. For the client's run-start prompt. */
+/** The optional toggles, each off by default and only meaningful with `balanced`. For the client's run-start prompt. */
 export const GMW_BALANCED_TOGGLES: readonly GmwBalancedToggle[] = [
   {
     id: "spacePirates",
@@ -91,6 +96,13 @@ export const GMW_BALANCED_TOGGLES: readonly GmwBalancedToggle[] = [
     field: "balancedMilanoExhausted",
     label: "Milano Mods can't be used while the Milano is exhausted",
     description: "You have to keep the ship ready to use its upgrades.",
+    nodeId: "ronan-the-accuser",
+  },
+  {
+    id: "kreeSupremacy",
+    field: "balancedKreeSupremacy",
+    label: "Kree Supremacy in Ronan's deck",
+    description: "With 2 or more players, its Standard side is shuffled into the deck, and there's no optional reveal.",
     nodeId: "ronan-the-accuser",
   },
 ];
@@ -206,7 +218,12 @@ export const RONAN_BALANCED_RULES: readonly RuleSpec[] = [
     target: query("upgrade", { host: named("Milano") }),
     while: allOf(toggleIsOn("milanoExhausted"), exists(query("support", { name: "Milano", exhausted: true }))),
   },
-  readsFlags("16106a", [GMW_BALANCED_FIELD, toggleOf("milanoExhausted").field]),
+  readsFlags("16106a", [
+    GMW_BALANCED_FIELD,
+    toggleOf("milanoExhausted").field,
+    // The client reads it from the game's frozen log to show the Balanced 1A scan.
+    toggleOf("kreeSupremacy").field,
+  ]),
 ];
 
 // --- between-games and setup instructions ---------------------------------------------------------------------
@@ -333,5 +350,32 @@ export const milanoModsAttach: CampaignInstruction = {
       putIntoPlay(chosen("mods"), firstPlayer),
       attachCard(chosen("mods"), named("Milano")),
     ],
+  },
+};
+
+/** Gate for Ronan's printed (Optional) Kree Supremacy reveal: it stays exactly as printed unless this toggle is on. */
+export const kreeRevealIsPrinted: CampaignPredicate = { kind: "not", of: fieldOn(toggleOf("kreeSupremacy").field) };
+
+/**
+ * Ronan setup: with 2 or more heroes, Kree Supremacy's Standard side (16182a) is shuffled into the encounter deck, in
+ * standard and expert mode alike, and revealed as a normal side scheme. Its `modeOnly: "standard"` is no obstacle: it is
+ * a separate record from the expert face (no `flipSide`), so `modeOnlyFlipped` never refuses or flips it.
+ */
+export const kreeSupremacyShuffleSetup: CampaignInstruction = {
+  id: "mc16.s5.setup.balanced-kree-supremacy",
+  text: "(Balanced house rule: with 2 or more players, shuffle the Standard side of Kree Supremacy into the encounter deck.)",
+  citation: CITATION,
+  whenModes: { balanced: true },
+  when: {
+    kind: "and",
+    of: [
+      fieldOn(toggleOf("kreeSupremacy").field),
+      { kind: "valueAtLeast", value: { kind: "seatCount" }, amount: { kind: "const", value: 2 } },
+    ],
+  },
+  step: {
+    kind: "inGame",
+    window: DEFAULT_CAMPAIGN_WINDOW,
+    effects: [moveCards(encounterSetAside(query([], { printedId: cardId("16182a") })), "encounterDeckShuffle")],
   },
 };

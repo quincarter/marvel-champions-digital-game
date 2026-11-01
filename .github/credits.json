@@ -3,7 +3,13 @@
   "pinnedContributors": ["quincarter"],
   "watcherMinimum": 2,
   "reporters": [],
-  "contributors": [],
+  "contributors": [
+    {
+      "name": "bluefireF5ran",
+      "github": "bluefireF5ran",
+      "note": "Made the Balanced card scans for The Galaxy's Most Wanted."
+    }
+  ],
   "release": { "v0.41.0": ["u/Ok-Replacement-9793 shared the promo card scans."] },
   "exclude": []
 }

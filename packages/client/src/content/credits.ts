@@ -139,6 +139,16 @@ export const CREDITS: readonly CreditEntry[] = [
     folders: ["assets/card-art"],
   },
   {
+    id: "card-scans-balanced",
+    group: "card-art",
+    title: "Balanced card scans",
+    shownIn: "The Galaxy's Most Wanted cards a Balanced run changes, in English and Spanish",
+    credit:
+      "The edited Collector, Grand Collection, Nebula's Ship, Interception Imminent, Take What Is Mine and Milano scans for the Balanced house rule, made by bluefireF5ran (github.com/bluefireF5ran), from fixes by Gideon's Gaming.",
+    notice: FFG_MARVEL,
+    url: "https://github.com/bluefireF5ran",
+  },
+  {
     id: "card-scans-es",
     group: "card-art",
     title: "Spanish card scans",

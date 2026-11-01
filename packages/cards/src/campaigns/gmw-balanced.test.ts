@@ -85,6 +85,7 @@ describe("the Balanced log fields and gmwBalancedHiddenFields", () => {
       "balancedExpertGallery",
       "balancedTrimStandard",
       "balancedMilanoExhausted",
+      "balancedKreeSupremacy",
     ]);
     expect(GMW_BALANCED_FIELD).toBe("balanced");
   });
@@ -97,6 +98,7 @@ describe("the Balanced log fields and gmwBalancedHiddenFields", () => {
       [
         "balanced",
         "balancedExpertGallery",
+        "balancedKreeSupremacy",
         "balancedMilanoExhausted",
         "balancedMods",
         "balancedSpacePirates",

@@ -423,3 +423,76 @@ describe("10. Milano exhausted blanks its mods (Balanced toggle)", () => {
     expect(inst(withMilanoExhausted, armor!).attachedTo).toBe(milanoOf(withMilanoExhausted));
   });
 });
+
+describe("11. Kree Supremacy toggle (Balanced)", () => {
+  const KREE_A = "16182a";
+  const on: RunChoice = { balanced: true, toggles: ["kreeSupremacy"] };
+  const askedKree = (run: BuiltGame) => run.composed.asked.some((choice) => choice.slot === "kree");
+  const inPlay = (state: GameState, code: string) =>
+    instancesOf(state, code).some((id) => state.villainArea.includes(id));
+  const inDeck = (state: GameState) => countOf(deckCards(state), KREE_A);
+
+  it("Normal and Balanced with the toggle off keep today's (Optional) reveal", () => {
+    for (const choice of [NORMAL, BALANCED]) {
+      const run = buildGame(logAt(RONAN, choice, 1), choice, 1, [
+        answer("mc16.s5.setup.kree-decide", "kree", null, ["accept"]),
+        ...picks(...MODS),
+      ]);
+      expect(askedKree(run)).toBe(true);
+      expect(inPlay(run.state, KREE_A)).toBe(true);
+      expect(inDeck(run.state)).toBe(0);
+    }
+    const expert: RunChoice = { balanced: true, expert: true };
+    const run = buildGame(logAt(RONAN, expert, 1), expert, 1, [
+      answer("mc16.s5.setup.kree-decide", "kree", null, ["accept"]),
+      ...picks(...MODS),
+    ]);
+    expect(inPlay(run.state, "16182b")).toBe(true);
+  });
+
+  it("one hero, toggle on: no reveal offered and no Kree Supremacy anywhere in play or the deck", () => {
+    for (const expert of [false, true]) {
+      const choice: RunChoice = { ...on, expert };
+      const run = buildGame(logAt(RONAN, choice, 1), choice, 1, picks(...MODS));
+      expect(askedKree(run)).toBe(false);
+      for (const code of [KREE_A, "16182b"]) expect(inPlay(run.state, code)).toBe(false);
+      expect(inDeck(run.state)).toBe(0);
+      expect(countOf(deckCards(run.state), "16182b")).toBe(0);
+    }
+  });
+
+  it.each([false, true])(
+    "two heroes, toggle on (expert=%s): no reveal, the Standard side is shuffled in and reveals normally",
+    (expert) => {
+      const choice: RunChoice = { ...on, expert };
+      const run = buildGame(logAt(RONAN, choice, 2), choice, 2, picks(...MODS));
+      const { state } = run;
+      expect(askedKree(run)).toBe(false);
+      expect(inPlay(state, KREE_A)).toBe(false);
+      expect(inDeck(state)).toBe(1);
+      expect(countOf(deckCards(state), "16182b")).toBe(0);
+      const [face] = instancesOf(state, KREE_A);
+      expect(inst(state, face!).flipped).toBeFalsy();
+      // Three activations draw a boost card each; the first player's facedown encounter card is the fourth.
+      const revealed = settle(
+        runWave3(
+          stackEncounterDeck(state, "01186", "01187", "01189", KREE_A),
+          { type: "endTurn", playerId: P1 },
+          { type: "endTurn", playerId: P2 },
+        ),
+        firstLegal,
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(revealed.villainArea).toContain(face);
+      expect(inst(revealed, face!).faceup).toBe(true);
+      expect(inst(revealed, face!).flipped).toBeFalsy();
+    },
+  );
+
+  it("two heroes, toggle off: the printed (Optional) reveal is still asked and nothing is shuffled in", () => {
+    const run = buildGame(logAt(RONAN, BALANCED, 2), BALANCED, 2, [KREE, ...picks(...MODS)]);
+    expect(askedKree(run)).toBe(true);
+    expect(inDeck(run.state)).toBe(0);
+  });
+});
