@@ -50,6 +50,7 @@ import {
   drawTopBar,
   stamp,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { storyFor } from "../../campaign/story.js";
 import { HoverPreview, screenHoverArea } from "../../ui/card-hover-preview.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
@@ -416,6 +417,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     const layout = layoutOf(frame.formFactor);
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     if (!record) return;
+    drawCampaignPageArt(this, record.campaignId as string, this.#redrawArt);
 
     // The issue whose victory paid for this visit — the Market is composed as *next* issue's own first setup
     // instruction (`marketShoppingSetup`, first in every scenario's `setup` array in `packages/cards/src/campaigns/
@@ -1348,6 +1350,9 @@ export class CampaignMarketScene extends Phaser.Scene {
   }
 
   /** A picture that finished loading redraws the screen once (several arriving together share one redraw). */
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => this.#redrawOnce();
+
   #redrawOnce(): void {
     if (this.#redrawQueued) return;
     this.#redrawQueued = true;

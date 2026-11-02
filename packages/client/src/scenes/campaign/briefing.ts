@@ -28,7 +28,7 @@ import { McButton, STAMP_CHIP_TYPE, fitText, label } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { balancedTagOf } from "../../view/campaign-balanced-model.js";
-import { drawCampaignPaneGround, drawPanePaper } from "../../ui/campaign-pane.js";
+import { drawCampaignPageArt, drawCampaignPaneGround, drawPanePaper } from "../../ui/campaign-pane.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { bottomOfDrawn, captureIntoRegion } from "../../ui/scroll-capture.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
@@ -501,6 +501,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
+    drawCampaignPageArt(this, record.campaignId as string, this.#redrawPane);
 
     const back = (): void => {
       this.scale.off("resize", this.#draw, this);

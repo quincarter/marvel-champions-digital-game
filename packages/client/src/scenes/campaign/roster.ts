@@ -23,6 +23,7 @@ import {
   drawTopBar,
   heroPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../ui/aspect-chips.js";
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
@@ -148,6 +149,11 @@ export class CampaignRosterScene extends Phaser.Scene {
    */
   #swaps: readonly DeckSwap[] = [];
   #kept: readonly KeptConflict[] = [];
+
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#rebuild();
+  };
 
   constructor() {
     super(SCENES.campaignRoster);
@@ -341,6 +347,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#stops = new Map();
     this.#hints?.reset();
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
+    drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
 
     const frame = campaignFrame(this);
     const top = drawTopBar(this, {

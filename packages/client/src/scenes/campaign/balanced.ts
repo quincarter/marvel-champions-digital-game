@@ -22,7 +22,7 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { captureIntoRegion } from "../../ui/scroll-capture.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import { drawCampaignPaneGround } from "../../ui/campaign-pane.js";
+import { drawCampaignPageArt, drawCampaignPaneGround } from "../../ui/campaign-pane.js";
 import { fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { openExternal } from "../../platform/platform.js";
@@ -122,6 +122,7 @@ export class CampaignBalancedScene extends Phaser.Scene {
     this.#region?.destroy();
     this.#region = null;
     destroyChildren(this);
+    drawCampaignPageArt(this, this.#data.campaignId, this.#redraw);
     const frame = campaignFrame(this);
     const layout = balancedLayoutOf(frame.width, frame.gutter);
     const screen = balancedScreenOf(this.#choice, this.#data.expertCampaign === true);

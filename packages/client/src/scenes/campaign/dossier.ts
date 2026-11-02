@@ -25,6 +25,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { dashedRect, McButton, McTabs } from "../../ui/widgets.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
@@ -121,6 +122,11 @@ export class CampaignDossierScene extends Phaser.Scene {
   #hints: GlyphHints | null = null;
   /** What a hanging glyph must not cover: the labels at the ends of the tab strip. */
   #avoid: readonly Rect[] = [];
+
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
 
   constructor() {
     super(SCENES.campaignDossier);
@@ -253,6 +259,7 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
 
     const loaded = this.#loaded;
+    drawCampaignPageArt(this, loaded?.campaignId ?? "", this.#redrawArt);
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
 

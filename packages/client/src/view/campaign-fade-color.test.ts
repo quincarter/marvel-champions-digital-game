@@ -1,13 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_FADE_COLOR_VALUES } from "../settings.js";
+import { surface } from "../tokens.js";
 import {
   CAMPAIGN_FADE_COLOR_FILLS,
   CAMPAIGN_FADE_COLOR_LABELS,
   PANE_TEXT_COLOR,
   campaignFadeFillOf,
   contrastRatio,
+  pageGroundUnder,
   paneGroundUnder,
 } from "./campaign-fade-color.js";
+
+describe("the faded art across a campaign page", () => {
+  it("keeps ink text on paper and paper text on ink at AA whatever the art's tone", () => {
+    for (const art of [0, 128, 255]) {
+      expect(contrastRatio(surface.ink.hex, pageGroundUnder(surface.paper.hex, art))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(surface.paper.hex, pageGroundUnder(surface.ink.hex, art))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
 
 describe("the campaign pane's fade colours", () => {
   it("has a label and a ground for each value", () => {
