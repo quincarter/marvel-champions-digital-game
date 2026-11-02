@@ -92,7 +92,7 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     expect(inst(thwarted, villain).damage).toBe(1);
   });
 
-  it("issue #627: Wiccan: a discard with no boost icons deals nothing, and the count says so", () => {
+  it("issue #627: Wiccan: a discard with no boost icons deals nothing, says so, and asks for no enemy (RRG 1.8 'For Each', p. 20)", () => {
     const { state } = playFromHand(scwVsRhino(), "15011", 2);
     const wiccan = instancesOf(state, "15011")[0]!;
     const villain = state.villains[0]!.instanceId;
@@ -104,22 +104,18 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
       thwarterInstanceId: wiccan,
       schemeInstanceId: stacked.mainScheme.instanceId,
     });
-    const respond = (at: GameState, option: string) => {
-      const applied = applyCommand(
-        at,
-        { type: "resolveChoice", playerId: P1, choiceId: at.pendingChoice!.choiceId, selectedOptionIds: [option] },
-        WAVE2_DEPS,
-      );
-      if (!applied.ok) throw new Error(applied.error.message);
-      return applied;
-    };
-    const responded = respond(thwart, `${wiccan}:15011.wiccan-response`);
-    expect(responded.events).toContainEqual(expect.objectContaining({ type: "boostIconsCounted", count: 0 }));
-    // The enemy is still chosen with no icons: dropping the choice would stop saves that hold it from replaying.
-    const chosenEnemy = respond(responded.state, villain);
-    expect(inst(chosenEnemy.state, villain).damage).toBe(0);
+    const choiceId = thwart.pendingChoice!.choiceId;
+    const applied = applyCommand(
+      thwart,
+      { type: "resolveChoice", playerId: P1, choiceId, selectedOptionIds: [`${wiccan}:15011.wiccan-response`] },
+      WAVE2_DEPS,
+    );
+    if (!applied.ok) throw new Error(applied.error.message);
+    expect(applied.events).toContainEqual(expect.objectContaining({ type: "boostIconsCounted", count: 0 }));
+    expect(applied.state.pendingChoice).toBeNull();
+    expect(inst(applied.state, villain).damage).toBe(0);
     // Consequential damage comes after the response (RRG 1.8 "Consequential Damage", p. 13), and says what it was for.
-    expect(chosenEnemy.events).toContainEqual(
+    expect(applied.events).toContainEqual(
       expect.objectContaining({ type: "damageDealt", targetInstanceId: wiccan, consequentialFrom: "thwart" }),
     );
   });
