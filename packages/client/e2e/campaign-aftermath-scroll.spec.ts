@@ -62,7 +62,8 @@ async function scrollTo(page: Page, isMobile: boolean, key: string): Promise<voi
     expect(target, `${key} is on the Aftermath`).toBeTruthy();
     const bar = stops.find((stop) => stop.key === "commit")!.rect;
     const { rect } = target!;
-    const top = 70;
+    // The first reward rests at 69.28 at 1440 x 900, as high as the Aftermath lets it go.
+    const top = 69;
     const bottom = bar.y - 24;
     if (rect.y >= top && rect.y + rect.height <= bottom) return;
     const wanted = rect.y < top ? rect.y - top - 8 : rect.y + rect.height - bottom + 8;
