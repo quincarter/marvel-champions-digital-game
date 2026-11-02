@@ -27,6 +27,8 @@ export const CAMPAIGN_FADE_COLOR_FILLS: Readonly<Record<CampaignFadeColor, numbe
 export const PANE_ART_ALPHA = 0.34;
 export const PANE_VEIL_ALPHA = 0.34;
 export const PANE_VEIL_COLOR = surface.inkOnHue.hex;
+/** The box art's opacity across a whole page, directly under ink text (see the test). */
+export const PAGE_ART_ALPHA = 0.12;
 /** The pane's text: bright in light and dark mode alike. */
 export const PANE_TEXT_COLOR = surface.paperOnInk.hex;
 
@@ -65,4 +67,9 @@ export function paneGroundUnder(color: CampaignFadeColor, artGrey: number | null
   let ground = campaignFadeFillOf(color);
   if (artGrey !== null) ground = mix(ground, (artGrey << 16) | (artGrey << 8) | artGrey, PANE_ART_ALPHA);
   return mix(ground, PANE_VEIL_COLOR, PANE_VEIL_ALPHA);
+}
+
+/** A page's ground under a picture pixel of the given grey (0 to 255), with the art at `PAGE_ART_ALPHA`. */
+export function pageGroundUnder(ground: number, artGrey: number): number {
+  return mix(ground, (artGrey << 16) | (artGrey << 8) | artGrey, PAGE_ART_ALPHA);
 }

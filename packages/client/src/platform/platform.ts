@@ -44,12 +44,17 @@ export function drawsEdgeToEdge(platform: Platform, installed: boolean): boolean
   return isNativeShell(platform) || installed;
 }
 
-/** Opts the page into `viewport-fit=cover` when `drawsEdgeToEdge` says so; index.html ships without it. */
-export function applyViewportFit(doc: Document = document): void {
+/** `drawsEdgeToEdge` for this page: the running shell, and whether it was installed to the home screen. */
+export function runsEdgeToEdge(): boolean {
   const installed =
     globalThis.matchMedia?.("(display-mode: standalone)").matches === true ||
     (globalThis.navigator as { standalone?: boolean } | undefined)?.standalone === true;
-  if (!drawsEdgeToEdge(detectPlatform(), installed)) return;
+  return drawsEdgeToEdge(detectPlatform(), installed);
+}
+
+/** Opts the page into `viewport-fit=cover` when `drawsEdgeToEdge` says so; index.html ships without it. */
+export function applyViewportFit(doc: Document = document): void {
+  if (!runsEdgeToEdge()) return;
   const meta = doc.querySelector<HTMLMetaElement>('meta[name="viewport"]');
   if (meta !== null && !meta.content.includes("viewport-fit")) meta.content += ", viewport-fit=cover";
 }

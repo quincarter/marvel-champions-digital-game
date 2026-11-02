@@ -12,17 +12,28 @@
  * `innerHeight` difference left a black band there (the owner, 2026-10-24).
  * Pinch-zoom is left alone (`scale !== 1`), and nothing runs where there is no `visualViewport`.
  *
+ * Nothing runs edge to edge either (`platform.ts#runsEdgeToEdge`): an app has no browser toolbar to trim for, and
+ * Android's WebView reports a visible area far shorter than the screen part way through a rotation (320 at 1280x800),
+ * which read as a toolbar and left the game short with a black band below it (#629). A browser can do the same, so a
+ * strip too tall to be a toolbar is ignored and every resize is measured again once the rotation has settled.
+ *
  * The on-screen keyboard is left alone too: it lays over the canvas (#537). `index.html` asks for that with
  * `interactive-widget=overlays-content`; a browser that ignores it shrinks the visible area while a text field has
  * focus, and that shrink is not trimmed for, so the screen never re-lays out for a few letters of typing.
  */
 import type Phaser from "phaser";
+import { runsEdgeToEdge } from "./platform.js";
+
+/** The most of the box a toolbar can cover: anything taller is the browser's numbers mid-rotation, not a toolbar. */
+const MAX_TOOLBAR_SHARE = 0.25;
+/** How long after a resize the browser's numbers have settled, for the rotation that sends no event after it. */
+const SETTLE_MS = 400;
 
 /** Pixels of the box, untrimmed, that hang below the visible area, 0 when none or zoomed. */
 export function hiddenBottom(boxBottom: number, visibleHeight: number, offsetTop: number, zoom: number): number {
   if (zoom !== 1) return 0;
   const hidden = Math.round(boxBottom - visibleHeight - offsetTop);
-  return hidden > 1 ? hidden : 0;
+  return hidden > 1 && hidden <= boxBottom * MAX_TOOLBAR_SHARE ? hidden : 0;
 }
 
 /** True while a text field has focus, when a shrunken visible area is the on-screen keyboard rather than a toolbar. */
@@ -44,7 +55,7 @@ export function boxTrim(hidden: number): number {
 export function installVisibleArea(game: Phaser.Game): void {
   const viewport = window.visualViewport;
   const box = document.getElementById("game");
-  if (!viewport || !box) return;
+  if (!viewport || !box || runsEdgeToEdge()) return;
   let applied = 0;
   let queued = false;
   const apply = (): void => {
@@ -58,6 +69,8 @@ export function installVisibleArea(game: Phaser.Game): void {
     applied = hidden;
     // The safe-area inset (index.html) still applies; the toolbar's share is added on top of it.
     box.style.bottom = hidden > 0 ? `calc(env(safe-area-inset-bottom, 0px) + ${hidden}px)` : "";
+    // `refresh` alone keeps the size Phaser last measured, so the canvas would stay as it was until its next check.
+    game.scale.getParentBounds();
     game.scale.refresh();
   };
   const queue = (): void => {
@@ -65,10 +78,14 @@ export function installVisibleArea(game: Phaser.Game): void {
     queued = true;
     requestAnimationFrame(apply);
   };
-  viewport.addEventListener("resize", queue);
+  const queueAndSettle = (): void => {
+    queue();
+    window.setTimeout(queue, SETTLE_MS);
+  };
+  viewport.addEventListener("resize", queueAndSettle);
   // Leaving a text field re-measures, in case a toolbar came or went while the keyboard was up.
   document.addEventListener("focusout", queue);
-  window.addEventListener("resize", queue);
-  window.addEventListener("orientationchange", queue);
+  window.addEventListener("resize", queueAndSettle);
+  window.addEventListener("orientationchange", queueAndSettle);
   queue();
 }

@@ -1,5 +1,6 @@
 /**
- * The coloured side pane of a campaign page (issues #609, #613): a ground in the chosen fade color
+ * The faded box art of a campaign page: across the whole page (`drawCampaignPageArt`), and in its coloured side pane
+ * (issues #609, #613): a ground in the chosen fade color
  * (`Settings.campaignFadeColor`), the campaign's box art faded over it unless `Settings.fadedCampaignArt` is off, and a
  * dark veil that keeps the pale on-colour text readable (`view/campaign-fade-color.ts` proves the contrast).
  *
@@ -8,17 +9,45 @@
  * panel (`drawPanePaper`) instead, so nothing there changes colour.
  */
 import type Phaser from "phaser";
+import type { Picture } from "../art/pictures.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { appSession } from "../session.js";
 import { surface } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { PANE_ART_ALPHA, PANE_VEIL_ALPHA, PANE_VEIL_COLOR, campaignFadeFillOf } from "../view/campaign-fade-color.js";
+import {
+  PAGE_ART_ALPHA,
+  PANE_ART_ALPHA,
+  PANE_VEIL_ALPHA,
+  PANE_VEIL_COLOR,
+  campaignFadeFillOf,
+} from "../view/campaign-fade-color.js";
 import { campaignCoverPicture, drawPicture, villainPicture } from "./campaign-chrome.js";
 
 /** Slots `made` (in order) at `index` of the scene's display list, under what was drawn after that point. */
 function slotAt(scene: Phaser.Scene, made: readonly Phaser.GameObjects.GameObject[], index: number | undefined): void {
   if (index === undefined) return;
   made.forEach((object, offset) => scene.children.moveTo(object, index + offset));
+}
+
+/** The campaign's box art, or its final villain's where the box has none. */
+function boxArtOf(campaignId: string): Picture | null {
+  const finale = CAMPAIGN_RECORDS[campaignId]?.scenarioIds.at(-1) as string | undefined;
+  return campaignCoverPicture(campaignId) ?? (finale ? villainPicture(finale) : null);
+}
+
+/**
+ * The box art faded across a whole campaign page, under everything drawn after it, unless `Settings.fadedCampaignArt`
+ * is off. Call it first, on the page's own ground. Pale enough for the page's ink text to stay readable, so a page
+ * needs no paper panels of its own (`view/campaign-fade-color.ts` proves the contrast). `onArtReady` is as for
+ * `drawCampaignPaneGround`.
+ */
+export function drawCampaignPageArt(scene: Phaser.Scene, campaignId: string, onArtReady: () => void): void {
+  if (!appSession().settings.fadedCampaignArt) return;
+  const { width, height } = scene.scale.gameSize;
+  drawPicture(scene, boxArtOf(campaignId), { x: 0, y: 0, width, height }, onArtReady, {
+    focusY: 0.2,
+    alpha: PAGE_ART_ALPHA,
+  });
 }
 
 /**
@@ -40,12 +69,7 @@ export function drawCampaignPaneGround(
   ground.fillStyle(campaignFadeFillOf(settings.campaignFadeColor), 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   made.push(ground);
   if (settings.fadedCampaignArt) {
-    const finale = CAMPAIGN_RECORDS[campaignId]?.scenarioIds.at(-1) as string | undefined;
-    const picture = campaignCoverPicture(campaignId) ?? (finale ? villainPicture(finale) : null);
-    const image = drawPicture(scene, picture, rect, onArtReady, {
-      focusY: 0.2,
-      alpha: PANE_ART_ALPHA,
-    });
+    const image = drawPicture(scene, boxArtOf(campaignId), rect, onArtReady, { focusY: 0.2, alpha: PANE_ART_ALPHA });
     if (image) made.push(image);
   }
   const veil = scene.add.graphics();

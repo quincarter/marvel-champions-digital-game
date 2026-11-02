@@ -13,6 +13,12 @@ describe("hiddenBottom", () => {
     expect(hiddenBottom(997, 996.5, 0, 1)).toBe(0);
     expect(hiddenBottom(997, 500, 0, 2)).toBe(0);
   });
+  it("ignores a strip too tall to be a toolbar, as a rotation reports (#629)", () => {
+    expect(hiddenBottom(768, 320, 0, 1)).toBe(0);
+  });
+  it("still sees a phone's toolbar in landscape", () => {
+    expect(hiddenBottom(375, 300, 0, 1)).toBe(75);
+  });
 });
 
 describe("boxTrim", () => {

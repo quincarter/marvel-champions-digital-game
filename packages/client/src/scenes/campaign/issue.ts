@@ -23,6 +23,7 @@ import {
   stamp,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { McButton } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
@@ -50,6 +51,11 @@ export class CampaignIssueScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #writesList: McVariableList | null = null;
   #writesScroll = new VariableListScroll();
+
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
 
   constructor() {
     super(SCENES.campaignIssue);
@@ -119,6 +125,7 @@ export class CampaignIssueScene extends Phaser.Scene {
     this.#buttons = [];
     const frame = campaignFrame(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
 
     const model = this.#model;
     const stops = new Map<string, FocusStop>();

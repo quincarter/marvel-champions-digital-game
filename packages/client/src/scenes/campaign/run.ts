@@ -36,6 +36,7 @@ import {
   stamp,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { fitText, McButton } from "../../ui/widgets.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
@@ -103,6 +104,11 @@ export class CampaignRunScene extends Phaser.Scene {
   #region: McScrollRegion | null = null;
   #scroll = new VariableListScroll();
 
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
+
   constructor() {
     super(SCENES.campaignRun);
   }
@@ -166,6 +172,7 @@ export class CampaignRunScene extends Phaser.Scene {
     this.#buttons = [];
     const frame = campaignFrame(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
 
     const model = this.#model;
     const stops = new Map<string, FocusStop>();
