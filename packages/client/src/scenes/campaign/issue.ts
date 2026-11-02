@@ -64,6 +64,7 @@ export class CampaignIssueScene extends Phaser.Scene {
   create(data: CampaignIssueData): void {
     this.#data = data;
     this.#model = null;
+    this.#campaignId = "";
     this.#status = "";
     this.#writesScroll.reset();
     this.#hints = createHints(this);

@@ -116,6 +116,7 @@ export class CampaignRunScene extends Phaser.Scene {
   create(data: CampaignRunData): void {
     this.#data = data;
     this.#model = null;
+    this.#campaignId = "";
     this.#status = "";
     this.#hints = createHints(this);
     this.#route = new FocusRoute(this, {

@@ -71,6 +71,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
   create(data: CampaignFrozenDeckData): void {
     this.#data = data;
     this.#model = null;
+    this.#campaignId = "";
     this.#status = "Loading…";
     this.#hints = createHints(this);
     // Start and A with nothing focused: Done.

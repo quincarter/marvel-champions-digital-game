@@ -172,12 +172,12 @@ export class CampaignRewindScene extends Phaser.Scene {
     destroyChildren(this);
     const { width, height, phone } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.void.hex).setOrigin(0, 0);
+    drawCampaignPageArt(this, (this.#record?.campaignId as string | undefined) ?? "", this.#redrawArt);
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     const record = this.#record;
     const view = this.#view;
     if (!record || !view) return;
-    drawCampaignPageArt(this, record.campaignId as string, this.#redrawArt);
     const campaignId = record.campaignId as string;
     const story = issueStoryFor(campaignId, this.#data.nodeId);
     const campaignStory = storyFor(campaignId);
