@@ -1602,15 +1602,14 @@ function describe(
         text: `${card(event.instanceId)} is discarded from the encounter deck.`,
         voice: "villain",
       };
-    // #627: the discard is on the board, but a count of nothing is not: "for each boost icon" just stops. Named by the
-    // event's card ids: the card was open to everyone, and the deck's reset can have shuffled it back facedown since.
+    // #627: the discard is on the board, but a count of nothing is not: "for each boost icon" just stops.
     case "boostIconsCounted": {
       const icons =
         event.count === 0 ? "no boost icons" : event.count === 1 ? "1 boost icon" : `${event.count} boost icons`;
-      const name = cardIdName(state, event.cardId);
+      const name = discardedThenName(event.cardInstanceId, burst, state) ?? card(event.cardInstanceId);
       return {
-        text: event.countedCardId
-          ? `${cardIdName(state, event.countedCardId)} is counted instead of ${name}: ${icons}.`
+        text: event.countedInstanceId
+          ? `${discardedThenName(event.countedInstanceId, burst, state) ?? card(event.countedInstanceId)} is counted instead of ${name}: ${icons}.`
           : event.adjusted
             ? `${name} counts as ${icons}.`
             : `${name} has ${icons}.`,
@@ -1772,6 +1771,18 @@ const swapRefusedReason = (
       return "a card to swap was missing";
   }
 };
+
+/**
+ * The name of a card discarded faceup earlier in this command, or null. The deck's reset can have shuffled it back
+ * facedown by now, and it was open to everyone all the same. A card only looked at on top of the deck (Astral
+ * Projection) has no such move and stays unnamed.
+ */
+function discardedThenName(id: InstanceId, burst: Burst | undefined, state: GameState): string | null {
+  const moved = burst?.events
+    .slice(0, burst.at)
+    .find((e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "encounterDiscard");
+  return moved?.type === "cardMoved" ? cardIdName(state, moved.cardId) : null;
+}
 
 /** A card's printed name from its id; only for cards an event has already made open to every player. */
 const cardIdName = (state: GameState, cardId: Parameters<typeof getCard>[1]): string =>

@@ -2,10 +2,10 @@
  * Log lines that used to be missing or misleading: a unique card refused by a card of the same title, consequential
  * damage, a card flipped by a card, counters, a swap, a ready after a form change, and a Special that blanked a minion.
  */
-import type { CardId } from "@mc/content";
 import {
   activeEncounterDeck,
   activeVillain,
+  type EncounterDeckId,
   type GameEvent,
   type GameState,
   type InstanceId,
@@ -170,11 +170,9 @@ describe("consequential damage", () => {
 });
 
 describe("#627: boost icons a card effect counted", () => {
-  const cardId = (): CardId => state.instances[handCard]!.cardId;
-  const named = (): string => CARDS_BY_ID.get(cardId() as string)!.name;
-  const villainCardId = (): CardId => state.instances[villain]!.cardId;
+  const named = (): string => CARDS_BY_ID.get(state.instances[handCard]!.cardId as string)!.name;
   const counted = (count: number): string =>
-    lines([{ type: "boostIconsCounted", cardInstanceId: handCard, cardId: cardId(), count }])[0]!;
+    lines([{ type: "boostIconsCounted", cardInstanceId: handCard, count }])[0]!;
 
   test("says what the count came to, nothing included", () => {
     expect(counted(0)).toBe(`${named()} has no boost icons.`);
@@ -183,38 +181,43 @@ describe("#627: boost icons a card effect counted", () => {
   });
 
   test("a replaced count names the card it read, not the card it replaced", () => {
-    const event: GameEvent = {
-      type: "boostIconsCounted",
-      cardInstanceId: handCard,
-      cardId: cardId(),
-      count: 0,
-      countedCardId: villainCardId(),
-    };
-    const other = CARDS_BY_ID.get(villainCardId() as string)!.name;
-    expect(lines([event])[0]).toBe(`${other} is counted instead of ${named()}: no boost icons.`);
+    const line = lines([
+      { type: "boostIconsCounted", cardInstanceId: handCard, count: 0, countedInstanceId: villain },
+    ])[0]!;
+    expect(line).toBe(`${cardName(state, villain)} is counted instead of ${named()}: no boost icons.`);
   });
 
   test("an adjusted count does not claim the card has those icons", () => {
-    const event: GameEvent = {
-      type: "boostIconsCounted",
-      cardInstanceId: handCard,
-      cardId: cardId(),
-      count: 2,
-      adjusted: true,
-    };
-    expect(lines([event])[0]).toBe(`${named()} counts as 2 boost icons.`);
+    const line = lines([{ type: "boostIconsCounted", cardInstanceId: handCard, count: 2, adjusted: true }])[0]!;
+    expect(line).toBe(`${named()} counts as 2 boost icons.`);
   });
 
-  test("a card the deck's reset shuffled back facedown is still named", () => {
-    const piles = activeEncounterDeck(state);
-    const hidden = piles.deck[0]!;
-    const hiddenCardId = state.instances[hidden]!.cardId;
-    const line = lines([{ type: "boostIconsCounted", cardInstanceId: hidden, cardId: hiddenCardId, count: 1 }])[0]!;
-    expect(line).toBe(`${CARDS_BY_ID.get(hiddenCardId as string)!.name} has 1 boost icon.`);
+  test("a card the deck's reset shuffled back facedown keeps the name its discard showed", () => {
+    const hidden = activeEncounterDeck(state).deck[0]!;
+    const cardId = state.instances[hidden]!.cardId;
+    const deckId = "e1" as EncounterDeckId;
+    const out = lines([
+      {
+        type: "cardMoved",
+        instanceId: hidden,
+        cardId,
+        from: { kind: "encounterDeck", deckId },
+        to: { kind: "encounterDiscard", deckId },
+      },
+      { type: "boostIconsCounted", cardInstanceId: hidden, count: 1 },
+    ]);
+    expect(out.at(-1)).toBe(`${CARDS_BY_ID.get(cardId as string)!.name} has 1 boost icon.`);
+  });
+
+  test("a card only looked at on the deck stays unnamed (Astral Projection)", () => {
+    const hidden = activeEncounterDeck(state).deck[0]!;
+    const line = lines([{ type: "boostIconsCounted", cardInstanceId: hidden, count: 1 }])[0]!;
+    expect(line).toBe(`${cardName(state, hidden)} has 1 boost icon.`);
+    expect(line).not.toContain(CARDS_BY_ID.get(state.instances[hidden]!.cardId as string)!.name);
   });
 
   test("an encounter card's count reads as the villain's, a hero's as the player's", () => {
-    const event = { type: "boostIconsCounted", cardInstanceId: handCard, cardId: cardId(), count: 1 } as const;
+    const event = { type: "boostIconsCounted", cardInstanceId: handCard, count: 1 } as const;
     expect(logLine(event, state, me, POOL_DEPS)!.voice).toBe("player");
     expect(logLine({ ...event, byEncounter: true }, state, me, POOL_DEPS)!.voice).toBe("villain");
   });

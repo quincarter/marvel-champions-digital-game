@@ -1129,9 +1129,8 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       emit(ctx, {
         type: "boostIconsCounted",
         cardInstanceId: event.cardInstanceId,
-        cardId: mustInstance(ctx.state, event.cardInstanceId).cardId,
         count: counted,
-        ...(event.countFrom ? { countedCardId: mustInstance(ctx.state, event.countFrom).cardId } : {}),
+        ...(event.countFrom ? { countedInstanceId: event.countFrom } : {}),
         ...(event.countAdjust ? { adjusted: true as const } : {}),
         ...(event.byEncounter ? { byEncounter: true as const } : {}),
       });

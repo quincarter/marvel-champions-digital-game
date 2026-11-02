@@ -130,33 +130,28 @@ function countsFrom(listener: StubAbility | null) {
   }
   if (!result.ok) throw new Error(result.error.message);
   return {
-    identityCardId: mustInstance(state, state.players[0]!.identity.instanceId).cardId,
+    identity: state.players[0]!.identity.instanceId,
     counts: events.filter((e) => e.type === "boostIconsCounted"),
   };
 }
 
 describe("boostIconsCounted: what the log is told about a count (issue #627)", () => {
-  it("a plain count gives the card and its icons, one event per card", () => {
+  it("a plain count gives the card and its icons, one event per card, and no card id: it can be a facedown card", () => {
     const { counts } = countsFrom(null);
     expect(counts).toHaveLength(2);
     for (const count of counts) {
-      expect(count).toEqual({
-        type: "boostIconsCounted",
-        cardInstanceId: count.cardInstanceId,
-        cardId: ONE_ICON.id,
-        count: 1,
-      });
+      expect(count).toEqual({ type: "boostIconsCounted", cardInstanceId: count.cardInstanceId, count: 1 });
     }
   });
 
   it("an adjusted count is marked, as the card does not have those icons", () => {
     const { counts } = countsFrom(CREST);
-    expect(counts[0]).toMatchObject({ cardId: ONE_ICON.id, count: 2, adjusted: true });
+    expect(counts[0]).toMatchObject({ count: 2, adjusted: true });
   });
 
   it("a replaced count names the card it read", () => {
-    const { counts, identityCardId } = countsFrom(CHAOS);
-    expect(counts[0]).toMatchObject({ cardId: ONE_ICON.id, count: 0, countedCardId: identityCardId });
+    const { counts, identity } = countsFrom(CHAOS);
+    expect(counts[0]).toMatchObject({ count: 0, countedInstanceId: identity });
   });
 });
 

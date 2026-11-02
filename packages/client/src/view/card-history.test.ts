@@ -124,7 +124,6 @@ describe("eventRefs", () => {
     const refs = eventRefs({
       type: "boostIconsCounted",
       cardInstanceId: "i7" as InstanceId,
-      cardId: "01104" as CardId,
       count: 0,
     });
     expect(refs).toEqual(["i7"]);

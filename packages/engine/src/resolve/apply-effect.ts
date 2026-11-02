@@ -1783,7 +1783,6 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           emit(ctx, {
             type: "boostIconsCounted",
             cardInstanceId: id,
-            cardId: mustInstance(ctx.state, id).cardId,
             count,
             ...byEncounter,
           });

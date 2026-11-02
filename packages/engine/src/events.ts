@@ -1115,16 +1115,15 @@ export type GameEvent =
     }
   /**
    * A card effect counted the boost icons on `cardInstanceId` (`EffectSpec countBoostIcons`, one per card): "for each
-   * boost icon discarded this way" can come to nothing, and only this says so (issue #627). `cardId` names the card
-   * as it was counted, since the deck's reset can shuffle a discarded card back facedown before the log reads it.
+   * boost icon discarded this way" can come to nothing, and only this says so (issue #627). It carries instances, not
+   * card ids: Astral Projection counts a card that stays facedown on the deck, and this must not name it.
    */
   | {
       readonly type: "boostIconsCounted";
       readonly cardInstanceId: InstanceId;
-      readonly cardId: CardId;
       readonly count: number;
       /** The card whose icons were counted instead (`replaceBoostCount`). */
-      readonly countedCardId?: CardId;
+      readonly countedInstanceId?: InstanceId;
       /** `count` is not the card's own: an interrupt changed it (`adjustBoostCount`). */
       readonly adjusted?: true;
       /** An encounter card's effect made the count, so the log reads it as the villain's. */
