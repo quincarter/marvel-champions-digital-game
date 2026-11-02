@@ -9,14 +9,12 @@ import type { Rect } from "./layout.js";
 
 export type DeckBuilderTab = "pool" | "deck" | "games";
 
-/** The tabs in order, left to right. Campaign mode has no "From your games" (it reads a loose deck's play history). */
-export function deckBuilderTabs(campaign: boolean): readonly DeckBuilderTab[] {
-  return campaign ? ["pool", "deck"] : ["pool", "deck", "games"];
-}
+/** The tabs in order, left to right, in a loose deck and a campaign's alike. */
+export const DECK_BUILDER_TABS: readonly DeckBuilderTab[] = ["pool", "deck", "games"];
 
 /** The tab a visit opens on: `railTab: "games"` (Decks & Collection's "Build my own from this") opens From your games. */
-export function startTab(railTab: "deck" | "games" | undefined, campaign: boolean): DeckBuilderTab {
-  return railTab === "games" && !campaign ? "games" : "pool";
+export function startTab(railTab: "deck" | "games" | undefined): DeckBuilderTab {
+  return railTab === "games" ? "games" : "pool";
 }
 
 /**
@@ -134,7 +132,8 @@ export function deckBuilderNarrowFocusOrder(input: DeckBuilderNarrowFocusInput):
     ...input.rewardIds.map((id) => `reward:${id}`),
     ...input.oddsIds,
     "deck-sort",
-    ...(input.campaign ? [] : ["deck-review", "preconstructed", "clear"]),
+    "deck-review",
+    ...(input.campaign ? [] : ["preconstructed", "clear"]),
     ...(input.showDelete ? ["delete"] : []),
     ...(input.showFreeze ? ["freeze-deck"] : []),
     "save",

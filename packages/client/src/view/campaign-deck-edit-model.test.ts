@@ -17,6 +17,7 @@ import {
   campaignDeckContextOf,
   campaignDeckContextWithGrants,
   campaignDeckEditModel,
+  campaignDeckStatusOf,
   campaignDeckSizeLabel,
   campaignDeckSizeSplit,
   deckFreezePolicyOf,
@@ -339,6 +340,19 @@ describe("campaignDeckEditModel", () => {
     });
     const starterRow = model.rows.find((candidate) => candidate.cardId === STARTER.cards[0]?.cardId);
     expect(starterRow?.locked).toBe(false);
+  });
+
+  it("reads the campaign's verdict as Deck check's status badge", () => {
+    const context = campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1);
+    const deck = { identityCardId: STARTER.identityCardId, aspects: STARTER.aspects, cards: STARTER.cards };
+    const legal = campaignDeckEditModel(
+      { ...deck, cards: [...deck.cards, { cardId: TECH_UPGRADE, quantity: 1 }] },
+      POOL_CARDS,
+      context,
+    );
+    expect(campaignDeckStatusOf(legal)).toEqual({ text: "Legal", tone: "legal" });
+    const short = campaignDeckEditModel({ ...deck, cards: deck.cards.slice(0, 2) }, POOL_CARDS, context);
+    expect(campaignDeckStatusOf(short)).toEqual({ text: "Illegal", tone: "illegal" });
   });
 
   it("refuses the same card outside the campaign context, naming why (validateDeck's own verdict, not re-derived)", () => {

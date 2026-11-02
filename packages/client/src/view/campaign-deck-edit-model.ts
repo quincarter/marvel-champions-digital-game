@@ -22,6 +22,7 @@ import {
   type DeckValidation,
 } from "@mc/engine";
 import type { AnyCard, Campaign, CardId, DeckCardEntry, DeckContents } from "@mc/content";
+import type { DeckStatus } from "./deck-status.js";
 
 /** Assembles the campaign half of `DeckContext` from a `Campaign` content record and a seat's log column. */
 export function campaignDeckContextOf(
@@ -373,6 +374,11 @@ export function seatDeckSizeSplit(seat: {
     counted += line.quantity - rewards;
   }
   return { counted, pinned };
+}
+
+/** `model`'s verdict as Deck check's status badge: the campaign's rules decide, not a loose deck's. */
+export function campaignDeckStatusOf(model: CampaignDeckEditModel): DeckStatus {
+  return model.validation.ok ? { text: "Legal", tone: "legal" } : { text: "Illegal", tone: "illegal" };
 }
 
 /** The deck builder's count in words: "40 cards", "40 cards + 2 pinned", "40 cards + 1 reward". */

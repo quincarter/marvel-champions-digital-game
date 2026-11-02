@@ -66,6 +66,8 @@ import { withinTapSlop } from "../view/press-arm.js";
 import { HOLD_SLOP_PX, INSPECT_HOLD_MS } from "../view/hold-gesture.js";
 import type { Rect } from "../view/layout.js";
 import { surface, typeRole } from "../tokens.js";
+import { markRenderDirty } from "./idle-render.js";
+import { paintScrolledIn } from "./lazy-text.js";
 import { textStyle } from "./theme.js";
 import { paintPanel } from "./widgets.js";
 import { setMask, clearMask } from "./rex.js";
@@ -74,6 +76,8 @@ import { clipRowInteractivity } from "./scroll-clip.js";
 export interface VirtualListRow {
   /** Every game object this row drew, at the row's own rect (`McVirtualList` reparents them into its masked layer). */
   readonly objects: readonly Phaser.GameObjects.GameObject[];
+  /** Puts in whatever the row was drawn waiting for (`refreshRows`). */
+  readonly refresh?: () => void;
 }
 
 export interface McVirtualListOptions {
@@ -281,6 +285,15 @@ export class McVirtualList {
 
   get count(): number {
     return this.#count;
+  }
+
+  /**
+   * Something the drawn rows wait for has arrived (card art): each row with a `refresh` fills itself in. A row is not
+   * redrawn for this: `update`'s redraw of every visible row, once a frame for as long as art kept arriving, is what
+   * made scrolling through cards not seen yet crawl (#631).
+   */
+  refreshRows(): void {
+    for (const row of this.#rows.values()) row.refresh?.();
   }
 
   /**
@@ -548,12 +561,14 @@ export class McVirtualList {
         width: this.#rect.width,
         height: this.#heightOf(index),
       };
-      const row = this.#renderRow(index, zeroScrollRect);
+      const draw = (): VirtualListRow => this.#renderRow(index, zeroScrollRect);
+      const row = forceRedrawVisible ? draw() : paintScrolledIn(draw);
       this.#rowLayer.add(row.objects as Phaser.GameObjects.GameObject[]);
       this.#rows.set(index, row);
     }
 
     this.#rowLayer.setPosition(0, -this.#scroll.offsetPx);
+    markRenderDirty();
     this.#applyRowInteractivity();
 
     const shape = this.#shape;

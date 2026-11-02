@@ -90,7 +90,7 @@ import {
 import { deckOptionOf } from "../view/deck-list-model.js";
 import { addCommunityDeck, testedEntryOf } from "../view/community-decks-model.js";
 import { testedCatalog } from "../view/seatable-decks.js";
-import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
+import { deckStatusOf, type DeckStatus, type DeckStatusTone } from "../view/deck-status.js";
 import { aspectLabelOf } from "../view/seat-slots.js";
 import { deckCheckFocusOrder } from "../view/screen-focus.js";
 import { deckCheckLayout, type DeckCheckTab } from "../view/deck-check-layout.js";
@@ -144,6 +144,8 @@ export interface DeckCheckSceneData {
    * reason rather than being omitted.
    */
   readonly onStartGame?: (from: Phaser.Scene) => void;
+  /** The count and status to show instead of the loose-deck rules': a campaign deck is judged by its campaign. */
+  readonly verdict?: { readonly count: string; readonly status: DeckStatus };
 }
 
 /** One flattened slot of the card grid's `McVariableList`: a group's own header, or one row of that group's cards. */
@@ -214,6 +216,7 @@ export class DeckCheckScene extends Phaser.Scene {
   #returnTo!: { readonly scene: SceneKey; readonly data?: object };
   #deckSort: DeckListSort = "aspect";
   #onStartGame: ((from: Phaser.Scene) => void) | undefined;
+  #verdict: DeckCheckSceneData["verdict"];
   /** Narrow only — wide shows every tab's content at once, so this is ignored there. */
   #activeTab: DeckCheckTab = "curve";
   /** Wide only: the rail's own type filter, applied to the grid (a display filter, never a deckbuilding rule). */
@@ -243,6 +246,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#returnTo = data.returnTo ?? { scene: SCENES.decks };
     this.#deckSort = deckBuilderView().deckSort;
     this.#onStartGame = data.onStartGame;
+    this.#verdict = data.verdict;
     this.#activeTab = "curve";
     this.#typeFilter = null;
     this.#cardListScroll = new VariableListScroll();
@@ -328,7 +332,7 @@ export class DeckCheckScene extends Phaser.Scene {
     // The Curve and Aspect tabs read the deck by aspect whatever the card list's sort.
     const groups = deckListGroupsOf(this.#deck, POOL_CARDS);
     const sorted = deckListGroupsOf(this.#deck, POOL_CARDS, this.#deckSort);
-    const status = deckStatusOf(option);
+    const status = this.#verdict?.status ?? deckStatusOf(option);
     const inFlow = this.#returnTo.scene === SCENES.seats;
 
     // Ground: paper body under the same full-width ink header bar every setup-flow screen shares.
@@ -473,7 +477,8 @@ export class DeckCheckScene extends Phaser.Scene {
     stats: ReturnType<typeof deckStatsOf>,
     status: ReturnType<typeof deckStatusOf>,
   ): void {
-    const badgeText = `${deckCountText(stats).toUpperCase()} · ${status.text.toUpperCase()}`;
+    const count = this.#verdict?.count ?? deckCountText(stats);
+    const badgeText = `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
     const badgeTextStyle = { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "18px" };
     // The background graphics object is created (and so z-ordered) *before* the text it sits behind — these two
     // calls aren't reparented into a container that would reorder them by array position (unlike a virtualized
@@ -516,7 +521,8 @@ export class DeckCheckScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
     fitText(title, layout.meta.x - titleX - 12, typeRole.pageTitle.size);
 
-    const metaWords = inFlow ? "3/4" : `${deckCountText(stats).toUpperCase()} · ${status.text.toUpperCase()}`;
+    const count = this.#verdict?.count ?? deckCountText(stats);
+    const metaWords = inFlow ? "3/4" : `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
     const metaText = this.add
       .text(
         layout.meta.x + layout.meta.width,
