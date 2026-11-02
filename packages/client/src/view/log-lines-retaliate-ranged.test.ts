@@ -8,7 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { applyCommands, type Command } from "@mc/engine";
+import { applyCommands, type Command, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
@@ -29,7 +29,7 @@ describe("issue #623: a boost card that makes the attack ranged", () => {
       const result = applyCommands(state, [command], POOL_DEPS);
       if (!result.ok) throw new Error(result.error.message);
       state = result.state;
-      log = appendEvents(log, result.events, state, "p1", POOL_DEPS);
+      log = appendEvents(log, result.events, state, "p1" as PlayerId, POOL_DEPS);
     }
     const lines = log.lines.map((line) => line.text);
     const boost = lines.findIndex((text) => text === "Boost: Red Skull's Luger, 0 icons for Red Skull.");
