@@ -48,6 +48,49 @@ test("campaign deck edit has From your games and Review, and Review keeps unsave
   expect(errors).toEqual([]);
 });
 
+test("Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "phone", "the narrow layout's title");
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  await installWave6Helpers(page);
+  await page.goto("/?unlock=all");
+  await waitForScene(page, "Title");
+  await page.evaluate(async () => {
+    const w = window as unknown as {
+      __mcCampaign: { seedGmw(stop: string): Promise<{ id: string }> };
+      __mcGame: {
+        scene: {
+          getScenes(active: boolean): { sys: { settings: { key: string } } }[];
+          stop(key: string): void;
+          start(key: string, data: object): void;
+        };
+      };
+    };
+    const { id } = await w.__mcCampaign.seedGmw("afterIssue2");
+    for (const scene of w.__mcGame.scene.getScenes(true))
+      if (scene.sys.settings.key !== "MusicScene") w.__mcGame.scene.stop(scene.sys.settings.key);
+    w.__mcGame.scene.start("CampaignDeckEdit", {
+      runId: id,
+      seatNumber: 1,
+      returnTo: { key: "CampaignDossier", data: { runId: id } },
+    });
+  });
+  await waitForScene(page, "DeckBuilder", 40_000);
+  await settle(page);
+  await clickStop(page, "tab:deck", "DeckBuilder");
+  await clickStop(page, "deck-review", "DeckBuilder");
+  await waitForScene(page, "DeckCheck");
+  await settle(page);
+
+  const badge = (await findText(page, "PINNED", "DeckCheck"))[0]?.text ?? "";
+  const counted = /^(\d+) CARDS \+ \d+ PINNED/i.exec(badge)?.[1];
+  expect(counted, `a pinned count in "${badge}"`).toBeTruthy();
+  expect((await findText(page, `Your deck · ${counted}`, "DeckCheck")).length).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 test.describe("the pool at tablet size", () => {
   test.use({ viewport: { width: 820, height: 1180 } });
 

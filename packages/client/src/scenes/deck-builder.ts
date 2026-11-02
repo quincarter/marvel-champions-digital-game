@@ -201,7 +201,9 @@ import {
   campaignDeckEditModel,
   campaignDeckSizeLabel,
   campaignDeckSizeSplit,
-  campaignDeckStatusOf,
+  campaignDeckVerdictOf,
+  campaignRefusesAdd,
+  campaignRefusesCut,
   prohibitedCampaignCardIds,
   removedFromCampaignCardIds,
   setRewardIncluded,
@@ -1908,11 +1910,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     // The same refusals the pool's −/+ read: a suggestion never cuts a campaign's granted card, or adds a refused one.
     const frozen = this.#campaignModel?.editingDisabled ?? false;
     const canCut = (entry: SuggestedCard): boolean =>
-      !frozen &&
-      !(this.#campaignRowFor(entry.cardId)?.locked ?? false) &&
+      !campaignRefusesCut(this.#campaignRowFor(entry.cardId), frozen) &&
       this.#ruleRefusal(deck, entry.cardId as CardId, -1) === null;
     const canAdd = (entry: SuggestedCard): boolean =>
-      pool.has(entry.cardId) && !frozen && this.#ruleRefusal(deck, entry.cardId as CardId, 1) === null;
+      pool.has(entry.cardId) &&
+      !campaignRefusesAdd(this.#campaignRowFor(entry.cardId), frozen) &&
+      this.#ruleRefusal(deck, entry.cardId as CardId, 1) === null;
     const type = fromYourGamesType(isDesktopType());
     const view = fromYourGamesOf(
       this.#insights,
@@ -2404,14 +2407,7 @@ ${entry.detail}`,
       deck,
       returnTo: { scene: SCENES.deckBuilder, data },
       // Deck check knows nothing of a campaign's grants and removals, so it is told how the campaign judges the deck.
-      ...(model
-        ? {
-            verdict: {
-              count: campaignDeckSizeLabel(campaignDeckSizeSplit(model)),
-              status: campaignDeckStatusOf(model),
-            },
-          }
-        : {}),
+      ...(model ? { verdict: campaignDeckVerdictOf(model) } : {}),
     } satisfies DeckCheckSceneData);
   }
 

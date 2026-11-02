@@ -376,9 +376,31 @@ export function seatDeckSizeSplit(seat: {
   return { counted, pinned };
 }
 
-/** `model`'s verdict as Deck check's status badge: the campaign's rules decide, not a loose deck's. */
-export function campaignDeckStatusOf(model: CampaignDeckEditModel): DeckStatus {
-  return model.validation.ok ? { text: "Legal", tone: "legal" } : { text: "Illegal", tone: "illegal" };
+/** What Deck check shows of a deck the campaign judges: its count in words, the cards that count, and the status. */
+export interface CampaignDeckVerdict {
+  readonly count: string;
+  readonly counted: number;
+  readonly status: DeckStatus;
+}
+
+/** `model`'s verdict for Deck check: the campaign's rules decide, not a loose deck's. */
+export function campaignDeckVerdictOf(model: CampaignDeckEditModel): CampaignDeckVerdict {
+  const split = campaignDeckSizeSplit(model);
+  return {
+    count: campaignDeckSizeLabel(split),
+    counted: split.counted,
+    status: model.validation.ok ? { text: "Legal", tone: "legal" } : { text: "Illegal", tone: "illegal" },
+  };
+}
+
+/** Whether the campaign refuses adding this line's card, for any way of adding it: the pool's "+", or a suggestion. */
+export function campaignRefusesAdd(row: CampaignDeckEditRow | null, frozen: boolean): boolean {
+  return frozen || (row?.refused ?? false);
+}
+
+/** Whether the campaign refuses taking a copy off this line: a must-keep grant, or a frozen deck. */
+export function campaignRefusesCut(row: CampaignDeckEditRow | null, frozen: boolean): boolean {
+  return frozen || (row?.locked ?? false);
 }
 
 /** The deck builder's count in words: "40 cards", "40 cards + 2 pinned", "40 cards + 1 reward". */

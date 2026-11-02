@@ -90,7 +90,8 @@ import {
 import { deckOptionOf } from "../view/deck-list-model.js";
 import { addCommunityDeck, testedEntryOf } from "../view/community-decks-model.js";
 import { testedCatalog } from "../view/seatable-decks.js";
-import { deckStatusOf, type DeckStatus, type DeckStatusTone } from "../view/deck-status.js";
+import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
+import type { CampaignDeckVerdict } from "../view/campaign-deck-edit-model.js";
 import { aspectLabelOf } from "../view/seat-slots.js";
 import { deckCheckFocusOrder } from "../view/screen-focus.js";
 import { deckCheckLayout, type DeckCheckTab } from "../view/deck-check-layout.js";
@@ -145,7 +146,7 @@ export interface DeckCheckSceneData {
    */
   readonly onStartGame?: (from: Phaser.Scene) => void;
   /** The count and status to show instead of the loose-deck rules': a campaign deck is judged by its campaign. */
-  readonly verdict?: { readonly count: string; readonly status: DeckStatus };
+  readonly verdict?: CampaignDeckVerdict;
 }
 
 /** One flattened slot of the card grid's `McVariableList`: a group's own header, or one row of that group's cards. */
@@ -515,7 +516,7 @@ export class DeckCheckScene extends Phaser.Scene {
       .text(
         titleX,
         layout.headerBar.height / 2,
-        `Your deck · ${stats.countedCards}`,
+        `Your deck · ${this.#verdict?.counted ?? stats.countedCards}`,
         textStyle(typeRole.pageTitle, surface.paper.hex),
       )
       .setOrigin(0, 0.5);
