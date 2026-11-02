@@ -1126,6 +1126,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       );
       updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: { ...event, counted } } : f));
       addFrameVars(ctx, frame.frameId, { boostIcons: counted });
+      emit(ctx, { type: "boostIconsCounted", cardInstanceId: event.cardInstanceId, count: counted });
       return;
     }
     case "basicRecovery":
@@ -2134,6 +2135,7 @@ function recordDamageTaken(
     ...(event.noPlayer ? { noPlayer: true as const } : {}),
     ...(event.retaliate ? { retaliate: true as const } : {}),
     ...(event.unpreventable ? { unpreventable: true as const } : {}),
+    ...(event.consequentialFrom ? { consequentialFrom: event.consequentialFrom } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
   // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell

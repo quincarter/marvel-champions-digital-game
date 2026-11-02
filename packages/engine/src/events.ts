@@ -870,6 +870,8 @@ export type GameEvent =
       readonly retaliate?: true;
       /** Unpreventable damage (`TriggerEvent dealDamage.unpreventable`, docs/phase7-wave11-hero-packs.md §H3.3). */
       readonly unpreventable?: true;
+      /** Consequential damage, and for what (`TriggerEvent dealDamage.consequentialFrom`), so a log can say so. */
+      readonly consequentialFrom?: "attack" | "thwart";
     }
   | {
       readonly type: "damagePrevented";
@@ -1111,6 +1113,11 @@ export type GameEvent =
       readonly enemyInstanceId: InstanceId;
       readonly activation: "attack" | "scheme";
     }
+  /**
+   * A card effect counted the boost icons on `cardInstanceId` (`EffectSpec countBoostIcons`, one per card): "for each
+   * boost icon discarded this way" can come to nothing, and only this says so (issue #627).
+   */
+  | { readonly type: "boostIconsCounted"; readonly cardInstanceId: InstanceId; readonly count: number }
   /** A facedown boost card moved from one card to another (`moveBoostCards`, docs/phase7-wave5.md §3.6). */
   | {
       readonly type: "boostCardMoved";

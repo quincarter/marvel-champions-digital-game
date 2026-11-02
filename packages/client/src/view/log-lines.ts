@@ -509,17 +509,16 @@ function describe(
         voice: "player",
       };
     case "damageDealt": {
-      // An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) is dealt to it by itself, right after
-      // its own attack or thwart. The event carries no flag for it, so it is read from what the ally just did in this
-      // command; self-damage with no such attack or thwart before it stays "from" itself.
-      const selfDealt = event.sourceInstanceId !== null && event.sourceInstanceId === event.targetInstanceId;
-      const doing = selfDealt ? whatItJustDid(burst, event.targetInstanceId) : null;
-      if (doing) {
+      // An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) is dealt to it by itself, after what
+      // its attack or thwart triggered, so a response's choices can put it in a later command than that attack or thwart.
+      if (event.consequentialFrom) {
+        const doing = event.consequentialFrom === "attack" ? "attacking" : "thwarting";
         return {
           text: `${card(event.targetInstanceId)} took ${event.amount} consequential damage for ${doing}.`,
           voice: "player",
         };
       }
+      const selfDealt = event.sourceInstanceId !== null && event.sourceInstanceId === event.targetInstanceId;
       // Named, so a player can see the keyword worked (#444: "Rhino took 1 damage from Black Panther" read as nothing).
       if (event.retaliate && event.sourceInstanceId) {
         return {
@@ -1603,6 +1602,12 @@ function describe(
         text: `${card(event.instanceId)} is discarded from the encounter deck.`,
         voice: "villain",
       };
+    // #627: the discard is on the board, but a count of nothing is not: "for each boost icon" just stops.
+    case "boostIconsCounted":
+      return {
+        text: `${card(event.cardInstanceId)} has ${event.count === 0 ? "no boost icons" : event.count === 1 ? "1 boost icon" : `${event.count} boost icons`}.`,
+        voice: "player",
+      };
     case "encounterDiscardCostSettled": {
       const n = event.discarded.length;
       const by = event.playerId ? `${who(event.playerId)} ${verb(event.playerId, "discard", "discards")}` : "Discard";
@@ -1706,23 +1711,6 @@ function typeWord(state: GameState, id: InstanceId): string {
   const card = cardOf(state, id);
   if (card?.type === "villain") return foeWord(card, { lower: true });
   return (card?.type ?? "card").replace(/_/g, " ");
-}
-
-/**
- * What `id` just did in this command, before the event being described: "attacking" if it dealt damage to another
- * card, "thwarting" if it removed threat. Null when it did neither.
- */
-function whatItJustDid(burst: Burst | undefined, id: InstanceId): "attacking" | "thwarting" | null {
-  if (!burst) return null;
-  for (let i = burst.at - 1; i >= 0; i--) {
-    const earlier = burst.events[i]!;
-    if (earlier.type === "damageDealt" && earlier.sourceInstanceId === id && earlier.targetInstanceId !== id) {
-      return "attacking";
-    }
-    if (earlier.type === "threatRemoved" && earlier.sourceInstanceId === id) return "thwarting";
-    if (earlier.type === "roundStarted") return null;
-  }
-  return null;
 }
 
 /** Bookkeeping events that sit between an effect and the one it caused without changing what happened. */

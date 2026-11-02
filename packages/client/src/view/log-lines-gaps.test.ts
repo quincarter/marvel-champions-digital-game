@@ -99,7 +99,13 @@ describe("consequential damage", () => {
   test("after the ally's own attack it is consequential damage for attacking", () => {
     const events: GameEvent[] = [
       { type: "damageDealt", targetInstanceId: villain, amount: 1, sourceInstanceId: handCard },
-      { type: "damageDealt", targetInstanceId: handCard, amount: 1, sourceInstanceId: handCard },
+      {
+        type: "damageDealt",
+        targetInstanceId: handCard,
+        amount: 1,
+        sourceInstanceId: handCard,
+        consequentialFrom: "attack",
+      },
     ];
     const out = lines(events, ally());
     expect(out[1]).toMatch(/took 1 consequential damage for attacking\.$/);
@@ -109,9 +115,42 @@ describe("consequential damage", () => {
   test("after its thwart it is for thwarting", () => {
     const events: GameEvent[] = [
       { type: "threatRemoved", schemeInstanceId: state.mainScheme.instanceId, amount: 1, sourceInstanceId: handCard },
-      { type: "damageDealt", targetInstanceId: handCard, amount: 2, sourceInstanceId: handCard },
+      {
+        type: "damageDealt",
+        targetInstanceId: handCard,
+        amount: 2,
+        sourceInstanceId: handCard,
+        consequentialFrom: "thwart",
+      },
     ];
     expect(lines(events, ally())[1]).toMatch(/took 2 consequential damage for thwarting\.$/);
+  });
+
+  test("#627: a thwart response's own damage to an enemy does not make it consequential damage for attacking", () => {
+    const events: GameEvent[] = [
+      { type: "damageDealt", targetInstanceId: villain, amount: 1, sourceInstanceId: handCard },
+      {
+        type: "damageDealt",
+        targetInstanceId: handCard,
+        amount: 1,
+        sourceInstanceId: handCard,
+        consequentialFrom: "thwart",
+      },
+    ];
+    expect(lines(events, ally())[1]).toMatch(/took 1 consequential damage for thwarting\.$/);
+  });
+
+  test("#627: alone in its command, after a response's choice, it is still consequential damage", () => {
+    const events: GameEvent[] = [
+      {
+        type: "damageDealt",
+        targetInstanceId: handCard,
+        amount: 1,
+        sourceInstanceId: handCard,
+        consequentialFrom: "thwart",
+      },
+    ];
+    expect(lines(events, ally())[0]).toMatch(/took 1 consequential damage for thwarting\.$/);
   });
 
   test("self-damage with no attack or thwart before it reads as dealt by itself", () => {
@@ -119,6 +158,17 @@ describe("consequential damage", () => {
       { type: "damageDealt", targetInstanceId: handCard, amount: 2, sourceInstanceId: handCard },
     ];
     expect(lines(events)[0]).toMatch(/took 2 damage from itself\.$/);
+  });
+});
+
+describe("#627: boost icons a card effect counted", () => {
+  const counted = (count: number): string =>
+    lines([{ type: "boostIconsCounted", cardInstanceId: handCard, count }])[0]!;
+
+  test("says what the count came to, nothing included", () => {
+    expect(counted(0)).toMatch(/ has no boost icons\.$/);
+    expect(counted(1)).toMatch(/ has 1 boost icon\.$/);
+    expect(counted(2)).toMatch(/ has 2 boost icons\.$/);
   });
 });
 
