@@ -120,6 +120,16 @@ describe("card history", () => {
 });
 
 describe("eventRefs", () => {
+  test("#627: a counted card's history shows the count the log does", () => {
+    const refs = eventRefs({
+      type: "boostIconsCounted",
+      cardInstanceId: "i7" as InstanceId,
+      cardId: "01104" as CardId,
+      count: 0,
+    });
+    expect(refs).toEqual(["i7"]);
+  });
+
   test("a ranged attack ignoring retaliate names the attacker and the attacked character (#623)", () => {
     const refs = eventRefs({
       type: "retaliateIgnoredByRanged",

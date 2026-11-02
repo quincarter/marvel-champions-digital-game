@@ -2,7 +2,15 @@
  * Log lines that used to be missing or misleading: a unique card refused by a card of the same title, consequential
  * damage, a card flipped by a card, counters, a swap, a ready after a form change, and a Special that blanked a minion.
  */
-import { activeVillain, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import type { CardId } from "@mc/content";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS, CARDS_BY_ID } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -162,13 +170,53 @@ describe("consequential damage", () => {
 });
 
 describe("#627: boost icons a card effect counted", () => {
+  const cardId = (): CardId => state.instances[handCard]!.cardId;
+  const named = (): string => CARDS_BY_ID.get(cardId() as string)!.name;
+  const villainCardId = (): CardId => state.instances[villain]!.cardId;
   const counted = (count: number): string =>
-    lines([{ type: "boostIconsCounted", cardInstanceId: handCard, count }])[0]!;
+    lines([{ type: "boostIconsCounted", cardInstanceId: handCard, cardId: cardId(), count }])[0]!;
 
   test("says what the count came to, nothing included", () => {
-    expect(counted(0)).toMatch(/ has no boost icons\.$/);
-    expect(counted(1)).toMatch(/ has 1 boost icon\.$/);
-    expect(counted(2)).toMatch(/ has 2 boost icons\.$/);
+    expect(counted(0)).toBe(`${named()} has no boost icons.`);
+    expect(counted(1)).toBe(`${named()} has 1 boost icon.`);
+    expect(counted(2)).toBe(`${named()} has 2 boost icons.`);
+  });
+
+  test("a replaced count names the card it read, not the card it replaced", () => {
+    const event: GameEvent = {
+      type: "boostIconsCounted",
+      cardInstanceId: handCard,
+      cardId: cardId(),
+      count: 0,
+      countedCardId: villainCardId(),
+    };
+    const other = CARDS_BY_ID.get(villainCardId() as string)!.name;
+    expect(lines([event])[0]).toBe(`${other} is counted instead of ${named()}: no boost icons.`);
+  });
+
+  test("an adjusted count does not claim the card has those icons", () => {
+    const event: GameEvent = {
+      type: "boostIconsCounted",
+      cardInstanceId: handCard,
+      cardId: cardId(),
+      count: 2,
+      adjusted: true,
+    };
+    expect(lines([event])[0]).toBe(`${named()} counts as 2 boost icons.`);
+  });
+
+  test("a card the deck's reset shuffled back facedown is still named", () => {
+    const piles = activeEncounterDeck(state);
+    const hidden = piles.deck[0]!;
+    const hiddenCardId = state.instances[hidden]!.cardId;
+    const line = lines([{ type: "boostIconsCounted", cardInstanceId: hidden, cardId: hiddenCardId, count: 1 }])[0]!;
+    expect(line).toBe(`${CARDS_BY_ID.get(hiddenCardId as string)!.name} has 1 boost icon.`);
+  });
+
+  test("an encounter card's count reads as the villain's, a hero's as the player's", () => {
+    const event = { type: "boostIconsCounted", cardInstanceId: handCard, cardId: cardId(), count: 1 } as const;
+    expect(logLine(event, state, me, POOL_DEPS)!.voice).toBe("player");
+    expect(logLine({ ...event, byEncounter: true }, state, me, POOL_DEPS)!.voice).toBe("villain");
   });
 });
 

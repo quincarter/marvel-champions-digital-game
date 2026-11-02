@@ -111,11 +111,9 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
       WAVE2_DEPS,
     );
     if (!applied.ok) throw new Error(applied.error.message);
-    expect(applied.events).toContainEqual({
-      type: "boostIconsCounted",
-      cardInstanceId: expect.anything(),
-      count: 0,
-    });
+    expect(applied.events).toContainEqual(
+      expect.objectContaining({ type: "boostIconsCounted", cardId: cardId("01104"), count: 0 }),
+    );
     expect(applied.state.pendingChoice).toBeNull();
     expect(inst(applied.state, villain).damage).toBe(0);
     // Consequential damage comes after the response (RRG 1.8 "Consequential Damage", p. 13), and says what it was for.

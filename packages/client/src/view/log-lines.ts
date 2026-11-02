@@ -1602,12 +1602,21 @@ function describe(
         text: `${card(event.instanceId)} is discarded from the encounter deck.`,
         voice: "villain",
       };
-    // #627: the discard is on the board, but a count of nothing is not: "for each boost icon" just stops.
-    case "boostIconsCounted":
+    // #627: the discard is on the board, but a count of nothing is not: "for each boost icon" just stops. Named by the
+    // event's card ids: the card was open to everyone, and the deck's reset can have shuffled it back facedown since.
+    case "boostIconsCounted": {
+      const icons =
+        event.count === 0 ? "no boost icons" : event.count === 1 ? "1 boost icon" : `${event.count} boost icons`;
+      const name = cardIdName(state, event.cardId);
       return {
-        text: `${card(event.cardInstanceId)} has ${event.count === 0 ? "no boost icons" : event.count === 1 ? "1 boost icon" : `${event.count} boost icons`}.`,
-        voice: "player",
+        text: event.countedCardId
+          ? `${cardIdName(state, event.countedCardId)} is counted instead of ${name}: ${icons}.`
+          : event.adjusted
+            ? `${name} counts as ${icons}.`
+            : `${name} has ${icons}.`,
+        voice: event.byEncounter ? "villain" : "player",
       };
+    }
     case "encounterDiscardCostSettled": {
       const n = event.discarded.length;
       const by = event.playerId ? `${who(event.playerId)} ${verb(event.playerId, "discard", "discards")}` : "Discard";

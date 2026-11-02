@@ -1126,7 +1126,15 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       );
       updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: { ...event, counted } } : f));
       addFrameVars(ctx, frame.frameId, { boostIcons: counted });
-      emit(ctx, { type: "boostIconsCounted", cardInstanceId: event.cardInstanceId, count: counted });
+      emit(ctx, {
+        type: "boostIconsCounted",
+        cardInstanceId: event.cardInstanceId,
+        cardId: mustInstance(ctx.state, event.cardInstanceId).cardId,
+        count: counted,
+        ...(event.countFrom ? { countedCardId: mustInstance(ctx.state, event.countFrom).cardId } : {}),
+        ...(event.countAdjust ? { adjusted: true as const } : {}),
+        ...(event.byEncounter ? { byEncounter: true as const } : {}),
+      });
       return;
     }
     case "basicRecovery":

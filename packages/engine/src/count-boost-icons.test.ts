@@ -99,6 +99,67 @@ function useAction(listener: StubAbility | null, action: StubAbility): GameState
   return settle(result.state, defaultPick, deps);
 }
 
+function countsFrom(listener: StubAbility | null) {
+  const { state, deps } = game(listener, ONE_ICON.id);
+  let result = applyCommand(
+    state,
+    {
+      type: "useAbility",
+      playerId: p1,
+      cardInstanceId: state.players[0]!.identity.instanceId,
+      abilityId: DISCARD_AND_COUNT.ref.id,
+      payment: [],
+    },
+    deps,
+  );
+  const events: GameEvent[] = [];
+  for (let guard = 0; result.ok && guard < 50; guard++) {
+    events.push(...result.events);
+    const choice = result.state.pendingChoice;
+    if (!choice) break;
+    result = applyCommand(
+      result.state,
+      {
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: defaultPick(result.state),
+      },
+      deps,
+    );
+  }
+  if (!result.ok) throw new Error(result.error.message);
+  return {
+    identityCardId: mustInstance(state, state.players[0]!.identity.instanceId).cardId,
+    counts: events.filter((e) => e.type === "boostIconsCounted"),
+  };
+}
+
+describe("boostIconsCounted: what the log is told about a count (issue #627)", () => {
+  it("a plain count gives the card and its icons, one event per card", () => {
+    const { counts } = countsFrom(null);
+    expect(counts).toHaveLength(2);
+    for (const count of counts) {
+      expect(count).toEqual({
+        type: "boostIconsCounted",
+        cardInstanceId: count.cardInstanceId,
+        cardId: ONE_ICON.id,
+        count: 1,
+      });
+    }
+  });
+
+  it("an adjusted count is marked, as the card does not have those icons", () => {
+    const { counts } = countsFrom(CREST);
+    expect(counts[0]).toMatchObject({ cardId: ONE_ICON.id, count: 2, adjusted: true });
+  });
+
+  it("a replaced count names the card it read", () => {
+    const { counts, identityCardId } = countsFrom(CHAOS);
+    expect(counts[0]).toMatchObject({ cardId: ONE_ICON.id, count: 0, countedCardId: identityCardId });
+  });
+});
+
 describe("countBoostIcons: a card effect's count of boost icons", () => {
   it("with no listener the count is the discarded cards' icons", () => {
     expect(villainDamage(useAction(null, DISCARD_AND_COUNT))).toBe(2);
@@ -142,6 +203,10 @@ describe("countBoostIcons: a card effect's count of boost icons", () => {
     // The discarded card: 1 icon, +1 for its count. The boost card: 1 icon, +1 for its own count, not +2.
     expect(villainDamage(result.state)).toBe(2);
     expect(resolved?.boostIcons).toBe(2);
+    // A Boost ability is an encounter card's effect, so its count reads as the villain's.
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "boostIconsCounted", count: 2, adjusted: true, byEncounter: true }),
+    );
     // The effect's count is logged with what it counted.
     expect(events).toContainEqual(
       expect.objectContaining({
