@@ -239,6 +239,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   resolveAbilityCostSettled: [ALLOWED, "cost bookkeeping"],
   resourceAbilityEffects: [ALLOWED, "resources, face up"],
   resourcesGenerated: [ALLOWED, "resources, face up"],
+  retaliateIgnoredByRanged: [ALLOWED, "rules bookkeeping, nothing hidden"],
   returnedToSeparateDeck: [STOPS, "a deck changed"],
   revealCancelled: [STOPS, "a reveal happened"],
   revealReplaced: [STOPS, "a reveal happened"],

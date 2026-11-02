@@ -75,7 +75,14 @@ export function appendCardHistory(log: CardHistoryLog, events: readonly GameEven
 export function eventRefs(event: GameEvent): readonly InstanceId[] {
   switch (event.type) {
     case "cardMoved":
-      return event.to.kind === "dealtEncounter" ? [event.instanceId] : [];
+      if (event.to.kind === "dealtEncounter") return [event.instanceId];
+      // A boost card attaching itself (Red Skull's Luger), worded by the log since issue #623.
+      if (event.from.kind === "boost" && event.to.kind === "attachment") {
+        return [event.instanceId, event.to.hostInstanceId];
+      }
+      return [];
+    case "retaliateIgnoredByRanged":
+      return [event.attackerInstanceId, event.targetInstanceId];
     case "cardDrawn":
     case "cardDiscardedFromHand":
     case "cardExhausted":

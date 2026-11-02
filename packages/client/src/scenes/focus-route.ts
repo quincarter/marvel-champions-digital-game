@@ -77,6 +77,11 @@ export interface FocusStop {
   /** A slider: Left / Right (and the pad's d-pad) step it instead of moving focus. */
   readonly adjust?: (direction: -1 | 1) => void;
   /**
+   * A stop with a cursor of its own (a grid of cells): the arrows move inside it. Return false at its edge, and the
+   * arrow moves focus as usual, so the stop never traps it.
+   */
+  readonly steer?: (direction: "up" | "down" | "left" | "right") => boolean;
+  /**
    * The right stick while this stop is focused, for a stop that holds its own scroll (a text block, a card's rules, a
    * nested list): pixels to scroll this frame (positive down) and the frame's length. Return true when it scrolled;
    * false (at its end, or nothing to scroll) hands the stick on to the screen's `onScroll`.
@@ -138,7 +143,7 @@ export interface FocusRouteOptions {
    * For a screen whose stops sit off to the side of each other (a Close in a corner over a card grid): an arrow that
    * finds nothing in its 90 degree cone goes to the nearest stop strictly that way instead of staying put.
    */
-  readonly reachAcross?: boolean;
+  readonly reachAcross?: boolean | (() => boolean);
   /**
    * Y / the Inspect key, ahead of the focused stop's own `inspect`. Return true when the screen took it (Y shows or
    * hides the filters on Scenario select and Take your seats while a pad is in use). `source` is "key" for the keyboard.
@@ -189,7 +194,7 @@ export class FocusRoute {
   readonly #onTab: ((direction: 1 | -1) => void) | undefined;
   readonly #onToggle: (() => void) | undefined;
   readonly #onInspect: ((source?: "key") => boolean) | undefined;
-  readonly #reachAcross: boolean;
+  readonly #reachAcross: () => boolean;
   readonly #topRow: boolean;
   /** The ring is hidden after the mouse takes over, until the next pad or keyboard input. */
   #ringHidden = false;
@@ -222,7 +227,8 @@ export class FocusRoute {
     this.#onTab = options.onTab;
     this.#onToggle = options.onToggle;
     this.#onInspect = options.onInspect;
-    this.#reachAcross = options.reachAcross ?? false;
+    const reachAcross = options.reachAcross ?? false;
+    this.#reachAcross = typeof reachAcross === "function" ? reachAcross : () => reachAcross;
     this.#topRow = options.topRow ?? false;
     // The mouse moving hides the ring (it comes back, on the same stop, at the next pad or keyboard input). The change
     // arrives deferred (platform/input-device.ts), never mid-press.
@@ -509,11 +515,15 @@ export class FocusRoute {
           adjust(intent === "left" ? -1 : 1);
           break;
         }
+        if (this.#focus !== null && this.#stopOf(this.#focus)?.steer?.(intent)) {
+          this.#drawRing();
+          break;
+        }
         // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow
         // that finds nothing in its cone still reaches the screen below, so focus there is never stranded.
         const fromChrome = this.#focus !== null && CHROME_STOPS.has(this.#focus);
         this.#moveTo(
-          spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross || fromChrome),
+          spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross() || fromChrome),
         );
         break;
       }

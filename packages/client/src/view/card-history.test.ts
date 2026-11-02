@@ -5,6 +5,7 @@
  */
 
 import { beforeAll, describe, expect, test } from "vitest";
+import type { CardId } from "@mc/content";
 import type { GameEvent, GameState, InstanceId, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -119,6 +120,27 @@ describe("card history", () => {
 });
 
 describe("eventRefs", () => {
+  test("a ranged attack ignoring retaliate names the attacker and the attacked character (#623)", () => {
+    const refs = eventRefs({
+      type: "retaliateIgnoredByRanged",
+      attackerInstanceId: "a" as InstanceId,
+      targetInstanceId: "t" as InstanceId,
+      amount: 1,
+    });
+    expect(refs).toEqual(["a", "t"]);
+  });
+
+  test("a boost card attaching itself names the card and its host (#623)", () => {
+    const refs = eventRefs({
+      type: "cardMoved",
+      instanceId: "b" as InstanceId,
+      cardId: "04132" as CardId,
+      from: { kind: "boost", hostInstanceId: "v" as InstanceId },
+      to: { kind: "attachment", hostInstanceId: "v" as InstanceId },
+    });
+    expect(refs).toEqual(["b", "v"]);
+  });
+
   test("names both sides of damage dealt with a known source", () => {
     const refs = eventRefs({
       type: "damageDealt",
