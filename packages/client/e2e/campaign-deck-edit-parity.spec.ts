@@ -186,6 +186,31 @@ test.describe("an upright tablet", () => {
   });
 });
 
+test.describe("the narrowest wide layout", () => {
+  test.use({ viewport: { width: 1000, height: 820 } });
+
+  test("keeps the search field usable with a query in it", async ({ page }, info) => {
+    test.skip(info.project.name !== "phone", "a touch screen");
+    test.setTimeout(120_000);
+    const errors = trackErrors(page);
+    await openCampaignDeck(page);
+    await clickStop(page, "filter-text", "DeckBuilder");
+    await page.keyboard.type("web");
+    await settle(page);
+    const stops = (await routeStops(page, "DeckBuilder"))?.stops ?? [];
+    expect(
+      stops.find((stop) => stop.key === "filter-clear"),
+      "the Clear button",
+    ).toBeTruthy();
+    expect(stops.find((stop) => stop.key === "filter-text")!.rect.width).toBeGreaterThan(120);
+    expect(
+      stops.find((stop) => stop.key === "filters-toggle"),
+      "the Filters chip",
+    ).toBeTruthy();
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("the pool at tablet size", () => {
   test.use({ viewport: { width: 820, height: 1180 } });
 

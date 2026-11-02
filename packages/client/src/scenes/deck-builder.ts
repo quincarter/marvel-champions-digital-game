@@ -386,6 +386,8 @@ const QUICK_FILTERS: readonly {
 
 /** Under this height the narrow layout folds the pool's filters behind the Filters chip, as a phone does. */
 const FOLD_FILTERS_BELOW_HEIGHT = 700;
+/** The search row's Card/List toggle, ?, Clear and their gaps, plus a field that can still show a query. */
+const SEARCH_ROW_MIN_WIDTH = 92 + hit.target * 2 + CHIP_GAP * 3 + 160;
 /** The wide left rail's Cost curve / Odds tabs: shorter than a touch target, as only a mouse reaches them there. */
 const CHART_TAB_HEIGHT = 30;
 const CARD_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL.map((card) => [card.id as string, card]));
@@ -1265,11 +1267,18 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     midY += 16;
     if (folded) {
-      // One row: the search, then the chip that opens everything else in the list's place.
+      // The search, then the chip that opens everything else in the list's place: one row, where the field keeps a
+      // usable width even with its Clear button showing.
       const chipWidth = 150;
       const searchWidth = midWidth - chipWidth - CHIP_GAP;
-      this.#drawFiltersToggle({ x: midX + searchWidth + CHIP_GAP, y: midY, width: chipWidth, height: hit.target });
-      midY = this.#drawFilterInput(midX, midY, searchWidth);
+      if (searchWidth >= SEARCH_ROW_MIN_WIDTH) {
+        this.#drawFiltersToggle({ x: midX + searchWidth + CHIP_GAP, y: midY, width: chipWidth, height: hit.target });
+        midY = this.#drawFilterInput(midX, midY, searchWidth);
+      } else {
+        midY = this.#drawFilterInput(midX, midY, midWidth);
+        this.#drawFiltersToggle({ x: midX, y: midY, width: chipWidth, height: hit.target });
+        midY += hit.target + CHIP_GAP;
+      }
       if (this.#filtersOpen) {
         const rect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(hit.target * 2, bottom - midY) };
         const inner = midWidth - NARROW_SCROLLBAR_GUTTER;
