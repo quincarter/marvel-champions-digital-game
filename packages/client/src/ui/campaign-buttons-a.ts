@@ -181,7 +181,7 @@ export function campaignTile(
     .setWordWrapWidth(Math.max(40, rect.width - 22 - 14 - 8));
   const chipHeight = Math.max(19, chipLabel.height + 7);
   const chipY = rect.y + rect.height - 10 - chipHeight;
-  const titleSize = Math.min(46, rect.width * 0.24);
+  const titleSize = Math.min(46, rect.width * 0.24, rect.height * 0.24);
 
   // Laid out bottom-up (chip, then subtitle, then title) so a two-line box name never collides with the chip below
   // it — text height is only known once the object exists, so this measures each before placing the one above it.

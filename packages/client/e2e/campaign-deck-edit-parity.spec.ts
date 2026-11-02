@@ -117,10 +117,26 @@ test.describe("a tablet held sideways", () => {
   });
 });
 
+test("a phone starts on the volume rows and can switch to box art tiles", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone");
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  await installWave6Helpers(page);
+  await page.goto("/?unlock=all&screen=saga");
+  await waitForScene(page, "CampaignSaga");
+  await settle(page);
+  const volumeTwo = async () => (await routeStops(page, "CampaignSaga"))?.stops.find((stop) => stop.key === "vol-2");
+  expect((await volumeTwo())!.rect.width, "a full-width row").toBeGreaterThan(300);
+  await clickStop(page, "volumes-view", "CampaignSaga");
+  await settle(page);
+  expect((await volumeTwo())!.rect.width, "a tile").toBeLessThan(220);
+  expect(errors).toEqual([]);
+});
+
 test.describe("an upright tablet", () => {
   test.use({ viewport: { width: 820, height: 1180 } });
 
-  test("stacks the selected campaign over the volume list, as a phone does", async ({ page }, info) => {
+  test("stacks the selected campaign over box art tiles, with a list view it remembers", async ({ page }, info) => {
     test.skip(info.project.name !== "phone", "a touch screen");
     test.setTimeout(120_000);
     const errors = trackErrors(page);
@@ -128,16 +144,44 @@ test.describe("an upright tablet", () => {
     await page.goto("/?unlock=all&screen=saga");
     await waitForScene(page, "CampaignSaga");
     await settle(page);
-    const stops = (await routeStops(page, "CampaignSaga"))?.stops ?? [];
-    const second = stops.find((stop) => stop.key === "vol-2");
-    expect(second, "a volume row").toBeTruthy();
-    // A full-width row, not a grid tile.
-    expect(second!.rect.width).toBeGreaterThan(700);
-    await page.touchscreen.tap(second!.rect.x + 200, second!.rect.y + second!.rect.height / 2);
+    const volumeTwo = async () => (await routeStops(page, "CampaignSaga"))?.stops.find((stop) => stop.key === "vol-2");
+
+    // Tiles: four across, under the selected campaign.
+    const tile = await volumeTwo();
+    expect(tile, "a volume tile").toBeTruthy();
+    expect(tile!.rect.width).toBeLessThan(250);
+    await page.touchscreen.tap(tile!.rect.x + tile!.rect.width / 2, tile!.rect.y + tile!.rect.height / 2);
     await waitFor(
       async () => ((await findText(page, "START VOL. 2", "CampaignSaga")).length > 0 ? true : null),
       "vol 2",
     );
+
+    // A swipe that lifts over a tile picks nothing.
+    const third = (await routeStops(page, "CampaignSaga"))!.stops.find((stop) => stop.key === "vol-3")!;
+    const x = third.rect.x + third.rect.width / 2;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y: third.rect.y + 150, id: 1 }],
+    });
+    for (let step = 1; step <= 10; step++)
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x, y: third.rect.y + 150 - step * 14, id: 1 }],
+      });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    await settle(page);
+    expect((await findText(page, "START VOL. 2", "CampaignSaga")).length, "still volume 2").toBeGreaterThan(0);
+
+    await clickStop(page, "volumes-view", "CampaignSaga");
+    await settle(page);
+    expect((await volumeTwo())!.rect.width, "a full-width row").toBeGreaterThan(700);
+
+    await page.reload();
+    await waitForScene(page, "CampaignSaga");
+    await settle(page);
+    expect((await volumeTwo())!.rect.width, "the choice is kept").toBeGreaterThan(700);
     expect(errors).toEqual([]);
   });
 });
