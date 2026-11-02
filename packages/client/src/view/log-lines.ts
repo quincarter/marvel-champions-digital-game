@@ -751,7 +751,9 @@ function describe(
       return {
         // The boost card is named: its own Boost ability can change the attack (Red Skull's Luger attaches and gives
         // the attack ranged, so retaliate is ignored; issue #623), and an unnamed card left that unexplained.
-        text: `Boost: ${card(event.instanceId)}, ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
+        // By its printed name: the card was faceup when flipped, even if it is back in a hidden deck by the end of the
+        // command (a reshuffle later in the same burst), where `card()` would only say "a facedown card".
+        text: `Boost: ${cardOf(state, event.instanceId)?.name ?? card(event.instanceId)}, ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
         voice: "villain",
       };
     // docs/phase7-wave11-scenarios.md §S3.7: a villainous ally or hero turns up its boost card as its basic power
@@ -1380,7 +1382,8 @@ function describe(
     case "retaliateIgnoredByRanged":
       return {
         text: `${card(event.attackerInstanceId)}'s attack is ranged, so it ignores ${card(event.targetInstanceId)}'s retaliate ${event.amount}.`,
-        voice: "villain",
+        // A player's ranged attack (Hawkeye) against an enemy with retaliate reads as the player's, not the villain's.
+        voice: getInstance(state, event.attackerInstanceId)?.controllerId ? "player" : "villain",
       };
     // docs/phase7-wave8.md §3.21: an ability that had triggered but a rule says to ignore.
     case "abilityIgnored": {
