@@ -9,7 +9,7 @@ export const RELEASE_NOTICE_ON = true;
 /** Name the latest release on GitHub instead of `RELEASE_NOTICE_VERSION`, which stays until GitHub answers. */
 export const RELEASE_NOTICE_FOLLOW_LATEST = true;
 /** The release whose report the bar opens. */
-export const RELEASE_NOTICE_VERSION = "v0.42.0";
+export const RELEASE_NOTICE_VERSION = "v0.43.0";
 
 /** The bar's height: a slim strip, still a touch-sized target. */
 export const NOTICE_BAR_HEIGHT = 40;
