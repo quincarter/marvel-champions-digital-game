@@ -34,7 +34,6 @@ import {
   theMainScheme,
   theVillain,
   thwart,
-  varAtLeast,
   varOf,
   villainStageNumberOf,
   you,
@@ -85,12 +84,8 @@ export const SCW_PACK_CARDS = defineAbilities({
     on.thwarts("self"),
     discardEncounterCards(1, { bind: "d" }),
     countBoostIcons(chosen("d"), "d"),
-    // No icons means no repeats, so no enemy to choose (RRG 1.8 "For Each", p. 20). With no "choose" in the clause,
-    // any icons are one target and a single instance of damage (same entry).
-    ifThen(varAtLeast("d.boostIcons"), [
-      chooseTarget("enemy", query("enemy")),
-      dealDamage(varOf("d.boostIcons"), chosen("enemy")),
-    ]),
+    chooseTarget("enemy", query("enemy")),
+    dealDamage(varOf("d.boostIcons"), chosen("enemy")),
   ),
 
   // Crisis Averted (15012, Justice event) — Hero Action (thwart): Remove 6 threat from the main scheme. If you
