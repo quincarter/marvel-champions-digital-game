@@ -28,6 +28,7 @@ import {
 import { campaignActionButton, campaignTile, type CampaignTileStatus } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import { inputDevice } from "../../platform/input-device.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
 import { McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -348,7 +349,7 @@ export class CampaignSagaScene extends Phaser.Scene {
         rememberSagaVolumesView(this.#volumesChosen);
         this.#listScroll.reset();
         this.#rebuild();
-        this.#route?.focusKey(VIEW_STOP);
+        if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey(VIEW_STOP);
       };
       const button = new McButton(this, {
         kind: "secondary",
