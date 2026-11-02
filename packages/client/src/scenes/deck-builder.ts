@@ -853,7 +853,14 @@ export class DeckBuilderScene extends Phaser.Scene {
         showPreconClear: !this.#campaign,
         showDelete: !this.#campaign && this.#savedDeck !== null,
         railIds: this.#railStops,
-        filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "filter-help", "pool-view"],
+        filterExtraIds: [
+          ...(this.#filterText ? ["filter-clear"] : []),
+          "filter-help",
+          "pool-view",
+          ...(this.#narrowFolded ? ["filters-toggle"] : []),
+        ],
+        filtersFolded: this.#narrowFolded,
+        filtersOpen: this.#filtersOpen,
         rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
       }),
       this.#stops,
@@ -977,7 +984,7 @@ export class DeckBuilderScene extends Phaser.Scene {
    * browsable pool (the Pool tab's cards; empty on the other tabs), for the caller's focus order.
    */
   #rebuildNarrow(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
-    const { width, height } = this.scale.gameSize;
+    const { height } = this.scale.gameSize;
     const pad = 16;
     let y = this.#drawTabRow(left, top, column, DECK_BUILDER_TABS, deck);
 
@@ -1023,30 +1030,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Pool: the search row, the filters (behind a chip on a phone), and the list filling what is left.
     y = this.#drawFilterInput(left, y, column);
     const pool = this.#browsablePool(deck);
-    // Anything short folds the filters too: drawn open on a landscape phone they would push the list off the screen.
-    const form = formFactorFor(width, height);
-    const folded = form === "phone" || form === "phoneLandscape" || height < FOLD_FILTERS_BELOW_HEIGHT;
+    const folded = this.#filtersFold();
     this.#narrowFolded = folded;
     const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
     if (folded) {
-      const active = activeDeckFilterCount(this.#filter, this.#sort);
-      const chip: Rect = { x: left, y, width: Math.min(column * 0.55, 200), height: hit.target };
-      const toggle = (): void => {
-        this.#filtersOpen = !this.#filtersOpen;
-        this.#rebuild();
-        if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey("filters-toggle");
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: `${this.#filtersOpen ? "▾" : "▸"} Filters${active > 0 ? ` · ${active}` : ""}`,
-          type: typeRole.label,
-          rect: chip,
-          selected: active > 0,
-          onClick: toggle,
-        }),
-      );
-      this.#stops.set("filters-toggle", { rect: chip, activate: toggle });
+      this.#drawFiltersToggle({ x: left, y, width: Math.min(column * 0.55, 200), height: hit.target });
       label(this, left + column, y + hit.target / 2, countText, typeRole.label, surface.ink.hex, ink.meta).setOrigin(
         1,
         0.5,
@@ -1073,6 +1061,37 @@ export class DeckBuilderScene extends Phaser.Scene {
     const listRect: Rect = { x: left, y, width: column, height: Math.max(this.#rows.cardRowHeight, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
+  }
+
+  /**
+   * Whether the filters sit behind a "Filters" chip: everywhere but a desktop-size screen, so a tablet's pool gets the
+   * height (issue #631). Anything short folds them too: drawn open on a landscape phone they would push the list off
+   * the screen.
+   */
+  #filtersFold(): boolean {
+    const { width, height } = this.scale.gameSize;
+    return formFactorFor(width, height) !== "desktop" || height < FOLD_FILTERS_BELOW_HEIGHT;
+  }
+
+  /** The "Filters" chip: opens the filters in the pool list's place, and counts how many are on. */
+  #drawFiltersToggle(rect: Rect): void {
+    const active = activeDeckFilterCount(this.#filter, this.#sort);
+    const toggle = (): void => {
+      this.#filtersOpen = !this.#filtersOpen;
+      this.#rebuild();
+      if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey("filters-toggle");
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: `${this.#filtersOpen ? "▾" : "▸"} Filters${active > 0 ? ` · ${active}` : ""}`,
+        type: typeRole.label,
+        rect,
+        selected: active > 0,
+        onClick: toggle,
+      }),
+    );
+    this.#stops.set("filters-toggle", { rect, activate: toggle });
   }
 
   /** The fixed tab row: Pool, Deck with its live count, and From your games. Returns the y below it. */
@@ -1117,7 +1136,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const added = this.children.list.slice(before).filter((node) => node !== nameNode);
 
     const heights = [bottom - rect.y];
-    const nameRect = this.#nameFieldRect;
+    // The wide layout's name field sits in the deck rail, outside any region this draws.
+    const nameRect = this.#isWide() ? null : this.#nameFieldRect;
     const syncName = (): void => {
       if (!this.#nameInput || !nameRect) return;
       const screenY = nameRect.y - scroll.offsetPx;
@@ -1170,6 +1190,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const { height } = this.scale.gameSize;
     const pad = 40;
     const bottom = height - pad;
+    const folded = this.#filtersFold();
+    this.#narrowFolded = folded;
 
     const leftX = left;
     const midX = leftX + LEFT_RAIL_WIDTH + RAIL_GAP;
@@ -1179,8 +1201,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Left rail: aspect, filter, cost curve.
     let leftY = top;
     leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
-    leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
-    leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
+    if (!folded) {
+      leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
+      leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
+    }
     // The cost curve and the odds share the rail's last room behind two tabs (issue #531).
     const tabWidth = (LEFT_RAIL_WIDTH - CHIP_GAP) / 2;
     for (const [i, tab] of (["curve", "odds"] as const).entries()) {
@@ -1227,23 +1251,42 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#drawPreconClearSave(rightX + 12, actionsTop, RIGHT_RAIL_WIDTH - 24, deck, true);
 
     // Middle: the pool, search field above it.
-    let midY = top;
-    label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
-    midY += 16;
-    midY = this.#drawFilterInput(midX, midY, midWidth);
-    // The quick filters sit under the search here: the left rail has no room left for them.
-    midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
     const pool = this.#browsablePool(deck);
+    const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
+    let midY = top;
     label(
       this,
       midX,
       midY,
-      `${pool.length} card${pool.length === 1 ? "" : "s"}`,
+      folded ? `card pool — ${countText}` : "card pool",
       typeRole.label,
       surface.ink.hex,
-      ink.meta,
+      ink.label,
     );
     midY += 16;
+    if (folded) {
+      // One row: the search, then the chip that opens everything else in the list's place.
+      const chipWidth = 150;
+      const searchWidth = midWidth - chipWidth - CHIP_GAP;
+      this.#drawFiltersToggle({ x: midX + searchWidth + CHIP_GAP, y: midY, width: chipWidth, height: hit.target });
+      midY = this.#drawFilterInput(midX, midY, searchWidth);
+      if (this.#filtersOpen) {
+        const rect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(hit.target * 2, bottom - midY) };
+        const inner = midWidth - NARROW_SCROLLBAR_GUTTER;
+        this.#drawNarrowRegion(rect, this.#filtersScroll, (at) => {
+          let next = this.#drawTypeFilters(midX, at, inner);
+          next = this.#drawQuickFilters(midX, next, inner, deck);
+          return this.#drawPackAndSort(midX, next, inner, deck);
+        });
+        return pool;
+      }
+    } else {
+      midY = this.#drawFilterInput(midX, midY, midWidth);
+      // The quick filters sit under the search here: the left rail has no room left for them.
+      midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
+      label(this, midX, midY, countText, typeRole.label, surface.ink.hex, ink.meta);
+      midY += 16;
+    }
     const listRect: Rect = {
       x: midX,
       y: midY,

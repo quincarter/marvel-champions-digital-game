@@ -91,6 +91,32 @@ test("Review on a narrow screen counts a campaign deck as the campaign does, lea
   expect(errors).toEqual([]);
 });
 
+test.describe("a tablet held sideways", () => {
+  test.use({ viewport: { width: 1180, height: 820 } });
+
+  test("folds the filters behind a chip that opens them in the pool's place", async ({ page }, info) => {
+    test.skip(info.project.name !== "phone", "a touch screen");
+    test.setTimeout(120_000);
+    const errors = trackErrors(page);
+    await openCampaignDeck(page);
+    const keys = async (): Promise<string[]> =>
+      ((await routeStops(page, "DeckBuilder"))?.stops ?? []).map((stop) => stop.key);
+    expect(await keys()).toContain("filters-toggle");
+    expect(await keys()).not.toContain("type:ally");
+    expect(await keys()).toContain("chart:odds");
+
+    await clickStop(page, "filters-toggle", "DeckBuilder");
+    await settle(page);
+    expect(await keys()).toContain("type:ally");
+    await clickStop(page, "type:ally", "DeckBuilder");
+    await clickStop(page, "filters-toggle", "DeckBuilder");
+    await settle(page);
+    expect((await findText(page, "Filters · 1", "DeckBuilder")).length).toBeGreaterThan(0);
+    expect((await keys()).some((key) => key.startsWith("card:"))).toBe(true);
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("the pool at tablet size", () => {
   test.use({ viewport: { width: 820, height: 1180 } });
 
