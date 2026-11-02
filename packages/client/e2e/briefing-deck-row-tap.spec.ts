@@ -31,6 +31,7 @@ test("a touch that lifts on a Briefing deck row opens nothing; a tap opens the d
   expect(await activeScenes(page)).not.toContain("CampaignDeckEdit");
 
   await page.touchscreen.tap(target.x, target.y);
-  await waitForScene(page, "CampaignDeckEdit");
+  // Deck edit only loads the run and hands over to the deck builder, too quickly to catch it on the way.
+  await waitForScene(page, "DeckBuilder");
   expect(errors).toEqual([]);
 });
