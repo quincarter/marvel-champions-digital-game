@@ -1646,6 +1646,8 @@ export type TriggerEventBody =
       readonly countAdjust?: number;
       /** Effect counts only: the icons counted, floored at 0. Set as the event applies. */
       readonly counted?: number;
+      /** Effect counts only: an encounter card's effect is counting. */
+      readonly byEncounter?: true;
     }
   /**
    * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super
