@@ -1,6 +1,6 @@
 /**
  * C00b — The Saga: the campaign shelf. One featured volume (art, status, its own CTA) plus a 3×3 "ALL VOLUMES"
- * grid — desktop/tablet — or a scrolling list — phone — of all ten boxes in release order (`SAGA_VOLUMES`).
+ * grid — desktop and a sideways tablet — or a scrolling list — phone and an upright tablet — of all ten boxes in release order (`SAGA_VOLUMES`).
  *
  * Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`): the grid
  * includes the featured volume itself (its own tile, ringed red), not just what's "next"; status drives every
@@ -148,7 +148,8 @@ export class CampaignSagaScene extends Phaser.Scene {
 
     const row = this.#rows.find((r) => r.volume.number === this.#featured) ?? this.#rows[0]!;
 
-    if (frame.phone) this.#drawPhone(frame, top.height, row);
+    // An upright tablet stacks as a phone does: the wide layout's featured card would be a tall sliver beside the grid.
+    if (frame.phone || frame.formFactor === "tabletPortrait") this.#drawPhone(frame, top.height, row);
     else this.#drawWide(frame, top.height, row);
 
     const order = ["back", ...[...this.#stops.keys()].filter((k) => k !== "back")];

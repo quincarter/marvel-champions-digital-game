@@ -117,6 +117,31 @@ test.describe("a tablet held sideways", () => {
   });
 });
 
+test.describe("an upright tablet", () => {
+  test.use({ viewport: { width: 820, height: 1180 } });
+
+  test("stacks the selected campaign over the volume list, as a phone does", async ({ page }, info) => {
+    test.skip(info.project.name !== "phone", "a touch screen");
+    test.setTimeout(120_000);
+    const errors = trackErrors(page);
+    await installWave6Helpers(page);
+    await page.goto("/?unlock=all&screen=saga");
+    await waitForScene(page, "CampaignSaga");
+    await settle(page);
+    const stops = (await routeStops(page, "CampaignSaga"))?.stops ?? [];
+    const second = stops.find((stop) => stop.key === "vol-2");
+    expect(second, "a volume row").toBeTruthy();
+    // A full-width row, not a grid tile.
+    expect(second!.rect.width).toBeGreaterThan(700);
+    await page.touchscreen.tap(second!.rect.x + 200, second!.rect.y + second!.rect.height / 2);
+    await waitFor(
+      async () => ((await findText(page, "START VOL. 2", "CampaignSaga")).length > 0 ? true : null),
+      "vol 2",
+    );
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("the pool at tablet size", () => {
   test.use({ viewport: { width: 820, height: 1180 } });
 
