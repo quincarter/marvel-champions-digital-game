@@ -2230,8 +2230,22 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
   if (
     (event.ranged === true || hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) &&
     !lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId, event.attackerInstanceId).includes("ranged")
-  )
+  ) {
+    // Ranged is read here, as retaliate resolves, so an attack that gained it partway through (a boost card attaching
+    // Red Skull's Luger, "Red Skull's attacks gain ... ranged") ignores retaliate too (RRG 1.8 "Ranged", p. 36;
+    // FFG ruling 134, January 11, 2024: a boost card's attachment affects the attack it boosts; issue #623).
+    const shown = cardsInPlay(ctx.state);
+    const ignored = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);
+    if (ignored > 0 && shown.includes(event.targetInstanceId) && shown.includes(event.attackerInstanceId)) {
+      emit(ctx, {
+        type: "retaliateIgnoredByRanged",
+        attackerInstanceId: event.attackerInstanceId,
+        targetInstanceId: event.targetInstanceId,
+        amount: ignored,
+      });
+    }
     return;
+  }
   const inPlay = cardsInPlay(ctx.state);
   if (!inPlay.includes(event.targetInstanceId) || !inPlay.includes(event.attackerInstanceId)) return;
   const amount = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);

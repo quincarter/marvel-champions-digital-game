@@ -1,0 +1,254 @@
+{
+  "config": {
+    "scenarioId": "red-skull",
+    "difficulty": "standard",
+    "modes": { "campaign": { "campaignId": "trors" } },
+    "players": [
+      {
+        "identityCardId": "03001a",
+        "deck": [
+          "03002",
+          "03003",
+          "03003",
+          "03004",
+          "03004",
+          "03004",
+          "03005",
+          "03005",
+          "03006",
+          "03006",
+          "03007",
+          "03008",
+          "03009",
+          "03010",
+          "03010",
+          "03020",
+          "03021",
+          "03022",
+          "03023",
+          "03024",
+          "05023",
+          "05033",
+          "01092",
+          "04160a",
+          "04099",
+          "58013",
+          "32019",
+          "21047",
+          "15011",
+          "04049",
+          "04049",
+          "04049",
+          "15013",
+          "15013",
+          "15013",
+          "01060",
+          "01060",
+          "34020",
+          "01062",
+          "21052",
+          "04047",
+          "14030"
+        ],
+        "aspects": ["justice"]
+      }
+    ],
+    "seed": 154027017,
+    "campaign": {
+      "campaignId": "trors",
+      "nodeId": "red-skull",
+      "definitionVersion": "1",
+      "modes": { "campaign": { "campaignId": "trors" } },
+      "log": {
+        "shared": {
+          "experimental": { "kind": "cardList", "cardIds": ["04074", "04072"] },
+          "delayCounters": { "kind": "number", "value": 5 },
+          "hydraPrison": { "kind": "flag", "value": false },
+          "imprisonedAllies": { "kind": "cardList", "cardIds": [] }
+        },
+        "perSeat": [
+          {
+            "seatNumber": 1,
+            "fields": {
+              "techUpgrade": { "kind": "cardRef", "cardId": "04158" },
+              "basicUpgrade": { "kind": "cardRef", "cardId": "04160a" },
+              "rescuedAllies": { "kind": "cardList", "cardIds": ["04099"] },
+              "engagedWithEnemy": { "kind": "flag", "value": false },
+              "heroForm": { "kind": "flag", "value": true }
+            }
+          }
+        ]
+      },
+      "instructions": [
+        {
+          "instructionId": "mc10.s5.setup.setup-keyword",
+          "text": "Each player searches their deck for all cards with the setup keyword and puts them into play.",
+          "citation": "MC10 p. 15",
+          "window": "afterScenarioSetup",
+          "effects": []
+        },
+        {
+          "instructionId": "mc10.s5.setup.experimental",
+          "text": "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck.",
+          "citation": "MC10 p. 15",
+          "window": "afterScenarioSetup",
+          "effects": [
+            {
+              "kind": "moveCards",
+              "cards": { "kind": "campaignLog", "field": "experimental" },
+              "to": "encounterDeckShuffle"
+            }
+          ]
+        },
+        {
+          "instructionId": "mc10.s5.setup.delay-threat-standard",
+          "text": "Place X threat counters on the main scheme, where X is the number of delay counters recorded in the campaign log.",
+          "citation": "MC10 p. 15",
+          "window": "afterScenarioSetup",
+          "effects": [
+            {
+              "kind": "placeThreat",
+              "target": { "kind": "mainScheme" },
+              "amount": { "kind": "campaignLog", "field": "delayCounters" }
+            }
+          ]
+        }
+      ],
+      "removedFromCampaign": [{ "cardId": "04158" }],
+      "seats": [
+        {
+          "seatNumber": 1,
+          "identityCardId": "03001a",
+          "deck": [
+            "03002",
+            "03003",
+            "03003",
+            "03004",
+            "03004",
+            "03004",
+            "03005",
+            "03005",
+            "03006",
+            "03006",
+            "03007",
+            "03008",
+            "03009",
+            "03010",
+            "03010",
+            "03020",
+            "03021",
+            "03022",
+            "03023",
+            "03024",
+            "05023",
+            "05033",
+            "01092",
+            "04160a",
+            "04099",
+            "58013",
+            "32019",
+            "21047",
+            "15011",
+            "04049",
+            "04049",
+            "04049",
+            "15013",
+            "15013",
+            "15013",
+            "01060",
+            "01060",
+            "34020",
+            "01062",
+            "21052",
+            "04047",
+            "14030"
+          ],
+          "aspects": ["justice"],
+          "grantedCardIds": ["04160a", "04099"]
+        }
+      ],
+      "seed": 154027017
+    },
+    "campaignEncounterSets": { "deck": [], "setAside": [] },
+    "campaignRemovedCards": ["04158"],
+    "tableRules": { "sameNameHeroAllyConflict": true },
+    "outsideFacts": [{ "wonPreviousGame": true }]
+  },
+  "commands": [
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c1",
+        "selectedOptionIds": ["i12", "i25", "i29"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i19",
+        "payment": [{ "fromHand": "i20" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c2",
+        "selectedOptionIds": ["i19:03020.mockingbird-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c3", "selectedOptionIds": ["i1"] }
+    },
+    { "playerId": "p1", "command": { "type": "changeForm", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i16",
+        "payment": [{ "fromHand": "i42" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "basicThwart",
+        "playerId": "p1",
+        "thwarterInstanceId": "i3",
+        "schemeInstanceId": "i68",
+        "useAtk": true
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "basicThwart", "playerId": "p1", "thwarterInstanceId": "i19", "schemeInstanceId": "i2" }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c4", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c5", "selectedOptionIds": ["decline"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c6",
+        "selectedOptionIds": ["i10:03005.shield-block-interrupt"]
+      }
+    }
+  ]
+}

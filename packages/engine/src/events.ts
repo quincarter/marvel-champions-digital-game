@@ -1365,6 +1365,18 @@ export type GameEvent =
    */
   | { readonly type: "abilityIgnored"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   /**
+   * A ranged attack ignored the attacked character's retaliate (RRG 1.8 "Ranged", p. 36; "Retaliate X", p. 38), where
+   * retaliate would otherwise have dealt `amount` damage to the attacker. Logged so the player sees why no retaliate
+   * damage followed, above all when the attack only gained ranged partway through (a boost card attaching Red Skull's
+   * Luger; issue #623). An attacker or target no longer in play, or a character with no retaliate, logs nothing.
+   */
+  | {
+      readonly type: "retaliateIgnoredByRanged";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+    }
+  /**
    * A villain's next stage was revealed with no defeat (`EffectSpec revealNextVillainStage`; docs/phase7-wave8.md
    * §3.18): it is now at `stageIndex`, the printed stage `toStageNumber`, at full hit points with everything on it
    * kept. A stage reached by defeating the one before it is `villainStageAdvanced` and never this.
