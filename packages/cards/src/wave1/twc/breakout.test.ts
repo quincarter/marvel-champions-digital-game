@@ -55,6 +55,19 @@ describe("wave1Scenario('breakout')", () => {
     expect(state.encounterSetAside.map((id) => nameOf(state, id))).not.toContain("Crisis of Infinite Deadpools");
   });
 
+  it("each villain's encounter deck holds its 15 cards and not its signature side scheme, which starts in play", () => {
+    const state = spiderManVsBreakout();
+    const schemes = ["Day of Reckoning", "Thunderstruck", "Pile It On!", "Clear the Road"];
+    for (const villain of state.villains) {
+      const deck = encounterDeckOf(state, villain.encounterDeckId);
+      expect(deck.deck.length + deck.discard.length).toBe(15);
+      const names = [...deck.deck, ...deck.discard].map((id) => nameOf(state, id));
+      expect(names.filter((name) => schemes.includes(name))).toEqual([]);
+    }
+    const everywhere = Object.values(state.instances).map((i) => state.cardPool[i.cardId]?.name);
+    for (const name of schemes) expect(everywhere.filter((n) => n === name)).toHaveLength(1);
+  });
+
   it("a Dreadpool card discards to the active villain's pile, having no villain's deck of its own", () => {
     const created = createGame(
       playableScenario("breakout", { players: [{ starterDeckId: "deadpool-pool" }], seed: 41 }),

@@ -56,14 +56,17 @@ describe("Escape Plan (07043)", () => {
     // Wrecker instead, the same interaction `wave1/twc/breakout.test.ts`'s own test now documents.
     state = patchInstance(state, pileItOnId(state), { threat: 8 });
     const before = inst(state, pileItOnId(state)).threat;
-    state = stackEncounterDeck(state, "07043");
+    // The top card is the boost for Piledriver's own attack (the other Escape Plan: tough, no icons), the next is the
+    // card dealt to the player (Escape Plan, revealed), and the third the boost for the scheme it causes (Uncanny
+    // Resilience, no icons), so no part of this depends on the shuffle.
+    state = stackEncounterDeck(state, "07043", "07043", "07045");
     state = play(state, endTurn());
-    // Piledriver's own reveal-triggered scheme (redirected onto Pile It On!, `07032.piledriver-constant`) pushes
-    // this comfortably past Pile Drive's own 10-or-more threshold (9 + his SCH of 2, plus any boost icons), so the
-    // scheme is placed here — proven by the value actually *changing* — and then immediately capped to 3
-    // (`07034.pile-drive`, scripted since the wave B primitives batch).
-    expect(inst(state, pileItOnId(state)).threat).toBe(3);
-    expect(before).not.toBe(3);
+    // The hero is in alter-ego, so Piledriver's own activation is a scheme: 9 + his SCH of 2 crosses Pile Drive's
+    // 10-or-more threshold and is capped to 3 (`07034.pile-drive`). Escape Plan is then revealed to a confused player,
+    // so Piledriver schemes again, and that threat (2, no boost icons) also lands on Pile It On!
+    // (`07032.piledriver-constant`), not the main scheme: 3 + 2.
+    expect(inst(state, pileItOnId(state)).threat).toBe(5);
+    expect(before).toBe(8);
   });
 });
 

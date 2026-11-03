@@ -52,6 +52,16 @@ const twoPlayersWithTiedSupports = () => {
   return { state, medTeams };
 };
 
+/**
+ * Makes `index`'s villain active and keeps him so through the villain phase: Breakout 1B re-picks the active villain
+ * after step one by the most side-scheme threat, and 8 (9 after step one) beats every other villain's at setup without
+ * reaching a side scheme's 10-or-more threshold.
+ */
+const keptActive = (state: GameState, index: number): GameState =>
+  patchInstance(withActive(state, state.villains[index]!.instanceId), state.villains[index]!.signatureSideSchemeId!, {
+    threat: 8,
+  });
+
 const askedFor = (state: GameState, slot: string, ...commands: Parameters<typeof runTwc>[1][]) =>
   settle(
     runTwc(state, ...commands),
@@ -64,7 +74,8 @@ const askedFor = (state: GameState, slot: string, ...commands: Parameters<typeof
 describe("E32: encounter-side targets go to the first player", () => {
   it("07042.boost: boosting an attack on P2, the first player (P1) picks which of P2's supports is discarded", () => {
     const { state, medTeams } = twoPlayersWithTiedSupports();
-    const staged = stackEncounterDeck(withActive(state, state.villains[2]!.instanceId), "07042", "07043");
+    // Boosts are drawn per attack in player order: Escape Plan (tough, no icons) for P1's, Oversized Hands for P2's.
+    const staged = stackEncounterDeck(keptActive(state, 2), "07043", "07042");
     const asked = askedFor(staged, "oversized-hands-support", toHero(P1), endTurn(P1), toHero(P2), endTurn(P2));
     const choice = asked.pendingChoice!;
     expect(choice.playerId).toBe(P1);
@@ -73,8 +84,10 @@ describe("E32: encounter-side targets go to the first player", () => {
 
   it("07042.when-revealed: revealed to P2, a tie on the highest-cost support is broken by P1", () => {
     const { state, medTeams } = twoPlayersWithTiedSupports();
-    const staged = stackEncounterDeck(withActive(state, state.villains[2]!.instanceId), "07037", "07043", "07042");
-    const asked = askedFor(staged, "oversized-hands-tied", endTurn(P1), endTurn(P2));
+    // Both heroes in hero form, so Piledriver attacks (no threat that could reach Pile Drive's threshold): Escape Plan
+    // and Uncanny Resilience (no icons) are the two boosts, a Corrupt Prison Guard is dealt to P1 and Oversized Hands to P2.
+    const staged = stackEncounterDeck(keptActive(state, 2), "07043", "07045", "07037", "07042");
+    const asked = askedFor(staged, "oversized-hands-tied", toHero(P1), endTurn(P1), toHero(P2), endTurn(P2));
     const choice = asked.pendingChoice!;
     expect((asked.step as { remainingPlayerIds?: readonly string[] }).remainingPlayerIds).toEqual([P2]);
     expect(choice.playerId).toBe(P1);
@@ -215,9 +228,10 @@ describe("E32: encounter-side targets go to the first player", () => {
   });
 
   it("07030.when-revealed: two side schemes tied for most threat, P1 picks the second and only it gets the 3 threat", () => {
-    // Thunderball's scheme (7 start) and Piledriver's (7 start) meet at 8; Breakout's counter move leaves the counter,
-    // and so the reveals, with Thunderball (the first of the tied pair).
-    const staged = stagedForTie(twoPlayers(), 1, [2, 7, 7, 4], () => [0, 0, 0, 0], "07029", "07030");
+    // Piledriver's scheme is set to meet Thunderball's at the reveal (the probe measures where Thunderball's stands
+    // after the villain phase's own threat), so the two tie for the most; Thunderball's is the higher one at step one,
+    // which keeps the counter, and so the reveals, with him.
+    const staged = stagedForTie(twoPlayers(), 1, [2, 7, 7, 4], (at) => [0, 0, at[1]! - at[2]!, 0], "07029", "07030");
     const asked = askedFor(staged, "blast-scheme", endTurn(P1), endTurn(P2));
     const choice = asked.pendingChoice!;
     expect(choice.playerId).toBe(P1);
@@ -234,8 +248,16 @@ describe("E32: encounter-side targets go to the first player", () => {
   });
 
   it("07031.when-revealed: tied for least, P1 picks the source; all its threat moves off it to the unique most", () => {
-    // Least: Wrecker's and Bulldozer's schemes (5 each at the reveal); most: Thunderball's (8, unique).
-    const staged = stagedForTie(twoPlayers(), 1, [4, 7, 5, 4], () => [0, 0, 0, 0], "07029", "07031");
+    // At the reveal Wrecker's and Bulldozer's schemes tie for the least and Piledriver's is set one under Thunderball's,
+    // so Thunderball's is the unique most (lowering Piledriver's leaves the villain phase before the reveal as it was).
+    const staged = stagedForTie(
+      twoPlayers(),
+      1,
+      [4, 7, 5, 4],
+      (at) => [0, 0, Math.min(0, at[1]! - 1 - at[2]!), at[0]! - at[3]!],
+      "07029",
+      "07031",
+    );
     const asked = askedFor(staged, "prowess-from", endTurn(P1), endTurn(P2));
     const choice = asked.pendingChoice!;
     expect(choice.playerId).toBe(P1);
