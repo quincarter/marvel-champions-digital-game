@@ -451,9 +451,16 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         return;
       }
       setFrame(ctx, { ...frame, stage: "responses" });
+      const beforeApply = ctx.state;
       const happened = applyEvent(ctx, frame) !== false;
-      // The event has occurred. A card its own change put into play entered with it, not after it (`entered-since.ts`).
-      updateFrame(ctx, frame.frameId, (f) => forgetEnteredWhileApplying(f, frame.event.enteredPlaySince));
+      // The event has occurred. A card its own change put into play entered with it, not after it (`entered-since.ts`);
+      // a main scheme whose stage the change advanced was replaced, and keeps its mark.
+      const advanced = (id: InstanceId): boolean => {
+        const was = mainSchemeStateOf(beforeApply, id);
+        const now = mainSchemeStateOf(ctx.state, id);
+        return was !== undefined && now !== undefined && was.stageIndex !== now.stageIndex;
+      };
+      updateFrame(ctx, frame.frameId, (f) => forgetEnteredWhileApplying(f, frame.event.enteredPlaySince, advanced));
       if (!happened) {
         // The event found nothing to do (a defeat whose character was healed first):
         // it didn't happen, so nothing responds to it.

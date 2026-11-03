@@ -22,7 +22,7 @@
  * - **A card's own entering.** It moves into play first and its `cardEntersPlay`, `cardPlayed`, `cardAttached` or
  *   `cardRevealed` occurs afterwards, so nothing lists it. A card an event's own change puts into play (an attach
  *   still to come, made by its event's apply step) entered as part of that occurrence: `forgetEnteredWhileApplying`
- *   drops what the step itself listed on its own event.
+ *   drops what the step itself listed on its own event, except a card the step replaced in its own slot (below).
  * - **When Revealed, When Defeated.** Not responses to a window; they resolve from their own steps.
  * - **A card put into play by an interrupt.** The condition had not occurred yet (its event had not applied), so the
  *   card is in play when it does.
@@ -48,7 +48,8 @@
  * answer it either, even though a procedure's "after" is otherwise heard by a card that entered while it resolved. A
  * "(thwart)" ability's one thwart carries what its instances were marked with to its resolved event
  * (`ThwartSession.enteredPlaySince`), unless a later instance of it removed threat from the new stage: then it
- * thwarted that card too, and the new stage answers it.
+ * thwarted that card too, and the new stage answers it. An advance made inside an event's own apply step (a placement
+ * that completes the stage) keeps its mark on that event: the new stage was out of play when the threat was placed.
  *
  * The marking is by card, for the whole procedure: the new stage answers none of its abilities to that procedure,
  * so a generic "after a player thwarts" on the new stage is not heard for the old stage's thwart either (it was out of
@@ -242,11 +243,20 @@ function note(state: GameState, id: InstanceId, replaced: boolean): GameState {
 
 /**
  * An event's apply step has just run: the cards it put into play itself entered as part of the occurrence, not after
- * it, so its own event's list goes back to what it was before the step (`before`). Conditions that had occurred
- * earlier keep the cards the step listed on them.
+ * it, so its own event's list goes back to what it was before the step (`before`), plus any card the step replaced in
+ * its own slot (`replacedWhileApplying`). Conditions that had occurred earlier keep the cards the step listed on them.
  */
-export function forgetEnteredWhileApplying(frame: StackFrame, before: readonly InstanceId[] | undefined): StackFrame {
+export function forgetEnteredWhileApplying(
+  frame: StackFrame,
+  before: readonly InstanceId[] | undefined,
+  replacedWhileApplying: (id: InstanceId) => boolean,
+): StackFrame {
   if (frame.kind !== "event" || frame.event.enteredPlaySince === before) return frame;
+  // A card replaced in its own slot by the step (a main scheme whose placement completed its stage, which advanced
+  // inside that placement's apply step) is not a card the occurrence put into play: the new stage was not in play when
+  // the threat was placed, so it keeps its mark (`noteReplacedInPlay`; RRG 1.8 "Main Scheme", p. 27).
+  const kept = (frame.event.enteredPlaySince ?? []).filter((id) => !before?.includes(id) && replacedWhileApplying(id));
+  const list = [...(before ?? []), ...kept];
   const { enteredPlaySince: _listed, ...event } = frame.event;
-  return { ...frame, event: before === undefined ? event : { ...event, enteredPlaySince: before } };
+  return { ...frame, event: list.length === 0 ? event : { ...event, enteredPlaySince: list } };
 }

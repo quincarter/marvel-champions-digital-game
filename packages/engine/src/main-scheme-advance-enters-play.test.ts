@@ -201,3 +201,76 @@ function play(state: GameState, event: { readonly card: { readonly id: CardId } 
     attachToInstanceId: null,
   });
 }
+
+/**
+ * The same when the advance happens inside the placement that completes the stage (no "when completed" interrupt to
+ * defer it): Ultron's step-one threat completing The Crimson Cowl was heard by Assault on NORAD 2B's "After placing
+ * threat here during step one", seen in a real game. The completion and advance run in the placement's own apply step,
+ * whose own marks `forgetEnteredWhileApplying` drops, except for a main scheme the step replaced.
+ */
+const HEARS_PLACEMENT = stubAbility("norad.forced-response", {
+  trigger: { kind: "response", forced: true, on: { on: "placeThreat", selfIs: "target" } },
+  effects: [count("placed")],
+});
+const TWO_STAGES = stubMainScheme({
+  id: "two-stages",
+  stages: [
+    { startingThreat: flat(0), targetThreat: flat(3), acceleration: flat(0), abilities: [] },
+    { startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), abilities: [HEARS_PLACEMENT.ref] },
+  ],
+});
+/** "Action: Place 3 threat on the main scheme." */
+const PLOT = (() => {
+  const ability = stubAbility("plot.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 3 } }],
+  } as AbilityDefinition);
+  return { ability, card: stubEvent({ id: "plot", cost: 0, abilities: [ability.ref] }) };
+})();
+const placementDeps: EngineDeps = depsOf(HEARS_PLACEMENT, PLOT.ability);
+
+function placementGame(): GameState {
+  const identities = seatIdentities(HERO, 1);
+  const result = createGame(
+    {
+      seed: 5,
+      cards: [QUIET_VILLAIN, TWO_STAGES, BLANK, PLOT.card, ...identities],
+      villainCardId: QUIET_VILLAIN.id,
+      mainSchemeCardId: TWO_STAGES.id,
+      encounterDeck: Array.from({ length: 16 }, () => BLANK.id as CardId),
+      includeIdentitySets: false,
+      players: identities.map((identity) => ({
+        identityCardId: identity.id,
+        deck: [PLOT.card.id, PLOT.card.id, ...Array.from({ length: 13 }, () => BLANK.id as CardId)],
+      })),
+    },
+    placementDeps,
+  );
+  if (!result.ok) throw new Error(result.error.message);
+  return runCommands(result.state, placementDeps).state;
+}
+
+function placePlot(state: GameState): GameState {
+  const given = giveCard(state, p1, PLOT.card.id);
+  return driveSession(
+    startSession(given.state),
+    placementDeps,
+    [{ type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null }],
+    defaultPick,
+  ).session.state;
+}
+
+describe("a placement that completes a main scheme stage is not the next stage's", () => {
+  it("the threat that completes stage 1 advances it inside its own placement, and stage 2 does not hear it", () => {
+    const after = placePlot(placementGame());
+    expect(after.mainScheme.stageIndex).toBe(1);
+    expect(counter(after, after.mainScheme.instanceId, "placed")).toBe(0);
+  });
+
+  it("threat placed on stage 2 itself is still heard by stage 2", () => {
+    const advanced = placePlot(placementGame());
+    const again = placePlot(advanced);
+    expect(mustInstance(again, again.mainScheme.instanceId).threat).toBe(3);
+    expect(counter(again, again.mainScheme.instanceId, "placed")).toBe(1);
+  });
+});

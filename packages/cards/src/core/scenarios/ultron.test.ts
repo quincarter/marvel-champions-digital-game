@@ -104,4 +104,15 @@ describe("Assault on NORAD (main scheme 2B)", () => {
     expect(prompts).toBe(1);
     expect(dronesOf(after)).toHaveLength(dronesOf(start).length + 1);
   });
+
+  it("the step-one threat that completes The Crimson Cowl does not trigger it: that threat was not placed here", () => {
+    // Test surgery: stage 1B far past its target, so step one's placement completes it and the scheme advances to
+    // Assault on NORAD (RRG 1.8 "Main Scheme", p. 27; FAQ "Mister Knife (#26)", p. 62). 2B starts with no threat, so
+    // the advance itself places none that NORAD's own response could hear.
+    const start = vsUltron();
+    const stage1 = patchInstance(start, start.mainScheme.instanceId, { threat: 99 });
+    const { after, prompts } = playRound(stackEncounterDeck(stage1, "01186", "01149"), "0");
+    expect(after.mainScheme.stageIndex).toBe(1);
+    expect(prompts).toBe(0);
+  });
 });
