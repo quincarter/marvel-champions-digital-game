@@ -325,6 +325,9 @@ describe("validateDeck: each problem code, from real Core data", () => {
     expect(codesOf(withJustice, pool)).toEqual(["aspect_choice"]);
     expect(problem(withJustice, "aspect_choice", pool).message).toContain("chooses none");
     expect(problemsOf({ ...basicOnly, aspects: ["justice"] }, pool)).toEqual([]);
+    // An identity whose rule names two aspects (Spider-Woman) must choose both even with no aspect cards.
+    const twoAspects = [...spiderManWith({ aspectCount: 2, equalCardsPerAspect: true }), ...extras];
+    expect(problem(basicOnly, "aspect_choice", twoAspects).message).toContain("exactly 2 different aspects");
   });
 
   it("'Pool is a choosable aspect (RRG 1.8 'Aspect Card')", () => {

@@ -920,8 +920,10 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   }
   // A deck of only its identity set and basic cards has nothing an aspect would let in, and MarvelCDB records none for
   // it ("Back to the Basics", decklist 68313): with no aspect chosen it stands as built (issue #639). Any aspect card
-  // still needs its aspect chosen, so the check below names the shortfall.
-  const aspectless = chosen.length === 0 && !lines.some((line) => line.classification.kind === "aspect");
+  // still needs its aspect chosen, so the check below names the shortfall. An identity whose own rule names more than one
+  // aspect (Spider-Woman's two, Adam Warlock's four) must still choose them all.
+  const aspectless =
+    aspectCount === 1 && chosen.length === 0 && !lines.some((line) => line.classification.kind === "aspect");
   if (aspectChoiceOk && !aspectless && chosen.length !== aspectCount) {
     aspectChoiceOk = false;
     const who = identityName ?? "This deck";
