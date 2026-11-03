@@ -1329,7 +1329,9 @@ function evaluateAbility(
 ): Evaluated {
   const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
-  const reserved = new Set(picks);
+  // The ability's own card never pays its cost: Slingshot (50013) spent from the hand is no longer there to put into
+  // play (issue #634). Only a card in a hand is ever a hand payment, so this reserves nothing for a card in play.
+  const reserved = new Set([instanceId, ...picks]);
   // `useAbility` pays for the ability's own card, so the wallets are priced for it too: a resource ability that only
   // generates for that card (Ruby Quartz Visor 33003, "for your 'Optic Blast' ability") is a source, and a cost any
   // player may help pay (`RuleSpec costsPayableByAnyPlayer`, hero-packs H3.19) has the other players' hand cards and
@@ -1943,7 +1945,8 @@ function payableFor(
         ...(selection ? { costSelection: selection } : {}),
       }),
       excludeInstanceId: null,
-      reserved: new Set(picks),
+      // The ability's own card is not offered to pay for it (`evaluateAbility`).
+      reserved: new Set([instanceId, ...picks]),
       payingFor: planned?.payingFor ?? instanceId,
       requirement: planned?.requirement ?? null,
       spendable: isSpendable(planned?.requirement ?? null, cost),

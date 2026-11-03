@@ -26,6 +26,7 @@ import {
   needsEventAbilityChoice,
   type EventAbilityOption,
 } from "../../view/event-ability-choice.js";
+import { handUseOptions, type HandUseOption } from "../../view/hand-use-choice.js";
 import {
   formEntries,
   formSources,
@@ -176,6 +177,12 @@ export interface FormChoiceView {
 export interface AbilityChoiceView {
   readonly subject: string;
   readonly options: readonly EventAbilityOption[];
+}
+
+/** What the "Which one?" bar shows for a hand card with an Action that works from the hand: play it, or that Action. */
+export interface HandUseChoiceView {
+  readonly subject: string;
+  readonly options: readonly HandUseOption[];
 }
 
 /** What the "Thwart with?" bar shows: who is thwarting, and THW or ATK (The Red House; `view/thwart-stat-choice.ts`). */
@@ -463,6 +470,9 @@ export class BoardController {
     if (this.#selection.kind === "choosingController") {
       return focusOrder({ kind: "targeting", targets: this.#seatTiles(this.#selection.controllers) }, marks);
     }
+    if (this.#selection.kind === "choosingHandUse") {
+      return focusOrder({ kind: "targeting", targets: [this.#selection.instanceId] }, marks);
+    }
     if (
       this.#selection.kind === "choosingAbility" ||
       this.#selection.kind === "choosingDestination" ||
@@ -598,13 +608,12 @@ export class BoardController {
       return;
     }
     if (this.tapInMode(focus.instanceId)) return;
-    // A card in play with a usable ability, not a hand card: `playCard` only
-    // ever looks for a `playCard` entry, so a card that's on the focus route
-    // solely because of `usableAbilities` opens the card, whose sheet offers the ability.
-    // Any other card on the table (the villain, a scheme, an attachment) is on the route to be read: it opens too.
+    // A card in play, with a usable ability or not, opens the card, whose sheet offers its abilities; so does any other
+    // card on the table (the villain, a scheme, an attachment), which is on the route to be read. A hand card is played,
+    // or asked about first when it also has an Action that works from the hand (`#offerHandUses`).
     const inHand = this.#host.model()?.hand.some((card) => card.instanceId === focus.instanceId) ?? false;
-    if (!inHand || this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
-    else void this.playCard(focus.instanceId, { confirmFree: true });
+    if (!inHand) this.onCharacterTap(focus.instanceId);
+    else if (!this.#offerHandUses(focus.instanceId)) void this.playCard(focus.instanceId, { confirmFree: true });
   }
 
   /** True when A on this idle card only opens it in Inspect: a card on the table with no ability to use now. */
@@ -668,6 +677,11 @@ export class BoardController {
     if (this.#selection.kind === "choosingThwartStat") {
       // A second tap on the scheme puts the thwart back; the bar's buttons are the only way to answer.
       if (this.#selection.schemeId === id) this.cancel();
+      return true;
+    }
+    if (this.#selection.kind === "choosingHandUse") {
+      // The card being asked about goes back on a second tap; the bar's buttons are the only way to answer.
+      if (this.#selection.instanceId === id) this.cancel();
       return true;
     }
     if (
@@ -998,7 +1012,55 @@ export class BoardController {
       this.#host.inspect(instanceId);
       return;
     }
+    if (this.#offerHandUses(instanceId)) return;
     void this.playCard(instanceId, { confirmFree: true });
+  }
+
+  /**
+   * A hand card with an Action that works from the hand (Slingshot, issue #634: "Spend a [energy] resource → put
+   * Slingshot into play from your hand"). A tap used to play it and nothing else, so the action was only reachable
+   * through Inspect, and a Slingshot the player could not afford to play did nothing. With only the action usable it
+   * starts straight away; with the play as well, "Which one?" asks first. False when the card has no such action.
+   */
+  #offerHandUses(instanceId: InstanceId): boolean {
+    const abilities = this.usableAbilitiesFor(instanceId);
+    const { game } = appSession().store.state;
+    if (abilities.length === 0 || !game) return false;
+    if (!this.#guideGate.allowsCard(instanceId)) {
+      this.#guideGate.noteInertClick();
+      return true;
+    }
+    const playable = this.#host.marks()?.playable.has(instanceId) ?? false;
+    if (!playable && abilities.length === 1) {
+      this.#useAbility(abilities[0]!);
+      return true;
+    }
+    this.#selection = {
+      kind: "choosingHandUse",
+      instanceId,
+      options: handUseOptions(game, instanceId, playable, abilities, POOL_DEPS),
+    };
+    this.#host.redraw();
+    return true;
+  }
+
+  /** The hand card's "Which one?" answer, by its place on the bar: the play goes on as a tap's would, an Action as Inspect's. */
+  async chooseHandUse(index: number): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingHandUse") return;
+    const { instanceId, options } = this.#selection;
+    const option = options[index];
+    if (!option) return;
+    this.#selection = { kind: "idle" };
+    if (option.kind === "play") await this.playCard(instanceId);
+    else this.useAbilityById(instanceId, option.abilityId);
+  }
+
+  /** The hand card's "Which one?" bar, or null when it isn't open. */
+  handUseChoice(): HandUseChoiceView | null {
+    if (this.#selection.kind !== "choosingHandUse") return null;
+    const { game } = appSession().store.state;
+    if (!game) return null;
+    return { subject: cardName(game, this.#selection.instanceId), options: this.#selection.options };
   }
 
   /**

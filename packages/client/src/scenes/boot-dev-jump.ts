@@ -488,6 +488,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=slingshot`: Maria Hill's first turn with Slingshot and Energy in hand, so a tap on Slingshot asks "Play it" or
+  // her Action (issue #634, `store/dev-slingshot-game.ts`).
+  if (screen === "board" && params.get("fixture") === "slingshot") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startSlingshotDevGame } = await import("../store/dev-slingshot-game.js");
+      await startSlingshotDevGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=abilities`: Captain Marvel's turn with five or more usable abilities on the table, so the pad's RT layer
   // has a second page (`store/dev-many-abilities-game.ts`).
   if (screen === "board" && params.get("fixture") === "abilities") {

@@ -25,6 +25,7 @@ import type { InPlayCostChoiceState } from "../../view/in-play-cost-choice.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { EventAbilityOption } from "../../view/event-ability-choice.js";
+import type { HandUseOption } from "../../view/hand-use-choice.js";
 import type { PaymentState } from "../../view/payment-model.js";
 import { aimedAt, type SearchedPickView } from "../../view/play-aim.js";
 import type { PlayDestinationChoice } from "../../view/play-destination.js";
@@ -111,6 +112,11 @@ export type Selection =
    * call, asked before anything is paid (`view/event-ability-choice.ts`). Cancel puts the card back with nothing spent.
    */
   | { readonly kind: "choosingAbility"; readonly entry: LegalAction; readonly options: readonly EventAbilityOption[] }
+  /**
+   * A hand card with an Action that works from the hand was tapped (Slingshot, issue #634): playing it or using that
+   * Action is the player's call (`view/hand-use-choice.ts`), asked before anything is paid. Cancel sends nothing.
+   */
+  | { readonly kind: "choosingHandUse"; readonly instanceId: InstanceId; readonly options: readonly HandUseOption[] }
   /**
    * An ally that may go to the player's own area or to a scenario area (the mission area, MC45 p. 5) was chosen: where
    * it goes is the player's call, asked before its cost is priced since a reduction can read the destination
@@ -217,6 +223,9 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
   if (selection.kind === "choosingAbility") {
     const { action } = selection.entry;
     return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
+  }
+  if (selection.kind === "choosingHandUse") {
+    return selection.instanceId === id ? "selected" : "unavailable";
   }
   if (selection.kind === "choosingDestination" || selection.kind === "choosingSearched") {
     const { action } = selection.entry;

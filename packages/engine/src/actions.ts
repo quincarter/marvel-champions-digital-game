@@ -6495,6 +6495,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   // resource "for your 'Optic Blast' ability" (`generatesFor`, Ruby Quartz Visor 33003) sees that card and binds
   // `paidFor` (docs/phase7-wave6.md §3.30).
   const payingFor = plan.payingFor ?? command.cardInstanceId;
+  // An ability's own card cannot pay its cost: Slingshot (50013) spent from the hand is no longer there for "put
+  // Slingshot into play from your hand" (issue #634).
+  if (command.payment.some((entry) => "fromHand" in entry && entry.fromHand === command.cardInstanceId)) {
+    return engineError("insufficient_resources", "a card cannot pay for its own ability", command);
+  }
   const pool = priceOf(ctx, command.playerId, command.payment, null, payingFor);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
   if (!satisfies(pool, plan.requirement)) {

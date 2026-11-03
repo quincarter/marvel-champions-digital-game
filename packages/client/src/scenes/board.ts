@@ -2155,6 +2155,10 @@ export class BoardScene extends Phaser.Scene {
       if (option) void this.#controller.chooseEventAbility(option.abilityId);
       return true;
     }
+    if (this.#controller.handUseChoice()) {
+      void this.#controller.chooseHandUse(index);
+      return true;
+    }
     const thwart = this.#controller.thwartStatChoice();
     if (thwart) {
       const option = thwart.options[index];

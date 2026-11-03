@@ -17,6 +17,7 @@ import type {
   AllianceHelpView,
   DestinationChoiceView,
   FormChoiceView,
+  HandUseChoiceView,
   PlayConfirmationView,
   SourceChoiceView,
   ThwartStatChoiceView,
@@ -323,9 +324,15 @@ export function drawThwartStatBar(ctx: BoardDrawContext, rect: Rect, choice: Thw
  * "Which one? — 1 If you are Angel · 2 If you are Archangel — Cancel", over the hand, when a played event has more
  * than one usable Action ability (`view/event-ability-choice.ts`; RRG 1.8 "Event", p. 18). Same frame as the form bar:
  * the choice comes before any payment, and Cancel returns the card to the hand with nothing spent. The keys 1 to 3
- * answer it too.
+ * answer it too. A hand card with an Action that works from the hand asks the same way, "1 Play it · 2 Action"
+ * (`view/hand-use-choice.ts`); `pick` is told which button by its place.
  */
-export function drawAbilityBar(ctx: BoardDrawContext, rect: Rect, choice: AbilityChoiceView): void {
+export function drawAbilityBar(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  choice: AbilityChoiceView | HandUseChoiceView,
+  pick: (index: number) => void,
+): void {
   const { scene, controller } = ctx;
   const g = scene.add.graphics();
   g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -354,7 +361,7 @@ export function drawAbilityBar(ctx: BoardDrawContext, rect: Rect, choice: Abilit
       label: `${index + 1} ${option.label}`,
       type: typeRole.label,
       rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
-      onClick: () => void controller.chooseEventAbility(option.abilityId),
+      onClick: () => pick(index),
     });
   });
   addBarCancel(ctx, {
