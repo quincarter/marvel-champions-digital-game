@@ -522,12 +522,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
-  // `&fixture=zemo[&bare=all|none]`: a Baron Zemo game at the first player turn with the Tactical Board Member bare, for the
-  // evidence view and the accusation (`store/dev-zemo-game.ts`).
+  // `&fixture=zemo[&bare=all|none][&minions=N]`: a Baron Zemo game at the first player turn with the Tactical Board Member
+  // bare, for the evidence view and the accusation, and N minions engaged for the Enemies tab (`store/dev-zemo-game.ts`).
   if (screen === "board" && params.get("fixture") === "zemo") {
     const { startDevZemoGame } = await import("../store/dev-zemo-game.js");
     const bare = params.get("bare");
-    await startDevZemoGame(bare === "all" || bare === "none" ? bare : "tactical");
+    await startDevZemoGame(
+      bare === "all" || bare === "none" ? bare : "tactical",
+      Number(params.get("minions") ?? 0) || 0,
+    );
     return { key: SCENES.board, data: {} };
   }
 

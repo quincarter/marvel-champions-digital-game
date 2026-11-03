@@ -142,3 +142,20 @@ describe("Baron Zemo: evidence and the accusation, end to end", () => {
     expect(after.piles.find((pile) => pile.pile === "aim")).toMatchObject({ hiddenCount: 0 });
   }, 120_000);
 });
+
+describe("the Zemo fixture's engaged minions (issue #635)", () => {
+  test("moves the encounter deck's first minion out of it and engages it with the seat", async () => {
+    const { config, state } = await zemoFixtureState(new SessionStore(new LocalEngineHost()), "tactical", 1);
+    const seat = state.players[0]!;
+    const engaged = seat.playArea.filter((id) => state.cardPool[state.instances[id]!.cardId]?.type === "minion");
+    expect(engaged).toHaveLength(1);
+    const minion = state.instances[engaged[0]!]!;
+    expect(minion).toMatchObject({ faceup: true, engagedWith: seat.playerId });
+    const deck = state.encounterDecks[state.encounterDeckOrder[0]!]!.deck;
+    expect(deck).not.toContain(engaged[0]);
+    // The game still runs on from it: the fixture's host takes the state as its authority.
+    const store = new SessionStore(new DevStateHost(state, POOL_DEPS));
+    await store.start(config);
+    expect(store.state.game?.players[0]?.playArea).toContain(engaged[0]);
+  }, 60_000);
+});

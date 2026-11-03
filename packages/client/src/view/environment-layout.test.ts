@@ -10,6 +10,7 @@ import {
   environmentSlots,
   environmentRowWidth,
   environmentStripRoom,
+  environmentStripPlan,
   environmentStripSlots,
   environmentStripTileHeight,
   ENVIRONMENT_STRIP_TILE_HEIGHT,
@@ -179,6 +180,38 @@ describe("environmentStripTileHeight (issue #635)", () => {
 
   it("never draws a tile under the compact minimum, however many rows", () => {
     for (const rows of [1, 2, 3]) expect(environmentStripTileHeight(120, rows, 4)).toBe(ENVIRONMENT_MIN_HEIGHT);
+  });
+});
+
+describe("environmentStripPlan (issue #635 review)", () => {
+  // A 360x788 phone: a 340px strip, 187px from the villain band to the zone's foot.
+  const width = 340;
+  const below = 187;
+  const minionRow = (plan: { perRow: number; tileHeight: number }, count: number): number =>
+    below - Math.ceil(count / plan.perRow) * (plan.tileHeight + ENVIRONMENT_GAP) - 8 - 10;
+
+  it("keeps two tiles a row at full height with no minions", () => {
+    expect(environmentStripPlan(width, below, 3, 0, 88)).toEqual({
+      perRow: 2,
+      tileHeight: ENVIRONMENT_STRIP_TILE_HEIGHT,
+    });
+  });
+
+  it("puts three Board Members in one row so a minion still gets a readable row", () => {
+    const plan = environmentStripPlan(width, below, 3, 1, 88);
+    expect(plan.perRow).toBe(3);
+    expect(minionRow(plan, 3)).toBeGreaterThanOrEqual(88);
+  });
+
+  it("goes to one row, however narrow, before the minions are left undrawn", () => {
+    const plan = environmentStripPlan(width, below, 4, 2, 88);
+    expect(plan.perRow).toBe(4);
+    expect(minionRow(plan, 4)).toBeGreaterThan(40);
+  });
+
+  it("keeps the usual row when it already leaves the minions room", () => {
+    expect(environmentStripPlan(width, below, 1, 2, 88).perRow).toBe(2);
+    expect(environmentStripPlan(width, 500, 3, 2, 88).perRow).toBe(2);
   });
 });
 

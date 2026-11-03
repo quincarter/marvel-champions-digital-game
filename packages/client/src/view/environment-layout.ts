@@ -259,6 +259,9 @@ export const STRIP_MINION_ROW = 118;
 const STRIP_MINION_GAP = 8;
 const STRIP_ZONE_PADDING = 10;
 
+/** The shortest minion row the board draws at all (`drawEnemies` skips a row this short or shorter). */
+const STRIP_MINION_CUTOFF = 40;
+
 /**
  * The tile height of an environment strip of `rows` rows that starts `below` pixels above the enemies zone's foot
  * (issue #635). With no minions the tiles keep their full 112px. With minions, every tile at 112 left a 360x788
@@ -272,19 +275,64 @@ export function environmentStripTileHeight(below: number, rows: number, minions:
   return Math.max(ENVIRONMENT_MIN_HEIGHT, Math.min(ENVIRONMENT_STRIP_TILE_HEIGHT, Math.floor(forTiles / rows)));
 }
 
+/** The minion row left under a strip of `rows` rows of `tileHeight`, starting `below` pixels above the zone's foot. */
+function minionRowUnder(below: number, rows: number, tileHeight: number): number {
+  return below - rows * (tileHeight + ENVIRONMENT_GAP) - STRIP_MINION_GAP - STRIP_ZONE_PADDING;
+}
+
+export interface EnvironmentStripPlan {
+  /** Tiles side by side in one row. */
+  readonly perRow: number;
+  readonly tileHeight: number;
+}
+
 /**
- * The strip of `count` environment tiles under a full-width villain panel, inside `width`: as many tiles per row as
- * fit at the minimum width (each at most `ENVIRONMENT_MAX_WIDTH`), each row `tileHeight` tall, starting at `origin`
- * after one gap. In play order, left to right and top to bottom.
+ * How the strip of `count` environments under a full-width villain panel is laid out, `width` wide and `below` pixels
+ * above the enemies zone's foot. Without minions: as many tiles per row as fit at the minimum width, 112px tall. With
+ * minions, a second row of tiles can leave them nothing: three Board Member environments wrap to two rows on a 360px
+ * phone, and the row under them was 33px, too short to draw at all (issue #635 review). So the tiles first take one
+ * more per row, narrower than the minimum, for as long as the minions do not get a readable row
+ * (`MINION_ROW_MIN_HEIGHT`); failing that, every tile goes in one row, whatever its width, as long as that is the only
+ * way the minions are drawn. A cramped environment still opens in Inspect; a minion that is not drawn cannot be
+ * attacked.
+ */
+export function environmentStripPlan(
+  width: number,
+  below: number,
+  count: number,
+  minions: number,
+  readableRow: number,
+): EnvironmentStripPlan {
+  const fit = environmentStripPerRow(width);
+  const planFor = (perRow: number): EnvironmentStripPlan => ({
+    perRow,
+    tileHeight: environmentStripTileHeight(below, Math.ceil(count / perRow), minions),
+  });
+  if (minions <= 0 || count <= fit) return planFor(fit);
+  const row = (plan: EnvironmentStripPlan): number =>
+    minionRowUnder(below, Math.ceil(count / plan.perRow), plan.tileHeight);
+  let best = planFor(fit);
+  for (let perRow = fit; perRow <= count; perRow++) {
+    const plan = planFor(perRow);
+    if (row(plan) >= readableRow) return plan;
+    if (row(best) <= STRIP_MINION_CUTOFF && row(plan) > row(best)) best = plan;
+  }
+  return best;
+}
+
+/**
+ * The strip of `count` environment tiles under a full-width villain panel, inside `width`: `perRow` tiles per row
+ * (by default as many as fit at the minimum width; each at most `ENVIRONMENT_MAX_WIDTH`), each row `tileHeight` tall,
+ * starting at `origin` after one gap. In play order, left to right and top to bottom.
  */
 export function environmentStripSlots(
   origin: { x: number; y: number },
   width: number,
   count: number,
   tileHeight: number,
+  perRow: number = environmentStripPerRow(width),
 ): Rect[] {
   if (count <= 0) return [];
-  const perRow = environmentStripPerRow(width);
   const tileWidth = Math.min(ENVIRONMENT_MAX_WIDTH, (width - ENVIRONMENT_GAP * (perRow - 1)) / perRow);
   return Array.from({ length: count }, (_unused, index) => ({
     x: origin.x + (index % perRow) * (tileWidth + ENVIRONMENT_GAP),

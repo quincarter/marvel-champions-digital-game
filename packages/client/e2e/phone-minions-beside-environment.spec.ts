@@ -376,3 +376,38 @@ test.describe("landscape phone, 844x390", () => {
     if (SHOT) await page.screenshot({ path: `${SHOT}/issue-635-enemies-landscape.png` });
   });
 });
+
+test.describe("portrait phone, three environments", () => {
+  test.use({ viewport: { width: 360, height: 788 }, hasTouch: true, isMobile: true });
+
+  test("Baron Zemo's three Board Members still leave a minion its row", async ({ page }) => {
+    test.setTimeout(180_000);
+    await installWave6Helpers(page);
+    await page.goto("/?screen=board&fixture=zemo&minions=1");
+    await page.waitForFunction(() => !!(window as unknown as { __mcZemo?: unknown }).__mcZemo, undefined, {
+      timeout: 60000,
+    });
+    await boardUp(page);
+    await clickText(page, "ENEMIES", { sceneKey: "Board" });
+    await settle(page, { quietMs: 400, maxMs: 3000 });
+    const ids = await facts(page, (game) => ({
+      environments: game.villainArea.filter(
+        (id: string) => game.cardPool[game.instances[id].cardId]?.type === "environment",
+      ) as string[],
+      minions: game.players[0].playArea.filter(
+        (id: string) => game.cardPool[game.instances[id].cardId]?.type === "minion",
+      ) as string[],
+    }));
+    expect(ids.environments).toHaveLength(3);
+    expect(ids.minions).toHaveLength(1);
+    const environments = (await Promise.all(ids.environments.map((id) => hitRect(page, id)))).filter(
+      (r): r is Box => r !== null,
+    );
+    const minion = await hitRect(page, ids.minions[0]!);
+    expect(environments, "every Board Member is drawn").toHaveLength(3);
+    expect(minion, "the minion is drawn (the row under two rows of tiles was 33px)").not.toBeNull();
+    expect(minion!.height).toBeGreaterThanOrEqual(88);
+    for (const environment of environments) expect(overlaps(minion!, environment)).toBe(false);
+    if (SHOT) await page.screenshot({ path: `${SHOT}/issue-635-zemo.png` });
+  });
+});

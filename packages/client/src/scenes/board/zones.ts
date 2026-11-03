@@ -71,10 +71,9 @@ import {
   environmentCompactLayout,
   environmentRowWidth,
   environmentSlots,
-  environmentStripPerRow,
   environmentStripRoom,
   environmentStripSlots,
-  environmentStripTileHeight,
+  environmentStripPlan,
   isCompactEnvironment,
 } from "../../view/environment-layout.js";
 import { POOL_DEPS } from "../../content/pool.js";
@@ -357,15 +356,21 @@ function drawSingleVillain(
 
 /**
  * Environments in rows under the villain band, as many per row as fit at the tile's 170px ceiling. With minions to
- * seat under them, the tiles give up height before the minion row does (`environmentStripTileHeight`, issue #635), and
+ * seat under them, the tiles give up height, then width, before the minion row does (`environmentStripPlan`, issue #635), and
  * a short tile draws its compact form. Returns the strip's bottom edge.
  */
 function drawEnvironmentStrip(ctx: BoardDrawContext, rect: Rect, villainRect: Rect, model: BoardModel): number {
   const width = rect.width - 20;
   const top = villainRect.y + villainRect.height;
-  const rows = Math.ceil(model.environments.length / environmentStripPerRow(width));
-  const tileHeight = environmentStripTileHeight(rect.y + rect.height - top, rows, model.minions.length);
-  const slots = environmentStripSlots({ x: rect.x + 10, y: top }, width, model.environments.length, tileHeight);
+  const count = model.environments.length;
+  const plan = environmentStripPlan(
+    width,
+    rect.y + rect.height - top,
+    count,
+    model.minions.length,
+    MINION_ROW_MIN_HEIGHT,
+  );
+  const slots = environmentStripSlots({ x: rect.x + 10, y: top }, width, count, plan.tileHeight, plan.perRow);
   model.environments.forEach((environment, index) => drawEnvironment(ctx, slots[index]!, environment));
   const last = slots[slots.length - 1];
   return last ? last.y + last.height : top;
