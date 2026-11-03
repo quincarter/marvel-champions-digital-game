@@ -42,6 +42,7 @@ import type { CoreAspect } from "../schema/aspects.js";
 import type { CardId } from "../schema/ids.js";
 import type { DeckCardEntry } from "../schema/decks.js";
 import { CATALOG_REPRINTS } from "../data/catalog.js";
+import { CORE_ASPECT_NAMES, holdsAspectCard } from "./aspect-cards.js";
 import { indexById } from "./pool-index.js";
 import {
   MAX_IMPORT_LINES,
@@ -83,9 +84,6 @@ const problem = (code: ImportProblem["code"], message: string, cardIds?: readonl
  * "not a real aspect" message from the engine rather than silently vanishing
  * here.
  */
-/** The five aspects a deck can choose for customization (RRG 1.8 p. 8: Aggression, Justice, Leadership, Protection, 'Pool); "basic" is not one. */
-const CORE_ASPECT_NAMES: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
-
 function aspectsFromMeta(meta: string | null | undefined): readonly string[] {
   if (!meta) return [];
   let parsed: unknown;
@@ -290,7 +288,8 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
     }
     if (filled.length === needed) aspects = filled;
   }
-  if (aspects.length === 0) {
+  // A hero-and-basic deck has no aspect to record and imports with none (#639); one holding aspect cards needs it.
+  if (aspects.length === 0 && holdsAspectCard(cards, pool)) {
     problems.push(problem("missing_aspect", "This decklist records no chosen aspect."));
   }
 

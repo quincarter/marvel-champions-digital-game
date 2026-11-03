@@ -305,6 +305,28 @@ describe("validateDeck: each problem code, from real Core data", () => {
     expect(codesOf({ ...starter(), aspects: [] })).toEqual(["aspect_choice"]);
   });
 
+  it("a hero-and-basic deck may choose no aspect (#639); one with an aspect card still must", () => {
+    // Core holds too few basic titles for a whole deck, so the starter's Justice cards become synthetic basic events.
+    const extras = [1, 2, 3, 4, 5].map((n) =>
+      synthetic(basicEvent, { id: cardId(`x-basic-${n}`), name: `Basic ${n}` }),
+    );
+    const pool = [...CORE_CARDS, ...extras];
+    const justice = new Set(CORE_CARDS.filter((c) => "aspect" in c && c.aspect === "justice").map((c) => c.id));
+    const basicOnly: DeckContents = {
+      ...starter(),
+      aspects: [],
+      cards: [
+        ...starter().cards.filter((entry) => !justice.has(entry.cardId)),
+        ...extras.map((card) => ({ cardId: card.id, quantity: 3 })),
+      ],
+    };
+    expect(problemsOf(basicOnly, pool)).toEqual([]);
+    const withJustice = withCard(basicOnly, "01062", 1);
+    expect(codesOf(withJustice, pool)).toEqual(["aspect_choice"]);
+    expect(problem(withJustice, "aspect_choice", pool).message).toContain("chooses none");
+    expect(problemsOf({ ...basicOnly, aspects: ["justice"] }, pool)).toEqual([]);
+  });
+
   it("'Pool is a choosable aspect (RRG 1.8 'Aspect Card')", () => {
     const pool = synthetic(basicEvent, { id: cardId("x-pool"), name: "Pool Party", aspect: "pool" });
     const deck = { ...withCard(spiderManBuilt(["pool"], { basic: 22 }), "x-pool", 3) };

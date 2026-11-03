@@ -918,7 +918,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       chosen.push(aspect);
     }
   }
-  if (aspectChoiceOk && chosen.length !== aspectCount) {
+  // A deck of only its identity set and basic cards has nothing an aspect would let in, and MarvelCDB records none for
+  // it ("Back to the Basics", decklist 68313): with no aspect chosen it stands as built (issue #639). Any aspect card
+  // still needs its aspect chosen, so the check below names the shortfall.
+  const aspectless = chosen.length === 0 && !lines.some((line) => line.classification.kind === "aspect");
+  if (aspectChoiceOk && !aspectless && chosen.length !== aspectCount) {
     aspectChoiceOk = false;
     const who = identityName ?? "This deck";
     const need = aspectCount === 1 ? "exactly one aspect" : `exactly ${aspectCount} different aspects`;
