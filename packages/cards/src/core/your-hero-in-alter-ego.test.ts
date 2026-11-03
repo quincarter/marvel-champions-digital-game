@@ -1,8 +1,10 @@
-import { cardsInPlay, type GameState } from "@mc/engine";
+import { activeEncounterDeck, cardsInPlay, type GameState } from "@mc/engine";
 import { CORE_DEPS } from "./index.js";
 import { coreScenario } from "./setup.js";
 import {
   endTurn,
+  P1,
+  P2,
   firstLegal,
   identityOf,
   inst,
@@ -32,7 +34,8 @@ describe("Sweeping Swoop (01168): Stun your hero", () => {
   it("does not stun Peter Parker, who is in alter-ego form", () => {
     const staged = stageNemesisCardForReveal(start("rhino", "core-spider-man-justice"), "01168");
     const after = settle(run(staged, endTurn()), firstLegal, undefined, CORE_DEPS);
-    expect(instancesOf(after, "01168").some((id) => !cardsInPlay(after).includes(id))).toBe(true);
+    // It was revealed (it is in the encounter discard pile), and stunned nobody.
+    expect(activeEncounterDeck(after).discard.some((id) => inst(after, id).cardId === "01168")).toBe(true);
     expect(inst(after, identityOf(after)).statuses.stunned).toBe(0);
   });
 
@@ -59,6 +62,31 @@ describe("Under Attack (01151): place 2 threat here or deal 3 damage to your her
     const scheme = instancesOf(after, "01151").find((id) => cardsInPlay(after).includes(id))!;
     expect(inst(after, scheme).threat).toBeGreaterThanOrEqual(2);
     expect(inst(after, identityOf(after)).damage).toBe(damageBefore);
+  });
+
+  it("with two players, each is asked by their own form: a hero is offered both, an alter-ego only the threat", () => {
+    const twoPlayers = startCoreGame(
+      coreScenario("ultron", {
+        players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-she-hulk-aggression" }],
+        seed: 11,
+      }),
+    );
+    // P1 Spider-Man in hero form, P2 Jennifer Walters stays in alter-ego; one neutral boost per activation, then the
+    // side scheme dealt to P1.
+    const staged = stackEncounterDeck(twoPlayers, ADVANCE, ADVANCE, "01151");
+    const offered: string[] = [];
+    settle(
+      run(staged, toHero(P1), endTurn(P1), endTurn(P2)),
+      (s) => {
+        const labels = optionLabels(s);
+        if (labels.includes("Place 2 threat here")) offered.push(`${s.pendingChoice!.playerId}: ${labels.join(" / ")}`);
+        return firstLegal(s);
+      },
+      undefined,
+      CORE_DEPS,
+    );
+    expect(offered).toContain(`${P1}: Place 2 threat here / Deal 3 damage to your hero`);
+    expect(offered.filter((line) => line.startsWith(`${P2}:`) && line.includes("Deal 3 damage"))).toEqual([]);
   });
 
   it("a hero is offered both options", () => {
