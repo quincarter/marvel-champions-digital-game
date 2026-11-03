@@ -138,7 +138,7 @@ test("Rhino (standard), solo: Spider-Man (Miles Morales) — a scripted playthro
   // every later step is a real, logged command, and `replay` reproduces the whole game including this setup.
   const base = milesVsRhino();
   const staged = moveToHand(base, P1, "27044", "27044", "27037", "27034", "27033", "27038").state;
-  const { state: discardStaged, id: peterParker } = moveToDiscard(staged, P1, "27049"); // "27049", named "Spider-Man".
+  const { state: discardStaged, id: peterParker } = moveToDiscard(staged, P1, "27049"); // "27049", titled "Spider-Man" but basic.
   // The Break-In!'s own stage 1 target threat is 7 for a solo game (`packages/content/src/data/core/cards.ts`), so
   // 5 (comfortably under it, even after the villain phase's own threat) leaves room for Swing In's "-4" below.
   const withThreat = patchInstance(discardStaged, discardStaged.mainScheme.instanceId, { threat: 5 });
@@ -217,12 +217,14 @@ test("Rhino (standard), solo: Spider-Man (Miles Morales) — a scripted playthro
   expect(session.state.round).toBeGreaterThanOrEqual(2);
 
   // Round 2, the round's one voluntary form change back to alter-ego: Miles Morales's own Response ("After you
-  // change to this form, shuffle 1 Spider-Man card from your discard pile into your deck") shuffles the discarded
-  // Peter Parker ally (27049, printed name "Spider-Man") home.
+  // change to this form, shuffle 1 Spider-Man card from your discard pile into your deck") shuffles the Swing In
+  // played above home. The discarded Peter Parker ally (27049, titled "Spider-Man") is a basic card, not one of his
+  // "Spider-Man cards" (RRG 1.8 "Identity-Specific Card", p. 23; issue #640), so it is not offered and stays.
   const deckBefore = session.state.players[0]!.deck.length;
-  session = step(session, toHero(P1), acceptingFormChangeShuffle(peterParker));
+  session = step(session, toHero(P1), acceptingFormChangeShuffle(swingIn!));
   expect(session.state.players[0]!.identity.form).toBe("alterEgo");
-  expect(session.state.players[0]!.discard).not.toContain(peterParker);
+  expect(session.state.players[0]!.discard).not.toContain(swingIn);
+  expect(session.state.players[0]!.discard).toContain(peterParker);
   expect(session.state.players[0]!.deck.length).toBe(deckBefore + 1);
 
   // End round 2: the villain phase's own boost draw (a second Advance), then Keeping Secrets (Miles's own
