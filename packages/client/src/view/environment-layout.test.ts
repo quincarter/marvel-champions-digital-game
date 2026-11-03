@@ -8,7 +8,13 @@ import {
   environmentAttachmentStrips,
   environmentCompactLayout,
   environmentSlots,
+  environmentRowWidth,
   environmentStripRoom,
+  environmentStripPlan,
+  environmentStripSlots,
+  environmentStripTileHeight,
+  ENVIRONMENT_STRIP_TILE_HEIGHT,
+  STRIP_MINION_ROW,
   MINION_BESIDE_TILE_MAX,
   minionRoomBesideEnvironments,
   isCompactEnvironment,
@@ -151,6 +157,81 @@ describe("environmentStripRoom", () => {
   });
 });
 
+describe("environmentStripTileHeight (issue #635)", () => {
+  // A 360x788 phone's Enemies tab: the zone under a 128px villain band leaves 187px for the strip and the minions.
+  const below = 187;
+
+  it("keeps the full tile with no minions to seat", () => {
+    expect(environmentStripTileHeight(below, 1, 0)).toBe(ENVIRONMENT_STRIP_TILE_HEIGHT);
+  });
+
+  it("shrinks the tiles, not the minions, on a phone: the row under it keeps its readable height", () => {
+    const tile = environmentStripTileHeight(below, 1, 2);
+    expect(tile).toBe(ENVIRONMENT_MIN_HEIGHT);
+    // What the minions get under it: the strip's gap and tile, the row's gap, the zone's padding.
+    expect(below - ENVIRONMENT_GAP - tile - 8 - 10).toBeGreaterThanOrEqual(88);
+  });
+
+  it("gives the tiles back their height on a zone with room for both", () => {
+    expect(environmentStripTileHeight(500, 1, 3)).toBe(ENVIRONMENT_STRIP_TILE_HEIGHT);
+    const between = environmentStripTileHeight(ENVIRONMENT_GAP + 90 + 8 + STRIP_MINION_ROW + 10, 1, 1);
+    expect(between).toBe(90);
+  });
+
+  it("never draws a tile under the compact minimum, however many rows", () => {
+    for (const rows of [1, 2, 3]) expect(environmentStripTileHeight(120, rows, 4)).toBe(ENVIRONMENT_MIN_HEIGHT);
+  });
+});
+
+describe("environmentStripPlan (issue #635 review)", () => {
+  // A 360x788 phone: a 340px strip, 187px from the villain band to the zone's foot.
+  const width = 340;
+  const below = 187;
+  const minionRow = (plan: { perRow: number; tileHeight: number }, count: number): number =>
+    below - Math.ceil(count / plan.perRow) * (plan.tileHeight + ENVIRONMENT_GAP) - 8 - 10;
+
+  it("keeps two tiles a row at full height with no minions", () => {
+    expect(environmentStripPlan(width, below, 3, 0, 88)).toEqual({
+      perRow: 2,
+      tileHeight: ENVIRONMENT_STRIP_TILE_HEIGHT,
+    });
+  });
+
+  it("puts three Board Members in one row so a minion still gets a readable row", () => {
+    const plan = environmentStripPlan(width, below, 3, 1, 88);
+    expect(plan.perRow).toBe(3);
+    expect(minionRow(plan, 3)).toBeGreaterThanOrEqual(88);
+  });
+
+  it("goes to one row, however narrow, before the minions are left undrawn", () => {
+    const plan = environmentStripPlan(width, below, 4, 2, 88);
+    expect(plan.perRow).toBe(4);
+    expect(minionRow(plan, 4)).toBeGreaterThan(40);
+  });
+
+  it("keeps the usual row when it already leaves the minions room", () => {
+    expect(environmentStripPlan(width, below, 1, 2, 88).perRow).toBe(2);
+    expect(environmentStripPlan(width, 500, 3, 2, 88).perRow).toBe(2);
+  });
+});
+
+describe("environmentStripSlots", () => {
+  it("lays the tiles in rows under the band, none overlapping, inside the width", () => {
+    for (const width of [340, 460, 700]) {
+      for (const count of [1, 2, 3, 4]) {
+        const slots = environmentStripSlots({ x: 10, y: 100 }, width, count, 60);
+        expect(slots).toHaveLength(count);
+        for (const [index, slot] of slots.entries()) {
+          expect(slot.y).toBeGreaterThanOrEqual(100 + ENVIRONMENT_GAP);
+          expect(slot.x + slot.width).toBeLessThanOrEqual(10 + width + 1e-6);
+          expect(slot.height).toBe(60);
+          for (const other of slots.slice(index + 1)) expect(rectsOverlap(slot, other)).toBe(false);
+        }
+      }
+    }
+  });
+});
+
 describe("minionRoomBesideEnvironments", () => {
   const zone: Rect = { x: 455, y: 62, width: 811, height: 283 };
   const slots = environmentSlots({ x: 757, y: 72, width: 200, height: 142 }, 1);
@@ -214,5 +295,13 @@ describe("environmentAttachmentStrips (issue #462)", () => {
 
   it("draws nothing with nothing attached", () => {
     expect(environmentAttachmentStrips({ x: 0, y: 0, width: 160, height: 80 }, 0)).toEqual([]);
+  });
+});
+
+describe("environmentRowWidth", () => {
+  it("is one row of minimum-width tiles with the gaps between them", () => {
+    expect(environmentRowWidth(1)).toBe(ENVIRONMENT_MIN_WIDTH);
+    expect(environmentRowWidth(2)).toBe(ENVIRONMENT_MIN_WIDTH * 2 + ENVIRONMENT_GAP);
+    expect(environmentRowWidth(0)).toBe(0);
   });
 });

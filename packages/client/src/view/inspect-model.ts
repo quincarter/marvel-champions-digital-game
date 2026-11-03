@@ -929,6 +929,19 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
  * 142A/142B, 172A/172B, ...) prints one A/B pair per stage, so the footer names only the inspected stage's own pair
  * instead of the whole run, which overprinted the footer's other half. Everything else prints the card's number.
  */
+/**
+ * The stats as one line of words ("ATK 2  ·  SCH 1  ·  HP 2/6"), a modified stat saying so ("THW 2 (+1)"): the sheet
+ * is text, and color alone never carries meaning. Empty for a card with no stats.
+ */
+export function statLineOf(stats: readonly StatTile[]): string {
+  return stats
+    .map(
+      (tile) =>
+        `${tile.label} ${tile.value}${tile.bonus ? ` (${tile.bonus > 0 ? "+" : "−"}${Math.abs(tile.bonus)})` : ""}`,
+    )
+    .join("  ·  ");
+}
+
 export function footerLeftOf(card: AnyCard, face: CardFace): string {
   const set = card.setCode as string;
   if (card.type === "main_scheme" && face.kind === "mainSchemeStage") {
