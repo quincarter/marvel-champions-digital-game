@@ -11,15 +11,15 @@
 
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
-import { replay, startSession } from "./engine.js";
+import { applyCommand, replay, startSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
-import { legalActions } from "./legal.js";
+import { legalActions, paymentFor } from "./legal.js";
 import { locateCard, mustPlayer } from "./query.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubAlly, stubEvent } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubResource } from "./testing/fixtures.js";
 import { defaultPick, giveCard } from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
 
@@ -227,5 +227,83 @@ describe("an event's own in-hand abilities resolve from hand without playing it"
     ]);
     expect(dealtBy(events, state, id)).toEqual([4]);
     expect(mustPlayer(session.state, P1).discard).toContain(id);
+  });
+});
+
+/**
+ * Slingshot (`aos` 50013, issue #634): "Action: Spend a [energy] resource → put Slingshot into play from your hand under
+ * any player's control." She prints an [energy] icon herself, but spent from the hand she is no longer there to put into
+ * play: an ability's own card never pays its cost, so she is not offered, not listed when she is the only [energy], and
+ * refused when a command names her.
+ */
+describe("a hand Action's own card cannot pay its cost", () => {
+  const SLING_ACTION = stubAbility("sling.action", {
+    trigger: { kind: "action" },
+    activeIn: "hand",
+    cost: { resources: { energy: 1 } },
+    effects: [{ kind: "putIntoPlay", card: self, controller: { kind: "controller" } }],
+  } satisfies AbilityDefinition);
+  const SLING = stubAlly({
+    id: "sling",
+    cost: 3,
+    atk: 2,
+    thw: 2,
+    hp: 3,
+    resourceIcons: { energy: 1 },
+    abilities: [SLING_ACTION.ref],
+  });
+  const ENERGY = stubResource({ id: "energy-card", icons: 0, produces: { energy: 1 } });
+  const slingDeps: EngineDeps = depsOf(SLING_ACTION);
+  const use = (id: InstanceId, payment: readonly { fromHand: InstanceId }[]) =>
+    ({ type: "useAbility", playerId: P1, cardInstanceId: id, abilityId: SLING_ACTION.ref.id, payment }) as const;
+  /** Slingshot and an Energy, and nothing else, in P1's hand (the opening hand set aside in the discard pile). */
+  const stage = (withEnergy: boolean) => {
+    const base = gameAtFirstTurn({ cards: [SLING, ENERGY], deps: slingDeps, deck: [SLING.id, ENERGY.id] });
+    const emptied: GameState = {
+      ...base,
+      players: base.players.map((p) => ({ ...p, hand: [], discard: [...p.hand, ...p.discard] })),
+    };
+    const sling = giveCard(emptied, P1, SLING.id);
+    const energy = withEnergy ? giveCard(sling.state, P1, ENERGY.id) : null;
+    return { state: energy?.state ?? sling.state, sling: sling.id, energy: energy?.id ?? null };
+  };
+  const slingOffered = (state: GameState, id: InstanceId): boolean => {
+    const actions = legalActions(state, P1, slingDeps);
+    return (
+      actions.kind === "turn" && actions.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === id)
+    );
+  };
+
+  it("another [energy] card pays: she goes into play and the Energy is discarded", () => {
+    const { state, sling, energy } = stage(true);
+    expect(slingOffered(state, sling)).toBe(true);
+    const { session } = driveSession(startSession(state), slingDeps, [use(sling, [{ fromHand: energy! }])]);
+    expect(locateCard(session.state, sling)).toEqual({ kind: "playArea", playerId: P1 });
+    expect(mustPlayer(session.state, P1).discard).toContain(energy);
+  });
+
+  it("she is never a payment source for her own Action, though she prints [energy]", () => {
+    const { state, sling, energy } = stage(true);
+    const sources = paymentFor(
+      state,
+      P1,
+      { kind: "useAbility", instanceId: sling, abilityId: SLING_ACTION.ref.id },
+      {},
+      slingDeps,
+    )?.sources.map((s) => s.instanceId);
+    expect(sources).toContain(energy);
+    expect(sources).not.toContain(sling);
+  });
+
+  it("a command paying with her is refused, and nothing changes", () => {
+    const { state, sling } = stage(true);
+    const result = applyCommand(state, use(sling, [{ fromHand: sling }]), slingDeps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toMatch(/its own ability/);
+  });
+
+  it("with her as the only [energy] in hand, the Action is not listed", () => {
+    const { state, sling } = stage(false);
+    expect(slingOffered(state, sling)).toBe(false);
   });
 });
