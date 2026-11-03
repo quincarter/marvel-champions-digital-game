@@ -248,19 +248,23 @@ describe("E32: encounter-side targets go to the first player", () => {
   });
 
   it("07031.when-revealed: tied for least, P1 picks the source; all its threat moves off it to the unique most", () => {
-    // At the reveal Wrecker's and Bulldozer's schemes tie for the least and Piledriver's is set one under Thunderball's,
-    // so Thunderball's is the unique most (lowering Piledriver's leaves the villain phase before the reveal as it was).
+    // At the reveal Thunderball's scheme is the unique most, Piledriver's one under it, and Wrecker's and Bulldozer's
+    // tie for the least two under it (only lowered from what the probe measured, so the villain phase before the reveal
+    // runs as it did: Thunderball's stays the highest at step one and keeps the counter).
     const staged = stagedForTie(
       twoPlayers(),
       1,
       [4, 7, 5, 4],
-      (at) => [0, 0, Math.min(0, at[1]! - 1 - at[2]!), at[0]! - at[3]!],
+      (at) => [at[1]! - 2 - at[0]!, 0, at[1]! - 1 - at[2]!, at[1]! - 2 - at[3]!],
       "07029",
       "07031",
     );
     const asked = askedFor(staged, "prowess-from", endTurn(P1), endTurn(P2));
     const choice = asked.pendingChoice!;
     expect(choice.playerId).toBe(P1);
+    expect(choice.options.map((o) => o.optionId).sort()).toEqual(
+      [asked.villains[0]!.signatureSideSchemeId!, asked.villains[3]!.signatureSideSchemeId!].sort(),
+    );
     const before = threatsOf(asked);
     const picked = choice.options[1]!.optionId;
     const from = asked.villains.findIndex((v) => v.signatureSideSchemeId === picked);
