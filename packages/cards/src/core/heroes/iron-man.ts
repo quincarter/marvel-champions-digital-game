@@ -29,6 +29,7 @@ import {
   heroAction,
   ifElse,
   ifThen,
+  isHero,
   moveCards,
   oncePerRound,
   option,
@@ -141,7 +142,8 @@ export const IRON_MAN_NEMESIS = defineAbilities({
   // Electric Whip Attack — When Revealed: Choose to either deal 1 damage to your hero for each upgrade you control or choose and discard an upgrade you control.
   "01173.when-revealed": whenRevealed(
     chooseOne(
-      option("Take 1 damage for each upgrade you control", takeDamage(countOf(YOUR_UPGRADES))),
+      // Only a hero can take this option (RRG 1.8 "Form, Change Form", p. 21; "Choose (Option)", p. 12).
+      option("Take 1 damage for each upgrade you control", { when: isHero() }, takeDamage(countOf(YOUR_UPGRADES))),
       option("Choose and discard an upgrade you control", { when: exists(YOUR_UPGRADES) }, discardAnUpgrade),
     ),
   ),

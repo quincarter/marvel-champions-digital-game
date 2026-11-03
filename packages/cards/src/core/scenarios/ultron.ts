@@ -34,6 +34,7 @@ import {
   heal,
   heroAction,
   ifThen,
+  isHero,
   made,
   modifyStat,
   moveCards,
@@ -211,7 +212,9 @@ export const UNDER_ATTACK_SET = defineAbilities({
       chooseOneBy(
         thatPlayer,
         option("Place 2 threat here", placeThreat(2, self)),
-        option("Deal 3 damage to your hero", takeDamage(3, thatPlayer)),
+        // Not open to an alter-ego player, whose identity is no valid target for "their hero" (RRG 1.8 "Form, Change
+        // Form", p. 21; "Choose (Option)", p. 12): they place the 2 threat.
+        option("Deal 3 damage to your hero", { when: isHero(thatPlayer) }, takeDamage(3, thatPlayer)),
       ),
     ),
   ),
