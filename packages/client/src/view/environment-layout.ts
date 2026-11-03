@@ -250,3 +250,56 @@ export function tuckedFanLayout(room: Rect, count: number, cardAspect: number): 
     cards: Array.from({ length: count }, (_unused, index) => ({ x: left + index * step, y: top, width, height })),
   };
 }
+
+/** The tallest tile in the strip under a full-width villain panel (the phone's Enemies tab), with nothing else to seat. */
+export const ENVIRONMENT_STRIP_TILE_HEIGHT = 112;
+/** The minion row a strip leaves under itself when it can: a card with its art, name and HP badge all readable. */
+export const STRIP_MINION_ROW = 118;
+/** The gap between the strip and the minion row, and the zone's padding under the row. */
+const STRIP_MINION_GAP = 8;
+const STRIP_ZONE_PADDING = 10;
+
+/**
+ * The tile height of an environment strip of `rows` rows that starts `below` pixels above the enemies zone's foot
+ * (issue #635). With no minions the tiles keep their full 112px. With minions, every tile at 112 left a 360x788
+ * phone's minion row about 50px tall, too small to show a minion's HP: the tiles shrink first, down to the compact
+ * tile's minimum (`ENVIRONMENT_MIN_HEIGHT`, which still shows the name and every counter), so the minions keep
+ * `STRIP_MINION_ROW` wherever the zone allows it.
+ */
+export function environmentStripTileHeight(below: number, rows: number, minions: number): number {
+  if (minions <= 0 || rows <= 0) return ENVIRONMENT_STRIP_TILE_HEIGHT;
+  const forTiles = below - rows * ENVIRONMENT_GAP - STRIP_MINION_GAP - STRIP_MINION_ROW - STRIP_ZONE_PADDING;
+  return Math.max(ENVIRONMENT_MIN_HEIGHT, Math.min(ENVIRONMENT_STRIP_TILE_HEIGHT, Math.floor(forTiles / rows)));
+}
+
+/**
+ * The strip of `count` environment tiles under a full-width villain panel, inside `width`: as many tiles per row as
+ * fit at the minimum width (each at most `ENVIRONMENT_MAX_WIDTH`), each row `tileHeight` tall, starting at `origin`
+ * after one gap. In play order, left to right and top to bottom.
+ */
+export function environmentStripSlots(
+  origin: { x: number; y: number },
+  width: number,
+  count: number,
+  tileHeight: number,
+): Rect[] {
+  if (count <= 0) return [];
+  const perRow = environmentStripPerRow(width);
+  const tileWidth = Math.min(ENVIRONMENT_MAX_WIDTH, (width - ENVIRONMENT_GAP * (perRow - 1)) / perRow);
+  return Array.from({ length: count }, (_unused, index) => ({
+    x: origin.x + (index % perRow) * (tileWidth + ENVIRONMENT_GAP),
+    y: origin.y + ENVIRONMENT_GAP + Math.floor(index / perRow) * (tileHeight + ENVIRONMENT_GAP),
+    width: tileWidth,
+    height: tileHeight,
+  }));
+}
+
+/** How many minimum-width tiles sit side by side in `width`. */
+export function environmentStripPerRow(width: number): number {
+  return Math.max(1, Math.floor((width + ENVIRONMENT_GAP) / (ENVIRONMENT_MIN_WIDTH + ENVIRONMENT_GAP)));
+}
+
+/** The width of one row of `count` environment tiles at their minimum width, gaps included. */
+export function environmentRowWidth(count: number): number {
+  return Math.max(0, count) * ENVIRONMENT_MIN_WIDTH + Math.max(0, count - 1) * ENVIRONMENT_GAP;
+}

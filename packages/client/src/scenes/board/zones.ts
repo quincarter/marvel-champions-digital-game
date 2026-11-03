@@ -69,8 +69,12 @@ import {
   minionRoomBesideEnvironments,
   MINION_BESIDE_TILE_MAX,
   environmentCompactLayout,
+  environmentRowWidth,
   environmentSlots,
+  environmentStripPerRow,
   environmentStripRoom,
+  environmentStripSlots,
+  environmentStripTileHeight,
   isCompactEnvironment,
 } from "../../view/environment-layout.js";
 import { POOL_DEPS } from "../../content/pool.js";
@@ -319,21 +323,26 @@ function drawSingleVillain(
   // 128px-tall tile is 91px wide, and "2 MADNESS" does not fit in that. Environments that do not fit in one row wrap
   // into more rows and shrink (`view/environment-layout.ts`); none is ever left undrawn.
   if (model.environments.length > 0 && envRoom >= ENVIRONMENT_MIN_WIDTH) {
-    const room: Rect = { x: envLeft, y: villainRect.y, width: envRoom, height: villainRect.height };
+    // A phone held sideways has no readable row under the band, so its minions sit beside the environments: there the
+    // tiles keep to their minimum width and leave the rest to the minions (issue #635).
+    const rowUnder = rect.y + rect.height - (villainRect.y + villainRect.height + 8) - 10;
+    const tileRoom =
+      ctx.tabbed && model.minions.length > 0 && rowUnder < MINION_ROW_MIN_HEIGHT
+        ? Math.min(envRoom, environmentRowWidth(model.environments.length))
+        : envRoom;
+    const room: Rect = { x: envLeft, y: villainRect.y, width: tileRoom, height: villainRect.height };
     const slots = environmentSlots(room, model.environments.length);
     model.environments.forEach((environment, index) => drawEnvironment(ctx, slots[index]!, environment));
     // The space right of the environments is the full zone's height: minions (a held one, Thunderbolt Backup's) take it
-    // when that gives bigger tiles than the row under the band (`drawEnemies` compares the two).
-    const free =
-      model.minions.length > 0 && !ctx.tabbed
-        ? minionRoomBesideEnvironments(rect, slots, MINION_BESIDE_MIN_WIDTH)
-        : null;
+    // when that gives bigger tiles than the row under the band (`drawEnemies` compares the two). The phone held sideways
+    // too (issue #635): its Enemies tab is barely taller than the band, so the row under it was too short to draw at all.
+    const free = model.minions.length > 0 ? minionRoomBesideEnvironments(rect, slots, MINION_BESIDE_MIN_WIDTH) : null;
     return { bottom: villainRect.y + villainRect.height, minionsBeside: free };
   }
   // No room beside the villain (the phone's enemies tab gives the panel the whole width): the environments sit in a
   // strip right under it, so MaGog's crowds and their ratings counters are on the table here too.
   if (model.environments.length > 0) {
-    return { bottom: drawEnvironmentStrip(ctx, rect, villainRect, model.environments), minionsBeside: null };
+    return { bottom: drawEnvironmentStrip(ctx, rect, villainRect, model), minionsBeside: null };
   }
   const bottom = villainRect.y + villainRect.height;
   const roomBelow = rect.y + rect.height - (bottom + 8) - 10;
@@ -346,33 +355,20 @@ function drawSingleVillain(
   return { bottom, minionsBeside: useBeside ? besideRoom : null };
 }
 
-/** Height of one environment tile in the strip under a full-width villain panel. */
-const ENVIRONMENT_STRIP_TILE_HEIGHT = 112;
-
-/** Environments in rows under the villain band, as many per row as fit at the tile's 170px ceiling. Returns the strip's bottom edge. */
-function drawEnvironmentStrip(
-  ctx: BoardDrawContext,
-  rect: Rect,
-  villainRect: Rect,
-  environments: readonly EnvironmentPanel[],
-): number {
-  const gap = 8;
-  const room = rect.width - 20;
-  const perRow = Math.max(1, Math.floor((room + gap) / (110 + gap)));
-  const tileWidth = Math.min(170, (room - gap * (perRow - 1)) / perRow);
-  let bottom = villainRect.y + villainRect.height;
-  environments.forEach((environment, index) => {
-    const row = Math.floor(index / perRow);
-    const slot: Rect = {
-      x: rect.x + 10 + (index % perRow) * (tileWidth + gap),
-      y: villainRect.y + villainRect.height + gap + row * (ENVIRONMENT_STRIP_TILE_HEIGHT + gap),
-      width: tileWidth,
-      height: ENVIRONMENT_STRIP_TILE_HEIGHT,
-    };
-    drawEnvironment(ctx, slot, environment);
-    bottom = slot.y + slot.height;
-  });
-  return bottom;
+/**
+ * Environments in rows under the villain band, as many per row as fit at the tile's 170px ceiling. With minions to
+ * seat under them, the tiles give up height before the minion row does (`environmentStripTileHeight`, issue #635), and
+ * a short tile draws its compact form. Returns the strip's bottom edge.
+ */
+function drawEnvironmentStrip(ctx: BoardDrawContext, rect: Rect, villainRect: Rect, model: BoardModel): number {
+  const width = rect.width - 20;
+  const top = villainRect.y + villainRect.height;
+  const rows = Math.ceil(model.environments.length / environmentStripPerRow(width));
+  const tileHeight = environmentStripTileHeight(rect.y + rect.height - top, rows, model.minions.length);
+  const slots = environmentStripSlots({ x: rect.x + 10, y: top }, width, model.environments.length, tileHeight);
+  model.environments.forEach((environment, index) => drawEnvironment(ctx, slots[index]!, environment));
+  const last = slots[slots.length - 1];
+  return last ? last.y + last.height : top;
 }
 
 /** The markers a villain among several carries as words (`drawCompactVillain` draws the same ones). */

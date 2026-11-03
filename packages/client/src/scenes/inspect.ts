@@ -104,6 +104,7 @@ import {
   cardInspectModel,
   referenceInspectModel,
   inspectModel,
+  statLineOf,
   type CampaignNotice,
   type InspectModel,
   type InspectPayment,
@@ -941,16 +942,8 @@ export class InspectOverlay extends Phaser.Scene {
     }
 
     if (face.stats && model.stats.length > 0) {
-      // A modified stat says so in words, e.g. "THW 2 (+1)": the sheet is text, and
-      // color alone never carries meaning.
-      const statLine = model.stats
-        .map(
-          (tile) =>
-            `${tile.label} ${tile.value}${tile.bonus ? ` (${tile.bonus > 0 ? "+" : "−"}${Math.abs(tile.bonus)})` : ""}`,
-        )
-        .join("  ·  ");
       this.add
-        .text(face.stats.x, face.stats.y, statLine, textStyle(typeRole.stat, surface.ink.hex))
+        .text(face.stats.x, face.stats.y, statLineOf(model.stats), textStyle(typeRole.stat, surface.ink.hex))
         .setLetterSpacing(1);
     }
 
@@ -1942,6 +1935,16 @@ export class InspectOverlay extends Phaser.Scene {
     const typeLine = label(this, textLeft, ty, model.typeLine, typeRole.label, surface.ink.hex, ink.label);
     typeLine.setWordWrapWidth(textWidth);
     ty += typeLine.height + 7;
+
+    // The live stats, HP first among what a player opens this to read (issue #635): the scan prints only the card's
+    // starting numbers, and the board's own tile can be too small to read them on a phone.
+    if (model.stats.length > 0) {
+      const stats = this.add
+        .text(textLeft, ty, statLineOf(model.stats), textStyle(typeRole.stat, surface.ink.hex))
+        .setLetterSpacing(1)
+        .setWordWrapWidth(textWidth);
+      ty += stats.height + 7;
+    }
 
     // A per player cost (design 14B): the scaled price in a red badge, "2 PER PLAYER × 2 PLAYERS" beside it.
     if (model.perPlayerCost) {
