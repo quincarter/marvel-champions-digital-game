@@ -66,7 +66,10 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
         "Montage",
       ]),
     );
-    expect(await legalityLine(page)).toContain("must choose exactly one aspect; this deck chooses none");
+    // A deck of only hero and basic cards may choose no aspect (#639), so only its size is a problem yet.
+    expect(await legalityLine(page)).toBe(
+      "1 problem: The deck has 15 cards; a deck must have between 40 and 50 (the identity and permanent cards do not count).",
+    );
     await shot(page, "1-new-deadpool");
 
     // 1b. Choose 'Pool: its cards (and Frenemies, basic) join the list; with no aspect they were not offered.
