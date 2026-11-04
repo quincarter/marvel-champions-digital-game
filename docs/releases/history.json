@@ -1,4 +1,8 @@
 {
+  "v0.43.1": {
+    "title": "Fixes for Wiccan, Slingshot and phones",
+    "summary": "Wiccan stops asking for an enemy when there is no boost to count, Slingshot can use her Action from your hand, minions stay readable beside an environment on a phone, rotating a tablet no longer leaves a black band, and editing a deck before a campaign scenario gets the full deck builder. Thanks to @Vasko47, @PermaKarma and @zackburnley for the reports."
+  },
   "v0.38.1": {
     "title": "Sharper text at 100%",
     "summary": "Text stops looking blurry at 100% display scaling, SKIP leaves a comic, and Couch mode and Fear No Evil get fixes."
