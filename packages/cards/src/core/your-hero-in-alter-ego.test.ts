@@ -15,7 +15,7 @@ import {
   toHero,
   run,
 } from "../testing/harness.js";
-import { playFromHand, stageNemesisCardForReveal } from "../testing/staging.js";
+import { driveEventsPicking, playFromHand, stageNemesisCardForReveal } from "../testing/staging.js";
 
 /**
  * "Your hero" on an encounter card does not reach an alter-ego: "While a player is in alter-ego form, card abilities
@@ -108,6 +108,30 @@ describe("Electric Whip Attack (01173): damage to your hero for each upgrade, or
     const damageBefore = inst(staged, identityOf(staged)).damage;
     const after = settle(run(staged, endTurn()), firstLegal, undefined, CORE_DEPS);
     expect(cardsInPlay(after)).not.toContain(helmet);
+    expect(inst(after, identityOf(after)).damage).toBe(damageBefore);
+  });
+
+  it("Tony Stark with no upgrade has no option left: the card resolves with no prompt and no damage", () => {
+    const staged = stageNemesisCardForReveal(start("rhino", "core-iron-man-aggression"), "01173");
+    const upgrades = cardsInPlay(staged).filter((id) => staged.cardPool[inst(staged, id).cardId]?.type === "upgrade");
+    expect(upgrades).toEqual([]);
+    const damageBefore = inst(staged, identityOf(staged)).damage;
+    // The end of the player phase asks its own discard choice, so only this kind of prompt would be the card's.
+    const optionPrompts: (readonly string[])[] = [];
+    const { state: after, events } = driveEventsPicking(
+      CORE_DEPS,
+      staged,
+      (s) => {
+        if (s.pendingChoice?.prompt.kind === "chooseOption") optionPrompts.push(optionLabels(s));
+        return firstLegal(s);
+      },
+      endTurn(),
+    );
+    expect(activeEncounterDeck(after).discard.some((id) => inst(after, id).cardId === "01173")).toBe(true);
+    expect(optionPrompts).toEqual([]);
+    // Neither option was taken either: one left alone would resolve with no prompt, as `onlyOption`.
+    expect(events.filter((e) => e.type === "optionChosen")).toEqual([]);
+    expect(after.pendingChoice).toBeFalsy();
     expect(inst(after, identityOf(after)).damage).toBe(damageBefore);
   });
 
