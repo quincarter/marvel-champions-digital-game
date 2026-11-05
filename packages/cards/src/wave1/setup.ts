@@ -170,7 +170,12 @@ function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: 
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const villains: VillainSetup[] = multi.villains.map((villain, index) => ({
     villainCardId: villain.villainCardId,
-    encounterDeck: encounterCardsOf(villain.encounterSetIds, PLAYABLE_CARDS),
+    // The signature side scheme is in the villain's own set but starts in play, not in the deck: the engine makes its
+    // instance from `signatureSideSchemeCardId`, so the deck leaves it out (The Wrecking Crew insert p. 4: "its own
+    // encounter deck of 15 cards"; p. 3 puts the four side schemes in play).
+    encounterDeck: encounterCardsOf(villain.encounterSetIds, PLAYABLE_CARDS).filter(
+      (id) => id !== villain.signatureSideSchemeCardId,
+    ),
     version: options.villainVersions?.[index] ?? defaultVersion,
     ...(villain.signatureSideSchemeCardId ? { signatureSideSchemeCardId: villain.signatureSideSchemeCardId } : {}),
   }));
