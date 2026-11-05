@@ -5,6 +5,8 @@ import {
   applyCommand,
   characterProfile,
   createGame,
+  legalActions,
+  paymentFor,
   remainingHitPoints,
   type Command,
   type GameSetupConfig,
@@ -136,6 +138,55 @@ describe("Hulk / Bruce Banner kit", () => {
     const after = settle(runHlk(given.state, play(P1, crushingBlow, [strength])), firstLegal, undefined, HLK_DEPS);
     // Hulk's printed ATK is 3 (packages/content/src/data/hlk/cards.ts, 10001a).
     expect(remainingHitPoints(after, villain, HLK_DEPS)).toBe(hpBefore - 3);
+  });
+
+  // Issue #648: with a physical card and a card of another type in hand, Crushing Blow read as unaffordable ("only
+  // physical resources can pay for this card"), because legality priced a wallet of everything in hand at once.
+  describe("Crushing Blow is offered when a [physical] payment exists alongside other resources (#648)", () => {
+    /** Hulk in hero form holding exactly these cards; the rest of the opening hand goes back to the deck. */
+    const holding = (...codes: string[]) => {
+      const hero = runHlk(hulkGame(), toHero());
+      const given = moveToHand(hero, P1, ...codes);
+      const state: GameState = {
+        ...given.state,
+        players: given.state.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, hand: [...given.ids], deck: [...p.hand.filter((id) => !given.ids.includes(id)), ...p.deck] }
+            : p,
+        ),
+      };
+      return { state, ids: given.ids };
+    };
+    const playOf = (state: GameState, id: InstanceId) => {
+      const legal = legalActions(state, P1, HLK_DEPS);
+      if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
+      return {
+        legal: legal.legal.find((a) => a.action.kind === "playCard" && a.action.instanceId === id),
+        illegal: legal.illegal.find((a) => a.action.kind === "playCard" && a.action.instanceId === id),
+      };
+    };
+
+    it("is legal with Genius ([mental]) and Strength ([physical]) in hand, paid with Strength alone", () => {
+      const { state, ids } = holding("10002", "10021", "10022");
+      const [crushingBlow, genius, strength] = ids as [InstanceId, InstanceId, InstanceId];
+      const { legal } = playOf(state, crushingBlow);
+      expect(legal).toBeDefined();
+      const example = legal!.example as Extract<Command, { type: "playCard" }>;
+      expect(example.payment).toEqual([{ fromHand: strength }]);
+      expect(applyCommand(state, example, HLK_DEPS).ok).toBe(true);
+      // The payment sheet's suggestion is the same legal payment, not one that spends Genius.
+      const suggested = paymentFor(state, P1, { kind: "playCard", instanceId: crushingBlow }, {}, HLK_DEPS)?.suggested;
+      expect(suggested?.length).toBe(1);
+      expect(suggested?.[0]).toContain(strength);
+      expect(suggested?.[0]).not.toContain(genius);
+    });
+
+    it("stays illegal when the only other resource is [mental]", () => {
+      const { state, ids } = holding("10002", "10021");
+      const { legal, illegal } = playOf(state, ids[0]!);
+      expect(legal).toBeUndefined();
+      expect(illegal?.reason).toBe("insufficient_resources");
+    });
   });
 
   it("Hulk Smash: +10 ATK on a basic attack, but no overkill when not paid using only [physical] resources", () => {

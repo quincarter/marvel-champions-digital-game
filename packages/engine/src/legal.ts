@@ -42,6 +42,7 @@ import {
   priceOrNull,
   paidForMultiplied,
   paymentOptions,
+  paymentOnlyTypes,
   resourcesNotFor,
   paymentsFromOptionIds,
   resourceAbilityGenerates,
@@ -68,7 +69,7 @@ import {
   type DelegableCostPart,
   type Payment,
 } from "./commands.js";
-import { createCtx, perilBarsTrigger } from "./ctx.js";
+import { createCtx, perilBarsTrigger, type Ctx } from "./ctx.js";
 import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
@@ -452,8 +453,8 @@ function walletsWithWhenSpent(
   payingFor: InstanceId | null,
   spend: readonly Payment[],
 ): readonly (readonly Payment[])[] {
-  const plain = wallets(spend);
   const ctx = createCtx(state, deps);
+  const plain = withPaymentOnlyWallets(ctx, playerId, payingFor, wallets(spend));
   const uses = paymentsFromOptionIds(paymentOptions(ctx, playerId, null, payingFor).map((o) => o.optionId)).filter(
     (p) => "fromHand" in p && isWhenSpentUse(p) && !reserved.has(p.fromHand),
   );
@@ -468,9 +469,63 @@ function walletsWithWhenSpent(
     ...sizes.flatMap((size) => {
       const most = mostFromEachHandCard(ctx, playerId, [...spend, ...uses], null, payingFor, size);
       const hand = most.filter((p) => "fromHand" in p).sort((a, b) => total(b) - total(a));
-      return wallets([...most.filter((p) => "ability" in p), ...hand]);
+      return withPaymentOnlyWallets(
+        ctx,
+        playerId,
+        payingFor,
+        wallets([...most.filter((p) => "ability" in p), ...hand]),
+      );
     }),
   ];
+}
+
+/**
+ * `walletList`, then, for a card that limits the resources it can be paid with ("You can only spend [physical]
+ * resources to pay for this card", Crushing Blow), each wallet again without the sources that card refuses. The price
+ * refuses a whole payment holding one refused resource (`priceOf`), so a wallet of everything the player could spend
+ * failed as soon as the hand held one card of another type, and the card read as unaffordable with physical cards and
+ * a wild in hand (issue #648). A source is kept when it can pay for the card on its own. The filtered wallets come
+ * after the unfiltered ones, so nothing changes for a payment that already worked.
+ */
+function withPaymentOnlyWallets(
+  ctx: Ctx,
+  playerId: PlayerId,
+  payingFor: InstanceId | null,
+  walletList: readonly (readonly Payment[])[],
+): readonly (readonly Payment[])[] {
+  const accepts = paymentOnlyFilter(ctx, playerId, payingFor);
+  if (!accepts) return walletList;
+  const seen = new Set(walletList.map((wallet) => JSON.stringify(wallet)));
+  const filtered: (readonly Payment[])[] = [];
+  for (const wallet of walletList) {
+    const kept = wallet.filter(accepts);
+    const key = JSON.stringify(kept);
+    if (kept.length === 0 || seen.has(key)) continue;
+    seen.add(key);
+    filtered.push(kept);
+  }
+  return [...walletList, ...filtered];
+}
+
+/**
+ * For a card that limits the resources it can be paid with (`paymentOnlyTypes`), whether one source can pay for it on
+ * its own; null for every other card (or no card), which keeps every source.
+ */
+function paymentOnlyFilter(
+  ctx: Ctx,
+  playerId: PlayerId,
+  payingFor: InstanceId | null,
+): ((payment: Payment) => boolean) | null {
+  if (!payingFor || paymentOnlyTypes(ctx.state, ctx.deps, payingFor).length === 0) return null;
+  const accepted = new Map<Payment, boolean>();
+  return (payment) => {
+    let ok = accepted.get(payment);
+    if (ok === undefined) {
+      ok = priceOrNull(ctx, playerId, [payment], null, payingFor) !== null;
+      accepted.set(payment, ok);
+    }
+    return ok;
+  };
 }
 
 /** How many payments of a chosen-size cost `legalActions` probes before the usual wallets (`chosenSizeWallets`). */
@@ -497,9 +552,12 @@ function chosenSizeWallets(
   limit = CHOSEN_SIZE_WALLETS,
 ): readonly (readonly Payment[])[] {
   if (!range) return [];
+  // A card that only takes some resource types is sized from the sources it takes (issue #648, `paymentOnlyFilter`).
+  const accepts = paymentOnlyFilter(createCtx(state, deps), playerId, payingFor);
+  const sources = accepts ? spend.filter(accepts) : spend;
   const found: (readonly Payment[])[] = [];
   for (const overpay of [false, true]) {
-    for (const payment of chosenSizePayments(state, deps, playerId, spend, range, payingFor, overpay)) {
+    for (const payment of chosenSizePayments(state, deps, playerId, sources, range, payingFor, overpay)) {
       found.push(payment);
       if (found.length >= limit) break;
     }
