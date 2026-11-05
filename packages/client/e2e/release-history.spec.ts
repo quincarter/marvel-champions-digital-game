@@ -21,6 +21,9 @@ const markDocument = (page: Page) =>
   page.evaluate(() => void ((window as unknown as { __same: boolean }).__same = true));
 const sameDocument = (page: Page) => page.evaluate(() => (window as unknown as { __same?: boolean }).__same === true);
 
+/** The heading of the release on the page: a report's own, or the title of one with only its notes (a patch release). */
+const releaseHeading = (page: Page) => page.locator("#report h1, h2.title").first();
+
 const openList = async (page: Page, phone: boolean): Promise<void> => {
   if (phone) await page.locator("#bar-open").click();
 };
@@ -84,8 +87,7 @@ test("every release is listed, and a click swaps it in with no reload", async ({
   const phone = info.project.name === "phone";
   const errors = trackPageErrors(page);
   await page.goto(PAGE);
-  // The newest release has a report.
-  await expect(page.locator("#report")).toBeAttached();
+  await expect(releaseHeading(page)).not.toBeEmpty();
   await expect(page.locator(".rail .list a[data-version^='v']")).toHaveCount(10);
   await markDocument(page);
 
@@ -125,7 +127,7 @@ test("a link to one release opens it, and a release from the first day has a pag
 
 test("a hash that is no release still lands on one", async ({ page }) => {
   await page.goto(`${PAGE}#content`);
-  await expect(page.locator("#report")).toBeAttached();
+  await expect(releaseHeading(page)).not.toBeEmpty();
 });
 
 test("a slow release does not land over the one picked after it", async ({ page }) => {
@@ -170,7 +172,7 @@ test("a release GitHub knows that this build does not links to GitHub", async ({
 test("a version nobody knows opens the newest release", async ({ page }) => {
   await page.goto(`${PAGE}#v0.40.9`);
   await expect(page.locator(".list a").first()).toHaveAttribute("aria-current", "page");
-  await expect(page.locator("#report h1")).not.toBeEmpty();
+  await expect(releaseHeading(page)).not.toBeEmpty();
 });
 
 test("a hash change while GitHub answers lands once the list is here", async ({ page }) => {
