@@ -157,6 +157,9 @@ describe("Energy Projectiles (07027)", () => {
     let state = withActive(spiderManVsBreakout(), thunderballId(spiderManVsBreakout()));
     const heroId = identityOf(state, P1);
     state = patchInstance(state, heroId, { exhausted: false });
+    // Breakout 1B re-picks the active villain after step one by the most side-scheme threat: 8 (9 after step one)
+    // keeps Thunderball active, so the stacked deck below is the one his attack draws from.
+    state = patchInstance(state, thunderstruckId(state), { threat: 8 });
     // Thunderball's own boost card this activation; Corrupt Prison Guard (07023, no ability) as the following
     // per-player dealt card, harmless filler matching this file's own `07023`-adjacent precedent.
     state = stackEncounterDeck(state, "07027", "07023");
