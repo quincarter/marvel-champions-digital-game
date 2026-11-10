@@ -23,7 +23,7 @@ import {
   type PackManifest,
 } from "@mc/content";
 import { announceArtChange } from "../language-change.js";
-import type { ArtSource } from "./art-source.js";
+import { setPackArtResolver, type ArtSource } from "./art-source.js";
 
 /** The part of the pack store this module reads: a file's `blob:` URL, and revoking it. */
 export interface PackArtStore {
@@ -188,3 +188,5 @@ export function resetPackArt(): void {
   announceTimer = undefined;
   announcedSignature = "";
 }
+
+setPackArtResolver(packArtFor);

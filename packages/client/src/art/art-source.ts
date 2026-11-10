@@ -24,14 +24,24 @@
  * is testable without a canvas and without the network.
  */
 
-import { isCustomCardCode, type AnyCard, type ArtRef, type ImageRef } from "@mc/content";
+import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
 import { availableCardLanguages, cardLanguage, type CardLanguage } from "./card-language.js";
 import { announceLanguageChange } from "../language-change.js";
 import { BALANCED_SCANS, BALANCED_SCAN_STEMS } from "./balanced-scans.js";
-import { packArtFor } from "./pack-art.js";
 
 /** The URL prefix every scan is served under. `vite-card-art.ts` imports this, so the two cannot drift. */
 export const CARD_ART_ROUTE = "/card-art/";
+
+/**
+ * How a custom pack card (`x.<pack>.…`) finds its picture. `pack-art.ts` registers itself here when it loads, rather
+ * than this module importing it: `vite-card-art.ts` imports this module at config time in plain Node, which can't
+ * load the pack code's `@mc/content` imports.
+ */
+let packArtResolver: ((code: string, lang: CardLanguage) => ArtSource | null) | undefined;
+
+export function setPackArtResolver(resolver: (code: string, lang: CardLanguage) => ArtSource | null): void {
+  packArtResolver = resolver;
+}
 
 /**
  * Where a language's scans are served: the build language's at `CARD_ART_ROUTE`, any other language the bundle
@@ -167,7 +177,7 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
   }
   if (!card) return null;
   // A custom card's picture is a file of its installed pack, never a scan under `assets/card-art/` (`pack-art.ts`).
-  if (isCustomCardCode(card.id as string)) return packArtFor(card.id as string, artLanguage);
+  if ((card.id as string).startsWith("x.")) return packArtResolver?.(card.id as string, artLanguage) ?? null;
   const local = localRefFor(card, face);
   if (local) return promoOrFace(`${local as string}.png`);
   const upstream = imageRefFor(card, face);

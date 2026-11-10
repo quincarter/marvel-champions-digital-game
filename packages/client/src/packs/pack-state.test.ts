@@ -83,3 +83,32 @@ describe("formatBytes and satisfiesApp", () => {
     expect(satisfiesApp("*", "0.0.1")).toBe(true);
   });
 });
+
+describe("pack kinds this game can't play yet", () => {
+  it("offers a scenario pack as needing an app update", () => {
+    const entry = {
+      id: "fan-scenario",
+      kind: "scenario" as const,
+      name: "Fan Scenario",
+      creator: "x",
+      summary: "",
+      tags: [],
+      approved: "2026-11-10",
+      latest: "1.0.0",
+      versions: {
+        "1.0.0": {
+          manifest: "m",
+          base: "b",
+          zip: "z",
+          zipBytes: 10,
+          zipSha256: "0".repeat(64),
+          requires: { app: ">=0.1.0" },
+        },
+      },
+      withdrawn: false,
+    };
+    const view = packStateOf({ entry, appVersion: "1.0.0", supportedDslFeatures: [] });
+    expect(view.state).toBe("needs-app-update");
+    expect(view.reason).toMatch(/scenario packs/);
+  });
+});

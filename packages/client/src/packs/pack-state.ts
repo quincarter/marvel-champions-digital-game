@@ -99,6 +99,12 @@ export function unmetRequirement(
   return undefined;
 }
 
+/**
+ * The pack kinds this client can put into a game. Scenario, modular and campaign packs validate, but nothing yet lists
+ * their scenarios or sets in the pickers, so they are refused rather than installed and silently unplayable.
+ */
+export const PLAYABLE_PACK_KINDS: readonly string[] = ["hero", "art"];
+
 export function packStateOf(input: PackStateInput): PackStateView {
   const { entry, installed } = input;
   const latest = entry.versions[entry.latest];
@@ -114,6 +120,8 @@ export function packStateOf(input: PackStateInput): PackStateView {
     return { ...base, state: "installed" };
   }
   if (entry.withdrawn) return { ...base, state: "withdrawn" };
+  if (!PLAYABLE_PACK_KINDS.includes(entry.kind))
+    return { ...base, state: "needs-app-update", reason: `This game can't play ${entry.kind} packs yet` };
   if (!latest) return { ...base, state: "needs-app-update", reason: "No downloadable version" };
   const reason = unmetRequirement(latest, input.appVersion, input.supportedDslFeatures);
   return reason ? { ...base, state: "needs-app-update", reason } : { ...base, state: "install" };
