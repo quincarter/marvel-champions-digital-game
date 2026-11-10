@@ -1,0 +1,38 @@
+{
+  "id": "x.carnage-nep.20",
+  "name": "Bushwacker",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "20",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 2,
+  "sch": 1,
+  "hp": 8,
+  "encounterSetIds": ["carnage-nep-twisted-killers"],
+  "boostIcons": 2,
+  "starIcon": true,
+  "traits": ["BRUTE", "KILLER"],
+  "keywords": [
+    {
+      "name": "toughness"
+    },
+    {
+      "name": "villainous"
+    }
+  ],
+  "text": {
+    "printed": "Toughness. Villainous.\n[star] Bushwacker's attacks gain piercing and overkill.\n[star] Boost: If Murderous Nature is attached to the activating enemy, give it another boost card for this activation.",
+    "current": "Toughness. Villainous.\n[star] Bushwacker's attacks gain piercing and overkill.\n[star] Boost: If Murderous Nature is attached to the activating enemy, give it another boost card for this activation."
+  },
+  "flavor": "\"Gonna kill you and eat you! Put you on the grill!\"",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.20.bushwacker-constant"
+    },
+    {
+      "id": "x.carnage-nep.20.boost"
+    }
+  ]
+}

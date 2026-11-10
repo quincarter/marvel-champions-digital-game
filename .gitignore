@@ -65,3 +65,8 @@ artifacts/
 # The published mod SDK's build output and its npm tarballs (pnpm --filter @mc/mod-sdk build:dist)
 packages/mod-sdk/dist-npm/
 packages/mod-sdk/*.tgz
+
+# Community packs: the pictures are not in git (they ship in the content repo's release bundles). Each pack's
+# fetch-art.sh (or README) says how to get them for a local build.
+content-packs/community/*/cards/*/
+content-packs/community/*/alt-art/

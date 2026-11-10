@@ -1,0 +1,31 @@
+{
+  "id": "x.carnage-nep.11",
+  "name": "Vicious Lashing",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "11",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["ATTACK", "DEFENSE"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Interrupt (attack/defense): When an enemy attacks you, deal 4 damage to that enemy. This attack gains ranged.\nHero Action (attack): Deal 2 damage to an enemy. Deal 2 damage to an enemy. This attack gains ranged.",
+    "current": "Hero Interrupt (attack/defense): When an enemy attacks you, deal 4 damage to that enemy. This attack gains ranged.\nHero Action (attack): Deal 2 damage to an enemy. Deal 2 damage to an enemy. This attack gains ranged."
+  },
+  "flavor": "\"I told you flaying is cool.\" —Carnage",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.11.vicious-lashing-constant"
+    },
+    {
+      "id": "x.carnage-nep.11.vicious-lashing-action"
+    }
+  ]
+}

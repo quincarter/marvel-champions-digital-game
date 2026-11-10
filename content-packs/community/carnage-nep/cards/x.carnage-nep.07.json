@@ -1,0 +1,31 @@
+{
+  "id": "x.carnage-nep.07",
+  "name": "Hunting Hosts",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "7",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 2,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["SKILL"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Response: After you attack and defeat an Elite minion, ready this card.\nAction: Exhaust this card → search the encounter deck and discard pile for a minion and put it into play engaged with you. (Shuffle.)",
+    "current": "Response: After you attack and defeat an Elite minion, ready this card.\nAction: Exhaust this card → search the encounter deck and discard pile for a minion and put it into play engaged with you. (Shuffle.)"
+  },
+  "flavor": "\"I want someone with juice. Otherwise, well, its' not a fair fight, is it?\" —Carnage",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.07.hunting-hosts-response"
+    },
+    {
+      "id": "x.carnage-nep.07.hunting-hosts-action"
+    }
+  ]
+}

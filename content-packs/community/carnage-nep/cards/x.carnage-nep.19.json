@@ -1,0 +1,34 @@
+{
+  "id": "x.carnage-nep.19",
+  "name": "Muse",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "19",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 1,
+  "sch": 2,
+  "hp": 6,
+  "encounterSetIds": ["carnage-nep-twisted-killers"],
+  "boostIcons": 3,
+  "traits": ["CRIMINAL", "ELITE", "KILLER"],
+  "keywords": [
+    {
+      "name": "steady"
+    },
+    {
+      "name": "villainous"
+    }
+  ],
+  "text": {
+    "printed": "Steady. Villainous.\n[star] Forced Interrupt: When Muse attacks, he attacks the character with the fewest remaining hit points. This attack gains piercing. If this attack defeats a character, heal 1 damage from Muse for each point of excess damage dealt to that character by that attack.",
+    "current": "Steady. Villainous.\n[star] Forced Interrupt: When Muse attacks, he attacks the character with the fewest remaining hit points. This attack gains piercing. If this attack defeats a character, heal 1 damage from Muse for each point of excess damage dealt to that character by that attack."
+  },
+  "flavor": "\"When you create things, pure things, you must accept that not everyone will understand them.\"",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.19.muse-forced-interrupt"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "x.carnage-nep.05",
+  "name": "Probing Minds",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "5",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 1,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["SUPERPOWER", "SYMBIOTE"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Interrupt: When you reveal a non-Elite minion, exhaust this card → if that minion has boost icons ([boost]) equal to:\n• 0, heal 1 damage from Carnage.\n• 1, confuse that minion.\n• 2, stun that minion.\n• 3+, remove 1 threat from a scheme.",
+    "current": "Hero Interrupt: When you reveal a non-Elite minion, exhaust this card → if that minion has boost icons ([boost]) equal to:\n• 0, heal 1 damage from Carnage.\n• 1, confuse that minion.\n• 2, stun that minion.\n• 3+, remove 1 threat from a scheme."
+  },
+  "abilities": [
+    {
+      "id": "x.carnage-nep.05.probing-minds-interrupt"
+    }
+  ]
+}

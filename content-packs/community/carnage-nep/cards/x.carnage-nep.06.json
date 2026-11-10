@@ -1,0 +1,31 @@
+{
+  "id": "x.carnage-nep.06",
+  "name": "Frenzied Violence",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "6",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 2,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Carnage gets +1 ATK and his basic attacks gain overkill.\nHero Response: After you attack and defeat an enemy, exhaust this card → ready Carnage.",
+    "current": "Carnage gets +1 ATK and his basic attacks gain overkill.\nHero Response: After you attack and defeat an enemy, exhaust this card → ready Carnage."
+  },
+  "flavor": "\"Beautiful. Just beautiful work.\" —Carnage",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.06.frenzied-violence-constant"
+    },
+    {
+      "id": "x.carnage-nep.06.frenzied-violence-response"
+    }
+  ]
+}

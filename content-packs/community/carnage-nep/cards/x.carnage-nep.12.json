@@ -1,0 +1,28 @@
+{
+  "id": "x.carnage-nep.12",
+  "name": "Chomp",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "12",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "event",
+  "cost": 3,
+  "resourceIcons": {
+    "wild": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["ATTACK", "SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Action (attack): Deal 8 damage to an enemy. This attack gains piercing. If this attack defeats that enemy, ready Carnage.",
+    "current": "Hero Action (attack): Deal 8 damage to an enemy. This attack gains piercing. If this attack defeats that enemy, ready Carnage."
+  },
+  "flavor": "\"Tasty!\" —Eddie Brock",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.12.chomp-action"
+    }
+  ]
+}

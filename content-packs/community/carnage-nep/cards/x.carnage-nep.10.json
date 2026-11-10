@@ -1,0 +1,28 @@
+{
+  "id": "x.carnage-nep.10",
+  "name": "Sinister Flight",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "10",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 1,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["AERIAL", "THWART"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action (thwart): Remove 2 threat from a scheme, ignoring the patrol keyword. Carnage gains the Aerial trait until the end of the phase.",
+    "current": "Hero Action (thwart): Remove 2 threat from a scheme, ignoring the patrol keyword. Carnage gains the Aerial trait until the end of the phase."
+  },
+  "flavor": "\"You can't use my powers like this!\" —Carnage",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.10.sinister-flight-action"
+    }
+  ]
+}

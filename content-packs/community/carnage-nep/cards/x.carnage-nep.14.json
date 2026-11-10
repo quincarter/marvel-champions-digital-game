@@ -1,0 +1,24 @@
+{
+  "id": "x.carnage-nep.14",
+  "name": "Essential Bloodlust",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "14",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "obligation",
+  "encounterSetIds": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Give to the Eddie Brock player.\nYou may flip to alter-ego form. Choose:\n• Exhaust Eddie Brock → remove Essential Bloodlust from the game.\n• Take indirect damage equal to Carnage's ATK. Discard this obligation.",
+    "current": "Give to the Eddie Brock player.\nYou may flip to alter-ego form. Choose:\n• Exhaust Eddie Brock → remove Essential Bloodlust from the game.\n• Take indirect damage equal to Carnage's ATK. Discard this obligation."
+  },
+  "flavor": "\"If I didn't give Carnage death, it would kill me instead.\" —Eddie Brock",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.14.obligation"
+    }
+  ]
+}
