@@ -42,6 +42,8 @@ export interface SmokeGame {
   readonly scenario: string;
   /** The pack's modular set picked at the scenario in this game, when the game is about one. */
   readonly modularSet?: string;
+  /** `"expert"` for a pack scenario's expert-mode game; absent is standard. */
+  readonly difficulty?: "expert";
   readonly seed: number;
   readonly ok: boolean;
   /** `win (villainDefeated)`, `loss (mainSchemeCompleted)`, ...; absent when the game failed before it ended. */
@@ -83,6 +85,7 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
     readonly deck?: StarterDeck;
     readonly scenario: string;
     readonly modularSet?: string;
+    readonly difficulty?: "expert";
     /** The modular sets to pick; absent is the scenario's recommendation. */
     readonly modularSetIds?: readonly string[];
   }
@@ -90,7 +93,10 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
   if (plans.length === 0 && pack.cards.some((card) => card.type === "hero_identity"))
     notes.push("the pack has a hero but no deck in decks/: add its precon so mc-pack test can play it");
   const ownScenarios: readonly Scenario[] = packScenarioRecords([pack]);
-  for (const record of ownScenarios) plans.push({ name: SMOKE_BASE_DECK, scenario: String(record.id) });
+  for (const record of ownScenarios) {
+    plans.push({ name: SMOKE_BASE_DECK, scenario: String(record.id) });
+    plans.push({ name: SMOKE_BASE_DECK, scenario: String(record.id), difficulty: "expert" });
+  }
   const baseRecord = CORE_SCENARIOS.find((candidate) => String(candidate.id) === scenario);
   for (const set of baseRecord ? packModularSetChoices(baseRecord, [pack]) : [])
     plans.push({ name: SMOKE_BASE_DECK, scenario, modularSet: String(set.id), modularSetIds: [String(set.id)] });
@@ -115,7 +121,7 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
       {
         players: [seat],
         seed,
-        difficulty: "standard",
+        difficulty: plan.difficulty ?? "standard",
         ...(plan.modularSetIds ? { modularSetIds: plan.modularSetIds } : {}),
       },
       [pack],
@@ -137,6 +143,7 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
           deck: plan.name,
           scenario: plan.scenario,
           ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
+          ...(plan.difficulty ? { difficulty: plan.difficulty } : {}),
           seed,
           rounds: run.rounds,
           commands: run.commands,
@@ -170,6 +177,7 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
           deck: plan.name,
           scenario: plan.scenario,
           ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
+          ...(plan.difficulty ? { difficulty: plan.difficulty } : {}),
           seed,
           ok: false,
           rounds: 0,

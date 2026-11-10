@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:f
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PLAYABLE_DEPS } from "@mc/cards";
+import { PLAYABLE_DEPS, customScenarioProblems, playableScenario } from "@mc/cards";
 import { playToOutcome } from "@mc/cards/testing";
-import { CORE_SCENARIOS, type PackManifest } from "@mc/content";
+import { CORE_SCENARIOS, PLAYABLE_CARDS, type PackManifest } from "@mc/content";
 import { createGame, replay } from "@mc/engine";
 import { buildPack } from "./build.js";
 import { gameDepsWithPacks, packModularSetChoices, packScenarioRecords, scenarioWithPacks } from "./game.js";
@@ -155,7 +155,8 @@ describe("sample-scenario pack", () => {
   it("smoke-tests a scenario pack with mc-pack test's helper: its scenario and its modular set both play", () => {
     const result = smokeTestPack(pack, { games: 3 });
     expect(result.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([]);
-    expect(result.games.filter((game) => game.scenario === SCENARIO)).toHaveLength(3);
+    expect(result.games.filter((game) => game.scenario === SCENARIO)).toHaveLength(6); // standard and expert
+    expect(result.games.filter((game) => game.scenario === SCENARIO && game.difficulty === "expert")).toHaveLength(3);
     expect(result.games.filter((game) => game.modularSet === GEARS)).toHaveLength(3);
     expect(result.ok).toBe(true);
   });
@@ -272,22 +273,133 @@ describe("validatePack: encounter sets and scenarios", () => {
   });
 });
 
-describe("scenarioWithPacks: refusals", () => {
+describe("scenarioWithPacks: refusals and options", () => {
   const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
   it("refuses a pack set at a scenario with a modular set pool, and a pack scenario option it does not offer", () => {
-    expect(() => scenarioWithPacks("thunderbolts", { ...seat, modularSetIds: [GEARS] }, [pack])).toThrow();
+    expect(() => scenarioWithPacks("thunderbolts", { ...seat, modularSetIds: [GEARS] }, [pack])).toThrow(
+      /modular set pool or a side/,
+    );
     expect(() => scenarioWithPacks(SCENARIO, { ...seat, extraModularSetIds: ["longshot"] }, [pack])).toThrow(
       /not offered at a pack scenario/,
     );
   });
   it("refuses another scenario's set and a set that is not a pack set at a pack scenario", () => {
     expect(() => scenarioWithPacks("rhino", { ...seat, modularSetIds: [SCENARIO] }, [pack])).toThrow(
-      /already part of|belongs to another scenario/,
+      /belongs to another scenario|already part of/,
     );
-    expect(() => scenarioWithPacks(SCENARIO, { ...seat, modularSetIds: ["rhino"] }, [pack])).toThrow();
+    expect(() => scenarioWithPacks(SCENARIO, { ...seat, modularSetIds: ["rhino"] }, [pack])).toThrow(
+      /belongs to another scenario/,
+    );
   });
   it("is the base game's own setup when no pack is given", () => {
-    const base = scenarioWithPacks("rhino", seat, []);
-    expect((base.encounterDeck ?? []).length).toBeGreaterThan(0);
+    expect(scenarioWithPacks("rhino", seat, [])).toEqual(playableScenario("rhino", seat));
+  });
+  it("never lets a pack scenario or set take a base id, or two packs share one", () => {
+    const set = { ...pack.encounterSets![0]!, id: "bomb_scare" } as never;
+    expect(() => scenarioWithPacks("rhino", seat, [{ ...pack, encounterSets: [set] }])).toThrow(/base-game id/);
+    const scenario = { ...pack.scenarios![0]!, id: "rhino" } as never;
+    expect(() => scenarioWithPacks("rhino", seat, [{ ...pack, scenarios: [scenario] }])).toThrow(/base-game id/);
+    expect(() => scenarioWithPacks("rhino", seat, [pack, { ...pack, cards: [] }])).toThrow(/used by two packs/);
+  });
+  it("deals a base set's separate deck at a pack scenario (Infinity Gauntlet's stones, MC21 p. 16)", () => {
+    const config = scenarioWithPacks(SCENARIO, { ...seat, modularSetIds: ["infinity_gauntlet"] }, [pack]);
+    expect(config.scenarioDecks?.length).toBeGreaterThan(0);
+    expect(scenarioWithPacks(SCENARIO, seat, [pack]).scenarioDecks).toBeUndefined();
+  });
+  it("starts expert mode at stage II and ends there, with the Expert set in the deck", () => {
+    const config = scenarioWithPacks(SCENARIO, { ...seat, difficulty: "expert" }, [pack]);
+    expect(config.villainStartStageIndex).toBe(1);
+    expect(config.villainLastStageIndex).toBe(1);
+    expect(config.difficulty).toBe("expert");
+    const expertCards = new Set(
+      PLAYABLE_CARDS.filter(
+        (card) => "encounterSetIds" in card && card.encounterSetIds.includes("expert" as never),
+      ).map((card) => String(card.id)),
+    );
+    expect((config.encounterDeck ?? []).some((id) => expertCards.has(String(id)))).toBe(true);
+    const standard = scenarioWithPacks(SCENARIO, seat, [pack]);
+    expect([standard.villainStartStageIndex, standard.villainLastStageIndex]).toEqual([0, 1]);
+    expect(standard.difficulty).toBeUndefined();
+  });
+  it("carries a heroic level, and refuses skirmish", () => {
+    expect(scenarioWithPacks(SCENARIO, { ...seat, modes: { heroic: 2 } }, [pack]).heroicLevel).toBe(2);
+    expect(() =>
+      scenarioWithPacks(SCENARIO, { ...seat, modes: { skirmish: { villainVersion: "1" } } as never }, [pack]),
+    ).toThrow(/no skirmish mode/);
+  });
+  it("does not offer a scenario's own Standard or Expert set as a modular pick", () => {
+    const rhino = { ...CORE_SCENARIOS.find((s) => s.id === "rhino")!, standardEncounterSetIds: [GEARS] } as never;
+    expect(packModularSetChoices(rhino, [pack]).map((set) => String(set.id))).not.toContain(GEARS);
+  });
+  it("answers a sentence, not a TypeError, for a scenario with no villain stages or an empty Standard set", () => {
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const missing = customScenarioProblems({ ...record, villainStages: undefined } as never, content);
+    expect(missing.join("\n")).toMatch(/villainStages.standard must be \[first stage, last stage\]/);
+    const backwards = customScenarioProblems(
+      { ...record, villainStages: { standard: [2, 1], expert: [2, 2] } } as never,
+      content,
+    );
+    expect(backwards.join("\n")).toMatch(/villainStages.standard/);
+    const noStandard = customScenarioProblems({ ...record, standardEncounterSetIds: [] } as never, content);
+    expect(noStandard.join("\n")).toMatch(/standardEncounterSetIds is empty/);
+  });
+  it("checks the recommended modular sets against the scenario's modular count", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const two = customScenarioProblems(
+      { ...record, modularSetCount: 1, recommendedModularSetIds: [GEARS, "bomb_scare"] } as never,
+      content,
+    );
+    expect(two.join("\n")).toMatch(/recommendedModularSetIds: .*uses 1 modular set/);
+  });
+});
+
+describe("validatePack: base ids, base sets and required packs", () => {
+  const changed = (change: (copy: { cards: any[]; encounterSets: any[]; scenarios: any[] }) => void) => {
+    const copy = {
+      cards: structuredClone(pack.cards) as any[],
+      encounterSets: structuredClone(pack.encounterSets ?? []) as any[],
+      scenarios: structuredClone(pack.scenarios ?? []) as any[],
+    };
+    change(copy);
+    return { ...pack, ...copy } as unknown as PackInput;
+  };
+  const text = (input: PackInput, options = {}): string =>
+    validatePack(input, options)
+      .filter((issue) => !/sha256|size is|listed in pack.json|not listed|totalBytes/.test(issue.message))
+      .map((issue) => `${issue.path}: ${issue.message}`)
+      .join("\n");
+
+  it("rejects a set or scenario id that is a base-game id", () => {
+    expect(text(changed((c) => (c.encounterSets[0].id = "bomb_scare")))).toMatch(/base-game set id/);
+    expect(text(changed((c) => (c.scenarios[0].id = "rhino")))).toMatch(/base-game scenario id/);
+  });
+
+  it("rejects a pack card that joins a base-game set", () => {
+    expect(
+      text(changed((c) => (c.cards.find((card) => card.id === `${PACK}03`).encounterSetIds = ["bomb_scare"]))),
+    ).toMatch(/may not join a base-game set/);
+  });
+
+  it("requires a Standard or Expert classification on a pack set used as one", () => {
+    expect(text(changed((c) => (c.scenarios[0].standardEncounterSetIds = [GEARS])))).toMatch(
+      /needs classification "standard"/,
+    );
+    expect(text(changed((c) => (c.scenarios[0].expertEncounterSetIds = [GEARS])))).toMatch(
+      /needs classification "expert"/,
+    );
+  });
+
+  it("lets a scenario recommend a required pack's set when that pack's content is given", () => {
+    const other = {
+      ...structuredClone(pack.cards.find((card) => card.id === `${PACK}09`)),
+      id: "x.other-pack.01",
+    } as any;
+    other.encounterSetIds = ["other-pack-set"];
+    const set = { id: "other-pack-set", name: "Other", packCodes: ["other-pack"] };
+    const input = changed((c) => (c.scenarios[0].recommendedModularSetIds = ["other-pack-set"]));
+    expect(text(input)).toMatch(/"other-pack-set" is in neither the pack nor the base game/);
+    expect(text(input, { requiredPackContent: { cards: [other], encounterSets: [set] } })).toBe("");
   });
 });

@@ -17,6 +17,8 @@
  */
 import {
   PLAYABLE_CARDS,
+  WAVE10_SCENARIOS,
+  WAVE11_SCENARIOS,
   autoIncludedSetsOf,
   difficultyEncounterSetIds,
   difficultyOf,
@@ -26,12 +28,13 @@ import {
   type Scenario,
 } from "@mc/content";
 import type { GameSetupConfig } from "@mc/engine";
-import { encounterCardsOf, modularSetupCardIds, resolveModes } from "../core/setup.js";
+import { encounterCardsOf, modularSetupCardIds, resolveModes, setSeparateDecks } from "../core/setup.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,
   checkModularPickCount,
   chosenModularSetIds,
+  modularPickCountProblem,
   modularPickProblem,
 } from "../modular-pool.js";
 import { playableScenario, playableStarterDeckSetup, type PlayableScenarioOptions } from "./index.js";
@@ -68,6 +71,46 @@ function widenedPool(base: readonly AnyCard[], custom: CustomContent): readonly 
   return [...base, ...custom.cards];
 }
 
+const baseScenarioIds: ReadonlySet<string> = new Set(
+  [...PLAYABLE_SCENARIO_RECORDS, ...WAVE10_SCENARIOS, ...WAVE11_SCENARIOS].map((scenario) => scenario.id as string),
+);
+const baseSetIds: ReadonlySet<string> = new Set([
+  ...PLAYABLE_ENCOUNTER_SETS.map((set) => set.id as string),
+  ...PLAYABLE_CARDS.flatMap((card) => ("encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : [])),
+]);
+
+/** Whether `id` is a base-game scenario id: a pack's scenario may never take it (the base game always wins). */
+export const isBaseScenarioId = (id: string): boolean => baseScenarioIds.has(id);
+/** Whether `id` is a base-game encounter set id: a pack's set may never take it. */
+export const isBaseEncounterSetId = (id: string): boolean => baseSetIds.has(id);
+
+/**
+ * Why `custom` cannot join a game as it stands: a scenario or set whose id is a base id or is used twice (two packs
+ * whose ids meet, `foo`'s `foo-bar-x` and `foo-bar`'s). Base content is never shadowed and never merged.
+ */
+export function customContentProblems(custom: CustomContent): readonly string[] {
+  const problems: string[] = [];
+  const once = (kind: string, ids: readonly string[], isBase: (id: string) => boolean): void => {
+    const seen = new Set<string>();
+    for (const id of ids) {
+      if (isBase(id)) problems.push(`${kind} id "${id}" is a base-game id`);
+      else if (seen.has(id)) problems.push(`${kind} id "${id}" is used by two packs`);
+      seen.add(id);
+    }
+  };
+  once(
+    "scenario",
+    custom.scenarios.map((scenario) => scenario.id as string),
+    isBaseScenarioId,
+  );
+  once(
+    "encounter set",
+    custom.encounterSets.map((set) => set.id as string),
+    isBaseEncounterSetId,
+  );
+  return problems;
+}
+
 const allSets = (custom: CustomContent): readonly EncounterSet[] => [
   ...PLAYABLE_ENCOUNTER_SETS,
   ...custom.encounterSets,
@@ -86,6 +129,14 @@ function scenarioSpecificSetIds(pool: readonly AnyCard[]): ReadonlySet<string> {
 export function customModularPickProblem(scenario: Scenario, id: string, custom: CustomContent): string | null {
   const problem = modularPickProblem(scenario, id, allSets(custom));
   if (problem) return problem;
+  // RRG 1.8 "Standard Set" (p. 40) and "Expert Set" (p. 19): a scenario's Standard or Expert set, a pack's included,
+  // is never a modular choice, at that scenario or at any other.
+  if (
+    [scenario, ...custom.scenarios].some((s) =>
+      [...s.standardEncounterSetIds, ...s.expertEncounterSetIds].includes(id as never),
+    )
+  )
+    return `${id} is a Standard or Expert set, never a modular choice (RRG pp. 40, 19)`;
   // `modularPickProblem` knows the base pool's scenario-specific sets only; a custom scenario's own set is one too.
   const pool = [...PLAYABLE_CARDS, ...custom.cards];
   if (scenarioSpecificSetIds(pool).has(id)) return `${id} belongs to another scenario`;
@@ -110,13 +161,20 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
     if (!CUSTOM_SCENARIO_FIELDS.has(key)) problems.push(`field "${key}" is not available to a pack scenario yet`);
   const pool = [...PLAYABLE_CARDS, ...custom.cards];
   const sets = allSets(custom);
+  const range = (value: unknown): value is readonly [number, number] =>
+    Array.isArray(value) && value.length === 2 && value.every(Number.isInteger) && value[0] <= value[1];
+  for (const mode of ["standard", "expert"] as const)
+    if (!range(scenario.villainStages?.[mode]))
+      problems.push(`villainStages.${mode} must be [first stage, last stage] with first at most last`);
+  if (!scenario.standardEncounterSetIds?.length)
+    problems.push("standardEncounterSetIds is empty: a scenario needs a Standard set (RRG 1.8 p. 40)");
   const villain = pool.find((card) => card.id === scenario.villainCardId);
   if (!villain) problems.push(`villain ${scenario.villainCardId} is in neither the pack nor the base game`);
   else if (villain.type !== "villain") problems.push(`${scenario.villainCardId} is not a villain card`);
   else {
     const stages = villain.sides[0]?.stages.map((stage) => stage.stageNumber) ?? [];
     for (const mode of ["standard", "expert"] as const) {
-      for (const stage of scenario.villainStages?.[mode] ?? [])
+      for (const stage of range(scenario.villainStages?.[mode]) ? scenario.villainStages[mode] : [])
         if (!stages.includes(stage)) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
     }
   }
@@ -134,6 +192,13 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
       if (!sets.some((set) => set.id === id))
         problems.push(`${field}: "${id}" is in neither the pack nor the base game`);
       else if (field !== "recommendedModularSetIds") {
+        const set = sets.find((candidate) => candidate.id === id)!;
+        const expected =
+          field === "standardEncounterSetIds" ? "standard" : field === "expertEncounterSetIds" ? "expert" : undefined;
+        if (expected && set.classification !== expected)
+          problems.push(`${field}: "${id}" needs classification "${expected}" (RRG 1.8 pp. 40, 19)`);
+        if (field === "encounterSetIds" && (set.nemesisOfIdentityId !== undefined || set.campaignSpecific))
+          problems.push(`${field}: "${id}" is a nemesis or campaign set, never a scenario's own set`);
         try {
           encounterCardsOf([id], pool);
         } catch {
@@ -147,6 +212,8 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
     const problem = customModularPickProblem(scenario, id, custom);
     if (problem) problems.push(`recommendedModularSetIds: ${problem}`);
   }
+  const count = modularPickCountProblem(scenario, scenario.recommendedModularSetIds?.length ?? 0);
+  if (count) problems.push(`recommendedModularSetIds: ${count}`);
   return problems;
 }
 
@@ -172,7 +239,7 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   if (options.genePoolThreatPerPlayer !== undefined) unsupported.push("genePoolThreatPerPlayer");
   if (unsupported.length > 0)
     throw new Error(`${scenario.name}: ${unsupported.join(", ")} is not offered at a pack scenario`);
-  const problems = customScenarioProblems(scenario, custom);
+  const problems = [...customContentProblems(custom), ...customScenarioProblems(scenario, custom)];
   if (problems.length > 0) throw new Error(`${scenario.name} cannot be played: ${problems.join("; ")}`);
   const modes = resolveModes(options.difficulty, options.modes);
   if (options.difficulty === "extreme") throw new Error(`${scenario.name}: "extreme" is Breakout's own challenge`);
@@ -226,6 +293,8 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     }),
     requireIdentitySets: true,
     requireLegalDecks: true,
+    // Decks a set brings (Infinity Gauntlet's stones, MC21 p. 16), as `coreScenario` builds them.
+    ...(setSeparateDecks(ownAndModular).length > 0 ? { scenarioDecks: setSeparateDecks(ownAndModular) } : {}),
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(heroic > 0 ? { heroicLevel: heroic } : {}),
     ...(autoIncludedSets.length > 0 ? { autoIncludedSets } : {}),
@@ -249,6 +318,8 @@ export function playableScenarioWithCustom(
   options: PlayableScenarioOptions,
   custom: CustomContent,
 ): GameSetupConfig {
+  const clashes = customContentProblems(custom);
+  if (clashes.length > 0) throw new Error(`custom content cannot join a game: ${clashes.join("; ")}`);
   const own = customScenarioOf(scenarioId, custom);
   if (own) return customScenario(own, options, custom);
   const customIds = new Set(custom.encounterSets.map((set) => set.id as string));

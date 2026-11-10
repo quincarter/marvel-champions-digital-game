@@ -127,9 +127,12 @@ export type { PlayableScenarioOptions } from "./playable/index.js";
 // Custom packs' scenarios and modular sets in a game (docs/custom-content-packs.md §5, §11.9).
 export {
   CUSTOM_SCENARIO_FIELDS,
+  customContentProblems,
   customModularPickProblem,
   customModularSetChoices,
   customScenarioProblems,
+  isBaseEncounterSetId,
+  isBaseScenarioId,
   playableScenarioWithCustom,
 } from "./playable/custom.js";
 export type { CustomContent } from "./playable/custom.js";

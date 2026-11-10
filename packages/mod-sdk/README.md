@@ -122,8 +122,8 @@ mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
   passes a pack whose only issues are those. `build` and `test` never allow them.
 - `test` plays `--games` (default 3) games, standard mode, with the cards package's greedy driver (the one the sample
   packs' tests use), of: each deck in `decks/` against a Core scenario (default Rhino, with its recommended modular set);
-  each of the pack's scenarios with a base precon (Core Spider-Man) and the scenario's recommended modular set; each of
-  the pack's modular sets, picked with a base precon at the Core scenario. A game fails on an
+  each of the pack's scenarios, in standard and in expert mode, with a base precon (Core Spider-Man) and the scenario's recommended modular set; each of
+  the pack's modular sets, picked with a base precon at the Core scenario. Hero games use the Core scenario's recommended modular set (earlier versions used none). A game fails on an
   engine error, an illegal driver command, no outcome inside `--max-commands` (default 4000: stuck), a prompt left
   open, or a log that does not replay to the same state. A pack with no deck, scenario or modular set plays a base
   precon with its cards in the pool, and says so.

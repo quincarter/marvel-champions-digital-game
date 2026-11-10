@@ -1,4 +1,10 @@
-import { PLAYABLE_DEPS, customScenarioProblems, validateDefinition } from "@mc/cards";
+import {
+  PLAYABLE_DEPS,
+  customScenarioProblems,
+  isBaseEncounterSetId,
+  isBaseScenarioId,
+  validateDefinition,
+} from "@mc/cards";
 import {
   PACK_KINDS,
   PACK_SCHEMA_VERSION,
@@ -77,6 +83,14 @@ export interface ValidateOptions {
    * it, only the pack's own cards and the base game's are known.
    */
   readonly requiredPackCards?: ReadonlySet<string>;
+  /**
+   * The cards and encounter sets of the packs this one lists in `requires.packs`, so a scenario may name their villain,
+   * main scheme and sets (a recommended modular set of a required pack), and a card may join a required pack's set.
+   */
+  readonly requiredPackContent?: {
+    readonly cards: readonly AnyCard[];
+    readonly encounterSets: readonly EncounterSet[];
+  };
 }
 
 export const REQUIRED_PACK_FILES: readonly string[] = ["CREDITS.md", "PERMISSION.md"];
@@ -236,8 +250,8 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     }
   }
 
-  checkEncounterSets(input, cards, packId, add);
-  checkScenarios(input, cards, packId, add);
+  checkEncounterSets(input, cards, packId, options, add);
+  checkScenarios(input, cards, packId, options, add);
   const campaigns: unknown = input.campaigns;
   if (campaigns !== undefined && !Array.isArray(campaigns)) add("data/campaigns.json", "must be a list of campaigns");
 }
@@ -247,7 +261,13 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
  * passing the content schema's checks and carrying no feature a pack set cannot use yet. Every encounter set id a card
  * of the pack names under the pack's id, and every identity's nemesis set, must be one of these.
  */
-function checkEncounterSets(input: PackInput, cards: readonly Obj[], packId: string, add: Add): void {
+function checkEncounterSets(
+  input: PackInput,
+  cards: readonly Obj[],
+  packId: string,
+  options: ValidateOptions,
+  add: Add,
+): void {
   const sets = input.encounterSets;
   if (sets !== undefined && !Array.isArray(sets)) add("data/encounter-sets.json", "must be a list of encounter sets");
   const ids = new Set<string>();
@@ -260,6 +280,7 @@ function checkEncounterSets(input: PackInput, cards: readonly Obj[], packId: str
     const at = `encounterSets/${id || index}`;
     if (!id.startsWith(`${packId}-`) || packId === "") add(at, `encounter set id must start with "${packId}-"`);
     if (ids.has(id)) add(at, "encounter set id is used by two sets");
+    if (isBaseEncounterSetId(id)) add(at, "encounter set id is a base-game set id (the base game always wins)");
     ids.add(id);
     runContentCheck(at, () => validateEncounterSet(set as unknown as EncounterSet), add);
     if (!Array.isArray(set.packCodes)) add(at, "packCodes must be a list");
@@ -280,12 +301,16 @@ function checkEncounterSets(input: PackInput, cards: readonly Obj[], packId: str
       );
     }
   }
+  const required = new Set((options.requiredPackContent?.encounterSets ?? []).map((set) => set.id as string));
   const belongsToPack = (id: string): boolean => id === packId || id.startsWith(`${packId}-`);
   for (const card of cards) {
     const at = `cards/${String(card.id)}`;
     for (const id of Array.isArray(card.encounterSetIds) ? (card.encounterSetIds as unknown[]) : []) {
-      if (typeof id === "string" && belongsToPack(id) && !ids.has(id))
-        add(at, `encounter set "${id}" has no record in the pack's encounter sets`);
+      if (typeof id !== "string") continue;
+      if (belongsToPack(id)) {
+        if (!ids.has(id)) add(at, `encounter set "${id}" has no record in the pack's encounter sets`);
+      } else if (!required.has(id))
+        add(at, `encounter set "${id}" is not this pack's: a card may not join a base-game set (RRG 1.8 p. 29)`);
     }
     const nemesis = card.type === "hero_identity" ? card.nemesisEncounterSetId : undefined;
     if (typeof nemesis === "string" && belongsToPack(nemesis) && !ids.has(nemesis))
@@ -309,7 +334,13 @@ const UNSUPPORTED_SET_FIELDS: readonly string[] = [
  * sets resolving to the pack or the base game, with only the fields a pack scenario may carry
  * (`customScenarioProblems`, the same check the game builds from).
  */
-function checkScenarios(input: PackInput, cards: readonly Obj[], packId: string, add: Add): void {
+function checkScenarios(
+  input: PackInput,
+  cards: readonly Obj[],
+  packId: string,
+  options: ValidateOptions,
+  add: Add,
+): void {
   const scenarios = input.scenarios;
   if (scenarios !== undefined && !Array.isArray(scenarios)) add("data/scenarios.json", "must be a list of scenarios");
   const ids = new Set<string>();
@@ -323,6 +354,7 @@ function checkScenarios(input: PackInput, cards: readonly Obj[], packId: string,
     const at = `scenarios/${id || index}`;
     if (!id.startsWith(`${packId}-`) || packId === "") add(at, `scenario id must start with "${packId}-"`);
     if (ids.has(id)) add(at, "scenario id is used by two scenarios");
+    if (isBaseScenarioId(id)) add(at, "scenario id is a base-game scenario id (the base game always wins)");
     ids.add(id);
     if (typeof scenario.packCode === "string" && scenario.packCode !== packId)
       add(at, `packCode must be the pack's id "${packId}"`);
@@ -340,10 +372,11 @@ function checkScenarios(input: PackInput, cards: readonly Obj[], packId: string,
   }
   // The references, checked as the game reads them: against the pack's own cards and sets, plus the base game's.
   const custom = {
-    cards: cards as unknown as readonly AnyCard[],
-    encounterSets: (Array.isArray(input.encounterSets) ? input.encounterSets : []).filter(
-      isObj,
-    ) as unknown as EncounterSet[],
+    cards: [...(cards as unknown as readonly AnyCard[]), ...(options.requiredPackContent?.cards ?? [])],
+    encounterSets: [
+      ...((Array.isArray(input.encounterSets) ? input.encounterSets : []).filter(isObj) as unknown as EncounterSet[]),
+      ...(options.requiredPackContent?.encounterSets ?? []),
+    ],
     scenarios: checked,
   };
   for (const scenario of checked) {
