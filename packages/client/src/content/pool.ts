@@ -366,8 +366,8 @@ const SET_VIEWS = new WeakMap<object, readonly EncounterSet[]>();
 
 /**
  * `POOL_SCENARIOS` plus the scenarios of every loaded pack (`packScenarioRecords`), or `POOL_SCENARIOS` itself when no pack
- * brings one. The same array until the loaded packs change. The scenario picker and anything that names a scenario of a
- * game in progress read this; the base game's own tables (achievements, unlocks, stats) keep `POOL_SCENARIOS`.
+ * brings one. The same array until the loaded packs change. The scenario picker reads this (a game in progress reads
+ * `game-deps.ts`'s `gameScenarios()`, from its own packs); the base game's own tables (achievements, unlocks, stats) keep `POOL_SCENARIOS`.
  */
 export function currentScenarios(): readonly Scenario[] {
   const packs = loadedPacks();

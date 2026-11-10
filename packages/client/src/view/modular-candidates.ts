@@ -172,7 +172,10 @@ export function modularCandidatesFor(
   const packs = loadedPacks();
   const packSetIds = new Set(packs.flatMap((pack) => (pack.encounterSets ?? []).map((set) => set.id as string)));
   const packChoices =
-    packSetIds.size === 0 || scenario.side !== undefined || scenario.modularSetPool !== undefined
+    packSetIds.size === 0 ||
+    campaign !== undefined ||
+    scenario.side !== undefined ||
+    scenario.modularSetPool !== undefined
       ? new Set<string>()
       : new Set(packModularSetChoices(scenario, packs).map((set) => set.id as string));
   const pool: readonly EncounterSet[] = noModulars

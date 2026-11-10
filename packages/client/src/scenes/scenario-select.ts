@@ -667,11 +667,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const found = new Map<string, HoverCardIdRect>();
     const viewport = this.#hoverViewport;
     if (!viewport) return found;
+    const scenarios = new Map(currentScenarios().map((s) => [s.id as string, s] as const));
     for (const [key, stop] of this.#stops) {
       if (!key.startsWith("scenario:")) continue;
-      const scenario = currentScenarios().find(
-        (candidate) => (candidate.id as string) === key.slice("scenario:".length),
-      );
+      const scenario = scenarios.get(key.slice("scenario:".length));
       if (!scenario) continue;
       const unknown = hasRandomChosenVillain(scenario);
       const cardId = (unknown ? scenario.mainSchemeCardId : scenario.villainCardId) as string;

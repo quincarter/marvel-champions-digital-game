@@ -17,7 +17,8 @@ import {
   isPackEncounterSet,
   isPackScenario,
 } from "../content/pool.js";
-import { setGamePacks } from "../content/game-deps.js";
+import { gameCardsById, gameEncounterSetName, gameScenarios, setGamePacks } from "../content/game-deps.js";
+import { pauseStatusOf } from "../view/pause-model.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { modularCandidatesFor } from "../view/modular-candidates.js";
@@ -191,5 +192,57 @@ describe("a game at a pack scenario or with a pack modular set", () => {
     expect(Object.hasOwn(meta!.config, "packs")).toBe(false);
     // A base modular pick does not carry the pack either.
     expect(Object.hasOwn(withLoadedPacks(configAt({ modularSetIds: ["bomb_scare"] })), "packs")).toBe(false);
+  });
+
+  it("names a pack game's scenario and sets from the game's own packs once nothing is installed", async () => {
+    await installed();
+    const host = new LocalEngineHost(new MemoryGameStorage());
+    const update = await host.start({
+      scenarioId: SCENARIO_ID,
+      difficulty: "standard",
+      players: [PRECON],
+      seed: 5,
+      modularSetIds: [GEARS],
+    });
+    setLoadedPacks([]);
+    setGamePacks(update.config?.packs);
+    const status = pauseStatusOf(
+      update.state,
+      update.state.players[0]!.playerId,
+      update.config ?? null,
+      gameScenarios(),
+    );
+    expect(status.scenarioName).toBe("The Clockmaker");
+    expect(gameEncounterSetName(GEARS)).toBe("Gears");
+    expect(gameEncounterSetName("rhino")).toBeDefined();
+    expect(gameCardsById().get("x.sample-scenario.01")?.name).toBeTruthy();
+  });
+
+  it("starts a two-modular base scenario with one base and one pack set, and resumes it with none loaded", async () => {
+    await installed();
+    const scenario = POOL_SCENARIOS.find(
+      (s) =>
+        s.modularSetCount === 2 &&
+        s.modularSetPool === undefined &&
+        s.side === undefined &&
+        offerOf(draftAt(s.id as string)).difficultySets.standard.length > 0,
+    );
+    expect(scenario, "a two-modular scenario with difficulty set alternatives").toBeDefined();
+    const id = scenario!.id as string;
+    const base = modularCandidatesFor(scenario!).find(
+      (c) => !c.disabledReason && c.id !== GEARS && c.groupId !== CUSTOM_SHELF_ID,
+    )!;
+    const picks = [base.id, GEARS];
+    const storage = new MemoryGameStorage();
+    const draft = draftAt(id, { modularSetIds: picks, seed: 4 });
+    const update = await new LocalEngineHost(storage).start(toSessionConfig(draft, [PRECON as never]));
+    const [meta] = await storage.list();
+    expect(meta!.config.packs?.map((p) => p.id)).toEqual([PACK_ID]);
+    // The offer still lists the base set alternatives with a pack set among the picks.
+    expect(offerOf(draft).difficultySets.standard.length).toBeGreaterThan(0);
+    setLoadedPacks([]);
+    const resumed = await new LocalEngineHost(storage).resume(meta!.id);
+    expect(resumed.version).toBe(update.version);
+    expect(resumed.config?.modularSetIds).toEqual(picks);
   });
 });

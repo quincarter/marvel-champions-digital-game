@@ -21,7 +21,7 @@
 
 import Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
-import { currentScenarios } from "../content/pool.js";
+import { gameScenarios } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -154,7 +154,7 @@ export class GameOverScene extends Phaser.Scene {
       void refreshUnlocks().catch(() => false);
     }
     if (game?.outcome && config) {
-      const packCode = currentScenarios().find((s) => s.id === config.scenarioId)?.packCode;
+      const packCode = gameScenarios().find((s) => s.id === config.scenarioId)?.packCode;
       appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
     }
     this.#draw();
