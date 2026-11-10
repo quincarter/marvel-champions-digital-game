@@ -1,4 +1,5 @@
 export * from "./dsl/index.js";
+export { obligation } from "./core/obligations.js";
 export {
   CORE_ABILITIES,
   CORE_DEPS,

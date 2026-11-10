@@ -9,12 +9,12 @@
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { zipSync } from "fflate";
+import { Zip, ZipDeflate } from "fflate";
 import { PACK_SCHEMA_VERSION, type AnyCard, type PackFile, type PackManifest, type StarterDeck } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { dslFeatures } from "./features.js";
 import { sha256Hex } from "./sha256.js";
-import { validatePack, type PackInput, type PackIssue, type ValidateOptions } from "./validate.js";
+import { readPackInput, validatePack, type PackInput, type PackIssue, type ValidateOptions } from "./validate.js";
 
 /** The author-written part of `pack.json`. The build fills in everything else. */
 export type PackAuthorManifest = Pick<
@@ -136,21 +136,46 @@ export function assemblePack(source: PackSource): PackInput {
     totalBytes: listed.reduce((sum, file) => sum + file.bytes, 0),
     license: author.license,
   };
-  // `cards`, `abilities` and `decks` are the in-memory source (an ability keeps flags that JSON drops, which the
-  // validator reads), `files` the bytes that will ship.
   return { manifest, files, cards, abilities, decks, scenarios: source.scenarios };
 }
 
-/** A fixed zip timestamp (1980-01-01, local time, which is what the zip format stores), so builds are reproducible. */
-const ZIP_EPOCH = new Date(1980, 0, 1, 0, 0, 0);
+/**
+ * A fixed zip timestamp (1980-01-01 12:00 local time, which is what the zip format stores), so builds are
+ * reproducible. Noon keeps the stored date 1980-01-01 in every time zone.
+ */
+const ZIP_EPOCH = new Date(1980, 0, 1, 12);
 
-/** The pack's deterministic zip: entries sorted by path, a fixed timestamp, `pack.json` first. */
+/**
+ * The pack's deterministic zip: `pack.json` first, then the files sorted by path, a fixed timestamp. Entries go in
+ * through fflate's streaming `Zip` in an ordered array, not a `zipSync` object, whose integer-like keys JavaScript
+ * would order ahead of `pack.json`.
+ */
 export function zipPack(manifest: PackManifest, files: ReadonlyMap<string, Uint8Array>): Uint8Array {
-  const entries: Record<string, [Uint8Array, { mtime: Date; level: 6 }]> = {};
-  const add = (path: string, bytes: Uint8Array): void => void (entries[path] = [bytes, { mtime: ZIP_EPOCH, level: 6 }]);
-  add("pack.json", json(manifest));
-  for (const path of [...files.keys()].sort()) add(path, files.get(path)!);
-  return zipSync(entries);
+  const chunks: Uint8Array[] = [];
+  let failure: Error | undefined;
+  const zip = new Zip((error, chunk) => {
+    if (error) failure = error;
+    else chunks.push(chunk);
+  });
+  const entries: [string, Uint8Array][] = [
+    ["pack.json", json(manifest)],
+    ...[...files.keys()].sort().map((path): [string, Uint8Array] => [path, files.get(path)!]),
+  ];
+  for (const [path, bytes] of entries) {
+    const entry = new ZipDeflate(path, { level: 6 });
+    entry.mtime = ZIP_EPOCH;
+    zip.add(entry);
+    entry.push(bytes, true);
+  }
+  zip.end();
+  if (failure) throw failure;
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  return out;
 }
 
 /**
@@ -160,7 +185,9 @@ export function zipPack(manifest: PackManifest, files: ReadonlyMap<string, Uint8
 export async function buildPack(srcDir: string, outDir: string, options: ValidateOptions = {}): Promise<BuildResult> {
   const source = await loadPackSource(srcDir);
   const pack = assemblePack(source);
-  const issues = validatePack(pack, options);
+  // Validate the bytes that ship: the manifest and data files read back, as a client reads an installed pack. (An
+  // ability's flags are plain data, so the JSON round trip loses nothing the validator reads.)
+  const issues = validatePack(readPackInput(pack.manifest, pack.files), options);
   if (issues.length > 0) throw new PackBuildError(issues);
   const write = (path: string, bytes: Uint8Array): void => {
     const full = join(outDir, ...path.split("/"));

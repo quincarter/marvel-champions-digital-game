@@ -18,13 +18,6 @@ import {
 } from "@mc/engine";
 
 /**
- * A private marker for `allowUnlabeledAttack`'s opt-out (below). A symbol key never appears in `Object.entries`/
- * `Object.keys`, so it is invisible to `checkPlain`'s "is this JSON?" walk and to `bindsOf`'s field scan, and it is
- * dropped by `structuredClone` if a definition object is ever cloned — it never reaches the engine as data.
- */
-const UNLABELED_ATTACK = Symbol("ability-scripting-engineer: unlabeled attack, see allowUnlabeledAttack");
-
-/**
  * Opts one ability out of `checkLabels`'s "an attack effect belongs to an (attack)-labeled ability" rule.
  *
  * The rule holds for almost every Core and wave 1 card: a stunned identity cancels a labeled ability's attack
@@ -32,8 +25,11 @@ const UNLABELED_ATTACK = Symbol("ability-scripting-engineer: unlabeled attack, s
  * exception: it prints no "(attack)" label at all, and FAQ "Dance of Death (#4)" (RRG 1.8 p. 59) rules that its
  * first sentence "defines each damage-dealing effect ... as an individual attack" anyway, with a stun cancelling
  * only the first of the three. `dsl/validate.ts` cannot tell that apart from a card that simply forgot its label,
- * so the opt-out must be requested by name, with a citation, right where the ability is defined — never a blanket
+ * so the opt-out must be requested by name, with a citation, right where the ability is defined, never a blanket
  * relaxation of the check.
+ *
+ * The opt-out is plain data (`AbilityDefinition.unlabeledAttack`, ignored by the engine), so it survives a JSON round
+ * trip: a pack's built `abilities.json` validates the same as its source.
  *
  * Use only when a card's own text (or an FAQ ruling on it) makes an unlabeled attack effect correct; every other
  * ability with an `attack` effect must still carry `{ label: "attack" }`.
@@ -43,12 +39,11 @@ export function allowUnlabeledAttack<T extends AbilityDefinition>(
   reason: { readonly citation: string },
 ): T {
   if (!reason.citation.trim()) throw new Error("allowUnlabeledAttack needs a citation");
-  Object.defineProperty(definition, UNLABELED_ATTACK, { value: true, enumerable: false, configurable: false });
-  return definition;
+  return { ...definition, unlabeledAttack: { citation: reason.citation } };
 }
 
 const hasUnlabeledAttackOptOut = (definition: AbilityDefinition): boolean =>
-  (definition as unknown as Record<symbol, unknown>)[UNLABELED_ATTACK] === true;
+  typeof definition.unlabeledAttack?.citation === "string" && definition.unlabeledAttack.citation.trim() !== "";
 
 /**
  * Shape validation for compiled abilities. The engine trusts its registry, so

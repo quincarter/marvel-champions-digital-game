@@ -149,4 +149,81 @@ describe("validatePack", () => {
     );
     expect(issues).toMatch(/ability id must be "x.tiny-pack./);
   });
+
+  it("reports an ability a card names that is an Object.prototype key", async () => {
+    const issues = messages(await broken((p) => (p.cards[1].abilities = [{ id: "constructor" }])));
+    expect(issues).toMatch(/ability "constructor" is defined by neither/);
+  });
+
+  it("reports an ability id whose card number has no card, and card schema problems", async () => {
+    const noCard = await broken((p) => {
+      p.abilities["x.tiny-pack.77.rally"] = p.abilities["x.tiny-pack.02.test-rally-action"];
+    });
+    expect(messages(noCard)).toMatch(/x.tiny-pack.77.rally: ability id names a card number/);
+    const badCard = await broken((p) => (p.cards[1].cost = "free"));
+    expect(messages(badCard)).toMatch(/x.tiny-pack.02: /);
+  });
+
+  it("checks deck ids and the content schema's deck rules", async () => {
+    expect(messages(await broken((p) => (p.decks[0].id = "other-deck")))).toMatch(
+      /deck id must start with the pack id/,
+    );
+    expect(messages(await broken((p) => p.decks.push({ ...p.decks[0] })))).toMatch(/deck id is used by two decks/);
+    expect(messages(await broken((p) => (p.decks[0].cards = [])))).toMatch(/tiny-pack-precon: starter deck must list/);
+  });
+
+  it("checks scenarios with the content schema", async () => {
+    const pack = await broken(() => {});
+    const issues = messages({ ...pack, scenarios: [{ id: "x" }] } as PackInput);
+    expect(issues).toMatch(/x: scenario missing name/);
+  });
+
+  it("accepts cards of required packs through requiredPackCards", async () => {
+    const pack = await broken((p) => p.decks[0].cards.push({ cardId: "x.other-pack.01", quantity: 1 }));
+    expect(messages(pack)).toMatch(/x.other-pack.01/);
+    expect(messages(pack, { requiredPackCards: new Set(["x.other-pack.01"]) })).not.toMatch(/x.other-pack.01/);
+  });
+
+  it("never throws on malformed input, it reports it", async () => {
+    const good = await tinyPack();
+    const garbage: unknown[] = [
+      null,
+      undefined,
+      42,
+      {},
+      { manifest: null },
+      { ...good, abilities: null },
+      {
+        ...good,
+        abilities: { "x.tiny-pack.02.a": null, "x.tiny-pack.02.b": 5, "x.tiny-pack.02.c": { trigger: null } },
+      },
+      { ...good, cards: null },
+      { ...good, cards: [null, 3, "x", { id: 5 }, { id: "x.tiny-pack.01", type: "event" }] },
+      { ...good, decks: "no" },
+      {
+        ...good,
+        decks: [
+          null,
+          { id: "tiny-pack-a", cards: "no" },
+          { id: "tiny-pack-b", identityCardId: 1, cards: [null, 4, {}] },
+        ],
+      },
+      { ...good, scenarios: [null, 7, {}] },
+      { ...good, files: null },
+      { ...good, files: new Map([["CREDITS.md", "not bytes"]]) },
+      {
+        ...good,
+        manifest: {
+          ...good.manifest,
+          files: [null, 1, { path: 3 }, { path: "a", sha256: "0".repeat(64), bytes: "x" }],
+        },
+      },
+      { ...good, manifest: { ...good.manifest, pictures: { hero: null, other: { a: 1 } } } },
+      { ...good, manifest: { ...good.manifest, pictures: 5, contents: null, requires: null, authors: null } },
+    ];
+    for (const input of garbage) {
+      expect(() => validatePack(input as PackInput)).not.toThrow();
+      expect(validatePack(input as PackInput).length).toBeGreaterThan(0);
+    }
+  });
 });

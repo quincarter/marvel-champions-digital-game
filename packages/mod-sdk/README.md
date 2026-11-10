@@ -75,7 +75,5 @@ wrapper for the `mc-pack` CLI comes later).
 
 ## Known limits
 
-- `allowUnlabeledAttack` marks an ability with a non-enumerable symbol that JSON drops. `buildPack` validates the
-  in-memory abilities, so such an ability builds; `validatePack` on the built JSON would report it.
 - `SUPPORTED_DSL_FEATURES` is what the base game's own scripts use (the engine's types are erased at runtime), not
   every kind the types allow.

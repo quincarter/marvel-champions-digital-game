@@ -16,7 +16,7 @@
     "def": 2,
     "handSize": 5,
     "keywords": [],
-    "text": { "printed": "", "current": "" },
+    "text": { "printed": "No special text.", "current": "No special text." },
     "abilities": []
   },
   "alterEgo": {
@@ -25,7 +25,7 @@
     "rec": 3,
     "handSize": 6,
     "keywords": [],
-    "text": { "printed": "", "current": "" },
+    "text": { "printed": "No special text.", "current": "No special text." },
     "abilities": []
   },
   "obligationCardId": "01165",

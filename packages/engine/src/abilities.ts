@@ -3880,6 +3880,12 @@ export type ResourceGeneration =
 export interface AbilityDefinition {
   readonly trigger: AbilityTriggerSpec;
   /**
+   * Authoring metadata, ignored by the engine: this ability has an `attack` effect and no "(attack)" label on purpose,
+   * and `citation` names the card text or ruling that says so (Dance of Death, FAQ "Dance of Death (#4)", RRG 1.8
+   * p. 59). Only `dsl/validate.ts` reads it, to waive its "an attack effect belongs to an (attack)-labeled ability" check.
+   */
+  readonly unlabeledAttack?: { readonly citation: string };
+  /**
    * This interrupt or response is the card's own printed answer to the card it is attached to leaving play, which needs
    * the card to stay in play, unattached, rather than be removed from the game as RRG 1.8 "Permanent" (p. 32) has a
    * stranded permanent attachment with no "attach to" target (`removedWithoutHost`, `effects.ts`; #238). Set by the

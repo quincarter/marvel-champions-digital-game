@@ -2,6 +2,7 @@ import type { AbilityDefinition } from "@mc/engine";
 import {
   action,
   boost,
+  heroAction,
   discardFromHandCost,
   discardRandomFromHandCost,
   discardThis,
@@ -15,6 +16,7 @@ import {
 } from "./abilities.js";
 import {
   ANY_RESOURCE,
+  attackAnEnemy,
   cards,
   chooseOne,
   dealDamage,
@@ -31,7 +33,7 @@ import {
   selectCards,
   zone,
 } from "./effects.js";
-import { validateDefinition } from "./validate.js";
+import { allowUnlabeledAttack, validateDefinition } from "./validate.js";
 import {
   chosen,
   countOf,
@@ -355,5 +357,25 @@ describe("validateDefinition: a play from a separate deck (docs/phase7-wave11.md
     expect(validateDefinition(action({}, { ...any, card: { kind: "self" } } as typeof any))).toEqual([
       "playFromHand from a separate deck: the card is picked from that deck, so `card` is not read",
     ]);
+  });
+});
+
+describe("allowUnlabeledAttack: the opt-out is plain data", () => {
+  const unlabeled = (): AbilityDefinition => heroAction(attackAnEnemy(2));
+
+  it("an unlabeled attack is rejected without it", () => {
+    expect(validateDefinition(unlabeled()).join("\n")).toMatch(/attack effect belongs to an \(attack\)-labeled/);
+  });
+
+  it("is accepted with a citation, and the marker survives a JSON round trip", () => {
+    const opted = allowUnlabeledAttack(unlabeled(), { citation: 'FAQ "Dance of Death (#4)", RRG 1.8 p. 59' });
+    expect(opted.unlabeledAttack).toEqual({ citation: 'FAQ "Dance of Death (#4)", RRG 1.8 p. 59' });
+    expect(validateDefinition(opted)).toEqual([]);
+    expect(validateDefinition(JSON.parse(JSON.stringify(opted)) as AbilityDefinition)).toEqual([]);
+  });
+
+  it("needs a non-empty citation", () => {
+    expect(() => allowUnlabeledAttack(unlabeled(), { citation: " " })).toThrow(/citation/);
+    expect(validateDefinition({ ...unlabeled(), unlabeledAttack: { citation: "" } }).length).toBeGreaterThan(0);
   });
 });

@@ -9,7 +9,7 @@ import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
 import { readPackInput, validatePack, type PackInput } from "./validate.js";
 // The cards package's headless greedy player, as the precon e2e tests use it.
-import { playToOutcome } from "../../cards/src/testing/driver.js";
+import { playToOutcome } from "@mc/cards/testing";
 
 /**
  * The sample pack (content-packs/sample-hero): build it, validate the built output, then play its precon headless

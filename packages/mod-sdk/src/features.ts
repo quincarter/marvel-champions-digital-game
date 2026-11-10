@@ -6,53 +6,70 @@ import type { AbilityRegistry } from "@mc/engine";
  * keys read off the plain-data `AbilityDefinition`s, so a client can compare a pack's `requires.dslFeatures` with its
  * own `SUPPORTED_DSL_FEATURES` before loading it.
  *
- * Key naming (`<category>:<name>`):
- * - `trigger:<kind>`: the trigger kind (`action`, `interrupt`, `response`, `constant`, ...);
- * - `trigger-option:<key>`: an extra field the trigger carries (`wouldBeDealt`, `keywordGrants`, ...);
- * - `event:<name>`: an event kind an interrupt/response pattern listens for (`event:dealDamage`);
- * - `effect:<kind>`: an effect (`effect:dealDamage`), at any depth of `then` / `otherwise` / `effects` / option lists;
- * - `cost:<key>`: a part of the ability's cost (`cost:exhaustSelf`, `cost:resources`);
- * - `rule:<kind>`: a rule a constant ability installs (`rule:blankTextBox`);
- * - `expr:<kind>`: any other discriminated object: a value, predicate, card selector or amount (`expr:scaled`);
- * - `ability:<key>`: a top-level flag of the definition (`ability:minX`, `ability:activeIn`).
+ * Key naming (`<category>:<name>`; literal values are never recorded, only kinds and field names):
+ * - `trigger:<kind>`, `trigger-option:<key>` and `trigger-option:<key>.<field>`;
+ * - `event:<name>`: an event kind an interrupt/response pattern listens for;
+ * - `effect:<kind>` and `effect:<kind>.<field>`: an effect, found only in an effect slot (the ability's `effects`, an
+ *   `if`'s `then`/`otherwise`, a `chooseOne` option's `effects`, a `sentence`/`forEachCard`/... `effects`, a
+ *   `replaceTriggeringEvent`'s `with`, an `enemyScheme`'s `wouldPlaceThreat`);
+ * - `cost:<key>` and `cost:<key>.<field>`, recursing into `either` and `conditional` branches;
+ * - `rule:<kind>` and `rule:<kind>.<field>`: a rule a constant ability installs;
+ * - `expr:<kind>` and `expr:<kind>.<field>`: any other discriminated object (a value, predicate, selector, amount);
+ * - `ability:<key>` and `ability:<key>.<field>`: a top-level field of the definition other than trigger, cost and
+ *   effects (`ability:limit`, `ability:label`, `ability:generates`, `ability:minX`, `ability:unlabeledAttack`).
  *
- * The categories are deliberately coarse: a pack is refused only for a feature the client has never had, not for a
- * known kind in a position the base game happens not to use.
+ * The `.<field>` keys make a field a client has never read (a new option on a known effect) a feature of its own,
+ * so an old client refuses the pack instead of silently ignoring it.
  */
 export function dslFeatures(registry: AbilityRegistry): readonly string[] {
   const found = new Set<string>();
-  for (const definition of Object.values(registry)) collectDefinition(definition, found);
+  for (const definition of Object.values(registry ?? {})) {
+    if (isRecord(definition)) collectDefinition(definition, found);
+  }
   return [...found].sort();
 }
 
-/** Keys whose arrays are effect lists. */
-const EFFECT_LISTS: ReadonlySet<string> = new Set(["effects", "then", "otherwise", "with", "wouldPlaceThreat"]);
-
 type Json = unknown;
+type Slot = "effect" | "rule" | "expr";
 const isRecord = (value: Json): value is Record<string, Json> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const isStringArray = (value: Json): value is readonly string[] =>
+  Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string");
 
-function collectDefinition(definition: object, found: Set<string>): void {
+/** The effect kinds that hold effect lists under keys other than `effects` (`nestedLists` in the DSL's validator). */
+const EFFECT_SLOTS: Readonly<Record<string, readonly string[]>> = {
+  if: ["then", "otherwise"],
+  replaceTriggeringEvent: ["with"],
+  enemyScheme: ["wouldPlaceThreat"],
+};
+
+/** What a child under `key` of a node of `kind` (in slot `slot`) is: an effect, a rule or any other expression. */
+function slotFor(kind: string | undefined, slot: Slot, key: string): Slot {
+  if (key === "effects") return "effect";
+  if (key === "rules") return "rule";
+  if (slot === "effect" && kind !== undefined && EFFECT_SLOTS[kind]?.includes(key)) return "effect";
+  return "expr";
+}
+
+function collectDefinition(definition: Record<string, Json>, found: Set<string>): void {
   for (const [key, value] of Object.entries(definition)) {
     if (value === undefined) continue;
-    switch (key) {
-      case "trigger":
-        collectTrigger(value, found);
-        break;
-      case "cost":
-        collectCost(value, found);
-        break;
-      case "effects":
-        walk(value, "effects", found);
-        break;
-      case "label":
-      case "limit":
-      case "generates":
-        break;
-      default:
-        found.add(`ability:${key}`);
-        walk(value, key, found);
+    if (key === "trigger") collectTrigger(value, found);
+    else if (key === "cost") collectCost(value, found);
+    else if (key === "effects") visit(value, "effect", found);
+    else {
+      found.add(`ability:${key}`);
+      recordFields(`ability:${key}`, value, found);
+      visit(value, slotFor(undefined, "expr", key), found);
     }
+  }
+}
+
+/** `<prefix>.<field>` for each field of a plain-object value. */
+function recordFields(prefix: string, value: Json, found: Set<string>, skip = "kind"): void {
+  if (!isRecord(value)) return;
+  for (const [field, child] of Object.entries(value)) {
+    if (field !== skip && child !== undefined) found.add(`${prefix}.${field}`);
   }
 }
 
@@ -62,11 +79,12 @@ function collectTrigger(trigger: Json, found: Set<string>): void {
   for (const [key, value] of Object.entries(trigger)) {
     if (key === "kind" || value === undefined) continue;
     if (key === "on") {
-      walk(value, "on", found, true);
+      visit(value, "expr", found, true);
       continue;
     }
     found.add(`trigger-option:${key}`);
-    walk(value, key, found);
+    recordFields(`trigger-option:${key}`, value, found);
+    visit(value, slotFor(undefined, "expr", key), found);
   }
 }
 
@@ -80,41 +98,37 @@ function collectCost(cost: Json, found: Set<string>): void {
     } else if (key === "conditional" && isRecord(value)) {
       collectCost(value.then, found);
       collectCost(value.else, found);
-      walk(
-        Object.fromEntries(Object.entries(value).filter(([k]) => k !== "then" && k !== "else")),
-        "conditional",
-        found,
-      );
+      const { then: _then, else: _else, ...rest } = value;
+      recordFields("cost:conditional", rest, found);
+      visit(rest, "expr", found);
     } else {
-      walk(value, key, found);
+      recordFields(`cost:${key}`, value, found);
+      visit(value, "expr", found);
     }
   }
 }
 
-function walk(value: Json, key: string, found: Set<string>, isPattern = false): void {
+function visit(value: Json, slot: Slot, found: Set<string>, isPattern = false): void {
   if (Array.isArray(value)) {
-    for (const item of value) walk(item, key, found, isPattern);
+    for (const item of value) visit(item, slot, found, isPattern);
     return;
   }
   if (!isRecord(value)) return;
-  if (typeof value.kind === "string") {
-    const category = EFFECT_LISTS.has(key) ? "effect" : key === "rules" ? "rule" : "expr";
-    found.add(`${category}:${value.kind}`);
+  const kind = typeof value.kind === "string" ? value.kind : undefined;
+  if (kind !== undefined) {
+    found.add(`${slot}:${kind}`);
+    recordFields(`${slot}:${kind}`, value, found);
   }
   // An event pattern: `{ on: "dealDamage" | ["enemyScheme", ...], ... }`, nested in `anyOf`.
   const on = value.on;
-  if ((isPattern || value.kind === undefined) && (typeof on === "string" || isStringArray(on))) {
-    for (const event of typeof on === "string" ? [on] : on) found.add(`event:${event}`);
-  }
+  const hearsEvents = (isPattern || kind === undefined) && (typeof on === "string" || isStringArray(on));
+  if (hearsEvents)
+    for (const event of typeof on === "string" ? [on] : (on as readonly string[])) found.add(`event:${event}`);
   for (const [childKey, child] of Object.entries(value)) {
-    if (childKey === "on" && (typeof child === "string" || isStringArray(child))) continue;
-    // A list of `chooseOne` options carries an `effects` list per option.
-    walk(child, childKey, found, childKey === "anyOf");
+    if (hearsEvents && childKey === "on") continue;
+    visit(child, slotFor(kind, slot, childKey), found, childKey === "anyOf");
   }
 }
-
-const isStringArray = (value: Json): value is readonly string[] =>
-  Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string");
 
 /**
  * Every feature this build of the game's own scripts use: the walk over the whole playable registry. A pack whose

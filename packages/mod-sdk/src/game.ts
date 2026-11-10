@@ -9,7 +9,7 @@ import type { PackInput } from "./validate.js";
  */
 export function gameDepsWithPack(base: EngineDeps, pack: Pick<PackInput, "abilities">): EngineDeps {
   for (const id of Object.keys(pack.abilities)) {
-    if (id in base.abilities) throw new Error(`pack ability ${id} is already defined by the base game`);
+    if (Object.hasOwn(base.abilities, id)) throw new Error(`pack ability ${id} is already defined by the base game`);
   }
   return { ...base, abilities: { ...base.abilities, ...pack.abilities } };
 }
