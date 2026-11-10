@@ -8,6 +8,7 @@ import type { FetchLike } from "./catalog.js";
 import type { InstalledPack, PackStorage } from "./pack-store.js";
 import { unpackInWorker, type UnpackWorkerFactory } from "./unpack-client.js";
 import { PackInstallError, sha256Hex, type UnpackExpect, type UnpackProgress } from "./unpack-pack.js";
+import { packFetchFor } from "./pack-fetch.js";
 
 export type InstallProgress =
   | { readonly phase: "download"; readonly received: number; readonly total: number }
@@ -105,7 +106,7 @@ export async function installPack(
   const info = entry.versions[version];
   if (!info) throw new PackInstallError("mismatch", `${entry.id} has no version ${version} in the catalog`);
   const report = deps.onProgress ?? (() => {});
-  const doFetch: FetchLike = deps.fetch ?? ((url, init) => fetch(url, init));
+  const doFetch: FetchLike = deps.fetch ?? packFetchFor();
   const expect: UnpackExpect = {
     id: entry.id,
     version,

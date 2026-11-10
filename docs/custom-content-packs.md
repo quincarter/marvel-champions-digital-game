@@ -397,6 +397,13 @@ a creator template (§11, issue #677). He decided the following:
 - Create the template repo `marvel-champions-mod-template` and the registry repo `marvel-champions-mods`.
 - Publish the mod SDK to npm, and also attach it as a tarball to each release.
 
+**Domain and npm scope (2026-11-10).** The owner bought `champions-digital-game.com`, created the R2 bucket with
+`packs.champions-digital-game.com` as its custom domain, and created the npm organization `@champions-digital-game`.
+The mod SDK publishes as `@champions-digital-game/mod-sdk`. The client reads `https://packs.champions-digital-game.com/index.json`
+(a dev server reads the local `public/packs/index.json`). Packaged apps fetch packs through native HTTP, so only the
+web needs the bucket's CORS entry. This settles §9.4 for packs; moving the site itself to the domain (§4.1) is a
+separate step.
+
 This settles §9.1 (R2) and §9.2, §9.3 and §9.5 (§11.1). §9.4 (the domain name) and §9.6 (fan-art licensing) stay open,
 though §11.4's permission record covers the store side of §9.6.
 

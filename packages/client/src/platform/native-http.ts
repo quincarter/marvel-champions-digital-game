@@ -31,7 +31,7 @@ export async function nativeGet(
 }
 
 async function tauriGet(url: string): Promise<NativeResponse> {
-  // Scoped to https://marvelcdb.com/* by src-tauri/capabilities/default.json.
+  // Scoped to MarvelCDB and the Mod Store pack hosts by src-tauri/capabilities/default.json.
   const { fetch } = await import("@tauri-apps/plugin-http");
   const response = await fetch(url);
   return {
