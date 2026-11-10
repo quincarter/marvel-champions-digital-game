@@ -1,0 +1,114 @@
+/**
+ * The store's `index.json` (docs/custom-content-packs.md §11.5): fetched when the store opens, validated, and the last
+ * good copy kept so the store opens offline.
+ */
+import { PACK_INDEX_SCHEMA_VERSION, PACK_KINDS, type PackIndex, type PackIndexEntry } from "@mc/content";
+
+// TODO(#677): point at https://packs.<domain>/index.json once the owner's Cloudflare steps (§11.8) are done.
+export const CATALOG_URL = "/packs/index.json";
+export const CATALOG_CACHE_KEY = "mc-pack-catalog";
+
+export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+
+export interface CatalogDeps {
+  readonly fetch?: FetchLike;
+  readonly url?: string;
+  /** Where the last good copy lives; defaults to `localStorage` when there is one. */
+  readonly storage?: Pick<Storage, "getItem" | "setItem"> | null;
+}
+
+export interface CatalogResult {
+  readonly index: PackIndex;
+  /** True when the network failed and this is the cached copy. */
+  readonly offline: boolean;
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isString = (v: unknown): v is string => typeof v === "string";
+const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(isString);
+
+function validVersion(v: unknown): boolean {
+  return (
+    isRecord(v) &&
+    isString(v.manifest) &&
+    isString(v.base) &&
+    isString(v.zip) &&
+    (v.zipFallback === undefined || isString(v.zipFallback)) &&
+    typeof v.zipBytes === "number" &&
+    isString(v.zipSha256) &&
+    isRecord(v.requires) &&
+    isString(v.requires.app) &&
+    (v.requires.dslFeatures === undefined || isStringArray(v.requires.dslFeatures)) &&
+    (v.requires.packs === undefined || isStringArray(v.requires.packs))
+  );
+}
+
+function validEntry(e: unknown): e is PackIndexEntry {
+  return (
+    isRecord(e) &&
+    isString(e.id) &&
+    isString(e.kind) &&
+    (PACK_KINDS as readonly string[]).includes(e.kind) &&
+    isString(e.name) &&
+    isString(e.creator) &&
+    isString(e.summary) &&
+    isStringArray(e.tags) &&
+    (e.thumbnail === undefined || isString(e.thumbnail)) &&
+    isString(e.approved) &&
+    isString(e.latest) &&
+    typeof e.withdrawn === "boolean" &&
+    isRecord(e.versions) &&
+    Object.values(e.versions).every(validVersion)
+  );
+}
+
+/** The index when `data` has the catalog's shape. Entries that are malformed are dropped, not fatal. */
+export function parseCatalog(data: unknown): PackIndex | undefined {
+  if (!isRecord(data) || data.schema !== PACK_INDEX_SCHEMA_VERSION || !isString(data.generated)) return undefined;
+  if (!Array.isArray(data.packs)) return undefined;
+  return {
+    schema: PACK_INDEX_SCHEMA_VERSION,
+    generated: data.generated,
+    packs: data.packs.filter(validEntry),
+  };
+}
+
+function defaultStorage(): Pick<Storage, "getItem" | "setItem"> | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** The cached copy, if there is a valid one. */
+export function cachedCatalog(storage: CatalogDeps["storage"] = defaultStorage()): PackIndex | undefined {
+  try {
+    const raw = storage?.getItem(CATALOG_CACHE_KEY);
+    return raw ? parseCatalog(JSON.parse(raw)) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Fetches the catalog; on any failure falls back to the cached copy, and throws only when there is neither. */
+export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult> {
+  const storage = deps.storage === undefined ? defaultStorage() : deps.storage;
+  const doFetch: FetchLike = deps.fetch ?? ((url, init) => fetch(url, init));
+  try {
+    const response = await doFetch(deps.url ?? CATALOG_URL, { cache: "no-cache" });
+    if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
+    const index = parseCatalog(await response.json());
+    if (!index) throw new Error("The pack catalog has an unexpected shape");
+    try {
+      storage?.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
+    } catch {
+      // Quota or private mode: the catalog still works this session.
+    }
+    return { index, offline: false };
+  } catch (error) {
+    const cached = cachedCatalog(storage);
+    if (cached) return { index: cached, offline: true };
+    throw error;
+  }
+}
