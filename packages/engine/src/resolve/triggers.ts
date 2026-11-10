@@ -191,7 +191,8 @@ function costPayable(
 
 /**
  * A "spend X" / "spend up to N" cost (`resourcesX`) prices 0 fixed resources, but X must reach its `min` (1 for "up
- * to": RRG 1.8 "Cost", p. 14), so those resources join the requirement the bound is checked against. Machine Man
+ * to": RRG 1.8 "Cost", pp. 13-14; FFG ruling, May 18, 2023, Karmic Blast / Cosmic Awareness: "up to" in a cost cannot
+ * be 0), so those resources join the requirement the bound is checked against. Machine Man
  * (`vision` 26022) with nothing to spend is then not offered, rather than opening a payment step with nothing to pick
  * (issue #654).
  */
