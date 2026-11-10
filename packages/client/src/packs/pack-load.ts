@@ -3,7 +3,7 @@
  * synchronous: `pack-load.worker.ts` runs it off the main thread, and `load-client.ts` runs it here when it has no worker.
  */
 import { PLAYABLE_PACK_KINDS } from "./pack-state.js";
-import { readPackInput, validatePack, SUPPORTED_DSL_FEATURES } from "@mc/mod-sdk";
+import { packCampaignsOf, readPackInput, validatePack, SUPPORTED_DSL_FEATURES } from "@mc/mod-sdk";
 import type { PackManifest, Scenario } from "@mc/content";
 import type { PackRuntime } from "./pack-runtime.js";
 
@@ -50,6 +50,7 @@ export function loadPackRuntime(
         decks: input.decks ?? [],
         ...((input.scenarios?.length ?? 0) > 0 ? { scenarios: input.scenarios as readonly Scenario[] } : {}),
         ...((input.encounterSets?.length ?? 0) > 0 ? { encounterSets: input.encounterSets } : {}),
+        ...(packCampaignsOf(input.campaigns).length > 0 ? { campaigns: packCampaignsOf(input.campaigns) } : {}),
       },
     };
   } catch (error) {

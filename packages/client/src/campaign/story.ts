@@ -24,6 +24,8 @@ import { SHADOWLAND_STORY } from "./stories/shadowland.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 import type { LogValue } from "@mc/engine";
+import { loadedPacks } from "../packs/pack-registry.js";
+import { packStoryIn } from "./pack-campaigns.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -430,6 +432,8 @@ export interface SagaVolume {
   readonly campaignId: string;
   readonly boxCode: string;
   readonly name: string;
+  /** Set for a pack campaign on the shelf's Custom campaigns section: its pack (the badge and the section name it). */
+  readonly custom?: { readonly packId: string; readonly packName: string };
 }
 
 /**
@@ -470,7 +474,9 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [SHADOWLAND_STORY.campaignId]: SHADOWLAND_STORY,
 };
 
-export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];
+/** A base box's story, or a loaded pack campaign's (built from its own story fields; none once the pack is removed). */
+export const storyFor = (campaignId: string): CampaignStory | undefined =>
+  STORIES[campaignId] ?? packStoryIn(loadedPacks(), campaignId);
 
 /** The Aftermath wording for a victory instruction's choice, by instruction id, or null. */
 export function aftermathCallCopyFor(instructionId: string): AftermathCallCopy | null {

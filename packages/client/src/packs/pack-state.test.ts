@@ -115,9 +115,7 @@ describe("pack kinds this game can't play yet", () => {
     expect(entryOf("modular").state).toBe("install");
   });
 
-  it("offers a campaign pack as needing an app update: no campaign flow plays a pack yet", () => {
-    const view = entryOf("campaign");
-    expect(view.state).toBe("needs-app-update");
-    expect(view.reason).toMatch(/campaign packs/);
+  it("offers a campaign pack for install: the Saga shelf lists its campaigns under Custom campaigns", () => {
+    expect(entryOf("campaign").state).toBe("install");
   });
 });

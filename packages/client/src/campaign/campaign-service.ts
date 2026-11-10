@@ -38,6 +38,7 @@ import {
   type CampaignRecord,
   type CampaignStorage,
   type IssueModes,
+  type PackCampaignRef,
 } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
@@ -83,8 +84,8 @@ export type CampaignStepResult =
 
 export interface CampaignServiceOptions {
   readonly storage: CampaignStorage;
-  /** Card pool every `campaignSet`/`collection`/`ownDeck` choice draws from. */
-  readonly campaignDeps: CampaignDeps;
+  /** Card pool every `campaignSet`/`collection`/`ownDeck` choice draws from; a function when it follows the loaded packs. */
+  readonly campaignDeps: CampaignDeps | (() => CampaignDeps);
   /** The engine deps a finished game is replayed and read with. */
   /** The deps a finished game replays with; a function when they depend on the game on the table. */
   readonly engineDeps: EngineDeps | (() => EngineDeps);
@@ -93,6 +94,16 @@ export interface CampaignServiceOptions {
   /** A fresh id for a new campaign. */
   readonly newId?: () => string;
   readonly definitionOf?: (campaignId: string) => CampaignDefinition | undefined;
+  /**
+   * The content record of a campaign the base game does not ship (a loaded pack's campaign, docs/custom-content-packs.md
+   * §11.10): its name for the shelf. The base game's boxes are always looked up in `CAMPAIGN_RECORDS` first.
+   */
+  readonly contentOf?: (campaignId: string) => Campaign | undefined;
+  /**
+   * The pack a new run of this campaign belongs to, with the definition to keep (`CampaignRecord.pack`): set for a pack
+   * campaign, undefined for a base box. The run keeps it, so updating or removing the pack never changes it.
+   */
+  readonly packOf?: (campaignId: string) => PackCampaignRef | undefined;
   /**
    * Where the run's games are kept, through the engine that owns them (`SessionStore.listSaves` / `retireSave`). When
    * given, starting a run over also retires that run's in-progress game, so it doesn't linger in the title's
@@ -108,7 +119,9 @@ export interface CampaignGames {
 
 export class CampaignService {
   readonly storage: CampaignStorage;
-  readonly #campaignDeps: CampaignDeps;
+  readonly #campaignDeps: () => CampaignDeps;
+  readonly #contentOf: (campaignId: string) => Campaign | undefined;
+  readonly #packOf: (campaignId: string) => PackCampaignRef | undefined;
   readonly #engineDeps: () => EngineDeps;
   readonly #now: () => number;
   readonly #newId: () => string;
@@ -123,7 +136,10 @@ export class CampaignService {
 
   constructor(options: CampaignServiceOptions) {
     this.storage = options.storage;
-    this.#campaignDeps = options.campaignDeps;
+    const campaignDeps = options.campaignDeps;
+    this.#campaignDeps = typeof campaignDeps === "function" ? campaignDeps : () => campaignDeps;
+    this.#contentOf = (campaignId) => CAMPAIGN_RECORDS[campaignId] ?? options.contentOf?.(campaignId);
+    this.#packOf = options.packOf ?? (() => undefined);
     const deps = options.engineDeps;
     this.#engineDeps = typeof deps === "function" ? deps : () => deps;
     this.#now = options.now ?? Date.now;
@@ -144,16 +160,21 @@ export class CampaignService {
     }
   }
 
-  definitionFor(record: Pick<CampaignLog, "campaignId">): CampaignDefinition {
-    const definition = this.#definitionOf(record.campaignId as string);
+  /**
+   * The definition a run plays by: the copy a pack campaign's run carries (`CampaignRecord.pack`) before anything
+   * installed, so updating or removing the pack never changes a run in progress; otherwise the build's own.
+   */
+  definitionFor(record: Pick<CampaignLog, "campaignId"> & { readonly pack?: PackCampaignRef }): CampaignDefinition {
+    const definition = record.pack?.definition ?? this.#definitionOf(record.campaignId as string);
     if (!definition) throw new Error(`this build has no campaign definition for "${record.campaignId as string}"`);
     return definition;
   }
 
   /** Signs the roster: a fresh log positioned on the first issue, stored. Nothing is composed yet. */
   async start(input: StartCampaignInput): Promise<CampaignRecord> {
-    const content = CAMPAIGN_RECORDS[input.campaignId];
+    const content = this.#contentOf(input.campaignId);
     const definition = this.#definitionOf(input.campaignId);
+    const pack = CAMPAIGN_RECORDS[input.campaignId] ? undefined : this.#packOf(input.campaignId);
     if (!content || !definition) throw new Error(`campaign "${input.campaignId}" is not playable in this build`);
     // One choice for both halves: the mode gates between-game steps, the seeded fields the rules in a game.
     const balanced = input.campaignId === BALANCED_CAMPAIGN_ID ? input.balanced : undefined;
@@ -188,6 +209,7 @@ export class CampaignService {
       createdAt: at,
       updatedAt: at,
       ...(input.tableRules ? { tableRules: input.tableRules } : {}),
+      ...(pack ? { pack } : {}),
     };
     await this.storage.create(record);
     return record;
@@ -212,7 +234,7 @@ export class CampaignService {
     if (record.attempt) return { kind: "done", record };
     const definition = this.definitionFor(record);
     const modes = { ...record.modes, ...record.issueModes };
-    const result = resolveBetweenGames(definition, record, this.#campaignDeps, modes, answers);
+    const result = resolveBetweenGames(definition, record, this.#campaignDeps(), modes, answers);
     if (result.kind === "pending") return result;
     return { kind: "done", record: await this.#put(record, result.value) };
   }
@@ -337,7 +359,7 @@ export class CampaignService {
       finalState,
       events,
       { at: this.#now(), gameId },
-      this.#campaignDeps,
+      this.#campaignDeps(),
       this.#engineDeps(),
       answers,
     );
@@ -487,6 +509,7 @@ export class CampaignService {
       updatedAt: this.#now(),
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
+      ...(previous.pack ? { pack: previous.pack } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
       ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
     };

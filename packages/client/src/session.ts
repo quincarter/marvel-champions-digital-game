@@ -9,10 +9,18 @@
 import type Phaser from "phaser";
 import type { VillainReview } from "./view/villain-review.js";
 import { campaignDefinitionOf } from "@mc/cards";
-import type { CampaignDefinition } from "@mc/engine";
+import type { CampaignDefinition, CampaignDeps } from "@mc/engine";
 import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
 import type { MechanicTryItId } from "./guide/mechanic-tryits.js";
 import { CampaignService } from "./campaign/campaign-service.js";
+import {
+  campaignOfPackRecord,
+  loadedPackCampaignDefinition,
+  packCampaignEntryOf,
+  packRefOf,
+} from "./campaign/pack-campaigns.js";
+import { loadedPacks } from "./packs/pack-registry.js";
+import { campaignDepsWithPacks } from "@mc/mod-sdk/game";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "./content/pool.js";
 import { gameDeps } from "./content/game-deps.js";
 import { deckFromStarterDeck } from "@mc/content";
@@ -242,16 +250,44 @@ export function registerDevCampaignDefinition(definition: CampaignDefinition): v
   devDefinitions.set(definition.campaignId as string, definition);
 }
 
+const BASE_CAMPAIGN_POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
+let packCampaignPool: { readonly packs: object; readonly deps: CampaignDeps } | undefined;
+
+/** The card pool a campaign choice draws from: the base game's, plus every loaded pack's cards (built once per loaded set). */
+function campaignDeps(): CampaignDeps {
+  const packs = loadedPacks();
+  if (packs.length === 0) return { pool: BASE_CAMPAIGN_POOL };
+  if (packCampaignPool?.packs !== packs) {
+    let deps: CampaignDeps = { pool: BASE_CAMPAIGN_POOL };
+    try {
+      deps = campaignDepsWithPacks(POOL_CARDS, packs);
+    } catch {
+      // A pack that now collides with the base game (see `currentPoolView`): the base pool only.
+    }
+    packCampaignPool = { packs, deps };
+  }
+  return packCampaignPool.deps;
+}
+
 export function campaignService(): CampaignService {
   campaigns ??= new CampaignService({
     storage: typeof indexedDB !== "undefined" ? new IdbCampaignStorage() : new MemoryCampaignStorage(),
-    campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+    campaignDeps,
+    contentOf: (campaignId) => {
+      const entry = packCampaignEntryOf(loadedPacks(), campaignId);
+      return entry ? campaignOfPackRecord(entry) : undefined;
+    },
+    packOf: (campaignId) => packRefOf(loadedPacks(), campaignId),
     engineDeps: gameDeps,
     games: {
       list: () => appSession().store.listSaves(),
       retire: (gameId) => appSession().store.retireSave(gameId),
     },
-    definitionOf: (campaignId) => campaignDefinitionOf(campaignId) ?? devDefinitions.get(campaignId as string),
+    // The base game always wins; a loaded pack's campaign is last (a run keeps its own copy: `CampaignRecord.pack`).
+    definitionOf: (campaignId) =>
+      campaignDefinitionOf(campaignId) ??
+      devDefinitions.get(campaignId as string) ??
+      loadedPackCampaignDefinition(loadedPacks(), campaignId),
   });
   return campaigns;
 }

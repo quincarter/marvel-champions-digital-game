@@ -5,6 +5,7 @@
  * all use the same code. Validation (`pack-load.ts`) stays out of this file so the engine worker does not bundle it.
  */
 import { cardPoolWithPack, gameDepsWithPack } from "@mc/mod-sdk/game";
+import type { PackCampaign } from "@mc/mod-sdk";
 import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
@@ -23,6 +24,8 @@ export interface PackRuntime {
   readonly scenarios?: readonly Scenario[];
   /** The pack's encounter sets: a scenario's own and the modular sets a table may pick (`packModularSetChoices`). */
   readonly encounterSets?: readonly EncounterSet[];
+  /** The pack's campaigns (docs/custom-content-packs.md §11.10); absent in a pack with none. */
+  readonly campaigns?: readonly PackCampaign[];
 }
 
 /** `base` with every pack's cards added; throws if a pack card is already in the pool. */

@@ -133,6 +133,15 @@ export function packPictureFor(role: string, code: string): ArtSource | null {
   return pack && path !== undefined && pack.files.has(path) ? sourceOf(pack, path) : null;
 }
 
+/**
+ * A file of pack `id` as a picture (a pack campaign's cover, `PackCampaign.art.cover`), or null when the pack is not
+ * loaded, does not list the file, or its URL is still being read (an art change is announced when it lands).
+ */
+export function packFileArt(id: string, path: string): ArtSource | null {
+  const pack = packs.get(id);
+  return pack?.files.has(path) ? sourceOf(pack, path) : null;
+}
+
 function sourceOf(pack: PackArtPack, path: string): ArtSource | null {
   const key = packArtKey(pack.id, pack.version, path);
   const url = urls.get(key);

@@ -65,10 +65,13 @@ function incompatibleReasonOf(summary: CampaignSummary, definition: CampaignDefi
  */
 export function campaignListRows(
   summaries: readonly CampaignSummary[],
-  definitionOf: (campaignId: string) => CampaignDefinition | undefined = campaignDefinitionOf,
+  definitionOf: (
+    campaignId: string,
+    summary?: CampaignSummary,
+  ) => CampaignDefinition | undefined = campaignDefinitionOf,
 ): readonly CampaignListRow[] {
   return summaries.map((summary) => {
-    const definition = definitionOf(summary.campaignId as string);
+    const definition = definitionOf(summary.campaignId as string, summary);
     const incompatibleReason = incompatibleReasonOf(summary, definition);
     return {
       id: summary.id,

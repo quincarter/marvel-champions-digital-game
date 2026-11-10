@@ -66,6 +66,17 @@ export interface SagaModelOptions {
   readonly waveLockOf?: (campaignId: string) => string | null;
   /** Opened by hand in Settings ▸ Unlocks (one campaign, everything, or `?unlock=all`): opens out of order. */
   readonly openedByHandOf?: (campaignId: string) => boolean;
+  /**
+   * The Custom campaigns section (docs/custom-content-packs.md §11.10): pack campaigns after the base volumes, each with
+   * the definition to play by. They ignore the unlock rule and every wave lock: nothing in the base game's order gates a pack.
+   */
+  readonly customVolumes?: readonly CustomSagaVolume[];
+}
+
+/** A pack campaign on the shelf: its volume (`SagaVolume.custom` set) and the definition its runs play by. */
+export interface CustomSagaVolume {
+  readonly volume: SagaVolume;
+  readonly definition: CampaignDefinition;
 }
 
 const defaultIdentityNameOf = (id: CardId): string => id as string;
@@ -80,11 +91,19 @@ export function campaignSagaRows(
   summaries: readonly CampaignSummary[],
   options: SagaModelOptions = {},
 ): readonly SagaVolumeRow[] {
-  const definitionOf = options.definitionOf ?? campaignDefinitionOf;
+  const baseDefinitionOf = options.definitionOf ?? campaignDefinitionOf;
+  const customVolumes = options.customVolumes ?? [];
+  const customDefinitions = new Map(customVolumes.map((custom) => [custom.volume.campaignId, custom.definition]));
+  const definitionOf = (campaignId: string): CampaignDefinition | undefined =>
+    baseDefinitionOf(campaignId) ?? customDefinitions.get(campaignId);
   const identityNameOf = options.identityNameOf ?? defaultIdentityNameOf;
   const waveLockOf = options.waveLockOf ?? (() => null);
   const openedByHandOf = options.openedByHandOf ?? (() => false);
-  const rows = campaignListRows(summaries, definitionOf);
+  // A pack campaign's run plays by the definition it kept (`CampaignRecord.pack`), not the installed pack's.
+  const rows = campaignListRows(
+    summaries,
+    (campaignId, summary) => summary?.pack?.definition ?? definitionOf(campaignId),
+  );
 
   const rowsByCampaign = new Map<string, CampaignListRow[]>();
   for (const row of rows) {
@@ -95,19 +114,20 @@ export function campaignSagaRows(
 
   let previousWonStandard = true;
   const out: SagaVolumeRow[] = [];
-  for (const volume of SAGA_VOLUMES) {
+  for (const volume of [...SAGA_VOLUMES, ...customVolumes.map((custom) => custom.volume)]) {
+    const custom = volume.custom !== undefined;
     const ownRows = [...(rowsByCampaign.get(volume.campaignId) ?? [])].sort((a, b) => b.updatedAt - a.updatedAt);
     const activeRow = ownRows.find((r) => r.status === "active") ?? null;
     const wonRows = ownRows.filter((r) => r.status === "won");
     const wonStandard = wonRows.some((r) => r.modes.campaign?.expertCampaign !== true);
     const wonExpert = wonRows.some((r) => r.modes.campaign?.expertCampaign === true);
-    const definition = definitionOf(volume.campaignId);
-    const hasDefinition = definition !== undefined;
-    const byHand = openedByHandOf(volume.campaignId);
-    const waveLock = byHand ? null : waveLockOf(volume.campaignId);
-    const unlocked = byHand || (previousWonStandard && waveLock === null);
+    const byHand = !custom && openedByHandOf(volume.campaignId);
+    const waveLock = byHand || custom ? null : waveLockOf(volume.campaignId);
+    const unlocked = custom || byHand || (previousWonStandard && waveLock === null);
 
     const summary = summaries.find((s) => s.id === (activeRow?.id ?? wonRows[0]?.id ?? "")) ?? null;
+    const definition = summary?.pack?.definition ?? definitionOf(volume.campaignId);
+    const hasDefinition = definition !== undefined;
 
     let status: SagaVolumeStatus;
     let lockReason: string | null = null;
@@ -175,7 +195,7 @@ export function campaignSagaRows(
       lost,
     });
 
-    previousWonStandard = wonStandard;
+    if (!custom) previousWonStandard = wonStandard;
   }
   return out;
 }

@@ -25,7 +25,7 @@
  */
 
 import type { CampaignId, PlayModes } from "@mc/content";
-import type { CampaignLog, CampaignPosition, CampaignStatus, TableRules } from "@mc/engine";
+import type { CampaignDefinition, CampaignLog, CampaignPosition, CampaignStatus, TableRules } from "@mc/engine";
 
 /** Bumped when the stored record shape changes, so an old campaign is recognized instead of misread. */
 export const CAMPAIGN_STORAGE_SCHEMA = 1;
@@ -71,6 +71,20 @@ export interface CampaignRecord extends CampaignLog {
    * Optional: absent is standard mode, and so is every older record.
    */
   readonly issueModes?: IssueModes;
+  /**
+   * For a run of a pack's campaign (docs/custom-content-packs.md §11.10): the pack and the whole `CampaignDefinition`
+   * the run was signed with, copied in once at creation. `CampaignService.definitionFor` reads this before any
+   * installed pack, so updating or removing the pack never changes a run in progress. Absent for a base-game box and
+   * for every record written before pack campaigns existed.
+   */
+  readonly pack?: PackCampaignRef;
+}
+
+/** Which pack a run's campaign came from, and its definition as of the day the run was signed. */
+export interface PackCampaignRef {
+  readonly id: string;
+  readonly version: string;
+  readonly definition: CampaignDefinition;
 }
 
 /** The modes one issue is played under, beside the campaign's own. Absent is standard mode. */
@@ -91,6 +105,8 @@ export interface CampaignSummary {
   readonly seats: readonly { readonly seatNumber: number; readonly identityCardId: string }[];
   readonly createdAt: number;
   readonly updatedAt: number;
+  /** For a pack campaign's run: its pack and the definition it keeps (`CampaignRecord.pack`), so the shelf lists it without the pack. */
+  readonly pack?: PackCampaignRef;
 }
 
 /** Shared so both storages project a `CampaignRecord` down to a `CampaignSummary` identically. */
@@ -109,6 +125,7 @@ export function summaryOf(record: CampaignRecord): CampaignSummary {
     seats: record.seats.map((seat) => ({ seatNumber: seat.seatNumber, identityCardId: seat.identityCardId })),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    ...(record.pack ? { pack: record.pack } : {}),
   };
 }
 

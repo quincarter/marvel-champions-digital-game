@@ -889,6 +889,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // Briefing. Dev builds only.
   if (screen === "campaign-briefing" && import.meta.env.DEV) {
     const fixtures = await import("../campaign/dev-fixtures.js");
+    // A pack's campaign (`<pack-id>-<name>`) needs its installed pack loaded before a run can be signed.
+    await (await import("../packs/active-packs.js")).refreshActivePacks();
     const record = await fixtures.seedFreshRun(campaignService(), params.get("campaign") ?? "trors");
     return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }
