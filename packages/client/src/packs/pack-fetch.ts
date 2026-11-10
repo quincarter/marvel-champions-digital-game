@@ -15,9 +15,10 @@ export function packFetchFor(platform: Platform = detectPlatform()): FetchLike {
       response.body.byteOffset,
       response.body.byteOffset + response.body.byteLength,
     ) as ArrayBuffer;
-    return new Response(body, {
-      status: response.status,
-      headers: response.contentType ? { "content-type": response.contentType } : {},
-    });
+    const headers: Record<string, string> = { "content-length": String(response.body.byteLength) };
+    if (response.contentType) headers["content-type"] = response.contentType;
+    // A 204 or 304 has no body, and `Response` refuses one with it.
+    const noBody = response.status === 204 || response.status === 205 || response.status === 304;
+    return new Response(noBody ? null : body, { status: response.status, headers });
   };
 }

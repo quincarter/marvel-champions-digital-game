@@ -51,6 +51,7 @@ import {
   currentDeps,
   currentHeroShelfPacks,
   currentPool,
+  currentPoolKey,
   packNameOf,
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
@@ -213,8 +214,13 @@ function deckLockOf(deck: Deck): string | null {
 }
 
 /** The pool's Team-Up pairs, derived once: the pool never changes under a running app. */
-let pairCatalog: PairCatalog | null = null;
-const seatPairCatalog = (): PairCatalog => (pairCatalog ??= pairCatalogOf(currentCardsById()));
+let pairCatalog: { readonly key: string; readonly catalog: PairCatalog } | null = null;
+/** Rebuilt when the loaded packs change, so a pack's team-up cards are known. */
+const seatPairCatalog = (): PairCatalog => {
+  const key = currentPoolKey();
+  if (pairCatalog?.key !== key) pairCatalog = { key, catalog: pairCatalogOf(currentCardsById()) };
+  return pairCatalog.catalog;
+};
 
 /** "Precon + Tested": the kinds of deck a multi-deck hero tile stands for, each once. */
 function sourceWordsOf(options: readonly DeckOption[]): string {
@@ -1837,7 +1843,10 @@ export class SeatsScene extends Phaser.Scene {
           ? "LOCKED"
           : blockedBy
             ? "AT THE TABLE"
-            : (decks.map((d) => customBadgeOf(d.deck)).find((badge) => badge !== null) ?? countTag);
+            : // A custom hero says so and still says how many decks it has.
+              [decks.some((d) => customBadgeOf(d.deck) !== null) ? "CUSTOM" : null, countTag]
+                .filter((part) => part !== null)
+                .join(" · ") || null;
     const rec = this.#insights?.analysis.get(option.deck.id as string);
     const card = renderShelfCard(this, rect, {
       artUrl,

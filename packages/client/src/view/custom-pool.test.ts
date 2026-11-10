@@ -25,6 +25,7 @@ import { IdbPackStore } from "../packs/pack-store.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 import { canExportToMarvelCdb, customBadgeOf, deckUsesCustomCards } from "./custom-content.js";
 import { preconDecks } from "./deck-list-model.js";
+import { basePreconDecks, preconRosterOf, rosterDeckOptions } from "./campaign-roster-model.js";
 import { cycleShelvesOf } from "./roster-shelves.js";
 import { seatableDeckOptionsOf } from "./seatable-decks.js";
 
@@ -116,5 +117,21 @@ describe("the pickers and the deck builder read the installed packs", () => {
     // A base-hero deck holding one custom card is custom too.
     const mixed = { ...base, cards: [...base.cards, { cardId: custom.cards[0]!.cardId, quantity: 1 }] };
     expect(canExportToMarvelCdb(mixed)).toBe(false);
+  });
+
+  it("keeps pack heroes out of campaign rosters", async () => {
+    await installSample();
+    expect(preconDecks().some((deck) => deckUsesCustomCards(deck))).toBe(true);
+    expect(basePreconDecks(POOL_VERSION).some((deck) => deckUsesCustomCards(deck))).toBe(false);
+    expect(basePreconDecks(POOL_VERSION).length).toBe(POOL_STARTER_DECKS.length);
+    const custom = preconDecks().find((deck) => deckUsesCustomCards(deck))!;
+    expect(preconRosterOf([custom.identityCardId], POOL_VERSION)[0]).toBeNull();
+    const saved = {
+      ...custom,
+      id: "saved-custom" as typeof custom.id,
+      source: { kind: "userBuilt" },
+    } as unknown as typeof custom;
+    const options = rosterDeckOptions([null], 1, [saved], POOL_VERSION);
+    expect(options.some((option) => deckUsesCustomCards(option.deck))).toBe(false);
   });
 });

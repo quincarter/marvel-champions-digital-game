@@ -11,6 +11,7 @@
  */
 
 import Phaser from "phaser";
+import type { AnyCard } from "@mc/content";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
 import { CARD_BACKS, defaultFaceFor, isStandInArt, type ArtSource, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -382,7 +383,7 @@ export class HoverPreview {
     const slot = hoverCardIdAt(x, y, plain, topmost);
     const cardId = slot === null ? undefined : plain.get(slot)?.cardId;
     if (slot === null || cardId === undefined) return null;
-    const type = (gameCardsById().get(cardId) ?? currentCardsById().get(cardId))?.type;
+    const type = hoverCardOf(cardId)?.type;
     if (type === "hero_identity" && !settings.hoverHeroCard) return null;
     if (type === "villain" && !settings.hoverVillainCard) return null;
     return hoverKeyOfCardId(slot);
@@ -679,7 +680,7 @@ export class HoverPreview {
     readonly waitingFor: string | null;
   } | null {
     // A card named by id outside a game (the Mod Store gallery) is looked up in what is installed now.
-    const card = gameCardsById().get(cardId) ?? currentCardsById().get(cardId);
+    const card = hoverCardOf(cardId);
     if (!card) return null;
     const faceModel = cardInspectModel(card, face ?? defaultFaceFor(card));
     const model = art ? { ...faceModel, art } : faceModel;
@@ -722,6 +723,17 @@ export class HoverPreview {
     frame.add([name, type, rules]);
     return frame;
   }
+}
+
+/**
+ * A card named by id: the game on the table's own pool while a game is on, else what is installed now (the Mod Store's
+ * gallery, the hero select), with the other as the fallback.
+ */
+function hoverCardOf(cardId: string): AnyCard | undefined {
+  const inGame = tableGame(appSession().store.state.game) !== null;
+  return inGame
+    ? (gameCardsById().get(cardId) ?? currentCardsById().get(cardId))
+    : (currentCardsById().get(cardId) ?? gameCardsById().get(cardId));
 }
 
 const EMPTY_RECTS: ReadonlyMap<InstanceId, Rect> = new Map();

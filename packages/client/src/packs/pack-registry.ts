@@ -14,6 +14,11 @@ export function loadedPacks(): readonly PackRuntime[] {
 }
 
 export function setLoadedPacks(packs: readonly PackRuntime[]): void {
+  // Nothing changes when none were loaded and none are now: no one is told.
+  if (loaded.length === 0 && packs.length === 0) {
+    loaded = packs;
+    return;
+  }
   loaded = packs;
   for (const listener of [...listeners]) listener(packs);
 }

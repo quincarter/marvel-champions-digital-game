@@ -50,7 +50,7 @@ const NO_SUPPRESS: readonly string[] = [];
 
 export class BoardTipMount {
   readonly #scene: BoardScene;
-  readonly #deps: EngineDeps;
+  readonly #deps: () => EngineDeps;
   #state: TipScheduleState = initialTipScheduleState;
   #displayed: Tip | null = null;
   /** This frame's toast, if one was drawn — kept only for a headless click-through's `debugRects` hook, mirroring
@@ -65,7 +65,7 @@ export class BoardTipMount {
   #regionActive = false;
   #regionFocusIndex = -1;
 
-  constructor(scene: BoardScene, deps: EngineDeps = gameDeps()) {
+  constructor(scene: BoardScene, deps: () => EngineDeps = gameDeps) {
     this.#scene = scene;
     this.#deps = deps;
   }
@@ -83,7 +83,7 @@ export class BoardTipMount {
     this.#displayed = null;
 
     const suppress = guidedRun ? TUTORIAL_SUPPRESSED_TIP_IDS : NO_SUPPRESS;
-    const result = advance(this.#state, observation, this.#deps, guidePrefs(), { blocked, suppress });
+    const result = advance(this.#state, observation, this.#deps(), guidePrefs(), { blocked, suppress });
     this.#state = result.state;
     if (result.tip) {
       this.#displayed = result.tip;

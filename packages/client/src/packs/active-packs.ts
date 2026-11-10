@@ -9,7 +9,7 @@
  */
 import type { PackManifest } from "@mc/content";
 import { IdbPackStore, type InstalledPack, type PackStorage } from "./pack-store.js";
-import { loadInWorker } from "./load-client.js";
+import { LOAD_IDLE_MS, loadInWorker, spawnLoadWorker } from "./load-client.js";
 import type { PackLoadResult } from "./pack-load.js";
 import { setLoadedPacks } from "./pack-registry.js";
 import type { PackRuntime } from "./pack-runtime.js";
@@ -32,12 +32,23 @@ export type PackLoader = (
   manifest: PackManifest,
   files: ReadonlyMap<string, Uint8Array>,
   requiredPackCards: ReadonlySet<string>,
+  /** Reads the pack's files again, for a loader that handed the first set away and then needs them back. */
+  reread?: () => Promise<ReadonlyMap<string, Uint8Array> | string>,
 ) => Promise<PackLoadResult>;
+
+const defaultLoader: PackLoader = (manifest, files, required, reread) =>
+  loadInWorker(manifest, files, required, spawnLoadWorker, LOAD_IDLE_MS, reread);
 
 let statuses: readonly ActivePackStatus[] = [];
 const listeners = new Set<(statuses: readonly ActivePackStatus[]) => void>();
 let generation = 0;
 let sharedStore: PackStorage | undefined;
+
+/** The app's one pack store: the Mod Store installs and removes through it, so its cached blob URLs are revoked on the same instance the art reads from. */
+export function sharedPackStore(): PackStorage {
+  sharedStore ??= new IdbPackStore();
+  return sharedStore;
+}
 
 /** The outcome of the last load, one entry per installed pack. */
 export function activePackStatuses(): readonly ActivePackStatus[] {
@@ -68,7 +79,7 @@ async function readFiles(store: PackStorage, pack: InstalledPack): Promise<Reado
  */
 export async function loadActivePacks(
   store: PackStorage,
-  load: PackLoader = loadInWorker,
+  load: PackLoader = defaultLoader,
 ): Promise<readonly ActivePackStatus[]> {
   const mine = ++generation;
   let installed: InstalledPack[];
@@ -102,6 +113,7 @@ export async function loadActivePacks(
               pack.manifest,
               files,
               new Set(needs.flatMap((id) => loaded.get(id)!.cards.map((card) => card.id as string))),
+              () => readFiles(store, pack),
             );
       const clash = result.ok ? result.runtime.decks.find((deck) => deckOwner.has(deck.id as string)) : undefined;
       if (result.ok && clash) {
@@ -154,8 +166,7 @@ export async function loadActivePacks(
 export async function refreshActivePacks(store?: PackStorage): Promise<readonly ActivePackStatus[]> {
   try {
     if (store) return await loadActivePacks(store);
-    sharedStore ??= new IdbPackStore();
-    return await loadActivePacks(sharedStore);
+    return await loadActivePacks(sharedPackStore());
   } catch {
     return statuses;
   }

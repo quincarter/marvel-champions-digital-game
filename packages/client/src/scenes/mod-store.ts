@@ -46,7 +46,12 @@ import {
 } from "../view/mod-store-model.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
-import { activePackStatuses, onActivePackStatuses, refreshActivePacks } from "../packs/active-packs.js";
+import {
+  activePackStatuses,
+  onActivePackStatuses,
+  refreshActivePacks,
+  sharedPackStore,
+} from "../packs/active-packs.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { artFor, defaultFaceFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -63,7 +68,7 @@ import {
   type GalleryCard,
 } from "../view/pack-gallery-model.js";
 import type { InspectData } from "./inspect.js";
-import { IdbPackStore, type InstalledPack } from "../packs/pack-store.js";
+import type { InstalledPack, PackStorage } from "../packs/pack-store.js";
 import { SUPPORTED_DSL_FEATURES } from "../packs/supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -97,10 +102,9 @@ export class ModStoreScene extends Phaser.Scene {
   #install: InstallState | null = null;
   #confirmingRemove = false;
   #error: string | null = null;
-  // TODO(#677): share one store with the pool wiring (step 5 of §11.7); this one lives as long as the scene instance
-  // (Phaser reuses it across visits). Not handled: another tab upgrading the database (`onversionchange`), which
-  // `IdbPackStore` would have to close on; the scene cannot reach its connection.
-  readonly #store = new IdbPackStore();
+  // The app's one store (`packs/active-packs.ts`), shared with the pool wiring. Not handled: another tab upgrading the
+  // database (`onversionchange`), which `IdbPackStore` would have to close on.
+  readonly #store: PackStorage = sharedPackStore();
   /** Bumped for every install; only the newest run writes state, so a stale one finishing late changes nothing. */
   #installToken = 0;
   /** A removal is running: the buttons stay disabled until it ends. */

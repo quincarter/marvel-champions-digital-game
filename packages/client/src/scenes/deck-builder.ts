@@ -65,6 +65,7 @@ import type { CardId } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
   POOL_HERO_SHELF_PACKS,
+  POOL_CARDS,
   POOL_PACKS,
   POOL_VERSION,
   currentCardsById,
@@ -854,7 +855,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#identityInput = null;
     const deck = this.#deck!;
     this.#campaignModel = this.#campaign
-      ? campaignDeckEditModel(deck, poolNow(), this.#campaign.context, this.#campaign.grants)
+      ? campaignDeckEditModel(deck, this.#pool(), this.#campaign.context, this.#campaign.grants)
       : null;
     this.#campaignRows = new Map(this.#campaignModel?.rows.map((row) => [row.cardId as string, row]));
     label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
@@ -943,7 +944,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#refusals = {
         deck,
         rules: rules.signature + rules.copyLimits,
-        refusal: deckRuleRefusals(deck, this.#identity, poolNow(), rules),
+        refusal: deckRuleRefusals(deck, this.#identity, this.#pool(), rules),
       };
     return this.#refusals!.refusal(cardId, step);
   }
@@ -959,6 +960,11 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
+  /** The cards this screen builds against: the base pool in a campaign (base content only, docs/custom-content-packs.md §7.4), else everything installed. */
+  #pool(): readonly AnyCard[] {
+    return this.#campaign ? POOL_CARDS : poolNow();
+  }
+
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
     return this.#campaignRows.get(cardId) ?? null;
   }
@@ -970,7 +976,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
     const ranking = freeTextOf(this.#filterText) ? this.#poolRanking : null;
     const listed = browsablePool(
-      poolNow(),
+      this.#pool(),
       this.#identity!,
       deck.aspects,
       withSearchClauses(this.#filter, this.#filterText),
@@ -987,7 +993,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const hidden =
       this.#rules().signature === "hidden"
         ? new Set(
-            requiredIdentitySet(this.#identity!, poolNow())
+            requiredIdentitySet(this.#identity!, this.#pool())
               .filter((line) => (deck.cards.find((c) => c.cardId === line.cardId)?.quantity ?? 0) >= line.quantity)
               .map((line) => line.cardId as string),
           )
@@ -1146,7 +1152,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #drawTabRow(left: number, top: number, column: number, tabs: readonly DeckBuilderTab[], deck: Deck): number {
     const counted = this.#campaignModel
       ? campaignDeckSizeSplit(this.#campaignModel).counted
-      : deckStatsOf(deck, poolNow()).countedCards;
+      : deckStatsOf(deck, this.#pool()).countedCards;
     const labels = tabs.map((tab) => deckBuilderTabLabel(tab, counted, DECK_MIN_CARDS));
     const rects = deckBuilderTabRects(labels, { x: left, y: top, width: column, height: hit.target }, 6);
     const current = tabs.indexOf(this.#tab);
@@ -1554,7 +1560,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const stepperLeft = left + column - stepperWidth;
 
     const traits = traitFilterChoices(
-      poolNow(),
+      this.#pool(),
       this.#identity!,
       deck.aspects,
       withSearchClauses(this.#filter, this.#filterText),
@@ -1589,7 +1595,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     y += 16;
     const ground = this.add.graphics();
     const choices = packFilterChoices(
-      poolNow(),
+      this.#pool(),
       this.#identity!,
       deck.aspects,
       withSearchClauses(this.#filter, this.#filterText),
@@ -1718,7 +1724,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top + 18;
     const buttonWidth = Math.min(132, Math.floor(column * 0.4));
     rewards.forEach((reward, at) => {
-      const card = poolNow().find((candidate) => candidate.id === reward.cardId);
+      const card = this.#pool().find((candidate) => candidate.id === reward.cardId);
       const textWidth = column - buttonWidth - 8;
       const name = this.add
         .text(left, y, card ? cardDisplayName(card) : (reward.cardId as string), textStyle(typeRole.rowTitle, ground))
@@ -1799,7 +1805,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #drawLegalityLine(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
-    const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, poolNow());
+    const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, this.#pool());
     // Campaign mode's own count (the Briefing's "N cards + M pinned", MC10 p. 3): granted lines don't count toward
     // deck size, so the legal-count line says so rather than reading a plain total that includes them.
     const cardCountText = this.#campaignModel
@@ -1807,7 +1813,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           // A reward is counted apart too (MC45 p. 24): "40 cards + 1 reward".
           return campaignDeckSizeLabel(campaignDeckSizeSplit(this.#campaignModel!));
         })()
-      : deckCountText(deckStatsOf(deck, poolNow()));
+      : deckCountText(deckStatsOf(deck, this.#pool()));
     const legalityText = verdict.ok
       ? `Legal — ${cardCountText}.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
@@ -1933,7 +1939,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
-    const stats = deckStatsOf(deck, poolNow());
+    const stats = deckStatsOf(deck, this.#pool());
     // On a phone each bar carries its count above it (the cost is on the axis), so the chart reads as numbers, not
     // buttons. The desktop rail (`onDark`) has no room for it.
     const chartHeight = onDark ? 74 : 90;
@@ -2367,7 +2373,7 @@ ${entry.detail}`,
       onDark ? ink.secondary : ink.label,
     );
     const listTop = this.#drawDeckListControls(left, top + 16, column, onDark);
-    const groups = deckListGroupsOf(deck, poolNow(), this.#deckSort);
+    const groups = deckListGroupsOf(deck, this.#pool(), this.#deckSort);
     const noteOf = this.#campaign
       ? (entry: DeckListEntry): string | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
@@ -2384,7 +2390,7 @@ ${entry.detail}`,
       ? (entry: DeckListEntry): (() => void) | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
           if (!row?.locked) return null;
-          const card = poolNow().find((candidate) => candidate.id === entry.cardId);
+          const card = this.#pool().find((candidate) => candidate.id === entry.cardId);
           return card ? () => this.#inspect(card, row.face ?? null) : null;
         }
       : undefined;
@@ -2577,7 +2583,7 @@ ${entry.detail}`,
         }),
       );
       this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
-      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, poolNow()));
+      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, this.#pool()));
       this.#buttons.push(
         new McButton(this, {
           kind: onDark ? "onInk" : "secondary",

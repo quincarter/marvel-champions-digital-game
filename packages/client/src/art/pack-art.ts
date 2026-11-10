@@ -15,7 +15,13 @@
  * No store import: the store is handed in (`setPackArt`), so this module is Vitest-testable without IndexedDB, and
  * `card-art.ts` can import it without pulling the pack code into the board.
  */
-import { packIdOfCardCode, resolvePackCardImage, type PackLanguages, type PackManifest } from "@mc/content";
+import {
+  packIdOfCardCode,
+  parsePackCardImagePath,
+  resolvePackCardImage,
+  type PackLanguages,
+  type PackManifest,
+} from "@mc/content";
 import { announceArtChange } from "../language-change.js";
 import type { ArtSource } from "./art-source.js";
 
@@ -42,6 +48,7 @@ const urls = new Map<string, string>();
 const fileOfKey = new Map<string, { readonly id: string; readonly path: string }>();
 /** Keys whose URL is being read from the store. */
 const resolving = new Set<string>();
+let announcedSignature = "";
 let announceTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** The texture key of a pack picture. */
@@ -66,6 +73,7 @@ function announceSoon(): void {
  */
 export function setPackArt(manifests: readonly PackManifest[], from: PackArtStore | undefined): void {
   store = from;
+  const previousSize = packs.size;
   packs = new Map(
     manifests.map((manifest) => [
       manifest.id,
@@ -86,7 +94,18 @@ export function setPackArt(manifests: readonly PackManifest[], from: PackArtStor
     fileOfKey.delete(key);
     resolving.delete(key);
   }
-  if (packs.size > 0) announceSoon();
+  // Every picture's URL is read ahead (a blob URL is a reference, not a decode), so a screen that builds its view model
+  // once, such as the table, finds it on its first ask. Only a change in what is loaded is announced.
+  for (const pack of packs.values()) {
+    for (const path of pack.files) if (parsePackCardImagePath(path)) ensure(pack, path);
+    for (const byCode of Object.values(pack.pictures ?? {}))
+      for (const path of Object.values(byCode)) ensure(pack, path);
+  }
+  const signature = [...packs.values()].map((pack) => `${pack.id}@${pack.version}`).join(",");
+  if (signature !== announcedSignature) {
+    announcedSignature = signature;
+    if (packs.size > 0 || previousSize > 0) announceSoon();
+  }
 }
 
 /**
@@ -118,7 +137,14 @@ function sourceOf(pack: PackArtPack, path: string): ArtSource | null {
   const key = packArtKey(pack.id, pack.version, path);
   const url = urls.get(key);
   if (url !== undefined) return { key, url };
-  if (store && !resolving.has(key)) {
+  ensure(pack, path);
+  return null;
+}
+
+/** Starts reading one file's blob URL from the store, once; an art change is announced when it lands. */
+function ensure(pack: PackArtPack, path: string): void {
+  const key = packArtKey(pack.id, pack.version, path);
+  if (store && !urls.has(key) && !resolving.has(key)) {
     resolving.add(key);
     fileOfKey.set(key, { id: pack.id, path });
     store
@@ -134,7 +160,6 @@ function sourceOf(pack: PackArtPack, path: string): ArtSource | null {
       .catch(() => undefined)
       .finally(() => resolving.delete(key));
   }
-  return null;
 }
 
 /** Whether `key` is a pack picture's texture key. */
@@ -161,4 +186,5 @@ export function resetPackArt(): void {
   resolving.clear();
   if (announceTimer !== undefined) clearTimeout(announceTimer);
   announceTimer = undefined;
+  announcedSignature = "";
 }

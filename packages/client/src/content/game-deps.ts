@@ -14,6 +14,14 @@ let packs: readonly PackRuntime[] | undefined;
 
 /** Records which packs the game on the table was built with (`undefined` for none or no game). */
 export function setGamePacks(next: readonly PackRuntime[] | undefined): void {
+  // The worker sends a fresh array with every snapshot; the same packs keep the same array, so the merged pool is built once.
+  if (
+    packs &&
+    next &&
+    packs.length === next.length &&
+    packs.every((pack, i) => pack.id === next[i]!.id && pack.version === next[i]!.version)
+  )
+    return;
   packs = next;
 }
 

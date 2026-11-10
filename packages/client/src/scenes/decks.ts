@@ -383,7 +383,9 @@ export class DecksScene extends Phaser.Scene {
   #deckRanking: ReadonlyMap<string, number> | null = null;
   #deckDocsVersion: string | null = null;
   /** The deck list's first status pass also runs in the `#deckSearch` worker (`DeckSearchClient.checkDecks`); a deck is asked about once. */
-  readonly #statusAsked = new WeakSet<Deck>();
+  #statusAsked = new WeakSet<Deck>();
+  /** The pool the asked decks were sent against; a change (a pack loaded) forgets them so each is checked again. */
+  #statusAskedPool = "";
   /** Bumped whenever a worker's answer is remembered, so `#offersCache` is rebuilt from the new statuses. */
   #statusEpoch = 0;
   /** True while `#askStatuses` is calling `checkDecks`: an answer that comes back inside the call (no worker) is used by the draw already under way. */
@@ -648,6 +650,10 @@ export class DecksScene extends Phaser.Scene {
     if (shown && cachedDeckOption(shown, currentPool(), POOL_VERSION, currentDeps()) === null) {
       deckOptionOf(shown, currentPool(), POOL_VERSION, currentDeps());
       this.#statusEpoch += 1;
+    }
+    if (this.#statusAskedPool !== currentPoolKey()) {
+      this.#statusAskedPool = currentPoolKey();
+      this.#statusAsked = new WeakSet<Deck>();
     }
     const unchecked = listed.filter(
       (deck) =>

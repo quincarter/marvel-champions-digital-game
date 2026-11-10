@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cardId, type AnyCard, type PackManifest } from "@mc/content";
-import { onLanguageChange } from "../language-change.js";
+import { onArtChange } from "../language-change.js";
 import { artFor } from "./art-source.js";
 import { packArtFor, packArtKey, releasePackArt, resetPackArt, setPackArt, type PackArtStore } from "./pack-art.js";
 
@@ -56,9 +56,7 @@ describe("pack card art", () => {
     const store = fakeStore();
     setPackArt([manifest()], store);
     const announced = vi.fn();
-    const off = onLanguageChange(announced);
-    await flush();
-    announced.mockClear();
+    const off = onArtChange(announced);
     expect(packArtFor("x.demo.01a", "en")).toBeNull();
     await flush();
     expect(announced).toHaveBeenCalledTimes(1);
@@ -69,12 +67,26 @@ describe("pack card art", () => {
     off();
   });
 
-  it("asks the store once for a picture, however often it is drawn", async () => {
+  it("reads every picture ahead and asks the store once for each, however often it is drawn", async () => {
     const store = fakeStore();
     setPackArt([manifest()], store);
     for (let i = 0; i < 5; i += 1) packArtFor("x.demo.01a", "en");
     await flush();
-    expect(store.urls).toHaveLength(1);
+    expect(store.urls).toHaveLength(3);
+  });
+
+  it("announces nothing when the same packs are set again, or when there are none", async () => {
+    const announced = vi.fn();
+    const off = onArtChange(announced);
+    setPackArt([], undefined);
+    await flush();
+    expect(announced).not.toHaveBeenCalled();
+    setPackArt([manifest()], fakeStore());
+    await flush();
+    setPackArt([manifest()], fakeStore());
+    await flush();
+    expect(announced).toHaveBeenCalledTimes(1);
+    off();
   });
 
   it("uses the player's language where the pack has that picture and the base language otherwise", async () => {
@@ -106,7 +118,7 @@ describe("pack card art", () => {
     expect(store.revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
     expect(packArtFor("x.demo.01a", "en")).toBeNull();
     await flush();
-    expect(store.urls).toHaveLength(2);
+    expect(store.urls).toHaveLength(4);
     expect(packArtFor("x.demo.01a", "en")).not.toBeNull();
     releasePackArt("art:some/base/scan.png");
     expect(store.revoked).toHaveLength(1);

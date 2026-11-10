@@ -45,6 +45,8 @@ export function loadInWorker(
   requiredPackCards: ReadonlySet<string>,
   factory: LoadWorkerFactory = spawnLoadWorker,
   idleMs: number = LOAD_IDLE_MS,
+  /** Reads the files again (from the store) once the first set has gone to the worker, so a stalled worker can still be answered here. */
+  reread?: () => Promise<ReadonlyMap<string, Uint8Array> | string>,
 ): Promise<PackLoadResult> {
   const here = (): PackLoadResult => loadPackRuntime(manifest, files, requiredPackCards);
   const worker = factory();
@@ -64,8 +66,19 @@ export function loadInWorker(
     const fallback = (): void => {
       if (settled) return;
       end();
-      // Once the buffers have gone to the worker they are detached here, so there is nothing left to load from.
-      resolve(posted ? { ok: false, reason: "The pack loader stopped before it finished" } : here());
+      if (!posted) return resolve(here());
+      // Once the buffers have gone to the worker they are detached here: read them again and load on this thread.
+      const stopped: PackLoadResult = { ok: false, reason: "The pack loader stopped before it finished" };
+      if (!reread) return resolve(stopped);
+      reread().then(
+        (again) =>
+          resolve(
+            typeof again === "string"
+              ? { ok: false, reason: `Damaged: ${again}` }
+              : loadPackRuntime(manifest, again, requiredPackCards),
+          ),
+        () => resolve(stopped),
+      );
     };
     worker.onmessage = (event) => {
       if (settled) return;
