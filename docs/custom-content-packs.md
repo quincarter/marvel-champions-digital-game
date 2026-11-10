@@ -1,7 +1,13 @@
 # Custom content packs: design proposal
 
-Status: **parked by the owner on 2026-10-31, until a domain is chosen (§10).** Proposal, second pass. Nothing here is
-built yet. The aim is to agree on the shape before any code lands.
+Status: **unparked by the owner on 2026-11-10 (§10), with a mod store layer added (§11, issue #677).** The owner is
+buying a domain and setting up R2 (§11.8) while the code is built against a local catalog.
+
+**What changed in this pass (2026-11-10):** the owner approved Cloudflare R2 for packs and asked for a **mod store**: an
+in-game browser of approved community packs, and a **creator template** that authors fork to build a pack and submit it
+for approval. Packs are now authored in creators' own repos, not this one; the store lists only packs the owner has
+approved; the mod SDK is published to npm and as a tarball on each release; and every platform installs a pack as one
+zip download (§11).
 
 **What changed in this pass (2026-10-30):** media left git for release bundles in the content repo (#495), so pack
 images follow them there (§3). Netlify is near its bandwidth limit after a Reddit post, so the site's own hosting is
@@ -372,6 +378,17 @@ scope here, but nothing above blocks it.
 
 ## 10. Decisions and discussion so far
 
+**Unparked, with a mod store (2026-11-10).** The owner approved Cloudflare R2 for packs. He's buying a domain, will put
+the store on R2, and will do the Cloudflare and npm setup (§11.8) while the code is built. He asked for a mod store and
+a creator template (§11, issue #677). He decided the following:
+
+- All of this work goes on #489's branch.
+- Create the template repo `marvel-champions-mod-template` and the registry repo `marvel-champions-mods`.
+- Publish the mod SDK to npm, and also attach it as a tarball to each release.
+
+This settles §9.1 (R2) and §9.2, §9.3 and §9.5 (§11.1). §9.4 (the domain name) and §9.6 (fan-art licensing) stay open,
+though §11.4's permission record covers the store side of §9.6.
+
 **Parked (2026-10-31).** The owner hasn't chosen a domain and can't move hosts yet, so the work is on hold. Nothing
 gets built, and the site stays on Netlify, until a domain is picked. Cloudflare for both the site and packs (§9.1)
 is still the recommendation but isn't approved yet. The other §9 questions are still open.
@@ -405,6 +422,194 @@ packs, three per expansion:
 The list also links JustATuna's whole campaign as an option, and suggests unlocking packs as "secret" heroes and
 scenarios tied to each expansion's progression. **Only Gwenpool has its creator's permission** (PatataSaurio); each of
 the other 29 needs its creator's permission before it ships (§9.6). The set comes to about 150–200 MB.
+
+## 11. The mod store (issue #677, 2026-11-10)
+
+The owner's ask: a store inside the game that lists the custom packs available to pull in, and a sample project
+creators use as a template to make their own pack and submit it to the community store for approval. This section
+builds on §3 to §8 and wins where it differs from them.
+
+### 11.1 What changes from §3 to §8
+
+- **Packs are authored outside this repo.** Each pack lives in its creator's own repo, made from the template
+  (§11.3). This repo keeps the engine, the mod SDK (§11.2), the client's `PackStore` and store screen, and one sample
+  pack under `content-packs/` for its tests to build. This answers §9.2: a separate repo per pack.
+- **Only approved packs are listed.** The store reads one catalog, and a pack gets into it only through the registry
+  repo's review (§11.4). There's no sideloading in the first version. A developer toggle, off by default, installs a
+  pack from a local folder so a creator can test before submitting. This answers §9.3.
+- **Every platform installs a zip.** The web also downloads the pack's zip into the `PackStore`, instead of streaming
+  card art file by file (§7.3). An install is one request, and a game never fetches a pack's art during play. That
+  keeps the store well inside Cloudflare's free tiers, and the web gets offline play at no extra cost. This answers
+  §9.5.
+- **The catalog is the store's `index.json`** (§5.2), with the fields §11.5 adds.
+
+### 11.2 The mod SDK
+
+The mod SDK is one package, built from this repo and versioned with the app. Every pack depends on it. It contains:
+
+- **The pack schema:** types for `pack.json` and for the card, scenario and deck records a pack may carry, plus a JSON
+  Schema generated from those types for editors.
+- **The ability DSL:** the `@mc/cards` builders, re-exported, so a pack's abilities are written the same way as the
+  base game's.
+- **`mc-pack validate`**, which checks:
+  - the pack against the schema;
+  - that every custom card code is `x.<pack-id>.<nn>`;
+  - that every ability a card names is defined, and passes `dsl/validate.ts`;
+  - that the scripts use only DSL features this SDK's engine has (it writes the list to `requires.dslFeatures`);
+  - that every file in `files` exists with the listed size and sha256;
+  - that `CREDITS.md` and `PERMISSION.md` are present.
+- **`mc-pack build`:** writes the abilities out as `data/abilities.json`, fills in `pack.json`'s `files`, `totalBytes`
+  and `requires`, and makes the deterministic zip.
+- **`mc-pack test`:** plays headless smoke games on the real engine and fails on an engine error or a stuck game. A
+  hero pack plays its precon; a scenario pack plays its scenario. The template's own Vitest tests use the same game
+  builder to check that a card does what its text says.
+
+The SDK ships two ways (the owner, 2026-11-10), so a creator can pin either:
+
+- on **npm**, as `@<scope>/mod-sdk`;
+- as a **tarball attached to each game release**.
+
+The npm scope must not contain "Marvel" (§10). The SDK is bundled: it carries the engine and DSL code it needs and
+doesn't depend on this repo's private workspace packages. It is AGPL-3.0-or-later, like the rest of this repo. A
+pack's own data and art are under the pack's own license.
+
+`requires.app` is the oldest app whose engine matches the pack's SDK version. Before the client offers a pack, it
+checks `requires.app` and `dslFeatures` against its own version and feature list (§6).
+
+### 11.3 The creator template repo
+
+The template is `quincarter/marvel-champions-mod-template`, a GitHub template repository. A creator clicks "Use this
+template" and gets:
+
+- `pack.json`, with the pack's id, kind, name, authors and description filled in by a first-run script;
+- `cards/`, with card records as one JSON file per card;
+- `abilities/`, with TypeScript abilities written with the SDK's DSL, one module per card group;
+- `scenarios/` and `decks/`;
+- `art/`, with placeholder images at the expected sizes;
+- `CREDITS.md`, saying who made the pack and its art;
+- `PERMISSION.md`, recording the creator's permission for the store to distribute the pack;
+- a sample pack: a small test hero whose cards use only existing primitives, so a creator sees one card of each kind
+  done;
+- `test/`, with a smoke test and a sample card test;
+- **CI**: `validate` and `test` on every push and pull request; on a `v*` tag, `build`, which attaches the zip and
+  `pack.json` to a GitHub release of the creator's repo;
+- `SUBMITTING.md`, explaining how to submit to the store (§11.4).
+
+### 11.4 Submission and approval
+
+The store's registry is a second repo, `quincarter/marvel-champions-mods`. Its `packs/<pack-id>.yaml` files are the
+list of approved packs:
+
+```yaml
+id: fan-gwenpool
+repo: https://github.com/<creator>/<pack-repo>
+tag: v1.0.0
+commit: <full sha the tag points at>
+creator: PatataSaurio
+permission:
+  by: PatataSaurio # the creator, or who granted permission on their behalf
+  evidence: https://… # where the permission was given
+  date: 2026-10-28
+tags: [hero, justice]
+```
+
+1. **Submit:** the creator tags a release in their pack repo and opens a pull request that adds
+   `packs/<pack-id>.yaml`. The PR template asks for the permission evidence.
+2. **Check:** the registry's CI checks out the pack at `commit` rather than the tag, because a tag can move. It builds
+   the pack with the SDK version the pack pins, runs `validate` and `test`, and compares the result with the release's
+   zip. It then comments the pack's size, the DSL features it uses and the oldest app it needs.
+3. **Review:** the owner, or a reviewer the owner names, reads the cards and tries the pack with the store's developer
+   toggle. Merging the PR approves the pack.
+4. **Publish:** on merge, the registry's publish workflow:
+   - uploads the built zip and `pack.json` to `mc-packs/<pack-id>/<version>/` in R2;
+   - attaches the same zip to a release of the registry repo, as the fallback (§5.2's `zipFallback`);
+   - regenerates `index.json`.
+5. **Update:** a new version is a PR that changes `tag` and `commit`. Older versions stay in R2, so saves that used
+   them still load (§7.4).
+6. **Withdraw:** removing a pack's file drops it from the catalog. The client keeps an installed copy and marks it
+   "withdrawn": it's still playable, so saves still load, but the store doesn't offer it.
+
+A pack without permission evidence is never merged. Of BluefireF5ran's 30 packs, only Gwenpool has it so far (§10).
+Neptune's packs (issue #661) are free to use by their creator's own statement, and that statement is the evidence.
+
+### 11.5 The store's `index.json`
+
+The store's catalog is §5.2's, with the extra fields the store screen shows:
+
+```jsonc
+{
+  "schema": 2,
+  "generated": "2026-11-10T00:00:00Z",
+  "packs": [
+    {
+      "id": "fan-gwenpool",
+      "kind": "hero",
+      "name": "Gwenpool",
+      "creator": "PatataSaurio",
+      "summary": "One line for the store list.",
+      "tags": ["hero", "justice"],
+      "thumbnail": "https://packs.<domain>/fan-gwenpool/1.0.0/thumb.webp",
+      "approved": "2026-11-12",
+      "latest": "1.0.0",
+      "versions": {/* as §5.2 */},
+      "withdrawn": false,
+    },
+  ],
+}
+```
+
+The client fetches the catalog when the store opens, with a short cache. It keeps the last copy, so the store still
+opens offline and shows what's installed.
+
+### 11.6 The store screen
+
+The store screen is **Extras ▸ Mod Store**. Like every other screen, it's drawn in Phaser with the `Mc*` widgets.
+
+- **Browse:** tabs for All, Heroes, Scenarios and Installed. Each pack is a tile with its thumbnail, name, creator,
+  kind, size and state: Install, Installed, Update, Needs app update or Withdrawn.
+- **Pack page:**
+  - the pack's cards as a gallery, with the hover popover on desktop;
+  - its description, credits and permission;
+  - its size, its version and what it needs;
+  - Install, Update and Remove.
+- **Install:** a progress bar shows while the zip downloads and unzips **in a worker** (offload-the-main-thread
+  rule). A failed install leaves nothing installed (§7.2.3).
+- **Input:** every press uses `onTap` or `McButton`, never a bare `pointerup`, and no control sits on a scrolling
+  region. Every control is reachable with a controller, with its glyphs shown.
+- **Screenshots:** at the five sizes (iPhone SE, Pixel, tablet portrait, tablet landscape and desktop).
+
+Installed packs then show in the hero and scenario pickers with a small "Custom" badge (§7.4).
+
+### 11.7 Build order
+
+Each step is its own commit on #489's branch, pushed as soon as it lands. All of this goes on #489's branch (the
+owner, 2026-11-10).
+
+1. This section.
+2. The mod SDK: the schema, `validate`, `build` and the sample pack under `content-packs/`, with tests.
+3. The `PackStore` (IndexedDB) and the zip install worker, with tests.
+4. The store screen, running from a local `index.json` built from the sample pack.
+5. Wiring an installed pack into the pool, the pickers and the engine worker (§7.4). This is the largest step, because
+   the app's pool is a constant fixed at build time today.
+6. `mc-pack test` (headless smoke games), and the SDK's npm and tarball builds.
+7. The registry repo with its check and publish workflows, and the template repo.
+8. Once §11.8 is done, switching the catalog address to `packs.<domain>`, then Gwenpool as the first real pack.
+
+### 11.8 The owner's Cloudflare and npm steps
+
+The owner does these steps while the code is built. The code doesn't wait on them.
+
+1. Buy a domain without "Marvel" in it through Cloudflare Registrar, so its DNS is already on Cloudflare.
+2. Turn on R2 and create the bucket `mc-packs`. R2 asks for a payment method even on the free tier.
+3. In the bucket's settings, connect `packs.<domain>` as its custom domain, and leave the `r2.dev` URL off.
+4. Add a CORS policy that allows `GET` and `HEAD` from the site's address and from `http://localhost:5173`.
+5. Create an R2 API token with Object Read & Write, scoped to `mc-packs`. Add its values as the Actions secrets
+   `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` on `marvel-champions-mods`.
+6. Create an npm organization for the SDK's scope, and a granular token that can publish to it. Add the token to this
+   repo as the Actions secret `NPM_TOKEN`.
+
+R2's free tier covers 10 GB of storage, 1 million writes and 10 million reads a month, and egress is free. The 30
+community packs come to about 150 to 200 MB (§10), so even every version of every pack stays far under the limit.
 
 ## Sources
 
