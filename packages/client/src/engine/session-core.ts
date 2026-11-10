@@ -28,8 +28,15 @@
 import { cardsOfComposedSets } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
-import { POOL_VERSION, POOL_STARTER_DECKS, buildScenario, poolViewOfPacks } from "../content/pool.js";
-import { seatsWithPackDecks } from "../packs/pack-runtime.js";
+import {
+  POOL_VERSION,
+  POOL_STARTER_DECKS,
+  buildScenario,
+  poolViewOfPacks,
+  type PlayableScenarioOptions,
+} from "../content/pool.js";
+import { packsOwningContent, seatsWithPackDecks, type PackRuntime } from "../packs/pack-runtime.js";
+import { scenarioWithPacks } from "@mc/mod-sdk/game";
 import {
   applyCommand,
   createGame,
@@ -211,7 +218,12 @@ const BASE_DECK_IDS: ReadonlySet<string> = new Set(POOL_STARTER_DECKS.map((deck)
  */
 const scenarioFor = (config: SessionConfig) => {
   const view = viewOf(config);
-  const built = buildScenario(config.scenarioId, {
+  // A pack's own scenario, or a pack's modular set at any scenario, goes through the SDK's builder, which knows the
+  // packs' scenario and encounter set records; every other game takes the base builder exactly as before.
+  const build = usesPackContent(config, view.packs)
+    ? (id: string, options: PlayableScenarioOptions) => scenarioWithPacks(id, options, view.packs)
+    : buildScenario;
+  const built = build(config.scenarioId, {
     difficulty: config.difficulty,
     players: view.packs.length > 0 ? seatsWithPackDecks(config.players, view.packs, BASE_DECK_IDS) : config.players,
     seed: config.seed,
@@ -261,6 +273,12 @@ const scenarioFor = (config: SessionConfig) => {
   const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
   return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
 };
+
+/** Whether a game's scenario or one of its modular picks belongs to one of its packs. */
+const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): boolean =>
+  packs.length > 0 &&
+  packsOwningContent(config.scenarioId, [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])], packs)
+    .length > 0;
 
 /** The engine deps a game runs with: the base game's, plus its packs' abilities (`SessionConfig.packs`). */
 const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);

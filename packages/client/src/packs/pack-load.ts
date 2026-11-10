@@ -4,7 +4,7 @@
  */
 import { PLAYABLE_PACK_KINDS } from "./pack-state.js";
 import { readPackInput, validatePack, SUPPORTED_DSL_FEATURES } from "@mc/mod-sdk";
-import type { PackManifest } from "@mc/content";
+import type { PackManifest, Scenario } from "@mc/content";
 import type { PackRuntime } from "./pack-runtime.js";
 
 export type PackLoadResult =
@@ -32,8 +32,6 @@ export function loadPackRuntime(
     if (!PLAYABLE_PACK_KINDS.includes(manifest.kind))
       return { ok: false, reason: `This game can't play ${manifest.kind} packs yet` };
     const input = readPackInput(manifest, files);
-    if ((input.scenarios?.length ?? 0) > 0)
-      return { ok: false, reason: "This game can't play a pack's own scenarios yet" };
     const issues = validatePack(input, { requiredPackCards });
     if (issues.length > 0) {
       const shown = issues.slice(0, REASON_ISSUES).map((issue) => `${issue.path}: ${issue.message}`);
@@ -50,6 +48,8 @@ export function loadPackRuntime(
         cards: input.cards,
         abilities: input.abilities,
         decks: input.decks ?? [],
+        ...((input.scenarios?.length ?? 0) > 0 ? { scenarios: input.scenarios as readonly Scenario[] } : {}),
+        ...((input.encounterSets?.length ?? 0) > 0 ? { encounterSets: input.encounterSets } : {}),
       },
     };
   } catch (error) {

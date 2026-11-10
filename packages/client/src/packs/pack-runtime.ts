@@ -5,7 +5,7 @@
  * all use the same code. Validation (`pack-load.ts`) stays out of this file so the engine worker does not bundle it.
  */
 import { cardPoolWithPack, gameDepsWithPack } from "@mc/mod-sdk/game";
-import type { AnyCard, StarterDeck } from "@mc/content";
+import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 
@@ -19,6 +19,10 @@ export interface PackRuntime {
   readonly cards: readonly AnyCard[];
   readonly abilities: AbilityRegistry;
   readonly decks: readonly StarterDeck[];
+  /** The pack's own scenarios (a scenario pack's villains); absent in a pack stored before scenarios were playable. */
+  readonly scenarios?: readonly Scenario[];
+  /** The pack's encounter sets: a scenario's own and the modular sets a table may pick (`packModularSetChoices`). */
+  readonly encounterSets?: readonly EncounterSet[];
 }
 
 /** `base` with every pack's cards added; throws if a pack card is already in the pool. */
@@ -61,6 +65,20 @@ export function seatsWithPackDecks(
       deckId: seat.starterDeckId,
     };
   });
+}
+
+/** The loaded packs that own a scenario id or any of the encounter set ids: how a game that picks one carries its pack. */
+export function packsOwningContent(
+  scenarioId: string,
+  setIds: readonly string[],
+  packs: readonly PackRuntime[],
+): readonly PackRuntime[] {
+  const wanted = new Set(setIds);
+  return packs.filter(
+    (pack) =>
+      (pack.scenarios ?? []).some((scenario) => (scenario.id as string) === scenarioId) ||
+      (pack.encounterSets ?? []).some((set) => wanted.has(set.id as string)),
+  );
 }
 
 /** The packs a set of seats draws on: a pack's precon, its hero identity, or any of its cards in a built deck. */

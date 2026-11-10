@@ -22,7 +22,9 @@
 import { campaignModularPickProblem, isScenarioSpecificSet, modularPickProblem } from "@mc/cards";
 import type { Campaign, EncounterSet, Scenario } from "@mc/content";
 import { modularExclusionReason } from "./modular-exclusions.js";
-import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS, POOL_HERO_SHELF_PACKS } from "../content/pool.js";
+import { packModularSetChoices } from "@mc/mod-sdk/game";
+import { CORE_MODULAR_SET_IDS, CUSTOM_SHELF_ID, POOL_HERO_SHELF_PACKS, currentEncounterSets } from "../content/pool.js";
+import { loadedPacks } from "../packs/pack-registry.js";
 
 /** What the player has open: the picker offers a set once any of its packs' waves is. */
 export interface ModularScope {
@@ -133,7 +135,7 @@ function isOfferable(set: EncounterSet, scenario: Scenario, pool: readonly Encou
 export function modularCandidatesFor(
   scenario: Scenario,
   scope: ModularScope = ALL_OPEN,
-  encounterSets: readonly EncounterSet[] = POOL_ENCOUNTER_SETS,
+  encounterSets: readonly EncounterSet[] = currentEncounterSets(),
   /**
    * The campaign the game is played in, when it is: a set the box bars (`Campaign.prohibited.encounterSetIds`, Shadowland's
    * Black Flower, MC65 p. 5) stays listed but disabled with `campaignModularPickProblem`'s reason. Absent for a standalone game.
@@ -165,9 +167,21 @@ export function modularCandidatesFor(
 
   // A scenario that uses no modular set (Breakout, The Hood) keeps Core's five: nothing here to add a set to.
   const noModulars = scenario.modularSetCount === 0 && scenario.modularSetPool === undefined;
+  // An installed pack's sets are judged by the SDK (the builder's own rule for them), not by the base pool's tables,
+  // which know no pack card; a restricted pool or a scenario with a side or a pool takes none (the builder refuses them).
+  const packs = loadedPacks();
+  const packSetIds = new Set(packs.flatMap((pack) => (pack.encounterSets ?? []).map((set) => set.id as string)));
+  const packChoices =
+    packSetIds.size === 0 || scenario.side !== undefined || scenario.modularSetPool !== undefined
+      ? new Set<string>()
+      : new Set(packModularSetChoices(scenario, packs).map((set) => set.id as string));
   const pool: readonly EncounterSet[] = noModulars
     ? CORE_MODULAR_SET_IDS.map((id) => setsById.get(id)).filter((s): s is EncounterSet => s !== undefined)
-    : encounterSets.filter((set) => isOfferable(set, scenario, encounterSets) && setIsUnlocked(set, scope));
+    : encounterSets.filter((set) =>
+        packSetIds.has(set.id as string)
+          ? packChoices.has(set.id as string)
+          : isOfferable(set, scenario, encounterSets) && setIsUnlocked(set, scope),
+      );
 
   const rest = pool.filter((set) => !have.has(set.id as string));
   const keyed = rest.map((set, index) => ({ set, index, cycle: cycleOfSet(set) }));
@@ -192,6 +206,8 @@ export function modularCandidatesFor(
         groupId: OWN_SIDE_GROUP_ID,
         groupLabel: set.side === "registration" ? "Registration sets" : "Resistance sets",
       });
+    else if (packSetIds.has(set.id as string))
+      neutral.push({ id: set.id as string, recommended: false, groupId: CUSTOM_SHELF_ID, groupLabel: "Custom packs" });
     else
       neutral.push({
         id: set.id as string,

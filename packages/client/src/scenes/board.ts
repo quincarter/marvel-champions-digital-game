@@ -24,7 +24,7 @@
  */
 
 import Phaser from "phaser";
-import { POOL_CARDS, POOL_SCENARIOS } from "../content/pool.js";
+import { POOL_CARDS, currentScenarios } from "../content/pool.js";
 import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import type { AbilityId } from "@mc/content";
 import type { CardId } from "@mc/content";
@@ -560,7 +560,7 @@ export class BoardScene extends Phaser.Scene {
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
     const config = store.state.config;
     if (config?.scenarioId) {
-      const scenario = POOL_SCENARIOS.find((s) => s.id === config.scenarioId);
+      const scenario = currentScenarios().find((s) => s.id === config.scenarioId);
       appSession().music?.playBattle({ scenarioId: config.scenarioId, packCode: scenario?.packCode });
     }
     const onResize = (): void => this.#draw();
@@ -2774,7 +2774,7 @@ export class BoardScene extends Phaser.Scene {
     const scenarioId = appSession().store.state.config?.scenarioId;
     const known = this.#referenceCardList;
     if (known && known.scenarioId === scenarioId) return known.cards;
-    const cards = referenceCardViews(POOL_SCENARIOS.find((scenario) => scenario.id === scenarioId));
+    const cards = referenceCardViews(currentScenarios().find((scenario) => scenario.id === scenarioId));
     this.#referenceCardList = { scenarioId, cards };
     return cards;
   }

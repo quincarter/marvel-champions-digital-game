@@ -1,6 +1,6 @@
 import type { SessionConfig } from "../engine/host.js";
 import { loadedPacks } from "./pack-registry.js";
-import { packsUsedBySeats, withRequiredPacks } from "./pack-runtime.js";
+import { packsOwningContent, packsUsedBySeats, withRequiredPacks } from "./pack-runtime.js";
 
 /**
  * `config` with the loaded packs its seats draw on, and every pack those need (`requires.packs`), attached as
@@ -12,6 +12,17 @@ import { packsUsedBySeats, withRequiredPacks } from "./pack-runtime.js";
 export function withLoadedPacks(config: SessionConfig): SessionConfig {
   const { packs: _old, ...rest } = config;
   const loaded = loadedPacks();
-  const used = withRequiredPacks(packsUsedBySeats(config.players, loaded), loaded);
+  // The seats' packs, and the packs that own the chosen scenario or any chosen modular set (a base scenario with a
+  // pack's modular set carries that pack too), so a save, a rewind and a replay need nothing installed.
+  const owners = packsOwningContent(
+    config.scenarioId,
+    [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])],
+    loaded,
+  );
+  const wanted = new Set([...packsUsedBySeats(config.players, loaded), ...owners]);
+  const used = withRequiredPacks(
+    loaded.filter((pack) => wanted.has(pack)),
+    loaded,
+  );
   return used.length > 0 ? { ...rest, packs: used } : rest;
 }

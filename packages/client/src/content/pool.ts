@@ -196,8 +196,9 @@ import {
 import type { EngineDeps } from "@mc/engine";
 import { POOL_CARDS } from "./pool-cards.js";
 import type { ShelfPack } from "../view/roster-shelves.js";
+import { packEncounterSetRecords, packScenarioRecords, scenarioWithPacks } from "@mc/mod-sdk/game";
 import { loadedPacks } from "../packs/pack-registry.js";
-import { depsWithPacks, poolWithPacks, type PackRuntime } from "../packs/pack-runtime.js";
+import { depsWithPacks, packsOwningContent, poolWithPacks, type PackRuntime } from "../packs/pack-runtime.js";
 
 // Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
 export { POOL_CARDS };
@@ -358,6 +359,49 @@ export function currentHeroShelfPacks(): readonly ShelfPack[] {
     SHELF_VIEWS.set(packs, shelf);
   }
   return shelf;
+}
+
+const SCENARIO_VIEWS = new WeakMap<object, readonly Scenario[]>();
+const SET_VIEWS = new WeakMap<object, readonly EncounterSet[]>();
+
+/**
+ * `POOL_SCENARIOS` plus the scenarios of every loaded pack (`packScenarioRecords`), or `POOL_SCENARIOS` itself when no pack
+ * brings one. The same array until the loaded packs change. The scenario picker and anything that names a scenario of a
+ * game in progress read this; the base game's own tables (achievements, unlocks, stats) keep `POOL_SCENARIOS`.
+ */
+export function currentScenarios(): readonly Scenario[] {
+  const packs = loadedPacks();
+  const own = packScenarioRecords(packs);
+  if (own.length === 0) return POOL_SCENARIOS;
+  let scenarios = SCENARIO_VIEWS.get(packs);
+  if (!scenarios) {
+    scenarios = [...POOL_SCENARIOS, ...own];
+    SCENARIO_VIEWS.set(packs, scenarios);
+  }
+  return scenarios;
+}
+
+/** `POOL_ENCOUNTER_SETS` plus every loaded pack's encounter sets (names for its sets, and the pack's modular picks). */
+export function currentEncounterSets(): readonly EncounterSet[] {
+  const packs = loadedPacks();
+  const own = packEncounterSetRecords(packs);
+  if (own.length === 0) return POOL_ENCOUNTER_SETS;
+  let sets = SET_VIEWS.get(packs);
+  if (!sets) {
+    sets = [...POOL_ENCOUNTER_SETS, ...own];
+    SET_VIEWS.set(packs, sets);
+  }
+  return sets;
+}
+
+/** Whether `scenarioId` is one a loaded pack brings (not a base game scenario). */
+export function isPackScenario(scenarioId: string): boolean {
+  return packScenarioRecords(loadedPacks()).some((scenario) => (scenario.id as string) === scenarioId);
+}
+
+/** Whether `setId` is an encounter set a loaded pack brings. */
+export function isPackEncounterSet(setId: string): boolean {
+  return packEncounterSetRecords(loadedPacks()).some((set) => (set.id as string) === setId);
 }
 
 function currentPoolView(): PoolView {
@@ -602,5 +646,18 @@ export const POOL_HERO_SHELF_PACKS: readonly ShelfPack[] = POOL_PACK_CYCLES.map(
 
 /** The app's one scenario builder: Core, wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 scenarios alike. */
 export const buildScenario = playableScenario;
+
+/**
+ * `buildScenario` for a game the loaded packs touch: a pack's own scenario, or a pack's modular set picked at any
+ * scenario, is built by the SDK's `scenarioWithPacks`; anything else is `buildScenario` exactly as before. For the setup
+ * screen's preview; a started game builds the same way in `engine/session-core.ts` from the packs its config carries.
+ */
+export function buildScenarioWithLoadedPacks(scenarioId: string, options: PlayableScenarioOptions) {
+  const packs = loadedPacks();
+  const modular = [...(options.modularSetIds ?? []), ...(options.extraModularSetIds ?? [])];
+  return packsOwningContent(scenarioId, modular, packs).length > 0
+    ? scenarioWithPacks(scenarioId, options, packs)
+    : playableScenario(scenarioId, options);
+}
 
 export type { PlayableScenarioOptions };

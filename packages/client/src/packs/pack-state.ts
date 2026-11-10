@@ -100,10 +100,11 @@ export function unmetRequirement(
 }
 
 /**
- * The pack kinds this client can put into a game. Scenario, modular and campaign packs validate, but nothing yet lists
- * their scenarios or sets in the pickers, so they are refused rather than installed and silently unplayable.
+ * The pack kinds this client can put into a game. Scenario and modular packs list their scenarios and sets in the
+ * scenario and modular pickers; a campaign pack validates but no campaign flow plays it yet, so it is refused rather than
+ * installed and silently unplayable.
  */
-export const PLAYABLE_PACK_KINDS: readonly string[] = ["hero", "art"];
+export const PLAYABLE_PACK_KINDS: readonly string[] = ["hero", "art", "scenario", "modular"];
 
 export function packStateOf(input: PackStateInput): PackStateView {
   const { entry, installed } = input;

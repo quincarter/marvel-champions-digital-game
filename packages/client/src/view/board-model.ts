@@ -68,7 +68,7 @@ import {
   villainStageOf,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace, type StandIn } from "../art/art-source.js";
-import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { POOL_ENCOUNTER_SETS, currentEncounterSets } from "../content/pool.js";
 import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
@@ -510,7 +510,9 @@ export interface SetAsidePanel {
 
 /** The encounter set's printed name, falling back to its id with the first letter raised for a set outside the pool. */
 function encounterSetName(id: string): string {
-  return SET_NAMES.get(id) ?? id.charAt(0).toUpperCase() + id.slice(1);
+  const own = currentEncounterSets();
+  const name = own === POOL_ENCOUNTER_SETS ? baseSetNames.get(id) : own.find((set) => (set.id as string) === id)?.name;
+  return name ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
 
 /**
@@ -1371,7 +1373,9 @@ export function engagedNameOf(state: GameState, seat: PlayerId | null): string |
   return `${name} ${state.players.findIndex((player) => player.playerId === seat) + 1}`;
 }
 
-const SET_NAMES: ReadonlyMap<string, string> = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
+const baseSetNames: ReadonlyMap<string, string> = new Map(
+  POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]),
+);
 
 export function characterPanel(state: GameState, id: InstanceId, deps: EngineDeps): CharacterPanel {
   const instance = getInstance(state, id);

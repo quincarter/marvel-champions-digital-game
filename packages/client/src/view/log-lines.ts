@@ -29,7 +29,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { currentEncounterSets } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { facedownRoleName, facedownUntilLater } from "./facedown-history.js";
 import { foeWord } from "./foe-words.js";
@@ -1792,7 +1792,7 @@ const cardIdName = (state: GameState, cardId: Parameters<typeof getCard>[1]): st
 const pileLabel = (pile: string): string => (pile === "aim" ? "A.I.M." : pile === "shield" ? "S.H.I.E.L.D." : pile);
 
 /** An encounter set's display name, or its id when the pool doesn't know it. */
-const setLabel = (id: string): string => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name ?? id;
+const setLabel = (id: string): string => currentEncounterSets().find((set) => (set.id as string) === id)?.name ?? id;
 
 const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedStat"): string => {
   switch (skipped) {

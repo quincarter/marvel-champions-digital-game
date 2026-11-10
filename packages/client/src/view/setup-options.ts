@@ -27,6 +27,7 @@ import {
 import { encounterSetId, type DifficultySetChoice, type PlayModes, type Scenario } from "@mc/content";
 import { applyPlayModeOption, modesOfChoice, playModeRows, reconcileSkirmish } from "./play-mode-options.js";
 import type { SetupDraft } from "./setup-draft.js";
+import { isPackEncounterSet } from "../content/pool.js";
 
 /** What every scenario offers when it is not in the playable pool (a draft naming it never builds). */
 const NO_OFFER: PlayableScenarioOffer = {
@@ -63,7 +64,8 @@ export function offerOf(
     return playableScenarioOffer(draft.scenarioId, {
       difficulty: draft.difficulty,
       ...(modes ? { modes } : {}),
-      ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds } : {}),
+      // A pack's set is no base set: the base offer is read as if only the base picks were made.
+      ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds.filter((id) => !isPackEncounterSet(id)) } : {}),
       ...(draft.civilWar && draft.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: draft.civilWar.stageIds } : {}),
     });
   } catch {

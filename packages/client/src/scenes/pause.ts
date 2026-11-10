@@ -41,7 +41,7 @@ import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
 import type { CardSize } from "../settings.js";
 import { playableScenarioOffer } from "@mc/cards";
-import { POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
+import { currentEncounterSets, currentScenarios } from "../content/pool.js";
 import { gameDeps } from "../content/game-deps.js";
 import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -293,7 +293,7 @@ export class PauseOverlay extends Phaser.Scene {
       });
     }
     const glossaryCount = game ? rulesGlossaryOf(game, gameDeps()).length : 0;
-    const cardListSetCount = game ? scenarioCardListOf(game, POOL_ENCOUNTER_SETS).length : 0;
+    const cardListSetCount = game ? scenarioCardListOf(game, currentEncounterSets()).length : 0;
     rows.push(
       {
         id: "villainPhase",
@@ -989,8 +989,8 @@ export class PauseOverlay extends Phaser.Scene {
     } catch {
       offer = null;
     }
-    const setNames = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
-    const status = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS, blindSheetNamesOf(offer, setNames));
+    const setNames = new Map(currentEncounterSets().map((set) => [set.id as string, set.name]));
+    const status = pauseStatusOf(game, perspectiveId, config, currentScenarios(), blindSheetNamesOf(offer, setNames));
     return status.blindSheet ?? status.buildSheet ?? [];
   }
 
@@ -1014,7 +1014,7 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): string {
-    const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
+    const s = pauseStatusOf(game, perspectiveId, config, currentScenarios());
     return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}`;
   }
 
@@ -1030,7 +1030,7 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): string {
-    const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
+    const s = pauseStatusOf(game, perspectiveId, config, currentScenarios());
     // The seed before the seat: the seat name is the part that gives way when the column is too narrow for both.
     return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }

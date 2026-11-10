@@ -85,11 +85,11 @@ describe("formatBytes and satisfiesApp", () => {
 });
 
 describe("pack kinds this game can't play yet", () => {
-  it("offers a scenario pack as needing an app update", () => {
+  const entryOf = (kind: "scenario" | "modular" | "campaign") => {
     const entry = {
-      id: "fan-scenario",
-      kind: "scenario" as const,
-      name: "Fan Scenario",
+      id: "fan-pack",
+      kind,
+      name: "Fan Pack",
       creator: "x",
       summary: "",
       tags: [],
@@ -107,8 +107,17 @@ describe("pack kinds this game can't play yet", () => {
       },
       withdrawn: false,
     };
-    const view = packStateOf({ entry, appVersion: "1.0.0", supportedDslFeatures: [] });
+    return packStateOf({ entry, appVersion: "1.0.0", supportedDslFeatures: [] });
+  };
+
+  it("offers scenario and modular packs for install: the pickers list their scenarios and sets", () => {
+    expect(entryOf("scenario").state).toBe("install");
+    expect(entryOf("modular").state).toBe("install");
+  });
+
+  it("offers a campaign pack as needing an app update: no campaign flow plays a pack yet", () => {
+    const view = entryOf("campaign");
     expect(view.state).toBe("needs-app-update");
-    expect(view.reason).toMatch(/scenario packs/);
+    expect(view.reason).toMatch(/campaign packs/);
   });
 });
