@@ -5,23 +5,21 @@ import {
   deckBuilderNarrowFocusOrder,
   deckBuilderTabLabel,
   deckBuilderTabRects,
-  deckBuilderTabs,
+  DECK_BUILDER_TABS,
   startTab,
   stepDeckBuilderTab,
   type DeckBuilderNarrowFocusInput,
 } from "./deck-builder-tabs.js";
 
 describe("deck builder tabs", () => {
-  test("campaign mode has no From your games", () => {
-    expect(deckBuilderTabs(false)).toEqual(["pool", "deck", "games"]);
-    expect(deckBuilderTabs(true)).toEqual(["pool", "deck"]);
+  test("the tabs in order", () => {
+    expect(DECK_BUILDER_TABS).toEqual(["pool", "deck", "games"]);
   });
 
-  test("a visit opens on the pool, or on From your games when asked (never in a campaign)", () => {
-    expect(startTab(undefined, false)).toBe("pool");
-    expect(startTab("deck", false)).toBe("pool");
-    expect(startTab("games", false)).toBe("games");
-    expect(startTab("games", true)).toBe("pool");
+  test("a visit opens on the pool, or on From your games when asked", () => {
+    expect(startTab(undefined)).toBe("pool");
+    expect(startTab("deck")).toBe("pool");
+    expect(startTab("games")).toBe("games");
   });
 
   test("the Deck tab states the counted cards against the minimum", () => {
@@ -47,13 +45,12 @@ describe("deck builder tabs", () => {
   });
 
   test("LB / RB step to the neighbour and stop at the ends", () => {
-    const tabs = deckBuilderTabs(false);
+    const tabs = DECK_BUILDER_TABS;
     expect(stepDeckBuilderTab(tabs, "pool", 1)).toBe("deck");
     expect(stepDeckBuilderTab(tabs, "deck", 1)).toBe("games");
     expect(stepDeckBuilderTab(tabs, "games", 1)).toBe("games");
     expect(stepDeckBuilderTab(tabs, "pool", -1)).toBe("pool");
     expect(stepDeckBuilderTab(tabs, "games", -1)).toBe("deck");
-    expect(stepDeckBuilderTab(deckBuilderTabs(true), "deck", 1)).toBe("deck");
   });
 
   test("the Filters chip counts the filters that are on", () => {
@@ -70,7 +67,7 @@ describe("deck builder tabs", () => {
 describe("deck builder narrow focus order", () => {
   const base: DeckBuilderNarrowFocusInput = {
     tab: "pool",
-    tabs: deckBuilderTabs(false),
+    tabs: DECK_BUILDER_TABS,
     campaign: false,
     filtersFolded: true,
     filtersOpen: false,
@@ -133,11 +130,11 @@ describe("deck builder narrow focus order", () => {
     ]);
   });
 
-  test("campaign mode: two tabs, no name or Precon / Clear, rewards and Save stay", () => {
+  test("campaign mode: all three tabs and Review, no name or Precon / Clear, rewards and Save stay", () => {
     const order = deckBuilderNarrowFocusOrder({
       ...base,
       tab: "deck",
-      tabs: deckBuilderTabs(true),
+      tabs: DECK_BUILDER_TABS,
       campaign: true,
       rewardIds: ["0:27001"],
       showFreeze: true,
@@ -146,9 +143,11 @@ describe("deck builder narrow focus order", () => {
       "back",
       "tab:pool",
       "tab:deck",
+      "tab:games",
       "aspect:justice",
       "reward:0:27001",
       "deck-sort",
+      "deck-review",
       "freeze-deck",
       "save",
     ]);

@@ -38,7 +38,7 @@ export const BREAKOUT = defineAbilities({
   // B side, `klaw.ts`/`rhino.ts`/`ultron.ts` convention). Mirrors the identical `BREAKOUT_SETUP` fixture proven in
   // `packages/engine/src/multi-villain.test.ts`.
   "07001a.setup": setup(
-    selectCards("signature", encounterSetAside()),
+    selectCards("signature", encounterSetAside(query("sideScheme", { signatureSideScheme: true }))),
     putIntoPlay(chosen("signature"), firstPlayer),
     setActiveVillain(named("Wrecker")),
   ),

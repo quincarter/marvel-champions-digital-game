@@ -9,6 +9,7 @@ import {
   defineAbilities,
   giveTough,
   moveCards,
+  ofIdentitySetTitled,
   query,
   response,
   self,
@@ -38,11 +39,13 @@ import {
  * **Miles Morales (alter-ego, 27030b)** — "Response: After you change to this form, shuffle 1 Spider-Man card from
  * your discard pile into your deck." Mirrors She-Hulk's `01019a.do-you-even-lift` (`core/heroes/she-hulk.ts`):
  * plain `response(after.youChangeForm(), …)` on the alter-ego face, live only once you're in alter-ego form since
- * the engine only offers a face's own abilities in the matching form. "1 Spider-Man card" is any card printed with
- * that exact name — this pack alone has four (this identity, 27011 "Spider-Man"/Miles Morales, 27017 "Spider-Man"/
- * Hobie Brown, 27049 "Spider-Man"/Peter Parker) — so the discard-pile filter is by name, not by a specific unique
- * reference (Ghost-Spider's `27001b` names Ticket to the Multiverse directly since it is the only such card).
- * `chooseCards` with `min: 0, max: 1` is a no-op when the discard pile holds no matching card, the same forgiving
+ * the engine only offers a face's own abilities in the matching form. "1 Spider-Man card" is a card of his own
+ * identity-specific set (RRG 1.8 "Identity-Specific Card", p. 23), not any card titled "Spider-Man": the Sinister
+ * Motives rulebook's deck list files Arachnobatics, Web-Shot, Power Within and the rest under "Spider-Man cards" and
+ * the Peter Parker ally under "Basic cards", and RRG 1.8 "Referential Ability" (p. 36) puts the cards associated
+ * with the same identity first. So the basic allies titled "Spider-Man" (27011, 27017, 27049, Otto Octavius's
+ * 31022) never qualify (issue #640). This is the `ofIdentitySetTitled` reading Colossus's "a Colossus card" uses
+ * (`wave6/mut_gen/colossus/identity.ts`). `chooseCards` with `min: 0, max: 1` is a no-op when the discard pile holds no matching card, the same forgiving
  * shape Ghost-Spider's own alter-ego action already uses for an absent target.
  */
 export const SPIDER_MAN_MORALES_IDENTITY = defineAbilities({
@@ -53,7 +56,9 @@ export const SPIDER_MAN_MORALES_IDENTITY = defineAbilities({
     after.youChangeForm(),
     chooseCards(
       "spiderMan",
-      zone("discard", you, { filter: query(["ally", "event", "upgrade", "support"], { name: "Spider-Man" }) }),
+      zone("discard", you, {
+        filter: query(["ally", "event", "upgrade", "support"], ofIdentitySetTitled("Spider-Man")),
+      }),
       { min: 0, max: 1 },
     ),
     moveCards(cards(chosen("spiderMan")), "deckShuffle"),

@@ -1,6 +1,6 @@
 /**
  * C00b — The Saga: the campaign shelf. One featured volume (art, status, its own CTA) plus a 3×3 "ALL VOLUMES"
- * grid — desktop/tablet — or a scrolling list — phone — of all ten boxes in release order (`SAGA_VOLUMES`).
+ * grid — desktop and a sideways tablet — or, stacked under it, tiles or a list — phone and an upright tablet — of all the boxes in release order (`SAGA_VOLUMES`).
  *
  * Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`): the grid
  * includes the featured volume itself (its own tile, ringed red), not just what's "next"; status drives every
@@ -14,7 +14,7 @@ import Phaser from "phaser";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
-import { ink, signal, surface, typeRole } from "../../tokens.js";
+import { hit, ink, signal, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
   campaignFrame,
@@ -28,7 +28,9 @@ import {
 import { campaignActionButton, campaignTile, type CampaignTileStatus } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import { inputDevice } from "../../platform/input-device.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
+import { McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { campaignService } from "../../session.js";
 import {
@@ -39,15 +41,31 @@ import {
   type SagaVolumeRow,
 } from "../../view/campaign-saga-model.js";
 import { SAGA_NOTE } from "../../campaign/story.js";
+import { rememberSagaVolumesView, sagaVolumesView, type SagaVolumesView } from "../../platform/saga-view.js";
 import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { createHints, forwardHintAtEnd } from "./pad-hints.js";
+import { goToCampaignStart } from "./start-route.js";
 import { SCENES } from "../keys.js";
 import { refreshUnlocks, unlocks } from "../../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "../unlock-confirm.js";
 import type { CampaignSagaData } from "./routes.js";
+
+/** How the volumes draw as tiles: how many across, and how tall. */
+interface VolumeTiles {
+  readonly columns: number;
+  readonly height: number;
+}
+
+const WIDE_TILE_COLUMNS = 4;
+const TILE_COLUMNS = 4;
+const PHONE_TILE_COLUMNS = 2;
+const TILE_GAP = 12;
+const MIN_TILE_HEIGHT = 100;
+const VOLUME_ROW_HEIGHT = 58;
+const VIEW_STOP = "volumes-view";
 
 const identityNameOf = (id: string): string => {
   const card = CARDS_BY_ID.get(id);
@@ -73,6 +91,10 @@ export class CampaignSagaScene extends Phaser.Scene {
   #confirmAbandon = false;
   #listScroll = new ListScroll();
   #phoneList: McVirtualList | null = null;
+  /** Box art tiles or plain rows under the featured volume, on a phone or an upright tablet. */
+  #volumesView: SagaVolumesView = "grid";
+  /** What the player chose on this visit; until then the kept choice, or the screen's own default. */
+  #volumesChosen: SagaVolumesView | null = null;
   #rebuildQueued = false;
   /**
    * One callback for every cover, so a batch of covers arriving together (`art/pictures.ts`) redraws the screen once
@@ -81,10 +103,16 @@ export class CampaignSagaScene extends Phaser.Scene {
   readonly #onArt = (): void => {
     if (this.#rebuildQueued) return;
     this.#rebuildQueued = true;
-    this.time.delayedCall(0, () => {
+    const rebuild = (): void => {
+      // A redraw replaces the list under a finger, which would end the swipe: wait for the lift.
+      if (this.#phoneList?.isDragSuppressingClick) {
+        this.time.delayedCall(250, rebuild);
+        return;
+      }
       this.#rebuildQueued = false;
       this.#rebuild();
-    });
+    };
+    this.time.delayedCall(0, rebuild);
   };
 
   constructor() {
@@ -96,11 +124,15 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
     this.#hints = createHints(this);
+    this.#rebuildQueued = false;
+    this.#volumesChosen = null;
     this.#route = new FocusRoute(this, {
       // Start and A with nothing focused: the featured volume's one big button.
       primary: () => (this.#stops.has("cta") && this.#ctaEnabled ? "cta" : null),
       blocked: () => this.scene.isActive(SCENES.unlockConfirm),
       onCancel: () => goToScreen(this, SCENES.title),
+      // LB / RB: the list or the grid, where the screen offers both.
+      onTab: () => this.#stops.get(VIEW_STOP)?.activate(),
       onPage: (direction) => this.#phoneList?.scrollByPage(direction),
       onScroll: (_dx, dy) => this.#phoneList?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#phoneList?.scrollToStart() : this.#phoneList?.scrollToEnd()),
@@ -136,6 +168,8 @@ export class CampaignSagaScene extends Phaser.Scene {
     if (this.#rows.length === 0) return;
 
     const frame = campaignFrame(this);
+    // A phone starts on its rows and an upright tablet on the tiles, until the player chooses.
+    this.#volumesView = this.#volumesChosen ?? sagaVolumesView(frame.phone ? "list" : "grid");
     const top = drawTopBar(this, {
       backLabel: frame.phone ? "◂" : "◂ Title",
       onBack: () => goToScreen(this, SCENES.title),
@@ -147,7 +181,8 @@ export class CampaignSagaScene extends Phaser.Scene {
 
     const row = this.#rows.find((r) => r.volume.number === this.#featured) ?? this.#rows[0]!;
 
-    if (frame.phone) this.#drawPhone(frame, top.height, row);
+    // An upright tablet stacks as a phone does: the wide layout's featured card is a tall sliver beside the grid.
+    if (frame.phone || frame.formFactor === "tabletPortrait") this.#drawPhone(frame, top.height, row);
     else this.#drawWide(frame, top.height, row);
 
     const order = ["back", ...[...this.#stops.keys()].filter((k) => k !== "back")];
@@ -183,49 +218,84 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.add.rectangle(gridX + 150, y + 11, gridWidth - 150, 3, surface.ink.hex).setOrigin(0, 0.5);
     y += 32;
 
-    // Nine boxes fit three across; the tenth (MojoMania) takes a fourth column rather than a fourth row.
-    const cols = this.#rows.length > 9 ? 4 : 3;
-    const rows = Math.ceil(this.#rows.length / cols);
-    const gap = 14;
-    const tileWidth = (gridWidth - gap * (cols - 1)) / cols;
+    // Three rows of tiles fill the column; a box past those scrolls, so a new one needs no layout of its own.
     const footnoteHeight = 34;
-    const tileHeight = (frame.height - y - gutter - gap * (rows - 1) - footnoteHeight) / rows;
-    this.#rows.forEach((tileRow, index) => {
-      const col = index % cols;
-      const line = Math.floor(index / cols);
-      const rect: Rect = {
-        x: gridX + col * (tileWidth + gap),
-        y: y + line * (tileHeight + gap),
-        width: tileWidth,
-        height: tileHeight,
-      };
-      this.#drawGridTile(tileRow, rect);
-    });
+    const moreHeight = 20;
+    const height = frame.height - y - gutter - footnoteHeight - moreHeight;
+    const tileHeight = Math.floor((height - TILE_GAP * 2) / 3);
+    const listRect: Rect = {
+      x: gridX,
+      y,
+      width: gridWidth,
+      height: (tileHeight + TILE_GAP) * 3,
+    };
+    this.#drawVolumes(listRect, { columns: WIDE_TILE_COLUMNS, height: tileHeight });
 
-    const footnoteY = y + rows * tileHeight + (rows - 1) * gap + 12;
-    this.add.text(gridX, footnoteY, SAGA_NOTE, {
+    this.add.text(gridX, listRect.y + listRect.height + moreHeight, SAGA_NOTE, {
       ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
       wordWrap: { width: gridWidth, useAdvancedWrap: true },
     });
   }
 
-  #drawGridTile(tileRow: SagaVolumeRow, rect: Rect): void {
-    const art = volumeArtOf(tileRow.volume.campaignId);
-    const { objects, zone } = campaignTile(this, {
+  /**
+   * The volumes as a scrolling list, in tiles or (`tiles` null) the phone's rows, each a focus stop that scrolls into
+   * view. A tap is the list's own (`onRowActivate`): it tells a tap from the end of a swipe.
+   */
+  #drawVolumes(listRect: Rect, tiles: VolumeTiles | null): void {
+    const tileWidth = tiles ? (listRect.width - TILE_GAP * (tiles.columns - 1)) / tiles.columns : 0;
+    const columns = tiles?.columns ?? 1;
+    const cellAt = (rowRect: Rect, column: number): Rect => ({
+      x: rowRect.x + column * (tileWidth + TILE_GAP),
+      y: rowRect.y,
+      width: tileWidth,
+      height: tiles?.height ?? 0,
+    });
+    this.#phoneList = new McVirtualList(this, {
+      rect: listRect,
+      rowHeight: tiles ? tiles.height + TILE_GAP : VOLUME_ROW_HEIGHT,
+      count: Math.ceil(this.#rows.length / columns),
+      scroll: this.#listScroll,
+      background: false,
+      snapRows: true,
+      moreHint: { fadeTo: surface.paper.hex, moreLabel: "SCROLL FOR MORE VOLUMES ▾" },
+      renderRow: (index, rect) =>
+        tiles
+          ? {
+              objects: this.#rows
+                .slice(index * columns, (index + 1) * columns)
+                .flatMap((tileRow, column) => this.#drawTile(tileRow, cellAt(rect, column)).objects),
+            }
+          : this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
+      onRowActivate: (index, pointer) => {
+        const column = tiles ? Math.floor((pointer.x - listRect.x) / (tileWidth + TILE_GAP)) : 0;
+        const tapped = this.#rows[index * columns + column];
+        if (tapped) this.#feature(tapped.volume.number);
+      },
+    });
+    const list = this.#phoneList;
+    this.#rows.forEach((volumeRow, index) => {
+      const row = Math.floor(index / columns);
+      this.#stops.set(`vol-${volumeRow.volume.number}`, {
+        rect: () => (tiles ? cellAt(list.rectFor(row), index % columns) : list.rectFor(row)),
+        activate: () => this.#feature(volumeRow.volume.number),
+        ensureVisible: () => list.scrollIntoView(row),
+      });
+    });
+  }
+
+  #drawTile(tileRow: SagaVolumeRow, rect: Rect): ReturnType<typeof campaignTile> {
+    return campaignTile(this, {
       rect,
       eyebrow: tileRow.volume.boxCode,
       title: `Vol. ${tileRow.volume.number}`,
       subtitle: tileRow.volume.name,
       chip: this.#gridChip(tileRow),
       status: tileRow.status,
-      art,
+      art: volumeArtOf(tileRow.volume.campaignId),
       onArtReady: this.#onArt,
       selected: tileRow.volume.number === this.#featured,
-      onClick: () => this.#feature(tileRow.volume.number),
+      onClick: () => undefined,
     });
-    void objects;
-    void zone;
-    this.#stops.set(`vol-${tileRow.volume.number}`, { rect, activate: () => this.#feature(tileRow.volume.number) });
   }
 
   /** The grid tile's own status chip — the honest "not in this build yet" only when it's what's actually true. */
@@ -243,53 +313,75 @@ export class CampaignSagaScene extends Phaser.Scene {
     }
   }
 
-  // ---- Phone: featured card, then a scrolling "ALL VOLUMES" list, then a bottom CTA -----------------------------
+  // ---- Phone and upright tablet: featured card, then the scrolling "ALL VOLUMES", then a bottom CTA --------------
 
   #drawPhone(frame: ReturnType<typeof campaignFrame>, topHeight: number, row: SagaVolumeRow): void {
     const gutter = frame.gutter;
-    const cardHeight = Math.min(400, frame.height * 0.46);
+    // A phone held sideways has no height for tiles, or for the toggle.
+    const choosesView = frame.formFactor === "tabletPortrait" || frame.formFactor === "phone";
+    const showsTiles = choosesView && this.#volumesView === "grid";
+    // Tiles need more of a short phone than rows do.
+    const cardHeight = Math.min(400, frame.height * (showsTiles && frame.phone ? 0.42 : 0.46));
     const cardRect: Rect = { x: gutter, y: topHeight + gutter, width: frame.width - gutter * 2, height: cardHeight };
     this.#drawFeaturedCard(cardRect, row, true);
 
     let y = cardRect.y + cardRect.height + 18;
+    const headerHeight = choosesView ? hit.target + 8 : 24;
+    const toggleWidth = choosesView ? 130 : 0;
+    const headerMiddle = y + (choosesView ? hit.target / 2 : 9);
     this.add
-      .text(gutter, y, "ALL VOLUMES", textStyle({ ...typeRole.barTitle, size: 14 }, surface.ink.hex))
-      .setLetterSpacing(0.6);
-    this.add.rectangle(gutter + 110, y + 9, frame.width - gutter * 2 - 110, 3, surface.ink.hex).setOrigin(0, 0.5);
-    y += 24;
+      .text(gutter, headerMiddle, "ALL VOLUMES", textStyle({ ...typeRole.barTitle, size: 14 }, surface.ink.hex))
+      .setLetterSpacing(0.6)
+      .setOrigin(0, 0.5);
+    this.add
+      .rectangle(
+        gutter + 110,
+        headerMiddle,
+        frame.width - gutter * 2 - 110 - (toggleWidth ? toggleWidth + 12 : 0),
+        3,
+        surface.ink.hex,
+      )
+      .setOrigin(0, 0.5);
+    if (choosesView) {
+      const rect: Rect = { x: frame.width - gutter - toggleWidth, y, width: toggleWidth, height: hit.target };
+      const toggle = (): void => {
+        this.#volumesChosen = this.#volumesView === "grid" ? "list" : "grid";
+        rememberSagaVolumesView(this.#volumesChosen);
+        this.#listScroll.reset();
+        this.#rebuild();
+        if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey(VIEW_STOP);
+      };
+      const button = new McButton(this, {
+        kind: "secondary",
+        label: showsTiles ? "List view" : "Grid view",
+        type: typeRole.label,
+        rect,
+        onClick: toggle,
+      });
+      this.#hints?.button(button, ["zoneNext"], "paper");
+      this.#stops.set(VIEW_STOP, { rect, activate: toggle });
+    }
+    y += headerHeight;
 
     const actionBar = drawActionBar(this);
-    const rowHeight = 58;
+    const listWidth = frame.width - gutter * 2;
+    // 20px under the list carry its "scroll for more" cue.
+    const room = actionBar.y - y - 30;
+    const columns = frame.formFactor === "phone" ? PHONE_TILE_COLUMNS : TILE_COLUMNS;
+    const tileWidth = (listWidth - TILE_GAP * (columns - 1)) / columns;
+    // As tall as the art wants, or what a short phone has left.
+    const tileHeight = Math.max(MIN_TILE_HEIGHT, Math.min(Math.round(tileWidth * 1.25), room - TILE_GAP));
+    const tiles: VolumeTiles | null = showsTiles ? { columns, height: tileHeight } : null;
+    const rowHeight = tiles ? tileHeight + TILE_GAP : VOLUME_ROW_HEIGHT;
     // A whole number of rows, so every scroll position (they snap to a row) shows rows whole: never one half under
     // the "All volumes" header.
-    // 20px under it carry the list's "scroll for more" cue.
-    const room = actionBar.y - y - 30;
     const listRect: Rect = {
       x: gutter,
       y,
-      width: frame.width - gutter * 2,
+      width: listWidth,
       height: Math.max(rowHeight, Math.floor(room / rowHeight) * rowHeight),
     };
-    this.#phoneList = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight,
-      count: this.#rows.length,
-      scroll: this.#listScroll,
-      background: false,
-      snapRows: true,
-      moreHint: { fadeTo: surface.paper.hex, moreLabel: "SCROLL FOR MORE VOLUMES ▾" },
-      renderRow: (index, rect) => this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
-      onRowActivate: (index) => this.#feature(this.#rows[index]!.volume.number),
-    });
-    // Every volume row is a focus stop, as every tile is on desktop; arrowing onto one scrolls it into view.
-    const list = this.#phoneList;
-    this.#rows.forEach((volumeRow, index) => {
-      this.#stops.set(`vol-${volumeRow.volume.number}`, {
-        rect: () => list.rectFor(index),
-        activate: () => this.#feature(volumeRow.volume.number),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
-    });
+    this.#drawVolumes(listRect, tiles);
 
     const ctaRect: Rect = {
       x: actionBar.x + 12,
@@ -687,15 +779,14 @@ export class CampaignSagaScene extends Phaser.Scene {
         {
           label: "New run",
           enabled: true,
-          onClick: () => goToScreen(this, SCENES.campaignRoster, { campaignId: row.volume.campaignId }),
+          onClick: () => goToCampaignStart(this, row.volume.campaignId),
         },
       ];
       if (row.wonStandard) {
         actions.push({
           label: "Expert run ▸",
           enabled: true,
-          onClick: () =>
-            goToScreen(this, SCENES.campaignRoster, { campaignId: row.volume.campaignId, expertCampaign: true }),
+          onClick: () => goToCampaignStart(this, row.volume.campaignId, true),
         });
       }
       return actions;
@@ -715,7 +806,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     void campaignService()
       .abandon(runId)
       .then(() => {
-        if (this.sys.isActive()) goToScreen(this, SCENES.campaignRoster, { campaignId: row.volume.campaignId });
+        if (this.sys.isActive()) goToCampaignStart(this, row.volume.campaignId);
       });
   }
 }

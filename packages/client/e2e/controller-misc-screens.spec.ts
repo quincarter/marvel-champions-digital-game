@@ -140,7 +140,19 @@ async function warmTitle(page: Page): Promise<void> {
 /** Every Trophy Room family open (they start folded, #479), so the rows are there to walk. Mirrors `ACHIEVEMENT_FAMILIES`. */
 async function openEveryFamily(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const expanded = ["wins", "villains", "campaigns", "heroes", "expert", "feats", "decks", "teamups", "funny"];
+    const expanded = [
+      "wins",
+      "villains",
+      "doppelgangers",
+      "archenemies",
+      "campaigns",
+      "heroes",
+      "expert",
+      "feats",
+      "decks",
+      "teamups",
+      "funny",
+    ];
     localStorage.setItem("mc-trophy-room-view", JSON.stringify({ sort: "category", descending: false, expanded }));
   });
 }

@@ -124,11 +124,14 @@ describe("George Stacy (support, 27007)", () => {
 });
 
 describe("Ticket to the Multiverse (upgrade, 27008)", () => {
-  it("27008.ticket-to-the-multiverse-action: discards the hand, shuffles it back, draws up and readies Ghost-Spider", () => {
+  it("27008.ticket-to-the-multiverse-action: discards the hand, shuffles it back, draws up and readies Ghost-Spider cards", () => {
     const hero = run(ghostSpiderVsRhino(1), toHero(P1));
-    const { state: withTicket, id: ticket } = playFromHandHelper(hero, "27008", 3);
+    const { state: withStacy, id: stacy } = playFromHandHelper(hero, "27007", 1);
+    const { state: withTicket, id: ticket } = playFromHandHelper(withStacy, "27008", 3);
     const identity = identityOf(withTicket, P1);
-    const exhausted = patchInstance(withTicket, identity, { exhausted: true });
+    const exhausted = patchInstance(patchInstance(withTicket, identity, { exhausted: true }), stacy, {
+      exhausted: true,
+    });
     const after = settle(
       runWith(WAVE5_DEPS, exhausted, use(P1, ticket, "27008.ticket-to-the-multiverse-action")),
       firstLegal,
@@ -140,7 +143,10 @@ describe("Ticket to the Multiverse (upgrade, 27008)", () => {
     expect(after.players[0]!.deck).not.toContain(ticket);
     expect(after.players[0]!.discard).not.toContain(ticket);
     expect(after.players[0]!.hand).not.toContain(ticket);
-    expect(inst(after, identity).exhausted).toBe(false); // "Ready each Ghost-Spider card you control."
+    // "Ready each Ghost-Spider card you control": her identity and her own set's cards, George Stacy among them
+    // (issue #640; RRG 1.8 "Identity-Specific Card", p. 23).
+    expect(inst(after, identity).exhausted).toBe(false);
+    expect(inst(after, stacy).exhausted).toBe(false);
   });
 });
 

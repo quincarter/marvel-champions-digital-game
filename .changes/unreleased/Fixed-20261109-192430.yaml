@@ -1,0 +1,3 @@
+kind: Fixed
+body: A 7 in the comic number font now has a crossbar, so a villain at 7 hit points no longer reads as 1 (#660, reported by @Kravenprime).
+time: 2026-11-09T19:24:30.8133264-05:00

@@ -49,6 +49,7 @@ import {
   valueAtMost,
   varOf,
   you,
+  yourIdentity,
   youHaveTrait,
   zone,
 } from "../../../dsl/index.js";
@@ -85,10 +86,11 @@ const ANOTHER_WEB_WARRIOR_CARD: TargetQuery = { ...A_WEB_WARRIOR_CARD, self: fal
  * shape exists for removing the card itself from play as a cost (`discardThis`/`exhaustThis` cover exhaust/discard
  * only) — resolved as the first plain effect instead, the same "remove this card from the game" shape Grand
  * Strategy (`gmw` 16174) and Loss of Control (`mts` 21026) already use for a same-sentence removal with no
- * intervening decision point, so the ordering is unobservable. "Ready each Ghost-Spider card you control" reads as
- * literally titled "Ghost-Spider" (only the identity's own hero face, 27001a, prints that title in this box) —
- * `query(["identity"], { name: "Ghost-Spider", controller: "you" })`, not her signature card pool (there is no
- * `identitySetOf`-style keyword name on any card here, and the card is dated errata-free).
+ * intervening decision point, so the ordering is unobservable. "Ready each Ghost-Spider card you control" is her
+ * identity and each card of her identity-specific set she controls (issue #640): RRG 1.8 "Identity-Specific Card"
+ * (p. 23) counts identity cards as identity-specific, an FFG ruling (Alex, docs/rulings/rrg-1-0-to-1-4/
+ * 43-sinister-motives-miles-and-gwen.md) counts her hero card as one, and the Sinister Motives deck list files George
+ * Stacy, Web-Bracelet and the rest under "Ghost-Spider cards". The basic allies in her pack are not among them.
  *
  * **Web-Bracelet (27009)** reuses Ghost-Spider's own `onInterruptOrResponseResolvedOnEvent` (§3.32's
  * `abilityResolved`/`abilityTiming` citation for this exact card) with `maxOnePerTriggeringInstance` (§3.14): the
@@ -144,7 +146,8 @@ export const GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     discardFromHand(handCountOf()),
     moveCards(zone("discard", you), "deckShuffle"),
     drawUpTo(handSizeOf(you)),
-    ready(each(query(["identity"], { name: "Ghost-Spider", controller: "you" }))),
+    ready(yourIdentity),
+    ready(each(query([], { controller: "you", identitySetOf: you }))),
   ),
 
   "27009.web-bracelet-response": heroResponse(

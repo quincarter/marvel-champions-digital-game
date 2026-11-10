@@ -70,7 +70,7 @@ export interface CoreScenarioOptions {
   /**
    * The full mode set (RRG 1.8 pp. 28–29), of which `difficulty` is the expert half. Optional and additive:
    * omitting it behaves exactly as before. When both are given they must agree about expert mode
-   * (`resolveModes`). Campaign, heroic and skirmish are carried but read by nothing yet.
+   * (`resolveModes`). `playableScenario` reads heroic and skirmish after the builder runs (`withPlayModes`).
    */
   readonly modes?: PlayModes;
   /** Defaults to the scenario's recommended modular set(s). */

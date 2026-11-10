@@ -69,6 +69,7 @@ import {
   yourIdentity,
   zone,
 } from "../../dsl/index.js";
+import { isBalanced } from "../../campaigns/gmw-balanced.js";
 
 /**
  * Infiltrate the Museum: the villain Collector I–III (16070–16072), the main scheme The Grand Collection
@@ -118,15 +119,25 @@ import {
  */
 
 const COLLECTION = "The Collection";
-const collectorRedirect = (thenPlaceThreat?: number) =>
-  constant(
-    rule({
-      kind: "discardFromPlayDestination",
-      cards: {},
-      area: COLLECTION,
-      ...(thenPlaceThreat ? { thenPlaceThreat } : {}),
-    }),
+/**
+ * Collector I/II/III's Forced Interrupt. Printed: any card (player or encounter) that would go to a discard pile
+ * from play goes faceup into The Collection instead. Balanced house rule, issue #609, Gideon's Gaming: only a player
+ * card (ally, support or upgrade) is caught; an encounter card is discarded normally, and Collector III places no
+ * threat for it. Two rules for the one ability, each holding on its own side of the `balanced` flag.
+ */
+const collectorRedirect = (thenPlaceThreat?: number) => {
+  const redirect = {
+    kind: "discardFromPlayDestination",
+    area: COLLECTION,
+    ...(thenPlaceThreat ? { thenPlaceThreat } : {}),
+  } as const;
+  return constant(
+    rule({ ...redirect, cards: {}, while: not(isBalanced) }),
+    rule({ ...redirect, cards: { categories: ["ally", "support", "upgrade"] }, while: isBalanced }),
+    // Normal's `cards: {}` also catches a player side scheme (Going Undercover, Render Medical Aid); so does this.
+    rule({ ...redirect, cards: { categories: ["sideScheme"], playerSideScheme: true }, while: isBalanced }),
   );
+};
 
 const CARDS_YOU_CONTROL: TargetQuery = { categories: ["ally", "support", "upgrade"], controller: "you" };
 /** Inconspicuous Box's pool: the lowest-cost of them that can leave play (RRG 1.8 "Permanent", p. 32). */

@@ -176,6 +176,9 @@ export interface DeckBuilderFocusInput {
   readonly showDelete?: boolean;
   /** Stops drawn on the pool search's own row after the field (its clear button, the grid/list view toggle). */
   readonly filterExtraIds?: readonly string[];
+  /** The filters sit behind the "Filters" chip (a tablet), and whether it is open. Otherwise they are always shown. */
+  readonly filtersFolded?: boolean;
+  readonly filtersOpen?: boolean;
 }
 
 /**
@@ -190,9 +193,7 @@ export interface DeckBuilderFocusInput {
 export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly string[] {
   if (!input.identityChosen)
     return ["back", ...(input.identityExtraIds ?? []), ...input.identityIds.map((id) => `identity:${id}`)];
-  return [
-    "back",
-    ...input.aspectIds.map((id) => `aspect:${id}`),
+  const filters = [
     ...input.typeFilterIds.map((id) => `type:${id}`),
     // The quick cost and icon chips, then the trait stepper (issue #531).
     ...(input.quickFilterIds ?? []).map((id) => `quick:${id}`),
@@ -204,6 +205,11 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "pack:cycle",
     "pack:sort",
     "pack:then",
+  ];
+  return [
+    "back",
+    ...input.aspectIds.map((id) => `aspect:${id}`),
+    ...(input.filtersFolded ? [] : filters),
     ...(input.chartIds ?? []),
     ...((input.showName ?? true) ? ["name"] : []),
     ...(input.deckListIds ?? []),
@@ -214,6 +220,8 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "save",
     "filter-text",
     ...(input.filterExtraIds ?? []),
+    // Behind the Filters chip they open in the pool's place, so they follow the chip.
+    ...(input.filtersFolded && input.filtersOpen ? filters : []),
     ...input.poolCardIds.map((id) => `card:${id}`),
   ];
 }

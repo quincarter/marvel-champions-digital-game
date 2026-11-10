@@ -166,6 +166,13 @@ export const WEB_FONTS = [
 ] as const;
 
 /**
+ * The text `document.fonts.load` loads each of `WEB_FONTS` for. A face only loads for characters in its
+ * unicode-range, and the default sample is a space, so the 7 is named: Bangers' crossed 7 is its own face
+ * (`fonts/bangers-seven.css`, issue #660), and a Phaser text drawn before it arrived would keep the old 7.
+ */
+export const WEB_FONT_SAMPLE = "Aa 7";
+
+/**
  * Section 02 — named type roles. `weight` is only ever 800 (labels), 700
  * (emphasis) or 400 (body): no 500/600 in product UI.
  */

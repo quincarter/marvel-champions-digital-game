@@ -61,7 +61,7 @@ describe("set chips", () => {
 
 describe("Standard and Expert set choice (Q10 = A)", () => {
   test("Rhino (a Core scenario) offers Standard II and III, and no Expert row on standard", () => {
-    expect(rowIds(draftFor("rhino"))).toEqual(["standardSet"]);
+    expect(rowIds(draftFor("rhino"))).toEqual(["standardSet", "heroic", "skirmish"]);
     const row = rowsOf(draftFor("rhino"))[0]!;
     if (row.control.kind !== "groups") throw new Error("expected chips");
     expect(row.control.groups[0]!.chips.map((c) => [c.label, c.selected])).toEqual([
@@ -78,8 +78,8 @@ describe("Standard and Expert set choice (Q10 = A)", () => {
 
   test("expert shows an Expert row beside it, and standard hides it again", () => {
     const expert = setDifficulty(draftFor("rhino"), "expert");
-    expect(rowIds(expert)).toEqual(["standardSet", "expertSet"]);
-    expect(optionActionsOf(rowsOf(expert).slice(1))).toEqual(["expertSet:default", "expertSet:expert_ii"]);
+    expect(rowIds(expert)).toEqual(["standardSet", "expertSet", "heroic", "skirmish"]);
+    expect(optionActionsOf(rowsOf(expert).slice(1, 2))).toEqual(["expertSet:default", "expertSet:expert_ii"]);
   });
 
   test("Standard III and Expert II are chosen separately; choosing the printed set clears one", () => {
@@ -112,7 +112,7 @@ describe("Standard and Expert set choice (Q10 = A)", () => {
   });
 
   test("a scenario with no plain Standard set (Breakout) offers no Standard row", () => {
-    expect(rowIds(draftFor("breakout"))).toEqual([]);
+    expect(rowIds(draftFor("breakout"))).toEqual(["heroic"]);
   });
 
   test("an unlisted or stale action changes nothing", () => {
@@ -336,7 +336,7 @@ describe("the set choices folded into the difficulty row", () => {
     const { setChoices, cards } = splitOptionRows(rows);
     expect(setChoices.map((row) => row.id)).toEqual(["standardSet", "expertSet"]);
     expect(setChoices.every(isSetChoiceRow)).toBe(true);
-    expect(cards).toEqual([]);
+    expect(cards.map((row) => row.id)).toEqual(["heroic", "skirmish"]);
     // The focus order lists the same actions it did, in the same order.
     expect(optionActionsOf([...setChoices, ...cards])).toEqual(optionActionsOf(rows));
     // Expert set only while expert is the difficulty (reconcile is unchanged).
@@ -346,7 +346,7 @@ describe("the set choices folded into the difficulty row", () => {
   test("the other options stay cards, in draw order, after the set rows", () => {
     const { setChoices, cards } = splitOptionRows(rowsOf(draftFor("four-horsemen")));
     expect(setChoices.map((row) => row.id)).toEqual(["standardSet"]);
-    expect(cards.map((row) => row.id)).toEqual(["horsemanSides"]);
+    expect(cards.map((row) => row.id)).toEqual(["heroic", "skirmish", "horsemanSides"]);
     expect(cards.every((row) => !isSetChoiceRow(row))).toBe(true);
     const apocalypse = splitOptionRows(rowsOf(draftFor("apocalypse")));
     expect(apocalypse.cards.map((row) => row.id)).toContain("easierStart");

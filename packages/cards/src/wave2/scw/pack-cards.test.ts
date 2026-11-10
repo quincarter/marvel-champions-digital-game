@@ -92,6 +92,34 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     expect(inst(thwarted, villain).damage).toBe(1);
   });
 
+  it("issue #627: Wiccan: a discard with no boost icons deals nothing, says so, and asks for no enemy (RRG 1.8 'For Each', p. 20)", () => {
+    const { state } = playFromHand(scwVsRhino(), "15011", 2);
+    const wiccan = instancesOf(state, "15011")[0]!;
+    const villain = state.villains[0]!.instanceId;
+    // Hard to Keep Down (01104, Rhino's own set) prints no boost icons.
+    const stacked = stackEncounterDeck(withDamage(withThreat(state, 5), villain, 0), "01104");
+    const thwart = runWave2(stacked, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: wiccan,
+      schemeInstanceId: stacked.mainScheme.instanceId,
+    });
+    const choiceId = thwart.pendingChoice!.choiceId;
+    const applied = applyCommand(
+      thwart,
+      { type: "resolveChoice", playerId: P1, choiceId, selectedOptionIds: [`${wiccan}:15011.wiccan-response`] },
+      WAVE2_DEPS,
+    );
+    if (!applied.ok) throw new Error(applied.error.message);
+    expect(applied.events).toContainEqual(expect.objectContaining({ type: "boostIconsCounted", count: 0 }));
+    expect(applied.state.pendingChoice).toBeNull();
+    expect(inst(applied.state, villain).damage).toBe(0);
+    // Consequential damage comes after the response (RRG 1.8 "Consequential Damage", p. 13), and says what it was for.
+    expect(applied.events).toContainEqual(
+      expect.objectContaining({ type: "damageDealt", targetInstanceId: wiccan, consequentialFrom: "thwart" }),
+    );
+  });
+
   it("Crisis Averted: Hero Action (thwart), removes 6 threat; ignores the crisis icon only if paid with [mental]", () => {
     const hero = withThreat(runWave2(scwVsRhino(), toHero()), 10);
     const { state } = playFromHand(hero, "15012", 3);

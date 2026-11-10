@@ -86,6 +86,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const sourceChoice = ctx.controller.sourceChoice();
   const formChoice = ctx.controller.formChoice();
   const abilityChoice = ctx.controller.abilityChoice();
+  const handUseChoice = ctx.controller.handUseChoice();
   const destinationChoice = ctx.controller.destinationChoice();
   const thwartStatChoice = ctx.controller.thwartStatChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
@@ -100,7 +101,15 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     drawFormBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, formChoice);
     top = rect.y + BAR_HEIGHT + 4;
   } else if (abilityChoice) {
-    drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, abilityChoice);
+    drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, abilityChoice, (index) => {
+      const option = abilityChoice.options[index];
+      if (option) void ctx.controller.chooseEventAbility(option.abilityId);
+    });
+    top = rect.y + BAR_HEIGHT + 4;
+  } else if (handUseChoice) {
+    drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, handUseChoice, (index) => {
+      void ctx.controller.chooseHandUse(index);
+    });
     top = rect.y + BAR_HEIGHT + 4;
   } else if (destinationChoice) {
     // On a narrow bar the question gets its own line above the buttons, so the bar is that much taller.
@@ -490,7 +499,10 @@ function paintHandSlot(
   const answersNow = !payment && ctx.villainHandTags?.get(card.instanceId)?.kind === "now";
   const available = payment
     ? subject || source !== undefined
-    : answersNow || (ctx.marks?.playable.has(card.instanceId) ?? false);
+    : answersNow ||
+      (ctx.marks?.playable.has(card.instanceId) ?? false) ||
+      // An Action that works from the hand (Slingshot, issue #634) is a use of the card even when it cannot be played.
+      (ctx.marks?.usableAbilities.has(card.instanceId) ?? false);
   const alpha = available ? 1 : ink.illegal;
 
   const g = ctx.scene.add.graphics();
@@ -558,7 +570,8 @@ function drawHandCard(
           const villain = ctx.villainHandTags?.get(card.instanceId);
           if (villain) return { text: villain.text, ground: villainTagGround(villain.kind) };
           const reason = ctx.marks?.unplayable.get(card.instanceId);
-          if (reason) {
+          // A card whose hand Action can be used now is not "can't afford": a tap uses that Action.
+          if (reason && !ctx.marks?.usableAbilities.has(card.instanceId)) {
             const text = shortReason(reason, ctx.teamUpRoles?.get(card.instanceId) ?? null);
             // One tag only: a Team-Up card held up by a hero's form carries the quiet TEAM-UP tag; the reason is in
             // Inspect and in the yellow blurb on that hero.

@@ -6,24 +6,13 @@
 import { activeVillain, cardOf, villainStageOf, type GameState, type InstanceId } from "@mc/engine";
 import { artFor, type CardFace } from "../art/art-source.js";
 import type { SessionConfig } from "../engine/host.js";
+import { difficultyLabelOf } from "./difficulty-label.js";
 import type { PresenceGame } from "./discord-presence.js";
 import { cardName, playerName } from "./names.js";
 
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
 
-/** "Standard", "Expert", "Extreme", "Expert Heroic 2": the difficulty the game was set up with. */
-export function difficultyLabelOf(config: SessionConfig | null): string | null {
-  if (!config) return null;
-  const heroic = config.modes?.heroic;
-  const base =
-    config.modes?.expert || config.difficulty === "expert"
-      ? "Expert"
-      : config.difficulty === "extreme"
-        ? "Extreme"
-        : "Standard";
-  if (heroic !== undefined && heroic > 0) return base === "Standard" ? `Heroic ${heroic}` : `${base} Heroic ${heroic}`;
-  return base;
-}
+export { difficultyLabelOf };
 
 /**
  * The picture face of the active villain and of a seated hero's identity: the two public cards presence shows. A

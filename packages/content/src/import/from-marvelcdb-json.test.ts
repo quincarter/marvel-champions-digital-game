@@ -50,6 +50,44 @@ const REAL_DECKLIST_RESPONSE: MarvelCdbDeckJson = {
   meta: '{"aspect":"protection"}',
 };
 
+/** Issue #639: "Back to the Basics", fetched from `GET /api/public/decklist/68313.json` on 2026-11-03. Miles Morales, basics only. */
+const BACK_TO_THE_BASICS: MarvelCdbDeckJson = {
+  id: 68313,
+  name: "Back to the Basics",
+  hero_code: "27030a",
+  hero_name: "Spider-Man",
+  slots: {
+    "13024": 2,
+    "27018": 1,
+    "27023": 1,
+    "27031": 2,
+    "27032": 2,
+    "27033": 2,
+    "27034": 3,
+    "27035": 1,
+    "27036": 1,
+    "27037": 1,
+    "27038": 1,
+    "27039": 2,
+    "27048": 1,
+    "27049": 1,
+    "28018": 1,
+    "28020": 1,
+    "30021": 1,
+    "31022": 1,
+    "01084": 1,
+    "01088": 1,
+    "01089": 1,
+    "01090": 1,
+    "01091": 1,
+    "01092": 1,
+    "03034": 3,
+    "05024": 3,
+    "06034": 3,
+  },
+  meta: "{}",
+};
+
 describe("parseMarvelCdbDeckJson", () => {
   test("our CardId is the MarvelCDB card code: every code in a real response resolves in the Core pool", () => {
     const result = parseMarvelCdbDeckJson(REAL_DECKLIST_RESPONSE, CORE_CARDS);
@@ -111,12 +149,22 @@ describe("parseMarvelCdbDeckJson", () => {
     }
   });
 
-  test("a missing aspect fails loudly rather than importing with no aspect chosen", () => {
+  test("a missing aspect fails loudly when the deck holds aspect cards", () => {
     const { meta: _meta, ...withoutMeta } = REAL_DECKLIST_RESPONSE;
     const result = parseMarvelCdbDeckJson(withoutMeta, CORE_CARDS);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.problems.some((p) => p.code === "missing_aspect")).toBe(true);
+  });
+
+  test("a hero-and-basic decklist with no aspect imports its cards with none chosen (#639)", () => {
+    const result = parseMarvelCdbDeckJson(BACK_TO_THE_BASICS, PLAYABLE_CARDS);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.contents.identityCardId).toBe("27030a");
+    expect(result.contents.aspects).toEqual([]);
+    expect(result.deckName).toBe("Back to the Basics");
+    const listed = Object.keys(BACK_TO_THE_BASICS.slots);
+    expect(listed.every((code) => result.contents.cards.some((entry) => entry.cardId === code))).toBe(true);
   });
 
   test("a MarvelCDB deck-JSON with meta.aspect_1 is read as a second aspect, in order", () => {

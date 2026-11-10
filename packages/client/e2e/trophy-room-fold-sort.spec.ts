@@ -42,8 +42,8 @@ test("the Filters bar opens and sorts the families A–Z, then back the other wa
   await waitFor(async () => ((await stops(page)).includes("sort:name") ? true : null), "the chips show", 10_000);
   await clickText(page, "A–Z", { sceneKey: "TrophyRoom" });
   const headings = async (): Promise<string[]> => (await stops(page)).filter((k) => k.startsWith("sec:"));
-  // "Villains" comes second in the book's order; A–Z puts "Boxes and campaigns" there.
-  await waitFor(async () => ((await headings())[1] === "sec:campaigns" ? true : null), "sorted A–Z", 10_000);
+  // "Villains" comes second in the book's order; A–Z puts "Battles won" there, after "Arch-enemies".
+  await waitFor(async () => ((await headings())[1] === "sec:wins" ? true : null), "sorted A–Z", 10_000);
   await clickText(page, "DESCENDING", { sceneKey: "TrophyRoom" });
   await waitFor(async () => ((await headings())[0] === "sec:villains" ? true : null), "sorted Z–A", 10_000);
 });

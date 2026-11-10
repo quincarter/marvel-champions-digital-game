@@ -12,6 +12,7 @@ import {
   playerOf,
   runWith,
   settle,
+  threatOn,
   toHero,
   use,
   type Picker,
@@ -206,6 +207,49 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     );
     expect(playerOf(after, P1).playArea).not.toContain(obligation);
     expect(playerOf(after, P1).hand).not.toContain(energy);
+  });
+
+  describe("Pinned Down (11024): When Revealed places 2 threat here for each obligation in play (issue #675)", () => {
+    /** Puts the Kang set's obligations straight into P1's play area, faceup, from deck index 2 onward (index 0 is
+     * Kang (I)'s boost card and index 1 is where Pinned Down is revealed), then reveals Pinned Down. */
+    function revealPinnedDownWith(obligations: readonly string[]): {
+      readonly state: GameState;
+      readonly id: InstanceId;
+    } {
+      let state = kangVsHeroes();
+      const deckId = Object.keys(state.encounterDecks)[0]!;
+      const pile = state.encounterDecks[deckId]!;
+      const staged = pile.deck.slice(2, 2 + obligations.length);
+      const instances = { ...state.instances };
+      staged.forEach((id, i) => {
+        instances[id] = { ...instances[id]!, cardId: obligations[i] as never, faceup: true, controllerId: P1 };
+      });
+      const pinnedDown = pile.deck[1]!;
+      instances[pinnedDown] = { ...instances[pinnedDown]!, cardId: "11024" as never };
+      state = {
+        ...state,
+        instances,
+        encounterDecks: {
+          ...state.encounterDecks,
+          [deckId]: { ...pile, deck: pile.deck.filter((id) => !staged.includes(id)) },
+        },
+        players: state.players.map((pl) =>
+          pl.playerId === P1 ? { ...pl, playArea: [...pl.playArea, ...staged] } : pl,
+        ),
+      };
+      return { state: settle(runWave2(state, endTurn()), firstLegal, undefined, WAVE2_DEPS), id: pinnedDown };
+    }
+
+    it("with two obligations in play: 2 starting threat + 4 = 6", () => {
+      const { state, id } = revealPinnedDownWith(["11018", "11019"]);
+      expect(state.instances[id]?.cardId).toBe("11024");
+      expect(threatOn(state, id)).toBe(6);
+    });
+
+    it("with no obligations in play: only its 2 starting threat", () => {
+      const { state, id } = revealPinnedDownWith([]);
+      expect(threatOn(state, id)).toBe(2);
+    });
   });
 
   it("Terminatrix (11043): a constant keyword grant — her attacks gain piercing", () => {

@@ -8,6 +8,7 @@ import type { CampaignDefinition, CampaignStatus } from "@mc/engine";
 import { storyFor, type CampaignStory } from "../campaign/story.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { PipState } from "../ui/campaign-chrome.js";
+import { balancedTagOf } from "./campaign-balanced-model.js";
 import { ladderFieldOf, walletFieldsOf } from "./campaign-dossier-model.js";
 import { currentNodeIdOf, issueNumberOfRecord } from "./campaign-issue-pick.js";
 import { FIELD_SHORT_LABEL, lostAtLineOf } from "./campaign-run-model.js";
@@ -21,6 +22,8 @@ export interface CoverModel {
   /** The scenario whose villain art fronts the cover — the box's final scenario (design: Red Skull for MC10). */
   readonly villainScenarioId: string;
   readonly hasRun: boolean;
+  /** "Balanced" for a run signed on the Balanced house rule (issue #609), else null. */
+  readonly balancedTag: string | null;
   readonly rosterNames: readonly string[];
   readonly totalIssues: number;
   readonly pips: readonly PipState[];
@@ -152,6 +155,7 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
     tagline: story?.tagline ?? `A story in ${ISSUE_WORDS[total] ?? total} issues`,
     villainScenarioId: finalScenarioId,
     hasRun: record !== null,
+    balancedTag: balancedTagOf(record?.modes),
     rosterNames,
     totalIssues: total,
     pips,

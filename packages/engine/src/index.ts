@@ -1,4 +1,4 @@
-export const ENGINE_VERSION = "0.42.0";
+export const ENGINE_VERSION = "0.43.2";
 
 export type { PlayerId, InstanceId, ChoiceId, EncounterDeckId, FrameId, GroupId, TeamId } from "./ids.js";
 export { playerId, instanceId, choiceId, encounterDeckId, frameId, groupId, teamId } from "./ids.js";
@@ -223,6 +223,7 @@ export type {
   ResourceGeneration,
   ResourceMultiplierSpec,
   RuleSpec,
+  MainSchemeStageRef,
   StatModifierSpec,
   TraitGrantSpec,
 } from "./abilities.js";
@@ -700,6 +701,7 @@ export {
   mainSchemeStageOf,
   mainSchemeStagePosition,
   mainSchemeStateOf,
+  mainSchemeStageMatches,
   mainSchemeValue,
   startingThreatOf,
   minionsEngagedWith,

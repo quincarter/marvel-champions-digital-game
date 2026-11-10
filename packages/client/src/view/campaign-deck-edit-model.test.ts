@@ -17,6 +17,9 @@ import {
   campaignDeckContextOf,
   campaignDeckContextWithGrants,
   campaignDeckEditModel,
+  campaignDeckVerdictOf,
+  campaignRefusesAdd,
+  campaignRefusesCut,
   campaignDeckSizeLabel,
   campaignDeckSizeSplit,
   deckFreezePolicyOf,
@@ -341,6 +344,40 @@ describe("campaignDeckEditModel", () => {
     expect(starterRow?.locked).toBe(false);
   });
 
+  it("reads the campaign's verdict for Deck check, its count leaving pinned cards out", () => {
+    const context = campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1);
+    const deck = { identityCardId: STARTER.identityCardId, aspects: STARTER.aspects, cards: STARTER.cards };
+    const legal = campaignDeckEditModel(
+      { ...deck, cards: [...deck.cards, { cardId: TECH_UPGRADE, quantity: 1 }] },
+      POOL_CARDS,
+      context,
+    );
+    expect(campaignDeckVerdictOf(legal)).toEqual({
+      count: "40 cards + 1 pinned",
+      counted: 40,
+      status: { text: "Legal", tone: "legal" },
+    });
+    const short = campaignDeckEditModel({ ...deck, cards: deck.cards.slice(0, 2) }, POOL_CARDS, context);
+    expect(campaignDeckVerdictOf(short).status).toEqual({ text: "Illegal", tone: "illegal" });
+  });
+
+  it("a granted line can't be cut, a frozen deck takes nothing, and an ordinary card takes both", () => {
+    const context = campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1);
+    const deck = {
+      identityCardId: STARTER.identityCardId,
+      aspects: STARTER.aspects,
+      cards: [...STARTER.cards, { cardId: TECH_UPGRADE, quantity: 1 }],
+    };
+    const { rows } = campaignDeckEditModel(deck, POOL_CARDS, context);
+    const granted = rows.find((line) => line.cardId === TECH_UPGRADE)!;
+    expect(campaignRefusesCut(granted, false)).toBe(true);
+    expect(campaignRefusesAdd(granted, false)).toBe(false);
+    expect(campaignRefusesCut(null, false)).toBe(false);
+    expect(campaignRefusesAdd(null, false)).toBe(false);
+    expect(campaignRefusesCut(null, true)).toBe(true);
+    expect(campaignRefusesAdd(null, true)).toBe(true);
+  });
+
   it("refuses the same card outside the campaign context, naming why (validateDeck's own verdict, not re-derived)", () => {
     const deck = {
       identityCardId: STARTER.identityCardId,
@@ -454,6 +491,18 @@ describe("MC27 p. 4's prohibited cards (Venom the ally 27190, Symbiote Suit 2719
       seed: 1,
     });
   }
+
+  it("a prohibited card the deck already holds can be cut, and no suggestion may add another", () => {
+    const context = campaignDeckContextOf(SM_CAMPAIGN, smLog(), 1);
+    const deck = {
+      identityCardId: SM_STARTER.identityCardId,
+      aspects: SM_STARTER.aspects,
+      cards: [...SM_STARTER.cards, { cardId: VENOM_ALLY, quantity: 1 }],
+    };
+    const row = campaignDeckEditModel(deck, POOL_CARDS, context).rows.find((line) => line.cardId === VENOM_ALLY)!;
+    expect(campaignRefusesAdd(row, false)).toBe(true);
+    expect(campaignRefusesCut(row, false)).toBe(false);
+  });
 
   it("prohibitedCampaignCardIds reads SM_CAMPAIGN's own prohibited.cardIds", () => {
     const context = campaignDeckContextOf(SM_CAMPAIGN, smLog(), 1);

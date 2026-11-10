@@ -21,6 +21,7 @@
  */
 
 import type { CardId, PlayModes, ScenarioId } from "@mc/content";
+import type { RuleSpec } from "../abilities.js";
 import type {
   CampaignAttempt,
   CampaignDefinition,
@@ -110,6 +111,32 @@ export interface CampaignLogSetup {
   readonly poolVersion: string;
   /** The campaign RNG seed. Every `random` op in the whole campaign derives from it. */
   readonly seed: number;
+  /**
+   * Values the campaign's `hidden` log fields start with, by field id, for a choice made as the run is created (a
+   * house-rule flag a later instruction or a node's `scenarioRuleSpecs` reads). Omitted, the log starts with no hidden
+   * value. Ordinary values only: a sealed value comes from a sealed `random` draw (`LogValueSeal`).
+   */
+  readonly hiddenFields?: Readonly<Record<string, LogValue>>;
+}
+
+/** `CampaignLogSetup.hiddenFields`, checked: each names a declared hidden field, holds its kind and is not sealed. */
+function seededHiddenFields(
+  definition: CampaignDefinition,
+  seeds: Readonly<Record<string, LogValue>> = {},
+): Record<string, LogValue> {
+  for (const [field, value] of Object.entries(seeds)) {
+    const declared = fieldDefOf(definition, field);
+    if (!declared.hidden) throw new EngineInvariantError(`campaign log field "${field}" is not a hidden field`);
+    if (value.kind !== declared.type.kind) {
+      throw new EngineInvariantError(
+        `campaign log field "${field}" holds a ${declared.type.kind}, and was seeded with a ${value.kind}`,
+      );
+    }
+    if (value.sealed === true) {
+      throw new EngineInvariantError(`campaign log field "${field}" cannot be seeded with a sealed value`);
+    }
+  }
+  return { ...seeds };
 }
 
 /** A fresh log at the start of a campaign, positioned on the first node a `linear` graph plays. */
@@ -130,7 +157,7 @@ export function createCampaignLog(definition: CampaignDefinition, setup: Campaig
       fields: {},
     })),
     shared: {},
-    hidden: {},
+    hidden: seededHiddenFields(definition, setup.hiddenFields),
     removedFromCampaign: [],
     position: { nextNodeId: first, resolved: {}, progress: {} },
     seed: setup.seed,
@@ -286,9 +313,10 @@ function fieldsReadBy(effects: unknown, found: Set<string> = new Set()): Readonl
 /**
  * The frozen view a game reads.
  *
- * A `hidden` field (MC50 p. 5's A.I.M. envelope) is included only when one of *this* game's instructions reads
- * it: the envelope stays shut otherwise, and the view lands in the save's replay baseline, so anything put here
- * is readable forever.
+ * A `hidden` field (MC50 p. 5's A.I.M. envelope) is included only when one of *this* game's instructions, or a rule
+ * its node puts in force (`CampaignNode.scenarioRuleSpecs`), reads it: the envelope stays shut otherwise, and the view
+ * lands in the save's replay baseline, so anything put here is readable forever. A card script's read is not seen
+ * here, so a hidden field a card's ability reads must also be read by the node.
  *
  * A hidden field holding a **sealed** value (`LogValueSeal`, docs/phase7-wave9.md §3.75) goes to `hidden` and nowhere
  * else, where no ordinary in-game read reaches it. A hidden field holding an ordinary value is a box's own scratch
@@ -298,8 +326,9 @@ function logViewFor(
   definition: CampaignDefinition,
   working: CampaignWorkingLog,
   instructions: readonly ResolvedInstruction[],
+  rules: readonly RuleSpec[] = [],
 ): CampaignLogView {
-  const read = fieldsReadBy(instructions.map((instruction) => instruction.effects));
+  const read = fieldsReadBy([instructions.map((instruction) => instruction.effects), rules]);
   const shared: Record<string, LogValue> = { ...working.shared };
   const hidden: Record<string, LogValue> = {};
   for (const field of read) {
@@ -496,7 +525,7 @@ export function resolveBetweenGames(
     nodeId: node.id,
     definitionVersion: definition.version,
     modes,
-    log: logViewFor(definition, run.working, instructions),
+    log: logViewFor(definition, run.working, instructions, node.scenarioRuleSpecs),
     instructions,
     removedFromCampaign: run.working.removedFromCampaign,
     seats: run.working.seats.map(seatInputOf),

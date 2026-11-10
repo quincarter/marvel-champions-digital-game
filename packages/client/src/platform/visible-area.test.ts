@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxTrim, hiddenBottom, typingInto } from "./visible-area.js";
+import { boxTrim, hiddenBottom, typingInto, waitsToSettle } from "./visible-area.js";
 
 describe("hiddenBottom", () => {
   it("is how far the box hangs below the visible area", () => {
@@ -12,6 +12,22 @@ describe("hiddenBottom", () => {
     expect(hiddenBottom(997, 997, 0, 1)).toBe(0);
     expect(hiddenBottom(997, 996.5, 0, 1)).toBe(0);
     expect(hiddenBottom(997, 500, 0, 2)).toBe(0);
+  });
+  it("still sees a phone's toolbar in landscape", () => {
+    expect(hiddenBottom(375, 300, 0, 1)).toBe(75);
+  });
+});
+
+describe("waitsToSettle", () => {
+  it("holds a strip too tall to be a toolbar while a rotation may be under way (#629)", () => {
+    expect(waitsToSettle(448, 768, false)).toBe(true);
+  });
+  it("believes a tall strip that still stands once the resizes have settled", () => {
+    expect(waitsToSettle(81, 320, false)).toBe(true);
+    expect(waitsToSettle(81, 320, true)).toBe(false);
+  });
+  it("never holds a toolbar-sized strip", () => {
+    expect(waitsToSettle(80, 320, false)).toBe(false);
   });
 });
 

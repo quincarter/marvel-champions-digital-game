@@ -13,6 +13,7 @@ import {
   extrasProgressOf,
   musicEntriesOf,
   sideStoryEntriesOf,
+  teamUpArtEntriesOf,
   unlockHint,
   withEndedGame,
   type ExtrasEntry,
@@ -180,6 +181,17 @@ describe("the catalog", () => {
   it("leaves a side story with no pages off the shelf", () => {
     const story = { id: "nobody", title: "T", subtitle: "S", achievementId: "a", credit: "", pages: [] };
     expect(sideStoryEntriesOf([story], new Map())).toEqual([]);
+  });
+
+  it("opens a team-up pair's picture with the pair's trophy, and skips a pair with no picture", () => {
+    const trophy = { slug: "cable-deadpool", heroes: ["Cable", "Deadpool"], name: "T" } as const;
+    const splash = { key: "team-up-art:teamups/cable-deadpool/splash.jpg", url: "u" };
+    const [entry] = teamUpArtEntriesOf([trophy], new Map([[trophy.slug, { splash, badge: null }]]));
+    expect(entry!.title).toBe("Cable and Deadpool");
+    expect(entry!.unlock).toEqual({ kind: "achievement", achievementId: "teamup-cable-deadpool" });
+    expect(open({ earnedAchievementIds: ["teamup-cable-deadpool"] }).isOpen(entry!.unlock)).toBe(true);
+    expect(open({}).isOpen(entry!.unlock)).toBe(false);
+    expect(teamUpArtEntriesOf([trophy], new Map())).toEqual([]);
   });
 
   it("shows the loose pictures of art/extras/ as always-open artwork", () => {

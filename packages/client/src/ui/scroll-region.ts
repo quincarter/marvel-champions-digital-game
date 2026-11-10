@@ -23,6 +23,7 @@ import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import type { Rect } from "../view/layout.js";
 import { VariableListScroll, variableThumbOf } from "../view/variable-list-scroll.js";
 import { surface } from "../tokens.js";
+import { markRenderDirty } from "./idle-render.js";
 import { setMask, clearMask } from "./rex.js";
 import { clipToViewport, setAllInteractiveEnabled } from "./scroll-clip.js";
 
@@ -245,6 +246,7 @@ export class McScrollRegion {
     this.#scroll.clamp(this.#heights, this.#rect.height);
     const offset = this.#scroll.offsetPx;
     this.content.setPosition(0, -offset);
+    markRenderDirty();
     const thumb = variableThumbOf(offset, this.#heights, this.#rect.height);
     this.#thumb.setVisible(thumb !== null);
     this.#track.setVisible(thumb !== null);

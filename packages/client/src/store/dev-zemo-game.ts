@@ -7,7 +7,8 @@
  *
  * The counters come off by state surgery on a game the app's own host built, as the Four Horsemen jump does
  * (`dev-mission-game.ts`); the game then goes on in a `DevStateHost`, so it keeps no storage and cannot be resumed.
- * `?bare=all` bares all three environments, `?bare=none` leaves Setup's counters as dealt.
+ * `?bare=all` bares all three environments, `?bare=none` leaves Setup's counters as dealt. `?minions=N` engages the
+ * encounter deck's first N minions with the seat, for the phone's Enemies tab with three environments (issue #635).
  *
  * The state handed to the `DevStateHost` is that host's authority, so it must hold the evidence envelopes' cards. The
  * store's own `game` does not (it is sealed for the table, `sealForTable`: a pile is its size there), so the full state
@@ -34,11 +35,13 @@ const CONFIG = {
 
 /**
  * The fixture's state: a Zemo game played through `store` to the first player turn (setup choices answered with their
- * minimum), with the counters off the environments `bare` names. Exported for `dev-zemo-game.test.ts`.
+ * minimum), with the counters off the environments `bare` names and the encounter deck's first `minions` minions
+ * engaged with the seat. Exported for `dev-zemo-game.test.ts`.
  */
 export async function zemoFixtureState(
   store: SessionStore,
   bare: "tactical" | "all" | "none" = "tactical",
+  minions = 0,
 ): Promise<{ readonly config: SessionConfig; readonly state: GameState }> {
   await store.start(CONFIG);
   await nextTurn(store);
@@ -56,11 +59,35 @@ export async function zemoFixtureState(
     }),
   );
   const state: GameState = { ...game, instances };
-  return { config: CONFIG, state };
+  return { config: CONFIG, state: minions > 0 ? engageMinions(state, minions) : state };
 }
 
-export async function startDevZemoGame(bare: "tactical" | "all" | "none" = "tactical"): Promise<void> {
-  const { config, state } = await zemoFixtureState(appSession().store, bare);
+/** The first `count` minions in the encounter deck, moved out of it, faceup and engaged with the first seat. */
+function engageMinions(state: GameState, count: number): GameState {
+  const deckId = state.encounterDeckOrder[0]!;
+  const deck = state.encounterDecks[deckId]!;
+  const moved = deck.deck
+    .filter((id) => state.cardPool[state.instances[id]!.cardId]?.type === "minion")
+    .slice(0, count);
+  const seat = state.players[0]!;
+  return {
+    ...state,
+    encounterDecks: {
+      ...state.encounterDecks,
+      [deckId]: { ...deck, deck: deck.deck.filter((id) => !moved.includes(id)) },
+    },
+    players: [{ ...seat, playArea: [...seat.playArea, ...moved] }, ...state.players.slice(1)],
+    instances: {
+      ...state.instances,
+      ...Object.fromEntries(
+        moved.map((id) => [id, { ...state.instances[id]!, faceup: true, engagedWith: seat.playerId }]),
+      ),
+    },
+  };
+}
+
+export async function startDevZemoGame(bare: "tactical" | "all" | "none" = "tactical", minions = 0): Promise<void> {
+  const { config, state } = await zemoFixtureState(appSession().store, bare, minions);
   useDevHost(new DevStateHost(state, POOL_DEPS));
   // The host swap makes a new store: the one before it is stale.
   (window as unknown as { __mcZemo?: unknown }).__mcZemo = { store: appSession().store };

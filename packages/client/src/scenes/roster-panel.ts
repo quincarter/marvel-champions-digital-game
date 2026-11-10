@@ -403,6 +403,35 @@ export function renderArtThumb(
   return placeholder;
 }
 
+/** A list row's art thumb and how to fill it in. */
+export interface LiveArtThumb {
+  readonly object: Phaser.GameObjects.GameObject;
+  /** Swaps the placeholder for the picture once it is baked; does nothing before then, or after. */
+  readonly refresh: () => void;
+}
+
+/**
+ * `renderArtThumb` for a row that stays drawn while its art bakes: the row calls `refresh` on
+ * `cardFaces(scene).onBaked` (`McVirtualList#refreshRows`) rather than being redrawn around the new picture.
+ */
+export function renderLiveArtThumb(scene: Phaser.Scene, rect: Rect, artUrl: string | null, focusY = 0.2): LiveArtThumb {
+  const thumb = renderArtThumb(scene, rect, artUrl, focusY);
+  if (thumb.type === "Image") return { object: thumb, refresh: () => undefined };
+  const holder = scene.add.container(0, 0, [thumb]);
+  let waiting = true;
+  const refresh = (): void => {
+    if (!waiting) return;
+    const faces = cardFaces(scene);
+    const key = faces.request(artThumbSpec(rect, artUrl, focusY, "cover"));
+    if (!key) return;
+    waiting = false;
+    const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
+    faces.hold(key, image);
+    holder.removeAll(true).add(image);
+  };
+  return { object: holder, refresh };
+}
+
 /** `renderShelfCard`'s options as the plain-data face spec the baker paints. */
 function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
   const dim = options.blockedBy ? ink.illegal : 1;

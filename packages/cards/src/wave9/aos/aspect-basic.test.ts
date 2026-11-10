@@ -1,6 +1,7 @@
 import {
   AOS_CARDS,
   PLAYABLE_CARDS,
+  abilityId,
   cardId,
   type AllyCard,
   type EventCard,
@@ -408,6 +409,21 @@ describe("50013.slingshot-action: spend an [energy] resource, put her into play 
   it("a hand card without an [energy] icon cannot pay", () => {
     const given = moveToHand(aspectGame(), P1, SLINGSHOT, VICTORIA); // Victoria prints [mental]
     expect(() => run(given.state, use(P1, given.ids[0]!, ACTION, fromHand(given.ids[1]!)))).toThrow();
+  });
+  it("she cannot pay for her own action, though she prints [energy] (issue #634)", () => {
+    const { state, sling, energy } = stage(aspectGame());
+    // Her own [energy] spent from the hand would leave nothing there to put into play.
+    expect(() => run(state, use(P1, sling, ACTION, fromHand(sling)))).toThrow(/its own ability/);
+    const sources =
+      paymentFor(state, P1, { kind: "useAbility", instanceId: sling, abilityId: abilityId(ACTION) }, {}, DEPS)
+        ?.sources ?? [];
+    expect(sources.map((s) => s.instanceId)).toContain(energy);
+    expect(sources.map((s) => s.instanceId)).not.toContain(sling);
+    // With only her in hand, the action is not listed at all.
+    const alone = { ...state, players: state.players.map((p) => (p.playerId === P1 ? { ...p, hand: [sling] } : p)) };
+    const actions = legalActions(alone, P1, DEPS);
+    if (actions.kind !== "turn") throw new Error("not the player's turn");
+    expect(actions.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === sling)).toBe(false);
   });
   it("another player may be chosen to control her", () => {
     const { state, sling, energy } = stage(aspectGame({ players: 2 }));

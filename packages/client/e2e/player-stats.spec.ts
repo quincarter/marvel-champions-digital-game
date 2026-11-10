@@ -134,6 +134,194 @@ async function seeded(page: Page, screen: string, landing: string): Promise<void
 
 const overviewUp = (page: Page) => async () => ((await keys(page)).includes("tile:record") ? true : null);
 
+interface GridDebug {
+  pan: { x: number; y: number };
+  cursor: { row: number; column: number };
+  readout: { title: string; detail: string };
+  counts: boolean;
+}
+
+const gridOf = (page: Page): Promise<GridDebug | null> =>
+  page.evaluate(
+    () => (window as unknown as { __mcStatsDebug?: { grid(): GridDebug | null } }).__mcStatsDebug?.grid() ?? null,
+  );
+
+const statsFocus = (page: Page): Promise<string | null> =>
+  page.evaluate(
+    () =>
+      (
+        window as unknown as { __mcFocusState?: Record<string, () => { focus: string | null }> }
+      ).__mcFocusState?.PlayerStats?.().focus ?? null,
+  );
+
+async function openMatchups(page: Page, phone: boolean): Promise<void> {
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const tab = await tabStop(page, "tab:matchups");
+  await press(page, phone, tab.rect);
+  await waitFor(async () => ((await keys(page)).includes("grid:cell") ? true : null), "the grid", 10_000);
+}
+
+test("Matchups: a cell says what you did against that villain, and the chips change what the grid shows", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await openMatchups(page, phone);
+
+  // Rhino and Spider-Man: four wins and a loss. A tap on a cell moves the cursor, and the line under the grid reads it.
+  expect((await gridOf(page))!.readout).toEqual({
+    title: "Rhino × Spider-Man (Peter Parker)",
+    detail: "Standard: 4 wins · 1 loss",
+  });
+  const cell = (await stopsOf(page)).find((s) => s.key === "grid:cell")!;
+  await press(page, phone, { ...cell.rect, y: cell.rect.y + cell.rect.height });
+  await waitFor(async () => ((await gridOf(page))!.cursor.row === 1 ? true : null), "the tap moves the cursor", 5_000);
+  // Klaw: the one game, lost: played, not beaten.
+  expect((await gridOf(page))!.readout.detail).toBe("1 loss");
+
+  await press(page, phone, (await tabStop(page, "grid:counts")).rect);
+  await waitFor(async () => ((await gridOf(page))!.counts ? true : null), "Counts turns on", 5_000);
+  await press(page, phone, (await tabStop(page, "grid:flip")).rect);
+  await waitFor(
+    async () => ((await gridOf(page))!.readout.title.startsWith("Spider-Man") ? true : null),
+    "the flipped grid names the hero first",
+    5_000,
+  );
+});
+
+test("Matchups: arrows walk the cells, stop at nothing, and leave the grid at its top edge", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "keyboard and pad");
+  test.setTimeout(120_000);
+  await openMatchups(page, false);
+
+  for (let i = 0; i < 6 && (await statsFocus(page)) !== "grid:cell"; i++) await page.keyboard.press("ArrowDown");
+  expect(await statsFocus(page)).toBe("grid:cell");
+  const start = (await gridOf(page))!.cursor;
+
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
+  await waitFor(
+    async () => {
+      const { cursor } = (await gridOf(page))!;
+      return cursor.column === start.column + 1 && cursor.row === start.row + 1 ? true : null;
+    },
+    "the arrows move the cursor",
+    5_000,
+  );
+
+  // Far enough down that the cursor scrolls the grid: the view follows it.
+  await page.keyboard.press("End");
+  await waitFor(async () => ((await gridOf(page))!.pan.y > 0 ? true : null), "End pans to the last row", 5_000);
+  await page.keyboard.press("Home");
+  await waitFor(async () => ((await gridOf(page))!.cursor.row === 0 ? true : null), "Home goes back", 5_000);
+
+  // Up from the first row leaves the grid for the chips above it.
+  await page.keyboard.press("ArrowUp");
+  await waitFor(
+    async () => {
+      const focus = await statsFocus(page);
+      return focus !== null && focus !== "grid:cell" ? true : null;
+    },
+    "up leaves the grid",
+    5_000,
+  );
+
+  // LB / RB stay the tabs, and Everyone has no grids.
+  await page.keyboard.press("]");
+  await waitFor(async () => ((await gridOf(page)) === null ? true : null), "RB leaves Matchups", 5_000);
+});
+
+test("Matchups: four views behind the toggle, and a shelf opens that villain's Focus view", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await openMatchups(page, phone);
+  const has = (key: string) => async () => ((await keys(page)).includes(key) ? true : null);
+
+  await press(page, phone, (await tabStop(page, "view:stamps")).rect);
+  await settle(page);
+  expect(await keys(page), "the stamp grid still has its cursor").toContain("grid:cell");
+
+  await press(page, phone, (await tabStop(page, "view:shelves")).rect);
+  await waitFor(has("row:shelf:1"), "Klaw's shelf", 10_000);
+  expect(await keys(page), "Shelves has no counts").not.toContain("grid:counts");
+
+  await press(page, phone, (await stopsOf(page)).find((s) => s.key === "row:shelf:1")!.rect);
+  await waitFor(has("tile:0"), "the shelf opens Focus", 10_000);
+  expect((await findText(page, "Tried".toUpperCase(), "PlayerStats")).length, "Klaw's loss").toBeGreaterThan(0);
+});
+
+test("Matchups: every view's pictures open the card hover", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "a mouse hover");
+  test.setTimeout(120_000);
+  await openMatchups(page, false);
+  interface Hovered extends Rect {
+    cardId: string;
+  }
+  const stats = () =>
+    page.evaluate(() => {
+      const debug = (window as unknown as { __mcStatsDebug: { hoverShown(): string | null; hoverCards(): Hovered[] } })
+        .__mcStatsDebug;
+      return { shown: debug.hoverShown(), cards: debug.hoverCards() };
+    });
+  expect((await stats()).cards, "the heat grid has no pictures").toEqual([]);
+
+  // The first hero, and the first scenario: Spider-Man's identity card, and Rhino, the pool's first villain.
+  const hoverOn = async (view: string, cardId: string): Promise<void> => {
+    await page.mouse.move(2, 2);
+    await press(page, false, (await tabStop(page, `view:${view}`)).rect);
+    await settle(page);
+    const card = await waitFor(
+      async () => (await stats()).cards.find((c) => c.cardId === cardId) ?? null,
+      `${cardId} on ${view}`,
+      10_000,
+    );
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+    await page.mouse.move(card.x + card.width / 2 + 2, card.y + card.height / 2 + 2);
+    const shown = await waitFor(async () => (await stats()).shown, `the popover on ${view}`, 10_000);
+    expect(shown, `the popover on ${view}`).toContain(cardId);
+  };
+  await hoverOn("stamps", "01001a");
+  await hoverOn("stamps", "01094");
+  await hoverOn("shelves", "01094");
+  await hoverOn("focus", "01001a");
+});
+
+test("Matchups: a swipe pans the grid, and a swipe lifted over a chip does not press it", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's finger");
+  test.setTimeout(120_000);
+  await openMatchups(page, true);
+
+  const body = (await stopsOf(page)).find((s) => s.key === "grid:cell")!.rect;
+  const counts = (await stopsOf(page)).find((s) => s.key === "grid:counts")!.rect;
+  await swipe(
+    page,
+    { x: page.viewportSize()!.width - 30, y: body.y + 220 },
+    { x: 150, y: counts.y + counts.height / 2 },
+  );
+  await waitFor(async () => ((await gridOf(page))!.pan.x > 0 ? true : null), "the swipe pans", 5_000);
+  await page.waitForTimeout(400);
+  const after = (await gridOf(page))!;
+  expect(after.pan.y, "it pans both ways").toBeGreaterThan(0);
+  expect(after.counts, "the lift over Counts pressed nothing").toBe(false);
+});
+
+test("Matchups: a swipe of the Focus tiles lifted over the stepper does not step", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's finger");
+  test.setTimeout(120_000);
+  await openMatchups(page, true);
+  await press(page, true, (await tabStop(page, "view:focus")).rect);
+  await waitFor(async () => ((await keys(page)).includes("tile:0") ? true : null), "the tiles", 10_000);
+  await settle(page);
+
+  const next = (await stopsOf(page)).find((s) => s.key === "focus:next")!.rect;
+  const x = next.x + next.width / 2;
+  await swipe(page, { x, y: page.viewportSize()!.height - 40 }, { x, y: next.y + next.height / 2 });
+  await page.waitForTimeout(400);
+  expect((await findText(page, "RHINO", "PlayerStats")).length, "still on Rhino").toBeGreaterThan(0);
+});
+
 test("from the Trophy Room: the record, then a tab with a tap and the next with RB", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";

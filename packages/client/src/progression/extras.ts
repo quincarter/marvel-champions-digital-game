@@ -11,6 +11,7 @@
  *   opens the next). Rereading one goes through the campaign's own opener, told to the box's own cast.
  * - **Side stories:** a short comic apart from the campaigns (`content/side-stories.ts`) opens with the Trophy Room
  *   achievement it belongs to: Thor and She-Hulk's Badlands date with "Worthy of a Second Date?".
+ * - **Team-up art:** a pair's picture from `art/teamups/` opens in Artwork with that pair's trophy.
  * - **Heroes:** a hero's file (their artwork, both faces' names, traits and flavor) opens once a game played as that
  *   hero has ended, in a campaign or on its own.
  * - **Villains:** a villain's file opens once a game against that scenario has ended. Its "villain loses" scene
@@ -37,6 +38,7 @@ import { CAMPAIGN_ART } from "../art/campaign-art.js";
 import { HERO_ART } from "../art/hero-art.js";
 import { EXTRAS_ART, extrasArtTitle } from "../art/extras-art.js";
 import { SIDE_STORY_ART } from "../art/side-stories-art.js";
+import { TEAM_UP_ART, type TeamUpArt } from "../art/team-up-art.js";
 import { TITLE_ART } from "../art/title-art.js";
 import type { Picture } from "../art/pictures.js";
 import { PROMO_SETS, promoFaceArt, winCardOf, type PromoEarn } from "../art/promo-art.js";
@@ -50,6 +52,7 @@ import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { cardDisplayName } from "../view/hero-names.js";
 import { isLessonSave } from "../engine/game-storage.js";
 import { ACHIEVEMENTS } from "./achievements.js";
+import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId, type TeamUpTrophy } from "./team-up-trophies.js";
 import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
 
 /** What the player has done, as far as Extras cares, read from storage by `extrasProgressOf`. */
@@ -910,7 +913,26 @@ export function artEntriesOf(): ExtrasEntry[] {
         : [];
     }),
     ...shadowlandArtEntriesOf(),
+    ...teamUpArtEntriesOf(),
   ];
+}
+
+/** Each trophy pair's full picture, opened by its trophy. A pair without one has no entry. */
+export function teamUpArtEntriesOf(
+  trophies: readonly TeamUpTrophy[] = TEAM_UP_TROPHIES,
+  art: ReadonlyMap<string, TeamUpArt> = TEAM_UP_ART.pairs,
+): ExtrasEntry[] {
+  return trophies.flatMap((trophy) => {
+    const picture = art.get(trophy.slug)?.splash;
+    return picture
+      ? [
+          pictureEntry(`art:${picture.key}`, teamUpPairLabel(trophy), "Team-up art", picture, {
+            kind: "achievement",
+            achievementId: teamUpTrophyId(trophy),
+          }),
+        ]
+      : [];
+  });
 }
 
 /** Shadowland's panels and comic pages, each opened by the scenario win (or the campaign win) it belongs to. */

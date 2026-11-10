@@ -25,6 +25,8 @@ import {
   nextSettingsAfterCardSize,
   nextSettingsAfterCardHover,
   nextSettingsAfterVillainRow,
+  fadeColorRowInfoOf,
+  nextSettingsAfterFadeColor,
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
   villainRowInfoOf,
@@ -69,6 +71,8 @@ const BASE: Settings = {
   hoverHeroCard: true,
   hoverVillainCard: true,
   ultronDroneArt: true,
+  fadedCampaignArt: true,
+  campaignFadeColor: "grey",
   promoArt: [],
   promoArtOn: true,
   heroArt: "game",
@@ -123,6 +127,8 @@ describe("settingsRowInfoOf", () => {
       hoverHeroCard: true,
       hoverVillainCard: true,
       ultronDroneArt: true,
+      fadedCampaignArt: true,
+      campaignFadeColor: "grey",
       promoArt: [],
       promoArtOn: true,
       heroArt: "game",
@@ -301,6 +307,22 @@ describe("nextSettingsAfterToggle", () => {
   test("sound toggles between on and off", () => {
     expect(nextSettingsAfterToggle(BASE, "sound", 1).sound).toBe(false);
     expect(nextSettingsAfterToggle({ ...BASE, sound: false }, "sound", 1).sound).toBe(true);
+  });
+
+  test("fade color is a five-way choice that starts on grey and ignores an unknown value", () => {
+    const info = fadeColorRowInfoOf(BASE);
+    expect(info.title).toBe("Fade color");
+    expect(info.options.map((o) => o.value)).toEqual(["grey", "blue", "red", "purple", "green"]);
+    expect(info.selected).toBe("grey");
+    expect(nextSettingsAfterFadeColor(BASE, "purple").campaignFadeColor).toBe("purple");
+    expect(nextSettingsAfterFadeColor(BASE, "pink" as never)).toBe(BASE);
+  });
+
+  test("faded campaign art toggles between on and off", () => {
+    expect(nextSettingsAfterToggle(BASE, "faded-campaign-art", 1).fadedCampaignArt).toBe(false);
+    expect(
+      nextSettingsAfterToggle({ ...BASE, fadedCampaignArt: false }, "faded-campaign-art", 1).fadedCampaignArt,
+    ).toBe(true);
   });
 
   test("confirm-end-turn toggles between on and off", () => {

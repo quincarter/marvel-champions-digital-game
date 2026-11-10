@@ -488,6 +488,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=slingshot`: Maria Hill's first turn with Slingshot and Energy in hand, so a tap on Slingshot asks "Play it" or
+  // her Action (issue #634, `store/dev-slingshot-game.ts`).
+  if (screen === "board" && params.get("fixture") === "slingshot") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startSlingshotDevGame } = await import("../store/dev-slingshot-game.js");
+      await startSlingshotDevGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=abilities`: Captain Marvel's turn with five or more usable abilities on the table, so the pad's RT layer
   // has a second page (`store/dev-many-abilities-game.ts`).
   if (screen === "board" && params.get("fixture") === "abilities") {
@@ -511,12 +522,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
-  // `&fixture=zemo[&bare=all|none]`: a Baron Zemo game at the first player turn with the Tactical Board Member bare, for the
-  // evidence view and the accusation (`store/dev-zemo-game.ts`).
+  // `&fixture=zemo[&bare=all|none][&minions=N]`: a Baron Zemo game at the first player turn with the Tactical Board Member
+  // bare, for the evidence view and the accusation, and N minions engaged for the Enemies tab (`store/dev-zemo-game.ts`).
   if (screen === "board" && params.get("fixture") === "zemo") {
     const { startDevZemoGame } = await import("../store/dev-zemo-game.js");
     const bare = params.get("bare");
-    await startDevZemoGame(bare === "all" || bare === "none" ? bare : "tactical");
+    await startDevZemoGame(
+      bare === "all" || bare === "none" ? bare : "tactical",
+      Number(params.get("minions") ?? 0) || 0,
+    );
     return { key: SCENES.board, data: {} };
   }
 
@@ -816,6 +830,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=saga`: the Saga shelf. `?screen=campaign-opener&campaign=shadowland&node=heart-of-shadow`: that issue's opener
   // read from Extras (no run needed), for checking a story's pictures. Dev builds only.
   if (screen === "saga" && import.meta.env.DEV) return { key: SCENES.campaignSaga, data: {} };
+  // `?screen=campaign-balanced[&expert=1]`: the Galaxy's Most Wanted Balanced prompt (issue #609). Dev builds only.
+  if (screen === "campaign-balanced" && import.meta.env.DEV) {
+    return {
+      key: SCENES.campaignBalanced,
+      data: { campaignId: "gmw", ...(params.get("expert") === "1" ? { expertCampaign: true } : {}) },
+    };
+  }
   if (screen === "campaign-opener" && import.meta.env.DEV) {
     return {
       key: SCENES.campaignOpener,
@@ -856,6 +877,24 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       await service.storage.put(record);
     }
     return { key: SCENES.campaignMarket, data: { runId: record.id } };
+  }
+
+  // `?screen=campaign-briefing&campaign=<id>`: a fresh run of any campaign, signed with two precons, at its first
+  // Briefing. Dev builds only.
+  if (screen === "campaign-briefing" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const record = await fixtures.seedFreshRun(campaignService(), params.get("campaign") ?? "trors");
+    return { key: SCENES.campaignBriefing, data: { runId: record.id } };
+  }
+
+  // `?screen=campaign-gmw-balanced-ronan`: a Balanced Galaxy's Most Wanted run at Ronan's Briefing, on its free Milano
+  // Mods pick (issue #609). `&won=1` plays the run to its win instead, for the Trophy Room. Dev builds only.
+  if (screen === "campaign-gmw-balanced-ronan" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const won = params.get("won") === "1";
+    const record = await fixtures.seedGmwRun(campaignService(), won ? "finished" : "afterIssue4", { balanced: true });
+    if (won) return { key: SCENES.trophyRoom, data: {} };
+    return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }
 
   return null;

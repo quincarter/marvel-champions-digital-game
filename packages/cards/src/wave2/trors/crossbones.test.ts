@@ -1,17 +1,26 @@
-import { cardsInPlay, selfDamageThreshold, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  cardsInPlay,
+  selfDamageThreshold,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import {
   firstLegal,
   identityOf,
   inst,
   instancesOf,
   P1,
+  P2,
   patchInstance,
   playerOf,
   settle,
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
-import { driveEvents } from "../../testing/staging.js";
+import { driveEvents, driveEventsPicking } from "../../testing/staging.js";
+import { attachToHost } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { CROSSBONES_SET } from "./crossbones.js";
@@ -205,5 +214,81 @@ describe("Crossbones' Armor (04065): Crossbones' damage is placed here, and 5 or
   it("reports its break point (5) for the board to show", () => {
     const { state, armor } = withArmor();
     expect(selfDamageThreshold(state, armor, WAVE2_DEPS)).toBe(5);
+  });
+});
+
+describe("Crossbones' indirect damage goes to the player who takes it, not the group", () => {
+  // RRG 1.8 "You, Your" (p. 49) and "Indirect Damage" (p. 24): "take indirect damage" is that player's own, divided
+  // among the characters they control. Found in a real two-player game where an attack on one player hurt the other.
+  const twoHeroes = () =>
+    startWave2Game(
+      wave2Scenario("crossbones", {
+        players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+        seed: 5,
+      }),
+    );
+
+  it("Full Auto revealed by the first player: only their own characters are damaged", () => {
+    // One boost card (no icons) per activation, Full Auto dealt to the first player, a harmless card to the second,
+    // then three one-icon cards for Full Auto to discard.
+    const stacked = stackEncounterDeck(twoHeroes(), "01186", "04068", "04067", "04146", "01182", "04069", "04150");
+    const fullAuto = instancesOf(stacked, "04067").find((id) => activeEncounterDeck(stacked).deck[2] === id)!;
+    const offered: string[] = [];
+    const { events } = driveEventsPicking(
+      WAVE2_DEPS,
+      stacked,
+      (s) => {
+        if (s.pendingChoice?.prompt.kind === "assignIndirectDamage")
+          for (const o of s.pendingChoice.options) if (o.ref.kind === "card") offered.push(o.ref.instanceId);
+        return firstLegal(s);
+      },
+      toHero(P1),
+      { type: "endTurn", playerId: P1 },
+      toHero(P2),
+      { type: "endTurn", playerId: P2 },
+    );
+    const hits = events.filter((e) => e.type === "damageDealt" && e.sourceInstanceId === fullAuto);
+    const p1Characters = (id: string) =>
+      id === identityOf(stacked, P1) || stacked.instances[id as InstanceId]?.controllerId === P1;
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((e) => e.type === "damageDealt" && p1Characters(e.targetInstanceId))).toBe(true);
+    expect(offered.filter((id) => !p1Characters(id))).toEqual([]);
+  });
+
+  it("Machine Gun: each attacked player takes its indirect damage among their own characters", () => {
+    const { state: armed, id: gun } = attachToHost(twoHeroes(), "04064", twoHeroes().activeVillainId!);
+    // One-icon cards on top: whatever each attack's boost and the gun's own discard draw, each discard deals 1.
+    const stacked = stackEncounterDeck(
+      patchInstance(armed, gun, { counters: { ammo: 4 } }),
+      "01182",
+      "04069",
+      "04150",
+      "01188",
+      "01189",
+    );
+    const owner = (id: string): PlayerId | undefined =>
+      [P1, P2].find((p) => id === identityOf(stacked, p) || stacked.instances[id as InstanceId]?.controllerId === p);
+    const strayOptions: string[] = [];
+    const { events } = driveEventsPicking(
+      WAVE2_DEPS,
+      stacked,
+      (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "assignIndirectDamage")
+          for (const o of choice.options)
+            if (o.ref.kind === "card" && owner(o.ref.instanceId) !== choice.playerId)
+              strayOptions.push(o.ref.instanceId);
+        return firstLegal(s);
+      },
+      toHero(P1),
+      { type: "endTurn", playerId: P1 },
+      toHero(P2),
+      { type: "endTurn", playerId: P2 },
+    );
+    const hit = events.flatMap((e) =>
+      e.type === "damageDealt" && e.sourceInstanceId === gun ? [owner(e.targetInstanceId)] : [],
+    );
+    expect(strayOptions).toEqual([]);
+    expect([...new Set(hit)].sort()).toEqual([P1, P2]);
   });
 });

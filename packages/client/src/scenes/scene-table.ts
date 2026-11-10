@@ -25,6 +25,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.deckCheck]: () => import("./deck-check.js").then((m) => m.DeckCheckScene),
   [SCENES.campaignSaga]: () => import("./campaign/saga.js").then((m) => m.CampaignSagaScene),
   [SCENES.campaignCover]: () => import("./campaign/cover.js").then((m) => m.CampaignCoverScene),
+  [SCENES.campaignBalanced]: () => import("./campaign/balanced.js").then((m) => m.CampaignBalancedScene),
   [SCENES.campaignRoster]: () => import("./campaign/roster.js").then((m) => m.CampaignRosterScene),
   [SCENES.campaignOpener]: () => import("./campaign/opener.js").then((m) => m.CampaignOpenerScene),
   [SCENES.campaignBriefing]: () => import("./campaign/briefing.js").then((m) => m.CampaignBriefingScene),

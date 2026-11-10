@@ -934,6 +934,33 @@ describe("villainDefendFocusOrder", () => {
   });
 });
 
+describe("the deck builder's filters behind the Filters chip", () => {
+  const input = {
+    identityChosen: true,
+    identityIds: [],
+    aspectIds: [],
+    typeFilterIds: ["all"],
+    poolCardIds: ["01001"],
+    showName: false,
+    showPreconClear: false,
+    filterExtraIds: ["filters-toggle"],
+    filtersFolded: true,
+  };
+
+  test("folded, the route skips them", () => {
+    expect(deckBuilderFocusOrder(input)).toEqual(["back", "save", "filter-text", "filters-toggle", "card:01001"]);
+  });
+
+  test("open, they follow the chip", () => {
+    const order = deckBuilderFocusOrder({ ...input, filtersOpen: true });
+    expect(order.slice(order.indexOf("filters-toggle"), order.indexOf("filters-toggle") + 3)).toEqual([
+      "filters-toggle",
+      "type:all",
+      "pack:prev",
+    ]);
+  });
+});
+
 describe("the deck builder's rail tabs", () => {
   test("Your deck, From your games and their Cut / Add rows come after the rewards, before Save", () => {
     const order = deckBuilderFocusOrder({

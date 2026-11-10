@@ -280,6 +280,11 @@ function describe(
      * same command.
      */
     case "cardMoved":
+      // A boost card whose Boost ability attaches it (Red Skull's Luger: "[star] Boost: Attach to Red Skull") moved
+      // with no line, so the keyword it gave the attack in progress came from nowhere on the log (issue #623).
+      if (event.from.kind === "boost" && event.to.kind === "attachment") {
+        return { text: `${card(event.instanceId)} attaches to ${card(event.to.hostInstanceId)}.`, voice: "villain" };
+      }
       if (event.to.kind === "dealtEncounter") {
         // A card parked there from anywhere but an encounter deck (`revealCard`: MojoMania 1B's SHOW environment from
         // a set-aside set, a search, a discard pile) is not dealt to anyone: the reveal's own line follows.
@@ -504,17 +509,16 @@ function describe(
         voice: "player",
       };
     case "damageDealt": {
-      // An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) is dealt to it by itself, right after
-      // its own attack or thwart. The event carries no flag for it, so it is read from what the ally just did in this
-      // command; self-damage with no such attack or thwart before it stays "from" itself.
-      const selfDealt = event.sourceInstanceId !== null && event.sourceInstanceId === event.targetInstanceId;
-      const doing = selfDealt ? whatItJustDid(burst, event.targetInstanceId) : null;
-      if (doing) {
+      // An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) is dealt to it by itself, after what
+      // its attack or thwart triggered, so a response's choices can put it in a later command than that attack or thwart.
+      if (event.consequentialFrom) {
+        const doing = event.consequentialFrom === "attack" ? "attacking" : "thwarting";
         return {
           text: `${card(event.targetInstanceId)} took ${event.amount} consequential damage for ${doing}.`,
           voice: "player",
         };
       }
+      const selfDealt = event.sourceInstanceId !== null && event.sourceInstanceId === event.targetInstanceId;
       // Named, so a player can see the keyword worked (#444: "Rhino took 1 damage from Black Panther" read as nothing).
       if (event.retaliate && event.sourceInstanceId) {
         return {
@@ -744,7 +748,11 @@ function describe(
       };
     case "boostCardFlipped":
       return {
-        text: `Boost: ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
+        // The boost card is named: its own Boost ability can change the attack (Red Skull's Luger attaches and gives
+        // the attack ranged, so retaliate is ignored; issue #623), and an unnamed card left that unexplained.
+        // By its printed name: the card was faceup when flipped, even if it is back in a hidden deck by the end of the
+        // command (a reshuffle later in the same burst), where `card()` would only say "a facedown card".
+        text: `Boost: ${cardOf(state, event.instanceId)?.name ?? card(event.instanceId)}, ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
         voice: "villain",
       };
     // docs/phase7-wave11-scenarios.md §S3.7: a villainous ally or hero turns up its boost card as its basic power
@@ -1369,6 +1377,13 @@ function describe(
         text: `${card(event.instanceId)} moves to stage ${event.toStageNumber}, at full hit points.`,
         voice: "villain",
       };
+    // RRG 1.8 "Ranged" (p. 36): the attack ignores the attacked character's retaliate (issue #623).
+    case "retaliateIgnoredByRanged":
+      return {
+        text: `${card(event.attackerInstanceId)}'s attack is ranged, so it ignores ${card(event.targetInstanceId)}'s retaliate ${event.amount}.`,
+        // A player's ranged attack (Hawkeye) against an enemy with retaliate reads as the player's, not the villain's.
+        voice: getInstance(state, event.attackerInstanceId)?.controllerId ? "player" : "villain",
+      };
     // docs/phase7-wave8.md §3.21: an ability that had triggered but a rule says to ignore.
     case "abilityIgnored": {
       const label = abilityShortLabelOf(state, event.instanceId, event.abilityId, deps);
@@ -1587,6 +1602,20 @@ function describe(
         text: `${card(event.instanceId)} is discarded from the encounter deck.`,
         voice: "villain",
       };
+    // #627: the discard is on the board, but a count of nothing is not: "for each boost icon" just stops.
+    case "boostIconsCounted": {
+      const icons =
+        event.count === 0 ? "no boost icons" : event.count === 1 ? "1 boost icon" : `${event.count} boost icons`;
+      const name = discardedThenName(event.cardInstanceId, burst, state) ?? card(event.cardInstanceId);
+      return {
+        text: event.countedInstanceId
+          ? `${discardedThenName(event.countedInstanceId, burst, state) ?? card(event.countedInstanceId)} is counted instead of ${name}: ${icons}.`
+          : event.adjusted
+            ? `${name} counts as ${icons}.`
+            : `${name} has ${icons}.`,
+        voice: event.byEncounter ? "villain" : "player",
+      };
+    }
     case "encounterDiscardCostSettled": {
       const n = event.discarded.length;
       const by = event.playerId ? `${who(event.playerId)} ${verb(event.playerId, "discard", "discards")}` : "Discard";
@@ -1692,23 +1721,6 @@ function typeWord(state: GameState, id: InstanceId): string {
   return (card?.type ?? "card").replace(/_/g, " ");
 }
 
-/**
- * What `id` just did in this command, before the event being described: "attacking" if it dealt damage to another
- * card, "thwarting" if it removed threat. Null when it did neither.
- */
-function whatItJustDid(burst: Burst | undefined, id: InstanceId): "attacking" | "thwarting" | null {
-  if (!burst) return null;
-  for (let i = burst.at - 1; i >= 0; i--) {
-    const earlier = burst.events[i]!;
-    if (earlier.type === "damageDealt" && earlier.sourceInstanceId === id && earlier.targetInstanceId !== id) {
-      return "attacking";
-    }
-    if (earlier.type === "threatRemoved" && earlier.sourceInstanceId === id) return "thwarting";
-    if (earlier.type === "roundStarted") return null;
-  }
-  return null;
-}
-
 /** Bookkeeping events that sit between an effect and the one it caused without changing what happened. */
 const isFrameEvent = (event: GameEvent): boolean =>
   event.type === "framePushed" || event.type === "framePopped" || event.type === "triggerEvent";
@@ -1759,6 +1771,18 @@ const swapRefusedReason = (
       return "a card to swap was missing";
   }
 };
+
+/**
+ * The name of a card discarded faceup earlier in this command, or null. The deck's reset can have shuffled it back
+ * facedown by now, and it was open to everyone all the same. A card only looked at on top of the deck (Astral
+ * Projection) has no such move and stays unnamed.
+ */
+function discardedThenName(id: InstanceId, burst: Burst | undefined, state: GameState): string | null {
+  const moved = burst?.events
+    .slice(0, burst.at)
+    .find((e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "encounterDiscard");
+  return moved?.type === "cardMoved" ? cardIdName(state, moved.cardId) : null;
+}
 
 /** A card's printed name from its id; only for cards an event has already made open to every player. */
 const cardIdName = (state: GameState, cardId: Parameters<typeof getCard>[1]): string =>

@@ -1766,15 +1766,27 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const bind = effect.bind;
       const events: TriggerEvent[] = [];
       let uncontested = 0;
+      const self = context.selfInstanceId;
+      const byEncounter = self !== null && !isAPlayersCard(ctx.state, self) ? { byEncounter: true as const } : {};
       for (const id of resolveRef(ctx.state, effect.cards, context)) {
         const event: TriggerEvent = {
           kind: "boostIconsCounting",
           enemyInstanceId: null,
           cardInstanceId: id,
           playerId: context.controllerId,
+          ...byEncounter,
         };
         if (!isAPlayersCard(ctx.state, id) && heard(ctx.state, ctx.deps, event)) events.push(event);
-        else uncontested += boostIconsFor(ctx.state, ctx.deps, id);
+        else {
+          const count = boostIconsFor(ctx.state, ctx.deps, id);
+          uncontested += count;
+          emit(ctx, {
+            type: "boostIconsCounted",
+            cardInstanceId: id,
+            count,
+            ...byEncounter,
+          });
+        }
       }
       // Set, not added: this count replaces a total the discard bound under the same name. Each announced card then
       // adds its own count as its event resolves (`reportResults`).

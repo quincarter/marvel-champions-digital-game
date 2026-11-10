@@ -1,7 +1,11 @@
 import { cardId } from "@mc/content";
 import {
+  activeEncounterDeckId,
   activeVillain,
+  cardsInPlay,
   characterProfile,
+  createGame,
+  discardZoneFor,
   encounterDeckOf,
   villainOf,
   type GameState,
@@ -9,6 +13,8 @@ import {
 } from "@mc/engine";
 import { P1, endTurn, identityOf, inst, patchInstance, settle } from "../../testing/harness.js";
 import { conjure, playOut, rhino } from "../../testing/qa-bench.js";
+import { withActive } from "../../testing/staging.js";
+import { PLAYABLE_DEPS, playableScenario } from "../../playable/index.js";
 import { wave1Scenario } from "../setup.js";
 import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -26,6 +32,82 @@ const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): Ga
 const spiderManVsBreakout = () =>
   startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 
+/**
+ * Each villain's set minus the villain and his signature side scheme, a card with two copies listed twice (The
+ * Wrecking Crew insert p. 4: "its own encounter deck of 15 cards"). Written out rather than derived from the card data,
+ * so a card lost or swapped by the deck's construction fails here.
+ */
+const ENCOUNTER_DECKS = {
+  Wrecker: [
+    "07005",
+    "07006",
+    "07007",
+    "07008",
+    "07009",
+    "07010",
+    "07011",
+    "07012",
+    "07012",
+    "07013",
+    "07014",
+    "07015",
+    "07015",
+    "07016",
+    "07016",
+  ],
+  Thunderball: [
+    "07020",
+    "07021",
+    "07022",
+    "07023",
+    "07024",
+    "07025",
+    "07026",
+    "07027",
+    "07027",
+    "07028",
+    "07029",
+    "07030",
+    "07030",
+    "07031",
+    "07031",
+  ],
+  Piledriver: [
+    "07035",
+    "07035",
+    "07036",
+    "07037",
+    "07038",
+    "07039",
+    "07040",
+    "07041",
+    "07042",
+    "07042",
+    "07043",
+    "07043",
+    "07044",
+    "07044",
+    "07045",
+  ],
+  Bulldozer: [
+    "07049",
+    "07050",
+    "07051",
+    "07051",
+    "07052",
+    "07053",
+    "07054",
+    "07055",
+    "07055",
+    "07056",
+    "07057",
+    "07058",
+    "07058",
+    "07059",
+    "07059",
+  ],
+};
+
 const nameOf = (state: GameState, id: InstanceId): string => state.cardPool[inst(state, id).cardId]?.name ?? id;
 const villainNamed = (state: GameState, name: string): InstanceId => {
   const found = state.villains.find((v) => nameOf(state, v.instanceId) === name);
@@ -34,6 +116,54 @@ const villainNamed = (state: GameState, name: string): InstanceId => {
 };
 
 describe("wave1Scenario('breakout')", () => {
+  it("1A's setup puts the four signature side schemes into play and leaves a 'Pool deck's Dreadpool set aside", () => {
+    const config = playableScenario("breakout", { players: [{ starterDeckId: "deadpool-pool" }], seed: 41 });
+    const created = createGame(config, PLAYABLE_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    const { state } = created;
+    expect(cardsInPlay(state).map((id) => nameOf(state, id))).toEqual(
+      expect.arrayContaining(["Day of Reckoning", "Thunderstruck", "Pile It On!", "Clear the Road"]),
+    );
+    for (const name of ["Dreadpool", "Dreadful Deeds", "Anti-Regeneration Ray", "'Pool-ized", "Metacidal Tendencies"]) {
+      expect(cardsInPlay(state).map((id) => nameOf(state, id))).not.toContain(name);
+      expect(state.encounterSetAside.map((id) => nameOf(state, id))).toContain(name);
+    }
+    expect(state.encounterSetAside.map((id) => nameOf(state, id))).not.toContain("Crisis of Infinite Deadpools");
+  });
+
+  it("each villain's encounter deck holds its exact 15 cards and not its signature side scheme, which starts in play", () => {
+    const state = spiderManVsBreakout();
+    const decks = Object.fromEntries(
+      state.villains.map((villain) => {
+        const deck = encounterDeckOf(state, villain.encounterDeckId);
+        const ids = [...deck.deck, ...deck.discard].map((id) => inst(state, id).cardId as string);
+        return [nameOf(state, villain.instanceId), ids.sort()];
+      }),
+    );
+    expect(decks).toEqual(ENCOUNTER_DECKS);
+    const schemes = ["Day of Reckoning", "Thunderstruck", "Pile It On!", "Clear the Road"];
+    const everywhere = Object.values(state.instances).map((i) => state.cardPool[i.cardId]?.name);
+    for (const name of schemes) expect(everywhere.filter((n) => n === name)).toHaveLength(1);
+  });
+
+  it("a Dreadpool card discards to the active villain's pile, having no villain's deck of its own", () => {
+    const created = createGame(
+      playableScenario("breakout", { players: [{ starterDeckId: "deadpool-pool" }], seed: 41 }),
+      PLAYABLE_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const { state } = created;
+    const metacidal = state.encounterSetAside.find((id) => nameOf(state, id) === "Metacidal Tendencies")!;
+    const pileOf = (villain: string) => {
+      const active = withActive(state, villainNamed(state, villain));
+      return { kind: "encounterDiscard", deckId: activeEncounterDeckId(active) };
+    };
+    expect(discardZoneFor(state, metacidal)).toEqual(pileOf("Wrecker"));
+    expect(discardZoneFor(withActive(state, villainNamed(state, "Thunderball")), metacidal)).toEqual(
+      pileOf("Thunderball"),
+    );
+  });
+
   it("1A's setup puts all four villains and their signature side schemes into play, Wrecker active", () => {
     const state = spiderManVsBreakout();
     expect(state.villains.map((v) => nameOf(state, v.instanceId))).toEqual([

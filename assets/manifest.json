@@ -40,11 +40,11 @@
       "group": "card-art",
       "dir": "assets/card-art/bundles/cards",
       "prefixes": ["16", "17", "18", "19", "20"],
-      "tag": "card-art-gmw-b65fb612272b",
+      "tag": "card-art-gmw-adab21322b31",
       "file": "card-art-gmw.zip",
-      "size": 18529698,
-      "sha256": "b65fb612272bff4b26fa9a35406e8f5f567d653ee0b9368495bf039f79e2d38c",
-      "files": 302
+      "size": 32390364,
+      "sha256": "adab21322b31ffcb61f99aadd86b411081654064d3901c08ac5b926d14198274",
+      "files": 313
     },
     {
       "name": "card-art-mts",
@@ -159,11 +159,11 @@
       "name": "card-art-es",
       "group": "card-art-es",
       "dir": "assets/card-art-locales/es/bundles/cards",
-      "tag": "card-art-es-8d99786e67d0",
+      "tag": "card-art-es-b660bb3f2b66",
       "file": "card-art-es.zip",
-      "size": 452395314,
-      "sha256": "8d99786e67d032613c919cccc7262c10f1201e1bec1185130194c0417a210283",
-      "files": 5123
+      "size": 465148608,
+      "sha256": "b660bb3f2b6612ddf9e6e094ef21e14d5139ecbc826e4928af6fbc488f5892ea",
+      "files": 5134
     },
     {
       "name": "music-soundtrack",

@@ -2,6 +2,7 @@ import {
   action,
   after,
   allowUnlabeledAttack,
+  anyOf,
   alterEgoAction,
   attackAnEnemy,
   cancelRevealedCard,
@@ -23,10 +24,12 @@ import {
   heroAction,
   heroInterrupt,
   heroResponse,
+  isStunned,
   moveCards,
   partOf,
   query,
   ready,
+  refMatches,
   resource,
   response,
   scaled,
@@ -145,7 +148,14 @@ export const BKW_KIT = defineAbilities({
   // that minion and stun it.
   "08010.widows-bite-response": heroResponse(
     after.entersPlay(query("minion")),
-    { label: "attack", cost: discardThis },
+    // Only while "that minion" is still in play: gone (a first copy defeated it), it is no valid target, so the
+    // ability can't be initiated nor its discard cost paid (RRG 1.8 "Target", p. 42; "Cost", p. 14). A stunned Black
+    // Widow may still use it, an (attack) ability, to remove the stun ("Stun, Stunned", p. 41).
+    {
+      label: "attack",
+      cost: discardThis,
+      while: anyOf(refMatches(eventTarget, query("minion")), isStunned(yourIdentity)),
+    },
     dealDamage(2, eventTarget),
     stun(eventTarget),
   ),

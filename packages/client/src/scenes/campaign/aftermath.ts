@@ -69,6 +69,7 @@ import {
   stamp,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import {
   CinematicDriver,
   drawComicReaderStep,
@@ -175,6 +176,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #columnsRegion: McScrollRegion | null = null;
   /** The option rows' cards drawn into the region this pass, in content space: what the hover popover reads. */
   #regionCards: { readonly cardId: string; readonly rect: Rect; readonly region: McScrollRegion }[] = [];
+
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
 
   constructor() {
     super(SCENES.campaignAftermath);
@@ -577,6 +583,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     for (const node of kept) this.children.add(node);
     const { width, height, phone } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
+    drawCampaignPageArt(this, (this.#record?.campaignId as string | undefined) ?? "", this.#redrawArt);
     if (this.#phase === "loading") {
       label(this, width / 2, height / 2, "LOGGING THE ISSUE…", typeRole.label, surface.paper.hex, ink.meta).setOrigin(
         0.5,

@@ -17,6 +17,7 @@ import type { CorePlayer } from "@mc/cards";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import { villainNameOf } from "./deck-insights.js";
+import { matchupsOf, winTierOf, type MatchupAxes, type Matchups, type WinTier } from "./matchup-grid.js";
 
 export interface StatsNames {
   readonly cardName: (cardId: string) => string | undefined;
@@ -34,6 +35,8 @@ export interface StatsNames {
   readonly setName?: (setId: string) => string | undefined;
   /** Whether a villain name (one part of a " & " join) is one this build's pool has; the global lists keep only those. */
   readonly isVillain?: (name: string) => boolean;
+  /** The whole pool, for the Matchups grids' axes. Absent: only what the games hold. */
+  readonly matchupAxes?: () => MatchupAxes;
 }
 
 export type StatRow =
@@ -175,6 +178,8 @@ export interface PlayerStats {
   readonly allCards: HeroCardsView | null;
   /** The Aspects tab's donut: each aspect's share of your games, most played first. */
   readonly aspects: readonly AspectShare[];
+  /** The Matchups tab's grids, or null before any game. */
+  readonly matchups: Matchups | null;
   /** The filter these stats were folded with, and what else it could be (from every game, not just the filtered). */
   readonly filter: StatsFilter;
   readonly filterOptions: StatsFilterOptions;
@@ -208,6 +213,8 @@ interface GameFacts {
   readonly villain: string;
   readonly expert: boolean;
   readonly difficulty: "standard" | "expert" | "extreme";
+  /** The difficulty and modes as one rung, for the Matchups grids. */
+  readonly tier: WinTier;
   /** The modular encounter sets the game was built with. */
   readonly modulars: readonly string[];
   /** The save's summary, for the numbers only it holds (records, the final blow); null on an older save. */
@@ -284,6 +291,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     villain: villainNameOf(meta, names),
     expert: meta.config.difficulty !== "standard",
     difficulty: meta.config.difficulty,
+    tier: winTierOf(meta.config),
     modulars: meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? [],
     summary,
     lossReason: lossReason === "conceded" ? "other" : lossReason,
@@ -1714,6 +1722,7 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, fil
       heroCards: [],
       allCards: null,
       aspects: [],
+      matchups: null,
       filter,
       filterOptions,
     };
@@ -1750,6 +1759,21 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, fil
       return all ? markSignature(all, names) : null;
     })(),
     aspects,
+    matchups: matchupsOf(
+      games.map((g) => ({
+        scenarioId: g.scenarioId,
+        heroIds: g.seats.map((s) => s.identityCardId),
+        modularIds: g.modulars,
+        won: g.result === "won",
+        tier: g.tier,
+      })),
+      names.matchupAxes?.() ?? { scenarios: [], heroes: [], modulars: [] },
+      {
+        scenario: (id) => names.scenarioName(id) ?? id,
+        hero: (id) => names.cardName(id) ?? id,
+        modular: (id) => names.setName?.(id) ?? id,
+      },
+    ),
     filter,
     filterOptions,
   };

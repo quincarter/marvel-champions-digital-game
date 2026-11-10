@@ -44,6 +44,7 @@ import path from "node:path";
 import { runnerImport, type Plugin, type Connect } from "vite";
 import { CARD_ART_ROUTE } from "./src/art/art-source.js";
 import { BASE_CARD_LANGUAGE, CARD_LANGUAGES, isCardLanguage, type CardLanguage } from "./src/art/card-language.js";
+import { normalScansFor } from "./src/art/balanced-fallback.js";
 
 export { CARD_ART_ROUTE };
 
@@ -98,7 +99,11 @@ function artRoots(lang: CardLanguage): readonly string[] {
   return [root, ART_ROOT];
 }
 
-/** `relative`'s scan from the first of `roots` that has it, and which root that was; null when none does. */
+/**
+ * `relative`'s scan from the first of `roots` that has it, and which root that was; null when none does. A Balanced
+ * scan (`16070-balanced.png`, issue #609) that no root has is answered by the normal scan it stands in for, so a build
+ * or an install without the edited scans still draws the card rather than a generated frame.
+ */
 async function readArt(
   roots: readonly string[],
   relative: string,
@@ -107,6 +112,10 @@ async function readArt(
     const file = safeArtPath(dir, relative);
     const bytes = file === null ? null : await readFile(file).catch(() => null);
     if (bytes !== null) return { bytes, root };
+  }
+  for (const normal of normalScansFor(relative)) {
+    const art = await readArt(roots, normal);
+    if (art !== null) return art;
   }
   return null;
 }

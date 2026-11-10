@@ -38,6 +38,7 @@ import type { CoreAspect } from "../schema/aspects.js";
 import type { DeckCardEntry } from "../schema/decks.js";
 import type { CardId } from "../schema/ids.js";
 import { CATALOG_REPRINTS } from "../data/catalog.js";
+import { holdsAspectCard } from "./aspect-cards.js";
 import {
   cardMatchesToken,
   describeCandidates,
@@ -245,9 +246,6 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
       problem("missing_identity", 'No "Hero:" or "Identity:" line was found, so no identity can be determined.'),
     );
   }
-  if (aspects.length === 0) {
-    problems.push(problem("missing_aspect", 'No "Aspect:" line was found.'));
-  }
   if (cardLines.length === 0) {
     problems.push(
       problem("invalid_input", 'No card lines were recognized in this text (expected lines like "2x Web-Shooter").'),
@@ -361,6 +359,10 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
     for (const [cardId, qty] of split) addCard(cardId, qty);
   }
   const cards: DeckCardEntry[] = [...totals].map(([cardId, quantity]) => ({ cardId: cardId as CardId, quantity }));
+  // A hero-and-basic deck has no aspect to name and imports with none (#639); one holding aspect cards needs it.
+  if (aspects.length === 0 && holdsAspectCard(cards, pool)) {
+    problems.push(problem("missing_aspect", 'No "Aspect:" line was found.'));
+  }
 
   if (problems.length > 0 || !identityCard) {
     return { ok: false, problems };

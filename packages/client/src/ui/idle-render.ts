@@ -256,7 +256,7 @@ export function padSignature(pads: readonly (PadState | null | undefined)[]): nu
   return sum;
 }
 
-/** Draws the next few frames whatever their signature: something changed that a signature can't see. */
+/** Draws the next few frames whatever their signature: something changed that a signature can't see, or a list is scrolling. */
 export function markRenderDirty(): void {
   dirtyFrames = DIRTY_FRAMES;
 }
@@ -347,7 +347,9 @@ export function installIdleRender(target: Phaser.Game, phaser: typeof Phaser, se
         lastPads = pads;
         markRenderDirty();
       }
-      const now = signature(scenesOf(game));
+      // A frame that is drawn anyway needs no signature, and taking one is a real cost on a list scrolling on a tablet
+      // (#631): the first frame after these takes it again.
+      const now = dirtyFrames > 0 ? null : signature(scenesOf(game));
       const snapshotWanted = Boolean(renderer.snapshotState?.callback);
       const unchanged = now !== null && now === last && dirtyFrames === 0 && !snapshotWanted;
       if (unchanged && time - lastDrawn < MAX_IDLE_MS) {

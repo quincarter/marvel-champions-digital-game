@@ -3,7 +3,9 @@ import {
   after,
   addCounters,
   alterEgoAction,
+  allOf,
   andThen,
+  cannotBeDefeated,
   cannotChangeFormUntil,
   changeForm,
   chooseOne,
@@ -13,6 +15,7 @@ import {
   exhaustThis,
   heroResponse,
   named,
+  not,
   on,
   option,
   putIntoPlayFromSetAside,
@@ -53,6 +56,12 @@ const ALIAS = named("Alias Investigations");
  * to defeat the villain's current stage." Any side scheme, encounter or player, defeated by anyone. The removal is
  * offered only with at least as many counters as the villain has hit points left, and defeats the stage as an effect
  * (RRG 1.8 "Villain Defeat", p. 47); the "Then" ties it to the counters having been placed (RRG 1.8 "'Then'", p. 44).
+ * Nor is it offered while the chosen villain cannot be defeated (Tower Defense's Proxima Midnight and Corvus Glaive,
+ * each locked while the other has hit points left; RRG 1.8 "'Cannot'", p. 11, settles only that the defeat is blocked).
+ * Not offering the removal then is an owner decision (docs/phase7-wave11-hero-packs.md Q105 = A, 2026-11-10; issue
+ * #663), by analogy with the Redwing ruling (Jan 26, 2026) and What Doesn't Kill You (Sinister Motives FAQ): no
+ * counters are spent on a defeat that cannot happen.
+ * With several villains, "the villain" is the one the player picks (MC21 p. 11).
  */
 export const JJ_JESSICA_JONES_IDENTITY: AbilityRegistry = defineAbilities({
   "61001a.star-gather-evidence": heroResponse(after.basicPowerUsed("self"), addCounters("evidence", 1, ALIAS)),
@@ -68,7 +77,12 @@ export const JJ_JESSICA_JONES_IDENTITY: AbilityRegistry = defineAbilities({
       chooseOne(
         option(
           "Remove evidence counters equal to the villain's remaining hit points to defeat its current stage",
-          { when: valueAtLeast(countersOn(self, "evidence"), remainingHpOf(theVillain)) },
+          {
+            when: allOf(
+              valueAtLeast(countersOn(self, "evidence"), remainingHpOf(theVillain)),
+              not(cannotBeDefeated(theVillain)),
+            ),
+          },
           removeCountersFrom(self, "evidence", remainingHpOf(theVillain)),
           defeat(theVillain),
         ),

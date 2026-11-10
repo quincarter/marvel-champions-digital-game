@@ -52,6 +52,7 @@ import {
   type TargetQuery,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import { balancedTextOf } from "../art/balanced-art.js";
 import { abilityActionsFor } from "./highlights.js";
 import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
@@ -413,8 +414,9 @@ export function inspectModel(
       liveResourceNote(state, instanceId, card, deps) ??
       resourceAbilityNote(state, instanceId, deps, payment) ??
       notForNote(state, instanceId, deps),
-    rulesText: cardTextDisplay(textOf(card, face).current),
-    printedText: errataDiff(card, face),
+    // A Balanced scan on screen (issue #609): its own written text, and no errata diff against the printed card.
+    rulesText: cardTextDisplay(balancedTextOf(artFor(card, face)) ?? textOf(card, face).current),
+    printedText: balancedTextOf(artFor(card, face)) === null ? errataDiff(card, face) : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     // The shared builder the board uses, so a buff reads the same in both places.
@@ -865,8 +867,11 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
     currentCost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
-    rulesText: cardTextDisplay(text.current),
-    printedText: text.printed && text.printed !== text.current ? text.printed : null,
+    rulesText: cardTextDisplay(balancedTextOf(artFor(card, face)) ?? text.current),
+    printedText:
+      balancedTextOf(artFor(card, face)) === null && text.printed && text.printed !== text.current
+        ? text.printed
+        : null,
     flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     stats: [],
@@ -924,6 +929,19 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
  * 142A/142B, 172A/172B, ...) prints one A/B pair per stage, so the footer names only the inspected stage's own pair
  * instead of the whole run, which overprinted the footer's other half. Everything else prints the card's number.
  */
+/**
+ * The stats as one line of words ("ATK 2  ·  SCH 1  ·  HP 2/6"), a modified stat saying so ("THW 2 (+1)"): the sheet
+ * is text, and color alone never carries meaning. Empty for a card with no stats.
+ */
+export function statLineOf(stats: readonly StatTile[]): string {
+  return stats
+    .map(
+      (tile) =>
+        `${tile.label} ${tile.value}${tile.bonus ? ` (${tile.bonus > 0 ? "+" : "−"}${Math.abs(tile.bonus)})` : ""}`,
+    )
+    .join("  ·  ");
+}
+
 export function footerLeftOf(card: AnyCard, face: CardFace): string {
   const set = card.setCode as string;
   if (card.type === "main_scheme" && face.kind === "mainSchemeStage") {

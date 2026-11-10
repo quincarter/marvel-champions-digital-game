@@ -22,8 +22,10 @@ export interface RosterSeatView {
   readonly seatNumber: number;
   readonly deck: Deck | null;
   readonly identityName: string | null;
-  /** "Leadership · starter deck" (one aspect, the printed starter) or "Aggression + Justice" (two+, a combined precon). */
+  /** "Leadership · starter deck" (a printed starter), "Leadership" (a saved deck) or "Aggression + Justice" (two+). */
   readonly aspectsLabel: string | null;
+  /** The name the player saved the deck under (#658), so two decks of one hero and aspect tell apart. Null for a precon. */
+  readonly deckName: string | null;
   readonly legal: boolean;
 }
 
@@ -37,11 +39,22 @@ export interface RosterModel {
 const capitalize = (aspect: CoreAspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
 
 function aspectsLabelOf(deck: Deck): string {
-  if (deck.aspects.length <= 1) {
+  // Only a printed precon is a "starter deck"; a one-aspect deck the player built or imported is just its aspect.
+  if (deck.aspects.length <= 1 && deck.source.kind === "precon") {
     const aspect = deck.aspects[0];
     return aspect ? `${capitalize(aspect)} · starter deck` : "Starter deck";
   }
-  return deck.aspects.map(capitalize).join(" + ");
+  return deck.aspects.length === 0 ? "No aspect" : deck.aspects.map(capitalize).join(" + ");
+}
+
+/**
+ * The name a player saved or imported the deck under, or null for a precon (its name is the hero's own, which the
+ * row already shows) and for a blank name. Two Leadership decks of one hero differ only by this (#658).
+ */
+export function savedDeckNameOf(deck: Deck): string | null {
+  if (deck.source.kind === "precon") return null;
+  const name = deck.name.trim();
+  return name === "" ? null : name;
 }
 
 function identityNameOf(deck: Deck, pool: CardPool): string | null {
@@ -70,6 +83,8 @@ export interface RosterDeckOption {
   readonly stamps: readonly AspectStamp[];
   /** "Precon" / "Imported" / "Built", worded as Take your seats words it. */
   readonly sourceLabel: string;
+  /** The saved deck's own name (`savedDeckNameOf`), drawn under the hero's; null for a precon. */
+  readonly deckName: string | null;
   /** True when this identity is already seated at a different seat — shown, not hidden, so the whole pool scrolls. */
   readonly blocked: boolean;
   readonly blockedReason: string | null;
@@ -99,6 +114,7 @@ export function rosterDeckOptions(
       identityId: deck.identityCardId as string,
       stamps: aspectStampsOf(deck.aspects),
       sourceLabel: deck.source.kind === "precon" ? "Precon" : deck.source.kind === "imported" ? "Imported" : "Built",
+      deckName: savedDeckNameOf(deck),
       blocked: seat !== undefined || lock !== null,
       blockedReason: seat !== undefined ? `Already seated at #${seat}` : lock,
     };
@@ -115,13 +131,21 @@ export function rosterModelOf(seats: readonly (Deck | null)[], pool: CardPool): 
 
   const seatViews: RosterSeatView[] = seats.map((deck, index) => {
     if (!deck) {
-      return { seatNumber: index + 1, deck: null, identityName: null, aspectsLabel: null, legal: false };
+      return {
+        seatNumber: index + 1,
+        deck: null,
+        identityName: null,
+        aspectsLabel: null,
+        deckName: null,
+        legal: false,
+      };
     }
     return {
       seatNumber: index + 1,
       deck,
       identityName: identityNameOf(deck, pool),
       aspectsLabel: aspectsLabelOf(deck),
+      deckName: savedDeckNameOf(deck),
       legal: validateDeck(deck, pool).ok,
     };
   });

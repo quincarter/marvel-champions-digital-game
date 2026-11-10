@@ -47,6 +47,7 @@ import {
   yourIdentity,
   you,
   zone,
+  canEnterPlay,
 } from "../../dsl/index.js";
 import { NOVA_EVENTS } from "../../wave5/nova/events.js";
 import { PREPARATION_CARD, onAbilityResolvedOf } from "../../wave1/bkw/local.js";
@@ -209,10 +210,13 @@ export const WINTER_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "54023.winter-widow-soldier-spy-action": heroAction(
     { label: "attack" },
-    chooseCards("found", zone("discard", you, { filter: query("upgrade", { trait: PREPARATION }) }), {
-      min: 1,
-      max: 1,
-    }),
+    // Only a copy that can enter play: one a "Max 1 per player" limit keeps out (owner Q37 = A) is no valid target
+    // (RRG 1.8 "Target", p. 43; "Max", p. 28). With none, the event still deals its damage ("Choose", p. 12).
+    chooseCards(
+      "found",
+      zone("discard", you, { filter: query("upgrade", { trait: PREPARATION, ...canEnterPlay(you) }) }),
+      { min: 1, max: 1 },
+    ),
     putIntoPlay(chosen("found")),
     attackAnEnemy(4),
   ),

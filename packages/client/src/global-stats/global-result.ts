@@ -41,6 +41,8 @@ const once = (values: readonly string[]): string[] => [...new Set(values)];
 
 export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): GlobalResult | null {
   if (meta.guided || (meta.status !== "won" && meta.status !== "lost")) return null;
+  // A Skirmish game is shorter than the difficulty it would be counted under, so it stays out of the global numbers.
+  if (meta.config.modes?.skirmish) return null;
   const summary = meta.summary;
   if (!summary || (summary.version ?? 1) < MIN_SUMMARY_VERSION || !summary.seats) return null;
   const villain = villainNameOf(meta, names);

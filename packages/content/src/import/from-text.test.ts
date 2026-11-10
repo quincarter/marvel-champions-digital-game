@@ -128,8 +128,16 @@ describe("parseDecklistText", () => {
     expect(result.problems.some((p) => p.code === "missing_identity")).toBe(true);
   });
 
-  test("no Aspect: line fails loudly", () => {
-    const text = "Hero: Spider-Man\n1x Web-Shooter\n";
+  test("no Aspect: line imports a hero-and-basic deck with no aspect chosen (#639)", () => {
+    const text = "Hero: Spider-Man\n2x Web-Shooter\n1x Nick Fury\n";
+    const result = parseDecklistText(text, CORE_CARDS);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.contents.aspects).toEqual([]);
+    expect(result.contents.cards).toHaveLength(2);
+  });
+
+  test("no Aspect: line fails loudly when the deck holds an aspect card", () => {
+    const text = "Hero: Spider-Man\n1x Web-Shooter\n1x Daredevil\n";
     const result = parseDecklistText(text, CORE_CARDS);
     expect(result.ok).toBe(false);
     if (result.ok) return;

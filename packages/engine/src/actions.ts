@@ -444,6 +444,13 @@ function printedConstants(
   });
 }
 
+/**
+ * The resource types a card may be paid with when its own text limits them ("You can only spend [physical] resources
+ * to pay for this card", Crushing Blow), or an empty list when it does not.
+ */
+export const paymentOnlyTypes = (state: GameState, deps: EngineDeps, id: InstanceId): readonly TypedResource[] =>
+  printedConstants(state, deps, id).flatMap((trigger) => trigger.paymentOnly ?? []);
+
 /** A card in a player's discard pile that its own permission lets them play from there. */
 export const playableFromDiscard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   mustPlayer(state, playerId).discard.includes(id) &&
@@ -2194,9 +2201,7 @@ export function priceOf(
   }
   // "You can only spend [physical] resources to pay for this card." A wild can be declared as that type; a cost of 0
   // needs no resources at all (FAQ "Crushing Blow (#2)", p. 60).
-  const only = payingFor
-    ? printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? [])
-    : [];
+  const only = payingFor ? paymentOnlyTypes(ctx.state, ctx.deps, payingFor) : [];
   if (only.length > 0) {
     // The restriction is on resources spent "to pay for this card". A resource generated only to overpay
     // (`overpayOnlyPool`) never pays the cost (RRG 1.8 "Cost", p. 13: overpaid resources "were not paid for that
@@ -5112,7 +5117,7 @@ export function settleAbilityPaidTypes(
     pool,
     vars,
     paidRequirementOf(pool, requirement, cost, vars),
-    printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? []),
+    paymentOnlyTypes(ctx.state, ctx.deps, payingFor),
     definition.readsPaidTypes ? [definition.readsPaidTypes] : [],
     wildAs,
   );
@@ -5266,7 +5271,7 @@ export function pricePlay(
       ...(printedX ? { x: xValue } : {}),
     },
     paidRequirementOf(pool, requirement, plan.cost ?? cost, vars),
-    printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? []),
+    paymentOnlyTypes(ctx.state, ctx.deps, payingFor),
     paidTypeReads(ctx.state, ctx.deps, playerId, cardInstanceId, paidTypes.abilityId),
     paidTypes.wildAs,
   );
@@ -6495,6 +6500,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   // resource "for your 'Optic Blast' ability" (`generatesFor`, Ruby Quartz Visor 33003) sees that card and binds
   // `paidFor` (docs/phase7-wave6.md §3.30).
   const payingFor = plan.payingFor ?? command.cardInstanceId;
+  // An ability's own card cannot pay its cost: Slingshot (50013) spent from the hand is no longer there for "put
+  // Slingshot into play from your hand" (issue #634).
+  if (command.payment.some((entry) => "fromHand" in entry && entry.fromHand === command.cardInstanceId)) {
+    return engineError("insufficient_resources", "a card cannot pay for its own ability", command);
+  }
   const pool = priceOf(ctx, command.playerId, command.payment, null, payingFor);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
   if (!satisfies(pool, plan.requirement)) {

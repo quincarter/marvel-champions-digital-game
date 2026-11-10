@@ -21,6 +21,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { coverFit, ensurePictureLoaded } from "../../art/pictures.js";
 import { setMask } from "../../ui/rex.js";
@@ -122,6 +123,11 @@ export class CampaignRewindScene extends Phaser.Scene {
   #hints: GlyphHints | null = null;
   #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
 
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
+
   constructor() {
     super(SCENES.campaignRewind);
   }
@@ -166,6 +172,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     destroyChildren(this);
     const { width, height, phone } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.void.hex).setOrigin(0, 0);
+    drawCampaignPageArt(this, (this.#record?.campaignId as string | undefined) ?? "", this.#redrawArt);
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     const record = this.#record;

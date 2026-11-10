@@ -5,7 +5,8 @@ import {
   isModularChoice,
   modularPickProblem,
 } from "../modular-pool.js";
-import { WAVE7_ENCOUNTER_SETS, WAVE7_SCENARIOS } from "@mc/content";
+import { WAVE11_SCENARIOS, WAVE7_ENCOUNTER_SETS, WAVE7_SCENARIOS } from "@mc/content";
+import { PLAYABLE_DEPS, playableScenario } from "../playable/index.js";
 import { WAVE7_DEPS } from "./index.js";
 import { wave7Scenario } from "./setup.js";
 
@@ -49,6 +50,23 @@ describe("the Dreadpool set, included by the 'Pool aspect", () => {
     expect(dreadpool(Object.keys(state.instances), state)).toEqual([]);
     expect(events.filter((e) => e.type === "encounterSetAutoIncluded")).toEqual([]);
   });
+
+  // Nothing but Crisis of Infinite Deadpools may reach the set-aside cards (issue #619: Breakout's setup took them all).
+  it.each([...PLAYABLE_SCENARIO_RECORDS, ...WAVE11_SCENARIOS])(
+    "$id leaves the other 6 cards set aside through setup",
+    ({ id, mainSchemeChoice }) => {
+      const config = playableScenario(id, {
+        seed: 7,
+        players: [{ starterDeckId: "deadpool-pool" }],
+        ...(mainSchemeChoice ? { mainSchemePicks: mainSchemeChoice.cardIds.slice(0, 1) as string[] } : {}),
+      });
+      const created = createGame(config, PLAYABLE_DEPS);
+      if (!created.ok) throw new Error(created.error.message);
+      const { state } = created;
+      expect(dreadpool(state.encounterSetAside, state)).toHaveLength(6);
+      expect(dreadpool(state.encounterSetAside, state)).not.toContain("44037");
+    },
+  );
 
   it("is never a modular choice, in any scenario of the pool or the box", () => {
     const set = WAVE7_ENCOUNTER_SETS.find((s) => s.id === "dreadpool")!;

@@ -255,7 +255,7 @@ function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameS
   if (multi) {
     if (multi.encounterDecks !== "shared")
       throw new Error(`${scenario.name}: only a shared encounter deck is built here`);
-    const defaultSide: HorsemanSide = modes.expert || modes.heroic ? "B" : "A";
+    const defaultSide: HorsemanSide = !modes.skirmish && (modes.expert || modes.heroic) ? "B" : "A";
     const sides = options.horsemanSides ?? multi.villains.map(() => defaultSide);
     if (sides.length !== multi.villains.length)
       throw new Error(`${scenario.name}: expected ${multi.villains.length} Horseman sides, got ${sides.length}`);

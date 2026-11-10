@@ -26,6 +26,7 @@ import {
   drawTopBar,
   ruleHeading,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { McButton } from "../../ui/widgets.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -57,6 +58,12 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
   #hints: GlyphHints | null = null;
   #buttons: McButton[] = [];
 
+  #campaignId = "";
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
+
   constructor() {
     super(SCENES.campaignFrozenDeck);
   }
@@ -64,6 +71,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
   create(data: CampaignFrozenDeckData): void {
     this.#data = data;
     this.#model = null;
+    this.#campaignId = "";
     this.#status = "Loading…";
     this.#hints = createHints(this);
     // Start and A with nothing focused: Done.
@@ -105,7 +113,8 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       this.#draw();
       return;
     }
-    const content = CAMPAIGN_RECORDS[current.campaignId as string];
+    this.#campaignId = current.campaignId as string;
+    const content = CAMPAIGN_RECORDS[this.#campaignId];
     const definition = CAMPAIGNS[current.campaignId as string];
     if (!content || !definition) {
       this.#status = `This build cannot show a frozen deck for "${current.campaignId as string}".`;
@@ -160,6 +169,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
     const frame = campaignFrame(this);
     const data = this.#data;
     const title = data ? `${data.title}'s deck` : "Deck";

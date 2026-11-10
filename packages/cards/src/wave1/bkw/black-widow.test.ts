@@ -1,4 +1,4 @@
-import { applyCommand, activeVillain, remainingHitPoints, type GameState } from "@mc/engine";
+import { applyCommand, activeVillain, cardsInPlay, remainingHitPoints, type GameState } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -238,6 +238,75 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     expect(inst(after, minion).damage).toBe(2);
     expect(inst(after, minion).statuses.stunned).toBeGreaterThan(0);
     expect(playerOf(after, P1).discard).toContain(bite);
+  });
+
+  // RRG 1.8 "Target" (p. 42) and "Cost" (p. 14): with "that minion" gone there is no valid target, so the ability can't
+  // be initiated and its discard cost can't be paid.
+  describe("Widow's Bite once its minion has left play", () => {
+    /** Two copies in play and a Hydra Mercenary (3 HP) entering play: stopped where the copies are first offered. */
+    const twoBitesOffered = () => {
+      const start = bkwVsRhino();
+      const given = moveToHand(start, P1, "08010", "08010");
+      const [first, second] = given.ids as [never, never];
+      const withFirst = settle(
+        runBkw(given.state, play(P1, first, payWith(given.state, P1, 1, [first]))),
+        firstLegal,
+        undefined,
+        BKW_DEPS,
+      );
+      const withBoth = settle(
+        runBkw(withFirst, play(P1, second, payWith(withFirst, P1, 1, [second]))),
+        firstLegal,
+        undefined,
+        BKW_DEPS,
+      );
+      const hero = runBkw(withBoth, toHero());
+      const stacked = stackEncounterDeck(hero, ADVANCE, "01101");
+      const offered = settle(runBkw(stacked, endTurn()), firstLegal, biteOffered, BKW_DEPS);
+      expect(biteOffered(offered)).toBe(true);
+      const minion = instancesOf(offered, "01101").find((id) => offered.instances[id]?.engagedWith === P1)!;
+      return { offered, minion, bites: [first, second] as const };
+    };
+    const biteOffered = (s: GameState) =>
+      s.pendingChoice?.options.some((o) => o.optionId.includes("widows-bite-response")) ?? false;
+    // One copy per prompt, as a player answers: the second is asked about only after the first resolved.
+    const oneBite: Picker = (s) => {
+      const hit = s.pendingChoice?.options.find((o) => o.optionId.includes("widows-bite-response"));
+      return hit ? [hit.optionId] : firstLegal(s);
+    };
+    const untilTurn = (s: GameState) => s.step.kind === "turn";
+
+    it("a second copy is not offered once the first has defeated the minion", () => {
+      const { offered, minion, bites } = twoBitesOffered();
+      // 1 damage already on it, so the first copy's 2 defeat it.
+      const after = settle(patchInstance(offered, minion, { damage: 1 }), oneBite, untilTurn, BKW_DEPS);
+      expect(cardsInPlay(after)).not.toContain(minion);
+      // One copy spent; the other is still in play, never offered for a minion that is gone.
+      expect(bites.filter((id) => playerOf(after, P1).discard.includes(id))).toHaveLength(1);
+      expect(bites.filter((id) => cardsInPlay(after).includes(id))).toHaveLength(1);
+    });
+
+    // "Stun, Stunned" (p. 41): "A stunned character can attempt to attack or use an attack ability even if it has no
+    // valid target for an attack"; the attempt removes the stun instead. What the `isStunned` half of the condition
+    // keeps offered resolves cleanly: the stun goes, and nothing is dealt to the minion that has gone. (The prompt here
+    // was gathered before the surgery, so this checks the resolution, not the offer itself.)
+    it("a stunned Black Widow using one for a minion that has gone removes the stun and deals nothing", () => {
+      const { offered, minion, bites } = twoBitesOffered();
+      // The minion gone (moved to the encounter discard by surgery) and Black Widow stunned, as the copies are offered.
+      const gone: GameState = {
+        ...offered,
+        players: offered.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== minion) })),
+        instances: { ...offered.instances, [minion]: { ...offered.instances[minion]!, engagedWith: null } },
+      };
+      const stunned = patchInstance(gone, identityOf(gone), {
+        statuses: { ...inst(gone, identityOf(gone)).statuses, stunned: 1 },
+      });
+      expect(cardsInPlay(stunned)).not.toContain(minion);
+      const after = settle(stunned, oneBite, untilTurn, BKW_DEPS);
+      expect(inst(after, identityOf(after)).statuses.stunned).toBe(0);
+      expect(bites.filter((id) => playerOf(after, P1).discard.includes(id))).toHaveLength(1);
+      expect(inst(after, minion).damage).toBe(0);
+    });
   });
 
   // RRG 1.8 FAQ "Widow's Bite (#10)" (p. 60): "Quickstrike and the 'Response' on Widow's Bite have the same timing

@@ -25,6 +25,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.deckCheck,
   SCENES.campaignSaga,
   SCENES.campaignCover,
+  SCENES.campaignBalanced,
   SCENES.campaignRoster,
   SCENES.campaignOpener,
   SCENES.campaignBriefing,

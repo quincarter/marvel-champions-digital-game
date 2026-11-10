@@ -31,7 +31,7 @@ import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId 
 import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phase.js";
 import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from "../view/villain-end-of-turn.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
-import { appSession } from "../session.js";
+import { appSession, holdGameArt } from "../session.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McSelectionRing, McTabs, fitText, paintDotGrid } from "../ui/widgets.js";
@@ -468,6 +468,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    holdGameArt(this);
     // A scene is reused from game to game: each game shows its own first "not offered" notices.
     this.#unofferedShown = new Set();
     this.#hints = new GlyphHints(this, () => [
@@ -2152,6 +2153,10 @@ export class BoardScene extends Phaser.Scene {
     if (ability) {
       const option = ability.options[index];
       if (option) void this.#controller.chooseEventAbility(option.abilityId);
+      return true;
+    }
+    if (this.#controller.handUseChoice()) {
+      void this.#controller.chooseHandUse(index);
       return true;
     }
     const thwart = this.#controller.thwartStatChoice();

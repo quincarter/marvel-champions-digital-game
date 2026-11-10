@@ -30,6 +30,7 @@ import {
   host,
   ifThen,
   inPlay,
+  isHero,
   interrupt,
   moveCards,
   oncePerRound,
@@ -125,7 +126,9 @@ export const SPIDER_MAN_NEMESIS = defineAbilities({
   // When Defeated: Return each facedown card here to its owner's hand.
   "01166.when-defeated": whenDefeated(moveCards(tuckedUnder(self), "hand")),
   // Sweeping Swoop — When Revealed: Stun your hero. If Vulture is in play, this card gains surge.
-  "01168.when-revealed": whenRevealed(stun(yourIdentity), ifThen(inPlay(cardName("01167")), surge())),
+  // An alter-ego is not stunned: "card abilities that interact with their hero do not interact with their identity"
+  // (RRG 1.8 "Form, Change Form", p. 21). The surge still applies.
+  "01168.when-revealed": whenRevealed(ifThen(isHero(), stun(yourIdentity)), ifThen(inPlay(cardName("01167")), surge())),
   // [star] Boost: If this activation deals damage to a friendly character, stun that character.
   "01168.boost": boost(
     atEndOfAttack(ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, FRIENDLY_CHARACTER)), stun(eventTarget))),

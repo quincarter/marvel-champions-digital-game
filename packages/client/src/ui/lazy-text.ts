@@ -40,7 +40,7 @@ const WORKER_FAMILIES: ReadonlySet<string> = new Set(["Bangers", "Public Sans", 
 /**
  * Only a screen's first frames use the worker: it fades in from the void, so a label that draws a frame or two late
  * is hidden, whereas the Board redraws whole on every store update and would flicker. Counted in game frames, not
- * milliseconds, so a long build on a slow device still counts as one moment.
+ * milliseconds, so a long build on a slow device still counts as one moment. The one other use is `paintScrolledIn`.
  */
 const WORKER_YOUTH_FRAMES = 40;
 
@@ -65,6 +65,23 @@ const painterDeps: PainterDeps = {
 };
 
 let painter: TextPainter | null = null;
+/** Above zero while `paintScrolledIn` runs. */
+let scrolledInDepth = 0;
+
+/**
+ * Every label `draw` makes goes to the text worker, however old the screen is. For a list row being drawn because it
+ * scrolled into reach (`ui/virtual-list.ts`): it starts in the overscan, out of sight, and painting its labels here
+ * was what made a slow tablet stutter under the finger, a row at a time (#631). A list redrawing its rows in place
+ * doesn't use this: those are on screen, and would blink.
+ */
+export function paintScrolledIn<T>(draw: () => T): T {
+  scrolledInDepth++;
+  try {
+    return draw();
+  } finally {
+    scrolledInDepth--;
+  }
+}
 
 /** The worker painter, or null where it can't exist (Vitest, and anything without workers or `OffscreenCanvas`). */
 function textPainter(): TextPainter | null {
@@ -121,9 +138,12 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
   declare workerJob: number | undefined;
   /** The label's texture holds a worker bitmap rather than its own canvas. */
   declare private workerPainted: boolean | undefined;
+  /** Made inside `paintScrolledIn`: the worker paints it even after the screen's first frames. */
+  declare private scrolledIn: boolean | undefined;
 
   override updateText(): this {
     this.lazyDirty = true;
+    if (scrolledInDepth > 0) this.scrolledIn = true;
     return this;
   }
 
@@ -178,7 +198,8 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
     const style = this.style;
     if (!worker || !(this.renderer as { gl?: unknown } | undefined)?.gl) return false;
     if (typeof style.color !== "string" || typeof style.stroke !== "string") return false;
-    if (!workerCanPaint(style, WORKER_FAMILIES) || !sceneIsYoung(this.scene)) return false;
+    if (!workerCanPaint(style, WORKER_FAMILIES)) return false;
+    if (!this.scrolledIn && !sceneIsYoung(this.scene)) return false;
     if (!worker.wants()) return false;
 
     const context = this.context;

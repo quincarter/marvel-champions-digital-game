@@ -451,9 +451,16 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         return;
       }
       setFrame(ctx, { ...frame, stage: "responses" });
+      const beforeApply = ctx.state;
       const happened = applyEvent(ctx, frame) !== false;
-      // The event has occurred. A card its own change put into play entered with it, not after it (`entered-since.ts`).
-      updateFrame(ctx, frame.frameId, (f) => forgetEnteredWhileApplying(f, frame.event.enteredPlaySince));
+      // The event has occurred. A card its own change put into play entered with it, not after it (`entered-since.ts`);
+      // a main scheme whose stage the change advanced was replaced, and keeps its mark.
+      const advanced = (id: InstanceId): boolean => {
+        const was = mainSchemeStateOf(beforeApply, id);
+        const now = mainSchemeStateOf(ctx.state, id);
+        return was !== undefined && now !== undefined && was.stageIndex !== now.stageIndex;
+      };
+      updateFrame(ctx, frame.frameId, (f) => forgetEnteredWhileApplying(f, frame.event.enteredPlaySince, advanced));
       if (!happened) {
         // The event found nothing to do (a defeat whose character was healed first):
         // it didn't happen, so nothing responds to it.
@@ -1126,6 +1133,14 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       );
       updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: { ...event, counted } } : f));
       addFrameVars(ctx, frame.frameId, { boostIcons: counted });
+      emit(ctx, {
+        type: "boostIconsCounted",
+        cardInstanceId: event.cardInstanceId,
+        count: counted,
+        ...(event.countFrom ? { countedInstanceId: event.countFrom } : {}),
+        ...(event.countAdjust ? { adjusted: true as const } : {}),
+        ...(event.byEncounter ? { byEncounter: true as const } : {}),
+      });
       return;
     }
     case "basicRecovery":
@@ -2134,6 +2149,7 @@ function recordDamageTaken(
     ...(event.noPlayer ? { noPlayer: true as const } : {}),
     ...(event.retaliate ? { retaliate: true as const } : {}),
     ...(event.unpreventable ? { unpreventable: true as const } : {}),
+    ...(event.consequentialFrom ? { consequentialFrom: event.consequentialFrom } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
   // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell
@@ -2230,8 +2246,22 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
   if (
     (event.ranged === true || hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) &&
     !lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId, event.attackerInstanceId).includes("ranged")
-  )
+  ) {
+    // Ranged is read here, as retaliate resolves, so an attack that gained it partway through (a boost card attaching
+    // Red Skull's Luger, "Red Skull's attacks gain ... ranged") ignores retaliate too (RRG 1.8 "Ranged", p. 36;
+    // FFG ruling 134, January 11, 2024: a boost card's attachment affects the attack it boosts; issue #623).
+    const shown = cardsInPlay(ctx.state);
+    const ignored = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);
+    if (ignored > 0 && shown.includes(event.targetInstanceId) && shown.includes(event.attackerInstanceId)) {
+      emit(ctx, {
+        type: "retaliateIgnoredByRanged",
+        attackerInstanceId: event.attackerInstanceId,
+        targetInstanceId: event.targetInstanceId,
+        amount: ignored,
+      });
+    }
     return;
+  }
   const inPlay = cardsInPlay(ctx.state);
   if (!inPlay.includes(event.targetInstanceId) || !inPlay.includes(event.attackerInstanceId)) return;
   const amount = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);

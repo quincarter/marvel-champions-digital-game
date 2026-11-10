@@ -12,6 +12,7 @@
 
 import {
   cardOf,
+  cardsInPlay,
   DEFENSE_BAR_MESSAGE,
   legalActions,
   maxHitPoints,
@@ -149,6 +150,9 @@ export function hpLineFrom(current: number, max: number, bands: readonly DefendB
   return `${now} → ${left} left`;
 }
 
+/** Whether an interrupt sent this attack's damage to another enemy (Psychic Misdirection; `damagedInstanceId`). */
+const redirected = (preview: DefendOptionPreview): boolean => preview.damagedInstanceId !== preview.targetInstanceId;
+
 function hpNowOf(
   state: GameState,
   preview: DefendOptionPreview,
@@ -159,10 +163,19 @@ function hpNowOf(
   return max === undefined || current === undefined ? null : { current, max };
 }
 
+/**
+ * The health line of the character that takes the damage. When the damage goes to another enemy it is that enemy's,
+ * named first (#665: "To Hydra Mercenary: Now 4 of 4 HP → 1 left"), so a defend row cannot read as the hero's own.
+ */
 function hpLineOf(state: GameState, preview: DefendOptionPreview, deps: EngineDeps, short = false): string | null {
-  const max = maxHitPoints(state, preview.targetInstanceId, deps);
-  const current = remainingHitPoints(state, preview.targetInstanceId, deps);
-  return max === undefined || current === undefined ? null : hpLineFrom(current, max, preview.bands, short);
+  const damaged = preview.damagedInstanceId;
+  // A chosen enemy that has left play takes nothing (the damage is dealt to nobody), so it has no health to show.
+  if (redirected(preview) && !cardsInPlay(state).includes(damaged)) return null;
+  const max = maxHitPoints(state, damaged, deps);
+  const current = remainingHitPoints(state, damaged, deps);
+  if (max === undefined || current === undefined) return null;
+  const line = hpLineFrom(current, max, preview.bands, short);
+  return redirected(preview) ? `To ${shortFaceUpName(state, damaged)}: ${line}` : line;
 }
 
 function hpAfterRange(
@@ -171,7 +184,9 @@ function hpAfterRange(
   deps: EngineDeps,
 ): { readonly low: number; readonly high: number } | null {
   const current = remainingHitPoints(state, preview.targetInstanceId, deps);
-  return current === undefined ? null : hpRangeFrom(current, preview.bands);
+  if (current === undefined) return null;
+  // The attacked character takes none of a redirected attack's damage: its health stays where it is.
+  return redirected(preview) ? { low: current, high: current } : hpRangeFrom(current, preview.bands);
 }
 
 /**
@@ -231,13 +246,31 @@ function consequenceLines(
   preview: DefendOptionPreview,
 ): readonly string[] {
   const facts = bandFactsOf(preview.bands);
-  return consequenceLinesFrom(
+  const lines = consequenceLinesFrom(
     facts,
-    faceUpName(state, preview.targetInstanceId),
+    faceUpName(state, preview.damagedInstanceId),
     facts.overkill ? faceUpName(state, facts.overkill.recipientInstanceId) : null,
     faceUpName(state, attackerInstanceId),
   );
+  // #665: a basic defense on top of Psychic Misdirection takes DEF off the damage before it is redirected (RRG 1.8
+  // "Attack (Enemy Activation)" step 4, p. 8), so it only shrinks what the chosen enemy takes.
+  if (redirected(preview) && preview.basicDefense && preview.defenseReduction > 0)
+    return [redirectedDefenseLine(preview.defenseReduction, faceUpName(state, preview.damagedInstanceId)), ...lines];
+  return lines;
 }
+
+/** "DEF 6 comes off the damage Hydra Mercenary takes." — what defending does to a redirected attack (#665). */
+export const redirectedDefenseLine = (defenseReduction: number, damagedName: string): string =>
+  `DEF ${defenseReduction} comes off the damage ${damagedName} takes.`;
+
+/**
+ * "This attack's damage goes to Hydra Mercenary instead of you." — the summary's note for a redirected attack, or, when
+ * that enemy has left play since it was chosen, that nobody takes it.
+ */
+export const redirectNoteOf = (damagedName: string, targetName: string, inPlay = true): string =>
+  inPlay
+    ? `This attack's damage goes to ${damagedName} instead of ${targetName}.`
+    : `This attack's damage was sent to ${damagedName}, which has left play: nobody takes it.`;
 
 /** "You defend" only for the viewer's own identity; every other defender is named — RRG "Defend" lets any player's ready character answer. */
 function optionTitle(
@@ -500,7 +533,18 @@ export function defendChoiceViewOf(
     ),
     baseAtk: first.baseAtk,
     facedownCount: first.boost.facedownCount,
-    forcedNotes: forcedNotesOf(forcedEntry?.vars ?? {}),
+    forcedNotes: [
+      ...(redirected(first)
+        ? [
+            redirectNoteOf(
+              faceUpName(state, first.damagedInstanceId),
+              targetSeat === "You" ? "you" : targetCardName,
+              cardsInPlay(state).includes(first.damagedInstanceId),
+            ),
+          ]
+        : []),
+      ...forcedNotesOf(forcedEntry?.vars ?? {}),
+    ],
     boostAbilityNote: first.boost.mayTriggerBoostAbility ? "One of these may also carry a Boost ability." : null,
   };
 

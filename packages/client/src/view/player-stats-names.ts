@@ -5,6 +5,8 @@
  */
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { cardDisplayName } from "./hero-names.js";
+import type { MatchupAxes } from "./matchup-grid.js";
+import { modularCandidatesFor } from "./modular-candidates.js";
 import type { StatsNames } from "./player-stats-model.js";
 
 let villains: ReadonlySet<string> | undefined;
@@ -15,6 +17,26 @@ function villainNames(): ReadonlySet<string> {
     ...POOL_SCENARIOS.map((scenario) => scenario.name),
   ]);
   return villains;
+}
+
+let axes: MatchupAxes | undefined;
+/** Everything the Matchups grids can show, in release order: the scenarios, one column per hero, every modular set. */
+function matchupAxes(): MatchupAxes {
+  if (axes) return axes;
+  // Once per scenario, never per set: a stats worker lives for one fold, so this runs on every read of the stats.
+  const modulars = new Set(POOL_SCENARIOS.flatMap((scenario) => modularCandidatesFor(scenario).map((set) => set.id)));
+  axes = {
+    scenarios: POOL_SCENARIOS.map((scenario) => ({ id: scenario.id as string, name: scenario.name })),
+    heroes: [...new Set(POOL_STARTER_DECKS.map((deck) => deck.identityCardId as string))].map((id) => {
+      const card = CARDS_BY_ID.get(id);
+      return { id, name: card ? cardDisplayName(card) : id };
+    }),
+    modulars: POOL_ENCOUNTER_SETS.filter((set) => modulars.has(set.id as string)).map((set) => ({
+      id: set.id as string,
+      name: set.name,
+    })),
+  };
+  return axes;
 }
 
 export const POOL_STATS_NAMES: StatsNames = {
@@ -37,5 +59,6 @@ export const POOL_STATS_NAMES: StatsNames = {
       (set) => set as string,
     ) ?? [],
   isVillain: (name) => villainNames().has(name),
+  matchupAxes,
   setName: (id) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name,
 };

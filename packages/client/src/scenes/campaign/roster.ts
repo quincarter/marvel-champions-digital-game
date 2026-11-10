@@ -23,6 +23,7 @@ import {
   drawTopBar,
   heroPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../ui/aspect-chips.js";
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
@@ -82,6 +83,10 @@ const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ?
 
 /** A heading in the seat picker's list ("Recommended for seat #2", "All heroes"): a compact band, not a full row. */
 const PICKER_HEADING_HEIGHT = 22;
+/** A saved deck's own name (#658) takes a line under the hero's in its picker row, so the row grows by this much. */
+const PICKER_DECK_NAME_STEP = 16;
+/** A seat card's footer height that fits the hero, a saved deck's name and the aspects without overlap (#658). */
+const SEAT_FOOTER_THREE_LINES = 64;
 /** How long a burst of hero pictures arriving is gathered into one redraw. */
 const ART_REDRAW_MS = 80;
 
@@ -93,6 +98,8 @@ export class CampaignRosterScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   #campaignId = "";
   #expertCampaign = false;
+  /** Galaxy's Most Wanted's Balanced house rule, as chosen on the prompt before this screen (issue #609); null for Normal. */
+  #balanced: CampaignRosterData["balanced"] | null = null;
   #seats: (Deck | null)[] = Array.from({ length: ROSTER_SEAT_COUNT }, () => null);
   #savedDecks: readonly Deck[] = [];
   #model: RosterModel | null = null;
@@ -147,6 +154,11 @@ export class CampaignRosterScene extends Phaser.Scene {
   #swaps: readonly DeckSwap[] = [];
   #kept: readonly KeptConflict[] = [];
 
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#rebuild();
+  };
+
   constructor() {
     super(SCENES.campaignRoster);
   }
@@ -189,6 +201,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     });
     this.#campaignId = data.campaignId;
     this.#expertCampaign = data.expertCampaign ?? false;
+    this.#balanced = data.balanced ?? null;
     this.#seats = preconRosterOf(
       (storyFor(this.#campaignId)?.castIdentityIds ?? []) as readonly CardId[],
       POOL_VERSION,
@@ -338,13 +351,14 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#stops = new Map();
     this.#hints?.reset();
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
+    drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
 
     const frame = campaignFrame(this);
     const top = drawTopBar(this, {
       backLabel: frame.phone ? "◂" : "◂ Cover",
       onBack: () => this.#onCancel(),
       hints: this.#hints,
-      title: this.#expertCampaign ? "Sign the roster · Expert" : "Sign the roster",
+      title: `Sign the roster${this.#expertCampaign ? " · Expert" : ""}${this.#balanced ? " · Balanced" : ""}`,
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => this.#onCancel() });
 
@@ -550,7 +564,17 @@ export class CampaignRosterScene extends Phaser.Scene {
       return;
     }
 
-    const footerHeight = Math.min(64, rect.height * 0.22);
+    const seatView = this.#model?.seats[seatNumber - 1] ?? null;
+    // A saved deck's name takes a line of its own between the hero and the aspects (#658).
+    const deckName = seatView?.deckName ?? null;
+    // Never shorter than its lines (hero, deck name, aspects), so a short phone card (Team-Up rows above it) gives up
+    // art rather than stacks its lines on each other; a card too short for even that keeps a little art.
+    const footerHeight = Math.min(
+      rect.height * 0.7,
+      deckName
+        ? Math.max(SEAT_FOOTER_THREE_LINES, Math.min(80, rect.height * 0.3))
+        : Math.max(48, Math.min(64, rect.height * 0.22)),
+    );
     const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
     const border = this.add.graphics();
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
@@ -581,16 +605,29 @@ export class CampaignRosterScene extends Phaser.Scene {
       .setOrigin(0, 0);
     const identityCard = CARDS_BY_ID.get(deck.identityCardId as string);
     const identityName = identityCard ? cardDisplayName(identityCard) : (deck.identityCardId as string);
-    const name = this.add.text(footerRect.x + 8, footerRect.y + 6, identityName.toUpperCase(), {
-      ...textStyle(bangers(15, 0.9), surface.ink.hex),
-      wordWrap: { width: footerRect.width - 16, useAdvancedWrap: true },
-    });
-    void name;
-    const seatView = this.#model?.seats[seatNumber - 1] ?? null;
-    this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 20, seatView?.aspectsLabel ?? "", {
-      ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
-      fontSize: "9px",
-    });
+    const name = this.add.text(
+      footerRect.x + 8,
+      footerRect.y + 6,
+      identityName.toUpperCase(),
+      textStyle(bangers(15, 0.9), surface.ink.hex),
+    );
+    fitText(name, footerRect.width - 16, 15);
+    if (deckName) {
+      const deckNameText = this.add.text(footerRect.x + 8, footerRect.y + 26, deckName, {
+        ...textStyle(typeRole.emphasis, surface.ink.hex),
+        fontSize: "12px",
+        wordWrap: { width: footerRect.width - 16, useAdvancedWrap: true },
+      });
+      clampLines(deckNameText, 1);
+    }
+    // A card too short for all three lines keeps the deck name, which tells two decks of a hero apart, and drops the
+    // aspects line rather than drawing it over the name (the aspects are in the picker and the deck itself).
+    if (!deckName || footerHeight >= SEAT_FOOTER_THREE_LINES) {
+      this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 18, seatView?.aspectsLabel ?? "", {
+        ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
+        fontSize: "9px",
+      });
+    }
     if (seatView && !seatView.legal) {
       this.add
         .text(footerRect.x + footerRect.width - 8, footerRect.y + 6, "Illegal", textStyle(typeRole.label, 0xc8102e, 1))
@@ -821,6 +858,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       const reason = entry.rec?.reason ?? "";
       return (
         rowHeight +
+        (options[entry.optionIndex]!.deckName ? PICKER_DECK_NAME_STEP : 0) +
         (aspectChipLines(this, stamps, chipRoom) - 1) * ASPECT_CHIP_LINE_STEP +
         (reason ? reasonExtraOf(reason) : 0)
       );
@@ -913,7 +951,19 @@ export class CampaignRosterScene extends Phaser.Scene {
         .text(textX, rowRect.y + 8, identityName.toUpperCase(), textStyle(bangers(16), 0))
         .setOrigin(0, 0);
       fitText(title, textWidth, 16);
-      const lineY = rowRect.y + 8 + 16 + 8;
+      // A saved deck's own name under the hero's (#658): two Leadership decks of one hero tell apart by it alone.
+      let deckNameText: Phaser.GameObjects.Text | null = null;
+      if (option.deckName) {
+        deckNameText = this.add
+          .text(textX, rowRect.y + 8 + 16 + 4, option.deckName, {
+            ...textStyle(typeRole.emphasis, 0),
+            fontSize: "13px",
+            wordWrap: { width: textWidth, useAdvancedWrap: true },
+          })
+          .setOrigin(0, 0);
+        clampLines(deckNameText, 1);
+      }
+      const lineY = rowRect.y + 8 + 16 + 8 + (option.deckName ? PICKER_DECK_NAME_STEP : 0);
       // Four badges (Adam Warlock) wrap to a second line rather than run off the row's edge; the source note rides
       // beside the last badge and the reason line moves down by the extra line.
       const chips = drawAspectChips(this, textX, lineY, option.stamps, false, textWidth);
@@ -959,13 +1009,26 @@ export class CampaignRosterScene extends Phaser.Scene {
       const applyState = (state: "rest" | "hover" | "unavailable"): void => {
         const buttonSkin = skin("secondary", state);
         title.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
+        deckNameText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
         note.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
         reasonText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
       };
       applyState(enabled ? "rest" : "unavailable");
       if (import.meta.env.DEV)
-        this.#pickerRowTextDebug.set(index, { name: identityName, rect: rowRect, texts: [title], button });
-      button.container.add([...parts, title, ...chips.objects, note, ...extras]);
+        this.#pickerRowTextDebug.set(index, {
+          name: identityName,
+          rect: rowRect,
+          texts: deckNameText ? [title, deckNameText] : [title],
+          button,
+        });
+      button.container.add([
+        ...parts,
+        title,
+        ...(deckNameText ? [deckNameText] : []),
+        ...chips.objects,
+        note,
+        ...extras,
+      ]);
       return { objects: [button.container] };
     };
 
@@ -1033,6 +1096,7 @@ export class CampaignRosterScene extends Phaser.Scene {
         campaignId: this.#campaignId,
         seats,
         ...(this.#expertCampaign ? { expertCampaign: true } : {}),
+        ...(this.#balanced ? { balanced: this.#balanced } : {}),
         poolVersion: POOL_VERSION,
         seed: rollSeed(),
         ...(tableRules ? { tableRules } : {}),

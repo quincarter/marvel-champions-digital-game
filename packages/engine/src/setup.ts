@@ -333,6 +333,11 @@ export interface GameSetupConfig {
    * side faceup if the players are playing expert mode". docs/phase7-wave4.md §3.18.
    */
   readonly difficulty?: "standard" | "expert";
+  /**
+   * The heroic level X (RRG 1.8 "Modes of Play", p. 29): "during step three of each villain phase, deal X additional
+   * encounter cards to each player". Absent is 0, so every older save deals as it did.
+   */
+  readonly heroicLevel?: number;
   /** The table's own options (`TableRules`, `state.ts`): each defaults to off; stored in the state when on. */
   readonly tableRules?: TableRules;
   /**
@@ -971,6 +976,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   if (requested.gameMode !== undefined && requested.gameMode !== "cooperative") {
     return invalid(`gameMode must be "cooperative" or "competitive", not ${String(requested.gameMode)}`);
   }
+  if (requested.heroicLevel !== undefined && (!Number.isInteger(requested.heroicLevel) || requested.heroicLevel < 0)) {
+    return invalid(`the heroic level must be a whole number of at least 0, not ${String(requested.heroicLevel)}`);
+  }
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
   let rng = createRng(requested.seed);
   let config = requested;
@@ -1310,7 +1318,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       for (const included of includedSets) {
         const ids = included.setup.shuffledIn.map((cardId) => {
           const cardInstanceId = nextId();
-          instances[cardInstanceId] = blankInstance(cardInstanceId, cardId, null, { kind: "encounterDeck", deckId });
+          instances[cardInstanceId] = blankInstance(cardInstanceId, cardId, null, ACTIVE_DECK_HOME);
           return cardInstanceId;
         });
         deck.push(...ids);
@@ -1340,11 +1348,13 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     );
     encounterSetAside.push(id);
   }
-  // The rest of each included set waits in the set-aside area, homed to the deck its `shuffledIn` cards joined.
+  // The rest of each included set waits in the set-aside area. No included card has a villain's deck of its own (MC03
+  // insert p. 4), so it discards to the active villain's pile, as ruling Jan 17, 2026 (5) for a nemesis minion
+  // (docs/phase7-wave1.md §3.2). The insert does not name the Dreadpool's own cards: engine reading.
   for (const entry of autoIncluded) {
     for (const cardId of entry.included.remainder) {
       const id = nextId();
-      instances[id] = blankInstance(id, cardId, null, { kind: "encounterDeck", deckId: entry.deckId });
+      instances[id] = blankInstance(id, cardId, null, ACTIVE_DECK_HOME);
       encounterSetAside.push(id);
       entry.setAside.push(id);
     }
@@ -1700,6 +1710,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.theVillain ? { theVillain: config.theVillain } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+      ...(config.heroicLevel ? { heroicLevel: config.heroicLevel } : {}),
       ...(scenarioRuleSpecs.length > 0 ? { rules: scenarioRuleSpecs } : {}),
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }

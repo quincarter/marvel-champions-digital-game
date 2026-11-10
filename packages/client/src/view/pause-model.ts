@@ -10,6 +10,7 @@ import type { Scenario } from "@mc/content";
 import type { SessionConfig } from "../engine/host.js";
 import { civilWarKindOf, describeCivilWar } from "./civil-war-label.js";
 import { blindRevealOf, blindSheetLines } from "./civil-war-blind.js";
+import { difficultyLabelOf } from "./difficulty-label.js";
 import { playerName } from "./names.js";
 
 export interface PauseStatus {
@@ -74,12 +75,6 @@ export function blindSheetNamesOf(
   };
 }
 
-const DIFFICULTY_LABEL: Record<SessionConfig["difficulty"], string> = {
-  standard: "Standard",
-  expert: "Expert",
-  extreme: "Extreme",
-};
-
 /**
  * Mirrors `board-model.ts`'s own `phaseOf` switch, worded for a status line rather
  * than a step label. A concession reads as one, never as a defeat (`conceded.test.ts`).
@@ -114,7 +109,7 @@ export function pauseStatusOf(
   const scenario = config ? scenarios.find((candidate) => candidate.id === config.scenarioId) : undefined;
   return {
     scenarioName: (config && describeCivilWar(config)) ?? scenario?.name ?? config?.scenarioId ?? "This game",
-    difficultyLabel: config ? DIFFICULTY_LABEL[config.difficulty] : "—",
+    difficultyLabel: difficultyLabelOf(config ?? null) ?? "—",
     round: game.round,
     phaseLabel: phaseLabelOf(game),
     seatLabel: playerName(game, perspectiveId),

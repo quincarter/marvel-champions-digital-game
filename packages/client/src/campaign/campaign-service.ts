@@ -11,7 +11,7 @@
  * untouched, and only a `done` result is persisted. Reloading the page mid-choice therefore asks the same
  * question again with the same options, and a `random` op cannot be rerolled by refreshing.
  */
-import { campaignDefinitionOf } from "@mc/cards";
+import { campaignDefinitionOf, gmwBalancedHiddenFields, type GmwBalancedToggleId } from "@mc/cards";
 import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CardId, type Deck, type PlayModes } from "@mc/content";
 import {
   applyCommands,
@@ -33,10 +33,16 @@ import {
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { activeAttemptGamesOf } from "./unfolded-game.js";
-import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
+import {
+  CAMPAIGN_STORAGE_SCHEMA,
+  type CampaignRecord,
+  type CampaignStorage,
+  type IssueModes,
+} from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
+import { BALANCED_CAMPAIGN_ID } from "../view/campaign-balanced-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
@@ -59,6 +65,11 @@ export interface StartCampaignInput {
   readonly seats: readonly CampaignSeatChoice[];
   /** The Expert Campaign modifier (MC10 p. 17), stored as `modes.campaign.expertCampaign`. */
   readonly expertCampaign?: boolean;
+  /**
+   * The Balanced house rule (issue #609), chosen once at signing: stored as `modes.campaign.balanced`, with its toggles
+   * seeded as hidden log fields. Absent for Normal; a run without it reads as Normal, so older runs need no migration.
+   */
+  readonly balanced?: { readonly toggles: readonly GmwBalancedToggleId[] };
   readonly poolVersion: string;
   readonly seed: number;
   /** The table rules this run plays under, stored with it (`CampaignRecord.tableRules`). Absent when none is on. */
@@ -142,12 +153,15 @@ export class CampaignService {
     const content = CAMPAIGN_RECORDS[input.campaignId];
     const definition = this.#definitionOf(input.campaignId);
     if (!content || !definition) throw new Error(`campaign "${input.campaignId}" is not playable in this build`);
+    // One choice for both halves: the mode gates between-game steps, the seeded fields the rules in a game.
+    const balanced = input.campaignId === BALANCED_CAMPAIGN_ID ? input.balanced : undefined;
     // Expert campaign is a modification of *campaign* mode (`CampaignModeRef.expertCampaign`), which is where
     // `matchesModes` reads it — never a top-level `PlayModes` key.
     const modes: PlayModes = {
       campaign: {
         campaignId: definition.campaignId,
         ...(input.expertCampaign ? { expertCampaign: true as const } : {}),
+        ...(balanced ? { balanced: true as const } : {}),
       },
     };
     const log = createCampaignLog(definition, {
@@ -159,6 +173,7 @@ export class CampaignService {
         deck: { identityCardId: seat.deck.identityCardId, aspects: seat.deck.aspects, cards: seat.deck.cards },
       })),
       modes,
+      ...(balanced ? { hiddenFields: gmwBalancedHiddenFields({ enabled: true, toggles: balanced.toggles }) } : {}),
       poolVersion: input.poolVersion,
       seed: input.seed,
     });
@@ -194,7 +209,8 @@ export class CampaignService {
   async compose(record: CampaignRecord, answers: readonly CampaignChoiceAnswer[] = []): Promise<CampaignStepResult> {
     if (record.attempt) return { kind: "done", record };
     const definition = this.definitionFor(record);
-    const result = resolveBetweenGames(definition, record, this.#campaignDeps, record.modes, answers);
+    const modes = { ...record.modes, ...record.issueModes };
+    const result = resolveBetweenGames(definition, record, this.#campaignDeps, modes, answers);
     if (result.kind === "pending") return result;
     return { kind: "done", record: await this.#put(record, result.value) };
   }
@@ -222,7 +238,7 @@ export class CampaignService {
         position: before.position,
         rng: before.rng,
       },
-      { keepEasierStart: true },
+      { composedAgain: true },
     );
   }
 
@@ -262,6 +278,21 @@ export class CampaignService {
     const next: CampaignRecord = {
       ...rest,
       ...(on ? { easierStartNodeId: attempt.nodeId } : {}),
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    return next;
+  }
+
+  /**
+   * Sets the modes the composed issue is played under (the Briefing's choice) and throws the attempt away, so the Briefing
+   * composes it again under them: a mode can change what the issue's setup instructions do.
+   */
+  async setIssueModes(record: CampaignRecord, modes: IssueModes): Promise<CampaignRecord> {
+    const { issueModes: _old, ...rest } = await this.discardAttempt(record);
+    const next: CampaignRecord = {
+      ...rest,
+      ...(Object.keys(modes).length > 0 ? { issueModes: modes } : {}),
       updatedAt: this.#now(),
     };
     await this.storage.put(next);
@@ -424,22 +455,27 @@ export class CampaignService {
   }
 
   /**
-   * `keepEasierStart`: the easier start rides along when the new log still holds that node's composed issue, or when no
+   * `composedAgain`: the easier start rides along when the new log still holds that node's composed issue, or when no
    * issue was composed on either side (a deck edit); a fold (an attempt before, none after) drops it, so a retry of the
    * node starts with it off. A discarded attempt is composed again, so it passes the flag to keep it.
    */
   async #put(
     previous: CampaignRecord,
     log: CampaignLog,
-    options: { readonly keepEasierStart?: boolean } = {},
+    options: { readonly composedAgain?: boolean } = {},
   ): Promise<CampaignRecord> {
     const keepEasierStart =
       previous.easierStartNodeId !== undefined &&
-      (options.keepEasierStart === true ||
+      (options.composedAgain === true ||
         log.attempt?.nodeId === previous.easierStartNodeId ||
         (!log.attempt && !previous.attempt));
+    const keepIssueModes = options.composedAgain === true || log.attempt !== undefined || !previous.attempt;
     // The runner spreads the whole record into the log it returns, so a stale flag must be taken off before it is decided.
-    const { easierStartNodeId: _stale, ...bare } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId">;
+    const {
+      easierStartNodeId: _stale,
+      issueModes: _staleModes,
+      ...bare
+    } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId" | "issueModes">;
     const next: CampaignRecord = {
       ...bare,
       recordSchema: previous.recordSchema,
@@ -450,6 +486,7 @@ export class CampaignService {
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
+      ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
     };
     await this.storage.put(next);
     return next;

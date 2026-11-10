@@ -82,30 +82,48 @@ describe("Spider-Man / Miles Morales (identity, 27030a/b)", () => {
   });
 
   describe("27030b.miles-morales-response (shuffle a Spider-Man card home)", () => {
-    it("shuffles a card named 'Spider-Man' from the discard pile into the deck after changing to alter-ego form", () => {
+    it("shuffles one of his own Spider-Man cards from the discard pile into the deck after changing to alter-ego form", () => {
       const state = milesVsRhino(1);
-      // 27049, "Spider-Man" (Peter Parker): a real card in Miles's own precon deck, matching the response's
-      // by-name filter (docs: this pack alone prints "Spider-Man" on four different cards).
-      const { state: withDiscard, id: peterParker } = moveToDiscard(state, P1, "27049");
-      const inHero = run(withDiscard, toHeroCmd); // spends the round's one voluntary change.
-      const readyForAnotherChange = clearVoluntaryFormChange(inHero, P1);
+      // 27034, Web-Shot: one of the "Spider-Man cards" in his identity-specific set (MC27 deck list).
+      const { state: withDiscard, id: webShot } = moveToDiscard(state, P1, "27034");
+      const readyForAnotherChange = clearVoluntaryFormChange(run(withDiscard, toHeroCmd), P1);
       const before = {
         deck: readyForAnotherChange.players[0]!.deck.length,
         discard: readyForAnotherChange.players[0]!.discard.length,
       };
       const after = settle(
         runWith(WAVE5_DEPS, readyForAnotherChange, toHeroCmd), // hero -> alter-ego: "after you change to this form".
-        accepting(peterParker),
+        accepting(webShot),
         undefined,
         WAVE5_DEPS,
       );
+      expect(after.players[0]!.deck).toContain(webShot);
       expect(after.players[0]!.deck.length).toBe(before.deck + 1);
       expect(after.players[0]!.discard.length).toBe(before.discard - 1);
       expect(inst(after, identityOf(after, P1)).exhausted).toBe(false); // sanity: identity itself untouched.
     });
 
+    it("offers only his identity-specific cards, not a basic ally titled 'Spider-Man' (issue #640)", () => {
+      const state = milesVsRhino(4);
+      // 27049, "Spider-Man" (Peter Parker): a basic card in his precon. Its title matches, but it is filed under
+      // "Basic cards", not "Spider-Man cards", so it is not one (RRG 1.8 "Identity-Specific Card", p. 23).
+      const { state: withPeter, id: peterParker } = moveToDiscard(state, P1, "27049");
+      const { state: withDiscard, id: powerWithin } = moveToDiscard(withPeter, P1, "27037");
+      const readyForAnotherChange = clearVoluntaryFormChange(run(withDiscard, toHeroCmd), P1);
+      let offered: readonly string[] = [];
+      const recording: Picker = (s) => {
+        if (s.pendingChoice?.prompt.kind === "chooseCards") offered = s.pendingChoice.options.map((o) => o.optionId);
+        return accepting()(s);
+      };
+      const after = settle(runWith(WAVE5_DEPS, readyForAnotherChange, toHeroCmd), recording, undefined, WAVE5_DEPS);
+      expect(offered).toContain(powerWithin);
+      expect(offered).not.toContain(peterParker);
+      expect(after.players[0]!.discard).toContain(peterParker);
+    });
+
     it("choosing to change to alter-ego form with no Spider-Man card in the discard pile is a legal no-op", () => {
-      const state = milesVsRhino(2);
+      // A basic "Spider-Man" ally in the discard pile does not count.
+      const { state } = moveToDiscard(milesVsRhino(2), P1, "27049");
       const inHero = run(state, toHeroCmd);
       const readyForAnotherChange = clearVoluntaryFormChange(inHero, P1);
       const before = readyForAnotherChange.players[0]!.deck.length;

@@ -380,8 +380,12 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
   }
   const order = playerOrder(ctx.state);
   const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");
-  // One card each, then one per hazard icon, both in player order: card `index` goes to `order[index % players]`.
-  const total = order.length === 0 ? 0 : order.length + hazards;
+  // One card each, X more rounds at heroic level X, then one per hazard icon, all in player order: card `index` goes to
+  // `order[index % players]`. RRG 1.8 "Modes of Play" (p. 29); cards are dealt one at a time, "In Heroic Mode level 1,
+  // cards would be dealt in the order ABCABC" (ruling, August 22, 2025). Engine reading, no source orders heroic against
+  // hazards (issue #611): the per-player rounds come first, as the hazard cards come last in the printed step.
+  const perPlayer = order.length * (1 + (ctx.state.scenarioRules.heroicLevel ?? 0));
+  const total = order.length === 0 ? 0 : perPlayer + hazards;
   for (let index = step.dealt ?? 0; index < total; index++) {
     const player = order[index % order.length];
     // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): each card has its own interrupt
@@ -390,7 +394,7 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
     // is dealt in step three, before the step ends.
     const waits =
       player !== undefined &&
-      dealEncounterCardOrAnnounce(ctx, player.playerId, index < order.length ? "villainPhase" : "hazard", null);
+      dealEncounterCardOrAnnounce(ctx, player.playerId, index < perPlayer ? "villainPhase" : "hazard", null);
     if (waits) {
       setStep(ctx, { ...step, dealt: index + 1 });
       return;

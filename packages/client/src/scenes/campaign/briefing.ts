@@ -27,6 +27,8 @@ import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, STAMP_CHIP_TYPE, fitText, label } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
+import { balancedTagOf } from "../../view/campaign-balanced-model.js";
+import { drawCampaignPageArt, drawCampaignPaneGround, drawPanePaper } from "../../ui/campaign-pane.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { bottomOfDrawn, captureIntoRegion } from "../../ui/scroll-capture.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
@@ -57,6 +59,7 @@ import { aspectStampOf, type AspectStamp } from "../../view/aspect-stamp.js";
 import { drawAspectChips } from "../../ui/aspect-chips.js";
 import { deckRowLayout, deckRowTitleWidth } from "../../view/campaign-deck-row-layout.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
+import { onTap } from "../../ui/tap.js";
 import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
@@ -85,6 +88,7 @@ import {
   easierStartIsOn,
   type EasierStartBriefing,
 } from "../../view/campaign-easier-start-model.js";
+import { applyIssueMode, issueModeRowsOf, type IssueModeRow } from "../../view/campaign-modes-model.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
@@ -99,6 +103,7 @@ import {
 } from "../../view/campaign-modular-call-model.js";
 import { drawModularCall } from "./briefing-modular-call.js";
 import { drawEasierStart } from "./briefing-easier-start.js";
+import { drawIssueModes } from "./briefing-modes.js";
 import { drawMissionBriefing } from "./briefing-mission.js";
 import { drawShieldBriefing } from "./briefing-shield.js";
 import { drawSideSchemeCall, drawSideSchemeSettled, type SideSchemeDrawContext } from "./briefing-side-scheme.js";
@@ -192,6 +197,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
    * when the pending call changes.
    */
   #briefingRegion: McScrollRegion | null = null;
+  /** One callback for the pane art, so repeated draws while it loads share one waiter. */
+  readonly #redrawPane = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
   #briefingScroll = new VariableListScroll();
   /** The wide layout's right column, scrolled alone when its stack is taller than the screen (four seats, issue #3). */
   #columnRegion: McScrollRegion | null = null;
@@ -492,6 +501,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
+    drawCampaignPageArt(this, record.campaignId as string, this.#redrawPane);
 
     const back = (): void => {
       this.scale.off("resize", this.#draw, this);
@@ -507,7 +517,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       onBack: back,
       // Not under the "which deck?" scrim.
       hints: this.#seatPicker ? null : this.#hints,
-      title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}`,
+      title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}${balancedTagOf(record.modes) ? " · Balanced" : ""}`,
       ...(hiddenEvidence
         ? {
             right: hiddenEvidence.revealedCards
@@ -629,6 +639,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       );
     }
     const easierStart = !seatCall && record.attempt ? this.#easierStartFor(record) : null;
+    const issueModes = !seatCall && record.attempt && !this.#inProgress ? this.#issueModesFor(record) : [];
     const missionBrief = !seatCall ? (view?.missions ?? null) : null;
     if (missionBrief && !schemeBeside) {
       const missionRect: Rect = {
@@ -656,6 +667,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
         leftBottom + 20,
         easierStart,
         () => void this.#toggleEasierStart(),
+      );
+    }
+    // On a wide screen they sit at the foot of the right column, which scrolls when it runs long.
+    if (issueModes.length > 0 && phone) {
+      leftBottom = drawIssueModes(
+        this.#schemeContext({ ...leftRect, y: leftBottom + 20 }, phone, stops),
+        leftBottom + 20,
+        issueModes,
+        (action) => void this.#setIssueMode(action),
       );
     }
     if (this.#pending) {
@@ -705,76 +725,107 @@ export class CampaignBriefingScene extends Phaser.Scene {
       }
     }
 
+    // Where a phone's stacked pane ends: the scroll runs to it, not to the art's full bounds.
+    let stackPaneBottom: number | null = null;
     if (!phone) {
+      // The right column sits on the coloured pane (flush right, top bar to action bar). Its ink text sits on a paper
+      // panel that hugs the content, with the pane's own inset around it (28 on a tablet, 40 wide), so the color and
+      // the art show below it.
+      const paneX = leftRect.x + leftRect.width + columnGap / 2;
+      const inset = width >= 1000 ? 40 : 28;
+      const paperPad = 16;
+      const paperX = paneX + inset;
+      const paperWidth = width - paperX - inset;
+      const paperTop = top.height + inset;
       const rightRect: Rect = {
-        x: leftRect.x + leftRect.width + columnGap,
-        y: top.height + 20,
-        width: width - gutter - (leftRect.x + leftRect.width + columnGap),
-        height: contentBottom - (top.height + 20),
+        x: paperX + paperPad,
+        y: paperTop + paperPad,
+        width: paperWidth - paperPad * 2,
+        height: contentBottom - (paperTop + paperPad),
       };
-      if (hasPool) this.#drawHandled(rightRect, view, stops);
-      else {
-        const columnStart = this.children.list.length;
-        const columnStopsBefore = new Set(stops.keys());
-        const decksBottom = this.#drawDecks(rightRect, view, stops);
-        let rightBottom = decksBottom;
-        if (missionBrief) {
-          rightBottom = drawMissionBriefing(
-            this.#schemeContext(rightRect, phone, stops),
-            decksBottom + 24,
-            missionBrief,
-          );
-        } else if (scheme) {
-          rightBottom = drawSideSchemeSettled(
-            this.#schemeContext(rightRect, phone, stops),
-            decksBottom + 24,
-            scheme,
-            (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
-          );
-        }
-        if (shieldBrief) {
-          rightBottom = drawShieldBriefing(this.#schemeContext(rightRect, phone, stops), rightBottom + 24, shieldBrief);
-        }
-        if (easierStart) {
-          drawEasierStart(
-            this.#schemeContext(rightRect, phone, stops),
-            rightBottom + 24,
-            easierStart,
-            () => void this.#toggleEasierStart(),
-          );
-        }
-        // Taller than the screen: the column scrolls on its own rather than running under the action bar.
-        const columnEnd = this.children.list.length;
-        const columnBottom = this.#bottomOf(columnStart, columnEnd);
-        if (columnBottom > contentBottom) {
-          const columnHeights = [1_000_000];
-          this.#columnRegion = new McScrollRegion(this, {
-            rect: { x: rightRect.x, y: rightRect.y, width: rightRect.width, height: rightRect.height },
-            heights: columnHeights,
-            scroll: this.#columnScroll,
-            clipInteractive: true,
-          });
-          this.#captureIntoRegion(
-            this.#columnRegion,
-            columnHeights,
-            columnStart,
-            stops,
-            columnStopsBefore,
-            rightRect.y,
-            contentBottom,
-            this.#columnScroll,
-            columnEnd,
-          );
-        }
+      drawCampaignPaneGround(
+        this,
+        record.campaignId as string,
+        { x: paneX, y: top.height, width: width - paneX, height: actionBar.y - top.height },
+        this.#redrawPane,
+      );
+      const paperAt = (bottom: number, slot: number): void =>
+        drawPanePaper(this, { x: paperX, y: paperTop, width: paperWidth, height: bottom + paperPad - paperTop }, slot);
+      const columnStart = this.children.list.length;
+      const columnStopsBefore = new Set(stops.keys());
+      const decksBottom = hasPool ? this.#drawHandled(rightRect, view, stops) : this.#drawDecks(rightRect, view, stops);
+      let rightBottom = decksBottom;
+      if (missionBrief && !hasPool) {
+        rightBottom = drawMissionBriefing(this.#schemeContext(rightRect, phone, stops), decksBottom + 24, missionBrief);
+      } else if (scheme && !hasPool) {
+        rightBottom = drawSideSchemeSettled(
+          this.#schemeContext(rightRect, phone, stops),
+          decksBottom + 24,
+          scheme,
+          (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+        );
+      }
+      if (shieldBrief && !hasPool) {
+        rightBottom = drawShieldBriefing(this.#schemeContext(rightRect, phone, stops), rightBottom + 24, shieldBrief);
+      }
+      if (easierStart && !hasPool) {
+        rightBottom = drawEasierStart(
+          this.#schemeContext(rightRect, phone, stops),
+          rightBottom + 24,
+          easierStart,
+          () => void this.#toggleEasierStart(),
+        );
+      }
+      if (issueModes.length > 0) {
+        rightBottom = drawIssueModes(
+          this.#schemeContext(rightRect, phone, stops),
+          rightBottom + 24,
+          issueModes,
+          (action) => void this.#setIssueMode(action),
+        );
+      }
+      // Taller than the screen: the column scrolls on its own rather than running under the action bar.
+      const columnEnd = this.children.list.length;
+      const columnBottom = Math.max(this.#bottomOf(columnStart, columnEnd), rightBottom);
+      // The paper hugs the content; a column that scrolls gets one as tall as its window, outside the scroll.
+      paperAt(columnBottom > contentBottom ? contentBottom - paperPad : columnBottom, columnStart);
+      if (columnBottom > contentBottom) {
+        const columnHeights = [1_000_000];
+        this.#columnRegion = new McScrollRegion(this, {
+          rect: { x: rightRect.x, y: rightRect.y, width: rightRect.width, height: rightRect.height },
+          heights: columnHeights,
+          scroll: this.#columnScroll,
+          clipInteractive: true,
+        });
+        this.#captureIntoRegion(
+          this.#columnRegion,
+          columnHeights,
+          columnStart + 1,
+          stops,
+          columnStopsBefore,
+          rightRect.y,
+          contentBottom,
+          this.#columnScroll,
+          columnEnd + 1,
+        );
       }
     } else if (hasPool && !seatCall) {
       const handledTop = scrolled
         ? Math.max(leftBottom, this.#bottomOf(contentStart)) + 20
         : leftBottom + (this.#pending ? 140 : 20);
-      this.#drawHandled(
+      const stackStart = this.children.list.length;
+      const handledBottom = this.#drawHandled(
         { x: gutter, y: handledTop, width: width - gutter * 2, height: Math.max(1, contentBottom - handledTop) },
         view,
         stops,
+      );
+      stackPaneBottom = this.#paneUnderStack(
+        record.campaignId as string,
+        stackStart,
+        handledTop,
+        Math.max(handledBottom, this.#bottomOf(stackStart)),
+        width,
+        gutter,
       );
     } else if (scrolled || view) {
       // The Decks panel is there while a call is pending too (its placeholder says it waits on the answer).
@@ -784,11 +835,31 @@ export class CampaignBriefingScene extends Phaser.Scene {
         width: width - gutter * 2,
         height: 0,
       };
-      this.#drawDecks(decksRect, view, stops);
+      const stackStart = this.children.list.length;
+      const decksBottom = this.#drawDecks(decksRect, view, stops);
+      stackPaneBottom = this.#paneUnderStack(
+        record.campaignId as string,
+        stackStart,
+        decksRect.y,
+        Math.max(decksBottom, this.#bottomOf(stackStart)),
+        width,
+        gutter,
+      );
     }
 
     if (region)
-      this.#captureIntoRegion(region, scrollHeights, contentStart, stops, stopsBefore, top.height, actionBar.y);
+      this.#captureIntoRegion(
+        region,
+        scrollHeights,
+        contentStart,
+        stops,
+        stopsBefore,
+        top.height,
+        actionBar.y,
+        undefined,
+        undefined,
+        stackPaneBottom ?? undefined,
+      );
 
     // Bottom action bar: "EDIT DECKS"/"DECKS" outlined, "OPEN ISSUE #N ▸" the one red CTA — disabled until the
     // issue is composed and nothing is still being asked.
@@ -919,6 +990,42 @@ export class CampaignBriefingScene extends Phaser.Scene {
     }
   }
 
+  /** The Briefing's mode rows for the composed issue; empty when it cannot be launched. */
+  #issueModesFor(record: CampaignRecord): readonly IssueModeRow[] {
+    try {
+      return issueModeRowsOf(campaignService().launchConfig(record).scenarioId, record.issueModes ?? {});
+    } catch {
+      return [];
+    }
+  }
+
+  /** One mode chip: stores the modes and composes the issue again under them. */
+  async #setIssueMode(action: string): Promise<void> {
+    const record = this.#record;
+    if (!record?.attempt || this.#starting || this.#toggling) return;
+    const scenarioId = campaignService().launchConfig(record).scenarioId;
+    // The calls this issue already answered ride along, as they do through a deck edit (`#editDecks`): composing again
+    // never asks them twice, and an issue picked on this visit does not replay its comic.
+    if (record.attempt) {
+      this.#answers = [...this.#answers, ...answersOfAttempt(record.attempt)];
+      this.#data = { ...this.#data, openerReadNodeId: record.attempt.nodeId };
+    }
+    this.#toggling = true;
+    this.#startError = null;
+    this.#draw();
+    try {
+      this.#record = await campaignService().setIssueModes(
+        record,
+        applyIssueMode(scenarioId, record.issueModes ?? {}, action),
+      );
+    } catch (error) {
+      this.#startError = error instanceof Error ? error.message : "Couldn't save the mode";
+    } finally {
+      this.#toggling = false;
+    }
+    if (this.sys.isActive()) void this.#compose();
+  }
+
   /** Flips the toggle (stored on the run, off by default) and redraws; nothing is composed again. */
   async #toggleEasierStart(): Promise<void> {
     const record = this.#record;
@@ -955,6 +1062,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     viewportBottom: number,
     scroll: VariableListScroll = this.#briefingScroll,
     toIndex?: number,
+    bottom?: number,
   ): void {
     captureIntoRegion(this, {
       region,
@@ -966,6 +1074,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       stopsBefore,
       viewportTop,
       viewportBottom,
+      ...(bottom === undefined ? {} : { bottom }),
     });
   }
 
@@ -1273,6 +1382,28 @@ export class CampaignBriefingScene extends Phaser.Scene {
       }
     });
     return listTop + listHeight;
+  }
+
+  /** A phone's stacked Decks / Handled column: the coloured pane full width with a paper panel, slotted under it. */
+  #paneUnderStack(
+    campaignId: string,
+    startIndex: number,
+    top: number,
+    bottom: number,
+    width: number,
+    gutter: number,
+  ): number {
+    const pad = 12;
+    // The pane runs 20 above the content (the gap above it) and 16 below; the paper hugs the content.
+    const rect: Rect = { x: 0, y: top - 20, width, height: bottom - top + 20 + 16 };
+    const drawn = drawCampaignPaneGround(this, campaignId, rect, this.#redrawPane, startIndex);
+    drawPanePaper(
+      this,
+      { x: gutter - pad, y: top - 12, width: width - (gutter - pad) * 2, height: bottom - top + 12 + 4 },
+      startIndex + drawn,
+    );
+    // Where the scroll should end: the pane's bottom less the region's own 16px end padding.
+    return rect.y + rect.height - 16;
   }
 
   #measureHandledRow(row: HandledRow, width: number): number {
@@ -2120,7 +2251,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       .setOrigin(0, 1)
       .setWordWrapWidth(width - 24);
     const zone = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    zone.on(Phaser.Input.Events.POINTER_UP, onPick);
+    onTap(zone, onPick, `role:${tile.id}`);
     stops.set(`role:${tile.id}`, { rect: tileRect, activate: onPick });
   }
 
@@ -2226,12 +2357,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#seatPicker = false;
       this.#draw();
     };
-    this.add
-      .rectangle(0, 0, width, height, 0x000000, 0.55)
-      .setOrigin(0, 0)
-      .setDepth(depth)
-      .setInteractive()
-      .on(Phaser.Input.Events.POINTER_UP, close);
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.55).setOrigin(0, 0).setDepth(depth);
+    onTap(
+      this.add.zone(0, 0, width, height).setOrigin(0, 0).setDepth(depth).setInteractive(),
+      close,
+      "seat-picker-close",
+    );
     const panelWidth = Math.min(420, width - 32);
     const rowHeight = 56;
     const panelHeight = 72 + (record.seats.length + 1) * (rowHeight + 10);
@@ -2337,7 +2468,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         .zone(rect.x, top, rect.width, rowHeight)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on(Phaser.Input.Events.POINTER_UP, open);
+      onTap(zone, open, `deck-seat-${row.seatNumber}`);
       stops.set(`deck-seat-${row.seatNumber}`, {
         rect: { x: rect.x, y: top, width: rect.width, height: rowHeight },
         activate: open,

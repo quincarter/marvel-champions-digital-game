@@ -332,7 +332,11 @@ export function progressOf(
   saves: readonly {
     readonly status: string;
     readonly guided?: { readonly kind: string };
-    readonly config: { readonly scenarioId: string; readonly difficulty?: string };
+    readonly config: {
+      readonly scenarioId: string;
+      readonly difficulty?: string;
+      readonly modes?: { readonly skirmish?: unknown };
+    };
   }[],
   campaigns: readonly {
     readonly status: string;
@@ -344,7 +348,12 @@ export function progressOf(
   const wonCampaigns = campaigns.filter((c) => c.status === "won");
   return {
     wonScenarioIds: unique(wonSaves.map((s) => s.config.scenarioId)),
-    wonExpertScenarioIds: unique(wonSaves.filter((s) => isExpert(s.config.difficulty)).map((s) => s.config.scenarioId)),
+    // A Skirmish game is shorter: a win, but not an Expert win.
+    wonExpertScenarioIds: unique(
+      wonSaves
+        .filter((s) => isExpert(s.config.difficulty) && !s.config.modes?.skirmish)
+        .map((s) => s.config.scenarioId),
+    ),
     wonCampaignIds: unique(wonCampaigns.map((c) => c.campaignId)),
     wonExpertCampaignIds: unique(
       wonCampaigns.filter((c) => c.modes?.campaign?.expertCampaign === true).map((c) => c.campaignId),

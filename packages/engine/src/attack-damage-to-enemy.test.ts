@@ -11,10 +11,12 @@ import { flat, type KeywordInstance } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
+import { defendPreview } from "./defend-preview.js";
 import { replay, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { activeVillain, mustPlayer } from "./query.js";
+import { cardsInPlay } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
@@ -178,5 +180,72 @@ describe("modifyAttack damageTo — 'damage from that attack is dealt to the cho
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);
+  });
+});
+
+/**
+ * Issue #665: the defend prompt's preview (`defendPreview`) reads a redirected attack as the damage step will resolve
+ * it — against the chosen enemy, not the attacked hero (`damagedInstanceId`).
+ */
+describe("defendPreview after modifyAttack damageTo (#665)", () => {
+  const atPrompt = (s: Setup): GameState => {
+    const state = runWith(deps, s.state, use(s.attacker));
+    expect(state.pendingChoice?.prompt.kind).toBe("declareDefender");
+    return state;
+  };
+  const previewOf = (state: GameState) => {
+    const previews = defendPreview(state, deps)!;
+    return { decline: previews.find((p) => p.defenderInstanceId === null)! };
+  };
+
+  it("names the chosen enemy as the one damaged and bands its health, not the hero's", () => {
+    const s = setup({ goonHp: 3 });
+    const { decline } = previewOf(atPrompt(s));
+    expect(decline.targetInstanceId).toBe(s.hero);
+    expect(decline.damagedInstanceId).toBe(s.goon);
+    expect(decline.bands.every((band) => band.damageTaken === 4 && band.defeated)).toBe(true);
+  });
+
+  it("a tough status card on the chosen enemy absorbs it", () => {
+    const s = setup({ goonTough: true });
+    const { decline } = previewOf(atPrompt(s));
+    expect(decline.bands.every((band) => band.toughSpent && band.damageTaken === 0)).toBe(true);
+  });
+
+  it("the attacker's overkill spills nothing from the chosen enemy", () => {
+    const s = setup({ goonHp: 2, villainKeywords: [{ name: "overkill" }] });
+    const { decline } = previewOf(atPrompt(s));
+    expect(decline.bands.every((band) => band.defeated && band.overkillAmount === 0)).toBe(true);
+  });
+
+  it("'prevent all damage from this attack' prevents the redirected damage too, and the tough card stays", () => {
+    const s = setup({ goonTough: true });
+    const state = atPrompt(s);
+    const frame = state.stack.find((f) => f.kind === "enemyAttack")!;
+    const prevented: GameState = {
+      ...state,
+      stack: state.stack.map((f) =>
+        f.frameId === (frame.kind === "enemyAttack" ? frame.eventFrameId : null) && f.kind === "event"
+          ? { ...f, vars: { ...f.vars, preventAllDamage: 1 } }
+          : f,
+      ),
+    };
+    const { decline } = previewOf(prevented);
+    expect(decline.bands.every((band) => band.damageTaken === 0 && !band.toughSpent)).toBe(true);
+  });
+
+  it("a chosen enemy that has left play takes nothing", () => {
+    const s = setup({ goonTough: true });
+    const state = atPrompt(s);
+    // Off the table: out of every player zone that lists it (the engaged minions).
+    const without = <T extends object>(o: T): T =>
+      Object.fromEntries(
+        Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.filter((id) => id !== s.goon) : v]),
+      ) as T;
+    const gone: GameState = { ...state, players: state.players.map(without) };
+    expect(cardsInPlay(gone)).not.toContain(s.goon);
+    const { decline } = previewOf(gone);
+    expect(decline.damagedInstanceId).toBe(s.goon);
+    expect(decline.bands.every((band) => band.damageTaken === 0 && !band.toughSpent && !band.defeated)).toBe(true);
   });
 });

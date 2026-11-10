@@ -31,6 +31,7 @@ const STATS: PlayerStats = {
     note: null,
   },
   aspects: [{ aspect: "justice", label: "Justice", games: 2, wins: 1 }],
+  matchups: null,
   filter: {},
   filterOptions: { heroes: [], villains: [], difficulties: [] },
 };

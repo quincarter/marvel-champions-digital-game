@@ -93,7 +93,10 @@ export default defineConfig({
       // tips.spec.ts only click focus-rect actions that exist on the phone board's default tab, so those two run
       // here unchanged.
       testMatch: [
+        "crushing-blow-mixed-hand.spec.ts",
+        "miles-morales-alter-ego-shuffle.spec.ts",
         "holdon.spec.ts",
+        "campaign-deck-edit-parity.spec.ts",
         "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",
         "victory-display.spec.ts",
@@ -116,6 +119,7 @@ export default defineConfig({
         "angel-form.spec.ts",
         "off-turn-action.spec.ts",
         "which-ability.spec.ts",
+        "slingshot-hand-action.spec.ts",
         "threat-popup.spec.ts",
         "routed-tucked.spec.ts",
         "assault-thwart-preview.spec.ts",
@@ -138,6 +142,8 @@ export default defineConfig({
         "campaign-aftermath-scroll.spec.ts",
         "settings-close-after-card-size.spec.ts",
         "villain-phase-gate.spec.ts",
+        "campaign-balanced.spec.ts",
+        "briefing-deck-row-tap.spec.ts",
         "discard-stale-pick.spec.ts",
         "villain-review-handle.spec.ts",
         "player-stats.spec.ts",
@@ -153,6 +159,7 @@ export default defineConfig({
         "peek-banner-move.spec.ts",
         "payment-table-tile-tap.spec.ts",
         "org-support-one-way.spec.ts",
+        "play-modes.spec.ts",
         "music-volume-pause.spec.ts",
         "villain-boost-breakdown.spec.ts",
         "treachery-scheme-boost.spec.ts",

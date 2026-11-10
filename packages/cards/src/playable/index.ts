@@ -38,10 +38,11 @@ import {
   WAVE11_STARTER_DECKS,
   autoIncludedSetsOf,
   type AnyCard,
+  type Scenario,
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
-import { checkScenarioSetupOptions, type CorePlayer } from "../core/setup.js";
+import { checkScenarioSetupOptions, resolveModes, type CorePlayer } from "../core/setup.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { wave1Scenario, type Wave1ScenarioOptions } from "../wave1/setup.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
@@ -64,7 +65,7 @@ import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { wave10Scenario } from "../wave10/setup.js";
 import { WAVE11_ABILITIES } from "../wave11/index.js";
 import { wave11Scenario, type Wave11ScenarioOptions } from "../wave11/setup.js";
-import { checkPlayableDifficultySets } from "./scenario-options.js";
+import { checkPlayableDifficultySets, skirmishOffer } from "./scenario-options.js";
 import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
@@ -169,16 +170,52 @@ export function playableScenario(scenarioId: string, options: PlayableScenarioOp
     // One rule for every wave's builder: which Standard or Expert set may stand in for the printed one (Q10 = A).
     checkPlayableDifficultySets(scenario, options.difficultySets);
   }
-  const built = withAutoIncludedSets(
-    withGenePoolThreat(
-      scenarioId,
-      options,
-      withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+  const built = withPlayModes(
+    scenario ?? WAVE10_SCENARIOS.find((candidate) => candidate.id === scenarioId),
+    options,
+    withAutoIncludedSets(
+      withGenePoolThreat(
+        scenarioId,
+        options,
+        withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+      ),
     ),
   );
   // `stack` is a setup-config option, not a scenario rule, so it is attached here for every wave's builder alike
   // rather than trusted to each builder forwarding it (`GameSetupConfig.stack`).
   return options.stack ? { ...built, stack: options.stack } : built;
+}
+
+/**
+ * The heroic and skirmish halves of the modes, the same for every wave's builder (RRG 1.8 "Modes of Play", p. 29; both
+ * can be combined with expert mode, with each other and with campaign mode). Skirmish narrows the villain deck to the
+ * chosen version, which is then the final stage. The scenario builders read neither, except for their printed per-mode
+ * tables (`victoryConditionModeOf`, Tower Defense, Gene Pool).
+ */
+function withPlayModes(
+  scenario: Scenario | undefined,
+  options: PlayableScenarioOptions,
+  built: GameSetupConfig,
+): GameSetupConfig {
+  const modes = resolveModes(options.difficulty, options.modes);
+  const heroic = modes.heroic ?? 0;
+  if (!Number.isInteger(heroic) || heroic < 0) throw new Error(`heroic level ${heroic} is not a whole number`);
+  const leveled = heroic > 0 ? { ...built, heroicLevel: heroic } : built;
+  if (!modes.skirmish) return leveled;
+  const offer = skirmishOffer(scenario, modes);
+  if (!offer) throw new Error(`${scenario?.name ?? "this scenario"} has no skirmish mode`);
+  if (offer.printed) return leveled;
+  const version = modes.skirmish.villainVersion;
+  if (version === undefined || !offer.versions.includes(version))
+    throw new Error(`${scenario?.name}: villain version ${version} is not one of ${offer.versions.join(", ")}`);
+  const villain = PLAYABLE_CARDS.find((card) => card.id === built.villainCardId);
+  const side =
+    villain?.type === "villain"
+      ? (villain.sides.find((candidate) => candidate.side === built.villainSide) ?? villain.sides[0])
+      : undefined;
+  const index = side?.stages.findIndex((stage) => String(stage.stageNumber) === version) ?? -1;
+  if (index < 0) throw new Error(`${scenario?.name}: the villain has no stage ${version}`);
+  return { ...leveled, villainStartStageIndex: index, villainLastStageIndex: index };
 }
 
 /**

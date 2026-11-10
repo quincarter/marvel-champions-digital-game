@@ -42,6 +42,7 @@ import {
   whenRevealed,
   whenRevealedAlterEgo,
   whenRevealedHero,
+  you,
 } from "../../dsl/index.js";
 
 const WEAPON = trait("WEAPON");
@@ -121,7 +122,9 @@ export const CROSSBONES_SET = defineAbilities({
     removeCountersFrom(self, "ammo", 1),
     discardEncounterCards(1, { bind: "d" }),
     countBoostIcons(chosen("d"), "d"),
-    dealIndirectDamage("group", varOf("d.boostIcons")),
+    // "Take indirect damage" is the attacked player's, divided among their own characters (RRG 1.8 "You, Your",
+    // p. 49; "Indirect Damage", p. 24), not the group's.
+    dealIndirectDamage(you, varOf("d.boostIcons")),
   ),
 
   // Crossbones' Armor — Attach to Crossbones. Forced Interrupt: When Crossbones would take any amount of damage,
@@ -141,7 +144,8 @@ export const CROSSBONES_SET = defineAbilities({
   "04067.when-revealed-hero": whenRevealedHero(
     discardEncounterCards(statOf(theVillain, "atk"), { bind: "d" }),
     countBoostIcons(chosen("d"), "d"),
-    dealIndirectDamage("group", varOf("d.boostIcons")),
+    // The revealing player's own, as Machine Gun's above.
+    dealIndirectDamage(you, varOf("d.boostIcons")),
   ),
 
   // Hard as Nails — When Revealed: Give the villain a tough status card. If you cannot, heal 3 damage from it instead.

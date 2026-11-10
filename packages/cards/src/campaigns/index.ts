@@ -31,6 +31,8 @@ export { cardsOfComposedSets } from "./composed-sets.js";
 export { campaignModularPickProblem } from "./modular-picks.js";
 export { FNE_CAMPAIGN_DEFINITION } from "./fne.js";
 export { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
+export { GMW_BALANCED_FIELD, GMW_BALANCED_TOGGLES, gmwBalancedHiddenFields } from "./gmw-balanced.js";
+export type { GmwBalancedToggle, GmwBalancedToggleId } from "./gmw-balanced.js";
 export { MOJO_CAMPAIGN_DEFINITION, mojoCheckedOffSets, mojoModularSetPicks } from "./mojo.js";
 export { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
 export { MUT_GEN_CAMPAIGN_DEFINITION } from "./mut_gen.js";

@@ -104,6 +104,7 @@ import {
   cardInspectModel,
   referenceInspectModel,
   inspectModel,
+  statLineOf,
   type CampaignNotice,
   type InspectModel,
   type InspectPayment,
@@ -128,6 +129,7 @@ import { GuideStampGlide } from "../ui/guide-glide-run.js";
 import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { tableGame } from "../view/table-game.js";
+import { legalEntriesOf } from "../view/highlights.js";
 
 /** One "Your play" line's height. */
 const YOUR_PLAY_LINE = 18;
@@ -940,16 +942,8 @@ export class InspectOverlay extends Phaser.Scene {
     }
 
     if (face.stats && model.stats.length > 0) {
-      // A modified stat says so in words, e.g. "THW 2 (+1)": the sheet is text, and
-      // color alone never carries meaning.
-      const statLine = model.stats
-        .map(
-          (tile) =>
-            `${tile.label} ${tile.value}${tile.bonus ? ` (${tile.bonus > 0 ? "+" : "−"}${Math.abs(tile.bonus)})` : ""}`,
-        )
-        .join("  ·  ");
       this.add
-        .text(face.stats.x, face.stats.y, statLine, textStyle(typeRole.stat, surface.ink.hex))
+        .text(face.stats.x, face.stats.y, statLineOf(model.stats), textStyle(typeRole.stat, surface.ink.hex))
         .setLetterSpacing(1);
     }
 
@@ -1523,29 +1517,24 @@ export class InspectOverlay extends Phaser.Scene {
     // and doesn't tell them apart), so without this order a card with an ability and no play of its own would show
     // "Play it" and silently do nothing when tapped — `#playCard` only ever looks for a `playCard` entry.
     if (model.abilities.length > 0) {
-      const instanceId = this.#instanceId;
+      const uses = this.#abilityButtons(model);
       const area: Rect = { x: rect.x + pad, y: buttonsTop, width: inner, height: hit.primary };
-      const rowHeight =
-        model.abilities.length === 1 ? area.height : Math.max(hit.target, area.height / model.abilities.length);
-      model.abilities.forEach((ability, index) => {
+      const rowHeight = uses.length === 1 ? area.height : Math.max(hit.target, area.height / uses.length);
+      uses.forEach((use, index) => {
         const rowRect: Rect = {
           x: area.x,
-          y: area.y + area.height - (model.abilities.length - index) * (rowHeight + 4),
+          y: area.y + area.height - (uses.length - index) * (rowHeight + 4),
           width: area.width,
           height: rowHeight,
         };
-        const use = (): void => {
-          this.#close();
-          if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
-        };
-        if (index === 0) this.#primaryAction = use;
+        if (index === 0) this.#primaryAction = use.run;
         this.#buttons.push(
           new McButton(this, {
             kind: index === 0 ? "primary" : "secondary",
-            label: ability.label,
-            type: model.abilities.length === 1 ? typeRole.barTitle : typeRole.label,
+            label: use.label,
+            type: uses.length === 1 ? typeRole.barTitle : typeRole.label,
             rect: rowRect,
-            onClick: use,
+            onClick: use.run,
           }),
         );
       });
@@ -1553,6 +1542,39 @@ export class InspectOverlay extends Phaser.Scene {
     }
 
     this.#drawPlayAndPayButtons(rect, model, { x: rect.x + pad, y: buttonsTop, width: inner, height: hit.primary });
+  }
+
+  /**
+   * One button per usable ability, led by "Play it" for a hand card whose play is listed too: Slingshot (50013) is an
+   * ally to play for 3 as well as "Spend a [energy] resource → put Slingshot into play from your hand" (issue #634),
+   * and with only the ability buttons a phone, whose tap opens this sheet, had no way to play her.
+   */
+  #abilityButtons(model: InspectModel): readonly { readonly label: string; readonly run: () => void }[] {
+    const instanceId = this.#instanceId;
+    const actions = appSession().store.state.legal?.actions;
+    const playListed =
+      instanceId !== null &&
+      actions !== undefined &&
+      actions !== null &&
+      this.#isHandCard() &&
+      legalEntriesOf(actions).some(
+        (entry) => entry.action.kind === "playCard" && entry.action.instanceId === instanceId,
+      );
+    const play = {
+      label: "Play it",
+      run: (): void => {
+        this.#close();
+        if (instanceId) this.game.events.emit("mc-play-card", instanceId);
+      },
+    };
+    const uses = model.abilities.map((ability) => ({
+      label: ability.label,
+      run: (): void => {
+        this.#close();
+        if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
+      },
+    }));
+    return playListed ? [play, ...uses] : uses;
   }
 
   /**
@@ -1914,6 +1936,16 @@ export class InspectOverlay extends Phaser.Scene {
     typeLine.setWordWrapWidth(textWidth);
     ty += typeLine.height + 7;
 
+    // The live stats, HP first among what a player opens this to read (issue #635): the scan prints only the card's
+    // starting numbers, and the board's own tile can be too small to read them on a phone.
+    if (model.stats.length > 0) {
+      const stats = this.add
+        .text(textLeft, ty, statLineOf(model.stats), textStyle(typeRole.stat, surface.ink.hex))
+        .setLetterSpacing(1)
+        .setWordWrapWidth(textWidth);
+      ty += stats.height + 7;
+    }
+
     // A per player cost (design 14B): the scaled price in a red badge, "2 PER PLAYER × 2 PLAYERS" beside it.
     if (model.perPlayerCost) {
       const cost = model.perPlayerCost;
@@ -2228,22 +2260,18 @@ export class InspectOverlay extends Phaser.Scene {
         }),
       );
     } else if (model.abilities.length > 0) {
-      const instanceId = this.#instanceId;
+      const uses = this.#abilityButtons(model);
       const gap = 6;
-      const width = (primaryRow.width - gap * (model.abilities.length - 1)) / model.abilities.length;
-      model.abilities.forEach((ability, index) => {
-        const use = (): void => {
-          this.#close();
-          if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
-        };
-        if (index === 0) this.#primaryAction = use;
+      const width = (primaryRow.width - gap * (uses.length - 1)) / uses.length;
+      uses.forEach((use, index) => {
+        if (index === 0) this.#primaryAction = use.run;
         this.#buttons.push(
           new McButton(this, {
             kind: index === 0 ? "primary" : "onInk",
-            label: ability.label,
-            type: model.abilities.length === 1 ? typeRole.rowTitle : typeRole.label,
+            label: use.label,
+            type: uses.length === 1 ? typeRole.rowTitle : typeRole.label,
             rect: { x: primaryRow.x + index * (width + gap), y: primaryRow.y, width, height: primaryRow.height },
-            onClick: use,
+            onClick: use.run,
           }),
         );
       });

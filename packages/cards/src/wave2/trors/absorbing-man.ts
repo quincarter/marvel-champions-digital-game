@@ -4,7 +4,7 @@ import {
   ANY_RESOURCE,
   anyOf,
   boost,
-  chooseOne,
+  chooseOneBy,
   chooseTarget,
   chosen,
   constant,
@@ -256,7 +256,9 @@ export const ABSORBING_MAN_SET = defineAbilities({
   "04091.when-revealed": whenRevealed(
     forEachPlayer(
       eachPlayer,
-      chooseOne(
+      // Each player makes their own choice (RRG 1.8 "Each Player", p. 17; "Choose (Option)", p. 12).
+      chooseOneBy(
+        thatPlayer,
         option("Spend a [energy] resource", spendResources({ energy: 1 }, "spent", thatPlayer)),
         option("Take indirect damage", dealIndirectDamage(thatPlayer, ifElse(HIGH_DELAY, 3, 2))),
       ),

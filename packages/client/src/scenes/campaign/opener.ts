@@ -38,6 +38,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import {
   CinematicDriver,
   drawComicReaderStep,
@@ -109,6 +110,11 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #hints: GlyphHints | null = null;
+
+  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
+  readonly #redrawArt = (): void => {
+    if (this.sys.isActive()) this.#draw();
+  };
 
   constructor() {
     super(SCENES.campaignOpener);
@@ -419,6 +425,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const view = openerViewOf(story, this.#issueNumber, this.#issueTotal, rosterIds, this.#revealed);
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
+    drawCampaignPageArt(this, reading.campaignId, this.#redrawArt);
 
     // Header: paper ground (not the ink top bar every other campaign screen uses — the opener reads as a comic
     // page, not a control panel), issue label, the huge Bangers title, "SKIP ▸▸" boxed at the right.
@@ -544,6 +551,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const stops = new Map<string, FocusStop>();
 
     this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
+    // The Finale keeps its own look; this reader also reads the box's finale page.
+    if (!this.#data.finale) drawCampaignPageArt(this, campaignId, this.#redrawArt);
 
     const headerPad = phone ? 16 : 24;
     const skipRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };

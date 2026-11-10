@@ -442,7 +442,7 @@ describe("Super-Soldiers 54022 and a Captain America another player controls (RR
 // ---------------------------------------------------------------------------------------------------------------------
 
 describe("Winter, Widow, Soldier, Spy 54023 and Aggressive Stance 54017 (RRG 1.8 'Play, Put into Play' p. 32; 'Max' entry)", () => {
-  it("with one Aggressive Stance attached, a second copy chosen from the discard pile does not enter play (owner Q37 = A)", () => {
+  it("with one Aggressive Stance attached, a second copy in the discard pile does not enter play (owner Q37 = A)", () => {
     // 'Max': "'Max 1 per player' ... restricts the number of copies of that card that each player may control in play at
     // a given time" and "A player cannot take control of another copy of a 'Max 1 per player' card they already control."
     // It is a limit on control, so 'Play, Put into Play' (bypassing "any restrictions or prohibitions regarding playing
@@ -451,18 +451,21 @@ describe("Winter, Widow, Soldier, Spy 54023 and Aggressive Stance 54017 (RRG 1.8
     const widow = stagedInPlay(wsHeroGame(), WIDOW);
     const first = stagedInPlay(widow.state, STANCE, { attach: true });
     const second = moveToDiscard(first.state, P1, STANCE);
+    // Nor is it offered: a copy the limit keeps out is no valid target (RRG 1.8 "Target", p. 43), and with no other
+    // Preparation in the discard pile the event still deals its 4 damage ("Choose (Game Element)", p. 12).
+    const offered: string[] = [];
     const chosen = chooser({ cards: [second.id] });
-    const r = cast(second.state, WINTER_WIDOW, 2, chosen.picker);
+    const picker: Picker = (s) => {
+      offered.push(...(s.pendingChoice?.options.map((o) => o.optionId as string) ?? []));
+      return chosen.picker(s);
+    };
+    const r = cast(second.state, WINTER_WIDOW, 2, picker);
+    expect(offered).not.toContain(second.id);
     const attached = inst(r.state, identityOf(r.state)).attachments.filter((i) => codeOf(r.state, i) === STANCE);
     expect(attached).toEqual([first.id]);
     expect(playerOf(r.state, P1).discard).toContain(second.id);
     expect(inst(r.state, second.id).attachedTo).toBeNull();
-    expect(r.events).toContainEqual({
-      type: "putIntoPlayRefused",
-      instanceId: second.id,
-      playerId: P1,
-      reason: "maxPerPlayer",
-    });
+    expect(r.events.some((e) => e.type === "putIntoPlayRefused")).toBe(false);
     expect(inst(r.state, r.state.villains[0]!.instanceId).damage).toBe(4);
   });
 });

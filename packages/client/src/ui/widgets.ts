@@ -240,6 +240,13 @@ export interface McButtonOptions {
   readonly onClick: () => void;
   /** Shown as the "Why illegal?" line when the button is unavailable. */
   readonly reason?: string;
+  /**
+   * A Graphics drawn before this button, shared with its neighbours, that takes the button's panel. A Graphics between
+   * two labels ends the GPU's batch, so a screen of buttons each with its own is a draw call per object, and a scrolling
+   * list pays for that every frame (#631). Only a button redrawn in place by its own hover uses its own Graphics, on
+   * top. Not for a `tint` or `hatch` button, which paint more than the panel, or one its caller `update`s.
+   */
+  readonly underlay?: Phaser.GameObjects.Graphics;
   /** The pointer entered (true) or left (false) the button, whether or not it is available. */
   readonly onHover?: (over: boolean) => void;
   /** A press landed on the button while it is unavailable: say why (a touch has no hover to say it). */
@@ -296,6 +303,8 @@ export class McButton {
   #options: McButtonOptions;
   #hovered = false;
   #labelShift = 0;
+  /** The state `underlay` shows, when this button has one. */
+  readonly #underlaid: WidgetState | null;
   /**
    * A click needs a pointer-down *and* a pointer-up, both seen by this
    * button (`view/press-arm.ts`). Without this, a button that appears mid-
@@ -312,6 +321,8 @@ export class McButton {
     this.#scene = scene;
     this.#options = options;
     const { rect } = options;
+    this.#underlaid = options.underlay ? this.state : null;
+    if (options.underlay) paintPanel(options.underlay, rect, options.kind, this.state);
     this.#graphics = scene.add.graphics();
     this.#label = scene.add
       .text(0, 0, caseOf(options.type, options.label), textStyle(options.type, 0))
@@ -480,7 +491,7 @@ export class McButton {
     }
     const s = skin(this.#options.kind, state);
     this.#graphics.clear();
-    paintPanel(this.#graphics, rect, this.#options.kind, state);
+    if (state !== this.#underlaid) paintPanel(this.#graphics, rect, this.#options.kind, state);
     if (this.#options.hatch !== undefined) {
       hatchRect(
         this.#graphics,

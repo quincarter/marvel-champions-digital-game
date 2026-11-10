@@ -149,7 +149,7 @@ describe("§3.74 an encounter set included when a player chose an aspect", () =>
       const instance = state.instances[id];
       expect(instance?.ownerId).toBeNull();
       expect(instance?.controllerId).toBeNull();
-      expect(instance?.home).toEqual({ kind: "encounterDeck", deckId: "e1" });
+      expect(instance?.home).toEqual({ kind: "activeEncounterDeck" });
     }
     expect(state.villainArea).toEqual([]);
     // A random "set-aside modular set" pick or count never sees it.
@@ -236,7 +236,7 @@ describe("§3.74 an encounter set included when a player chose an aspect", () =>
     expect(setInstances(plain.state)).toEqual([]);
   });
 
-  it("with several villains the shuffled-in card joins the first villain's deck and the rest are homed to it", () => {
+  it("with several villains the shuffled-in card joins the first villain's deck and the set discards to the active villain's pile", () => {
     const second = { ...VILLAIN, id: "villain-two" as CardId, name: "villain-two" };
     const { state, events } = create([["pool"]], {
       cards: [...DEFAULT_CARDS, second, ...SET_CARDS],
@@ -250,7 +250,7 @@ describe("§3.74 an encounter set included when a player chose an aspect", () =>
     expect(deckCards(state)).toHaveLength(6);
     expect(state.encounterDecks["e2"]?.deck).toHaveLength(5);
     expect(state.encounterSetAside.map((id) => state.instances[id]?.home)).toEqual(
-      copiesOf("x" as CardId, 6).map(() => ({ kind: "encounterDeck", deckId: "e1" })),
+      copiesOf("x" as CardId, 6).map(() => ({ kind: "activeEncounterDeck" })),
     );
     const [entry] = included(events);
     expect(entry?.type === "encounterSetAutoIncluded" && entry.deckId).toBe("e1");

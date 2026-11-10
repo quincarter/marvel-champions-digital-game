@@ -73,7 +73,7 @@ import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { renderArtThumb } from "./roster-panel.js";
+import { renderArtThumb, renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { cardInspectModel } from "../view/inspect-model.js";
 import {
   SELECTABLE_ASPECTS,
@@ -126,7 +126,7 @@ import {
   deckBuilderNarrowFocusOrder,
   deckBuilderTabLabel,
   deckBuilderTabRects,
-  deckBuilderTabs,
+  DECK_BUILDER_TABS,
   startTab,
   stepDeckBuilderTab,
   type DeckBuilderTab,
@@ -201,6 +201,9 @@ import {
   campaignDeckEditModel,
   campaignDeckSizeLabel,
   campaignDeckSizeSplit,
+  campaignDeckVerdictOf,
+  campaignRefusesAdd,
+  campaignRefusesCut,
   prohibitedCampaignCardIds,
   removedFromCampaignCardIds,
   setRewardIncluded,
@@ -253,6 +256,8 @@ export interface DeckBuilderCampaignData {
 export interface DeckBuilderSceneData {
   readonly deck?: Deck;
   readonly campaign?: DeckBuilderCampaignData;
+  /** Campaign mode: the deck as the run stores it, when `deck` already holds unsaved edits (back from Deck check). */
+  readonly savedDeck?: Deck;
   /** Open on the deck rail's From your games tab (Decks & Collection's "Build my own from this" / "Edit with these"). */
   readonly railTab?: "deck" | "games";
   /** Open on this narrow tab: coming back from Deck check, on the Deck tab that opened it. */
@@ -381,6 +386,8 @@ const QUICK_FILTERS: readonly {
 
 /** Under this height the narrow layout folds the pool's filters behind the Filters chip, as a phone does. */
 const FOLD_FILTERS_BELOW_HEIGHT = 700;
+/** The search row's Card/List toggle, ?, Clear and their gaps, plus a field that can still show a query. */
+const SEARCH_ROW_MIN_WIDTH = 92 + hit.target * 2 + CHIP_GAP * 3 + 160;
 /** The wide left rail's Cost curve / Odds tabs: shorter than a touch target, as only a mouse reaches them there. */
 const CHART_TAB_HEIGHT = 30;
 const CARD_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL.map((card) => [card.id as string, card]));
@@ -436,6 +443,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #campaign: DeckBuilderCampaignData | null = null;
   /** Recomputed every `#rebuild` from `#deck`/`#campaign` — the row-level marks the pool list and "your deck" panel both read; `null` outside campaign mode. */
   #campaignModel: CampaignDeckEditModel | null = null;
+  /** `#campaignModel`'s rows by card id: a pool row reads one each time it scrolls in. */
+  #campaignRows: ReadonlyMap<string, CampaignDeckEditRow> = new Map();
   #nameInput: McTextInput | null = null;
   #filterInput: McTextInput | null = null;
   #buttons: McButton[] = [];
@@ -523,7 +532,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A precon is never edited in place (issue #217): the builder edits the player's own copy of it.
     this.#deck =
       given && !this.#campaign ? editableDeckOf(given, `deck-${crypto.randomUUID()}`, new Date().toISOString()) : given;
-    this.#savedDeck = this.#campaign ? given : null;
+    this.#savedDeck = this.#campaign ? (data.savedDeck ?? given) : null;
     this.#leaveArmed = false;
     this.#deleteArmed = false;
     this.#startFor = null;
@@ -572,20 +581,18 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#shareBusy = false;
     this.#shareShownAt = null;
     this.#stepTimer = null;
-    this.#railTab = data.railTab === "games" && !this.#campaign ? "games" : "deck";
-    this.#tab = data.tab ?? startTab(data.railTab, this.#campaign !== null);
+    this.#railTab = data.railTab === "games" ? "games" : "deck";
+    this.#tab = data.tab ?? startTab(data.railTab);
     this.#hints = new GlyphHints(this);
-    if (!this.#campaign) {
-      void appSession()
-        .store.listSaves()
-        .then((saves) => loadDeckInsights(saves))
-        .then((insights) => {
-          if (!this.scene.isActive()) return;
-          this.#insights = insights;
-          if (this.#showsGames()) this.#rebuild();
-        })
-        .catch(() => undefined);
-    }
+    void appSession()
+      .store.listSaves()
+      .then((saves) => loadDeckInsights(saves))
+      .then((insights) => {
+        if (!this.scene.isActive()) return;
+        this.#insights = insights;
+        if (this.#showsGames()) this.#rebuild();
+      })
+      .catch(() => undefined);
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
@@ -647,9 +654,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       // LB / RB: the narrow layout's tabs (Pool, Deck, From your games); the wide layout's deck rail has two.
       onTab: (direction) => {
         if (!this.#identity) return;
-        if (!this.#isWide())
-          this.#setTab(stepDeckBuilderTab(deckBuilderTabs(this.#campaign !== null), this.#tab, direction));
-        else if (!this.#campaign) this.#setRailTab(direction > 0 ? "games" : "deck");
+        if (!this.#isWide()) this.#setTab(stepDeckBuilderTab(DECK_BUILDER_TABS, this.#tab, direction));
+        else this.#setRailTab(direction > 0 ? "games" : "deck");
       },
       onScroll: (_dx, dy) => (this.#deckRegion ? this.#deckRegion.scrollByPx(dy) : this.#list?.scrollByPx(dy)),
       onHomeEnd: (edge) => {
@@ -804,6 +810,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#campaignModel = this.#campaign
       ? campaignDeckEditModel(deck, POOL, this.#campaign.context, this.#campaign.grants)
       : null;
+    this.#campaignRows = new Map(this.#campaignModel?.rows.map((row) => [row.cardId as string, row]));
     label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
     y += 20;
 
@@ -814,7 +821,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#route?.set(
         deckBuilderNarrowFocusOrder({
           tab: this.#tab,
-          tabs: deckBuilderTabs(this.#campaign !== null),
+          tabs: DECK_BUILDER_TABS,
           campaign: this.#campaign !== null,
           filtersFolded: this.#narrowFolded,
           filtersOpen: this.#filtersOpen,
@@ -843,12 +850,19 @@ export class DeckBuilderScene extends Phaser.Scene {
         quickFilterIds: QUICK_FILTERS.map((f) => f.id),
         chartIds: [...this.#stops.keys()].filter((key) => key.startsWith("chart:") || key.startsWith("odds:")),
         poolCardIds: pool.map((card) => card.id as string),
-        deckListIds: ["deck-sort", ...(this.#campaign ? [] : ["deck-review"])],
+        deckListIds: ["deck-sort", "deck-review"],
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
         showDelete: !this.#campaign && this.#savedDeck !== null,
         railIds: this.#railStops,
-        filterExtraIds: [...(this.#filterText ? ["filter-clear"] : []), "filter-help", "pool-view"],
+        filterExtraIds: [
+          ...(this.#filterText ? ["filter-clear"] : []),
+          "filter-help",
+          "pool-view",
+          ...(this.#narrowFolded ? ["filters-toggle"] : []),
+        ],
+        filtersFolded: this.#narrowFolded,
+        filtersOpen: this.#filtersOpen,
         rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
       }),
       this.#stops,
@@ -900,7 +914,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
-    return this.#campaignModel?.rows.find((row) => (row.cardId as string) === cardId) ?? null;
+    return this.#campaignRows.get(cardId) ?? null;
   }
 
   /** `browsablePool`, narrowed for campaign mode: a removed card the deck doesn't currently hold is left out of what browsing turns up (`#removedFromCampaignIds`); one it still holds stays, so its row's own "−" can fix the deck. */
@@ -972,11 +986,9 @@ export class DeckBuilderScene extends Phaser.Scene {
    * browsable pool (the Pool tab's cards; empty on the other tabs), for the caller's focus order.
    */
   #rebuildNarrow(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
-    const { width, height } = this.scale.gameSize;
+    const { height } = this.scale.gameSize;
     const pad = 16;
-    const tabs = deckBuilderTabs(this.#campaign !== null);
-    if (!tabs.includes(this.#tab)) this.#tab = "pool";
-    let y = this.#drawTabRow(left, top, column, tabs, deck);
+    let y = this.#drawTabRow(left, top, column, DECK_BUILDER_TABS, deck);
 
     // A DOM field is not clipped by the canvas: only the tab that shows it leaves it visible.
     if (this.#tab !== "deck") this.#nameInput?.setVisible(false);
@@ -1020,30 +1032,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Pool: the search row, the filters (behind a chip on a phone), and the list filling what is left.
     y = this.#drawFilterInput(left, y, column);
     const pool = this.#browsablePool(deck);
-    // Anything short folds the filters too: drawn open on a landscape phone they would push the list off the screen.
-    const form = formFactorFor(width, height);
-    const folded = form === "phone" || form === "phoneLandscape" || height < FOLD_FILTERS_BELOW_HEIGHT;
+    const folded = this.#filtersFold();
     this.#narrowFolded = folded;
     const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
     if (folded) {
-      const active = activeDeckFilterCount(this.#filter, this.#sort);
-      const chip: Rect = { x: left, y, width: Math.min(column * 0.55, 200), height: hit.target };
-      const toggle = (): void => {
-        this.#filtersOpen = !this.#filtersOpen;
-        this.#rebuild();
-        if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey("filters-toggle");
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: `${this.#filtersOpen ? "▾" : "▸"} Filters${active > 0 ? ` · ${active}` : ""}`,
-          type: typeRole.label,
-          rect: chip,
-          selected: active > 0,
-          onClick: toggle,
-        }),
-      );
-      this.#stops.set("filters-toggle", { rect: chip, activate: toggle });
+      this.#drawFiltersToggle({ x: left, y, width: Math.min(column * 0.55, 200), height: hit.target });
       label(this, left + column, y + hit.target / 2, countText, typeRole.label, surface.ink.hex, ink.meta).setOrigin(
         1,
         0.5,
@@ -1070,6 +1063,37 @@ export class DeckBuilderScene extends Phaser.Scene {
     const listRect: Rect = { x: left, y, width: column, height: Math.max(this.#rows.cardRowHeight, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
+  }
+
+  /**
+   * Whether the filters sit behind a "Filters" chip: everywhere but a desktop-size screen, so a tablet's pool gets the
+   * height (issue #631). Anything short folds them too: drawn open on a landscape phone they would push the list off
+   * the screen.
+   */
+  #filtersFold(): boolean {
+    const { width, height } = this.scale.gameSize;
+    return formFactorFor(width, height) !== "desktop" || height < FOLD_FILTERS_BELOW_HEIGHT;
+  }
+
+  /** The "Filters" chip: opens the filters in the pool list's place, and counts how many are on. */
+  #drawFiltersToggle(rect: Rect): void {
+    const active = activeDeckFilterCount(this.#filter, this.#sort);
+    const toggle = (): void => {
+      this.#filtersOpen = !this.#filtersOpen;
+      this.#rebuild();
+      if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey("filters-toggle");
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: `${this.#filtersOpen ? "▾" : "▸"} Filters${active > 0 ? ` · ${active}` : ""}`,
+        type: typeRole.label,
+        rect,
+        selected: active > 0,
+        onClick: toggle,
+      }),
+    );
+    this.#stops.set("filters-toggle", { rect, activate: toggle });
   }
 
   /** The fixed tab row: Pool, Deck with its live count, and From your games. Returns the y below it. */
@@ -1114,7 +1138,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const added = this.children.list.slice(before).filter((node) => node !== nameNode);
 
     const heights = [bottom - rect.y];
-    const nameRect = this.#nameFieldRect;
+    // The wide layout's name field sits in the deck rail, outside any region this draws.
+    const nameRect = this.#isWide() ? null : this.#nameFieldRect;
     const syncName = (): void => {
       if (!this.#nameInput || !nameRect) return;
       const screenY = nameRect.y - scroll.offsetPx;
@@ -1167,6 +1192,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const { height } = this.scale.gameSize;
     const pad = 40;
     const bottom = height - pad;
+    const folded = this.#filtersFold();
+    this.#narrowFolded = folded;
 
     const leftX = left;
     const midX = leftX + LEFT_RAIL_WIDTH + RAIL_GAP;
@@ -1176,8 +1203,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Left rail: aspect, filter, cost curve.
     let leftY = top;
     leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
-    leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
-    leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
+    if (!folded) {
+      leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
+      leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
+    }
     // The cost curve and the odds share the rail's last room behind two tabs (issue #531).
     const tabWidth = (LEFT_RAIL_WIDTH - CHIP_GAP) / 2;
     for (const [i, tab] of (["curve", "odds"] as const).entries()) {
@@ -1216,31 +1245,57 @@ export class DeckBuilderScene extends Phaser.Scene {
     rightY = this.#drawRewardsStrip(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, true);
     rightY += 4;
     const actionsTop = bottom - hit.target * 2 - 24;
-    if (!this.#campaign) rightY = this.#drawRailTabs(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, true);
+    rightY = this.#drawRailTabs(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, true);
     rightY =
-      this.#railTab === "games" && !this.#campaign
+      this.#railTab === "games"
         ? this.#drawFromYourGames(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8)
         : this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8 - rightY);
     this.#drawPreconClearSave(rightX + 12, actionsTop, RIGHT_RAIL_WIDTH - 24, deck, true);
 
     // Middle: the pool, search field above it.
-    let midY = top;
-    label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
-    midY += 16;
-    midY = this.#drawFilterInput(midX, midY, midWidth);
-    // The quick filters sit under the search here: the left rail has no room left for them.
-    midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
     const pool = this.#browsablePool(deck);
+    const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
+    let midY = top;
     label(
       this,
       midX,
       midY,
-      `${pool.length} card${pool.length === 1 ? "" : "s"}`,
+      folded ? `card pool — ${countText}` : "card pool",
       typeRole.label,
       surface.ink.hex,
-      ink.meta,
+      ink.label,
     );
     midY += 16;
+    if (folded) {
+      // The search, then the chip that opens everything else in the list's place: one row, where the field keeps a
+      // usable width even with its Clear button showing.
+      const chipWidth = 150;
+      const searchWidth = midWidth - chipWidth - CHIP_GAP;
+      if (searchWidth >= SEARCH_ROW_MIN_WIDTH) {
+        this.#drawFiltersToggle({ x: midX + searchWidth + CHIP_GAP, y: midY, width: chipWidth, height: hit.target });
+        midY = this.#drawFilterInput(midX, midY, searchWidth);
+      } else {
+        midY = this.#drawFilterInput(midX, midY, midWidth);
+        this.#drawFiltersToggle({ x: midX, y: midY, width: chipWidth, height: hit.target });
+        midY += hit.target + CHIP_GAP;
+      }
+      if (this.#filtersOpen) {
+        const rect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(hit.target * 2, bottom - midY) };
+        const inner = midWidth - NARROW_SCROLLBAR_GUTTER;
+        this.#drawNarrowRegion(rect, this.#filtersScroll, (at) => {
+          let next = this.#drawTypeFilters(midX, at, inner);
+          next = this.#drawQuickFilters(midX, next, inner, deck);
+          return this.#drawPackAndSort(midX, next, inner, deck);
+        });
+        return pool;
+      }
+    } else {
+      midY = this.#drawFilterInput(midX, midY, midWidth);
+      // The quick filters sit under the search here: the left rail has no room left for them.
+      midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
+      label(this, midX, midY, countText, typeRole.label, surface.ink.hex, ink.meta);
+      midY += 16;
+    }
     const listRect: Rect = {
       x: midX,
       y: midY,
@@ -1356,6 +1411,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     label(this, left, y, "filter", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
+    const ground = this.add.graphics();
     const typeChipRows = wrapChipsToRows(TYPE_FILTERS, column);
     const activeTypeFilterId = TYPE_FILTERS.find((f) => f.type === (this.#filter.type ?? null))?.id ?? "all";
     typeChipRows.forEach((row, rowIndex) => {
@@ -1381,6 +1437,7 @@ export class DeckBuilderScene extends Phaser.Scene {
             type: typeRole.label,
             rect,
             selected,
+            underlay: ground,
             onClick: applyFilter,
           }),
         );
@@ -1399,6 +1456,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     label(this, left, y, "cost · icon · trait", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
+    const ground = this.add.graphics();
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
       this.#rememberView();
@@ -1407,7 +1465,15 @@ export class DeckBuilderScene extends Phaser.Scene {
     };
     const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
       this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, selected, onClick }),
+        new McButton(this, {
+          kind: "secondary",
+          label: text,
+          type: typeRole.label,
+          rect,
+          selected,
+          underlay: ground,
+          onClick,
+        }),
       );
       this.#stops.set(id, { rect, activate: onClick });
     };
@@ -1475,6 +1541,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     label(this, left, y, "pack", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
+    const ground = this.add.graphics();
     const choices = packFilterChoices(
       POOL,
       this.#identity!,
@@ -1502,7 +1569,15 @@ export class DeckBuilderScene extends Phaser.Scene {
     const nextRect: Rect = { x: left + column - arrow, y, width: arrow, height: hit.target };
     const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
       this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, selected, onClick }),
+        new McButton(this, {
+          kind: "secondary",
+          label: text,
+          type: typeRole.label,
+          rect,
+          selected,
+          underlay: ground,
+          onClick,
+        }),
       );
       this.#stops.set(id, { rect, activate: onClick });
     };
@@ -1884,6 +1959,15 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     this.#railArtMissing = 0;
     const pool = new Set(this.#browsablePool(deck).map((card) => card.id as string));
+    // The same refusals the pool's −/+ read: a suggestion never cuts a campaign's granted card, or adds a refused one.
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
+    const canCut = (entry: SuggestedCard): boolean =>
+      !campaignRefusesCut(this.#campaignRowFor(entry.cardId), frozen) &&
+      this.#ruleRefusal(deck, entry.cardId as CardId, -1) === null;
+    const canAdd = (entry: SuggestedCard): boolean =>
+      pool.has(entry.cardId) &&
+      !campaignRefusesAdd(this.#campaignRowFor(entry.cardId), frozen) &&
+      this.#ruleRefusal(deck, entry.cardId as CardId, 1) === null;
     const type = fromYourGamesType(isDesktopType());
     const view = fromYourGamesOf(
       this.#insights,
@@ -1997,15 +2081,14 @@ ${entry.detail}`,
       }
       y += 6;
     };
-    section("Cut? Sits in your deck", view.cut, {
+    section("Cut? Sits in your deck", view.cut.filter(canCut), {
       label: "− Cut",
       run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)),
     });
-    section(
-      "Try: cards you won with",
-      view.tryCards.filter((entry) => pool.has(entry.cardId)),
-      { label: "+ Add", run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)) },
-    );
+    section("Try: cards you won with", view.tryCards.filter(canAdd), {
+      label: "+ Add",
+      run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)),
+    });
     limit = bottom;
     let shareDrawn = false;
     if (y + (hit.target + 8) * 2 <= bottom) {
@@ -2176,8 +2259,8 @@ ${entry.detail}`,
       if (against) {
         // A card the lists above already offer keeps its one button (and its one stop).
         const offered = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
-        const wins = against.tryCards.filter((entry) => pool.has(entry.cardId) && !offered.has(entry.cardId));
-        const losses = against.cutCards.filter((entry) => !offered.has(entry.cardId));
+        const wins = against.tryCards.filter((entry) => canAdd(entry) && !offered.has(entry.cardId));
+        const losses = against.cutCards.filter((entry) => canCut(entry) && !offered.has(entry.cardId));
         section(everyone ? "Try: in everyone's wins here" : "Try: in your wins here", wins, {
           label: "+ Add",
           run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)),
@@ -2261,6 +2344,8 @@ ${entry.detail}`,
       : undefined;
     // Every line is listed (none folded into "+ N more") and each has its own "-" while the deck can be edited.
     const frozen = this.#campaignModel?.editingDisabled ?? false;
+    const before = this.children.list.length;
+    const ground = this.add.graphics();
     const drawRemove = (entry: DeckListEntry, rect: Rect): void => {
       const row = this.#campaignRowFor(entry.cardId as string);
       const locked = row?.locked ?? false;
@@ -2271,6 +2356,7 @@ ${entry.detail}`,
           label: "−",
           type: typeRole.rowTitle,
           rect,
+          underlay: ground,
           enabled: !locked && !frozen && refused === null,
           ...(frozen
             ? { reason: this.#campaignModel?.editingDisabledReason ?? "" }
@@ -2283,7 +2369,6 @@ ${entry.detail}`,
         }),
       );
     };
-    const before = this.children.list.length;
     const bottom = drawGroupedCardList(
       this,
       left,
@@ -2326,8 +2411,7 @@ ${entry.detail}`,
   /** The Your deck list's Sort (issue #594) and Review (issue #595) controls; returns where the list starts. */
   #drawDeckListControls(left: number, top: number, column: number, onDark: boolean): number {
     const gap = 8;
-    // A campaign deck is judged against its campaign, which Deck check knows nothing of: it has no Review.
-    const width = this.#campaign ? column : (column - gap) / 2;
+    const width = (column - gap) / 2;
     const sortRect: Rect = { x: left, y: top, width, height: hit.target };
     const kind = onDark ? "onInk" : "secondary";
     const sort = (): void => {
@@ -2345,31 +2429,37 @@ ${entry.detail}`,
       }),
     );
     this.#stops.set("deck-sort", { rect: sortRect, activate: sort });
-    if (!this.#campaign) {
-      const reviewRect: Rect = { x: left + width + gap, y: top, width, height: hit.target };
-      // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
-      const review = (): void => this.#reviewDeck(this.#deck!);
-      this.#buttons.push(
-        new McButton(this, {
-          kind,
-          label: "Review",
-          type: typeRole.label,
-          rect: reviewRect,
-          enabled: !this.#busy,
-          onClick: review,
-        }),
-      );
-      this.#stops.set("deck-review", { rect: reviewRect, activate: review });
-    }
+    const reviewRect: Rect = { x: left + width + gap, y: top, width, height: hit.target };
+    // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
+    const review = (): void => this.#reviewDeck(this.#deck!);
+    this.#buttons.push(
+      new McButton(this, {
+        kind,
+        label: "Review",
+        type: typeRole.label,
+        rect: reviewRect,
+        enabled: !this.#busy,
+        onClick: review,
+      }),
+    );
+    this.#stops.set("deck-review", { rect: reviewRect, activate: review });
     return top + hit.target + gap;
   }
 
   /** Opens Deck check on the deck as it stands, saved or not; its Back and Edit deck come back here with that deck. */
   #reviewDeck(deck: Deck): void {
-    const data: DeckBuilderSceneData = { deck, ...(this.#isWide() ? {} : { tab: "deck" as const }) };
+    const campaign = this.#campaign;
+    const model = this.#campaignModel;
+    const data: DeckBuilderSceneData = {
+      deck,
+      ...(this.#isWide() ? {} : { tab: "deck" as const }),
+      ...(campaign && this.#savedDeck ? { campaign, savedDeck: this.#savedDeck } : {}),
+    };
     goToScreen(this, SCENES.deckCheck, {
       deck,
       returnTo: { scene: SCENES.deckBuilder, data },
+      // Deck check knows nothing of a campaign's grants and removals, so it is told how the campaign judges the deck.
+      ...(model ? { verdict: campaignDeckVerdictOf(model) } : {}),
     } satisfies DeckCheckSceneData);
   }
 
@@ -2636,7 +2726,7 @@ ${entry.detail}`,
       },
     });
     const list = this.#list;
-    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
+    list.onDestroy(cardFaces(this).onBaked(() => list.refreshRows()));
     // A pool row is hovered over its picture and text, not its -/+ column. The rows have no zone of their own, so the
     // cards are `through`, and only the part inside the list's window counts.
     this.#hoverLists.push(() => {
@@ -2715,7 +2805,7 @@ ${entry.detail}`,
       },
     });
     const list = this.#list;
-    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
+    list.onDestroy(cardFaces(this).onBaked(() => list.refreshRows()));
     // A cell is hovered over its picture and caption, not its −/+ strip; only the part inside the list's window counts.
     this.#hoverLists.push(() => {
       const found: (readonly [string, HoverCardIdRect])[] = [];
@@ -2761,7 +2851,13 @@ ${entry.detail}`,
     pool: readonly AnyCard[],
     rowIndex: number,
   ): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+    // Drawn in layers, not card by card: the panels, the pictures, the cost tabs over them, then all the words. A
+    // Graphics between two labels ends the GPU's batch, and a whole grid of those is what a scroll pays for (#631).
+    const panels = this.add.graphics();
+    const costTabs = this.add.graphics();
+    const pictures: Phaser.GameObjects.GameObject[] = [];
+    const words: Phaser.GameObjects.GameObject[] = [];
+    const thumbs: LiveArtThumb[] = [];
     const start = rowIndex * geometry.columns;
     const inRow = Math.min(geometry.columns, pool.length - start);
     const clip = (): Rect | null => this.#list?.rect ?? null;
@@ -2773,9 +2869,7 @@ ${entry.detail}`,
       const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 6 };
       const quantity = deck.cards.find((line) => line.cardId === card.id)?.quantity ?? 0;
       const campaignRow = this.#campaignRowFor(card.id as string);
-      const g = this.add.graphics();
-      paintPanel(g, cardRect, "card", quantity > 0 ? "selected" : "rest");
-      objects.push(g);
+      paintPanel(panels, cardRect, "card", quantity > 0 ? "selected" : "rest");
 
       const artRect: Rect = {
         x: cardRect.x + 3,
@@ -2783,14 +2877,15 @@ ${entry.detail}`,
         width: cardRect.width - 6,
         height: geometry.artHeight - 6,
       };
-      objects.push(renderArtThumb(this, artRect, artFor(card, { kind: "front" })?.url ?? null, 0));
+      const thumb = renderLiveArtThumb(this, artRect, artFor(card, { kind: "front" })?.url ?? null, 0);
+      thumbs.push(thumb);
+      pictures.push(thumb.object);
       if ("cost" in card && typeof card.cost === "number") {
         const pip = label(this, 0, 0, String(card.cost), typeRole.label, surface.paper.hex, 1);
         const pipWidth = Math.ceil(pip.width) + 12;
-        const pipBg = this.add.graphics();
-        pipBg.fillStyle(surface.ink.hex, 1).fillRect(artRect.x, artRect.y, pipWidth, 18);
+        costTabs.fillStyle(surface.ink.hex, 1).fillRect(artRect.x, artRect.y, pipWidth, 18);
         pip.setPosition(artRect.x + 6, artRect.y + 9).setOrigin(0, 0.5);
-        objects.push(pipBg, pip);
+        words.push(pip);
       }
 
       const captionY = cardRect.y + geometry.artHeight;
@@ -2801,7 +2896,7 @@ ${entry.detail}`,
         textStyle(typeRole.rowTitle, surface.ink.hex),
       );
       fitText(name, cardRect.width - 12);
-      objects.push(name);
+      words.push(name);
       // A narrow tile drops the subtitle from the title line; it moves to the line below, to tell the card apart.
       const subtitleCut = subtitleCutFrom(card, name.text);
       const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
@@ -2822,7 +2917,7 @@ ${entry.detail}`,
         note || campaignRow ? ink.label : ink.meta,
       );
       fitText(caption, cardRect.width - 12);
-      objects.push(caption);
+      words.push(caption);
 
       // The −, quantity and + strip along the cell's foot.
       const stripY = cell.y + geometry.cellHeight - GRID_CONTROLS_HEIGHT;
@@ -2845,6 +2940,7 @@ ${entry.detail}`,
         label: "−",
         type: typeRole.rowTitle,
         rect: minusRect,
+        underlay: panels,
         enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
         ...(minusReason ? { reason: minusReason } : {}),
         onClick: () => this.#setDeck(removeCard(deck, card.id)),
@@ -2859,6 +2955,7 @@ ${entry.detail}`,
         label: "+",
         type: typeRole.rowTitle,
         rect: plusRect,
+        underlay: panels,
         enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
         ...(plusReason ? { reason: plusReason } : {}),
         onClick: () => this.#setDeck(addCard(deck, card.id)),
@@ -2875,9 +2972,10 @@ ${entry.detail}`,
         quantity > 0 ? 1 : ink.meta,
       ).setOrigin(0.5);
       fitText(qty, plusRect.x - (minusRect.x + minusRect.width) - 4);
-      objects.push(minus.container, plus.container, qty);
+      words.push(minus.container, plus.container, qty);
     }
-    return { objects };
+    const objects = [panels, ...pictures, costTabs, ...words];
+    return { objects, refresh: () => thumbs.forEach((thumb) => thumb.refresh()) };
   }
 
   /**
@@ -3207,14 +3305,13 @@ ${entry.detail}`,
 
     // The card's own picture, then its name, type line and what it does; a tap anywhere left of −/+ inspects it
     // (`#drawPoolList`'s `onRowActivate`).
-    objects.push(
-      renderArtThumb(
-        this,
-        { x: row.x + 6, y: row.y + 6, width: this.#rows.cardThumbWidth, height: row.height - 12 },
-        artFor(card, { kind: "front" })?.url ?? null,
-        0,
-      ),
+    const thumb = renderLiveArtThumb(
+      this,
+      { x: row.x + 6, y: row.y + 6, width: this.#rows.cardThumbWidth, height: row.height - 12 },
+      artFor(card, { kind: "front" })?.url ?? null,
+      0,
     );
+    objects.push(thumb.object);
     const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
     const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
     const name = this.add.text(textX, row.y + 6, uniqueLabel(card), textStyle(typeRole.rowTitle, surface.ink.hex));
@@ -3296,6 +3393,7 @@ ${entry.detail}`,
       label: "−",
       type: typeRole.rowTitle,
       rect: minusRect,
+      underlay: g,
       enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
       ...(minusDisabledReason ? { reason: minusDisabledReason } : {}),
       onClick: doRemove,
@@ -3314,6 +3412,7 @@ ${entry.detail}`,
       label: "+",
       type: typeRole.rowTitle,
       rect: plusRect,
+      underlay: g,
       enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
       ...(plusDisabledReason ? { reason: plusDisabledReason } : {}),
       onClick: doAdd,
@@ -3322,7 +3421,7 @@ ${entry.detail}`,
     });
     objects.push(plusButton.container);
 
-    return { objects };
+    return { objects, refresh: thumb.refresh };
   }
 
   /**

@@ -65,10 +65,10 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  * p. 23) rather than a literal name match: no other card in this box is printed with the bare name "Spider-Ham"
  * (only the identity's hero face carries that title; every ally here has its own name), the Quicksilver/Nova
  * "shuffle N [Hero] cards from your discard pile into your deck" precedent (`wave2/qsv/kit.ts` 14007, `wave5/nova/
- * support-upgrades-allies.ts` 28008) for exactly this shape, not the "several differently-typed cards share one
- * printed name" reading Miles Morales's own alter-ego response needs (`wave5/sm/spider-man-morales/identity.ts`
- * 27030b). `min: 0, max: 1` is forgiving when the discard pile holds no such card (the same War Machine/Miles
- * Morales "shuffle 1 named card" idiom), so a missing copy leaves the toon counter placed instead of failing the
+ * support-upgrades-allies.ts` 28008) for exactly this shape, the same set-not-title reading Miles Morales's own
+ * alter-ego response takes (`wave5/sm/spider-man-morales/identity.ts` 27030b, issue #640).
+ * `min: 0, max: 1` is forgiving when the discard pile holds no such card (the same War Machine/Miles Morales
+ * "shuffle 1 card" idiom), so a missing copy leaves the toon counter placed instead of failing the
  * whole Response.
  *
  * **Lady Spider (30012)** — "[star] Response: After Lady Spider thwarts and removes threat from a scheme, if you

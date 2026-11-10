@@ -1,4 +1,8 @@
 {
+  "v0.43.1": {
+    "title": "Wiccan and Slingshot fixes",
+    "summary": "Wiccan stops asking for an enemy with no boost to count, Slingshot uses her Action from your hand, and phones, tablets and the campaign deck builder get fixes."
+  },
   "v0.38.1": {
     "title": "Sharper text at 100%",
     "summary": "Text stops looking blurry at 100% display scaling, SKIP leaves a comic, and Couch mode and Fear No Evil get fixes."
