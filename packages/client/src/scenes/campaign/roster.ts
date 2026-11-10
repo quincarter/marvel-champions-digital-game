@@ -83,6 +83,8 @@ const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ?
 
 /** A heading in the seat picker's list ("Recommended for seat #2", "All heroes"): a compact band, not a full row. */
 const PICKER_HEADING_HEIGHT = 22;
+/** A saved deck's own name (#658) takes a line under the hero's in its picker row, so the row grows by this much. */
+const PICKER_DECK_NAME_STEP = 16;
 /** How long a burst of hero pictures arriving is gathered into one redraw. */
 const ART_REDRAW_MS = 80;
 
@@ -560,7 +562,15 @@ export class CampaignRosterScene extends Phaser.Scene {
       return;
     }
 
-    const footerHeight = Math.min(64, rect.height * 0.22);
+    const seatView = this.#model?.seats[seatNumber - 1] ?? null;
+    // A saved deck's name takes a line of its own between the hero and the aspects (#658).
+    const deckName = seatView?.deckName ?? null;
+    // Never shorter than its lines (hero, deck name, aspects), so a short phone card (Team-Up rows above it) gives up
+    // art rather than stacks its lines on each other; a card too short for even that keeps a little art.
+    const footerHeight = Math.min(
+      rect.height * 0.7,
+      deckName ? Math.max(64, Math.min(80, rect.height * 0.3)) : Math.max(48, Math.min(64, rect.height * 0.22)),
+    );
     const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
     const border = this.add.graphics();
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
@@ -591,13 +601,22 @@ export class CampaignRosterScene extends Phaser.Scene {
       .setOrigin(0, 0);
     const identityCard = CARDS_BY_ID.get(deck.identityCardId as string);
     const identityName = identityCard ? cardDisplayName(identityCard) : (deck.identityCardId as string);
-    const name = this.add.text(footerRect.x + 8, footerRect.y + 6, identityName.toUpperCase(), {
-      ...textStyle(bangers(15, 0.9), surface.ink.hex),
-      wordWrap: { width: footerRect.width - 16, useAdvancedWrap: true },
-    });
-    void name;
-    const seatView = this.#model?.seats[seatNumber - 1] ?? null;
-    this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 20, seatView?.aspectsLabel ?? "", {
+    const name = this.add.text(
+      footerRect.x + 8,
+      footerRect.y + 6,
+      identityName.toUpperCase(),
+      textStyle(bangers(15, 0.9), surface.ink.hex),
+    );
+    fitText(name, footerRect.width - 16, 15);
+    if (deckName) {
+      const deckNameText = this.add.text(footerRect.x + 8, footerRect.y + 26, deckName, {
+        ...textStyle(typeRole.emphasis, surface.ink.hex),
+        fontSize: "12px",
+        wordWrap: { width: footerRect.width - 16, useAdvancedWrap: true },
+      });
+      clampLines(deckNameText, 1);
+    }
+    this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 18, seatView?.aspectsLabel ?? "", {
       ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
       fontSize: "9px",
     });
@@ -831,6 +850,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       const reason = entry.rec?.reason ?? "";
       return (
         rowHeight +
+        (options[entry.optionIndex]!.deckName ? PICKER_DECK_NAME_STEP : 0) +
         (aspectChipLines(this, stamps, chipRoom) - 1) * ASPECT_CHIP_LINE_STEP +
         (reason ? reasonExtraOf(reason) : 0)
       );
@@ -923,7 +943,19 @@ export class CampaignRosterScene extends Phaser.Scene {
         .text(textX, rowRect.y + 8, identityName.toUpperCase(), textStyle(bangers(16), 0))
         .setOrigin(0, 0);
       fitText(title, textWidth, 16);
-      const lineY = rowRect.y + 8 + 16 + 8;
+      // A saved deck's own name under the hero's (#658): two Leadership decks of one hero tell apart by it alone.
+      let deckNameText: Phaser.GameObjects.Text | null = null;
+      if (option.deckName) {
+        deckNameText = this.add
+          .text(textX, rowRect.y + 8 + 16 + 4, option.deckName, {
+            ...textStyle(typeRole.emphasis, 0),
+            fontSize: "13px",
+            wordWrap: { width: textWidth, useAdvancedWrap: true },
+          })
+          .setOrigin(0, 0);
+        clampLines(deckNameText, 1);
+      }
+      const lineY = rowRect.y + 8 + 16 + 8 + (option.deckName ? PICKER_DECK_NAME_STEP : 0);
       // Four badges (Adam Warlock) wrap to a second line rather than run off the row's edge; the source note rides
       // beside the last badge and the reason line moves down by the extra line.
       const chips = drawAspectChips(this, textX, lineY, option.stamps, false, textWidth);
@@ -969,13 +1001,26 @@ export class CampaignRosterScene extends Phaser.Scene {
       const applyState = (state: "rest" | "hover" | "unavailable"): void => {
         const buttonSkin = skin("secondary", state);
         title.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
+        deckNameText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
         note.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
         reasonText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
       };
       applyState(enabled ? "rest" : "unavailable");
       if (import.meta.env.DEV)
-        this.#pickerRowTextDebug.set(index, { name: identityName, rect: rowRect, texts: [title], button });
-      button.container.add([...parts, title, ...chips.objects, note, ...extras]);
+        this.#pickerRowTextDebug.set(index, {
+          name: identityName,
+          rect: rowRect,
+          texts: deckNameText ? [title, deckNameText] : [title],
+          button,
+        });
+      button.container.add([
+        ...parts,
+        title,
+        ...(deckNameText ? [deckNameText] : []),
+        ...chips.objects,
+        note,
+        ...extras,
+      ]);
       return { objects: [button.container] };
     };
 
