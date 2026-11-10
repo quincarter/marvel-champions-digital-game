@@ -1,0 +1,31 @@
+{
+  "id": "x.sample-hero.08",
+  "type": "side_scheme",
+  "name": "Held for Ransom",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["sample-hero-nemesis"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 3
+  },
+  "icons": ["acceleration"],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Each player places a random card from their hand facedown here.\nWhen Defeated: Return each facedown card here to its owner's hand.",
+    "current": "When Revealed: Each player places a random card from their hand facedown here.\nWhen Defeated: Return each facedown card here to its owner's hand."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-hero.08.when-revealed"
+    },
+    {
+      "id": "x.sample-hero.08.when-defeated"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "sample-hero",
+  "version": "1.0.0",
+  "kind": "hero",
+  "name": "Sample Sentinel",
+  "authors": ["Marvel Champions Digital contributors"],
+  "description": "A small original test hero that shows each kind of player card done once, using only existing engine primitives.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": { "app": ">=0.1.0", "packs": [] },
+  "pictures": { "hero": { "x.sample-hero.01a": "art/hero.svg" } }
+}

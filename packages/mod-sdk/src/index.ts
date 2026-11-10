@@ -8,3 +8,5 @@ export { definePackAbilities, PACK_ABILITY_ID } from "./define.js";
 export { sha256Hex } from "./sha256.js";
 export { readPackInput, validatePack, REQUIRED_PACK_FILES } from "./validate.js";
 export type { PackInput, PackIssue, ValidateOptions } from "./validate.js";
+export { cardPoolWithPack, gameDepsWithPack } from "./game.js";
+export { packObligation } from "./obligation.js";

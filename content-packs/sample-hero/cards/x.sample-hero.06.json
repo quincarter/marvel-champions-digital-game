@@ -1,0 +1,23 @@
+{
+  "id": "x.sample-hero.06",
+  "type": "obligation",
+  "name": "Overdue Notice",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "6",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Give to the Sam Pell player.\nYou may flip to alter-ego form. Choose one:\n• Exhaust Sam Pell → remove Overdue Notice from the game.\n• Discard 1 card at random from your hand. This card gains surge. Discard this obligation.",
+    "current": "Give to the Sam Pell player.\nYou may flip to alter-ego form. Choose one:\n• Exhaust Sam Pell → remove Overdue Notice from the game.\n• Discard 1 card at random from your hand. This card gains surge. Discard this obligation."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-hero.06.obligation"
+    }
+  ]
+}

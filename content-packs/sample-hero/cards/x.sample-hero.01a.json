@@ -1,0 +1,49 @@
+{
+  "id": "x.sample-hero.01a",
+  "type": "hero_identity",
+  "name": "Sample Sentinel",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "hp": 10,
+  "hero": {
+    "faceName": "Sample Sentinel",
+    "traits": ["SENTINEL"],
+    "atk": 2,
+    "thw": 1,
+    "def": 3,
+    "handSize": 5,
+    "keywords": [],
+    "text": {
+      "printed": "Sentinel Sense — Interrupt: When the villain initiates an attack against you, draw 1 card.",
+      "current": "Sentinel Sense — Interrupt: When the villain initiates an attack against you, draw 1 card."
+    },
+    "abilities": [
+      {
+        "id": "x.sample-hero.01a.sentinel-sense",
+        "label": "Sentinel Sense"
+      }
+    ]
+  },
+  "alterEgo": {
+    "faceName": "Sam Pell",
+    "traits": ["TINKERER"],
+    "rec": 3,
+    "handSize": 6,
+    "keywords": [],
+    "text": {
+      "printed": "Quiet Study — Resource: Generate a [physical] resource. (Limit once per round.)",
+      "current": "Quiet Study — Resource: Generate a [physical] resource. (Limit once per round.)"
+    },
+    "abilities": [
+      {
+        "id": "x.sample-hero.01b.quiet-study",
+        "label": "Quiet Study"
+      }
+    ]
+  },
+  "obligationCardId": "x.sample-hero.06",
+  "nemesisEncounterSetId": "sample-hero-nemesis"
+}
