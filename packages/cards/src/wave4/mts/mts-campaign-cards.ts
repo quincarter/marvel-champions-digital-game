@@ -163,7 +163,10 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // from the shared campaign pool (`encounterSetAside`, `assignOwnerTo` — docs/phase7-wave4.md §3.10's own new
   // primitive, `EffectSpec.moveCards.assignOwnerTo`).
   "21182a.when-defeated": whenDefeated(
-    forEachPlayer(eachPlayer, grantOwnedCards(encounterSetAside({ name: "Shawarma" }), "deckShuffle", thatPlayer)),
+    forEachPlayer(
+      eachPlayer,
+      grantOwnedCards(encounterSetAside({ name: "Shawarma" }, { random: 1 }), "deckShuffle", thatPlayer),
+    ),
     flipCard(self),
   ),
   // "Black Swan engages the first player." — the flip's own default (module docblock).
@@ -189,7 +192,10 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
     on.phaseEnding("player"),
     { kind: "addCounters", counterType: "crash", amount: { kind: "const", value: 1 }, target: self },
     ifThen(counterAtLeast("crash", 2), [
-      forEachPlayer(eachPlayer, grantOwnedCards(encounterSetAside({ name: "System Shock" }), "hand", thatPlayer)),
+      forEachPlayer(
+        eachPlayer,
+        grantOwnedCards(encounterSetAside({ name: "System Shock" }, { random: 1 }), "hand", thatPlayer),
+      ),
       moveCards({ kind: "ref", ref: self }, "removedFromGame"),
     ]),
   ),

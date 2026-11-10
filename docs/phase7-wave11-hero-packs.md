@@ -352,6 +352,7 @@ table and the PR.
 | Q102 | Calling in Favors: is an ally played from the deck "from hand"?                                               | Yes: Squirrel Girl's response answers                              | No                                                 | **A** (owner, 2026-10-18) |
 | Q103 | Unpreventable damage and effects that redirect it                                                             | Only reductions, preventions and tough are barred; redirects work  | No "would take damage" effect may change it at all | **A** (owner, 2026-10-18) |
 | Q104 | Take a Stand (62015) used in the villain phase vs RRG p. 26 ("can only be initiated during that time period") | The bonus lasts through the next player phase                      | Strict: nothing outside a player phase             | **B** (owner, 2026-10-18) |
+| Q105 | Alias Investigations (61002): remove evidence when the villain cannot be defeated (Proxima/Corvus lock)?      | Not offered while the lock holds                                   | Offered; counters spent, nothing happens           | **A** (owner, 2026-11-10) |
 
 **Q101** (61020, H3.7). RRG p. 47: step 5 "Pass First Player Token", step 6 "End of Villain Phase and Round"; the Round
 Overview (p. 4) lists "Pass the first player token" (9) and "End the round" (10). No ruling. A: no threat, activations,
@@ -364,6 +365,10 @@ it came from the deck, so "from your hand" does not answer.
 
 **Q103** (62001a, 62028, H3.3). The insert says only "cannot be reduced or prevented". A: an effect that moves the damage
 to another character, or an increase, still applies. B: nothing that answers "would take damage" may change it.
+
+**Q105** (61002, issue #663). RRG p. 11 "Cannot" settles that Tower Defense's Proxima Midnight / Corvus Glaive lock
+blocks the defeat, not whether "remove … to defeat" is still offered. A follows the Redwing ruling (January 26, 2026,
+Ruling 6) and What Doesn't Kill You by analogy: no counters spent on a defeat that cannot happen.
 
 **Settled here, not asked:** the unique matches (H3.1, RRG pp. 45, 46, 50); Metal Bracer's name (H3.23); the "attach to a
 card" host (H3.11, p. 8); the 61007 exemption (H3.22); exactly defeat (H3.19, August 3, 2026 – Ruling 6); Echo's

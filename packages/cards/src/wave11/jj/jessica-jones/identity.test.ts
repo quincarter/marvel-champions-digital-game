@@ -1,4 +1,4 @@
-import { JJ_CARDS, JJ_STARTER_DECKS, type HeroIdentityCard } from "@mc/content";
+import { JJ_CARDS, JJ_STARTER_DECKS, MTS_CARDS, type HeroIdentityCard } from "@mc/content";
 import {
   activeVillain,
   applyCommand,
@@ -7,6 +7,7 @@ import {
   type Command,
   type GameState,
   type InstanceId,
+  villainOf as villainStateOf,
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../../core/setup.js";
@@ -24,6 +25,7 @@ import {
   use,
 } from "../../../testing/harness.js";
 import { encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
+import { towerDefenseScenario } from "../../../wave4/mts/tower-defense-setup.js";
 import { WAVE11_CARDS } from "../../cards.js";
 import { WAVE11_DEPS } from "../../index.js";
 import { JJ_JESSICA_JONES_IDENTITY as REGISTRY, JJ_JESSICA_JONES_IDENTITY_SKIPPED as SKIPPED } from "./identity.js";
@@ -239,5 +241,89 @@ describe(`${ALIAS_RESPONSE}: after a side scheme is defeated, exhaust to place 2
     const exhausted = patchInstance(t.state, aliasOf(t.state), { exhausted: true });
     const s1 = drive(exhausted, thwart(exhausted, t.scheme), [ALIAS_RESPONSE]);
     expect(evidence(s1)).toBe(5);
+  });
+});
+
+describe(`${ALIAS_RESPONSE} in Tower Defense: two villains, each locked while the other has hit points (issue #663)`, () => {
+  const PROXIMA = "21092";
+  const CORVUS = "21095";
+
+  /** Jessica Jones against Proxima Midnight and Corvus Glaive, in hero form, with a Tower Defense side scheme at 1 threat
+   * and `held` evidence on Alias Investigations. */
+  function towerTable(held: number): { state: GameState; scheme: InstanceId } {
+    const deck = JJ_STARTER_DECKS[0]!;
+    const seat = {
+      identityCardId: deck.identityCardId,
+      aspects: deck.aspects,
+      deck: deck.cards.flatMap((l) => Array.from({ length: l.quantity }, () => l.cardId)),
+    };
+    const created = createGame(
+      towerDefenseScenario({ seed: 1, players: [seat], difficulty: "standard", modularSetIds: [] }),
+      WAVE11_DEPS,
+    );
+    if (!created.ok) throw new Error(`${created.error.code}: ${created.error.message}`);
+    const s0 = withForm(
+      settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE11_DEPS),
+      { heroForm: 0 },
+    );
+    const sideScheme = Object.values(s0.instances)
+      .map((i) => i!.cardId as string)
+      .find((code) => MTS_CARDS.some((c) => c.id === code && c.type === "side_scheme"))!;
+    const placed = encounterCardInVillainArea(s0, sideScheme, 1);
+    return {
+      state: patchInstance(placed.state, aliasOf(placed.state), { counters: { evidence: held } }),
+      scheme: placed.id,
+    };
+  }
+  const villainNamed = (s: GameState, code: string): InstanceId => instancesOf(s, code)[0]!;
+  const thwart = (s: GameState, scheme: InstanceId): Command => ({
+    type: "basicThwart",
+    playerId: P1,
+    thwarterInstanceId: identityOf(s),
+    schemeInstanceId: scheme,
+  });
+
+  it("does not offer the defeat while the other villain has hit points left: no counters are spent", () => {
+    const t = towerTable(40);
+    const proxima = villainNamed(t.state, PROXIMA);
+    const offered: string[] = [];
+    const first = applyCommand(t.state, thwart(t.state, t.scheme), WAVE11_DEPS);
+    if (!first.ok) throw new Error(first.error.message);
+    let s = first.state;
+    for (let guard = 0; s.pendingChoice && guard < 20; guard++) {
+      const choice = s.pendingChoice;
+      offered.push(...choice.options.map((o) => o.label));
+      const pick =
+        choice.options.find((o) => o.optionId === proxima) ??
+        choice.options.find((o) => JSON.stringify(o).includes(ALIAS_RESPONSE));
+      s = answer(s, pick ? [pick.optionId] : firstLegal(s), WAVE11_DEPS);
+    }
+    expect(offered.some((label) => label.startsWith("Remove evidence counters"))).toBe(false);
+    // 40 held + 2 placed; the Star's own "gather evidence" response is declined by `firstLegal`.
+    expect(evidence(s)).toBe(42);
+    expect(villainStateOf(s, proxima)?.stageIndex).toBe(villainStateOf(t.state, proxima)?.stageIndex);
+  });
+
+  it("with the other villain at 0 hit points, defeats the chosen villain's stage; the other stays at 0, undefeated", () => {
+    const t = towerTable(40);
+    const proxima = villainNamed(t.state, PROXIMA);
+    const corvus = villainNamed(t.state, CORVUS);
+    const corvusHp = characterProfile(t.state, corvus, WAVE11_DEPS)!.maxHp;
+    const staged = patchInstance(t.state, corvus, { damage: corvusHp });
+    const proximaHp = characterProfile(staged, proxima, WAVE11_DEPS)!.maxHp;
+    const first = applyCommand(staged, thwart(staged, t.scheme), WAVE11_DEPS);
+    if (!first.ok) throw new Error(first.error.message);
+    let s = first.state;
+    for (let guard = 0; s.pendingChoice && guard < 20; guard++) {
+      const pick =
+        s.pendingChoice.options.find((o) => o.optionId === proxima) ??
+        s.pendingChoice.options.find((o) => /61002|Remove evidence/.test(JSON.stringify(o)));
+      s = answer(s, pick ? [pick.optionId] : firstLegal(s), WAVE11_DEPS);
+    }
+    expect(villainStateOf(s, proxima)?.stageIndex).toBe(villainStateOf(staged, proxima)!.stageIndex + 1);
+    expect(evidence(s)).toBe(42 - proximaHp);
+    expect(villainStateOf(s, corvus)?.defeated).toBe(false);
+    expect(villainStateOf(s, corvus)?.stageIndex).toBe(villainStateOf(staged, corvus)?.stageIndex);
+    expect(s.outcome).toBeNull();
   });
 });

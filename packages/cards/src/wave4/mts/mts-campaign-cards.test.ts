@@ -231,6 +231,15 @@ describe("Save the Shawarma Place (21182a) / Black Swan (21182b)", () => {
     expect(inDeck).toBe(true);
   });
 
+  it("shuffles only 1 copy of Shawarma into each player's deck when all 4 copies are set aside (issue #663)", () => {
+    const base = campaignGame(["21182a", "21183", "21183", "21183", "21183"]);
+    const staged = schemeInPlay(base, "21182a");
+    const defeated = defeatScheme(staged.state, staged.id);
+    const isShawarma = (i: InstanceId) => defeated.instances[i]?.cardId === cardId("21183");
+    expect(playerOf(defeated, P1).deck.filter(isShawarma)).toHaveLength(1);
+    expect(defeated.encounterSetAside.filter(isShawarma)).toHaveLength(3);
+  });
+
   it("engages the first player, and discards a hand card in response (21182b.black-swan-constant: covered by the engine's own flip-controller default, 21182b.black-swan-forced-response)", () => {
     const base = campaignGame(["21182a", "21183"]);
     const staged = schemeInPlay(base, "21182a");
@@ -260,7 +269,7 @@ describe("Hack Sanctuary's Computer (21184a) / Defensive Protocols (21184b)", ()
   });
 
   it("counts crash counters to 2, then grants System Shock to hand and removes itself (21184b.defensive-protocols-forced-interrupt)", () => {
-    const base = campaignGame(["21184b", "21185"]);
+    const base = campaignGame(["21184b", "21185", "21185", "21185", "21185"]);
     const staged = schemeInPlay(base, "21184b");
     const round1 = settle(runWave4(staged.state, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE4_DEPS);
     expect(inst(round1, staged.id)?.counters.crash).toBe(1);
@@ -271,7 +280,8 @@ describe("Hack Sanctuary's Computer (21184a) / Defensive Protocols (21184b)", ()
     // not from the hand's own state after the whole round (including that cleanup) has finished settling.
     const { state: round2, events } = driveEvents(WAVE4_DEPS, round1, { type: "endTurn", playerId: P1 });
     expect(round2.removedFromGame).toContain(staged.id);
-    const systemShockId = Object.values(round2.instances).find((i) => i?.cardId === cardId("21185"))!.instanceId;
+    const moved = events.find((e) => e.type === "cardMoved" && e.cardId === cardId("21185"));
+    const systemShockId = moved?.type === "cardMoved" ? moved.instanceId : undefined;
     expect(events).toContainEqual({
       type: "cardMoved",
       instanceId: systemShockId,
@@ -279,6 +289,9 @@ describe("Hack Sanctuary's Computer (21184a) / Defensive Protocols (21184b)", ()
       from: { kind: "encounterSetAside" },
       to: { kind: "hand", playerId: P1 },
     });
+    // "Each player adds 1 copy" (issue #663): one of the four set-aside copies, not all of them.
+    const granted = events.filter((e) => e.type === "cardMoved" && e.cardId === cardId("21185"));
+    expect(granted).toHaveLength(1);
   });
 });
 

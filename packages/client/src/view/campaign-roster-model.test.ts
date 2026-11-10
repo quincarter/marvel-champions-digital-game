@@ -14,6 +14,7 @@ import {
   preconRosterOf,
   rosterDeckOptions,
   rosterModelOf,
+  savedDeckNameOf,
   type PickerEntry,
 } from "./campaign-roster-model.js";
 import { pairCatalogOf } from "./seat-recommendations.js";
@@ -85,6 +86,42 @@ describe("rosterDeckOptions", () => {
     const seats: (Deck | null)[] = [hawkeye, spiderWoman, null, null];
     const options = rosterDeckOptions(seats, 3, [], POOL_VERSION);
     expect(options.length).toBe(precons.length);
+  });
+});
+
+describe("saved deck names (#658)", () => {
+  const built = (name: string, id: string): Deck => ({
+    ...hawkeye,
+    id: id as Deck["id"],
+    name,
+    source: { kind: "userBuilt", createdAt: "2026-11-09T00:00:00.000Z" },
+  });
+
+  test("two saved Leadership decks of one hero carry their own names; a precon carries none", () => {
+    const saved = [built("Hawkeye Allies", "deck-a"), built("Hawkeye Trick Arrows", "deck-b")];
+    const options = rosterDeckOptions([null, null, null, null], 1, saved, POOL_VERSION);
+    const names = options.filter((o) => o.deck.source.kind !== "precon").map((o) => o.deckName);
+    expect(names).toEqual(["Hawkeye Allies", "Hawkeye Trick Arrows"]);
+    expect(options.find((o) => o.deck.id === hawkeye.id)?.deckName).toBeNull();
+  });
+
+  test("a blank saved name is left off rather than drawn as an empty line", () => {
+    expect(savedDeckNameOf(built("   ", "deck-c"))).toBeNull();
+  });
+
+  test("a seated saved deck shows its name, and its aspect without the precon's starter-deck wording", () => {
+    const model = rosterModelOf([built("Hawkeye Allies", "deck-a"), null, null, null], POOL_CARDS);
+    expect(model.seats[0]).toMatchObject({ deckName: "Hawkeye Allies", aspectsLabel: "Leadership" });
+  });
+
+  test("a seated saved deck with no aspect yet says so rather than leaving the line blank", () => {
+    const bare: Deck = { ...built("Hawkeye WIP", "deck-d"), aspects: [] };
+    expect(rosterModelOf([bare, null, null, null], POOL_CARDS).seats[0]?.aspectsLabel).toBe("No aspect");
+  });
+
+  test("a seated precon keeps its starter-deck label and has no deck name line", () => {
+    const model = rosterModelOf([hawkeye, null, null, null], POOL_CARDS);
+    expect(model.seats[0]).toMatchObject({ deckName: null, aspectsLabel: "Leadership · starter deck" });
   });
 });
 

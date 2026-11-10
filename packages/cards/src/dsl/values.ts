@@ -1398,6 +1398,11 @@ export const hasStatus = (of: TargetRef, status: StatusName): Predicate => ({ ki
  */
 export const isAttached = (of: TargetRef): Predicate => ({ kind: "isAttached", of });
 /**
+ * A standing "X cannot be defeated" covers the card `of` names right now, its `while` included (Proxima Midnight and
+ * Corvus Glaive, `mts` 21092/21095). Gates a "remove counters to defeat" option that would do nothing (issue #663).
+ */
+export const cannotBeDefeated = (of: TargetRef): Predicate => ({ kind: "cannotBeDefeated", of });
+/**
  * "A stunned / confused character" by the rules: with steady, two status cards of the type (RRG 1.8 "Steady", p. 41).
  * `hasStatus` only asks whether a status card is there. docs/phase7-wave4.md §3.52.
  */

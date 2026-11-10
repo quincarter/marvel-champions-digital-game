@@ -3593,6 +3593,14 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const [id] = resolveRef(state, predicate.of, context);
       return id !== undefined && getInstance(state, id)?.attachedTo !== null && getInstance(state, id) !== undefined;
     }
+    case "cannotBeDefeated": {
+      const [id] = resolveRef(state, predicate.of, context);
+      if (id === undefined) return false;
+      // The same lock `rules.ts` `cannotBeDefeated` reads for the defeat itself (kept in step by hand: no import cycle).
+      return activeRules(state, context.deps ?? DEFAULT_DEPS, "cannotBeDefeated").some((active) =>
+        matchesQuery(state, id, active.rule.target, active.context),
+      );
+    }
     case "faceNamed": {
       const [id] = resolveRef(state, predicate.of, context);
       return id ? currentName(state, id) === predicate.name : false;
