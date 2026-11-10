@@ -183,8 +183,14 @@ export interface DefendOptionPreview {
   /** Null for "no defense". */
   readonly defenderInstanceId: InstanceId | null;
   readonly basicDefense: boolean;
-  /** Who actually takes the damage. */
+  /** The character the attack is against once this option is declared: the defender, or the attack's own target. */
   readonly targetInstanceId: InstanceId;
+  /**
+   * Who takes the attack's damage: `targetInstanceId`, or the enemy an interrupt sent it to instead ("damage from that
+   * attack is dealt to the chosen enemy instead of you", Psychic Misdirection; `modifyAttack.damageTo`). The bands'
+   * damage, tough and defeat are this character's; retaliate stays the attacked character's.
+   */
+  readonly damagedInstanceId: InstanceId;
   readonly targetPlayerId: PlayerId;
   /**
    * What declaring this defender exhausts (p. 9 step 2): the defender, or nothing when a rule has it defend without
@@ -327,6 +333,8 @@ function outcomeAt(
     readonly targetInstanceId: InstanceId;
     readonly defenderInstanceId: InstanceId | null;
     readonly basicDefense: boolean;
+    /** Set when the damage goes to this enemy instead of the target (`modifyAttack.damageTo`). */
+    readonly damageTo: InstanceId | null;
   },
   boostIcons: number,
   overkill: boolean,
@@ -338,8 +346,13 @@ function outcomeAt(
     basicDefense: option.basicDefense,
   });
   const damageDealt = planned?.damage ?? 0;
-  const target = getInstance(state, option.targetInstanceId);
-  const maxHp = maxHitPoints(state, option.targetInstanceId, deps) ?? 0;
+  // Psychic Misdirection: the attack's damage, DEF already taken off it (RRG 1.8 "Attack (Enemy Activation)" step 4,
+  // p. 8; "Defend, Defense", p. 15), is dealt to the chosen enemy, which is not attacked: its tough status card absorbs
+  // it, but no overkill or "prevent N damage from this attack" applies to it (§4.1 Q18; `dealDamage` `notAttacked`).
+  const redirected = option.damageTo !== null;
+  const damagedId = option.damageTo ?? option.targetInstanceId;
+  const target = getInstance(state, damagedId);
+  const maxHp = maxHitPoints(state, damagedId, deps) ?? 0;
   const already = target?.damage ?? 0;
 
   // RRG 1.8 "Tough" (p. 44): the damage is prevented and the status card is discarded — except that a hero making a
@@ -351,22 +364,28 @@ function outcomeAt(
   // budget unspent. Prevented damage is dealt but not taken (RRG 1.8 "Prevent", p. 35).
   const vars = activationVarsOf(state, frame.eventFrameId);
   const preventsAll = (vars.preventAllDamage ?? 0) > 0;
-  const preventBudget = Math.max(0, (vars.preventDamage ?? 0) - (vars.preventDamageUsed ?? 0));
+  const preventBudget = redirected ? 0 : Math.max(0, (vars.preventDamage ?? 0) - (vars.preventDamageUsed ?? 0));
+  // A chosen enemy that has left play takes nothing: the damage is replaced all the same (`resolve/enemy-activation.ts`).
+  const gone = redirected && !cardsInPlay(state).includes(damagedId);
   const hasTough = !preventsAll && (target?.statuses.tough ?? 0) > 0;
-  const damageTaken = damageDealt <= 0 || hasTough || preventsAll ? 0 : Math.max(0, damageDealt - preventBudget);
-  const toughSpent = damageDealt > 0 && hasTough;
+  const damageTaken =
+    gone || damageDealt <= 0 || hasTough || preventsAll ? 0 : Math.max(0, damageDealt - preventBudget);
+  const toughSpent = !gone && damageDealt > 0 && hasTough;
 
   const defeated = damageTaken > 0 && already + damageTaken >= maxHp;
-  const excess = overkill && defeated ? already + damageTaken - maxHp : 0;
+  const excess = overkill && !redirected && defeated ? already + damageTaken - maxHp : 0;
   // The defender has not been declared yet, so the preview says who it would be rather than reading the frame: every
   // option's target is the defender or the character the attack is against, and either one spills (p. 10).
-  const recipient = excess > 0 ? overkillRecipient(state, option.targetInstanceId, true) : null;
+  const recipient = excess > 0 ? overkillRecipient(state, damagedId, true) : null;
 
   // RRG 1.8 "Retaliate X" (p. 38): a forced response after the character is attacked, so the character must still be
   // in play once the attack resolves; and "Ranged" (p. 37) — an attack with ranged ignores retaliate entirely.
   // An attacker that ignores retaliate against this character takes none either (docs/phase7-wave7.md §3.30).
   const ignored = characterIgnores(state, deps, frame.enemyInstanceId, "retaliate", false, option.targetInstanceId);
-  const retaliate = ranged || defeated || ignored ? 0 : keywordTotal(state, option.targetInstanceId, "retaliate", deps);
+  const retaliate =
+    ranged || (defeated && !redirected) || ignored
+      ? 0
+      : keywordTotal(state, option.targetInstanceId, "retaliate", deps);
 
   return {
     damageDealt,
@@ -443,6 +462,10 @@ export function defendPreview(
   // gains ranged"), a loss by the attacker ("his attacks lose ranged", wave 11 §S7 E19) and a loss against the
   // character ("attacks against them lose ranged", wave 10 §3.18) all count.
   const vars = activationVarsOf(state, frame.eventFrameId);
+  // "Damage from that attack is dealt to the chosen enemy instead of you", recorded by an interrupt to this attack
+  // while it was being initiated; the damage step deals it to nobody if that enemy has left play since.
+  const eventFrame = frame.eventFrameId ? state.stack.find((f) => f.frameId === frame.eventFrameId) : undefined;
+  const damageTo = (eventFrame?.kind === "event" ? eventFrame.slots.damageTo?.[0] : undefined) ?? null;
   const rangedAgainst = (targetInstanceId: InstanceId): boolean =>
     attackKeywordsOf(state, deps, { attackerInstanceId: frame.enemyInstanceId, vars, targetInstanceId }).includes(
       "ranged",
@@ -457,7 +480,7 @@ export function defendPreview(
     const targetInstanceId = defenderInstanceId ?? frame.targetInstanceId;
     const targetPlayerId =
       (defenderInstanceId ? controllerOf(state, defenderInstanceId) : null) ?? frame.targetPlayerId;
-    const shape = { targetInstanceId, defenderInstanceId, basicDefense };
+    const shape = { targetInstanceId, defenderInstanceId, basicDefense, damageTo };
     const boost = boundFor(targetPlayerId);
     const defended = withTargetPlayer(state, frame, targetPlayerId);
     const planned = plannedAttackDamage(defended, deps, frame, { boostIcons: 0, defenderInstanceId, basicDefense });
@@ -484,6 +507,7 @@ export function defendPreview(
       defenderInstanceId,
       basicDefense,
       targetInstanceId,
+      damagedInstanceId: damageTo ?? targetInstanceId,
       targetPlayerId,
       // Nothing under "does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47).
       exhausts:

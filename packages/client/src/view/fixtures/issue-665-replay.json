@@ -1,0 +1,511 @@
+{
+  "config": {
+    "scenarioId": "rhino",
+    "difficulty": "standard",
+    "players": [
+      {
+        "identityCardId": "40001a",
+        "deck": [
+          "20021",
+          "27191",
+          "34033",
+          "34033",
+          "34033",
+          "40002",
+          "40003",
+          "40003",
+          "40003",
+          "40004",
+          "40005",
+          "40005",
+          "40006",
+          "40007",
+          "40008",
+          "40009",
+          "40010",
+          "40011",
+          "40012",
+          "40013",
+          "40019",
+          "40027",
+          "40028",
+          "40028",
+          "40028",
+          "40029",
+          "40059",
+          "41023",
+          "41032",
+          "41032",
+          "41032",
+          "43021",
+          "44024",
+          "46018",
+          "47016",
+          "56045",
+          "56046",
+          "60030",
+          "60038",
+          "60052",
+          "60053",
+          "60054",
+          "61040",
+          "61040",
+          "01081",
+          "01088",
+          "01089",
+          "01090",
+          "09019",
+          "09020"
+        ],
+        "aspects": ["protection"],
+        "deckId": "9195da47-8604-4e1c-bb32-c06a1907ce3a"
+      }
+    ],
+    "seed": 92019,
+    "tableRules": { "sameNameHeroAllyConflict": true },
+    "outsideFacts": [{ "wonPreviousGame": true }]
+  },
+  "commands": [
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c1", "selectedOptionIds": ["i42"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c2",
+        "selectedOptionIds": ["i16", "i18", "i22", "i13", "i8"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c3", "selectedOptionIds": ["i16"] }
+    },
+    { "playerId": "p1", "command": { "type": "changeForm", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i5",
+        "payment": [{ "fromHand": "i29" }, { "fromHand": "i15" }, { "fromHand": "i9" }, { "fromHand": "i34" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "basicThwart", "playerId": "p1", "thwarterInstanceId": "i3", "schemeInstanceId": "i16" }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c4", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c5", "selectedOptionIds": ["decline"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c6", "selectedOptionIds": ["decline"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "basicThwart", "playerId": "p1", "thwarterInstanceId": "i3", "schemeInstanceId": "i16" }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c7",
+        "selectedOptionIds": ["i3:40001a.cable-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i36",
+        "payment": [],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "basicThwart", "playerId": "p1", "thwarterInstanceId": "i3", "schemeInstanceId": "i36" }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i42",
+        "payment": [{ "fromHand": "i24" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i19",
+        "payment": [{ "fromHand": "i32" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i38",
+        "payment": [],
+        "attachToInstanceId": null
+      }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c8", "selectedOptionIds": ["i3"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c9",
+        "selectedOptionIds": ["i19:40009.askanison-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c10", "selectedOptionIds": ["hand:i41"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i12",
+        "payment": [{ "fromHand": "i41" }, { "fromHand": "i23" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c11", "selectedOptionIds": ["i38"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c12", "selectedOptionIds": ["i11"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c13",
+        "selectedOptionIds": ["i3:40001a.cable-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i17",
+        "payment": [{ "fromHand": "i21" }, { "fromHand": "i11" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i53",
+        "payment": [{ "ability": { "instanceId": "i17", "abilityId": "40007.graymalkin-resource" } }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "basicAttack", "playerId": "p1", "attackerInstanceId": "i3", "targetInstanceId": "i67" }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c14", "selectedOptionIds": ["i3"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c15",
+        "selectedOptionIds": ["i19:40009.askanison-response", "i53:09020.unflappable-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c16",
+        "selectedOptionIds": ["ability:i17:40007.graymalkin-resource"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c17", "selectedOptionIds": ["i2"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i30",
+        "payment": [{ "fromHand": "i7" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i10",
+        "payment": [{ "fromHand": "i28" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c18", "selectedOptionIds": ["i30"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c19", "selectedOptionIds": ["i22"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c20", "selectedOptionIds": ["i3"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c21",
+        "selectedOptionIds": ["i3:40001a.cable-response", "i17:40007.graymalkin-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "basicAttack", "playerId": "p1", "attackerInstanceId": "i3", "targetInstanceId": "i1" }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i52",
+        "payment": [{ "ability": { "instanceId": "i17", "abilityId": "40007.graymalkin-resource" } }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "useAbility",
+        "playerId": "p1",
+        "cardInstanceId": "i52",
+        "abilityId": "09019.the-night-nurse-action",
+        "payment": []
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c22", "selectedOptionIds": ["i3"] }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c23", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c24", "selectedOptionIds": ["i3"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c25",
+        "selectedOptionIds": ["i53:09020.unflappable-response", "i19:40009.askanison-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c26",
+        "selectedOptionIds": ["ability:i17:40007.graymalkin-resource"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c27", "selectedOptionIds": ["i2"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c28", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c29", "selectedOptionIds": ["1"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i47",
+        "payment": [],
+        "attachToInstanceId": "i5"
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i20",
+        "payment": [{ "fromHand": "i31" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i14",
+        "payment": [{ "fromHand": "i50" }, { "fromHand": "i51" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c30", "selectedOptionIds": ["i79"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "useAbility",
+        "playerId": "p1",
+        "cardInstanceId": "i52",
+        "abilityId": "09019.the-night-nurse-action",
+        "payment": []
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c31", "selectedOptionIds": ["i3"] }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c32", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c33", "selectedOptionIds": ["i3"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c34",
+        "selectedOptionIds": ["i19:40009.askanison-response", "i53:09020.unflappable-response"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c35",
+        "selectedOptionIds": ["ability:i17:40007.graymalkin-resource"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c36", "selectedOptionIds": ["i2"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c37", "selectedOptionIds": ["hand:i4"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i39",
+        "payment": [{ "fromHand": "i49" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i25",
+        "payment": [{ "fromHand": "i43" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i44",
+        "payment": [{ "fromHand": "i46" }],
+        "attachToInstanceId": null
+      }
+    },
+    { "playerId": "p1", "command": { "type": "endTurn", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c38",
+        "selectedOptionIds": ["i6:34033.psychic-misdirection-interrupt"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c39", "selectedOptionIds": ["hand:i26"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c40", "selectedOptionIds": ["i65"] }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c41", "selectedOptionIds": ["i3"] }
+    }
+  ]
+}
