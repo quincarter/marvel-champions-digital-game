@@ -56,6 +56,7 @@ import {
   on,
   option,
   placeThreat,
+  product,
   printedCostOf,
   putIntoPlay,
   query,
@@ -270,8 +271,10 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   "11023.kangs-dominion-constant": constant(rule({ kind: "cannotTakeDamage", target: query("villain") })),
   "11023.when-defeated": whenDefeated(dealEncounterCard(defeatingPlayer)),
 
-  // Pinned Down — Crisis (data). When Revealed: place 2 threat here for each obligation in play.
-  "11024.when-revealed": whenRevealed(placeThreat(countOf(query("obligation")), self)),
+  // Pinned Down — Crisis (data). When Revealed: place 2 threat here for each obligation in play, on top of its
+  // starting threat (RRG v1.8 p. 40 "Side Scheme"). "In play" counts every player's obligations (p. 23 "In Play and
+  // Out of Play"), not only the revealing player's.
+  "11024.when-revealed": whenRevealed(placeThreat(product(2, countOf(query("obligation"))), self)),
 
   // Rampage — Acceleration (data). When Defeated: discard cards from the top of the encounter deck until a minion
   // is discarded. Put that minion into play engaged with the player who defeated this scheme.
