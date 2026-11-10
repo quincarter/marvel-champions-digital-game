@@ -22,7 +22,14 @@ import {
 } from "../actions.js";
 import { createCtx } from "../ctx.js";
 import { candidateDefenseBar, type DefenseBar } from "../defense-claim.js";
-import { addPools, EMPTY_POOL, requirementTotal, satisfies, satisfiesPrinted } from "../resources.js";
+import {
+  addPools,
+  EMPTY_POOL,
+  requirementTotal,
+  satisfies,
+  satisfiesPrinted,
+  type ResolvedRequirement,
+} from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, deckDiscardStillThere, getInstance, getPlayer, playerOrder } from "../query.js";
@@ -51,7 +58,7 @@ import { STATUS_NAMES, type Form, type GameState } from "../state.js";
 import { carriedByEvent, eventSubjects, hearsEncounterDeckDiscard, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import { removalBlockedOf } from "./event.js";
-import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
+import { resourcesChoiceOf, type AbilityCost, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
 import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
@@ -158,7 +165,7 @@ function costPayable(
         0,
         asIfInHandCostReduction(state, deps, playerId, id),
       )
-    : plan.requirement;
+    : withLeastX(plan.requirement, (plan.cost ?? cost)?.resourcesX);
   const chosenSize = fromHand ? null : resourcesChoiceOf(plan.cost ?? cost);
   if (requirementTotal(requirement) === 0 && !chosenSize) return true;
   const ctx = createCtx(state, deps);
@@ -180,6 +187,19 @@ function costPayable(
     if (pool) most = addPools(most, pool);
   }
   return (plan.cost ?? cost)?.printedResourcesOnly ? satisfiesPrinted(most, requirement) : satisfies(most, requirement);
+}
+
+/**
+ * A "spend X" / "spend up to N" cost (`resourcesX`) prices 0 fixed resources, but X must reach its `min` (1 for "up
+ * to": RRG 1.8 "Cost", p. 14), so those resources join the requirement the bound is checked against. Machine Man
+ * (`vision` 26022) with nothing to spend is then not offered, rather than opening a payment step with nothing to pick
+ * (issue #654).
+ */
+function withLeastX(requirement: ResolvedRequirement, x: AbilityCost["resourcesX"]): ResolvedRequirement {
+  const least = x?.min ?? 0;
+  if (least <= 0) return requirement;
+  const slot = x!.resource === "any" ? "generic" : x!.resource;
+  return { ...requirement, [slot]: requirement[slot] + least };
 }
 
 function matchesPattern(

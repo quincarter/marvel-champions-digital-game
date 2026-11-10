@@ -1002,6 +1002,28 @@ describe("52018.energy-shield-interrupt: when attached character would take dama
     expect(damageOf(r.state, silkId(r.state))).toBe(2);
     expect(inDiscard(r.state, none)).toBe(false);
   });
+  it("with no [energy] (or wild) resource to spend it is not offered, and the damage lands (issue #654)", () => {
+    // "Spend X [energy]" needs X of at least 1 (`spendX` min 1): with nothing that can pay it, the payment step it
+    // used to open could only fail.
+    const { state } = stage(0);
+    const noEnergy: GameState = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              hand: p.hand.filter((id) => {
+                const icons = iconsOfCard(state, id);
+                return (icons.energy ?? 0) + (icons.wild ?? 0) === 0;
+              }),
+            }
+          : p,
+      ),
+    };
+    const r = villainPhase(noEnergy, { deck: deck(BLANK), accept: [REF] });
+    expect(r.offered()).toBe(0);
+    expect(damageOf(r.state, silkId(r.state))).toBe(2);
+  });
   it("it covers only the attached character: worn by Silk, damage to Scarlet Spider (defending) is not offered", () => {
     const base = placed(hero(), SCARLET);
     const worn = played(base.state, SHIELD, { cost: 0, attachTo: identityOf(base.state) });

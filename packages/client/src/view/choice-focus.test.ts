@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { PendingChoice } from "@mc/engine";
 import {
   canConfirmChoice,
+  canDeclineChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
   choiceFocusOrder,
@@ -45,6 +46,13 @@ describe("choice sheet Confirm", () => {
     expect(canConfirmChoice({ options: one, minSelections: 0, maxSelections: 1 }, 1)).toBe(true);
     expect(canConfirmChoice({ options, minSelections: 2, maxSelections: 3 }, 1)).toBe(false);
     expect(canConfirmChoice({ options, minSelections: 2, maxSelections: 3 }, 2)).toBe(true);
+  });
+
+  test("a payment with nothing to pick still has Decline, its only way forward (issue #654)", () => {
+    const pay = { kind: "payForAbility", instanceId: "i", abilityId: "a", cost: 0 } as never;
+    expect(canDeclineChoice({ minSelections: 0, maxSelections: 0, prompt: pay })).toBe(true);
+    // Any other sheet with nothing to pick is acknowledge-only: "Done", no Decline.
+    expect(canDeclineChoice({ minSelections: 0, maxSelections: 0 })).toBe(false);
   });
 });
 

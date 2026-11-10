@@ -262,6 +262,29 @@ describe("Machine Man (ally, 26022)", () => {
     expect(inst(thwarted, main).threat).toBe(8 - (thw + Math.min(3, printed)));
     for (const id of spare) expect(playerOf(thwarted, P1).discard).toContain(id);
   });
+
+  it("26022.machine-man-interrupt: with nothing to spend he is not offered, and his thwart goes ahead (issue #654)", () => {
+    // "Spend up to 3" needs at least 1 resource (RRG 1.8 "Cost", p. 14). Offered with an empty hand, it opened a
+    // payment step with nothing to pick, and the game could not go on.
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(23), toHero());
+    const { state: withAlly, id: machine } = playFromHand(hero, "26022", 3);
+    const ready = patchInstance(withAlly, machine, { exhausted: false });
+    const emptied: GameState = {
+      ...ready,
+      players: ready.players.map((p) => (p.playerId === P1 ? { ...p, hand: [] } : p)),
+    };
+    const main = emptied.mainScheme.instanceId;
+    const primed = patchInstance(emptied, main, { threat: 8 });
+    const thw = characterProfile(primed, machine, WAVE4_DEPS)!.thw;
+    const thwarted = runWith(WAVE4_DEPS, primed, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: machine,
+      schemeInstanceId: main,
+    } as never);
+    expect(thwarted.pendingChoice).toBeNull();
+    expect(inst(thwarted, main).threat).toBe(8 - thw);
+  });
 });
 
 describe("Victor Mancha (ally, 26015)", () => {

@@ -97,9 +97,17 @@ const NEVER_PRESELECTED: ReadonlySet<string> = new Set([
  */
 export const isAcknowledgeOnly = (choice: Pick<PendingChoice, "maxSelections">): boolean => choice.maxSelections === 0;
 
-/** True when the sheet offers Decline: picking nothing is legal, and picking something is too. */
-export const canDeclineChoice = (choice: Pick<PendingChoice, "minSelections" | "maxSelections">): boolean =>
-  choice.minSelections === 0 && !isAcknowledgeOnly(choice);
+/**
+ * True when the sheet offers Decline: picking nothing is legal, and picking something is too. A window's payment
+ * (`payForAbility` / `payForCard`) declines by paying nothing, so it keeps its Decline even with nothing to pick:
+ * its Confirm needs a payment, and without Decline the sheet had no way forward (issue #654, Machine Man with an
+ * empty hand).
+ */
+export const canDeclineChoice = (
+  choice: Pick<PendingChoice, "minSelections" | "maxSelections"> & { readonly prompt?: PendingChoice["prompt"] },
+): boolean =>
+  choice.minSelections === 0 &&
+  (!isAcknowledgeOnly(choice) || choice.prompt?.kind === "payForAbility" || choice.prompt?.kind === "payForCard");
 
 /** The commit button's label: "Done" for an acknowledge-only sheet, "Confirm" for a decision. */
 export const commitLabelOf = (choice: Pick<PendingChoice, "maxSelections">): string =>
