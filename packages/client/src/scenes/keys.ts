@@ -49,6 +49,8 @@ export const SCENES = {
   playerStats: "PlayerStats",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
+  /** The Mod Store (`scenes/mod-store.ts`): browse, install, update and remove community packs, reached from Extras. */
+  modStore: "ModStore",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
   extrasReader: "ExtrasReader",
   sideStoryReader: "SideStoryReader",
