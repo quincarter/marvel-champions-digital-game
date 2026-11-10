@@ -10,7 +10,7 @@
 import Phaser from "phaser";
 import { ensureFirstPlayerTokenTexture } from "../ui/first-player-token.js";
 import { ensurePadGlyphTextures } from "../ui/pad-glyph-textures.js";
-import { surface, typeRole, WEB_FONTS } from "../tokens.js";
+import { surface, typeRole, WEB_FONT_SAMPLE, WEB_FONTS } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { SCENES } from "./keys.js";
@@ -113,7 +113,7 @@ export class BootScene extends Phaser.Scene {
     if (!fonts) return;
     try {
       await Promise.race([
-        Promise.all(WEB_FONTS.map((face) => fonts.load(face))),
+        Promise.all(WEB_FONTS.map((face) => fonts.load(face, WEB_FONT_SAMPLE))),
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ]);
     } catch {
