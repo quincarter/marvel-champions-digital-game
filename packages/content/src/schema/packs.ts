@@ -42,6 +42,39 @@ export interface PackContents {
   readonly decks?: string;
 }
 
+/**
+ * The languages a pack's card pictures come in. A picture is `cards/<lang>/<card code>.webp` (`packCardImagePath`).
+ * A client shows the player's language where the pack has that picture and falls back to `base` for any card that
+ * lacks it (`resolvePackCardImage`), so a translation may cover only some cards.
+ */
+export interface PackLanguages {
+  /** The fallback language: the one every card has a picture in. */
+  readonly base: string;
+  /** Every language the pack has pictures in, `base` included. */
+  readonly available: readonly string[];
+  /** The language the card records' text is written in, when it is not `base` (Spanish art over English data). */
+  readonly text?: string;
+}
+
+/**
+ * Alternate art, by language, then by card code: `{ en: { "01088": "alt-art/en/01088.webp" } }`. A code may be a
+ * base-game card (an art pack that re-skins Core cards) or one of the pack's own (an alternate face of its identity).
+ * It is shown instead of the card's normal picture where the player turns alternate art on; it adds no card.
+ */
+export type PackAltArt = Readonly<Record<string, Readonly<Record<string, string>>>>;
+
+/** The permission a pack's content may be distributed under (§11.4), as the store's reviewers check it. */
+export interface PackPermission {
+  /** Who gave permission: the creator, or whoever granted it on their behalf. */
+  readonly by: string;
+  /** Where it was given (a link, or a line saying how). */
+  readonly evidence?: string;
+  /** `YYYY-MM-DD`. A pack imported from a draft that recorded none leaves it out; the registry review asks for it. */
+  readonly date?: string;
+  /** What was agreed: "inclusion", "inclusion and translation". */
+  readonly scope?: string;
+}
+
 /** A pack's `pack.json` (§5.1). */
 export interface PackManifest {
   readonly schema: typeof PACK_SCHEMA_VERSION;
@@ -57,6 +90,16 @@ export interface PackManifest {
   readonly contents: PackContents;
   /** Full-bleed pictures by role, then by card code: `{ hero: { "x.fan-x.01a": "pictures/hero.webp" } }`. */
   readonly pictures?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** The languages of the pack's `cards/<lang>/<code>.webp` pictures. Absent = the pack has no per-card pictures. */
+  readonly languages?: PackLanguages;
+  /** Alternate art for base-game cards, or the pack's own (see `PackAltArt`). Any pack kind may carry it. */
+  readonly altArt?: PackAltArt;
+  /** The permission the pack's creator gave for the store to distribute it; mirrors `PERMISSION.md`. */
+  readonly permission?: PackPermission;
+  /** Who made the card template the pack's cards are laid out on ("Hitch", "G.Triskelion"). */
+  readonly templateCredit?: string;
+  /** Who translated the pack, by language: `{ es: "Francisco Merchán" }`. */
+  readonly translators?: Readonly<Record<string, string>>;
   /** Every file in the pack except `pack.json` itself. */
   readonly files: readonly PackFile[];
   readonly totalBytes: number;
@@ -129,4 +172,42 @@ export function packIdOfCardCode(code: string): string | undefined {
 export function isSafePackPath(path: string): boolean {
   if (path.length === 0 || path.startsWith("/") || path.includes("\\")) return false;
   return path.split("/").every((part) => part.length > 0 && part !== "." && part !== "..");
+}
+
+/** A language tag as a pack folder uses it: `en`, `es`, `pt-BR`. */
+const LANGUAGE_TAG = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+
+/** Whether `tag` is a legal language tag for a pack's picture folder. */
+export function isLanguageTag(tag: string): boolean {
+  return tag.length <= 16 && LANGUAGE_TAG.test(tag);
+}
+
+/** Where a pack ships its picture of card `code` in language `lang`: `cards/<lang>/<code>.webp`. */
+export function packCardImagePath(lang: string, code: string): string {
+  return `cards/${lang}/${code}.webp`;
+}
+
+/** The language and card code a pack picture path names, or `undefined` for any other path. */
+export function parsePackCardImagePath(path: string): { readonly lang: string; readonly code: string } | undefined {
+  const match = /^cards\/([^/]+)\/([^/]+)\.webp$/.exec(path);
+  return match ? { lang: match[1] as string, code: match[2] as string } : undefined;
+}
+
+/**
+ * The picture to show for card `code` when the player's language is `wanted`: that language's picture where the pack
+ * has it, else the base language's, else `undefined` (the card has no picture, and the client draws its text face).
+ * `has` says whether a pack path exists, so this works on a zip's file list or an unzipped folder alike.
+ */
+export function resolvePackCardImage(
+  languages: PackLanguages | undefined,
+  code: string,
+  wanted: string,
+  has: (path: string) => boolean,
+): string | undefined {
+  if (!languages) return undefined;
+  for (const lang of wanted === languages.base ? [wanted] : [wanted, languages.base]) {
+    const path = packCardImagePath(lang, code);
+    if (languages.available.includes(lang) && has(path)) return path;
+  }
+  return undefined;
 }

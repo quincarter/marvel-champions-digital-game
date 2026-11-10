@@ -224,6 +224,17 @@ needs a paid Workers plan to survive another Reddit day.
     "decks": "data/decks.json", // the precon, in the app's own deck format
   },
   "pictures": { "hero": { "x.fan-moon-knight.01a": "pictures/hero.webp" } },
+  // optional, added 2026-11-10 so community packs in several languages convert:
+  "languages": { "base": "en", "available": ["en", "es"] }, // card pictures are cards/<lang>/<code>.webp; a missing language falls back to base
+  "altArt": { "en": { "01088": "alt-art/en/01088.webp" } }, // alternate art for base-game cards (or the pack's own); any kind, an art pack is only this
+  "permission": {
+    "by": "Neptune",
+    "evidence": "DM, 2026-11-05",
+    "date": "2026-11-05",
+    "scope": "inclusion and translation",
+  },
+  "templateCredit": "Hitch",
+  "translators": { "es": "Francisco Merchán" },
   "files": [
     { "path": "cards/x.fan-moon-knight.01a.webp", "bytes": 182044, "sha256": "…" },
     // every file, so a download can be verified and resumed file by file

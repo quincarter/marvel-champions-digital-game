@@ -1,6 +1,6 @@
 import { tinyPack } from "./fixtures/load.js";
 import { sha256Hex } from "./sha256.js";
-import { validatePack, type PackInput } from "./validate.js";
+import { isUnscriptedAbilityIssue, splitIssues, validatePack, type PackInput } from "./validate.js";
 
 const text = (s: string): Uint8Array => new TextEncoder().encode(s);
 
@@ -166,7 +166,7 @@ describe("validatePack", () => {
 
   it("checks deck ids and the content schema's deck rules", async () => {
     expect(messages(await broken((p) => (p.decks[0].id = "other-deck")))).toMatch(
-      /deck id must start with the pack id/,
+      /deck id must start with "tiny-pack-"/,
     );
     expect(messages(await broken((p) => p.decks.push({ ...p.decks[0] })))).toMatch(/deck id is used by two decks/);
     expect(messages(await broken((p) => (p.decks[0].cards = [])))).toMatch(/tiny-pack-precon: starter deck must list/);
@@ -224,6 +224,127 @@ describe("validatePack", () => {
     for (const input of garbage) {
       expect(() => validatePack(input as PackInput)).not.toThrow();
       expect(validatePack(input as PackInput).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+/** Adds a file to a broken copy, listed in its manifest, so only the rule under test fails. */
+function addFile(pack: Copy, path: string, content = "x"): void {
+  const bytes = text(content);
+  pack.files.set(path, bytes);
+  pack.manifest.files.push({ path, bytes: bytes.length, sha256: sha256Hex(bytes) });
+  pack.manifest.files.sort((a: any, b: any) => (a.path < b.path ? -1 : 1));
+  pack.manifest.totalBytes += bytes.length;
+}
+
+describe("validatePack: unscripted abilities", () => {
+  it("marks a missing ability script as its own category, apart from real defects", async () => {
+    const pack = await broken((p) => (p.cards[1].abilities = [{ id: "x.tiny-pack.02.missing" }]));
+    const issues = validatePack(pack);
+    const { unscripted, defects } = splitIssues(issues);
+    expect(unscripted).toHaveLength(1);
+    expect(unscripted[0]).toMatchObject({ category: "unscripted-ability", path: "cards/x.tiny-pack.02" });
+    expect(isUnscriptedAbilityIssue(unscripted[0]!)).toBe(true);
+    expect(defects).toEqual([]);
+  });
+
+  it("keeps real defects uncategorized", async () => {
+    const issues = validatePack(await broken((p) => (p.manifest.version = "one")));
+    expect(splitIssues(issues).unscripted).toEqual([]);
+    expect(splitIssues(issues).defects).toHaveLength(1);
+  });
+});
+
+describe("validatePack: languages, per-language pictures and alternate art", () => {
+  const withLanguages = (p: Copy): void => {
+    p.manifest.languages = { base: "en", available: ["en", "es"] };
+    addFile(p, "cards/en/x.tiny-pack.01a.webp");
+    addFile(p, "cards/en/x.tiny-pack.01b.webp");
+    addFile(p, "cards/es/x.tiny-pack.02.webp");
+  };
+
+  it("accepts pictures of a card and of its other face in each language", async () => {
+    expect(validatePack(await broken(withLanguages))).toEqual([]);
+  });
+
+  it("needs languages for pictures, a base among the available, and known languages", async () => {
+    expect(messages(await broken((p) => addFile(p, "cards/en/x.tiny-pack.02.webp")))).toMatch(/need "languages"/);
+    const baseMissing = await broken((p) => {
+      withLanguages(p);
+      p.manifest.languages.base = "fr";
+    });
+    expect(messages(baseMissing)).toMatch(/languages.base: must be one of the available/);
+    const unknownLanguage = await broken((p) => {
+      withLanguages(p);
+      addFile(p, "cards/fr/x.tiny-pack.02.webp");
+    });
+    expect(messages(unknownLanguage)).toMatch(/language "fr" is not in languages.available/);
+  });
+
+  it("rejects a picture of a card the pack does not have", async () => {
+    const pack = await broken((p) => {
+      withLanguages(p);
+      addFile(p, "cards/en/x.tiny-pack.77.webp");
+    });
+    expect(messages(pack)).toMatch(/"x.tiny-pack.77" is not a card of this pack/);
+  });
+
+  it("checks alternate art: language, card, and a listed file", async () => {
+    const good = await broken((p) => {
+      withLanguages(p);
+      addFile(p, "alt-art/en/01088.webp");
+      addFile(p, "alt-art/en/x.tiny-pack.01b.webp");
+      p.manifest.altArt = {
+        en: { "01088": "alt-art/en/01088.webp", "x.tiny-pack.01b": "alt-art/en/x.tiny-pack.01b.webp" },
+      };
+    });
+    expect(validatePack(good)).toEqual([]);
+    const bad = await broken((p) => {
+      withLanguages(p);
+      p.manifest.altArt = { fr: { "99999": "alt-art/fr/nope.webp" }, en: "no" };
+    });
+    const issues = messages(bad);
+    expect(issues).toMatch(/altArt.fr: language is not in languages.available/);
+    expect(issues).toMatch(/altArt.fr.99999: is a card neither/);
+    expect(issues).toMatch(/altArt.fr.99999: "alt-art\/fr\/nope.webp" is not a listed file/);
+    expect(issues).toMatch(/altArt.en: must map card codes to file paths/);
+  });
+
+  it("checks permission, template credit and translators when present", async () => {
+    expect(
+      validatePack(
+        await broken((p) => {
+          p.manifest.permission = { by: "Creator", date: "2026-11-05", scope: "inclusion", evidence: "a DM" };
+          p.manifest.templateCredit = "Hitch";
+          p.manifest.translators = { es: "Someone" };
+        }),
+      ),
+    ).toEqual([]);
+    const issues = messages(
+      await broken((p) => {
+        p.manifest.permission = { by: "", date: "yesterday" };
+        p.manifest.templateCredit = "";
+        p.manifest.translators = { "NOT A TAG": "x", es: "" };
+      }),
+    );
+    expect(issues).toMatch(/permission.by: must say who/);
+    expect(issues).toMatch(/permission.date: must be YYYY-MM-DD/);
+    expect(issues).toMatch(/templateCredit: must be text/);
+    expect(issues).toMatch(/translators.NOT A TAG/);
+    expect(issues).toMatch(/translators.es/);
+  });
+
+  it("never throws on malformed language and art fields", async () => {
+    const good = await tinyPack();
+    for (const manifest of [
+      { ...good.manifest, languages: 5 },
+      { ...good.manifest, languages: { base: 1, available: "en" } },
+      { ...good.manifest, altArt: [] },
+      { ...good.manifest, altArt: { en: null } },
+      { ...good.manifest, permission: "yes", translators: [], templateCredit: 3 },
+    ]) {
+      expect(() => validatePack({ ...good, manifest } as unknown as PackInput)).not.toThrow();
+      expect(validatePack({ ...good, manifest } as unknown as PackInput).length).toBeGreaterThan(0);
     }
   });
 });

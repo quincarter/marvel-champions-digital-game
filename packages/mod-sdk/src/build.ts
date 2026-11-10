@@ -19,7 +19,19 @@ import { readPackInput, validatePack, type PackInput, type PackIssue, type Valid
 /** The author-written part of `pack.json`. The build fills in everything else. */
 export type PackAuthorManifest = Pick<
   PackManifest,
-  "id" | "version" | "kind" | "name" | "authors" | "description" | "license" | "pictures"
+  | "id"
+  | "version"
+  | "kind"
+  | "name"
+  | "authors"
+  | "description"
+  | "license"
+  | "pictures"
+  | "languages"
+  | "altArt"
+  | "permission"
+  | "templateCredit"
+  | "translators"
 > & { readonly requires: { readonly app: string; readonly packs?: readonly string[] } };
 
 /** A pack's source tree, loaded. */
@@ -29,7 +41,10 @@ export interface PackSource {
   readonly abilities: AbilityRegistry;
   readonly decks: readonly StarterDeck[];
   readonly scenarios: readonly unknown[];
-  /** Static files to ship, by their path in the pack: `art/**`, `CREDITS.md`, `PERMISSION.md`. */
+  /**
+   * Static files to ship, by their path in the pack: `art/**`, the per-language card pictures `cards/<lang>/**`, the
+   * alternate art `alt-art/**`, `CREDITS.md` and `PERMISSION.md`.
+   */
   readonly assets: ReadonlyMap<string, Uint8Array>;
 }
 
@@ -86,8 +101,16 @@ export async function loadPackSource(srcDir: string): Promise<PackSource> {
     abilities = module.default;
   }
   const assets = new Map<string, Uint8Array>();
-  for (const full of walkFiles(join(srcDir, "art"))) {
-    assets.set(relative(srcDir, full).split(sep).join("/"), new Uint8Array(readFileSync(full)));
+  for (const root of ["art", "alt-art"]) {
+    for (const full of walkFiles(join(srcDir, root))) {
+      assets.set(relative(srcDir, full).split(sep).join("/"), new Uint8Array(readFileSync(full)));
+    }
+  }
+  // `cards/` holds the card records as `*.json` files directly in it; its sub-folders are the pictures,
+  // `cards/<lang>/<code>.webp`, shipped at the same path.
+  for (const full of walkFiles(join(srcDir, "cards"))) {
+    const path = relative(srcDir, full).split(sep).join("/");
+    if (path.includes("/", "cards/".length)) assets.set(path, new Uint8Array(readFileSync(full)));
   }
   for (const name of ["CREDITS.md", "PERMISSION.md"]) {
     const full = join(srcDir, name);
@@ -132,6 +155,11 @@ export function assemblePack(source: PackSource): PackInput {
       ...(files.has("data/decks.json") ? { decks: "data/decks.json" } : {}),
     },
     ...(author.pictures ? { pictures: author.pictures } : {}),
+    ...(author.languages ? { languages: author.languages } : {}),
+    ...(author.altArt ? { altArt: author.altArt } : {}),
+    ...(author.permission ? { permission: author.permission } : {}),
+    ...(author.templateCredit ? { templateCredit: author.templateCredit } : {}),
+    ...(author.translators ? { translators: author.translators } : {}),
     files: listed,
     totalBytes: listed.reduce((sum, file) => sum + file.bytes, 0),
     license: author.license,

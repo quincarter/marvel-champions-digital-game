@@ -9,7 +9,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./build": "./src/build.ts"
+    "./build": "./src/build.ts",
+    "./game": "./src/game.ts",
+    "./import": "./src/import-marvelcdb.ts"
   },
   "scripts": {
     "test": "vitest run",

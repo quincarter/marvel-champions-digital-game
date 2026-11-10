@@ -4,8 +4,10 @@ import {
   PACK_SCHEMA_VERSION,
   PLAYABLE_CARDS,
   customCardPrefix,
+  isLanguageTag,
   isPackId,
   isSafePackPath,
+  parsePackCardImagePath,
   validateCard,
   validateScenario,
   validateStarterDeck,
@@ -19,10 +21,32 @@ import { SUPPORTED_DSL_FEATURES, dslFeatures } from "./features.js";
 import { PACK_ABILITY_ID } from "./define.js";
 import { sha256Hex } from "./sha256.js";
 
+/**
+ * What kind of problem an issue is. Absent means a plain defect. `"unscripted-ability"` means the pack is otherwise
+ * well formed but a card names an ability nobody has written yet: the normal state of a pack converted from card data
+ * (`importMarvelCdbPack`) before its scripts exist. Tools list these apart from real defects (`splitIssues`).
+ */
+export type PackIssueCategory = "unscripted-ability";
+
 /** One problem `validatePack` found: where (a manifest field, a file path, a card code) and what. */
 export interface PackIssue {
   readonly path: string;
   readonly message: string;
+  readonly category?: PackIssueCategory;
+}
+
+/** Whether an issue is only "this ability is not scripted yet". */
+export const isUnscriptedAbilityIssue = (issue: PackIssue): boolean => issue.category === "unscripted-ability";
+
+/** Splits issues into the unscripted-ability ones and every other (real) defect. */
+export function splitIssues(issues: readonly PackIssue[]): {
+  readonly unscripted: readonly PackIssue[];
+  readonly defects: readonly PackIssue[];
+} {
+  return {
+    unscripted: issues.filter(isUnscriptedAbilityIssue),
+    defects: issues.filter((issue) => !isUnscriptedAbilityIssue(issue)),
+  };
 }
 
 /** A pack held in memory: the manifest, every file by path (except `pack.json`) and the parsed data files. */
@@ -58,7 +82,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 let defaultBaseCodes: ReadonlySet<string> | undefined;
 const baseCodes = (): ReadonlySet<string> => (defaultBaseCodes ??= new Set(PLAYABLE_CARDS.map((card) => card.id)));
 
-type Add = (path: string, message: string) => void;
+type Add = (path: string, message: string, category?: PackIssueCategory) => void;
 type Obj = Record<string, unknown>;
 
 const isObj = (value: unknown): value is Obj => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -71,7 +95,8 @@ const errorText = (error: unknown): string => (error instanceof Error ? error.me
  */
 export function validatePack(input: PackInput, options: ValidateOptions = {}): readonly PackIssue[] {
   const issues: PackIssue[] = [];
-  const add: Add = (path, message) => void issues.push({ path, message });
+  const add: Add = (path, message, category) =>
+    void issues.push(category ? { path, message, category } : { path, message });
   try {
     validateInto(input, options, add);
   } catch (error) {
@@ -151,7 +176,11 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
   for (const card of cards) {
     for (const ref of abilityRefsOf(card)) {
       if (!has(abilities, ref) && !has(baseAbilities, ref))
-        add(`cards/${String(card.id)}`, `ability "${ref}" is defined by neither the pack nor the base game`);
+        add(
+          `cards/${String(card.id)}`,
+          `ability "${ref}" is defined by neither the pack nor the base game (not scripted yet)`,
+          "unscripted-ability",
+        );
     }
   }
 
@@ -165,6 +194,12 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     add("pack.json requires.dslFeatures", `must list exactly the features the abilities use: ${features.join(", ")}`);
 
   checkFiles(input, add);
+  // A picture may be of any face of a pack card: `01b` is the back of card `01a`, which shares its number.
+  const isPackFace = (code: string): boolean =>
+    code.startsWith(prefix) &&
+    CARD_NUMBER.test(code.slice(prefix.length)) &&
+    cardNumbers.has(digitsOf(code.slice(prefix.length)));
+  checkLanguagesAndArt(input, (code) => knownCard(code) || isPackFace(code), isPackFace, add);
 
   // Decks: unique ids under the pack's id, every card in the pack or the base pool, and the content schema's checks.
   const deckIds = new Set<string>();
@@ -177,7 +212,7 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     }
     const id = typeof deck.id === "string" ? deck.id : "";
     const at = `decks/${id || index}`;
-    if (!id.startsWith(packId) || packId === "") add(at, `deck id must start with the pack id "${packId}"`);
+    if (!id.startsWith(`${packId}-`) || packId === "") add(at, `deck id must start with "${packId}-"`);
     if (deckIds.has(id)) add(at, "deck id is used by two decks");
     deckIds.add(id);
     runContentCheck(at, () => validateStarterDeck(deck as unknown as StarterDeck), add);
@@ -253,6 +288,102 @@ function checkManifestFields(manifest: PackManifest, add: Add): void {
   if (typeof manifest.totalBytes !== "number" || !Number.isInteger(manifest.totalBytes) || manifest.totalBytes < 0)
     add(at("totalBytes"), "must be a whole number");
   if (manifest.pictures !== undefined && !isObj(manifest.pictures)) add(at("pictures"), "must be an object");
+  checkCredits(manifest, add);
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The optional credit fields: permission, template credit and translators. */
+function checkCredits(manifest: PackManifest, add: Add): void {
+  const at = (field: string): string => `pack.json ${field}`;
+  const text = (value: unknown): boolean => typeof value === "string" && value.trim() !== "";
+  const permission: unknown = manifest.permission;
+  if (permission !== undefined) {
+    if (!isObj(permission)) add(at("permission"), "must be an object");
+    else {
+      if (!text(permission.by)) add(at("permission.by"), "must say who gave permission");
+      if (permission.date !== undefined && (typeof permission.date !== "string" || !ISO_DATE.test(permission.date)))
+        add(at("permission.date"), "must be YYYY-MM-DD");
+      for (const field of ["evidence", "scope"] as const) {
+        if (permission[field] !== undefined && !text(permission[field])) add(at(`permission.${field}`), "must be text");
+      }
+    }
+  }
+  if (manifest.templateCredit !== undefined && !text(manifest.templateCredit))
+    add(at("templateCredit"), "must be text");
+  const translators: unknown = manifest.translators;
+  if (translators !== undefined) {
+    if (!isObj(translators)) add(at("translators"), "must map language tags to names");
+    else {
+      for (const [lang, name] of Object.entries(translators)) {
+        if (!isLanguageTag(lang) || !text(name)) add(at(`translators.${lang}`), "needs a language tag and a name");
+      }
+    }
+  }
+}
+
+/**
+ * `languages`, the per-language pictures under `cards/<lang>/<code>.webp` and `altArt`
+ * (docs/custom-content-packs.md section 5.1): tags are legal, `base` is one of `available`, every picture is of one
+ * of the pack's cards in an available language, and every alternate art names a card the game knows and a listed file.
+ */
+function checkLanguagesAndArt(
+  input: PackInput,
+  knownCard: (code: string) => boolean,
+  isPackFace: (code: string) => boolean,
+  add: Add,
+): void {
+  const { manifest } = input;
+  const at = (field: string): string => `pack.json ${field}`;
+  const languages: unknown = manifest.languages;
+  let available: ReadonlySet<string> | undefined;
+  if (languages !== undefined) {
+    if (!isObj(languages)) add(at("languages"), "must be { base, available }");
+    else {
+      const list = languages.available;
+      if (!Array.isArray(list) || list.length === 0 || list.some((l) => typeof l !== "string" || !isLanguageTag(l)))
+        add(at("languages.available"), 'must list language tags such as "en"');
+      else {
+        available = new Set(list as string[]);
+        if (available.size !== list.length) add(at("languages.available"), "lists a language twice");
+        if (typeof languages.base !== "string" || !available.has(languages.base))
+          add(at("languages.base"), "must be one of the available languages");
+      }
+      if (languages.text !== undefined && (typeof languages.text !== "string" || !isLanguageTag(languages.text)))
+        add(at("languages.text"), "must be a language tag");
+    }
+  }
+  const listed = new Set(
+    Array.isArray(manifest.files)
+      ? (manifest.files as unknown[]).flatMap((f) => (isObj(f) && typeof f.path === "string" ? [f.path] : []))
+      : [],
+  );
+  for (const path of listed) {
+    const picture = parsePackCardImagePath(path);
+    if (!picture) continue;
+    if (!available) add(path, 'card pictures need "languages" in pack.json');
+    else if (!available.has(picture.lang)) add(path, `language "${picture.lang}" is not in languages.available`);
+    if (!isPackFace(picture.code)) add(path, `"${picture.code}" is not a card of this pack`);
+  }
+  const altArt: unknown = manifest.altArt;
+  if (altArt === undefined) return;
+  if (!isObj(altArt)) {
+    add(at("altArt"), "must map languages to card codes to file paths");
+    return;
+  }
+  for (const [lang, byCode] of Object.entries(altArt)) {
+    if (!isObj(byCode)) {
+      add(at(`altArt.${lang}`), "must map card codes to file paths");
+      continue;
+    }
+    if (!isLanguageTag(lang) || (available && !available.has(lang)))
+      add(at(`altArt.${lang}`), "language is not in languages.available");
+    for (const [code, path] of Object.entries(byCode)) {
+      if (!knownCard(code)) add(at(`altArt.${lang}.${code}`), "is a card neither the pack nor the base game has");
+      if (typeof path !== "string" || !listed.has(path))
+        add(at(`altArt.${lang}.${code}`), `"${String(path)}" is not a listed file`);
+    }
+  }
 }
 
 function checkFiles(input: PackInput, add: Add): void {
@@ -328,7 +459,7 @@ function checkFiles(input: PackInput, add: Add): void {
 }
 
 /** Every ability id a card record names, on any face. */
-function abilityRefsOf(value: unknown): readonly string[] {
+export function abilityRefsOf(value: unknown): readonly string[] {
   const refs: string[] = [];
   const visit = (node: unknown, key: string): void => {
     if (Array.isArray(node)) {
