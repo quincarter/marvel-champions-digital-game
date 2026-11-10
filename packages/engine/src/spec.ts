@@ -1696,6 +1696,13 @@ export type Predicate =
    */
   | { readonly kind: "isAttached"; readonly of: TargetRef }
   /**
+   * A standing "X cannot be defeated" (`RuleSpec cannotBeDefeated`) covers the card `of` names right now, its `while`
+   * condition included ("Proxima Midnight cannot be defeated while Corvus Glaive has any hit points remaining", `mts`
+   * 21092). "Remove evidence counters ... to defeat the villain's current stage" (Alias Investigations, `jj` 61002) is
+   * not offered while it holds (issue #663).
+   */
+  | { readonly kind: "cannotBeDefeated"; readonly of: TargetRef }
+  /**
    * The card's current face has this title: "When Revealed (Green Goblin)" resolves "only if the Green Goblin side of
    * the villain is in play" (Green Goblin insert, Risky Business "New Rules"). Reads a villain's side and a flipped
    * encounter card's other face.
