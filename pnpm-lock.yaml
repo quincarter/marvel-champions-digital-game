@@ -77,6 +77,9 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: ^2.7.1
         version: 2.7.1
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       phaser:
         specifier: ^4.2.1
         version: 4.2.1
@@ -117,6 +120,21 @@ importers:
       '@mc/content':
         specifier: workspace:*
         version: link:../content
+
+  packages/mod-sdk:
+    dependencies:
+      '@mc/cards':
+        specifier: workspace:*
+        version: link:../cards
+      '@mc/content':
+        specifier: workspace:*
+        version: link:../content
+      '@mc/engine':
+        specifier: workspace:*
+        version: link:../engine
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
 
   packages/sync-worker:
     devDependencies:
@@ -1344,6 +1362,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   fs-extra@11.4.0:
     resolution: {integrity: sha512-EQsFzMUJkCKGr1ePqlYADkIUmHW1s3ZXr5Yqy6wbGrfUCphpl2maM/kyOIRA2HpP3AaFQTZXD4ldjek+nccddA==}
@@ -2814,6 +2835,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
+
+  fflate@0.8.3: {}
 
   fs-extra@11.4.0:
     dependencies:
