@@ -58,9 +58,9 @@ const ALIAS = named("Alias Investigations");
  * (RRG 1.8 "Villain Defeat", p. 47); the "Then" ties it to the counters having been placed (RRG 1.8 "'Then'", p. 44).
  * Nor is it offered while the chosen villain cannot be defeated (Tower Defense's Proxima Midnight and Corvus Glaive,
  * each locked while the other has hit points left; RRG 1.8 "'Cannot'", p. 11, settles only that the defeat is blocked).
- * Not offering the removal then is an engine interpretation (issue #663, rules expert's recommendation, pending the
- * owner's confirmation), by analogy with the Redwing ruling (Jan 26, 2026) and What Doesn't Kill You (Sinister Motives
- * FAQ): no counters are spent on a defeat that cannot happen.
+ * Not offering the removal then is an owner decision (docs/phase7-wave11-hero-packs.md Q105 = A, 2026-11-10; issue
+ * #663), by analogy with the Redwing ruling (Jan 26, 2026) and What Doesn't Kill You (Sinister Motives FAQ): no
+ * counters are spent on a defeat that cannot happen.
  * With several villains, "the villain" is the one the player picks (MC21 p. 11).
  */
 export const JJ_JESSICA_JONES_IDENTITY: AbilityRegistry = defineAbilities({
