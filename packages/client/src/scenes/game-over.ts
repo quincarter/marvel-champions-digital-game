@@ -21,7 +21,8 @@
 
 import Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
-import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
+import { POOL_SCENARIOS } from "../content/pool.js";
+import { gameDeps } from "../content/game-deps.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
@@ -183,7 +184,7 @@ export class GameOverScene extends Phaser.Scene {
         () => goToScreen(this, SCENES.title),
       );
     } else {
-      const model = gameOverModel(game, record, config, POOL_DEPS);
+      const model = gameOverModel(game, record, config, gameDeps());
       const formFactor = formFactorFor(width, height);
       const tall = formFactor === "phone" || formFactor === "tabletPortrait";
       if (tall) {

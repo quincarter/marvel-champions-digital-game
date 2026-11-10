@@ -138,7 +138,7 @@ describe("active packs", () => {
     });
     if (!kept.ok) throw new Error(kept.error.message);
     const legal = JSON.stringify(kept.update.legal);
-    expect(legal).toContain("x.sample-hero.");
+    expect(abilityIds.some((id) => legal.includes(id))).toBe(true);
 
     // A host with no pack loaded cannot even set the precon up: nothing leaks between games.
     setLoadedPacks([]);

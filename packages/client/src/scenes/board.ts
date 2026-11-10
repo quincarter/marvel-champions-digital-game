@@ -24,7 +24,8 @@
  */
 
 import Phaser from "phaser";
-import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
+import { POOL_CARDS, POOL_SCENARIOS } from "../content/pool.js";
+import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import type { AbilityId } from "@mc/content";
 import type { CardId } from "@mc/content";
 import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
@@ -207,7 +208,7 @@ function shownSeat(state: SessionState): PlayerId | null {
 
 /** A card's name and traits, for its sound (`view/sound-effects.ts`). An identity's traits sit on its faces and never count. */
 function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
-  const card = CARDS_BY_ID.get(cardId as string) as
+  const card = gameCardsById().get(cardId as string) as
     | { readonly name: string; readonly traits?: readonly string[] }
     | undefined;
   return card ? { name: card.name, traits: card.traits ?? [] } : null;
@@ -848,11 +849,11 @@ export class BoardScene extends Phaser.Scene {
       const blind = blindRevealOf(state.config, state.game);
       if (state.resumedHistory.length > 0) {
         const history = eventsForBlindLog(state.resumedHistory, blind);
-        this.#log = appendEvents(this.#log, history, state.game, state.perspectiveId, POOL_DEPS);
+        this.#log = appendEvents(this.#log, history, state.game, state.perspectiveId, gameDeps());
       }
       const latest = eventsForBlindLog(state.lastEvents, blind);
       logBefore = this.#log;
-      this.#log = appendEvents(this.#log, latest, state.game, state.perspectiveId, POOL_DEPS);
+      this.#log = appendEvents(this.#log, latest, state.game, state.perspectiveId, gameDeps());
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
       // A game resumed mid-refill has the refill's earlier draws only in its history.
       if (state.resumedHistory.length > 0) this.#refill = trackRefill(NO_REFILL, state.resumedHistory).tracker;
@@ -902,21 +903,21 @@ export class BoardScene extends Phaser.Scene {
     // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
     const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
     this.#model = this.#withDebugSideSchemes(
-      boardModel(state.game, state.peekSeat ?? state.perspectiveId, POOL_DEPS, mine),
+      boardModel(state.game, state.peekSeat ?? state.perspectiveId, gameDeps(), mine),
     );
     // A looked-at seat (`peekSeat`) is read-only: the acting seat's legal moves light nothing on its side of the table.
     this.#marks =
       state.legal && state.peekSeat === null
         ? withDefenseLockout(
             withForcedActions(
-              withAttackBarWording(highlights(state.legal.actions), state.legal.actions, state.game, POOL_DEPS),
+              withAttackBarWording(highlights(state.legal.actions), state.legal.actions, state.game, gameDeps()),
               state.legal.actions,
               state.game,
-              POOL_DEPS,
+              gameDeps(),
             ),
             state.game,
             state.perspectiveId,
-            POOL_DEPS,
+            gameDeps(),
           )
         : null;
     this.#focusTurnStart(turnKeyOf(state.game));
@@ -952,7 +953,7 @@ export class BoardScene extends Phaser.Scene {
     this.#syncChoiceOverlay(state);
     // A choose-one that took its only option says what the others were and why they could not be chosen (#412). Every
     // seat is this player's (one person plays them all), so no viewer narrows it.
-    if (fresh) this.#openOptionNotices(optionNoticesOf(state.lastEvents, state.game, null, POOL_DEPS));
+    if (fresh) this.#openOptionNotices(optionNoticesOf(state.lastEvents, state.game, null, gameDeps()));
     // An interrupt or response that answered but could not be used says why, the first time for each card (#431).
     if (fresh) this.#openOptionNotices(this.#firstUnofferedNotices(state.lastEvents, state.game));
     this.#tryOpenCampaignBeat();
@@ -1097,7 +1098,7 @@ export class BoardScene extends Phaser.Scene {
   #firstUnofferedNotices(events: readonly GameEvent[], game: GameState): OptionNotice[] {
     // Turned off in Settings, or by a notice's "Don't show again": the log and Inspect still say it.
     if (!appSession().settings.notOfferedNotices) return [];
-    return unofferedNoticesOf(events, game, null, POOL_DEPS).flatMap(({ key, notice }) => {
+    return unofferedNoticesOf(events, game, null, gameDeps()).flatMap(({ key, notice }) => {
       if (this.#unofferedShown.has(key)) return [];
       this.#unofferedShown.add(key);
       return [notice];
@@ -1333,7 +1334,7 @@ export class BoardScene extends Phaser.Scene {
     this.#debugPad = pad;
     const state = appSession().store.state;
     if (state.game && state.perspectiveId) {
-      this.#model = this.#withDebugSideSchemes(boardModel(state.game, shownSeat(state)!, POOL_DEPS));
+      this.#model = this.#withDebugSideSchemes(boardModel(state.game, shownSeat(state)!, gameDeps()));
     }
     this.#draw();
   }
@@ -3035,7 +3036,7 @@ export class BoardScene extends Phaser.Scene {
     const cached = this.#heldModelCache;
     if (cached && cached.base === live && cached.game === game && cached.key === key) return cached.model;
     const model = this.#withDebugSideSchemes(
-      boardModel(withFacedownHeld(game, facedown), shownSeat(state)!, POOL_DEPS),
+      boardModel(withFacedownHeld(game, facedown), shownSeat(state)!, gameDeps()),
     );
     this.#heldModelCache = { base: live, game, key, model };
     return model;

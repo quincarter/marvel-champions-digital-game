@@ -4,7 +4,7 @@
  * state that can be reasoned about without a canvas.
  */
 
-import { POOL_DEPS } from "../../content/pool.js";
+import { gameDeps } from "../../content/game-deps.js";
 import type {
   Command,
   CostSelection,
@@ -312,7 +312,7 @@ export function retarget(game: GameState, command: Command, target: InstanceId):
     // whose printed cost is paid): it goes in the slot the card's own cost declares (`view/play-aim.ts`).
     case "playCard":
     case "useAbility":
-      return aimedAt(game, POOL_DEPS, command, target);
+      return aimedAt(game, gameDeps(), command, target);
     default:
       return command;
   }

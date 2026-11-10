@@ -15,7 +15,7 @@ export type LoadWorkerReply = PackLoadResult;
 
 /** The part of `Worker` used, so a test can stand in for it. */
 export interface LoadWorkerLike {
-  postMessage(message: LoadWorkerRequest): void;
+  postMessage(message: LoadWorkerRequest, transfer?: Transferable[]): void;
   onmessage: ((event: { readonly data: LoadWorkerReply }) => void) | null;
   onmessageerror?: ((event: unknown) => void) | null | undefined;
   onerror: ((event: unknown) => void) | null;
@@ -51,6 +51,7 @@ export function loadInWorker(
   if (!worker) return Promise.resolve(here());
   return new Promise<PackLoadResult>((resolve) => {
     let settled = false;
+    let posted = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const end = (): void => {
       settled = true;
@@ -63,7 +64,8 @@ export function loadInWorker(
     const fallback = (): void => {
       if (settled) return;
       end();
-      resolve(here());
+      // Once the buffers have gone to the worker they are detached here, so there is nothing left to load from.
+      resolve(posted ? { ok: false, reason: "The pack loader stopped before it finished" } : here());
     };
     worker.onmessage = (event) => {
       if (settled) return;
@@ -74,7 +76,11 @@ export function loadInWorker(
     worker.onmessageerror = fallback;
     timer = setTimeout(fallback, idleMs);
     try {
-      worker.postMessage({ manifest, files, requiredPackCards: [...requiredPackCards] });
+      // The file buffers are handed over, not copied. `files` is the caller's own throwaway map (`loadActivePacks`
+      // reads a fresh one per load), so it is not read again after this.
+      const transfer = [...new Set([...files.values()].map((bytes) => bytes.buffer as ArrayBuffer))];
+      worker.postMessage({ manifest, files, requiredPackCards: [...requiredPackCards] }, transfer);
+      posted = true;
     } catch {
       fallback();
     }

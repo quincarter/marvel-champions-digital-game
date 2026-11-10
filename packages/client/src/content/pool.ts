@@ -246,7 +246,7 @@ export const CORE_MODULAR_SET_IDS: readonly string[] = [
 /** Every ability script for `POOL_CARDS` (Core's own scripts included — every wave's registry starts from `CORE_ABILITIES`). */
 export const POOL_DEPS: EngineDeps = PLAYABLE_DEPS;
 
-interface PoolView {
+export interface PoolView {
   readonly packs: readonly PackRuntime[];
   readonly cards: readonly AnyCard[];
   readonly cardsById: ReadonlyMap<string, AnyCard>;
@@ -266,6 +266,22 @@ export function poolViewWithPacks(packs: readonly PackRuntime[]): PoolView {
     cardsById: new Map(cards.map((card) => [card.id as string, card])),
     deps: depsWithPacks(POOL_DEPS, packs),
   };
+}
+
+const VIEWS = new WeakMap<object, PoolView>();
+
+/**
+ * `poolViewWithPacks` cached per `packs` array, so the engine worker and the main thread's game scenes build a game's merged
+ * pool and deps once, not per command or per frame. The one derivation both sides use for an existing game.
+ */
+export function poolViewOfPacks(packs: readonly PackRuntime[] | undefined): PoolView {
+  if (!packs || packs.length === 0) return BASE_VIEW;
+  let view = VIEWS.get(packs);
+  if (!view) {
+    view = poolViewWithPacks(packs);
+    VIEWS.set(packs, view);
+  }
+  return view;
 }
 
 /**

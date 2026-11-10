@@ -68,7 +68,8 @@ import {
   villainStageOf,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace, type StandIn } from "../art/art-source.js";
-import { POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
@@ -1514,7 +1515,7 @@ function backKindOf(state: GameState, instance: CardInstance | undefined): CardB
  */
 function standInOf(state: GameState, instance: CardInstance | undefined): StandIn | null {
   if (!instance || !isDroneRole(instance.facedownAs)) return null;
-  const atk = characterProfile(state, instance.instanceId, POOL_DEPS)?.atk;
+  const atk = characterProfile(state, instance.instanceId, gameDeps())?.atk;
   return atk === undefined ? null : { kind: "ultronDrone", atk };
 }
 

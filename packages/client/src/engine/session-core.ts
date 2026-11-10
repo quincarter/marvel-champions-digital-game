@@ -28,7 +28,7 @@
 import { cardsOfComposedSets } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
-import { POOL_VERSION, buildScenario, poolViewWithPacks } from "../content/pool.js";
+import { POOL_VERSION, POOL_STARTER_DECKS, buildScenario, poolViewOfPacks } from "../content/pool.js";
 import { seatsWithPackDecks } from "../packs/pack-runtime.js";
 import {
   applyCommand,
@@ -186,6 +186,9 @@ function sealedEventStates(states: readonly EventState[]): readonly SealedEventS
   return kept;
 }
 
+/** Base-game precon ids: a pack deck may never take one (`seatsWithPackDecks`). */
+const BASE_DECK_IDS: ReadonlySet<string> = new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string));
+
 /**
  * The one place a `SessionConfig` becomes a `GameSetupConfig` — shared by `start`, `resume` and the read-only
  * replay cursor, so none of them can disagree about what a save means.
@@ -206,24 +209,11 @@ function sealedEventStates(states: readonly EventState[]): readonly SealedEventS
  * what `mts.qa.test.ts`'s `realGame` and `gmw.qa.test.ts`'s own equivalent do for a "real game" test. Absent for
  * every standalone game and for a campaign save written before this field existed, so neither's setup changes.
  */
-/** One merged pool and deps per `config.packs` array, so a session builds them once, not per command. */
-const VIEWS = new WeakMap<object, ReturnType<typeof poolViewWithPacks>>();
-const viewOf = (config: SessionConfig | null): ReturnType<typeof poolViewWithPacks> => {
-  const packs = config?.packs;
-  if (!packs || packs.length === 0) return poolViewWithPacks([]);
-  let view = VIEWS.get(packs);
-  if (!view) {
-    view = poolViewWithPacks(packs);
-    VIEWS.set(packs, view);
-  }
-  return view;
-};
-
 const scenarioFor = (config: SessionConfig) => {
   const view = viewOf(config);
   const built = buildScenario(config.scenarioId, {
     difficulty: config.difficulty,
-    players: view.packs.length > 0 ? seatsWithPackDecks(config.players, view.packs) : config.players,
+    players: view.packs.length > 0 ? seatsWithPackDecks(config.players, view.packs, BASE_DECK_IDS) : config.players,
     seed: config.seed,
     ...(config.modes ? { modes: config.modes } : {}),
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
@@ -273,6 +263,7 @@ const scenarioFor = (config: SessionConfig) => {
 };
 
 /** The engine deps a game runs with: the base game's, plus its packs' abilities (`SessionConfig.packs`). */
+const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);
 const depsOf = (config: SessionConfig | null): EngineDeps => viewOf(config).deps;
 
 const statusOf = (state: GameState): SaveStatus =>

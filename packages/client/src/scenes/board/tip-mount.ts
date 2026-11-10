@@ -29,7 +29,7 @@ import { appSession } from "../../session.js";
 import { guideHintText } from "../../view/guide-hint.js";
 import { inputDevice } from "../../platform/input-device.js";
 import type { EngineDeps } from "@mc/engine";
-import { POOL_DEPS } from "../../content/pool.js";
+import { gameDeps } from "../../content/game-deps.js";
 import { markTipSeen, withLevel } from "../../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs } from "../../guide/guide-store.js";
 import { boardLayout, type Rect } from "../../view/layout.js";
@@ -65,7 +65,7 @@ export class BoardTipMount {
   #regionActive = false;
   #regionFocusIndex = -1;
 
-  constructor(scene: BoardScene, deps: EngineDeps = POOL_DEPS) {
+  constructor(scene: BoardScene, deps: EngineDeps = gameDeps()) {
     this.#scene = scene;
     this.#deps = deps;
   }

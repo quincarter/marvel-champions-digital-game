@@ -41,6 +41,7 @@ export function loadPackRuntime(
         id: manifest.id,
         version: manifest.version,
         name: manifest.name,
+        requires: manifest.requires?.packs ?? [],
         cards: input.cards,
         abilities: input.abilities,
         decks: input.decks ?? [],

@@ -86,7 +86,8 @@ export interface CampaignServiceOptions {
   /** Card pool every `campaignSet`/`collection`/`ownDeck` choice draws from. */
   readonly campaignDeps: CampaignDeps;
   /** The engine deps a finished game is replayed and read with. */
-  readonly engineDeps: EngineDeps;
+  /** The deps a finished game replays with; a function when they depend on the game on the table. */
+  readonly engineDeps: EngineDeps | (() => EngineDeps);
   /** Epoch ms. Injected so tests are deterministic; the engine itself never reads a clock. */
   readonly now?: () => number;
   /** A fresh id for a new campaign. */
@@ -108,7 +109,7 @@ export interface CampaignGames {
 export class CampaignService {
   readonly storage: CampaignStorage;
   readonly #campaignDeps: CampaignDeps;
-  readonly #engineDeps: EngineDeps;
+  readonly #engineDeps: () => EngineDeps;
   readonly #now: () => number;
   readonly #newId: () => string;
   readonly #definitionOf: (campaignId: string) => CampaignDefinition | undefined;
@@ -123,7 +124,8 @@ export class CampaignService {
   constructor(options: CampaignServiceOptions) {
     this.storage = options.storage;
     this.#campaignDeps = options.campaignDeps;
-    this.#engineDeps = options.engineDeps;
+    const deps = options.engineDeps;
+    this.#engineDeps = typeof deps === "function" ? deps : () => deps;
     this.#now = options.now ?? Date.now;
     this.#newId =
       options.newId ?? (() => `campaign-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -312,7 +314,7 @@ export class CampaignService {
   ): Promise<CampaignStepResult> {
     let replayed = this.#replays.get(saved);
     if (!replayed) {
-      const result = applyCommands(saved.initialState, saved.commands, this.#engineDeps);
+      const result = applyCommands(saved.initialState, saved.commands, this.#engineDeps());
       if (!result.ok) throw new Error(`the finished game no longer replays: ${result.error.message}`);
       replayed = { state: result.state, events: result.events };
       this.#replays.set(saved, replayed);
@@ -336,7 +338,7 @@ export class CampaignService {
       events,
       { at: this.#now(), gameId },
       this.#campaignDeps,
-      this.#engineDeps,
+      this.#engineDeps(),
       answers,
     );
     if (result.kind === "pending") return result;

@@ -13,6 +13,7 @@ import { loadInWorker } from "./load-client.js";
 import type { PackLoadResult } from "./pack-load.js";
 import { setLoadedPacks } from "./pack-registry.js";
 import type { PackRuntime } from "./pack-runtime.js";
+import { POOL_STARTER_DECKS } from "../content/pool.js";
 
 export interface ActivePackStatus {
   readonly id: string;
@@ -21,6 +22,8 @@ export interface ActivePackStatus {
   readonly loaded: boolean;
   /** Why a pack was skipped; undefined when it loaded. */
   readonly reason?: string;
+  /** Things worth telling the player about a pack that did load (a precon dropped because its id is a base game deck's). */
+  readonly notes?: readonly string[];
 }
 
 /** Loads one pack's files; replaceable so a test can fail it or run it in-thread. */
@@ -75,6 +78,9 @@ export async function loadActivePacks(
   }
   const loaded = new Map<string, PackRuntime>();
   const skipped = new Map<string, string>();
+  const notes = new Map<string, string[]>();
+  const baseDeckIds = new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string));
+  const deckOwner = new Map<string, string>();
   let pending = installed;
   for (let progress = true; progress && pending.length > 0;) {
     progress = false;
@@ -96,8 +102,23 @@ export async function loadActivePacks(
               files,
               new Set(needs.flatMap((id) => loaded.get(id)!.cards.map((card) => card.id as string))),
             );
-      if (result.ok) {
-        loaded.set(pack.id, result.runtime);
+      const clash = result.ok ? result.runtime.decks.find((deck) => deckOwner.has(deck.id as string)) : undefined;
+      if (result.ok && clash) {
+        skipped.set(pack.id, `Deck ${clash.id as string} is already used by ${deckOwner.get(clash.id as string)}`);
+      } else if (result.ok) {
+        // A base game precon id is never taken from a pack (base wins): the pack's deck of that id is dropped.
+        const shadowing = result.runtime.decks.filter((deck) => baseDeckIds.has(deck.id as string));
+        const runtime =
+          shadowing.length === 0
+            ? result.runtime
+            : { ...result.runtime, decks: result.runtime.decks.filter((deck) => !baseDeckIds.has(deck.id as string)) };
+        if (shadowing.length > 0)
+          notes.set(
+            pack.id,
+            shadowing.map((deck) => `Deck ${deck.id as string} ignored: that id belongs to a base game deck`),
+          );
+        for (const deck of runtime.decks) deckOwner.set(deck.id as string, pack.id);
+        loaded.set(pack.id, runtime);
         skipped.delete(pack.id);
         progress = true;
       } else {
@@ -110,7 +131,7 @@ export async function loadActivePacks(
   const result: ActivePackStatus[] = installed.map((pack) => {
     const base = { id: pack.id, version: pack.version, name: pack.manifest.name };
     return loaded.has(pack.id)
-      ? { ...base, loaded: true }
+      ? { ...base, loaded: true, ...(notes.has(pack.id) ? { notes: notes.get(pack.id)! } : {}) }
       : { ...base, loaded: false, reason: skipped.get(pack.id) ?? "Not loaded" };
   });
   if (mine !== generation) return result;
@@ -126,8 +147,9 @@ export async function loadActivePacks(
  */
 export async function refreshActivePacks(store?: PackStorage): Promise<readonly ActivePackStatus[]> {
   try {
-    sharedStore ??= store ?? new IdbPackStore();
-    return await loadActivePacks(store ?? sharedStore);
+    if (store) return await loadActivePacks(store);
+    sharedStore ??= new IdbPackStore();
+    return await loadActivePacks(sharedStore);
   } catch {
     return statuses;
   }
