@@ -8,9 +8,9 @@
 //     campaigns, the DSL, the test harness) runs every wave.
 //   - the sync Worker (packages/sync-worker) stands outside that chain, but the client imports its wire protocol, so
 //     a change there runs its own tests and the client's.
-//   - the mod SDK (packages/mod-sdk) sits above the cards package and beside the client, which never imports it. A
-//     change there, or to the sample packs in `content-packs/`, runs only its tests; a change to cards, engine or
-//     content runs them too.
+//   - the mod SDK (packages/mod-sdk) sits above the cards package and below the client, which imports it to load
+//     installed packs. A change there, or to the sample packs in `content-packs/` (the client's pack tests build the
+//     sample), runs its tests and the client's; a change to cards, engine or content runs them too.
 //   - a changelog fragment affects nothing; any other file outside `packages/` (the lockfile, a config, docs or art
 //     a test may read) runs everything.
 import { readdirSync } from "node:fs";
@@ -46,6 +46,7 @@ export function affectedBy(changedPaths) {
     if (NEVER_AFFECTS_TESTS.test(path)) continue;
     if (MOD_SDK_FILE.test(path)) {
       modSdk = true;
+      lowest = Math.min(lowest, PROJECTS.indexOf("client"));
       continue;
     }
     if (SYNC_WORKER_FILE.test(path)) {

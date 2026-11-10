@@ -196,6 +196,8 @@ import {
 import type { EngineDeps } from "@mc/engine";
 import { POOL_CARDS } from "./pool-cards.js";
 import type { ShelfPack } from "../view/roster-shelves.js";
+import { loadedPacks } from "../packs/pack-registry.js";
+import { depsWithPacks, poolWithPacks, type PackRuntime } from "../packs/pack-runtime.js";
 
 // Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
 export { POOL_CARDS };
@@ -243,6 +245,62 @@ export const CORE_MODULAR_SET_IDS: readonly string[] = [
 
 /** Every ability script for `POOL_CARDS` (Core's own scripts included — every wave's registry starts from `CORE_ABILITIES`). */
 export const POOL_DEPS: EngineDeps = PLAYABLE_DEPS;
+
+interface PoolView {
+  readonly packs: readonly PackRuntime[];
+  readonly cards: readonly AnyCard[];
+  readonly cardsById: ReadonlyMap<string, AnyCard>;
+  readonly deps: EngineDeps;
+}
+
+const BASE_VIEW: PoolView = { packs: [], cards: POOL_CARDS, cardsById: CARDS_BY_ID, deps: POOL_DEPS };
+let view: PoolView = BASE_VIEW;
+
+/** The pool and deps with `packs` added (the base ones, untouched, for none). Throws if a pack shadows a base card or ability. */
+export function poolViewWithPacks(packs: readonly PackRuntime[]): PoolView {
+  if (packs.length === 0) return BASE_VIEW;
+  const cards = poolWithPacks(POOL_CARDS, packs);
+  return {
+    packs,
+    cards,
+    cardsById: new Map(cards.map((card) => [card.id as string, card])),
+    deps: depsWithPacks(POOL_DEPS, packs),
+  };
+}
+
+/**
+ * The pool the app runs right now: `POOL_CARDS` plus the cards of every installed pack that loaded
+ * (`packs/active-packs.ts`), or `POOL_CARDS` itself when none did. The deck builder, pickers and anything that names a
+ * card read this, not `POOL_CARDS`, wherever a pack's card could appear. Cached until the loaded packs change.
+ */
+export function currentPool(): readonly AnyCard[] {
+  return currentPoolView().cards;
+}
+
+/** `currentPool()` by card id. */
+export function currentCardsById(): ReadonlyMap<string, AnyCard> {
+  return currentPoolView().cardsById;
+}
+
+/** The engine deps for `currentPool()`, with every loaded pack's abilities merged in. */
+export function currentDeps(): EngineDeps {
+  return currentPoolView().deps;
+}
+
+function currentPoolView(): PoolView {
+  const packs = loadedPacks();
+  if (view.packs !== packs && !(packs.length === 0 && view === BASE_VIEW)) {
+    try {
+      view = poolViewWithPacks(packs);
+    } catch {
+      // A pack that now collides with the base game (a newer app added the same code) must not break the app: base pool only.
+      view = BASE_VIEW;
+    }
+    // Remember which array this answered for, so a failure is not retried on every read.
+    view = { ...view, packs };
+  }
+  return view;
+}
 
 /** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang), then cycle 2 (The Galaxy's Most Wanted's five), then cycle 3 (The Mad Titan's Shadow's five, and The Hood). */
 export const POOL_SCENARIOS: readonly Scenario[] = [

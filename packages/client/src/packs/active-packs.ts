@@ -1,0 +1,134 @@
+/**
+ * Loading the installed custom packs into the running app (docs/custom-content-packs.md §7.4): every pack in the
+ * `PackStore` is read, validated (in a worker) and, if it passes, added to the loaded set that `content/pool.ts`'s
+ * `currentPool()` and a new game's `SessionConfig.packs` read. A pack that is damaged, fails validation, needs a newer
+ * app or needs a pack that is not loaded is skipped with a reason the Mod Store can show; it never blocks the others or
+ * the app. A withdrawn pack stays loaded: withdrawal only hides it from the store, it stays playable (§11.4).
+ *
+ * Call `refreshActivePacks()` at boot (not awaited) and after an install, update or remove.
+ */
+import type { PackManifest } from "@mc/content";
+import { IdbPackStore, type InstalledPack, type PackStorage } from "./pack-store.js";
+import { loadInWorker } from "./load-client.js";
+import type { PackLoadResult } from "./pack-load.js";
+import { setLoadedPacks } from "./pack-registry.js";
+import type { PackRuntime } from "./pack-runtime.js";
+
+export interface ActivePackStatus {
+  readonly id: string;
+  readonly version: string;
+  readonly name: string;
+  readonly loaded: boolean;
+  /** Why a pack was skipped; undefined when it loaded. */
+  readonly reason?: string;
+}
+
+/** Loads one pack's files; replaceable so a test can fail it or run it in-thread. */
+export type PackLoader = (
+  manifest: PackManifest,
+  files: ReadonlyMap<string, Uint8Array>,
+  requiredPackCards: ReadonlySet<string>,
+) => Promise<PackLoadResult>;
+
+let statuses: readonly ActivePackStatus[] = [];
+const listeners = new Set<(statuses: readonly ActivePackStatus[]) => void>();
+let generation = 0;
+let sharedStore: PackStorage | undefined;
+
+/** The outcome of the last load, one entry per installed pack. */
+export function activePackStatuses(): readonly ActivePackStatus[] {
+  return statuses;
+}
+
+/** Calls `listener` after each load finishes; returns the unsubscribe. */
+export function onActivePackStatuses(listener: (statuses: readonly ActivePackStatus[]) => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
+async function readFiles(store: PackStorage, pack: InstalledPack): Promise<ReadonlyMap<string, Uint8Array> | string> {
+  const files = new Map<string, Uint8Array>();
+  for (const entry of pack.manifest.files) {
+    const blob = await store.fileBlob(pack.id, entry.path);
+    if (!blob) return `${entry.path} is missing from the store`;
+    files.set(entry.path, new Uint8Array(await blob.arrayBuffer()));
+  }
+  return files;
+}
+
+/**
+ * Loads every installed pack from `store` and replaces the app's loaded set with the ones that pass. Packs are tried in
+ * install order, and a pack that lists `requires.packs` is retried after the others, so it loads after what it needs.
+ * Resolves to the status of each pack. A newer call supersedes an older one still running: only the newest call's
+ * result is applied.
+ */
+export async function loadActivePacks(
+  store: PackStorage,
+  load: PackLoader = loadInWorker,
+): Promise<readonly ActivePackStatus[]> {
+  const mine = ++generation;
+  let installed: InstalledPack[];
+  try {
+    installed = (await store.list()).sort((a, b) => a.installedAt.localeCompare(b.installedAt));
+  } catch {
+    installed = [];
+  }
+  const loaded = new Map<string, PackRuntime>();
+  const skipped = new Map<string, string>();
+  let pending = installed;
+  for (let progress = true; progress && pending.length > 0;) {
+    progress = false;
+    const waiting: InstalledPack[] = [];
+    for (const pack of pending) {
+      const needs = pack.manifest.requires?.packs ?? [];
+      const absent = needs.filter((id) => !loaded.has(id));
+      if (absent.length > 0) {
+        skipped.set(pack.id, `Needs ${absent.join(", ")} to be installed and working`);
+        waiting.push(pack);
+        continue;
+      }
+      const files = await readFiles(store, pack);
+      const result: PackLoadResult =
+        typeof files === "string"
+          ? { ok: false, reason: `Damaged: ${files}` }
+          : await load(
+              pack.manifest,
+              files,
+              new Set(needs.flatMap((id) => loaded.get(id)!.cards.map((card) => card.id as string))),
+            );
+      if (result.ok) {
+        loaded.set(pack.id, result.runtime);
+        skipped.delete(pack.id);
+        progress = true;
+      } else {
+        skipped.set(pack.id, result.reason);
+      }
+    }
+    // Only a pack that was waiting on another is worth another pass; one that failed fails the same way again.
+    pending = waiting;
+  }
+  const result: ActivePackStatus[] = installed.map((pack) => {
+    const base = { id: pack.id, version: pack.version, name: pack.manifest.name };
+    return loaded.has(pack.id)
+      ? { ...base, loaded: true }
+      : { ...base, loaded: false, reason: skipped.get(pack.id) ?? "Not loaded" };
+  });
+  if (mine !== generation) return result;
+  statuses = result;
+  setLoadedPacks(installed.flatMap((pack) => loaded.get(pack.id) ?? []));
+  for (const listener of [...listeners]) listener(result);
+  return result;
+}
+
+/**
+ * Loads from the app's own IndexedDB store. Safe to call without awaiting (boot) and never rejects: a store that cannot
+ * open leaves the base game as it was.
+ */
+export async function refreshActivePacks(store?: PackStorage): Promise<readonly ActivePackStatus[]> {
+  try {
+    sharedStore ??= store ?? new IdbPackStore();
+    return await loadActivePacks(store ?? sharedStore);
+  } catch {
+    return statuses;
+  }
+}

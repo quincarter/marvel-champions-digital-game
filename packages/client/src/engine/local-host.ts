@@ -10,6 +10,7 @@
  * stand-in for "refresh the page".
  */
 
+import { withLoadedPacks } from "../packs/game-packs.js";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import { MemoryGameStorage, type GameStorage, type SaveMeta } from "./game-storage.js";
 import type {
@@ -35,7 +36,7 @@ export class LocalEngineHost implements EngineHost {
   }
 
   async start(config: SessionConfig): Promise<EngineUpdate> {
-    return this.#begin(await this.#core.start(config));
+    return this.#begin(await this.#core.start(withLoadedPacks(config)));
   }
 
   async resume(gameId: string): Promise<EngineUpdate> {

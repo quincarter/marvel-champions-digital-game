@@ -65,6 +65,9 @@ importers:
       '@mc/engine':
         specifier: workspace:*
         version: link:../engine
+      '@mc/mod-sdk':
+        specifier: workspace:*
+        version: link:../mod-sdk
       '@mc/sync-worker':
         specifier: workspace:*
         version: link:../sync-worker
