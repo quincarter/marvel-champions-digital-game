@@ -38,8 +38,16 @@ export interface PackRequires {
 export interface PackContents {
   readonly cards: string;
   readonly abilities?: string;
+  /** `Scenario` records (§11.9): a scenario pack's villain, main scheme and encounter set choices. */
   readonly scenarios?: string;
   readonly decks?: string;
+  /**
+   * `EncounterSet` records for the pack's own sets (a nemesis set, a modular set, a scenario's own set), so a set has
+   * a display name and a role instead of a bare id (§11.9). Ids are `<pack-id>-<name>`.
+   */
+  readonly encounterSets?: string;
+  /** The engine's plain-data `CampaignDefinition`s, plus their display records (§11.9). */
+  readonly campaigns?: string;
 }
 
 /**
