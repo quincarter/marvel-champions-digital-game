@@ -85,6 +85,8 @@ const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ?
 const PICKER_HEADING_HEIGHT = 22;
 /** A saved deck's own name (#658) takes a line under the hero's in its picker row, so the row grows by this much. */
 const PICKER_DECK_NAME_STEP = 16;
+/** A seat card's footer height that fits the hero, a saved deck's name and the aspects without overlap (#658). */
+const SEAT_FOOTER_THREE_LINES = 64;
 /** How long a burst of hero pictures arriving is gathered into one redraw. */
 const ART_REDRAW_MS = 80;
 
@@ -569,7 +571,9 @@ export class CampaignRosterScene extends Phaser.Scene {
     // art rather than stacks its lines on each other; a card too short for even that keeps a little art.
     const footerHeight = Math.min(
       rect.height * 0.7,
-      deckName ? Math.max(64, Math.min(80, rect.height * 0.3)) : Math.max(48, Math.min(64, rect.height * 0.22)),
+      deckName
+        ? Math.max(SEAT_FOOTER_THREE_LINES, Math.min(80, rect.height * 0.3))
+        : Math.max(48, Math.min(64, rect.height * 0.22)),
     );
     const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
     const border = this.add.graphics();
@@ -616,10 +620,14 @@ export class CampaignRosterScene extends Phaser.Scene {
       });
       clampLines(deckNameText, 1);
     }
-    this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 18, seatView?.aspectsLabel ?? "", {
-      ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
-      fontSize: "9px",
-    });
+    // A card too short for all three lines keeps the deck name, which tells two decks of a hero apart, and drops the
+    // aspects line rather than drawing it over the name (the aspects are in the picker and the deck itself).
+    if (!deckName || footerHeight >= SEAT_FOOTER_THREE_LINES) {
+      this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 18, seatView?.aspectsLabel ?? "", {
+        ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
+        fontSize: "9px",
+      });
+    }
     if (seatView && !seatView.legal) {
       this.add
         .text(footerRect.x + footerRect.width - 8, footerRect.y + 6, "Illegal", textStyle(typeRole.label, 0xc8102e, 1))
