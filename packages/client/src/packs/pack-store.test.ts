@@ -1,12 +1,56 @@
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdbPackStore, packFileKey } from "./pack-store.js";
 import { buildPack } from "./test-zip.js";
 
 const filesOf = (contents: Record<string, Uint8Array>) => new Map(Object.entries(contents));
 
 describe("IdbPackStore", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("revokes object URLs when a pack is reinstalled or removed", async () => {
+    let n = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:test/${++n}`);
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const store = new IdbPackStore({ factory: new IDBFactory() });
+    const { manifest, contents } = buildPack();
+    await store.install(manifest, filesOf(contents));
+    const first = await store.objectUrl("fan-test", "pictures/hero.webp");
+    await store.install(manifest, filesOf(contents));
+    expect(revoked).toHaveBeenCalledWith(first);
+    const second = await store.objectUrl("fan-test", "pictures/hero.webp");
+    expect(second).not.toBe(first);
+    await store.remove("fan-test");
+    expect(revoked).toHaveBeenCalledWith(second);
+  });
+
+  it("shares one createObjectURL between concurrent objectUrl calls", async () => {
+    const created = vi.spyOn(URL, "createObjectURL").mockImplementation(() => "blob:test/one");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const store = new IdbPackStore({ factory: new IDBFactory() });
+    const { manifest, contents } = buildPack();
+    await store.install(manifest, filesOf(contents));
+    const urls = await Promise.all([1, 2, 3].map(() => store.objectUrl("fan-test", "pictures/hero.webp")));
+    expect(urls).toEqual(["blob:test/one", "blob:test/one", "blob:test/one"]);
+    expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a URL whose pack was removed while the read was in flight", async () => {
+    const created = vi.spyOn(URL, "createObjectURL").mockImplementation(() => "blob:test/stale");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const store = new IdbPackStore({ factory: new IDBFactory() });
+    const { manifest, contents } = buildPack();
+    await store.install(manifest, filesOf(contents));
+    const inFlight = store.objectUrl("fan-test", "pictures/hero.webp");
+    store.revoke("fan-test");
+    expect(await inFlight).toBeUndefined();
+    expect(created).not.toHaveBeenCalled();
+  });
+
   it("installs, lists, reads and removes a pack with its files", async () => {
     const store = new IdbPackStore({ factory: new IDBFactory() });
     const { manifest, contents } = buildPack();
@@ -71,8 +115,6 @@ describe("IdbPackStore", () => {
     expect(await store.objectUrl("fan-test", "nope")).toBeUndefined();
     store.revoke("fan-test", "pictures/hero.webp");
     expect(revoked).toHaveBeenCalledWith(first);
-    created.mockRestore();
-    revoked.mockRestore();
   });
 
   it("asks for persistent storage once, guarded", async () => {
@@ -84,7 +126,6 @@ describe("IdbPackStore", () => {
     await store.install(a.manifest, filesOf(a.contents));
     await store.install(b.manifest, filesOf(b.contents));
     expect(persist).toHaveBeenCalledTimes(1);
-    vi.unstubAllGlobals();
   });
 
   it("rejects a bad file value before touching the database", async () => {

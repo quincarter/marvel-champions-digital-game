@@ -2,7 +2,7 @@
  * The store's `index.json` (docs/custom-content-packs.md §11.5): fetched when the store opens, validated, and the last
  * good copy kept so the store opens offline.
  */
-import { PACK_INDEX_SCHEMA_VERSION, PACK_KINDS, type PackIndex, type PackIndexEntry } from "@mc/content";
+import { isPackId, PACK_INDEX_SCHEMA_VERSION, PACK_KINDS, type PackIndex, type PackIndexEntry } from "@mc/content";
 
 // TODO(#677): point at https://packs.<domain>/index.json once the owner's Cloudflare steps (§11.8) are done.
 export const CATALOG_URL = "/packs/index.json";
@@ -27,6 +27,9 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const isString = (v: unknown): v is string => typeof v === "string";
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(isString);
 
+const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+
 function validVersion(v: unknown): boolean {
   return (
     isRecord(v) &&
@@ -35,7 +38,10 @@ function validVersion(v: unknown): boolean {
     isString(v.zip) &&
     (v.zipFallback === undefined || isString(v.zipFallback)) &&
     typeof v.zipBytes === "number" &&
+    Number.isInteger(v.zipBytes) &&
+    v.zipBytes > 0 &&
     isString(v.zipSha256) &&
+    SHA256.test(v.zipSha256) &&
     isRecord(v.requires) &&
     isString(v.requires.app) &&
     (v.requires.dslFeatures === undefined || isStringArray(v.requires.dslFeatures)) &&
@@ -47,6 +53,7 @@ function validEntry(e: unknown): e is PackIndexEntry {
   return (
     isRecord(e) &&
     isString(e.id) &&
+    isPackId(e.id) &&
     isString(e.kind) &&
     (PACK_KINDS as readonly string[]).includes(e.kind) &&
     isString(e.name) &&
@@ -58,7 +65,9 @@ function validEntry(e: unknown): e is PackIndexEntry {
     isString(e.latest) &&
     typeof e.withdrawn === "boolean" &&
     isRecord(e.versions) &&
-    Object.values(e.versions).every(validVersion)
+    Object.keys(e.versions).every((key) => SEMVER.test(key)) &&
+    Object.values(e.versions).every(validVersion) &&
+    Object.prototype.hasOwnProperty.call(e.versions, e.latest)
   );
 }
 

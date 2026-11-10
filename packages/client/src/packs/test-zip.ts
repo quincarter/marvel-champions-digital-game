@@ -23,6 +23,8 @@ export function buildPack(
     extra?: Record<string, Uint8Array>;
     zipFallback?: string;
     manifestOverride?: Partial<PackManifest>;
+    /** Contents paths left out of the zip (but still in the manifest). */
+    omit?: string[];
   } = {},
 ): BuiltPack {
   const id = options.id ?? "fan-test";
@@ -53,7 +55,7 @@ export function buildPack(
   };
   const zip = zipSync({
     "pack.json": enc(JSON.stringify(manifest)),
-    ...contents,
+    ...Object.fromEntries(Object.entries(contents).filter(([path]) => !options.omit?.includes(path))),
     ...options.tamper,
     ...options.extra,
   });

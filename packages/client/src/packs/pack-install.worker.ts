@@ -13,18 +13,26 @@ interface WorkerGlobal {
 
 const worker = self as unknown as WorkerGlobal;
 
+function fail(error: unknown): void {
+  worker.postMessage({
+    kind: "error",
+    code: error instanceof PackInstallError ? error.code : "unzip",
+    message: error instanceof Error ? error.message : String(error),
+  });
+}
+
 worker.onmessage = (event: MessageEvent<UnpackWorkerRequest>) => {
   const { zip, expect } = event.data as { zip: Uint8Array; expect: UnpackExpect };
   unpackPack(zip, expect, (progress) => worker.postMessage({ kind: "progress", progress })).then(
     ({ manifest, files }) => {
-      const transfer = [...files.values()].map((bytes) => bytes.buffer as ArrayBuffer);
-      worker.postMessage({ kind: "done", manifest, files }, transfer);
+      // Any throw here (a postMessage that cannot clone) must still answer, or the install would wait forever.
+      try {
+        const transfer = [...files.values()].map((bytes) => bytes.buffer as ArrayBuffer);
+        worker.postMessage({ kind: "done", manifest, files }, transfer);
+      } catch (error) {
+        fail(error);
+      }
     },
-    (error: unknown) =>
-      worker.postMessage({
-        kind: "error",
-        code: error instanceof PackInstallError ? error.code : "unzip",
-        message: error instanceof Error ? error.message : String(error),
-      }),
+    fail,
   );
 };

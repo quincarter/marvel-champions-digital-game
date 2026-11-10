@@ -7,7 +7,7 @@ import type { PackIndexEntry } from "@mc/content";
 import type { FetchLike } from "./catalog.js";
 import type { InstalledPack, PackStorage } from "./pack-store.js";
 import { unpackInWorker, type UnpackWorkerFactory } from "./unpack-client.js";
-import { PackInstallError, type UnpackExpect, type UnpackProgress } from "./unpack-pack.js";
+import { PackInstallError, sha256Hex, type UnpackExpect, type UnpackProgress } from "./unpack-pack.js";
 
 export type InstallProgress =
   | { readonly phase: "download"; readonly received: number; readonly total: number }
@@ -41,7 +41,7 @@ async function readBody(response: Response, total: number, onBytes: (received: n
     chunks.push(value);
     received += value.byteLength;
     onBytes(received);
-    if (received > Math.max(total, 1) * 2 + 1024) {
+    if (received > total) {
       void reader.cancel();
       throw new PackInstallError("zip-size", "The download is larger than the catalog said");
     }
@@ -55,9 +55,10 @@ async function readBody(response: Response, total: number, onBytes: (received: n
   return out;
 }
 
+/** Tries each address in turn; one whose bytes are the wrong size or hash counts as failed, like a network error. */
 async function download(
   urls: readonly string[],
-  total: number,
+  info: { readonly zipBytes: number; readonly zipSha256: string },
   doFetch: FetchLike,
   onBytes: (received: number) => void,
 ): Promise<Uint8Array> {
@@ -66,14 +67,32 @@ async function download(
     try {
       const response = await doFetch(url);
       if (!response.ok) throw new Error(`Download failed (${response.status})`);
-      return await readBody(response, total, onBytes);
+      const bytes = await readBody(response, info.zipBytes, onBytes);
+      if (bytes.byteLength !== info.zipBytes) {
+        throw new PackInstallError("zip-size", `The download is ${bytes.byteLength} bytes, expected ${info.zipBytes}`);
+      }
+      if ((await sha256Hex(bytes)) !== info.zipSha256.toLowerCase()) {
+        throw new PackInstallError("zip-hash", "The download does not match its checksum");
+      }
+      return bytes;
     } catch (error) {
-      if (error instanceof PackInstallError) throw error;
       lastError = error;
     }
   }
+  if (lastError instanceof PackInstallError && lastError.code !== "download") throw lastError;
   const reason = lastError instanceof Error ? lastError.message : "network error";
   throw new PackInstallError("download", `Could not download the pack (${reason})`);
+}
+
+function progressOf(progress: UnpackProgress): InstallProgress {
+  switch (progress.step) {
+    case "verify-zip":
+      return { phase: "verify-zip" };
+    case "unzip":
+      return { phase: "unzip" };
+    case "verify-files":
+      return { phase: "verify-files", done: progress.done, total: progress.total };
+  }
 }
 
 /** Installs `version` (default: the entry's latest) of a catalog pack. */
@@ -82,21 +101,29 @@ export async function installPack(
   deps: InstallDeps,
   version: string = entry.latest,
 ): Promise<InstalledPack> {
+  if (entry.withdrawn) throw new PackInstallError("withdrawn", `${entry.id} has been withdrawn from the store`);
   const info = entry.versions[version];
   if (!info) throw new PackInstallError("mismatch", `${entry.id} has no version ${version} in the catalog`);
   const report = deps.onProgress ?? (() => {});
   const doFetch: FetchLike = deps.fetch ?? ((url, init) => fetch(url, init));
-  const expect: UnpackExpect = { id: entry.id, version, zipBytes: info.zipBytes, zipSha256: info.zipSha256 };
+  const expect: UnpackExpect = {
+    id: entry.id,
+    version,
+    zipBytes: info.zipBytes,
+    zipSha256: info.zipSha256,
+    kind: entry.kind,
+    requiresApp: info.requires.app,
+  };
 
   const urls = info.zipFallback ? [info.zip, info.zipFallback] : [info.zip];
-  const zip = await download(urls, info.zipBytes, doFetch, (received) =>
+  const zip = await download(urls, info, doFetch, (received) =>
     report({ phase: "download", received, total: info.zipBytes }),
   );
 
   const unpacked = await unpackInWorker(
     zip,
     expect,
-    (progress: UnpackProgress) => report({ phase: progress.step, ...progress } as InstallProgress),
+    (progress: UnpackProgress) => report(progressOf(progress)),
     deps.workerFactory,
   );
 

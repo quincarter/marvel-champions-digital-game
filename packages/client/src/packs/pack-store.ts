@@ -83,6 +83,8 @@ export interface IdbPackStoreOptions {
 export class IdbPackStore implements PackStorage {
   private dbPromise: Promise<IDBDatabase> | undefined;
   private persistAsked = false;
+  /** In-flight and finished URL requests by `<id>/<path>`, so concurrent callers share one `createObjectURL`. */
+  private readonly pending = new Map<string, Promise<string | undefined>>();
   private readonly urls = new Map<string, string>();
 
   constructor(private readonly options: IdbPackStoreOptions = {}) {}
@@ -126,7 +128,7 @@ export class IdbPackStore implements PackStorage {
     // Everything that can fail without the database fails first.
     const blobs = new Map<string, Blob>();
     for (const [path, value] of files) blobs.set(path, toBlob(value));
-    await this.askPersist();
+    this.askPersist();
     const db = await this.db();
     const record: InstalledPack = {
       id: manifest.id,
@@ -168,34 +170,45 @@ export class IdbPackStore implements PackStorage {
   }
 
   async fileBlob(id: string, path: string): Promise<Blob | undefined> {
-    const installed = await this.get(id);
-    if (!installed) return undefined;
     const db = await this.db();
+    // One read-only transaction over both stores, so an install cannot slip between the manifest and the file.
+    const tx = db.transaction([MANIFESTS, FILES]);
+    const installed = (await requestDone(tx.objectStore(MANIFESTS).get(id))) as InstalledPack | undefined;
+    if (!installed) return undefined;
     return requestDone(
-      db
-        .transaction(FILES)
-        .objectStore(FILES)
-        .get(packFileKey(id, installed.version, path)) as IDBRequest<Blob | undefined>,
+      tx.objectStore(FILES).get(packFileKey(id, installed.version, path)) as IDBRequest<Blob | undefined>,
     );
   }
 
-  async objectUrl(id: string, path: string): Promise<string | undefined> {
+  objectUrl(id: string, path: string): Promise<string | undefined> {
     const key = `${id}/${path}`;
-    const cached = this.urls.get(key);
-    if (cached) return cached;
-    const blob = await this.fileBlob(id, path);
-    if (!blob) return undefined;
-    const url = URL.createObjectURL(blob);
-    this.urls.set(key, url);
-    return url;
+    const known = this.pending.get(key);
+    if (known) return known;
+    let request: Promise<string | undefined> | undefined;
+    request = (async () => {
+      const blob = await this.fileBlob(id, path);
+      if (!blob) return undefined;
+      // Revoked or reinstalled while the read was in flight: this result is stale.
+      if (this.pending.get(key) !== request) return undefined;
+      const url = URL.createObjectURL(blob);
+      this.urls.set(key, url);
+      return url;
+    })();
+    this.pending.set(key, request);
+    const forget = (): void => {
+      if (this.pending.get(key) === request && !this.urls.has(key)) this.pending.delete(key);
+    };
+    request.then(forget, forget);
+    return request;
   }
 
   revoke(id: string, path?: string): void {
-    for (const [key, url] of [...this.urls]) {
-      if (path === undefined ? key.startsWith(`${id}/`) : key === `${id}/${path}`) {
-        URL.revokeObjectURL(url);
-        this.urls.delete(key);
-      }
+    for (const key of [...this.pending.keys()]) {
+      if (path === undefined ? !key.startsWith(`${id}/`) : key !== `${id}/${path}`) continue;
+      this.pending.delete(key);
+      const url = this.urls.get(key);
+      if (url !== undefined) URL.revokeObjectURL(url);
+      this.urls.delete(key);
     }
   }
 
@@ -217,19 +230,20 @@ export class IdbPackStore implements PackStorage {
     const db = await this.db();
     const tx = db.transaction(MANIFESTS, "readwrite");
     const done = transactionDone(tx);
+    done.catch(() => {});
     const store = tx.objectStore(MANIFESTS);
     const current = (await requestDone(store.get(id))) as InstalledPack | undefined;
     if (current && current.withdrawn !== withdrawn) store.put({ ...current, withdrawn });
     await done;
   }
 
-  /** Asks the browser not to evict the store, once, before the first install. Never throws. */
-  private async askPersist(): Promise<void> {
+  /** Asks the browser not to evict the store, once, before the first install. Never awaited, never throws. */
+  private askPersist(): void {
     if (this.persistAsked) return;
     this.persistAsked = true;
     try {
       if (typeof navigator !== "undefined" && typeof navigator.storage?.persist === "function") {
-        await navigator.storage.persist();
+        navigator.storage.persist().catch(() => {});
       }
     } catch {
       // A refusal or an unsupported webview is fine.

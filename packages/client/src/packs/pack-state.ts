@@ -42,9 +42,16 @@ function core(version: string): number[] {
     .map((n) => Number(n) || 0);
 }
 
-/** Whether `version` satisfies a range such as `>=0.40.0`, `^1.2.0`, `~1.2.3`, `1.2.3` or a space-separated AND of them. */
+/**
+ * Whether `version` satisfies a range. Supported: comparators `>= > <= < =`, caret `^`, tilde `~`, a bare version (equal),
+ * `*`, a space after the operator (`>= 0.40.0`), and space-separated ANDs. Not supported: `||`, x-ranges, hyphen ranges.
+ */
 export function satisfiesApp(range: string, version: string): boolean {
-  const parts = range.trim().split(/\s+/).filter(Boolean);
+  const parts = range
+    .trim()
+    .replace(/(>=|<=|>|<|=|\^|~)\s+/g, "$1")
+    .split(/\s+/)
+    .filter(Boolean);
   if (parts.length === 0 || range.trim() === "*") return true;
   return parts.every((part) => {
     const match = /^(>=|<=|>|<|=|\^|~)?(.+)$/.exec(part);
