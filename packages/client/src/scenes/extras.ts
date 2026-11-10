@@ -240,8 +240,24 @@ export class ExtrasScene extends Phaser.Scene {
     const doorWidth = 150;
     const trophyWidth = doorWidth * 3 + 16;
     const rowGap = 8;
-    // Three doors beside the tab strip squeeze it past reading below a desktop width: they take a row of their own.
-    const stackDoors = phone || width < 1200;
+    // Three doors beside the tab strip leave it too narrow to print every tab's label whole at some widths (measured, not
+    // guessed): then the doors take a row of their own above it, as on a phone.
+    const tabs = extrasTabsOf(current);
+    const widestTab = Math.max(
+      ...tabs.map((tab) => {
+        const probe = this.add.text(
+          0,
+          0,
+          (phone ? tab.name : tab.label).toUpperCase(),
+          textStyle(typeRole.label, surface.ink.hex),
+        );
+        const w = probe.width;
+        probe.destroy();
+        return w;
+      }),
+    );
+    const besideTabsWidth = width - gutter * 2 - trophyWidth - 12;
+    const stackDoors = phone || besideTabsWidth / tabs.length < widestTab + 24;
     const doorW = stackDoors ? (width - gutter * 2 - rowGap * 2) / 3 : doorWidth;
     const trophyRect: Rect = stackDoors
       ? { x: gutter, y: bar.height + 10, width: doorW, height: hit.target }
@@ -291,7 +307,6 @@ export class ExtrasScene extends Phaser.Scene {
     stops.set("credits", { rect: creditsRect, activate: openCredits });
     stops.set("modStore", { rect: storeRect, activate: openStore });
 
-    const tabs = extrasTabsOf(current);
     const tabRect: Rect = stackDoors
       ? { x: gutter, y: trophyRect.y + trophyRect.height + 8, width: width - gutter * 2, height: TAB_HEIGHT }
       : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };

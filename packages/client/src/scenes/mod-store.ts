@@ -46,6 +46,7 @@ import {
 } from "../view/mod-store-model.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
+import { refreshActivePacks } from "../packs/active-packs.js";
 import { IdbPackStore, type InstalledPack } from "../packs/pack-store.js";
 import { SUPPORTED_DSL_FEATURES } from "../packs/supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -80,8 +81,19 @@ export class ModStoreScene extends Phaser.Scene {
   #install: InstallState | null = null;
   #confirmingRemove = false;
   #error: string | null = null;
-  // TODO(#677): share one store with the pool wiring (step 5 of §11.7) instead of opening one per visit.
+  // TODO(#677): share one store with the pool wiring (step 5 of §11.7); this one lives as long as the scene instance
+  // (Phaser reuses it across visits). Not handled: another tab upgrading the database (`onversionchange`), which
+  // `IdbPackStore` would have to close on; the scene cannot reach its connection.
   readonly #store = new IdbPackStore();
+  /** Bumped for every install; only the newest run writes state, so a stale one finishing late changes nothing. */
+  #installToken = 0;
+  /** A removal is running: the buttons stay disabled until it ends. */
+  #removing = false;
+  /** The progress bar's objects, so a report redraws only these (the text panel keeps its scroll position). */
+  #statusObjects: Phaser.GameObjects.GameObject[] = [];
+  #statusRect: Rect | null = null;
+  #statusQueued = false;
+  #requirement: string | undefined;
   readonly #scrolls = new Map<ModStoreTab, ListScroll>();
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
@@ -102,8 +114,11 @@ export class ModStoreScene extends Phaser.Scene {
     this.#redrawQueued = false;
     this.#catalogUrl = data.catalogUrl;
     this.#packId = data.packId ?? null;
-    this.#install = null;
+    // An install still running from an earlier visit carries on (the scene instance is reused); only a stale failure goes.
+    if (this.#install?.error) this.#install = null;
     this.#confirmingRemove = false;
+    this.#removing = false;
+    this.#statusQueued = false;
     this.#error = null;
     this.#status = "loading";
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
@@ -133,7 +148,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#status = "loading";
     try {
       const [catalog, installed] = await Promise.all([
-        loadCatalog(this.#catalogUrl ? { url: this.#catalogUrl } : {}),
+        // A dev override must never overwrite the real catalog's saved copy.
+        loadCatalog(this.#catalogUrl ? { url: this.#catalogUrl, storage: null } : {}),
         this.#store.list().catch(() => [] as InstalledPack[]),
       ]);
       this.#index = catalog.index;
@@ -149,9 +165,19 @@ export class ModStoreScene extends Phaser.Scene {
     this.#requestRedraw();
   }
 
+  /** Try again after a failed load, from a tap or the pad: one load at a time. */
+  #retry(): void {
+    if (this.#status === "loading") return;
+    this.#status = "loading";
+    this.#draw();
+    void this.#load();
+  }
+
   async #refreshInstalled(): Promise<void> {
     const installed = await this.#store.list().catch(() => [] as InstalledPack[]);
     this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+    // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
+    void refreshActivePacks();
   }
 
   #context(): ModStoreContext {
@@ -169,10 +195,14 @@ export class ModStoreScene extends Phaser.Scene {
 
   #back(): void {
     if (this.#packId !== null) {
+      const opened = this.#packId;
+      const hadFocus = this.#route?.focused != null;
       this.#packId = null;
       this.#confirmingRemove = false;
       this.#error = null;
       this.#draw();
+      // Back from a page puts a pad or keyboard player on the tile they opened.
+      if (hadFocus) this.#route?.focusKey(`tile:${opened}`);
       return;
     }
     this.scale.off("resize", this.#draw, this);
@@ -226,28 +256,37 @@ export class ModStoreScene extends Phaser.Scene {
 
   async #installTile(tile: ModStoreTile): Promise<void> {
     const entry = this.#index?.packs.find((one) => one.id === tile.id);
-    if (!entry || this.#install) return;
+    // Only a RUNNING install blocks another; a failed one's error is stale the moment a new run starts.
+    if (!entry || (this.#install && this.#install.error === null)) return;
+    const token = ++this.#installToken;
+    const installedVersion = this.#installed.get(tile.id)?.version;
     this.#install = { id: tile.id, progress: null, error: null };
     this.#draw();
     try {
       await installPack(entry, {
         store: this.#store,
         onProgress: (progress) => {
+          if (token !== this.#installToken) return;
           this.#install = { id: tile.id, progress, error: null };
-          this.#requestRedraw();
+          this.#requestStatusRepaint();
         },
       });
-      this.#install = null;
+      if (token !== this.#installToken) return;
       await this.#refreshInstalled();
+      if (token !== this.#installToken) return;
+      this.#install = null;
     } catch (error) {
-      // A failed install leaves nothing installed (§7.2.3): say why and offer it again.
-      this.#install = { id: tile.id, progress: null, error: errorTextOf(error) };
+      if (token !== this.#installToken) return;
+      // A failed install leaves nothing installed (§7.2.3), and a failed update leaves the old version: say so.
+      this.#install = { id: tile.id, progress: null, error: errorTextOf(error, installedVersion) };
     }
     this.#requestRedraw();
   }
 
   async #remove(tile: ModStoreTile): Promise<void> {
     this.#confirmingRemove = false;
+    this.#removing = true;
+    this.#draw();
     try {
       await this.#store.remove(tile.id);
       this.#error = null;
@@ -257,7 +296,28 @@ export class ModStoreScene extends Phaser.Scene {
     } catch (error) {
       this.#error = errorTextOf(error);
     }
+    this.#removing = false;
     this.#requestRedraw();
+  }
+
+  /** A progress report redraws the status line alone, so the text panel above keeps where the player scrolled to. */
+  #requestStatusRepaint(): void {
+    if (this.#statusQueued || !this.#alive) return;
+    this.#statusQueued = true;
+    this.time.delayedCall(0, () => {
+      this.#statusQueued = false;
+      this.#paintStatus();
+    });
+  }
+
+  #paintStatus(): void {
+    const rect = this.#statusRect;
+    if (!this.#alive || !rect || this.#packId === null) return;
+    for (const object of this.#statusObjects) object.destroy();
+    const before = this.children.list.length;
+    const running = this.#install?.id === this.#packId ? this.#install : null;
+    this.#drawStatus(running, this.#error, this.#requirement, rect);
+    this.#statusObjects = this.children.list.slice(before);
   }
 
   #destroyWidgets(): void {
@@ -269,6 +329,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#list = null;
     this.#panel?.destroy();
     this.#panel = null;
+    this.#statusObjects = [];
+    this.#statusRect = null;
   }
 
   #draw(): void {
@@ -381,14 +443,10 @@ export class ModStoreScene extends Phaser.Scene {
           label: "Try again",
           type: typeRole.label,
           rect: retryRect,
-          onClick: () => {
-            this.#status = "loading";
-            this.#draw();
-            void this.#load();
-          },
+          onClick: () => this.#retry(),
         }),
       );
-      stops.set("retry", { rect: retryRect, activate: () => void this.#load().then(() => undefined) });
+      stops.set("retry", { rect: retryRect, activate: () => this.#retry() });
       order.push("retry");
       return;
     }
@@ -442,9 +500,15 @@ export class ModStoreScene extends Phaser.Scene {
     ground.lineStyle(1, surface.paper.hex, 0.4).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
     objects.push(ground);
     const image = tile.thumbnail
-      ? drawPicture(this, { key: `mod-store:${tile.id}`, url: tile.thumbnail }, rect, () => this.#requestRedraw(), {
-          focusY: 0.3,
-        })
+      ? drawPicture(
+          this,
+          { key: `mod-store:${tile.id}:${tile.thumbnail}`, url: tile.thumbnail },
+          rect,
+          () => this.#requestRedraw(),
+          {
+            focusY: 0.3,
+          },
+        )
       : null;
     if (image) objects.push(image);
     else {
@@ -541,7 +605,7 @@ export class ModStoreScene extends Phaser.Scene {
     const installed = this.#installed.get(tile.id);
     const page = packPageOf(tile, entry, installed);
     const running = this.#install?.id === tile.id ? this.#install : null;
-    const busy = running !== null && running.error === null;
+    const busy = (running !== null && running.error === null) || this.#removing;
     const innerWidth = width - gutter * 2;
 
     // Header: the picture, then name, byline, meta and the state chip.
@@ -572,7 +636,7 @@ export class ModStoreScene extends Phaser.Scene {
     const statusY = buttonsY - (buttonsH > 0 ? 10 : 0) - statusH;
 
     // The scrolling text sits between header and footer; nothing presses over it.
-    const bodyTop = headY + thumb + 14;
+    const bodyTop = Math.max(headY + thumb, meta.y + meta.height + 8 + 22) + 12;
     const bodyRect: Rect = { x: gutter, y: bodyTop, width: innerWidth, height: Math.max(60, statusY - 10 - bodyTop) };
     this.add.rectangle(bodyRect.x, bodyRect.y, bodyRect.width, bodyRect.height, surface.parchment.hex).setOrigin(0, 0);
     // TODO(#677): the pack's card gallery (installed packs only) with the hover popover, once the pool wiring (§11.7
@@ -593,12 +657,9 @@ export class ModStoreScene extends Phaser.Scene {
       .lineStyle(2, surface.ink.hex, 1)
       .strokeRect(bodyRect.x + 1, bodyRect.y + 1, bodyRect.width - 2, bodyRect.height - 2);
 
-    this.#drawStatus(running, this.#error, page.requirement, {
-      x: gutter,
-      y: statusY,
-      width: innerWidth,
-      height: statusH,
-    });
+    this.#statusRect = { x: gutter, y: statusY, width: innerWidth, height: statusH };
+    this.#requirement = page.requirement;
+    this.#paintStatus();
 
     const gap = 10;
     const buttonWidth = phone
@@ -643,12 +704,7 @@ export class ModStoreScene extends Phaser.Scene {
     if (!running) {
       if (requirement) {
         const t = this.add
-          .text(
-            rect.x,
-            rect.y,
-            `! ${requirement}. Update the game to install this pack.`,
-            textStyle(typeRole.rowTitle, surface.ink.hex, 1),
-          )
+          .text(rect.x, rect.y, `! ${requirement}`, textStyle(typeRole.rowTitle, surface.ink.hex, 1))
           .setFontSize(12);
         fitWrapped(t, rect.width, 2, 12);
       }

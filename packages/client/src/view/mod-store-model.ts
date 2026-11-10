@@ -9,6 +9,7 @@ import type { PackIndex, PackIndexEntry, PackKind } from "@mc/content";
 import { packStateOf, formatBytes, type PackState } from "../packs/pack-state.js";
 import type { InstalledPack } from "../packs/pack-store.js";
 import type { InstallProgress } from "../packs/install-pack.js";
+import type { PackInstallErrorCode } from "../packs/unpack-pack.js";
 import type { ExtrasGrid } from "./extras-model.js";
 
 export type ModStoreTab = "all" | "heroes" | "scenarios" | "installed";
@@ -223,26 +224,34 @@ export function progressOf(progress: InstallProgress): { readonly fraction: numb
   }
 }
 
-const ERROR_TEXT: Readonly<Record<string, string>> = {
+/** Why an install failed, one sentence each; `errorTextOf` adds what that left behind. */
+const ERROR_REASON: Readonly<Record<PackInstallErrorCode, string>> = {
   download: "The download failed. Check your connection and try again.",
-  "zip-size": "The download was not the size the store listed, so nothing was installed.",
-  "zip-hash": "The download did not match its checksum, so nothing was installed.",
-  unzip: "The download could not be opened as a pack, so nothing was installed.",
-  "unsafe-path": "The pack holds a file in a place it is not allowed to, so nothing was installed.",
-  "unlisted-file": "The pack holds a file it does not list, so nothing was installed.",
-  "missing-file": "The pack is missing a file it lists, so nothing was installed.",
-  "file-size": "A file in the pack is the wrong size, so nothing was installed.",
-  "file-hash": "A file in the pack did not match its checksum, so nothing was installed.",
-  manifest: "The pack's description file is damaged, so nothing was installed.",
-  mismatch: "The pack is not the one the store listed, so nothing was installed.",
+  "zip-size": "The download was not the size the store listed.",
+  "zip-hash": "The download did not match its checksum.",
+  unzip: "The download could not be opened as a pack.",
+  "unsafe-path": "The pack holds a file in a place it is not allowed to.",
+  "unlisted-file": "The pack holds a file it does not list.",
+  "missing-file": "The pack is missing a file it lists.",
+  "file-size": "A file in the pack is the wrong size.",
+  "file-hash": "A file in the pack did not match its checksum.",
+  manifest: "The pack's description file is damaged.",
+  "too-large": "The pack is bigger than the game allows.",
+  withdrawn: "The store has withdrawn this pack, so it can no longer be installed.",
+  mismatch: "The pack is not the one the store listed.",
   store: "The pack could not be saved on this device. There may not be enough free space.",
 };
 
-/** A plain-English line for whatever an install or removal threw. Nothing is left half-installed after any of them. */
-export function errorTextOf(error: unknown): string {
+/**
+ * A plain-English line for whatever an install or removal threw. Nothing is left half-installed after any of them;
+ * `installedVersion` is set for an update, whose failure leaves that version as it was.
+ */
+export function errorTextOf(error: unknown, installedVersion?: string): string {
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
-  if (typeof code === "string" && ERROR_TEXT[code]) return ERROR_TEXT[code]!;
-  return "Something went wrong, and nothing was changed. Try again.";
+  const reason = typeof code === "string" ? ERROR_REASON[code as PackInstallErrorCode] : undefined;
+  const left = installedVersion ? `Your installed v${installedVersion} is unchanged.` : "Nothing was installed.";
+  if (reason) return `${reason} ${left}`;
+  return `Something went wrong. ${installedVersion ? left : "Nothing was changed."} Try again.`;
 }
 
 export interface PackPage {
@@ -252,8 +261,17 @@ export interface PackPage {
   readonly meta: string;
   /** The scrolling text: description, credits, permission and requirement, as blank-line separated paragraphs. */
   readonly body: string;
-  /** Set for `needs-app-update`: the line the page also shows above the buttons. */
+  /** Set for `needs-app-update`: the sentence the page also shows above the buttons. */
   readonly requirement: string | undefined;
+}
+
+/** The sentence for a pack this game is too old to take: about the update when one is installed, else the pack. */
+function requirementOf(tile: ModStoreTile, installed: InstalledPack | undefined): string | undefined {
+  if (tile.state !== "needs-app-update") return undefined;
+  const need = (tile.reason ?? "Needs a newer version of the game").replace(/^Needs /, "");
+  return installed
+    ? `The update to v${tile.version} needs a newer game (${need}). Your installed v${installed.version} keeps working.`
+    : `This pack needs a newer game (${need}), so it cannot be installed yet.`;
 }
 
 /**
@@ -276,9 +294,8 @@ export function packPageOf(
       : "Permission: this pack is no longer listed in the store. Your installed copy keeps working.",
   );
   if (entry && entry.tags.length > 0) paragraphs.push(`Tags: ${entry.tags.join(", ")}.`);
-  const requirement =
-    tile.state === "needs-app-update" ? (tile.reason ?? "Needs a newer version of the game.") : undefined;
-  if (requirement) paragraphs.push(`Requires: ${requirement}.`);
+  const requirement = requirementOf(tile, installed);
+  if (requirement) paragraphs.push(requirement);
   const installedNote = installed ? ` (installed: v${installed.version})` : "";
   return {
     title: tile.name,

@@ -196,17 +196,24 @@ describe("errorTextOf", () => {
       "file-size",
       "file-hash",
       "manifest",
+      "too-large",
+      "withdrawn",
       "mismatch",
       "store",
     ] as const;
-    const texts = new Set(codes.map((code) => errorTextOf(new PackInstallError(code, "raw"))));
+    const texts = new Set(codes.map((code) => errorTextOf(new PackInstallError(code, "RAWMSG"))));
     expect(texts.size).toBe(codes.length);
-    for (const text of texts) expect(text).not.toContain("raw");
+    for (const text of texts) expect(text).not.toContain("RAWMSG");
   });
 
   it("falls back for anything else", () => {
-    expect(errorTextOf(new Error("boom"))).toMatch(/nothing was changed/);
-    expect(errorTextOf(undefined)).toMatch(/nothing was changed/);
+    expect(errorTextOf(new Error("boom"))).toMatch(/Nothing was changed/);
+    expect(errorTextOf(undefined)).toMatch(/Nothing was changed/);
+  });
+
+  it("says the installed version is unchanged when an update fails", () => {
+    expect(errorTextOf(new PackInstallError("zip-hash", "raw"), "1.0.0")).toContain("installed v1.0.0 is unchanged");
+    expect(errorTextOf(new PackInstallError("zip-hash", "raw"))).toContain("Nothing was installed");
   });
 });
 
@@ -237,7 +244,8 @@ describe("packPageOf", () => {
     });
     const page = packPageOf(tileOf(needs, context()), needs, undefined);
     expect(page.requirement).toContain(">=9.0.0");
-    expect(page.body).toContain("Requires:");
+    expect(page.requirement).not.toContain("Needs app");
+    expect(page.body).toContain(page.requirement!);
   });
 
   it("says a dropped pack is no longer listed", () => {
