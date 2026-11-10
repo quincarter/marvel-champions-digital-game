@@ -61,3 +61,7 @@ art/**/*.avif
 art/**/*.gif
 # QA and design screenshots: the `artifacts` archive bundle (`pnpm assets:fetch artifacts`); never shipped.
 artifacts/
+
+# The published mod SDK's build output and its npm tarballs (pnpm --filter @mc/mod-sdk build:dist)
+packages/mod-sdk/dist-npm/
+packages/mod-sdk/*.tgz

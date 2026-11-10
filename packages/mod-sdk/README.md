@@ -86,8 +86,61 @@ Node-only (`@mc/mod-sdk/build`, `src/build.ts`):
   deterministic `<id>-<version>.zip` (sorted entries, fixed timestamp), and returns the manifest and the zip's sha256.
 - `loadPackSource`, `assemblePack`, `zipPack` for the steps on their own.
 
-`abilities/index.ts` is TypeScript, so `buildPack` must run where `.ts` can be imported (Vitest today; a `tsx`
-wrapper for the `mc-pack` CLI comes later).
+`abilities/index.ts` is TypeScript. `buildPack` / `loadPackSource` import it with a plain `import()` by default
+(Vitest can); pass `importModule: packModuleImporter()` (`src/loader.ts`, jiti) to load it anywhere, as the CLI does.
+
+Node-only, for tests (`src/smoke.ts`; `<sdk>/testing` in the published package):
+
+- `smokeTestPack(pack, { games, scenario, maxCommands })`: what `mc-pack test` runs (below).
+
+## `mc-pack`
+
+`src/cli.ts` (`runCli`), run by `src/bin.ts`. In this repo: `pnpm --filter @mc/mod-sdk mc-pack <command> ...`
+(paths relative to `packages/mod-sdk`; slow to start, since jiti transforms the workspace sources). The published
+package's `npx mc-pack` starts in under a second.
+
+```
+mc-pack validate <dir> [--allow-unscripted]
+mc-pack build <dir> --out <dir>
+mc-pack test <dir> [--games <n>] [--scenario rhino|klaw|ultron] [--max-commands <n>]
+mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
+```
+
+- Exit codes: 0 success, 1 the pack has a problem (invalid, fails to load, a smoke game failed), 2 a usage error.
+- `validate` lists real problems first and the `unscripted-ability` issues as their own group; `--allow-unscripted`
+  passes a pack whose only issues are those. `build` and `test` never allow them.
+- `test` plays `--games` (default 3) games of each deck in `decks/` against a Core scenario (default Rhino, standard,
+  no modular set) with the cards package's greedy driver, the one the sample pack's test uses. A game fails on an
+  engine error, an illegal driver command, no outcome inside `--max-commands` (default 4000: stuck), a prompt left
+  open, or a log that does not replay to the same state. A pack with no deck plays a base precon with its cards in the
+  pool, and says so.
+- The pack's `abilities/index.ts` is loaded with jiti, whose `virtualModules` give its `import ... from "@mc/mod-sdk"`
+  (or the published package name) the SDK that is already running. jiti over tsx: an in-process API with no loader
+  hooks and no native binary, and the virtual module keeps one SDK in memory whatever name the pack imports.
+
+## The published package
+
+`pnpm --filter @mc/mod-sdk build:dist` (`scripts/build-npm.mjs`) writes `dist-npm/package/` and `npm pack`s it into
+`dist-npm/<name>-<version>.tgz` (both git-ignored):
+
+- `dist/`: an esbuild ESM bundle (index, build, import, testing and the `mc-pack` bin, sharing chunks) carrying the
+  engine, cards and content code, so it depends on none of the private `@mc/*` packages. Its one dependency is jiti.
+  The `import` and `mc-pack` entries register the content package's MarvelCDB normalizer up front
+  (`npm/register-normalizer.ts`), since a bundle has no `packages/content/scripts` to import at run time.
+- `types/`: tsc's declarations (`tsconfig.npm.json` maps `@mc/*` to the workspace sources so they are emitted too),
+  with every `@mc/*` specifier rewritten to a relative path.
+- `package.json`: the name is `--name`, `MC_SDK_PACKAGE_NAME` or `@champions-digital-game/mod-sdk`; the version is
+  `--version`, `MC_SDK_VERSION` or the app's (the root `package.json`, which the release PR bumps).
+  AGPL-3.0-or-later, `bin: { "mc-pack": ... }`, and the README in `npm/README.md`.
+
+`pnpm --filter @mc/mod-sdk smoke:dist [--build]` (`scripts/smoke-npm.mjs`) installs the tarball into a temp pack repo
+made from `content-packs/sample-hero` (importing the SDK by its published name), runs what the registry's CI runs
+(`npm ci --ignore-scripts`, `mc-pack validate`, `test`, `build`), a strict `tsc --noEmit` over the pack's abilities
+and an import of each entry point. It needs the npm registry for jiti.
+
+`.github/workflows/mod-sdk.yml` builds and smoke-tests the tarball for each release, attaches it, and publishes it to
+npm when the `NPM_TOKEN` secret exists (`npm publish --provenance --access public`). `release-on-merge.yml` calls it,
+since a release that workflow publishes starts no other workflow; a manual run is a dry run by default.
 
 ## Importing a MarvelCDB-shaped pack
 

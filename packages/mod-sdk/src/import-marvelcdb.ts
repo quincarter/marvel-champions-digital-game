@@ -48,9 +48,19 @@ interface NormalizedPackLike {
   readonly provenance: readonly { readonly cardId: string; readonly marvelcdbCodes: readonly string[] }[];
   readonly dropped: readonly { readonly marvelcdbCode: string; readonly reason: string }[];
 }
-type NormalizePack = (raw: readonly unknown[], curation: unknown) => NormalizedPackLike;
+export type NormalizePack = (raw: readonly unknown[], curation: unknown) => NormalizedPackLike;
 
 let normalizer: NormalizePack | undefined;
+
+/**
+ * Hands the importer the content package's `normalizePack` up front. The published SDK bundle does this (its entry
+ * imports the normalizer statically, `packages/mod-sdk/npm/`), since a bundle has no `packages/content/scripts` folder
+ * to import from at run time.
+ */
+export function registerMarvelCdbNormalizer(normalize: NormalizePack): void {
+  normalizer = normalize;
+}
+
 async function loadNormalizer(): Promise<NormalizePack> {
   if (normalizer) return normalizer;
   const url = new URL("../../content/scripts/marvelcdb/normalize.ts", import.meta.url).href;
@@ -464,7 +474,8 @@ function abilitiesStub(cards: readonly AnyCard[], packName: string): { source: s
     ` * Write each one with the DSL (see the sample pack), as \`"<id>": heroAction(...)\` and so on, and delete its`,
     ` * comment. The printed text is above its ids.`,
     ` */`,
-    `import { definePackAbilities } from "@mc/mod-sdk";`,
+    // The published bundle defines MC_SDK_PACKAGE_NAME, so a creator's stub imports the package they installed.
+    `import { definePackAbilities } from "${process.env.MC_SDK_PACKAGE_NAME ?? "@mc/mod-sdk"}";`,
     ``,
     `export default definePackAbilities({`,
     blocks.join("\n\n"),

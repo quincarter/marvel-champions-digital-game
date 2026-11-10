@@ -2,9 +2,8 @@
  * Node-only: reads a pack's source tree and builds it (docs/custom-content-packs.md §11.2 `mc-pack build`). Kept apart
  * from `validate.ts` so the client can import validation without `node:fs`.
  *
- * `abilities/index.ts` is TypeScript, so the process doing the build must be able to import `.ts` (Vitest does; a CLI
- * wrapper runs under a TS loader such as `tsx`, which the repo does not carry yet, so the build is a callable function
- * for now).
+ * `abilities/index.ts` is TypeScript. By default it is loaded with a plain dynamic `import()`, which works where `.ts`
+ * can be imported (Vitest); the `mc-pack` CLI passes `importModule` from `./loader.ts`, which loads it with jiti.
  */
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
@@ -85,8 +84,18 @@ function walkFiles(dir: string): string[] {
   return out;
 }
 
+/** Imports a module by absolute file path and returns its namespace (`{ default, ... }`). */
+export type ModuleImporter = (path: string) => Promise<unknown>;
+
+const nativeImport: ModuleImporter = (path) => import(/* @vite-ignore */ pathToFileURL(path).href);
+
+export interface LoadOptions {
+  /** How to import `abilities/index.ts`. Default: a dynamic `import()`, so the runtime must import `.ts` itself. */
+  readonly importModule?: ModuleImporter;
+}
+
 /** Loads the source layout described in the SDK README. Imports `abilities/index.ts` (its default export). */
-export async function loadPackSource(srcDir: string): Promise<PackSource> {
+export async function loadPackSource(srcDir: string, options: LoadOptions = {}): Promise<PackSource> {
   const author = JSON.parse(readFileSync(join(srcDir, "pack.json"), "utf8")) as PackAuthorManifest;
   const cards = readJsonFiles(join(srcDir, "cards")) as AnyCard[];
   const decks = readJsonFiles(join(srcDir, "decks")) as StarterDeck[];
@@ -94,7 +103,7 @@ export async function loadPackSource(srcDir: string): Promise<PackSource> {
   let abilities: AbilityRegistry = {};
   const abilitiesEntry = join(srcDir, "abilities", "index.ts");
   if (existsSync(abilitiesEntry)) {
-    const module = (await import(/* @vite-ignore */ pathToFileURL(abilitiesEntry).href)) as {
+    const module = (await (options.importModule ?? nativeImport)(abilitiesEntry)) as {
       default?: AbilityRegistry;
     };
     if (!module.default) throw new Error("abilities/index.ts must export a default ability registry");
@@ -210,12 +219,17 @@ export function zipPack(manifest: PackManifest, files: ReadonlyMap<string, Uint8
  * Builds the pack in `srcDir` into `outDir`: the data files, copied art, `pack.json` and `<id>-<version>.zip`. Throws
  * `PackBuildError` if the result is invalid. The same source gives the same zip bytes.
  */
-export async function buildPack(srcDir: string, outDir: string, options: ValidateOptions = {}): Promise<BuildResult> {
-  const source = await loadPackSource(srcDir);
+export async function buildPack(
+  srcDir: string,
+  outDir: string,
+  options: ValidateOptions & LoadOptions = {},
+): Promise<BuildResult> {
+  const { importModule, ...validateOptions } = options;
+  const source = await loadPackSource(srcDir, importModule ? { importModule } : {});
   const pack = assemblePack(source);
   // Validate the bytes that ship: the manifest and data files read back, as a client reads an installed pack. (An
   // ability's flags are plain data, so the JSON round trip loses nothing the validator reads.)
-  const issues = validatePack(readPackInput(pack.manifest, pack.files), options);
+  const issues = validatePack(readPackInput(pack.manifest, pack.files), validateOptions);
   if (issues.length > 0) throw new PackBuildError(issues);
   const write = (path: string, bytes: Uint8Array): void => {
     const full = join(outDir, ...path.split("/"));

@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "dist-npm/types-raw",
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "allowImportingTsExtensions": true,
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@mc/content": ["../content/src/index.ts"],
+      "@mc/engine": ["../engine/src/index.ts"],
+      "@mc/cards": ["../cards/src/index.ts"],
+      "@mc/cards/testing": ["../cards/src/testing/index.ts"]
+    }
+  },
+  "files": ["src/index.ts", "src/build.ts", "npm/import.ts", "npm/testing.ts", "npm/bin.ts"]
+}
