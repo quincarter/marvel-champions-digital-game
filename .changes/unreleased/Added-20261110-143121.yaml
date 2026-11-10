@@ -1,0 +1,3 @@
+kind: Added
+body: Mod SDK and the mc-pack CLI (validate, build, test, import-marvelcdb) for making custom packs, published to npm as @champions-digital-game/mod-sdk and attached to each release (#677)
+time: 2026-11-10T14:31:21.8511534-05:00
