@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import { PackBuildError, assemblePack, buildPack, loadPackSource } from "./build.js";
 import { formatImportReport, importMarvelCdbPack } from "./import-marvelcdb.js";
 import { packModuleImporter } from "./loader.js";
-import { SMOKE_SCENARIOS, smokeTestPack, type SmokeGame } from "./smoke.js";
+import { SMOKE_BASE_DECK, SMOKE_SCENARIOS, smokeTestPack, type SmokeGame } from "./smoke.js";
 import { readPackInput, splitIssues, validatePack, type PackInput, type PackIssue } from "./validate.js";
 
 export const EXIT_OK = 0;
@@ -176,9 +176,13 @@ async function buildCommand(parsed: Parsed, io: CliIo): Promise<number> {
 }
 
 const describeGame = (game: SmokeGame): string => {
-  const head = `  ${game.deck} seed ${game.seed}: `;
+  // A pack hero's precon plays the Core scenario; a base precon is there to play the pack's scenario or modular set.
+  const where =
+    game.deck === SMOKE_BASE_DECK ? ` at ${game.scenario}${game.modularSet ? ` with ${game.modularSet}` : ""}` : "";
+  const head = `  ${game.deck}${where} seed ${game.seed}: `;
   if (!game.ok) return `${head}FAILED: ${game.error ?? "unknown error"}`;
-  const played = game.packCardsPlayed.length > 0 ? `; pack cards played: ${game.packCardsPlayed.join(", ")}` : "";
+  const played =
+    game.packCardsPlayed.length > 0 ? `; pack cards played or revealed: ${game.packCardsPlayed.join(", ")}` : "";
   return `${head}${game.outcome ?? "ended"} in round ${game.rounds} (${game.commands} commands)${played}`;
 };
 
@@ -198,7 +202,9 @@ async function testCommand(parsed: Parsed, io: CliIo): Promise<number> {
     for (const line of formatIssues(issues)) io.err(line);
     return EXIT_PACK_PROBLEM;
   }
-  io.out(`${pack.manifest.id}@${pack.manifest.version}: ${games} game(s) per deck against ${scenario}`);
+  io.out(
+    `${pack.manifest.id}@${pack.manifest.version}: ${games} game(s) per deck, scenario and modular set (Core scenario: ${scenario})`,
+  );
   const result = smokeTestPack(pack, {
     games,
     scenario,

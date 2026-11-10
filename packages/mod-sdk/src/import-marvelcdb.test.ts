@@ -111,6 +111,15 @@ describe("importMarvelCdbPack on the fixture", () => {
     expect(report.unscriptedAbilities.length).toBeGreaterThan(5);
   });
 
+  it("writes an EncounterSet record for each set it plans, the nemesis set marked as its hero's", async () => {
+    const source = await loadPackSource(out);
+    const sets = source.encounterSets ?? [];
+    const nemesis = sets.find((set) => set.id === "ember-warden-nemesis");
+    expect(nemesis?.nemesisOfIdentityId).toBe("x.ember-warden.01a");
+    expect(sets.every((set) => set.id.startsWith("ember-warden-"))).toBe(true);
+    expect(assemblePack(source).manifest.contents.encounterSets).toBe("data/encounter-sets.json");
+  });
+
   it("reports unscripted abilities apart from defects, and nothing else is wrong", () => {
     expect(report.unscriptedIssues.length).toBe(report.unscriptedAbilities.length);
     expect(report.unscriptedIssues.every((i) => i.category === "unscripted-ability")).toBe(true);

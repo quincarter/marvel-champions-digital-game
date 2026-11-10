@@ -1,0 +1,26 @@
+{
+  "id": "x.sample-scenario.04",
+  "type": "minion",
+  "name": "Pendulum Guard",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "4",
+  "quantityInSet": 1,
+  "unique": true,
+  "atk": 2,
+  "sch": 1,
+  "hp": 3,
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "boostIcons": 2,
+  "traits": ["ROBOT"],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Deal 1 damage to each hero.",
+    "current": "When Revealed: Deal 1 damage to each hero."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-scenario.04.when-revealed"
+    }
+  ]
+}

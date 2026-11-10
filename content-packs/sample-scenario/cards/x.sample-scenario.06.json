@@ -1,0 +1,23 @@
+{
+  "id": "x.sample-scenario.06",
+  "type": "treachery",
+  "name": "Overwind",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "6",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "boostIcons": 0,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: The Clockmaker heals 4 damage. If no damage was healed this way, this card gains surge.",
+    "current": "When Revealed: The Clockmaker heals 4 damage. If no damage was healed this way, this card gains surge."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-scenario.06.when-revealed"
+    }
+  ]
+}

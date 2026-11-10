@@ -9,7 +9,14 @@ import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, existsSy
 import { dirname, join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Zip, ZipDeflate } from "fflate";
-import { PACK_SCHEMA_VERSION, type AnyCard, type PackFile, type PackManifest, type StarterDeck } from "@mc/content";
+import {
+  PACK_SCHEMA_VERSION,
+  type AnyCard,
+  type EncounterSet,
+  type PackFile,
+  type PackManifest,
+  type StarterDeck,
+} from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { dslFeatures } from "./features.js";
 import { sha256Hex } from "./sha256.js";
@@ -40,6 +47,10 @@ export interface PackSource {
   readonly abilities: AbilityRegistry;
   readonly decks: readonly StarterDeck[];
   readonly scenarios: readonly unknown[];
+  /** The pack's `EncounterSet` records (`encounter-sets/*.json`). Absent: none. */
+  readonly encounterSets?: readonly EncounterSet[];
+  /** The pack's campaigns (`campaigns/*.json`), carried through untouched. Absent: none. */
+  readonly campaigns?: readonly unknown[];
   /**
    * Static files to ship, by their path in the pack: `art/**`, the per-language card pictures `cards/<lang>/**`, the
    * alternate art `alt-art/**`, `CREDITS.md` and `PERMISSION.md`.
@@ -100,6 +111,8 @@ export async function loadPackSource(srcDir: string, options: LoadOptions = {}):
   const cards = readJsonFiles(join(srcDir, "cards")) as AnyCard[];
   const decks = readJsonFiles(join(srcDir, "decks")) as StarterDeck[];
   const scenarios = readJsonFiles(join(srcDir, "scenarios"));
+  const encounterSets = readJsonFiles(join(srcDir, "encounter-sets")) as EncounterSet[];
+  const campaigns = readJsonFiles(join(srcDir, "campaigns"));
   let abilities: AbilityRegistry = {};
   const abilitiesEntry = join(srcDir, "abilities", "index.ts");
   if (existsSync(abilitiesEntry)) {
@@ -125,7 +138,7 @@ export async function loadPackSource(srcDir: string, options: LoadOptions = {}):
     const full = join(srcDir, name);
     if (existsSync(full)) assets.set(name, new Uint8Array(readFileSync(full)));
   }
-  return { author, cards, abilities, decks, scenarios, assets };
+  return { author, cards, abilities, decks, scenarios, encounterSets, campaigns, assets };
 }
 
 const byCode = (a: AnyCard, b: AnyCard): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -140,6 +153,10 @@ export function assemblePack(source: PackSource): PackInput {
   if (Object.keys(abilities).length > 0) files.set("data/abilities.json", json(abilities));
   if (decks.length > 0) files.set("data/decks.json", json(decks));
   if (source.scenarios.length > 0) files.set("data/scenarios.json", json(source.scenarios));
+  const encounterSets = [...(source.encounterSets ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (encounterSets.length > 0) files.set("data/encounter-sets.json", json(encounterSets));
+  const campaigns = source.campaigns ?? [];
+  if (campaigns.length > 0) files.set("data/campaigns.json", json(campaigns));
   for (const [path, bytes] of source.assets) files.set(path, bytes);
   const sorted = [...files.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
   const listed: PackFile[] = sorted.map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: sha256Hex(bytes) }));
@@ -162,6 +179,8 @@ export function assemblePack(source: PackSource): PackInput {
       ...(files.has("data/abilities.json") ? { abilities: "data/abilities.json" } : {}),
       ...(files.has("data/scenarios.json") ? { scenarios: "data/scenarios.json" } : {}),
       ...(files.has("data/decks.json") ? { decks: "data/decks.json" } : {}),
+      ...(files.has("data/encounter-sets.json") ? { encounterSets: "data/encounter-sets.json" } : {}),
+      ...(files.has("data/campaigns.json") ? { campaigns: "data/campaigns.json" } : {}),
     },
     ...(author.pictures ? { pictures: author.pictures } : {}),
     ...(author.languages ? { languages: author.languages } : {}),
@@ -173,7 +192,16 @@ export function assemblePack(source: PackSource): PackInput {
     totalBytes: listed.reduce((sum, file) => sum + file.bytes, 0),
     license: author.license,
   };
-  return { manifest, files, cards, abilities, decks, scenarios: source.scenarios };
+  return {
+    manifest,
+    files,
+    cards,
+    abilities,
+    decks,
+    scenarios: source.scenarios,
+    ...(encounterSets.length > 0 ? { encounterSets } : {}),
+    ...(campaigns.length > 0 ? { campaigns } : {}),
+  };
 }
 
 /**

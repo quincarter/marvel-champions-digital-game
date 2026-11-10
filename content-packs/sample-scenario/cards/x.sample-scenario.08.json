@@ -1,0 +1,28 @@
+{
+  "id": "x.sample-scenario.08",
+  "type": "side_scheme",
+  "name": "Jammed Gears",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": false,
+  "startingThreat": {
+    "base": 2,
+    "perPlayer": 0
+  },
+  "icons": ["acceleration"],
+  "encounterSetIds": ["sample-scenario-gears"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Place an additional 1 [per_hero] threat here.\n(Acceleration Icon: Place +1 threat on the main scheme at the start of the villain phase.)",
+    "current": "When Revealed: Place an additional 1 [per_hero] threat here.\n(Acceleration Icon: Place +1 threat on the main scheme at the start of the villain phase.)"
+  },
+  "abilities": [
+    {
+      "id": "x.sample-scenario.08.when-revealed"
+    }
+  ]
+}

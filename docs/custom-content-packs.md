@@ -220,8 +220,10 @@ needs a paid Workers plan to survive another Reddit day.
   "contents": {
     "cards": "data/cards.json",
     "abilities": "data/abilities.json",
-    "scenarios": "data/scenarios.json", // scenario packs only
+    "scenarios": "data/scenarios.json", // Scenario records (scenario packs): villain, main scheme, set choices
+    "encounterSets": "data/encounter-sets.json", // EncounterSet records: id "<pack-id>-<name>", a display name, a nemesis link
     "decks": "data/decks.json", // the precon, in the app's own deck format
+    "campaigns": "data/campaigns.json", // campaign packs; carried through untouched until campaigns are designed
   },
   "pictures": { "hero": { "x.fan-moon-knight.01a": "pictures/hero.webp" } },
   // optional, added 2026-11-10 so community packs in several languages convert:
@@ -301,7 +303,12 @@ What this means in practice:
   and refuses a pack whose scripts use a kind it doesn't know, by walking the JSON before the game starts.
 - **Scenarios** are `Scenario` records from `@mc/content` plus the encounter cards' scripts. A scenario whose setup
   fits the generic builder is pure data; one that needs a bespoke builder (like the Civil War leaders) needs app code
-  first, the same rule as a new primitive.
+  first, the same rule as a new primitive. The generic builder takes the plain `Scenario` fields only (the ids and
+  names, the villain and main scheme, the set lists, `villainStages`, the modular set count); `validatePack` lists any
+  other field. A pack's **encounter sets** (its scenario's own set, a modular set, a nemesis set) are `EncounterSet`
+  records with ids `<pack-id>-<name>`; every encounter set id on a pack card that starts with the pack id, and every
+  hero's nemesis set (which also carries `nemesisOfIdentityId`), must have one. A pack modular set may be picked at a
+  base scenario, and a pack scenario may name base or pack sets. `scenarioWithPacks` in `@mc/mod-sdk` builds the game.
 - **Rules authority** for custom cards is the pack's own text, then the RRG and FFG rulings for everything the text
   doesn't override. Questions go to the `rules-expert` the same way; the pack's `CREDITS.md` or a `RULINGS.md` holds
   the author's own answers.

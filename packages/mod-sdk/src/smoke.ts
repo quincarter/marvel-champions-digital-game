@@ -1,18 +1,23 @@
 /**
- * Headless smoke games for a pack (docs/custom-content-packs.md §11.2 `mc-pack test`): the pack's precons played on
- * the real engine by the cards package's greedy driver (`playToOutcome`, what the sample pack's own test and the
- * precon e2e tests use), against a Core scenario. A game fails on an engine error, an illegal command, a game with no
+ * Headless smoke games for a pack (docs/custom-content-packs.md §11.2 `mc-pack test`) on the real engine, played by the
+ * cards package's greedy driver (`playToOutcome`, what the sample packs' own tests and the precon e2e tests use):
+ *
+ * - the pack's hero precons against a Core scenario;
+ * - each of the pack's scenarios, with a base precon (`SMOKE_BASE_DECK`) and the scenario's recommended modular set;
+ * - each of the pack's modular encounter sets, with a base precon at the Core scenario, picked as its modular set.
+ *
+ * A game fails on an engine error, an illegal command, a game with no
  * outcome inside the command budget (stuck), a prompt left open at the end, or a replay of its log that does not
  * reproduce the same state.
  *
  * Node-only only because of `node:util`'s deep equality; nothing here touches the disk.
  */
 import { isDeepStrictEqual } from "node:util";
-import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
+import { PLAYABLE_DEPS } from "@mc/cards";
 import { playToOutcome } from "@mc/cards/testing";
-import { CORE_SCENARIOS, PLAYABLE_CARDS, type StarterDeck } from "@mc/content";
+import { CORE_SCENARIOS, type Scenario, type StarterDeck } from "@mc/content";
 import { createGame, replay, type GameState } from "@mc/engine";
-import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
+import { gameDepsWithPack, packModularSetChoices, packScenarioRecords, scenarioWithPacks } from "./game.js";
 import type { PackInput } from "./validate.js";
 
 /** The base precon a pack with no hero deck of its own is played with. */
@@ -31,7 +36,12 @@ export interface SmokeOptions {
 }
 
 export interface SmokeGame {
+  /** The deck seated: a pack precon's id, or the base precon's. */
   readonly deck: string;
+  /** The scenario played: a Core scenario's id or one of the pack's. */
+  readonly scenario: string;
+  /** The pack's modular set picked at the scenario in this game, when the game is about one. */
+  readonly modularSet?: string;
   readonly seed: number;
   readonly ok: boolean;
   /** `win (villainDefeated)`, `loss (mainSchemeCompleted)`, ...; absent when the game failed before it ended. */
@@ -40,7 +50,7 @@ export interface SmokeGame {
   readonly commands: number;
   /** Why the game failed. */
   readonly error?: string;
-  /** The pack's own cards played in this game. */
+  /** The pack's own cards played, or revealed from its encounter sets, in this game. */
   readonly packCardsPlayed: readonly string[];
 }
 
@@ -48,7 +58,7 @@ export interface SmokeResult {
   readonly ok: boolean;
   readonly scenario: string;
   readonly games: readonly SmokeGame[];
-  /** Not failures: what the run could not cover (a pack with no deck of its own, no pack card played). */
+  /** Not failures: what the run could not cover (a hero with no deck, no pack card played). */
   readonly notes: readonly string[];
 }
 
@@ -65,61 +75,80 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
 
   const prefix = `x.${pack.manifest.id}.`;
   const notes: string[] = [];
-  const pool = cardPoolWithPack(PLAYABLE_CARDS, pack);
   const deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
   const packDecks: readonly StarterDeck[] = pack.decks ?? [];
-  const seats: { readonly name: string; readonly deck?: StarterDeck }[] = packDecks.map((deck) => ({
-    name: String(deck.id),
-    deck,
-  }));
-  if (seats.length === 0) {
-    if (pack.cards.some((card) => card.type === "hero_identity"))
-      notes.push("the pack has a hero but no deck in decks/: add its precon so mc-pack test can play it");
-    else
-      notes.push(
-        `the pack has no deck of its own, so a base precon (${SMOKE_BASE_DECK}) played ${scenario} with the pack's ` +
-          "cards in the pool; the pack's own scenarios are not played yet",
-      );
-    seats.push({ name: SMOKE_BASE_DECK });
+  // One plan per kind of game: who sits, at which scenario, with which modular pick.
+  interface Plan {
+    readonly name: string;
+    readonly deck?: StarterDeck;
+    readonly scenario: string;
+    readonly modularSet?: string;
+    /** The modular sets to pick; absent is the scenario's recommendation. */
+    readonly modularSetIds?: readonly string[];
+  }
+  const plans: Plan[] = packDecks.map((deck) => ({ name: String(deck.id), deck, scenario }));
+  if (plans.length === 0 && pack.cards.some((card) => card.type === "hero_identity"))
+    notes.push("the pack has a hero but no deck in decks/: add its precon so mc-pack test can play it");
+  const ownScenarios: readonly Scenario[] = packScenarioRecords([pack]);
+  for (const record of ownScenarios) plans.push({ name: SMOKE_BASE_DECK, scenario: String(record.id) });
+  const baseRecord = CORE_SCENARIOS.find((candidate) => String(candidate.id) === scenario);
+  for (const set of baseRecord ? packModularSetChoices(baseRecord, [pack]) : [])
+    plans.push({ name: SMOKE_BASE_DECK, scenario, modularSet: String(set.id), modularSetIds: [String(set.id)] });
+  if (plans.length === 0) {
+    notes.push(
+      `the pack has no hero deck, scenario or modular set of its own, so a base precon (${SMOKE_BASE_DECK}) played ` +
+        `${scenario} with the pack's cards in the pool`,
+    );
+    plans.push({ name: SMOKE_BASE_DECK, scenario });
   }
 
-  const open = (deck: StarterDeck | undefined, seed: number): GameState => {
-    const config = coreScenario(scenario, {
-      players: [{ starterDeckId: SMOKE_BASE_DECK }],
-      seed,
-      difficulty: "standard",
-      modularSetIds: [],
-      cardPool: pool,
-    });
-    const players = deck
-      ? [
-          {
-            identityCardId: deck.identityCardId,
-            ...(deck.aspects ? { aspects: deck.aspects } : {}),
-            deck: deck.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
-          },
-        ]
-      : config.players;
-    const created = createGame({ ...config, players }, deps);
+  const open = (plan: Plan, seed: number): GameState => {
+    const seat = plan.deck
+      ? {
+          identityCardId: plan.deck.identityCardId,
+          ...(plan.deck.aspects ? { aspects: plan.deck.aspects } : {}),
+          deck: plan.deck.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
+        }
+      : { starterDeckId: SMOKE_BASE_DECK };
+    const config = scenarioWithPacks(
+      plan.scenario,
+      {
+        players: [seat],
+        seed,
+        difficulty: "standard",
+        ...(plan.modularSetIds ? { modularSetIds: plan.modularSetIds } : {}),
+      },
+      [pack],
+    );
+    const created = createGame(config, deps);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     return created.state;
   };
 
   const results: SmokeGame[] = [];
   const everPlayed = new Set<string>();
-  for (const seat of seats) {
+  for (const plan of plans) {
     for (let seed = 1; seed <= games; seed++) {
       let game: SmokeGame;
       try {
-        const run = playToOutcome(open(seat.deck, seed), deps, { maxCommands });
+        const run = playToOutcome(open(plan, seed), deps, { maxCommands });
         const state = run.session.state;
-        const base = { deck: seat.name, seed, rounds: run.rounds, commands: run.commands };
+        const base = {
+          deck: plan.name,
+          scenario: plan.scenario,
+          ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
+          seed,
+          rounds: run.rounds,
+          commands: run.commands,
+        };
         const replayed = replay(run.session.log, deps);
         const played = replayed.ok
           ? [
               ...new Set(
                 replayed.events.flatMap((e) =>
-                  e.type === "cardPlayed" && String(e.cardId).startsWith(prefix) ? [String(e.cardId)] : [],
+                  (e.type === "cardPlayed" || e.type === "encounterCardRevealed") && String(e.cardId).startsWith(prefix)
+                    ? [String(e.cardId)]
+                    : [],
                 ),
               ),
             ]
@@ -138,7 +167,9 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
         };
       } catch (caught) {
         game = {
-          deck: seat.name,
+          deck: plan.name,
+          scenario: plan.scenario,
+          ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
           seed,
           ok: false,
           rounds: 0,
@@ -152,7 +183,7 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
       options.onGame?.(game);
     }
   }
-  if (packDecks.length > 0 && everPlayed.size === 0)
-    notes.push("no game played one of the pack's own cards; try more games (--games)");
+  if (results.length > 0 && everPlayed.size === 0)
+    notes.push("no game played or revealed one of the pack's own cards; try more games (--games)");
   return { ok: results.every((g) => g.ok), scenario, games: results, notes };
 }

@@ -10,7 +10,9 @@ pack.json              the author-written part of the manifest
 cards/                 one card record per file, named after the card code (x.<pack-id>.<nn>[a].json)
 abilities/index.ts     default export: the pack's abilities, built with the DSL
 decks/                 optional: one StarterDeck record per file
-scenarios/             optional: one scenario record per file
+scenarios/             optional: one Scenario record per file (id `<pack-id>-<name>`)
+encounter-sets/        optional: one EncounterSet record per file (id `<pack-id>-<name>`): a nemesis set, a modular set, a scenario's own set
+campaigns/             optional: one campaign record per file, carried through untouched
 art/                   images (copied to the pack as art/...)
 CREDITS.md             who made the pack and its art (required)
 PERMISSION.md          the creator's permission for the store to distribute it (required)
@@ -75,8 +77,17 @@ Browser-safe (`@mc/mod-sdk`):
 - `validatePack(input, options?)`: returns `{ path, message, category? }[]`, empty when valid. A card that names an
   ability nobody has written yet is reported with `category: "unscripted-ability"`; `splitIssues(issues)` separates
   those from real defects, so a converted pack shows "valid, N abilities to script". `input` is `{ manifest, files, cards,
-  abilities, decks?, scenarios? }` (`PackInput`), so it runs without a disk. `readPackInput(manifest, files)` builds one
+  abilities, decks?, scenarios?, encounterSets?, campaigns? }` (`PackInput`), so it runs without a disk. `readPackInput(manifest, files)` builds one
   from an unzipped pack.
+- Games with a pack's scenarios and modular sets (`src/game.ts`; the client's seams):
+  `scenarioWithPacks(scenarioId, options, packs)` is the `GameSetupConfig` for a base scenario or any scenario of the
+  packs, with the packs' cards in the pool and their modular sets allowed in `options.modularSetIds` (mixed with base
+  ones; a pack set counts toward the scenario's modular count). Run it on `gameDepsWithPacks(PLAYABLE_DEPS, packs)`.
+  `packScenarioRecords(packs)` lists the pack scenarios, `packEncounterSetRecords(packs)` the sets (display names), and
+  `packModularSetChoices(scenario, packs)` the pack sets that may be a modular pick at a given scenario. They build on
+  the cards package's `playableScenarioWithCustom` / `customModularSetChoices` / `customScenarioProblems`
+  (`packages/cards/src/playable/custom.ts`). A pack scenario uses the plain `Scenario` fields only
+  (`CUSTOM_SCENARIO_FIELDS`); other fields, and a pack set at a Civil War or pool scenario, are refused with a sentence.
 - `dslFeatures(registry)`, `SUPPORTED_DSL_FEATURES`: see the key naming in `src/features.ts`.
 - `definePackAbilities`, `sha256Hex`, and everything `@mc/cards` exports (the DSL builders).
 
@@ -109,11 +120,13 @@ mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
 - Exit codes: 0 success, 1 the pack has a problem (invalid, fails to load, a smoke game failed), 2 a usage error.
 - `validate` lists real problems first and the `unscripted-ability` issues as their own group; `--allow-unscripted`
   passes a pack whose only issues are those. `build` and `test` never allow them.
-- `test` plays `--games` (default 3) games of each deck in `decks/` against a Core scenario (default Rhino, standard,
-  no modular set) with the cards package's greedy driver, the one the sample pack's test uses. A game fails on an
+- `test` plays `--games` (default 3) games, standard mode, with the cards package's greedy driver (the one the sample
+  packs' tests use), of: each deck in `decks/` against a Core scenario (default Rhino, with its recommended modular set);
+  each of the pack's scenarios with a base precon (Core Spider-Man) and the scenario's recommended modular set; each of
+  the pack's modular sets, picked with a base precon at the Core scenario. A game fails on an
   engine error, an illegal driver command, no outcome inside `--max-commands` (default 4000: stuck), a prompt left
-  open, or a log that does not replay to the same state. A pack with no deck plays a base precon with its cards in the
-  pool, and says so.
+  open, or a log that does not replay to the same state. A pack with no deck, scenario or modular set plays a base
+  precon with its cards in the pool, and says so.
 - The pack's `abilities/index.ts` is loaded with jiti, whose `virtualModules` give its `import ... from "@mc/mod-sdk"`
   (or the published package name) the SDK that is already running. jiti over tsx: an in-process API with no loader
   hooks and no native binary, and the virtual module keeps one SDK in memory whatever name the pack imports.
@@ -170,3 +183,6 @@ import-marvelcdb` prints a report per folder (the real packs are not checked in)
 
 - `SUPPORTED_DSL_FEATURES` is what the base game's own scripts use (the engine's types are erased at runtime), not
   every kind the types allow.
+- A pack scenario is built by the generic path: no several villains, set-aside cards, villain choice, modular set pool,
+  difficulty-set alternatives or extra modular sets. A pack encounter set may not be an extra, auto-included, campaign,
+  competitive, sided or separate-deck set. Scenario packs sample: `content-packs/sample-scenario`.

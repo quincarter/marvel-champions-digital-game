@@ -1,4 +1,4 @@
-import { PLAYABLE_DEPS, validateDefinition } from "@mc/cards";
+import { PLAYABLE_DEPS, customScenarioProblems, validateDefinition } from "@mc/cards";
 import {
   PACK_KINDS,
   PACK_SCHEMA_VERSION,
@@ -9,9 +9,11 @@ import {
   isSafePackPath,
   parsePackCardImagePath,
   validateCard,
+  validateEncounterSet,
   validateScenario,
   validateStarterDeck,
   type AnyCard,
+  type EncounterSet,
   type PackManifest,
   type Scenario,
   type StarterDeck,
@@ -59,6 +61,10 @@ export interface PackInput {
   readonly abilities: AbilityRegistry;
   readonly decks?: readonly StarterDeck[];
   readonly scenarios?: readonly unknown[];
+  /** The pack's own `EncounterSet` records (a nemesis set, a modular set, a scenario's own set): ids `<pack-id>-<name>`. */
+  readonly encounterSets?: readonly EncounterSet[];
+  /** The pack's campaigns, carried untouched: `validatePack` only checks the list (campaign packs are designed apart). */
+  readonly campaigns?: readonly unknown[];
 }
 
 /** What a pack is checked against: the base game's abilities and card codes, and the DSL features the client has. */
@@ -230,16 +236,122 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     }
   }
 
-  // Scenarios: the content schema's own checks.
+  checkEncounterSets(input, cards, packId, add);
+  checkScenarios(input, cards, packId, add);
+  const campaigns: unknown = input.campaigns;
+  if (campaigns !== undefined && !Array.isArray(campaigns)) add("data/campaigns.json", "must be a list of campaigns");
+}
+
+/**
+ * The pack's encounter sets (docs/custom-content-packs.md section 5.1): ids under the pack's id, none twice, each
+ * passing the content schema's checks and carrying no feature a pack set cannot use yet. Every encounter set id a card
+ * of the pack names under the pack's id, and every identity's nemesis set, must be one of these.
+ */
+function checkEncounterSets(input: PackInput, cards: readonly Obj[], packId: string, add: Add): void {
+  const sets = input.encounterSets;
+  if (sets !== undefined && !Array.isArray(sets)) add("data/encounter-sets.json", "must be a list of encounter sets");
+  const ids = new Set<string>();
+  for (const [index, set] of (Array.isArray(sets) ? sets : []).entries()) {
+    if (!isObj(set)) {
+      add(`encounterSets[${index}]`, "must be an encounter set object");
+      continue;
+    }
+    const id = typeof set.id === "string" ? set.id : "";
+    const at = `encounterSets/${id || index}`;
+    if (!id.startsWith(`${packId}-`) || packId === "") add(at, `encounter set id must start with "${packId}-"`);
+    if (ids.has(id)) add(at, "encounter set id is used by two sets");
+    ids.add(id);
+    runContentCheck(at, () => validateEncounterSet(set as unknown as EncounterSet), add);
+    if (!Array.isArray(set.packCodes)) add(at, "packCodes must be a list");
+    for (const field of UNSUPPORTED_SET_FIELDS) {
+      if (set[field] !== undefined) add(at, `"${field}" is not available to a pack's encounter set yet`);
+    }
+    const nemesisOf = cards.find((card) => card.type === "hero_identity" && card.nemesisEncounterSetId === id);
+    if (set.nemesisOfIdentityId !== undefined) {
+      const owner = cards.find((card) => card.id === set.nemesisOfIdentityId);
+      if (!owner || owner.type !== "hero_identity")
+        add(at, `nemesisOfIdentityId "${String(set.nemesisOfIdentityId)}" is not a hero identity of this pack`);
+      else if (owner.nemesisEncounterSetId !== id)
+        add(at, `the identity names "${String(owner.nemesisEncounterSetId)}" as its nemesis set, not this one`);
+    } else if (nemesisOf) {
+      add(
+        at,
+        `is ${String(nemesisOf.id)}'s nemesis set, so it needs nemesisOfIdentityId (or it is offered as a modular set)`,
+      );
+    }
+  }
+  const belongsToPack = (id: string): boolean => id === packId || id.startsWith(`${packId}-`);
+  for (const card of cards) {
+    const at = `cards/${String(card.id)}`;
+    for (const id of Array.isArray(card.encounterSetIds) ? (card.encounterSetIds as unknown[]) : []) {
+      if (typeof id === "string" && belongsToPack(id) && !ids.has(id))
+        add(at, `encounter set "${id}" has no record in the pack's encounter sets`);
+    }
+    const nemesis = card.type === "hero_identity" ? card.nemesisEncounterSetId : undefined;
+    if (typeof nemesis === "string" && belongsToPack(nemesis) && !ids.has(nemesis))
+      add(at, `nemesis set "${nemesis}" has no record in the pack's encounter sets`);
+  }
+}
+
+/** `EncounterSet` fields the generic pack path does not build yet. */
+const UNSUPPORTED_SET_FIELDS: readonly string[] = [
+  "campaignSpecific",
+  "competitiveOnly",
+  "side",
+  "separateDecks",
+  "singleVillainOnly",
+  "extraModular",
+  "autoIncluded",
+];
+
+/**
+ * The pack's scenarios: the content schema's own checks, ids under the pack's id, and the villain, main scheme and
+ * sets resolving to the pack or the base game, with only the fields a pack scenario may carry
+ * (`customScenarioProblems`, the same check the game builds from).
+ */
+function checkScenarios(input: PackInput, cards: readonly Obj[], packId: string, add: Add): void {
   const scenarios = input.scenarios;
   if (scenarios !== undefined && !Array.isArray(scenarios)) add("data/scenarios.json", "must be a list of scenarios");
+  const ids = new Set<string>();
+  const checked: Scenario[] = [];
   for (const [index, scenario] of (Array.isArray(scenarios) ? scenarios : []).entries()) {
     if (!isObj(scenario)) {
       add(`scenarios[${index}]`, "must be a scenario object");
       continue;
     }
-    const at = `scenarios/${typeof scenario.id === "string" && scenario.id !== "" ? scenario.id : index}`;
-    runContentCheck(at, () => validateScenario(scenario as unknown as Scenario), add);
+    const id = typeof scenario.id === "string" ? scenario.id : "";
+    const at = `scenarios/${id || index}`;
+    if (!id.startsWith(`${packId}-`) || packId === "") add(at, `scenario id must start with "${packId}-"`);
+    if (ids.has(id)) add(at, "scenario id is used by two scenarios");
+    ids.add(id);
+    if (typeof scenario.packCode === "string" && scenario.packCode !== packId)
+      add(at, `packCode must be the pack's id "${packId}"`);
+    let problems = 0;
+    runContentCheck(
+      at,
+      () => {
+        const result = validateScenario(scenario as unknown as Scenario);
+        problems = result.errors.length;
+        return result;
+      },
+      add,
+    );
+    if (problems === 0) checked.push(scenario as unknown as Scenario);
+  }
+  // The references, checked as the game reads them: against the pack's own cards and sets, plus the base game's.
+  const custom = {
+    cards: cards as unknown as readonly AnyCard[],
+    encounterSets: (Array.isArray(input.encounterSets) ? input.encounterSets : []).filter(
+      isObj,
+    ) as unknown as EncounterSet[],
+    scenarios: checked,
+  };
+  for (const scenario of checked) {
+    try {
+      for (const problem of customScenarioProblems(scenario, custom)) add(`scenarios/${String(scenario.id)}`, problem);
+    } catch (error) {
+      add(`scenarios/${String(scenario.id)}`, `could not be checked: ${errorText(error)}`);
+    }
   }
 }
 
@@ -502,6 +614,8 @@ export function readPackInput(manifest: PackManifest, files: ReadonlyMap<string,
     throw new Error(`${manifest.contents.abilities}: must be a JSON object`);
   const decks = list(manifest.contents.decks);
   const scenarios = list(manifest.contents.scenarios);
+  const encounterSets = list(manifest.contents.encounterSets);
+  const campaigns = list(manifest.contents.campaigns);
   return {
     manifest,
     files,
@@ -509,5 +623,7 @@ export function readPackInput(manifest: PackManifest, files: ReadonlyMap<string,
     abilities: abilities as AbilityRegistry,
     ...(decks ? { decks } : {}),
     ...(scenarios ? { scenarios } : {}),
+    ...(encounterSets ? { encounterSets } : {}),
+    ...(campaigns ? { campaigns } : {}),
   };
 }

@@ -8,5 +8,15 @@ export { definePackAbilities, PACK_ABILITY_ID } from "./define.js";
 export { sha256Hex } from "./sha256.js";
 export { isUnscriptedAbilityIssue, readPackInput, splitIssues, validatePack, REQUIRED_PACK_FILES } from "./validate.js";
 export type { PackInput, PackIssue, PackIssueCategory, ValidateOptions } from "./validate.js";
-export { cardPoolWithPack, gameDepsWithPack } from "./game.js";
+export {
+  cardPoolWithPack,
+  customContentOfPacks,
+  gameDepsWithPack,
+  gameDepsWithPacks,
+  packEncounterSetRecords,
+  packModularSetChoices,
+  packScenarioRecords,
+  scenarioWithPacks,
+} from "./game.js";
+export type { PackGameContent } from "./game.js";
 export { packObligation } from "./obligation.js";

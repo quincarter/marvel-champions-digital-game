@@ -578,6 +578,7 @@ export async function importMarvelCdbPack(srcDir: string, options: ImportOptions
   }) as AnyCard[];
   const decks = normalized.starterDecks.map((d) => rewrite(d) as StarterDeck);
   const scenarios = normalized.scenarios.map((s) => rewrite(s));
+  const encounterSets = normalized.encounterSets.map((set) => rewrite(set) as EncounterSet);
   const topCopies = records.reduce((n, r) => n + (typeof r.quantity === "number" ? r.quantity : 0), 0);
 
   // Pictures and alternate art.
@@ -636,7 +637,7 @@ export async function importMarvelCdbPack(srcDir: string, options: ImportOptions
 
   // Validate what a build would ship, with no ability scripts.
   const sortedCards = [...rewritten].sort((a, b) => ((a.id as string) < (b.id as string) ? -1 : 1));
-  const source: PackSource = { author, cards: sortedCards, abilities: {}, decks, scenarios, assets };
+  const source: PackSource = { author, cards: sortedCards, abilities: {}, decks, scenarios, encounterSets, assets };
   const built = assemblePack(source);
   const { unscripted, defects } = splitIssues(validatePack(readPackInput(built.manifest, built.files)));
   const stub = abilitiesStub(sortedCards, mod.name);
@@ -668,11 +669,12 @@ export async function importMarvelCdbPack(srcDir: string, options: ImportOptions
   if (!options.outDir) return report;
 
   const out = options.outDir;
-  for (const dir of ["cards", "alt-art", "decks", "scenarios"])
+  for (const dir of ["cards", "alt-art", "decks", "scenarios", "encounter-sets"])
     rmSync(join(out, dir), { recursive: true, force: true });
   writeText(join(out, "pack.json"), jsonText(author));
   for (const card of sortedCards) writeText(join(out, "cards", `${card.id as string}.json`), jsonText(card));
   for (const deck of decks) writeText(join(out, "decks", `${deck.id}.json`), jsonText(deck));
+  for (const set of encounterSets) writeText(join(out, "encounter-sets", `${set.id}.json`), jsonText(set));
   scenarios.forEach((s, i) => writeText(join(out, "scenarios", `${str((s as Obj).id) ?? i}.json`), jsonText(s)));
   for (const { from, to } of pictures.copies) {
     mkdirSync(dirname(join(out, to)), { recursive: true });
