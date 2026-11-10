@@ -86,6 +86,10 @@ const include = [
   ...(has("sync-worker")
     ? [{ name: "sync-worker", title: "Sync Worker tests", args: "--project @mc/sync-worker" }]
     : []),
+  // The preview Worker's tests (its handler and the R2 deploy plan) take seconds and import no other package.
+  ...(has("preview-worker")
+    ? [{ name: "preview-worker", title: "Preview Worker tests", args: "--project @mc/preview-worker" }]
+    : []),
   // The mod SDK's tests build and validate the sample packs; they import the cards package but nothing imports them.
   ...(has("mod-sdk") ? [{ name: "mod-sdk", title: "Mod SDK tests", args: "--project @mc/mod-sdk" }] : []),
   ...(has("client")

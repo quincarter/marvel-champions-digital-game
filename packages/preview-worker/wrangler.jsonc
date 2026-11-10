@@ -1,0 +1,37 @@
+// Pull request previews of the web build at https://pr-<number>.champions-digital-game.com (CONTRIBUTING.md, "Pull
+// request previews on Cloudflare"). CI deploys it on a push to main (netlify-deploy.yml's deploy-previews job); each pull
+// request's files go to the `mc-previews` bucket (src/deploy/cli.ts), and this Worker serves them.
+//
+// Free-plan budget (Workers Free: nothing is ever billed; past a cap the requests fail until 00:00 UTC):
+//   - Worker requests: 100,000 a day, shared with mc-sync. Every file a preview loads is one: about 50 for the title
+//     screen on a first visit (index.html, the entry scripts and styles, fonts, title art and music) and 200 to 400 for
+//     a whole game (card scans, the lazy screens, sounds). Hashed assets and scans are cached for a year, so a second
+//     visit is a few requests. That is 250 or more full preview sessions a day even if mc-sync took half.
+//   - R2 reads (Class B): 10 million a month, one per request. R2 writes (Class A, which includes listing): 1 million a
+//     month. The first preview uploads the shared media once (about 11,000 writes); after that a push writes only the
+//     files it changed (the deploy compares MD5s with the bucket's listing), typically 50 to 300 plus about 15 listings.
+//   - R2 storage: 10 GB free. The shared media is about 2 GB (music is most of it); each open pull request adds its own
+//     few MB and the scripts its pushes changed. The weekly sweep deletes what no open pull request uses.
+//
+// Kill switch: set PREVIEWS_ENABLED to anything but "true" and deploy (or edit it in the dashboard); every preview then
+// answers 503 and costs no R2 reads.
+//
+// The route catches every subdomain. The Worker hands a host that isn't `pr-<n>.` on unchanged, but that still costs a
+// Worker request each, so packs.<domain> (the mc-packs bucket) and www need routes of their own with no Worker
+// (CONTRIBUTING.md has the steps).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mc-previews",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "routes": [{ "pattern": "*.champions-digital-game.com/*", "zone_name": "champions-digital-game.com" }],
+
+  "r2_buckets": [{ "binding": "PREVIEWS", "bucket_name": "mc-previews" }],
+
+  "vars": {
+    "PREVIEWS_ENABLED": "true",
+  },
+}

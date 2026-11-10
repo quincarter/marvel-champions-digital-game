@@ -1,0 +1,19 @@
+{
+  "name": "@mc/preview-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cloudflare Worker and deploy tooling for pull request previews of the web build at https://pr-<number>.champions-digital-game.com, served from an R2 bucket.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "wrangler": "4.151.1"
+  }
+}
