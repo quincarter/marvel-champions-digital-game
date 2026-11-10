@@ -1,0 +1,3 @@
+kind: Fixed
+body: Machine Man is no longer offered with nothing to spend, and a payment with nothing to pick always keeps its Don't use it button, so the game can't get stuck there (#654).
+time: 2026-11-09T19:19:13.519131-05:00
