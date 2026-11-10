@@ -223,7 +223,7 @@ needs a paid Workers plan to survive another Reddit day.
     "scenarios": "data/scenarios.json", // Scenario records (scenario packs): villain, main scheme, set choices
     "encounterSets": "data/encounter-sets.json", // EncounterSet records: id "<pack-id>-<name>", a display name, a nemesis link
     "decks": "data/decks.json", // the precon, in the app's own deck format
-    "campaigns": "data/campaigns.json", // campaign packs; carried through untouched until campaigns are designed
+    "campaigns": "data/campaigns.json", // PackCampaign records: the engine's CampaignDefinition plus a display record and an optional story (§11.10)
   },
   "pictures": { "hero": { "x.fan-moon-knight.01a": "pictures/hero.webp" } },
   // optional, added 2026-11-10 so community packs in several languages convert:
@@ -635,6 +635,45 @@ The owner does these steps while the code is built. The code doesn't wait on the
 
 R2's free tier covers 10 GB of storage, 1 million writes and 10 million reads a month, and egress is free. The 30
 community packs come to about 150 to 200 MB (§10), so even every version of every pack stays far under the limit.
+
+### 11.10 Campaigns
+
+A pack may carry campaigns, as data only (no engine change). Each file in `campaigns/*.json` is one `PackCampaign`:
+
+```jsonc
+{
+  "id": "<pack-id>-<name>", "version": "1", "name": "…", "description": "…", "tagline": "A story in two issues",
+  "definition": { /* the engine's CampaignDefinition: campaignId === id, version === version */ },
+  "record": { "scenarioIds": ["…"], "campaignSetIds": [], "prohibited": { … } }, // the @mc/content Campaign shape, minus box fields
+  "story": { "blurb": "…", "rosterBanner": "…", "issues": [{ "nodeId": "…", "title": "…", "villain": "…", … }], "finale": { … } },
+  "art": { "cover": "art/cover.webp" } // a file of the pack, never a base-game picture
+}
+```
+
+`record.scenarioIds` lists the nodes' scenarios in order; each is a scenario of the pack, a base scenario or one of a
+required pack's. `story` mirrors the data fields of the client's `CampaignStory` and `IssueStory` (no art, no
+functions); a campaign without one gets the client's plain wording. `validatePack` checks the id (the pack's prefix, not
+a base campaign's, `definition.campaignId` and `version` matching), that instruction, log field and node ids are
+unique, that every field a step reads or writes is declared, that conditional instruction keys are the instructions'
+ids, that every in-game effect and node rule passes the DSL validator (including the `campaignLog` read checks), that
+literal card ids and campaign sets resolve, that the definition is plain JSON, and that the story's node ids exist.
+`requires.dslFeatures` covers the campaign's instructions too (`campaign:<op>`, `effect:*`, `expr:campaignLog`).
+
+First version limits, each refused with a sentence naming it:
+
+- the graph is `linear` and every node's scenario is `fixed`;
+- no market or shop (the `spend` op, Unit Cost filters), no roles, no `composition` (villain or set choice between
+  games), `requiredModularSetIds`, set-aside cards or per-seat sets, no log field gated by modes;
+- no expert campaign rules (`expertCampaign` gates) and no elimination policy;
+- players are base heroes (a custom hero in a campaign is not offered yet).
+
+`mc-pack test` plays each campaign through the real campaign runner with a base precon: between-games setup, a played
+game, the result folded into the log, at every node until the campaign ends. A loss is allowed (the loss policy runs, then
+a staged win advances the run so later nodes are still covered); an engine error, a stuck game or a campaign that writes
+none of its log fields fails. `content-packs/sample-scenario/campaigns/sample-scenario-crisis.json` ("Clockwork Crisis",
+two nodes, a number and a flag written between games and read by a game's setup) is the example. A client lists packs'
+campaigns with `packCampaignRecords(packs)`, finds a definition with `packCampaignDefinitionOf(packs, id)` (the campaign
+service's `definitionOf`), and builds a node's game with `campaignGameWithPacks(start, packs)`.
 
 ## Sources
 

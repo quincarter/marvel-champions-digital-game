@@ -154,7 +154,12 @@ export {
   AOS_CAMPAIGN_DEFINITION,
   CAMPAIGNS,
   campaignDefinitionOf,
+  campaignDefinitionProblems,
+  campaignInstructionsOf,
   campaignModularPickProblem,
+  cardIdsIn,
+  fieldsIn,
+  opsOfKind,
   cardsOfComposedSets,
   GMW_BALANCED_FIELD,
   GMW_BALANCED_TOGGLES,
@@ -169,7 +174,7 @@ export {
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
-export type { GmwBalancedToggle, GmwBalancedToggleId } from "./campaigns/index.js";
+export type { CampaignCheckContext, GmwBalancedToggle, GmwBalancedToggleId } from "./campaigns/index.js";
 export {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,

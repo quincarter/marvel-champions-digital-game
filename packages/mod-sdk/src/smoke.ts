@@ -4,7 +4,9 @@
  *
  * - the pack's hero precons against a Core scenario;
  * - each of the pack's scenarios, with a base precon (`SMOKE_BASE_DECK`) and the scenario's recommended modular set;
- * - each of the pack's modular encounter sets, with a base precon at the Core scenario, picked as its modular set.
+ * - each of the pack's modular encounter sets, with a base precon at the Core scenario, picked as its modular set;
+ * - each of the pack's campaigns, with a base precon, through the real campaign runner (between-games setup, a played
+ *   game, the result folded into the log) at every node, until the campaign ends (`playCampaign`).
  *
  * A game fails on an engine error, an illegal command, a game with no
  * outcome inside the command budget (stuck), a prompt left open at the end, or a replay of its log that does not
@@ -15,9 +17,32 @@
 import { isDeepStrictEqual } from "node:util";
 import { PLAYABLE_DEPS } from "@mc/cards";
 import { playToOutcome } from "@mc/cards/testing";
-import { CORE_SCENARIOS, type Scenario, type StarterDeck } from "@mc/content";
-import { createGame, replay, type GameState } from "@mc/engine";
-import { gameDepsWithPack, packModularSetChoices, packScenarioRecords, scenarioWithPacks } from "./game.js";
+import { CORE_SCENARIOS, CORE_STARTER_DECKS, PLAYABLE_CARDS, type Scenario, type StarterDeck } from "@mc/content";
+import {
+  applyCampaignResult,
+  campaignResultOf,
+  createCampaignLog,
+  createGame,
+  replay,
+  resolveBetweenGames,
+  startGameFromLog,
+  type CampaignChoiceAnswer,
+  type CampaignLog,
+  type CampaignRunnerResult,
+  type EngineDeps,
+  type GameEvent,
+  type GameState,
+} from "@mc/engine";
+import type { PackCampaign } from "./campaigns.js";
+import {
+  campaignDepsWithPacks,
+  campaignGameWithPacks,
+  gameDepsWithPack,
+  packCampaignRecords,
+  packModularSetChoices,
+  packScenarioRecords,
+  scenarioWithPacks,
+} from "./game.js";
 import type { PackInput } from "./validate.js";
 
 /** The base precon a pack with no hero deck of its own is played with. */
@@ -42,6 +67,9 @@ export interface SmokeGame {
   readonly scenario: string;
   /** The pack's modular set picked at the scenario in this game, when the game is about one. */
   readonly modularSet?: string;
+  /** The pack campaign this game was played in, and its node (`scenario` is then the node's scenario). */
+  readonly campaign?: string;
+  readonly node?: string;
   /** `"expert"` for a pack scenario's expert-mode game; absent is standard. */
   readonly difficulty?: "expert";
   readonly seed: number;
@@ -191,7 +219,157 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
       options.onGame?.(game);
     }
   }
+  for (const campaign of packCampaignRecords([pack])) {
+    for (let seed = 1; seed <= games; seed++) {
+      const run = playCampaign(pack, campaign, seed, deps, maxCommands);
+      notes.push(...run.notes);
+      for (const game of run.games) {
+        for (const code of game.packCardsPlayed) everPlayed.add(code);
+        results.push(game);
+        options.onGame?.(game);
+      }
+    }
+  }
   if (results.length > 0 && everPlayed.size === 0)
     notes.push("no game played or revealed one of the pack's own cards; try more games (--games)");
   return { ok: results.every((g) => g.ok), scenario, games: results, notes };
+}
+
+/** Answers every between-games choice with its first options (none for an optional one), until the step list settles. */
+function settleCampaign<T>(step: (answers: readonly CampaignChoiceAnswer[]) => CampaignRunnerResult<T>): T {
+  const answers: CampaignChoiceAnswer[] = [];
+  for (let guard = 0; guard < 64; guard++) {
+    const result = step(answers);
+    if (result.kind === "done") return result.value;
+    const { instructionId, slot, seatNumber, optional, options, count } = result.choice;
+    answers.push({ instructionId, slot, seatNumber, picked: optional ? [] : options.slice(0, count) });
+  }
+  throw new Error("the campaign runner kept asking questions");
+}
+
+/** Whether a campaign log holds a value in any of its fields, shared or a seat's. */
+const hasWrittenField = (log: CampaignLog): boolean =>
+  Object.keys(log.shared).length > 0 || log.seats.some((seat) => Object.keys(seat.fields).length > 0);
+
+/**
+ * Plays one pack campaign headlessly with `SMOKE_BASE_DECK` at seat 1, through the real runner: each node is composed
+ * (`resolveBetweenGames`), played to an outcome by the greedy driver, replayed, and its result folded into the log
+ * (`campaignResultOf`, `applyCampaignResult`, so the Victory or Defeat instructions run). A lost game is allowed: the
+ * loss policy runs, and because the game would repeat from the same seed, the node is then advanced with a staged win so
+ * the rest of the campaign is still covered (and a note says so). The run fails on an engine error, a game that fails
+ * the checks a scenario smoke game does, a campaign still open after every node had its turns, or one that ends with
+ * none of its declared log fields written.
+ */
+export function playCampaign(
+  pack: PackInput,
+  campaign: PackCampaign,
+  seed: number,
+  deps: EngineDeps,
+  maxCommands: number,
+): { readonly games: readonly SmokeGame[]; readonly notes: readonly string[] } {
+  const definition = campaign.definition;
+  const games: SmokeGame[] = [];
+  const notes: string[] = [];
+  const budget = definition.graph.nodes.length * 3 + 2;
+  const failure = (node: string, scenario: string, error: string): SmokeGame => ({
+    deck: SMOKE_BASE_DECK,
+    scenario,
+    campaign: campaign.id,
+    node,
+    seed,
+    ok: false,
+    rounds: 0,
+    commands: 0,
+    error,
+    packCardsPlayed: [],
+  });
+  const starter = CORE_STARTER_DECKS.find((deck) => String(deck.id) === SMOKE_BASE_DECK);
+  if (!starter) throw new Error(`no starter deck "${SMOKE_BASE_DECK}"`);
+  const prefix = `x.${pack.manifest.id}.`;
+  const campaignDeps = campaignDepsWithPacks(PLAYABLE_CARDS, [pack]);
+  let nodeId = "(start)";
+  let scenario = "(campaign)";
+  try {
+    let log = createCampaignLog(definition, {
+      id: `smoke-${campaign.id}-${seed}`,
+      seats: [
+        {
+          seatNumber: 1,
+          identityCardId: starter.identityCardId,
+          deck: { identityCardId: starter.identityCardId, aspects: starter.aspects, cards: starter.cards },
+        },
+      ],
+      modes: { campaign: { campaignId: definition.campaignId } },
+      poolVersion: "smoke",
+      seed,
+    });
+    for (let turn = 0; turn < budget && log.status === "active"; turn++) {
+      const before = log;
+      const composed = settleCampaign((answers) =>
+        resolveBetweenGames(definition, before, campaignDeps, before.modes, answers),
+      );
+      const start = startGameFromLog(definition, composed);
+      nodeId = start.nodeId;
+      scenario = String(start.scenarioId);
+      const created = createGame(campaignGameWithPacks(start, [pack]), deps);
+      if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+      const run = playToOutcome(created.state, deps, { maxCommands });
+      const state = run.session.state;
+      const replayed = replay(run.session.log, deps);
+      let error: string | undefined;
+      if (run.outcome === null) error = `stuck: no outcome after ${run.commands} commands (round ${run.rounds})`;
+      else if (state.pendingChoice !== null) error = "a prompt was still open when the game ended";
+      else if (!replayed.ok) error = `the game's log does not replay: ${replayed.error.message}`;
+      else if (!isDeepStrictEqual(replayed.state, state)) error = "the game's log replays to a different state";
+      const events: readonly GameEvent[] = replayed.ok ? replayed.events : [];
+      const played = [
+        ...new Set(
+          events.flatMap((e) =>
+            (e.type === "cardPlayed" || e.type === "encounterCardRevealed") && String(e.cardId).startsWith(prefix)
+              ? [String(e.cardId)]
+              : [],
+          ),
+        ),
+      ];
+      games.push({
+        deck: SMOKE_BASE_DECK,
+        scenario,
+        campaign: campaign.id,
+        node: nodeId,
+        seed,
+        ok: error === undefined,
+        ...(run.outcome ? { outcome: `${run.outcome.result} (${run.outcome.reason})` } : {}),
+        ...(error !== undefined ? { error } : {}),
+        rounds: run.rounds,
+        commands: run.commands,
+        packCardsPlayed: played,
+      });
+      if (error !== undefined) return { games, notes };
+      const result = campaignResultOf(definition, composed, state, events, deps);
+      log = settleCampaign((answers) =>
+        applyCampaignResult(definition, composed, result, { at: 1 }, campaignDeps, answers),
+      );
+      if (result.outcome === "lost" && log.status === "active") {
+        // The loss policy ran. A retry replays the same seed, so stage a win at the same node to reach the rest.
+        const lost = log;
+        const again = settleCampaign((answers) =>
+          resolveBetweenGames(definition, lost, campaignDeps, lost.modes, answers),
+        );
+        const staged = { ...state, outcome: { result: "win", reason: "villainDefeated" } } as GameState;
+        const stagedResult = campaignResultOf(definition, again, staged, events, deps);
+        log = settleCampaign((answers) =>
+          applyCampaignResult(definition, again, stagedResult, { at: 1 }, campaignDeps, answers),
+        );
+        notes.push(`campaign ${campaign.id} seed ${seed}: lost at "${nodeId}", then advanced with a staged win`);
+      }
+    }
+    if (log.status === "active") {
+      games.push(failure(nodeId, scenario, `the campaign was still open after ${budget} games`));
+    } else if (definition.logFields.length > 0 && !hasWrittenField(log)) {
+      games.push(failure(nodeId, scenario, "the campaign ended with none of its log fields written"));
+    }
+  } catch (caught) {
+    games.push(failure(nodeId, scenario, errorText(caught)));
+  }
+  return { games, notes };
 }

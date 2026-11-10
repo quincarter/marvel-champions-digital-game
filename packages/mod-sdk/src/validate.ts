@@ -25,7 +25,8 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
-import { SUPPORTED_DSL_FEATURES, dslFeatures } from "./features.js";
+import { checkPackCampaigns } from "./campaigns.js";
+import { SUPPORTED_DSL_FEATURES, campaignDefinitionsOf, dslFeatures } from "./features.js";
 import { PACK_ABILITY_ID } from "./define.js";
 import { sha256Hex } from "./sha256.js";
 
@@ -69,7 +70,7 @@ export interface PackInput {
   readonly scenarios?: readonly unknown[];
   /** The pack's own `EncounterSet` records (a nemesis set, a modular set, a scenario's own set): ids `<pack-id>-<name>`. */
   readonly encounterSets?: readonly EncounterSet[];
-  /** The pack's campaigns, carried untouched: `validatePack` only checks the list (campaign packs are designed apart). */
+  /** The pack's campaigns (`PackCampaign`, docs/custom-content-packs.md §11.10), validated by `validatePack`. */
   readonly campaigns?: readonly unknown[];
 }
 
@@ -90,6 +91,8 @@ export interface ValidateOptions {
   readonly requiredPackContent?: {
     readonly cards: readonly AnyCard[];
     readonly encounterSets: readonly EncounterSet[];
+    /** The scenarios of the required packs, so a campaign may play one. */
+    readonly scenarios?: readonly Scenario[];
   };
 }
 
@@ -205,7 +208,10 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
   }
 
   // DSL features: the pack's own, all known to the client, and the manifest declares exactly them.
-  const features = dslFeatures(abilities);
+  const features = dslFeatures(
+    abilities,
+    campaignDefinitionsOf(Array.isArray(input.campaigns) ? input.campaigns : undefined),
+  );
   for (const feature of features) {
     if (!supported.has(feature)) add("abilities", `uses DSL feature "${feature}", which this game version lacks`);
   }
@@ -254,6 +260,32 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
   checkScenarios(input, cards, packId, options, add);
   const campaigns: unknown = input.campaigns;
   if (campaigns !== undefined && !Array.isArray(campaigns)) add("data/campaigns.json", "must be a list of campaigns");
+  else if (campaigns !== undefined) {
+    const required = options.requiredPackContent;
+    const requiredCards = new Set((required?.cards ?? []).map((card) => card.id as string));
+    checkPackCampaigns({
+      packId,
+      campaigns,
+      packScenarioIds: new Set(
+        (Array.isArray(input.scenarios) ? input.scenarios : []).flatMap((scenario) =>
+          isObj(scenario) && typeof scenario.id === "string" ? [scenario.id] : [],
+        ),
+      ),
+      packSetIds: new Set(
+        (Array.isArray(input.encounterSets) ? input.encounterSets : []).flatMap((set) =>
+          isObj(set) && typeof set.id === "string" ? [set.id] : [],
+        ),
+      ),
+      isCardId: (code) => knownCard(code) || requiredCards.has(code),
+      required: { scenarios: required?.scenarios ?? [], encounterSets: required?.encounterSets ?? [] },
+      listedFiles: new Set(
+        Array.isArray(manifest.files)
+          ? (manifest.files as unknown[]).flatMap((f) => (isObj(f) && typeof f.path === "string" ? [f.path] : []))
+          : [],
+      ),
+      add,
+    });
+  }
 }
 
 /**

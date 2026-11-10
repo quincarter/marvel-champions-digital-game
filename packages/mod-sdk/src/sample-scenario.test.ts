@@ -155,7 +155,7 @@ describe("sample-scenario pack", () => {
   it("smoke-tests a scenario pack with mc-pack test's helper: its scenario and its modular set both play", () => {
     const result = smokeTestPack(pack, { games: 3 });
     expect(result.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([]);
-    expect(result.games.filter((game) => game.scenario === SCENARIO)).toHaveLength(6); // standard and expert
+    expect(result.games.filter((game) => game.scenario === SCENARIO && !game.campaign)).toHaveLength(6); // standard and expert
     expect(result.games.filter((game) => game.scenario === SCENARIO && game.difficulty === "expert")).toHaveLength(3);
     expect(result.games.filter((game) => game.modularSet === GEARS)).toHaveLength(3);
     expect(result.ok).toBe(true);
@@ -264,9 +264,7 @@ describe("validatePack: encounter sets and scenarios", () => {
     expect(issues(changed((c) => (c.scenarios[0].recommendedModularSetIds = [SCENARIO])))).toMatch(/already part of/);
   });
 
-  it("carries campaigns through untouched and only checks they are a list", async () => {
-    const withCampaigns = { ...pack, campaigns: [{ anything: true }] } as unknown as PackInput;
-    expect(issues(withCampaigns)).toBe("");
+  it("checks that campaigns are a list (their own checks are in campaigns.test.ts)", () => {
     expect(issues({ ...pack, campaigns: {} } as unknown as PackInput)).toMatch(
       /data\/campaigns.json: must be a list of campaigns/,
     );

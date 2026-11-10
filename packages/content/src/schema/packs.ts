@@ -71,6 +71,82 @@ export interface PackLanguages {
  */
 export type PackAltArt = Readonly<Record<string, Readonly<Record<string, string>>>>;
 
+/**
+ * A pack campaign's content record (docs/custom-content-packs.md §11.10): the `@mc/content` `Campaign` shape without
+ * its box fields (`boxCode`, `packCode`, `roles`, `perSeatSetIds`, `logSheetReference`), with plain strings for ids
+ * since a pack's are JSON.
+ */
+export interface PackCampaignContent {
+  /** The scenarios the campaign plays, in order: pack scenarios, base scenarios or a required pack's. */
+  readonly scenarioIds: readonly string[];
+  /** Encounter sets whose cards are campaign-specific to this campaign (a pack set, or a required pack's). */
+  readonly campaignSetIds: readonly string[];
+  /** Player cards and modular sets the campaign forbids inside itself. */
+  readonly prohibited?: {
+    readonly cardIds?: readonly string[];
+    readonly encounterSetIds?: readonly string[];
+  };
+}
+
+/** Who speaks a story line: the narrator, the issue's villain, or a named supporting voice. */
+export type PackCampaignSpeaker =
+  | { readonly kind: "narrator" }
+  | { readonly kind: "villain" }
+  | { readonly kind: "npc"; readonly name: string };
+
+/** One spoken line of a pack campaign's story. */
+export interface PackCampaignLine {
+  readonly speaker: PackCampaignSpeaker;
+  readonly text: string;
+}
+
+/** The story of one node (an "issue"): the data fields of the client's `IssueStory`, without its art and functions. */
+export interface PackCampaignIssueStory {
+  /** The campaign definition's node id. */
+  readonly nodeId: string;
+  readonly title: string;
+  /** The villain's display name as the issue is billed. */
+  readonly villain: string;
+  readonly blurb?: string;
+  readonly briefing?: PackCampaignLine;
+  readonly aftermath?: PackCampaignLine;
+  /** The villain's taunt on a loss. */
+  readonly rewindTaunt?: string;
+}
+
+/** A pack campaign's optional story: the data fields of the client's `CampaignStory`, without its art and functions. */
+export interface PackCampaignStory {
+  /** The cover's pitch. */
+  readonly blurb: string;
+  readonly rosterBanner?: string;
+  readonly issues?: readonly PackCampaignIssueStory[];
+  readonly finale?: {
+    readonly caption: string;
+    readonly headline: string;
+    readonly villainLine: string;
+    readonly heroLines: readonly string[];
+  };
+}
+
+/**
+ * One entry of a pack's `campaigns/*.json` (§11.10). `Definition` is the engine's `CampaignDefinition` (plain JSON);
+ * `@mc/content` cannot import the engine, so the mod SDK's `PackCampaign` fills it in.
+ */
+export interface PackCampaignOf<Definition = unknown> {
+  /** `<pack-id>-<name>`; equals `definition.campaignId`. */
+  readonly id: string;
+  /** Equals `definition.version`. */
+  readonly version: string;
+  readonly name: string;
+  readonly description: string;
+  readonly tagline?: string;
+  readonly definition: Definition;
+  readonly record: PackCampaignContent;
+  readonly story?: PackCampaignStory;
+  /** Pack-relative paths of the campaign's art (the pack's own, never a base-game file). */
+  readonly art?: { readonly cover?: string };
+}
+
 /** The permission a pack's content may be distributed under (§11.4), as the store's reviewers check it. */
 export interface PackPermission {
   /** Who gave permission: the creator, or whoever granted it on their behalf. */

@@ -27,6 +27,7 @@ pack.json             the author-written manifest (the build fills in files, siz
 cards/                one JSON record per card, named after its code
 encounter-sets/       one EncounterSet record per set: id `<pack-id>-<name>`, a display name
 scenarios/            one Scenario record per scenario: id `<pack-id>-<name>`
+campaigns/            one PackCampaign per file: "Clockwork Crisis" (this scenario, then the Core Rhino), id `sample-scenario-crisis`
 abilities/index.ts    default export: the pack's abilities, built with the SDK's DSL
 CREDITS.md, PERMISSION.md
 ```
@@ -49,6 +50,13 @@ CREDITS.md, PERMISSION.md
 `packages/mod-sdk/src/sample-scenario.test.ts` builds this pack, validates the built output, and plays the scenario with
 a base precon, and the Gears set at the Core Rhino, to an outcome on three seeds each. `mc-pack test` does the same for any
 pack. Run it with `pnpm --filter @mc/mod-sdk test`.
+
+## The campaign
+
+`campaigns/sample-scenario-crisis.json` is a two-node linear campaign (docs/custom-content-packs.md §11.10). Winning The Clockmaker
+checks `stopped` and records 1 spare `cogs` (between-games instructions); the Rhino node's setup is an in-game effect that
+reads both, drawing 1 card per spare cog; winning it adds one more. It carries a minimal story. Its test is
+`packages/mod-sdk/src/campaigns.test.ts`.
 
 ## Known gaps
 

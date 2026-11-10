@@ -18,7 +18,7 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
-import { dslFeatures } from "./features.js";
+import { campaignDefinitionsOf, dslFeatures } from "./features.js";
 import { sha256Hex } from "./sha256.js";
 import { readPackInput, validatePack, type PackInput, type PackIssue, type ValidateOptions } from "./validate.js";
 
@@ -171,7 +171,7 @@ export function assemblePack(source: PackSource): PackInput {
     description: author.description,
     requires: {
       app: author.requires.app,
-      dslFeatures: dslFeatures(abilities),
+      dslFeatures: dslFeatures(abilities, campaignDefinitionsOf(campaigns)),
       packs: author.requires.packs ?? [],
     },
     contents: {

@@ -179,7 +179,7 @@ const describeGame = (game: SmokeGame): string => {
   // A pack hero's precon plays the Core scenario; a base precon is there to play the pack's scenario or modular set.
   const where =
     game.deck === SMOKE_BASE_DECK
-      ? ` at ${game.scenario}${game.modularSet ? ` with ${game.modularSet}` : ""}${game.difficulty ? `, ${game.difficulty}` : ""}`
+      ? ` at ${game.campaign ? `${game.campaign}/${game.node} (${game.scenario})` : game.scenario}${game.modularSet ? ` with ${game.modularSet}` : ""}${game.difficulty ? `, ${game.difficulty}` : ""}`
       : "";
   const head = `  ${game.deck}${where} seed ${game.seed}: `;
   if (!game.ok) return `${head}FAILED: ${game.error ?? "unknown error"}`;

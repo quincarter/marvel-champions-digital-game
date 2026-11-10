@@ -12,7 +12,7 @@ abilities/index.ts     default export: the pack's abilities, built with the DSL
 decks/                 optional: one StarterDeck record per file
 scenarios/             optional: one Scenario record per file (id `<pack-id>-<name>`)
 encounter-sets/        optional: one EncounterSet record per file (id `<pack-id>-<name>`): a nemesis set, a modular set, a scenario's own set
-campaigns/             optional: one campaign record per file, carried through untouched
+campaigns/             optional: one PackCampaign per file (id `<pack-id>-<name>`): a CampaignDefinition, a content record, an optional story
 art/                   images (copied to the pack as art/...)
 CREDITS.md             who made the pack and its art (required)
 PERMISSION.md          the creator's permission for the store to distribute it (required)
@@ -79,6 +79,12 @@ Browser-safe (`@mc/mod-sdk`):
   those from real defects, so a converted pack shows "valid, N abilities to script". `input` is `{ manifest, files, cards,
   abilities, decks?, scenarios?, encounterSets?, campaigns? }` (`PackInput`), so it runs without a disk. `readPackInput(manifest, files)` builds one
   from an unzipped pack.
+- Campaigns (`src/campaigns.ts`, docs/custom-content-packs.md §11.10): `validatePack` checks each `PackCampaign` (ids, declared
+  log fields, effects through the DSL validator, scenarios and sets resolving, story node ids) and holds the first version's
+  limits (linear graph, fixed scenarios, no market or roles, no expert campaign or elimination policy, base heroes). `dslFeatures(registry, campaignDefinitions)`
+  covers campaign instructions. From `@mc/mod-sdk/game`: `packCampaignRecords(packs)`, `packCampaignDefinitionOf(packs, id)`,
+  `packCampaignDefinitions(packs)`, `campaignDepsWithPacks(pool, packs)` (the campaign runner's deps) and
+  `campaignGameWithPacks(start, packs)` (the `GameSetupConfig` for a composed node). `mc-pack test` plays each campaign headlessly.
 - Games with a pack's scenarios and modular sets (`src/game.ts`; the client's seams):
   `scenarioWithPacks(scenarioId, options, packs)` is the `GameSetupConfig` for a base scenario or any scenario of the
   packs, with the packs' cards in the pool and their modular sets allowed in `options.modularSetIds` (mixed with base
