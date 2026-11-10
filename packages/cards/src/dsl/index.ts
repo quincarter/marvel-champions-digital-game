@@ -8,3 +8,4 @@ export * from "./effects.js";
 export * from "./extra-encounter-deck.js";
 export * from "./abilities.js";
 export * from "./validate.js";
+export * from "./engine-only-features.js";

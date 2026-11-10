@@ -1862,3 +1862,17 @@ export const playedThisRound = (atMost: number, opts: { cardType?: string; playe
   ...(opts.cardType ? { cardType: opts.cardType } : {}),
   atMost,
 });
+
+/**
+ * "If the last card you played this round was a Night Thrasher event, reduce the cost to play this card by 1."
+ * (Kickflip, a custom-content card): the most recent card `player` (default "you") played this round, by play order,
+ * matches `cards`; false when they have played nothing this round. As the condition of a cost reduction read from the
+ * hand it sees the play before this card's own (the play is recorded when it commits):
+ * `constant(costModifier({ delta: -1, appliesTo: { self: true }, activeIn: "hand", while: lastPlayedThisRound(
+ * query("event", { identitySetOf: you })) }))`.
+ */
+export const lastPlayedThisRound = (cards: TargetQuery, opts: { player?: PlayerRef } = {}): Predicate => ({
+  kind: "lastPlayedThisRound",
+  player: opts.player ?? you,
+  cards,
+});

@@ -1774,6 +1774,15 @@ export type Predicate =
       readonly atMost: number;
     }
   /**
+   * The last card `player` played this round matches `cards`: "If the last card you played this round was a [title]
+   * event, reduce the cost to play this card by 1" (a custom-content card, docs/custom-content-packs.md §6). Read from
+   * `GameState.playedInOrderThisRound`, so it is the most recent play by order, wherever that card is now (an event in
+   * the discard pile matches as the card it is). False when the player has played nothing this round. A card counts as
+   * played from the moment its play commits, so while a card resolves its own play is the last one; a cost reduction
+   * read from the hand (`CostModifierSpec activeIn: "hand"`) is read before the play commits and sees the play before.
+   */
+  | { readonly kind: "lastPlayedThisRound"; readonly player: PlayerRef; readonly cards: TargetQuery }
+  /**
    * Compares two live values: "if there is 10 or more threat here" (the Wrecking Crew signature side schemes) →
    * `{ left: { kind: "threat", of: self }, op: "atLeast", right: 10 }`.
    *
@@ -2856,7 +2865,20 @@ export type EffectSpec =
    * form's is (`RuleSpec blankTextBox`, docs/phase7-wave7.md §4.1 Q12 = A): both faces, keywords included, traits and
    * the printed stat line kept, and changing form restores nothing.
    */
-  | { readonly kind: "blankTextBox"; readonly target: TargetRef; readonly until: LastingUntil }
+  /**
+   * `forPlayers`: a blank for some players only. "Each player who discarded a card this way may treat this card's
+   * printed text box as if it were blank" (Cemented, a custom-content side scheme; docs/custom-content-packs.md §6):
+   * the players the ref names when the effect resolves treat the text box as blank, and nobody else does. The card
+   * keeps its abilities for the game and every other player; for those players its constant rules do not bind them
+   * (`ActiveRule.blankedFor`: a rule's `player` scope leaves them out, `cannotFlip` does not stop their flips) and its
+   * action abilities cannot be triggered by them. Absent: the blank is everyone's, as before.
+   */
+  | {
+      readonly kind: "blankTextBox";
+      readonly target: TargetRef;
+      readonly until: LastingUntil;
+      readonly forPlayers?: PlayerRef;
+    }
   /**
    * "You cannot change form **until your next turn ends**" (Care for Cassie, `ant` 12025) / "You cannot ready your
    * identity until your next turn ends" (Need for Speed, `qsv` 14024): a `RuleSpec` with a clock on it, as a

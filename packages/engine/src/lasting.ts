@@ -215,6 +215,11 @@ export type LastingEffectBody =
       readonly kind: "blankTextBox";
       readonly targets: readonly InstanceId[];
       readonly sourceCardId?: CardId;
+      /**
+       * A blank for these players only (`EffectSpec blankTextBox.forPlayers`): the card is not blank to the game, only
+       * to them (`textBoxBlankFor`). Absent: everyone's blank (`textBoxBlank`).
+       */
+      readonly forPlayers?: readonly PlayerId[];
       /** As `LastingReach.leftPlay`. */
       readonly leftPlay?: readonly InstanceId[];
     }

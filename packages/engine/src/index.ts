@@ -600,6 +600,8 @@ export {
   shownEncounterTop,
   TOGETHER_TARGETS_SLOT,
   textBoxBlankFor,
+  textBoxBlankedFor,
+  textBoxBlankToPlayer,
   villainAliasOf,
   traitsOf,
 } from "./select.js";

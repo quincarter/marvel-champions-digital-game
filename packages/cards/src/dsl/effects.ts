@@ -1328,11 +1328,25 @@ export const gainTraitsOfUntil = (
  * Giant Robot). On an identity the whole card is blank, both faces and its keywords, traits and the stat line kept
  * (RRG 1.8 "Text Box", p. 44; "Traits", p. 45), as under the constant `blanksTextBox`.
  */
-export const blankTextBoxUntil = (target: TargetRef, until: LastingUntil): EffectSpec => ({
+export const blankTextBoxUntil = (
+  target: TargetRef,
+  until: LastingUntil,
+  opts: { readonly forPlayers?: PlayerRef } = {},
+): EffectSpec => ({
   kind: "blankTextBox",
   target,
   until,
+  ...(opts.forPlayers ? { forPlayers: opts.forPlayers } : {}),
 });
+/**
+ * "Each player who discarded a card this way may treat this card's printed text box as if it were blank until the end
+ * of the phase" (Cemented, a custom-content side scheme): a blank for the players `players` names only (engine
+ * `EffectSpec blankTextBox.forPlayers`). The card keeps its text for the game and everyone else; for those players its
+ * constant rules do not bind them and its actions are not theirs to trigger. Inside `forEachPlayer`, `thatPlayer`
+ * names the player the iteration is on: `blankTextBoxForPlayers(self, thatPlayer, "endOfPhase")`.
+ */
+export const blankTextBoxForPlayers = (target: TargetRef, players: PlayerRef, until: LastingUntil): EffectSpec =>
+  blankTextBoxUntil(target, until, { forPlayers: players });
 /**
  * A `RuleSpec` restriction that outlives its own card — "You cannot change form until your next turn ends." (Care
  * for Cassie, `ant` 12025) / "You cannot ready your identity until your next turn ends." (Need for Speed, `qsv`

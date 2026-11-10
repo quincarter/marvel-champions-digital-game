@@ -1579,7 +1579,7 @@ export function explainQuery(
       if (formOnlyFault(state, id, forPlayer) !== null) return "cannotEnterPlay";
     }
   }
-  if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
+  if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id, context.controllerId)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
     if (printedResourcesOf(state, id, context.deps)[query.printedResource] <= 0) return "missingPrintedResource";
@@ -2027,6 +2027,12 @@ export interface ActiveRule<K extends RuleSpec["kind"]> {
   readonly speakerId: PlayerId | null;
   /** A `ruleGrant` lasting effect's duration; absent for a constant ability's rule and a scenario's. */
   readonly lastingUntil?: LastingDuration;
+  /**
+   * The players who treat the rule's card as blank (`textBoxBlankedFor`, `EffectSpec blankTextBox.forPlayers`): the
+   * rule does not bind them. Only a constant ability's rule has it (a lasting rule outlives the card's text box, RRG
+   * 1.8 "Lasting Effects", p. 26); absent when nobody does. `rulePlayers` leaves them out; `ruleBindsPlayer` asks it.
+   */
+  readonly blankedFor?: readonly PlayerId[];
 }
 
 /**
@@ -2044,15 +2050,23 @@ export function activeRules<K extends RuleSpec["kind"]>(
   kind: K,
 ): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
-  const record = (rule: RuleSpec, context: EffectContext, lastingUntil?: LastingDuration) => {
+  const record = (
+    rule: RuleSpec,
+    context: EffectContext,
+    lastingUntil?: LastingDuration,
+    blankedFor?: readonly PlayerId[],
+  ) => {
     found.push({
       rule: rule as Extract<RuleSpec, { kind: K }>,
       context,
       speakerId: context.controllerId,
       ...(lastingUntil ? { lastingUntil } : {}),
+      ...(blankedFor && blankedFor.length > 0 ? { blankedFor } : {}),
     });
   };
+  const perPlayerBlanks = anyPerPlayerBlank(state);
   for (const sourceId of constantSources(state, deps)) {
+    const blankedFor = perPlayerBlanks ? textBoxBlankedFor(state, sourceId, deps) : undefined;
     for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant") continue;
@@ -2069,7 +2083,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
           ...reachOf(definition),
         };
         if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
-        record(rule, context);
+        record(rule, context, undefined, blankedFor);
       }
     }
   }
@@ -2281,12 +2295,19 @@ export function shownEncounterTop(state: GameState, deps: EngineDeps): InstanceI
   return encounterTopFaceup(state, deps) ? top : null;
 }
 
-/** The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`). */
+/**
+ * The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`), less any who
+ * treat the rule's card as blank (`ActiveRule.blankedFor`, a per-player blank).
+ */
 export const rulePlayers = (
   state: GameState,
   rule: { readonly player: PlayerRef },
-  active: Pick<ActiveRule<RuleSpec["kind"]>, "context">,
-): readonly PlayerId[] => resolvePlayers(state, rule.player, active.context);
+  active: Pick<ActiveRule<RuleSpec["kind"]>, "context" | "blankedFor">,
+): readonly PlayerId[] => {
+  const players = resolvePlayers(state, rule.player, active.context);
+  const blanked = active.blankedFor;
+  return blanked && blanked.length > 0 ? players.filter((playerId) => !blanked.includes(playerId)) : players;
+};
 
 const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps): boolean =>
   cardsInPlay(state).some(
@@ -2443,6 +2464,8 @@ function bindsAttacker(
   // "You cannot make basic attacks" (`basicOnly`, docs/phase7-wave9.md §3.72): only a basic attack is asked.
   if (active.rule.basicOnly === true && !basic) return false;
   if (attacker && !matchesQuery(state, attackerId, attacker, active.context)) return false;
+  // A player who treats the rule's card as blank is not bound by it (a per-player blank, `ActiveRule.blankedFor`).
+  if (!ruleBindsPlayer(active, attackerPlayerId)) return false;
   if (player && (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId))) {
     return false;
   }
@@ -3647,6 +3670,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
           : (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0);
       return played <= predicate.atMost;
     }
+    case "lastPlayedThisRound": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      if (playerId === undefined) return false;
+      const last = state.playedInOrderThisRound?.[playerId]?.at(-1);
+      return last !== undefined && matchesQuery(state, last, predicate.cards, context);
+    }
     case "compare": {
       const left = resolveValue(state, predicate.left, context);
       const right = resolveValue(state, predicate.right, context);
@@ -4112,6 +4141,42 @@ export function refsLiveUnderLastingBlank(
 }
 
 /**
+ * The players who treat this card's printed text box as blank though the game does not (`EffectSpec blankTextBox
+ * .forPlayers`, Cemented's "each player who discarded a card this way may treat this card's printed text box as if it
+ * were blank"): each player a per-player blank on it names, unless the card cannot be blanked (§3.31 of wave 5) or its
+ * Permanent keyword stops that blank (§4.1 Q31), as for everyone's blank. Empty in every game with no such blank.
+ */
+export function textBoxBlankedFor(state: GameState, id: InstanceId, deps: EngineDeps): readonly PlayerId[] {
+  const players = new Set<PlayerId>();
+  for (const effect of state.lastingEffects) {
+    if (effect.kind !== "blankTextBox" || effect.forPlayers === undefined || !effect.targets.includes(id)) continue;
+    if (permanentProtectsFrom(state, id, effect.sourceCardId, deps)) continue;
+    for (const playerId of effect.forPlayers) players.add(playerId);
+  }
+  if (players.size === 0 || textBoxCannotBeBlanked(state, id, deps)) return [];
+  return [...players];
+}
+
+/** Whether this player treats this card's printed text box as blank: everyone's blank, or one for them alone. */
+export const textBoxBlankToPlayer = (state: GameState, id: InstanceId, playerId: PlayerId, deps: EngineDeps): boolean =>
+  textBoxBlankedFor(state, id, deps).includes(playerId) || textBoxBlankFor(state, id, deps);
+
+/** Whether any per-player blank is in force: the cheap guard the hot readers (`activeRules`) check first. */
+const anyPerPlayerBlank = (state: GameState): boolean =>
+  state.lastingEffects.some((effect) => effect.kind === "blankTextBox" && effect.forPlayers !== undefined);
+
+/**
+ * Whether a rule binds this player, as far as a per-player blank goes (`ActiveRule.blankedFor`): false when the player
+ * treats the rule's card as blank. The readers of rules that bind players with no `player` scope ask it ("Players
+ * cannot make basic attacks", `cannotAttack` with no `player`; `cannotFlip`; `cannotThwart`); a scoped rule's players
+ * already leave them out (`rulePlayers`).
+ */
+export const ruleBindsPlayer = (
+  active: Pick<ActiveRule<RuleSpec["kind"]>, "blankedFor">,
+  playerId: PlayerId | null,
+): boolean => playerId === null || !(active.blankedFor ?? []).includes(playerId);
+
+/**
  * Whether a lasting blank reaches this card right now: one targets it, the card does not print "cannot be treated as if
  * it were blank" (§3.31 of wave 5), and at least one such blank is from a card its Permanent keyword lets through.
  */
@@ -4120,6 +4185,7 @@ function lastingBlankReaches(state: GameState, id: InstanceId, deps: EngineDeps)
   return state.lastingEffects.some(
     (effect) =>
       effect.kind === "blankTextBox" &&
+      effect.forPlayers === undefined &&
       effect.targets.includes(id) &&
       !permanentProtectsFrom(state, id, effect.sourceCardId, deps),
   );

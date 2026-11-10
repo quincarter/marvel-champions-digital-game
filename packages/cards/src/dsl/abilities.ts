@@ -1485,6 +1485,10 @@ export const reducesAttackDamageTaken = (
     readonly exceptAttacker?: TargetQuery;
     readonly exceptAttackCard?: TargetQuery;
     readonly exceptAttackKeyword?: AttackKeyword;
+    /** Only an attack whose attacking character matches (`RuleSpec reduceDamageTaken.onlyAttacker`). */
+    readonly onlyAttacker?: TargetQuery;
+    /** Only an enemy attack nobody defends (`RuleSpec reduceDamageTaken.onlyUndefended`). */
+    readonly onlyUndefended?: boolean;
     readonly while?: Predicate;
   } = {},
 ): ConstantPart =>
@@ -1496,8 +1500,28 @@ export const reducesAttackDamageTaken = (
     ...(opts.exceptAttacker ? { exceptAttacker: opts.exceptAttacker } : {}),
     ...(opts.exceptAttackCard ? { exceptAttackCard: opts.exceptAttackCard } : {}),
     ...(opts.exceptAttackKeyword ? { exceptAttackKeyword: opts.exceptAttackKeyword } : {}),
+    ...(opts.onlyAttacker ? { onlyAttacker: opts.onlyAttacker } : {}),
+    ...(opts.onlyUndefended ? { onlyUndefended: true } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
+/** "Villain and villainous attacks": the attacker is a villain or has the villainous keyword (printed or granted). */
+export const VILLAIN_OR_VILLAINOUS: TargetQuery = {
+  anyOf: [{ categories: ["villain"] }, { withKeyword: "villainous" }],
+};
+/**
+ * **Agile X**, a custom-content keyword with no RRG entry, defined by its reminder text: "reduce damage taken from
+ * undefended villain and villainous attacks by X" (Night Thrasher's Battle Board, DesignHacker; the author confirmed it
+ * reaches undefended attacks only). Not a printed keyword (`KeywordInstance` is the official list): a constant
+ * `reduceDamageTaken` with `onlyUndefended` and `onlyAttacker: VILLAIN_OR_VILLAINOUS`, so it stacks with every other
+ * reduction, is read before tough (RRG 1.8 FAQ p. 58) and is skipped by "cannot be reduced" damage like any constant.
+ * "Night Thrasher gains agile 1" on an upgrade: `constant(agile(1, { categories: ["hero"], controller: "you" }))`.
+ */
+export const agile = (
+  x: number | ValueSpec,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  reducesAttackDamageTaken(target, x, { onlyAttacker: VILLAIN_OR_VILLAINOUS, onlyUndefended: true, ...opts });
 /**
  * "Double the amount of damage this minion takes from cards with a printed [energy] resource" (Dragon, 39042):
  * `constant(doubleDamageTaken({ self: true }, { fromSource: { printedResource: "energy" } }))`; "Attacks with piercing

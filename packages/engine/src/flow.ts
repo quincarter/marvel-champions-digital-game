@@ -832,8 +832,10 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
   }
   clearAbilityUses(ctx, "round");
   // "Max X per round" and "first … each round" count again from zero.
+  // "The last card you played this round" (`playedInOrderThisRound`): removed, so a round with no play has no record.
+  const { playedInOrderThisRound: _inOrder, ...previous } = ctx.state;
   ctx.state = {
-    ...ctx.state,
+    ...previous,
     round: ctx.state.round + 1,
     playedThisRound: {},
     playedThisPhase: {},

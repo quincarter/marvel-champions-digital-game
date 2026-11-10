@@ -54,6 +54,7 @@ import {
   resolveValue,
   restrictedWeightOf,
   rulePlayers,
+  ruleBindsPlayer,
   textBoxBlankFor,
   timingWordOf,
   traitsOf,
@@ -141,6 +142,12 @@ export interface DamageAttackInfo {
   readonly attackerInstanceId: InstanceId | null;
   readonly cardInstanceId: InstanceId | null;
   readonly keywords: readonly AttackKeyword[];
+  /**
+   * An enemy attack that nobody defends as its damage is dealt: the attack's `undefended` result (RRG 1.8 "Attack
+   * (Enemy Activation)", steps 2 and 5, p. 9; "Undefended", p. 46), read off the activation frame the damage belongs
+   * to. Absent (false) for a player's attack and for damage read before it is dealt. `reduceDamageTaken.onlyUndefended`.
+   */
+  readonly undefended?: boolean;
 }
 
 /** The "unless the attacker or attack …" exceptions of a damage rule (`cannotTakeDamage`, `reduceDamageTaken`). */
@@ -587,7 +594,7 @@ export const cannotThwart = (
     }
     if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, context))) return false;
     if (rule.player) return rulePlayers(state, { player: rule.player }, active).includes(playerId);
-    return true;
+    return ruleBindsPlayer(active, playerId);
   });
 
 /** A tucked card a player may spend as if it were in their hand, and the card it is tucked under. */
@@ -1483,9 +1490,18 @@ export const cannotLeavePlay = (
 /**
  * "You cannot flip your [name] upgrades" (`cannotFlip`, docs/phase7-wave7.md §3.64): whether a rule stops this card in
  * play being turned to its other face. "Your" is the rule card's speaker (an obligation's player, RRG 1.8 p. 30).
+ * `byPlayer`: the player making the flip (the resolving ability's controller); a rule whose card that player treats as
+ * blank does not stop it (a per-player blank, `ruleBindsPlayer`). Null or absent: every rule is read.
  */
-export const cannotFlip = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotFlip").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+export const cannotFlip = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  byPlayer: PlayerId | null = null,
+): boolean =>
+  activeRules(state, deps, "cannotFlip").some(
+    (active) => ruleBindsPlayer(active, byPlayer) && matchesQuery(state, id, active.rule.target, active.context),
+  );
 
 /**
  * "Card abilities cannot remove this ally from play" (`cannotLeavePlay` with `by: "cardAbilities"`) on its own, for a
@@ -1663,6 +1679,12 @@ export function damageTakenBreakdown(
     // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30); "… unless the attacker or attack has
     // the [AERIAL] trait, or the attack has ranged" (docs/phase7-wave9.md §3.25).
     if (attackMeetsException(state, source?.attack, rule, context)) continue;
+    // "… from undefended villain and villainous attacks" (Agile X, a custom-content keyword; the rule's positive filters).
+    if (rule.onlyUndefended === true && source?.attack?.undefended !== true) continue;
+    if (rule.onlyAttacker !== undefined) {
+      const attacker = source?.attack?.attackerInstanceId ?? null;
+      if (attacker === null || !matchesQuery(state, attacker, rule.onlyAttacker, context)) continue;
+    }
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) {
       taken -= reductionAmount(state, deps, rule.amount, context);
     }

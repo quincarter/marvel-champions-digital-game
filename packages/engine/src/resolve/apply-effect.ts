@@ -2657,7 +2657,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of targets(effect.target)) {
         if (!inPlay.includes(id)) continue;
         // "You cannot flip …" (`cannotFlip`, docs/phase7-wave7.md §3.64): this card stays; the others still flip.
-        if (cannotFlip(ctx.state, ctx.deps, id)) {
+        if (cannotFlip(ctx.state, ctx.deps, id, context.controllerId)) {
           emit(ctx, { type: "flipBlocked", instanceId: id });
           continue;
         }
@@ -3766,7 +3766,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Which card made the blank, for the Permanent keyword's same-set exception (docs/phase7-wave5.md §4.1 Q31).
       const sourceCardId = frame.selfInstanceId ? getInstance(ctx.state, frame.selfInstanceId)?.cardId : undefined;
       const source = sourceCardId ? { sourceCardId } : {};
-      addLastingEffect(ctx, { kind: "blankTextBox", targets: ids, ...source }, duration);
+      // A blank for some players only (Cemented's "each player who discarded … may treat … as blank"): none named, none.
+      const forPlayers = effect.forPlayers ? resolvePlayers(ctx.state, effect.forPlayers, context) : undefined;
+      if (forPlayers?.length === 0) return;
+      addLastingEffect(
+        ctx,
+        { kind: "blankTextBox", targets: ids, ...source, ...(forPlayers ? { forPlayers } : {}) },
+        duration,
+      );
       return;
     }
     case "atEndOfRound":

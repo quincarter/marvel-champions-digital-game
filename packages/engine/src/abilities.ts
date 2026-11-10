@@ -1995,6 +1995,19 @@ export type RuleSpec =
        */
       readonly exceptAttackCard?: TargetQuery;
       readonly exceptAttackKeyword?: AttackKeyword;
+      /**
+       * The positive filters, the mirror of the exceptions: the reduction applies only to an attack's damage whose
+       * attacking character matches `onlyAttacker`, and with `onlyUndefended`, only to an enemy attack nobody defends
+       * when its damage is dealt (`DamageAttackInfo.undefended`: the attack's `undefended` result, RRG 1.8 "Attack
+       * (Enemy Activation)" step 2, "Undefended", p. 46). Damage with no attacker is never reduced by either.
+       *
+       * Agile X, a custom-content keyword defined by its reminder text, "reduce damage taken from undefended villain
+       * and villainous attacks by X" (docs/custom-content-packs.md §6; the DSL's `agile`), is `fromAttack`,
+       * `onlyUndefended` and `onlyAttacker: anyOf(villain, withKeyword villainous)`. A player's attack is never
+       * undefended, so `onlyUndefended` reaches enemy attacks only.
+       */
+      readonly onlyAttacker?: TargetQuery;
+      readonly onlyUndefended?: boolean;
       /** Only an ally's consequential damage: "Cannonball takes -1 consequential damage after …" (§3.31). */
       readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;

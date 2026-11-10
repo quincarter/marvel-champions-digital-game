@@ -284,6 +284,7 @@ import {
   resolveRef,
   resolveValue,
   speakerOf,
+  textBoxBlankedFor,
   traitsOf,
   triggeringPlayers,
   type EffectContext,
@@ -3241,7 +3242,8 @@ export function planCost(
     if (!cardsInPlay(state).includes(sourceId) || !(card && "flipSide" in card && card.flipSide)) {
       return { code: "card_not_in_zone", message: "the card must be in play with another face to pay this cost" };
     }
-    if (cannotFlip(state, deps, sourceId)) return { code: "no_valid_target", message: "this card cannot be flipped" };
+    if (cannotFlip(state, deps, sourceId, playerId))
+      return { code: "no_valid_target", message: "this card cannot be flipped" };
   }
   // A counter cost whose amount the board gives (a `ValueSpec`, hero-pack spec H3.5) is read below, once the cost's
   // picks are bound; a fixed one is checked here.
@@ -5356,6 +5358,11 @@ export function commitPlay(
       ...ctx.state.playedByPlayerThisPhase,
       [playerId]: [...(ctx.state.playedByPlayerThisPhase?.[playerId] ?? []), cardInstanceId],
     },
+    // "If the last card you played this round was …" (`Predicate lastPlayedThisRound`): this player's plays, in order.
+    playedInOrderThisRound: {
+      ...ctx.state.playedInOrderThisRound,
+      [playerId]: [...(ctx.state.playedInOrderThisRound?.[playerId] ?? []), cardInstanceId],
+    },
     // "…if you have played a [Thwart] event this turn" (docs/phase7-wave3.md §3.24); only during a player's turn.
     ...(turnInProgress(ctx.state)
       ? {
@@ -6393,6 +6400,10 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   }
   if (!activeAbilityRefs(ctx.state, command.cardInstanceId, ctx.deps).some((ref) => ref.id === command.abilityId)) {
     return engineError("no_valid_target", `${command.abilityId} is not active on that card`, command);
+  }
+  // A player who treats the card's text box as blank (a per-player blank, `textBoxBlankedFor`) has no ability on it.
+  if (textBoxBlankedFor(ctx.state, command.cardInstanceId, ctx.deps).includes(command.playerId)) {
+    return engineError("no_valid_target", `you treat that card's text box as blank`, command);
   }
   // An ability that works in hand works only there, and only for the hand's owner; every other ability only in play
   // (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13).

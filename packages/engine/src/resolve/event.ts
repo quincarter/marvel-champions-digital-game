@@ -1457,7 +1457,16 @@ function damageAttackInfo(ctx: Ctx, event: DamageEvent): DamageAttackInfo | unde
             (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps))) &&
             !attackLost(ctx, event, name),
         );
-  return { attackerInstanceId: source, cardInstanceId: event.viaInstanceId ?? null, keywords };
+  // The enemy attack's `undefended` result on the activation frame this damage belongs to (step 5 marks an attack
+  // whose defender left play; a late defender withdraws it), for `reduceDamageTaken.onlyUndefended`.
+  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
+  const undefended = parent?.kind === "event" && (parent.vars.undefended ?? 0) > 0;
+  return {
+    attackerInstanceId: source,
+    cardInstanceId: event.viaInstanceId ?? null,
+    keywords,
+    ...(undefended ? { undefended: true } : {}),
+  };
 }
 
 /** Whether a "cannot take damage" rule stops this damage, read with its sources and its attack (`cannotTakeDamage`). */

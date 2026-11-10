@@ -1334,6 +1334,15 @@ export interface GameState {
    */
   readonly playedByPlayerThisPhase?: Readonly<Record<string, readonly InstanceId[]>>;
   /**
+   * The cards each player has played **this round**, in play order: "If the last card you played this round was a
+   * [title] event, reduce the cost to play this card by 1" (`Predicate lastPlayedThisRound`; a custom-content card,
+   * docs/custom-content-packs.md §6). `playedThisRound` and `playedByPlayerThisRound` count by title and by type and
+   * so lose the order. Written when a play commits (with the other play records, so a card that is canceled later still
+   * counts as played, RRG 1.8 "Max, Maximum", p. 28); removed when the round ends, where `playedThisRound` is emptied.
+   * Absent until a round's first play, so an older save reads as nothing played.
+   */
+  readonly playedInOrderThisRound?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
    * The scenario's own out-of-play game areas by name (`ZoneId scenarioArea`; The Collection, docs/phase7-wave3.md
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
    */

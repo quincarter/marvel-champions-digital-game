@@ -729,7 +729,9 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
  * (ruling, Apr 30, 2026 (3) answer 4).
  */
 export const textBoxBlank = (state: GameState, id: InstanceId): boolean =>
-  state.lastingEffects.some((effect) => effect.kind === "blankTextBox" && effect.targets.includes(id));
+  state.lastingEffects.some(
+    (effect) => effect.kind === "blankTextBox" && effect.forPlayers === undefined && effect.targets.includes(id),
+  );
 
 /** Whether this card sits in any encounter discard pile. */
 export const inAnyEncounterDiscard = (state: GameState, id: InstanceId): boolean =>

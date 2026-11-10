@@ -456,7 +456,7 @@ function judgedCanAffect(
   if (effect.kind === "attack") return attackCanDamage(state, deps, effect, id, context);
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   // "You cannot flip …" (docs/phase7-wave7.md §3.64): a card a `cannotFlip` rule names is no target for a flip.
-  if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
+  if (effect.kind === "flipCard") return !cannotFlip(state, deps, id, context.controllerId);
   // A card a `cannotBeHealed` rule names for this source is no target for its heal (Ruling 125, Dec 8, 2023).
   if (effect.kind === "heal") return !cannotBeHealed(state, deps, id, context.selfInstanceId);
   if (effect.kind === "ready") return canBeReadied(state, deps, id, context.selfInstanceId);

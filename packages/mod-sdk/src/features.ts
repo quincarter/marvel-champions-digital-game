@@ -1,4 +1,4 @@
-import { CAMPAIGNS, PLAYABLE_DEPS, campaignInstructionsOf } from "@mc/cards";
+import { CAMPAIGNS, ENGINE_ONLY_DSL_EXAMPLES, PLAYABLE_DEPS, campaignInstructionsOf } from "@mc/cards";
 import type { AbilityRegistry, CampaignDefinition } from "@mc/engine";
 
 /**
@@ -196,6 +196,10 @@ function visit(value: Json, slot: Slot, found: Set<string>, isPattern = false): 
  * Every feature this build of the game's own scripts use: the walk over the whole playable registry. A pack whose
  * `requires.dslFeatures` has a key outside this list is refused as "needs an app update" (§6). The engine's types
  * are erased at runtime, so this is what the base game exercises rather than every discriminant the types allow; a
- * new primitive a pack needs and no base card uses has to ship with a base card or be added here.
+ * new primitive a pack needs and no base card uses has to ship with a base card or an example definition in
+ * `@mc/cards`' `ENGINE_ONLY_DSL_EXAMPLES`, which is walked with the registry.
  */
-export const SUPPORTED_DSL_FEATURES: readonly string[] = dslFeatures(PLAYABLE_DEPS.abilities, Object.values(CAMPAIGNS));
+export const SUPPORTED_DSL_FEATURES: readonly string[] = dslFeatures(
+  { ...PLAYABLE_DEPS.abilities, ...ENGINE_ONLY_DSL_EXAMPLES },
+  Object.values(CAMPAIGNS),
+);
