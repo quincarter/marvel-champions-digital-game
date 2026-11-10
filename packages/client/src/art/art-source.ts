@@ -24,10 +24,11 @@
  * is testable without a canvas and without the network.
  */
 
-import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
+import { isCustomCardCode, type AnyCard, type ArtRef, type ImageRef } from "@mc/content";
 import { availableCardLanguages, cardLanguage, type CardLanguage } from "./card-language.js";
 import { announceLanguageChange } from "../language-change.js";
 import { BALANCED_SCANS, BALANCED_SCAN_STEMS } from "./balanced-scans.js";
+import { packArtFor } from "./pack-art.js";
 
 /** The URL prefix every scan is served under. `vite-card-art.ts` imports this, so the two cannot drift. */
 export const CARD_ART_ROUTE = "/card-art/";
@@ -165,6 +166,8 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
     return face.standIn && shownStandIns.has(face.standIn.kind) ? standInArt(face.standIn) : CARD_BACKS[face.back];
   }
   if (!card) return null;
+  // A custom card's picture is a file of its installed pack, never a scan under `assets/card-art/` (`pack-art.ts`).
+  if (isCustomCardCode(card.id as string)) return packArtFor(card.id as string, artLanguage);
   const local = localRefFor(card, face);
   if (local) return promoOrFace(`${local as string}.png`);
   const upstream = imageRefFor(card, face);

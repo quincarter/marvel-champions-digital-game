@@ -19,17 +19,19 @@
  * difficulty/modular set/first-player seat is marked with a 4px **red
  * border** on an otherwise-white card, never a red or ink fill.
  */
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import Phaser from "phaser";
 import type { Deck, Scenario } from "@mc/content";
 import {
   buildScenario,
   CARDS_BY_ID,
-  POOL_CARDS,
-  POOL_DEPS,
   POOL_ENCOUNTER_SETS,
   packNameOf,
   POOL_SCENARIOS,
   POOL_VERSION,
+  currentCardsById,
+  currentDeps,
+  currentPool,
 } from "../content/pool.js";
 import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -338,6 +340,7 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   create(): void {
+    rebuildOnPackChange(this, () => this.#rebuild());
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.#compactScroll = new VariableListScroll();
@@ -412,7 +415,7 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   #deckOptions(): readonly DeckOption[] {
-    return seatableDeckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    return seatableDeckOptionsOf(this.#savedDecks, currentPool(), POOL_VERSION, currentDeps());
   }
 
   /** The draft's scenario as it is played: the record, with the chosen villain in place of the default one (Fear No Evil). */
@@ -2618,7 +2621,7 @@ export class TableSetupScene extends Phaser.Scene {
 
   /** A seat's hero picture; on desktop it opens the identity card's hover popover like any card picture. */
   #drawSeatAvatar(rect: Rect, cell: SeatCell, phone: boolean): void {
-    const identity = cell.identityCardId ? CARDS_BY_ID.get(cell.identityCardId) : undefined;
+    const identity = cell.identityCardId ? currentCardsById().get(cell.identityCardId) : undefined;
     drawHeroAvatar(this, rect, identity, surface.ink.hex);
     if (cell.identityCardId)
       this.#hoverFaces.push({ cardId: cell.identityCardId, rect, region: phone ? "page" : "none" });

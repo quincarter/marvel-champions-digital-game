@@ -32,6 +32,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 import { onLanguageChange } from "../language-change.js";
+import { releasePackArt } from "./pack-art.js";
 
 /**
  * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
@@ -305,6 +306,8 @@ export class CardArt {
       this.#lastUsed.delete(key);
       this.#requested.delete(key);
       if (scene.textures.exists(key)) scene.textures.remove(key);
+      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again).
+      releasePackArt(key);
     }
   }
 

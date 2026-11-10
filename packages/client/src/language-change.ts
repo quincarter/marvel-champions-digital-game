@@ -23,3 +23,11 @@ export function onLanguageChange(listener: () => void): () => void {
 export function announceLanguageChange(): void {
   for (const listener of [...listeners]) listener();
 }
+
+/**
+ * Something a card's picture depends on changed without the language changing (an installed pack's pictures became
+ * available, `art/pack-art.ts`): every subscriber redraws and asks for its art again, as after a language switch.
+ */
+export function announceArtChange(): void {
+  announceLanguageChange();
+}

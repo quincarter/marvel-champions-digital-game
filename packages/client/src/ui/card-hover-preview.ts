@@ -15,6 +15,7 @@ import { cardOf, getInstance, type InstanceId } from "@mc/engine";
 import { CARD_BACKS, defaultFaceFor, isStandInArt, type ArtSource, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { gameDeps, gameCardsById } from "../content/game-deps.js";
+import { currentCardsById } from "../content/pool.js";
 import type { FacedownHover } from "../scenes/board/context.js";
 import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
@@ -381,7 +382,7 @@ export class HoverPreview {
     const slot = hoverCardIdAt(x, y, plain, topmost);
     const cardId = slot === null ? undefined : plain.get(slot)?.cardId;
     if (slot === null || cardId === undefined) return null;
-    const type = gameCardsById().get(cardId)?.type;
+    const type = (gameCardsById().get(cardId) ?? currentCardsById().get(cardId))?.type;
     if (type === "hero_identity" && !settings.hoverHeroCard) return null;
     if (type === "villain" && !settings.hoverVillainCard) return null;
     return hoverKeyOfCardId(slot);
@@ -677,7 +678,8 @@ export class HoverPreview {
     readonly size: Size;
     readonly waitingFor: string | null;
   } | null {
-    const card = gameCardsById().get(cardId);
+    // A card named by id outside a game (the Mod Store gallery) is looked up in what is installed now.
+    const card = gameCardsById().get(cardId) ?? currentCardsById().get(cardId);
     if (!card) return null;
     const faceModel = cardInspectModel(card, face ?? defaultFaceFor(card));
     const model = art ? { ...faceModel, art } : faceModel;

@@ -303,6 +303,63 @@ export function currentDeps(): EngineDeps {
   return currentPoolView().deps;
 }
 
+/** `POOL_VERSION`, plus every loaded pack's id and version: what a cache of anything derived from `currentPool()` is keyed by. */
+export function currentPoolKey(): string {
+  const packs = loadedPacks();
+  return packs.length === 0
+    ? POOL_VERSION
+    : `${POOL_VERSION}+${packs.map((pack) => `${pack.id}@${pack.version}`).join(",")}`;
+}
+
+const STARTER_VIEWS = new WeakMap<object, readonly StarterDeck[]>();
+
+/**
+ * Every precon the app offers right now: `POOL_STARTER_DECKS` plus the precons of every loaded pack (a pack deck never
+ * takes a base deck's id, `active-packs.ts`), or `POOL_STARTER_DECKS` itself when no pack is loaded. The same array until
+ * the loaded packs change, so what is cached against it stays valid.
+ */
+export function currentStarterDecks(): readonly StarterDeck[] {
+  const packs = loadedPacks();
+  if (packs.length === 0) return POOL_STARTER_DECKS;
+  let decks = STARTER_VIEWS.get(packs);
+  if (!decks) {
+    decks = [...POOL_STARTER_DECKS, ...packs.flatMap((pack) => pack.decks)];
+    STARTER_VIEWS.set(packs, decks);
+  }
+  return decks;
+}
+
+const SHELF_VIEWS = new WeakMap<object, readonly ShelfPack[]>();
+
+/** The shelf every installed custom pack's heroes share, after every release wave. */
+export const CUSTOM_SHELF_ID = "custom-packs";
+
+/**
+ * `POOL_HERO_SHELF_PACKS` plus one entry per loaded pack, all on one "Custom packs" shelf after the last wave, so a pack
+ * hero's precon lands on a shelf instead of being dropped as a pack the roster does not know.
+ */
+export function currentHeroShelfPacks(): readonly ShelfPack[] {
+  const packs = loadedPacks();
+  if (packs.length === 0) return POOL_HERO_SHELF_PACKS;
+  let shelf = SHELF_VIEWS.get(packs);
+  if (!shelf) {
+    const order = Math.max(0, ...POOL_HERO_SHELF_PACKS.map((pack) => pack.cycleOrder)) + 1;
+    shelf = [
+      ...POOL_HERO_SHELF_PACKS,
+      ...packs.flatMap((pack) =>
+        [...new Set([pack.id, ...pack.decks.map((deck) => deck.packCode as string)])].map((code): ShelfPack => ({
+          code,
+          cycleId: CUSTOM_SHELF_ID,
+          cycleName: "Custom packs",
+          cycleOrder: order,
+        })),
+      ),
+    ];
+    SHELF_VIEWS.set(packs, shelf);
+  }
+  return shelf;
+}
+
 function currentPoolView(): PoolView {
   const packs = loadedPacks();
   if (view.packs !== packs && !(packs.length === 0 && view === BASE_VIEW)) {
@@ -449,7 +506,12 @@ export const POOL_PACKS: readonly Pack[] = [
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
 export function packNameOf(code: string): string {
-  return POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
+  return (
+    POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ??
+    // An installed custom pack's cards and precons carry its id as their set and pack code.
+    loadedPacks().find((pack) => pack.id === code)?.name ??
+    code
+  );
 }
 
 /**

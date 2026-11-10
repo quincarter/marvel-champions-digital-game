@@ -43,7 +43,7 @@
  *
  * Pure: no storage, no Phaser. `progression.ts` owns the cache and the saved preferences.
  */
-import type { Scenario } from "@mc/content";
+import { isCustomCardCode, type Scenario } from "@mc/content";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
@@ -594,6 +594,8 @@ export class Unlocks {
 
   /** Null when the hero may sit at a table; otherwise what opens it. */
   heroLock(identityCardId: string): string | null {
+    // An installed custom pack's hero is not on the unlock path: it seats whenever the pack is installed.
+    if (isCustomCardCode(identityCardId)) return null;
     if (this.heroEarned(identityCardId) || this.heroManual(identityCardId)) return null;
     const waveLock = this.waveLock(heroCycleOf(identityCardId));
     if (waveLock) return waveLock;

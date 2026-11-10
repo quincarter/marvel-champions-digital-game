@@ -18,6 +18,7 @@
  * be legal?" (`#seatOptionsExcludingActive`) rather than "is this legal to
  * add as a fifth seat?", which always said no once four seats were filled.
  */
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import { drawRingImage } from "./board/team-up-badge.js";
@@ -42,17 +43,19 @@ import type { PromoSet } from "../art/promo-art.js";
 import type { HeroArt } from "../settings.js";
 import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
-import type { CardId, CoreAspect, Deck } from "@mc/content";
+import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import {
-  CARDS_BY_ID,
-  POOL_CARDS,
-  POOL_DEPS,
   POOL_ENCOUNTER_SETS,
-  POOL_HERO_SHELF_PACKS,
   POOL_VERSION,
+  currentCardsById,
+  currentDeps,
+  currentHeroShelfPacks,
+  currentPool,
   packNameOf,
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
+import { packPictureFor } from "../art/pack-art.js";
+import { customBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { accent, dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -206,12 +209,12 @@ const LIST_STOP = /^(rec-toggle|drill-back|hero-clear|hero:.*|hero-rec:.*)$/;
 
 /** What shuts a deck to this player: a precon's hero, or a tested community deck's hero or card wave. Null when it may be seated. */
 function deckLockOf(deck: Deck): string | null {
-  return testedDeckLockOf(deck, testedCatalog(), POOL_CARDS, unlocks()) ?? unlocks().deckLock(deck);
+  return testedDeckLockOf(deck, testedCatalog(), currentPool(), unlocks()) ?? unlocks().deckLock(deck);
 }
 
 /** The pool's Team-Up pairs, derived once: the pool never changes under a running app. */
 let pairCatalog: PairCatalog | null = null;
-const seatPairCatalog = (): PairCatalog => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
+const seatPairCatalog = (): PairCatalog => (pairCatalog ??= pairCatalogOf(currentCardsById()));
 
 /** "Precon + Tested": the kinds of deck a multi-deck hero tile stands for, each once. */
 function sourceWordsOf(options: readonly DeckOption[]): string {
@@ -261,7 +264,7 @@ function seatedDecksOf(draft: SetupDraft, deckOptions: readonly DeckOption[], sw
 function unresolvedConflictsOf(draft: SetupDraft, deckOptions: readonly DeckOption[]): readonly NameConflict[] {
   const seats = seatedDecksOf(draft, deckOptions, true).map((deck) => ({ deck }));
   return unresolvedConflicts(
-    nameConflictsOf(seats, CARDS_BY_ID, tableRulesOf(appSession().settings)),
+    nameConflictsOf(seats, currentCardsById(), tableRulesOf(appSession().settings)),
     draft.keptConflicts,
   );
 }
@@ -388,6 +391,7 @@ export class SeatsScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
+    rebuildOnPackChange(this, () => this.#rebuild());
     // Seat-card thumbnails and roster cards both draw through `cardArt(this).request`, which only *asks* the
     // loader — nothing about that call redraws the scene once a scan actually arrives. Without this, whichever
     // card's own scan was still in flight when the last unrelated redraw ran stayed blank forever (found the same
@@ -557,16 +561,22 @@ export class SeatsScene extends Phaser.Scene {
    * rebuild although neither the decks nor the pool had changed. `#savedDecks` is only ever replaced, never edited.
    */
   #deckOptions(): readonly DeckOption[] {
-    if (this.#deckOptionsFor?.saved !== this.#savedDecks) {
+    // Also per pool: an installed pack that finishes loading changes it (`currentPool()`).
+    if (this.#deckOptionsFor?.saved !== this.#savedDecks || this.#deckOptionsFor.pool !== currentPool()) {
       this.#deckOptionsFor = {
         saved: this.#savedDecks,
-        options: seatableDeckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS),
+        pool: currentPool(),
+        options: seatableDeckOptionsOf(this.#savedDecks, currentPool(), POOL_VERSION, currentDeps()),
       };
     }
     return this.#deckOptionsFor.options;
   }
 
-  #deckOptionsFor: { readonly saved: readonly Deck[]; readonly options: readonly DeckOption[] } | null = null;
+  #deckOptionsFor: {
+    readonly saved: readonly Deck[];
+    readonly pool: readonly AnyCard[];
+    readonly options: readonly DeckOption[];
+  } | null = null;
 
   /**
    * Legality *as if the active seat were empty* — the fix for "once four seats are filled, no other hero can ever
@@ -577,7 +587,7 @@ export class SeatsScene extends Phaser.Scene {
   #seatOptionsExcludingActive(deckOptions: readonly DeckOption[]): readonly SeatOption[] {
     const seatsExcludingActive = this.#draft.seats.filter((_, i) => i !== this.#draft.activeSeatIndex);
     // A hero the player hasn't unlocked is shown, dimmed, with what opens it — never hidden.
-    return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS).map((option) => {
+    return seatOptions(deckOptions, seatsExcludingActive, currentCardsById(), MAX_SEATS).map((option) => {
       if (option.seated) return option;
       const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === option.deckId);
       const lock = deck ? deckLockOf(deck.deck) : null;
@@ -713,7 +723,13 @@ export class SeatsScene extends Phaser.Scene {
 
     // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).
     const deckOptionsById = new Map(deckOptions.map((o) => [o.deck.id as string, o]));
-    const slots = seatSlotsOf(this.#draft.seats, deckOptions, CARDS_BY_ID, MAX_SEATS, this.#draft.activeSeatIndex);
+    const slots = seatSlotsOf(
+      this.#draft.seats,
+      deckOptions,
+      currentCardsById(),
+      MAX_SEATS,
+      this.#draft.activeSeatIndex,
+    );
     slots.forEach((slot, index) => {
       const option = slot.deckId ? deckOptionsById.get(slot.deckId) : undefined;
       if (layout.wide) this.#drawSeatCard(layout.seatSlots[index]!, slot, index, option);
@@ -1307,7 +1323,7 @@ export class SeatsScene extends Phaser.Scene {
   #seatDetailsSummary(option: DeckOption | undefined): string {
     const seatNumber = this.#draft.activeSeatIndex + 1;
     if (!option) return `Seat ${seatNumber} · tap a hero below`;
-    const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const detail = heroCandidateDetailOf(option, currentCardsById(), POOL_ENCOUNTER_SETS);
     // Short enough to read whole beside "Use preconstructed" at 375px; the hand size and the rest are one tap away.
     return `Seat ${seatNumber} · ${detail.aspectLabel} · HP ${detail.hp ?? "—"}`;
   }
@@ -1351,7 +1367,7 @@ export class SeatsScene extends Phaser.Scene {
    */
   #searchDocumentOf(option: DeckOption, heroPack: string | undefined): SearchDocument {
     const deck = option.deck;
-    const identity = CARDS_BY_ID.get(deck.identityCardId as string);
+    const identity = currentCardsById().get(deck.identityCardId as string);
     const hero = identity?.type === "hero_identity" ? identity : undefined;
     const entry = testedEntryOf(deck, testedCatalog());
     const sourceWords =
@@ -1361,7 +1377,7 @@ export class SeatsScene extends Phaser.Scene {
           ? ["imported"]
           : ["built", "mine"];
     const packs = heroPack
-      ? [packNameOf(heroPack), POOL_HERO_SHELF_PACKS.find((p) => p.code === heroPack)?.cycleName]
+      ? [packNameOf(heroPack), currentHeroShelfPacks().find((p) => p.code === heroPack)?.cycleName]
       : [];
     return {
       id: deck.id as string,
@@ -1427,7 +1443,7 @@ export class SeatsScene extends Phaser.Scene {
     if (this.scene.isActive(SCENES.heroDecks)) return;
     const deckOptions = this.#deckOptions();
     const active = this.#activeRoster(deckOptions);
-    const identity = CARDS_BY_ID.get(group.rep.deck.identityCardId as string);
+    const identity = currentCardsById().get(group.rep.deck.identityCardId as string);
     const picture = this.#heroPictureFor(group.rep.deck.identityCardId as string);
     const rows = group.decks.map((option) => {
       const entry = active.get(option.deck.id as string);
@@ -1567,7 +1583,7 @@ export class SeatsScene extends Phaser.Scene {
     const thumbSize = Math.min(rect.height - 16, rect.width * 0.32);
     const thumbRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: thumbSize, height: thumbSize };
     if (slot.deckId && option) {
-      const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
+      const identity = currentCardsById().get(option.deck.identityCardId as string);
       const source = identity ? artFor(identity, { kind: "hero" }) : null;
       const key = cardArt(this).request(this, source);
       const art = key ? drawArt(this, key, thumbRect, { fit: "cover" }) : null;
@@ -1728,7 +1744,7 @@ export class SeatsScene extends Phaser.Scene {
       hint.setWordWrapWidth(rect.width);
       return;
     }
-    const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const detail = heroCandidateDetailOf(option, currentCardsById(), POOL_ENCOUNTER_SETS);
     const textWidth = rect.width - CLEAR_SEAT_WIDTH - 12;
     // Four short label lines rather than the wide panel's one long stat line: at a phone's ~240px of text width
     // the single line ellipsized its own DEF ("THW 1 / ATK 2 / DE…").
@@ -1774,11 +1790,13 @@ export class SeatsScene extends Phaser.Scene {
    * the picture filed under any of them: same name, same set. Card or Promo art (`Settings.heroArt`) goes first.
    */
   #heroPictureFor(identityId: string): Picture | null {
+    // An installed pack's own hero picture (`pack.json` `pictures.hero`): resolved from the store, so not cached here.
+    if (isCustomCard(identityId)) return packPictureFor("hero", identityId);
     const { choice, earned } = this.#tileArt;
-    const chosen = heroTilePicture(choice, CARDS_BY_ID.get(identityId), earned, appSession().settings.promoArt);
+    const chosen = heroTilePicture(choice, currentCardsById().get(identityId), earned, appSession().settings.promoArt);
     if (chosen) return chosen;
     if (!this.#heroArtCache.has(identityId)) {
-      this.#heroArtCache.set(identityId, heroArtForIdentity(HERO_ART, identityId, POOL_CARDS));
+      this.#heroArtCache.set(identityId, heroArtForIdentity(HERO_ART, identityId, currentPool()));
     }
     return this.#heroArtCache.get(identityId) ?? null;
   }
@@ -1789,7 +1807,7 @@ export class SeatsScene extends Phaser.Scene {
     rect: Rect,
     recommended = false,
   ): ReturnType<typeof renderShelfCard> {
-    const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
+    const identity = currentCardsById().get(option.deck.identityCardId as string);
     // The hero's artwork where there is some, the way Scenario select shows a villain's; otherwise the identity
     // card's own scan, as before. Only the URL: the card-face worker fetches and decodes it, downscaled to the card.
     const picture = this.#heroPictureFor(option.deck.identityCardId as string);
@@ -1819,7 +1837,7 @@ export class SeatsScene extends Phaser.Scene {
           ? "LOCKED"
           : blockedBy
             ? "AT THE TABLE"
-            : countTag;
+            : (decks.map((d) => customBadgeOf(d.deck)).find((badge) => badge !== null) ?? countTag);
     const rec = this.#insights?.analysis.get(option.deck.id as string);
     const card = renderShelfCard(this, rect, {
       artUrl,
@@ -1891,7 +1909,7 @@ ${sourceWordsOf(decks)}`
         .setWordWrapWidth(rect.width - 32);
       return rect.y + 60;
     }
-    const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const detail = heroCandidateDetailOf(option, currentCardsById(), POOL_ENCOUNTER_SETS);
     let y = rect.y + 16;
     if (seatNote) {
       const note = label(this, rect.x + 16, y, seatNote, typeRole.label, surface.paper.hex, ink.label);
@@ -1972,7 +1990,7 @@ ${sourceWordsOf(decks)}`
       seated,
       activeSeatIndex: this.#draft.activeSeatIndex,
       candidates,
-      pool: CARDS_BY_ID,
+      pool: currentCardsById(),
       catalog: seatPairCatalog(),
       limit: REC_LIMIT,
     });
@@ -2130,7 +2148,7 @@ ${sourceWordsOf(decks)}`
             (option) => option.identityName ?? option.deck.name,
             (option) => option.deck.name,
           )
-        : cycleShelvesOf(candidates, POOL_HERO_SHELF_PACKS, "");
+        : cycleShelvesOf(candidates, currentHeroShelfPacks(), "");
     // One tile per hero: the decks that pass the filters fold into it, and a tap on it opens them (`#onHeroTile`).
     const grouped = groupShelvesByHero(
       withTestedShelf(shelves, (option) => isCommunityDeckId(option.deck.id as string)),

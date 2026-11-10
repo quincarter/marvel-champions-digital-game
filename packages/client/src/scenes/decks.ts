@@ -72,6 +72,7 @@
  * never decides whether a deck is legal or what its record is.
  */
 
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import { aspectStampOf } from "../view/aspect-stamp.js";
@@ -85,8 +86,24 @@ import {
 } from "@mc/content";
 import { communityDecks } from "@mc/cards";
 import { DECK_MIN_CARDS, uniqueLabel } from "@mc/engine";
-import { POOL_CARDS, POOL_DEPS, POOL_HERO_SHELF_PACKS, POOL_VERSION, packNameOf } from "../content/pool.js";
+import {
+  POOL_VERSION,
+  currentDeps,
+  currentHeroShelfPacks,
+  currentPool,
+  currentCardsById,
+  currentPoolKey,
+  packNameOf,
+} from "../content/pool.js";
 import { aspectLabelOf } from "../view/seat-slots.js";
+import { packPictureFor } from "../art/pack-art.js";
+import {
+  CUSTOM_EXPORT_REASON,
+  canExportToMarvelCdb,
+  customBadgeOf,
+  deckUsesCustomCards,
+  isCustomCard,
+} from "../view/custom-content.js";
 import { heroPacksOf } from "../view/hero-deck-groups.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import type { SearchDocument } from "../view/deck-search.js";
@@ -227,7 +244,6 @@ const DESKTOP_ROW_HEIGHT = 100;
 const DECK_THUMB_ASPECT = 1.25;
 /** How much of a group-starting row's own top is given to its small group label instead of the card. */
 const GROUP_LABEL_HEIGHT = 16;
-const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
 
 const IMPORT_EXPORT_DESCRIPTION =
   "Paste a decklist or drop a .txt from MarvelCDB. Exports carry the aspect and hero set.";
@@ -447,6 +463,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   create(data: DecksSceneData = {}): void {
+    rebuildOnPackChange(this, () => this.#rebuild());
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#data = data;
     // Title only sends a message here when a deck could not be seated.
@@ -610,7 +627,7 @@ export class DecksScene extends Phaser.Scene {
 
   /** A deck's status if it is known, else a "Checking…" stand-in until the worker answers (`#askStatuses`). */
   #optionOf(deck: Deck): DeckOption {
-    return cachedDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS) ?? pendingDeckOption(deck, POOL_CARDS);
+    return cachedDeckOption(deck, currentPool(), POOL_VERSION, currentDeps()) ?? pendingDeckOption(deck, currentPool());
   }
 
   /**
@@ -628,18 +645,24 @@ export class DecksScene extends Phaser.Scene {
     // on it, and a deck still being checked can't be seated.
     const shownId = this.#selectedDeckId ?? this.#data.focusDeckId ?? null;
     const shown = shownId === null ? listed[0] : listed.find((deck) => (deck.id as string) === shownId);
-    if (shown && cachedDeckOption(shown, POOL_CARDS, POOL_VERSION, POOL_DEPS) === null) {
-      deckOptionOf(shown, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    if (shown && cachedDeckOption(shown, currentPool(), POOL_VERSION, currentDeps()) === null) {
+      deckOptionOf(shown, currentPool(), POOL_VERSION, currentDeps());
       this.#statusEpoch += 1;
     }
-    const decks = listed.filter(
-      (deck) => !this.#statusAsked.has(deck) && cachedDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS) === null,
+    const unchecked = listed.filter(
+      (deck) =>
+        !this.#statusAsked.has(deck) && cachedDeckOption(deck, currentPool(), POOL_VERSION, currentDeps()) === null,
     );
+    // The worker knows the base pool only: a deck with a custom pack's cards is checked here, against the loaded packs.
+    const custom = unchecked.filter(deckUsesCustomCards);
+    for (const deck of custom) deckOptionOf(deck, currentPool(), POOL_VERSION, currentDeps());
+    if (custom.length > 0) this.#statusEpoch += 1;
+    const decks = unchecked.filter((deck) => !deckUsesCustomCards(deck));
     if (decks.length === 0) return;
     // A deck or two (one just imported, saved or copied) is checked here at once, so it never shows "Checking…":
     // the worker is for the first visit's whole list, which is where the time went.
     if (decks.length <= STATUS_HERE_MAX) {
-      for (const deck of decks) deckOptionOf(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+      for (const deck of decks) deckOptionOf(deck, currentPool(), POOL_VERSION, currentDeps());
       this.#statusEpoch += 1;
       return;
     }
@@ -648,9 +671,9 @@ export class DecksScene extends Phaser.Scene {
     try {
       this.#deckSearch.checkDecks(
         decks,
-        (asked) => asked.map((deck) => verdictOf(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS)),
+        (asked) => asked.map((deck) => verdictOf(deck, currentPool(), POOL_VERSION, currentDeps())),
         (verdicts) => {
-          decks.forEach((deck, at) => primeDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS, verdicts[at]!));
+          decks.forEach((deck, at) => primeDeckOption(deck, currentPool(), POOL_VERSION, currentDeps(), verdicts[at]!));
           this.#statusEpoch += 1;
           if (!this.#askingStatuses && this.sys.isActive()) this.#queueRebuild();
         },
@@ -675,9 +698,9 @@ export class DecksScene extends Phaser.Scene {
         offers: communityOffers({
           catalog: communityDecks(),
           savedDecks: this.#savedDecks,
-          pool: POOL_CARDS,
+          pool: currentPool(),
           poolVersion: POOL_VERSION,
-          deps: POOL_DEPS,
+          deps: currentDeps(),
           gate,
           optionOf: (deck) => this.#optionOf(deck),
         }),
@@ -687,7 +710,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #identityOf(deck: Deck): HeroIdentityCard | null {
-    const card = CARDS_BY_ID.get(deck.identityCardId as string);
+    const card = currentCardsById().get(deck.identityCardId as string);
     return card?.type === "hero_identity" ? card : null;
   }
 
@@ -809,7 +832,7 @@ export class DecksScene extends Phaser.Scene {
             this,
             statsRect.x - 16,
             layout.header.y + layout.header.height / 2,
-            `Card pool · ${POOL_CARDS.length} cards`,
+            `Card pool · ${currentPool().length} cards`,
             typeRole.label,
             surface.paper.hex,
             ink.label,
@@ -1044,7 +1067,7 @@ export class DecksScene extends Phaser.Scene {
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > limit) return;
-        const card = CARDS_BY_ID.get(entry.cardId);
+        const card = currentCardsById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
         drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
@@ -1066,7 +1089,7 @@ export class DecksScene extends Phaser.Scene {
     // Only cards this deck's pool lists, as the builder's rail shows them.
     const identity = this.#identityOf(deck);
     const listed = identity
-      ? new Set(browsablePool(POOL_CARDS, identity, deck.aspects, {}).map((card) => card.id as string))
+      ? new Set(browsablePool(currentPool(), identity, deck.aspects, {}).map((card) => card.id as string))
       : new Set<string>();
     section(
       "Try: cards you won with",
@@ -1436,7 +1459,7 @@ export class DecksScene extends Phaser.Scene {
   /** What the deck search looks in for each deck (view/deck-search.ts): names first, then aspects, source, pack, author and tags, and a community deck's write-up last. */
   #deckDocumentOf(option: DeckOption, heroPack: string | undefined): SearchDocument {
     const deck = option.deck;
-    const identity = CARDS_BY_ID.get(deck.identityCardId as string);
+    const identity = currentCardsById().get(deck.identityCardId as string);
     const hero = identity?.type === "hero_identity" ? identity : undefined;
     const entry = testedEntryOf(deck, testedCatalog());
     const sourceWords =
@@ -1446,7 +1469,7 @@ export class DecksScene extends Phaser.Scene {
           ? ["imported"]
           : ["built", "mine"];
     const packs = heroPack
-      ? [packNameOf(heroPack), POOL_HERO_SHELF_PACKS.find((p) => p.code === heroPack)?.cycleName]
+      ? [packNameOf(heroPack), currentHeroShelfPacks().find((p) => p.code === heroPack)?.cycleName]
       : [];
     return {
       id: deck.id as string,
@@ -1508,7 +1531,7 @@ export class DecksScene extends Phaser.Scene {
    */
   #buildRows(allOptions: readonly DeckOption[], offers: readonly CommunityOffer[]): readonly DeckRow[] {
     const identityOf = (option: DeckOption): AnyCard | undefined =>
-      CARDS_BY_ID.get(option.deck.identityCardId as string);
+      currentCardsById().get(option.deck.identityCardId as string);
     // The text part of the search is the worker's ranking; the chips stay here.
     const chips: RosterFilter = { ...this.#filter, text: "" };
     const ranking = this.#deckRanking;
@@ -1567,10 +1590,20 @@ export class DecksScene extends Phaser.Scene {
 
   /** A deck row's picture, per visit, so a redraw never reshuffles a hero with several pictures. */
   #deckArtOf(identityId: string): { url: string | null; focus?: PictureFocus } {
+    // An installed pack hero's picture arrives after the first draw, so it is not remembered here.
+    if (isCustomCard(identityId)) {
+      const identity = currentCardsById().get(identityId);
+      return {
+        url:
+          packPictureFor("hero", identityId)?.url ??
+          (identity ? artFor(identity, { kind: "hero" })?.url : null) ??
+          null,
+      };
+    }
     let art = this.#deckArt.get(identityId);
     if (!art) {
-      const picture = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS);
-      const identity = CARDS_BY_ID.get(identityId);
+      const picture = heroArtForIdentity(HERO_ART, identityId, currentPool());
+      const identity = currentCardsById().get(identityId);
       art = picture
         ? { url: picture.url, ...(picture.focus ? { focus: picture.focus } : {}) }
         : { url: (identity ? artFor(identity, { kind: "hero" })?.url : null) ?? null };
@@ -1680,7 +1713,10 @@ export class DecksScene extends Phaser.Scene {
     const metaTop = card.y + 8 + name.height + 3;
     const metaRoom = card.y + card.height - 6 - (showRecord ? 16 : 0) - metaTop;
     // The fullest line that wraps into the room this row has; a long one gives up its tail, never mid-word letters.
-    const candidates = row.offer ? communityMetaCandidates(row.offer) : deckMetaCandidates(option, POOL_CARDS);
+    const metaOptions = row.offer ? communityMetaCandidates(row.offer) : deckMetaCandidates(option, currentPool());
+    // A deck from an installed custom pack says so first, so a long line giving up its tail never loses it.
+    const customBadge = row.offer ? null : customBadgeOf(option.deck);
+    const candidates = customBadge ? metaOptions.map((line) => `${customBadge} · ${line}`) : metaOptions;
     const meta = this.add
       .text(textX, metaTop, candidates[0]!, textStyle(typeRole.emphasis, metaColor, metaAlpha))
       .setFontSize(readingSize(typeRole.emphasis.size))
@@ -1805,7 +1841,7 @@ export class DecksScene extends Phaser.Scene {
     );
     this.#stops.set("ie-marvelcdb-toggle", { rect: mcdbToggleRect, activate: () => toggle("marvelcdb") });
     const doExport = (): void => {
-      if (selected) this.#exportToClipboard(selected.deck);
+      if (selected && canExportToMarvelCdb(selected.deck)) this.#exportToClipboard(selected.deck);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -1813,8 +1849,12 @@ export class DecksScene extends Phaser.Scene {
         label: "Export",
         type: typeRole.label,
         rect: exportRect,
-        enabled: selected !== null,
-        ...(selected ? {} : { reason: "Select a deck first." }),
+        enabled: selected !== null && canExportToMarvelCdb(selected.deck),
+        ...(!selected
+          ? { reason: "Select a deck first." }
+          : canExportToMarvelCdb(selected.deck)
+            ? {}
+            : { reason: CUSTOM_EXPORT_REASON }),
         onClick: doExport,
       }),
     );
@@ -2171,7 +2211,7 @@ export class DecksScene extends Phaser.Scene {
 
   #poolCards(deck: Deck, identity: HeroIdentityCard, deckListOnly = false): readonly AnyCard[] {
     const filter: PoolFilter = this.#poolAspectFilter ? { aspect: this.#poolAspectFilter } : {};
-    const browsable = browsablePool(POOL_CARDS, identity, deck.aspects, filter);
+    const browsable = browsablePool(currentPool(), identity, deck.aspects, filter);
     const inDeck = new Set(deck.cards.map((entry) => entry.cardId as string));
     const inScope = deckListOnly ? browsable.filter((card) => inDeck.has(card.id as string)) : browsable;
     const ranking = this.#poolSearchText.trim() === "" ? null : this.#poolRanking;
@@ -2187,10 +2227,10 @@ export class DecksScene extends Phaser.Scene {
 
   /** Hands the pool worker the selected deck's browsable cards when its hero or aspects change, and re-asks the open query. */
   #syncPoolDocuments(deck: Deck, identity: HeroIdentityCard): void {
-    const version = `${POOL_VERSION}:${identity.id as string}:${deck.aspects.join(",")}`;
+    const version = `${currentPoolKey()}:${identity.id as string}:${deck.aspects.join(",")}`;
     if (version === this.#poolDocsVersion) return;
     this.#poolDocsVersion = version;
-    const documents = browsablePool(POOL_CARDS, identity, deck.aspects, {}).map((card) => {
+    const documents = browsablePool(currentPool(), identity, deck.aspects, {}).map((card) => {
       const key = card.id as string;
       let doc = this.#poolDocs.get(key);
       if (!doc) {
@@ -2421,7 +2461,7 @@ export class DecksScene extends Phaser.Scene {
     };
     if (!this.#insights) block("Your play", null, "Reading your games…");
     else {
-      const heroName = (CARDS_BY_ID.get(heroId)?.name ?? heroId).replace(/ \(.*\)$/, "");
+      const heroName = (currentCardsById().get(heroId)?.name ?? heroId).replace(/ \(.*\)$/, "");
       block(`With ${heroName}`, hero, `Not in a ${heroName} deck in a finished game yet.`);
       block("Every hero", all, "Not in a deck in a finished game yet.");
     }
@@ -2484,7 +2524,7 @@ export class DecksScene extends Phaser.Scene {
     }
 
     const deck = option.deck;
-    const stats = deckStatsOf(deck, POOL_CARDS);
+    const stats = deckStatsOf(deck, currentPool());
     const status = deckStatusOf(option);
 
     const name = this.add
@@ -2716,7 +2756,7 @@ export class DecksScene extends Phaser.Scene {
     y += credit.height + 8;
 
     // Aspect stamps, then what this game can say about the deck: Tested, or what keeps it from being offered.
-    const stats = deckStatsOf(option.deck, POOL_CARDS);
+    const stats = deckStatsOf(option.deck, currentPool());
     const statusText = communityStatusText(offer);
     const chips: { readonly text: string; readonly fill: number; readonly ink: number }[] = [
       ...entry.aspects.map((aspect) => {
@@ -3027,7 +3067,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #exportToClipboard(deck: Deck): void {
-    const text = exportDecklistText(deck, POOL_CARDS);
+    const text = exportDecklistText(deck, currentPool());
     const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
     if (!clipboard?.writeText) {
       this.#status = {
@@ -3050,7 +3090,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #inspectDeck(option: DeckOption): void {
-    const card = CARDS_BY_ID.get(option.deck.identityCardId as string);
+    const card = currentCardsById().get(option.deck.identityCardId as string);
     const face =
       card?.type === "villain"
         ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
@@ -3129,7 +3169,7 @@ export class DecksScene extends Phaser.Scene {
 
   #importEnv(): ImportEnv {
     return {
-      pool: POOL_CARDS,
+      pool: currentPool(),
       poolVersion: POOL_VERSION,
       now: () => new Date().toISOString(),
       newId: () => crypto.randomUUID(),

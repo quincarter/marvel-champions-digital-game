@@ -15,7 +15,7 @@
  * Pad and keyboard: Back, the tabs (LB / RB step them), then every tile; on a pack page, Back then its buttons.
  */
 import Phaser from "phaser";
-import type { PackIndex } from "@mc/content";
+import type { AnyCard, CardId, PackIndex } from "@mc/content";
 import { accent, hit, ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -46,7 +46,23 @@ import {
 } from "../view/mod-store-model.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
-import { refreshActivePacks } from "../packs/active-packs.js";
+import { activePackStatuses, onActivePackStatuses, refreshActivePacks } from "../packs/active-packs.js";
+import { loadedPacks } from "../packs/pack-registry.js";
+import { artFor, defaultFaceFor } from "../art/art-source.js";
+import { cardArt, drawArt } from "../art/card-art.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import {
+  galleryCountText,
+  galleryGridOf,
+  galleryOf,
+  galleryPictureHeight,
+  loadStatusOf,
+  loadStatusText,
+  pageSplitOf,
+  type GalleryCard,
+} from "../view/pack-gallery-model.js";
+import type { InspectData } from "./inspect.js";
 import { IdbPackStore, type InstalledPack } from "../packs/pack-store.js";
 import { SUPPORTED_DSL_FEATURES } from "../packs/supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -99,6 +115,14 @@ export class ModStoreScene extends Phaser.Scene {
   #tabs: McTabs | null = null;
   #list: McVirtualList | null = null;
   #panel: McScrollPanel | null = null;
+  /** The pack page's card gallery (an installed, loaded pack only), its rect and the cards in it, for hover and Inspect. */
+  #gallery: McVirtualList | null = null;
+  #galleryRect: Rect | null = null;
+  #galleryGrid: ReturnType<typeof galleryGridOf> | null = null;
+  #galleryCards: readonly GalleryCard[] = [];
+  readonly #galleryScroll = new ListScroll();
+  /** The desktop hover popover over the gallery's tiles (`ui/card-hover-preview.ts`), as in the set sheet. */
+  #hover: HoverPreview | null = null;
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #obstacles: Rect[] = [];
@@ -130,11 +154,24 @@ export class ModStoreScene extends Phaser.Scene {
       onPage: (direction) => this.#list?.scrollByPage(direction),
       onScroll: (_dx, dy) => {
         this.#list?.scrollByPx(dy);
+        this.#gallery?.scrollByPx(dy);
         this.#panel?.scrollByPx(dy);
       },
+      blocked: () => this.scene.isActive(SCENES.inspect),
     });
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
+    // A pack finishing its load (after an install, or at boot) and a picture arriving both redraw the page.
+    const offStatuses = onActivePackStatuses(() => this.#requestRedraw());
+    const offArrived = cardArt(this).onArrived(() => this.#requestRedraw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      offStatuses();
+      offArrived();
+      this.#hover?.destroy();
+      this.#hover = null;
       this.scale.off("resize", this.#draw, this);
       this.#hints.dispose();
       this.#destroyWidgets();
@@ -329,6 +366,9 @@ export class ModStoreScene extends Phaser.Scene {
     this.#list = null;
     this.#panel?.destroy();
     this.#panel = null;
+    this.#gallery?.destroy();
+    this.#gallery = null;
+    this.#galleryRect = null;
     this.#statusObjects = [];
     this.#statusRect = null;
   }
@@ -337,6 +377,7 @@ export class ModStoreScene extends Phaser.Scene {
     if (!this.#alive) return;
     this.#destroyWidgets();
     destroyChildren(this);
+    resetHoverCards(this);
     this.#hints.reset();
     this.#obstacles = [];
 
@@ -366,6 +407,7 @@ export class ModStoreScene extends Phaser.Scene {
     if (tile) this.#drawPage(tile, { width, height, phone, gutter, top: bar.height }, stops, order);
     else this.#drawBrowse({ width, height, phone, gutter, top: bar.height }, stops, order);
     this.#route?.set(order, stops);
+    this.#hover?.onDraw();
   }
 
   // ---- Browse ---------------------------------------------------------------------------------------------------
@@ -639,16 +681,27 @@ export class ModStoreScene extends Phaser.Scene {
     const bodyTop = Math.max(headY + thumb, meta.y + meta.height + 8 + 22) + 12;
     const bodyRect: Rect = { x: gutter, y: bodyTop, width: innerWidth, height: Math.max(60, statusY - 10 - bodyTop) };
     this.add.rectangle(bodyRect.x, bodyRect.y, bodyRect.width, bodyRect.height, surface.parchment.hex).setOrigin(0, 0);
-    // TODO(#677): the pack's card gallery (installed packs only) with the hover popover, once the pool wiring (§11.7
-    // step 5) can show a custom card. Until then the page says so.
-    const body = `${page.body}\n\nCard gallery: shown here once custom cards can be browsed (coming soon).`;
+    // The load status leads the text: an installed pack says whether it is working, or why it is not.
+    const loadStatus = loadStatusOf(
+      installed !== undefined,
+      activePackStatuses().find((one) => one.id === tile.id),
+    );
+    const body = loadStatus
+      ? `${loadStatusText(loadStatus)}
+
+${page.body}`
+      : page.body;
+    // The cards of the loaded pack, under the text; a pack that did not load shows why in the text and no cards.
+    const packCards = loadedPacks().find((pack) => pack.id === tile.id);
+    const galleryCards = galleryOf(packCards);
+    const split = pageSplitOf(bodyRect.height, galleryCards.length, phone);
     this.#panel = new McScrollPanel(this, {
       rect: {
         ...bodyRect,
         x: bodyRect.x + 8,
         y: bodyRect.y + 6,
         width: bodyRect.width - 16,
-        height: bodyRect.height - 12,
+        height: split.text.height - 12,
       },
       text: body,
     });
@@ -682,6 +735,163 @@ export class ModStoreScene extends Phaser.Scene {
       stops.set(`action:${action.id}`, { rect, activate: press });
       order.push(`action:${action.id}`);
     });
+
+    if (split.gallery && packCards) {
+      const galleryRect: Rect = {
+        x: bodyRect.x + 4,
+        y: bodyRect.y + split.text.height + split.gallery.count,
+        width: bodyRect.width - 8,
+        height: split.gallery.height - split.gallery.count - 4,
+      };
+      frameGfx
+        .lineStyle(2, surface.ink.hex, 1)
+        .lineBetween(
+          bodyRect.x,
+          bodyRect.y + split.text.height,
+          bodyRect.x + bodyRect.width,
+          bodyRect.y + split.text.height,
+        );
+      this.add
+        .text(
+          bodyRect.x + 8,
+          bodyRect.y + split.text.height + 3,
+          `CARDS  ·  ${galleryCountText(galleryCards.length)}`,
+          textStyle(typeRole.label, surface.ink.hex, ink.secondary),
+        )
+        .setFontSize(11);
+      this.#drawGallery(
+        galleryRect,
+        galleryCards,
+        new Map((packCards.cards as readonly AnyCard[]).map((card) => [card.id as string, card])),
+        phone,
+        stops,
+        order,
+      );
+    }
+  }
+
+  // ---- The pack's cards -----------------------------------------------------------------------------------------
+
+  /** A scrolling grid of the pack's cards: picture (or a generated frame) over a name and type caption. A tap reads one in Inspect. */
+  #drawGallery(
+    rect: Rect,
+    cards: readonly GalleryCard[],
+    byId: ReadonlyMap<string, AnyCard>,
+    phone: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const grid = galleryGridOf(rect.width - SCROLLBAR, phone);
+    this.#galleryRect = rect;
+    this.#galleryGrid = grid;
+    this.#galleryCards = cards;
+    const rows = extrasRowCount(cards.length, grid);
+    const list: McVirtualList = new McVirtualList(this, {
+      rect,
+      rowHeight: grid.rowHeight,
+      count: rows,
+      scroll: this.#galleryScroll,
+      background: false,
+      renderRow: (rowIndex, rowRect) => {
+        const objects: Phaser.GameObjects.GameObject[] = [];
+        for (let column = 0; column < grid.columns; column += 1) {
+          const index = rowIndex * grid.columns + column;
+          const card = cards[index];
+          if (!card) break;
+          objects.push(
+            ...this.#drawGalleryTile(card, byId.get(card.cardId), extrasTileRect(index, grid, rowRect), grid),
+          );
+        }
+        return { objects };
+      },
+      onRowActivate: (rowIndex, pointer) => {
+        const index = extrasTileAt(pointer.x, rowIndex, grid, rect.x, cards.length);
+        if (index !== null) this.#inspectCard(cards[index]!, byId);
+      },
+    });
+    this.#gallery = list;
+    cards.forEach((card, index) => {
+      const rowIndex = Math.floor(index / grid.columns);
+      const key = `card:${card.cardId}`;
+      stops.set(key, {
+        rect: () => extrasTileRect(index, grid, list.rectFor(rowIndex)),
+        activate: () => this.#inspectCard(card, byId),
+        inspect: () => this.#inspectCard(card, byId),
+        ensureVisible: () => list.scrollIntoView(rowIndex),
+        view: rect,
+      });
+      order.push(key);
+    });
+  }
+
+  #drawGalleryTile(
+    card: GalleryCard,
+    record: AnyCard | undefined,
+    rect: Rect,
+    grid: ReturnType<typeof galleryGridOf>,
+  ): Phaser.GameObjects.GameObject[] {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const picture: Rect = { x: rect.x, y: rect.y, width: rect.width, height: galleryPictureHeight(grid) };
+    const frame = this.add.graphics();
+    frame.fillStyle(surface.parchment.hex, 1).fillRect(picture.x, picture.y, picture.width, picture.height);
+    frame
+      .lineStyle(1.5, surface.ink.hex, 0.6)
+      .strokeRect(picture.x + 0.75, picture.y + 0.75, picture.width - 1.5, picture.height - 1.5);
+    objects.push(frame);
+    // The pack's picture where it has one for this card; otherwise the name on the frame (a missing picture is a supported outcome).
+    const art = record ? artFor(record, defaultFaceFor(record)) : null;
+    const key = art ? cardArt(this).request(this, art) : null;
+    const image = key ? drawArt(this, key, picture) : null;
+    if (image) objects.push(image);
+    else {
+      const plain = this.add
+        .text(
+          picture.x + 6,
+          picture.y + picture.height / 2,
+          card.name,
+          textStyle(typeRole.rowTitle, surface.ink.hex, 0.8),
+        )
+        .setOrigin(0, 0.5)
+        .setFontSize(11);
+      fitWrapped(plain, picture.width - 12, 3, 11);
+      plain.setY(picture.y + (picture.height - plain.height) / 2).setOrigin(0, 0);
+      objects.push(plain);
+    }
+    const name = this.add
+      .text(rect.x, picture.y + picture.height + 3, card.name, textStyle(typeRole.rowTitle, surface.ink.hex, 1))
+      .setFontSize(11);
+    fitText(name, rect.width, 9);
+    const type = this.add
+      .text(rect.x, name.y + name.height, card.typeLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+      .setFontSize(9);
+    fitText(type, rect.width, 8);
+    objects.push(name, type);
+    return objects;
+  }
+
+  /** Reads one card in Inspect (the same sheet the set sheet opens). Its record is looked up in the current pool by id. */
+  #inspectCard(card: GalleryCard, byId: ReadonlyMap<string, AnyCard>): void {
+    const record = byId.get(card.cardId);
+    this.scene.launch(SCENES.inspect, {
+      card: { cardId: card.cardId as CardId, face: record ? defaultFaceFor(record) : { kind: "front" } },
+    } satisfies InspectData);
+    this.scene.bringToTop(SCENES.inspect);
+  }
+
+  /** The gallery's pictures on screen now, each clipped to the scrolled list, for the desktop hover popover. */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const list = this.#gallery;
+    const view = this.#galleryRect;
+    const grid = this.#galleryGrid;
+    if (!list || !view || !grid) return found;
+    this.#galleryCards.forEach((card, index) => {
+      const row = list.rectFor(Math.floor(index / grid.columns));
+      const tile = extrasTileRect(index, grid, row);
+      const picture = clipHoverRect({ ...tile, height: galleryPictureHeight(grid) }, view);
+      if (picture) found.set(hoverSlotOf(card.cardId, index), { ...picture, cardId: card.cardId, through: true });
+    });
+    return found;
   }
 
   /** The progress bar (with its words) while installing, the last failure in words, or a remove failure. */

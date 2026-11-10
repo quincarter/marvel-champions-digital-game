@@ -14,6 +14,7 @@ import type { PackLoadResult } from "./pack-load.js";
 import { setLoadedPacks } from "./pack-registry.js";
 import type { PackRuntime } from "./pack-runtime.js";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
+import { setPackArt } from "../art/pack-art.js";
 
 export interface ActivePackStatus {
   readonly id: string;
@@ -137,6 +138,11 @@ export async function loadActivePacks(
   if (mine !== generation) return result;
   statuses = result;
   setLoadedPacks(installed.flatMap((pack) => loaded.get(pack.id) ?? []));
+  // The loaded packs' card pictures (`art/pack-art.ts`), read from the same store.
+  setPackArt(
+    installed.filter((pack) => loaded.has(pack.id)).map((pack) => pack.manifest),
+    store,
+  );
   for (const listener of [...listeners]) listener(result);
   return result;
 }

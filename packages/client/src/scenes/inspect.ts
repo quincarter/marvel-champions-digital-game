@@ -70,7 +70,7 @@ import { cardOf, getInstance, type InstanceId } from "@mc/engine";
 import { cardPlaySectionOf, deckInsightsNow, type CardPlaySection } from "../progression/card-play.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import type { AnyCard, CardId, ResourceIconType } from "@mc/content";
-import { POOL_CARDS } from "../content/pool.js";
+import { currentCardsById } from "../content/pool.js";
 import { gameDeps } from "../content/game-deps.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { CardFace } from "../art/art-source.js";
@@ -2389,5 +2389,5 @@ export class InspectOverlay extends Phaser.Scene {
   }
 }
 
-/** Every Core card by id, for the sheets opened before a game exists. */
-const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
+/** Every card by id (the installed packs' included), for the sheets opened before a game exists. */
+const CARDS_BY_ID = { get: (id: string): AnyCard | undefined => currentCardsById().get(id) };
