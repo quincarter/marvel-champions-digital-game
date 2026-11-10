@@ -1,0 +1,33 @@
+{
+  "id": "x.tiny-pack.01a",
+  "type": "hero_identity",
+  "name": "Test Hero",
+  "setCode": "tiny-pack",
+  "cycleId": "tiny-pack",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "hp": 10,
+  "hero": {
+    "faceName": "Test Hero",
+    "traits": ["AVENGER"],
+    "atk": 2,
+    "thw": 2,
+    "def": 2,
+    "handSize": 5,
+    "keywords": [],
+    "text": { "printed": "", "current": "" },
+    "abilities": []
+  },
+  "alterEgo": {
+    "faceName": "Test Person",
+    "traits": ["CIVILIAN"],
+    "rec": 3,
+    "handSize": 6,
+    "keywords": [],
+    "text": { "printed": "", "current": "" },
+    "abilities": []
+  },
+  "obligationCardId": "01165",
+  "nemesisEncounterSetId": "spider_man_nemesis"
+}

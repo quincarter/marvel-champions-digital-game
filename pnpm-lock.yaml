@@ -135,6 +135,10 @@ importers:
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
 
   packages/sync-worker:
     devDependencies:
