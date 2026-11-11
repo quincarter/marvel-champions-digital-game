@@ -75,7 +75,14 @@ export const DRAX_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("19025"), cardSetCode: "drax", marvelcdbCodes: ["19025"], corrections: [] },
   { cardId: cardId("19026"), cardSetCode: "drax_nemesis", marvelcdbCodes: ["19026"], corrections: [] },
   { cardId: cardId("19027"), cardSetCode: "drax_nemesis", marvelcdbCodes: ["19027"], corrections: [] },
-  { cardId: cardId("19028"), cardSetCode: "drax_nemesis", marvelcdbCodes: ["19028"], corrections: [] },
+  {
+    cardId: cardId("19028"),
+    cardSetCode: "drax_nemesis",
+    marvelcdbCodes: ["19028"],
+    corrections: [
+      "19028: Challenge Accepted prints a +2 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/19028.png)]",
+    ],
+  },
   { cardId: cardId("19029"), cardSetCode: "drax_nemesis", marvelcdbCodes: ["19029"], corrections: [] },
   { cardId: cardId("19030"), cardSetCode: "aggression", marvelcdbCodes: ["19030"], corrections: [] },
   { cardId: cardId("19031"), cardSetCode: "justice", marvelcdbCodes: ["19031"], corrections: [] },

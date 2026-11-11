@@ -59,7 +59,15 @@ export const IRONHEART_CURATION: PackCuration = {
   outDir: "src/data/ironheart",
   exportPrefix: "IRONHEART",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "29031",
+      reason:
+        "Cyborg Tech prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
+      evidence: "card scan (assets/card-art/bundles/cards/29031.png)",
+      attack: 1,
+    },
+  ],
   errata: [
     // RRG 1.8 p. 68, "'GO FOR CHAMPIONS!' (#25)": MarvelCDB's own `real_text` is already current — it carries its
     // own `errata` field, "Added \"Remove 'Go for Champions!' from the game →\". (RRG 1.5)" — so the printed

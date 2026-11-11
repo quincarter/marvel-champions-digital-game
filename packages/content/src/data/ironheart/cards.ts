@@ -837,6 +837,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/29031.png") },
     attachesTo: { kind: "superlative", among: "minion", order: "highest", measure: "traitCount" },
+    statModifiers: { atk: 1 },
     encounterSetIds: [encounterSetId("ironheart_nemesis")],
     boostIcons: 0,
     starIcon: true,

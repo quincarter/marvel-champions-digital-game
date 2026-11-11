@@ -121,6 +121,18 @@ function withoutPowerStoneControl(state: GameState): GameState {
   return moveAttachment(state, stone!, state.villains[0]!.instanceId);
 }
 
+/** Lifts Universal Weapon (16109) off Ronan (surgery), for a test whose numbers predate its +1 SCH / +1 ATK. */
+function withoutUniversalWeapon(state: GameState): GameState {
+  const [weapon] = instancesOf(state, "16109");
+  const host = inst(state, weapon!).attachedTo;
+  if (!host) return state;
+  return patchInstance(
+    patchInstance(state, host, { attachments: inst(state, host).attachments.filter((a) => a !== weapon) }),
+    weapon!,
+    { attachedTo: null },
+  );
+}
+
 /** Clears the main scheme's threat, so one villain phase cannot complete the main scheme's stage and advance it
  * mid-test: Ronan schemes with the Power Stone's +1 SCH when he holds it, or when a boost card moves it to him. */
 function atZeroThreat(state: GameState): GameState {
@@ -510,7 +522,9 @@ describe("Single-Minded Fury (16114.when-revealed) — Ronan attacks the player 
     const hero = runWave3(p1Done, toHero(P2));
     const [stone] = instancesOf(hero, "16149");
     const identity2 = identityOf(hero, P2);
-    const onP2 = moveAttachment(hero, stone!, identity2);
+    // Universal Weapon's +1 ATK would make Ronan's own attack on P2 deal 3, moving the stone back to him before
+    // Single-Minded Fury is revealed; lifted off for this test.
+    const onP2 = withoutUniversalWeapon(moveAttachment(hero, stone!, identity2));
     const scheme = onP2.mainScheme.instanceId;
     const lowThreat = patchInstance(onP2, scheme, { threat: 0 });
     const damageBefore = inst(lowThreat, identity2).damage;

@@ -39,6 +39,13 @@ export const MTS_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "21104",
+      reason:
+        "Corvus's Glaive prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
+      evidence: "card scan (assets/card-art/bundles/cards/21104.png)",
+      attack: 1,
+    },
+    {
       code: "21041",
       reason:
         "MarvelCDB's own transcription typo: Marvel Boy's interrupt reads \"spend a [physics] resource\", but " +

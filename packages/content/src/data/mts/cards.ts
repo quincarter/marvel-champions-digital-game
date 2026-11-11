@@ -2491,6 +2491,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
     unique: true,
     images: { front: imageRef("/bundles/cards/21104.png") },
     attachesTo: { kind: "namedVillain", name: "Corvus Glaive" },
+    statModifiers: { atk: 1 },
     encounterSetIds: [encounterSetId("tower_defense")],
     boostIcons: 3,
     traits: [trait("WEAPON")],
