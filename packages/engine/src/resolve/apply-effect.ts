@@ -3316,6 +3316,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // keeps new triggers (damage, "after … attacks") from answering it, not delayed effects already created. So its
       // held "at the end of this attack" effects resolve (`endedEarly`, `resolve/event.ts`).
       const endsAnyway = triggering.event.kind === "enemyAttack" || triggering.event.kind === "enemyAttacksEnemy";
+      // Out of the Game replaces the villain phase's beginning (RRG v1.8 "Replacement Effect" p. 37, "Cancel" p. 11:
+      // the replaced effect is not considered to have occurred), so "until the next villain phase begins" lasting
+      // effects run on through the extra player phase and expire when the villain phase actually played begins
+      // ("Lasting Effects" p. 26). They were ended just before the beginning was answered (`villainPhaseBegins`), so
+      // they are put back as they were, ids and all.
+      for (const restored of triggering.restoreIfCancelled ?? []) {
+        if (ctx.state.lastingEffects.some((e) => e.id === restored.id)) continue;
+        ctx.state = { ...ctx.state, lastingEffects: [...ctx.state.lastingEffects, restored] };
+        emit(ctx, { type: "lastingEffectAdded", effect: restored });
+      }
       updateFrame(ctx, frame.eventFrameId, (target) =>
         target.kind === "event"
           ? { ...target, cancelled: true, ...(endsAnyway ? { endedEarly: true as const } : {}) }

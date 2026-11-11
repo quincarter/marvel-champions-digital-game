@@ -113,9 +113,7 @@ export type GameEvent =
   /**
    * Round `round`'s villain phase was skipped (`EffectSpec skipNextVillainPhase`, docs/phase7-wave11-hero-packs.md
    * H3.7): the round goes straight to its end. `remaining` is how many more villain phases are still to be skipped.
-   */
-  /**
-   * `playerPhaseInstead`: a player phase is played in its place, within the same round (`EffectSpec
+   * With `playerPhaseInstead`, a player phase is played in its place, within the same round (`EffectSpec
    * replaceNextVillainPhaseWithPlayerPhase`), and `remaining` counts the replacements still to come.
    */
   | {

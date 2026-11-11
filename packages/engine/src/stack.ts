@@ -2,6 +2,7 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { LastingEffect } from "./lasting.js";
 import {
   RESOURCE_TYPES,
   type PaidTypesRead,
@@ -243,6 +244,12 @@ export type StackFrame =
       readonly event: TriggerEvent;
       readonly stage: "interrupts" | "apply" | "responses" | "done";
       readonly cancelled: boolean;
+      /**
+       * On a villain phase's beginning (`phaseBeginning`): the "until the next villain phase begins" effects its
+       * `villainPhaseBegins` step ended just before it was answered, put back if the beginning is cancelled (a player
+       * phase played instead, `EffectSpec replaceNextVillainPhaseWithPlayerPhase`). Absent when none ended.
+       */
+      readonly restoreIfCancelled?: readonly LastingEffect[];
       /** Results accumulated while the event resolves (see `TriggerEvent.results`). */
       readonly vars: Vars;
       /** Cards the event's results name (`damaged`, `target`), reported as slots like `vars`. */

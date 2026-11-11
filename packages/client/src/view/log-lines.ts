@@ -1007,6 +1007,9 @@ function describe(
       };
     // Run Them to Ground (`jj` 61020): the round ends with no villain phase (hero-pack spec H3.7).
     case "villainPhaseSkipped":
+      // A player phase played in its place, within the same round (custom content: Out of the Game).
+      if (event.playerPhaseInstead)
+        return { text: "Another player phase is played before the villain phase.", voice: "villain" };
       return { text: `The villain phase is skipped this round.`, voice: "villain" };
     case "accelerationTokenAdded":
       return {

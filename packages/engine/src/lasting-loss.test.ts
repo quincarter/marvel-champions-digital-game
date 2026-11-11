@@ -13,16 +13,23 @@ import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { replay, startSession } from "./engine.js";
-import { hasKeyword, printedKeywordsOf } from "./keywords.js";
+import { hasKeyword, isPermanent, printedKeywordsOf } from "./keywords.js";
 import { cardOf } from "./query.js";
-import { traitsOf } from "./select.js";
+import { permanentProtectsFrom, traitsOf } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubEvent, stubMinion } from "./testing/fixtures.js";
-import { giveCard } from "./testing/scenario.js";
-import { gameAtFirstTurn, minionEngagedWith, P1 } from "./testing/wave3.js";
+import { stubEvent, stubMinion, stubSideScheme, stubSupport } from "./testing/fixtures.js";
+import { giveCard, TREACHERY } from "./testing/scenario.js";
+import {
+  copiesOf,
+  encounterCardInVillainArea,
+  gameAtFirstTurn,
+  minionEngagedWith,
+  P1,
+  playerCardIntoPlay,
+} from "./testing/wave3.js";
 
 const ELITE = trait("Elite");
 const def = (definition: AbilityDefinition) => definition;
@@ -47,20 +54,44 @@ const LOSE_ELITE = eventOf("lose-elite", [
 const GAIN_ELITE = eventOf("gain-elite", [
   { kind: "grantTraitUntil", trait: ELITE, target: brute, until: "endOfRound" },
 ]);
-const EVENTS = [LOSE_GUARD, GAIN_GUARD, LOSE_ELITE, GAIN_ELITE];
+/** A permanent support of P1's, and an event that makes it lose Permanent until the end of the round. */
+const KEEPER = stubSupport({ id: "keeper", cost: 0, keywords: [{ name: "permanent" }] });
+const keeper = { kind: "each", query: { categories: ["support"], printedId: KEEPER.id } } as const;
+const LOSE_PERMANENT = eventOf("lose-permanent", [
+  { kind: "grantKeywordUntil", keyword: { name: "permanent" }, target: keeper, until: "endOfRound", loses: true },
+]);
+const EVENTS = [LOSE_GUARD, GAIN_GUARD, LOSE_ELITE, GAIN_ELITE, LOSE_PERMANENT];
 
-const deps = depsOf(...EVENTS.map((e) => e.ability));
+/** Constants on a side scheme: each minion gains guard and Elite; each support loses Permanent. */
+const RULES = stubAbility(
+  "rules.constant",
+  def({
+    trigger: {
+      kind: "constant",
+      keywordGrants: [
+        { keyword: { name: "guard" }, target: { categories: ["minion"] } },
+        { keyword: { name: "permanent" }, target: { categories: ["support"] }, loses: true },
+      ],
+      traitGrants: [{ trait: ELITE, target: { categories: ["minion"] } }],
+    },
+    effects: [],
+  }),
+);
+const RULES_CARD = stubSideScheme({ id: "rules", startingThreat: 5, abilities: [RULES.ref] });
+
+const deps = depsOf(RULES, ...EVENTS.map((e) => e.ability));
 
 function start() {
   const state = gameAtFirstTurn({
-    cards: [BRUTE, OTHER, ...EVENTS.map((e) => e.card)],
+    cards: [BRUTE, OTHER, KEEPER, RULES_CARD, ...EVENTS.map((e) => e.card)],
     deps,
-    deck: EVENTS.flatMap((e) => [e.card.id, e.card.id]),
-    encounter: [BRUTE.id, OTHER.id],
+    deck: [KEEPER.id, ...EVENTS.flatMap((e) => [e.card.id, e.card.id])],
+    encounter: [BRUTE.id, OTHER.id, RULES_CARD.id, ...copiesOf(TREACHERY.id, 10)],
   });
   const b = minionEngagedWith(state, BRUTE.id);
   const o = minionEngagedWith(b.state, OTHER.id);
-  return { state: o.state, brute: b.id, other: o.id };
+  const k = playerCardIntoPlay(o.state, KEEPER.id);
+  return { state: k.state, brute: b.id, other: o.id, keeper: k.id };
 }
 
 function run(state: GameState, commands: readonly Command[]) {
@@ -98,5 +129,32 @@ describe("losing a keyword or a trait until the end of the round", () => {
     expect(traitsOf(lost, other, deps)).toEqual([ELITE]);
     expect(traitsOf(play(lost, GAIN_ELITE.card.id), b, deps)).toEqual([]);
     expect(traitsOf(endRound(lost), b, deps)).toEqual([ELITE]);
+  });
+
+  it("a constant grant does not give back a lost keyword or trait while the loss lasts", () => {
+    const { state, brute: b } = start();
+    const ruled = encounterCardInVillainArea(state, RULES_CARD.id, 5).state;
+    const lost = play(play(ruled, LOSE_GUARD.card.id), LOSE_ELITE.card.id);
+    expect(hasKeyword(lost, b, "guard", deps)).toBe(false);
+    expect(traitsOf(lost, b, deps)).toEqual([]);
+  });
+
+  it("a lost Permanent no longer protects or counts, printed or not; it comes back as the round ends", () => {
+    const { state, keeper: k } = start();
+    const other = BRUTE.id;
+    expect(isPermanent(state, k, deps)).toBe(true);
+    expect(permanentProtectsFrom(state, k, other, deps)).toBe(true);
+    const lost = play(state, LOSE_PERMANENT.card.id);
+    expect(isPermanent(lost, k, deps)).toBe(false);
+    expect(permanentProtectsFrom(lost, k, other, deps)).toBe(false);
+    expect(printedKeywordsOf(lost, k, deps)).toEqual([{ name: "permanent" }]);
+    expect(isPermanent(endRound(lost), k, deps)).toBe(true);
+  });
+
+  it("a constant loss of Permanent works the same way", () => {
+    const { state, keeper: k } = start();
+    const ruled = encounterCardInVillainArea(state, RULES_CARD.id, 5).state;
+    expect(isPermanent(ruled, k, deps)).toBe(false);
+    expect(permanentProtectsFrom(ruled, k, BRUTE.id, deps)).toBe(false);
   });
 });

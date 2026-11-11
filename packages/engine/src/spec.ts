@@ -5062,11 +5062,14 @@ export type EffectSpec =
    * end of the phase" effects end. Then the villain phase it was in place of is played, unless this was used again.
    *
    * Read where the villain phase would begin: at the player phase's end when this was made earlier (no "villain phase
-   * begins" is raised, so "until the next villain phase begins" lasts on, as for a skip), or, made by an interrupt to
-   * the villain phase beginning (`on.phaseBeginning("villain")`, which should also `cancelTriggeringEvent` so nothing
-   * answers a beginning that did not happen), before step one. Ahead of `skipNextVillainPhase`: a skip waiting for the
-   * same villain phase waits for the one after the extra player phase. Logged as `villainPhaseSkipped` with
-   * `playerPhaseInstead`.
+   * begins" is raised), or, made by an interrupt to the villain phase beginning (`on.phaseBeginning("villain")`, which
+   * also `cancelTriggeringEvent`s it), before step one. Either way the replaced beginning is not considered to have
+   * occurred (RRG v1.8 "Replacement Effect" p. 37, "Cancel" p. 11), so "until the next villain phase begins" lasting
+   * effects run on through the extra player phase and expire when the villain phase actually played begins ("Lasting
+   * Effects" p. 26): a cancelled beginning puts back the ones its `villainPhaseBegins` step had ended (the event
+   * frame's `restoreIfCancelled`). Consistent with a skipped villain phase, which never begins
+   * (docs/phase7-wave11-hero-packs.md H3.7, H3.8). Ahead of `skipNextVillainPhase`: a skip waiting for the same villain
+   * phase waits for the one after the extra player phase. Logged as `villainPhaseSkipped` with `playerPhaseInstead`.
    */
   | { readonly kind: "replaceNextVillainPhaseWithPlayerPhase" }
   /**
@@ -5825,7 +5828,14 @@ export type EffectSpec =
    * there (`LastingDuration nextVillainPhaseBegins`, docs/phase7-wave8.md §3.13). Pushed as the player phase finishes,
    * beneath everything its end queues and above the villain phase's own beginning, and only when such an effect exists.
    */
-  | { readonly kind: "villainPhaseBegins" }
+  | {
+      readonly kind: "villainPhaseBegins";
+      /**
+       * The villain phase's beginning event frame pushed beneath this step, when one was: the effects this ends are
+       * kept on it (`restoreIfCancelled`) and come back if that beginning is cancelled.
+       */
+      readonly beginning?: FrameId;
+    }
   /**
    * **Engine-internal; no DSL builder.** The last step of paying a "resolve its 'Forced Response' … →" cost
    * (`AbilityCost.resolveAbility`, `resolve-ability-cost.ts`, docs/phase7-wave8.md §3.11): reads `<bind>.count`, how

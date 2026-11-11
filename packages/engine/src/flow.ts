@@ -742,8 +742,12 @@ function pushVillainPhaseBeginning(ctx: Ctx): void {
     // p. 26: it "expires as soon as the timing point specified by its duration is reached"). So who hears the beginning
     // is read as the game will stand then, with those effects gone (a text box they blanked is back).
     const then = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((e) => !untilNow.includes(e)) };
-    if (heard(then, ctx.deps, beginning)) pushEvent(ctx, beginning);
-    pushEffects(ctx, { effects: [{ kind: "villainPhaseBegins" }], selfInstanceId: null, controllerId: null });
+    const beginningFrame = heard(then, ctx.deps, beginning) ? pushEvent(ctx, beginning) : null;
+    pushEffects(ctx, {
+      effects: [{ kind: "villainPhaseBegins", ...(beginningFrame ? { beginning: beginningFrame } : {}) }],
+      selfInstanceId: null,
+      controllerId: null,
+    });
   }
 }
 
@@ -787,7 +791,9 @@ function skipsVillainPhaseNow(ctx: Ctx): boolean {
  * round, before step one. Nothing of the round's end happens (no new round number, token pass, "end of the round"
  * effects or fresh round limits; RRG 1.8 "Round Overview", p. 4, ends the round at step 10, after the villain phase).
  * The new phase ends as every player phase does (discard, draw, ready; RRG 1.8 "End of Player Phase", p. 18), and the
- * villain phase follows. Returns false when no replacement is waiting.
+ * villain phase follows. That the extra phase gets its own end-of-phase draw and ready is an engine interpretation of
+ * the custom card (no rule covers an extra player phase; the RRG gives every player phase those steps), pending the
+ * pack author's confirmation. Returns false when no replacement is waiting.
  */
 function playerPhaseInsteadNow(ctx: Ctx): boolean {
   const waiting = ctx.state.villainPhasesReplacedByPlayerPhase ?? 0;

@@ -238,35 +238,77 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
   if (readingGrantedPermanent) return false;
   readingGrantedPermanent = true;
   try {
-    for (const effect of state.lastingEffects) {
-      // A lasting grant outlives the ability that made it, so one this card's own ability made counts too.
-      if (effect.kind !== "keywordGrant" || effect.loses || effect.keyword.name !== "permanent") continue;
-      if (lastingReaches(state, effect, id, DEFAULT_DEPS)) return true;
-    }
-    if (!registryHasAbilities(deps.abilities)) return false;
-    for (const sourceId of cardsInPlay(state)) {
-      if (sourceId === id) continue;
-      for (const ref of refsLiveUnderLastingBlank(state, sourceId, deps)) {
-        const definition = deps.abilities[ref.id];
-        if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
-        const context: EffectContext = {
-          selfInstanceId: sourceId,
-          controllerId: speakerOf(state, sourceId),
-          event: null,
-          bindings: {},
-          deps: DEFAULT_DEPS,
-        };
-        for (const grant of definition.trigger.keywordGrants) {
-          if (grant.keyword?.name !== "permanent" || grant.loses) continue;
-          if (grant.while && !evaluate(state, grant.while, context)) continue;
-          if (matchesQuery(state, id, grant.target, context)) return true;
-        }
-      }
-    }
-    return false;
+    return permanentChangeReaches(state, id, deps, false);
   } finally {
     readingGrantedPermanent = false;
   }
+}
+
+/** Set while `hasLostPermanent` is scanning: a re-entrancy guard, not game state. */
+let readingLostPermanent = false;
+
+/**
+ * Whether an effect or rule makes this card lose the Permanent keyword right now (RRG 1.8 "'Loses'", p. 27: it
+ * "functions as if it does not possess" it, printed or gained): a lasting `grantKeywordUntil` with `loses`, or a
+ * constant `keywordGrants` entry with `loses`. Read the way `hasGrantedPermanent` reads grants, and under its own
+ * re-entrancy guard, so a blank check can ask it. A loss beats every grant and the printed keyword (`isPermanent`,
+ * `permanentProtectsFrom`).
+ */
+export function hasLostPermanent(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
+  if (readingLostPermanent) return false;
+  readingLostPermanent = true;
+  try {
+    return permanentChangeReaches(state, id, deps, true);
+  } finally {
+    readingLostPermanent = false;
+  }
+}
+
+/** The scan behind `hasGrantedPermanent` (`loses` false) and `hasLostPermanent` (`loses` true). */
+const LOSES_PERMANENT_IN_REGISTRY = new WeakMap<EngineDeps["abilities"], boolean>();
+/** Whether any constant in the registry has a `keywordGrants` entry that loses Permanent. */
+function registryLosesPermanent(deps: EngineDeps): boolean {
+  let known = LOSES_PERMANENT_IN_REGISTRY.get(deps.abilities);
+  if (known === undefined) {
+    known = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.keywordGrants ?? []).some((grant) => grant.loses && grant.keyword?.name === "permanent"),
+    );
+    LOSES_PERMANENT_IN_REGISTRY.set(deps.abilities, known);
+  }
+  return known;
+}
+
+function permanentChangeReaches(state: GameState, id: InstanceId, deps: EngineDeps, loses: boolean): boolean {
+  for (const effect of state.lastingEffects) {
+    // A lasting grant outlives the ability that made it, so one this card's own ability made counts too.
+    if (effect.kind !== "keywordGrant" || !!effect.loses !== loses || effect.keyword.name !== "permanent") continue;
+    if (lastingReaches(state, effect, id, DEFAULT_DEPS)) return true;
+  }
+  if (!registryHasAbilities(deps.abilities)) return false;
+  // No constant in the registry takes Permanent away (every base game): nothing more to read.
+  if (loses && !registryLosesPermanent(deps)) return false;
+  for (const sourceId of cardsInPlay(state)) {
+    if (sourceId === id) continue;
+    for (const ref of refsLiveUnderLastingBlank(state, sourceId, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
+      const context: EffectContext = {
+        selfInstanceId: sourceId,
+        controllerId: speakerOf(state, sourceId),
+        event: null,
+        bindings: {},
+        deps: DEFAULT_DEPS,
+      };
+      for (const grant of definition.trigger.keywordGrants) {
+        if (grant.keyword?.name !== "permanent" || !!grant.loses !== loses) continue;
+        if (grant.while && !evaluate(state, grant.while, context)) continue;
+        if (matchesQuery(state, id, grant.target, context)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 export function keywordsOf(
@@ -297,6 +339,8 @@ export const hasKeyword = (
  * mass forms stay in play (docs/phase7-wave4.md §4 Q25, user decision 2026-09-26).
  */
 export function isPermanent(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
+  // A lost Permanent (RRG 1.8 "'Loses'", p. 27) is gone even from the printed fallback.
+  if (hasLostPermanent(state, id, deps)) return false;
   return hasKeyword(state, id, "permanent", deps) || printsPermanent(state, id);
 }
 

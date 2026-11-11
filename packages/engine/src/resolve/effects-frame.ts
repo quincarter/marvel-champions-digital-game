@@ -77,6 +77,7 @@ import {
   addLastingEffect,
   areaCostReductionFor,
   expireNextVillainPhaseEffects,
+  untilNextVillainPhase,
   dealEncounterCardOrAnnounce,
   discardFromHand,
   expirePaidForEffects,
@@ -411,7 +412,14 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   // docs/phase7-wave8.md §3.13: "until the next villain phase begins" ends here, as the villain phase begins.
   if (effect.kind === "villainPhaseBegins") {
     setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
-    return expireNextVillainPhaseEffects(ctx);
+    const ending = untilNextVillainPhase(ctx.state);
+    expireNextVillainPhaseEffects(ctx);
+    // Kept on the beginning they ended for, to come back if it is cancelled (`cancelTriggeringEvent`).
+    if (effect.beginning && ending.length > 0)
+      updateFrame(ctx, effect.beginning, (target) =>
+        target.kind === "event" ? { ...target, restoreIfCancelled: ending } : target,
+      );
+    return;
   }
   // docs/phase7-wave8.md §3.11: "resolve its 'Forced Response' →", settled once the abilities have resolved.
   if (effect.kind === "settleResolveAbilityCost") return executeSettleResolveAbilityCost(ctx, frame, effect);

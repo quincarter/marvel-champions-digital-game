@@ -49,6 +49,12 @@ const villainWard = (until: "endOfPhase" | "endOfRound"): EffectSpec => ({
 });
 const ROUND_WARD = action("round-ward", villainWard("endOfRound"));
 const PHASE_WARD = action("phase-ward", villainWard("endOfPhase"));
+/** "The villain cannot take damage until the next villain phase begins." */
+const UNTIL_VILLAIN = action("until-villain", {
+  kind: "applyRuleUntil",
+  rule: { kind: "cannotTakeDamage", target: { categories: ["villain"] } },
+  until: "nextVillainPhaseBegins",
+});
 const LATER = action("later", { kind: "atEndOfRound", effects: [tally("delayed")] });
 
 /** Out of the Game's shape: cancel the beginning, remove itself from the game, play a player phase instead. */
@@ -96,6 +102,7 @@ const WATCHER = stubSupport({
 
 const deps = depsOf(
   AGAIN.ability,
+  UNTIL_VILLAIN.ability,
   SKIP.ability,
   ROUND_WARD.ability,
   PHASE_WARD.ability,
@@ -112,12 +119,12 @@ const deps = depsOf(
 function start(): { readonly state: GameState; readonly watcher: InstanceId } {
   const state = gameAtFirstTurn({
     players: 2,
-    cards: [AGAIN.card, SKIP.card, ROUND_WARD.card, PHASE_WARD.card, LATER.card, WATCHER, OUT_CARD],
+    cards: [AGAIN.card, UNTIL_VILLAIN.card, SKIP.card, ROUND_WARD.card, PHASE_WARD.card, LATER.card, WATCHER, OUT_CARD],
     deps,
     deck: [
       WATCHER.id,
       OUT_CARD.id,
-      ...[AGAIN, SKIP, ROUND_WARD, PHASE_WARD, LATER].flatMap((e) => copiesOf(e.card.id, 3)),
+      ...[AGAIN, UNTIL_VILLAIN, SKIP, ROUND_WARD, PHASE_WARD, LATER].flatMap((e) => copiesOf(e.card.id, 3)),
       ...copiesOf(AGAIN.card.id, 20),
     ],
     encounter: copiesOf(TREACHERY.id, 30),
@@ -240,6 +247,26 @@ describe("a player phase in place of the villain phase, within the same round", 
     expect(of(after.events, "threatPlaced").length).toBeGreaterThan(0);
     expect(after.state.round).toBe(begun.round + 1);
     expect(counter(after.state, "villainBegun")).toBe(1);
+  });
+
+  it("'until the next villain phase begins' runs on through the extra phase either way, and ends when the villain phase is played", () => {
+    // Out of the Game's path: the beginning is raised, then cancelled; what its step had ended is put back.
+    const { state: begun } = start();
+    const out = playerCardIntoPlay(play(begun, UNTIL_VILLAIN.card), OUT_CARD.id).state;
+    expect(wards(out)).toBe(1);
+    const extra = endPhase(out);
+    expect(extra.state.step).toMatchObject({ phase: "player", kind: "turn" });
+    expect(wards(extra.state)).toBe(1);
+    const expired = of(extra.events, "lastingEffectEnded").map((e) => e.id);
+    const restored = of(extra.events, "lastingEffectAdded").map((e) => e.effect.id);
+    expect(expired).toHaveLength(1);
+    expect(restored).toEqual(expired);
+    expect(wards(endPhase(extra.state).state)).toBe(0);
+    // Set earlier in the phase: no beginning is raised, and it lasts on the same way.
+    const early = endPhase(play(play(begun, UNTIL_VILLAIN.card), AGAIN.card));
+    expect(wards(early.state)).toBe(1);
+    expect(of(early.events, "lastingEffectEnded")).toEqual([]);
+    expect(wards(endPhase(early.state).state)).toBe(0);
   });
 
   it("with a skip waiting too, the player phase comes first and the skip takes the villain phase after it", () => {

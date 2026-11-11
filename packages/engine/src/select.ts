@@ -28,6 +28,7 @@ import {
   activeFormType,
   canTakeStatus,
   hasGrantedPermanent,
+  hasLostPermanent,
   hasKeyword,
   isPermanent,
   printedFormTypes,
@@ -4138,6 +4139,8 @@ export function permanentProtectsFrom(
     const own = new Set(permanentSetKeys(state, card));
     if (permanentSetKeys(state, source).some((key) => own.has(key))) return false;
   }
+  // A lost Permanent protects nothing (RRG 1.8 "'Loses'", p. 27).
+  if (hasLostPermanent(state, id, deps)) return false;
   return (
     unblankedPrintedKeywordsOf(state, id).some((keyword) => keyword.name === "permanent") ||
     hasGrantedPermanent(state, id, deps)
