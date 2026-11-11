@@ -185,6 +185,15 @@ since a release that workflow publishes starts no other workflow; a manual run i
 `MC_IMPORT_REAL_DIR=<folder of pack folders> [MC_IMPORT_REAL_OUT=<out>] pnpm --filter @mc/mod-sdk exec vitest run
 import-marvelcdb` prints a report per folder (the real packs are not checked in).
 
+## The DSL builder index for pack creators
+
+`node packages/mod-sdk/scripts/dsl-reference.mjs [--out <file>]` writes a markdown index of every builder the pack DSL exports
+(name, signature and the first sentence of its doc comment, grouped by the section banners in `packages/cards/src/dsl/`),
+scanning `abilities.ts`, `effects.ts`, `values.ts` and `extra-encounter-deck.ts`, plus the `on`/`when`/`after` event
+patterns. The creator template repo ships its output as `docs/dsl-reference-generated.md`; regenerate it for each SDK
+release and copy it over. It is a text scan with no dependencies (the repo's TypeScript 7 has no JS compiler API), so a
+new export style (for example a builder defined inside another object) needs the script taught about it.
+
 ## Known limits
 
 - `SUPPORTED_DSL_FEATURES` is what the base game's own scripts use (the engine's types are erased at runtime), not
