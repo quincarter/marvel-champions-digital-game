@@ -1,8 +1,30 @@
 import type { AbilityRegistry } from "@mc/engine";
-import { action, agile, constant, costModifier, heroInterrupt, on } from "./abilities.js";
-import { blankTextBoxForPlayers, giveBasicPowerBoostCard } from "./effects.js";
+import { trait } from "@mc/content";
+import { action, agile, constant, costModifier, forcedInterrupt, heroInterrupt, on, tagged } from "./abilities.js";
+import {
+  blankTextBoxForPlayers,
+  cancelIt,
+  dealDamage,
+  draw,
+  giveBasicPowerBoostCard,
+  loseKeywordUntil,
+  loseTraitUntil,
+  replaceNextVillainPhaseWithPlayerPhase,
+  resolveOneTagged,
+  resolveTagged,
+} from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { eachPlayer, lastPlayedThisRound, query, self, you, YOUR_IDENTITY } from "./values.js";
+import {
+  eachPlayer,
+  hasTaggedAbility,
+  lastPlayedThisRound,
+  query,
+  self,
+  taggedAbilitiesOn,
+  theVillain,
+  you,
+  YOUR_IDENTITY,
+} from "./values.js";
 
 /**
  * DSL shapes the engine supports that no base card uses yet, so the mod SDK's feature walk over the base registry
@@ -33,6 +55,28 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   "engine-only.per-player-blank": action(blankTextBoxForPlayers(self, eachPlayer, "endOfPhase")),
   // "When [your hero] uses a basic power, you may give him a boost card" (`giveBasicPowerBoostCard`).
   "engine-only.basic-power-boost": heroInterrupt(on.basicPowerUsing(YOUR_IDENTITY), giveBasicPowerBoostCard()),
+  // A tagged ability with no trigger ("speech bubbles"; `AbilityTriggerSpec special.tag`): "Draw 1 card now".
+  "engine-only.tagged": tagged("pinkBubble", draw(1)),
+  // "Resolve whatever is written in a PINK BUBBLE in play" (`resolveSpecials` `tag` and `pick: "one"`).
+  "engine-only.resolve-one-tagged": action(resolveOneTagged("pinkBubble")),
+  // "Remove this card from the game → resolve all the PINK BUBBLES in play", its own included (`of` with `cards`).
+  "engine-only.resolve-all-tagged": action(resolveTagged("pinkBubble", { of: self, bind: "bubbles" })),
+  // "Deal X damage, where X equals the PINK BUBBLES you control" (`ValueSpec taggedAbilities`).
+  "engine-only.tagged-count": action(dealDamage(taggedAbilitiesOn("pinkBubble", { controller: "you" }), theVillain)),
+  // "Increase the cost of each card with a PINK BUBBLE you play by 2" (`TargetQuery hasTaggedAbility`).
+  "engine-only.has-tagged": constant(
+    costModifier({ delta: 2, appliesTo: query("upgrade", { controller: "you", ...hasTaggedAbility("pinkBubble") }) }),
+  ),
+  // "When the villain phase would begin, instead … start another player phase" (`replaceNextVillainPhaseWithPlayerPhase`).
+  "engine-only.extra-player-phase": forcedInterrupt(
+    on.phaseBeginning("villain"),
+    cancelIt(),
+    replaceNextVillainPhaseWithPlayerPhase(),
+  ),
+  // "Ignore one keyword or trait on one card until the end of the round" (`grantKeywordUntil` / `grantTraitUntil`'s
+  // `loses`).
+  "engine-only.lose-keyword": action(loseKeywordUntil({ name: "guard" }, theVillain, "endOfRound")),
+  "engine-only.lose-trait": action(loseTraitUntil(trait("ELITE"), theVillain, "endOfRound")),
 };
 
 /** Every example is a valid definition (checked by the DSL's own validator, as `defineAbilities` would). */

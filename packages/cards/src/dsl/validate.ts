@@ -67,6 +67,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkFinds(definition, problems);
   checkPreparations(definition, problems);
   checkBorrowedBoosts(definition, problems);
+  checkTaggedAbilities(definition, problems);
   checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
   checkRandomPicks(definition, "definition", problems);
@@ -906,6 +907,21 @@ function checkBorrowedBoosts(definition: AbilityDefinition, problems: string[]):
     if (effect.asIf) problems.push("resolveSpecials boost: `asIf` is not read for a Boost ability");
     if (effect.excludeKeywords)
       problems.push("resolveSpecials boost: `excludeKeywords` is for When Revealed abilities");
+  }
+}
+
+/**
+ * Tagged abilities (custom content's "speech bubbles"; `tagged`, `resolveTagged`): a tag is a non-empty name, and only
+ * Specials carry one, so a `resolveSpecials` that names a tag resolves Specials.
+ */
+function checkTaggedAbilities(definition: AbilityDefinition, problems: string[]): void {
+  if (definition.trigger.kind === "special" && definition.trigger.tag === "")
+    problems.push("tagged ability: the tag is a non-empty name");
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "resolveSpecials" || effect.tag === undefined) continue;
+    if (effect.tag === "") problems.push("resolveSpecials: the tag is a non-empty name");
+    if (effect.trigger !== undefined && effect.trigger !== "special")
+      problems.push('resolveSpecials: `tag` names tagged abilities, which are `trigger: "special"`');
   }
 }
 

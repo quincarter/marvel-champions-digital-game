@@ -191,7 +191,7 @@ function executeStep(ctx: Ctx): void {
     // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
       // A skip made while the player phase's end resolved (`skipsVillainPhaseNow`) is taken before step one.
-      if (!step.placed && skipsVillainPhaseNow(ctx)) return;
+      if (!step.placed && (playerPhaseInsteadNow(ctx) || skipsVillainPhaseNow(ctx))) return;
       return executePlaceThreat(ctx);
     case "enemyActivations":
       return executeEnemyActivations(ctx, step);
@@ -698,7 +698,10 @@ function readyEveryCard(ctx: Ctx): boolean {
 
 /** RRG 1.8 "End of Player Phase" (p. 18) step 5 and the move to the villain phase. */
 function finishPlayerPhase(ctx: Ctx): void {
-  const skipping = (ctx.state.villainPhasesToSkip ?? 0) > 0;
+  // A player phase in place of the villain phase (`replaceNextVillainPhaseWithPlayerPhase`) comes first: it begins from
+  // step one's place once this end has resolved (`playerPhaseInsteadNow`), and a waiting skip waits for the next one.
+  const replacing = (ctx.state.villainPhasesReplacedByPlayerPhase ?? 0) > 0;
+  const skipping = !replacing && (ctx.state.villainPhasesToSkip ?? 0) > 0;
   if (skipping) skipVillainPhase(ctx);
   else setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
@@ -716,7 +719,8 @@ function finishPlayerPhase(ctx: Ctx): void {
   expireLastingEffects(ctx, "endOfPlayerPhase");
   // A skipped villain phase never begins (docs/phase7-wave11-hero-packs.md H3.7): no beginning to answer, and "until
   // the next villain phase begins" lasts on to the next one played (H3.8).
-  if (!skipping) pushVillainPhaseBeginning(ctx);
+  // Nor does one a player phase is played in place of.
+  if (!skipping && !replacing) pushVillainPhaseBeginning(ctx);
   announce(ctx, { kind: "playerPhaseEnded" });
   if (listened) {
     pushEvent(ctx, ending);
@@ -774,6 +778,24 @@ function skipVillainPhase(ctx: Ctx): void {
 function skipsVillainPhaseNow(ctx: Ctx): boolean {
   if ((ctx.state.villainPhasesToSkip ?? 0) <= 0) return false;
   skipVillainPhase(ctx);
+  return true;
+}
+
+/**
+ * "Start another player phase" in place of the villain phase about to begin (`EffectSpec
+ * replaceNextVillainPhaseWithPlayerPhase`): one replacement is used up, and a player phase begins within the same
+ * round, before step one. Nothing of the round's end happens (no new round number, token pass, "end of the round"
+ * effects or fresh round limits; RRG 1.8 "Round Overview", p. 4, ends the round at step 10, after the villain phase).
+ * The new phase ends as every player phase does (discard, draw, ready; RRG 1.8 "End of Player Phase", p. 18), and the
+ * villain phase follows. Returns false when no replacement is waiting.
+ */
+function playerPhaseInsteadNow(ctx: Ctx): boolean {
+  const waiting = ctx.state.villainPhasesReplacedByPlayerPhase ?? 0;
+  if (waiting <= 0) return false;
+  const { villainPhasesReplacedByPlayerPhase: _used, ...rest } = ctx.state;
+  ctx.state = waiting > 1 ? { ...rest, villainPhasesReplacedByPlayerPhase: waiting - 1 } : rest;
+  emit(ctx, { type: "villainPhaseSkipped", round: ctx.state.round, remaining: waiting - 1, playerPhaseInstead: true });
+  beginPlayerPhase(ctx);
   return true;
 }
 

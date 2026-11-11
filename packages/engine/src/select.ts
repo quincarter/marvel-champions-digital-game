@@ -736,8 +736,15 @@ function traitsOfGuarded(
   reading: ReadonlySet<InstanceId>,
 ): readonly Trait[] {
   const traits = [...printedTraitsOf(state, id)];
+  // "Ignore one trait on one card until the end of the round" (`grantTraitUntil.loses`): RRG 1.8 "'Loses'" (p. 27), the
+  // card functions as if it does not have it, and no grant gives it back while that lasts.
+  let lost: Set<Trait> | null = null;
   for (const effect of state.lastingEffects) {
     if (effect.kind !== "traitGrant" || !lastingReaches(state, effect, id, deps)) continue;
+    if (effect.loses) {
+      (lost ??= new Set()).add(effect.trait);
+      continue;
+    }
     if (effect.trait !== undefined) {
       traits.push(effect.trait);
       continue;
@@ -775,7 +782,7 @@ function traitsOfGuarded(
       }
     }
   }
-  return traits;
+  return lost === null ? traits : traits.filter((trait) => !lost.has(trait));
 }
 
 /** The context a card's constant trait grants are read in (`traitsOfGuarded`, `traitGrantReach`). */
@@ -1495,6 +1502,11 @@ export function explainQuery(
         return false;
       });
     if (!prints) return "noSuchAbility";
+  }
+  // "Cards with a PINK BUBBLE" (`hasTaggedAbility`): live abilities, as `abilityTiming` reads them.
+  if (query.hasTaggedAbility !== undefined) {
+    if (taggedAbilityCount(state, id, query.hasTaggedAbility, context.deps ?? DEFAULT_DEPS) === 0)
+      return "noSuchAbility";
   }
   // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
@@ -3141,6 +3153,12 @@ export function resolveValue(
           total + (icon === "amplify" ? amplifyIconsInPlay(state, deps) : iconsInPlay(state, deps, icon)),
         0,
       );
+    case "taggedAbilities":
+      // "X equals the PINK BUBBLES you control": each tagged ability on each card in play the query matches.
+      return selectTargets(state, value.cards ?? {}, { ...context, deps }).reduce(
+        (total, id) => total + taggedAbilityCount(state, id, value.tag, deps),
+        0,
+      );
     case "mainSchemeStageNumber":
       return mainSchemeStage(state).stageNumber;
     case "boostIcons": {
@@ -4228,6 +4246,19 @@ export function activeAbilityRefs(
       gained.findIndex((other) => other.abilityId === grant.abilityId) === index,
   );
   return extra.length === 0 ? printed : [...printed, ...extra.map((grant) => ({ id: grant.abilityId }))];
+}
+
+/**
+ * How many of the card's live abilities are tagged `tag` (`AbilityTriggerSpec special.tag`; custom content's "speech
+ * bubbles"), read as `activeAbilityRefs` reads them: `TargetQuery hasTaggedAbility`, `ValueSpec taggedAbilities`.
+ */
+export function taggedAbilityCount(state: GameState, id: InstanceId, tag: string, deps: EngineDeps): number {
+  let count = 0;
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    if (trigger?.kind === "special" && trigger.tag === tag) count++;
+  }
+  return count;
 }
 
 /** `activeAbilityRefs` less the abilities the card gains from rules: its live printed abilities. */

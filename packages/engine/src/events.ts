@@ -114,7 +114,16 @@ export type GameEvent =
    * Round `round`'s villain phase was skipped (`EffectSpec skipNextVillainPhase`, docs/phase7-wave11-hero-packs.md
    * H3.7): the round goes straight to its end. `remaining` is how many more villain phases are still to be skipped.
    */
-  | { readonly type: "villainPhaseSkipped"; readonly round: number; readonly remaining: number }
+  /**
+   * `playerPhaseInstead`: a player phase is played in its place, within the same round (`EffectSpec
+   * replaceNextVillainPhaseWithPlayerPhase`), and `remaining` counts the replacements still to come.
+   */
+  | {
+      readonly type: "villainPhaseSkipped";
+      readonly round: number;
+      readonly remaining: number;
+      readonly playerPhaseInstead?: true;
+    }
   | { readonly type: "turnStarted"; readonly playerId: PlayerId }
   | { readonly type: "turnEnded"; readonly playerId: PlayerId }
   | { readonly type: "deckShuffled"; readonly zone: ZoneId; readonly order: readonly InstanceId[] }

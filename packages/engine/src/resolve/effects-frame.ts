@@ -3436,12 +3436,16 @@ function executeResolveSpecials(
   // card whose constant gives it (null for a rule no card carries). Absent: one of the card's own abilities.
   type Step = TriggerCandidate & { readonly grantedBy?: InstanceId | null };
   const steps: Step[] = [];
-  // Cards in play (`cards`), or cards a ref names wherever they are (`of`): an Invocation card resolves from its deck.
-  const sources = effect.of
-    ? resolveRef(ctx.state, effect.of, context).filter((id) => getInstance(ctx.state, id) !== undefined)
-    : effect.cards
-      ? selectTargets(ctx.state, effect.cards, context)
-      : [];
+  // Cards a ref names wherever they are (`of`): an Invocation card resolves from its deck. Then cards in play (`cards`);
+  // with both, the cards of both, `of`'s first and each once (a card removed from the game resolving with the rest).
+  const sources = [
+    ...new Set([
+      ...(effect.of
+        ? resolveRef(ctx.state, effect.of, context).filter((id) => getInstance(ctx.state, id) !== undefined)
+        : []),
+      ...(effect.cards ? selectTargets(ctx.state, effect.cards, context) : []),
+    ]),
+  ];
   const resolvingPlayer = effect.player ? (resolvePlayers(ctx.state, effect.player, context)[0] ?? null) : null;
   // "Resolve this card's 'When Revealed' ability" / "each 'When Revealed' ability on each side scheme" (§3.56).
   const trigger = effect.trigger ?? "special";
@@ -3453,7 +3457,8 @@ function executeResolveSpecials(
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       // A "Forced Response" is a forced `response`; a card's attach instruction is not one of its When Revealed
       // abilities (`resolvableAs`).
-      if (!resolvableAs(ctx.deps.abilities[ref.id], trigger)) continue;
+      // A tagged ability resolves only under its own tag (`AbilityTriggerSpec special.tag`).
+      if (!resolvableAs(ctx.deps.abilities[ref.id], trigger, effect.tag)) continue;
       if (only && !only.has(ref.id)) continue;
       // A Forced Interrupt with no enemy activation to be "as if" met is not one this resolves (§3.28).
       if (trigger === "forcedInterrupt" && !asIfActivation(ctx, id, ref.id, asIfPlayer)) continue;
@@ -3543,7 +3548,24 @@ function executeResolveSpecials(
   // the calling ability's player (Wakanda Forever!).
   const unowned = all.every((c) => controllerOf(ctx.state, c.instanceId) === null);
   let ordered = all;
-  if (frame.answer !== null) {
+  if (effect.pick === "one") {
+    // "Resolve whatever is written in a PINK BUBBLE in play" (`pick: "one"`): one of them, the calling ability's
+    // player's pick (the first player's for a card nobody controls, as the order is), every candidate a legal one.
+    if (frame.answer === null && all.length > 1) {
+      requestChoice(ctx, {
+        playerId: frame.controllerId ?? simultaneousOrderer(ctx.state),
+        ...(frame.controllerId ? {} : { authority: "firstPlayerOrders" as const }),
+        prompt: { kind: "chooseOption" },
+        options: all.map(option),
+        minSelections: 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    const picked = frame.answer?.[0];
+    ordered = picked === undefined ? all.slice(0, 1) : all.filter((c) => key(c) === picked);
+  } else if (frame.answer !== null) {
     const byKey = new Map(all.map((c) => [key(c), c]));
     ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is Step | KeywordStep => c !== undefined);
   } else if (asks && (frame.controllerId || unowned)) {

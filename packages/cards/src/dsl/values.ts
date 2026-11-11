@@ -779,6 +779,22 @@ export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => 
   ...(icons ? { icons } : {}),
 });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
+/**
+ * "X equals the PINK BUBBLES you control" (custom content): the abilities tagged `tag` (`tagged(...)`) on the cards in
+ * play `cards` matches (absent: every card in play), each counted: `taggedAbilitiesOn("pinkBubble", { controller:
+ * "you" })`. Live, so a blanked text box counts none. Engine `ValueSpec taggedAbilities`.
+ */
+export const taggedAbilitiesOn = (tag: string, cards?: TargetQuery): ValueSpec => ({
+  kind: "taggedAbilities",
+  tag,
+  ...(cards ? { cards } : {}),
+});
+/**
+ * "Cards with a PINK BUBBLE" (custom content): a query fragment for a card that has an ability tagged `tag`, read live
+ * (in hand: its printed ones): `query(["upgrade", "support", "ally"], hasTaggedAbility("pinkBubble"))`. Engine
+ * `TargetQuery hasTaggedAbility`.
+ */
+export const hasTaggedAbility = (tag: string): Pick<TargetQuery, "hasTaggedAbility"> => ({ hasTaggedAbility: tag });
 /** The star icons (★) in the boost areas of the cards `cards` names: 1 for each card that prints one. */
 export const starIconsOn = (cards: TargetRef): ValueSpec => ({ kind: "starIcons", cards });
 /**

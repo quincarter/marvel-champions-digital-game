@@ -2621,6 +2621,69 @@ export const removeAccelerationToken = (from?: TargetRef): EffectSpec => ({
  */
 export const skipNextVillainPhase = (): EffectSpec => ({ kind: "skipNextVillainPhase" });
 /**
+ * "When the villain phase would begin, instead remove this card from the game → start another player phase" (custom
+ * content): the next villain phase is replaced by a player phase within the same round (no new round, no token pass,
+ * round limits and "until the end of the round" effects carry on; the extra phase ends with its own discard, draw and
+ * ready). As an interrupt to the villain phase beginning, cancel that beginning too:
+ * `forcedInterrupt(on.phaseBeginning("villain"), cancelIt(), moveCards(cards(self), "removedFromGame"),
+ * replaceNextVillainPhaseWithPlayerPhase())`. Engine `EffectSpec replaceNextVillainPhaseWithPlayerPhase`.
+ */
+export const replaceNextVillainPhaseWithPlayerPhase = (): EffectSpec => ({
+  kind: "replaceNextVillainPhaseWithPlayerPhase",
+});
+/**
+ * "Resolve all the PURPLE BUBBLES in play" (custom content): every ability tagged `tag` (`tagged(...)`) on the cards in
+ * play `cards` matches (absent: every card in play), in the order the calling ability's player chooses (the first
+ * player's for a card nobody controls). `of`: cards named wherever they are, resolved with the others ("remove this
+ * card from the game → resolve all the PINK BUBBLES in play", with this card's own bubble: `{ of: self }`). `bind`:
+ * `<bind>.count`, how many resolved. Engine `EffectSpec resolveSpecials` with `tag`.
+ */
+export const resolveTagged = (tag: string, opts: TaggedResolveOptions = {}): EffectSpec =>
+  taggedResolve(tag, opts, false);
+/**
+ * "Resolve whatever is written in a PINK BUBBLE in play" (custom content): `resolveTagged` with `pick: "one"`: the
+ * calling ability's player picks one of the tagged abilities (a flavor one included) and only it resolves.
+ */
+export const resolveOneTagged = (tag: string, opts: TaggedResolveOptions = {}): EffectSpec =>
+  taggedResolve(tag, opts, true);
+interface TaggedResolveOptions {
+  readonly cards?: TargetQuery;
+  readonly of?: TargetRef;
+  readonly player?: PlayerRef;
+  readonly bind?: string;
+}
+const taggedResolve = (tag: string, opts: TaggedResolveOptions, one: boolean): EffectSpec => ({
+  kind: "resolveSpecials",
+  cards: opts.cards ?? {},
+  tag,
+  ...(one ? { pick: "one" as const } : {}),
+  ...(opts.of ? { of: opts.of } : {}),
+  ...(opts.player ? { player: opts.player } : {}),
+  ...withBind(opts.bind),
+});
+/**
+ * "Ignore one keyword on one card until the end of the round" (custom content): the card loses every `keyword` of that
+ * name for the duration (RRG 1.8 "'Loses'", p. 27). Engine `EffectSpec grantKeywordUntil.loses`.
+ */
+export const loseKeywordUntil = (keyword: KeywordInstance, target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "grantKeywordUntil",
+  keyword,
+  target,
+  until,
+  loses: true,
+});
+/**
+ * "Ignore one trait on one card until the end of the round" (custom content): the card loses the trait for the
+ * duration (RRG 1.8 "'Loses'", p. 27); still printed. Engine `EffectSpec grantTraitUntil.loses`.
+ */
+export const loseTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "grantTraitUntil",
+  trait: t,
+  target,
+  until,
+  loses: true,
+});
+/**
  * "Remove an acceleration token from play" (De-escalation 60024): the chooser (default the ability's controller) picks
  * a card in play holding one, any main scheme stage, in any game area, or an `acceleration` counter on another card,
  * bound as `slot`, and one token comes off it; nothing is asked and nothing removed when no card holds one. The card's

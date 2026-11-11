@@ -1042,6 +1042,12 @@ export interface GameState {
    * round ends with no villain phase (`flow.ts` `finishPlayerPhase`). Absent is 0.
    */
   readonly villainPhasesToSkip?: number;
+  /**
+   * "Start another player phase" in place of the villain phase (`EffectSpec replaceNextVillainPhaseWithPlayerPhase`):
+   * how many of the villain phases to come are each replaced by a player phase within the same round. Read where the
+   * villain phase would begin (`flow.ts`), ahead of `villainPhasesToSkip`. Absent is 0, and it is removed again at 0.
+   */
+  readonly villainPhasesReplacedByPlayerPhase?: number;
   readonly firstPlayerId: PlayerId;
   /**
    * The number of players who started the scenario, the one count every per player value reads (RRG 1.8 "Per Player

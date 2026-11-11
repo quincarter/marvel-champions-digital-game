@@ -557,8 +557,17 @@ export type AbilityTriggerSpec =
    * unattached, it is discarded as it would have been.
    */
   | { readonly kind: "cannotAttach" }
-  /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
-  | { readonly kind: "special" }
+  /**
+   * RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!).
+   *
+   * `tag`: a tagged ability with no trigger of its own, resolved only by an effect that names the tag (custom content:
+   * a pack's "speech bubbles", `tag: "pinkBubble"`; the tag is a free string the pack chooses). A tagged ability is not
+   * one of the card's Specials: `resolveSpecials` without that `tag` (Wakanda Forever!, a `resolveAbility` cost) never
+   * resolves it. It still counts as the card's (`ValueSpec taggedAbilities`, `TargetQuery hasTaggedAbility`) when its
+   * effects are empty (text with nothing to resolve). Read live like any ability: a blank text box, a facedown card or
+   * the other face hides it.
+   */
+  | { readonly kind: "special"; readonly tag?: string }
   /**
    * "Preparation:" (MC50 rulebook p. 9, "Preparation Abilities"): printed "in place of 'Boost' abilities" on the
    * encounter cards of one villain's set. "These abilities are **not** resolved when the cards are turned faceup as
@@ -3542,13 +3551,21 @@ export const BORROWED_BOOST_ICONS_SLOT = "_borrowedBoostIcons";
 export const labeledResolvedVar = (label: GrantableAbilityLabel): string => `labeledResolved.${label}`;
 
 /**
- * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a
- * "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt` trigger that is
- * forced; the others are named by their own trigger kind. A card's attach instruction is not one of its When Revealed
- * abilities (docs/phase7-wave7.md §3.35).
+ * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` and `tag` (`EffectSpec
+ * resolveSpecials`): a "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt`
+ * trigger that is forced; the others are named by their own trigger kind. A card's attach instruction is not one of its
+ * When Revealed abilities (docs/phase7-wave7.md §3.35).
  */
-export function resolvableAs(definition: AbilityDefinition | undefined, trigger: ResolvableAbilityKind): boolean {
+export function resolvableAs(
+  definition: AbilityDefinition | undefined,
+  trigger: ResolvableAbilityKind,
+  tag?: string,
+): boolean {
   if (!definition || definition.attachInstruction) return false;
+  // A tagged ability (`AbilityTriggerSpec special.tag`) is resolved only by an instruction naming its tag, and a tag
+  // names nothing but tagged abilities.
+  if (trigger === "special" && definition.trigger.kind === "special") return definition.trigger.tag === tag;
+  if (tag !== undefined) return false;
   if (trigger === "forcedResponse") return definition.trigger.kind === "response" && definition.trigger.forced;
   if (trigger === "forcedInterrupt") return definition.trigger.kind === "interrupt" && definition.trigger.forced;
   return definition.trigger.kind === trigger;

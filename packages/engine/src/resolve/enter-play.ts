@@ -216,7 +216,9 @@ function restrictedMayBeGranted(state: GameState, deps: EngineDeps): boolean {
   }
   return (
     known ||
-    state.lastingEffects.some((effect) => effect.kind === "keywordGrant" && effect.keyword.name === "restricted")
+    state.lastingEffects.some(
+      (effect) => effect.kind === "keywordGrant" && !effect.loses && effect.keyword.name === "restricted",
+    )
   );
 }
 

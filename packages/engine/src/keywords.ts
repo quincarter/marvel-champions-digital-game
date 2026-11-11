@@ -149,7 +149,10 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
   const changes = (): KeywordChanges => ({ granted, lost: lost ?? NO_LOSSES });
   // "She gains retaliate 1 until the end of the phase" (`grantKeywordUntil`, docs/phase7-wave4.md §3.39).
   for (const effect of state.lastingEffects) {
-    if (effect.kind === "keywordGrant" && lastingReaches(state, effect, id, deps)) granted.push(effect.keyword);
+    if (effect.kind !== "keywordGrant" || !lastingReaches(state, effect, id, deps)) continue;
+    // "Ignore one keyword on one card until the end of the round" (`grantKeywordUntil.loses`): lost, not granted.
+    if (effect.loses) (lost ??= new Set()).add(effect.keyword.name);
+    else granted.push(effect.keyword);
   }
   if (!registryHasAbilities(deps.abilities)) return changes();
   const inPlay = cardsInPlay(state);
@@ -237,7 +240,7 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
   try {
     for (const effect of state.lastingEffects) {
       // A lasting grant outlives the ability that made it, so one this card's own ability made counts too.
-      if (effect.kind !== "keywordGrant" || effect.keyword.name !== "permanent") continue;
+      if (effect.kind !== "keywordGrant" || effect.loses || effect.keyword.name !== "permanent") continue;
       if (lastingReaches(state, effect, id, DEFAULT_DEPS)) return true;
     }
     if (!registryHasAbilities(deps.abilities)) return false;

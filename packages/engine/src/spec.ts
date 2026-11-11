@@ -735,6 +735,14 @@ export interface TargetQuery {
     readonly kinds: readonly ("action" | "response")[];
     readonly form: "hero" | "alterEgo";
   };
+  /**
+   * The card has an ability tagged `tag` (`AbilityTriggerSpec special.tag`; custom content's "speech bubbles"): "cards
+   * with a PINK BUBBLE" is `{ hasTaggedAbility: "pinkBubble" }`, in a cost modifier's `appliesTo` or a discard cost's
+   * filter. Read from the card's live abilities as `abilityTiming` is: a card in hand or a discard pile has its printed
+   * ones, an identity those of the face showing, and a blank text box or a facedown card has none. An ability tagged
+   * with no effects (flavor text) counts. Exclusion `noSuchAbility`.
+   */
+  readonly hasTaggedAbility?: string;
 }
 
 /**
@@ -1238,6 +1246,14 @@ export type ValueSpec =
    * not icons (RRG 1.8 "Acceleration Token", p. 5). A type listed twice counts once.
    */
   | { readonly kind: "iconsInPlay"; readonly icons?: readonly CardIcon[] }
+  /**
+   * How many abilities tagged `tag` (`AbilityTriggerSpec special.tag`; custom content's "speech bubbles") the cards in
+   * play matching `cards` have, each ability counted (a card with two is two): "X equals the PINK BUBBLES you control"
+   * is `{ tag: "pinkBubble", cards: { controller: "you" } }`, "the number of PURPLE BUBBLES in play" `{ tag:
+   * "purpleBubble" }` (`cards` absent: every card in play). Live abilities, as `TargetQuery hasTaggedAbility` reads
+   * them: a blanked text box has none, an identity counts the face showing. Tagged abilities with no effects count.
+   */
+  | { readonly kind: "taggedAbilities"; readonly tag: string; readonly cards?: TargetQuery }
   /**
    * The main scheme's printed stage number, as it reads now: "[Collector] gets +X SCH and +X ATK, where X is equal
    * to the main scheme's current stage number" (Collector I/II, `gmw` 16080a/16081a). Defaults to the central main
@@ -2967,6 +2983,12 @@ export type EffectSpec =
       readonly target?: TargetRef;
       readonly affects?: TargetQuery;
       readonly until: LastingGrantUntil;
+      /**
+       * The card loses the keyword for the duration instead (RRG 1.8 "'Loses'", p. 27: it "functions as if it does
+       * not possess" it, and cannot regain it while this lasts; still printed). Custom content's "ignore one keyword
+       * on one card until the end of the round". `keyword`'s value is not read: every instance of that name is lost.
+       */
+      readonly loses?: true;
     }
   /**
    * "Gain the Aerial trait until the end of the phase" (Rocket Boots): `trait`. Or, with `traitsOf` instead, "You gain
@@ -2987,8 +3009,17 @@ export type EffectSpec =
       readonly until: LastingGrantUntil;
       readonly whileAttached?: { readonly card: TargetRef; readonly to: TargetRef };
     } & (
-      | { readonly trait: Trait; readonly traitsOf?: undefined }
-      | { readonly trait?: undefined; readonly traitsOf: TargetRef }
+      | {
+          readonly trait: Trait;
+          readonly traitsOf?: undefined;
+          /**
+           * The card loses `trait` for the duration instead (RRG 1.8 "'Loses'", p. 27: it "functions as if it does not
+           * possess" it, and no grant gives it back while this lasts; it is still printed, so a printed-trait read
+           * still finds it). Custom content's "ignore one trait on one card until the end of the round".
+           */
+          readonly loses?: true;
+        }
+      | { readonly trait?: undefined; readonly traitsOf: TargetRef; readonly loses?: undefined }
     ))
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */
   | { readonly kind: "atEndOfRound"; readonly effects: readonly EffectSpec[] }
@@ -3302,7 +3333,9 @@ export type EffectSpec =
   /**
    * `of` names cards wherever they are, for a Special resolved out of play: "resolve the 'Special' ability on [the top
    * card of the Invocation deck]". Resolving a Special is not playing the card, so no `cardPlayed` event (FAQ
-   * "Depowered (#20)", p. 60: "merely resolved, not played").
+   * "Depowered (#20)", p. 60: "merely resolved, not played"). With both `of` and `cards`, the cards of both resolve
+   * together (`of`'s first, a card named twice once): "remove this card from the game → resolve all the PINK BUBBLES in
+   * play", whose author has the removed card's own bubble resolve too, is `{ of: self, cards: {}, tag }`.
    */
   /**
    * `player`: who "you" is inside a Special whose card has no controller ("Each player must resolve The Hood's 'Foul
@@ -3421,6 +3454,21 @@ export type EffectSpec =
        * wording of FFG's announced erratum to Change of Venue (`fne` 60141) and similar cards (same ruling).
        */
       readonly excludeKeywords?: readonly ("incite" | "surge")[];
+      /**
+       * Tagged abilities (`AbilityTriggerSpec special.tag`; custom content's "speech bubbles"): with `trigger` absent or
+       * `"special"`, only the abilities tagged `tag` resolve, and no untagged Special does. "Resolve all the PURPLE
+       * BUBBLES in play" is `{ cards: {}, tag: "purpleBubble" }`; the same `tag` must be named to count one
+       * (`ValueSpec taggedAbilities`) or to match a card by one (`TargetQuery hasTaggedAbility`).
+       */
+      readonly tag?: string;
+      /**
+       * `"one"`: "Resolve whatever is written in a PINK BUBBLE in play": of every ability this effect would resolve, the
+       * calling ability's player picks one (the first player, when the card resolving this effect has no controller)
+       * and only that one resolves. Every candidate is a legal pick, one with nothing to resolve (flavor text) included,
+       * so a pick is never forced on the player by what the abilities do. With one candidate it is taken unasked; with
+       * none nothing resolves. Absent: every one resolves, in the order that player chooses.
+       */
+      readonly pick?: "one";
       /**
        * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"): only
        * those whose effects changed the game (RRG 1.8 "Resolve", p. 37), read as each finishes (`Frame<"effects">.resolvedCount`),
@@ -5001,6 +5049,26 @@ export type EffectSpec =
    * default A): the first player token stays (`SKIPPED_VILLAIN_PHASE_PASSES_TOKEN`, `flow.ts`).
    */
   | { readonly kind: "skipNextVillainPhase" }
+  /**
+   * "When the villain phase would begin, instead remove this card from the game → start another player phase" (custom
+   * content): adds 1 to `GameState.villainPhasesReplacedByPlayerPhase`. The next villain phase does not happen and a
+   * player phase is played in its place, **within the same round**: the round does not end and no new one starts, so
+   * the round number, the first player, "until the end of the round" effects and "once per round" limits all carry on
+   * (RRG 1.8 "Round Overview", p. 4: the round ends only at step 10, after the villain phase). No threat is placed,
+   * nothing activates, no card is dealt or revealed and the first player token is not passed. The extra player phase
+   * is a player phase like any other (RRG 1.8 "Player Phase", p. 34): it begins ("when the player phase begins"
+   * answers it, "once per phase" limits are fresh), each player takes a turn in player order, and it ends with every
+   * step of "End of Player Phase" (p. 18): discard down to hand size, draw up to it, ready every card, then "until the
+   * end of the phase" effects end. Then the villain phase it was in place of is played, unless this was used again.
+   *
+   * Read where the villain phase would begin: at the player phase's end when this was made earlier (no "villain phase
+   * begins" is raised, so "until the next villain phase begins" lasts on, as for a skip), or, made by an interrupt to
+   * the villain phase beginning (`on.phaseBeginning("villain")`, which should also `cancelTriggeringEvent` so nothing
+   * answers a beginning that did not happen), before step one. Ahead of `skipNextVillainPhase`: a skip waiting for the
+   * same villain phase waits for the one after the extra player phase. Logged as `villainPhaseSkipped` with
+   * `playerPhaseInstead`.
+   */
+  | { readonly kind: "replaceNextVillainPhaseWithPlayerPhase" }
   /**
    * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
    * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's

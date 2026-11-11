@@ -395,6 +395,17 @@ export const special = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
   return build({ kind: "special" }, options, effects);
 };
+/**
+ * A tagged ability with no trigger (custom content's "speech bubbles"): it resolves only when an effect names its tag
+ * (`resolveTagged`, `resolveOneTagged`), and counts for `taggedAbilitiesOn` and `hasTaggedAbility` while its card has
+ * it. `tag` is the pack's own name for the kind ("pinkBubble"). With no effects it is text with nothing to resolve
+ * (a flavor bubble), which still counts: `tagged("pinkBubble")`. A pink bubble that draws a card:
+ * `tagged("pinkBubble", draw(1))`. Engine `AbilityTriggerSpec special.tag`.
+ */
+export const tagged = (tag: string, ...args: Args): AbilityDefinition => {
+  const { options, effects } = split(args);
+  return build({ kind: "special", tag }, options, effects);
+};
 
 // ---------------------------------------------------------------------------
 // Encounter / scenario abilities

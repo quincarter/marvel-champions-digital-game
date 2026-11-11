@@ -30,6 +30,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   step: "game",
   firstPlayerId: "game",
   villainPhasesToSkip: "game",
+  villainPhasesReplacedByPlayerPhase: "game",
   startingPlayerCount: "game",
   players: "game",
   villains: "game",
