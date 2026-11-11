@@ -15,7 +15,7 @@
  */
 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
-import { type DefenseBar, defenseBarFor, windowDefenseBar } from "./defense-claim.js";
+import { type DefenseBar, defenderBarFor, windowDefenseBar } from "./defense-claim.js";
 import { asIfInHandPermissions, playsOwnCardFromHand } from "./actions.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { cardOf, getInstance, playerOrder } from "./query.js";
@@ -226,8 +226,8 @@ function defenderExclusions(
       else exclusions.push({ instanceId: id, reason: "notHeroOrAlly" });
       continue;
     }
-    // A character of another player's than the one defending, or the one who used a "(defense)" ability.
-    const barred = defenseBarFor(state, controllerOf(state, id));
+    // A character of another player's than the one defending (a "(defense)" ability alone does not bar it).
+    const barred = defenderBarFor(state, controllerOf(state, id));
     if (barred !== null) exclusions.push({ instanceId: id, reason: barred });
     // Its controller cannot pay the additional cost to defend with it, or was asked during this step and did not
     // (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md §3.31). Reported under the nearest existing code.
