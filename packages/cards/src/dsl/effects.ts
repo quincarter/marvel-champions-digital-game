@@ -1574,10 +1574,17 @@ export const zone = (
 });
 /** "The top N cards of your deck". */
 export const topOfDeck = (n: Amount, player: PlayerRef = you): CardSelector => zone("deck", player, { top: n });
-export const cards = (ref: TargetRef, filter?: TargetQuery): CardSelector => ({
+/**
+ * The cards a ref names (in play, or wherever the ref finds them). `opts.random`: that many of them, picked by the
+ * game's seeded RNG, fewer when fewer are there: "discard 1 upgrade you control at random" is
+ * `selectCards("up", cards(each(query("upgrade", { controller: "you" })), undefined, { random: 1 }))` then
+ * `discard(chosen("up"))` (`CardSelector ref.random`).
+ */
+export const cards = (ref: TargetRef, filter?: TargetQuery, opts: { readonly random?: Amount } = {}): CardSelector => ({
   kind: "ref",
   ref,
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /**
  * The cards a ref names that are in that zone of their owner right now: "tuck that event **from your discard pile**

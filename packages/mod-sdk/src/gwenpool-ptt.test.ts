@@ -608,7 +608,10 @@ describe('"I Found You" and "Hello Again"', () => {
     // The first two cards are Rhino's boost card and the card dealt (as Night Thrasher's Practice test); a boost card
     // resolves nothing, so both being the treachery leaves one reveal.
     let state = stackTop(base, code, 2);
+    // The card after it is blank, and Rhino has damage so it heals rather than surging (Hello Again's own surge
+    // reveals it), so no Core card that discards an upgrade itself is revealed.
     state = stackTop(state, BLANK, 1, 2);
+    state = patch(state, villainOf(state), { damage: 8 });
     // Evil Gwenpool starts set aside (RRG 1.8 "Nemesis Encounter Set", p. 30); these cards find her in the deck or the
     // discard pile, so she is placed in the deck here, as after she was defeated and shuffled back.
     if (evilInDeck) state = stackTop(state, `${P}13`, 1, 10);
@@ -627,16 +630,54 @@ describe('"I Found You" and "Hello Again"', () => {
     expect(evil[0]!.engagedWith).toBe(P1);
   });
 
-  it("with Evil Gwenpool already in play it does nothing; Hello Again then discards a random upgrade from your hand", () => {
+  it("Hello Again: with Evil Gwenpool not in play it searches for her and puts her into play; no upgrade is discarded", () => {
+    const handbook = intoPlay(open(), "08", true);
+    const run = reveal(handbook.state, `${P}15`);
+    const evil = evilsIn(run.state);
+    expect(evil, "Evil Gwenpool entered play").toHaveLength(1);
+    expect(evil[0]!.engagedWith).toBe(P1);
+    expect(run.state.players[0]!.playArea, "the upgrade stays in play").toContain(handbook.id);
+  });
+
+  /** Evil Gwenpool in play, Handbook and That's Not How the Game Ends in play, Out of the Game in hand; then Hello Again. */
+  function helloAgainWithEvil(seed: number) {
+    const base = conjure(open(seed), `${P}13`).state;
+    const handbook = intoPlay(base, "08", true);
+    const endsGame = intoPlay(handbook.state, "09", true);
+    const held = toHand(endsGame.state, `${P}07`);
+    const run = reveal(held.state, `${P}15`, false);
+    return { run, upgrades: [handbook.id, endsGame.id], inHand: held.id };
+  }
+
+  it("Hello Again: otherwise you discard exactly 1 upgrade you control, picked by the seeded RNG", () => {
+    const picked = new Set<number>();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const { run, upgrades, inHand } = helloAgainWithEvil(seed);
+      expect(evilsIn(run.state), "no second Evil Gwenpool").toHaveLength(1);
+      const p = run.state.players[0]!;
+      const gone = upgrades.filter((id) => p.discard.includes(id));
+      expect(gone, `seed ${seed}: one upgrade in play discarded`).toHaveLength(1);
+      expect(p.playArea, "the other stays in play").toContain(upgrades.find((id) => id !== gone[0]));
+      expect(p.hand, "an upgrade in hand is not one you control").toContain(inHand);
+      // The same seed and commands pick the same upgrade (the pick is a draw on the game's RNG).
+      const again = helloAgainWithEvil(seed);
+      expect(again.run.state.players[0]!.discard.filter((id) => again.upgrades.includes(id))).toEqual(gone);
+      expect(again.run.state.rng).toEqual(run.state.rng);
+      picked.add(upgrades.indexOf(gone[0]!));
+    }
+    expect(picked.size, "over several seeds both upgrades get picked").toBe(2);
+  });
+
+  it("Hello Again: with Evil Gwenpool in play and no upgrade you control, nothing is discarded", () => {
     const base = conjure(open(), `${P}13`).state;
-    // A hand of exactly one upgrade and four events, so the end-of-turn draw adds nothing.
-    let state = base;
-    const handbook = toHand(state, `${P}08`);
-    state = handbook.state;
-    for (const code of ["03", "03", "03", "04"]) state = toHand(state, `${P}${code}`).state;
-    const run = reveal(state, `${P}15`, false);
-    expect(evilsIn(run.state), "no second Evil Gwenpool").toHaveLength(1);
-    expect(run.state.players[0]!.discard, "the only upgrade in hand was discarded").toContain(handbook.id);
+    const batroc = intoPlay(base, "02");
+    const held = toHand(batroc.state, `${P}07`);
+    const run = reveal(held.state, `${P}15`, false);
+    const p = run.state.players[0]!;
+    expect(evilsIn(run.state)).toHaveLength(1);
+    expect(p.playArea, "an ally is not an upgrade").toContain(batroc.id);
+    expect(p.hand, "the hand is not touched").toContain(held.id);
+    expect(p.discard, "nothing of yours left play or hand for the discard pile").not.toContain(batroc.id);
   });
 });
 

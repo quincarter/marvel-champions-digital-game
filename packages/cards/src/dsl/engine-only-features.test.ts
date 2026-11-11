@@ -11,16 +11,27 @@ import { agile, special, tagged, VILLAIN_OR_VILLAINOUS } from "./abilities.js";
 import {
   blankTextBoxForPlayers,
   blankTextBoxUntil,
+  cards,
   draw,
   loseKeywordUntil,
   loseTraitUntil,
   replaceNextVillainPhaseWithPlayerPhase,
   resolveOneTagged,
   resolveTagged,
+  selectCards,
 } from "./effects.js";
 import { ENGINE_ONLY_DSL_EXAMPLES, engineOnlyDslProblems } from "./engine-only-features.js";
 import { validateDefinition } from "./validate.js";
-import { hasTaggedAbility, lastPlayedThisRound, query, self, taggedAbilitiesOn, thatPlayer, you } from "./values.js";
+import {
+  each,
+  hasTaggedAbility,
+  lastPlayedThisRound,
+  query,
+  self,
+  taggedAbilitiesOn,
+  thatPlayer,
+  you,
+} from "./values.js";
 
 describe("engine-only DSL primitives", () => {
   it("agile(X) is an attack damage reduction for undefended villain and villainous attacks only", () => {
@@ -110,6 +121,21 @@ describe("engine-only DSL primitives", () => {
     });
   });
 
+  it("cards(ref, filter, { random }) picks that many of the named cards at random; the validator refuses 0", () => {
+    const yours = each(query("upgrade", { controller: "you" }));
+    expect(cards(yours, undefined, { random: 1 })).toEqual({
+      kind: "ref",
+      ref: yours,
+      random: { kind: "const", value: 1 },
+    });
+    expect(cards(yours)).toEqual({ kind: "ref", ref: yours });
+    const zero: AbilityDefinition = {
+      trigger: { kind: "action" },
+      effects: [selectCards("x", cards(yours, undefined, { random: 0 }))],
+    };
+    expect(validateDefinition(zero).join(" ")).toMatch(/ref selector's random count/);
+  });
+
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
@@ -122,6 +148,7 @@ describe("engine-only DSL primitives", () => {
       "engine-only.lose-keyword",
       "engine-only.lose-trait",
       "engine-only.per-player-blank",
+      "engine-only.random-in-play",
       "engine-only.resolve-all-tagged",
       "engine-only.resolve-one-tagged",
       "engine-only.tagged",

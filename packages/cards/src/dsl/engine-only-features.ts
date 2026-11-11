@@ -5,7 +5,9 @@ import {
   applyRuleUntil,
   blankTextBoxForPlayers,
   cancelIt,
+  cards,
   dealDamage,
+  discard,
   draw,
   giveBasicPowerBoostCard,
   loseKeywordUntil,
@@ -13,9 +15,12 @@ import {
   replaceNextVillainPhaseWithPlayerPhase,
   resolveOneTagged,
   resolveTagged,
+  selectCards,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
+  chosen,
+  each,
   eachPlayer,
   hasTaggedAbility,
   lastPlayedThisRound,
@@ -81,6 +86,11 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   // "You cannot flip [a card] until the start of the next villain phase" (`applyRuleUntil` with a `cannotFlip` rule).
   "engine-only.lasting-flip-lock": action(
     applyRuleUntil({ kind: "cannotFlip", target: query("upgrade", { controller: "you" }) }, "nextVillainPhaseBegins"),
+  ),
+  // "Discard 1 upgrade you control at random" (`CardSelector ref.random`: a seeded random pick among cards in play).
+  "engine-only.random-in-play": action(
+    selectCards("upgrade", cards(each(query("upgrade", { controller: "you" })), undefined, { random: 1 })),
+    discard(chosen("upgrade")),
   ),
 };
 

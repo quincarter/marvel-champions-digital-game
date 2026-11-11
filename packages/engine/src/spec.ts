@@ -6036,6 +6036,15 @@ export type CardSelector =
        * `tuckNamedNoCard`; RRG 1.8 "'Then'", p. 44).
        */
       readonly ownerZone?: PlayerZone;
+      /**
+       * That many of the named cards at random, from the game's seeded RNG, as `encounterSetAside.random`: over every
+       * card `ref` names as one pool, after `filter` and `ownerZone`, fewer when fewer are there and none of an empty
+       * pool (which draws nothing). The in-play counterpart of the out-of-play selectors' `random`: "discard 1 upgrade
+       * you control at random" is `selectCards(slot, { kind: "ref", ref: each(upgrade you control), random: 1 })` then
+       * `discardFromPlay(chosen(slot))` (Hello Again, community pack `gwenpool-ptt` 15). Nobody chooses, so it is a
+       * pick, not a target choice.
+       */
+      readonly random?: ValueSpec;
     }
   /**
    * The encounter deck and/or discard pile ("search the encounter deck and discard pile for …"): the active

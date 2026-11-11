@@ -94,7 +94,7 @@ import { markPreThenUnresolved } from "./then.js";
  * `count` cards of `pool` at random, without replacement, in the order drawn; every card of a smaller pool, none of an
  * empty one. Each pick is one draw on the game's seeded RNG (`GameState.rng`), which advances with it, so a replay of
  * the command log picks the same cards; an empty pool or a count of zero draws nothing and leaves the RNG as it was.
- * The one place a selector's `random` is resolved (`zone`, `encounter`, `encounterSetAside`, `setAside`,
+ * The one place a selector's `random` is resolved (`ref`, `zone`, `encounter`, `encounterSetAside`, `setAside`,
  * `victoryDisplay`, `tucked`).
  */
 function pickAtRandom(ctx: Ctx, pool: readonly InstanceId[], count: number): InstanceId[] {
@@ -127,11 +127,11 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         0,
         Math.max(0, resolveValue(ctx.state, selector.count, context)),
       );
-    case "ref":
+    case "ref": {
       // Ruling Dec 17, 2025 (4): a card removed from the game "cannot be returned to the game by any means", so a ref
       // never reaches it (Odin removed by his forced interrupt before Med Lab's response; docs/phase7-wave6.md §3.57).
       // Only card text naming that area does (`CardSelector removedFromGame`, Loose Ends).
-      return filtered(
+      const named = filtered(
         resolveRef(state, selector.ref, context).filter(
           (id) =>
             getInstance(state, id) !== undefined &&
@@ -140,6 +140,9 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         ),
         selector.filter,
       );
+      if (!selector.random) return named;
+      return pickAtRandom(ctx, named, resolveValue(ctx.state, selector.random, context));
+    }
     case "campaignLog": {
       // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7): the field lists *titles*, and one
       // title can be listed twice (ruling June 2, 2026 (3) answer 3), so each entry claims one not-yet-claimed

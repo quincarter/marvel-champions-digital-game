@@ -43,9 +43,9 @@ import {
   definePackAbilities,
   discard,
   discardAtRandom,
-  discardFromHand,
   discardFromHandCost,
   draw,
+  each,
   encounterCards,
   exhaustThis,
   exists,
@@ -94,7 +94,6 @@ import {
   taggedAbilitiesOn,
   thatPlayer,
   revealEncounterCard,
-  varAtLeast,
   varOf,
   when,
   whenRevealed,
@@ -137,11 +136,12 @@ const GWENPOOL_PLAYER = playersWhere(
  * (`core/modular/hydra-and-doomsday.ts` `fetchIntoPlay`): the shuffle is the Search rule's own (RRG 1.8 "Search", p.
  * 39), so it happens whether or not the search found her. `evil.count` is only bound when the search ran.
  */
-const FETCH_EVIL_GWENPOOL = ifThen(not(inPlay(EVIL_GWENPOOL)), [
+const FETCH_EVIL_GWENPOOL_STEPS = [
   selectCards("evil", encounterCards(["deck", "discard"], { name: EVIL_GWENPOOL })),
   putIntoPlay(chosen("evil"), GWENPOOL_PLAYER),
   shuffleEncounterDeck(),
-]);
+];
+const FETCH_EVIL_GWENPOOL = ifThen(not(inPlay(EVIL_GWENPOOL)), FETCH_EVIL_GWENPOOL_STEPS);
 
 // ---------------------------------------------------------------------------
 // That Shouldn't Be There: the movable things
@@ -534,13 +534,16 @@ export default definePackAbilities({
   // "You can't hide Gwen.": flavor (a treachery is never in play).
   "x.gwenpool-ptt.14.purple-bubble": tagged(PURPLE),
 
-  // "Surge. When Revealed: ... If no cards were put it into play this way, discard 1 upgrade card at random." Surge is
-  // data. READING flagged for the author: "discard 1 upgrade card at random" is read as a random upgrade from the
-  // revealing player's hand (the DSL has no random pick from the cards in play). `evil.count` is only bound when the
-  // search ran, so it is unbound (0) when she was already in play.
+  // "Surge. When Revealed: If Evil Gwenpool is not in play, search ... Shuffle the encounter deck. Otherwise, discard 1
+  // upgrade you control at random." (source commit 3a5dff953e). Surge is data. "Otherwise" is the case where she is in
+  // play: the revealing player discards 1 of the upgrades they control, picked by the game's seeded RNG
+  // (`CardSelector ref.random`); nothing happens if they control none. While she is not in play nothing is discarded,
+  // even if the search finds nothing (she is still set aside).
   "x.gwenpool-ptt.15.when-revealed": whenRevealed(
-    FETCH_EVIL_GWENPOOL,
-    ifThen(not(varAtLeast("evil.count")), discardFromHand(1, you, { random: true, filter: query("upgrade") })),
+    ifThen(not(inPlay(EVIL_GWENPOOL)), FETCH_EVIL_GWENPOOL_STEPS, [
+      selectCards("upgrade", cards(each(query("upgrade", { controller: "you" })), undefined, { random: 1 })),
+      discard(chosen("upgrade")),
+    ]),
   ),
   // "Sometimes I get confused with Ronan.": flavor.
   "x.gwenpool-ptt.15.purple-bubble": tagged(PURPLE),

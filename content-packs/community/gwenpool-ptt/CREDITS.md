@@ -7,8 +7,9 @@ Gwenpool (`gwenpool-ptt`) is a fan-made pack by **PatataSaurio** (Patatasaurio).
 - Languages: the author made both. **Spanish is the canonical version** (the base language of the pictures); the English
   text and pictures are the author's own translation.
 - Pictures: en, es (base language es).
-- Source version: the author's current files plus three rules-only fixes made by BluefireF5ran (2026-11-03), curated in
-  https://github.com/bluefireF5ran/mc-digital-custom-packs (commit `9ce0a25ec5b1b6f08b3a926838d9295babe69758`, folder
+- Source version: the author's current files plus three rules-only fixes made by BluefireF5ran (2026-11-03) and his
+  "Hello Again" text update (2026-11-11), curated in
+  https://github.com/bluefireF5ran/mc-digital-custom-packs (commit `3a5dff953ec7f2d64473039874fb6568693aa3f6`, folder
   `gwenpool_ptt`).
 - Ability scripts, the suggested deck (`decks/gwenpool-ptt-aggression.json`, assembled for this game, not the author's)
   and the conversion to the pack format: this project.

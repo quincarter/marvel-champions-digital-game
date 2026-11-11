@@ -22,7 +22,7 @@ The Vitest tests (`packages/mod-sdk/src/community-packs.test.ts`, `gwenpool-ptt.
 ## How it was made
 
 `mc-pack import-marvelcdb <gwenpool_ptt> --out content-packs/community/gwenpool-ptt --id gwenpool-ptt` (source commit
-`9ce0a25ec5b1b6f08b3a926838d9295babe69758`), then by hand:
+`3a5dff953ec7f2d64473039874fb6568693aa3f6`), then by hand:
 
 - `cards/*.json`: each speech bubble is an ability on its card (`<code>.pink-bubble`, `.purple-bubble`),
   added to the importer's list. The hero face's counted bubble is `01a.pink-bubble` (its second, a quip, is not counted), the
@@ -117,9 +117,13 @@ all 16 bubbles.
   her aside; the Standard set's Shadow of the Past brings her in. The two treacheries search "the encounter deck and
   discard pile", so they bring her back after she was defeated and discarded, and do nothing while she is in play (the
   author: intended). In a game where she is still set aside they find nothing.
-- **"Hello Again": "discard 1 upgrade card at random".** Read as a random upgrade from the revealing player's hand (the
-  DSL has no random pick among the cards in play). If the author means an upgrade in play, this needs a random choice
-  of cards in play. **Question for the author**; the owner is asking the community (2026-11-11).
+- **"Hello Again": "Otherwise, discard 1 upgrade you control at random".** The curator updated the card (source commit
+  `3a5dff953e`, 2026-11-11): the old fallback ("If no cards were put into play this way, discard 1 upgrade card at
+  random") did not say where the upgrade came from. "Otherwise" is the case where Evil Gwenpool is in play: the revealing
+  player discards 1 of the upgrades they control, picked at random by the game's seeded RNG; nothing happens if they
+  control none. While she is not in play nothing is discarded, even if the search finds nothing (she is still set
+  aside). The curator's ENGINE_NOTES phrase it as "if no card was put into play", which would also discard in that
+  set-aside case; the pack follows the card text. Flagged for the author.
 - **"I Found You" / "Hello Again": "the Gwenpool player".** The player whose identity is Gwenpool in either form; in a
   multiplayer game another player may reveal the card and Evil Gwenpool still engages the Gwenpool player.
 - **Game Rules.** "Treat Gwenpool's printed text box as if it were blank (except for TRAITS)" blanks the hero side only

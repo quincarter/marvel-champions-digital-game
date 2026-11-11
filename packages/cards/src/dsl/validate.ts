@@ -1340,6 +1340,7 @@ function checkHiddenPiles(definition: AbilityDefinition, problems: string[]): vo
 
 /** The card selectors that take `random`: that many of their cards, by the game's seeded RNG. */
 const RANDOM_SELECTORS: readonly string[] = [
+  "ref",
   "zone",
   "encounter",
   "encounterSetAside",

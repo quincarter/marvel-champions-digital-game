@@ -16,8 +16,8 @@
     }
   ],
   "text": {
-    "printed": "Surge.\nWhen Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck. If no cards were put it into play this way, discard 1 upgrade card at random.",
-    "current": "Surge.\nWhen Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck. If no cards were put it into play this way, discard 1 upgrade card at random."
+    "printed": "Surge.\nWhen Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck. Otherwise, discard 1 upgrade you control at random.",
+    "current": "Surge.\nWhen Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck. Otherwise, discard 1 upgrade you control at random."
   },
   "abilities": [
     {
