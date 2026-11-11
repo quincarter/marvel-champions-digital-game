@@ -25,7 +25,7 @@ import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 import type { LogValue } from "@mc/engine";
 import { loadedPacks } from "../packs/pack-registry.js";
-import { packStoryIn } from "./pack-campaigns.js";
+import { packStoryIn, runStoryOf } from "./pack-campaigns.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -476,7 +476,7 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
 
 /** A base box's story, or a loaded pack campaign's (built from its own story fields; none once the pack is removed). */
 export const storyFor = (campaignId: string): CampaignStory | undefined =>
-  STORIES[campaignId] ?? packStoryIn(loadedPacks(), campaignId);
+  STORIES[campaignId] ?? runStoryOf(campaignId) ?? packStoryIn(loadedPacks(), campaignId);
 
 /** The Aftermath wording for a victory instruction's choice, by instruction id, or null. */
 export function aftermathCallCopyFor(instructionId: string): AftermathCallCopy | null {

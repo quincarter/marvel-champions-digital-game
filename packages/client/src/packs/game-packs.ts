@@ -6,10 +6,14 @@ import { packsOwningContent, packsUsedBySeats, withRequiredPacks } from "./pack-
  * `config` with the loaded packs its seats draw on, and every pack those need (`requires.packs`), attached as
  * `SessionConfig.packs`: how a pack reaches the engine worker. Whatever `packs` the config carried is dropped and
  * re-attached from what is loaded now, so Play Again and any other new game get the installed version, not the old
- * game's copy (a pack campaign's node carries its campaign's pack and the packs owning its scenario; `resume` and `rewindTo` never come through here: they keep the stored packs). A config that uses no pack
- * carries none, so a base-game game's config and saves are exactly what they were.
+ * game's copy (`resume` and `rewindTo` never come through here: they keep the stored packs). The exception is a
+ * campaign node: its config carries the run's own embedded packs (`CampaignService.launchConfig`), and those win, so an
+ * update or removal of the pack never changes a run. A config that uses no pack carries none, so a base-game game's
+ * config and saves are exactly what they were.
  */
 export function withLoadedPacks(config: SessionConfig): SessionConfig {
+  // A campaign node keeps the packs its run carries.
+  if (config.campaign && (config.packs?.length ?? 0) > 0) return config;
   const { packs: _old, ...rest } = config;
   const loaded = loadedPacks();
   // The seats' packs, and the packs that own the chosen scenario or any chosen modular set (a base scenario with a
@@ -19,13 +23,7 @@ export function withLoadedPacks(config: SessionConfig): SessionConfig {
     [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])],
     loaded,
   );
-  // A pack campaign's node carries the campaign's pack too, even where its scenario is a base game one.
-  const campaignOwners = config.campaign
-    ? loaded.filter((pack) =>
-        (pack.campaigns ?? []).some((campaign) => campaign.id === (config.campaign!.campaignId as string)),
-      )
-    : [];
-  const wanted = new Set([...packsUsedBySeats(config.players, loaded), ...owners, ...campaignOwners]);
+  const wanted = new Set([...packsUsedBySeats(config.players, loaded), ...owners]);
   const used = withRequiredPacks(
     loaded.filter((pack) => wanted.has(pack)),
     loaded,

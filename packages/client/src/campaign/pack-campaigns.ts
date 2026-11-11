@@ -6,7 +6,15 @@
  * Plain functions over a list of `PackRuntime`s, so every one is tested without Phaser. The base game always wins: a
  * pack campaign id that is a base campaign's is never looked up here (`validatePack` rejects it too).
  */
-import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CampaignId, type SetCode } from "@mc/content";
+import {
+  CAMPAIGNS as CONTENT_CAMPAIGNS,
+  cardId,
+  campaignId as toCampaignId,
+  encounterSetId,
+  scenarioId as toScenarioId,
+  setCode,
+  type Campaign,
+} from "@mc/content";
 import { packCampaignRecords, packCampaignDefinitionOf } from "@mc/mod-sdk/game";
 import type { PackCampaign } from "@mc/mod-sdk";
 import { campaignDefinitionOf } from "@mc/cards";
@@ -14,7 +22,7 @@ import type { CampaignDefinition } from "@mc/engine";
 import type { CampaignSummary, PackCampaignRef } from "../engine/campaign-storage.js";
 import type { CustomSagaVolume } from "../view/campaign-saga-model.js";
 import { loadedPacks } from "../packs/pack-registry.js";
-import type { PackRuntime } from "../packs/pack-runtime.js";
+import { packsOwningContent, withRequiredPacks, type PackRuntime } from "../packs/pack-runtime.js";
 import type { CampaignStory, IssueStory, SagaVolume, StoryLine, StorySpeaker } from "./story.js";
 
 /** The first number a Custom campaigns volume gets on the shelf: past every base volume, so the two never collide. */
@@ -50,10 +58,35 @@ export function loadedPackCampaignDefinition(
   return BASE_IDS.has(campaignId) ? undefined : packCampaignDefinitionOf(packs, campaignId);
 }
 
-/** What a run of this pack campaign keeps (`CampaignRecord.pack`), or undefined when no loaded pack has the campaign. */
+/**
+ * What a new run of this pack campaign keeps (`CampaignRecord.pack`), or undefined when no loaded pack has the campaign:
+ * the owning pack, the packs owning its nodes' scenarios and campaign sets, and every pack those require, as loaded now.
+ */
 export function packRefOf(packs: readonly PackRuntime[], campaignId: string): PackCampaignRef | undefined {
   const entry = packCampaignEntryOf(packs, campaignId);
-  return entry ? { id: entry.pack.id, version: entry.pack.version, definition: entry.campaign.definition } : undefined;
+  const owner = entry ? packs.find((pack) => pack.id === entry.pack.id) : undefined;
+  if (!entry || !owner) return undefined;
+  const used = new Set<PackRuntime>([
+    owner,
+    ...entry.campaign.record.scenarioIds.flatMap((scenarioId) => packsOwningContent(scenarioId, [], packs)),
+    ...packsOwningContent("", entry.campaign.record.campaignSetIds, packs),
+  ]);
+  return {
+    id: entry.pack.id,
+    version: entry.pack.version,
+    name: entry.pack.name,
+    packs: withRequiredPacks([...used], packs),
+  };
+}
+
+/** The campaign of a run's own embedded packs, or undefined. */
+export function embeddedCampaignEntry(ref: PackCampaignRef, campaignId: string): PackCampaignEntry | undefined {
+  return packCampaignEntryOf(ref.packs, campaignId);
+}
+
+/** The definition a run plays by: the one embedded in it, whatever is installed now. */
+export function embeddedDefinitionOf(ref: PackCampaignRef, campaignId: string): CampaignDefinition | undefined {
+  return embeddedCampaignEntry(ref, campaignId)?.campaign.definition;
 }
 
 /**
@@ -62,25 +95,24 @@ export function packRefOf(packs: readonly PackRuntime[], campaignId: string): Pa
  */
 export function campaignOfPackRecord(entry: PackCampaignEntry): Campaign {
   const { campaign, pack } = entry;
+  const prohibited = campaign.record.prohibited;
   return {
-    id: campaign.id as CampaignId,
+    id: toCampaignId(campaign.id),
     name: campaign.name,
     boxCode: "",
-    packCode: pack.id as SetCode,
-    scenarioIds: campaign.record.scenarioIds,
-    campaignSetIds: campaign.record.campaignSetIds,
-    ...(campaign.record.prohibited
+    packCode: setCode(pack.id),
+    scenarioIds: campaign.record.scenarioIds.map(toScenarioId),
+    campaignSetIds: campaign.record.campaignSetIds.map(encounterSetId),
+    ...(prohibited
       ? {
           prohibited: {
-            ...(campaign.record.prohibited.cardIds ? { cardIds: campaign.record.prohibited.cardIds } : {}),
-            ...(campaign.record.prohibited.encounterSetIds
-              ? { encounterSetIds: campaign.record.prohibited.encounterSetIds }
-              : {}),
+            ...(prohibited.cardIds ? { cardIds: prohibited.cardIds.map(cardId) } : {}),
+            ...(prohibited.encounterSetIds ? { encounterSetIds: prohibited.encounterSetIds.map(encounterSetId) } : {}),
           },
         }
       : {}),
     logSheetReference: "",
-  } as unknown as Campaign;
+  };
 }
 
 /** The base game's record, or a loaded pack campaign's stand-in; undefined for neither. */
@@ -158,6 +190,20 @@ export function packStoryIn(packs: readonly PackRuntime[], campaignId: string): 
   return stories.get(campaignId);
 }
 
+/**
+ * The stories of the runs the screens have opened, by campaign id: the story a run reads is the one in its own embedded
+ * pack, so an update or removal never rewrites it. `CampaignService` remembers a run when it starts or loads it, and the
+ * latest one wins; a campaign no run has opened this session reads the installed pack's story (`packStoryIn`).
+ */
+const RUN_STORIES = new Map<string, CampaignStory>();
+
+export function rememberRunPack(ref: PackCampaignRef, campaignId: string): void {
+  const entry = embeddedCampaignEntry(ref, campaignId);
+  if (entry) RUN_STORIES.set(campaignId, storyOfPackCampaign(entry.campaign));
+}
+
+export const runStoryOf = (campaignId: string): CampaignStory | undefined => RUN_STORIES.get(campaignId);
+
 /** A Saga volume for a pack campaign: numbered past the base game's, named for the campaign, badged by its pack. */
 export function sagaVolumeOf(entry: PackCampaignEntry, index: number): SagaVolume {
   return {
@@ -171,7 +217,7 @@ export function sagaVolumeOf(entry: PackCampaignEntry, index: number): SagaVolum
 
 /**
  * The shelf's Custom campaigns section: every loaded pack campaign, then each campaign that only a stored run still
- * knows (its pack was removed: the run keeps its own definition and goes on from it). Orphans are named from the run.
+ * knows (its pack was removed: the run keeps its own content and goes on from it). Orphans are named from the run.
  */
 export function customSagaVolumes(
   packs: readonly PackRuntime[],
@@ -181,6 +227,7 @@ export function customSagaVolumes(
   const out: CustomSagaVolume[] = entries.map((entry, index) => ({
     volume: sagaVolumeOf(entry, index),
     definition: entry.campaign.definition,
+    installedVersion: entry.pack.version,
   }));
   const known = new Set([...BASE_IDS, ...entries.map((entry) => entry.campaign.id)]);
   for (const summary of summaries) {
@@ -193,43 +240,45 @@ export function customSagaVolumes(
         campaignId,
         boxCode: "",
         name: summary.name,
-        custom: { packId: summary.pack.id, packName: summary.pack.id },
+        custom: { packId: summary.pack.id, packName: summary.pack.name },
       },
-      definition: summary.pack.definition,
+      definition: packRunDefinition(summary),
     });
   }
   return out;
 }
 
 /**
- * The content record of any campaign the screens open: a base box, a loaded pack campaign or, for a run whose pack was
- * removed, a stand-in built from the definition the run kept (its scenarios in node order; no prohibitions are known).
+ * A stand-in `CampaignDefinition` for the shelf and the run list, which read only a run's version and node ids, from what
+ * a summary holds (`CampaignSummary.pack`). Never handed to the runner: `CampaignService.definitionFor` reads the real one.
  */
-export function campaignRecordOf(
-  campaignId: string,
-  run?: { readonly name: string; readonly pack?: PackCampaignRef },
-): Campaign | undefined {
-  const found = campaignRecordIn(loadedPacks(), campaignId);
-  if (found || !run?.pack) return found;
+export function packRunDefinition(
+  summary: Pick<CampaignSummary, "campaignId" | "definitionVersion" | "pack">,
+): CampaignDefinition {
   return {
-    id: campaignId as CampaignId,
-    name: run.name,
-    boxCode: "",
-    packCode: run.pack.id as SetCode,
-    scenarioIds: run.pack.definition.graph.nodes.flatMap((node) =>
-      node.scenario?.kind === "fixed" ? [String(node.scenario.scenarioId)] : [],
-    ),
-    campaignSetIds: [],
-    logSheetReference: "",
-  } as unknown as Campaign;
+    campaignId: summary.campaignId,
+    version: summary.definitionVersion,
+    graph: { kind: "linear", nodes: (summary.pack?.nodeIds ?? []).map((id) => ({ id })) },
+  } as unknown as CampaignDefinition;
 }
 
-/** The definition a screen reads for a campaign id: the run's own copy, a base box's, or a loaded pack campaign's. */
+/**
+ * The content record of any campaign the screens open: a base box, a run's own embedded pack campaign, or a loaded pack
+ * campaign's stand-in.
+ */
+export function campaignRecordOf(campaignId: string, run?: { readonly pack?: PackCampaignRef }): Campaign | undefined {
+  const embedded = run?.pack ? embeddedCampaignEntry(run.pack, campaignId) : undefined;
+  return embedded ? campaignOfPackRecord(embedded) : campaignRecordIn(loadedPacks(), campaignId);
+}
+
+/** The definition a screen reads for a campaign id: the run's own embedded copy, a base box's, or a loaded pack campaign's. */
 export function campaignDefinitionIn(
   campaignId: string,
   run?: { readonly pack?: PackCampaignRef },
 ): CampaignDefinition | undefined {
   return (
-    run?.pack?.definition ?? campaignDefinitionOf(campaignId) ?? loadedPackCampaignDefinition(loadedPacks(), campaignId)
+    (run?.pack ? embeddedDefinitionOf(run.pack, campaignId) : undefined) ??
+    campaignDefinitionOf(campaignId) ??
+    loadedPackCampaignDefinition(loadedPacks(), campaignId)
   );
 }

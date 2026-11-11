@@ -50,7 +50,7 @@ import { SIDE_STORIES, type SideStory } from "../content/side-stories.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { cardDisplayName } from "../view/hero-names.js";
-import { isLessonSave } from "../engine/game-storage.js";
+import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { ACHIEVEMENTS } from "./achievements.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId, type TeamUpTrophy } from "./team-up-trophies.js";
 import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
@@ -127,17 +127,24 @@ export function extrasProgressOf(
     readonly id?: string;
     readonly status: string;
     readonly guided?: { readonly kind: string };
-    readonly config: { readonly scenarioId: string; readonly players: readonly object[] };
+    readonly config: {
+      readonly scenarioId: string;
+      readonly players: readonly object[];
+      readonly packs?: readonly unknown[];
+    };
     readonly summary?: { readonly seats?: readonly { readonly deck: readonly string[] }[] } | null;
   }[],
-  campaigns: readonly {
+  allCampaigns: readonly {
     readonly status: string;
     readonly campaignId: string;
+    /** Set for a run of a pack's campaign: custom content earns nothing here. */
+    readonly pack?: unknown;
     readonly position: { readonly nextNodeId: string | null; readonly resolved: Readonly<Record<string, string>> };
   }[],
   earnedAchievementIds: readonly string[] = [],
 ): ExtrasProgress {
-  const ended = saves.filter((save) => ENDED.has(save.status) && !isLessonSave(save));
+  const campaigns = allCampaigns.filter((run) => run.pack === undefined);
+  const ended = saves.filter((save) => ENDED.has(save.status) && !isLessonSave(save) && !isCustomSave(save));
   const won = ended.filter((save) => save.status === "won");
   return {
     playedHeroIds: unique(

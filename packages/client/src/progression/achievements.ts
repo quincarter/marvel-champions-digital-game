@@ -21,7 +21,7 @@ import { NO_DECK_FEATS, type DeckFeats } from "./deck-feats.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
-import { isLessonSave } from "../engine/game-storage.js";
+import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId } from "./team-up-trophies.js";
@@ -77,12 +77,15 @@ export interface AchievementSave {
     readonly difficulty?: string;
     readonly modes?: { readonly expert?: boolean; readonly heroic?: number; readonly skirmish?: unknown };
     readonly players: readonly object[];
+    readonly packs?: readonly unknown[];
   };
 }
 
 export interface AchievementCampaign {
   readonly status: string;
   readonly campaignId: string;
+  /** Set for a run of a pack's campaign: custom content earns nothing here. */
+  readonly pack?: unknown;
   readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean; readonly balanced?: boolean } };
 }
 
@@ -188,12 +191,12 @@ const FINALES: ReadonlyMap<string, string> = new Map(
 );
 
 export function factsOf(history: AchievementHistory): Facts {
-  const real = history.saves.filter((s) => !isLessonSave(s));
+  const real = history.saves.filter((s) => !isLessonSave(s) && !isCustomSave(s));
   const wonSaves = real.filter((s) => s.status === "won");
   const lostSaves = real.filter((s) => s.status === "lost");
   const heroesOf = (s: AchievementSave): string[] =>
     s.config.players.map(identityOfSeat).filter((id): id is string => id !== null);
-  const campaigns = history.campaigns.filter((c) => c.status === "won");
+  const campaigns = history.campaigns.filter((c) => c.status === "won" && c.pack === undefined);
   return {
     wins: wonSaves.length,
     losses: lostSaves.length,

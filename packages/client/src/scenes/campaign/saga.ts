@@ -745,7 +745,7 @@ export class CampaignSagaScene extends Phaser.Scene {
           hasPips: true,
           hasAlt: true,
           alt: this.#altActionsFor(row),
-          foot: "A new run gets its own log. The finished one stays on the shelf to reread.",
+          foot: `${row.packNote ? `${row.packNote} ` : ""}A new run gets its own log. The finished one stays on the shelf to reread.`,
         };
       case "live":
         return {
@@ -755,7 +755,7 @@ export class CampaignSagaScene extends Phaser.Scene {
           hasPips: true,
           hasAlt: true,
           alt: this.#altActionsFor(row),
-          foot: "Starting over archives this run; it doesn't delete it.",
+          foot: `${row.packNote ? `${row.packNote} ` : ""}Starting over archives this run; it doesn't delete it.`,
         };
       case "fresh":
         return {

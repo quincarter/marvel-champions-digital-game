@@ -23,6 +23,7 @@ import type { CardId } from "@mc/content";
 import type { CampaignDefinition } from "@mc/engine";
 import type { CampaignSummary } from "../engine/campaign-storage.js";
 import { campaignListRows, type CampaignListRow } from "./campaign-list-model.js";
+import { packRunDefinition } from "../campaign/pack-campaigns.js";
 import { SAGA_VOLUMES, storyFor, type SagaVolume } from "../campaign/story.js";
 import { lostAtNodeIdOf } from "./campaign-run-model.js";
 import type { PipState } from "../ui/campaign-chrome.js";
@@ -56,6 +57,11 @@ export interface SagaVolumeRow {
    * so and opens it, while the volume stays "fresh" for a new roster. Null otherwise.
    */
   readonly lost: { readonly runId: string; readonly issueNumber: number } | null;
+  /**
+   * For a pack campaign's run on the shelf: a sentence when the installed pack is not the version the run carries (or is
+   * gone), so the player knows the run plays its own copy. Null for a base volume and when the versions agree.
+   */
+  readonly packNote: string | null;
 }
 
 export interface SagaModelOptions {
@@ -73,10 +79,12 @@ export interface SagaModelOptions {
   readonly customVolumes?: readonly CustomSagaVolume[];
 }
 
-/** A pack campaign on the shelf: its volume (`SagaVolume.custom` set) and the definition its runs play by. */
+/** A pack campaign on the shelf: its volume (`SagaVolume.custom` set) and the definition a new run plays by. */
 export interface CustomSagaVolume {
   readonly volume: SagaVolume;
   readonly definition: CampaignDefinition;
+  /** The version of the pack installed now; absent when the pack is gone (only a stored run still knows it). */
+  readonly installedVersion?: string;
 }
 
 const defaultIdentityNameOf = (id: CardId): string => id as string;
@@ -100,9 +108,8 @@ export function campaignSagaRows(
   const waveLockOf = options.waveLockOf ?? (() => null);
   const openedByHandOf = options.openedByHandOf ?? (() => false);
   // A pack campaign's run plays by the definition it kept (`CampaignRecord.pack`), not the installed pack's.
-  const rows = campaignListRows(
-    summaries,
-    (campaignId, summary) => summary?.pack?.definition ?? definitionOf(campaignId),
+  const rows = campaignListRows(summaries, (campaignId, summary) =>
+    summary?.pack ? packRunDefinition(summary) : definitionOf(campaignId),
   );
 
   const rowsByCampaign = new Map<string, CampaignListRow[]>();
@@ -126,7 +133,7 @@ export function campaignSagaRows(
     const unlocked = custom || byHand || (previousWonStandard && waveLock === null);
 
     const summary = summaries.find((s) => s.id === (activeRow?.id ?? wonRows[0]?.id ?? "")) ?? null;
-    const definition = summary?.pack?.definition ?? definitionOf(volume.campaignId);
+    const definition = summary?.pack ? packRunDefinition(summary) : definitionOf(volume.campaignId);
     const hasDefinition = definition !== undefined;
 
     let status: SagaVolumeStatus;
@@ -177,6 +184,17 @@ export function campaignSagaRows(
       }
     }
 
+    const custom0 = customVolumes.find((entry) => entry.volume.campaignId === volume.campaignId);
+    const runPack = summary?.pack;
+    const packNote =
+      custom && runPack
+        ? custom0?.installedVersion === undefined
+          ? "The pack is not installed: this run plays from the copy saved with it."
+          : custom0.installedVersion !== runPack.version
+            ? `This run plays pack version ${runPack.version}; version ${custom0.installedVersion} is installed.`
+            : null
+        : null;
+
     out.push({
       volume,
       status,
@@ -193,6 +211,7 @@ export function campaignSagaRows(
       rosterNames,
       lockReason,
       lost,
+      packNote,
     });
 
     if (!custom) previousWonStandard = wonStandard;

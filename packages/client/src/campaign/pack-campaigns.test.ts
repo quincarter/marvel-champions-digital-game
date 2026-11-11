@@ -27,7 +27,10 @@ import { campaignService } from "../session.js";
 import { campaignSagaRows } from "../view/campaign-saga-model.js";
 import { basePreconDecks } from "../view/campaign-roster-model.js";
 import { SAGA_VOLUMES, storyFor } from "./story.js";
-import { campaignRecordOf, customSagaVolumes, packCampaignEntries } from "./pack-campaigns.js";
+import { campaignRecordOf, customSagaVolumes, embeddedDefinitionOf, packCampaignEntries } from "./pack-campaigns.js";
+import { progressOf } from "../progression/unlocks.js";
+import { extrasProgressOf } from "../progression/extras.js";
+import { factsOf } from "../progression/achievements.js";
 
 const SAMPLE_DIR = fileURLToPath(new URL("../../../../content-packs/sample-scenario", import.meta.url));
 const CAMPAIGN_ID = "sample-scenario-crisis";
@@ -109,7 +112,8 @@ describe("a pack campaign on the client", () => {
     const service = campaignService();
     const signed = await service.start({ campaignId: CAMPAIGN_ID, seats: ROSTER, poolVersion: POOL_VERSION, seed: 7 });
     expect(signed).toMatchObject({ name: "Clockwork Crisis", box: "", pack: { id: "sample-scenario" } });
-    expect(signed.pack?.definition.campaignId).toBe(CAMPAIGN_ID);
+    expect(embeddedDefinitionOf(signed.pack!, CAMPAIGN_ID)?.campaignId).toBe(CAMPAIGN_ID);
+    expect(signed.pack?.packs.map((pack) => pack.id)).toEqual(["sample-scenario"]);
 
     // Node 1: a pack scenario, so its game carries the pack.
     const first = await service.compose(signed);
@@ -137,7 +141,7 @@ describe("a pack campaign on the client", () => {
     setLoadedPacks([]);
     setGamePacks(undefined);
     const stored = (await service.load(afterOne.record.id))!;
-    expect(service.definitionFor(stored)).toBe(stored.pack!.definition);
+    expect(service.definitionFor(stored)).toBe(embeddedDefinitionOf(stored.pack!, CAMPAIGN_ID));
     expect(() => service.definitionFor({ campaignId: stored.campaignId })).toThrow(/no campaign definition/);
     expect(campaignRecordOf(CAMPAIGN_ID, stored)).toMatchObject({ name: "Clockwork Crisis" });
     // Its shelf entry survives too, named from the run.
@@ -145,11 +149,90 @@ describe("a pack campaign on the client", () => {
     const orphan = customSagaVolumes([], summaries).find((custom) => custom.volume.campaignId === CAMPAIGN_ID)!;
     const shelf = campaignSagaRows(summaries, { customVolumes: [orphan] }).at(-1)!;
     expect(shelf).toMatchObject({ status: "live", hasDefinition: true, canResume: true, issueNumber: 2 });
+    expect(orphan.volume.custom).toEqual({ packId: "sample-scenario", packName: "The Clockmaker" });
+    expect(shelf.packNote).toMatch(/not installed/);
 
     const finished = await service.foldState(second.record, two.state, []);
     if (finished.kind !== "done") throw new Error("node 2's victory asks nothing");
     expect(finished.record.status).toBe("won");
     expect(finished.record.shared.cogs).toEqual({ kind: "number", value: 2 });
+  });
+
+  it("plays node 1, a pack scenario, from the pack content embedded in the run after the pack is removed", async () => {
+    await installed();
+    const service = campaignService();
+    const signed = await service.start({ campaignId: CAMPAIGN_ID, seats: ROSTER, poolVersion: POOL_VERSION, seed: 8 });
+    setLoadedPacks([]);
+    setGamePacks(undefined);
+
+    const first = await service.compose((await service.load(signed.id))!);
+    if (first.kind !== "done") throw new Error("node 1 asks nothing");
+    const config = withLoadedPacks(service.launchConfig(first.record));
+    // The run's own packs ride with the game, though nothing is installed.
+    expect(config.packs?.map((pack) => pack.id)).toEqual(["sample-scenario"]);
+    expect(config.scenarioId).toBe("sample-scenario-clockwork");
+    const one = await wonNode(first.record);
+    expect(one.packs).toEqual(["sample-scenario"]);
+    const afterOne = await service.foldState(first.record, one.state, []);
+    if (afterOne.kind !== "done") throw new Error("node 1's victory asks nothing");
+    expect(afterOne.record.position.nextNodeId).toBe("street-fight");
+  });
+
+  it("keeps a run on the pack version it was signed with when the pack is updated", async () => {
+    await installed();
+    const service = campaignService();
+    const signed = await service.start({ campaignId: CAMPAIGN_ID, seats: ROSTER, poolVersion: POOL_VERSION, seed: 9 });
+    // A modified version 2 of the pack: node 1 now records 5 spare cogs.
+    const [v1] = loadedPacks();
+    const [campaign] = v1!.campaigns!;
+    const modified = JSON.parse(JSON.stringify(campaign).replace('"value":1}', '"value":5}')) as typeof campaign;
+    expect(JSON.stringify(modified)).not.toBe(JSON.stringify(campaign));
+    setLoadedPacks([{ ...v1!, version: "2.0.0", campaigns: [modified!] }]);
+
+    const first = await service.compose(signed);
+    if (first.kind !== "done") throw new Error("node 1 asks nothing");
+    const config = withLoadedPacks(service.launchConfig(first.record));
+    expect(config.packs?.map((pack) => pack.version)).toEqual(["1.0.0"]);
+    const one = await wonNode(first.record);
+    const afterOne = await service.foldState(first.record, one.state, []);
+    if (afterOne.kind !== "done") throw new Error("node 1's victory asks nothing");
+    expect(afterOne.record.shared.cogs).toEqual({ kind: "number", value: 1 });
+    expect(afterOne.record.pack?.version).toBe("1.0.0");
+    // The shelf says which version the run plays.
+    const summaries = await service.storage.list();
+    const volumes = customSagaVolumes(loadedPacks(), summaries);
+    const row = campaignSagaRows(summaries, { customVolumes: volumes }).at(-1)!;
+    expect(row.packNote).toBe("This run plays pack version 1.0.0; version 2.0.0 is installed.");
+    // A new run signs the installed version.
+    const fresh = await service.start({ campaignId: CAMPAIGN_ID, seats: ROSTER, poolVersion: POOL_VERSION, seed: 10 });
+    expect(fresh.pack?.version).toBe("2.0.0");
+  });
+
+  it("earns no base progression from a pack's games or campaign runs", async () => {
+    const config = { scenarioId: "sample-scenario-clockwork", difficulty: "standard", players: [], packs: [{}] };
+    const saves = [
+      { status: "won", config },
+      { status: "won", config: { scenarioId: "rhino", difficulty: "standard", players: [], packs: [{}] } },
+      { status: "won", config: { scenarioId: "klaw", difficulty: "standard", players: [] } },
+    ];
+    const runs = [
+      {
+        status: "won",
+        campaignId: CAMPAIGN_ID,
+        pack: { id: "sample-scenario" },
+        position: { nextNodeId: null, resolved: {} },
+      },
+      { status: "won", campaignId: "trors", position: { nextNodeId: null, resolved: {} } },
+    ];
+    expect(progressOf(saves as never, runs)).toMatchObject({ wonScenarioIds: ["klaw"], wonCampaignIds: ["trors"] });
+    expect(extrasProgressOf(saves as never, runs)).toMatchObject({
+      wonScenarioIds: ["klaw"],
+      wonCampaignIds: ["trors"],
+      startedCampaignIds: ["trors"],
+    });
+    const facts = factsOf({ saves: saves as never, campaigns: runs });
+    expect(facts.wins).toBe(1);
+    expect([...facts.wonCampaigns]).toEqual(["trors"]);
   });
 
   it("leaves a base-game box alone: no pack on its run, no pack on its game", async () => {

@@ -318,5 +318,12 @@ export class MemoryGameStorage implements GameStorage {
  * scenario. Result readers (the previous-game fact Git Gud reads, progression unlocks, Extras progress, the results
  * history) leave it out, so finishing or leaving a lesson never counts as a win, a loss or a game played.
  */
+/**
+ * A game played with custom content (a pack's hero, scenario, modular set or campaign: `SessionConfig.packs`). Custom
+ * content never earns the base game's progression (champion points, Extras, trophies), so every result reader leaves it out.
+ */
+export const isCustomSave = (meta: { readonly config?: { readonly packs?: readonly unknown[] } }): boolean =>
+  (meta.config?.packs?.length ?? 0) > 0;
+
 export const isLessonSave = (meta: { readonly guided?: { readonly kind: string } }): boolean =>
   meta.guided?.kind === "aspect" || meta.guided?.kind === "mechanic";
