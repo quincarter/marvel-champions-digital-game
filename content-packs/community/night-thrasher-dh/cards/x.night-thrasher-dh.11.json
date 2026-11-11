@@ -1,0 +1,30 @@
+{
+  "id": "x.night-thrasher-dh.11",
+  "name": "Prewind Stance",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "11",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 3,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["SKILL"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Night Thrasher gets +1 DEF and gains retaliate 1.\nHero Interrupt: When your turn or the villain phase begins, exhaust Prewind Stance → flip the Battle Board upgrade.",
+    "current": "Night Thrasher gets +1 DEF and gains retaliate 1.\nHero Interrupt: When your turn or the villain phase begins, exhaust Prewind Stance → flip the Battle Board upgrade."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.11.prewind-stance-constant"
+    },
+    {
+      "id": "x.night-thrasher-dh.11.prewind-stance-interrupt"
+    }
+  ]
+}

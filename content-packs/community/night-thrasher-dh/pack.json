@@ -1,0 +1,33 @@
+{
+  "id": "night-thrasher-dh",
+  "version": "0.1.0",
+  "kind": "hero",
+  "name": "Night Thrasher",
+  "authors": ["DesignHacker"],
+  "description": "Fan-made hero pack by DesignHacker: Night Thrasher.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "altArt": {
+    "en": {
+      "x.night-thrasher-dh.01b": "alt-art/en/x.night-thrasher-dh.01b.webp"
+    },
+    "es": {
+      "x.night-thrasher-dh.01b": "alt-art/es/x.night-thrasher-dh.01b.webp"
+    }
+  },
+  "permission": {
+    "by": "DesignHacker",
+    "scope": "inclusion"
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "es": "Francisco Merchán"
+  }
+}

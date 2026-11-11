@@ -1,0 +1,27 @@
+{
+  "id": "x.night-thrasher-dh.06",
+  "name": "Melon Grab",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "6",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "event",
+  "cost": 3,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["ATTACK", "SKILL"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Action (attack): Deal 8 damage to an enemy. If the Battle Board upgrade has the:\n• VEHICLE trait, damage from this attack can be divided among enemies as you choose.\n• WEAPON trait, this attack gains piercing and overkill.",
+    "current": "Hero Action (attack): Deal 8 damage to an enemy. If the Battle Board upgrade has the:\n• VEHICLE trait, damage from this attack can be divided among enemies as you choose.\n• WEAPON trait, this attack gains piercing and overkill."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.06.melon-grab-action"
+    }
+  ]
+}

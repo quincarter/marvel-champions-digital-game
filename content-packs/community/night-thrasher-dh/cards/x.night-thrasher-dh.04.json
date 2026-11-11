@@ -1,0 +1,28 @@
+{
+  "id": "x.night-thrasher-dh.04",
+  "name": "Drop In",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "4",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 1,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["SKILL"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Response: After you change to hero form, if the Battle Board upgrade has the:\n• VEHICLE trait, confuse an enemy.\n• WEAPON trait, stun an enemy.",
+    "current": "Hero Response: After you change to hero form, if the Battle Board upgrade has the:\n• VEHICLE trait, confuse an enemy.\n• WEAPON trait, stun an enemy."
+  },
+  "flavor": "\"Such a strategy has succeeded many times on the field of battle.\" —Ares",
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.04.drop-in-response"
+    }
+  ]
+}

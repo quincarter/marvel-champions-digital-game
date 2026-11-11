@@ -1,0 +1,27 @@
+{
+  "id": "x.night-thrasher-dh.13",
+  "name": "Terrax the Tamer",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "13",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 2,
+  "sch": 1,
+  "hp": 7,
+  "encounterSetIds": ["night-thrasher-dh-nemesis"],
+  "boostIcons": 2,
+  "traits": ["COSMIC", "MUTANT"],
+  "keywords": [],
+  "text": {
+    "printed": "Forced Response: After Terrax the Tamer activates, discard the top 8 cards of the encounter deck. If the Cosmic Ax attachment was discarded this way, reveal it.",
+    "current": "Forced Response: After Terrax the Tamer activates, discard the top 8 cards of the encounter deck. If the Cosmic Ax attachment was discarded this way, reveal it."
+  },
+  "flavor": "\"I am Terrax the Tamer. And you are tamed.\"",
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.13.terrax-the-tamer-forced-response"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "x.night-thrasher-dh.12",
+  "name": "Practice",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "12",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "obligation",
+  "encounterSetIds": [],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Give to the Night Thrasher player.\nYou may flip to alter-ego form. Choose:\n• Exhaust your alter-ego or discard 1 card from your hand → remove Practice from the game.\n• You cannot flip the Battle Board upgrade until the start of the next villain phase. Discard this obligation.",
+    "current": "Give to the Night Thrasher player.\nYou may flip to alter-ego form. Choose:\n• Exhaust your alter-ego or discard 1 card from your hand → remove Practice from the game.\n• You cannot flip the Battle Board upgrade until the start of the next villain phase. Discard this obligation."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.12.obligation"
+    }
+  ]
+}

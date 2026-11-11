@@ -1,0 +1,28 @@
+{
+  "id": "x.night-thrasher-dh.10",
+  "name": "Multi-Skilled",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "10",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 1,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Resource: Exhaust Multi-Skilled → generate a [wild] resource for a SKILL card.",
+    "current": "Resource: Exhaust Multi-Skilled → generate a [wild] resource for a SKILL card."
+  },
+  "flavor": "\"I think of myself as a teacher of hard lessons.\" —Night Thrasher",
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.10.multi-skilled-resource"
+    }
+  ]
+}
