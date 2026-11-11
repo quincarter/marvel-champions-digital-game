@@ -1,9 +1,9 @@
 {
-  "id": "gwenpool-ptt-aggression",
-  "name": "Gwenpool (Aggression) suggested deck",
+  "id": "gwenpool-ptt-pool",
+  "name": "Gwenpool ('Pool) suggested deck",
   "packCode": "gwenpool-ptt",
   "identityCardId": "x.gwenpool-ptt.01a",
-  "aspects": ["aggression"],
+  "aspects": ["pool"],
   "cards": [
     {
       "cardId": "x.gwenpool-ptt.02",
@@ -42,86 +42,86 @@
       "quantity": 1
     },
     {
-      "cardId": "01050",
+      "cardId": "44013",
       "quantity": 1
     },
     {
-      "cardId": "01051",
+      "cardId": "44014",
       "quantity": 1
     },
     {
-      "cardId": "01052",
-      "quantity": 2
-    },
-    {
-      "cardId": "01053",
-      "quantity": 2
-    },
-    {
-      "cardId": "01054",
-      "quantity": 2
-    },
-    {
-      "cardId": "01055",
-      "quantity": 2
-    },
-    {
-      "cardId": "01056",
-      "quantity": 2
-    },
-    {
-      "cardId": "01057",
-      "quantity": 2
-    },
-    {
-      "cardId": "01083",
+      "cardId": "44015",
       "quantity": 1
     },
     {
-      "cardId": "01084",
+      "cardId": "44016",
       "quantity": 1
     },
     {
-      "cardId": "01085",
+      "cardId": "44017",
+      "quantity": 3
+    },
+    {
+      "cardId": "44018",
       "quantity": 1
     },
     {
-      "cardId": "01086",
+      "cardId": "44019",
+      "quantity": 1
+    },
+    {
+      "cardId": "44020",
+      "quantity": 1
+    },
+    {
+      "cardId": "44021",
+      "quantity": 3
+    },
+    {
+      "cardId": "44022",
+      "quantity": 1
+    },
+    {
+      "cardId": "44023",
+      "quantity": 1
+    },
+    {
+      "cardId": "44024",
+      "quantity": 1
+    },
+    {
+      "cardId": "44025",
+      "quantity": 1
+    },
+    {
+      "cardId": "44026",
+      "quantity": 1
+    },
+    {
+      "cardId": "44027",
+      "quantity": 1
+    },
+    {
+      "cardId": "44028",
+      "quantity": 1
+    },
+    {
+      "cardId": "44029",
+      "quantity": 3
+    },
+    {
+      "cardId": "44030",
       "quantity": 1
     },
     {
       "cardId": "01087",
-      "quantity": 1
-    },
-    {
-      "cardId": "01088",
-      "quantity": 1
-    },
-    {
-      "cardId": "01089",
-      "quantity": 1
-    },
-    {
-      "cardId": "01090",
-      "quantity": 1
-    },
-    {
-      "cardId": "01091",
-      "quantity": 1
-    },
-    {
-      "cardId": "01092",
-      "quantity": 1
-    },
-    {
-      "cardId": "01093",
       "quantity": 1
     }
   ],
   "provenance": {
     "verified": false,
     "sources": [
-      "A suggested deck assembled for the digital game, not the pack author's (the source has no precon list): the 15 Gwenpool cards plus the Core Set Aggression and basic cards of the Iron Man (Aggression) starter deck"
+      "A suggested deck assembled for the digital game, not the pack author's (the source has no precon list): the 15 Gwenpool cards plus the 24 'Pool aspect cards (44013-44030) of the Deadpool Hero Pack starter deck (deadpool-pool, packages/content/src/data/deadpool/starterDecks.ts), same quantities, plus 1 Core Set basic card (Haymaker 01087) in place of its Frenemies, a Cable/Deadpool-only Team-Up card"
     ]
   }
 }

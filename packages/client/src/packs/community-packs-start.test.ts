@@ -7,6 +7,8 @@ import { IDBFactory } from "fake-indexeddb";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { PackManifest } from "@mc/content";
 import { buildPack } from "@mc/mod-sdk/build";
+// @ts-expect-error: a plain .mjs script with no declarations
+import { stagePackSource } from "../../../../scripts/lib/stage-pack.mjs";
 import { buildScenarioWithLoadedPacks } from "../content/pool.js";
 import { gameDeps, setGamePacks } from "../content/game-deps.js";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -38,7 +40,10 @@ for (const packId of readdirSync(COMMUNITY).filter((name) => statSync(join(COMMU
     it("starts a one-seat game with its precon and builds the board model for the seat", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "mc-community-"));
       outDirs.push(outDir);
-      await buildPack(join(COMMUNITY, packId), outDir);
+      // CI has no pack pictures: build from a copy without the alternate-art list when the images are missing.
+      const staged = stagePackSource(join(COMMUNITY, packId), packId);
+      outDirs.push(staged.root);
+      await buildPack(staged.src, outDir);
       const manifest = JSON.parse(readFileSync(join(outDir, "pack.json"), "utf8")) as PackManifest;
       const files = new Map<string, Uint8Array>();
       for (const full of walk(outDir)) {

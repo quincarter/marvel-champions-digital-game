@@ -72,7 +72,7 @@ afterAll(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
 });
 
-const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "gwenpool-ptt-aggression")!;
+const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "gwenpool-ptt-pool")!;
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,

@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 // @ts-expect-error: a plain .mjs script with no declarations
+import { stagePackSource } from "../../../scripts/lib/stage-pack.mjs";
+// @ts-expect-error: a plain .mjs script with no declarations
 import { readStagedPacks, upsertPackIndex } from "../../../scripts/lib/pack-index.mjs";
 
 /**
@@ -36,6 +38,7 @@ export async function stageCatalog(origin: string, packIds: readonly string[]): 
   const dir = mkdtempSync(join(tmpdir(), "mc-e2e-packs-"));
   const versions: Record<string, string> = {};
   const heroName: Record<string, string> = {};
+  const sources: string[] = [];
   for (const id of packIds) {
     const manifest = JSON.parse(readFileSync(join(COMMUNITY, id, "pack.json"), "utf8")) as {
       version: string;
@@ -43,19 +46,25 @@ export async function stageCatalog(origin: string, packIds: readonly string[]): 
     };
     versions[id] = manifest.version;
     heroName[id] = manifest.name;
+    const staged = stagePackSource(join(COMMUNITY, id), id);
+    sources.push(staged.root);
     // The SDK is TypeScript ESM that Playwright's own loader cannot import, so the build runs as the `mc-pack` CLI does.
-    execFileSync(
-      process.execPath,
-      [JITI, MC_PACK, "build", join(COMMUNITY, id), "--out", join(dir, id, manifest.version)],
-      {
-        stdio: "pipe",
-      },
-    );
+    execFileSync(process.execPath, [JITI, MC_PACK, "build", staged.src, "--out", join(dir, id, manifest.version)], {
+      stdio: "pipe",
+    });
   }
   const today = new Date().toISOString().slice(0, 10);
   const built = await readStagedPacks(dir, `${origin}${SERVED}`, today);
   const index = upsertPackIndex(undefined, built, { today, now: `${today}T00:00:00Z` });
-  return { dir, index, versions, heroName, dispose: () => rmSync(dir, { recursive: true, force: true }) };
+  return {
+    dir,
+    index,
+    versions,
+    heroName,
+    dispose: () => {
+      for (const path of [dir, ...sources]) rmSync(path, { recursive: true, force: true });
+    },
+  };
 }
 
 /** Serves the catalog (dev's `/packs/index.json` and the production URL) and every staged file. */
@@ -84,3 +93,9 @@ export async function serveCatalog(page: Page, staged: StagedCatalog): Promise<v
     }
   });
 }
+
+/** The id of a community pack's first suggested deck (its precon), read from `decks/`: the file name is the deck id. */
+export const communityPreconId = (packId: string): string => {
+  const [file] = readdirSync(join(COMMUNITY, packId, "decks")).filter((name) => name.endsWith(".json"));
+  return JSON.parse(readFileSync(join(COMMUNITY, packId, "decks", file!), "utf8")).id as string;
+};

@@ -11,7 +11,7 @@ Gwenpool (`gwenpool-ptt`) is a fan-made pack by **PatataSaurio** (Patatasaurio).
   "Hello Again" text update (2026-11-11), curated in
   https://github.com/bluefireF5ran/mc-digital-custom-packs (commit `3a5dff953ec7f2d64473039874fb6568693aa3f6`, folder
   `gwenpool_ptt`).
-- Ability scripts, the suggested deck (`decks/gwenpool-ptt-aggression.json`, assembled for this game, not the author's)
+- Ability scripts, the suggested deck (`decks/gwenpool-ptt-pool.json`, assembled for this game, not the author's)
   and the conversion to the pack format: this project.
 
 The card data was converted from MarvelCDB-shaped records with the mod SDK's `importMarvelCdbPack`. The speech bubbles

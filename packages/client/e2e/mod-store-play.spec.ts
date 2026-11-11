@@ -9,7 +9,7 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
-import { communityPackIds, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { communityPackIds, communityPreconId, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
 import { clickStop, hasStop, seatDeckThroughTile, waitForScene } from "./wave6-helpers-a.js";
 import { dealToFirstTurn, quietGuide } from "./wave6-helpers-b.js";
 
@@ -72,7 +72,7 @@ for (const packId of communityPackIds()) {
     );
     // On a phone the hero search sits behind the magnifier.
     if (!(await hasStop(page, "hero-search", "Seats"))) await clickStop(page, "hero-search-toggle", "Seats");
-    await seatDeckThroughTile(page, `precon:${packId}-aggression`, { search: staged.heroName[packId]! });
+    await seatDeckThroughTile(page, `precon:${communityPreconId(packId)}`, { search: staged.heroName[packId]! });
     await settle(page);
     await clickStop(page, "play", "Seats");
 
