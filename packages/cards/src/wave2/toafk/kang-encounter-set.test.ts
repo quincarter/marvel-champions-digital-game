@@ -1,11 +1,13 @@
-import { applyCommand, cardOf, type GameState, type InstanceId } from "@mc/engine";
+import { applyCommand, cardOf, statBonus, type GameState, type InstanceId } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
+  identityOf,
   inst,
   instancesOf,
   moveToHand,
   P1,
+  P2,
   patchInstance,
   payWith,
   play,
@@ -464,6 +466,142 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
       expect(inst(after, kang).statuses.tough).toBe(1);
       expect(inst(after, identity).damage).toBe(inst(state, identity).damage + 1);
       expect(inst(after, shield).attachedTo).toBeNull();
+    });
+  });
+
+  describe("Time-Travel Tactics (11028) and Kang (Master of Time) (11047): obligations in a player's own play area", () => {
+    /**
+     * Stages `count` REAL obligations (encounter instances, controllerId null: RRG 1.8 "Obligation" p. 30, encounter
+     * cards are controlled by no player) in `owner`'s play area, as revealing one leaves them. Taken from the END of the
+     * encounter deck so the boost/reveal positions at the top are untouched.
+     */
+    function withObligations(state: GameState, owner: typeof P1, count: number): GameState {
+      const deckId = Object.keys(state.encounterDecks)[0]!;
+      const pile = state.encounterDecks[deckId]!;
+      const ids = pile.deck.slice(-count);
+      return {
+        ...state,
+        encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: pile.deck.slice(0, -count) } },
+        instances: {
+          ...state.instances,
+          ...Object.fromEntries(
+            ids.map((id) => [
+              id,
+              { ...state.instances[id]!, cardId: "11018" as never, faceup: true, controllerId: null },
+            ]),
+          ),
+        },
+        players: state.players.map((p) => (p.playerId === owner ? { ...p, playArea: [...p.playArea, ...ids] } : p)),
+      };
+    }
+
+    const twoPlayers = () =>
+      startWave2Game(
+        wave2Scenario("kang", {
+          players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+          seed: 2026,
+        }),
+      );
+
+    /** Damage dealt by the revealed Time-Travel Tactics, per player (by who controls the damaged character). */
+    function indirectDamageByPlayer(start: GameState): Record<string, number> {
+      const deckId = Object.keys(start.encounterDecks)[0]!;
+      // The top cards are the enemies' boost cards (two players: a second enemy activation too, RRG 1.8 p. 47); make them
+      // inert Advance (01186) so no boost effect reveals an obligation of its own, then stage 11028 right behind them.
+      // The encounter cards dealt to the players at setup are made Advance too: a seed can deal a real obligation there
+      // (seed 2026 deals P1 Stolen Memories, 11019), and the counts must be only the ones each test stages.
+      const pile = start.encounterDecks[deckId]!;
+      const fillerId = pile.deck[start.players.length]!;
+      const relabel = (id: InstanceId, cardId: string) =>
+        [id, { ...start.instances[id]!, cardId: cardId as never }] as const;
+      const staged = {
+        ...start,
+        instances: {
+          ...start.instances,
+          ...Object.fromEntries([
+            ...pile.deck.slice(0, start.players.length).map((id) => relabel(id, "01186")),
+            ...start.players.flatMap((p) => p.dealtEncounter).map((id) => relabel(id, "01186")),
+            relabel(fillerId, "11028"),
+          ]),
+        },
+      };
+      const { events, state } = driveEvents(WAVE2_DEPS, staged, ...staged.players.map((p) => endTurn(p.playerId)));
+      const revealedAt = events.findIndex((e) => e.type === "encounterCardRevealed" && e.instanceId === fillerId);
+      expect(revealedAt).toBeGreaterThanOrEqual(0);
+      const obligationsBefore = events
+        .slice(0, revealedAt)
+        .filter((e) => e.type === "encounterCardRevealed" && cardOf(state, e.instanceId)?.type === "obligation");
+      expect(obligationsBefore, "no obligation is revealed before 11028 but the staged ones").toEqual([]);
+      const totals: Record<string, number> = {};
+      for (const e of events) {
+        if (e.type !== "damageDealt" || e.sourceInstanceId !== fillerId) continue;
+        const owner = state.players.find(
+          (p) => e.targetInstanceId === identityOf(state, p.playerId) || p.playArea.includes(e.targetInstanceId),
+        );
+        if (!owner) throw new Error("damage landed on a card no player controls");
+        totals[owner.playerId] = (totals[owner.playerId] ?? 0) + e.amount;
+      }
+      return totals;
+    }
+
+    it("11028 two players: each takes damage for their own obligations only (P1 one, P2 two)", () => {
+      const totals = indirectDamageByPlayer(withObligations(withObligations(twoPlayers(), P1, 1), P2, 2));
+      // P1 takes 1 for its own obligation and nothing for P2's two; P2 takes exactly its own two.
+      expect(totals[P1] ?? 0).toBe(1);
+      expect(totals[P2] ?? 0).toBe(2);
+    });
+
+    it("11028 solo: one obligation in your play area is 1 indirect damage", () => {
+      const totals = indirectDamageByPlayer(withObligations(kangVsHeroes(), P1, 1));
+      expect(totals[P1] ?? 0).toBe(1);
+    });
+
+    it("11028 boost: gains one boost icon per obligation in the player's play area", () => {
+      const icons = (state: GameState) => {
+        const deckId = Object.keys(state.encounterDecks)[0]!;
+        const topId = state.encounterDecks[deckId]!.deck[0]!;
+        const staged = {
+          ...state,
+          instances: { ...state.instances, [topId]: { ...state.instances[topId]!, cardId: "11028" as never } },
+        };
+        const { events } = driveEvents(WAVE2_DEPS, staged, endTurn());
+        // What Kang's activation does while 11028 is his flipped boost card: the threat it places or the damage it
+        // deals, from the flip until the encounter cards are dealt. Its printed boost icon plus 11028's own gain.
+        const from = events.findIndex((e) => e.type === "boostCardFlipped" && e.instanceId === topId);
+        // Villain activations all precede the encounter cards being dealt (RRG 1.8 p. 47); solo, Kang (I) is the only one.
+        const to = events.findIndex((e, i) => i > from && e.type === "encounterCardDealt");
+        if (from < 0 || to < 0) throw new Error("11028 was never flipped as a boost card");
+        return events
+          .slice(from, to)
+          .reduce((sum, e) => sum + (e.type === "threatPlaced" || e.type === "damageDealt" ? e.amount : 0), 0);
+      };
+      const base = icons(kangVsHeroes());
+      expect(icons(withObligations(kangVsHeroes(), P1, 2))).toBe(base + 2);
+    });
+
+    it("11047 Kang (Master of Time): +1 ATK and +1 SCH per obligation in the engaged player's play area", () => {
+      const withKang = (state: GameState) => {
+        const deckId = Object.keys(state.encounterDecks)[0]!;
+        const pile = state.encounterDecks[deckId]!;
+        const id = pile.deck[2]!;
+        return {
+          id,
+          state: {
+            ...state,
+            encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: pile.deck.filter((i) => i !== id) } },
+            villainArea: [...state.villainArea, id],
+            instances: {
+              ...state.instances,
+              [id]: { ...state.instances[id]!, cardId: "11047" as never, faceup: true, engagedWith: P1 },
+            },
+          },
+        };
+      };
+      const none = withKang(kangVsHeroes());
+      expect(statBonus(none.state, WAVE2_DEPS, none.id, "atk")).toBe(0);
+      const two = withKang(withObligations(kangVsHeroes(), P1, 2));
+      expect(statBonus(two.state, WAVE2_DEPS, two.id, "atk")).toBe(2);
+      expect(statBonus(two.state, WAVE2_DEPS, two.id, "sch")).toBe(2);
     });
   });
 });
