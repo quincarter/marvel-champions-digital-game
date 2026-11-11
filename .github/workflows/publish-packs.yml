@@ -97,6 +97,16 @@ jobs:
             for extra in preview.json thumb.webp; do
               if [ -f "$out/$extra" ]; then cp "$out/$extra" "$target/"; fi
             done
+            # The card pictures, unpacked: the store shows a pack's cards before it is installed by fetching
+            # <base>cards/<lang>/<code>.webp one by one (art/preview-art.ts); the zip still carries them for installs.
+            if [ -d "$dir/cards" ]; then
+              for lang_dir in "$dir"/cards/*/; do
+                [ -d "$lang_dir" ] || continue
+                lang=$(basename "$lang_dir")
+                mkdir -p "$target/cards/$lang"
+                cp "$lang_dir"*.webp "$target/cards/$lang/" 2>/dev/null || true
+              done
+            fi
             echo "Staged $id $version: $(ls "$target" | tr '\n' ' ')"
           done
 
@@ -179,6 +189,9 @@ jobs:
             put "$target/pack.json" "$id/$version/pack.json" application/json
             if [ -f "$target/preview.json" ]; then put "$target/preview.json" "$id/$version/preview.json" application/json; fi
             if [ -f "$target/thumb.webp" ]; then put "$target/thumb.webp" "$id/$version/thumb.webp" image/webp; fi
+            if [ -d "$target/cards" ]; then
+              aws s3 cp --only-show-errors --recursive --endpoint-url "$ENDPOINT" "$target/cards"                 "s3://$BUCKET/$id/$version/cards" --content-type image/webp --cache-control "$immutable"
+            fi
             put "$target/$id-$version.zip" "$id/$version/$id-$version.zip" application/zip
             echo "Published $id $version."
           done
