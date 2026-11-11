@@ -9,7 +9,8 @@ import { packFetchFor } from "./pack-fetch.js";
 export const PACKS_HOST = "https://packs.champions-digital-game.com";
 
 /**
- * The store's catalog. A dev server reads the local `public/packs/index.json`. A build reads `VITE_PACK_CATALOG` when
+ * The store's catalog. `VITE_PACK_CATALOG` is TEMPORARY (the owner, 2026-11-11), for testing installs on Netlify until
+ * the production catalog on R2 has packs; it goes once the R2 integration is tested. A dev server reads the local `public/packs/index.json`. A build reads `VITE_PACK_CATALOG` when
  * set: the Netlify builds (non-production) point it at `/packs/index.json`, a catalog of the repo's own packs built
  * into the site (`scripts/build-pack-catalog.mjs`). Otherwise a build reads production, which the registry repo's
  * publish workflow writes.

@@ -1,3 +1,6 @@
+// TEMPORARY (the owner, 2026-11-11): a stand-in until the production catalog on R2 has packs; remove it, its step in
+// netlify-deploy.yml and VITE_PACK_CATALOG once the R2 integration is tested. Don't build more on it.
+//
 // Builds the repo's own content packs (content-packs/sample-*, content-packs/community/*) into a Mod Store catalog
 // served by the web build itself, so a Netlify build (non-production: PR previews and the main site) has packs to
 // install without the production catalog on R2 (docs/custom-content-packs.md §11).
