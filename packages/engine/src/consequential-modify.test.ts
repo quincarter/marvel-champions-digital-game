@@ -39,10 +39,25 @@ const SURGE = stubAbility("havoc.interrupt", {
 const DUSTY = stubAlly({ id: "dusty", cost: 3, atk: 1, thw: 1, hp: 4, consequentialAttack: 1, abilities: [PLUS.ref] });
 const SHRUG = stubAlly({ id: "shrug", cost: 3, atk: 1, thw: 1, hp: 4, consequentialAttack: 2, abilities: [MINUS.ref] });
 const HAVOC = stubAlly({ id: "havoc", cost: 3, atk: 2, thw: 1, hp: 5, consequentialAttack: 0, abilities: [SURGE.ref] });
-const deps: EngineDeps = depsOf(PLUS, MINUS, SURGE);
+/** Nick Fury-shaped (`aos` 50002): "Response: After [this ally] uses a basic power, …" (a counter on himself here). */
+const AFTER_USED = stubAbility("frail.response", {
+  trigger: { kind: "response", forced: true, on: { on: "basicPowerUsed", selfIs: "target" } },
+  effects: [{ kind: "addCounters", target: self, counterType: "used", amount: { kind: "const", value: 1 } }],
+});
+/** HAVOC with 2 hit points and the response: the +2 consequential damage his interrupt creates defeats him. */
+const FRAIL = stubAlly({
+  id: "frail",
+  cost: 3,
+  atk: 2,
+  thw: 1,
+  hp: 2,
+  consequentialAttack: 0,
+  abilities: [SURGE.ref, AFTER_USED.ref],
+});
+const deps: EngineDeps = depsOf(PLUS, MINUS, SURGE, AFTER_USED);
 
 function start(ally: typeof DUSTY): { state: GameState; ally: InstanceId } {
-  const base = gameAtFirstTurn({ cards: [DUSTY, SHRUG, HAVOC], deps, deck: [ally.id] });
+  const base = gameAtFirstTurn({ cards: [DUSTY, SHRUG, HAVOC, FRAIL], deps, deck: [ally.id] });
   const placed = playerCardIntoPlay(base, ally.id);
   return { state: placed.state, ally: placed.id };
 }
@@ -115,5 +130,21 @@ describe("§3.31 `modifyConsequentialDamage` on a printed 0: the damage is creat
     expect(mustInstance(session.state, ally).damage).toBe(0);
     expect(mustInstance(session.state, villain).damage - before).toBe(2);
     expect(modified(events)).toEqual([]);
+  });
+});
+
+describe("§3.31 created consequential damage sits beneath the power's 'after uses a basic power' window", () => {
+  // RRG 1.8 "Consequential Damage" (p. 13: "after resolving abilities that are triggered by the ally attacking") and
+  // "Ability" (p. 5: responses, then consequential damage): the damage the interrupt creates resolves after the
+  // ally's own `basicPowerUsed` response, as damage pushed with the power does, so the response is not lost to it.
+  it("the ally's response resolves before the created damage defeats him", () => {
+    const { state, ally } = start(FRAIL);
+    const { session, events } = attack(state, ally, true);
+    expect(modified(events)).toEqual([{ type: "consequentialDamageModified", instanceId: ally, from: 0, to: 2 }]);
+    const counted = events.findIndex((e) => e.type === "counterAdded" && e.instanceId === ally);
+    const hurt = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === ally);
+    expect(counted).toBeGreaterThanOrEqual(0);
+    expect(hurt).toBeGreaterThan(counted);
+    expect(session.state.players[0]!.discard).toContain(ally);
   });
 });

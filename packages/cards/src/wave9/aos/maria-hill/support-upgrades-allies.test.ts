@@ -249,6 +249,24 @@ describe(`${FURY_RESPONSE}: after Nick Fury uses a basic power, place 1 all-purp
     expect(counters(after, ids[STAFF]!)).toEqual({ staff: 2 });
     expect(inst(after, villainOf(after)).damage).toBe(inst(state, villainOf(state)).damage + 2);
   });
+  // RRG 1.8 "Consequential Damage" (p. 13) and the "Ability" timing priority (p. 5): his response resolves before the
+  // consequential damage that defeats him (bug from a saved Taskmaster game, command #221).
+  it("with 1 hit point left, his basic thwart's response still resolves before his consequential damage defeats him", () => {
+    const staged = stage({ [ILIAD]: { mission: 3 } });
+    const state = withDamage(staged.state, staged.fury, 2);
+    const after = drive(run(state, thwart(state, staged.fury)), { respond: FURY_RESPONSE, target: staged.ids[ILIAD]! });
+    expect(counters(after, staged.ids[ILIAD]!)).toEqual({ mission: 4 });
+    expect(inPlayArea(after, staged.fury)).toBe(false);
+    expect(playerOf(after, P1).discard.map((id) => String(inst(after, id).cardId))).toContain(cardId(FURY));
+  });
+  it("with 1 hit point left, his basic attack's response still resolves before his consequential damage defeats him", () => {
+    const staged = stage({ [STAFF]: { staff: 1 } });
+    const state = withDamage(staged.state, staged.fury, 2);
+    const after = drive(run(state, attack(state, staged.fury)), { respond: FURY_RESPONSE, target: staged.ids[STAFF]! });
+    expect(counters(after, staged.ids[STAFF]!)).toEqual({ staff: 2 });
+    expect(inPlayArea(after, staged.fury)).toBe(false);
+    expect(playerOf(after, P1).discard.map((id) => String(inst(after, id).cardId))).toContain(cardId(FURY));
+  });
   it("the counter takes the destination's type: Support Staff with 3 staff counters gets a fourth", () => {
     const { state, fury, ids } = stage({ [STAFF]: { staff: 3 }, [ILIAD]: { mission: 3 } });
     const after = drive(run(state, thwart(state, fury)), { respond: FURY_RESPONSE, target: ids[STAFF]! });
