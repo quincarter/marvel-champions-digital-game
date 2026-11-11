@@ -670,7 +670,7 @@ First version limits, each refused with a sentence naming it:
 `mc-pack test` plays each campaign through the real campaign runner with a base precon: between-games setup, a played
 game, the result folded into the log, at every node until the campaign ends. A loss is allowed (the loss policy runs, then
 a staged win advances the run so later nodes are still covered); an engine error, a stuck game or a campaign that writes
-none of its log fields fails. `content-packs/sample-scenario/campaigns/sample-scenario-crisis.json` ("Clockwork Crisis",
+none of its log fields fails. What it cannot cover, and `mc-pack test` says so in its notes: the greedy driver loses even the Core scenarios, so a Defeat block runs only when a game is lost and a node it always wins never runs one; optional between-games choices are declined and every other choice takes its first options; an instruction behind a `when` gate or mode that is false in these runs is not exercised; and after a loss the next node is reached by a staged win (the lost game's own log writes are not folded twice). `failOnAlwaysLost` (off by default, because the driver loses everything) makes a campaign fail when every seed loses at the same node. `content-packs/sample-scenario/campaigns/sample-scenario-crisis.json` ("Clockwork Crisis",
 two nodes, a number and a flag written between games and read by a game's setup) is the example. A client lists packs'
 campaigns with `packCampaignRecords(packs)`, finds a definition with `packCampaignDefinitionOf(packs, id)` (the campaign
 service's `definitionOf`), and builds a node's game with `campaignGameWithPacks(start, packs)`.

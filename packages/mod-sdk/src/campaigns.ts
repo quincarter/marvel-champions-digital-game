@@ -88,11 +88,15 @@ export function checkPackCampaigns(input: CampaignCheckInput): void {
     });
     for (const problem of problems) add(at, problem);
     // The structure below reads the graph; a definition the generic check could not read has nothing to limit.
-    const graph = definition.graph;
-    if (!isObj(graph) || !Array.isArray(graph.nodes)) continue;
-    checkLimits(at, definition as unknown as CampaignDefinition, add);
-    checkRecord(at, entry, definition as unknown as CampaignDefinition, input, requiredSetIds);
-    checkStory(at, entry, definition as unknown as CampaignDefinition, add);
+    if (!isReadable(definition)) continue;
+    const readable = definition as unknown as CampaignDefinition;
+    try {
+      checkLimits(at, readable, add);
+      checkRecord(at, entry, readable, input, requiredSetIds);
+      checkStory(at, entry, readable, add);
+    } catch (error) {
+      add(at, `could not be checked: ${error instanceof Error ? error.message : String(error)}`);
+    }
     if (entry.art !== undefined) {
       const cover = isObj(entry.art) ? entry.art.cover : undefined;
       if (!isObj(entry.art) || (cover !== undefined && (typeof cover !== "string" || !isSafePackPath(cover))))
@@ -101,6 +105,21 @@ export function checkPackCampaigns(input: CampaignCheckInput): void {
         add(at, `art.cover "${cover}" is not a listed file`);
     }
   }
+}
+
+/**
+ * Whether the definition has the shape the checks below read: a graph of node objects with list setup and victory, and a
+ * list of log field objects. The generic check has already said what is wrong with one that does not.
+ */
+function isReadable(definition: Obj): boolean {
+  const graph = definition.graph;
+  const listOfObjects = (value: unknown): boolean => Array.isArray(value) && value.every(isObj);
+  return (
+    isObj(graph) &&
+    listOfObjects(graph.nodes) &&
+    (graph.nodes as Obj[]).every((node) => Array.isArray(node.setup) && Array.isArray(node.victory)) &&
+    listOfObjects(definition.logFields)
+  );
 }
 
 /** The first version's limits (§11.10), each as a sentence naming what to change. */

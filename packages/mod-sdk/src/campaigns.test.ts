@@ -11,14 +11,17 @@ import {
   type CampaignGameResult,
 } from "@mc/engine";
 import { buildPack } from "./build.js";
+import { PLAYABLE_DEPS } from "@mc/cards";
+import type { PackCampaign } from "./campaigns.js";
 import { SUPPORTED_DSL_FEATURES, campaignDefinitionsOf, dslFeatures } from "./features.js";
 import {
   campaignDepsWithPacks,
+  gameDepsWithPack,
   packCampaignDefinitionOf,
   packCampaignDefinitions,
   packCampaignRecords,
 } from "./game.js";
-import { smokeTestPack } from "./smoke.js";
+import { playCampaign, smokeTestPack } from "./smoke.js";
 import { readPackInput, validatePack, type PackInput } from "./validate.js";
 
 /**
@@ -341,3 +344,213 @@ function issuesWithRequired(change: (campaign: any) => void, scenarios: object[]
     .map((issue) => `${issue.path}: ${issue.message}`)
     .join("\n");
 }
+
+/** The first node's victory block, whose between-games ops a test adds to. */
+const victoryOps = (c: any): any[] => c.definition.graph.nodes[0].victory[0].step.ops;
+const addField = (c: any, field: any): void =>
+  void c.definition.logFields.push({ scope: "shared", citation: "t", ...field });
+const doom = {
+  id: "crisis.s1.setup.doom",
+  text: "Place 99 threat on the main scheme.",
+  citation: "test",
+  step: {
+    kind: "inGame",
+    window: "afterScenarioSetup",
+    effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 99 } }],
+  },
+};
+
+describe("validatePack: campaigns the runner would throw on", () => {
+  it("checks each write's mode against its field's type", () => {
+    expect(
+      issuesWith((c) =>
+        victoryOps(c).push({ kind: "appendToList", field: "stopped", value: { kind: "const", value: "x" } }),
+      ),
+    ).toMatch(/appendToList needs a cardList, instructionList or strikeList field, "stopped" is flag/);
+    expect(
+      issuesWith((c) =>
+        victoryOps(c).push({ kind: "addToField", field: "stopped", value: { kind: "const", value: 1 } }),
+      ),
+    ).toMatch(/addToField needs a number field, "stopped" is a flag field/);
+    expect(
+      issuesWith((c) => victoryOps(c).push({ kind: "strike", field: "cogs", option: { kind: "const", value: "x" } })),
+    ).toMatch(/strike needs a strikeList field, "cogs" is a number field/);
+    const record = (mode: string, field: string) => (c: any) => {
+      c.definition.graph.nodes[0].victory[0].step = {
+        kind: "record",
+        writes: [{ field, mode, value: { kind: "countersOn", query: {}, counter: "x" } }],
+      };
+    };
+    expect(issuesWith(record("append", "cogs"))).toMatch(
+      /an append write needs a list field, "cogs" is a number field/,
+    );
+    expect(issuesWith(record("add", "stopped"))).toMatch(/an add write needs a number field/);
+    expect(issuesWith(record("strike", "cogs"))).toMatch(/a strike write needs a strikeList field/);
+    expect(issuesWith(record("mash", "cogs"))).toMatch(/unknown mode "mash"/);
+  });
+
+  it("refuses between-games writes to a cardState field", () => {
+    const cardState = (c: any) =>
+      addField(c, { id: "board", label: "Board", type: { kind: "cardState", cardIds: ["01001"] } });
+    expect(
+      issuesWith((c) => {
+        cardState(c);
+        victoryOps(c).push({ kind: "setField", field: "board", value: { kind: "const", value: "x" } });
+      }),
+    ).toMatch(/setField writes cardState field "board"/);
+    expect(
+      issuesWith((c) => {
+        cardState(c);
+        c.definition.graph.nodes[0].victory[0].step = {
+          kind: "record",
+          writes: [{ field: "board", mode: "set", value: { kind: "countersOn", query: {}, counter: "x" } }],
+        };
+      }),
+    ).toMatch(/cardState field "board" can only be set from a cardStateOf query/);
+  });
+
+  it("validates card choices, and checks every card of a choice that reaches a grant", () => {
+    const choose = (from: any, grant: boolean) => (c: any) => {
+      victoryOps(c).push({ kind: "choose", slot: "pick", chooser: "group", from });
+      if (grant)
+        victoryOps(c).push({
+          kind: "grantCard",
+          seat: "each",
+          card: { kind: "choice", slot: "pick" },
+          permanence: "campaign",
+        });
+    };
+    expect(issuesWith(choose({ kind: "cards", cardIds: ["99999"] }, false))).toMatch(
+      /names "99999", which the game does not have/,
+    );
+    expect(issuesWith(choose({ kind: "cards", cardIds: ["accept", "decline"] }, false))).toBe("");
+    expect(issuesWith(choose({ kind: "cards", cardIds: ["accept"] }, true))).toMatch(
+      /names "accept", which the game does not have/,
+    );
+    expect(issuesWith(choose({ kind: "cards", cardIds: ["01001a"] }, true))).toBe("");
+    expect(
+      issuesWith((c) => {
+        choose({ kind: "cards", cardIds: ["accept"] }, false)(c);
+        victoryOps(c).push({
+          kind: "choose",
+          slot: "second",
+          chooser: "group",
+          from: { kind: "values", of: { kind: "choice", slot: "pick" } },
+        });
+        victoryOps(c).push({
+          kind: "grantCard",
+          seat: "each",
+          card: { kind: "choice", slot: "second" },
+          permanence: "campaign",
+        });
+      }),
+    ).toMatch(/names "accept"/);
+    expect(
+      issuesWith((c) =>
+        victoryOps(c).push({
+          kind: "grantCard",
+          seat: "each",
+          card: { kind: "const", value: "99999" },
+          permanence: "campaign",
+        }),
+      ),
+    ).toMatch(/grantCard names card "99999"/);
+  });
+
+  it("holds literal instruction list ids to conditionalInstructions keys", () => {
+    const list = (c: any) => addField(c, { id: "later", label: "Later", type: { kind: "instructionList" } });
+    expect(
+      issuesWith((c) => {
+        list(c);
+        victoryOps(c).push({ kind: "appendToList", field: "later", value: { kind: "const", value: "crisis.nope" } });
+      }),
+    ).toMatch(/names "crisis.nope", which is not a conditionalInstructions key/);
+    expect(
+      issuesWith((c) => {
+        list(c);
+        c.definition.conditionalInstructions = {
+          "crisis.later": { ...c.definition.graph.nodes[1].victory[0], id: "crisis.later" },
+        };
+        victoryOps(c).push({ kind: "appendToList", field: "later", value: { kind: "const", value: "crisis.later" } });
+      }),
+    ).toBe("");
+  });
+
+  it("checks field type shapes, node labels and nodeProgress nodes", () => {
+    const type = (id: string, value: object) => (c: any) => addField(c, { id, label: id, type: value });
+    expect(issuesWith(type("role", { kind: "choice" }))).toMatch(/choice field needs an options list/);
+    expect(issuesWith(type("s", { kind: "strikeList", options: [] }))).toMatch(
+      /strikeList field needs an options list/,
+    );
+    expect(issuesWith(type("b", { kind: "cardState" }))).toMatch(/cardState field needs a cardIds list/);
+    expect(issuesWith(type("n", { kind: "number", min: "0" }))).toMatch(/min must be a number/);
+    expect(issuesWith(type("w", { kind: "weird" }))).toMatch(/needs a type of kind/);
+    expect(issuesWith((c) => delete c.definition.graph.nodes[0].label)).toMatch(/node "clockmaker" needs a label/);
+    const progress = (node: string) => (c: any) =>
+      victoryOps(c).push({ kind: "setField", field: "cogs", value: { kind: "nodeProgress", node } });
+    expect(issuesWith(progress("nowhere"))).toMatch(/nodeProgress names node "nowhere"/);
+    expect(issuesWith(progress("street-fight"))).toBe("");
+  });
+
+  it("never throws on a malformed definition: it reports it", () => {
+    const shapes: ((c: any) => void)[] = [
+      (c) => (c.definition.graph.nodes[0].setup = null),
+      (c) => (c.definition.graph.nodes[0].composition = "x"),
+      (c) => (c.definition.graph.nodes = [null, 3]),
+      (c) => (c.definition.graph.nodes = "none"),
+      (c) => (c.definition.graph = null),
+      (c) => (c.definition.logFields = [null]),
+      (c) => (c.definition.logFields = {}),
+      (c) => (c.definition.everyNodeSetup = "x"),
+      (c) => (c.definition.everyNodeVictory = [null]),
+      (c) => (c.definition.conditionalInstructions = []),
+      (c) => (c.definition.conditionalInstructions = { a: null }),
+      (c) => (c.definition.loss = null),
+      (c) => (c.definition.loss = { retry: "free", retryBaseline: "nodeStart", everyNodeDefeat: 5 }),
+      (c) => (c.definition.graph.nodes[0].victory[0].step = null),
+      (c) => (c.definition.graph.nodes[0].victory[0].step.ops = "x"),
+      (c) => (c.definition.graph.nodes[0].scenario = null),
+      (c) => (c.record = null),
+      (c) => (c.story = { blurb: "x", issues: [null] }),
+    ];
+    for (const [index, shape] of shapes.entries()) expect(issuesWith(shape), `shape ${index}`).not.toBe("");
+  });
+});
+
+describe("playCampaign: what the smoke run catches", () => {
+  const deps = () => gameDepsWithPack(PLAYABLE_DEPS, pack);
+  const record = (change: (c: any) => void): PackCampaign => {
+    const campaign = structuredClone(pack.campaigns?.[0]) as any;
+    change(campaign);
+    return campaign as PackCampaign;
+  };
+  const loses = () => record((c) => c.definition.graph.nodes[0].setup.push(structuredClone(doom)));
+
+  it("fails when a Victory instruction throws in the runner", () => {
+    const broken = record((c) =>
+      victoryOps(c).push({ kind: "appendToList", field: "stopped", value: { kind: "const", value: "x" } }),
+    );
+    const run = playCampaign(pack, broken, 1, deps(), 4000);
+    const failed = run.games.filter((game) => !game.ok);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.error).toMatch(/cannot be appended to/);
+  });
+
+  it("notes a staged win after a lost game and goes on to the next node", () => {
+    const run = playCampaign(pack, loses(), 1, deps(), 4000);
+    expect(run.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([]);
+    expect(run.lostAt).toBe("clockmaker");
+    expect(run.games[0]?.outcome).toMatch(/^loss/);
+    expect(run.notes.join("\n")).toMatch(/lost at "clockmaker", then advanced with a staged win/);
+    expect(run.games.map((game) => game.node)).toContain("street-fight");
+  });
+
+  it("fails the campaign when every seed loses the same node, and says what the driver cannot cover", () => {
+    const result = smokeTestPack({ ...pack, campaigns: [loses()] } as PackInput, { games: 2, failOnAlwaysLost: true });
+    expect(result.ok).toBe(false);
+    expect(result.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([
+      expect.stringMatching(/every seed lost at node "clockmaker"/),
+    ]);
+    expect(result.notes.join("\n")).toMatch(/Defeat block runs only if a game is lost/);
+  });
+});

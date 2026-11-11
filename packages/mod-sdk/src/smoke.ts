@@ -56,6 +56,12 @@ export interface SmokeOptions {
   readonly scenario?: string;
   /** The driver's command budget per game; a game that runs past it is stuck. Default 4000. */
   readonly maxCommands?: number;
+  /**
+   * Fail a pack campaign when every seed loses at the same node, since the staged wins then hide that the node may be
+   * unwinnable. Off by default: the greedy driver is weak (it loses the Core scenarios too), so on it every campaign
+   * would fail; turn it on with a stronger driver or a scenario built to be easy.
+   */
+  readonly failOnAlwaysLost?: boolean;
   /** Called after each game, for progress output. */
   readonly onGame?: (game: SmokeGame) => void;
 }
@@ -220,8 +226,11 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
     }
   }
   for (const campaign of packCampaignRecords([pack])) {
+    const lostAt: (string | null)[] = [];
+    notes.push(`campaign ${campaign.id}: ${CAMPAIGN_DRIVER_LIMITS}`);
     for (let seed = 1; seed <= games; seed++) {
       const run = playCampaign(pack, campaign, seed, deps, maxCommands);
+      lostAt.push(run.lostAt);
       notes.push(...run.notes);
       for (const game of run.games) {
         for (const code of game.packCardsPlayed) everPlayed.add(code);
@@ -229,11 +238,35 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
         options.onGame?.(game);
       }
     }
+    const first = lostAt[0];
+    if (options.failOnAlwaysLost && first !== null && first !== undefined && lostAt.every((node) => node === first)) {
+      const failed: SmokeGame = {
+        deck: SMOKE_BASE_DECK,
+        scenario: campaign.record.scenarioIds[campaign.definition.graph.nodes.findIndex((n) => n.id === first)] ?? "",
+        campaign: campaign.id,
+        node: first,
+        seed: 0,
+        ok: false,
+        rounds: 0,
+        commands: 0,
+        error: `every seed lost at node "${first}": the greedy driver never won it, so the later nodes were reached only with staged wins`,
+        packCardsPlayed: [],
+      };
+      results.push(failed);
+      options.onGame?.(failed);
+    }
   }
   if (results.length > 0 && everPlayed.size === 0)
     notes.push("no game played or revealed one of the pack's own cards; try more games (--games)");
   return { ok: results.every((g) => g.ok), scenario, games: results, notes };
 }
+
+/**
+ * What `playCampaign` cannot cover, said once per campaign in the notes (and in docs/custom-content-packs.md §11.10).
+ */
+export const CAMPAIGN_DRIVER_LIMITS =
+  "the greedy driver wins or loses on its own, so a Defeat block runs only if a game is lost (and a node that is always won never runs it); " +
+  "optional between-games choices are declined; every other choice takes its first options; and an instruction behind a `when` gate or mode that is false in these runs is not exercised";
 
 /** Answers every between-games choice with its first options (none for an optional one), until the step list settles. */
 function settleCampaign<T>(step: (answers: readonly CampaignChoiceAnswer[]) => CampaignRunnerResult<T>): T {
@@ -266,10 +299,16 @@ export function playCampaign(
   seed: number,
   deps: EngineDeps,
   maxCommands: number,
-): { readonly games: readonly SmokeGame[]; readonly notes: readonly string[] } {
+): {
+  readonly games: readonly SmokeGame[];
+  readonly notes: readonly string[];
+  /** The first node a real game was lost at in this run, or null when every game was won. */
+  readonly lostAt: string | null;
+} {
   const definition = campaign.definition;
   const games: SmokeGame[] = [];
   const notes: string[] = [];
+  let lostAt: string | null = null;
   const budget = definition.graph.nodes.length * 3 + 2;
   const failure = (node: string, scenario: string, error: string): SmokeGame => ({
     deck: SMOKE_BASE_DECK,
@@ -344,18 +383,24 @@ export function playCampaign(
         commands: run.commands,
         packCardsPlayed: played,
       });
-      if (error !== undefined) return { games, notes };
+      if (error !== undefined) return { games, notes, lostAt };
       const result = campaignResultOf(definition, composed, state, events, deps);
       log = settleCampaign((answers) =>
         applyCampaignResult(definition, composed, result, { at: 1 }, campaignDeps, answers),
       );
+      if (result.outcome === "lost") lostAt ??= nodeId;
       if (result.outcome === "lost" && log.status === "active") {
         // The loss policy ran. A retry replays the same seed, so stage a win at the same node to reach the rest.
         const lost = log;
         const again = settleCampaign((answers) =>
           resolveBetweenGames(definition, lost, campaignDeps, lost.modes, answers),
         );
-        const staged = { ...state, outcome: { result: "win", reason: "villainDefeated" } } as GameState;
+        // The lost game's own writes were folded above; clear them so the staged result does not fold them twice.
+        const staged = {
+          ...state,
+          outcome: { result: "win", reason: "villainDefeated" },
+          campaignWrites: { logWrites: [], removedFromCampaign: [] },
+        } as GameState;
         const stagedResult = campaignResultOf(definition, again, staged, events, deps);
         log = settleCampaign((answers) =>
           applyCampaignResult(definition, again, stagedResult, { at: 1 }, campaignDeps, answers),
@@ -371,5 +416,5 @@ export function playCampaign(
   } catch (caught) {
     games.push(failure(nodeId, scenario, errorText(caught)));
   }
-  return { games, notes };
+  return { games, notes, lostAt };
 }
