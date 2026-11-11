@@ -22,8 +22,11 @@ name: Publish packs
 
 on:
   push:
-    branches: [main]
-    paths: ["content-packs/**"]
+    # TEMPORARY (the owner, 2026-11-11): feature/custom-content-packs too, so the first R2 publish can be tested before
+    # this workflow is on main (workflow_dispatch only runs workflows that are on the default branch). On that branch
+    # it is a dry run unless the repository variable PUBLISH_PACKS_FROM_BRANCH is "true". Remove before merging.
+    branches: [main, feature/custom-content-packs]
+    paths: ["content-packs/**", ".github/workflows/publish-packs.yml"]
   workflow_dispatch:
     inputs:
       dry-run:
@@ -46,7 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run && 'true' || 'false' }}
+      DRY_RUN: >-
+        ${{ (github.event_name == 'workflow_dispatch' && inputs.dry-run) ||
+        (github.ref_name == 'feature/custom-content-packs' && vars.PUBLISH_PACKS_FROM_BRANCH != 'true') }}
       BUCKET: ${{ vars.R2_BUCKET || 'mc-packs' }}
       BASE_URL: ${{ vars.PACKS_BASE_URL }}
       STAGING: ${{ github.workspace }}/.publish/staging
