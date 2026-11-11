@@ -1,5 +1,7 @@
 import { cardId } from "@mc/content";
 import {
+  activeEncounterDeck,
+  cardsInPlay,
   characterProfile,
   legalActions,
   replay,
@@ -29,6 +31,7 @@ import {
   use,
   type Picker,
 } from "../../../testing/harness.js";
+import { intoPlay } from "../../../testing/qa-bench.js";
 import { withForm } from "../../../testing/staging.js";
 import { DRS_PACK_CARDS } from "../../../wave1/drs/pack-cards.js";
 import { WAVE6_DEPS } from "../../index.js";
@@ -375,6 +378,46 @@ describe("Rogue's supports, upgrades, allies and resources (38003, 38004, 38010-
       villainPhase(empty, (s) => {
         expect(offers(s, ICEMAN_RESPONSE)).toBe(false);
         return firstLegal(s);
+      });
+    });
+
+    describe("only while that minion is still in play (RRG 1.8 'Target', p. 42; 'Cost', p. 14)", () => {
+      const HAWKEYE_RESPONSE = "01066.hawkeye-response";
+      /**
+       * Iceman (3 freeze counters) and Hawkeye (4 arrow counters, surgery) in play, the revealed Hydra Mercenary (3 hp)
+       * carrying `damage`. Hawkeye is taken first; the later prompts record whether Iceman is still offered.
+       */
+      const afterHawkeye = (damage: number) => {
+        const played = iceman();
+        const hawkeye = intoPlay(played.state, "01066", { arrow: 4 });
+        const staged = stackEncounterDeck(hawkeye.state, NO_ICONS, MERCENARY);
+        const minionId = activeEncounterDeck(staged).deck[1]!;
+        const offeredAfter: boolean[] = [];
+        let taken = false;
+        const pick: Picker = (s) => {
+          if (s.pendingChoice?.prompt.kind !== "chooseTriggers") return firstLegal(s);
+          if (!taken) {
+            taken = true;
+            return accepting([HAWKEYE_RESPONSE])(s);
+          }
+          offeredAfter.push(offers(s, ICEMAN_RESPONSE));
+          return accepting([ICEMAN_RESPONSE])(s);
+        };
+        const { state } = drive(patchInstance(staged, minionId, { damage }), endTurnCommand, defending(false, pick));
+        return { state, offeredAfter, iceman: played.id, minionId };
+      };
+      it("control: Hawkeye's 2 damage leaves the Mercenary alive, so Iceman is still offered and stuns it", () => {
+        const { state, offeredAfter, iceman, minionId } = afterHawkeye(0);
+        expect(offeredAfter).toEqual([true]);
+        expect(counter(state, iceman, "freeze")).toBe(2);
+        expect(inst(state, minionId).statuses.stunned).toBe(1);
+        expect(inst(state, minionId).damage).toBe(2);
+      });
+      it("Hawkeye defeats the Mercenary first (1 damage already): Iceman is not offered and keeps all 3 freeze counters", () => {
+        const { state, offeredAfter, iceman, minionId } = afterHawkeye(1);
+        expect(offeredAfter).toEqual([]);
+        expect(counter(state, iceman, "freeze")).toBe(3);
+        expect(cardsInPlay(state)).not.toContain(minionId);
       });
     });
 

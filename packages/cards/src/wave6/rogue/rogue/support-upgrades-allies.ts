@@ -24,6 +24,7 @@ import {
   ownerOf,
   playTuckedCard,
   query,
+  refMatches,
   removeCounter,
   resource,
   response,
@@ -91,7 +92,12 @@ export const ROGUE_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "38010.iceman-constant": forcedResponse(after.entersPlay("self"), addCounters("freeze", 3)),
   "38010.iceman-response": response(
     after.entersPlay(query("minion")),
-    { cost: removeCounter("freeze") },
+    {
+      cost: removeCounter("freeze"),
+      // Only while "that minion" is still in play: gone, it is no valid target, so the ability can't be initiated nor
+      // its cost paid (RRG 1.8 "Target", p. 42; "Cost", p. 14).
+      while: refMatches(eventTarget, query("minion")),
+    },
     stun(eventTarget),
   ),
 
