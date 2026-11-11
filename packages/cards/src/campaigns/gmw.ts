@@ -415,6 +415,8 @@ function marketShoppingSetup(prefix: string, citation: string): CampaignInstruct
             slot,
             chooser: "eachSeat",
             optional: true,
+            // A tier whose cards are all bought has nothing left to sell: its slots are passed, not asked (#679).
+            skipWhenEmpty: true,
             from: {
               kind: "campaignSet",
               encounterSetId: THE_MARKET,
