@@ -14,6 +14,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -56,7 +57,7 @@ try {
         // The source repo is private, so CI can't fetch the pictures: build without them (generated card frames), from
         // a copy without the alternate-art list, whose files would be missing.
         console.warn(`::warning::${dir}: pictures unavailable, building the pack without them.`);
-        source = join(work, "src", dir.split(/[\/]/).pop());
+        source = join(work, "src", basename(dir));
         cpSync(dir, source, { recursive: true });
         const manifest = JSON.parse(readFileSync(join(source, "pack.json"), "utf8"));
         delete manifest.altArt;
