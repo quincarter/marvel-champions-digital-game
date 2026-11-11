@@ -9,10 +9,13 @@ import { packFetchFor } from "./pack-fetch.js";
 export const PACKS_HOST = "https://packs.champions-digital-game.com";
 
 /**
- * The store's catalog. A dev server reads the local `public/packs/index.json` (a test catalog of the sample pack);
- * every build reads the published one, which the registry repo's publish workflow writes.
+ * The store's catalog. A dev server reads the local `public/packs/index.json`. A build reads `VITE_PACK_CATALOG` when
+ * set: the Netlify builds (non-production) point it at `/packs/index.json`, a catalog of the repo's own packs built
+ * into the site (`scripts/build-pack-catalog.mjs`). Otherwise a build reads production, which the registry repo's
+ * publish workflow writes.
  */
-export const CATALOG_URL = import.meta.env?.DEV ? "/packs/index.json" : `${PACKS_HOST}/index.json`;
+export const CATALOG_URL =
+  import.meta.env?.VITE_PACK_CATALOG || (import.meta.env?.DEV ? "/packs/index.json" : `${PACKS_HOST}/index.json`);
 export const CATALOG_CACHE_KEY = "mc-pack-catalog";
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;

@@ -136,6 +136,14 @@ jobs:
           fi
       - id: build
         run: pnpm --filter @mc/client build
+        env:
+          # Netlify is non-production: its builds read a Mod Store catalog of the repo's own packs, built into the
+          # site by the next step, instead of the production catalog on R2 (packs/catalog.ts).
+          VITE_PACK_CATALOG: /packs/index.json
+      # The sample packs and the community packs (content-packs/), built with the mod SDK into dist/packs/. A community
+      # pack's pictures are fetched from its source repo by its fetch-art.sh.
+      - name: Build the preview's pack catalog
+        run: node scripts/build-pack-catalog.mjs packages/client/dist/packs
 
       - name: Deploy
         id: deploy
