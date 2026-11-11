@@ -198,7 +198,13 @@ import { POOL_CARDS } from "./pool-cards.js";
 import type { ShelfPack } from "../view/roster-shelves.js";
 import { packEncounterSetRecords, packScenarioRecords, scenarioWithPacks } from "@mc/mod-sdk/game";
 import { loadedPacks } from "../packs/pack-registry.js";
-import { depsWithPacks, packsOwningContent, poolWithPacks, type PackRuntime } from "../packs/pack-runtime.js";
+import {
+  depsWithPacks,
+  packsOwningContent,
+  poolWithPacks,
+  seatsWithPackDecks,
+  type PackRuntime,
+} from "../packs/pack-runtime.js";
 
 // Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
 export { POOL_CARDS };
@@ -652,8 +658,22 @@ export const buildScenario = playableScenario;
  * scenario, is built by the SDK's `scenarioWithPacks`; anything else is `buildScenario` exactly as before. For the setup
  * screen's preview; a started game builds the same way in `engine/session-core.ts` from the packs its config carries.
  */
-export function buildScenarioWithLoadedPacks(scenarioId: string, options: PlayableScenarioOptions) {
+export function buildScenarioWithLoadedPacks(scenarioId: string, rawOptions: PlayableScenarioOptions) {
   const packs = loadedPacks();
+  // A seat with a pack's precon is turned into the deck it names first, as the engine session does (`scenarioFor`):
+  // the scenario builders know only the base game's starter decks and throw "no playable starter deck" for a pack's,
+  // which left the setup screen's Play button with a blank screen.
+  const options: PlayableScenarioOptions =
+    packs.length > 0 && rawOptions.players
+      ? {
+          ...rawOptions,
+          players: seatsWithPackDecks(
+            rawOptions.players,
+            packs,
+            new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string)),
+          ),
+        }
+      : rawOptions;
   const modular = [...(options.modularSetIds ?? []), ...(options.extraModularSetIds ?? [])];
   return packsOwningContent(scenarioId, modular, packs).length > 0
     ? scenarioWithPacks(scenarioId, options, packs)

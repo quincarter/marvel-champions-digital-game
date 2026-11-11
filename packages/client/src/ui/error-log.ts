@@ -37,3 +37,12 @@ export function recordError(cause: unknown, where: string): void {
   if (recorded.length > MAX_RECORDED) recorded.shift();
   console.error(`[mc] ${where}:`, error);
 }
+
+/** The panel's text for a screen that threw while it was being drawn (pure, so it is tested without a DOM). */
+export function failedScreenText(sceneKeys: readonly string[], message: string): string {
+  return [
+    `This screen (${sceneKeys.join(", ")}) could not be drawn.`,
+    `Error: ${message}`,
+    "Your game and saves are untouched. Go back to the title, or reload.",
+  ].join("\n");
+}
