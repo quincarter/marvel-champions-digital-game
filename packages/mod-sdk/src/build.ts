@@ -19,6 +19,7 @@ import {
 } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { campaignDefinitionsOf, dslFeatures } from "./features.js";
+import { buildPreview } from "./preview.js";
 import { sha256Hex } from "./sha256.js";
 import { readPackInput, validatePack, type PackInput, type PackIssue, type ValidateOptions } from "./validate.js";
 
@@ -269,5 +270,9 @@ export async function buildPack(
   const zip = zipPack(pack.manifest, pack.files);
   const zipPath = join(outDir, `${pack.manifest.id}-${pack.manifest.version}.zip`);
   write(`${pack.manifest.id}-${pack.manifest.version}.zip`, zip);
+  // Siblings of the zip, not inside it: what the store shows before an install (`preview.ts`).
+  const { preview, thumbFrom } = buildPreview(pack);
+  write("preview.json", json(preview));
+  if (thumbFrom) write("thumb.webp", pack.files.get(thumbFrom)!);
   return { manifest: pack.manifest, zipPath, zipBytes: zip.length, zipSha256: sha256Hex(zip) };
 }

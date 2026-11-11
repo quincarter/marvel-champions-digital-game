@@ -48,6 +48,7 @@ function validVersion(v: unknown): boolean {
     isString(v.base) &&
     isString(v.zip) &&
     (v.zipFallback === undefined || isString(v.zipFallback)) &&
+    (v.preview === undefined || isString(v.preview)) &&
     typeof v.zipBytes === "number" &&
     Number.isInteger(v.zipBytes) &&
     v.zipBytes > 0 &&

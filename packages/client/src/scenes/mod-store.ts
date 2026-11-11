@@ -3,8 +3,10 @@
  * update or remove it.
  *
  * Two views in one scene. **Browse** is four tabs (All, Heroes, Scenarios, Installed) over a grid of pack tiles, with an
- * offline notice when the catalog is the saved copy. **Pack** is one pack's page: header, scrolling text (description,
- * credits, permission, requirement), a status line (progress bar or error) and the buttons its state offers.
+ * offline notice when the catalog is the saved copy; each tile leads with the pack's featured card (thumbnail, picture or
+ * generated face from its `preview.json`). **Pack** is one pack's page: the featured card(s), header, scrolling text
+ * (description, credits, permission, requirement), a gallery of the pack's cards (from the preview before an install,
+ * from the installed pack after), a status line (progress bar or error) and the buttons its state offers.
  *
  * This scene only draws. Which packs a tab shows, what the buttons are, progress words and error words are
  * `view/mod-store-model.ts`'s; whether a pack can be installed is `packs/pack-state.ts`'s; the install itself, in a
@@ -15,7 +17,7 @@
  * Pad and keyboard: Back, the tabs (LB / RB step them), then every tile; on a pack page, Back then its buttons.
  */
 import Phaser from "phaser";
-import type { AnyCard, CardId, PackIndex } from "@mc/content";
+import { customCardPrefix, type AnyCard, type CardId, type PackIndex } from "@mc/content";
 import { accent, hit, ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -36,8 +38,10 @@ import {
   emptyTextOf,
   errorTextOf,
   modStoreGridOf,
+  featuredFacesOf,
   packPageOf,
   progressOf,
+  tileArtOf,
   tilesOf,
   type ModStoreContext,
   type ModStoreTab,
@@ -53,19 +57,30 @@ import {
   sharedPackStore,
 } from "../packs/active-packs.js";
 import { loadedPacks } from "../packs/pack-registry.js";
-import { artFor, defaultFaceFor } from "../art/art-source.js";
+import { artFor, artLanguageNow, defaultFaceFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import { onPreviewArtArrived, previewPictureFor } from "../art/preview-art.js";
+import { drawGeneratedFace, faceModelOf, statLineOf } from "../ui/generated-card-face.js";
+import { currentCardsById } from "../content/pool.js";
+import { onPreviewArrived, previewInMemory, requestPreview } from "../packs/preview-client.js";
+import { previewPictureUrl, type ParsedPackPreview } from "../packs/pack-preview.js";
 import { cardArt, drawArt } from "../art/card-art.js";
+import { packFileArt } from "../art/pack-art.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import {
+  GALLERY_HEADING_HEIGHT,
+  galleryCardCount,
   galleryCountText,
   galleryGridOf,
-  galleryOf,
   galleryPictureHeight,
+  galleryRowsOf,
+  gallerySectionsOf,
   loadStatusOf,
   loadStatusText,
-  pageSplitOf,
+  packPageLayoutOf,
   type GalleryCard,
+  type GalleryRow,
+  type GallerySection,
 } from "../view/pack-gallery-model.js";
 import type { InspectData } from "./inspect.js";
 import type { InstalledPack, PackStorage } from "../packs/pack-store.js";
@@ -123,7 +138,16 @@ export class ModStoreScene extends Phaser.Scene {
   #gallery: McVirtualList | null = null;
   #galleryRect: Rect | null = null;
   #galleryGrid: ReturnType<typeof galleryGridOf> | null = null;
-  #galleryCards: readonly GalleryCard[] = [];
+  #galleryRows: readonly GalleryRow[] = [];
+  /** What the open page's gallery draws from: its pack, preview, picture base and every card shown by id. */
+  #pageContext: {
+    readonly packId: string;
+    readonly preview: ParsedPackPreview | null;
+    readonly base: string | undefined;
+    readonly records: ReadonlyMap<string, AnyCard>;
+  } | null = null;
+  /** The featured faces on the page, for the hover popover. */
+  #faceHovers: { rect: Rect; card: AnyCard; face: CardFace; art: ArtSource | undefined }[] = [];
   readonly #galleryScroll = new ListScroll();
   /** The desktop hover popover over the gallery's tiles (`ui/card-hover-preview.ts`), as in the set sheet. */
   #hover: HoverPreview | null = null;
@@ -170,10 +194,15 @@ export class ModStoreScene extends Phaser.Scene {
     // A pack finishing its load (after an install, or at boot) and a picture arriving both redraw the page.
     const offStatuses = onActivePackStatuses(() => this.#requestRedraw());
     const offArrived = cardArt(this).onArrived(() => this.#requestRedraw());
+    // A preview or a pack picture arriving from the pack host redraws what shows it.
+    const offPreview = onPreviewArrived(() => this.#requestRedraw());
+    const offPictures = onPreviewArtArrived(() => this.#requestRedraw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       offStatuses();
       offArrived();
+      offPreview();
+      offPictures();
       this.#hover?.destroy();
       this.#hover = null;
       this.scale.off("resize", this.#draw, this);
@@ -384,6 +413,9 @@ export class ModStoreScene extends Phaser.Scene {
     resetHoverCards(this);
     this.#hints.reset();
     this.#obstacles = [];
+    this.#faceHovers = [];
+    this.#pageContext = null;
+    this.#galleryRows = [];
 
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
@@ -538,34 +570,78 @@ export class ModStoreScene extends Phaser.Scene {
     return { objects };
   }
 
-  /** The pack's picture, or a generated frame (its initial, big and faint, on ink) while it has none or is loading. */
+  /** The art for pack `packId`'s card `record`, or null while it loads or when there is none (the generated face then). */
+  #artOf(record: AnyCard, face: CardFace, packId: string, preview: ParsedPackPreview | null, base: string | undefined) {
+    const id = record.id as string;
+    const own = id.startsWith(customCardPrefix(packId));
+    if (own && !loadedPacks().some((pack) => pack.id === packId)) {
+      // Not installed (or not loaded): the picture comes from the pack host, by URL, when the pack ships one.
+      const url = preview && base !== undefined ? previewPictureUrl(preview, base, id, artLanguageNow()) : undefined;
+      return url ? previewPictureFor(url) : null;
+    }
+    return artFor(record, face);
+  }
+
+  /** A card face into `rect`: its picture when `art` has arrived, else the generated face from its record. */
+  #drawCardFace(rect: Rect, record: AnyCard, face: CardFace, art: ArtSource | null): Phaser.GameObjects.GameObject[] {
+    const key = art ? cardArt(this).request(this, art) : null;
+    const image = key ? drawArt(this, key, rect) : null;
+    if (image) return [image];
+    return drawGeneratedFace(this, rect, faceModelOf(record, face));
+  }
+
+  /** The featured card's preview for a tile, requesting it the first time a visible tile asks. */
+  #previewOf(tile: ModStoreTile): ParsedPackPreview | null {
+    if (!tile.previewUrl) return null;
+    const known = previewInMemory(tile.previewUrl);
+    if (known === undefined) void requestPreview(tile.previewUrl, tile.id);
+    return known ?? null;
+  }
+
+  /**
+   * A tile's left side, a portrait card: the catalog's thumbnail, else the featured card's picture, else its generated
+   * face from the preview's record, else the pack's initial, big and faint, on ink while nothing has loaded.
+   */
   #drawThumb(tile: ModStoreTile, rect: Rect): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const ground = this.add.graphics();
     ground.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     ground.lineStyle(1, surface.paper.hex, 0.4).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
     objects.push(ground);
-    const image = tile.thumbnail
-      ? drawPicture(
-          this,
-          { key: `mod-store:${tile.id}:${tile.thumbnail}`, url: tile.thumbnail },
-          rect,
-          () => this.#requestRedraw(),
-          {
-            focusY: 0.3,
-          },
-        )
-      : null;
-    if (image) objects.push(image);
-    else {
-      objects.push(
-        this.add
-          .text(rect.x + rect.width / 2, rect.y + rect.height / 2, tile.name.charAt(0).toUpperCase(), {
-            ...textStyle(bangers(Math.round(rect.height * 0.55)), surface.paper.hex, 0.3),
-          })
-          .setOrigin(0.5),
+    const preview = this.#previewOf(tile);
+    const art = tileArtOf(tile, preview);
+    if (art.kind === "thumbnail") {
+      const image = drawPicture(
+        this,
+        { key: `mod-store:${tile.id}:${art.url}`, url: art.url },
+        rect,
+        () => this.#requestRedraw(),
+        { focusY: 0.3 },
       );
+      if (image) {
+        objects.push(image);
+        return objects;
+      }
     }
+    const first = featuredFacesOf(preview, tile.baseUrl)[0];
+    if (first) {
+      objects.push(
+        ...this.#drawCardFace(
+          rect,
+          first.card,
+          first.face,
+          first.pictureUrl ? previewPictureFor(first.pictureUrl) : null,
+        ),
+      );
+      return objects;
+    }
+    objects.push(
+      this.add
+        .text(rect.x + rect.width / 2, rect.y + rect.height / 2, tile.name.charAt(0).toUpperCase(), {
+          ...textStyle(bangers(Math.round(rect.height * 0.55)), surface.paper.hex, 0.3),
+        })
+        .setOrigin(0.5),
+    );
     return objects;
   }
 
@@ -607,9 +683,10 @@ export class ModStoreScene extends Phaser.Scene {
     objects.push(g);
 
     const side = rect.height - 12;
-    objects.push(...this.#drawThumb(tile, { x: rect.x + 6, y: rect.y + 6, width: side, height: side }));
+    const artWidth = Math.round(side * (5 / 7));
+    objects.push(...this.#drawThumb(tile, { x: rect.x + 6, y: rect.y + 6, width: artWidth, height: side }));
 
-    const textX = rect.x + side + 16;
+    const textX = rect.x + artWidth + 16;
     const textWidth = rect.x + rect.width - textX - 8;
     const title = this.add
       .text(textX, rect.y + 8, tile.name, textStyle(typeRole.rowTitle, surface.ink.hex))
@@ -652,14 +729,49 @@ export class ModStoreScene extends Phaser.Scene {
     const page = packPageOf(tile, entry, installed);
     const running = this.#install?.id === tile.id ? this.#install : null;
     const busy = (running !== null && running.error === null) || this.#removing;
-    const innerWidth = width - gutter * 2;
 
-    // Header: the picture, then name, byline, meta and the state chip.
-    const thumb = phone ? 72 : 112;
-    const headY = top + 14;
-    this.#drawThumb(tile, { x: gutter, y: headY, width: thumb, height: thumb });
-    const textX = gutter + thumb + 14;
-    const textWidth = width - gutter - textX;
+    // What the page shows of the pack: an installed, loaded pack's own data; before that (or when it did not load) the
+    // preview fetched from the store, which is all there is of an uninstalled pack.
+    const preview = this.#previewOf(tile);
+    const packCards = loadedPacks().find((pack) => pack.id === tile.id);
+    const source = packCards ?? preview;
+    const { sections, records } = source
+      ? gallerySectionsOf({ cards: source.cards, decks: source.decks, baseCards: currentCardsById() })
+      : { sections: [], records: new Map<string, AnyCard>() };
+    const cardCount = galleryCardCount(sections);
+    const faces = featuredFacesOf(preview, tile.baseUrl);
+    const actions = actionsOf({ tile, busy, confirmingRemove: this.#confirmingRemove });
+    const layout = packPageLayoutOf({
+      width,
+      height,
+      phone,
+      gutter,
+      top,
+      faceCount: faces.length,
+      cardCount,
+      buttonsHeight: actions.length > 0 ? hit.target : 0,
+    });
+    this.#pageContext = { packId: tile.id, preview, base: tile.baseUrl, records };
+
+    // The featured card(s), then the name, byline, meta and the state chip.
+    if (layout.squareThumb) this.#drawThumb(tile, layout.faces[0]!);
+    else {
+      layout.faces.forEach((rect, index) => {
+        const face = faces[index]!;
+        const art = packCards
+          ? ((face.path ? packFileArt(tile.id, face.path) : null) ?? artFor(face.card, face.face))
+          : face.pictureUrl
+            ? previewPictureFor(face.pictureUrl)
+            : null;
+        this.#drawCardFace(rect, face.card, face.face, art);
+        const outline = this.add.graphics();
+        outline.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+        this.#faceHovers.push({ rect, card: face.card, face: face.face, art: art ?? undefined });
+      });
+    }
+    const textX = layout.title.x;
+    const textWidth = layout.title.width;
+    const headY = layout.title.y;
     const name = this.add
       .text(textX, headY, page.title, textStyle(bangers(phone ? 24 : 32), surface.ink.hex))
       .setOrigin(0, 0);
@@ -674,56 +786,39 @@ export class ModStoreScene extends Phaser.Scene {
     fitWrapped(meta, textWidth, 2, 11);
     this.#drawChip(tile, textX, meta.y + meta.height + 8, textWidth, true);
 
-    // Footer: status line, then buttons.
-    const actions = actionsOf({ tile, busy, confirmingRemove: this.#confirmingRemove });
-    const buttonsH = actions.length > 0 ? hit.target : 0;
-    const buttonsY = height - gutter - buttonsH;
-    const statusH = 30;
-    const statusY = buttonsY - (buttonsH > 0 ? 10 : 0) - statusH;
-
-    // The scrolling text sits between header and footer; nothing presses over it.
-    const bodyTop = Math.max(headY + thumb, meta.y + meta.height + 8 + 22) + 12;
-    const bodyRect: Rect = { x: gutter, y: bodyTop, width: innerWidth, height: Math.max(60, statusY - 10 - bodyTop) };
-    this.add.rectangle(bodyRect.x, bodyRect.y, bodyRect.width, bodyRect.height, surface.parchment.hex).setOrigin(0, 0);
-    // The load status leads the text: an installed pack says whether it is working, or why it is not.
+    // The scrolling text: the load status leads (an installed pack says whether it is working, or why it is not).
     const loadStatus = loadStatusOf(
       installed !== undefined,
       activePackStatuses().find((one) => one.id === tile.id),
     );
-    const body = loadStatus
-      ? `${loadStatusText(loadStatus)}
-
-${page.body}`
-      : page.body;
-    // The cards of the loaded pack, under the text; a pack that did not load shows why in the text and no cards.
-    const packCards = loadedPacks().find((pack) => pack.id === tile.id);
-    const galleryCards = galleryOf(packCards);
-    const split = pageSplitOf(bodyRect.height, galleryCards.length, phone);
+    const body = loadStatus ? `${loadStatusText(loadStatus)}\n\n${page.body}` : page.body;
+    const textRect = layout.text;
+    this.add.rectangle(textRect.x, textRect.y, textRect.width, textRect.height, surface.parchment.hex).setOrigin(0, 0);
     this.#panel = new McScrollPanel(this, {
-      rect: {
-        ...bodyRect,
-        x: bodyRect.x + 8,
-        y: bodyRect.y + 6,
-        width: bodyRect.width - 16,
-        height: split.text.height - 12,
-      },
+      rect: { x: textRect.x + 8, y: textRect.y + 6, width: textRect.width - 16, height: textRect.height - 12 },
       text: body,
     });
     const frameGfx = this.add.graphics();
     frameGfx
       .lineStyle(2, surface.ink.hex, 1)
-      .strokeRect(bodyRect.x + 1, bodyRect.y + 1, bodyRect.width - 2, bodyRect.height - 2);
+      .strokeRect(textRect.x + 1, textRect.y + 1, textRect.width - 2, textRect.height - 2);
 
-    this.#statusRect = { x: gutter, y: statusY, width: innerWidth, height: statusH };
+    // Footer: status line, then buttons (below the gallery, never over it).
+    this.#statusRect = layout.status;
     this.#requirement = page.requirement;
     this.#paintStatus();
-
     const gap = 10;
+    const innerWidth = width - gutter * 2;
     const buttonWidth = phone
       ? (innerWidth - gap * (actions.length - 1)) / Math.max(1, actions.length)
       : Math.min(220, (innerWidth - gap) / Math.max(1, actions.length));
     actions.forEach((action, index) => {
-      const rect: Rect = { x: gutter + index * (buttonWidth + gap), y: buttonsY, width: buttonWidth, height: buttonsH };
+      const rect: Rect = {
+        x: gutter + index * (buttonWidth + gap),
+        y: layout.buttonsY,
+        width: buttonWidth,
+        height: hit.target,
+      };
       const press = (): void => this.#act(tile, action);
       this.#buttons.push(
         new McButton(this, {
@@ -740,126 +835,115 @@ ${page.body}`
       order.push(`action:${action.id}`);
     });
 
-    if (split.gallery && packCards) {
-      const galleryRect: Rect = {
-        x: bodyRect.x + 4,
-        y: bodyRect.y + split.text.height + split.gallery.count,
-        width: bodyRect.width - 8,
-        height: split.gallery.height - split.gallery.count - 4,
-      };
-      frameGfx
-        .lineStyle(2, surface.ink.hex, 1)
-        .lineBetween(
-          bodyRect.x,
-          bodyRect.y + split.text.height,
-          bodyRect.x + bodyRect.width,
-          bodyRect.y + split.text.height,
-        );
+    if (layout.gallery) {
+      const { count, list } = layout.gallery;
+      const heading = packCards ? "CARDS" : "CARDS  ·  PREVIEW, NOT INSTALLED";
       this.add
         .text(
-          bodyRect.x + 8,
-          bodyRect.y + split.text.height + 3,
-          `CARDS  ·  ${galleryCountText(galleryCards.length)}`,
+          count.x + 2,
+          count.y + 3,
+          `${heading}  ·  ${galleryCountText(cardCount)}`,
           textStyle(typeRole.label, surface.ink.hex, ink.secondary),
         )
         .setFontSize(11);
-      this.#drawGallery(
-        galleryRect,
-        galleryCards,
-        new Map((packCards.cards as readonly AnyCard[]).map((card) => [card.id as string, card])),
-        phone,
-        stops,
-        order,
-      );
+      this.#drawGallery(list, sections, phone, stops, order);
     }
   }
 
   // ---- The pack's cards -----------------------------------------------------------------------------------------
 
-  /** A scrolling grid of the pack's cards: picture (or a generated frame) over a name and type caption. A tap reads one in Inspect. */
+  /**
+   * A scrolling gallery of the pack's cards in groups (hero, villain, nemesis and obligation, deck), each a face over a
+   * name and type caption with its quantity. Pictures are fetched lazily as the tiles' rows scroll into view; a card
+   * without one shows its generated face. A tap reads one in Inspect.
+   */
   #drawGallery(
     rect: Rect,
-    cards: readonly GalleryCard[],
-    byId: ReadonlyMap<string, AnyCard>,
+    sections: readonly GallerySection[],
     phone: boolean,
     stops: Map<string, FocusStop>,
     order: string[],
   ): void {
     const grid = galleryGridOf(rect.width - SCROLLBAR, phone);
+    const rows = galleryRowsOf(sections, grid.columns);
     this.#galleryRect = rect;
     this.#galleryGrid = grid;
-    this.#galleryCards = cards;
-    const rows = extrasRowCount(cards.length, grid);
+    this.#galleryRows = rows;
     const list: McVirtualList = new McVirtualList(this, {
       rect,
       rowHeight: grid.rowHeight,
-      count: rows,
+      rowHeightOf: (index) => (rows[index]?.kind === "heading" ? GALLERY_HEADING_HEIGHT : grid.rowHeight),
+      count: rows.length,
       scroll: this.#galleryScroll,
       background: false,
       renderRow: (rowIndex, rowRect) => {
+        const row = rows[rowIndex]!;
+        if (row.kind === "heading") return { objects: this.#drawGalleryHeading(row, rowRect) };
         const objects: Phaser.GameObjects.GameObject[] = [];
-        for (let column = 0; column < grid.columns; column += 1) {
-          const index = rowIndex * grid.columns + column;
-          const card = cards[index];
-          if (!card) break;
-          objects.push(
-            ...this.#drawGalleryTile(card, byId.get(card.cardId), extrasTileRect(index, grid, rowRect), grid),
-          );
-        }
+        row.cards.forEach((card, column) => {
+          objects.push(...this.#drawGalleryTile(card, extrasTileRect(column, grid, rowRect), grid));
+        });
         return { objects };
       },
       onRowActivate: (rowIndex, pointer) => {
-        const index = extrasTileAt(pointer.x, rowIndex, grid, rect.x, cards.length);
-        if (index !== null) this.#inspectCard(cards[index]!, byId);
+        const row = rows[rowIndex];
+        if (row?.kind !== "tiles") return;
+        const column = extrasTileAt(pointer.x, 0, grid, rect.x, row.cards.length);
+        if (column !== null) this.#inspectCard(row.cards[column]!);
       },
     });
     this.#gallery = list;
-    cards.forEach((card, index) => {
-      const rowIndex = Math.floor(index / grid.columns);
-      const key = `card:${card.cardId}`;
-      stops.set(key, {
-        rect: () => extrasTileRect(index, grid, list.rectFor(rowIndex)),
-        activate: () => this.#inspectCard(card, byId),
-        inspect: () => this.#inspectCard(card, byId),
-        ensureVisible: () => list.scrollIntoView(rowIndex),
-        view: rect,
+    rows.forEach((row, rowIndex) => {
+      if (row.kind !== "tiles") return;
+      row.cards.forEach((card, column) => {
+        const key = `card:${card.cardId}`;
+        stops.set(key, {
+          rect: () => extrasTileRect(column, grid, list.rectFor(rowIndex)),
+          activate: () => this.#inspectCard(card),
+          inspect: () => this.#inspectCard(card),
+          ensureVisible: () => list.scrollIntoView(rowIndex),
+          view: rect,
+        });
+        order.push(key);
       });
-      order.push(key);
     });
   }
 
-  #drawGalleryTile(
-    card: GalleryCard,
-    record: AnyCard | undefined,
-    rect: Rect,
-    grid: ReturnType<typeof galleryGridOf>,
-  ): Phaser.GameObjects.GameObject[] {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  #drawGalleryHeading(row: Extract<GalleryRow, { kind: "heading" }>, rect: Rect): Phaser.GameObjects.GameObject[] {
+    const label = this.add
+      .text(
+        rect.x,
+        rect.y + rect.height / 2,
+        `${row.title}  ·  ${row.count}`,
+        textStyle(typeRole.label, surface.ink.hex, 1),
+      )
+      .setOrigin(0, 0.5)
+      .setFontSize(11);
+    fitText(label, rect.width, 11);
+    const rule = this.add.graphics();
+    rule.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y + rect.height - 2, rect.width, 2);
+    return [label, rule];
+  }
+
+  #drawGalleryTile(card: GalleryCard, rect: Rect, grid: ExtrasGrid): Phaser.GameObjects.GameObject[] {
+    const context = this.#pageContext;
+    const record = context?.records.get(card.cardId);
     const picture: Rect = { x: rect.x, y: rect.y, width: rect.width, height: galleryPictureHeight(grid) };
-    const frame = this.add.graphics();
-    frame.fillStyle(surface.parchment.hex, 1).fillRect(picture.x, picture.y, picture.width, picture.height);
-    frame
-      .lineStyle(1.5, surface.ink.hex, 0.6)
-      .strokeRect(picture.x + 0.75, picture.y + 0.75, picture.width - 1.5, picture.height - 1.5);
-    objects.push(frame);
-    // The pack's picture where it has one for this card; otherwise the name on the frame (a missing picture is a supported outcome).
-    const art = record ? artFor(record, defaultFaceFor(record)) : null;
-    const key = art ? cardArt(this).request(this, art) : null;
-    const image = key ? drawArt(this, key, picture) : null;
-    if (image) objects.push(image);
-    else {
-      const plain = this.add
-        .text(
-          picture.x + 6,
-          picture.y + picture.height / 2,
-          card.name,
-          textStyle(typeRole.rowTitle, surface.ink.hex, 0.8),
-        )
-        .setOrigin(0, 0.5)
+    // The pack's picture where it has one for this card and it has arrived; otherwise the generated face from the
+    // record (a missing picture is a supported outcome, never a blank tile).
+    const objects: Phaser.GameObjects.GameObject[] = record
+      ? this.#drawCardFace(picture, record, defaultFaceFor(record), this.#artOfTile(record))
+      : [];
+    if (card.quantity > 1) {
+      const chip = this.add.graphics();
+      const text = this.add
+        .text(0, 0, `×${card.quantity}`, textStyle(typeRole.label, surface.paper.hex, 1))
         .setFontSize(11);
-      fitWrapped(plain, picture.width - 12, 3, 11);
-      plain.setY(picture.y + (picture.height - plain.height) / 2).setOrigin(0, 0);
-      objects.push(plain);
+      const w = text.width + 10;
+      const h = text.height + 4;
+      chip.fillStyle(surface.ink.hex, 1).fillRect(picture.x + picture.width - w, picture.y, w, h);
+      text.setPosition(picture.x + picture.width - w + 5, picture.y + 2);
+      objects.push(chip, text);
     }
     const name = this.add
       .text(rect.x, picture.y + picture.height + 3, card.name, textStyle(typeRole.rowTitle, surface.ink.hex, 1))
@@ -873,27 +957,74 @@ ${page.body}`
     return objects;
   }
 
-  /** Reads one card in Inspect (the same sheet the set sheet opens). Its record is looked up in the current pool by id. */
-  #inspectCard(card: GalleryCard, byId: ReadonlyMap<string, AnyCard>): void {
-    const record = byId.get(card.cardId);
-    this.scene.launch(SCENES.inspect, {
-      card: { cardId: card.cardId as CardId, face: record ? defaultFaceFor(record) : { kind: "front" } },
-    } satisfies InspectData);
+  /** The art for one gallery card of the page's pack (see `#artOf`). */
+  #artOfTile(record: AnyCard): ArtSource | null {
+    const context = this.#pageContext;
+    return context ? this.#artOf(record, defaultFaceFor(record), context.packId, context.preview, context.base) : null;
+  }
+
+  /**
+   * Reads one card in Inspect. A card the game's pool has (installed packs, the base game) opens the full sheet; a
+   * card of a pack that is not installed yet has no place in the pool, so it opens as a reference sheet from its
+   * preview record: name, type line and rules text over its picture.
+   */
+  #inspectCard(card: GalleryCard): void {
+    const record = this.#pageContext?.records.get(card.cardId);
+    if (record && currentCardsById().has(card.cardId)) {
+      this.scene.launch(SCENES.inspect, {
+        card: { cardId: card.cardId as CardId, face: defaultFaceFor(record) },
+      } satisfies InspectData);
+    } else if (record) {
+      const model = faceModelOf(record, defaultFaceFor(record));
+      const stats = statLineOf(model.stats);
+      this.scene.launch(SCENES.inspect, {
+        reference: {
+          title: model.name,
+          text: [model.typeLine, stats, model.rulesText].filter((part) => part !== "").join("\n\n"),
+          art: this.#artOfTile(record),
+        },
+      } satisfies InspectData);
+    } else return;
     this.scene.bringToTop(SCENES.inspect);
   }
 
-  /** The gallery's pictures on screen now, each clipped to the scrolled list, for the desktop hover popover. */
+  /** The gallery's pictures and the featured faces on screen now, each clipped to the scrolled list, for the desktop hover popover. */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
+    const context = this.#pageContext;
+    this.#faceHovers.forEach((one, index) => {
+      found.set(hoverSlotOf(one.card.id as string, `face${index}`), {
+        ...one.rect,
+        cardId: one.card.id as string,
+        face: one.face,
+        card: one.card,
+        ...(one.art ? { art: one.art } : {}),
+        through: true,
+      });
+    });
     const list = this.#gallery;
     const view = this.#galleryRect;
     const grid = this.#galleryGrid;
-    if (!list || !view || !grid) return found;
-    this.#galleryCards.forEach((card, index) => {
-      const row = list.rectFor(Math.floor(index / grid.columns));
-      const tile = extrasTileRect(index, grid, row);
-      const picture = clipHoverRect({ ...tile, height: galleryPictureHeight(grid) }, view);
-      if (picture) found.set(hoverSlotOf(card.cardId, index), { ...picture, cardId: card.cardId, through: true });
+    if (!list || !view || !grid || !context) return found;
+    this.#galleryRows.forEach((row, rowIndex) => {
+      if (row.kind !== "tiles") return;
+      const rowRect = list.rectFor(rowIndex);
+      row.cards.forEach((card, column) => {
+        const tile = extrasTileRect(column, grid, rowRect);
+        const picture = clipHoverRect({ ...tile, height: galleryPictureHeight(grid) }, view);
+        if (!picture) return;
+        const record = context.records.get(card.cardId);
+        const inPool = currentCardsById().has(card.cardId);
+        // A card the pool does not have (a pack not installed yet) carries its own record and picture to the popover.
+        const art = record && !inPool ? this.#artOfTile(record) : null;
+        found.set(hoverSlotOf(card.cardId, row.first + column), {
+          ...picture,
+          cardId: card.cardId,
+          ...(record && !inPool ? { card: record } : {}),
+          ...(art ? { art } : {}),
+          through: true,
+        });
+      });
     });
     return found;
   }

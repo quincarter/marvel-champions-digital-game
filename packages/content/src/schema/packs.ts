@@ -200,6 +200,47 @@ export interface PackIndexVersion {
   readonly zipBytes: number;
   readonly zipSha256: string;
   readonly requires: Pick<PackRequires, "app"> & Partial<Pick<PackRequires, "dslFeatures" | "packs">>;
+  /**
+   * The pack's `preview.json` (`PackPreview`), a small sibling of the zip the store screen reads before anything is
+   * installed. Optional: a version published without one shows the store's letter placeholder and a text-only page.
+   */
+  readonly preview?: string;
+}
+
+/** The `preview.json` format version. */
+export const PACK_PREVIEW_SCHEMA_VERSION = 1;
+
+/** The most bytes of `preview.json` a client reads: it is fetched before the pack is trusted (it is untrusted data). */
+export const PACK_PREVIEW_MAX_BYTES = 1_048_576;
+
+/** One precon deck in a preview: card ids and quantities. Base-game ids stay ids (the client has those cards). */
+export interface PackPreviewDeck {
+  readonly id: string;
+  readonly name: string;
+  readonly identityCardId: string;
+  readonly cards: readonly { readonly cardId: string; readonly quantity: number }[];
+}
+
+/**
+ * What the store shows of a pack before it is installed (`mc-pack build` writes it next to the zip as `preview.json`,
+ * with `thumb.webp` when the featured card has a picture). The cards are the pack's own full records; their pictures
+ * are `<version base>/<path>` for each path in `images`.
+ */
+export interface PackPreview {
+  readonly schema: typeof PACK_PREVIEW_SCHEMA_VERSION;
+  readonly packId: string;
+  readonly version: string;
+  /**
+   * The card the store leads with: the hero identity of a hero pack (both faces), the villain (stage I) or main scheme
+   * of a scenario pack, the first scenario's villain of a campaign pack. `images` are its faces' pictures, pack paths.
+   */
+  readonly featured?: { readonly cardId: string; readonly images: readonly string[] };
+  /** The pictures the pack ships: `cards/<lang>/<code>.webp` paths, every language. */
+  readonly images: readonly string[];
+  readonly languages?: PackLanguages;
+  /** The pack's own card records, sorted by id. */
+  readonly cards: readonly unknown[];
+  readonly decks: readonly PackPreviewDeck[];
 }
 
 /** One pack in the store catalog (§11.5). */

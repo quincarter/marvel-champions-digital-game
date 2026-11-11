@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { PackIndex, PackIndexEntry, PackManifest } from "@mc/content";
+import { CORE_CARDS, type PackIndex, type PackIndexEntry, type PackManifest } from "@mc/content";
+import { parsePackPreview } from "../packs/pack-preview.js";
 import { PackInstallError } from "../packs/unpack-pack.js";
 import type { InstalledPack } from "../packs/pack-store.js";
 import {
   actionsOf,
   emptyTextOf,
   errorTextOf,
+  featuredFacesOf,
   modStoreGridOf,
   packPageOf,
   progressOf,
+  tileArtOf,
   tileOf,
   tilesOf,
   type ModStoreContext,
@@ -259,5 +262,68 @@ describe("modStoreGridOf", () => {
   it("is one column on a phone and more on a wide screen", () => {
     expect(modStoreGridOf(343, true).columns).toBe(1);
     expect(modStoreGridOf(1392, false).columns).toBeGreaterThan(2);
+  });
+});
+
+describe("a tile's art", () => {
+  const identity = { ...CORE_CARDS.find((card) => card.type === "hero_identity")!, id: "x.demo.01a" };
+  const villain = { ...CORE_CARDS.find((card) => card.type === "villain")!, id: "x.demo.01" };
+  const preview = (card: unknown, images: string[], featuredImages: string[] = images) =>
+    parsePackPreview(
+      {
+        schema: 1,
+        packId: "demo",
+        version: "1.0.0",
+        featured: { cardId: (card as { id: string }).id, images: featuredImages },
+        images,
+        languages: { base: "en", available: ["en"] },
+        cards: [card],
+        decks: [],
+      },
+      "demo",
+    )!;
+  const withBase = (over: Partial<PackIndexEntry["versions"][string]> = {}, top: Partial<PackIndexEntry> = {}) =>
+    tileOf(
+      entry("demo", {
+        ...top,
+        versions: { "1.0.0": { ...entry("demo").versions["1.0.0"]!, base: "https://h/demo/1.0.0/", ...over } },
+      }),
+      context(),
+    );
+
+  it("carries the version's preview address and base from the catalog", () => {
+    const tile = withBase({ preview: "https://h/demo/1.0.0/preview.json" });
+    expect(tile.previewUrl).toBe("https://h/demo/1.0.0/preview.json");
+    expect(tile.baseUrl).toBe("https://h/demo/1.0.0/");
+    expect(tileOf(entry("plain"), context()).previewUrl).toBeUndefined();
+  });
+
+  it("prefers the catalog thumbnail, then the featured picture, then the generated face, then the letter", () => {
+    const pictures = ["cards/en/x.demo.01a.webp", "cards/en/x.demo.01b.webp"];
+    expect(tileArtOf(withBase({}, { thumbnail: "https://h/thumb.webp" }), preview(identity, pictures))).toEqual({
+      kind: "thumbnail",
+      url: "https://h/thumb.webp",
+    });
+    expect(tileArtOf(withBase(), preview(identity, pictures))).toEqual({
+      kind: "picture",
+      url: "https://h/demo/1.0.0/cards/en/x.demo.01a.webp",
+    });
+    const face = tileArtOf(withBase(), preview(identity, []));
+    expect(face).toMatchObject({ kind: "face", face: { kind: "hero" } });
+    expect(tileArtOf(withBase(), undefined)).toEqual({ kind: "letter" });
+    expect(tileArtOf(withBase(), null)).toEqual({ kind: "letter" });
+  });
+
+  it("features a hero's two sides and any other card's one face", () => {
+    const hero = featuredFacesOf(
+      preview(identity, ["cards/en/x.demo.01a.webp", "cards/en/x.demo.01b.webp"]),
+      "https://h/",
+    );
+    expect(hero.map((face) => face.face.kind)).toEqual(["hero", "alterEgo"]);
+    expect(hero[1]!.pictureUrl).toBe("https://h/cards/en/x.demo.01b.webp");
+    const lone = featuredFacesOf(preview(villain, []), "https://h/");
+    expect(lone).toHaveLength(1);
+    expect(lone[0]!.pictureUrl).toBeUndefined();
+    expect(featuredFacesOf(undefined, "https://h/")).toEqual([]);
   });
 });

@@ -1,44 +1,92 @@
 import { describe, expect, it } from "vitest";
-import type { AnyCard } from "@mc/content";
+import type { AnyCard, PackPreviewDeck } from "@mc/content";
 import { CORE_CARDS } from "@mc/content";
 import type { ActivePackStatus } from "../packs/active-packs.js";
-import type { PackRuntime } from "../packs/pack-runtime.js";
 import {
+  GALLERY_HEADING_HEIGHT,
+  galleryCardCount,
   galleryCountText,
+  galleryFlat,
   galleryGridOf,
-  galleryOf,
   galleryPictureHeight,
+  galleryRowsOf,
+  gallerySectionsOf,
   loadStatusOf,
   loadStatusText,
-  pageSplitOf,
+  packPageLayoutOf,
 } from "./pack-gallery-model.js";
 
-const pickCards = (): readonly AnyCard[] => {
-  const identity = CORE_CARDS.find((card) => card.type === "hero_identity")!;
-  const others = CORE_CARDS.filter((card) => card.type === "event" || card.type === "ally").slice(0, 3);
-  return [others[0]!, identity, others[1]!, others[0]!, others[2]!];
-};
-
-const pack = (cards: readonly AnyCard[]): Pick<PackRuntime, "cards"> => ({ cards });
+const core = (type: string, n = 0): AnyCard => CORE_CARDS.filter((card) => card.type === type)[n]!;
+const asPack = (card: AnyCard, patch: Record<string, unknown>): AnyCard => ({ ...card, ...patch }) as AnyCard;
+const baseCards = new Map(CORE_CARDS.map((card) => [card.id as string, card]));
+const deck = (cards: [string, number][]): { cards: PackPreviewDeck["cards"] } => ({
+  cards: cards.map(([cardId, quantity]) => ({ cardId, quantity })),
+});
 
 describe("the pack gallery", () => {
-  it("lists the hero identity first, then the pack's own order, each card once", () => {
-    const cards = pickCards();
-    const tiles = galleryOf(pack(cards));
-    expect(tiles).toHaveLength(4);
-    expect(tiles[0]!.cardId).toBe(cards[1]!.id);
-    expect(tiles.slice(1).map((tile) => tile.cardId)).toEqual([cards[0]!.id, cards[2]!.id, cards[4]!.id]);
-    for (const tile of tiles) {
-      expect(tile.name.length).toBeGreaterThan(0);
-      expect(tile.typeLine.length).toBeGreaterThan(0);
+  const identity = asPack(core("hero_identity"), { id: "x.demo.01a" });
+  const signature = asPack(core("event"), { id: "x.demo.02", aspect: "hero:x.demo.01a" });
+  const aspectCard = asPack(core("ally"), { id: "x.demo.03", aspect: "justice" });
+  const minion = asPack(core("minion"), { id: "x.demo.04" });
+  const obligation = asPack(core("obligation"), { id: "x.demo.05" });
+  const baseAlly = core("ally", 1);
+
+  it("groups a hero pack: hero, nemesis and obligation, then the deck with its base-game cards, with quantities", () => {
+    const { sections, records } = gallerySectionsOf({
+      cards: [aspectCard, minion, signature, identity, obligation, identity],
+      decks: [
+        deck([
+          ["x.demo.02", 1],
+          ["x.demo.03", 2],
+          [baseAlly.id as string, 3],
+          ["gone.id", 1],
+        ]),
+      ],
+      baseCards,
+    });
+    expect(sections.map((section) => section.id)).toEqual(["hero", "encounter", "deck"]);
+    expect(sections[0]!.cards.map((card) => card.cardId)).toEqual(["x.demo.01a", "x.demo.02"]);
+    expect(sections[1]!.title).toBe("Nemesis and obligation");
+    expect(sections[1]!.cards.map((card) => card.cardId)).toEqual(["x.demo.04", "x.demo.05"]);
+    expect(sections[2]!.cards.map((card) => [card.cardId, card.quantity])).toEqual([
+      ["x.demo.03", 2],
+      [baseAlly.id, 3],
+    ]);
+    expect(records.get(baseAlly.id as string)).toBe(baseAlly);
+    expect(galleryCardCount(sections)).toBe(6);
+    for (const card of galleryFlat(sections)) {
+      expect(card.name.length).toBeGreaterThan(0);
+      expect(card.typeLine.length).toBeGreaterThan(0);
     }
   });
 
-  it("is empty for a pack that is not loaded", () => {
-    expect(galleryOf(undefined)).toEqual([]);
-    expect(galleryOf(pack([]))).toEqual([]);
+  it("groups a scenario pack: villain and scheme, then encounter cards", () => {
+    const villain = asPack(core("villain"), { id: "x.demo.01" });
+    const scheme = asPack(core("main_scheme"), { id: "x.demo.02a" });
+    const { sections } = gallerySectionsOf({ cards: [minion, scheme, villain], decks: [], baseCards });
+    expect(sections.map((section) => [section.id, section.title])).toEqual([
+      ["villain", "Villain and scheme"],
+      ["encounter", "Encounter cards"],
+    ]);
+  });
+
+  it("is empty for a pack with no cards", () => {
+    expect(gallerySectionsOf({ cards: [], decks: [], baseCards }).sections).toEqual([]);
     expect(galleryCountText(1)).toBe("1 card");
     expect(galleryCountText(9)).toBe("9 cards");
+  });
+
+  it("lays the groups out as rows: a heading, then tiles, with flat indexes running on", () => {
+    const { sections } = gallerySectionsOf({
+      cards: [identity, signature, aspectCard],
+      decks: [deck([["x.demo.03", 1]])],
+      baseCards,
+    });
+    const rows = galleryRowsOf(sections, 1);
+    expect(rows.map((row) => row.kind)).toEqual(["heading", "tiles", "tiles", "heading", "tiles"]);
+    expect(rows.flatMap((row) => (row.kind === "tiles" ? [row.first] : []))).toEqual([0, 1, 2]);
+    expect(galleryRowsOf(sections, 4).filter((row) => row.kind === "tiles")).toHaveLength(2);
+    expect(GALLERY_HEADING_HEIGHT).toBeGreaterThan(0);
   });
 
   it("fits columns to the width and keeps a card's proportions", () => {
@@ -55,14 +103,65 @@ describe("the pack gallery", () => {
     }
     expect(galleryGridOf(355, true).columns).toBeGreaterThanOrEqual(3);
   });
+});
 
-  it("splits the page body into text and gallery, and gives all of it to the text when the cards cannot fit", () => {
-    const split = pageSplitOf(300, 9, true);
-    expect(split.gallery).not.toBeNull();
-    expect(split.text.height + split.gallery!.height).toBe(300);
-    expect(split.text.height).toBeGreaterThanOrEqual(84);
-    expect(pageSplitOf(300, 0, true)).toEqual({ text: { height: 300 }, gallery: null });
-    expect(pageSplitOf(150, 9, true)).toEqual({ text: { height: 150 }, gallery: null });
+describe("the pack page layout", () => {
+  const input = { faceCount: 2, cardCount: 20, buttonsHeight: 44 };
+  const sizes = [
+    ["se", 375, 667, true],
+    ["pixel", 412, 924, true],
+    ["tablet-portrait", 768, 1024, false],
+    ["tablet", 1024, 768, false],
+    ["desktop", 1280, 720, false],
+  ] as const;
+
+  it.each(sizes)(
+    "at %s keeps the buttons below the gallery and everything inside the screen",
+    (_name, width, height, phone) => {
+      const layout = packPageLayoutOf({
+        ...input,
+        width,
+        height,
+        phone,
+        gutter: phone ? 16 : 24,
+        top: phone ? 52 : 60,
+      });
+      expect(layout.gallery).not.toBeNull();
+      const list = layout.gallery!.list;
+      expect(list.y + list.height).toBeLessThanOrEqual(layout.status.y);
+      expect(layout.status.y + layout.status.height).toBeLessThanOrEqual(layout.buttonsY);
+      expect(layout.buttonsY + 44).toBeLessThanOrEqual(height);
+      expect(list.height).toBeGreaterThanOrEqual(120);
+      expect(layout.text.height).toBeGreaterThanOrEqual(40);
+      for (const face of layout.faces) expect(face.x + face.width).toBeLessThanOrEqual(width);
+      expect(layout.title.width).toBeGreaterThanOrEqual(140);
+      // Wide pages put the description beside the faces; a phone puts it under them, above the gallery.
+      expect(layout.textBeside).toBe(!phone);
+      if (phone) expect(layout.text.y + layout.text.height).toBeLessThanOrEqual(layout.gallery!.count.y);
+    },
+  );
+
+  it("shows one square thumbnail and gives the text the body when the pack has no preview", () => {
+    const layout = packPageLayoutOf({
+      ...input,
+      width: 375,
+      height: 667,
+      phone: true,
+      gutter: 16,
+      top: 52,
+      faceCount: 0,
+      cardCount: 0,
+    });
+    expect(layout.squareThumb).toBe(true);
+    expect(layout.faces).toHaveLength(1);
+    expect(layout.gallery).toBeNull();
+    expect(layout.text.y + layout.text.height).toBeLessThanOrEqual(layout.status.y);
+  });
+
+  it("drops the gallery when the screen cannot hold a row of tiles", () => {
+    expect(
+      packPageLayoutOf({ ...input, width: 667, height: 375, phone: true, gutter: 16, top: 52 }).gallery,
+    ).toBeNull();
   });
 });
 

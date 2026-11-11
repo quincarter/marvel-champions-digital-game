@@ -83,6 +83,10 @@ try {
     mkdirSync(target, { recursive: true });
     copyFileSync(join(built, zipName), join(target, zipName));
     copyFileSync(join(built, "pack.json"), join(target, "pack.json"));
+    // The store screen reads the preview (and the thumbnail, when the pack ships a picture) before an install.
+    copyFileSync(join(built, "preview.json"), join(target, "preview.json"));
+    const hasThumb = existsSync(join(built, "thumb.webp"));
+    if (hasThumb) copyFileSync(join(built, "thumb.webp"), join(target, "thumb.webp"));
     entries.push({
       id: manifest.id,
       kind: manifest.kind,
@@ -90,6 +94,7 @@ try {
       creator: manifest.authors?.[0] ?? "Unknown",
       summary: String(manifest.description ?? "").split("\n")[0],
       tags: [manifest.kind],
+      ...(hasThumb ? { thumbnail: `${base}thumb.webp` } : {}),
       approved: today,
       latest: manifest.version,
       versions: {
@@ -100,6 +105,7 @@ try {
           zipBytes: zip.length,
           zipSha256: createHash("sha256").update(zip).digest("hex"),
           requires: manifest.requires,
+          preview: `${base}preview.json`,
         },
       },
       withdrawn: false,

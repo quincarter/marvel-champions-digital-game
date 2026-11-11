@@ -592,6 +592,15 @@ The store's catalog is §5.2's, with the extra fields the store screen shows:
 }
 ```
 
+Each version may carry `"preview": "<base>preview.json"`. `mc-pack build` writes `preview.json` (and `thumb.webp`, when the
+featured card has a picture) next to the zip, never inside it, so the zip bytes do not depend on it. It holds the
+featured card (a hero pack's identity with both faces, a scenario pack's villain, a campaign pack's first scenario's
+villain), the pack's own full card records, each precon deck as card ids and quantities (base-game ids stay ids) and the
+list of `cards/<lang>/<code>.webp` pictures the pack ships (`PackPreview` in `@mc/content`). The client reads it
+before an install to show the browse tile's card and the pack page's gallery. It is untrusted data: capped at 1 MiB,
+validated, and only the pack's own well-formed cards are kept. Publishing it into the registry's index (the update-index
+step) is not done yet.
+
 The client fetches the catalog when the store opens, with a short cache. It keeps the last copy, so the store still
 opens offline and shows what's installed.
 

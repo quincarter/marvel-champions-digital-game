@@ -5,7 +5,9 @@
  *
  * Nothing here decides whether a pack can be installed: `packs/pack-state.ts` does, and this reads its answer.
  */
-import type { PackIndex, PackIndexEntry, PackKind } from "@mc/content";
+import type { AnyCard, PackIndex, PackIndexEntry, PackKind } from "@mc/content";
+import { defaultFaceFor, type CardFace } from "../art/art-source.js";
+import type { ParsedPackPreview } from "../packs/pack-preview.js";
 import { packStateOf, formatBytes, type PackState } from "../packs/pack-state.js";
 import type { InstalledPack } from "../packs/pack-store.js";
 import type { InstallProgress } from "../packs/install-pack.js";
@@ -69,6 +71,9 @@ export interface ModStoreTile {
   readonly size: string;
   readonly installed: boolean;
   readonly thumbnail: string | undefined;
+  /** The version's `preview.json` and the folder its files are served from, when the catalog lists them. */
+  readonly previewUrl: string | undefined;
+  readonly baseUrl: string | undefined;
   /** Why `needs-app-update`, in a short line. */
   readonly reason: string | undefined;
   /** False for an installed pack the catalog no longer lists. */
@@ -96,6 +101,8 @@ export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStor
     size: view.size,
     installed: installed !== undefined,
     thumbnail: entry.thumbnail,
+    previewUrl: entry.versions[view.version]?.preview,
+    baseUrl: entry.versions[view.version]?.base,
     reason: view.reason,
     inCatalog: true,
   };
@@ -116,6 +123,8 @@ export function orphanTileOf(pack: InstalledPack): ModStoreTile {
     size: formatBytes(pack.manifest.totalBytes),
     installed: true,
     thumbnail: undefined,
+    previewUrl: undefined,
+    baseUrl: undefined,
     reason: undefined,
     inCatalog: false,
   };
@@ -313,6 +322,54 @@ export function modStoreGridOf(width: number, phone: boolean): ExtrasGrid {
   const gap = phone ? 10 : 16;
   const columns = Math.max(1, Math.floor((width + gap) / (MIN_TILE_WIDTH + gap)));
   const tileWidth = Math.max(1, (width - gap * (columns - 1)) / columns);
-  const tileHeight = phone ? 104 : 120;
+  const tileHeight = phone ? 120 : 136;
   return { columns, gap, tileWidth, tileHeight, rowHeight: tileHeight + gap };
+}
+
+/** What a browse tile's left side shows, best first: the catalog's thumbnail, the featured picture, the featured card's generated face, a letter. */
+export type TileArt =
+  | { readonly kind: "thumbnail"; readonly url: string }
+  | { readonly kind: "picture"; readonly url: string }
+  | { readonly kind: "face"; readonly card: AnyCard; readonly face: CardFace }
+  | { readonly kind: "letter" };
+
+/** One featured face of the pack page: the card, which face, and its picture's address when the pack ships one. */
+export interface FeaturedFace {
+  readonly card: AnyCard;
+  readonly face: CardFace;
+  readonly pictureUrl: string | undefined;
+  /** The picture's path in the pack (`cards/<lang>/<code>.webp`), for an installed pack's own files. */
+  readonly path: string | undefined;
+}
+
+/**
+ * The featured card's faces: a hero's identity shows both (hero and alter-ego), any other card its one face. Empty when
+ * the preview names no featured card or its record did not survive validation.
+ */
+export function featuredFacesOf(
+  preview: ParsedPackPreview | null | undefined,
+  base: string | undefined,
+): readonly FeaturedFace[] {
+  const featured = preview?.featured;
+  const card = featured ? preview?.cards.find((one) => (one.id as string) === featured.cardId) : undefined;
+  if (!featured || !card) return [];
+  const url = (index: number): string | undefined => {
+    const path = featured.images[index];
+    return path !== undefined && base !== undefined ? `${base}${path}` : undefined;
+  };
+  if (card.type === "hero_identity") {
+    return [
+      { card, face: { kind: "hero" }, pictureUrl: url(0), path: featured.images[0] },
+      { card, face: { kind: "alterEgo" }, pictureUrl: url(1), path: featured.images[1] },
+    ];
+  }
+  return [{ card, face: defaultFaceFor(card), pictureUrl: url(0), path: featured.images[0] }];
+}
+
+export function tileArtOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined): TileArt {
+  if (tile.thumbnail) return { kind: "thumbnail", url: tile.thumbnail };
+  const first = featuredFacesOf(preview, tile.baseUrl)[0];
+  if (first?.pictureUrl) return { kind: "picture", url: first.pictureUrl };
+  if (first) return { kind: "face", card: first.card, face: first.face };
+  return { kind: "letter" };
 }

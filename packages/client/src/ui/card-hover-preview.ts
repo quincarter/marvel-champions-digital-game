@@ -21,6 +21,7 @@ import type { FacedownHover } from "../scenes/board/context.js";
 import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
+import { drawGeneratedFace, faceModelOf } from "./generated-card-face.js";
 import { textStyle } from "./theme.js";
 import { McHpPlate, fieldsOf, paintThreatMeter } from "./widgets.js";
 import { schemePanel } from "../view/board-model.js";
@@ -383,7 +384,7 @@ export class HoverPreview {
     const slot = hoverCardIdAt(x, y, plain, topmost);
     const cardId = slot === null ? undefined : plain.get(slot)?.cardId;
     if (slot === null || cardId === undefined) return null;
-    const type = hoverCardOf(cardId)?.type;
+    const type = (plain.get(slot)?.card ?? hoverCardOf(cardId))?.type;
     if (type === "hero_identity" && !settings.hoverHeroCard) return null;
     if (type === "villain" && !settings.hoverVillainCard) return null;
     return hoverKeyOfCardId(slot);
@@ -456,7 +457,7 @@ export class HoverPreview {
     const built = !rect
       ? null
       : plain
-        ? this.#buildPlain(plain.cardId, plain.face, rect, area, plain.art)
+        ? this.#buildPlain(plain.cardId, plain.face, rect, area, plain.art, plain.card)
         : this.#build(id as InstanceId, rect, area, this.#candidateHp);
     if (!built) {
       this.#clear();
@@ -674,13 +675,15 @@ export class HoverPreview {
     onScreen: Rect,
     area: Rect,
     art?: ArtSource,
+    record?: AnyCard,
   ): {
     readonly container: Phaser.GameObjects.Container;
     readonly size: Size;
     readonly waitingFor: string | null;
   } | null {
-    // A card named by id outside a game (the Mod Store gallery) is looked up in what is installed now.
-    const card = hoverCardOf(cardId);
+    // A card named by id outside a game (the Mod Store gallery) is looked up in what is installed now, unless the
+    // caller carries the record itself (a pack not installed yet).
+    const card = record ?? hoverCardOf(cardId);
     if (!card) return null;
     const faceModel = cardInspectModel(card, face ?? defaultFaceFor(card));
     const model = art ? { ...faceModel, art } : faceModel;
@@ -694,7 +697,15 @@ export class HoverPreview {
     shadow.fillStyle(surface.ink.hex, 0.35).fillRect(5, 6, size.width, size.height);
     container.add(shadow);
     const image = drawArt(this.scene, key, rect);
-    container.add(image ?? this.#plainFrame(rect, model));
+    // No picture (yet): the generated face from the record, so a card of a pack that ships none is still readable.
+    container.add(
+      image ??
+        this.scene.add.container(
+          0,
+          0,
+          drawGeneratedFace(this.scene, rect, faceModelOf(card, face ?? defaultFaceFor(card))),
+        ),
+    );
     return { container, size, waitingFor: image ? null : (model.art?.key ?? null) };
   }
 

@@ -3,6 +3,7 @@
  * against the pointer, and which words describe the card's state beside it. Pure and tested; `ui/card-hover-preview.ts`
  * draws what this decides. It reads state and never changes it: the popover takes no input.
  */
+import type { AnyCard } from "@mc/content";
 import { cardHoverFactor, type CardHoverScale } from "../settings.js";
 import type { ArtSource, CardFace } from "../art/art-source.js";
 import type { FormFactor, Rect } from "./layout.js";
@@ -126,6 +127,8 @@ export interface HoverCardIdRect extends Rect {
   readonly face?: CardFace;
   /** The picture to show when it is not that face's own: a promo card on its Extras tile. */
   readonly art?: ArtSource;
+  /** The card record itself, for a card that is in no pool yet (a pack the Mod Store shows before it is installed). */
+  readonly card?: AnyCard;
   readonly through?: boolean;
 }
 

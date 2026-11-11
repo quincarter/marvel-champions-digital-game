@@ -59,7 +59,8 @@ async function builtPack(src: string): Promise<PackInput> {
   const files = new Map<string, Uint8Array>();
   for (const full of walk(out)) {
     const path = relative(out, full).split(sep).join("/");
-    if (path !== "pack.json" && !path.endsWith(".zip")) files.set(path, new Uint8Array(readFileSync(full)));
+    if (!["pack.json", "preview.json", "thumb.webp"].includes(path) && !path.endsWith(".zip"))
+      files.set(path, new Uint8Array(readFileSync(full)));
   }
   return readPackInput(manifest, files);
 }
