@@ -2,9 +2,7 @@
 // packages/content/src/schema/packs.ts): building one pack's entry from what `mc-pack build` wrote, and upserting the
 // packs a publish run built into the catalog already on R2.
 //
-// Used by scripts/publish-pack-index.mjs (the publish-packs workflow). scripts/build-pack-catalog.mjs (the temporary
-// same-origin catalog of the Netlify builds) writes the same per-version shape by hand; once it is kept, it should
-// call `packVersionEntry` / `packIndexEntry` here instead (with its `/packs/<id>/<version>/` base).
+// Used by scripts/publish-pack-index.mjs (the publish-packs workflow).
 //
 // Rules for an upsert:
 //   - packs this run didn't build stay as they are, whoever published them (the registry repo publishes to the same
