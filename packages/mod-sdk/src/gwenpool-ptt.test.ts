@@ -279,7 +279,7 @@ const damageTo = (events: readonly GameEvent[], target: InstanceId): number[] =>
 
 const sum = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0);
 
-/** A table with Batroc and Comic Shop in play: pink bubbles are the hero's 2, Batroc's and Comic Shop's. */
+/** A table with Batroc and Comic Shop in play: pink bubbles are the hero's 1, Batroc's and Comic Shop's. */
 function withFriends(): { readonly state: GameState; readonly batroc: InstanceId; readonly shop: InstanceId } {
   const base = open();
   const batroc = intoPlay(base, "02");
@@ -314,8 +314,8 @@ describe("Reading the comic: resolve one pink bubble of your choice", () => {
       offered.push(...c.options.map((o) => o.optionId));
       return [c.options.find((o) => o.optionId.endsWith(`${batroc}:${P}02.pink-bubble`))!.optionId];
     });
-    // The hero's two bubbles, Batroc's and Comic Shop's.
-    expect(offered).toHaveLength(4);
+    // The hero's counted bubble, Batroc's and Comic Shop's.
+    expect(offered).toHaveLength(3);
     expect(run.state.instances[scheme]!.threat, "Batroc's bubble removes 2 threat from a scheme").toBe(4);
     expect(
       run.events.filter((e) => e.type === "cardDrawn"),
@@ -359,10 +359,10 @@ describe("Precise Cut and Plot Armor count your pink bubbles", () => {
 
   it("Precise Cut deals 2 plus 1 for each pink bubble you control", () => {
     const alone = open();
-    // The hero's 2 bubbles: 2 + 2.
-    expect(preciseCut(alone)).toBe(4);
-    // Batroc's and Comic Shop's join: 2 + 4.
-    expect(preciseCut(withFriends().state)).toBe(6);
+    // The hero's 1 counted bubble (her quip is flavor): 2 + 1.
+    expect(preciseCut(alone)).toBe(3);
+    // Batroc's and Comic Shop's join: 2 + 3.
+    expect(preciseCut(withFriends().state)).toBe(5);
   });
 
   it("Precise Cut counts none of the hero's bubbles while Game Rules blanks her text box", () => {
@@ -395,10 +395,10 @@ describe("Precise Cut and Plot Armor count your pink bubbles", () => {
     const base = withFriends().state;
     const control = firstHit(base, false);
     expect(control, "Rhino 2 + a boost card of 3 icons").toBe(5);
-    // The hero's 2, Batroc's and Comic Shop's: 4 of the 5 are prevented.
-    expect(firstHit(base, true)).toBe(1);
-    // The hero's 2 alone: 2 of the 5 are prevented.
-    expect(firstHit(open(), true)).toBe(3);
+    // The hero's 1, Batroc's and Comic Shop's: 3 of the 5 are prevented.
+    expect(firstHit(base, true)).toBe(2);
+    // The hero's 1 alone: 1 of the 5 is prevented.
+    expect(firstHit(open(), true)).toBe(4);
   });
 });
 
