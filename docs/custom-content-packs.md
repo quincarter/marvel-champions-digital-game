@@ -80,9 +80,9 @@ content-packs/
     *.test.ts                     the pack's own tests (a smoke game at least)
 ```
 
-A pack's source images are a bundle in `assets/manifest.json`, in a new `pack` group: `pnpm assets:pack pack-<id>`
-uploads them like any other bundle, and a plain `pnpm assets:fetch` skips the group, so the app build and a fresh
-checkout never download them.
+A pack's source images are a bundle in `assets/manifest.json`, in the optional `pack-art` group: `pnpm assets:pack
+pack-art-<id>` uploads them like any other bundle, and a plain `pnpm assets:fetch` skips the group, so the app build
+and a fresh checkout never download them (`pnpm assets:fetch pack-art` does).
 
 Nothing in `packages/` imports from `content-packs/`. A guard test (like `campaign-art.test.ts`'s) fails if one
 does, and `bundled-art.ts` never sees these cards because they are not in `POOL_CARDS`.
@@ -556,6 +556,13 @@ tags: [hero, justice]
 6. **Withdraw:** removing a pack's file drops it from the catalog. The client keeps an installed copy and marks it
    "withdrawn": it's still playable, so saves still load, but the store doesn't offer it.
 
+**The repo's own packs** (`content-packs/`: the samples and the community packs the owner imported with permission)
+don't go through the registry. `.github/workflows/publish-packs.yml` in this repo builds them on a push to `main` and
+publishes them to the same bucket and the same `index.json`, with the same rules: versions are immutable, older ones
+stay, and `approved` keeps its first date (CONTRIBUTING.md, "Publishing packs"). The registry's publish must
+therefore keep the packs it didn't publish when it regenerates `index.json`, and a pack id is published by one of the
+two only.
+
 A pack without permission evidence is never merged. Of BluefireF5ran's 30 packs, only Gwenpool has it so far (§10).
 Neptune's packs (issue #661) are free to use by their creator's own statement, and that statement is the evidence.
 
@@ -634,6 +641,9 @@ The owner does these steps while the code is built. The code doesn't wait on the
    `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` on `marvel-champions-mods`.
 6. Create an npm organization for the SDK's scope, and a granular token that can publish to it. Add the token to this
    repo as the Actions secret `NPM_TOKEN`.
+
+7. Add the same three R2 secrets to this repo too, and the repository variable `PACKS_BASE_URL`
+   (`https://packs.<domain>`), for `publish-packs.yml`, which publishes the packs under `content-packs/` (§11.4).
 
 R2's free tier covers 10 GB of storage, 1 million writes and 10 million reads a month, and egress is free. The 30
 community packs come to about 150 to 200 MB (§10), so even every version of every pack stays far under the limit.

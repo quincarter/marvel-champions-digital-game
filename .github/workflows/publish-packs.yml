@@ -1,0 +1,217 @@
+# Publishes the repo's community packs (content-packs/community/*) to the Mod Store's
+# production catalog: the R2 bucket mc-packs, served at PACKS_BASE_URL (docs/custom-content-packs.md §11.4, §11.8).
+# Packs a community creator submits go through the registry repo (quincarter/marvel-champions-mods) instead; both
+# write the same index.json.
+#
+# Each pack is built with `mc-pack build` (deterministic zip) and uploaded to <id>/<version>/: its zip, pack.json, and
+# preview.json and thumb.webp when the build wrote them. A version is never overwritten: one already in the bucket
+# with the same zip is skipped, one with a different zip fails the run ("bump the version"). Then index.json is
+# downloaded, the built packs are upserted into it (scripts/lib/pack-index.mjs: other packs and older versions stay,
+# `approved` keeps its first date) and it is uploaded with a short cache.
+#
+# The community packs' pictures are not in git: they are the optional `pack-art` media bundles on the content repo's
+# releases (assets/manifest.json), which `pnpm assets:fetch` skips unless asked.
+#
+# Secrets: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (an R2 token with Object Read & Write on mc-packs).
+# Without them the run builds the packs and skips the upload with a notice. Variables: PACKS_BASE_URL (where the
+# bucket is served, e.g. https://packs.example.app; required to upload), R2_BUCKET (default mc-packs).
+#
+# A manual run is a dry run by default: it builds, checks what is already published (when the secrets exist) and
+# prints the index.json it would upload, and uploads nothing.
+name: Publish packs
+
+on:
+  push:
+    branches: [main]
+    paths: ["content-packs/**"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Dry run: build the packs and print the would-be index.json, upload nothing"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+# One publish at a time: each run reads, upserts and writes index.json.
+concurrency:
+  group: publish-packs
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish the content packs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run && 'true' || 'false' }}
+      BUCKET: ${{ vars.R2_BUCKET || 'mc-packs' }}
+      BASE_URL: ${{ vars.PACKS_BASE_URL }}
+      STAGING: ${{ github.workspace }}/.publish/staging
+      AWS_DEFAULT_REGION: auto
+      # aws cli 2.23+ adds checksum headers R2 doesn't need; send them only where an operation requires one.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Fetch the community packs' pictures
+        uses: ./.github/actions/assets
+        with:
+          bundles: pack-art
+
+      - name: Build the packs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$STAGING"
+          built="$RUNNER_TEMP/built"
+          # The sample packs (content-packs/sample-*) are SDK examples, kept out of the production store.
+          for dir in content-packs/community/*/; do
+            dir="${dir%/}"
+            [ -f "$dir/pack.json" ] || continue
+            out="$built/$(basename "$dir")"
+            pnpm --silent --filter @mc/mod-sdk mc-pack build "$GITHUB_WORKSPACE/$dir" --out "$out"
+            id=$(node -p 'require(process.argv[1]).id' "$out/pack.json")
+            version=$(node -p 'require(process.argv[1]).version' "$out/pack.json")
+            target="$STAGING/$id/$version"
+            if [ -e "$STAGING/$id" ]; then
+              echo "::error::two folders build pack $id ($dir)"
+              exit 1
+            fi
+            mkdir -p "$target"
+            cp "$out/$id-$version.zip" "$out/pack.json" "$target/"
+            for extra in preview.json thumb.webp; do
+              if [ -f "$out/$extra" ]; then cp "$out/$extra" "$target/"; fi
+            done
+            echo "Staged $id $version: $(ls "$target" | tr '\n' ' ')"
+          done
+
+      - name: Check the R2 settings
+        id: r2
+        shell: bash
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "::notice::No R2 secrets (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY), so nothing was uploaded; the packs built."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$BASE_URL" ] && [ "$DRY_RUN" != "true" ]; then
+            echo "::error::Set the PACKS_BASE_URL repository variable (where the mc-packs bucket is served) to publish."
+            exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Every pack is checked before anything is uploaded, so a refused version leaves the bucket untouched.
+      - name: Check what is already published
+        if: steps.r2.outputs.ready == 'true'
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/skip.txt"
+          failed=0
+          for target in "$STAGING"/*/*/; do
+            target="${target%/}"
+            version=$(basename "$target")
+            id=$(basename "$(dirname "$target")")
+            key="$id/$version/$id-$version.zip"
+            if ! aws s3api head-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key "$key" > /dev/null 2> "$RUNNER_TEMP/head.err"; then
+              if grep -qE '404|Not Found|NoSuchKey' "$RUNNER_TEMP/head.err"; then
+                echo "$id $version: new"
+                continue
+              fi
+              cat "$RUNNER_TEMP/head.err" >&2
+              exit 1
+            fi
+            aws s3 cp --only-show-errors --endpoint-url "$ENDPOINT" "s3://$BUCKET/$key" "$RUNNER_TEMP/published.zip"
+            published=$(sha256sum "$RUNNER_TEMP/published.zip" | cut -d' ' -f1)
+            local_sha=$(sha256sum "$target/$id-$version.zip" | cut -d' ' -f1)
+            if [ "$published" = "$local_sha" ]; then
+              echo "::notice::$id $version is already published with the same zip; skipped."
+              echo "$id/$version" >> "$RUNNER_TEMP/skip.txt"
+            else
+              echo "::error::$id $version is already published with a different zip ($published, built $local_sha): bump the version in its pack.json."
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Upload the packs
+        if: steps.r2.outputs.ready == 'true' && env.DRY_RUN != 'true'
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          set -euo pipefail
+          immutable="public, max-age=31536000, immutable"
+          put() {
+            aws s3 cp --only-show-errors --endpoint-url "$ENDPOINT" "$1" "s3://$BUCKET/$2" \
+              --content-type "$3" --cache-control "$immutable"
+          }
+          for target in "$STAGING"/*/*/; do
+            target="${target%/}"
+            version=$(basename "$target")
+            id=$(basename "$(dirname "$target")")
+            if grep -qxF "$id/$version" "$RUNNER_TEMP/skip.txt"; then continue; fi
+            # The zip goes last: its presence is what marks a version published.
+            put "$target/pack.json" "$id/$version/pack.json" application/json
+            if [ -f "$target/preview.json" ]; then put "$target/preview.json" "$id/$version/preview.json" application/json; fi
+            if [ -f "$target/thumb.webp" ]; then put "$target/thumb.webp" "$id/$version/thumb.webp" image/webp; fi
+            put "$target/$id-$version.zip" "$id/$version/$id-$version.zip" application/zip
+            echo "Published $id $version."
+          done
+
+      - name: Update index.json
+        shell: bash
+        env:
+          READY: ${{ steps.r2.outputs.ready }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          set -euo pipefail
+          current="$RUNNER_TEMP/current-index.json"
+          rm -f "$current"
+          if [ "$READY" = "true" ]; then
+            if ! aws s3api get-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key index.json "$current" > /dev/null 2> "$RUNNER_TEMP/get.err"; then
+              if ! grep -qE 'NoSuchKey|404|Not Found' "$RUNNER_TEMP/get.err"; then
+                cat "$RUNNER_TEMP/get.err" >&2
+                exit 1
+              fi
+              rm -f "$current"
+              echo "No index.json in the bucket yet; starting one."
+            fi
+          fi
+          base="${BASE_URL:-https://packs.example.invalid}"
+          node scripts/publish-pack-index.mjs "$STAGING" "$base" "$current" > "$RUNNER_TEMP/index.json"
+          if [ "$READY" != "true" ] || [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run (or no R2 secrets): the index.json this run would upload:"
+            cat "$RUNNER_TEMP/index.json"
+            {
+              echo '### The index.json this run would upload'
+              echo '```json'
+              cat "$RUNNER_TEMP/index.json"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          aws s3 cp --only-show-errors --endpoint-url "$ENDPOINT" "$RUNNER_TEMP/index.json" "s3://$BUCKET/index.json" \
+            --content-type application/json --cache-control "public, max-age=300"
+          echo "Uploaded index.json ($(node -p 'require(process.argv[1]).packs.length' "$RUNNER_TEMP/index.json") packs)."

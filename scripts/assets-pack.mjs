@@ -6,7 +6,8 @@
  * Usage: pnpm assets:pack <bundle ...> | --all [--dry-run]
  *   pnpm assets:pack card-art-wave9   after adding or fixing scans of a wave 9 pack
  *   pnpm assets:pack music-scenarios  after adding a scenario's battle track
- *   pnpm assets:pack --all --dry-run  zip and hash every bundle, upload nothing, change nothing
+ *   pnpm assets:pack --all --dry-run  zip and hash every default bundle, upload nothing, change nothing
+ *   pnpm assets:pack pack-art-carnage-nep  a community pack's pictures (optional bundles are packed by name)
  *
  * A bundle whose zip comes out byte for byte the same as the manifest's is left alone. A changed one gets a new
  * release tagged `<bundle>-<first 12 hex of its sha256>`; the old release stays, so older commits still fetch what
@@ -22,6 +23,7 @@ import {
   MEDIA_FILE,
   bundleOwns,
   cacheDir,
+  isDefaultBundle,
   listFiles,
   mapIncoming,
   readManifest,
@@ -53,9 +55,8 @@ if (unknown.length > 0) {
   console.error(`[assets] no bundle named ${unknown.join(", ")} in ${MANIFEST_PATH}`);
   process.exit(1);
 }
-const chosen = all
-  ? manifest.bundles.filter((b) => b.kind === "media")
-  : manifest.bundles.filter((b) => names.includes(b.name));
+// --all is what a plain fetch installs: an optional bundle (pack-art) is packed by name, as it is fetched by name.
+const chosen = all ? manifest.bundles.filter(isDefaultBundle) : manifest.bundles.filter((b) => names.includes(b.name));
 
 await warnAboutOrphans();
 if (!withIncoming) await refuseIncoming();

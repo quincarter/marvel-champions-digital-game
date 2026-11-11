@@ -1,5 +1,5 @@
 {
-  "$comment": "Media bundles on the content repo's releases (issue #495). pnpm assets:fetch installs them; pnpm assets:pack <bundle> uploads a changed one and rewrites its tag, file, size and sha256. Card-art prefixes are the pack numbers that start a card code. CONTRIBUTING.md#media-assets.",
+  "$comment": "Media bundles on the content repo's releases (issue #495). pnpm assets:fetch installs them; pnpm assets:pack <bundle> uploads a changed one and rewrites its tag, file, size and sha256. Card-art prefixes are the pack numbers that start a card code. pack-art bundles (optional: fetched only by name or group, pnpm assets:fetch pack-art) hold a community content pack's pictures, the media files under its folder; the publish-packs workflow builds the packs with them. CONTRIBUTING.md#media-assets.",
   "repo": "quincarter/marvel-champions-content",
   "bundles": [
     {
@@ -334,6 +334,24 @@
       "size": 2081069,
       "sha256": "08d0d8fd26c6e8942e090ab1dafbf2156e89b96119320461bcc0d9d94b46e73d",
       "files": 6
+    },
+    {
+      "name": "pack-art-carnage-nep",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/carnage-nep"
+    },
+    {
+      "name": "pack-art-gwenpool-ptt",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/gwenpool-ptt"
+    },
+    {
+      "name": "pack-art-night-thrasher-dh",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/night-thrasher-dh"
     },
     {
       "name": "artifacts",

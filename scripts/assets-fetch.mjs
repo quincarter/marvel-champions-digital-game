@@ -5,9 +5,10 @@
  * scripts/lib/assets.mjs has the layout, the cache and the rules for files you changed locally.
  *
  * Usage: pnpm assets:fetch [bundle or group ...] [--force] [--check] [--prune]
- *   pnpm assets:fetch                 every media bundle (the default; MC_ASSETS sets it when no names are given)
+ *   pnpm assets:fetch                 every media bundle not marked optional (the default; MC_ASSETS sets it when no names are given)
  *   pnpm assets:fetch music card-art  just those groups
  *   pnpm assets:fetch artifacts       the QA and design screenshot archive (never fetched by default)
+ *   pnpm assets:fetch pack-art        the community content packs' pictures (optional: never fetched by default)
  *   MC_ASSETS=none                    skip everything (engine-only work, typecheck builds)
  *   --force                           replace files you changed locally instead of keeping them
  *   --check                           download and install nothing; exit 1 if a selected bundle isn't current
