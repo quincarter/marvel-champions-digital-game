@@ -20,10 +20,8 @@ import {
   anAttackableEnemy,
   anEnemy,
   ANY_NUMBER,
-  addCounters,
+  applyRuleUntil,
   cannotFlip,
-  forcedInterrupt,
-  removeEachCounterFrom,
   attack,
   attackAnEnemy,
   attacksGainKeywords,
@@ -177,24 +175,6 @@ export default definePackAbilities({
   // "Hero Response: After you flip to this side, deal 1 damage to an enemy." Damage, not an attack.
   "x.night-thrasher-dh.02b.battle-board-response": heroResponse(on.characterFlips("self"), damageAnEnemy(1)),
 
-  // Practice's "cannot flip the Battle Board until the start of the next villain phase": see Practice (12). Each face
-  // carries the lock and the clear, so the lock holds whichever side is up. A forced interrupt, so it resolves before
-  // an optional one that begins the same phase (Prewind Stance): "until the start" has already passed by then.
-  "x.night-thrasher-dh.02a.practice-lock": constant(
-    cannotFlip(query("upgrade", { name: "Battle Board", hasCounter: "practice" })),
-  ),
-  "x.night-thrasher-dh.02a.practice-clear": forcedInterrupt(
-    on.phaseBeginning("villain"),
-    removeEachCounterFrom(self, "practice"),
-  ),
-  "x.night-thrasher-dh.02b.practice-lock": constant(
-    cannotFlip(query("upgrade", { name: "Battle Board", hasCounter: "practice" })),
-  ),
-  "x.night-thrasher-dh.02b.practice-clear": forcedInterrupt(
-    on.phaseBeginning("villain"),
-    removeEachCounterFrom(self, "practice"),
-  ),
-
   // =========================================================================
   // 03 Disaster (event)
   // =========================================================================
@@ -345,11 +325,8 @@ export default definePackAbilities({
   // obligations), but bullet A has two costs to choose from, so it is two options here: exhaust the alter-ego (only
   // while in alter-ego form and ready: the "Exhaust your alter-ego" errata) or discard a card from hand (RRG 1.8
   // "Cost", p. 13: a cost is paid in full or not at all, so an option whose cost cannot be paid is not offered).
-  // "You cannot flip the Battle Board until the start of the next villain phase" is a practice counter on the Battle
-  // Board (Need to Kill's bookkeeping in the Carnage pack): the board's two faces each stop their own flip while it
-  // holds one (the `practice-lock` constants) and clear it as the next villain phase begins (`practice-clear`). A lasting
-  // `applyRuleUntil` with `cannotFlip` is the exact form, but the SDK's DSL feature list has no `expr:cannotFlip`
-  // (no base card has a lasting flip lock), so a pack using it would be refused: see the README.
+  // "You cannot flip the Battle Board until the start of the next villain phase" is a lasting `cannotFlip` rule on the
+  // board that ends as the next (unskipped) villain phase begins (`applyRuleUntil`, Run Them to Ground 61020).
   "x.night-thrasher-dh.12.obligation": whenRevealed(
     chooseOne(
       option("Flip to alter-ego form", { when: isHero() }, changeForm(you, "alterEgo")),
@@ -370,7 +347,7 @@ export default definePackAbilities({
       ),
       option(
         "You cannot flip the Battle Board until the start of the next villain phase. Discard this obligation",
-        addCounters("practice", 1, each(BATTLE_BOARD)),
+        applyRuleUntil({ kind: "cannotFlip", target: BATTLE_BOARD }, "nextVillainPhaseBegins"),
         moveCards(cards(self), "discard"),
       ),
     ),

@@ -31,12 +31,6 @@
     },
     {
       "id": "x.night-thrasher-dh.02a.battle-board-response"
-    },
-    {
-      "id": "x.night-thrasher-dh.02a.practice-lock"
-    },
-    {
-      "id": "x.night-thrasher-dh.02a.practice-clear"
     }
   ],
   "flipSide": {
@@ -57,12 +51,6 @@
       },
       {
         "id": "x.night-thrasher-dh.02b.battle-board-response"
-      },
-      {
-        "id": "x.night-thrasher-dh.02b.practice-lock"
-      },
-      {
-        "id": "x.night-thrasher-dh.02b.practice-clear"
       }
     ]
   }

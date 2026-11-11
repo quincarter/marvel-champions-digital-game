@@ -283,6 +283,14 @@ describe("§1.5 an off-aspect allowance (Gamora's Skilled Tactician)", () => {
     expect(validateCard({ ...gamora, deckbuilding: { offAspectAllowance: allowance } }).errors).toEqual([]);
   });
 
+  it("accepts a card type list or no card type, and refuses an empty or malformed one", () => {
+    const withType = (cardType: unknown) =>
+      validateCard({ ...gamora, deckbuilding: { offAspectAllowance: { ...allowance, cardType } } } as never);
+    expect(withType(["event", "upgrade"]).errors).toEqual([]);
+    expect(withType(undefined).errors).toEqual([]);
+    for (const bad of [[], [""], "", 3]) expect(withType(bad).valid, JSON.stringify(bad)).toBe(false);
+  });
+
   it("refuses a zero or fractional maximum and an empty trait list", () => {
     for (const bad of [
       { ...allowance, maxCards: 0 },

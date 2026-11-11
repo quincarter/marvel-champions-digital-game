@@ -15,6 +15,8 @@ import type { AbilityRegistry, CampaignDefinition } from "@mc/engine";
  * - `cost:<key>` and `cost:<key>.<field>`, recursing into `either` and `conditional` branches;
  * - `rule:<kind>` and `rule:<kind>.<field>`: a rule a constant ability installs;
  * - `expr:<kind>` and `expr:<kind>.<field>`: any other discriminated object (a value, predicate, selector, amount);
+ * - `query:<field>`: a field of a `TargetQuery` (an object with no `kind` that holds a query field such as `categories`,
+ *   `hasCounter` or `hasTaggedAbility`), wherever the query sits;
  * - `ability:<key>` and `ability:<key>.<field>`: a top-level field of the definition other than trigger, cost and
  *   effects (`ability:limit`, `ability:label`, `ability:generates`, `ability:minX`, `ability:unlabeledAttack`).
  *
@@ -170,6 +172,127 @@ function collectCost(cost: Json, found: Set<string>): void {
   }
 }
 
+/**
+ * Every field of the engine's `TargetQuery` (`packages/engine/src/spec.ts`; `features.test.ts` checks this list against the
+ * interface). A query has no `kind`, so the walk recognizes one by its fields and records `query:<field>` for each.
+ */
+export const TARGET_QUERY_FIELDS: readonly string[] = [
+  "categories",
+  "inScenarioPlayArea",
+  "controller",
+  "engagedWith",
+  "trait",
+  "withoutTrait",
+  "anyTrait",
+  "withKeyword",
+  "withoutKeyword",
+  "anyOf",
+  "not",
+  "cardTypeIs",
+  "playerSideScheme",
+  "accusation",
+  "chosenVillain",
+  "name",
+  "printedId",
+  "hostOfSelf",
+  "host",
+  "hasAttachment",
+  "canHaveAttached",
+  "canAttachTo",
+  "canAttachToCategory",
+  "canEnterPlay",
+  "canFlip",
+  "facedown",
+  "starIcon",
+  "boostCard",
+  "printsBoostAbility",
+  "unique",
+  "printedResource",
+  "anyPrintedResource",
+  "printedResourceNamed",
+  "owner",
+  "aspect",
+  "anyAspect",
+  "exhausted",
+  "hasThreat",
+  "hasCounter",
+  "hasAccelerationToken",
+  "damaged",
+  "hasStatus",
+  "hasAnyStatus",
+  "canTakeStatus",
+  "self",
+  "maxPrintedHp",
+  "statCompare",
+  "remainingHpCompare",
+  "maxPrintedCost",
+  "minPrintedCost",
+  "attackableBy",
+  "canTakeAttackInProgress",
+  "canAttackOneOf",
+  "excludeSlots",
+  "excluding",
+  "inSlot",
+  "controlledBy",
+  "extensionOf",
+  "actsFor",
+  "engagedWithPlayer",
+  "inPlayAreaOf",
+  "signatureSideScheme",
+  "identitySetOf",
+  "nemesisMinionOf",
+  "obligationOf",
+  "nemesisSideSchemeOf",
+  "nemesisSetOf",
+  "sharesTraitWith",
+  "sharesTraitWithHeroOf",
+  "sharesTitleWith",
+  "otherFaceOf",
+  "encounterSetOf",
+  "scenarioSpecific",
+  "inEncounterSet",
+  "inCampaignLogField",
+  "titled",
+  "identitySetTitled",
+  "sameClassificationAs",
+  "classification",
+  "printedForm",
+  "abilityTiming",
+  "printsAbility",
+  "hasTaggedAbility",
+];
+/** Fields other objects use too (a keyword's `name`, a pattern's `anyOf`): they do not make an object a query alone. */
+const SHARED_QUERY_FIELDS = new Set([
+  "name",
+  "trait",
+  "aspect",
+  "self",
+  "owner",
+  "host",
+  "unique",
+  "exhausted",
+  "facedown",
+  "damaged",
+  "controller",
+  "not",
+  "anyOf",
+  "inSlot",
+  "excluding",
+  "titled",
+  "anyTrait",
+  "classification",
+  "printedForm",
+]);
+const QUERY_FIELD_SET = new Set(TARGET_QUERY_FIELDS);
+
+/** `query:<field>` for each `TargetQuery` field on a kind-less object that is recognizably a query. */
+function recordQueryFields(value: Record<string, Json>, found: Set<string>): void {
+  if (typeof value.kind === "string") return;
+  const own = Object.keys(value).filter((key) => value[key] !== undefined && QUERY_FIELD_SET.has(key));
+  if (!own.some((key) => !SHARED_QUERY_FIELDS.has(key))) return;
+  for (const key of own) found.add(`query:${key}`);
+}
+
 function visit(value: Json, slot: Slot, found: Set<string>, isPattern = false): void {
   if (Array.isArray(value)) {
     for (const item of value) visit(item, slot, found, isPattern);
@@ -177,6 +300,7 @@ function visit(value: Json, slot: Slot, found: Set<string>, isPattern = false): 
   }
   if (!isRecord(value)) return;
   const kind = typeof value.kind === "string" ? value.kind : undefined;
+  recordQueryFields(value, found);
   if (kind !== undefined) {
     found.add(`${slot}:${kind}`);
     recordFields(`${slot}:${kind}`, value, found);

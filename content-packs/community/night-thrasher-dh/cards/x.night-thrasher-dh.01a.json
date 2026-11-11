@@ -52,7 +52,6 @@
   "nemesisEncounterSetId": "night-thrasher-dh-nemesis",
   "deckbuilding": {
     "offAspectAllowance": {
-      "cardType": "upgrade",
       "anyTrait": ["SKILL"],
       "maxCards": 4
     }

@@ -3,10 +3,11 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
-import { PLAYABLE_CARDS, type PackManifest, type StarterDeck } from "@mc/content";
+import { PLAYABLE_CARDS, type PackManifest, type PlayerCard, type StarterDeck } from "@mc/content";
 import {
   applyCommand,
   createGame,
+  validateDeck,
   playerId,
   activeEncounterDeck,
   type CardInstance,
@@ -518,7 +519,6 @@ describe("Practice (obligation)", () => {
       return hit ? [hit.optionId] : quiet(s);
     });
     const board = boardOf(run.start);
-    expect(run.state.instances[board]!.counters.practice ?? 0, "the lock is still on in the player phase").toBe(1);
     // Disaster cannot flip the board: it stays on the front, and the Vehicle branch (3 threat) is the one read.
     const scheme = run.state.mainScheme!.instanceId;
     let state = patch(run.state, scheme, { threat: 6 });
@@ -532,7 +532,12 @@ describe("Practice (obligation)", () => {
     state = played.state;
     const round = state.round;
     const next = drive(state, { type: "endTurn", playerId: P1 }, quiet, (s) => s.round > round);
-    expect(next.state.instances[board]!.counters.practice ?? 0, "cleared as the villain phase began").toBe(0);
+    // The lasting lock ended as the villain phase began: Disaster flips the board again.
+    const again = toHand(emptyHand(next.state), `${P}03`);
+    const payC = toHand(again.state, `${P}05`);
+    const payD = toHand(payC.state, `${P}05`);
+    const replayed = drive(payD.state, play(again.id, [payC.id, payD.id]), quiet);
+    expect(faceOf(replayed.state, board), "the lock ended with the villain phase").toBe(true);
   });
 
   it("offers to discard a card from hand to remove itself from the game, and in alter-ego form to exhaust Dwayne", () => {
@@ -542,7 +547,6 @@ describe("Practice (obligation)", () => {
       return hit ? [hit.optionId] : quiet(s);
     });
     const practice = Object.values(run.state.instances).find((i) => String(i.cardId) === `${P}12`);
-    expect(run.state.instances[boardOf(run.start)]!.counters.practice ?? 0, "no lock").toBe(0);
     expect(practice).toBeDefined();
   });
 });
@@ -746,9 +750,39 @@ describe("pack content", () => {
   it("scripts every ability, and Tech Deck is the identity's deckbuilding allowance", () => {
     const identity = pack.cards.find((c) => String(c.id) === `${P}01a`)!;
     expect("deckbuilding" in identity ? identity.deckbuilding?.offAspectAllowance : undefined).toEqual({
-      cardType: "upgrade",
       anyTrait: ["SKILL"],
       maxCards: 4,
     });
+  });
+
+  it("Tech Deck lets in an off-aspect Skill card of any type, and refuses a card without the trait", () => {
+    const pool = cardPoolWithPack(PLAYABLE_CARDS, pack);
+    const deck = precon();
+    // The precon is Aggression; Justice, Leadership and Protection cards are off-aspect for it.
+    const offAspect = (skill: boolean, type: PlayerCard["type"]) =>
+      pool.find(
+        (c): c is PlayerCard =>
+          "deckLimit" in c &&
+          c.type === type &&
+          ["justice", "leadership", "protection"].includes(String(c.aspect)) &&
+          c.traits.includes("SKILL" as never) === skill &&
+          !deck.cards.some((entry) => entry.cardId === c.id),
+      )!;
+    const problemsWith = (card: PlayerCard) => {
+      const verdict = validateDeck(
+        {
+          identityCardId: deck.identityCardId,
+          aspects: deck.aspects,
+          cards: [...deck.cards, { cardId: card.id, quantity: 1 }],
+        },
+        pool,
+      );
+      return verdict.ok ? [] : verdict.problems.filter((p) => p.cardIds?.includes(card.id));
+    };
+    const skillEvent = offAspect(true, "event");
+    const plainEvent = offAspect(false, "event");
+    expect(skillEvent, "a Skill event of another aspect").toBeDefined();
+    expect(problemsWith(skillEvent)).toEqual([]);
+    expect(problemsWith(plainEvent).map((p) => p.code)).toContain("aspect_restriction");
   });
 });

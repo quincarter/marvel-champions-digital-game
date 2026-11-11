@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { AbilityRegistry } from "@mc/engine";
 import { heroAction, thwartAScheme } from "@mc/cards";
-import { dslFeatures, SUPPORTED_DSL_FEATURES } from "./features.js";
+import { dslFeatures, SUPPORTED_DSL_FEATURES, TARGET_QUERY_FIELDS } from "./features.js";
 import { definePackAbilities } from "./define.js";
 import tiny from "./fixtures/tiny-pack/abilities/index.js";
 
@@ -129,5 +131,56 @@ describe("dslFeatures", () => {
       raw({ trigger: { kind: "action" }, effects: [], unlabeledAttack: { citation: "FAQ" } }),
     );
     expect(features).toContain("ability:unlabeledAttack");
+  });
+
+  it("records the fields of a TargetQuery wherever it sits, and keeps its other keys", () => {
+    const features = dslFeatures(
+      raw({
+        trigger: {
+          kind: "constant",
+          rules: [
+            {
+              kind: "costModifier",
+              delta: 2,
+              appliesTo: { categories: ["upgrade"], hasTaggedAbility: "pinkBubble", controller: "you" },
+            },
+          ],
+        },
+        effects: [],
+      }),
+    );
+    expect(features).toContain("query:categories");
+    expect(features).toContain("query:hasTaggedAbility");
+    expect(features).toContain("query:controller");
+    expect(features).toContain("rule:costModifier.appliesTo");
+  });
+
+  it("a query without categories counts, and an object holding only shared field names does not", () => {
+    const features = dslFeatures(
+      raw({
+        trigger: { kind: "action" },
+        effects: [{ kind: "x", target: { hasCounter: "c", name: "A" }, keyword: { name: "guard" } }],
+      }),
+    );
+    expect(features).toContain("query:hasCounter");
+    expect(features).toContain("query:name");
+    expect(features.filter((f) => f === "query:name")).toHaveLength(1);
+    expect(
+      dslFeatures(raw({ trigger: { kind: "action" }, effects: [{ kind: "x", keyword: { name: "guard" } }] })),
+    ).not.toContain("query:name");
+  });
+
+  it("the supported list has the query fields the engine-only examples use, and a lasting flip lock", () => {
+    expect(SUPPORTED_DSL_FEATURES).toContain("query:hasTaggedAbility");
+    expect(SUPPORTED_DSL_FEATURES).toContain("query:categories");
+    expect(SUPPORTED_DSL_FEATURES).toContain("expr:cannotFlip");
+    expect(SUPPORTED_DSL_FEATURES).toContain("expr:cannotFlip.target");
+  });
+
+  it("TARGET_QUERY_FIELDS is every field of the engine's TargetQuery interface", () => {
+    const source = readFileSync(fileURLToPath(new URL("../../engine/src/spec.ts", import.meta.url)), "utf8");
+    const body = source.slice(source.indexOf("export interface TargetQuery {"));
+    const declared = [...body.slice(0, body.indexOf("\n}")).matchAll(/^ {2}readonly (\w+)\??:/gm)].map((m) => m[1]);
+    expect([...TARGET_QUERY_FIELDS].sort()).toEqual([...declared].sort());
   });
 });

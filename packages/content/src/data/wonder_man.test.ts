@@ -154,9 +154,11 @@ describe("wonder_man: Ionic Energy Being (Simon Williams 58001b), the deck-build
         validateCard(withAllowance({ cardType: "event", printedResource })).errors,
         String(printedResource),
       ).toEqual(["offAspectAllowance printedResource must be physical, mental, energy or wild"]);
-    // The card type is still required beside it.
-    expect(validateCard(withAllowance({ printedResource: "energy" })).errors).toEqual([
-      "offAspectAllowance needs a cardType",
+    // The card type may be absent (any type) when a trait or a printed resource narrows the allowance, but an
+    // allowance that names nothing is refused.
+    expect(validateCard(withAllowance({ printedResource: "energy" })).errors).toEqual([]);
+    expect(validateCard(withAllowance({})).errors).toEqual([
+      "offAspectAllowance needs a cardType, an anyTrait or a printedResource",
     ]);
   });
 });

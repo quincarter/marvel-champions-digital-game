@@ -20,14 +20,12 @@ renames the pictures to the pack's card codes; the alternate alter-ego `night_th
 
 - `abilities/index.ts`: every ability, each commented with the base card it copies.
 - `cards/x.night-thrasher-dh.01a.json`: `deckbuilding.offAspectAllowance` (Dwayne's Tech Deck, below).
-- `cards/x.night-thrasher-dh.02a.json`: four extra ids for Practice's lock on the Battle Board
-  (`02a.practice-lock`, `02a.practice-clear`, `02b.practice-lock`, `02b.practice-clear`).
 - `decks/night-thrasher-dh-aggression.json`: a suggested deck (not the author's; the source has no precon list): the
   Battle Board and the 15 Night Thrasher cards, plus the Core Set Aggression and basic cards of the Iron Man
   (Aggression) starter deck, with the 2 Tac Team swapped for 2 Heroic Intuition (a Justice Skill upgrade) so the deck
   uses Tech Deck. The Battle Board is permanent and does not count toward the deck size (RRG 1.8 p. 32).
 
-Re-running the importer would overwrite the card JSON: redo the two card edits above.
+Re-running the importer would overwrite the card JSON: redo the card edit above.
 
 ## New engine primitives this pack uses
 
@@ -41,12 +39,6 @@ From engine commit b51277136 (`packages/cards/src/dsl/engine-only-features.ts`):
   `hp`) and is what the game uses; only the English alternate picture is wrong. Ask the author for a corrected file.
 - **Errata not yet submitted.** The source notes the Cemented and Practice errata have not yet been submitted by the
   author to the community, so those two may change; the Battle Board's was cleared for the game.
-- **Tech Deck is partial.** "You may include up to 4 Skill cards in your deck from aspects other than your own" is
-  `IdentityDeckbuilding.offAspectAllowance`, whose `cardType` names one card type. It is set to `upgrade` (about two thirds of the
-  Skill cards of the four aspects are upgrades: Combat Training, Heroic Intuition, ...), so Skill **events,
-  supports and resources** of other aspects (Mean Swing, Skilled Strike, Ever Vigilant, Deflection, Target Practice,
-  Audacity, ...) are refused by the deck builder although the card allows them. A `cardType` list (or none) in the
-  schema would fix it. Skill cards of the basic aspect are always legal.
 - **Permission.** The curated source records "granted, inclusion" with no date. The Spanish pictures are Francisco
   Merchan's work on the author's art; the scope does not name translation (Carnage's permission does). Ask
   BluefireF5ran for the date and evidence, and whether inclusion covers the Spanish version.
@@ -76,12 +68,9 @@ From engine commit b51277136 (`packages/cards/src/dsl/engine-only-features.ts`):
 - **Drop In.** A Hero Response to any change of form; it is only offered in hero form, i.e. after a change to hero form.
 - **Practice.** "Exhaust your alter-ego or discard 1 card from your hand -> remove Practice from the game" is two
   options (RRG 1.8 "Cost", p. 13): exhausting needs the player to be a ready alter-ego (the errata), discarding needs a
-  card in hand. "You cannot flip the Battle Board until the start of the next villain phase" is a practice counter on
-  the board that its two faces enforce (`practice-lock`: `cannotFlip` on a Battle Board holding the counter) and clear
-  as the next villain phase begins (`practice-clear`, a Forced Interrupt, so before an optional one such as Prewind
-  Stance). The exact form is a lasting `applyRuleUntil({ kind: "cannotFlip" }, "nextVillainPhaseBegins")`; it is not
-  used because the SDK's feature list has no `expr:cannotFlip` (no base card has a lasting flip lock), so a pack with it
-  would be refused by a client that can run it. An entry in `ENGINE_ONLY_DSL_EXAMPLES` would let Practice use it.
+  card in hand. "You cannot flip the Battle Board until the start of the next villain phase" is a lasting
+  `applyRuleUntil({ kind: "cannotFlip", target: Battle Board }, "nextVillainPhaseBegins")` (as Run Them to Ground's
+  lasting rules), so it also lasts through a skipped villain phase.
 - **Cemented.** "Players cannot make basic attacks with heroes or allies or flip upgrades or identities": three
   unscoped rules (basic attacks, `cannotFlip` on upgrades, `cannotChangeForm` for each player: an identity's flip is its
   change of form). Each player answers the Action for themselves, in player order; a player who discarded treats the

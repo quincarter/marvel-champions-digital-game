@@ -2,6 +2,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { trait } from "@mc/content";
 import { action, agile, constant, costModifier, forcedInterrupt, heroInterrupt, on, tagged } from "./abilities.js";
 import {
+  applyRuleUntil,
   blankTextBoxForPlayers,
   cancelIt,
   dealDamage,
@@ -77,6 +78,10 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   // `loses`).
   "engine-only.lose-keyword": action(loseKeywordUntil({ name: "guard" }, theVillain, "endOfRound")),
   "engine-only.lose-trait": action(loseTraitUntil(trait("ELITE"), theVillain, "endOfRound")),
+  // "You cannot flip [a card] until the start of the next villain phase" (`applyRuleUntil` with a `cannotFlip` rule).
+  "engine-only.lasting-flip-lock": action(
+    applyRuleUntil({ kind: "cannotFlip", target: query("upgrade", { controller: "you" }) }, "nextVillainPhaseBegins"),
+  ),
 };
 
 /** Every example is a valid definition (checked by the DSL's own validator, as `defineAbilities` would). */

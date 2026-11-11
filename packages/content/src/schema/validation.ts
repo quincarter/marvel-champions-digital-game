@@ -642,7 +642,14 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
         !allowance.anyTrait.every(isNonEmptyString))
     )
       errors.push("offAspectAllowance anyTrait, when present, must list at least one trait");
-    if (!isNonEmptyString(allowance.cardType)) errors.push("offAspectAllowance needs a cardType");
+    const type = allowance.cardType;
+    if (
+      type !== undefined &&
+      !(Array.isArray(type) ? type.length > 0 && type.every(isNonEmptyString) : isNonEmptyString(type))
+    )
+      errors.push("offAspectAllowance cardType, when present, must be a card type or a list of them");
+    else if (type === undefined && allowance.anyTrait === undefined && allowance.printedResource === undefined)
+      errors.push("offAspectAllowance needs a cardType, an anyTrait or a printedResource");
     // docs/phase7-wave10-hero-packs.md §H3.15 (Simon Williams's Ionic Energy Being).
     if (allowance.printedResource !== undefined && !RESOURCE_ICON_TYPES.includes(allowance.printedResource))
       errors.push("offAspectAllowance printedResource must be physical, mental, energy or wild");

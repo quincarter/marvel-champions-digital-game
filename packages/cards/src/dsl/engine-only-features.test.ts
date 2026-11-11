@@ -118,6 +118,7 @@ describe("engine-only DSL primitives", () => {
       "engine-only.extra-player-phase",
       "engine-only.has-tagged",
       "engine-only.last-played",
+      "engine-only.lasting-flip-lock",
       "engine-only.lose-keyword",
       "engine-only.lose-trait",
       "engine-only.per-player-blank",
