@@ -22,21 +22,16 @@ tests (`packages/mod-sdk/src/community-packs.test.ts`) build a copy without that
   `01b.need-to-kill-reset`).
 - `cards/x.carnage-nep.08.json`: two extra ids (`-constant-piercing`, `-constant-ranged`): Amorphous Arsenal's bonus is
   one forced interrupt per keyword.
-- `cards/x.carnage-nep.09.json`: the id `x.carnage-nep.09.klyntar-bond-interrupt` is removed (not scripted, below).
 - `decks/carnage-nep-aggression.json`: a suggested deck (not the author's): the 15 Carnage cards plus the 25 Core
   Aggression and basic cards of the Iron Man starter deck. The author's own two lists are not in the source.
 
-Re-running the importer would overwrite the card JSON: redo the four edits above.
+Re-running the importer would overwrite the card JSON: redo the edits above.
 
-## Not scripted: Klyntar Bond's interrupt
+## Klyntar Bond's interrupt
 
-"Hero Interrupt: When Carnage uses a basic power, you may give him a boost card." (its Resource ability is scripted).
-The engine's way to give a character a boost card for a basic power is the villainous keyword's forced interrupt, and the
-boost card is only turned up, resolved and its icons added if the character had the keyword when the power was
-announced (`pushCharacterBoost`, `packages/engine/src/resolve/villainous.ts`). A "may" give from an interrupt on
-`basicPowerUsing` leaves a facedown boost card nothing resolves. The primitive needed: an optional form of the character
-boost, e.g. an effect `giveCharacterBoost` / a "may" villainous grant that registers the `characterBoost` record for the
-power in progress when the player accepts.
+"Hero Interrupt: When Carnage uses a basic power, you may give him a boost card." This uses the engine's
+`giveBasicPowerBoostCard` effect, added for this pack: the card resolves like villainous on a friendly character
+(RRG 1.8 p. 47), and its boost icons add to the basic power, as the author expects.
 
 ## Rules readings made (the pack's own text is the authority; flagged for the author)
 

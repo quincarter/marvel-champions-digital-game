@@ -353,9 +353,9 @@ describe("pack content", () => {
     expect(precon().name).toMatch(/suggested/i);
   });
 
-  it("leaves Klyntar Bond's interrupt unscripted, with its resource ability scripted", () => {
+  it("scripts both of Klyntar Bond's abilities", () => {
     const klyntar = pack.cards.find((c) => String(c.id) === `${P}09`)!;
     const ids = "abilities" in klyntar ? klyntar.abilities.map((a) => String(a.id)) : [];
-    expect(ids).toEqual([`${P}09.klyntar-bond-resource`]);
+    expect(ids).toEqual([`${P}09.klyntar-bond-interrupt`, `${P}09.klyntar-bond-resource`]);
   });
 });

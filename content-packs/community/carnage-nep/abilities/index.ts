@@ -6,9 +6,6 @@
  * Ability ids are `<card code>.<slug>`. Four ids are not in the importer's stub; the card JSON names them (see the
  * pack README): the bookkeeping of Need to Kill (`01a.need-to-kill-tracker`, `01b.need-to-kill-reset`) and the two
  * extra constants of Amorphous Arsenal (`08.amorphous-arsenal-constant-piercing`, `-ranged`).
- *
- * Not scripted, because the engine lacks a primitive (see the pack README): Klyntar Bond's interrupt
- * (`x.carnage-nep.09.klyntar-bond-interrupt`); the card JSON does not name it until it can be.
  */
 import {
   action,
@@ -60,6 +57,7 @@ import {
   gets,
   heal,
   heroAction,
+  giveBasicPowerBoostCard,
   heroInterrupt,
   heroResponse,
   host,
@@ -347,6 +345,13 @@ export default definePackAbilities({
   // from an interrupt would leave a facedown boost card that is never turned up. Needs an optional form of the
   // villainous character boost.
   // Resource: exhaust this card -> generate a [physical] resource. Modeled on Super-Soldier Serum (03010).
+  // Klyntar Bond: "you may give him a boost card" when Carnage uses a basic power. An optional hero interrupt on the
+  // basic power, resolved like villainous on a friendly character (RRG 1.8 p. 47, MC60 FAQ), which is what the
+  // author expects (ENGINE_NOTES: the boost icons add to the basic power).
+  "x.carnage-nep.09.klyntar-bond-interrupt": heroInterrupt(
+    on.basicPowerUsing(YOUR_IDENTITY),
+    giveBasicPowerBoostCard(),
+  ),
   "x.carnage-nep.09.klyntar-bond-resource": resource({ physical: 1 }, { cost: exhaustThis }),
 
   // =========================================================================

@@ -22,6 +22,9 @@
   "flavor": "\"And being with a symbiote...to call it a rush doesn't do it justice.\" —Eddie Brock",
   "abilities": [
     {
+      "id": "x.carnage-nep.09.klyntar-bond-interrupt"
+    },
+    {
       "id": "x.carnage-nep.09.klyntar-bond-resource"
     }
   ]
