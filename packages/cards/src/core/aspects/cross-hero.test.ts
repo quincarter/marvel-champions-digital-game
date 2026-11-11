@@ -1,5 +1,6 @@
 import { CORE_STARTER_DECKS, cardId, PLAYABLE_CARDS, type AnyCard, type CardId } from "@mc/content";
 import {
+  activeEncounterDeck,
   activeVillain,
   applyCommand,
   characterProfile,
@@ -13,6 +14,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { PLAYABLE_DEPS, playableScenario } from "../../playable/index.js";
 import { buildCrossHeroDeck } from "../../testing/cross-hero.js";
+import { intoPlay } from "../../testing/qa-bench.js";
 import {
   answer,
   endTurn,
@@ -482,6 +484,48 @@ describe("Leadership cards, from Iron Man's deck", () => {
     expect(minion).toBeDefined();
     expect(inst(after, minion!).damage).toBe(2);
     expect(inst(after, opened.id).counters.arrow).toBe(3);
+  });
+
+  describe("01066.hawkeye-response: only while that minion is still in play (RRG 1.8 'Target', p. 42; 'Cost', p. 14)", () => {
+    /** Two Hawkeyes (the second by surgery, 4 arrow counters); the first is taken, then the second's offer is recorded. */
+    const twoHawkeyes = (damage: number) => {
+      const opened = openHandFor("01066", "leadership");
+      const { state: inPlay } = playOpened(opened);
+      const second = intoPlay(inPlay, "01066", { arrow: 4 }, 3);
+      const stacked = stackEncounterDeck(second.state, ADVANCE, SHOCKER);
+      const minionId = activeEncounterDeck(stacked).deck[1]!;
+      const staged = patchInstance(stacked, minionId, { damage });
+      const offeredAfter: boolean[] = [];
+      let taken = false;
+      const pick: Picker = (s) => {
+        const choice = s.pendingChoice!;
+        if (choice.prompt.kind !== "chooseTriggers") return firstLegal(s);
+        const mine = (id: InstanceId) =>
+          choice.options.filter((o) => o.optionId.includes(`${id}:`) && o.optionId.endsWith("01066.hawkeye-response"));
+        if (!taken) {
+          taken = true;
+          return [mine(opened.id)[0]!.optionId];
+        }
+        offeredAfter.push(mine(second.id).length > 0);
+        return mine(second.id).length > 0 ? [mine(second.id)[0]!.optionId] : firstLegal(s);
+      };
+      const after = villainPhase(staged, { stack: [], pick });
+      return { after, offeredAfter, first: opened.id, second: second.id, minionId };
+    };
+    it("control: the first Hawkeye leaves Shocker (3 hp) alive, so the second is offered and defeats it", () => {
+      const { after, offeredAfter, first, second, minionId } = twoHawkeyes(0);
+      expect(offeredAfter).toEqual([true]);
+      expect(inst(after, first).counters.arrow).toBe(3);
+      expect(inst(after, second).counters.arrow).toBe(3);
+      expect(cardsInPlay(after)).not.toContain(minionId);
+    });
+    it("the first Hawkeye defeats it (1 damage already): the second is not offered and keeps its 4 arrow counters", () => {
+      const { after, offeredAfter, first, second, minionId } = twoHawkeyes(1);
+      expect(offeredAfter).toEqual([]);
+      expect(inst(after, first).counters.arrow).toBe(3);
+      expect(inst(after, second).counters.arrow).toBe(4);
+      expect(cardsInPlay(after)).not.toContain(minionId);
+    });
   });
 
   it("01067.maria-hill-response: after she enters play, each player draws 1 card", () => {

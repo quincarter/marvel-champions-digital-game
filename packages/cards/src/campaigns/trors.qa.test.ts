@@ -316,10 +316,10 @@ function crossbonesStageOneOnly(seed: number): GameSetupConfig {
 
 describe("a real, engine-recognized win proves the victory path end to end (no override)", () => {
   it("MC10 p. 3 — Crossbones is genuinely defeated, and the campaign runner marks the node completed for real", () => {
-    // Seed 20 is not special to the rule under test — it is simply one of several campaign seeds (found by an
+    // Seed 19 is not special to the rule under test — it is simply one of several campaign seeds (found by an
     // exhaustive local search over 1..60) whose derived in-game seed lets the driver's greedy play genuinely
     // reduce stage-I-only Crossbones to 0 HP before the main scheme completes or both players are defeated.
-    const seedLog = freshLog("qa-genuine-win", STANDARD, 20);
+    const seedLog = freshLog("qa-genuine-win", STANDARD, 19);
     const composed = settle(
       (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, seedLog, DEPS, STANDARD, answers),
       SCRIPT,
