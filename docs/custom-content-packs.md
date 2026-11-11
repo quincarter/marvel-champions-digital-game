@@ -227,7 +227,9 @@ needs a paid Workers plan to survive another Reddit day.
   },
   "pictures": { "hero": { "x.fan-moon-knight.01a": "pictures/hero.webp" } },
   // optional, added 2026-11-10 so community packs in several languages convert:
-  "languages": { "base": "en", "available": ["en", "es"] }, // card pictures are cards/<lang>/<code>.webp; a missing language falls back to base
+  "languages": { "base": "en", "available": ["en", "es"], "text": "en" }, // card pictures are cards/<lang>/<code>.webp; a missing language falls back to base
+  // `text` is the language of the card records. Packs ship one language of card text today; per-language text (names,
+  // rules text, traits) follows the game's translation layer (PR #664) once it covers card text, as a later additive field.
   "altArt": { "en": { "01088": "alt-art/en/01088.webp" } }, // alternate art for base-game cards (or the pack's own); any kind, an art pack is only this
   "permission": {
     "by": "Neptune",
