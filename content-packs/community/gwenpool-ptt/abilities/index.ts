@@ -320,12 +320,10 @@ export default definePackAbilities({
   // Action printed on the hero face. `resolveOneTagged`: one pink bubble in play, her pick (a flavor one included, which
   // resolves into nothing), from any card in play, whoever controls it (the author: "in play").
   "x.gwenpool-ptt.01a.reading-the-comic": action({ limit: oncePerRound }, resolveOneTagged(PINK)),
-  // The hero face prints two pink bubbles (ids -bubble and -bubble-2). READING flagged for the author: both count as
-  // pink bubbles she controls (ENGINE_NOTES says "up to 6 in play", one per card, which a literal count of this card's
-  // two bubbles makes 7). "Hey, psst, here. Draw 1 card now while they're not looking." is an instruction.
+  // The hero face prints two bubbles, but only this one counts as her pink bubble: the second ("What? Am I in a card
+  // game now? And it's fan-made on top of that!") is a flavor quip, so at most 6 pink bubbles are in play, one per card
+  // (ENGINE_NOTES; the owner, 2026-11-11). "Hey, psst, here. Draw 1 card now while they're not looking." is an instruction.
   "x.gwenpool-ptt.01a.pink-bubble": tagged(PINK, draw(1)),
-  // "What? Am I in a card game now? And it's fan-made on top of that!": flavor.
-  "x.gwenpool-ptt.01a.pink-bubble-2": tagged(PINK),
 
   // That's not fair!: "Action: Discard X cards from your hand -> draw X cards. (Limit once per round.)" Shield Toss
   // (03006): a variable discard cost, X bound as `x`; X = 0 is allowed (Shield Toss's own open question).

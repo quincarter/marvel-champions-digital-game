@@ -296,7 +296,7 @@ describe("the pack builds with its bubbles", () => {
       return [...(faces.abilities ?? []), ...(faces.hero?.abilities ?? []), ...(faces.alterEgo?.abilities ?? [])];
     });
     const ids = abilities.map((a) => String(a.id));
-    expect(ids.filter((id) => id.endsWith("pink-bubble") || id.endsWith("pink-bubble-2"))).toHaveLength(12);
+    expect(ids.filter((id) => id.endsWith("pink-bubble"))).toHaveLength(11);
     expect(ids.filter((id) => id.endsWith("purple-bubble"))).toHaveLength(4);
   });
 });

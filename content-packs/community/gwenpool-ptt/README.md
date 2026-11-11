@@ -24,8 +24,8 @@ The Vitest tests (`packages/mod-sdk/src/community-packs.test.ts`, `gwenpool-ptt.
 `mc-pack import-marvelcdb <gwenpool_ptt> --out content-packs/community/gwenpool-ptt --id gwenpool-ptt` (source commit
 `9ce0a25ec5b1b6f08b3a926838d9295babe69758`), then by hand:
 
-- `cards/*.json`: each speech bubble is an ability on its card (`<code>.pink-bubble`, `.pink-bubble-2`, `.purple-bubble`),
-  added to the importer's list. The hero face prints two pink bubbles (`01a.pink-bubble`, `01a.pink-bubble-2`), the
+- `cards/*.json`: each speech bubble is an ability on its card (`<code>.pink-bubble`, `.purple-bubble`),
+  added to the importer's list. The hero face's counted bubble is `01a.pink-bubble` (its second, a quip, is not counted), the
   alter-ego face one (`01b.pink-bubble`); every other player card has one, every nemesis card one purple bubble. The
   importer's `x_bubbles` (in `extensions.json`) says which bubbles are instructions (`rules: true`) and which flavor.
 - `abilities/index.ts`: every ability and bubble, each commented with the base card it copies and the author's rule.
@@ -110,17 +110,16 @@ all 16 bubbles.
 
 ## Rules readings made (the pack's own text is the authority; flagged for the author)
 
-- **Two bubbles on the hero face.** The hero side prints two pink bubbles (the second, "What? Am I in a card game
-  now?", is flavor). Both count as pink bubbles she controls, so the most Precise Cut or Plot Armor can count is 7
-  (the hero's 2, Batroc, 4 upgrades or supports), where ENGINE_NOTES says "up to 6". If only one should count, delete
-  `01a.pink-bubble-2` from the card and the abilities.
+- **Two bubbles on the hero face.** Only the first counts as her pink bubble. The second ("What? Am I in a card game
+  now?") is a flavor quip, so the most Precise Cut or Plot Armor can count is 6, one per card, as ENGINE_NOTES says
+  (the owner, 2026-11-11).
 - **Evil Gwenpool is set aside at setup.** She is the nemesis minion, so RRG 1.8 "Nemesis Encounter Set" (p. 30) sets
   her aside; the Standard set's Shadow of the Past brings her in. The two treacheries search "the encounter deck and
   discard pile", so they bring her back after she was defeated and discarded, and do nothing while she is in play (the
   author: intended). In a game where she is still set aside they find nothing.
 - **"Hello Again": "discard 1 upgrade card at random".** Read as a random upgrade from the revealing player's hand (the
   DSL has no random pick among the cards in play). If the author means an upgrade in play, this needs a random choice
-  of cards in play. **Question for the author.**
+  of cards in play. **Question for the author**; the owner is asking the community (2026-11-11).
 - **"I Found You" / "Hello Again": "the Gwenpool player".** The player whose identity is Gwenpool in either form; in a
   multiplayer game another player may reveal the card and Evil Gwenpool still engages the Gwenpool player.
 - **Game Rules.** "Treat Gwenpool's printed text box as if it were blank (except for TRAITS)" blanks the hero side only
