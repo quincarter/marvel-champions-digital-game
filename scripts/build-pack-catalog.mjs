@@ -23,7 +23,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const out = resolve(process.argv[2] ?? "packages/client/dist/packs");
 const root = resolve(import.meta.dirname, "..");
@@ -48,12 +48,28 @@ const entries = [];
 
 try {
   for (const dir of dirs) {
+    let source = dir;
     if (existsSync(join(dir, "fetch-art.sh")) && !existsSync(join(dir, "cards", "en"))) {
-      execFileSync("sh", [join(dir, "fetch-art.sh")], { stdio: "inherit" });
+      try {
+        execFileSync("sh", [join(dir, "fetch-art.sh")], { stdio: "inherit" });
+      } catch {
+        // The source repo is private, so CI can't fetch the pictures: build without them (generated card frames), from
+        // a copy without the alternate-art list, whose files would be missing.
+        console.warn(`::warning::${dir}: pictures unavailable, building the pack without them.`);
+        source = join(work, "src", dir.split(/[\/]/).pop());
+        cpSync(dir, source, { recursive: true });
+        const manifest = JSON.parse(readFileSync(join(source, "pack.json"), "utf8"));
+        delete manifest.altArt;
+        writeFileSync(
+          join(source, "pack.json"),
+          `${JSON.stringify(manifest, null, 2)}
+`,
+        );
+      }
     }
-    const author = JSON.parse(readFileSync(join(dir, "pack.json"), "utf8"));
+    const author = JSON.parse(readFileSync(join(source, "pack.json"), "utf8"));
     const built = join(work, author.id);
-    execFileSync(pnpm, ["--silent", "--filter", "@mc/mod-sdk", "mc-pack", "build", dir, "--out", built], {
+    execFileSync(pnpm, ["--silent", "--filter", "@mc/mod-sdk", "mc-pack", "build", source, "--out", built], {
       cwd: root,
       stdio: "inherit",
       shell: process.platform === "win32",
