@@ -791,9 +791,10 @@ function skipsVillainPhaseNow(ctx: Ctx): boolean {
  * round, before step one. Nothing of the round's end happens (no new round number, token pass, "end of the round"
  * effects or fresh round limits; RRG 1.8 "Round Overview", p. 4, ends the round at step 10, after the villain phase).
  * The new phase ends as every player phase does (discard, draw, ready; RRG 1.8 "End of Player Phase", p. 18), and the
- * villain phase follows. That the extra phase gets its own end-of-phase draw and ready is an engine interpretation of
- * the custom card (no rule covers an extra player phase; the RRG gives every player phase those steps), pending the
- * pack author's confirmation. Returns false when no replacement is waiting.
+ * villain phase follows. The card's own text starts "player phase", and the RRG defines every player phase with those
+ * end steps ("Player Phase", p. 34; "End of Player Phase", p. 18), so the extra phase gets its own discard, draw and
+ * ready; the author can still override that in the card's text (docs/custom-content-packs.md §6, the pack text is the
+ * authority for custom cards). Returns false when no replacement is waiting.
  */
 function playerPhaseInsteadNow(ctx: Ctx): boolean {
   const waiting = ctx.state.villainPhasesReplacedByPlayerPhase ?? 0;
