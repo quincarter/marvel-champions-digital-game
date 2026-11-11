@@ -1,6 +1,6 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
+import { cardOf, identityFace, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
   activeRules,
@@ -47,6 +47,19 @@ export interface ActiveModifier {
 }
 
 /**
+ * An identity's printed stat box for a stat its showing face does not have: an alter-ego has no ATK, THW or DEF, a
+ * hero no REC, and neither has SCH. RRG v1.8 "Attachment" (p. 8): "If an attachment modifies a value the attached
+ * character does not have, that modifier is ignored" (an alter-ego given "+1 ATK" does not get 1 ATK), and a
+ * "SCH/THW" box modifies THW only on a hero or ally. The attachment stays on through a flip ("Form", p. 20), and its
+ * boxes count again on the hero side. Agrees: FFG ruling April 8, 2025 (Warrior of the Great Web).
+ */
+function identityFormLacks(state: GameState, targetId: InstanceId, stat: string): boolean {
+  const player = state.players.find((p) => p.identity.instanceId === targetId);
+  if (!player) return false;
+  const has = identityFace(state, player).form === "hero" ? ["atk", "thw", "def", "hp"] : ["rec", "hp"];
+  return !has.includes(stat);
+}
+/**
  * Constant abilities and lasting effects are never "applied" to state — they
  * are recomputed on every read (RRG "Modifiers": the game recalculates a
  * modified quantity from the base value and all active modifiers each time it
@@ -89,6 +102,7 @@ export function modifiersFor(
       card.statModifiers;
     if (!showing) continue;
     for (const [s, amount] of Object.entries(showing)) {
+      if (identityFormLacks(state, targetId, s)) continue;
       if (typeof amount === "number" && amount !== 0 && wanted(s as ModifiedStat)) {
         found.push({ sourceInstanceId: attachmentId, stat: s as ModifiedStat, amount, origin: "attachment" });
       }

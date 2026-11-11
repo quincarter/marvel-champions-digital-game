@@ -531,6 +531,26 @@ describe("Power Stone (16149) — shared modular card, first scripted for this s
   });
 });
 
+describe("Power Stone (16149) on an alter-ego", () => {
+  // RRG v1.8 "Attachment" (p. 8): a modifier to a value the character does not have is ignored, and an alter-ego has
+  // no ATK or THW. The stone stays attached through the flip ("Form", p. 20) and counts again on the hero side.
+  it("gives nothing while its holder is in alter-ego form, and +1 ATK / +1 THW again once they flip back", () => {
+    const { state: attacked } = playFromHand(runWave3(nebula(), toHero()), "16005", 2);
+    const groot = identityOf(attacked);
+    const [stone] = instancesOf(attacked, "16149");
+    expect(inst(attacked, stone!).attachedTo).toBe(groot);
+    const inForm = (form: "hero" | "alterEgo"): GameState => ({
+      ...attacked,
+      players: attacked.players.map((p) => (p.playerId === P1 ? { ...p, identity: { ...p.identity, form } } : p)),
+    });
+    const alterEgo = characterProfile(inForm("alterEgo"), groot, WAVE3_DEPS)!;
+    expect([alterEgo.atk, alterEgo.thw, alterEgo.def]).toEqual([0, 0, 0]);
+    const hero = characterProfile(inForm("hero"), groot, WAVE3_DEPS)!;
+    const heroWithout = characterProfile(withoutStone(inForm("hero")), groot, WAVE3_DEPS)!;
+    expect([hero.atk, hero.thw]).toEqual([heroWithout.atk + 1, heroWithout.thw + 1]);
+  });
+});
+
 /** The same game with the Power Stone lifted off its host (surgery), to read the host's stats without it. */
 function withoutStone(state: GameState): GameState {
   const [stone] = instancesOf(state, "16149");
