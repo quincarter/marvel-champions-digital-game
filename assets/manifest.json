@@ -339,19 +339,34 @@
       "name": "pack-art-carnage-nep",
       "group": "pack-art",
       "optional": true,
-      "dir": "content-packs/community/carnage-nep"
+      "dir": "content-packs/community/carnage-nep",
+      "tag": "pack-art-carnage-nep-b6ca0f83bc29",
+      "file": "pack-art-carnage-nep.zip",
+      "size": 7669972,
+      "sha256": "b6ca0f83bc29cc198f7481e4e1684d4361d19ff2dfe93551330d9cdcb7fc324b",
+      "files": 70
     },
     {
       "name": "pack-art-gwenpool-ptt",
       "group": "pack-art",
       "optional": true,
-      "dir": "content-packs/community/gwenpool-ptt"
+      "dir": "content-packs/community/gwenpool-ptt",
+      "tag": "pack-art-gwenpool-ptt-fe3ec63eefe1",
+      "file": "pack-art-gwenpool-ptt.zip",
+      "size": 3409906,
+      "sha256": "fe3ec63eefe147b9647d7431774cafa7807c8ec1d044b945ef41f1d14daef572",
+      "files": 32
     },
     {
       "name": "pack-art-night-thrasher-dh",
       "group": "pack-art",
       "optional": true,
-      "dir": "content-packs/community/night-thrasher-dh"
+      "dir": "content-packs/community/night-thrasher-dh",
+      "tag": "pack-art-night-thrasher-dh-ec5c965cdb64",
+      "file": "pack-art-night-thrasher-dh.zip",
+      "size": 3925862,
+      "sha256": "ec5c965cdb64a78bf8fb3ca246ece43520fe264fbe01cc5726c24e9a4c5321a6",
+      "files": 38
     },
     {
       "name": "artifacts",
