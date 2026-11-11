@@ -25,6 +25,7 @@ import {
   putIntoPlay,
   query,
   ready,
+  refMatches,
   removeCounter,
   response,
   rule,
@@ -42,7 +43,12 @@ export const LEADERSHIP = defineAbilities({
   // Response: After a minion enters play, remove 1 arrow counter from Hawkeye → deal 2 damage to that minion.
   "01066.hawkeye-response": response(
     after.entersPlay(query("minion")),
-    { cost: removeCounter("arrow") },
+    {
+      cost: removeCounter("arrow"),
+      // Only while "that minion" is still in play: gone (another response defeated it first), it is no valid target,
+      // so the ability can't be initiated nor its cost paid (RRG 1.8 "Target", p. 42; "Cost", p. 14).
+      while: refMatches(eventTarget, query("minion")),
+    },
     dealDamage(2, eventTarget),
   ),
   // Maria Hill — Response: After Maria Hill enters play, each player draws 1 card.
