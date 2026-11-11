@@ -131,8 +131,8 @@ function concede(ctx: Ctx, command: Command & { type: "concede" }): EngineError 
 
 /**
  * Why an option id the open choice does not list was refused. A defender, or a "(defense)" card or ability, the
- * attack in progress is closed to names the rule (`defenseBarFor`, through the same `choiceExclusions` a client
- * reads); anything else is simply not an option.
+ * attack in progress is closed to names the rule (`defenderBarFor` for a defender, `defenseBarFor` for a "(defense)"
+ * card or ability, through the same `choiceExclusions` a client reads); anything else is simply not an option.
  */
 function notOfferedMessage(ctx: Ctx, optionId: string): string {
   const barred = choiceExclusions(ctx.state, ctx.deps).find(

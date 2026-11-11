@@ -6648,8 +6648,10 @@ function payBasicPowerCost(
  * Returns where the basic power's own attack/thwart event(s) report their results (docs/phase7-wave3.md §3.44): into
  * this damage event, prefixed `attack.`/`thwart.`, so "After Martyr takes consequential damage from performing an
  * attack, if that attack defeated an enemy" (Martyr, `drax` 19012) reads `attack.defeated` in the damage's own response
- * window. The damage is pushed first and so resolves after the power (LIFO); the power's frame reports into it as it
- * finishes, before the damage applies. Null when the ally takes none.
+ * window. The damage is pushed first, beneath the power's `basicPowerUsed` announcement and its attack/thwart event(s),
+ * and so resolves after them (LIFO): after the "after [this ally] uses a basic power" responses too (RRG 1.8
+ * "Consequential Damage", p. 13; "Ability" timing priority, p. 5). The power's frame reports into it as it finishes,
+ * before the damage applies. Null when the ally takes none.
  *
  * `column`: the stat the damage is printed under, when it is not the power's own (a thwart made with ATK).
  */
@@ -6720,10 +6722,12 @@ const consequentialDamageEvent = (
 /**
  * "Havok takes +1 consequential damage for this attack" (Havok, `storm` 36014) when his consequential damage is 0: the
  * one-shot `modifyConsequentialDamage` has no pending damage event to change, because `pushConsequentialDamage` pushes
- * none at 0. This creates it, as if it had been pushed with the power: directly beneath the character's attack or
- * thwart event(s) still in progress, so it resolves after them (RRG 1.8 "Consequential Damage", p. 13), and those
- * events report their results into it (`attack.`/`thwart.`, as `pushConsequentialDamage` wires them). Its amount is
- * the character's consequential value (standing modifiers included) plus `delta`.
+ * none at 0. This creates it, as if it had been pushed with the power: beneath the character's attack or thwart
+ * event(s) still in progress and, when that power's `basicPowerUsed` announcement is on the stack beneath them,
+ * beneath that too, so it resolves after them and after the "after [this] uses a basic power" responses (RRG 1.8
+ * "Consequential Damage", p. 13; "Ability" timing priority, p. 5), and those events report their results into it
+ * (`attack.`/`thwart.`, as `pushConsequentialDamage` wires them). Its amount is the character's consequential value
+ * (standing modifiers included) plus `delta`.
  *
  * Returns the amount created, or null when nothing was (no attack or thwart of this character in progress, a
  * character that takes no consequential damage, or a total of 0 or less). docs/phase7-wave6.md §3.31.
@@ -6754,7 +6758,27 @@ export function insertConsequentialDamage(
   if (to <= 0) return null;
   const frame = eventFrame(ctx, consequentialDamageEvent(characterId, to, kind));
   const report: ReportTarget = { frameId: frame.frameId, prefix: kind };
-  const at = Math.max(...powerIndexes) + 1;
+  const deepest = Math.max(...powerIndexes);
+  // This power's own announcement, which `makeBasicAttack`/`makeBasicThwart` push between its events and the
+  // consequential damage: a `basicPowerUsed` of this character and power, not yet resolved, among the event frames
+  // directly beneath them. The search stops at the first frame that is not an event, so an earlier use's announcement
+  // whose response window is resolving (beneath its window and ability frames) is never taken for this one.
+  let announced = -1;
+  for (let index = deepest + 1; index < stack.length; index++) {
+    const below = stack[index]!;
+    if (below.kind !== "event") break;
+    if (
+      !below.cancelled &&
+      below.stage !== "done" &&
+      below.event.kind === "basicPowerUsed" &&
+      below.event.characterInstanceId === characterId &&
+      below.event.power === kind
+    ) {
+      announced = index;
+      break;
+    }
+  }
+  const at = (announced >= 0 ? announced : deepest) + 1;
   const current = ctx.state.stack;
   ctx.state = {
     ...ctx.state,
@@ -7002,8 +7026,9 @@ function makeBasicAttack(
   command: Command & { type: "basicAttack" },
   shares: readonly BasicPowerShare[],
 ): void {
-  announceBasicPower(ctx, command.attackerInstanceId, "attack", command.playerId);
+  // See `makeBasicThwart`: consequential damage first, so it resolves after the "used a basic power" responses.
   const consequential = pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
+  announceBasicPower(ctx, command.attackerInstanceId, "attack", command.playerId);
   const attackFrames = !command.divide
     ? [
         pushEvent(
@@ -7291,13 +7316,17 @@ function makeBasicThwart(
     ...(ignores?.includes("crisis") ? { ignoreCrisis: true as const } : {}),
     ...(ignores?.includes("patrol") ? { ignorePatrol: true as const } : {}),
   };
-  announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId, thwartStat);
   const consequential = pushConsequentialDamage(
     ctx,
     command.thwarterInstanceId,
     "thwart",
     useAtk ? "attack" : "thwart",
   );
+  // RRG 1.8 "Consequential Damage" (p. 13): an ally takes it "after resolving abilities that are triggered by the ally
+  // attacking or thwarting", and "Ability" (p. 5) ranks responses (4) before consequential damage (5). So the damage
+  // sits beneath the `basicPowerUsed` announcement (LIFO): "after [this ally] uses a basic power" (Nick Fury 50002)
+  // resolves before the damage that may defeat him.
+  announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId, thwartStat);
   const framesBefore = new Set(ctx.state.stack.map((frame) => frame.frameId));
   const thwartFrames = !command.divide
     ? [
