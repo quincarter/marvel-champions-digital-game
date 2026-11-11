@@ -268,6 +268,7 @@ import {
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { suspendBehindActivation } from "./suspend.js";
+import { registerCharacterBoost } from "./villainous.js";
 import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
 import { hostOnlyReleaseZone, takeControlAsOwnAlly, treatAsAlly } from "../treat-as.js";
 import {
@@ -2214,7 +2215,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (OUT_OF_THE_GAME_ZONES.has(locateCard(ctx.state, id)?.kind ?? "")) continue;
         if (effect.defeated === true) defeatFromPlay(ctx, id, effect.insteadTo, source);
         // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
-        else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
+        else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id, context.controllerId)) {
           emit(ctx, { type: "discardRefused", instanceId: id });
         } else discardFromPlay(ctx, id, source);
       }
@@ -2575,6 +2576,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         frames.push(revealFrame(ctx, playerId, id));
       });
       pushFrames(ctx, frames);
+      return;
+    }
+    case "giveBasicPowerBoostCard": {
+      // The use resolves the card as villainous's does (`registerCharacterBoost`), then the card is given as any is.
+      const event = context.event;
+      if (event?.kind !== "basicPowerUsing" || !registerCharacterBoost(ctx, event)) return;
+      applyEffect(ctx, { kind: "giveBoostCard", enemy: { kind: "eventSource" } }, context, frame);
       return;
     }
     case "giveBoostCard": {
@@ -3804,7 +3812,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           effect.to === "discard" &&
           frame.byPlayer === true &&
           inPlayNow.includes(id) &&
-          playersCannotDiscard(ctx.state, ctx.deps, id);
+          playersCannotDiscard(ctx.state, ctx.deps, id, context.controllerId);
         if (refused) emit(ctx, { type: "discardRefused", instanceId: id });
         return !refused;
       });

@@ -1115,8 +1115,13 @@ function describe(
       }
       if (!short) return null;
       // A Special that blanked a text box (Blizzard) names whose, from the lasting effect it just added.
+      // A per-player blank (`forPlayers`) is blank to those players only, and the line says whose.
       const blanked = blankedBy(burst, state, event.instanceId);
-      const blankedNote = blanked.length > 0 ? `: ${blanked.map(card).join(", ")} has a blank text box` : "";
+      const forWhom = blanked.forPlayers
+        ? ` for ${blanked.forPlayers.map((id) => playerName(state, id)).join(" and ")} only`
+        : "";
+      const blankedNote =
+        blanked.targets.length > 0 ? `: ${blanked.targets.map(card).join(", ")} has a blank text box${forWhom}` : "";
       return { text: `${card(event.instanceId)} — ${short}${blankedNote}.`, voice: "player" };
     }
 
@@ -1741,18 +1746,26 @@ function onlyOptionBefore(burst: Burst | undefined): InstanceId | null | undefin
   return target?.type === "targetChosen" && target.instanceIds.length === 1 ? target.instanceIds[0]! : null;
 }
 
-/** The cards a blanking lasting effect from `source`'s card was just placed on, in this command. */
-function blankedBy(burst: Burst | undefined, state: GameState, source: InstanceId): readonly InstanceId[] {
-  if (!burst) return [];
+/**
+ * The cards a blanking lasting effect from `source`'s card was just placed on, in this command, and the players it is
+ * blank to when it is a per-player blank (`forPlayers`; absent: everyone).
+ */
+function blankedBy(
+  burst: Burst | undefined,
+  state: GameState,
+  source: InstanceId,
+): { readonly targets: readonly InstanceId[]; readonly forPlayers?: readonly PlayerId[] } {
+  if (!burst) return { targets: [] };
   const cardId = state.instances[source]?.cardId;
   for (let i = burst.at; i >= 0; i--) {
     const earlier = burst.events[i]!;
     if (earlier.type !== "lastingEffectAdded" || earlier.effect.kind !== "blankTextBox") continue;
     if (earlier.effect.sourceCardId === undefined || earlier.effect.sourceCardId === cardId) {
-      return earlier.effect.targets;
+      const { targets, forPlayers } = earlier.effect;
+      return forPlayers ? { targets, forPlayers } : { targets };
     }
   }
-  return [];
+  return { targets: [] };
 }
 
 const swapRefusedReason = (

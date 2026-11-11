@@ -1,8 +1,8 @@
 import type { AbilityRegistry } from "@mc/engine";
-import { agile, constant, costModifier, action } from "./abilities.js";
-import { blankTextBoxForPlayers } from "./effects.js";
+import { action, agile, constant, costModifier, heroInterrupt, on } from "./abilities.js";
+import { blankTextBoxForPlayers, giveBasicPowerBoostCard } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { eachPlayer, lastPlayedThisRound, query, self, you } from "./values.js";
+import { eachPlayer, lastPlayedThisRound, query, self, you, YOUR_IDENTITY } from "./values.js";
 
 /**
  * DSL shapes the engine supports that no base card uses yet, so the mod SDK's feature walk over the base registry
@@ -31,6 +31,8 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   // "Each player who discarded … may treat this card's printed text box as if it were blank" (`blankTextBox`'s
   // `forPlayers`).
   "engine-only.per-player-blank": action(blankTextBoxForPlayers(self, eachPlayer, "endOfPhase")),
+  // "When [your hero] uses a basic power, you may give him a boost card" (`giveBasicPowerBoostCard`).
+  "engine-only.basic-power-boost": heroInterrupt(on.basicPowerUsing(YOUR_IDENTITY), giveBasicPowerBoostCard()),
 };
 
 /** Every example is a valid definition (checked by the DSL's own validator, as `defineAbilities` would). */

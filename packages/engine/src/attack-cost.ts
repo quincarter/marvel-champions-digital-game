@@ -76,8 +76,9 @@ export function attackCostsOwed(
   attackerId: InstanceId,
   targetId: InstanceId,
 ): readonly AttackCostOwed[] {
-  if (controllerOf(state, attackerId) === null) return [];
-  return additionalAttackCostsFor(state, deps, targetId);
+  const payer = controllerOf(state, attackerId);
+  if (payer === null) return [];
+  return additionalAttackCostsFor(state, deps, targetId, payer);
 }
 
 /** The hand cards a cost's "discard N cards from your hand" part would take by default, leaving out `taken`. */

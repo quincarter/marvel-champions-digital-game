@@ -49,6 +49,7 @@ describe("engine-only DSL primitives", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
       "engine-only.agile",
+      "engine-only.basic-power-boost",
       "engine-only.last-played",
       "engine-only.per-player-blank",
     ]);

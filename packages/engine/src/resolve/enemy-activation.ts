@@ -1454,7 +1454,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       );
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       // Engine reading, untested: after a "(defense)" redirect this still reads the originally attacked player.
-      const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
+      const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId, frame.attackedPlayerId)
         ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)
         : [];
       const defenders = existing ? all.filter((id) => id === existing) : forcedAllies.length > 0 ? forcedAllies : all;

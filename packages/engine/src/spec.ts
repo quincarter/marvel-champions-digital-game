@@ -4958,6 +4958,17 @@ export type EffectSpec =
    */
   | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec; readonly card?: TargetRef }
   /**
+   * "When Carnage uses a basic power, you may give him a boost card." (Klyntar Bond, a custom-content card; docs/
+   * custom-content-packs.md §6): in an interrupt to a `basicPowerUsing` event, give the character using the power a
+   * facedown boost card from the top of the encounter deck and resolve it with that use as the villainous keyword does
+   * for a friendly character (RRG 1.8 "Villainous", p. 47; MC60 p. 26 FAQ): turned faceup as the power resolves, its
+   * Boost ability resolved with the character's controller as "you", its icons added to the stat powering this use, and
+   * the card discarded once the use has resolved (`resolve/villainous.ts` `registerCharacterBoost`). The character need
+   * not have villainous; one that has it gets this card in addition to the keyword's. Outside such an interrupt, or for
+   * a use that gets no boost card (an ally's defense), it does nothing. Make the ability optional for "you may".
+   */
+  | { readonly kind: "giveBasicPowerBoostCard" }
+  /**
    * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
    * docs/phase7-wave5.md §3.6): every facedown boost card on each card `from` names, in the order dealt, onto the first
    * card in play `to` names, where they wait as boost cards dealt outside that enemy's activation (RRG 1.8 "Boost, Boost

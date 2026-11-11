@@ -2969,7 +2969,7 @@ function readyAndAnnounce(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId
 function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
   const event = frame.event;
   if (event.kind !== "thwart") return false;
-  const cost = thwartCostFor(ctx.state, ctx.deps, event.schemeInstanceId);
+  const cost = thwartCostFor(ctx.state, ctx.deps, event.schemeInstanceId, event.playerId);
   if (!cost) return false;
   setFrame(ctx, { ...frame, thwartCostAsked: true });
   // docs/phase7-wave5.md §4.1 Q30 (RRG 1.8 "Cost", p. 13: a "take damage" cost "is not considered paid unless all of

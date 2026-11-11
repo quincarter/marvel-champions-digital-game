@@ -6422,7 +6422,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
     return engineError("no_valid_target", `${command.abilityId} is not active in the victory display`, command);
   }
   // "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (`cannotTriggerActions`, §3.11).
-  if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {
+  if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form, command.playerId)) {
     return engineError("no_valid_target", "that ability cannot be triggered right now", command);
   }
   // "You cannot resolve triggered abilities in your hero's printed text box" (`cannotResolveTriggeredAbilities`).
@@ -7228,7 +7228,7 @@ function basicThwartWith(
   // is paid, the confused status card replaces the thwart below.
   if (!thwartCostPaid) {
     const schemeIds = shares.map((share) => share.targetInstanceId);
-    const cost = thwartCostTotal(ctx.state, ctx.deps, schemeIds);
+    const cost = thwartCostTotal(ctx.state, ctx.deps, schemeIds, command.playerId);
     if (cost) {
       const afterOwnCosts = createCtx(ctx.state, ctx.deps);
       const ownUnpaid = payBasicPowerCost(afterOwnCosts, command, command.thwarterInstanceId, "thwart", [], by);

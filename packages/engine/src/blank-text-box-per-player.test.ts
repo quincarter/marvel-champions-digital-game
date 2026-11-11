@@ -22,7 +22,7 @@ import type { Command } from "./commands.js";
 import { applyCommand, replay, startSession } from "./engine.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
-import { cannotChangeForm, cannotFlip } from "./rules.js";
+import { cannotChangeForm, cannotDefend, cannotFlip, cannotReady, playersCannotDiscard } from "./rules.js";
 import { attackForbiddenBy, textBoxBlankedFor, textBoxBlankFor, textBoxBlankToPlayer } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -48,6 +48,10 @@ const CEMENTED_RULES = stubAbility(
         },
         { kind: "cannotFlip", target: { categories: ["upgrade"] } },
         { kind: "cannotChangeForm", player: { kind: "each" } },
+        // More unscoped "players" rules, each read with the player it binds (`ruleBindsPlayer`).
+        { kind: "cannotDefend", target: { categories: ["hero"] } },
+        { kind: "cannotReady", target: { categories: ["upgrade"] } },
+        { kind: "playersCannotDiscard", target: { categories: ["upgrade"] } },
       ],
     },
     effects: [],
@@ -63,11 +67,21 @@ const CEMENTED_ACTION = stubAbility(
     ],
   }),
 );
+/** "Forced Response: After a player plays a card, place 1 seen counter here." */
+const CEMENTED_RESPONSE = stubAbility(
+  "cemented.response",
+  def({
+    trigger: { kind: "response", forced: true, on: { on: "cardPlayed" } },
+    effects: [
+      { kind: "addCounters", target: { kind: "self" }, counterType: "seen", amount: { kind: "const", value: 1 } },
+    ],
+  }),
+);
 const CEMENTED = stubSideScheme({
   id: "cemented",
   startingThreat: 2,
   boostIcons: 0,
-  abilities: [CEMENTED_RULES.ref, CEMENTED_ACTION.ref],
+  abilities: [CEMENTED_RULES.ref, CEMENTED_ACTION.ref, CEMENTED_RESPONSE.ref],
 });
 /** "Until the end of the phase, you treat Cemented's printed text box as if it were blank." */
 const BREAK_FREE = stubAbility(
@@ -78,13 +92,15 @@ const BREAK_FREE = stubAbility(
   }),
 );
 const BREAK = stubEvent({ id: "break-free", cost: 0, abilities: [BREAK_FREE.ref] });
+const NOTHING = stubAbility("plain.action", def({ trigger: { kind: "action" }, effects: [] }));
+const PLAIN = stubEvent({ id: "plain", cost: 0, abilities: [NOTHING.ref] });
 const BOARD: UpgradeCard = {
   ...stubUpgrade({ id: "board", cost: 0 }),
   flipSide: { name: "board-b", traits: [], keywords: [], text: { printed: "", current: "" }, abilities: [] },
 };
 
-const deps: EngineDeps = depsOf(CEMENTED_RULES, CEMENTED_ACTION, BREAK_FREE);
-const CARDS: readonly AnyCard[] = [CEMENTED, BREAK, BOARD];
+const deps: EngineDeps = depsOf(CEMENTED_RULES, CEMENTED_ACTION, CEMENTED_RESPONSE, BREAK_FREE, NOTHING);
+const CARDS: readonly AnyCard[] = [CEMENTED, BREAK, BOARD, PLAIN];
 
 interface Table {
   readonly state: GameState;
@@ -99,7 +115,7 @@ function table(): Table {
     cards: CARDS,
     deps,
     players: 2,
-    deck: [BREAK.id, BOARD.id],
+    deck: [BREAK.id, BOARD.id, PLAIN.id],
     encounter: [...copiesOf(CEMENTED.id, 1)],
   });
   let state: GameState = {
@@ -181,6 +197,34 @@ describe("blankTextBox forPlayers: a blank for some players only (Cemented)", ()
     expect(cannotFlip(state, deps, t.board(P1), P1)).toBe(false);
     expect(cannotFlip(state, deps, t.board(P2), P2)).toBe(true);
     expect(cannotFlip(state, deps, t.board(P1))).toBe(true);
+  });
+
+  it("the other unscoped player rules: cannotDefend, cannotReady and playersCannotDiscard free p1 only", () => {
+    const t = table();
+    expect(cannotDefend(t.state, deps, t.hero(P1), t.villain)).toBe(true);
+    const state = breakFree(t.state);
+    expect(cannotDefend(state, deps, t.hero(P1), t.villain)).toBe(false);
+    expect(cannotDefend(state, deps, t.hero(P2), t.villain)).toBe(true);
+    // A card's ready is bound by its controller; a discard by the discarding player.
+    expect(cannotReady(state, deps, t.board(P1))).toBe(false);
+    expect(cannotReady(state, deps, t.board(P2))).toBe(true);
+    expect(playersCannotDiscard(state, deps, t.board(P1), P1)).toBe(false);
+    expect(playersCannotDiscard(state, deps, t.board(P1), P2)).toBe(true);
+  });
+
+  it("the scheme's triggered abilities do not resolve for p1 while it is blank to p1", () => {
+    const t = table();
+    const seen = (state: GameState) => mustInstance(state, t.scheme).counters.seen ?? 0;
+    const playPlain = (state: GameState) => {
+      const given = giveCard(state, P1, PLAIN.id);
+      return driveSession(startSession(given.state), deps, [
+        { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      ]).session.state;
+    };
+    // Control: without the blank, p1's play makes the forced response resolve.
+    expect(seen(playPlain(t.state)) - seen(t.state)).toBe(1);
+    const blanked = breakFree(t.state);
+    expect(seen(playPlain(blanked)) - seen(blanked)).toBe(0);
   });
 
   it("p1 can make the basic attack and change form; p1's identity was not blanked", () => {

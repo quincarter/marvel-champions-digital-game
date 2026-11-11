@@ -22,9 +22,9 @@ import type { TargetQuery } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubEvent } from "./testing/fixtures.js";
+import { stubEvent, stubUpgrade } from "./testing/fixtures.js";
 import { giveCard, RESOURCE } from "./testing/scenario.js";
-import { copiesOf, gameAtFirstTurn, P1 } from "./testing/wave3.js";
+import { copiesOf, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const STUNT = trait("Stunt");
 const stuntEvent: TargetQuery = { categories: ["event"], trait: STUNT };
@@ -50,13 +50,24 @@ const TRICK = withTraits(stubEvent({ id: "trick", cost: 0, abilities: [NOTHING.r
 const PLAIN = stubEvent({ id: "plain", cost: 0, abilities: [NOTHING.ref] });
 const KICK = withTraits(stubEvent({ id: "kick", cost: 2, abilities: [NOTHING.ref, KICK_DISCOUNT.ref] }), [STUNT]);
 
-const deps: EngineDeps = depsOf(NOTHING, KICK_DISCOUNT);
+/** "Forced Interrupt: When you play a Stunt event, cancel it. Then, discard this card." */
+const COUNTER_INTERRUPT = stubAbility("counter.interrupt", {
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: stuntEvent },
+  },
+  effects: [{ kind: "cancelTriggeringEvent" }, { kind: "discardFromPlay", target: { kind: "self" } }],
+} satisfies AbilityDefinition);
+const COUNTER = stubUpgrade({ id: "counter", cost: 0, abilities: [COUNTER_INTERRUPT.ref] });
+
+const deps: EngineDeps = depsOf(NOTHING, KICK_DISCOUNT, COUNTER_INTERRUPT);
 
 function start(): { state: GameState; kick: InstanceId } {
   const base = gameAtFirstTurn({
-    cards: [TRICK, PLAIN, KICK],
+    cards: [TRICK, PLAIN, KICK, COUNTER],
     deps,
-    deck: [...copiesOf(TRICK.id, 3), ...copiesOf(PLAIN.id, 3), ...copiesOf(KICK.id, 3), RESOURCE.id],
+    deck: [...copiesOf(TRICK.id, 3), ...copiesOf(PLAIN.id, 3), ...copiesOf(KICK.id, 3), RESOURCE.id, COUNTER.id],
   });
   const given = giveCard(base, P1, KICK.id);
   return { state: given.state, kick: given.id };
@@ -125,6 +136,17 @@ describe("Predicate lastPlayedThisRound: the last card you played this round, by
     // Control: with nothing played first, one resource does not pay the full cost of 2.
     const unpaid = giveCard(s.state, P1, RESOURCE.id);
     expect(applyCommand(unpaid.state, { ...command, payment: [{ fromHand: unpaid.id }] }, deps).ok).toBe(false);
+  });
+
+  it("a canceled play still counts as played (RRG 1.8 'Max, Maximum', p. 28): a canceled Stunt event is the last card", () => {
+    const s = start();
+    const countered = playerCardIntoPlay(s.state, COUNTER.id);
+    const after = playAll(playAll(countered.state, [PLAIN]).state, [TRICK]).state;
+    // The interrupt fired: the counter is gone, and the Stunt event was still recorded as the last play.
+    expect(mustPlayer(after, P1).playArea).not.toContain(countered.id);
+    const last = after.playedInOrderThisRound?.[P1]?.at(-1);
+    expect(last !== undefined && after.instances[last]?.cardId).toBe(TRICK.id);
+    expect(kickCost(after, s.kick)).toBe(1);
   });
 
   it("the record is gone when the round ends", () => {

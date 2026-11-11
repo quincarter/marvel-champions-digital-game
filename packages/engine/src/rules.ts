@@ -55,6 +55,7 @@ import {
   restrictedWeightOf,
   rulePlayers,
   ruleBindsPlayer,
+  textBoxBlankedFor,
   textBoxBlankFor,
   timingWordOf,
   traitsOf,
@@ -550,7 +551,7 @@ export const threatCannotBeRemoved = (
     }
     const fromSource = rule.exceptFromSource;
     if (fromSource && removingCards.some((id) => matchesQuery(state, id, fromSource, context))) return false;
-    if (!rule.player) return true;
+    if (!rule.player) return ruleBindsPlayer(active, removerId);
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
 
@@ -1027,10 +1028,12 @@ export const cannotReady = (
 ): boolean =>
   // "Allies you control cannot ready" on an obligation or on an attachment on a player card names the player the card
   // speaks to (`ActiveRule.context`; RRG 1.8 "Obligation", p. 30; "Attachment", p. 8), whom no one controls it for.
+  // A rule whose card the readied card's controller treats as blank does not bind them (a per-player blank).
   activeRules(state, deps, "cannotReady").some(
-    ({ rule, context }) =>
-      (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
-      matchesQuery(state, id, rule.target, context),
+    (active) =>
+      (active.rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
+      ruleBindsPlayer(active, controllerOf(state, id)) &&
+      matchesQuery(state, id, active.rule.target, active.context),
   );
 
 /**
@@ -1065,6 +1068,7 @@ export function readyCostFor(
     const { rule, context } = active;
     if (!matchesQuery(state, id, rule.target, context)) continue;
     if (rule.player && !rulePlayers(state, { player: rule.player }, active).includes(readierId)) continue;
+    if (!ruleBindsPlayer(active, readierId)) continue;
     total = combineRequirements(total ?? 0, rule.resources);
   }
   return total;
@@ -1078,12 +1082,15 @@ export function thwartCostFor(
   state: GameState,
   deps: EngineDeps,
   schemeId: InstanceId,
+  /** The thwarting player: a rule whose card they treat as blank asks them nothing (a per-player blank). */
+  byPlayer: PlayerId | null = null,
 ): { readonly resources: ResolvedRequirement | null; readonly indirectDamage: number } | null {
   let resources: ResolvedRequirement | null = null;
   let indirectDamage = 0;
   let any = false;
-  for (const { rule, context } of activeRules(state, deps, "additionalThwartCost")) {
-    if (!matchesQuery(state, schemeId, rule.scheme, context)) continue;
+  for (const active of activeRules(state, deps, "additionalThwartCost")) {
+    const { rule, context } = active;
+    if (!ruleBindsPlayer(active, byPlayer) || !matchesQuery(state, schemeId, rule.scheme, context)) continue;
     any = true;
     if (rule.resources) resources = combineRequirements(resources ?? 0, rule.resources);
     indirectDamage += rule.indirectDamage ?? 0;
@@ -1104,7 +1111,10 @@ export function additionalPowerCostFor(
 ): { readonly resources: ResolvedRequirement; readonly sourceInstanceIds: readonly InstanceId[] } | null {
   let resources: ResolvedRequirement | null = null;
   const sourceInstanceIds: InstanceId[] = [];
-  for (const { rule, context } of activeRules(state, deps, "additionalPowerCost")) {
+  const payer = controllerOf(state, characterId);
+  for (const active of activeRules(state, deps, "additionalPowerCost")) {
+    const { rule, context } = active;
+    if (!ruleBindsPlayer(active, payer)) continue;
     if (!rule.powers.includes(power) || !matchesQuery(state, characterId, rule.character, context)) continue;
     resources = combineRequirements(resources ?? 0, rule.resources);
     if (context.selfInstanceId !== null && !sourceInstanceIds.includes(context.selfInstanceId)) {
@@ -1129,9 +1139,13 @@ export function additionalAttackCostsFor(
   state: GameState,
   deps: EngineDeps,
   targetId: InstanceId,
+  /** The attacking player: a rule whose card they treat as blank asks them nothing (a per-player blank). */
+  byPlayer: PlayerId | null = null,
 ): readonly AttackCostOwed[] {
   const owed: AttackCostOwed[] = [];
-  for (const { rule, context } of activeRules(state, deps, "additionalAttackCost")) {
+  for (const active of activeRules(state, deps, "additionalAttackCost")) {
+    const { rule, context } = active;
+    if (!ruleBindsPlayer(active, byPlayer)) continue;
     if (context.selfInstanceId === null || context.selfInstanceId === undefined) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
     owed.push({ sourceInstanceId: context.selfInstanceId, cost: rule.cost });
@@ -1352,8 +1366,9 @@ function enterPlayBar(
   return activeRules(state, deps, "cannotEnterPlay").find((active) => {
     const { rule, context } = active;
     if (rule.player !== undefined) {
-      if (forPlayer === null || !resolvePlayers(state, rule.player, context).includes(forPlayer)) return false;
+      if (forPlayer === null || !rulePlayers(state, { player: rule.player }, active).includes(forPlayer)) return false;
     }
+    if (!ruleBindsPlayer(active, forPlayer)) return false;
     return matchesQuery(state, id, rule.cards, context);
   });
 }
@@ -1379,15 +1394,22 @@ export function enterPlayBarMessage(
   return source ? `${source}: ${name} cannot enter play` : `${name} cannot enter play during this game`;
 }
 
-/** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
+/**
+ * Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). `byPlayer`:
+ * the player triggering it; a rule whose card they treat as blank does not stop them (a per-player blank).
+ */
 export const cannotTriggerAction = (
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   form: Form | undefined,
+  byPlayer: PlayerId | null = null,
 ): boolean =>
   activeRules(state, deps, "cannotTriggerActions").some(
-    ({ rule, context }) => (rule.form === undefined || rule.form === form) && matchesQuery(state, id, rule.on, context),
+    (active) =>
+      (active.rule.form === undefined || active.rule.form === form) &&
+      ruleBindsPlayer(active, byPlayer) &&
+      matchesQuery(state, id, active.rule.on, active.context),
   );
 
 /**
@@ -1409,15 +1431,19 @@ export function triggeredAbilityForbidden(
     "cannotResolveTriggeredAbilities",
   ),
 ): boolean {
-  if (rules.length === 0) return false;
   const word = timingWordOf(trigger);
   if (word === null) return false;
+  // A player who treats this card's text box as blank (a per-player blank, `textBoxBlankedFor`) resolves none of its
+  // triggered abilities: they are neither offered to nor, when forced, resolved by that player.
+  if (resolver !== null && textBoxBlankedFor(state, id, deps).includes(resolver)) return true;
+  if (rules.length === 0) return false;
   return rules.some((active) => {
     const { rule, context } = active;
     if (rule.timings && !rule.timings.includes(word)) return false;
     if (rule.player !== undefined) {
       if (resolver === null || !rulePlayers(state, { player: rule.player }, active).includes(resolver)) return false;
     }
+    if (!ruleBindsPlayer(active, resolver)) return false;
     if (rule.playerCards === true && !isPlayerCard(state, id)) return false;
     if (rule.identityFace !== undefined) {
       const seat = state.players.find((p) => p.identity.instanceId === id);
@@ -2026,10 +2052,18 @@ export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, sc
   return null;
 }
 
-/** "Players cannot discard [these cards]" (`RuleSpec playersCannotDiscard`, docs/phase7-wave4.md §3.44). */
-export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "playersCannotDiscard").some(({ rule, context }) =>
-    matchesQuery(state, id, rule.target, context),
+/**
+ * "Players cannot discard [these cards]" (`RuleSpec playersCannotDiscard`, docs/phase7-wave4.md §3.44). `byPlayer`: the
+ * discarding player; a rule whose card they treat as blank does not stop them (a per-player blank).
+ */
+export const playersCannotDiscard = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  byPlayer: PlayerId | null = null,
+): boolean =>
+  activeRules(state, deps, "playersCannotDiscard").some(
+    (active) => ruleBindsPlayer(active, byPlayer) && matchesQuery(state, id, active.rule.target, active.context),
   );
 
 /**
@@ -2062,18 +2096,25 @@ export const boostIgnored = (
     return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, context);
   });
 
-/** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
+/**
+ * "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). A rule whose card the
+ * would-be defender's controller treats as blank does not bind them (a per-player blank, `ruleBindsPlayer`).
+ */
 export const cannotDefend = (
   state: GameState,
   deps: EngineDeps,
   characterId: InstanceId,
   attackerId: InstanceId | null,
-): boolean =>
-  activeRules(state, deps, "cannotDefend").some(
-    ({ rule, context }) =>
-      matchesQuery(state, characterId, rule.target, context) &&
-      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
+): boolean => {
+  const defendingPlayer = controllerOf(state, characterId);
+  return activeRules(state, deps, "cannotDefend").some(
+    (active) =>
+      ruleBindsPlayer(active, defendingPlayer) &&
+      matchesQuery(state, characterId, active.rule.target, active.context) &&
+      (active.rule.attacker === undefined ||
+        (attackerId !== null && matchesQuery(state, attackerId, active.rule.attacker, active.context))),
   );
+};
 
 /**
  * "[This character] does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47): its
@@ -2086,10 +2127,19 @@ export const defendsWithoutExhausting = (state: GameState, deps: EngineDeps, cha
     matchesQuery(state, characterId, rule.character, context),
   );
 
-/** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
-export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
-  activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>
-    matchesQuery(state, attackerId, rule.attacker, context),
+/**
+ * "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter).
+ * `defendingPlayer`: a rule whose card they treat as blank does not bind them (a per-player blank).
+ */
+export const mustDefendWithAlly = (
+  state: GameState,
+  deps: EngineDeps,
+  attackerId: InstanceId,
+  defendingPlayer: PlayerId | null = null,
+): boolean =>
+  activeRules(state, deps, "mustDefendWithAlly").some(
+    (active) =>
+      ruleBindsPlayer(active, defendingPlayer) && matchesQuery(state, attackerId, active.rule.attacker, active.context),
   );
 
 /**

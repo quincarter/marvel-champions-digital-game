@@ -2563,6 +2563,14 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  * 32151; docs/phase7-wave6.md §3.16), with `card` a slot an earlier `selectCards` bound. Only a card out of play is
  * given; none found, nothing given.
  */
+/**
+ * "Hero Interrupt: When Carnage uses a basic power, you may give him a boost card." (Klyntar Bond, a custom-content
+ * card): `heroInterrupt(on.basicPowerUsing(YOUR_IDENTITY), giveBasicPowerBoostCard())`. Gives the character using the
+ * power a facedown boost card and resolves it with that use as the villainous keyword does (engine `EffectSpec
+ * giveBasicPowerBoostCard`; RRG 1.8 "Villainous", p. 47): its Boost ability resolves and its icons add to the stat
+ * powering the use, then it is discarded. Only in an interrupt to `basicPowerUsing`; the optional interrupt is the "may".
+ */
+export const giveBasicPowerBoostCard = (): EffectSpec => ({ kind: "giveBasicPowerBoostCard" });
 export const giveBoostCard = (
   enemy: TargetRef = theVillain,
   countOrCard: Amount | { readonly card: TargetRef } = 1,
