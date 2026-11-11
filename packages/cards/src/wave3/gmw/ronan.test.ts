@@ -121,6 +121,12 @@ function withoutPowerStoneControl(state: GameState): GameState {
   return moveAttachment(state, stone!, state.villains[0]!.instanceId);
 }
 
+/** Clears the main scheme's threat, so one villain phase cannot complete the main scheme's stage and advance it
+ * mid-test: Ronan schemes with the Power Stone's +1 SCH when he holds it, or when a boost card moves it to him. */
+function atZeroThreat(state: GameState): GameState {
+  return patchInstance(state, state.mainScheme.instanceId, { threat: 0 });
+}
+
 /** Clears a character's tough status card (module docblock: Ronan's own Toughness keyword grants one at setup,
  * which would otherwise absorb a test's priming attack entirely). */
 function clearTough(state: GameState, id: InstanceId): GameState {
@@ -467,7 +473,7 @@ describe("Superior Tactics (16113)", () => {
     const villain = state.villains[0]!.instanceId;
     const [stone] = instancesOf(state, "16149");
     const alreadyThere = moveAttachment(state, stone!, villain);
-    const staged = stackEncounterDeck(alreadyThere, "01186", "16113");
+    const staged = stackEncounterDeck(atZeroThreat(alreadyThere), "01186", "16113");
     const { state: after } = driveEvents(WAVE3_DEPS, staged, endTurn());
     const [superiorTactics] = instancesOf(after, "16113");
     expect(inst(after, superiorTactics!).threat).toBeGreaterThanOrEqual(1);
@@ -532,7 +538,7 @@ describe("Single-Minded Fury (16114.when-revealed) — Ronan attacks the player 
         [villain]: { ...inst(base, villain), statuses: { ...inst(base, villain).statuses, stunned: 1 } },
       },
     };
-    const staged = stackEncounterDeck(stunned, "01186", "16114");
+    const staged = stackEncounterDeck(atZeroThreat(stunned), "01186", "16114");
     const { events } = driveEvents(WAVE3_DEPS, staged, endTurn());
     expect(events.some((e) => e.type === "attackResolved")).toBe(false);
     expect(surged(events)).toBe(true);
@@ -553,7 +559,7 @@ describe("Kree Physiology (16115.when-revealed) — Surge is data-driven", () =>
     const base = withoutPowerStoneControl(ronanTheAccuser());
     const villain = base.villains[0]!.instanceId;
     const clean = clearTough(base, villain);
-    const staged = stackEncounterDeck(clean, "01186", "16115");
+    const staged = stackEncounterDeck(atZeroThreat(clean), "01186", "16115");
     const { state: after } = driveEvents(WAVE3_DEPS, staged, endTurn());
     expect(inst(after, villain).statuses.tough).toBeGreaterThanOrEqual(1);
   });
@@ -570,7 +576,7 @@ describe("Kree Physiology (16115.when-revealed) — Surge is data-driven", () =>
       },
     };
     const damageBefore = inst(withTough, identity).damage;
-    const staged = stackEncounterDeck(withTough, "01186", "16115");
+    const staged = stackEncounterDeck(atZeroThreat(withTough), "01186", "16115");
     const { state: after } = driveEvents(WAVE3_DEPS, staged, endTurn());
     expect(inst(after, identity).damage).toBeGreaterThanOrEqual(damageBefore + 1);
   });
@@ -578,7 +584,7 @@ describe("Kree Physiology (16115.when-revealed) — Surge is data-driven", () =>
 
 describe('"You Stand Accused!" (16116)', () => {
   it("When Revealed (Alter-Ego): Ronan schemes with +1 SCH (16116.when-revealed-alter-ego)", () => {
-    const base = withoutPowerStoneControl(ronanTheAccuser());
+    const base = atZeroThreat(withoutPowerStoneControl(ronanTheAccuser()));
     const staged = stackEncounterDeck(base, "01186", "16116");
     const { deps, trace } = traceAbilities(WAVE3_DEPS);
     driveEvents(deps, staged, endTurn());

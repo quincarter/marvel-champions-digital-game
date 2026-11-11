@@ -89,6 +89,15 @@ export const GMW_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "16149",
+      reason:
+        'The Power Stone prints a "+1 SCH/THW" and a "+1 ATK" stat box: the villain or hero it is attached to gets +1 SCH or THW and +1 ATK. Raw sends no stat fields for it, so the stone gave no bonus to anyone who held it (issue #678).',
+      evidence: "card scan (assets/card-art/bundles/cards/16149.png)",
+      attack: 1,
+      scheme: 1,
+      thwart: 1,
+    },
+    {
       code: "16142",
       reason:
         'The Milano enters play through Setup ("Permanent. Setup. The first player controls the Milano."), never paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',

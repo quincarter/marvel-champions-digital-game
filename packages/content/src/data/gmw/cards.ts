@@ -3631,6 +3631,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     unique: true,
     images: { front: imageRef("/bundles/cards/16149.png") },
     attachesTo: { kind: "villain" },
+    statModifiers: { atk: 1, thw: 1, sch: 1 },
     encounterSetIds: [encounterSetId("power_stone")],
     boostIcons: 0,
     traits: [trait("INFINITY STONE")],

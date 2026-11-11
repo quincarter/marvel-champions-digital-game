@@ -295,6 +295,13 @@ function attachmentStatModifiers(
   // MarvelCDB has no THW field for an attachment and files a printed "-1 THW" badge under `scheme` (Psychic
   // Inertia, `next_evol` 40173, which attaches to an identity). `Correction.thwart` emits it as THW instead.
   if (p.thwart !== undefined) mods.thw = p.thwart;
+  // A combined "SCH/THW" badge (Power Stone, `gmw` 16149, "+1 SCH/THW" beside "+1 ATK") counts for whichever stat the
+  // host has: SCH on a villain, THW on a hero. MarvelCDB sends neither, so `Correction.scheme` with `Correction.thwart`
+  // emits both halves.
+  if (p.scheme !== undefined) mods.sch = p.scheme;
+  else if (p.thwart !== undefined) {
+    // raw's `scheme` was the THW badge
+  }
   // A SCH badge of -1 beside an X ATK badge is the same printed X (Reverse Engineering, `aos` 50119, "+X SCH" and
   // "+X ATK"), omitted like the ATK one; a card whose ATK is a real number keeps its SCH as sent.
   else if (rawScheme === -1 && printedX && ctx.curation.cardNotes[code]) {

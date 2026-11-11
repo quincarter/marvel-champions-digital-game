@@ -543,7 +543,14 @@ export const GMW_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("16146"), cardSetCode: "ship_command", marvelcdbCodes: ["16146"], corrections: [] },
   { cardId: cardId("16147"), cardSetCode: "ship_command", marvelcdbCodes: ["16147"], corrections: [] },
   { cardId: cardId("16148"), cardSetCode: "ship_command", marvelcdbCodes: ["16148"], corrections: [] },
-  { cardId: cardId("16149"), cardSetCode: "power_stone", marvelcdbCodes: ["16149"], corrections: [] },
+  {
+    cardId: cardId("16149"),
+    cardSetCode: "power_stone",
+    marvelcdbCodes: ["16149"],
+    corrections: [
+      "16149: The Power Stone prints a \"+1 SCH/THW\" and a \"+1 ATK\" stat box: the villain or hero it is attached to gets +1 SCH or THW and +1 ATK. Raw sends no stat fields for it, so the stone gave no bonus to anyone who held it (issue #678). [evidence: card scan (assets/card-art/bundles/cards/16149.png)]",
+    ],
+  },
   { cardId: cardId("16150"), cardSetCode: "the_market", marvelcdbCodes: ["16150"], corrections: [] },
   { cardId: cardId("16151"), cardSetCode: "the_market", marvelcdbCodes: ["16151"], corrections: [] },
   { cardId: cardId("16152"), cardSetCode: "the_market", marvelcdbCodes: ["16152"], corrections: [] },

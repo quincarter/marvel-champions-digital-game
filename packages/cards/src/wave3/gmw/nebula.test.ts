@@ -260,7 +260,8 @@ describe("Nebula III (16090) — you may remove the top card of your deck to cho
     // first, so this one villain phase can't also complete/advance the main scheme (Warp Drive Initiated 2A's own
     // "discard the top 2 cards of each player deck… for each evasion counter" would otherwise confound the
     // "removed exactly 1 card" assertion below with a much larger, unrelated discard).
-    const withA = patchInstance(withTechnique, withTechnique.mainScheme.instanceId, { threat: 0 });
+    // The Power Stone's +1 SCH is lifted off Nebula too: with it, her scheme reaches the stage's target in this phase.
+    const withA = withoutStone(patchInstance(withTechnique, withTechnique.mainScheme.instanceId, { threat: 0 }));
     const deckBefore = playerOf(withA, P1).deck.length;
     const after = settle(
       runWave3(withA, endTurn()),
@@ -320,7 +321,8 @@ describe("Techniques — Boost: attach and resolve Special (16094-16098 .special
     // (docs/card-scripting-process.md §6c's own "instancesOf returns every printed copy" trap).
     const deckId = activeEncounterDeckId(base);
     const technique = base.encounterDecks[deckId]!.deck.find((i) => base.instances[i]?.cardId === cardId("16094"))!;
-    const state = boostedAsVillainDraw(base, "16094");
+    // Without the Power Stone's +1 SCH on Nebula, so this one scheme does not complete the main scheme's stage.
+    const state = withoutStone(boostedAsVillainDraw(base, "16094"));
     const threatBefore = mainThreat(state);
     const { state: after, events } = driveEvents(WAVE3_DEPS, state, endTurn());
     expect(resolvedAbility(events, "16094.boost")).toBe(true);
@@ -510,4 +512,34 @@ describe("Power Stone (16149) — shared modular card, first scripted for this s
     const { state: attacked } = playFromHand(hero, "16005", 2);
     expect(inst(attacked, stone!).attachedTo).toBe(groot);
   });
+
+  it("gives its holder its printed +1 ATK and +1 SCH/THW, the villain's SCH and a hero's THW (issue #678)", () => {
+    const hero = runWave3(nebula(), toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const groot = identityOf(hero);
+    const villainBefore = characterProfile(hero, villain, WAVE3_DEPS)!;
+    const grootBefore = characterProfile(hero, groot, WAVE3_DEPS)!;
+    // The printed values plus the stone's +1 on the villain: the stone starts the game attached to Nebula.
+    expect(villainBefore.atk).toBe(characterProfile(withoutStone(hero), villain, WAVE3_DEPS)!.atk + 1);
+    expect(villainBefore.sch).toBe(characterProfile(withoutStone(hero), villain, WAVE3_DEPS)!.sch + 1);
+
+    const { state: attacked } = playFromHand(hero, "16005", 2);
+    const villainAfter = characterProfile(attacked, villain, WAVE3_DEPS)!;
+    const grootAfter = characterProfile(attacked, groot, WAVE3_DEPS)!;
+    expect([villainAfter.atk, villainAfter.sch]).toEqual([villainBefore.atk - 1, villainBefore.sch - 1]);
+    expect([grootAfter.atk, grootAfter.thw]).toEqual([grootBefore.atk + 1, grootBefore.thw + 1]);
+  });
 });
+
+/** The same game with the Power Stone lifted off its host (surgery), to read the host's stats without it. */
+function withoutStone(state: GameState): GameState {
+  const [stone] = instancesOf(state, "16149");
+  const host = inst(state, stone!).attachedTo!;
+  return patchInstance(
+    patchInstance(state, host, { attachments: inst(state, host).attachments.filter((a) => a !== stone) }),
+    stone!,
+    {
+      attachedTo: null,
+    },
+  );
+}
