@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.09",
+  "name": "That's Not How The Game Ends",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "9",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 3,
+  "resourceIcons": {
+    "wild": 2
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Interrupt: When Gwenpool would be defeated by an enemy attack, set her hit point dial to 1 instead and remove this card from the game → resolve all the PINK BUBBLES in play.",
+    "current": "Interrupt: When Gwenpool would be defeated by an enemy attack, set her hit point dial to 1 instead and remove this card from the game → resolve all the PINK BUBBLES in play."
+  },
+  "flavor": "\"Yes, it's a canon event.\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.09.thats-not-how-the-game-ends-interrupt"
+    },
+    {
+      "id": "x.gwenpool-ptt.09.pink-bubble"
+    }
+  ]
+}

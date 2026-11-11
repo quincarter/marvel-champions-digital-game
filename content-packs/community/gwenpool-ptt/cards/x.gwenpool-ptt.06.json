@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.06",
+  "name": "That Shouldn't Be There",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "6",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 2,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action: move 1 token, counter or status card wherever you like. (This involves removing and putting.)",
+    "current": "Hero Action: move 1 token, counter or status card wherever you like. (This involves removing and putting.)"
+  },
+  "flavor": "\"Let me set the table well...\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.06.that-shouldnt-be-there-action"
+    },
+    {
+      "id": "x.gwenpool-ptt.06.pink-bubble"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "x.gwenpool-ptt.15",
+  "name": "\"Hello Again\"",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "15",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["gwenpool-ptt-nemesis"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "surge"
+    }
+  ],
+  "text": {
+    "printed": "Surge.\nWhen Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck. If no cards were put it into play this way, discard 1 upgrade card at random.",
+    "current": "Surge.\nWhen Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck. If no cards were put it into play this way, discard 1 upgrade card at random."
+  },
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.15.when-revealed"
+    },
+    {
+      "id": "x.gwenpool-ptt.15.purple-bubble"
+    }
+  ]
+}

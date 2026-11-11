@@ -1,0 +1,59 @@
+{
+  "id": "x.gwenpool-ptt.01a",
+  "name": "Gwenpool",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "hero_identity",
+  "hp": 9,
+  "hero": {
+    "faceName": "Gwenpool",
+    "traits": ["AVENGER", "GUARDIAN"],
+    "atk": 2,
+    "thw": 1,
+    "def": 2,
+    "handSize": 5,
+    "keywords": [],
+    "text": {
+      "printed": "Reading the comic — Action: Resolve whatever is written in a PINK BUBBLE in play. (Limit once per round.)",
+      "current": "Reading the comic — Action: Resolve whatever is written in a PINK BUBBLE in play. (Limit once per round.)"
+    },
+    "abilities": [
+      {
+        "id": "x.gwenpool-ptt.01a.reading-the-comic",
+        "label": "Reading the comic"
+      },
+      {
+        "id": "x.gwenpool-ptt.01a.pink-bubble"
+      },
+      {
+        "id": "x.gwenpool-ptt.01a.pink-bubble-2"
+      }
+    ]
+  },
+  "alterEgo": {
+    "faceName": "Gwendolyn Poole",
+    "traits": ["CIVILIAN"],
+    "rec": 3,
+    "handSize": 6,
+    "keywords": [],
+    "text": {
+      "printed": "That's not fair! — Action: Discard X cards from your hand → draw X cards. (Limit once per round.)",
+      "current": "That's not fair! — Action: Discard X cards from your hand → draw X cards. (Limit once per round.)"
+    },
+    "flavor": "\"Do you like my Miles poster?\"",
+    "abilities": [
+      {
+        "id": "x.gwenpool-ptt.01b.thats-not-fair",
+        "label": "That's not fair!"
+      },
+      {
+        "id": "x.gwenpool-ptt.01b.pink-bubble"
+      }
+    ]
+  },
+  "obligationCardId": "x.gwenpool-ptt.11",
+  "nemesisEncounterSetId": "gwenpool-ptt-nemesis"
+}

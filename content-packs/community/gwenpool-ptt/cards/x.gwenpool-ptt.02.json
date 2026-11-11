@@ -1,0 +1,39 @@
+{
+  "id": "x.gwenpool-ptt.02",
+  "name": "Batroc",
+  "subtitle": "Gwen's Superpal",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "2",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "ally",
+  "cost": 2,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "atk": 2,
+  "thw": 1,
+  "hp": 3,
+  "consequentialDamage": {
+    "attack": 1,
+    "thwart": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": [],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Interrupt: When Batroc is defeated, stun an enemy.",
+    "current": "Interrupt: When Batroc is defeated, stun an enemy."
+  },
+  "flavor": "\"Oui.\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.02.batroc-interrupt"
+    },
+    {
+      "id": "x.gwenpool-ptt.02.pink-bubble"
+    }
+  ]
+}

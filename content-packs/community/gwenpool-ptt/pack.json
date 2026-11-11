@@ -1,0 +1,23 @@
+{
+  "id": "gwenpool-ptt",
+  "version": "0.1.0",
+  "kind": "hero",
+  "name": "Gwenpool",
+  "authors": ["Patatasaurio"],
+  "description": "Fan-made hero pack by Patatasaurio: Gwenpool / Gwendolyn Poole, 15 hero cards that resolve speech bubbles, the Too Much Pink obligation and a 5-card nemesis set (Evil Gwenpool).",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "es",
+    "available": ["en", "es"],
+    "text": "en"
+  },
+  "permission": {
+    "by": "Patatasaurio",
+    "scope": "inclusion"
+  },
+  "templateCredit": "G.Triskelion"
+}

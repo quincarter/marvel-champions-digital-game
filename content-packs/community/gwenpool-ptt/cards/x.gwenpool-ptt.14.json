@@ -1,0 +1,26 @@
+{
+  "id": "x.gwenpool-ptt.14",
+  "name": "\"I Found You\"",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "14",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["gwenpool-ptt-nemesis"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck.",
+    "current": "When Revealed: If Evil Gwenpool is not in play, search the encounter deck and discard pile for Evil Gwenpool and put it into play engaged with the Gwenpool player. Shuffle the encounter deck."
+  },
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.14.when-revealed"
+    },
+    {
+      "id": "x.gwenpool-ptt.14.purple-bubble"
+    }
+  ]
+}
