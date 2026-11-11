@@ -5,8 +5,7 @@
 # are free for this public repo. Netlify dedupes uploads by file hash, so the card art only uploads when it changes.
 #
 #   push to main   -> production deploy (the live site)
-#   pull request   -> preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment (and the same
-#                     build on Cloudflare at https://pr-<number>.champions-digital-game.com, the cloudflare-preview job), and an
+#   pull request   -> preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment, and an
 #                     Android preview APK (signed with the release key, so it installs over the store build) as the
 #                     pre-release `android-preview-pr-<number>`, also linked in a PR comment
 #
@@ -436,160 +435,11 @@ jobs:
             pnpm exec wrangler deploy --env staging
           fi
 
-  # The pull request's web build on Cloudflare at https://pr-<number>.champions-digital-game.com (packages/preview-worker,
-  # CONTRIBUTING.md "Pull request previews on Cloudflare"), next to the Netlify preview. Builds the client on its own
-  # runner, uploads what changed to the `mc-previews` R2 bucket (the shared media once, then only the files a push
-  # changed) and links it in a PR comment; cloudflare-preview-cleanup.yml deletes it when the pull request closes.
-  # Skips with a notice until the token, the bucket and the domain are set up. Not required: the gate ignores its result.
-  # The first preview uploads about 11,000 files at the API's 1,200 calls per 5 minutes, about 50 minutes; a run cancelled
-  # by a newer push picks up where it stopped.
-  cloudflare-preview:
-    name: Cloudflare preview
-    runs-on: ubuntu-latest
-    needs: tests
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    timeout-minutes: 120
-    env:
-      PR: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN || 'champions-digital-game.com' }}
-      # As in the deploy job: every card language, the branch head on the Title footer, the staging sync Worker.
-      MC_CARD_LANGS: en,es
-      COMMIT_REF: ${{ github.event.pull_request.head.sha }}
-      VITE_SYNC_URL: >-
-        ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync-staging.{0}.workers.dev',
-        (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      # Node's own modules only, so it runs before the install; the token reaches only the steps that call R2.
-      - name: Check the Cloudflare setup
-        id: setup
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node packages/preview-worker/src/deploy/cli.ts probe
-      - if: steps.setup.outputs.ready == 'true'
-        uses: pnpm/action-setup@v4
-      - if: steps.setup.outputs.ready == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: steps.setup.outputs.ready == 'true'
-        run: pnpm install --frozen-lockfile
-      - name: Fetch media assets
-        if: steps.setup.outputs.ready == 'true'
-        uses: ./.github/actions/assets
-      # The "Spanish preview" label, as in the deploy job.
-      - name: Card language
-        if: steps.setup.outputs.ready == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx "Spanish preview"; then
-            echo "MC_CARD_LANG=es" >> "$GITHUB_ENV"
-          fi
-      - if: steps.setup.outputs.ready == 'true'
-        run: pnpm --filter @mc/client build
-      - name: Upload to R2
-        id: upload
-        if: steps.setup.outputs.ready == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          node packages/preview-worker/src/deploy/cli.ts deploy --pr "$PR" --dist packages/client/dist \
-            --lang "${MC_CARD_LANG:-en}" --sha "$HEAD_SHA"
-      # A pull request that closed while this uploaded already had its cleanup run (#472): delete the preview again.
-      # Only a confirmed close deletes it; a failed lookup leaves it to the weekly sweep.
-      - name: Delete the preview if the pull request closed
-        id: closed
-        if: steps.upload.outputs.deployed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || state=UNKNOWN
-          if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
-            echo "PR #${PR} closed while the preview uploaded; deleting it."
-            node packages/preview-worker/src/deploy/cli.ts cleanup --pr "$PR"
-            echo "deleted=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Comment the preview URL
-        if: steps.upload.outputs.deployed == 'true' && steps.closed.outputs.deleted != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          marker="<!-- cloudflare-preview -->"
-          language=""
-          if [ "${MC_CARD_LANG:-en}" = "es" ]; then language=", Spanish card art"; fi
-          url="https://pr-${PR}.${PREVIEW_DOMAIN}"
-          echo "Cloudflare preview: $url" >> "$GITHUB_STEP_SUMMARY"
-          body="$marker
-          **Cloudflare preview:** $url (built from ${HEAD_SHA:0:7}${language})"
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
-          else
-            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
-          fi
-
-  # The Worker that serves those previews (packages/preview-worker), deployed on a push to main. Its tests run in the
-  # tests stage. Skips with a notice until the token can use the `mc-previews` bucket; a token without the Workers Routes
-  # permission on the zone fails here, and the gate ignores it.
-  deploy-previews:
-    name: Deploy the preview Worker
-    runs-on: ubuntu-latest
-    needs: tests
-    if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Check the Cloudflare setup
-        id: setup
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node packages/preview-worker/src/deploy/cli.ts probe
-      - if: steps.setup.outputs.ready == 'true'
-        uses: pnpm/action-setup@v4
-      - if: steps.setup.outputs.ready == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: steps.setup.outputs.ready == 'true'
-        run: pnpm install --frozen-lockfile
-      - name: Deploy
-        if: steps.setup.outputs.ready == 'true'
-        working-directory: packages/preview-worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy
-
   # A needed job's result covers every job inside it, so `tests` stands for the whole of tests.yml, matrix shards
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs:
-      - lint
-      - yaml
-      - changelog
-      - tests
-      - deploy
-      - android-preview
-      - linux-preview
-      - deploy-sync
-      - cloudflare-preview
-      - deploy-previews
+    needs: [lint, yaml, changelog, tests, deploy, android-preview, linux-preview, deploy-sync]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -611,12 +461,11 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The deploy job's own result counts only through its build step; the Android, Linux and Cloudflare previews and
-          # the sync and preview Worker deploys don't count; a skipped job passes.
+          # The deploy job's own result counts only through its build step; the Android and Linux previews and the sync
+          # Worker deploy don't count; a skipped job passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
-            | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync"
-                     and .key != "cloudflare-preview" and .key != "deploy-previews")
+            | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync")
             | select(if .key == "deploy" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)
             | .key')

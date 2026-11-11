@@ -8,8 +8,6 @@
 //     campaigns, the DSL, the test harness) runs every wave.
 //   - the sync Worker (packages/sync-worker) stands outside that chain, but the client imports its wire protocol, so
 //     a change there runs its own tests and the client's.
-//   - the preview Worker (packages/preview-worker) imports nothing from the other packages and nothing imports it, so a
-//     change there runs only its own tests.
 //   - the mod SDK (packages/mod-sdk) sits above the cards package and below the client, which imports it to load
 //     installed packs. A change there, or to the sample packs in `content-packs/` (the client's pack tests build the
 //     sample), runs its tests and the client's; a change to cards, engine or content runs them too.
@@ -24,7 +22,6 @@ const PROJECTS = ["content", "engine", "cards", "client"];
 const PACKAGE_FILE = /^packages\/(content|engine|cards|client)\//;
 const WAVE_FILE = /^packages\/cards\/src\/wave(\d+)\//;
 const SYNC_WORKER_FILE = /^packages\/sync-worker\//;
-const PREVIEW_WORKER_FILE = /^packages\/preview-worker\//;
 const MOD_SDK_FILE = /^(packages\/mod-sdk|content-packs)\//;
 const NEVER_AFFECTS_TESTS = /^\.changes\//;
 
@@ -44,14 +41,9 @@ export function affectedBy(changedPaths) {
   let lowest = PROJECTS.length;
   let firstWave = Infinity;
   let syncWorker = false;
-  let previewWorker = false;
   let modSdk = false;
   for (const path of changedPaths) {
     if (NEVER_AFFECTS_TESTS.test(path)) continue;
-    if (PREVIEW_WORKER_FILE.test(path)) {
-      previewWorker = true;
-      continue;
-    }
     if (MOD_SDK_FILE.test(path)) {
       modSdk = true;
       lowest = Math.min(lowest, PROJECTS.indexOf("client"));
@@ -74,16 +66,11 @@ export function affectedBy(changedPaths) {
   if (lowest < PROJECTS.indexOf("cards") || firstWave === Infinity) firstWave = 0;
   if (lowest <= PROJECTS.indexOf("cards")) modSdk = true;
   return {
-    projects: [
-      ...PROJECTS.slice(lowest),
-      ...(syncWorker ? ["sync-worker"] : []),
-      ...(previewWorker ? ["preview-worker"] : []),
-      ...(modSdk ? ["mod-sdk"] : []),
-    ],
+    projects: [...PROJECTS.slice(lowest), ...(syncWorker ? ["sync-worker"] : []), ...(modSdk ? ["mod-sdk"] : [])],
     firstWave,
   };
 }
 
 export function everything() {
-  return { projects: [...PROJECTS, "sync-worker", "preview-worker", "mod-sdk"], firstWave: 0 };
+  return { projects: [...PROJECTS, "sync-worker", "mod-sdk"], firstWave: 0 };
 }

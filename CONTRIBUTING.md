@@ -86,10 +86,6 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 - **Deploy the sync Worker** (a job in the CI workflow): deploys `packages/sync-worker` to Cloudflare, production on
   `main` and the staging Worker on pull requests. It skips until the Cloudflare secrets below exist, and "All checks"
   ignores it.
-- **Cloudflare preview** and **Deploy the preview Worker** (jobs in the CI workflow), with **Cloudflare preview
-  cleanup** (`.github/workflows/cloudflare-preview-cleanup.yml`): each pull request's web build at
-  `https://pr-<number>.champions-digital-game.com`, [below](#pull-request-previews-on-cloudflare). They skip until
-  that setup is done, and "All checks" ignores them.
 
 ## The save-transfer Worker
 
@@ -148,43 +144,6 @@ The `GLOBAL_STATS` Durable Object needs no setup of its own: its binding and mig
 out with the next deploy. A new pack's villains, modular sets and heroes count only once they are in
 `packages/sync-worker/src/global-allowlist.ts`: the `global-pool` client test fails until it is regenerated and prints
 the command.
-
-## Pull request previews on Cloudflare
-
-Each pull request from this repository also gets its web build at `https://pr-<number>.champions-digital-game.com`,
-linked in a PR comment next to the Netlify preview. The CI job **Cloudflare preview** builds the client and uploads it to
-the R2 bucket `mc-previews` (`packages/preview-worker/src/deploy/cli.ts`); the `mc-previews` Worker
-(`packages/preview-worker`) serves it, with the MarvelCDB deck import, the release redirects and the SPA fallback that
-`netlify.toml` gives the Netlify site. Card scans and Vite's hashed files (scripts, music, art) are stored once for every
-preview (`shared/`), and a push uploads only the files it changed. **Cloudflare preview cleanup** deletes a preview when
-its pull request closes, and every Monday deletes any left over and the shared files no open preview uses.
-
-Everything stays on the free plans and nothing is ever billed: each file a preview loads is one Worker request of the
-100,000 a day `mc-sync` also uses (a whole game is a few hundred), and R2 writes stay far under the free million a month
-(the budget is in `packages/preview-worker/wrangler.jsonc`). To turn previews off, set `PREVIEWS_ENABLED` in that file to
-anything but `"true"`.
-
-### One-time setup (the owner)
-
-Until this is done, the jobs skip with a notice.
-
-1. **DNS:** in the `champions-digital-game.com` zone, add an `AAAA` record named `*` with content `100::`, **Proxied**.
-   The address is never reached; the Worker answers first. Records with their own name (the apex, `www`, `packs`) still
-   win over the wildcard.
-2. **R2:** create the bucket `mc-previews`. Leave public access, its `r2.dev` URL and custom domains off: only the Worker
-   reads it.
-3. **API token:** the `CLOUDFLARE_API_TOKEN` secret needs **Account → Workers Scripts: Edit**, **Account → Workers R2
-   Storage: Edit** and **Zone → Workers Routes: Edit** on `champions-digital-game.com`. The "Edit Cloudflare Workers"
-   template has all three when its zone resources include the domain; edit the token rather than make a new one.
-4. Merge to `main` (or re-run CI on it): **Deploy the preview Worker** publishes the Worker and its route
-   `*.champions-digital-game.com/*`.
-5. **Workers Routes** (zone → Workers Routes → Add route): add `packs.champions-digital-game.com/*` and
-   `www.champions-digital-game.com/*` with the Worker set to **None**, so the wildcard route doesn't run the Worker (and
-   spend a request) for the packs bucket or the site. Do the same for any later subdomain.
-
-The first preview after that uploads the shared media, about 11,000 files at the API's 1,200 calls per 5 minutes, so
-it takes about 50 minutes; later pushes take a minute or two. A preview on another domain: set the repository variable
-`PREVIEW_DOMAIN` and change the route in `wrangler.jsonc`.
 
 ## Conventions
 

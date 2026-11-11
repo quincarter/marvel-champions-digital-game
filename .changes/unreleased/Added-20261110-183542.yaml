@@ -1,3 +1,0 @@
-kind: Added
-body: Pull request previews of the web build on Cloudflare at pr-<number>.champions-digital-game.com, served from R2 by a preview Worker and deleted when the pull request closes
-time: 2026-11-10T18:35:42.6460749-05:00
