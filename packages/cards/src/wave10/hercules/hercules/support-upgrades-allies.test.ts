@@ -25,6 +25,7 @@ import {
   inst,
   moveToHand,
   patchInstance,
+  payWith,
   play,
   playerOf,
   resourceAbility,
@@ -33,6 +34,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { withForm } from "../../../testing/staging.js";
+import { conjure } from "../../../wave7/cross-hero-testing.js";
 import { codeOf } from "../../../wave9/testing.js";
 import {
   CORE_SPIDER_MAN,
@@ -84,6 +86,8 @@ const OLYMPUS = "59012";
 const GAUNTLETS = "59013";
 const MACE = "59014";
 const HELM = "59015";
+/** The Civil War reprint of Angel's Taunt (42016): "The villain attacks you. Other characters cannot defend". */
+const TAUNT = "56048";
 const LION = "59016";
 const PRINCE = "59017";
 const DEATHCRY = "59018"; // Leadership ally, cost 3, ATK 3
@@ -620,6 +624,40 @@ describe("59015 Herc's Helm", () => {
     const byMinion = ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === MINION);
     expect(byMinion.map((e) => e.damageDealt)).toEqual([2]);
     expect(offered.filter((id) => id === HELM_REF)).toHaveLength(1);
+  });
+
+  // Saved game 875fed1b (Zola, round 2): another player's Taunt, Hercules's Helm on that villain attack. RRG 1.8 "Defend,
+  // Defense" (pp. 15-16): the label makes Hercules the defender "if there is not already a defender", but Taunt's
+  // "cannot" bars him and takes precedence (RRG 1.8 "Cannot", p. 11; the engine's `cannotDefend`, wave 4 §3.31), so he
+  // is not defending; "resolving a defense-labeled ability is not a basic defense", and the attacked hero can still be
+  // declared the defender. By analogy with FFG ruling Aug 10, 2023 #60 (the Taunt player's own Mutant Protectors):
+  // "the defender would still be you".
+  it("two players: on Spider-Man's Taunt attack, Hercules's Helm still reduces the damage by 1, and Spider-Man may still defend", () => {
+    const base = withForm(quiet(twoPlayerGame()), { heroForm: 0 }, P2);
+    const helm = stagedInPlay(base, HELM, { attach: true });
+    const turn = run(helm.state, endTurn(P1), policy()).state;
+    const spidey = identityOf(turn, P2);
+    const taunt = conjure(withBoostIcons(turn, 2), TAUNT, "hand", P2);
+    const offered: string[] = [];
+    const defenders: (readonly string[])[] = [];
+    const pick = policy({ defender: spidey, take: [HELM_REF] }, offered);
+    const { state, events } = run(taunt.state, play(P2, taunt.id, payWith(taunt.state, P2, 1, [taunt.id])), (s) => {
+      if (s.pendingChoice?.prompt.kind === "declareDefender") {
+        expect(s.pendingChoice.playerId).toBe(P2);
+        defenders.push(s.pendingChoice.options.map((o) => o.optionId));
+      }
+      return pick(s);
+    });
+    expect(offered).toContain(HELM_REF);
+    expect(inst(state, helm.id).exhausted).toBe(true);
+    // Spider-Man is offered and defends: ATK 2 + 2 boost icons - 1 (Helm) - DEF 3 = 0. Hercules is not the defender.
+    expect(defenders.flat()).toContain(spidey);
+    expect(defenders.flat()).not.toContain(herc(turn));
+    const resolved = ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === turn.activeVillainId);
+    expect(resolved.map((e) => [e.targetInstanceId, e.damageDealt])).toEqual([[spidey, 0]]);
+    expect(inst(state, spidey).exhausted).toBe(true);
+    expect(inst(state, herc(turn)).exhausted).toBe(false);
+    expect(inst(state, herc(turn)).damage).toBe(0);
   });
 });
 
