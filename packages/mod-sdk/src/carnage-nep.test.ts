@@ -344,6 +344,74 @@ describe("Murderous Nature (attachment)", () => {
   });
 });
 
+describe("Muse (minion)", () => {
+  /**
+   * Muse (ATK raised to 3 by surgery, so a blow can carry excess; 4 damage on him) engaged with Carnage in the villain
+   * phase, Rhino stunned, the other characters staged by `stage`. The author's answer (relayed 2026-11-11): he
+   * attacks ANY other character with the fewest remaining hit points.
+   */
+  function museRoundFrom(base: GameState, stage: (s: GameState) => GameState) {
+    const conjured = conjure(base, `${P}19`);
+    const code = `${P}19`;
+    let state: GameState = {
+      ...conjured.state,
+      cardPool: {
+        ...conjured.state.cardPool,
+        [code]: { ...conjured.state.cardPool[code]!, atk: 3 } as never,
+      },
+    };
+    state = patch(state, conjured.id, { damage: 4 });
+    state = patch(state, villainOf(state), {
+      statuses: { ...state.instances[villainOf(state)]!.statuses, stunned: 1 },
+    });
+    state = stage(state);
+    const run = drive(state, { type: "endTurn", playerId: P1 }, takes(), (s) => s.round > state.round);
+    return { muse: conjured.id, state: run.state, events: run.events };
+  }
+  const toughOn = (s: GameState, id: InstanceId): number => s.instances[id]?.statuses?.tough ?? 0;
+  const healedFromMuse = (r: { muse: InstanceId; state: GameState }): number =>
+    4 - (r.state.instances[r.muse]?.damage ?? 0);
+
+  it("attacks an ally with the fewest remaining hit points, with piercing, and heals the excess when it defeats it", () => {
+    const spider = intoPlay(open(), "02");
+    const r = museRoundFrom(spider.state, (s) =>
+      patch(s, spider.id, { damage: 3, statuses: { ...s.instances[spider.id]!.statuses, tough: 1 } }),
+    );
+    expect(damageBy(r.events, r.muse, spider.id).length, "hit the ally").toBeGreaterThan(0);
+    expect(damageBy(r.events, r.muse, identityOf(r.state)), "not the hero").toEqual([]);
+    expect(toughOn(r.state, spider.id), "piercing discarded its tough status").toBe(0);
+    expect(r.state.players[0]!.discard, "the ally was defeated").toContain(spider.id);
+    // The ally had 1 hit point left: every point of the blow beyond the first is excess, healed from Muse.
+    expect(healedFromMuse(r)).toBe(damageBy(r.events, r.muse, spider.id)[0]! - 1);
+  });
+
+  it("attacks another minion with the fewest remaining hit points (enemy attacks enemy), with piercing and the heal", () => {
+    const sentinel = conjure(open(), "32093");
+    const r = museRoundFrom(sentinel.state, (s) =>
+      patch(s, sentinel.id, {
+        damage: (s.cardPool["32093"] as { hp: number }).hp - 1,
+        statuses: { ...s.instances[sentinel.id]!.statuses, tough: 1 },
+      }),
+    );
+    expect(damageBy(r.events, r.muse, sentinel.id), "ATK 3, no boost card").toEqual([3]);
+    expect(damageBy(r.events, r.muse, identityOf(r.state)), "not the hero").toEqual([]);
+    expect(toughOn(r.state, sentinel.id), "the attack had piercing").toBe(0);
+    expect(healedFromMuse(r), "2 excess damage healed from Muse").toBe(2);
+  });
+
+  it("attacks the villain when it has the fewest remaining hit points", () => {
+    const r = museRoundFrom(open(), (s) => patch(s, villainOf(s), { damage: 13 }));
+    expect(damageBy(r.events, r.muse, villainOf(r.state)).length, "hit the villain").toBeGreaterThan(0);
+    expect(damageBy(r.events, r.muse, identityOf(r.state)), "not the hero").toEqual([]);
+  });
+
+  it("attacks Carnage when he has the fewest remaining hit points", () => {
+    const r = museRoundFrom(open(), (s) => patch(s, identityOf(s), { damage: 5 }));
+    expect(damageBy(r.events, r.muse, identityOf(r.state)).length, "hit the hero").toBeGreaterThan(0);
+    expect(healedFromMuse(r), "no excess, no heal").toBe(0);
+  });
+});
+
 describe("pack content", () => {
   it("ships the suggested deck as a legal 40-card deck of 15 Carnage cards and 25 base cards", () => {
     const cards = precon().cards;

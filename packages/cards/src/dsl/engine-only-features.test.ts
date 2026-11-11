@@ -141,6 +141,7 @@ describe("engine-only DSL primitives", () => {
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
       "engine-only.agile",
       "engine-only.basic-power-boost",
+      "engine-only.enemy-attacks-enemy-bind",
       "engine-only.extra-player-phase",
       "engine-only.has-tagged",
       "engine-only.last-played",

@@ -537,24 +537,42 @@ export default definePackAbilities({
 
   // [star] Forced Interrupt: when Muse attacks, he attacks the character with the fewest remaining hit points. This
   // attack gains piercing. If this attack defeats a character, heal 1 damage from Muse for each point of excess
-  // damage dealt to that character. Modeled on Crossfire (24026: retarget to the fewest remaining hit points, a tie
-  // is the first player's choice). READING: "the character" is a friendly character (hero or ally), as Crossfire's;
-  // Murderous Nature, which means other enemies too, says so in words. Flagged for the author.
+  // damage dealt to that character by that attack. Modeled on Murderous Nature below. The author's answer
+  // (BluefireF5ran, relayed by the owner 2026-11-11): "the character" is ANY character other than Muse with the fewest
+  // remaining hit points: a hero or alter-ego, an ally, another minion or the villain. A tie is the first player's
+  // choice (Crossfire 24026). A friendly target redirects the attack (`retargetAttack`); an enemy one replaces it
+  // (`instead(enemyAttacksEnemy)`, Cop 60182), which has no boost card and no defender, so piercing is a constant
+  // (below) that both attacks read, and the heal reads the excess each branch recorded.
   "x.carnage-nep.19.muse-forced-interrupt": forcedInterrupt(
     on.enemyAttacks("self"),
+    // Held first, for the friendly branch: an `atEndOfAttack` named after `retargetAttack` finds no attack to hold it.
+    // On the enemy branch the replaced attack records no excess, so this heals nothing and the `instead` heals.
+    atEndOfAttack(ifThen(eventDealt("excessDealt"), heal(eventResult("excessDealt"), self))),
     bindTargets(
       "fewest-hp",
-      superlative("lowest", each(query(["identity", "ally"])), remainingHpOf(chosen("candidate"))),
+      superlative(
+        "lowest",
+        each(query(["identity", "ally", "minion", "villain"], { excluding: self })),
+        remainingHpOf(chosen("candidate")),
+      ),
     ),
     ifThen(
       valueAtLeast(countOf({ inSlot: "fewest-hp" }), 2),
       chooseTarget("muse-target", { inSlot: "fewest-hp" }, { chooser: firstPlayer }),
       bindTargets("muse-target", chosen("fewest-hp")),
     ),
-    retargetAttack(chosen("muse-target")),
-    modifyAttack({ keywords: ["piercing"] }),
-    atEndOfAttack(ifThen(eventDealt("excessDealt"), heal(eventResult("excessDealt"), self))),
+    ifThen(
+      refMatches(chosen("muse-target"), query("enemy")),
+      instead(
+        enemyAttacksEnemy(self, chosen("muse-target"), { bind: "muse-hit" }),
+        ifThen(valueAtLeast(varOf("muse-hit.excessDealt"), 1), heal(varOf("muse-hit.excessDealt"), self)),
+      ),
+      retargetAttack(chosen("muse-target")),
+    ),
   ),
+  // "This attack gains piercing": every attack of Muse's is redirected by the interrupt above, so the grant is the same
+  // (Murderous Nature's overkill, Bushwacker). A constant reaches the enemy-attacks-enemy attack too.
+  "x.carnage-nep.19.muse-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
 
   // =========================================================================
   // 20 Bushwacker (minion, Twisted Killers)

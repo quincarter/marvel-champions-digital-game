@@ -43,8 +43,9 @@ Re-running the importer would overwrite the card JSON: redo the edits above.
   `Directed Force`, Psylocke 41019, timing), so a keyword gained from Arsenal's own interrupt is not counted for the
   bonus. Open: whether the author means it to count (it would need an attack-keyword count read at damage time).
 - **Vicious Lashing** (action): "This attack gains ranged" is given to both of its two attacks.
-- **Muse**: "the character with the fewest remaining hit points" is read as a friendly character (as Crossfire 24026);
-  Murderous Nature says "friendly character or other enemy" and is scripted that way. Ties go to the first player.
+- **Muse**: "the character with the fewest remaining hit points" is any character other than Muse (hero or alter-ego,
+  ally, minion or villain), per the author's answer (BluefireF5ran, relayed 2026-11-11). Ties go to the first player.
+  Attacking an enemy is an enemy-attacks-enemy attack (no boost card), with piercing and the excess-damage heal as well.
 - **Torment / Death Spiral**: "that character" is the attacked (or defending) character; with several matching allies or
   Persona supports the attacked player chooses.
 - **Closing the Loops**: "more than 2 classifications in play" is all three of identity-specific, aspect and basic among

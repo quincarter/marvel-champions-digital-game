@@ -29,6 +29,9 @@
   "abilities": [
     {
       "id": "x.carnage-nep.19.muse-forced-interrupt"
+    },
+    {
+      "id": "x.carnage-nep.19.muse-constant"
     }
   ]
 }

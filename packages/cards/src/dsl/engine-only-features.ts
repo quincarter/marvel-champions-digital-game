@@ -9,7 +9,9 @@ import {
   dealDamage,
   discard,
   draw,
+  enemyAttacksEnemy,
   giveBasicPowerBoostCard,
+  instead,
   loseKeywordUntil,
   loseTraitUntil,
   replaceNextVillainPhaseWithPlayerPhase,
@@ -91,6 +93,12 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   "engine-only.random-in-play": action(
     selectCards("upgrade", cards(each(query("upgrade", { controller: "you" })), undefined, { random: 1 })),
     discard(chosen("upgrade")),
+  ),
+  // "Muse attacks … If this attack defeats a character, heal 1 damage from Muse for each point of excess damage":
+  // `enemyAttacksEnemy`'s `bind`, read as `<bind>.excessDealt` by what follows in the same replacement.
+  "engine-only.enemy-attacks-enemy-bind": forcedInterrupt(
+    on.enemyAttacks("self"),
+    instead(enemyAttacksEnemy(self, theVillain, { bind: "hit" })),
   ),
 };
 
