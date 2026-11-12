@@ -85,6 +85,7 @@ const SILENT: ReadonlySet<string> = new Set([
   "scenarioDeckTopLeft",
   "scenarioSetupInstructionResolved",
   "separatedCardFlipped",
+  "setAsideRedirected",
   "sharedStateChanged",
   "stepChanged",
   "targetChosen",
