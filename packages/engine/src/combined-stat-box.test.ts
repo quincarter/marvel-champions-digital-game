@@ -72,4 +72,18 @@ describe("a combined SCH/THW stat box", () => {
     expect(characterProfile(possessed, id, deps)!.sch).toBe(2);
     expect(characterProfile(attachBox(possessed, id), id, deps)!.sch).toBe(3);
   });
+
+  it("gives a facedown minion made from a player card (an Ultron Drone) +1 SCH", () => {
+    const { state, id } = playerCardIntoPlay(start(), ALLY.id);
+    const drone: GameState = {
+      ...state,
+      instances: {
+        ...state.instances,
+        [id]: { ...mustInstance(state, id), faceup: false, facedownAs: { kind: "minion", traits: [] } },
+      },
+    };
+    const before = characterProfile(drone, id, deps)!;
+    const after = characterProfile(attachBox(drone, id), id, deps)!;
+    expect([after.sch, after.thw]).toEqual([before.sch + 1, before.thw]);
+  });
 });

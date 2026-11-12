@@ -1,6 +1,6 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, identityFace, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
+import { cardOf, identityFace, isMinion, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
   activeRules,
@@ -73,9 +73,10 @@ function combinedBoxMisses(
   box: { readonly sch?: number; readonly thw?: number },
 ): boolean {
   if ((stat !== "sch" && stat !== "thw") || box.sch === undefined || box.thw === undefined) return false;
-  const treated = state.instances[targetId]?.treatedAs?.kind;
-  const type = cardOf(state, targetId)?.type;
-  const enemy = treated === "minion" || (treated !== "ally" && (type === "villain" || type === "minion"));
+  // `isMinion` counts a facedown Drone made from any card and a character treated as a minion (RRG 1.8 "Facedown").
+  const enemy =
+    isMinion(state, targetId) ||
+    (state.instances[targetId]?.treatedAs?.kind !== "ally" && cardOf(state, targetId)?.type === "villain");
   return stat === (enemy ? "thw" : "sch");
 }
 
