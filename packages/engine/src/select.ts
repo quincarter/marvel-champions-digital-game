@@ -2061,6 +2061,11 @@ export function activeRules<K extends RuleSpec["kind"]>(
   state: GameState,
   deps: EngineDeps,
   kind: K,
+  /**
+   * Read before a rule's `while`: a rule it refuses is skipped without evaluating its condition. A stat reader passes
+   * "this rule is about the stat being read", so a `while` that reads another stat does not recurse into this one.
+   */
+  only?: (rule: Extract<RuleSpec, { kind: K }>) => boolean,
 ): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
   const record = (
@@ -2085,6 +2090,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
       if (definition?.trigger.kind !== "constant") continue;
       for (const rule of definition.trigger.rules ?? []) {
         if (rule.kind !== kind) continue;
+        if (only && !only(rule as Extract<RuleSpec, { kind: K }>)) continue;
         // "You" is the card's speaker for the rule's `while` ("while you are in alter-ego form" on an obligation,
         // docs/phase7-wave6.md §3.58) and for every query and player ref its readers match.
         const context: EffectContext = {
@@ -2102,6 +2108,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
   }
   for (const effect of state.lastingEffects) {
     if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
+    if (only && !only(effect.rule as Extract<RuleSpec, { kind: K }>)) continue;
     const context = lastingContext(effect.scope, deps);
     if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
     record(effect.rule, context, effect.duration);
@@ -2109,6 +2116,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
   // Rules the scenario imposes without a card (`ScenarioRules.rules`, docs/phase7-wave4.md §3.40).
   for (const rule of state.scenarioRules.rules ?? []) {
     if (rule.kind !== kind) continue;
+    if (only && !only(rule as Extract<RuleSpec, { kind: K }>)) continue;
     const context: EffectContext = { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps };
     if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
     record(rule, context);
@@ -3821,6 +3829,35 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
  *    first `WeakMap` hit, so nothing that exists today pays anything at all.
  */
 const NO_BLANKED: ReadonlySet<InstanceId> = new Set<InstanceId>();
+
+/** The rule kinds the constant abilities of this registry carry. Memoized per registry object. */
+const REGISTRY_RULE_KINDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+
+function registryRuleKinds(deps: EngineDeps): ReadonlySet<string> {
+  const cached = REGISTRY_RULE_KINDS.get(deps);
+  if (cached) return cached;
+  const kinds = new Set<string>();
+  for (const definition of Object.values(deps.abilities)) {
+    if (definition.trigger.kind !== "constant") continue;
+    for (const rule of definition.trigger.rules ?? []) kinds.add(rule.kind);
+  }
+  REGISTRY_RULE_KINDS.set(deps, kinds);
+  return kinds;
+}
+
+/**
+ * Whether a rule of `kind` can be in force at all: a constant ability of the registry carries one, a `ruleGrant`
+ * lasting effect grants one, or the scenario imposes one. False lets a hot reader (every stat read, every resource
+ * generated) skip `activeRules`' scan of every card in play; a game whose cards never name the kind pays one set
+ * lookup and two short list walks.
+ */
+export function ruleKindMayApply(state: GameState, deps: EngineDeps, kind: RuleSpec["kind"]): boolean {
+  return (
+    registryRuleKinds(deps).has(kind) ||
+    state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && effect.rule.kind === kind) ||
+    (state.scenarioRules.rules ?? []).some((rule) => rule.kind === kind)
+  );
+}
 
 /** Ability ids in this registry that carry a constant `blankTextBox` rule. Memoized per registry object. */
 const BLANK_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();

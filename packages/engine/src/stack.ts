@@ -821,6 +821,8 @@ export type StackFrame =
       readonly eventFrameId: FrameId | null;
       /** No boost card for this attack (`TriggerEvent.noBoost`). */
       readonly noBoost?: boolean;
+      /** Cards given as this activation's boost cards at its give-boost step (`EffectSpec enemyActivation.boostCards`). */
+      readonly appliedBoostCards?: readonly InstanceId[];
       /**
        * An enemy attacking another enemy with a boost card (`enemyAttacksEnemy.boost`; Headpool, FFG ruling January 26,
        * 2026 (4)). `eventFrameId` is its `enemyAttacksEnemy` event frame, `attackedPlayerId` and `targetPlayerId` the
@@ -849,6 +851,8 @@ export type StackFrame =
       readonly stage: "giveBoost" | "flipBoosts" | "placeThreat" | "done";
       readonly eventFrameId: FrameId | null;
       readonly noBoost?: boolean;
+      /** As `Frame<"enemyAttack">.appliedBoostCards`. */
+      readonly appliedBoostCards?: readonly InstanceId[];
       /** As `Frame<"enemyAttack">.boostsGiven`. */
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;

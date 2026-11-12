@@ -125,17 +125,54 @@ const COMPULSION = actionEvent("compulsion", [
   { kind: "resolveSpecials", of: { kind: "mainScheme" }, tag: "hiddenClause", player: you },
 ]);
 
-const EVENTS = [DAMN, SHOW, REDEEM, ASIDE, ASIDE_HAND, SPAWN, SPAWN_FIVE, COMPULSION];
-const deps: EngineDeps = depsOf(GATEWAY_RULE, CALL_RULE, HIDDEN_CLAUSE, ...EVENTS.map((e) => e.ability));
+/**
+ * "Forced Interrupt: When a card is put into Damnation from a player's deck, put 1 additional card into Damnation from
+ * that player's deck." (Exposing Intentions.) The additional card is announced too; `sourceIs: not self` stops the
+ * loop at one extra card per card.
+ */
+const EXPOSING_RULE = stubAbility("exposing.forced", {
+  trigger: {
+    kind: "response",
+    forced: true,
+    on: {
+      on: "cardPutIntoScenarioArea",
+      eventIs: { area: AREA, from: "deck" },
+      sourceIs: { not: { self: true } },
+    },
+  },
+  effects: [
+    {
+      kind: "moveCards",
+      cards: { kind: "zone", zone: "deck", player: { kind: "eventPlayer" }, top: n(1) },
+      to: { scenarioArea: AREA },
+      facedown: true,
+    },
+  ],
+});
+const EXPOSING = stubSupport({ id: "exposing", cost: 0, abilities: [EXPOSING_RULE.ref] });
+
+/** "Put a trinket from your hand facedown into Damnation." */
+const HAND_DAMN = actionEvent("hand-damn", [
+  {
+    kind: "moveCards",
+    cards: { kind: "zone", zone: "hand", player: you, filter: { name: "trinket" } },
+    to: { scenarioArea: AREA },
+    facedown: true,
+  },
+]);
+
+const EVENTS = [DAMN, SHOW, REDEEM, ASIDE, ASIDE_HAND, SPAWN, SPAWN_FIVE, COMPULSION, HAND_DAMN];
+const deps: EngineDeps = depsOf(GATEWAY_RULE, CALL_RULE, HIDDEN_CLAUSE, EXPOSING_RULE, ...EVENTS.map((e) => e.ability));
 
 function start(players: 1 | 2 = 1, mainScheme?: typeof BARGAIN_SCHEME): GameState {
   return gameAtFirstTurn({
-    cards: [GATEWAY, TRINKET, CALL, ...EVENTS.map((e) => e.card)],
+    cards: [GATEWAY, TRINKET, CALL, EXPOSING, ...EVENTS.map((e) => e.card)],
     deps,
     ...(mainScheme ? { mainScheme } : {}),
     deck: [
       ...copiesOf(GATEWAY.id, 1),
       ...copiesOf(CALL.id, 1),
+      ...copiesOf(EXPOSING.id, 1),
       ...copiesOf(TRINKET.id, 2),
       ...EVENTS.flatMap((e) => copiesOf(e.card.id, 2)),
     ],
@@ -306,5 +343,38 @@ describe("a tagged main scheme ability resolved by another card ('Hidden Clause'
     expect(damnation(state)).toEqual(top);
     for (const id of top) expect(mustInstance(state, id)).toMatchObject({ ownerId: P1, faceup: false });
     expectReplays(session);
+  });
+});
+
+describe("a card put into a scenario area is announced (TriggerEvent cardPutIntoScenarioArea)", () => {
+  const announced = (events: readonly { readonly type: string }[]) =>
+    JSON.stringify(events).includes("cardPutIntoScenarioArea");
+
+  it("nothing listening: the move announces nothing", () => {
+    const { events } = playFree(start(), deps, DAMN.card.id);
+    expect(announced(events)).toBe(false);
+  });
+
+  it("'put 1 additional card from that player's deck' for each card: 2 become 4, and the extra ones do not loop", () => {
+    const placed = playerCardIntoPlay(start(), EXPOSING.id);
+    const top = deckAfterGiving(placed.state, DAMN.card.id).slice(0, 4);
+    const { state, session } = playFree(placed.state, deps, DAMN.card.id);
+    expect([...damnation(state)].sort()).toEqual([...top].sort());
+    for (const id of top) expect(mustInstance(state, id)).toMatchObject({ ownerId: P1, faceup: false });
+    expectReplays(session);
+  });
+
+  it("a set-aside redirect is a card put into the area from the deck too", () => {
+    const placed = playerCardIntoPlay(start(), EXPOSING.id);
+    const withGateway = playerCardIntoPlay(placed.state, GATEWAY.id);
+    const { state } = playFree(withGateway.state, deps, ASIDE.card.id);
+    expect(damnation(state)).toHaveLength(2);
+  });
+
+  it("a card from another zone does not match 'from a player's deck'", () => {
+    const placed = playerCardIntoPlay(start(), EXPOSING.id);
+    const inHand = giveCard(placed.state, P1, TRINKET.id);
+    const { state } = playFree(inHand.state, deps, HAND_DAMN.card.id);
+    expect(damnation(state)).toEqual([inHand.id]);
   });
 });

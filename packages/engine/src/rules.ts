@@ -57,6 +57,7 @@ import {
   restrictedWeightOf,
   rulePlayers,
   ruleBindsPlayer,
+  ruleKindMayApply,
   textBoxBlankedFor,
   textBoxBlankFor,
   timingWordOf,
@@ -1865,7 +1866,7 @@ export function generatedAsWild(
   pool: ResourcePool,
 ): ResourcePool {
   const total = pool.physical + pool.mental + pool.energy + pool.wild;
-  if (total === pool.wild) return pool;
+  if (total === pool.wild || !ruleKindMayApply(state, deps, "resourcesGeneratedAsWild")) return pool;
   const binds = activeRules(state, deps, "resourcesGeneratedAsWild").some((active) =>
     rulePlayers(state, active.rule, active).includes(playerId),
   );

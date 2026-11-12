@@ -178,6 +178,7 @@ import {
   formOnlyFault,
   maxPerPlayerReached,
   cannotFlip,
+  perAttackDamageFloor,
   cannotThwart,
   canTakePlayerAttack,
   playerAttackInProgress,
@@ -3351,7 +3352,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // (`interruptBarredByUnpreventable`), and one that resolves against it anyway prevents nothing.
       if (isUnpreventableDamage(target.event)) return;
       const pending = target.event.amount;
-      const prevented = effect.amount === undefined ? pending : Math.min(pending, Math.max(0, value(effect.amount)));
+      const asked = effect.amount === undefined ? pending : Math.min(pending, Math.max(0, value(effect.amount)));
+      // A partial prevention stops at a "cannot take less than" floor on attack damage (`minDamageTakenPerAttack`; the
+      // Slothful Endurance comment in `resolve/event.ts` `applyDamage`), so it prevents and logs only what it can.
+      // Preventing the whole amount escapes the floor.
+      const floor =
+        target.event.kind === "dealDamage" && target.event.fromAttack && asked < pending
+          ? perAttackDamageFloor(ctx.state, ctx.deps, target.event.targetInstanceId, true)
+          : null;
+      const prevented = floor === null ? asked : Math.min(asked, pending - Math.min(floor, pending));
       if (prevented <= 0) return;
       // Prevented damage is still dealt (RRG 1.8 "Prevent", p. 35): the event keeps the amount dealt beside the amount
       // left to take, so "after X deals damage" still has its answer when this prevents all of it.
@@ -4153,6 +4162,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           : typeof effect.extraBoostCards === "number"
             ? effect.extraBoostCards
             : Math.max(0, value(effect.extraBoostCards));
+      // "Apply this card's boost icons for this activation as if it were a boost card" (`boostCards`): the cards are
+      // fixed now and travel with the first activation this effect starts (one card cannot be two boost cards).
+      const appliedBoostCards =
+        effect.kind === "enemyActivation" && effect.boostCards
+          ? targets(effect.boostCards).filter((id) => {
+              const at = locateCard(ctx.state, id);
+              return at !== null && BOOST_SOURCE_ZONES.has(at.kind);
+            })
+          : [];
+      if (appliedBoostCards.length > 0 && events.length > 0) {
+        const first = events[0]!;
+        if (first.kind === "enemyAttack" || first.kind === "enemyScheme") events[0] = { ...first, appliedBoostCards };
+        const announce = announces[0];
+        if (announce?.cardCaused)
+          announces[0] = { ...announce, cardCaused: { ...announce.cardCaused, appliedBoostCards } };
+      }
       const boostScoped = {
         ...(extraBoost > 0 ? { extraBoost } : {}),
         ...(effect.boostIconsEach ? { boostIconsEach: value(effect.boostIconsEach) } : {}),

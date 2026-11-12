@@ -4037,6 +4037,33 @@ export const on = {
    * Q32), and no other response is offered for it. The card whose discard emptied the deck is in the new deck when
    * the response resolves (RRG 1.8 "Encounter Deck", p. 17), and is taken from there.
    */
+  /**
+   * "When a card is put into Damnation from a player's deck" (Exposing Intentions, community pack `mephisto-nep` 14):
+   * `on.cardPutIntoScenarioArea("Damnation", { from: "deck" })`. One event per card, heard after the move (engine
+   * `TriggerEvent cardPutIntoScenarioArea`); `eventTarget` is the card, `eventPlayer` the player whose zone it left
+   * (else its owner), so "put 1 additional card into Damnation from that player's deck" is
+   * `moveCards(topOfDeck(1, eventPlayer), { scenarioArea: "Damnation" }, undefined, { facedown: true })`. That card is
+   * announced too: to stop a loop, narrow the pattern with `notFromSelf` (the event's source is not this card).
+   */
+  cardPutIntoScenarioArea: (
+    area?: string,
+    opts: {
+      readonly from?: "deck" | "hand" | "discard" | readonly ("deck" | "hand" | "discard")[];
+      readonly notFromSelf?: boolean;
+    } = {},
+  ): EventPattern =>
+    pattern(
+      "cardPutIntoScenarioArea",
+      area !== undefined || opts.from !== undefined
+        ? {
+            eventIs: {
+              ...(area !== undefined ? { area } : {}),
+              ...(opts.from !== undefined ? { from: opts.from } : {}),
+            },
+          }
+        : {},
+      opts.notFromSelf ? { sourceIs: { not: { self: true } } } : {},
+    ),
   discardedFromEncounterDeck: (
     card: TargetQuery = {},
     opts: { readonly how?: "effect" | "cost"; readonly by?: LeaveCauseSide } = {},

@@ -1708,7 +1708,13 @@ function spendAttackPreventBudget(
   if (parent?.kind !== "event") return 0;
   const left = (parent.vars.preventDamage ?? 0) - (parent.vars.preventDamageUsed ?? 0);
   if (left <= 0) return 0;
-  const prevented = Math.min(left, taken);
+  // A floor (`minDamageTakenPerAttack`, the Slothful Endurance comment in `applyDamage`) holds over a partial
+  // prevention as it does over a prevent interrupt: the budget prevents only down to the floor (never past `taken`,
+  // which already had the floor and the cap applied), and is spent only by what it prevented. Prevention of the whole
+  // amount, down to 0, escapes the floor.
+  const floor = left < taken ? perAttackDamageFloor(ctx.state, ctx.deps, event.targetInstanceId, true) : null;
+  const prevented = floor === null ? Math.min(left, taken) : Math.min(left, taken - Math.min(floor, taken));
+  if (prevented <= 0) return 0;
   addFrameVars(ctx, parent.frameId, { preventDamageUsed: prevented });
   emit(ctx, { type: "damagePrevented", targetInstanceId: event.targetInstanceId, amount: prevented, reason: "effect" });
   announceDamagePrevented(ctx, {
@@ -1990,7 +1996,12 @@ export function applyDamage(
   // Already applied as the damage reached its "would take" interrupts (`damageConstantsBeforeWouldTake`): only the
   // per-attack cap is read again (the sustained and per-phase ones are below), over what an interrupt changed since.
   // The constants are frozen at step 3 (FFG ruling June 6, 2024, Ruling 205); only the caps are re-read at take time.
-  // A "cannot take less than" floor (`minDamageTakenPerAttack`) is re-read with it, before it.
+  // Slothful Endurance floor (RRG v1.8 "Cannot" p.11 + "Prevent" p.35): any positive damage taken from an attack is
+  // raised to current DEF, also after partial prevention ("cannot" beats the prevent interrupt); damage defended to 0
+  // (Attack step 4 p.8, General FAQ p.57) or fully prevented / tough (Prevent p.35, Tough p.44) is not taken and is not
+  // raised. Constant-before-interrupt ordering per ruling #205 (Jun 2024) is for caps; a floor can't be undercut.
+  // Derived from RRG, no FFG ruling on damage floors.
+  // Re-read here with the cap, before it, over what a "prevent N of that damage" interrupt left (`minDamageTakenPerAttack`).
   const reapplyCap = (amount: number): number => {
     const floor =
       amount > 0 ? perAttackDamageFloor(ctx.state, ctx.deps, event.targetInstanceId, event.fromAttack) : null;

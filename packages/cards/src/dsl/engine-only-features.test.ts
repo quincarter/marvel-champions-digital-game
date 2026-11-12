@@ -13,6 +13,7 @@ import {
   doubleStat,
   minDamageTaken,
   multiplyStat,
+  on,
   resourcesGeneratedAsWild,
   setAsideDestination,
   special,
@@ -24,6 +25,7 @@ import {
   blankTextBoxUntil,
   cards,
   draw,
+  enemyActivates,
   loseKeywordUntil,
   loseTraitUntil,
   moveCards,
@@ -187,6 +189,23 @@ describe("engine-only DSL primitives", () => {
     expect(validateDefinition(constant(multiplyStat("def", 0, YOUR_IDENTITY))).join(" ")).toMatch(
       /factor must be a number above 0/,
     );
+    const lasting: AbilityDefinition = {
+      trigger: { kind: "action" },
+      effects: [
+        {
+          kind: "applyRuleUntil",
+          rule: { kind: "multiplyStat", stat: "atk", factor: -1, target: YOUR_IDENTITY },
+          until: "endOfPhase",
+        },
+      ],
+    };
+    expect(validateDefinition(lasting).join(" ")).toMatch(/multiplyStat atk: the factor must be a number above 0/);
+    expect(on.cardPutIntoScenarioArea("Damnation", { from: "deck", notFromSelf: true })).toEqual({
+      on: "cardPutIntoScenarioArea",
+      eventIs: { area: "Damnation", from: "deck" },
+      sourceIs: { not: { self: true } },
+    });
+    expect(enemyActivates(self, { boostCards: self })).toMatchObject({ kind: "enemyActivation", boostCards: self });
     const its = statOf({ kind: "slot", slot: "affected" }, "def");
     expect(minDamageTaken(YOUR_IDENTITY, its)).toEqual({
       rules: [{ kind: "minDamageTakenPerAttack", target: YOUR_IDENTITY, amount: its }],
@@ -206,6 +225,7 @@ describe("engine-only DSL primitives", () => {
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
+      "engine-only.activation-boost-card",
       "engine-only.agile",
       "engine-only.basic-power-boost",
       "engine-only.double-stat",
@@ -220,6 +240,7 @@ describe("engine-only DSL primitives", () => {
       "engine-only.lose-trait",
       "engine-only.min-damage-taken",
       "engine-only.per-player-blank",
+      "engine-only.put-into-area",
       "engine-only.random-from-area",
       "engine-only.random-in-play",
       "engine-only.resolve-all-tagged",

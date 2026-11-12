@@ -5,8 +5,11 @@ import {
   agile,
   constant,
   costModifier,
+  discardThis,
+  response,
   doubleStat,
   forcedInterrupt,
+  forcedResponse,
   heroInterrupt,
   minDamageTaken,
   on,
@@ -21,6 +24,7 @@ import {
   cards,
   dealDamage,
   discard,
+  enemyActivates,
   draw,
   enemyAttacksEnemy,
   giveBasicPowerBoostCard,
@@ -41,6 +45,7 @@ import {
   chosen,
   each,
   eachPlayer,
+  eventPlayer,
   hasTaggedAbility,
   lastPlayedThisRound,
   query,
@@ -139,6 +144,19 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   // "Put the top card of your discard pile facedown engaged with you as a Mystic minion" (`putIntoPlayFacedown.from`).
   "engine-only.facedown-from-discard": action(
     putIntoPlayFacedown(you, { kind: "minion", traits: [trait("MYSTIC")] }, 1, { from: "discard" }),
+  ),
+  // "When a card is put into Damnation from a player's deck, put 1 additional card into Damnation from that player's
+  // deck" (`TriggerEvent cardPutIntoScenarioArea`).
+  "engine-only.put-into-area": forcedResponse(
+    on.cardPutIntoScenarioArea("Damnation", { from: "deck", notFromSelf: true }),
+    moveCards(topOfDeck(1, eventPlayer), { scenarioArea: "Damnation" }, undefined, { facedown: true }),
+  ),
+  // "Discard this card → Mephisto activates against you. Apply this card's boost icons for this activation as if it
+  // were a boost card" (`enemyActivation.boostCards`).
+  "engine-only.activation-boost-card": response(
+    on.yourTurnBegins(),
+    { cost: discardThis },
+    enemyActivates(theVillain, { against: you, boostCards: self }),
   ),
 };
 

@@ -16,6 +16,7 @@ import {
   resolveValue,
   type EffectContext,
   reachOf,
+  ruleKindMayApply,
 } from "./select.js";
 import type { SchemeValueName, StatName } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -279,9 +280,10 @@ export function statMultiplier(
   targetId: InstanceId,
   stat: "atk" | "thw" | "def" | "rec" | "sch" | "hp",
 ): number {
+  if (!ruleKindMayApply(state, deps, "multiplyStat")) return 1;
   let factor = 1;
-  for (const { rule, context } of activeRules(state, deps, "multiplyStat")) {
-    if (rule.stat !== stat) continue;
+  // Filtered by stat before any `while` is read, so a doubling of ATK "while" some THW condition never re-enters THW.
+  for (const { rule, context } of activeRules(state, deps, "multiplyStat", (r) => r.stat === stat)) {
     const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
     if (matchesQuery(state, targetId, rule.target, reading)) factor *= rule.factor;
   }

@@ -348,6 +348,21 @@ function giveBoostStep(
   next: "declareDefender" | "flipBoosts",
   activation: "attack" | "scheme",
 ): void {
+  // `EffectSpec enemyActivation.boostCards`: "apply this card's boost icons for this activation as if it were a boost
+  // card". Given first, whatever else this step gives (its own cards may be withheld): each is a boost card of this
+  // activation, flipped, resolved and discarded with the others (RRG 1.8 "Boost, Boost Icon", p. 11).
+  if (frame.appliedBoostCards !== undefined) {
+    const { appliedBoostCards, ...without } = frame;
+    setFrame(ctx, without as typeof frame);
+    for (const id of appliedBoostCards) {
+      const at = locateCard(ctx.state, id);
+      if (!at || !BOOST_SOURCE_ZONES.has(at.kind)) continue;
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+      moveCard(ctx, id, { kind: "boost", hostInstanceId: frame.enemyInstanceId });
+      emit(ctx, { type: "boostCardDealt", enemyInstanceId: frame.enemyInstanceId, instanceId: id });
+    }
+    return giveBoostStep(ctx, without as typeof frame, next, activation);
+  }
   const { boostsGiven: given = 0, ...rest } = frame;
   const advance = () => setFrame(ctx, { ...rest, stage: next } as typeof frame);
   // "That attack does not get a boost card": no boost card at all, additional ones included.
@@ -1048,6 +1063,7 @@ export function pushEnemyAttackFrame(
       stage: "giveBoost",
       eventFrameId,
       ...(event.noBoost ? { noBoost: true } : {}),
+      ...(event.appliedBoostCards ? { appliedBoostCards: event.appliedBoostCards } : {}),
     },
   ]);
 }
@@ -1795,6 +1811,7 @@ export function pushEnemySchemeFrame(
       stage: "giveBoost",
       eventFrameId,
       ...(event.noBoost ? { noBoost: true } : {}),
+      ...(event.appliedBoostCards ? { appliedBoostCards: event.appliedBoostCards } : {}),
     },
   ]);
 }

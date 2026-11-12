@@ -337,6 +337,7 @@ function initiateCardCausedActivation(
   reportTo: ReportTarget | null,
 ): void {
   const noBoost = made.noBoost ? { noBoost: true } : {};
+  const applied = made.appliedBoostCards ? { appliedBoostCards: made.appliedBoostCards } : {};
   const event: TriggerEvent =
     activation === "attack"
       ? {
@@ -347,6 +348,7 @@ function initiateCardCausedActivation(
           targetInstanceId: made.targetInstanceId ?? mustPlayer(ctx.state, playerId).identity.instanceId,
           ...(made.additionalResolution ? { additionalResolution: true } : {}),
           ...noBoost,
+          ...applied,
           ...(made.deferredBonus?.atkBonus ? { deferredBonus: made.deferredBonus } : {}),
         }
       : {
@@ -354,6 +356,7 @@ function initiateCardCausedActivation(
           enemyInstanceId: enemyId,
           playerId,
           ...noBoost,
+          ...applied,
           ...(made.startedByAttackBoost ? { startedByAttackBoost: true } : {}),
           ...(made.divert ? { divert: made.divert } : {}),
           ...(made.wouldPlaceThreat ? { wouldPlaceThreat: made.wouldPlaceThreat } : {}),

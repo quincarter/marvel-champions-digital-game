@@ -2382,13 +2382,22 @@ export type RuleSpec =
    * `maxDamageTakenPerAttack`. `amount` is read live in the rule's context with the damaged character bound to
    * `affected` (`theAffectedCard`), so "its DEF" is `statOf({ kind: "slot", slot: "affected" }, "def")`.
    *
-   * Applied after every increase, reduction and doubling and before the per-attack cap, so a "cannot take more than"
-   * cap still has the last word where the two conflict (engine reading, authority step 5: RRG 1.8 "Cannot", p. 13, makes
-   * both absolute and does not order them; no printed card pairs them). A damage event of 0 is not raised: damage of 0
-   * was never dealt (RRG 1.8 "Damage", p. 14; as `increaseDamageTaken` leaves 0 alone), so an attack fully covered by a
-   * defense deals nothing. A tough status card still prevents the whole (raised) amount, and a "prevent N damage" budget
-   * still prevents from it: prevented damage is dealt but not taken (RRG 1.8 "Prevent", p. 35), which the floor does not
-   * reach. Re-read at take time with the cap, over what an interrupt changed since.
+   * Applied after every increase, reduction and doubling, so the floor is the DEF (or other amount) as it stands with
+   * every modifier, and only to damage "from each attack" (`fromAttack`): a treachery's or indirect damage that is no
+   * attack's has none. An alter-ego has no DEF, so a floor of its DEF is 0.
+   *
+   * Prevention (rules-expert verdict, tier 1, from RRG 1.8 "Cannot", p. 11, and "Prevent", p. 35; no FFG ruling on
+   * damage floors): any positive damage taken from an attack is raised to the floor, also after a partial prevention,
+   * since "cannot" beats the prevent effect. A "prevent N of that damage" interrupt (`EffectSpec preventDamage`) and a
+   * "prevent N damage from this attack" budget (`modifyAttack.preventDamage`) both prevent only down to the floor (and
+   * log only what they prevented). Damage defended to 0 (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 8; General FAQ,
+   * p. 57), prevented in full, or replaced by a tough status card (p. 44) is not taken and is not raised.
+   *
+   * Engine interpretations (authority step 5), not stated by the RRG: a damage event of 0 is not raised (as
+   * `increaseDamageTaken` leaves 0 alone; RRG 1.8 "Damage", p. 14, does not say so of floors), and the floor is applied
+   * before the per-attack cap, so a "cannot take more than" cap keeps the last word where the two conflict (RRG 1.8
+   * "Cannot", p. 11, makes both absolute and does not order them; no printed card pairs them). Re-read at take time with
+   * the cap, over what an interrupt changed since.
    */
   | {
       readonly kind: "minDamageTakenPerAttack";

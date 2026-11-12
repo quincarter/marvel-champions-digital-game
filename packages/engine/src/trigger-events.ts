@@ -438,6 +438,8 @@ export type TriggerEventBody =
       readonly additionalResolution?: boolean;
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
+      /** `EffectSpec enemyActivation.boostCards`: given as this activation's boost cards at its step 1. */
+      readonly appliedBoostCards?: readonly InstanceId[];
       /** `EffectSpec enemyAttack.statBonusTiming`: the `atkBonus` read once this attack's interrupts have resolved. */
       readonly deferredBonus?: DeferredActivationBonus;
       /** As on `attack`: a condition derived for a character this attack's overkill damaged. */
@@ -472,6 +474,8 @@ export type TriggerEventBody =
       readonly enemyInstanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly noBoost?: boolean;
+      /** `EffectSpec enemyActivation.boostCards`: given as this activation's boost cards at its step 1. */
+      readonly appliedBoostCards?: readonly InstanceId[];
       /**
        * A Boost ability started this scheme during an enemy attack, or during a scheme that was itself so started: it
        * follows that attack (RRG 1.8 "Activation", p. 6), and a boost card's "after this attack" still has one to answer
@@ -1953,6 +1957,26 @@ export type TriggerEventBody =
    */
   | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string }
   /**
+   * A card went into the scenario out-of-play area `area` (`moveCards` to `{ scenarioArea }`, or a `setAsideDestination`
+   * redirect): "When a card is put into Damnation from a player's deck, put 1 additional card into Damnation from that
+   * player's deck" (Exposing Intentions, community pack `mephisto-nep` 14). One event per card, announced once the
+   * whole move is done (the cards of one move share one window), and only when an ability listens, so a game without
+   * one logs nothing new. `from` is the zone kind it left and `fromPlayerId` that zone's player (null for a zone of no
+   * player); `ownerId` is the card's owner; `sourceInstanceId` the card whose ability moved it (null for none). The
+   * event player is `fromPlayerId`, else the owner ("that player"). Narrow it with `eventIs: { area, from }`. Both
+   * windows hear it after the move: a "When … is put into" interrupt resolves as its response would (engine reading,
+   * authority step 5: what such text does, "put 1 additional card", does not depend on the card still being on its way).
+   */
+  | {
+      readonly kind: "cardPutIntoScenarioArea";
+      readonly instanceId: InstanceId;
+      readonly area: string;
+      readonly ownerId: PlayerId | null;
+      readonly from: ZoneId["kind"] | "unknown";
+      readonly fromPlayerId: PlayerId | null;
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
    * Damage was prevented, by the card `preventerInstanceId` (docs/phase7-wave4.md §3.20): "After Abjuration prevents 2
    * or more damage from a single attack, discard it" (Abjuration, `mts` 21082) is a forced response with `selfIs:
    * "source"`, `fromAttack: true` and `eventAtLeast: { amount: 2 }`. Announced (response only) when an ability listens,
@@ -1981,6 +2005,8 @@ export interface CardCausedActivation {
   readonly targetInstanceId?: InstanceId;
   readonly additionalResolution?: boolean;
   readonly noBoost?: boolean;
+  /** Handed on to the attack's or scheme's event (`TriggerEvent enemyAttack.appliedBoostCards`). */
+  readonly appliedBoostCards?: readonly InstanceId[];
   /** Handed on to the scheme's event (`TriggerEvent enemyScheme.startedByAttackBoost`). */
   readonly startedByAttackBoost?: true;
   readonly divert?: SchemeThreatDivert;
@@ -2573,6 +2599,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId ?? null]);
     case "discardRedirected":
       return of([], [event.instanceId], []);
+    case "cardPutIntoScenarioArea":
+      return of([event.sourceInstanceId], [event.instanceId], [event.fromPlayerId ?? event.ownerId]);
     case "mainSchemeCompleted":
     case "mainSchemeCompleting":
     case "mainSchemeTurnsToB":

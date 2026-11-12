@@ -3669,6 +3669,17 @@ export type EffectSpec =
       readonly statBonusTiming?: "afterInterrupts";
       readonly extraBoostCards?: number | ValueSpec;
       readonly boostIconsEach?: ValueSpec;
+      /**
+       * "Mephisto activates against you. Apply this card's boost icons for this activation as if it were a boost card"
+       * (the Bargain attachments' Response, community pack `mephisto-nep`): the cards `boostCards` names now (each out
+       * of play, in a zone a boost card can be given from, `BOOST_SOURCE_ZONES`) join the first activation this effect
+       * starts as boost cards of that activation, given at its give-boost step (after its own boost cards, also when
+       * the activation gets none of its own), then turned faceup, resolved, counted and discarded with them (RRG 1.8
+       * "Boost, Boost Icon", p. 11). An activation that never begins (cancelled by an interrupt, a stun or a confuse)
+       * never takes them, so they stay where they were: for a card discarded as the ability's cost, the encounter
+       * discard pile. They never wait on the enemy for a later activation.
+       */
+      readonly boostCards?: TargetRef;
     }
   /**
    * "This card gains surge": the encounter card whose ability this is surges when its reveal finishes.

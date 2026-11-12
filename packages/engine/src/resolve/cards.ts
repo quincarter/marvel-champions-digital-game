@@ -341,6 +341,20 @@ export function moveCardsTo(
   let shuffleEncounter = false;
   const scenarioDecksToShuffle = new Set<string>();
   const separateDecks = new Map<string, { readonly playerId: PlayerId; readonly name: string }>();
+  // Cards put into a scenario area by this move, announced after it when an ability listens (`cardPutIntoScenarioArea`).
+  const intoArea: TriggerEvent[] = [];
+  const enteredArea = (id: InstanceId, area: string, from: ZoneId | null): void => {
+    const fromPlayerId = from !== null && "playerId" in from ? from.playerId : null;
+    intoArea.push({
+      kind: "cardPutIntoScenarioArea",
+      instanceId: id,
+      area,
+      ownerId: getInstance(ctx.state, id)?.ownerId ?? null,
+      from: from?.kind ?? "unknown",
+      fromPlayerId,
+      sourceInstanceId: deckDiscardBy.sourceInstanceId,
+    });
+  };
   // A scenario deck closed to player card effects (the show deck, docs/phase7-wave6.md §3.66): a player card's ability
   // moves no card out of it, into it or within it. Each refused deck is logged once, with the cards left where they were.
   const refused = new Map<string, InstanceId[]>();
@@ -394,15 +408,19 @@ export function moveCardsTo(
     // "… facedown into Damnation" (`facedown`): closed to every player there.
     if (typeof destination === "object" && "scenarioArea" in destination) {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
+      const from = locateCard(ctx.state, id);
       if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId, asCost);
       else moveCard(ctx, id, area, "bottom");
       updateInstance(ctx, id, (i) => ({ ...i, faceup: !facedown }));
+      if (ctx.state.scenarioAreas?.[destination.scenarioArea]?.includes(id))
+        enteredArea(id, destination.scenarioArea, from);
       continue;
     }
     // "When a card is set aside from a player's deck, put it facedown into Damnation instead" (`RuleSpec
     // setAsideDestination`): a replacement read as the card moves, so the card never reaches the set-aside area.
     const asideTo = destination === "setAside" && !inPlay.has(id) ? setAsideRedirect(ctx.state, ctx.deps, id) : null;
     if (asideTo !== null) {
+      enteredArea(id, asideTo.area, locateCard(ctx.state, id));
       moveCard(ctx, id, { kind: "scenarioArea", name: asideTo.area }, "bottom");
       updateInstance(ctx, id, (i) => ({ ...i, faceup: !asideTo.facedown }));
       emit(ctx, {
@@ -565,6 +583,8 @@ export function moveCardsTo(
   if (sourceCardId !== undefined)
     for (const [name, instanceIds] of refused)
       emit(ctx, { type: "scenarioDeckClosed", name, sourceCardId, instanceIds });
+  const heardEntries = intoArea.filter((event) => heard(ctx.state, ctx.deps, event));
+  if (heardEntries.length > 0) pushEvents(ctx, heardEntries);
   for (const owner of shuffleOwners) {
     const order = shuffleZone(ctx, { kind: "deck", playerId: owner }, mustPlayer(ctx.state, owner).deck);
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));

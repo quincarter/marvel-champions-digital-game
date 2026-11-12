@@ -1012,12 +1012,6 @@ function checkSpendX(definition: AbilityDefinition, problems: string[]): void {
 }
 
 /**
- * A defeat destination that is an enemy's boost cards (`setDefeatDestination(boostCardOf(…))`, docs/phase7-wave10.md
- * §3.10) is read in the two places a defeat's destination can still change: the defeated card's own When Defeated
- * ability, and an interrupt whose one triggering condition is a character's defeat. Anywhere else the effect does
- * nothing, which for "give this card … as a facedown boost card" is a card silently discarded.
- */
-/**
  * `EffectSpec moveCards.facedown` (community pack `mephisto-nep`'s Damnation): only a scenario out-of-play area takes
  * cards facedown by this flag; every other destination sets its own face, so the flag would be silently ignored there.
  */
@@ -1034,13 +1028,23 @@ function checkFacedownAreaMoves(definition: AbilityDefinition, problems: string[
  * 0" is `gets(..., { setBase: true })`.
  */
 function checkStatMultipliers(definition: AbilityDefinition, problems: string[]): void {
-  if (definition.trigger.kind !== "constant") return;
-  for (const rule of definition.trigger.rules ?? []) {
+  // A constant's rules, and a rule granted for a while (`applyRuleUntil`, "double … until the end of the phase").
+  const rules = [
+    ...(definition.trigger.kind === "constant" ? (definition.trigger.rules ?? []) : []),
+    ...allEffects(definition.effects).flatMap((effect) => (effect.kind === "applyRuleUntil" ? [effect.rule] : [])),
+  ];
+  for (const rule of rules) {
     if (rule.kind === "multiplyStat" && !(Number.isFinite(rule.factor) && rule.factor > 0))
       problems.push(`multiplyStat ${rule.stat}: the factor must be a number above 0`);
   }
 }
 
+/**
+ * A defeat destination that is an enemy's boost cards (`setDefeatDestination(boostCardOf(…))`, docs/phase7-wave10.md
+ * §3.10) is read in the two places a defeat's destination can still change: the defeated card's own When Defeated
+ * ability, and an interrupt whose one triggering condition is a character's defeat. Anywhere else the effect does
+ * nothing, which for "give this card … as a facedown boost card" is a card silently discarded.
+ */
 function checkBoostCardDestination(definition: AbilityDefinition, problems: string[]): void {
   const gives = allEffects(definition.effects).some(
     (effect) => effect.kind === "setDefeatDestination" && typeof effect.to === "object" && "kind" in effect.to,

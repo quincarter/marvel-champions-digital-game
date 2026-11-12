@@ -766,9 +766,17 @@ export const enemyActivates = (
     readonly bonusAfterInterrupts?: boolean;
     readonly extraBoostCards?: Amount;
     readonly boostIconsEach?: Amount;
+    /**
+     * "Apply this card's boost icons for this activation as if it were a boost card" (the Bargain attachments'
+     * Response, community pack `mephisto-nep`): `enemyActivates(theVillain, { against: you, boostCards: self })` after
+     * a `discardThis` cost. The card joins this activation as one of its boost cards and is discarded with it; an
+     * activation that never begins leaves it where it is (`EffectSpec enemyActivation.boostCards`).
+     */
+    readonly boostCards?: TargetRef;
   } = {},
 ): EffectSpec => ({
   kind: "enemyActivation",
+  ...(opts.boostCards ? { boostCards: opts.boostCards } : {}),
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
