@@ -60,6 +60,26 @@ function identityFormLacks(state: GameState, targetId: InstanceId, stat: string)
   return !has.includes(stat);
 }
 /**
+ * A combined "SCH/THW" box (the card data emits it as both `sch` and `thw`: Power Stone, Motorcycle) "modifies the
+ * attached character's SCH if that character is a villain or minion, and modifies the attached character's THW if
+ * that character is a hero or ally" (RRG v1.8 "Attachment", p. 8). The half that does not fit the host is dropped
+ * here, so an ally treated as a minion whose SCH is read from its THW (Malice, docs/phase7-wave7.md §3.44) gets the
+ * box once, as SCH, not once through its THW and again as SCH.
+ */
+function combinedBoxMisses(
+  state: GameState,
+  targetId: InstanceId,
+  stat: string,
+  box: { readonly sch?: number; readonly thw?: number },
+): boolean {
+  if ((stat !== "sch" && stat !== "thw") || box.sch === undefined || box.thw === undefined) return false;
+  const treated = state.instances[targetId]?.treatedAs?.kind;
+  const type = cardOf(state, targetId)?.type;
+  const enemy = treated === "minion" || (treated !== "ally" && (type === "villain" || type === "minion"));
+  return stat === (enemy ? "thw" : "sch");
+}
+
+/**
  * Constant abilities and lasting effects are never "applied" to state — they
  * are recomputed on every read (RRG "Modifiers": the game recalculates a
  * modified quantity from the base value and all active modifiers each time it
@@ -102,7 +122,7 @@ export function modifiersFor(
       card.statModifiers;
     if (!showing) continue;
     for (const [s, amount] of Object.entries(showing)) {
-      if (identityFormLacks(state, targetId, s)) continue;
+      if (identityFormLacks(state, targetId, s) || combinedBoxMisses(state, targetId, s, showing)) continue;
       if (typeof amount === "number" && amount !== 0 && wanted(s as ModifiedStat)) {
         found.push({ sourceInstanceId: attachmentId, stat: s as ModifiedStat, amount, origin: "attachment" });
       }
