@@ -93,6 +93,22 @@ const panelPhase = (page: Page): Promise<string | null> =>
     return panel?.sys.isActive() ? panel.debugState().phase : null;
   });
 
+/**
+ * Waits until the panel takes a key or pad press again: a new step ignores presses for a moment (`PressGuard`), and
+ * on a loaded machine a fixed wait was sometimes not long enough.
+ */
+async function waitForArmed(page: Page): Promise<void> {
+  await waitFor(
+    () =>
+      page.evaluate(() => {
+        const game = (window as unknown as { __mcGame: { scene: { getScene(key: string): unknown } } }).__mcGame;
+        const panel = game.scene.getScene("SteamUpdateOverlay") as { debugState(): { armed?: boolean } } | null;
+        return panel?.debugState().armed === true;
+      }),
+    "the panel taking presses",
+  );
+}
+
 async function waitForPhase(page: Page, phase: string | null): Promise<void> {
   await waitFor(async () => (await panelPhase(page)) === phase, `the panel at ${phase}`);
 }
@@ -173,12 +189,12 @@ test("the panel works from the keyboard and a controller's route, and shows the 
   await openAsSteamInstall(page, { canUpdate: true });
   await pressStop(page, "Title", "update-steam");
   await waitForPhase(page, "ask");
-  await page.waitForTimeout(400);
+  await waitForArmed(page);
   await setStatus(page, { running: true, exitCode: null, log: "" });
   await page.keyboard.press("Enter");
   await waitForPhase(page, "working");
   // A new step takes no pad or key press for a moment, so a stray one can't land on its buttons.
-  await page.waitForTimeout(700);
+  await waitForArmed(page);
   await page.keyboard.press("Escape");
   await waitForPhase(page, null);
   expect(errors).toEqual([]);
