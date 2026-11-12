@@ -117,6 +117,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   cardsPaired: [ALLOWED, "table state, face up"],
   cardsRearranged: [STOPS, "a deck was reordered after a look"],
   cardsSetAside: [STOPS, "cards leave for out of play"],
+  setAsideRedirected: [STOPS, "a set-aside card goes to a scenario area instead, out of play"],
   cardsSwapped: [STOPS, "cards swapped after a look or reveal"],
   characterDefeated: [ALLOWED, "combat, all face up"],
   choiceFoundNothing: [CHECKED, "a target in play found none; a card choice may have read a hand"],

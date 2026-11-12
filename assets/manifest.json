@@ -369,6 +369,12 @@
       "files": 38
     },
     {
+      "name": "pack-art-mephisto-nep",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/mephisto-nep"
+    },
+    {
       "name": "artifacts",
       "group": "artifacts",
       "kind": "archive",

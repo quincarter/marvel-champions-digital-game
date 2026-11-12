@@ -14,7 +14,7 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
-import { communityPackIds, communityPreconId, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { communityHeroPackIds, communityPreconId, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
 import { clickStop, hasStop, seatDeckThroughTile, waitForScene } from "./wave6-helpers-a.js";
 import { dealToFirstTurn, quietGuide } from "./wave6-helpers-b.js";
 import { press } from "./x-men-helpers.js";
@@ -51,7 +51,7 @@ const identityPicture = (keys: readonly string[], face: "a" | "b"): boolean =>
  * logged. (Regression: the setup screen's preview asked the base game's scenario builder for a pack's precon, threw
  * "no playable starter deck", and the screen after "Play 1 hero" stayed blank.)
  */
-for (const packId of communityPackIds()) {
+for (const packId of communityHeroPackIds()) {
   test(`install ${packId} from the Mod Store, seat its precon alone and play`, async ({ page, baseURL }) => {
     test.setTimeout(300_000);
     // Only this pack is built and listed (the SDK build takes a while, and each test runs in its own worker).

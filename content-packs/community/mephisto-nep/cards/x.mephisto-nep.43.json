@@ -8,9 +8,6 @@
   "quantityInSet": 1,
   "unique": true,
   "encounterSetIds": ["mephisto-nep-mother-of-demons"],
-  "attachesTo": {
-    "kind": "yourIdentity"
-  },
   "boostIcons": 3,
   "traits": ["BARGAIN"],
   "keywords": [
@@ -28,6 +25,9 @@
     },
     {
       "id": "x.mephisto-nep.43.lilin-remaking-constant"
+    },
+    {
+      "id": "x.mephisto-nep.43.lilin-remaking-forced-interrupt"
     },
     {
       "id": "x.mephisto-nep.43.response"

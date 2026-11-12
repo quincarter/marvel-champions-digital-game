@@ -8,9 +8,6 @@
   "quantityInSet": 1,
   "unique": false,
   "encounterSetIds": ["mephisto-nep-damned"],
-  "attachesTo": {
-    "kind": "ally"
-  },
   "boostIcons": 2,
   "traits": ["CONDITION"],
   "keywords": [],

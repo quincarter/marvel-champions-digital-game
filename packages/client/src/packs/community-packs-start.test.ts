@@ -58,22 +58,31 @@ for (const packId of readdirSync(COMMUNITY).filter(ready)) {
       await store.install(manifest, files);
       const [status] = await loadActivePacks(store);
       expect(status).toMatchObject({ id: packId, loaded: true });
-      const decks = loadedPacks()[0]!.decks ?? [];
-      expect(decks.length).toBeGreaterThan(0);
-      for (const deck of decks) {
+      // A hero pack starts its precon alone at the Core Rhino; a scenario pack (no precon) starts each of its own
+      // scenarios with a base precon.
+      const pack = loadedPacks()[0]!;
+      const starts =
+        pack.decks.length > 0
+          ? pack.decks.map((deck) => ({ scenarioId: "rhino", deckId: deck.id as string }))
+          : (pack.scenarios ?? []).map((scenario) => ({
+              scenarioId: scenario.id as string,
+              deckId: "core-spider-man-justice",
+            }));
+      expect(starts.length).toBeGreaterThan(0);
+      for (const { scenarioId, deckId } of starts) {
         // The setup screen's preview builds the scenario on the main thread first: it threw "no playable starter deck"
         // for a pack's precon and left a blank screen behind "Play 1 hero".
-        const preview = buildScenarioWithLoadedPacks("rhino", {
+        const preview = buildScenarioWithLoadedPacks(scenarioId, {
           difficulty: "standard",
-          players: [{ starterDeckId: deck.id }],
+          players: [{ starterDeckId: deckId }],
           seed: 11,
         });
         expect(preview.players).toHaveLength(1);
         const session = new SessionStore(new LocalEngineHost());
         await session.start({
-          scenarioId: "rhino",
+          scenarioId,
           difficulty: "standard",
-          players: [{ starterDeckId: deck.id }],
+          players: [{ starterDeckId: deckId }],
           seed: 11,
         });
         for (let step = 0; step < 40; step++) {

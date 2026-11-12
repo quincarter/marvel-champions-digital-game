@@ -4,9 +4,9 @@ A fan-made scenario pack by Neptune (Typhon00): a battle for your soul against M
 three-stage main scheme, its own encounter set), four modular encounter sets (Blackheart, Corruptive Offers, Damned,
 Mother of Demons) and new art for the base game's Standard and Expert sets. See `CREDITS.md` and `PERMISSION.md`.
 
-Status: step 1 of 2. The card data, encounter sets and scenario are transcribed and validate; **no ability is scripted**
-(`abilities/index.ts` is a stub that lists every ability id with its printed text). `TRANSCRIPTION.md` lists what was
-read by eye and is unconfirmed. The scripting agent starts from "Engine gaps" below.
+Status: complete (step 2 of 2). The card data, encounter sets and scenario are transcribed, every ability is scripted in
+`abilities/index.ts` and tested, and the pack plays standard and expert. `TRANSCRIPTION.md` lists what was read by eye
+and is unconfirmed; "Rules readings and open questions" below lists the calls made and the one engine gap.
 
 ## Source layout
 
@@ -211,122 +211,101 @@ main schemes."
 
 ## Rules readings and open questions (for the owner / the author)
 
-1. **Hell Lord outside expert mode.** The insert says the Hell Lord is Mephisto's expert-mode attachment, but the card
-   Mephisto (II) prints "When Revealed: Find and attach the Hell Lord attachment to Mephisto" and II is in both modes'
-   villain decks, and 1A sets the Hell Lord aside in every mode. Transcribed as printed (so it is in play in standard
-   mode once II is revealed). Ask the author whether standard mode should skip it.
-2. **Acceleration counters on Hell.** "At the end of each round, place 1 acceleration token here" on Hell: it is not
-   stated what an acceleration token on the environment does (the engine adds +1 threat to the main scheme per
-   acceleration token on the main scheme at the villain phase; a token on a different card counts for nothing). Ask the
-   author; the likeliest reading is that the main scheme's acceleration grows by one each round while Hell is revealed.
-3. **"Insert says Hell Lord prevents his main scheme being thwarted by players with Bargain attachments"**: no card says
-   this (Hell Lord only reduces damage and drives Damnation recovery). Not built.
-4. **Corruptive Offers earlier draft.** The `Corruptive Offers.png` promo shows the attachments as "Bargain. Condition."
-   with a "When Revealed: Choose:" and an Action "Exhaust your identity and set-aside X cards ... discard this card"; the
-   cards in the pack folder are the current versions ("Peril." with Interrupt/Hero Response and a discard Response). The
-   current cards are transcribed.
-5. Printed typos kept word for word and flagged in `TRANSCRIPTION.md` (Lillith, "first players puts", "MYSIC", "scorned"
-   vs "scored", Culling's "Forced Interrupt: After").
+Answered by default (the owner's calls for the first build; each can change without touching the card data):
 
-## Engine gaps (a first list for the scripting pass)
+1. **Hell Lord in every mode, as printed.** The insert calls it Mephisto's expert-mode attachment, but Mephisto (II)
+   prints "When Revealed: Find and attach the Hell Lord attachment to Mephisto" and II is in both modes' villain decks.
+   Built as printed: in standard mode it arrives when II is revealed; in expert mode II is the first stage, so Mephisto
+   starts with it. (Ask the author whether standard mode should skip it.)
+2. **The Hell Lord does not stop thwarts.** The insert says it "prevents ... his main scheme being thwarted by players
+   with Bargain attachments", but no card text says so (the card only reduces damage and drives the Damnation
+   recovery). Not built.
+3. **"Look at N cards in Damnation" is a blind random pick** (`scenarioArea(..., { random })`): the cards are facedown
+   and unidentified, so the player learns nothing and picks nothing. Aid the Condemned, Culling the Damned, Hotel Inferno
+   ("up to 6" is always 6), Dark Compulsions (kept a "may") and the Hell Lord's Forced Response use it. **Exposing
+   Intentions' When Defeated is the exception:** it says "looks at each card in Damnation, then shuffles 1[per_hero] card
+   looked at this way", so the player is shown the area and picks (`chooseCards`); its "shuffle the Damnation area" has
+   nothing to reorder (the area is facedown and picked by identity).
+   3a. **The Gateway's redirect is only from a player's deck** ("when a card is set aside from a player's deck"):
+   `setAsideDestination` has `from: ["deck"]`. A card set aside from a hand or discard pile stays in the set-aside area.
+4. **Famished Power with Shackled Wrath: the sum, then the doubling** (RRG "Modifiers", p. 29: additions first, then
+   multipliers). A Spider-Man attack of 2 + THW 1 becomes 6, not 5 (tested).
+5. **Acceleration tokens on Hell.** "Place 1 acceleration token here" at the end of each round: RRG "Acceleration Token"
+   (p. 5) has the tokens on any card in play add that much threat to the main scheme in step one of the villain phase, so
+   each Hell token is +1 threat every round (tested: Hell holds a token after the round it is revealed).
 
-"Precedent" names a base card or an existing DSL builder (`packages/cards/src/dsl`) the script can follow. Anything
-marked **GAP** has no builder or engine rule found. The DSL is very wide, so each line says what to check first.
+Raised by the scripting pass (the author's or the owner's answer is wanted; the default is what is built):
 
-1. **Damnation: a shared, per-owner, out-of-play pile of player cards (GAP).** Cards from a player's deck go in
-   facedown ("Put N[per_hero] cards from the top of your deck facedown into Damnation"), are looked at and shuffled
-   back into their owner's deck, the count is read ("10[per_hero] cards in Damnation", "for every 6 cards in
-   Damnation", "looks at 1[per_hero] card"), and no player card can reach it. Nearest: `createScenarioArea` /
-   `scenarioArea` / `scenarioAreaCount` (Museum, `wave3/gmw/museum.ts`), `seedHiddenPiles` / `dealHiddenPiles` /
-   `revealHiddenPile` / `hiddenPileCount` (Baron Zemo, `wave9/aos/baron-zemo.ts`), `separateDeckCards` /
-   `shuffleSeparateDeck`. None is an owner-tagged pile that returns cards to the owner's deck, and a pack scenario cannot
-   declare `separateGameAreas`/`separateDecks` (`customScenarioProblems`).
-2. **Redirecting "set aside from a player's deck" into Damnation (GAP).** Gateway/Hell: "Forced Interrupt: When a card
-   is set aside from a player's deck, put it facedown into Damnation instead." No `on.` trigger for a set-aside event was
-   found (`on.discardedFromEncounterDeck`, `on.aPlayerDiscardsFromTheirDeck` exist, not set aside). Used by the Hidden
-   Clause too ("Corruptive Offers: set-aside X cards ... facedown").
-3. **Named main scheme ability "Hidden Clause" resolved by other cards.** Precedent: `tagged` + `resolveTagged` /
-   `resolveOneTagged`, `resolveSpecials` (Pterosaur 45128 resolves the Setting environment's "Special"). "For each Bargain
-   attachment you control" is a loop over a count (`forEachCard` / `repeatTimes`). Stage-scaled amount: `mainSchemeStageNumber`
-   - `perHero`.
-4. **Hell environment flip from the main scheme (3A) and double-sided environment.** Precedent: `flipCard`, other
-   double-sided environments (`flipSide` in aoa/aos data). Needs checking that `flipCard` takes an environment. Hell's
-   acceleration tokens: `addAccelerationToken` exists for the main scheme; tokens "here" on an environment are a GAP
-   (and the meaning is an open question, 2 above).
-5. **Optional attach-on-reveal with a penalty (Bargain "When Revealed").** "You may attach this card to your identity. If
-   you do not, discard this card and the villain activates against you." Precedent: `attachInstruction`, `attachCard`,
-   `enemyActivates` (187 uses), `chooseOne`/`option`, `ifThen`. Peril is a keyword in data. Check `attachCard` to
-   "your identity" with a decline branch.
-6. **"After your turn begins" Response/Forced Response and "when the villain phase begins" Interrupt.** `on.yourTurnBegins`,
-   `on.phaseBeginning` exist. A Response by the attachment's controller that discards itself as cost
-   (`discardThis`) then `enemyActivates` Mephisto "against you" (`enemyActivates(theVillain, you)`).
-7. **"Apply this card's boost icons ([boost]) for this activation as if it were a boost card" (GAP-ish).** Precedent:
-   `applyAsBoostCard` (`wave4/mts/loki.ts`, `wave4/mts/thanos.ts`), `countBoostIcons`, `boostIconsOn`. The card applied is
-   the discarded attachment, whose boost icons count (3). Needs confirming that `applyAsBoostCard` accepts a discarded
-   attachment with no boost ability.
-8. **Seven Bargain constant effects.** Endless Greed (+2 hand size: precedent "You get +1 hand size" cards use a
-   hand-size modifier in `constant`; no `modifyHandSize` builder was found by name, check engine `handSize` rules);
-   Gluttonous Restoration (Alter-Ego Interrupt on `on.basicRecovery`: "restore your identity to its printed hit point
-   value", precedent `resetHitPoints`/`setRemainingHitPoints`, and a base resource whose text reads "ready your identity and
-   restore it to its printed hit point value instead"); Lusting Existence (Action: exhaust an identity-specific card you control ->
-   ready your identity; `exhaustCardsCost`, `ready`); Prideful Ambitions ("ignores the patrol keyword and any crisis
-   icons" precedent `ignores`, Nebula kit / a thwart that "ignores the patrol keyword and any crisis icons"; "Double the
-   THW value of your identity" is a GAP: no `doubleStat` builder, `modifyStat` with `statOf` as the delta may do it, check
-   it applies to the printed/current value on a hero or alter-ego); Shackled Wrath (`attacksGainKeywords`, double ATK,
-   same gap); Slothful Endurance ("cannot take damage less than its DEF from each attack": a damage floor, **GAP**;
-   `maxDamageTaken` is a ceiling, `doubleDamageTaken` precedent Mojo; double DEF same as above); Unquenchable Envy ("Each
-   resource you generate is considered a wild resource instead": **GAP**, nearest `consideredToHaveResourceIcon`,
-   `printedResourcesOf`, `doublesResourcesGeneratedForThisCard`).
-9. **Corruptive Offers counters.** "corrupt", "damned" and "scorned" counters: precedent `addCounters`, `countersOn`,
-   `removeCounter`, `counterLimit` (all-purpose / named counters; check custom counter names are free text). Famished
-   Power "combine the values of 2 basic powers of your hero for this use": **GAP** (precedent `modifyBasicPower`,
-   `useThwInsteadOfAtk`, `basicPowerBy`: nothing adds two powers). Pestilent Nature "when a card you control leaves play ...
-   shuffle that card into your deck instead": `replaceLeaveDestination` + `on.leavesPlay` (should exist). Deathless
-   Persistence: interrupt on `on.defeated`/"would be defeated" + `heal` + `instead` (the `instead` pattern of the sample
-   pack's Escapement Plating). Warring Rage: `on.defeats` after attack by hero.
-10. **Demonized: an ally treated as a Mystic minion.** Precedent exists: `treatAttachedAllyAsMinion([trait], { schFromThw:
-    "base" })` (Converted 60100 `wave11/fne/villains/purple-man.ts`; Beguiled, `wave4/mts/enchantress.ts`). Gaps: "SCH is
-    equal to its printed THW" (printed vs base), "does not take consequential damage" (`preventConsequentialDamage`
-    exists), "gains toughness and 1 acceleration icon" (`gainsKeyword`, `gainsIcon`), "with a blank text box"
-    (`blanksTextBox`), and "put that ally into play engaged with you with Demonized attached" (`attachCard`+`engage`;
-    `searchEncounterIntoPlayCost` is not relevant).
-11. **Facedown Mystic minions from the discard pile (Lilith, Call of the Demoness, Spawn Magic) (GAP).** Precedent:
-    `putIntoPlayFacedown(player, { kind: "minion", traits })` (Drone, `AS_DRONE`; Controlled minions,
-    `wave9/aos/maria-hill/obligation-nemesis.ts`), but that takes the top card of the **deck**; these take the top card(s)
-    of the **discard pile**, with "base SCH 1, base ATK 1, base hit points 1" set by a scenario rule on facedown Mystic
-    minions engaged with a player, "cannot leave play while a facedown Mystic minion is in play" (`cannotLeavePlay`),
-    and Condemned Soul Portal's "printed non-Elite Mystic minion" (a facedown card's printed traits).
-12. **Lilin Remaking on an identity.** "Treat your identity's printed text box as blank (except for Traits)": `blanksTextBox`
-    precedent (24 uses); "You gain the Mystic trait, retaliate 2, and villainous" (`gainsTrait`, `gainsKeywordX`,
-    `gainsKeyword`) on an **identity** (a villainous player character attacking: GAP if the engine treats villainous only
-    on encounter cards); "you cannot attack Lilith and she cannot activate against you" (`cannotActivate`, `cannotAttack`).
-13. **Devil's Pacts (villain Forced Interrupt).** "When Mephisto would activate against you ... does not activate and
-    heals N[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each
-    Bargain attachment in play." `on.enemyActivating` + `instead(heal(...), ifThen(...))`; `heal` bound result
-    (`bind: "healed"`, as the sample pack's Overwind). "No damage was healed" with Toughness-like readings: check.
-14. **Hell Lord.** "Reduce the amount of damage Mephisto takes from identities by 1 for each Bargain attachment they
-    control" (`reduceDamage` with a count and an "from identities" source filter, precedent Armored Rhino Suit is a
-    replacement, not a reduction; `reducesAttackDamageTaken`, `takesDamageOnlyFrom`), and the Forced Response "after an
-    identity with a Bargain attachment attacks Mephisto, for each Bargain attachment they control, look at 1 card in
-    Damnation -> shuffle it back" (Damnation, gap 1).
-15. **Main scheme stage 3B win condition.** "If there is no threat here, the players win the game." Precedent: `stateCheck`
-    - `endGame` (Risky Business, Protection Racket), `completeMainScheme`. Stage 3A "flip Gateway to reveal Hell" is the
-      stage's when revealed; Fiendish/Hellbound "search the encounter deck for a Bargain attachment and reveal it ... in
-      player order" (`searchAndReveal`, `forEachPlayerInChosenOrder`/`forEachPlayer`).
-16. **Scenario setup in a pack (PARTLY DONE).** The scenario record now carries `setAsideCardIds: ["x.mephisto-nep.04"]` (the Hell Lord, set aside out of play, taken out of the encounter deck), and the Gateway to Corruption has the Setup keyword and is in the Mephisto set, so the engine puts it into play at setup step 11 (RRG p. 51) with no ability. Still needs an ability: **create the "Damnation" game area** (the `02a.setup` ability, once the engine primitive lands).  Original note: `setup()`-style stage 1A script
-    into play, create Damnation. A pack scenario record may only use the plain fields, so `setAsideCardIds`,
-    `separateGameAreas` and startup environments are not available (sample pack README, "Known gaps"). Precedent for
-    the scripts: `putIntoPlay`, `encounterSetAside`/`setAside`, `putIntoPlayFromSetAside` (20 uses), `createScenarioArea`.
-17. **Per-stage pictures for pack villains and main schemes (client GAP).** See "Picture names": `packPictureCodes` returns
-    the card's own code (and the `b` sibling for flip sides) so stage II/III of Mephisto and stages 2/3 of the main scheme
-    show stage I / 1A's picture until `art-source.ts` maps stages to `01b`/`01c` and `02c`...`02f`.
-18. **Smaller items.** Teamwork (MYSTIC) is a keyword in the schema (`teamwork` with `sharedTrait`); check the engine
-    implements its trigger for minions (the AoA Dark Riders precedent in data). Hinder 2[per_hero] (`hinder` with
-    `perPlayer`), Assault, Incite, Guard, Patrol, Steady, Stalwart, Toughness, Vulnerable, Retaliate and Villainous are
-    keywords with engine support. "Mephisto attacks you with +X ATK", "schemes with +X SCH" (`modifyAttack`, a scheme
-    equivalent: check), "Give him 2 additional boost cards" (`extraBoostCardsForVillain`), "This attack gains overkill and
-    piercing" (`attacksGainKeywords`), a villain's "give him a tough status" (`giveTough`), "heal 3 damage from
-    Blackheart" (Action on an encounter minion usable by a player: check precedent for an encounter card with a player
-    `action`), Blackheart's Boost "cancel this activation" (`cancelIt`).
-19. **Counters on enemy HP.** Demon Amalgam: "gets +1 hit point for each damned counter on it" (`modifyStat` HP with
-    `countersOn`) and Vulnerable (Vulnerable is a keyword, a status-like rule).
+6. **The Corruptive Offers' "Response: Discard this card -> set-aside X[per_hero] cards ..." has no triggering
+   condition printed** (checked against the card picture). Built as the Bargain family's response (the insert: "Bargain
+   can be discarded at the start of your turn"): after your turn begins. Alternatives: an Action. Recommended: keep the
+   turn-start timing. The discard is the last effect rather than a cost, because a discarded card's counters are gone
+   before X can be read.
+7. **Culling the Damned: "Forced Interrupt: After a Mystic minion is defeated"** mixes the words. Built as a Forced
+   Response ("after").
+8. **Exposing Intentions: "Forced Interrupt: When a card is put into Damnation ... put 1 additional card".** The engine
+   announces `cardPutIntoScenarioArea` once the card has moved, so it is heard as a Forced Response; the additional card
+   does not chain. The outcome (1 extra card per card put in) is the same.
+9. **"You control a Bargain attachment" is "is attached to your identity".** An encounter attachment is controlled by
+   no player (RRG "Attachment", p. 8), so costs that discard "a card you control" cannot pick it: Blackheart's Action
+   picks it as the cost (`chooseTargetCost`) and discards it as its first effect.
+10. **Blackheart's Boost "cancel this activation" (ENGINE GAP, see below).** The option is offered and its discard and
+    "put Blackheart into play" resolve; the cancel is approximated for an attack as "prevent all damage from it".
+11. **Famished Power combines the used basic power with one other** (THW, ATK or DEF) chosen when it is triggered, the
+    sum being +N to that use.
+12. **Gluttonous Restoration's "may discard any number of status cards"** is a keep/discard prompt for each status the
+    identity holds.
+13. **Lilin Remaking, "she cannot activate against you"** is a Forced Interrupt of the attachment that cancels
+    Lilith's activation when it is against the attachment's player (`x.mephisto-nep.43.lilin-remaking-forced-interrupt`,
+    a new ability id on the card record), so she still activates against the other players. "You cannot attack
+    Lilith" is a `cannotAttack` rule on the host. "Lillith" is Lilith.
+14. **Condemned Soul Portal's "printed non-Elite Mystic minion"** is an encounter-controlled, faceup Mystic minion
+    without the Elite trait: a facedown player card and an ally treated as a minion (Demonized) are not printed minions.
+15. **Demonized has no data host.** Its record's `attachesTo: ally` is removed: its own When Revealed discards from the
+    deck until an ally, puts that ally into play engaged with you and attaches itself. A deck with no ally leaves it
+    unattached and discarded.
+16. **The Bargain attachments have no data host either** (`attachesTo` removed from the 7 sins, Black-Hearted, the four
+    Corruptive Offers and Lilin Remaking): the "you may attach" is the card's own When Revealed, a choice between
+    attaching and "discard it and the villain activates against you".
+17. **Soul Gambling's "Otherwise, this card gains surge"** is read as: no Bargain attachment in play holds a corrupt
+    counter. Its Boost places a corrupt counter on any Bargain attachment you control, whatever its set.
+
+## Scripting notes
+
+All 108 ability ids are scripted in `abilities/index.ts` (the 107 of the stub plus
+`x.mephisto-nep.43.lilin-remaking-forced-interrupt`); there is no bespoke engine code for a card. The Damnation
+machinery uses the engine primitives added for this pack (`engine-only-features.ts` shows each):
+
+- Damnation: `createScenarioArea` in 1A's Setup; `moveCards(..., { scenarioArea }, undefined, { facedown: true })`;
+  `scenarioArea(name, filter, { random })` and `scenarioAreaCount`; `setAsideDestination` on both faces of the Gateway;
+  `on.cardPutIntoScenarioArea`. The 10[per_hero] loss and the stage 3B win are `stateCheck` + `endGame`.
+- Hidden Clause: `tagged("hiddenClause", ...)` on each B stage, resolved by `resolveTagged` from the turn-end Forced
+  Response (once per Bargain attachment) and from Alter the Deal, Dark Compulsions and Meager Request.
+- Bargain Response: `enemyActivates(theVillain, { against: you, boostCards: self })`; the sins' constants:
+  `multiplyStat`/`doubleStat`, `minDamageTaken`, `resourcesGeneratedAsWild`, `gets("handSize")`, `ignores`.
+- Lilith's and Call of the Demoness's facedown Mystic minions: `putIntoPlayFacedown(..., { from: "discard" })` and
+  `gets(..., { setBase: true })` (1 SCH, 1 ATK, 1 hit point), as Ultron's Drones.
+
+### What is not exact (engine gaps, for `game-rules-architect`)
+
+- **A Boost ability cannot cancel its activation.** Blackheart's Boost ("You may discard a Bargain attachment to cancel
+  this activation") runs with no triggering event (`gameAbilityFrames(..., null)` in `stepFaceupBoostCard`), so
+  `cancelIt()` finds nothing. Needed: a boost ability's `cancelTriggeringEvent` (or a `cancelActivation` effect) that
+  cancels the activation in progress. Meanwhile an attack is answered with `modifyAttack({ preventAllDamage })` and a
+  scheme activation goes on; `cancelIt()` stays in the script.
+- **"Discard this card ->" cannot read the card's own counters afterwards**, and an encounter attachment cannot pay a
+  "you control" discard cost, so two costs are written as effects (the Corruptive Offers' Response, Blackheart's
+  Action). The player-visible result is the same.
+- **Hell Lord's stopping thwarts** (the insert) has no card text and is not built.
+
+## Tests
+
+`packages/mod-sdk/src/mephisto-nep.test.ts`: setup (Gateway in play, Hell Lord set aside, Damnation created and empty);
+a Bargain accepted and refused; Hidden Clause at the end of the turn per Bargain (and 3 per hero on stage 3B); Devil's
+Pacts (heal, or threat when there is nothing to heal); the Damnation loss at 10 per hero (1 and 2 heroes); Gateway's
+set-aside redirect; stage 3B win and loss; Fiendish Investment; Gateway to Hell with its acceleration token; Slothful
+Endurance's floor; Famished Power with and without Shackled Wrath; the facedown Mystic minions (1/1/1, Spawn Magic);
+Hell Lord's damage reduction and recovery; Alter the Deal, Dark Compulsions, Hotel Inferno, Culling the Damned, Exposing
+Intentions; Blackheart's Action and Boost; Lilin Remaking; the turn-start Responses; Deathless Persistence; Demon
+Amalgam; Demonized; Lusting Existence; Condemned Soul Portal; and every encounter card revealed in hero and alter-ego
+form with and without a Bargain attachment. `mc-pack test` plays the scenario (standard and expert) and every modular set.

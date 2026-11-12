@@ -26,6 +26,13 @@ export const communityPackIds = (): string[] =>
     (name) => statSync(join(COMMUNITY, name)).isDirectory() && !existsSync(join(COMMUNITY, name, "DRAFT")),
   );
 
+/**
+ * The community packs that ship a hero's precon (`decks/`): the ones a spec can seat alone. A scenario pack (Mephisto)
+ * has none; it is played from the scenario list, which `community-packs-start.test.ts` and the SDK smoke games cover.
+ */
+export const communityHeroPackIds = (): string[] =>
+  communityPackIds().filter((name) => existsSync(join(COMMUNITY, name, "decks")));
+
 export interface StagedCatalog {
   readonly dir: string;
   readonly index: unknown;

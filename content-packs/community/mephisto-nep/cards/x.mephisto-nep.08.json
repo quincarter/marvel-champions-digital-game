@@ -8,9 +8,6 @@
   "quantityInSet": 1,
   "unique": true,
   "encounterSetIds": ["mephisto-nep-mephisto"],
-  "attachesTo": {
-    "kind": "yourIdentity"
-  },
   "boostIcons": 3,
   "traits": ["BARGAIN"],
   "keywords": [
