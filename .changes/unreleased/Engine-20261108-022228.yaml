@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Berserker Barrage''s repeat is its own attack: the enemy it hits is no longer also counted as attacked by the first, so it retaliates once, not twice'
+time: 2026-11-08T02:22:28.5156306+01:00

@@ -1,4 +1,5 @@
 import { activeVillain, cardsInPlay, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
+import { cardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { constant, rule } from "../../../dsl/abilities.js";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -113,6 +114,48 @@ describe("Wolverine events (35008-35012)", () => {
       });
       expect(damageOf(after)).toBe(2);
       expect(inst(after, villainOf(state)).damage).toBe(4);
+    });
+
+    // Each repeat is a new attack (FFG ruling, docs/rulings/rrg-1-0-to-1-4/54-wolverine.md: "Berserker Barrage makes one
+    // attack initially...; if you repeat its ability, the new attack will not have piercing"). The repeat's enemy is
+    // attacked by the repeat only, so it retaliates once (RRG 1.8 "Retaliate X", p. 38). From a real saved game, where
+    // the repeat's enemy was also recorded on the first attack and retaliated twice.
+    it("the repeat's enemy is attacked once, by the repeat: retaliate 1 is dealt once", () => {
+      // Two Hydra Mercenaries reprinted with 6 hit points, retaliate 1 and no guard; the first already has 3 damage.
+      const { state: one, id: first } = engageMinion(staged(), "01101", P1);
+      const { state: two, id: second } = engageMinion(one, "01101", P1);
+      const printed = two.cardPool[cardId("01101")]!;
+      if (printed.type !== "minion") throw new Error("Hydra Mercenary is not a minion");
+      const reprinted = { ...printed, hp: 6, keywords: [{ name: "retaliate" as const, value: 1 }] };
+      const state = patchInstance({ ...two, cardPool: { ...two.cardPool, [reprinted.id]: reprinted } }, first, {
+        damage: 3,
+      });
+      const given = moveToHand(state, P1, "35008");
+      const id = given.ids[0] as InstanceId;
+      let target = first;
+      const run = driveEventsPicking(
+        DEPS,
+        given.state,
+        (s) => {
+          const take = s.pendingChoice?.options.find((o) => o.label.includes("Take 2 damage"));
+          if (take) {
+            target = second;
+            return [take.optionId];
+          }
+          return targeting(target)(s);
+        },
+        play(P1, id, payWith(given.state, P1, 2, [id])),
+      );
+      const attacked = run.events.flatMap((e) =>
+        e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "characterAttacked"
+          ? [e.event.targetInstanceId]
+          : [],
+      );
+      expect(inPlay(run.state, first)).toBe(false);
+      expect(inst(run.state, second).damage).toBe(4);
+      expect(attacked.filter((a) => a === first)).toHaveLength(1);
+      expect(attacked.filter((a) => a === second)).toHaveLength(1);
+      expect(damageOf(run.state)).toBe(3); // 2 to repeat + retaliate 1, once
     });
   });
 

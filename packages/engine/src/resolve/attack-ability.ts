@@ -1062,6 +1062,15 @@ function noteTargetedByAbility(ctx: Ctx, frame: Frame<"effects">, context: Effec
   const attack = abilityAttackOf(ctx.state, ctx.deps, frame);
   const waiting = attack?.waiting;
   if (attack === undefined || waiting === undefined || attack.cancelled) return;
+  // An attack an `attack` instruction made (or took over) is that instruction's: while another `attack` instruction is
+  // still ahead in this frame, the enemies chosen so far are for that next attack, which records its own target, not
+  // for the one waiting. Each repeat of Berserker Barrage is a new attack (FFG ruling, Wolverine, RRG 1.0-1.4 rulings:
+  // "if you repeat its ability, the new attack will not have piercing"), so its enemy is not also attacked by the first
+  // and retaliates once (RRG 1.8 "Retaliate X", p. 38). A begun attack no instruction has taken over yet still takes
+  // every choice (ruling 197). Interpretation: any later `attack` in the frame counts, even one in a branch not taken,
+  // so an enemy chosen only for a status ahead of such a branch is not recorded on the earlier attack (no shipped card).
+  const madeByInstruction = waiting.attackBegun !== true && waiting.event.labeled !== true;
+  if (madeByInstruction && holdsAttackEffect(frame.effects.slice(frame.cursor))) return;
   const already = new Set((waiting.attacked ?? []).map((event) => event.targetInstanceId));
   const inPlay = cardsInPlay(ctx.state);
   const attacked: Attacked[] = [];
