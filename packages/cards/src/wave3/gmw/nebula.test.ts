@@ -551,6 +551,42 @@ describe("Power Stone (16149) on an alter-ego", () => {
   });
 });
 
+describe("Power Stone (16149) across real form changes", () => {
+  it("stays attached through changeForm to alter-ego and back, its +1 ATK / +1 THW off and then on again", () => {
+    const { state: attacked } = playFromHand(runWave3(nebula(), toHero()), "16005", 2);
+    const groot = identityOf(attacked);
+    const villain = attacked.villains[0]!.instanceId;
+    const [stone] = instancesOf(attacked, "16149");
+    const heroStats = characterProfile(attacked, groot, WAVE3_DEPS)!;
+    const unbonused = characterProfile(withoutStone(attacked), groot, WAVE3_DEPS)!;
+    expect([heroStats.atk, heroStats.thw]).toEqual([unbonused.atk + 1, unbonused.thw + 1]);
+
+    // Nebula is stunned before each villain phase, so her activation is no attack that could take the stone back.
+    const stunNebula = (s: GameState): GameState =>
+      patchInstance(s, villain, { statuses: { ...inst(s, villain).statuses, stunned: 1 } });
+    // Any encounter choice that would flip Groot (his obligation offers "Flip to alter-ego form") takes the other
+    // option, so only the changeForm commands below change his form.
+    const noFlip = (s: GameState): readonly string[] => {
+      const keep = s.pendingChoice?.options.find((o) => !o.label.startsWith("Flip to"));
+      return s.pendingChoice?.prompt.kind === "chooseOption" && keep ? [keep.optionId] : firstLegal(s);
+    };
+    const nextTurn = (s: GameState): GameState =>
+      settle(runWave3(stunNebula(s), endTurn()), noFlip, undefined, WAVE3_DEPS);
+
+    const alterEgo = runWave3(nextTurn(attacked), toHero()); // changeForm: hero → alter-ego
+    expect(playerOf(alterEgo, P1).identity.form).toBe("alterEgo");
+    expect(inst(alterEgo, stone!).attachedTo).toBe(groot);
+    const asAlterEgo = characterProfile(alterEgo, groot, WAVE3_DEPS)!;
+    expect([asAlterEgo.atk, asAlterEgo.thw, asAlterEgo.def]).toEqual([0, 0, 0]);
+
+    const heroAgain = runWave3(nextTurn(alterEgo), toHero()); // changeForm: alter-ego → hero
+    expect(playerOf(heroAgain, P1).identity.form).toBe("hero");
+    expect(inst(heroAgain, stone!).attachedTo).toBe(groot);
+    const back = characterProfile(heroAgain, groot, WAVE3_DEPS)!;
+    expect([back.atk, back.thw]).toEqual([unbonused.atk + 1, unbonused.thw + 1]);
+  });
+});
+
 /** The same game with the Power Stone lifted off its host (surgery), to read the host's stats without it. */
 function withoutStone(state: GameState): GameState {
   const [stone] = instancesOf(state, "16149");

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { settle } from "./helpers.js";
-import { installWave6Helpers } from "./wave6-helpers-a.js";
+import { settle, waitFor } from "./helpers.js";
+import { installWave6Helpers, visibleTexts, type VisibleText } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import { SHOT, boardUp } from "./x-men-helpers.js";
 
@@ -32,7 +32,24 @@ interface StatTile {
   readonly bonus: number;
 }
 
-test("the Power Stone gives Gamora +1 ATK and +1 THW once it moves to her", async ({ page }) => {
+/**
+ * The stat labels the board draws a "+1" bonus chip over: each "+1" text in the Board scene, matched to the stat label
+ * ("ATK", "THW", …) drawn just below it in the same column.
+ */
+function labelsWithPlusOne(texts: readonly VisibleText[]): readonly string[] {
+  const board = texts.filter((t) => t.scene === "Board");
+  const labels = board.filter((t) => ["ATK", "THW", "DEF", "SCH"].includes(t.text.trim()));
+  const found: string[] = [];
+  for (const chip of board.filter((t) => t.text.trim() === "+1")) {
+    const below = labels
+      .filter((l) => Math.abs(l.x + l.w / 2 - (chip.x + chip.w / 2)) < 30 && l.y > chip.y && l.y - chip.y < 80)
+      .sort((a, b) => a.y - b.y)[0];
+    if (below) found.push(below.text.trim());
+  }
+  return found.sort();
+}
+
+test("the Power Stone gives Gamora +1 ATK and +1 THW once it moves to her", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await installWave6Helpers(page);
   await openApp(page);
@@ -82,7 +99,19 @@ test("the Power Stone gives Gamora +1 ATK and +1 THW once it moves to her", asyn
   expect(bonus(stats.nebula, "ATK")).toBe(0);
   expect(bonus(stats.nebula, "SCH")).toBe(0);
 
-  if (SHOT) {
+  // What the board actually draws: a "+1" chip over Gamora's THW and ATK, and none over Nebula's ATK or SCH (on a phone
+  // the board opens on Gamora's own tab, so only her tiles are showing there).
+  const drawn = await waitFor(
+    async () => {
+      const found = labelsWithPlusOne(await visibleTexts(page));
+      return found.length >= 2 ? found : null;
+    },
+    "the +1 chips over Gamora's stats",
+    30000,
+  );
+  expect(drawn).toEqual(["ATK", "THW"]);
+
+  if (SHOT && testInfo.project.name === "desktop") {
     for (const [name, width, height] of SIZES) {
       await page.setViewportSize({ width, height });
       await settle(page, { quietMs: 800, maxMs: 4000 });

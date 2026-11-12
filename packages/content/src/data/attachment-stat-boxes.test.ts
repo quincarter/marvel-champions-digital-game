@@ -19,6 +19,10 @@ const PRINTED: Readonly<Record<string, { readonly atk?: number; readonly sch?: n
   "27089": { atk: 3 }, // Humongous Hallucination
   "27090": { sch: 1 }, // Masterful Mirage
   "29031": { atk: 1 }, // Cyborg Tech
+  "60122": { sch: 1, thw: 1 }, // Impossible Object: +1 SCH/THW
+  "60123": { sch: 1, thw: 1 }, // Inspiring Pottery: +1 SCH/THW
+  "60124": { sch: 1, thw: 1 }, // Replica Shield: +1 SCH/THW
+  "60125": { sch: 1, thw: 1 }, // Stunning Landscape: +1 SCH/THW
   "60187": { sch: 1, thw: 1 }, // Motorcycle: +1 SCH/THW
   "65065": { thw: 2 }, // Pull of Power
 };
