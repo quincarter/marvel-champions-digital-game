@@ -755,6 +755,15 @@ export type CampaignOp =
        * - An answer a caller supplies for a repeated choice is ignored: the choice was never offered.
        */
       readonly repeatOnRetry?: true;
+      /**
+       * An optional pick with no options left is not asked: the seat records an empty pick (what declining records,
+       * so `choiceMade` reads false) and the ops after it run. MC16 p. 5's Market offers each price tier as up to four
+       * slots, and once every card of a tier is bought the slots after it have nothing to sell (#679): asking them
+       * showed a prompt with only Decline on it. Off by default, because some boxes show an empty offer on purpose
+       * (the Aftermath's "Nothing on offer." column). Only with `optional`: a required pick with nothing to pick is
+       * a definition fault the runner should still surface.
+       */
+      readonly skipWhenEmpty?: true;
     }
   /**
    * MC27 p. 22 ("Deal 3 … upgrades at random"), MC45 p. 5 ("randomly select one of the available MISSION side
