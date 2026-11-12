@@ -86,7 +86,7 @@ import { tuckLeavingCard } from "./tuck.js";
 import { placeLeavingInSeparateDeck } from "./leave-to-separate-deck.js";
 import { noteUnoffered, pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
-import { cannotLeavePlay, staysInHand } from "../rules.js";
+import { cannotLeavePlay, setAsideRedirect, staysInHand } from "../rules.js";
 import { shuffleSearchedDecks } from "./find.js";
 import { markPreThenUnresolved } from "./then.js";
 
@@ -225,8 +225,11 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       if (!selector.random) return matching;
       return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
     }
-    case "scenarioArea":
-      return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
+    case "scenarioArea": {
+      const matching = [...filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter)];
+      if (!selector.random) return matching;
+      return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
+    }
     case "scenarioDeck": {
       const piles = state.scenarioDecks[selector.name];
       if (!piles) return [];
@@ -328,6 +331,8 @@ export function moveCardsTo(
   sourceCardId?: CardId,
   deckDiscardBy: DeckDiscarder = { sourceInstanceId: null },
   asCost = false,
+  /** `to: { scenarioArea }` only: the cards go in facedown (`EffectSpec moveCards.facedown`). */
+  facedown = false,
 ): void {
   // Empty scenario decks reset once the whole batch has moved (`Ctx.scenarioResetsHeld`), not at its first card.
   ctx.scenarioResetsHeld = (ctx.scenarioResetsHeld ?? 0) + 1;
@@ -386,11 +391,26 @@ export function moveCardsTo(
         continue;
     }
     // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
+    // "… facedown into Damnation" (`facedown`): closed to every player there.
     if (typeof destination === "object" && "scenarioArea" in destination) {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
       if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId, asCost);
       else moveCard(ctx, id, area, "bottom");
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: !facedown }));
+      continue;
+    }
+    // "When a card is set aside from a player's deck, put it facedown into Damnation instead" (`RuleSpec
+    // setAsideDestination`): a replacement read as the card moves, so the card never reaches the set-aside area.
+    const asideTo = destination === "setAside" && !inPlay.has(id) ? setAsideRedirect(ctx.state, ctx.deps, id) : null;
+    if (asideTo !== null) {
+      moveCard(ctx, id, { kind: "scenarioArea", name: asideTo.area }, "bottom");
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: !asideTo.facedown }));
+      emit(ctx, {
+        type: "setAsideRedirected",
+        instanceId: id,
+        area: asideTo.area,
+        sourceInstanceId: asideTo.sourceInstanceId,
+      });
       continue;
     }
     // `into` (docs/phase7-wave5.md §3.5): that player's zones, whoever owns the card.

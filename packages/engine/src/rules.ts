@@ -21,6 +21,7 @@ import {
   getPlayer,
   identityFace,
   isPlayerCardType,
+  locateCard,
   mainSchemeFor,
   mainSchemeStageOf,
   mainSchemeStates,
@@ -34,6 +35,7 @@ import {
 import {
   activeAbilityRefs,
   activeRules,
+  AFFECTED_SLOT,
   cardsInPlay,
   categoriesOf,
   constantYouOf,
@@ -1733,9 +1735,36 @@ export function damageTakenBreakdown(
       doubledBy.push(context.selfInstanceId);
     }
   }
+  // "Cannot take damage less than its DEF from each attack" (`minDamageTakenPerAttack`): after every modifier, before
+  // the cap, which keeps the last word. A damage event of 0 was never dealt and is not raised.
+  const floor = amount > 0 ? perAttackDamageFloor(state, deps, targetId, fromAttack) : null;
+  if (floor !== null) taken = Math.max(taken, floor);
   const cap = perAttackDamageCap(state, deps, targetId, fromAttack);
   if (cap !== null) taken = Math.min(taken, cap);
   return { taken: Math.max(0, taken), beforeDoubling, doubledBy };
+}
+
+/**
+ * The highest `minDamageTakenPerAttack` floor on this character for damage from an attack ("cannot take damage less
+ * than its DEF from each attack"), or null (none, or not attack damage). Each amount is read in its rule's context with
+ * the character bound to `affected`.
+ */
+export function perAttackDamageFloor(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  fromAttack: boolean,
+): number | null {
+  if (!fromAttack) return null;
+  let floor: number | null = null;
+  for (const { rule, context } of activeRules(state, deps, "minDamageTakenPerAttack")) {
+    if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
+    const amount =
+      typeof rule.amount === "number" ? rule.amount : Math.max(0, resolveValue(state, rule.amount, reading, deps));
+    floor = floor === null ? amount : Math.max(floor, amount);
+  }
+  return floor;
 }
 
 /**
@@ -1801,6 +1830,46 @@ export function discardRedirectArea(state: GameState, deps: EngineDeps, id: Inst
     ...(match.rule.thenPlaceThreat !== undefined ? { thenPlaceThreat: match.rule.thenPlaceThreat } : {}),
     sourceInstanceId: match.context.selfInstanceId,
   };
+}
+
+/**
+ * Where a card being set aside goes instead (`RuleSpec setAsideDestination`; community pack `mephisto-nep`'s
+ * Damnation), or null: the first active rule whose `from` names the player zone the card is in now.
+ */
+export function setAsideRedirect(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+): { readonly area: string; readonly facedown: boolean; readonly sourceInstanceId: InstanceId | null } | null {
+  const rules = activeRules(state, deps, "setAsideDestination");
+  if (rules.length === 0) return null;
+  const at = locateCard(state, id);
+  if (at?.kind !== "deck" && at?.kind !== "hand" && at?.kind !== "discard") return null;
+  const match = rules.find(({ rule }) => (rule.from ?? ["deck"]).includes(at.kind));
+  if (!match) return null;
+  return {
+    area: match.rule.area,
+    facedown: match.rule.facedown === true,
+    sourceInstanceId: match.context.selfInstanceId,
+  };
+}
+
+/**
+ * Whether every resource `playerId` generates is wild (`RuleSpec resourcesGeneratedAsWild`), and the pool as it then
+ * counts: the same number of resources, all wild. Unchanged when no rule binds the player.
+ */
+export function generatedAsWild(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  pool: ResourcePool,
+): ResourcePool {
+  const total = pool.physical + pool.mental + pool.energy + pool.wild;
+  if (total === pool.wild) return pool;
+  const binds = activeRules(state, deps, "resourcesGeneratedAsWild").some((active) =>
+    rulePlayers(state, active.rule, active).includes(playerId),
+  );
+  return binds ? { ...EMPTY_POOL, wild: total } : pool;
 }
 
 /** The main scheme a redirect's follow-up threat lands on: the redirecting rule's own game area's stage. */

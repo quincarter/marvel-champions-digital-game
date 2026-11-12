@@ -268,6 +268,44 @@ export function cardEffectBonus(
   return total;
 }
 
+/**
+ * The product of every `multiplyStat` factor on this character's `stat` ("Double the THW value of your identity"), 1
+ * when none applies. RRG 1.8 "Modifiers" (p. 29): applied after the base and every additive modifier
+ * (`withMultipliers`).
+ */
+export function statMultiplier(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch" | "hp",
+): number {
+  let factor = 1;
+  for (const { rule, context } of activeRules(state, deps, "multiplyStat")) {
+    if (rule.stat !== stat) continue;
+    const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
+    if (matchesQuery(state, targetId, rule.target, reading)) factor *= rule.factor;
+  }
+  return factor;
+}
+
+/**
+ * A stat's base plus its additive modifiers (`summed`), with its doubling/halving applied after them, rounded up and
+ * floored at 0: RRG 1.8 "Modifiers" (p. 29), "all additive and subtractive modifiers are calculated before doubling
+ * and/or halving modifiers", "fractional values are rounded up after all modifiers have been applied", and a value
+ * below zero is treated as zero. The sum is floored at 0 first, so a doubled negative stays 0.
+ */
+export function withMultipliers(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch" | "hp",
+  summed: number,
+): number {
+  const floored = Math.max(0, summed);
+  const factor = statMultiplier(state, deps, targetId, stat);
+  return factor === 1 ? floored : Math.max(0, Math.ceil(floored * factor));
+}
+
 /** The base value set by a "has a base X of N" ability, if any (the last one in play order wins). */
 export function baseOverride(
   state: GameState,

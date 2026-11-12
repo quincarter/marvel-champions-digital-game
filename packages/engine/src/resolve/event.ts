@@ -53,6 +53,7 @@ import {
   damageTakenAllowance,
   damageTakenBreakdown,
   perAttackDamageCap,
+  perAttackDamageFloor,
   damageSourceCard,
   type DamageAttackInfo,
   type DamageSourceInfo,
@@ -1989,9 +1990,13 @@ export function applyDamage(
   // Already applied as the damage reached its "would take" interrupts (`damageConstantsBeforeWouldTake`): only the
   // per-attack cap is read again (the sustained and per-phase ones are below), over what an interrupt changed since.
   // The constants are frozen at step 3 (FFG ruling June 6, 2024, Ruling 205); only the caps are re-read at take time.
+  // A "cannot take less than" floor (`minDamageTakenPerAttack`) is re-read with it, before it.
   const reapplyCap = (amount: number): number => {
+    const floor =
+      amount > 0 ? perAttackDamageFloor(ctx.state, ctx.deps, event.targetInstanceId, event.fromAttack) : null;
+    const floored = floor === null ? amount : Math.max(amount, floor);
     const cap = perAttackDamageCap(ctx.state, ctx.deps, event.targetInstanceId, event.fromAttack);
-    return cap === null ? amount : Math.min(amount, cap);
+    return cap === null ? floored : Math.min(floored, cap);
   };
   const breakdown = event.constantsApplied
     ? { taken: reapplyCap(event.amount), beforeDoubling: event.amount, doubledBy: [] }

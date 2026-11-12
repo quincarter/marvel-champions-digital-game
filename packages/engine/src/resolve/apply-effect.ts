@@ -3891,7 +3891,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               { kind: "moveCards", ...boundOn },
             )
           : { now: ids, waiting: [] };
-      moveCardsTo(ctx, now, effect.to, into, sourceCardId, { sourceInstanceId: frame.selfInstanceId, ...boundOn });
+      moveCardsTo(
+        ctx,
+        now,
+        effect.to,
+        into,
+        sourceCardId,
+        { sourceInstanceId: frame.selfInstanceId, ...boundOn },
+        false,
+        effect.facedown === true,
+      );
       if (effect.shuffleEvenIfEmpty && effect.to === "encounterDeckShuffle" && now.length === 0)
         shuffleEncounterDeck(ctx);
       // An icon of a card this discarded from a deck may count more than once (docs/phase7-wave7.md §3.56).
@@ -4505,7 +4514,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const entered: TriggerEvent[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         for (let i = 0; i < count; i++) {
-          const id = takeTopOfDeck(ctx, playerId);
+          // The top of the discard pile is the first card of its list (`moveCard` puts a discarded card on top).
+          const fromDiscard = effect.from === "discard";
+          const id = fromDiscard ? (mustPlayer(ctx.state, playerId).discard[0] ?? null) : takeTopOfDeck(ctx, playerId);
           if (!id) break;
           moveCard(ctx, id, { kind: "playArea", playerId });
           // Engaged with that player like any minion; it belongs to the encounter side while facedown.
@@ -4516,7 +4527,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             engagedWith: playerId,
             facedownAs: effect.as,
           }));
-          emit(ctx, { type: "cardPutIntoPlayFacedown", instanceId: id, playerId, as: effect.as.kind });
+          emit(ctx, {
+            type: "cardPutIntoPlayFacedown",
+            instanceId: id,
+            playerId,
+            as: effect.as.kind,
+            ...(fromDiscard ? { from: "discard" as const } : {}),
+          });
           entered.push({ kind: "cardEntersPlay", instanceId: id, playerId }, ...engagedEvent(ctx, id));
         }
       }

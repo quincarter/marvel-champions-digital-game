@@ -87,6 +87,8 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkAttackKeywordLoss(definition, "definition", problems);
   checkCounterDivision(definition, problems);
   checkSpendX(definition, problems);
+  checkFacedownAreaMoves(definition, problems);
+  checkStatMultipliers(definition, problems);
   checkPod(definition, problems);
   checkCompetitiveOnly(definition.effects, false, problems);
   checkCost(definition, problems);
@@ -1015,6 +1017,30 @@ function checkSpendX(definition: AbilityDefinition, problems: string[]): void {
  * ability, and an interrupt whose one triggering condition is a character's defeat. Anywhere else the effect does
  * nothing, which for "give this card … as a facedown boost card" is a card silently discarded.
  */
+/**
+ * `EffectSpec moveCards.facedown` (community pack `mephisto-nep`'s Damnation): only a scenario out-of-play area takes
+ * cards facedown by this flag; every other destination sets its own face, so the flag would be silently ignored there.
+ */
+function checkFacedownAreaMoves(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "moveCards" || effect.facedown !== true) continue;
+    if (typeof effect.to !== "object" || !("scenarioArea" in effect.to))
+      problems.push("moveCards facedown is only for a { scenarioArea } destination");
+  }
+}
+
+/**
+ * `RuleSpec multiplyStat`: a factor of 0 or less (or not a finite number) is no "double" or "halve"; "has a base … of
+ * 0" is `gets(..., { setBase: true })`.
+ */
+function checkStatMultipliers(definition: AbilityDefinition, problems: string[]): void {
+  if (definition.trigger.kind !== "constant") return;
+  for (const rule of definition.trigger.rules ?? []) {
+    if (rule.kind === "multiplyStat" && !(Number.isFinite(rule.factor) && rule.factor > 0))
+      problems.push(`multiplyStat ${rule.stat}: the factor must be a number above 0`);
+  }
+}
+
 function checkBoostCardDestination(definition: AbilityDefinition, problems: string[]): void {
   const gives = allEffects(definition.effects).some(
     (effect) => effect.kind === "setDefeatDestination" && typeof effect.to === "object" && "kind" in effect.to,
@@ -1341,6 +1367,7 @@ function checkHiddenPiles(definition: AbilityDefinition, problems: string[]): vo
 /** The card selectors that take `random`: that many of their cards, by the game's seeded RNG. */
 const RANDOM_SELECTORS: readonly string[] = [
   "ref",
+  "scenarioArea",
   "zone",
   "encounter",
   "encounterSetAside",
@@ -2023,8 +2050,14 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   if (definition.trigger.kind === "constant") {
     // A constant modifier's `while` and amount are read with the card whose stat it is bound to "affected" (engine
     // `AFFECTED_SLOT`): "each X-MEN character gets +1 THW while making a basic thwart against this scheme".
-    const { modifiers, ...rest } = definition.trigger;
+    const { modifiers, rules, ...rest } = definition.trigger;
     checkRefs(rest, scope, "constant", problems);
+    // So are a damage floor's amount and a stat multiplier's target (`minDamageTakenPerAttack`, `multiplyStat`).
+    rules?.forEach((rule) => {
+      const readsAffected = rule.kind === "minDamageTakenPerAttack" || rule.kind === "multiplyStat";
+      const ruleScope = readsAffected ? { ...scope, slots: new Set([...scope.slots, "affected"]) } : scope;
+      checkRefs(rule, ruleScope, "constant", problems);
+    });
     if (modifiers !== undefined) {
       const reading = { ...scope, slots: new Set([...scope.slots, "affected"]) };
       modifiers.forEach((modifier, index) => {

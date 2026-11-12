@@ -1,6 +1,19 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { trait } from "@mc/content";
-import { action, agile, constant, costModifier, forcedInterrupt, heroInterrupt, on, tagged } from "./abilities.js";
+import {
+  action,
+  agile,
+  constant,
+  costModifier,
+  doubleStat,
+  forcedInterrupt,
+  heroInterrupt,
+  minDamageTaken,
+  on,
+  resourcesGeneratedAsWild,
+  setAsideDestination,
+  tagged,
+} from "./abilities.js";
 import {
   applyRuleUntil,
   blankTextBoxForPlayers,
@@ -14,10 +27,14 @@ import {
   instead,
   loseKeywordUntil,
   loseTraitUntil,
+  moveCards,
+  putIntoPlayFacedown,
   replaceNextVillainPhaseWithPlayerPhase,
   resolveOneTagged,
   resolveTagged,
+  scenarioArea,
   selectCards,
+  topOfDeck,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
@@ -28,6 +45,7 @@ import {
   lastPlayedThisRound,
   query,
   self,
+  statOf,
   taggedAbilitiesOn,
   theVillain,
   you,
@@ -99,6 +117,28 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   "engine-only.enemy-attacks-enemy-bind": forcedInterrupt(
     on.enemyAttacks("self"),
     instead(enemyAttacksEnemy(self, theVillain, { bind: "hit" })),
+  ),
+  // "Put 1 card from the top of your deck facedown into Damnation" (`moveCards.facedown`, a `{ scenarioArea }`
+  // destination; community pack `mephisto-nep`).
+  "engine-only.facedown-into-area": action(
+    moveCards(topOfDeck(1), { scenarioArea: "Damnation" }, undefined, { facedown: true }),
+  ),
+  // "Look at 1 card in Damnation → shuffle it back into its owner's deck" (`CardSelector scenarioArea.random`).
+  "engine-only.random-from-area": action(moveCards(scenarioArea("Damnation", undefined, { random: 1 }), "deckShuffle")),
+  // "When a card is set aside from a player's deck, put it facedown into Damnation instead" (`RuleSpec
+  // setAsideDestination`).
+  "engine-only.set-aside-destination": constant(setAsideDestination("Damnation", { facedown: true, from: ["deck"] })),
+  // "Double the THW value of your identity" (`RuleSpec multiplyStat`).
+  "engine-only.double-stat": constant(doubleStat("thw", YOUR_IDENTITY)),
+  // "Your identity cannot take damage less than its DEF from each attack" (`RuleSpec minDamageTakenPerAttack`).
+  "engine-only.min-damage-taken": constant(
+    minDamageTaken(YOUR_IDENTITY, statOf({ kind: "slot", slot: "affected" }, "def")),
+  ),
+  // "Each resource you generate is considered a wild resource" (`RuleSpec resourcesGeneratedAsWild`).
+  "engine-only.resources-as-wild": constant(resourcesGeneratedAsWild(you)),
+  // "Put the top card of your discard pile facedown engaged with you as a Mystic minion" (`putIntoPlayFacedown.from`).
+  "engine-only.facedown-from-discard": action(
+    putIntoPlayFacedown(you, { kind: "minion", traits: [trait("MYSTIC")] }, 1, { from: "discard" }),
   ),
 };
 

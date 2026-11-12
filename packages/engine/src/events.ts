@@ -1455,6 +1455,16 @@ export type GameEvent =
     }
   /** A player's ability tried to discard a card a `playersCannotDiscard` rule protects (docs/phase7-wave4.md §3.44). */
   | { readonly type: "discardRefused"; readonly instanceId: InstanceId }
+  /**
+   * A card being set aside from a player's zone went to scenario area `area` instead, by the `setAsideDestination` rule
+   * of `sourceInstanceId` (Damnation, community pack `mephisto-nep`).
+   */
+  | {
+      readonly type: "setAsideRedirected";
+      readonly instanceId: InstanceId;
+      readonly area: string;
+      readonly sourceInstanceId: InstanceId | null;
+    }
   /** An ally started (`as: "minion"`) or stopped (`as: null`) being treated as a minion (docs/phase7-wave4.md §3.9). */
   /** A resource ability used in a payment put its own effects on the stack (docs/phase7-wave4.md §3.30). */
   | {
@@ -2122,6 +2132,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly as: FacedownRole["kind"];
+      /** Where it came from when not the top of the player's deck (`putIntoPlayFacedown.from`). */
+      readonly from?: "discard";
     }
   /**
    * RRG "Unique Icon": a card that would have entered play matched one already in play.

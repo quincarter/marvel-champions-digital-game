@@ -19,7 +19,7 @@ import type {
 import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps, type MainSchemeStageRef } from "./abilities.js";
 import { EngineInvariantError } from "./errors.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
-import { baseOverride, statBonus } from "./modifiers.js";
+import { baseOverride, statBonus, withMultipliers } from "./modifiers.js";
 import { podOf, type SharedPodState } from "./pod.js";
 import { statUsedInPlaceOf } from "./rules.js";
 import { perPlayerCount } from "./team.js";
@@ -1013,7 +1013,13 @@ function modifiedStatPlain(
       : treated?.kind === "minion" && treated.schFromThw === "base"
         ? Math.max(0, baseOverride(state, deps, id, "thw") ?? printed.sch)
         : printed[stat];
-  return Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
+  return withMultipliers(
+    state,
+    deps,
+    id,
+    stat,
+    (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat),
+  );
 }
 
 /**
@@ -1035,7 +1041,13 @@ export function characterProfile(
     def: modifiedStat(state, deps, id, printed, "def"),
     rec: modifiedStat(state, deps, id, printed, "rec"),
     sch: modifiedStat(state, deps, id, printed, "sch"),
-    maxHp: Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp")),
+    maxHp: withMultipliers(
+      state,
+      deps,
+      id,
+      "hp",
+      (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"),
+    ),
   };
 }
 
@@ -1274,7 +1286,13 @@ export function printedHpNumeral(state: GameState, id: InstanceId): number {
 export function maxHitPoints(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): number | undefined {
   const printed = printedProfile(state, id);
   if (!printed) return undefined;
-  return Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"));
+  return withMultipliers(
+    state,
+    deps,
+    id,
+    "hp",
+    (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"),
+  );
 }
 
 export function remainingHitPoints(

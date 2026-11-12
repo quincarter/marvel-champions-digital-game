@@ -2345,6 +2345,67 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "When a card is set aside from a player's deck, put it facedown into Damnation instead." (Gateway to Corruption /
+   * Hell, community pack `mephisto-nep` 03a): a card an effect sets aside (`CardDestination "setAside"`, the owner's
+   * set-aside area) while it is in one of `from` of any player (default `["deck"]`) goes to the scenario out-of-play
+   * area `area` instead, facedown with `facedown` (faceup otherwise), and keeps its owner. Logged as
+   * `setAsideRedirected`. A card set aside from play, or from a zone `from` does not name, is set aside as normal. The
+   * set-aside counterpart of `discardFromPlayDestination`: a replacement read as the card moves, so no window opens.
+   * The first matching rule wins (no printed card pairs two).
+   */
+  | {
+      readonly kind: "setAsideDestination";
+      readonly area: string;
+      readonly facedown?: true;
+      readonly from?: readonly ("deck" | "hand" | "discard")[];
+      readonly while?: Predicate;
+    }
+  /**
+   * "Double the THW value of your identity." (Prideful Ambitions, community pack `mephisto-nep` 08): each matching
+   * character's `stat` is multiplied by `factor` (2 for "double"; 0.5 for "halve"). RRG 1.8 "Modifiers" (p. 29): "all
+   * additive and subtractive modifiers are calculated before doubling and/or halving modifiers", and "fractional values
+   * are rounded up after all modifiers have been applied", so the factor applies to the base (or "has a base … of"
+   * value) plus every additive modifier, the result is rounded up, then floored at 0. Several rules multiply together.
+   * A dash stays an unmodifiable 0 (p. 15). Read live like every modifier (`characterProfile`), and through
+   * `applyRuleUntil` for a lasting "double … until …". An alter-ego's missing ATK/THW/DEF is not doubled (it has none).
+   */
+  | {
+      readonly kind: "multiplyStat";
+      readonly stat: StatName | "hp";
+      readonly factor: number;
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Your identity cannot take damage less than its DEF from each attack." (Slothful Endurance, community pack
+   * `mephisto-nep` 10): a floor on the damage a matching character takes from one attack's damage event, the mirror of
+   * `maxDamageTakenPerAttack`. `amount` is read live in the rule's context with the damaged character bound to
+   * `affected` (`theAffectedCard`), so "its DEF" is `statOf({ kind: "slot", slot: "affected" }, "def")`.
+   *
+   * Applied after every increase, reduction and doubling and before the per-attack cap, so a "cannot take more than"
+   * cap still has the last word where the two conflict (engine reading, authority step 5: RRG 1.8 "Cannot", p. 13, makes
+   * both absolute and does not order them; no printed card pairs them). A damage event of 0 is not raised: damage of 0
+   * was never dealt (RRG 1.8 "Damage", p. 14; as `increaseDamageTaken` leaves 0 alone), so an attack fully covered by a
+   * defense deals nothing. A tough status card still prevents the whole (raised) amount, and a "prevent N damage" budget
+   * still prevents from it: prevented damage is dealt but not taken (RRG 1.8 "Prevent", p. 35), which the floor does not
+   * reach. Re-read at take time with the cap, over what an interrupt changed since.
+   */
+  | {
+      readonly kind: "minDamageTakenPerAttack";
+      readonly target: TargetQuery;
+      readonly amount: number | ValueSpec;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Each resource you generate is considered a wild ([wild]) resource instead of its current resource." (Unquenchable
+   * Envy, community pack `mephisto-nep` 11): every resource `player` generates (a hand card's, a resource ability's,
+   * after every "double"/"additional" multiplier) is that many wild resources. Only generation changes: a card's printed
+   * resource icons, read outside a payment ("discard a card with a [mental] resource"), are untouched (RRG 1.8 "Wild
+   * Resource", p. 48; "Resources", p. 37). The player generating is the one paying with the source (a hand card's owner,
+   * a resource ability's spender).
+   */
+  | { readonly kind: "resourcesGeneratedAsWild"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
    * "You can control 1 additional upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm` 20001a/b);
    * "You can control 1 additional [Weapon] upgrade that has the restricted keyword." (Side Holster, 20021). RRG 1.8
    * "Restricted" (p. 38) fixes the limit at two; each rule raises it by `amount` for `player` (absent: the rule's speaker,

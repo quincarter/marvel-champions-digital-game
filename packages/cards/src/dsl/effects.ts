@@ -1680,12 +1680,24 @@ export const setAside = (
 /**
  * The cards in a scenario out-of-play area, e.g. "The Collection" (docs/phase7-wave3.md §3.14): `scenarioArea(name)`
  * as a `CardSelector` ("discard 1 card from The Collection"); `{ scenarioArea: name }` is already a valid
- * `CardDestination` for `moveCards`' own `to`, with no wrapper needed ("put it faceup into The Collection").
+ * `CardDestination` for `moveCards`' own `to`, with no wrapper needed ("put it faceup into The Collection"), and
+ * `moveCards(from, { scenarioArea: name }, undefined, { facedown: true })` puts cards in facedown ("put 1[per_hero] card
+ * from the top of your deck facedown into Damnation", community pack `mephisto-nep`).
+ *
+ * `opts.random`: that many of the area's cards at random, for a facedown area whose cards nobody can tell apart: "look
+ * at 1 card in Damnation -> shuffle it back into its owner's deck" is
+ * `moveCards(scenarioArea("Damnation", undefined, { random: 1 }), "deckShuffle")` (each card goes to its own owner's
+ * deck). Count with `scenarioAreaCount(name, filter)`; "your cards in Damnation" is the filter `{ owner: "you" }`.
  */
-export const scenarioArea = (name: string, filter?: TargetQuery): CardSelector => ({
+export const scenarioArea = (
+  name: string,
+  filter?: TargetQuery,
+  opts: { readonly random?: Amount } = {},
+): CardSelector => ({
   kind: "scenarioArea",
   name,
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /**
  * "Prepare the evidence" (MC50 p. 18, by the three steps of p. 5; docs/phase7-wave9.md §3.29 (a)): the evidence cards
@@ -1869,7 +1881,12 @@ export const moveCards = (
   from: CardSelector,
   to: CardDestination,
   bind?: string,
-  options: { readonly takenAwayNotCounted?: true; readonly shuffleEvenIfEmpty?: true } = {},
+  options: {
+    readonly takenAwayNotCounted?: true;
+    readonly shuffleEvenIfEmpty?: true;
+    /** `to: { scenarioArea }` only: the cards go in facedown (`EffectSpec moveCards.facedown`). */
+    readonly facedown?: true;
+  } = {},
 ): EffectSpec => ({
   kind: "moveCards",
   cards: from,
@@ -1877,6 +1894,7 @@ export const moveCards = (
   ...withBind(bind),
   ...(options.takenAwayNotCounted ? { takenAwayNotCounted: true as const } : {}),
   ...(options.shuffleEvenIfEmpty ? { shuffleEvenIfEmpty: true as const } : {}),
+  ...(options.facedown ? { facedown: true as const } : {}),
 });
 /**
  * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): `from` is an
@@ -2261,12 +2279,22 @@ export const putLinkedAllyIntoPlay = (controller: PlayerRef, slot = "linkedAlly"
   selectCards(slot, encounterSetAside(query("ally", { sharesTitleWith: self }))),
   putIntoPlay(chosen(slot), controller),
 ];
-/** "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." */
-export const putIntoPlayFacedown = (player: PlayerRef, as: FacedownRole, count?: Amount): EffectSpec => ({
+/**
+ * "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." `opts.from: "discard"`:
+ * the top card of the player's discard pile instead ("put the top card of your discard pile facedown engaged with you as
+ * a Mystic minion", Lilith, community pack `mephisto-nep` 41); an empty pile puts nothing in.
+ */
+export const putIntoPlayFacedown = (
+  player: PlayerRef,
+  as: FacedownRole,
+  count?: Amount,
+  opts: { readonly from?: "deck" | "discard" } = {},
+): EffectSpec => ({
   kind: "putIntoPlayFacedown",
   player,
   as,
   ...(count !== undefined ? { count: amount(count) } : {}),
+  ...(opts.from === "discard" ? { from: "discard" as const } : {}),
 });
 export const AS_DRONE: FacedownRole = { kind: "minion", traits: [TRAIT.DRONE] };
 /** "… puts the top card of their deck into play facedown, engaged with them as a Drone minion." */

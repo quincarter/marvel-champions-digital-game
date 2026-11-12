@@ -3069,6 +3069,14 @@ export type EffectSpec =
        * effect naming a card with none to move has no valid target and does not use it (RRG 1.8 "Target", p. 42).
        */
       readonly shuffleEvenIfEmpty?: true;
+      /**
+       * `to: { scenarioArea }` only: the cards go into the area facedown, where they are closed to every player
+       * (`visibility.ts`: an out-of-play card is open exactly when it is faceup). Without it they go in faceup, as The
+       * Collection's do. "Put 1[per_hero] card from the top of your deck facedown into Damnation" (community pack
+       * `mephisto-nep`). Each card keeps its owner, so `"deckShuffle"` later returns it to its owner's deck. The
+       * validator refuses it with any other destination.
+       */
+      readonly facedown?: true;
     }
   /**
    * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue, `rogue` 38001, 38007;
@@ -3805,12 +3813,19 @@ export type EffectSpec =
    * resets first (FFG ruling: "Put the second drone into play after reshuffling
    * your deck and dealing yourself a facedown encounter card"). When it leaves
    * play it goes to its owner's zones and is itself again.
+   *
+   * `from: "discard"`: the top card of that player's discard pile instead ("put the top card of your discard pile
+   * facedown engaged with you as a Mystic minion", Lilith, community pack `mephisto-nep` 41). An empty discard pile
+   * puts nothing in (nothing resets it), and a count above its size stops when it is empty. Its stats are set as any
+   * facedown minion's are, by a constant with `setBase` on the facedown cards (Ultron's Drones; "Each facedown Mystic
+   * minion engaged with a player has a base SCH of 1 …", Call of the Demoness 42).
    */
   | {
       readonly kind: "putIntoPlayFacedown";
       readonly player: PlayerRef;
       readonly count?: ValueSpec;
       readonly as: FacedownRole;
+      readonly from?: "deck" | "discard";
     }
   /** Binds the cards a selector names now into `slot` (and `<slot>.count`): "your set-aside nemesis minion", "the Breakin' & Takin' side scheme in the encounter deck or discard". */
   | { readonly kind: "selectCards"; readonly slot: string; readonly cards: CardSelector }
@@ -6181,8 +6196,14 @@ export type CardSelector =
    * Negative or zero `count` names nothing. The other copies are not touched: they stay where they were.
    */
   | { readonly kind: "atMost"; readonly count: ValueSpec; readonly of: CardSelector }
-  /** The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14). */
-  | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery }
+  /**
+   * The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14).
+   * `random`: that many of them (after `filter`), picked by the game's seeded RNG, fewer when fewer are there, as
+   * `encounterSetAside.random`. A facedown area's cards cannot be told apart, so "look at 1 card in Damnation → shuffle
+   * it back into its owner's deck" (community pack `mephisto-nep`) is a pick at random, not a choice: `moveCards({ kind:
+   * "scenarioArea", name: "Damnation", random: 1 }, "deckShuffle")`.
+   */
+  | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery; readonly random?: ValueSpec }
   /**
    * The cards a campaign-log field names, wherever they are in the game: "Shuffle each EXPERIMENTAL attachment
    * recorded in the campaign log into the encounter deck" (MC10 p. 7), MC21 p. 7's campaign pool, MC50 p. 19.

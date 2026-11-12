@@ -7,7 +7,18 @@
 import { describe, expect, it } from "vitest";
 import { trait } from "@mc/content";
 import type { AbilityDefinition } from "@mc/engine";
-import { agile, special, tagged, VILLAIN_OR_VILLAINOUS } from "./abilities.js";
+import {
+  agile,
+  constant,
+  doubleStat,
+  minDamageTaken,
+  multiplyStat,
+  resourcesGeneratedAsWild,
+  setAsideDestination,
+  special,
+  tagged,
+  VILLAIN_OR_VILLAINOUS,
+} from "./abilities.js";
 import {
   blankTextBoxForPlayers,
   blankTextBoxUntil,
@@ -15,10 +26,14 @@ import {
   draw,
   loseKeywordUntil,
   loseTraitUntil,
+  moveCards,
+  putIntoPlayFacedown,
   replaceNextVillainPhaseWithPlayerPhase,
   resolveOneTagged,
   resolveTagged,
+  scenarioArea,
   selectCards,
+  topOfDeck,
 } from "./effects.js";
 import { ENGINE_ONLY_DSL_EXAMPLES, engineOnlyDslProblems } from "./engine-only-features.js";
 import { validateDefinition } from "./validate.js";
@@ -28,9 +43,11 @@ import {
   lastPlayedThisRound,
   query,
   self,
+  statOf,
   taggedAbilitiesOn,
   thatPlayer,
   you,
+  YOUR_IDENTITY,
 } from "./values.js";
 
 describe("engine-only DSL primitives", () => {
@@ -136,22 +153,79 @@ describe("engine-only DSL primitives", () => {
     expect(validateDefinition(zero).join(" ")).toMatch(/ref selector's random count/);
   });
 
+  it("Damnation-style scenario areas: facedown moves, random picks, a set-aside redirect", () => {
+    expect(moveCards(topOfDeck(1), { scenarioArea: "Damnation" }, undefined, { facedown: true })).toMatchObject({
+      kind: "moveCards",
+      to: { scenarioArea: "Damnation" },
+      facedown: true,
+    });
+    expect(scenarioArea("Damnation", undefined, { random: 2 })).toEqual({
+      kind: "scenarioArea",
+      name: "Damnation",
+      random: { kind: "const", value: 2 },
+    });
+    expect(scenarioArea("Damnation")).toEqual({ kind: "scenarioArea", name: "Damnation" });
+    expect(setAsideDestination("Damnation", { facedown: true })).toEqual({
+      rules: [{ kind: "setAsideDestination", area: "Damnation", facedown: true }],
+    });
+    const faceupElsewhere: AbilityDefinition = {
+      trigger: { kind: "action" },
+      effects: [moveCards(topOfDeck(1), "discard", undefined, { facedown: true })],
+    };
+    expect(validateDefinition(faceupElsewhere).join(" ")).toMatch(/facedown is only for a \{ scenarioArea \}/);
+    const zeroPick: AbilityDefinition = {
+      trigger: { kind: "action" },
+      effects: [moveCards(scenarioArea("Damnation", undefined, { random: 0 }), "deckShuffle")],
+    };
+    expect(validateDefinition(zeroPick).join(" ")).toMatch(/scenarioArea selector's random count/);
+  });
+
+  it("stat doubling, a damage floor, wild generation and a facedown minion from the discard pile", () => {
+    expect(doubleStat("atk", YOUR_IDENTITY)).toEqual({
+      rules: [{ kind: "multiplyStat", stat: "atk", factor: 2, target: YOUR_IDENTITY }],
+    });
+    expect(validateDefinition(constant(multiplyStat("def", 0, YOUR_IDENTITY))).join(" ")).toMatch(
+      /factor must be a number above 0/,
+    );
+    const its = statOf({ kind: "slot", slot: "affected" }, "def");
+    expect(minDamageTaken(YOUR_IDENTITY, its)).toEqual({
+      rules: [{ kind: "minDamageTakenPerAttack", target: YOUR_IDENTITY, amount: its }],
+    });
+    expect(resourcesGeneratedAsWild(you)).toEqual({ rules: [{ kind: "resourcesGeneratedAsWild", player: you }] });
+    const mystic = { kind: "minion", traits: [trait("MYSTIC")] } as const;
+    expect(putIntoPlayFacedown(you, mystic, 2, { from: "discard" })).toEqual({
+      kind: "putIntoPlayFacedown",
+      player: you,
+      as: mystic,
+      count: { kind: "const", value: 2 },
+      from: "discard",
+    });
+    expect(putIntoPlayFacedown(you, mystic)).toEqual({ kind: "putIntoPlayFacedown", player: you, as: mystic });
+  });
+
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
       "engine-only.agile",
       "engine-only.basic-power-boost",
+      "engine-only.double-stat",
       "engine-only.enemy-attacks-enemy-bind",
       "engine-only.extra-player-phase",
+      "engine-only.facedown-from-discard",
+      "engine-only.facedown-into-area",
       "engine-only.has-tagged",
       "engine-only.last-played",
       "engine-only.lasting-flip-lock",
       "engine-only.lose-keyword",
       "engine-only.lose-trait",
+      "engine-only.min-damage-taken",
       "engine-only.per-player-blank",
+      "engine-only.random-from-area",
       "engine-only.random-in-play",
       "engine-only.resolve-all-tagged",
       "engine-only.resolve-one-tagged",
+      "engine-only.resources-as-wild",
+      "engine-only.set-aside-destination",
       "engine-only.tagged",
       "engine-only.tagged-count",
     ]);

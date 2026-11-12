@@ -1570,6 +1570,69 @@ export const maxDamageTaken = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Your identity cannot take damage less than its DEF from each attack." (Slothful Endurance, community pack
+ * `mephisto-nep` 10): `constant(minDamageTaken(YOUR_IDENTITY, statOf(theAffectedRef, "def")))`, where
+ * `theAffectedRef` (`{ kind: "slot", slot: "affected" }`) is the character taking the damage. A floor on one attack's
+ * damage event of more than 0, applied after every modifier and before any "cannot take more than" cap (engine
+ * `RuleSpec minDamageTakenPerAttack`).
+ */
+export const minDamageTaken = (
+  target: TargetQuery,
+  floor: Amount,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "minDamageTakenPerAttack",
+    target,
+    amount: floor,
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Double the THW value of your identity." (Prideful Ambitions, community pack `mephisto-nep` 08):
+ * `constant(multiplyStat("thw", 2, YOUR_IDENTITY))`; "halve" is a factor of 0.5. RRG 1.8 "Modifiers" (p. 29): applied
+ * after the base and every additive modifier, then rounded up (engine `RuleSpec multiplyStat`).
+ */
+export const multiplyStat = (
+  stat: StatName | "hp",
+  factor: number,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule({ kind: "multiplyStat", stat, factor, target, ...(opts.while ? { while: opts.while } : {}) });
+/** "Double the [stat] value of X": `multiplyStat(stat, 2, target)`. */
+export const doubleStat = (
+  stat: StatName | "hp",
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => multiplyStat(stat, 2, target, opts);
+/**
+ * "Each resource you generate is considered a wild ([wild]) resource instead of its current resource." (Unquenchable
+ * Envy, community pack `mephisto-nep` 11): `constant(resourcesGeneratedAsWild(you))`. Every resource the player
+ * generates, after every multiplier, counts as that many wild resources (engine `RuleSpec resourcesGeneratedAsWild`).
+ */
+export const resourcesGeneratedAsWild = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "resourcesGeneratedAsWild", player, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "When a card is set aside from a player's deck, put it facedown into Damnation instead." (Gateway to Corruption,
+ * community pack `mephisto-nep` 03a): `constant(setAsideDestination("Damnation", { facedown: true }))`. A card set aside
+ * (`moveCards(…, "setAside")`) from any player's deck goes to that scenario area instead; `from` widens it to their hand
+ * or discard pile (engine `RuleSpec setAsideDestination`).
+ */
+export const setAsideDestination = (
+  area: string,
+  opts: {
+    readonly facedown?: boolean;
+    readonly from?: readonly ("deck" | "hand" | "discard")[];
+    readonly while?: Predicate;
+  } = {},
+): ConstantPart =>
+  rule({
+    kind: "setAsideDestination",
+    area,
+    ...(opts.facedown ? { facedown: true as const } : {}),
+    ...(opts.from ? { from: opts.from } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Magneto cannot have more than 6[per_hero] sustained damage." (Boarding Party, Sabotage Master Mold, Orbital Decay;
  * docs/phase7-wave6.md §3.3): `constant(maxSustainedDamage(query("villain", { name: "Magneto" }), perHero(6)))`. The
  * damage taken (or placed) is lowered to what keeps sustained damage at the cap; the rest is neither taken nor prevented

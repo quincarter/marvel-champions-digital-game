@@ -85,6 +85,7 @@ import {
   playDestinationsOf,
   tuckedSpender,
   tuckedSpendSources,
+  generatedAsWild,
 } from "./rules.js";
 import {
   inPlayPicksOf,
@@ -1139,7 +1140,9 @@ export function handCardResources(
     const multiplier = trigger.resourceMultiplier;
     return multiplier && "thisCardGenerates" in multiplier ? multiplyPool(state, sum, multiplier, context) : sum;
   }, generated);
-  if (!payingFor) return pool;
+  // "Each resource you generate is considered a wild resource" (`resourcesGeneratedAsWild`): last, after every
+  // multiplier; `paidForMultiplied` does the same for the paid-for path.
+  if (!payingFor) return generatedAsWild(state, deps, playerId, pool);
   // A card overpaid when played (`overpaidWhenPlayed`, ruling #87) is not "paid for", so no "while paying for" doubling.
   const overpaid = printedConstants(state, deps, payingFor).some((trigger) => trigger.overpaidWhenPlayed);
   const own = printedConstants(state, deps, cardInstanceId).find((trigger) => {
@@ -1190,7 +1193,7 @@ export function paidForMultiplied(
   /** The player generating the resources: "you" for a factor that is a value. */
   playerId: PlayerId,
 ): ResourcePool {
-  if (!payingFor) return pool;
+  if (!payingFor) return generatedAsWild(state, deps, playerId, pool);
   const context: EffectContext = {
     selfInstanceId: payingFor,
     controllerId: playerId,
@@ -1198,10 +1201,12 @@ export function paidForMultiplied(
     bindings: {},
     deps,
   };
-  return printedConstants(state, deps, payingFor).reduce((scaled, trigger) => {
+  const multiplied = printedConstants(state, deps, payingFor).reduce((scaled, trigger) => {
     const multiplier = trigger.resourceMultiplier;
     return multiplier && "forThisCard" in multiplier ? multiplyPool(state, scaled, multiplier, context) : scaled;
   }, pool);
+  // "Each resource you generate is considered a wild resource" (`resourcesGeneratedAsWild`), after every multiplier.
+  return generatedAsWild(state, deps, playerId, multiplied);
 }
 
 /**
