@@ -1059,6 +1059,11 @@ function runChoose(
       recordChoice(run, op.slot, seatNumber, repeated, "repeated");
       continue;
     }
+    if (options.length === 0 && op.optional && op.skipWhenEmpty) {
+      // Nothing to offer, so nothing to ask: the empty pick a decline would have recorded (#679).
+      recordChoice(run, op.slot, seatNumber, []);
+      continue;
+    }
     const answer = run.answers.get(campaignChoiceKey(key));
     if (answer === undefined) {
       run.pending = {

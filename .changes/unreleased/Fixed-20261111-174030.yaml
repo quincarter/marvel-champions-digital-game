@@ -1,0 +1,3 @@
+kind: Fixed
+body: The Galaxy's Most Wanted Market no longer stops on an empty Decline-only prompt once every card of a price is bought, so a hero's cart is no longer lost on the way (#679).
+time: 2026-11-11T17:40:30.0847416-05:00

@@ -98,6 +98,7 @@ export default defineConfig({
         "miles-morales-alter-ego-shuffle.spec.ts",
         "holdon.spec.ts",
         "campaign-deck-edit-parity.spec.ts",
+        "gmw-market-sold-out-tier.spec.ts",
         "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",
         "victory-display.spec.ts",

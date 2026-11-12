@@ -224,6 +224,87 @@ describe("the Market: cost, balance, and one copy per campaign for the group", (
     );
     expect(seat2FirstSlot?.options.includes(cheapest)).toBe(false);
   });
+
+  it("never asks a slot of a tier whose cards are all bought (#679)", () => {
+    const seedLog = createCampaignLog(GMW_CAMPAIGN_DEFINITION, {
+      id: "smoke-market-sold-out",
+      seats: SEATS,
+      modes: MODES,
+      poolVersion: "smoke-test",
+      seed: 1,
+    });
+    const afterS1 = winS1(seedLog, { 1: 5, 2: 5 });
+    const tierOne = MARKET_TIER[1]!;
+    // Seat 1 buys all four 1-unit cards, one per slot; everything else is declined.
+    const bought = tierOne.map((cardId, copy) => answer("mc16.s2.setup.market", `market-1-${copy}`, 1, [cardId]));
+    const script: readonly CampaignChoiceAnswer[] = [
+      ...bought,
+      ...declineEverything("mc16.s2.setup.market", [1, 2]).filter(
+        (a) => !(a.seatNumber === 1 && a.slot.startsWith("market-1-")),
+      ),
+    ];
+    const composed = settle(
+      (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, afterS1, DEPS, MODES, answers),
+      script,
+    );
+    const marketAsks = composed.asked.filter((choice) => choice.instructionId === "mc16.s2.setup.market");
+    // Seat 1's last 1-unit slot offered the one card left; seat 2 is never shown the empty 1-unit tier at all.
+    expect(marketAsks.find((c) => c.seatNumber === 1 && c.slot === "market-1-3")?.options).toEqual([tierOne[3]]);
+    expect(marketAsks.some((c) => c.seatNumber === 2 && c.slot.startsWith("market-1-"))).toBe(false);
+    expect(marketAsks.every((c) => c.options.length > 0)).toBe(true);
+    // The tiers it can still buy from are asked as before.
+    expect(marketAsks.some((c) => c.seatNumber === 2 && c.slot === "market-2-0")).toBe(true);
+    expect(composed.value.seats[0]?.fields.marketCards).toEqual({ kind: "cardList", cardIds: tierOne });
+    expect(composed.value.seats[1]?.fields.units).toEqual({ kind: "number", value: 5 });
+  });
+
+  it("opens the next issue's Market on the cheapest tier with a card left, when an earlier issue sold one out (#679)", () => {
+    const seedLog = createCampaignLog(GMW_CAMPAIGN_DEFINITION, {
+      id: "smoke-market-sold-out-earlier",
+      seats: SEATS,
+      modes: MODES,
+      poolVersion: "smoke-test",
+      seed: 1,
+    });
+    const afterS1 = winS1(seedLog, { 1: 5, 2: 5 });
+    const tierOne = MARKET_TIER[1]!;
+    // Issue #2's Market: seat 1 buys the whole 1-unit tier.
+    const s2 = settle(
+      (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, afterS1, DEPS, MODES, answers),
+      [
+        ...tierOne.map((cardId, copy) => answer("mc16.s2.setup.market", `market-1-${copy}`, 1, [cardId])),
+        ...declineEverything("mc16.s2.setup.market", [1, 2]).filter(
+          (a) => !(a.seatNumber === 1 && a.slot.startsWith("market-1-")),
+        ),
+      ],
+    ).value;
+    // Issue #2 is won, so the purchases are in the saved log that issue #3 composes from.
+    const won: CampaignGameResult = {
+      nodeId: "infiltrate-the-museum",
+      outcome: "won",
+      records: [],
+      removedFromCampaign: [],
+      logWrites: [],
+      expiringGrants: [],
+    };
+    const afterS2 = settle(
+      (answers) => applyCampaignResult(GMW_CAMPAIGN_DEFINITION, s2, won, { at: 2 }, DEPS, answers),
+      [],
+    ).value;
+    expect(afterS2.position.nextNodeId).toBe("escape-the-museum");
+    expect(afterS2.seats[0]?.grants.map((grant) => grant.cardId)).toEqual(expect.arrayContaining([...tierOne]));
+
+    const s3 = settle(
+      (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, afterS2, DEPS, MODES, answers),
+      declineEverything("mc16.s3.setup.market", [1, 2]),
+    );
+    const marketAsks = s3.asked.filter((choice) => choice.instructionId === "mc16.s3.setup.market");
+    // Both seats can afford the sold-out 1-unit tier, and neither is asked it: each visit opens on the 2-unit tier.
+    expect(marketAsks.some((c) => c.slot.startsWith("market-1-"))).toBe(false);
+    expect(marketAsks.find((c) => c.seatNumber === 1)?.slot).toBe("market-2-0");
+    expect(marketAsks.find((c) => c.seatNumber === 2)?.slot).toBe("market-2-0");
+    expect(marketAsks.every((c) => c.options.length > 0)).toBe(true);
+  });
 });
 
 describe("a loss, and a free retry", () => {
