@@ -36,6 +36,20 @@ export const SM_CURATION: PackCuration = {
   handAuthoredModules: ["campaign"],
 
   corrections: [
+    {
+      code: "27089",
+      reason:
+        "Humongous Hallucination prints a +3 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
+      evidence: "card scan (assets/card-art/bundles/cards/27089.png)",
+      attack: 3,
+    },
+    {
+      code: "27090",
+      reason:
+        "Masterful Mirage prints a +1 SCH stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
+      evidence: "card scan (assets/card-art/bundles/cards/27090.png)",
+      scheme: 1,
+    },
     // docs/phase7-wave5.md §1.9: Manipulated Mind's own When Revealed reads "Attach to the ally you control with
     // the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge." — the "Attach to"
     // clause sits inside the ability body (after "When Revealed: "), not as its own preamble sentence, so the

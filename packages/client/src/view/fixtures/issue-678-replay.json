@@ -1,0 +1,646 @@
+{
+  "config": {
+    "scenarioId": "nebula",
+    "difficulty": "standard",
+    "modes": { "campaign": { "campaignId": "gmw" } },
+    "players": [
+      {
+        "identityCardId": "18001a",
+        "deck": [
+          "10018",
+          "12030",
+          "12030",
+          "12030",
+          "13013",
+          "13013",
+          "13013",
+          "18002",
+          "18003",
+          "18003",
+          "18004",
+          "18004",
+          "18005",
+          "18005",
+          "18006",
+          "18006",
+          "18007",
+          "18007",
+          "18008",
+          "18009",
+          "18009",
+          "18010",
+          "18011",
+          "18012",
+          "18012",
+          "18012",
+          "25013",
+          "25014",
+          "28013",
+          "28013",
+          "28013",
+          "28014",
+          "28014",
+          "28014",
+          "28017",
+          "28017",
+          "35018",
+          "35018",
+          "35018",
+          "01052",
+          "01052",
+          "01052",
+          "01053",
+          "01053",
+          "01053",
+          "01055",
+          "01055",
+          "01089",
+          "04040",
+          "06017",
+          "16151",
+          "16165",
+          "16155",
+          "16158",
+          "16153",
+          "16161"
+        ],
+        "aspects": ["aggression"]
+      },
+      {
+        "identityCardId": "19001a",
+        "deck": [
+          "17021",
+          "19002",
+          "19003",
+          "19003",
+          "19004",
+          "19004",
+          "19005",
+          "19005",
+          "19006",
+          "19006",
+          "19007",
+          "19007",
+          "19008",
+          "19009",
+          "19010",
+          "19011",
+          "19017",
+          "19017",
+          "19017",
+          "20028",
+          "20028",
+          "27016",
+          "27016",
+          "27016",
+          "27191",
+          "31023",
+          "31023",
+          "31023",
+          "40059",
+          "42016",
+          "42016",
+          "42016",
+          "43021",
+          "01080",
+          "01080",
+          "01080",
+          "01088",
+          "01089",
+          "01090",
+          "09019",
+          "16168",
+          "16166",
+          "16157"
+        ],
+        "aspects": ["protection"]
+      },
+      {
+        "identityCardId": "16029a",
+        "deck": [
+          "14023",
+          "14023",
+          "16020",
+          "16030",
+          "16030",
+          "16031",
+          "16031",
+          "16032",
+          "16033",
+          "16033",
+          "16034",
+          "16034",
+          "16035",
+          "16036",
+          "16037",
+          "16038",
+          "16038",
+          "16039",
+          "16047",
+          "19031",
+          "19031",
+          "20021",
+          "22015",
+          "26034",
+          "26034",
+          "28018",
+          "29027",
+          "30019",
+          "30019",
+          "40059",
+          "41016",
+          "47016",
+          "51014",
+          "58021",
+          "61023",
+          "61023",
+          "61023",
+          "61036",
+          "01091",
+          "01092",
+          "04047",
+          "16150",
+          "16164",
+          "16167",
+          "16163"
+        ],
+        "aspects": ["justice"]
+      }
+    ],
+    "seed": 179208494,
+    "campaign": {
+      "campaignId": "gmw",
+      "nodeId": "nebula",
+      "definitionVersion": "1",
+      "modes": { "campaign": { "campaignId": "gmw" } },
+      "log": {
+        "shared": {
+          "headhunterDefeated": { "kind": "number", "value": 3 },
+          "collection": { "kind": "cardList", "cardIds": ["30019", "18002", "28017"] },
+          "collectionCount": { "kind": "number", "value": 3 },
+          "galacticArtifacts": { "kind": "cardList", "cardIds": [] }
+        },
+        "perSeat": [
+          {
+            "seatNumber": 1,
+            "fields": {
+              "units": { "kind": "number", "value": 0 },
+              "marketCards": { "kind": "cardList", "cardIds": ["16151", "16165", "16155", "16158", "16153", "16161"] }
+            }
+          },
+          {
+            "seatNumber": 2,
+            "fields": {
+              "units": { "kind": "number", "value": 2 },
+              "marketCards": { "kind": "cardList", "cardIds": ["16168", "16166", "16157"] }
+            }
+          },
+          {
+            "seatNumber": 3,
+            "fields": {
+              "units": { "kind": "number", "value": 0 },
+              "marketCards": { "kind": "cardList", "cardIds": ["16150", "16164", "16167", "16163"] }
+            }
+          }
+        ]
+      },
+      "instructions": [
+        {
+          "instructionId": "mc16.s4.setup.reveal-standard",
+          "text": "Reveal the Guerrilla Tactics side scheme.",
+          "citation": "MC16 p. 14",
+          "window": "afterScenarioSetup",
+          "effects": [
+            {
+              "kind": "selectCards",
+              "slot": "challenge",
+              "cards": { "kind": "encounterSetAside", "filter": { "printedId": "16181a" } }
+            },
+            {
+              "kind": "revealCard",
+              "cards": { "kind": "slot", "slot": "challenge" },
+              "player": { "kind": "firstPlayer" }
+            }
+          ]
+        },
+        {
+          "instructionId": "mc16.s4.setup.artifacts",
+          "text": "Shuffle each Galactic Artifacts side scheme recorded in the \u201cGalactic Artifacts Side Schemes in the Victory Display\u201d section of the campaign log into the encounter deck. Perform the following for each specified side scheme shuffled in this way: Hujadarian Monarch Egg: place 1 evasion counter on Nebula's Ship. Magical Teapot: deal the first player 1 facedown encounter card. Philosopher's Stone: give Nebula 1 facedown boost card. Crystal Ball: give Nebula a tough status card.",
+          "citation": "MC16 p. 14",
+          "window": "afterScenarioSetup",
+          "effects": [
+            {
+              "kind": "moveCards",
+              "cards": { "kind": "campaignLog", "field": "galacticArtifacts" },
+              "to": "encounterDeckShuffle"
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "galacticArtifacts", "has": "16127" },
+              "then": [
+                {
+                  "kind": "addCounters",
+                  "target": { "kind": "each", "query": { "categories": ["environment"], "name": "Nebula's Ship" } },
+                  "counterType": "evasion",
+                  "amount": { "kind": "const", "value": 1 }
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "galacticArtifacts", "has": "16128" },
+              "then": [{ "kind": "dealEncounterCard", "player": { "kind": "firstPlayer" } }]
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "galacticArtifacts", "has": "16129" },
+              "then": [{ "kind": "giveBoostCard", "enemy": { "kind": "villain" } }]
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "galacticArtifacts", "has": "16130" },
+              "then": [{ "kind": "giveStatus", "target": { "kind": "villain" }, "status": "tough" }]
+            }
+          ]
+        },
+        {
+          "instructionId": "mc16.s4.setup.headhunter",
+          "text": "Shuffle the Badoon Headhunter (183) minion into the encounter deck. Then, if the number of marks in the \u201cHeadhunter Defeated?\u201d section of the campaign log is equal to or greater than the listed number, shuffle that card into the encounter deck as well.",
+          "citation": "MC16 p. 14",
+          "window": "afterScenarioSetup",
+          "effects": [
+            {
+              "kind": "moveCards",
+              "cards": { "kind": "encounterSetAside", "filter": { "printedId": "16183" } },
+              "to": "encounterDeckShuffle"
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "headhunterDefeated", "atLeast": 1 },
+              "then": [
+                {
+                  "kind": "moveCards",
+                  "cards": { "kind": "encounterSetAside", "filter": { "printedId": "16184" } },
+                  "to": "encounterDeckShuffle"
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "headhunterDefeated", "atLeast": 2 },
+              "then": [
+                {
+                  "kind": "moveCards",
+                  "cards": { "kind": "encounterSetAside", "filter": { "printedId": "16185" } },
+                  "to": "encounterDeckShuffle"
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "condition": { "kind": "campaignLog", "field": "headhunterDefeated", "atLeast": 3 },
+              "then": [
+                {
+                  "kind": "moveCards",
+                  "cards": { "kind": "encounterSetAside", "filter": { "printedId": "16186" } },
+                  "to": "encounterDeckShuffle"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "removedFromCampaign": [],
+      "seats": [
+        {
+          "seatNumber": 1,
+          "identityCardId": "18001a",
+          "deck": [
+            "10018",
+            "12030",
+            "12030",
+            "12030",
+            "13013",
+            "13013",
+            "13013",
+            "18002",
+            "18003",
+            "18003",
+            "18004",
+            "18004",
+            "18005",
+            "18005",
+            "18006",
+            "18006",
+            "18007",
+            "18007",
+            "18008",
+            "18009",
+            "18009",
+            "18010",
+            "18011",
+            "18012",
+            "18012",
+            "18012",
+            "25013",
+            "25014",
+            "28013",
+            "28013",
+            "28013",
+            "28014",
+            "28014",
+            "28014",
+            "28017",
+            "28017",
+            "35018",
+            "35018",
+            "35018",
+            "01052",
+            "01052",
+            "01052",
+            "01053",
+            "01053",
+            "01053",
+            "01055",
+            "01055",
+            "01089",
+            "04040",
+            "06017",
+            "16151",
+            "16165",
+            "16155",
+            "16158",
+            "16153",
+            "16161"
+          ],
+          "aspects": ["aggression"],
+          "grantedCardIds": ["16151", "16165", "16155", "16158", "16153", "16161"]
+        },
+        {
+          "seatNumber": 2,
+          "identityCardId": "19001a",
+          "deck": [
+            "17021",
+            "19002",
+            "19003",
+            "19003",
+            "19004",
+            "19004",
+            "19005",
+            "19005",
+            "19006",
+            "19006",
+            "19007",
+            "19007",
+            "19008",
+            "19009",
+            "19010",
+            "19011",
+            "19017",
+            "19017",
+            "19017",
+            "20028",
+            "20028",
+            "27016",
+            "27016",
+            "27016",
+            "27191",
+            "31023",
+            "31023",
+            "31023",
+            "40059",
+            "42016",
+            "42016",
+            "42016",
+            "43021",
+            "01080",
+            "01080",
+            "01080",
+            "01088",
+            "01089",
+            "01090",
+            "09019",
+            "16168",
+            "16166",
+            "16157"
+          ],
+          "aspects": ["protection"],
+          "grantedCardIds": ["16168", "16166", "16157"]
+        },
+        {
+          "seatNumber": 3,
+          "identityCardId": "16029a",
+          "deck": [
+            "14023",
+            "14023",
+            "16020",
+            "16030",
+            "16030",
+            "16031",
+            "16031",
+            "16032",
+            "16033",
+            "16033",
+            "16034",
+            "16034",
+            "16035",
+            "16036",
+            "16037",
+            "16038",
+            "16038",
+            "16039",
+            "16047",
+            "19031",
+            "19031",
+            "20021",
+            "22015",
+            "26034",
+            "26034",
+            "28018",
+            "29027",
+            "30019",
+            "30019",
+            "40059",
+            "41016",
+            "47016",
+            "51014",
+            "58021",
+            "61023",
+            "61023",
+            "61023",
+            "61036",
+            "01091",
+            "01092",
+            "04047",
+            "16150",
+            "16164",
+            "16167",
+            "16163"
+          ],
+          "aspects": ["justice"],
+          "grantedCardIds": ["16150", "16164", "16167", "16163"]
+        }
+      ],
+      "seed": 179208494,
+      "scenarioRuleSpecs": [
+        {
+          "kind": "gainsAbility",
+          "abilityId": "16093.balanced-evasion-guard",
+          "to": { "categories": ["environment"], "name": "Nebula's Ship" },
+          "while": { "kind": "campaignLog", "field": "balanced", "isSet": true }
+        },
+        {
+          "kind": "mainSchemeValue",
+          "field": "targetThreat",
+          "stage": { "cardId": "16091a", "stageNumber": 1 },
+          "amount": 6,
+          "while": {
+            "kind": "and",
+            "of": [
+              { "kind": "campaignLog", "field": "balanced", "isSet": true },
+              {
+                "kind": "compare",
+                "left": { "kind": "perPlayer", "base": 0, "perPlayer": 1 },
+                "op": "equalTo",
+                "right": { "kind": "const", "value": 1 }
+              }
+            ]
+          }
+        },
+        {
+          "kind": "mainSchemeValue",
+          "field": "acceleration",
+          "stage": { "cardId": "16091a" },
+          "amount": 0,
+          "while": {
+            "kind": "and",
+            "of": [
+              { "kind": "campaignLog", "field": "balanced", "isSet": true },
+              { "kind": "campaignLog", "field": "balancedSpacePirates", "isSet": true }
+            ]
+          }
+        }
+      ]
+    },
+    "campaignEncounterSets": { "deck": [], "setAside": ["challenge", "badoon_headhunter", "galactic_artifacts"] },
+    "tableRules": { "sameNameHeroAllyConflict": true },
+    "outsideFacts": [{ "wonPreviousGame": true }, { "wonPreviousGame": true }, { "wonPreviousGame": true }]
+  },
+  "commands": [
+    {
+      "playerId": "p3",
+      "command": { "type": "resolveChoice", "playerId": "p3", "choiceId": "c1", "selectedOptionIds": ["i154"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c2",
+        "selectedOptionIds": ["i11", "i33", "i36"]
+      }
+    },
+    {
+      "playerId": "p2",
+      "command": { "type": "resolveChoice", "playerId": "p2", "choiceId": "c3", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p3",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p3",
+        "choiceId": "c4",
+        "selectedOptionIds": ["i135", "i142", "i146"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "useAbility",
+        "playerId": "p1",
+        "cardInstanceId": "i3",
+        "abilityId": "18001b.gamora-action",
+        "payment": []
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c5", "selectedOptionIds": [] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i23",
+        "payment": [{ "fromHand": "i39" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i22",
+        "payment": [{ "fromHand": "i26" }],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "useAbility",
+        "playerId": "p1",
+        "cardInstanceId": "i22",
+        "abilityId": "18008.conditioning-room-action",
+        "payment": []
+      }
+    },
+    { "playerId": "p1", "command": { "type": "changeForm", "playerId": "p1" } },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i33",
+        "payment": [
+          { "ability": { "instanceId": "i23", "abilityId": "18009.keen-instincts-resource" } },
+          { "fromHand": "i14" }
+        ],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c6", "selectedOptionIds": ["i1"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "resolveChoice",
+        "playerId": "p1",
+        "choiceId": "c7",
+        "selectedOptionIds": ["i3:18001a.finesse"]
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c8", "selectedOptionIds": ["i214"] }
+    },
+    {
+      "playerId": "p1",
+      "command": {
+        "type": "playCard",
+        "playerId": "p1",
+        "cardInstanceId": "i12",
+        "payment": [],
+        "attachToInstanceId": null
+      }
+    },
+    {
+      "playerId": "p1",
+      "command": { "type": "resolveChoice", "playerId": "p1", "choiceId": "c9", "selectedOptionIds": ["i1"] }
+    }
+  ]
+}

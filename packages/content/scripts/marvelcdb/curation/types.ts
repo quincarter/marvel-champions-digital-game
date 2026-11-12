@@ -72,6 +72,7 @@ export interface Correction {
   /**
    * A minion's printed SCH where MarvelCDB sends no `scheme` at all (Velociraptor, `aoa` 45129, prints SCH 1; the scan
    * confirms it). Without it the normalizer needs a `cardNotes` entry, which records a dash or zero, not a number.
+   * On an attachment, the SCH half of a printed "SCH/THW" stat box (Power Stone, `gmw` 16149), set with `thwart`.
    */
   readonly scheme?: number;
   /**

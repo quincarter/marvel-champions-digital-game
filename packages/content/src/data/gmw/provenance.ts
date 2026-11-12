@@ -179,7 +179,9 @@ export const GMW_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("16056"),
     cardSetCode: "rocket_nemesis",
     marvelcdbCodes: ["16056"],
-    corrections: [],
+    corrections: [
+      "16056: Blackjack's Bazooka prints a +2 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/16056.png)]",
+    ],
   },
   {
     cardId: cardId("16057"),
@@ -209,7 +211,9 @@ export const GMW_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("16064"),
     cardSetCode: "brotherhood_of_badoon",
     marvelcdbCodes: ["16064"],
-    corrections: [],
+    corrections: [
+      "16064: Drang's Spear prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/16064.png)]",
+    ],
   },
   {
     cardId: cardId("16065"),
@@ -366,7 +370,14 @@ export const GMW_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
   },
   { cardId: cardId("16108"), cardSetCode: "ronan", marvelcdbCodes: ["16108"], corrections: [] },
-  { cardId: cardId("16109"), cardSetCode: "ronan", marvelcdbCodes: ["16109"], corrections: [] },
+  {
+    cardId: cardId("16109"),
+    cardSetCode: "ronan",
+    marvelcdbCodes: ["16109"],
+    corrections: [
+      "16109: Universal Weapon prints a +1 SCH and +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/16109.png)]",
+    ],
+  },
   { cardId: cardId("16110"), cardSetCode: "ronan", marvelcdbCodes: ["16110"], corrections: [] },
   { cardId: cardId("16111"), cardSetCode: "ronan", marvelcdbCodes: ["16111"], corrections: [] },
   { cardId: cardId("16112"), cardSetCode: "ronan", marvelcdbCodes: ["16112"], corrections: [] },
@@ -408,7 +419,9 @@ export const GMW_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("16122"),
     cardSetCode: "galactic_artifacts",
     marvelcdbCodes: ["16122"],
-    corrections: [],
+    corrections: [
+      "16122: Cloak of Hercules prints a +3 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/16122.png)]",
+    ],
   },
   {
     cardId: cardId("16123"),
@@ -543,7 +556,14 @@ export const GMW_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("16146"), cardSetCode: "ship_command", marvelcdbCodes: ["16146"], corrections: [] },
   { cardId: cardId("16147"), cardSetCode: "ship_command", marvelcdbCodes: ["16147"], corrections: [] },
   { cardId: cardId("16148"), cardSetCode: "ship_command", marvelcdbCodes: ["16148"], corrections: [] },
-  { cardId: cardId("16149"), cardSetCode: "power_stone", marvelcdbCodes: ["16149"], corrections: [] },
+  {
+    cardId: cardId("16149"),
+    cardSetCode: "power_stone",
+    marvelcdbCodes: ["16149"],
+    corrections: [
+      "16149: The Power Stone prints a \"+1 SCH/THW\" and a \"+1 ATK\" stat box: the villain or hero it is attached to gets +1 SCH or THW and +1 ATK. Raw sends no stat fields for it, so the stone gave no bonus to anyone who held it (issue #678). [evidence: card scan (assets/card-art/bundles/cards/16149.png)]",
+    ],
+  },
   { cardId: cardId("16150"), cardSetCode: "the_market", marvelcdbCodes: ["16150"], corrections: [] },
   { cardId: cardId("16151"), cardSetCode: "the_market", marvelcdbCodes: ["16151"], corrections: [] },
   { cardId: cardId("16152"), cardSetCode: "the_market", marvelcdbCodes: ["16152"], corrections: [] },

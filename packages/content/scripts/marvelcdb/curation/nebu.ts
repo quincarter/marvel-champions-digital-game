@@ -36,6 +36,13 @@ export const NEBU_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "22030",
+      reason:
+        "Lethal Weapon prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
+      evidence: "card scan (assets/card-art/bundles/cards/22030.png)",
+      attack: 1,
+    },
+    {
       code: "22017",
       reason:
         'MarvelCDB sends quantity: 1 for "The Power of Justice", but the pack\'s own printed starter-deck reference ' +

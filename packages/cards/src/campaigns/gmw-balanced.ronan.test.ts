@@ -29,6 +29,7 @@ import {
   toHero,
   use,
 } from "../testing/harness.js";
+import { driveEvents } from "../testing/staging.js";
 import { playFromHand, runWave3, WAVE3_DEPS } from "../wave3/testing.js";
 import { query } from "../dsl/index.js";
 import { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
@@ -80,19 +81,21 @@ describe("5. Ronan: acceleration down 1 per hero, starting threat 0, on both sta
     expect(balanced[0]?.acceleration).toBe(n);
   });
 
-  it("stage 2 starts at 0 through a real flip: Balanced ends 2 threat under Normal (1 starting, 1 acceleration per hero)", () => {
-    const flip = (choice: RunChoice): GameState => {
+  it("stage 2 starts at 0 through a real flip: Balanced places 2 threat under Normal (1 starting, 1 acceleration per hero)", () => {
+    // Counts only the villain phase's place-threat step, the one that flips the stage: the activations after it
+    // reveal different encounter cards in the two games, so the threat they add is not comparable.
+    const placedByTheFlip = (choice: RunChoice): number => {
       const { state } = ronan(choice);
-      const staged = patchInstance(state, state.mainScheme.instanceId, { threat: 6 });
-      const after = settle(runWave3(staged, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE3_DEPS);
+      const scheme = state.mainScheme.instanceId;
+      const staged = patchInstance(state, scheme, { threat: 6 });
+      const { state: after, events } = driveEvents(WAVE3_DEPS, staged, { type: "endTurn", playerId: P1 });
       expect(after.mainScheme.stageIndex).toBe(1);
-      return after;
+      const activations = events.findIndex((e) => e.type === "stepChanged" && e.to.kind === "enemyActivations");
+      return events
+        .slice(0, activations)
+        .reduce((sum, e) => (e.type === "threatPlaced" && e.schemeInstanceId === scheme ? sum + e.amount : sum), 0);
     };
-    const normal = flip(NORMAL);
-    const balanced = flip(BALANCED);
-    expect(
-      inst(normal, normal.mainScheme.instanceId).threat - inst(balanced, balanced.mainScheme.instanceId).threat,
-    ).toBe(2);
+    expect(placedByTheFlip(NORMAL) - placedByTheFlip(BALANCED)).toBe(2);
   });
 
   it("the game begins with no threat on the main scheme; Normal begins with the printed amount", () => {

@@ -99,7 +99,9 @@ export const IRONHEART_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("29031"),
     cardSetCode: "ironheart_nemesis",
     marvelcdbCodes: ["29031"],
-    corrections: [],
+    corrections: [
+      "29031: Cyborg Tech prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/29031.png)]",
+    ],
   },
   {
     cardId: cardId("29032"),

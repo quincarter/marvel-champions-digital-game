@@ -738,6 +738,7 @@ export const NEBU_CARDS: readonly AnyCard[] = [
       preferred: { kind: "namedCard", name: "Gamora" },
       otherwise: { kind: "villain" },
     },
+    statModifiers: { atk: 1 },
     encounterSetIds: [encounterSetId("nebu_nemesis")],
     boostIcons: 2,
     traits: [trait("WEAPON")],

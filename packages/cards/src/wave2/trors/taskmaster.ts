@@ -153,7 +153,7 @@ export const TASKMASTER_SET = defineAbilities({
   ),
 
   // Moon Knight — Response: after you play him, spend a [wild] resource → draw 2 cards.
-  "04097.moon-knight-response": response(on.youPlayThisFromHand(), { cost: spend(1) }, draw(2)),
+  "04097.moon-knight-response": response(on.youPlayThisFromHand(), { cost: spend({ wild: 1 }) }, draw(2)),
   // Shang-Chi — Response: after you play him, spend a [energy] resource → stun an enemy.
   "04098.shang-chi-response": response(
     on.youPlayThisFromHand(),

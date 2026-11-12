@@ -651,6 +651,7 @@ export const DRAX_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/19028.png") },
     attachesTo: { kind: "superlative", among: "enemy", order: "highest", measure: "atk" },
+    statModifiers: { atk: 2 },
     encounterSetIds: [encounterSetId("drax_nemesis")],
     boostIcons: 0,
     traits: [],

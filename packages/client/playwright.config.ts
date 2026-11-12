@@ -94,6 +94,7 @@ export default defineConfig({
       // here unchanged.
       testMatch: [
         "mod-store-play.spec.ts",
+        "power-stone-holder-stats.spec.ts",
         "crushing-blow-mixed-hand.spec.ts",
         "miles-morales-alter-ego-shuffle.spec.ts",
         "holdon.spec.ts",

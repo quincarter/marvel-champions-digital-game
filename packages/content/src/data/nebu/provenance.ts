@@ -104,7 +104,14 @@ export const NEBU_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("22027"), cardSetCode: "nebu", marvelcdbCodes: ["22027"], corrections: [] },
   { cardId: cardId("22028"), cardSetCode: "nebu_nemesis", marvelcdbCodes: ["22028"], corrections: [] },
   { cardId: cardId("22029"), cardSetCode: "nebu_nemesis", marvelcdbCodes: ["22029"], corrections: [] },
-  { cardId: cardId("22030"), cardSetCode: "nebu_nemesis", marvelcdbCodes: ["22030"], corrections: [] },
+  {
+    cardId: cardId("22030"),
+    cardSetCode: "nebu_nemesis",
+    marvelcdbCodes: ["22030"],
+    corrections: [
+      "22030: Lethal Weapon prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/22030.png)]",
+    ],
+  },
   { cardId: cardId("22031"), cardSetCode: "nebu_nemesis", marvelcdbCodes: ["22031"], corrections: [] },
   { cardId: cardId("22032"), cardSetCode: "aggression", marvelcdbCodes: ["22032"], corrections: [] },
   { cardId: cardId("22033"), cardSetCode: "leadership", marvelcdbCodes: ["22033"], corrections: [] },

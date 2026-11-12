@@ -5,15 +5,16 @@ import {
   firstLegal,
   identityOf,
   inst,
+  moveToHand,
   patchInstance,
   P1,
-  payWith,
   play,
   playerOf,
   settle,
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { driveEventsPicking } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
@@ -197,20 +198,41 @@ describe("Taskmaster scenario", () => {
     expect(WAVE2_DEPS.abilities["04108.taskmasters-training-camp-forced-response"]).toBeDefined();
   });
 
-  it("Moon Knight: after you play him from your hand, spending a [wild] resource draws 2 cards", () => {
-    const start = taskmasterVsHeroes();
-    // Test-only surgery: move the set-aside Moon Knight into hand (a real game gets him there via Captured by
-    // Hydra's "When Defeated" clause, which has no ability ref to script — module docblock).
+  /** Test-only surgery: the set-aside Moon Knight moved into P1's hand (a real game gets him there via Captured by
+   * Hydra's "When Defeated" clause, which has no ability ref to script — module docblock). */
+  function moonKnightInHand(start: GameState): { readonly state: GameState; readonly moonKnight: InstanceId } {
     const moonKnight = start.encounterSetAside.find((id) => start.instances[id]?.cardId === "04097")!;
-    const withHand = {
-      ...start,
-      encounterSetAside: start.encounterSetAside.filter((id) => id !== moonKnight),
-      players: start.players.map((p, i) => (i === 0 ? { ...p, hand: [...p.hand, moonKnight] } : p)),
-      instances: {
-        ...start.instances,
-        [moonKnight]: { ...start.instances[moonKnight]!, ownerId: P1, home: { kind: "player" as const } },
+    return {
+      moonKnight,
+      state: {
+        ...start,
+        encounterSetAside: start.encounterSetAside.filter((id) => id !== moonKnight),
+        players: start.players.map((p, i) => (i === 0 ? { ...p, hand: [...p.hand, moonKnight] } : p)),
+        instances: {
+          ...start.instances,
+          [moonKnight]: { ...start.instances[moonKnight]!, ownerId: P1, home: { kind: "player" as const } },
+        },
       },
     };
+  }
+
+  const printsWild = (state: GameState, id: InstanceId): boolean => {
+    const card = WAVE2_CARDS.find((c) => c.id === state.instances[id]?.cardId);
+    return card !== undefined && "resourceIcons" in card && (card.resourceIcons?.wild ?? 0) > 0;
+  };
+  /** The resource icons `id` prints, of every type. */
+  const iconsOf = (state: GameState, id: InstanceId): number => {
+    const card = WAVE2_CARDS.find((c) => c.id === state.instances[id]?.cardId);
+    if (card === undefined || !("resourceIcons" in card) || !card.resourceIcons) return 0;
+    return Object.values(card.resourceIcons).reduce((sum: number, n) => sum + (n ?? 0), 0);
+  };
+
+  it("Moon Knight: after you play him from your hand, spending a [wild] resource draws 2 cards", () => {
+    // Hawkeye's Bow (04002) prints one [wild] icon, so it pays "spend a [wild] resource" exactly (as for Crossfire's
+    // Rifle, hawkeye.test.ts).
+    const given = moveToHand(taskmasterVsHeroes(), P1, "04002");
+    const [bow] = given.ids as [InstanceId];
+    const { state: withHand, moonKnight } = moonKnightInHand(given.state);
     const before = playerOf(withHand, P1).hand.length;
     // Moon Knight's own printed cost is 0 — no payment for the play itself; his Response then has its own "spend
     // a [wild] resource" cost, answered as a separate `payForAbility` choice (docs/phase7-wave2-scripting.md's
@@ -220,7 +242,7 @@ describe("Taskmaster scenario", () => {
     const played = settle(
       playedRaw,
       (s) => {
-        if (s.pendingChoice?.prompt.kind === "payForAbility") return payWith(s, P1, 1).map((id) => `hand:${id}`);
+        if (s.pendingChoice?.prompt.kind === "payForAbility") return [`hand:${bow}`];
         if (s.pendingChoice?.options.some((o) => o.optionId === triggerOption)) return [triggerOption];
         return firstLegal(s);
       },
@@ -228,8 +250,82 @@ describe("Taskmaster scenario", () => {
       WAVE2_DEPS,
     );
     expect(playerOf(played, P1).playArea).toContain(moonKnight);
+    expect(playerOf(played, P1).discard).toContain(bow);
     // -1 played, -1 resource for the Response, +2 drawn.
     expect(playerOf(played, P1).hand.length).toBe(before - 2 + 2);
+  });
+
+  /**
+   * Plays Moon Knight from a hand holding no [wild] card, answering his Response if it is offered and paying any
+   * `payForAbility` with `count` non-[wild] hand cards. Records what the engine offered, and every event.
+   */
+  function playWithoutWild(count: number, opts: { readonly bow?: boolean } = {}) {
+    // RRG 1.8 "Wild Resource" (p. 48): some abilities specifically require a [wild] resource (as Crossfire's Rifle,
+    // 04029, scripts it). Every [wild] card in hand goes to the bottom of the deck, so only other resources are left.
+    const start = taskmasterVsHeroes();
+    const noWild = {
+      ...start,
+      players: start.players.map((p, i) => {
+        if (i !== 0) return p;
+        const wild = p.hand.filter((id) => printsWild(start, id));
+        return { ...p, hand: p.hand.filter((id) => !wild.includes(id)), deck: [...p.deck, ...wild] };
+      }),
+    };
+    // The positive control: Hawkeye's Bow (04002), which prints a [wild] icon, back in hand to pay with.
+    const given = opts.bow ? moveToHand(noWild, P1, "04002") : { state: noWild, ids: [] as InstanceId[] };
+    const { state: withHand, moonKnight } = moonKnightInHand(given.state);
+    const others = playerOf(withHand, P1).hand.filter((id) => id !== moonKnight && !given.ids.includes(id));
+    const hand = [...given.ids, ...others];
+    expect(others.reduce((sum, id) => sum + iconsOf(withHand, id), 0)).toBeGreaterThanOrEqual(count);
+    let triggerOffered = false;
+    const payOptions: string[][] = [];
+    const { state, events } = driveEventsPicking(
+      WAVE2_DEPS,
+      withHand,
+      (s) => {
+        const choice = s.pendingChoice!;
+        if (choice.prompt.kind === "payForAbility") {
+          payOptions.push(choice.options.map((o) => o.optionId));
+          return hand.slice(0, count).map((id) => `hand:${id}`);
+        }
+        // Any option for his Response, whatever its id's prefix: a detector that can't miss it.
+        const response = choice.options.find((o) => o.optionId.includes("04097.moon-knight-response"));
+        if (response) {
+          triggerOffered = true;
+          return [response.optionId];
+        }
+        return firstLegal(s);
+      },
+      play(P1, moonKnight, []),
+    );
+    const drawn = events.filter((e) => e.type === "cardDrawn" && e.playerId === P1);
+    return { state, moonKnight, hand, triggerOffered, payOptions, drawn };
+  }
+
+  it("Moon Knight: a resource with no [wild] icon cannot pay his Response, so it is not offered and draws nothing", () => {
+    const { state, moonKnight, hand, triggerOffered, payOptions, drawn } = playWithoutWild(1);
+    expect(playerOf(state, P1).playArea).toContain(moonKnight);
+    // Why nothing was drawn: with no [wild] resource to spend, the Response is never offered (its cost can't be
+    // paid), so no payment is asked for and no card is drawn. Every other card is still in hand.
+    expect(triggerOffered).toBe(false);
+    expect(payOptions).toEqual([]);
+    expect(drawn).toEqual([]);
+    for (const id of hand) expect(playerOf(state, P1).hand).toContain(id);
+  });
+
+  it("Moon Knight: control for the detector: with Hawkeye's Bow in that same hand, the Response is offered and draws 2", () => {
+    const { triggerOffered, drawn } = playWithoutWild(1, { bow: true });
+    expect(triggerOffered).toBe(true);
+    expect(drawn).toHaveLength(2);
+  });
+
+  it("Moon Knight: two or more non-[wild] icons in hand still can't pay it: more icons are not a [wild] one", () => {
+    // The hand left holds at least 2 non-[wild] resource icons (checked in `playWithoutWild`), so the Response is
+    // refused for the icon's type, not for want of resources.
+    const { triggerOffered, payOptions, drawn } = playWithoutWild(2);
+    expect(triggerOffered).toBe(false);
+    expect(payOptions).toEqual([]);
+    expect(drawn).toEqual([]);
   });
 
   it("Captured by Hydra: places 1 random set-aside Captive ally facedown beneath this scheme", () => {

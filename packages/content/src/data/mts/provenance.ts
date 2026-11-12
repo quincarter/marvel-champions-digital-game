@@ -332,7 +332,9 @@ export const MTS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("21104"),
     cardSetCode: "tower_defense",
     marvelcdbCodes: ["21104"],
-    corrections: [],
+    corrections: [
+      "21104: Corvus's Glaive prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/21104.png)]",
+    ],
   },
   {
     cardId: cardId("21105"),

@@ -1,6 +1,6 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
+import { cardOf, identityFace, isMinion, mainSchemeStageMatches, mainSchemeStateOf } from "./query.js";
 import { grantedIcons, iconLossTest, printedAmplifyOn } from "./rules.js";
 import {
   activeRules,
@@ -47,6 +47,40 @@ export interface ActiveModifier {
 }
 
 /**
+ * An identity's printed stat box for a stat its showing face does not have: an alter-ego has no ATK, THW or DEF, a
+ * hero no REC, and neither has SCH. RRG v1.8 "Attachment" (p. 8): "If an attachment modifies a value the attached
+ * character does not have, that modifier is ignored" (an alter-ego given "+1 ATK" does not get 1 ATK), and a
+ * "SCH/THW" box modifies THW only on a hero or ally. The attachment stays on through a flip ("Form", p. 20), and its
+ * boxes count again on the hero side. Agrees: FFG ruling April 8, 2025 (Warrior of the Great Web).
+ */
+function identityFormLacks(state: GameState, targetId: InstanceId, stat: string): boolean {
+  const player = state.players.find((p) => p.identity.instanceId === targetId);
+  if (!player) return false;
+  const has = identityFace(state, player).form === "hero" ? ["atk", "thw", "def", "hp"] : ["rec", "hp"];
+  return !has.includes(stat);
+}
+/**
+ * A combined "SCH/THW" box (the card data emits it as both `sch` and `thw`: Power Stone, Motorcycle) "modifies the
+ * attached character's SCH if that character is a villain or minion, and modifies the attached character's THW if
+ * that character is a hero or ally" (RRG v1.8 "Attachment", p. 8). The half that does not fit the host is dropped
+ * here, so an ally treated as a minion whose SCH is read from its THW (Malice, docs/phase7-wave7.md §3.44) gets the
+ * box once, as SCH, not once through its THW and again as SCH.
+ */
+function combinedBoxMisses(
+  state: GameState,
+  targetId: InstanceId,
+  stat: string,
+  box: { readonly sch?: number; readonly thw?: number },
+): boolean {
+  if ((stat !== "sch" && stat !== "thw") || box.sch === undefined || box.thw === undefined) return false;
+  // `isMinion` counts a facedown Drone made from any card and a character treated as a minion (RRG 1.8 "Facedown").
+  const enemy =
+    isMinion(state, targetId) ||
+    (state.instances[targetId]?.treatedAs?.kind !== "ally" && cardOf(state, targetId)?.type === "villain");
+  return stat === (enemy ? "thw" : "sch");
+}
+
+/**
  * Constant abilities and lasting effects are never "applied" to state — they
  * are recomputed on every read (RRG "Modifiers": the game recalculates a
  * modified quantity from the base value and all active modifiers each time it
@@ -89,6 +123,7 @@ export function modifiersFor(
       card.statModifiers;
     if (!showing) continue;
     for (const [s, amount] of Object.entries(showing)) {
+      if (identityFormLacks(state, targetId, s) || combinedBoxMisses(state, targetId, s, showing)) continue;
       if (typeof amount === "number" && amount !== 0 && wanted(s as ModifiedStat)) {
         found.push({ sourceInstanceId: attachmentId, stat: s as ModifiedStat, amount, origin: "attachment" });
       }

@@ -19,7 +19,15 @@ export const DRAX_CURATION: PackCuration = {
   outDir: "src/data/drax",
   exportPrefix: "DRAX",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "19028",
+      reason:
+        "Challenge Accepted prints a +2 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
+      evidence: "card scan (assets/card-art/bundles/cards/19028.png)",
+      attack: 2,
+    },
+  ],
   errata: [],
 
   scriptingNotes: {},

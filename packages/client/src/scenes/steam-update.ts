@@ -103,7 +103,7 @@ export class SteamUpdateOverlay extends Phaser.Scene {
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`) and the e2e specs. */
   debugState(): Record<string, unknown> {
-    return { phase: this.#view().phase, started: this.#started };
+    return { phase: this.#view().phase, started: this.#started, armed: this.#guard.armed };
   }
 
   #view(): SteamUpdateView {

@@ -286,8 +286,22 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["27087a", "27087b", "27088a", "27088b"],
     corrections: [],
   },
-  { cardId: cardId("27089"), cardSetCode: "mysterio", marvelcdbCodes: ["27089"], corrections: [] },
-  { cardId: cardId("27090"), cardSetCode: "mysterio", marvelcdbCodes: ["27090"], corrections: [] },
+  {
+    cardId: cardId("27089"),
+    cardSetCode: "mysterio",
+    marvelcdbCodes: ["27089"],
+    corrections: [
+      "27089: Humongous Hallucination prints a +3 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/27089.png)]",
+    ],
+  },
+  {
+    cardId: cardId("27090"),
+    cardSetCode: "mysterio",
+    marvelcdbCodes: ["27090"],
+    corrections: [
+      "27090: Masterful Mirage prints a +1 SCH stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678). [evidence: card scan (assets/card-art/bundles/cards/27090.png)]",
+    ],
+  },
   { cardId: cardId("27091"), cardSetCode: "mysterio", marvelcdbCodes: ["27091"], corrections: [] },
   { cardId: cardId("27092"), cardSetCode: "mysterio", marvelcdbCodes: ["27092"], corrections: [] },
   { cardId: cardId("27093"), cardSetCode: "mysterio", marvelcdbCodes: ["27093"], corrections: [] },

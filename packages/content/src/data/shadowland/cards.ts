@@ -1802,6 +1802,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/65065.png") },
+    statModifiers: { thw: 2 },
     encounterSetIds: [encounterSetId("heart_of_shadow")],
     boostIcons: 2,
     traits: [trait("SPELL")],
