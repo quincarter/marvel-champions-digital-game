@@ -292,7 +292,7 @@ describe("the Market: cost, balance, and one copy per campaign for the group", (
       [],
     ).value;
     expect(afterS2.position.nextNodeId).toBe("escape-the-museum");
-    expect(afterS2.seats[0]?.grants.map((grant) => grant.cardId)).toEqual(expect.arrayContaining(tierOne));
+    expect(afterS2.seats[0]?.grants.map((grant) => grant.cardId)).toEqual(expect.arrayContaining([...tierOne]));
 
     const s3 = settle(
       (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, afterS2, DEPS, MODES, answers),
