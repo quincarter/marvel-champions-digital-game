@@ -1,8 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { expect, test, type Page } from "@playwright/test";
 import {
   activeScenes,
   clickText,
   findText,
+  focusRect,
   installPageHelpers,
   pressEndTurn,
   settle,
@@ -12,6 +15,31 @@ import {
 import { communityPackIds, communityPreconId, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
 import { clickStop, hasStop, seatDeckThroughTile, waitForScene } from "./wave6-helpers-a.js";
 import { dealToFirstTurn, quietGuide } from "./wave6-helpers-b.js";
+import { press } from "./x-men-helpers.js";
+
+/** The pack picture texture keys (`art:pack:<id>@<version>/cards/<lang>/<code>.webp`) drawn now in the Board scene. */
+const boardPackPictures = (page: Page): Promise<string[]> =>
+  page.evaluate(() => {
+    interface Obj {
+      texture?: { key?: string };
+      list?: Obj[];
+      visible?: boolean;
+    }
+    const game = (
+      window as unknown as { __mcGame: { scene: { getScene(key: string): { children: { list: Obj[] } } | null } } }
+    ).__mcGame;
+    const keys: string[] = [];
+    const walk = (o: Obj): void => {
+      if (o.visible === false) return;
+      if (o.texture?.key?.startsWith("art:pack:")) keys.push(o.texture.key);
+      for (const child of o.list ?? []) walk(child);
+    };
+    for (const child of game.scene.getScene("Board")?.children.list ?? []) walk(child);
+    return keys;
+  });
+
+const identityPicture = (keys: readonly string[], face: "a" | "b"): boolean =>
+  keys.some((key) => key.endsWith(`.01${face}.webp`));
 
 /**
  * A community pack, installed from the Mod Store and played: the player's own path from the store to the table. The
@@ -82,6 +110,32 @@ for (const packId of communityPackIds()) {
     await clickText(page, "Deal it out", { sceneKey: "Setup" });
     await dealToFirstTurn(page);
     expect(await activeScenes(page)).toContain("Board");
+    // A hero pack with an alter-ego picture (`01b`): the game starts in alter-ego form, so the table draws the 01b
+    // picture and not the hero's 01a; flipping to the hero swaps them (the face picks the picture, not only the card).
+    if (
+      existsSync(
+        fileURLToPath(
+          new URL(`../../../content-packs/community/${packId}/cards/en/x.${packId}.01b.webp`, import.meta.url),
+        ),
+      )
+    ) {
+      await waitFor(
+        async () => (identityPicture(await boardPackPictures(page), "b") ? true : null),
+        `${packId}'s alter-ego picture at game start`,
+        15_000,
+      );
+      expect(identityPicture(await boardPackPictures(page), "a")).toBe(false);
+      const flip = await waitFor(() => focusRect(page, "basic:changeForm"), "the flip control", 15_000);
+      await press(page, test.info().project.name === "phone", flip.x + flip.width / 2, flip.y + flip.height / 2);
+      await waitFor(
+        async () => {
+          const keys = await boardPackPictures(page);
+          return identityPicture(keys, "a") && !identityPicture(keys, "b") ? true : null;
+        },
+        `${packId}'s hero picture after the flip`,
+        15_000,
+      );
+    }
     await pressEndTurn(page);
     await settle(page);
     expect(await activeScenes(page)).toContain("Board");

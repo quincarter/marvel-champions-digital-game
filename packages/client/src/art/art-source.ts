@@ -177,11 +177,31 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
   }
   if (!card) return null;
   // A custom card's picture is a file of its installed pack, never a scan under `assets/card-art/` (`pack-art.ts`).
-  if ((card.id as string).startsWith("x.")) return packArtResolver?.(card.id as string, artLanguage) ?? null;
+  if ((card.id as string).startsWith("x.")) {
+    for (const code of packPictureCodes(card, face)) {
+      const art = packArtResolver?.(code, artLanguage);
+      if (art) return art;
+    }
+    return null;
+  }
   const local = localRefFor(card, face);
   if (local) return promoOrFace(`${local as string}.png`);
   const upstream = imageRefFor(card, face);
   return upstream ? promoOrFace(upstream as string) : null;
+}
+
+/**
+ * The pack picture codes to try for a custom card's face, best first. A pack ships `cards/<lang>/<code>.webp` per printed
+ * picture: the card's own code for its front (a hero identity's hero face), and the sibling `...b` code for the back
+ * (the alter-ego face, a double-sided card's flip side). A card whose code does not end in `a` has no sibling, so every
+ * face is its one picture; a missing back picture falls back to the front.
+ */
+export function packPictureCodes(card: AnyCard, face: CardFace): readonly string[] {
+  const id = card.id as string;
+  const isBack =
+    (face.kind === "alterEgo" && card.type === "hero_identity") ||
+    (face.kind === "flipSide" && "flipSide" in card && !!card.flipSide);
+  return isBack && id.endsWith("a") ? [`${id.slice(0, -1)}b`, id] : [id];
 }
 
 /** The promo picture chosen for this scan, else the scan. A promo is the same picture in every card language. */

@@ -57,7 +57,14 @@ import {
   sharedPackStore,
 } from "../packs/active-packs.js";
 import { loadedPacks } from "../packs/pack-registry.js";
-import { artFor, artLanguageNow, defaultFaceFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import {
+  artFor,
+  artLanguageNow,
+  defaultFaceFor,
+  packPictureCodes,
+  type ArtSource,
+  type CardFace,
+} from "../art/art-source.js";
 import { onPreviewArtArrived, previewPictureFor } from "../art/preview-art.js";
 import { drawGeneratedFace, faceModelOf, statLineOf } from "../ui/generated-card-face.js";
 import { currentCardsById } from "../content/pool.js";
@@ -576,7 +583,12 @@ export class ModStoreScene extends Phaser.Scene {
     const own = id.startsWith(customCardPrefix(packId));
     if (own && !loadedPacks().some((pack) => pack.id === packId)) {
       // Not installed (or not loaded): the picture comes from the pack host, by URL, when the pack ships one.
-      const url = preview && base !== undefined ? previewPictureUrl(preview, base, id, artLanguageNow()) : undefined;
+      const url =
+        preview && base !== undefined
+          ? packPictureCodes(record, face)
+              .map((code) => previewPictureUrl(preview, base, code, artLanguageNow()))
+              .find((found) => found !== undefined)
+          : undefined;
       return url ? previewPictureFor(url) : null;
     }
     return artFor(record, face);
