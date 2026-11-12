@@ -27,7 +27,7 @@ import {
   updateInstance,
 } from "../ctx.js";
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
-import { currentEnemyAttackFrame, defenseBarFor, defendingCharacterOf, defenseClaimOf } from "../defense-claim.js";
+import { currentEnemyAttackFrame, defenderBarFor, defendingCharacterOf, defenseClaimOf } from "../defense-claim.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -837,7 +837,7 @@ export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const activation = defendedActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
-  // "…if there is not already a defender" (p. 14): one an effect declared while the attack was being initiated, this
+  // "…if there is not already a defender" (p. 15): one an effect declared while the attack was being initiated, this
   // hero included, stays the defender, and the label announces no second defense.
   if ((frame.slots[DEFENDER_SLOT] ?? []).length > 0) return;
   const enemyInstanceId = frame.event.enemyInstanceId;
@@ -906,7 +906,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
   if (exhaust) exhaustCard(ctx, defenderId);
   // "While a player is defending, other players cannot defend against that same attack" (RRG 1.8 "Defend, Defense",
   // p. 15): no character of another player's is declared.
-  if (defenseBarFor(ctx.state, defenderPlayer) !== null) return false;
+  if (defenderBarFor(ctx.state, defenderPlayer) !== null) return false;
   // "While a hero [an ally] is defending against an attack, other friendly characters cannot defend against that
   // attack" (p. 15). #49: "once one character defends, only that character can defend the attack unless that
   // character leaves play before the attack finishes." A second declaration does not replace the defender.
@@ -982,7 +982,7 @@ export function settleDeclaredDefenderCost(
 ): "notOwed" | "asked" | "unpaid" | SpentPayment {
   const payer = controllerOf(ctx.state, defenderId);
   const ruled = additionalPowerCostFor(ctx.state, ctx.deps, defenderId, "defend");
-  if (!ruled || payer === null || defenseBarFor(ctx.state, payer) !== null) return "notOwed";
+  if (!ruled || payer === null || defenderBarFor(ctx.state, payer) !== null) return "notOwed";
   if (!currentEnemyAttackFrame(ctx.state)) return "notOwed";
   // Already this character's defense, or another character's that the declaration cannot replace (p. 15).
   if (defendingCharacterOf(ctx.state) !== null) return "notOwed";
@@ -1199,8 +1199,9 @@ export function legalDefenders(
 }
 
 /**
- * `legalDefenders` less the characters of a player the attack in progress is closed to (`defenseBarFor`): once a player
- * has resolved a "(defense)"-labeled ability for it, no other player defends it. The Declare Defender step offers these.
+ * `legalDefenders` less the characters of a player the attack in progress is closed to (`defenderBarFor`): while
+ * another player is defending it (a defender of theirs, or their "(defense)" ability made their identity the defender),
+ * no other player defends it. The Declare Defender step offers these.
  */
 export const declarableDefenders = (
   state: GameState,
@@ -1209,7 +1210,7 @@ export const declarableDefenders = (
   attackerId: InstanceId | null = null,
 ): readonly InstanceId[] =>
   legalDefenders(state, attackedPlayerId, deps, attackerId).filter(
-    (id) => defenseBarFor(state, controllerOf(state, id)) === null && defenseCostPayable(state, deps, id),
+    (id) => defenderBarFor(state, controllerOf(state, id)) === null && defenseCostPayable(state, deps, id),
   );
 
 /**
@@ -1361,17 +1362,17 @@ function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAt
 
 /**
  * Who answers the Declare Defender step. Normally the attacked player (the co-op table convention in
- * `legalDefenders`). But once a player is defending the attack, or has resolved a "(defense)"-labeled ability for it,
- * only that player's characters can still defend it (RRG 1.8 "Defend, Defense", p. 15: "While a player is defending,
- * other players cannot defend against that same attack"; "Once a player resolves a defense-labeled ability during an
- * enemy attack, other players cannot resolve defense-labeled abilities"), and step 2 is "If a player wishes to defend,
- * that player exhausts a hero or ally" (p. 8): so that player decides, not the attacked player. This covers a
- * "(defense)" interrupt that redirected an attack aimed at another player (p. 15: "the defending player becomes the
- * new target of that attack"), where the original target has nothing left to declare.
+ * `legalDefenders`). But once a player is defending the attack, only that player's characters can still defend it
+ * (RRG 1.8 "Defend, Defense", p. 15: "While a player is defending, other players cannot defend against that same
+ * attack"), and step 2 is "If a player wishes to defend, that player exhausts a hero or ally" (p. 8): so that player
+ * decides, not the attacked player. This covers a "(defense)" interrupt that redirected an attack aimed at another
+ * player (p. 16: "the defending player becomes the new target of that attack"), where the original target has nothing
+ * left to declare. A player who resolved a "(defense)" ability without becoming the defender (their identity "cannot
+ * defend", Taunt) is not defending, so the attacked player still decides (`defenderBarFor`; by analogy with FFG
+ * ruling Aug 10, 2023 #60, the Taunt player's own Mutant Protectors: "the defender would still be you").
  */
 function defenseDecider(state: GameState, frame: Frame<"enemyAttack">): PlayerId {
-  const claim = defenseClaimOf(state);
-  return claim?.defendingPlayerId ?? claim?.labeledPlayerId ?? frame.attackedPlayerId;
+  return defenseClaimOf(state)?.defendingPlayerId ?? frame.attackedPlayerId;
 }
 
 export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): void {

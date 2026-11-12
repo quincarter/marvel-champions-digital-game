@@ -47,6 +47,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { intoPlay } from "../../testing/qa-bench.js";
 import { encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { AOS_ASPECT_BASIC as REGISTRY, AOS_ASPECT_BASIC_SKIPPED as SKIPPED } from "./aspect-basic.js";
 import { ASPECT_DEPS as DEPS, aspectGame, engaged, placed } from "./aspect-basic.testing.js";
@@ -1997,6 +1998,56 @@ describe("50052.prism-dust-response: after a minion enters play, discard Prism D
     const { prism, state } = reveal("01105");
     const after = drive(run(state, endTurn(P1)), { respond: ID });
     expect(inDiscard(after, prism)).toBe(false);
+  });
+
+  describe("only while that minion is still in play (RRG 1.8 'Target', p. 42; 'Cost', p. 14)", () => {
+    const HAWKEYE = "01066.hawkeye-response";
+    /**
+     * Hawkeye (4 arrow counters, surgery) beside Prism Dust; the revealed Shocker carries `damage`. Hawkeye is taken
+     * first, then every later prompt is recorded: whether Prism Dust is still offered, and whether the minion is in play.
+     */
+    const afterHawkeye = (damage: number, identityStunned = false) => {
+      const { prism, state } = reveal(SHOCKER);
+      const hawk = intoPlay(state, "01066", { arrow: 4 });
+      let staged = patchInstance(hawk.state, FIXTURE as InstanceId, { damage });
+      if (identityStunned) {
+        staged = patchInstance(staged, identityOf(staged), { statuses: { stunned: 1, confused: 0, tough: 0 } });
+      }
+      const prompts: boolean[] = [];
+      let hawkeyeTaken = false;
+      const pick: Picker = (s) => {
+        const choice = s.pendingChoice!;
+        if (choice.prompt.kind !== "chooseTriggers") return firstLegal(s);
+        const offered = choice.options.map((o) => o.optionId as string);
+        if (!hawkeyeTaken) {
+          hawkeyeTaken = true;
+          return [offered.find((o) => o.endsWith(HAWKEYE))!];
+        }
+        prompts.push(offered.some((o) => o.endsWith(ID)));
+        const hit = offered.find((o) => o.endsWith(ID));
+        return hit ? [hit] : firstLegal(s);
+      };
+      const after = settle(run(staged, endTurn(P1)), pick, undefined, DEPS);
+      return { after, prism, offeredAfter: prompts };
+    };
+    it("control: Hawkeye's 2 damage leaves Shocker (3 hp) alive, so Prism Dust is still offered and its 2 damage defeats it", () => {
+      const { after, prism, offeredAfter } = afterHawkeye(0);
+      expect(offeredAfter).toEqual([true]);
+      expect(inDiscard(after, prism)).toBe(true);
+    });
+    it("Hawkeye defeats the minion first (1 damage already): Prism Dust is not offered and stays attached", () => {
+      const { after, prism, offeredAfter } = afterHawkeye(1);
+      expect(offeredAfter).toEqual([]);
+      expect(inDiscard(after, prism)).toBe(false);
+      expect(inst(after, prism).attachedTo).toBe(identityOf(after));
+    });
+    it("a stunned hero may still use it (an attack ability removes the stun, p. 41), though the minion is gone", () => {
+      const { after, prism, offeredAfter } = afterHawkeye(1, true);
+      expect(offeredAfter).toEqual([true]);
+      // Taken, it is paid (discarded) and resolves only as the stun's removal: no minion is left to confuse or damage.
+      expect(inDiscard(after, prism)).toBe(true);
+      expect(inst(after, identityOf(after)).statuses.stunned).toBe(0);
+    });
   });
 });
 

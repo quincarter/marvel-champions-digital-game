@@ -1,13 +1,14 @@
 /**
  * Who may defend an enemy attack, across players (owner rulings 2026-10-06, docs/phase7-wave7.md §4.1).
  *
- * RRG 1.8 "Defend, Defense" (pp. 14-15) has two limits between players, and both are read here, from one record:
+ * RRG 1.8 "Defend, Defense" (pp. 15-16) has two limits between players, and both are read here, from one record:
  *  - "Only one player at a time can defend against an enemy attack. While a player is defending, other players cannot
  *    defend against that same attack." A player is defending while a character they control is the attack's defender,
  *    an ally as much as a hero: "If a player defends against an enemy attack that targets a different player (either
  *    by defending with a character they control or by resolving a defense ability), the defending player becomes the
- *    new target of that attack." Resolving a defense ability is itself defending, so the bar covers a "(defense)"
- *    ability as well as being declared the defender.
+ *    new target of that attack." A "(defense)" ability is defending once it makes that player's identity the
+ *    defender; one whose identity cannot defend (Taunt) never does, and leaves the attacked hero free to defend
+ *    (`defenderBarFor`).
  *  - "Once a player resolves a defense-labeled ability during an enemy attack, other players cannot resolve
  *    defense-labeled abilities for that same attack."
  *
@@ -81,8 +82,8 @@ export function defenseClaimOf(state: GameState): DefenseClaim | null {
 }
 
 /**
- * The one predicate: why `playerId` may not resolve a "(defense)"-labeled ability, or have a character declared the
- * defender, for the enemy attack in progress. Null when they may, and outside an enemy attack.
+ * Why `playerId` may not resolve a "(defense)"-labeled ability for the enemy attack in progress. Null when they may,
+ * and outside an enemy attack. Whether they may have a character declared the defender is `defenderBarFor`.
  */
 export function defenseBarFor(state: GameState, playerId: PlayerId | null): DefenseBar | null {
   if (playerId === null) return null;
@@ -91,6 +92,23 @@ export function defenseBarFor(state: GameState, playerId: PlayerId | null): Defe
   if (claim.defendingPlayerId !== null && claim.defendingPlayerId !== playerId) return "anotherPlayerDefending";
   if (claim.labeledPlayerId !== null && claim.labeledPlayerId !== playerId) return "anotherPlayerUsedDefense";
   return null;
+}
+
+/**
+ * `defenseBarFor` for having a character declared the defender (the Declare Defender step, or a card effect that
+ * declares one): only "While a player is defending, other players cannot defend" (RRG 1.8 "Defend, Defense", p. 15)
+ * applies. The label limit there is on "defense-labeled abilities", not on defending. A player whose label made their
+ * identity the defender is defending, and that closes the attack to others; one whose identity "cannot defend" (Taunt:
+ * "Other characters cannot defend against this attack") never becomes the defender, so the attacked hero can still
+ * defend. The label makes the identity the defender "if there is not already a defender" (p. 15); what bars it is
+ * Taunt's "cannot", which is absolute and takes precedence (RRG 1.8 "Cannot", p. 11), read through the engine's
+ * `cannotDefend` check in `declareLabeledDefense` (docs/phase7-wave4.md §3.31). By analogy with FFG ruling Aug 10,
+ * 2023 #60 (docs/rulings/post-rrg-1-5/04-august-2023.md, the Taunt player's own Mutant Protectors): "the defender
+ * would still be you".
+ */
+export function defenderBarFor(state: GameState, playerId: PlayerId | null): DefenseBar | null {
+  const bar = defenseBarFor(state, playerId);
+  return bar === "anotherPlayerDefending" ? bar : null;
 }
 
 /** Whether the candidate's ability is labeled "(defense)". */
