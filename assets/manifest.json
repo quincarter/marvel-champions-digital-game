@@ -372,7 +372,12 @@
       "name": "pack-art-mephisto-nep",
       "group": "pack-art",
       "optional": true,
-      "dir": "content-packs/community/mephisto-nep"
+      "dir": "content-packs/community/mephisto-nep",
+      "tag": "pack-art-mephisto-nep-10d911e7324b",
+      "file": "pack-art-mephisto-nep.zip",
+      "size": 6752464,
+      "sha256": "10d911e7324b64b2394787c9f1c1ab8173a0360171d0a1dfe8823e4f50cec619",
+      "files": 60
     },
     {
       "name": "artifacts",
