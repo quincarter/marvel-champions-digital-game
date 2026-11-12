@@ -1,0 +1,1 @@
+This pack is still being scripted (abilities, engine pieces). Tests, e2e and the publish workflow skip it while this file exists. Delete it when every ability is scripted and the pack passes its tests.

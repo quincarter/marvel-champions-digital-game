@@ -281,6 +281,23 @@ describe("validatePack: languages, per-language pictures and alternate art", () 
     expect(messages(unknownLanguage)).toMatch(/language "fr" is not in languages.available/);
   });
 
+  it("needs every stage picture of a main scheme once the pack ships any picture of it", async () => {
+    const asScheme = (p: Copy): void => {
+      withLanguages(p);
+      p.cards[1] = { ...p.cards[1], type: "main_scheme", stages: [{}, {}] };
+    };
+    // Card 02's own number has a picture (es only counts in its own language), so the base language needs all four.
+    const partial = await broken((p) => {
+      asScheme(p);
+      addFile(p, "cards/en/x.tiny-pack.02a.webp");
+      addFile(p, "cards/en/x.tiny-pack.02b.webp");
+    });
+    expect(messages(partial)).toMatch(/stage picture "cards\/en\/x.tiny-pack.02c.webp" is not a listed file/);
+    expect(messages(partial)).not.toMatch(/stage picture "cards\/en\/x.tiny-pack.02a.webp"/);
+    const none = await broken(asScheme);
+    expect(messages(none)).not.toMatch(/stage picture/);
+  });
+
   it("rejects a picture of a card the pack does not have", async () => {
     const pack = await broken((p) => {
       withLanguages(p);

@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,7 +35,10 @@ beforeEach(() => {
 });
 
 /** Every community pack, built the way the store publishes it, installed and started through the client's own path. */
-for (const packId of readdirSync(COMMUNITY).filter((name) => statSync(join(COMMUNITY, name)).isDirectory())) {
+// A pack still being scripted carries a DRAFT file: skipped until it is removed.
+const ready = (name: string): boolean =>
+  statSync(join(COMMUNITY, name)).isDirectory() && !existsSync(join(COMMUNITY, name, "DRAFT"));
+for (const packId of readdirSync(COMMUNITY).filter(ready)) {
   describe(`community pack ${packId}`, () => {
     it("starts a one-seat game with its precon and builds the board model for the seat", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "mc-community-"));

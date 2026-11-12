@@ -24,6 +24,7 @@ export default definePackAbilities({
   // stage 1A:
   //   Contents: Mephisto (I) and Mephisto (II). (Mephisto (II) and Mephisto (III) for expert mode.) Mephisto, Blackheart, Damned, and Standard encounter sets. One modular encounter set (Corruptive Offers or Mother of Demons).
   //   Setup: Put the Hell Lord attachment aside, out of play. Put the Gateway to Corruption environment into play. Create the "Damnation" game area (see insert for details).
+  //   NOTE: the Hell Lord is set aside by the scenario record (setAsideCardIds) and the Gateway enters play via its Setup keyword; this ability only needs to create the Damnation area.
   //   ids: x.mephisto-nep.02a.setup
   // stage 1B:
   //   Forced Response: At the end of your turn, resolve the "Hidden Clause" ability for each Bargain attachment you control.

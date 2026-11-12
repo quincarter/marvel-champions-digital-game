@@ -11,5 +11,6 @@
   "villainStages": {
     "standard": [1, 2],
     "expert": [2, 3]
-  }
+  },
+  "setAsideCardIds": ["x.mephisto-nep.04"]
 }

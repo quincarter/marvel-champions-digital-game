@@ -319,6 +319,58 @@ export function parsePackCardImagePath(path: string): { readonly lang: string; r
 }
 
 /**
+ * The pack picture code of the `index`th (0-based) picture of a multi-picture card, by the naming convention in
+ * docs/custom-content-packs.md section 5.1: pictures are lettered in order from the card's own code. A code ending in
+ * a letter (`02a`) is the first picture and the letters run on from it (`02a`, `02b`, `02c`...); a code without one
+ * (`01`) is its own first picture and the rest are `01b`, `01c`...
+ */
+export function packSequentialPictureCode(code: string, index: number): string {
+  const lettered = /[a-z]$/.test(code);
+  if (index === 0 && !lettered) return code;
+  return `${lettered ? code.slice(0, -1) : code}${String.fromCharCode(97 + index)}`;
+}
+
+interface StagedCard {
+  readonly id: string;
+  readonly type?: string;
+  readonly sides?: readonly { readonly stages?: readonly unknown[] }[];
+  readonly stages?: readonly unknown[];
+}
+
+/**
+ * The picture codes a villain or main scheme record needs, in picture order: a villain's stages (every side, in order),
+ * a main scheme's stages with side A then side B each. Empty for any other card.
+ */
+export function packStagedPictureCodes(card: StagedCard): readonly string[] {
+  let count = 0;
+  if (card.type === "villain") count = (card.sides ?? []).reduce((n, side) => n + (side.stages?.length ?? 0), 0);
+  else if (card.type === "main_scheme") count = (card.stages?.length ?? 0) * 2;
+  return Array.from({ length: count }, (_, i) => packSequentialPictureCode(card.id, i));
+}
+
+/**
+ * The picture codes to try for one villain stage (`sideIndex`, `stageIndex`) or main scheme stage and side, best first:
+ * the stage's own picture, then the card's own code.
+ */
+export function packStagePictureCodes(
+  card: StagedCard,
+  face:
+    | { readonly kind: "villainStage"; readonly sideIndex: number; readonly stageIndex: number }
+    | { readonly kind: "mainSchemeStage"; readonly stageIndex: number; readonly side: "A" | "B" },
+): readonly string[] {
+  let index = -1;
+  if (face.kind === "villainStage" && card.type === "villain") {
+    const sides = card.sides ?? [];
+    index = sides.slice(0, face.sideIndex).reduce((n, side) => n + (side.stages?.length ?? 0), 0) + face.stageIndex;
+  } else if (face.kind === "mainSchemeStage" && card.type === "main_scheme") {
+    index = face.stageIndex * 2 + (face.side === "B" ? 1 : 0);
+  }
+  if (index < 0) return [card.id];
+  const own = packSequentialPictureCode(card.id, index);
+  return own === card.id ? [card.id] : [own, card.id];
+}
+
+/**
  * The picture to show for card `code` when the player's language is `wanted`: that language's picture where the pack
  * has it, else the base language's, else `undefined` (the card has no picture, and the client draws its text face).
  * `has` says whether a pack path exists, so this works on a zip's file list or an unzipped folder alike.

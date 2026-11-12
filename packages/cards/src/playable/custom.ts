@@ -5,7 +5,7 @@
  *
  * - **A pack scenario** is built generically from its `Scenario` record, the way `coreScenario` builds a Core one: the
  *   villain's stages, the main scheme, the scenario's own sets, the picked modular sets, the Standard (and Expert) set,
- *   each hero's obligation and nemesis set. A pack scenario may use only the plain fields (`CUSTOM_SCENARIO_FIELDS`);
+ *   each hero's obligation and nemesis set. A pack scenario may use only the plain fields and `setAsideCardIds` (`CUSTOM_SCENARIO_FIELDS`);
  *   anything a printed scenario needs a hand-written builder for (several villains, a set-aside deck, a villain choice)
  *   is refused by `customScenarioProblems` rather than built wrong.
  * - **A pack modular set at a base scenario** is added to the base builder's own game: the base picks go through
@@ -60,6 +60,7 @@ export const CUSTOM_SCENARIO_FIELDS: ReadonlySet<string> = new Set([
   "villainStages",
   "modularSetCount",
   "modularSetCountRange",
+  "setAsideCardIds",
 ]);
 
 /** The base pool with custom cards added; a custom card that reuses a base id is an error, never an override. */
@@ -212,6 +213,31 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
     const problem = customModularPickProblem(scenario, id, custom);
     if (problem) problems.push(`recommendedModularSetIds: ${problem}`);
   }
+  // `setAsideCardIds`: cards the scenario's Setup sets aside, out of play (RRG 1.8 "Set Aside", p. 39). A card must
+  // belong to one of the scenario's own sets (or its Standard or Expert set), so it is dealt out of the deck it would
+  // otherwise sit in and not conjured from outside the game.
+  const setAside = scenario.setAsideCardIds;
+  if (setAside !== undefined) {
+    const own = new Set<string>([
+      ...scenario.encounterSetIds,
+      ...scenario.standardEncounterSetIds,
+      ...scenario.expertEncounterSetIds,
+    ]);
+    const seen = new Set<string>();
+    for (const id of setAside) {
+      if (seen.has(id)) problems.push(`setAsideCardIds: "${id}" is listed twice`);
+      seen.add(id);
+      const card = pool.find((candidate) => candidate.id === id);
+      if (!card) problems.push(`setAsideCardIds: "${id}" is in neither the pack nor the base game`);
+      else if (card.type === "villain" || card.type === "main_scheme" || card.type === "evidence")
+        problems.push(`setAsideCardIds: "${id}" is a ${card.type}, which a scenario's own fields place`);
+      else if (
+        !("encounterSetIds" in card) ||
+        !(card.encounterSetIds as readonly string[]).some((setId) => own.has(setId))
+      )
+        problems.push(`setAsideCardIds: "${id}" is not a card of the scenario's own, Standard or Expert sets`);
+    }
+  }
   const count = modularPickCountProblem(scenario, scenario.recommendedModularSetIds?.length ?? 0);
   if (count) problems.push(`recommendedModularSetIds: ${count}`);
   return problems;
@@ -270,6 +296,15 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   const difficultySets = difficultyEncounterSetIds(scenario, difficulty);
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1–4 players");
   const autoIncludedSets = autoIncludedSetsOf(PLAYABLE_ENCOUNTER_SETS, pool);
+  // `Scenario.setAsideCardIds`, as the wave 7 builder reads it: `quantityInSet` copies of each card go to
+  // `GameSetupConfig.setAside` and every copy leaves the encounter deck dealt from its set.
+  const setAside = (scenario.setAsideCardIds ?? []).flatMap((id) => {
+    const card = pool.find((candidate) => candidate.id === id);
+    if (!card) throw new Error(`${scenario.name}: unknown set-aside card ${id}`);
+    return Array.from({ length: "quantityInSet" in card ? card.quantityInSet : 1 }, () => id);
+  });
+  const setAsideIds = new Set<string>(setAside);
+  const dealt = (ids: CardId[]): CardId[] => (setAside.length > 0 ? ids.filter((id) => !setAsideIds.has(id)) : ids);
   return {
     seed: options.seed,
     cards: pool,
@@ -279,10 +314,11 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: [
-      ...encounterCardsOf(ownAndModular, pool),
+      ...dealt(encounterCardsOf(ownAndModular, pool)),
       ...encounterCardsOf(difficultySets, pool),
       ...modularSetupCardIds(modular, pool),
     ],
+    ...(setAside.length > 0 ? { setAside } : {}),
     players: options.players.map((seat) => {
       if ("starterDeckId" in seat) return playableStarterDeckSetup(seat.starterDeckId);
       return {

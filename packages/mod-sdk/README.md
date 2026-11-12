@@ -53,6 +53,11 @@ base-game card (`"01088"`) or one of the pack's own faces, and any pack kind may
 art). `validatePack` checks the tags, that `base` is available, that every picture is of a pack card, and that
 alternate art names a known card and a listed file.
 
+Multi-stage cards letter their pictures in order from the card's code (derived from the record's stages): a villain's
+stages are `<code>`, `<code>b`, `<code>c`... (`x.p.01`, `01b`, `01c`); a main scheme's stages are A then B each,
+`02a` (1A), `02b` (1B), `02c` (2A) ... `02f` (3B). A missing one falls back to the card's own picture. If a pack ships
+any picture of such a card, `validatePack` requires all of them.
+
 ### Cards and ability ids
 
 - Every card code is `x.<pack-id>.<number>` with an optional face letter (`x.fan-moon-knight.01a`).

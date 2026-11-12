@@ -29,9 +29,9 @@ Pictures are `cards/en/<card code>.webp`, one per printed face, the code's digit
 | every other card            | `<code>` (one picture; copies share it)                                                         |
 
 Landscape cards (main schemes, side schemes) are 900 px wide; portrait cards 900 px tall. Neptune's PNGs store the
-schemes rotated a quarter turn (as printed on the A4 sheets); `convert-art.cjs` turns them upright. The client today
-finds a pack picture by the card's own code (`art/art-source.ts` `packPictureCodes`), so a villain or main scheme record
-shows its first picture for every stage until per-stage pack pictures are supported (see Engine gaps, 17).
+schemes rotated a quarter turn (as printed on the A4 sheets); `convert-art.cjs` turns them upright. The client picks
+the picture per villain stage and main scheme stage and side by the sequential-letter convention in
+docs/custom-content-packs.md section 5.1 (`art/art-source.ts` `packPictureCodes`), which these names already follow.
 
 `alt-art/en/01186.webp` ... `01193.webp` are Neptune's new art for the base cards of the Standard (Advance, Assault,
 Caught Off Guard, Gang-Up, Shadow of the Past: 01186-01190) and Expert (Exhaustion, Masterplan, Under Fire:
@@ -99,7 +99,7 @@ From the insert ("Mephisto Scenario", front) and the stage 1A card, "Contents":
   scenarios using the scenario customization rules."
 - **Setup (stage 1A):** "Put the Hell Lord attachment aside, out of play. Put the Gateway to Corruption environment
   into play. Create the "Damnation" game area (see insert for details)." The Gateway environment has Setup and Permanent.
-  A pack scenario record cannot carry `setAsideCardIds` or game areas today, so all of this is the `02a.setup` ability.
+  The scenario record carries `setAsideCardIds` (Hell Lord) and the Gateway enters play through its Setup keyword, so only creating the Damnation game area is left for the `02a.setup` ability.
 - **Villain phase / rounds:** as the base game. Stage 2A (Fiendish Investment) and 3A (Hellbound Obsession) are the
   entry text of the stage; 3A "flip the Gateway to Corruption environment to reveal the Hell environment".
 - **Win/lose:** the players lose at the end of stage 3B ("If this stage is completed, the players lose the game"), or
@@ -313,7 +313,7 @@ marked **GAP** has no builder or engine rule found. The DSL is very wide, so eac
     - `endGame` (Risky Business, Protection Racket), `completeMainScheme`. Stage 3A "flip Gateway to reveal Hell" is the
       stage's when revealed; Fiendish/Hellbound "search the encounter deck for a Bargain attachment and reveal it ... in
       player order" (`searchAndReveal`, `forEachPlayerInChosenOrder`/`forEachPlayer`).
-16. **Scenario setup in a pack (GAP).** `setup()`-style stage 1A script must set the Hell Lord aside, put the Gateway
+16. **Scenario setup in a pack (PARTLY DONE).** The scenario record now carries `setAsideCardIds: ["x.mephisto-nep.04"]` (the Hell Lord, set aside out of play, taken out of the encounter deck), and the Gateway to Corruption has the Setup keyword and is in the Mephisto set, so the engine puts it into play at setup step 11 (RRG p. 51) with no ability. Still needs an ability: **create the "Damnation" game area** (the `02a.setup` ability, once the engine primitive lands).  Original note: `setup()`-style stage 1A script
     into play, create Damnation. A pack scenario record may only use the plain fields, so `setAsideCardIds`,
     `separateGameAreas` and startup environments are not available (sample pack README, "Known gaps"). Precedent for
     the scripts: `putIntoPlay`, `encounterSetAside`/`setAside`, `putIntoPlayFromSetAside` (20 uses), `createScenarioArea`.

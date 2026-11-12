@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +21,10 @@ const MC_PACK = join(SDK, "src/bin.ts");
 const SERVED = "/e2e-packs";
 
 export const communityPackIds = (): string[] =>
-  readdirSync(COMMUNITY).filter((name) => statSync(join(COMMUNITY, name)).isDirectory());
+  readdirSync(COMMUNITY).filter(
+    // A pack still being scripted carries a DRAFT file (content-packs/community/<id>/DRAFT): skipped until it is removed.
+    (name) => statSync(join(COMMUNITY, name)).isDirectory() && !existsSync(join(COMMUNITY, name, "DRAFT")),
+  );
 
 export interface StagedCatalog {
   readonly dir: string;

@@ -27,7 +27,10 @@ const walk = (dir: string): string[] =>
   });
 
 const packFolders = existsSync(COMMUNITY_DIR)
-  ? readdirSync(COMMUNITY_DIR).filter((name) => statSync(join(COMMUNITY_DIR, name)).isDirectory())
+  ? readdirSync(COMMUNITY_DIR).filter(
+      // A pack still being scripted carries a DRAFT file: it is neither tested nor published until it is removed.
+      (name) => statSync(join(COMMUNITY_DIR, name)).isDirectory() && !existsSync(join(COMMUNITY_DIR, name, "DRAFT")),
+    )
   : [];
 
 const dirs: string[] = [];

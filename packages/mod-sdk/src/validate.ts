@@ -13,6 +13,7 @@ import {
   isLanguageTag,
   isPackId,
   isSafePackPath,
+  packStagedPictureCodes,
   parsePackCardImagePath,
   validateCard,
   validateEncounterSet,
@@ -226,6 +227,7 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     CARD_NUMBER.test(code.slice(prefix.length)) &&
     cardNumbers.has(digitsOf(code.slice(prefix.length)));
   checkLanguagesAndArt(input, (code) => knownCard(code) || isPackFace(code), isPackFace, add);
+  checkStagePictures(input, cards, add);
 
   // Decks: unique ids under the pack's id, every card in the pack or the base pool, and the content schema's checks.
   const deckIds = new Set<string>();
@@ -559,6 +561,33 @@ function checkLanguagesAndArt(
       if (!knownCard(code)) add(at(`altArt.${lang}.${code}`), "is a card neither the pack nor the base game has");
       if (typeof path !== "string" || !listed.has(path))
         add(at(`altArt.${lang}.${code}`), `"${String(path)}" is not a listed file`);
+    }
+  }
+}
+
+/**
+ * A villain stage and a main scheme stage and side each have a lettered picture (`packStagedPictureCodes`: `01`, `01b`,
+ * `01c`; `02a` ... `02f`). A pack that ships pictures for such a card (any picture of its number, in the base language)
+ * ships every one of them, so no stage silently draws another stage's picture. A pack with none at all is fine: the
+ * card draws its generated frame.
+ */
+function checkStagePictures(input: PackInput, cards: readonly Obj[], add: Add): void {
+  const languages: unknown = input.manifest.languages;
+  const base = isObj(languages) && typeof languages.base === "string" ? languages.base : undefined;
+  if (!base || !Array.isArray(input.manifest.files)) return;
+  const shipped = new Set<string>();
+  for (const f of input.manifest.files as unknown[]) {
+    const picture = isObj(f) && typeof f.path === "string" ? parsePackCardImagePath(f.path) : undefined;
+    if (picture?.lang === base) shipped.add(picture.code);
+  }
+  for (const card of cards) {
+    const id = String(card.id);
+    const wanted = packStagedPictureCodes(card as unknown as { id: string });
+    if (wanted.length < 2) continue;
+    const number = digitsOf(id);
+    if (![...shipped].some((code) => digitsOf(code) === number)) continue;
+    for (const code of wanted) {
+      if (!shipped.has(code)) add(`cards/${id}`, `stage picture "cards/${base}/${code}.webp" is not a listed file`);
     }
   }
 }

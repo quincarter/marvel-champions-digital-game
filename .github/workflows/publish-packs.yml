@@ -81,6 +81,8 @@ jobs:
           built="$RUNNER_TEMP/built"
           # The sample packs (content-packs/sample-*) are SDK examples, kept out of the production store.
           for dir in content-packs/community/*/; do
+            # A pack still being scripted carries a DRAFT file and is not published until it is removed.
+            if [ -f "$dir/DRAFT" ]; then echo "Skipping $dir (DRAFT)"; continue; fi
             dir="${dir%/}"
             [ -f "$dir/pack.json" ] || continue
             out="$built/$(basename "$dir")"

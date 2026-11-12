@@ -343,6 +343,28 @@ describe("scenarioWithPacks: refusals and options", () => {
     const noStandard = customScenarioProblems({ ...record, standardEncounterSetIds: [] } as never, content);
     expect(noStandard.join("\n")).toMatch(/standardEncounterSetIds is empty/);
   });
+  it("sets aside a scenario's own cards from its deck, and refuses ones it cannot", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const withAside = (ids: string[]) => ({ ...record, setAsideCardIds: ids }) as never;
+    const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
+    const aside = `${PACK}07`; // the pack's attachment, in the scenario's own set
+    expect(customScenarioProblems(withAside([aside]), content)).toEqual([]);
+    expect(customScenarioProblems(withAside([`${PACK}99`]), content).join(" ")).toMatch(/in neither the pack/);
+    expect(customScenarioProblems(withAside([`${PACK}08`]), content).join(" ")).toMatch(/not a card of the scenario/);
+    expect(customScenarioProblems(withAside([`${PACK}01`]), content).join(" ")).toMatch(/a villain/);
+    expect(customScenarioProblems(withAside([aside, aside]), content).join(" ")).toMatch(/listed twice/);
+    const base = scenarioWithPacks(SCENARIO, seat, [pack]);
+    expect(base.setAside).toBeUndefined();
+    const changed = { ...pack, scenarios: [{ ...record, setAsideCardIds: [aside] }] } as unknown as PackInput;
+    const config = scenarioWithPacks(SCENARIO, seat, [changed]);
+    expect(config.setAside).toEqual([aside]);
+    expect((config.encounterDeck ?? []).map(String)).not.toContain(aside);
+    const without = (base.encounterDeck ?? []).map(String).filter((id) => id !== aside);
+    expect((config.encounterDeck ?? []).map(String)).toEqual(without);
+    const created = createGame(config, gameDepsWithPacks(PLAYABLE_DEPS, [changed]));
+    expect(created.ok).toBe(true);
+  });
   it("checks the recommended modular sets against the scenario's modular count", () => {
     const record = pack.scenarios![0] as never as Record<string, unknown>;
     const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };

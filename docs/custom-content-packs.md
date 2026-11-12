@@ -248,6 +248,19 @@ needs a paid Workers plan to survive another Reddit day.
 }
 ```
 
+**Picture naming (multi-stage cards).** A card's picture is `cards/<lang>/<code>.webp`. A card with several printed
+pictures letters them in order from its own code, derived from the card record's stage data, with no extra manifest
+field:
+
+- A **villain**'s stages are its pictures in order (every side's stages, side by side). A code without a face letter
+  is its own first picture: stage I is `<code>`, then `<code>b`, `<code>c`... (`x.p.01`, `01b`, `01c`).
+- A **main scheme**'s stage n side A and side B are two pictures each, in order: A then B. A code ending in a letter
+  starts the run: 1A `<code>` (`02a`), 1B `02b`, 2A `02c`, 2B `02d`, 3A `02e`, 3B `02f`.
+- A double-sided card's flip side (`03a`/`03b`) and a hero identity's alter-ego face (`01a`/`01b`) are the `b` sibling.
+- Anything else has one picture. The client tries the stage's own picture, then the card's own code, then draws the
+  generated face. `validatePack` requires that a pack which ships any picture of a villain or main scheme with more
+  than one picture ships all of them; a pack with none is fine.
+
 ### 5.2 `index.json` (the catalog)
 
 Served from `https://packs.<domain>/index.json` with a short cache. Only this file's address is built into the client;

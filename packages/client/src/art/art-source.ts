@@ -197,11 +197,34 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
  * face is its one picture; a missing back picture falls back to the front.
  */
 export function packPictureCodes(card: AnyCard, face: CardFace): readonly string[] {
+  // A villain stage or a main scheme stage and side has its own lettered picture.
+  if (face.kind === "villainStage" || face.kind === "mainSchemeStage") return stagePictureCodes(card, face);
   const id = card.id as string;
   const isBack =
     (face.kind === "alterEgo" && card.type === "hero_identity") ||
     (face.kind === "flipSide" && "flipSide" in card && !!card.flipSide);
   return isBack && id.endsWith("a") ? [`${id.slice(0, -1)}b`, id] : [id];
+}
+
+/**
+ * The pack picture codes for a villain stage or a main scheme stage and side, best first: the stage's own lettered
+ * picture (`01`, `01b`, `01c`; `02a` ... `02f`), then the card's own code. A local copy of `packStagePictureCodes`
+ * (`@mc/content`), which this module cannot import at runtime (`vite-card-art.ts` loads it in plain Node);
+ * `pack-art-faces.test.ts` checks the two agree.
+ */
+function stagePictureCodes(card: AnyCard, face: CardFace): readonly string[] {
+  const id = card.id as string;
+  let index = -1;
+  if (face.kind === "villainStage" && card.type === "villain") {
+    const before = card.sides.slice(0, face.sideIndex).reduce((n, side) => n + side.stages.length, 0);
+    index = before + face.stageIndex;
+  } else if (face.kind === "mainSchemeStage" && card.type === "main_scheme") {
+    index = face.stageIndex * 2 + (face.side === "B" ? 1 : 0);
+  }
+  const lettered = /[a-z]$/.test(id);
+  if (index < 0 || (index === 0 && !lettered)) return [id];
+  const own = `${lettered ? id.slice(0, -1) : id}${String.fromCharCode(97 + index)}`;
+  return own === id ? [id] : [own, id];
 }
 
 /** The promo picture chosen for this scan, else the scan. A promo is the same picture in every card language. */
