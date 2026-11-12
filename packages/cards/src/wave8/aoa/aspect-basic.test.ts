@@ -567,9 +567,11 @@ describe("Legion (45020): Response after he uses a basic power, discard the top 
     const r = legion("01089");
     expect(inst(r.state, r.before.mainScheme.instanceId).threat).toBe(4);
   });
-  it("a [physical] card: heals 2 from Legion (1 + 1 consequential - 2 = 0); a wild resolves nothing", () => {
+  // His response resolves before his consequential damage (RRG 1.8 "Consequential Damage", p. 13; "Ability", p. 5): the
+  // heal clears his 1 damage, then he takes the 1 consequential.
+  it("a [physical] card: heals 2 from Legion before his consequential damage (1 - 2 -> 0, + 1 = 1); a wild resolves nothing", () => {
     const heal = legion("01090");
-    expect(damageOf(heal.state, heal.ally)).toBe(0);
+    expect(damageOf(heal.state, heal.ally)).toBe(1);
     const wild = legion("45019");
     expect(damageOf(wild.state, wild.ally)).toBe(2);
     expect(damageOf(wild.state, wild.villain)).toBe(damageOf(wild.before, wild.villain) + 1);

@@ -1,0 +1,3 @@
+kind: Engine
+body: Resolve an ally's "after uses a basic power" responses (Nick Fury) before its consequential damage, so they are still offered when that damage defeats it
+time: 2026-11-08T02:30:46.1437018+01:00

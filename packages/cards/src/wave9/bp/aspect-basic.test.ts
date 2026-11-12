@@ -576,6 +576,16 @@ describe("51022.aneka-response / 51022.aneka-special: resolve the Special of ano
     expect(inst(r.state, villainOf(r.state)).damage).toBe(1);
     expect(inst(r.state, aneka).damage).toBe(1);
   });
+  it("with 1 hit point left, Aneka's response resolves Ayo's Special before her consequential damage defeats her", () => {
+    // RRG 1.8 "Consequential Damage" (p. 13) and "Ability" timing priority (p. 5): responses (4) before consequential
+    // damage (5). Before that order, the damage defeated her first and the response was never offered.
+    const { state, aneka } = staged();
+    const hurt = patchInstance(state, aneka, { damage: 2 });
+    const r = attackWithAneka(hurt, aneka, { accept: [REF] });
+    expect(r.taken()).toBe(1);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(3);
+    expect(discardOf(r.state)).toContain(aneka);
+  });
   it("the response is optional: declined, only the attack's 2 damage is dealt", () => {
     const { state, aneka } = staged();
     const r = attackWithAneka(state, aneka, { accept: [] });

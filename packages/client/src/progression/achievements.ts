@@ -307,7 +307,8 @@ const ARCH_ENEMIES: readonly (Matchup & { readonly hero: string; readonly foe: s
     ],
     ["Black Panther (T'Challa)", "Klaw", ["klaw"], "A Sound Defeat"],
     ["Iron Man", "Ultron", ["ultron"], "Have You Tried Turning It Off?"],
-    ["Black Widow", "Black Widow or Taskmaster", ["black-widow", "taskmaster"], "Clearing the Ledger"],
+    // Taskmaster only: beating the Black Widow villain with her seated is her Seeing Double trophy (#643).
+    ["Black Widow", "Taskmaster", ["taskmaster"], "Clearing the Ledger"],
     ["Winter Soldier", "Crossbones", ["crossbones"], "Bucky Breaks Bones"],
     ["Gamora", "Nebula", ["nebula"], "Sibling Rivalry"],
     ["Drax", "Thanos", ["thanos"], "The Destroyer Delivers"],

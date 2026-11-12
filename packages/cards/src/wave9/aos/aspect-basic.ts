@@ -3,6 +3,7 @@ import type { AbilityRegistry, RuleSpec, TargetQuery } from "@mc/engine";
 import {
   action,
   addCounters,
+  anyOf,
   anyOfCards,
   after,
   alterEgoAction,
@@ -42,6 +43,7 @@ import {
   inHand,
   instead,
   interrupt,
+  isStunned,
   lookAt,
   lookAtAndRearrange,
   made,
@@ -56,6 +58,7 @@ import {
   putIntoPlay,
   query,
   ready,
+  refMatches,
   removeCounter,
   removeStatus,
   removeThreat,
@@ -75,6 +78,7 @@ import {
   varOf,
   zone,
   you,
+  yourIdentity,
   youHaveTrait,
   forcedResponse,
   modifyAttack,
@@ -398,7 +402,15 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "50052.prism-dust-response": heroResponse(
     on.entersPlay(query("minion")),
-    { label: "attack", cost: discardThis },
+    {
+      label: "attack",
+      cost: discardThis,
+      // Only while "that minion" is still in play: gone, it is no valid target, so the ability can't be initiated nor
+      // its discard cost paid (RRG 1.8 "Target", p. 42; "Cost", p. 14). A stunned hero may still use it, an (attack)
+      // ability, to remove the stun (RRG 1.8 "Stun, Stunned", p. 41). This follows the Widow's Bite (08010) reading
+      // merged in #655: keep the two in step if that reading is ever revisited.
+      while: anyOf(refMatches(eventTarget, query("minion")), isStunned(yourIdentity)),
+    },
     confuse(eventTarget),
     dealDamage(2, eventTarget),
   ),
