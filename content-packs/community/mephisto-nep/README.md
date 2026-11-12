@@ -6,7 +6,7 @@ Mother of Demons) and new art for the base game's Standard and Expert sets. See 
 
 Status: complete (step 2 of 2). The card data, encounter sets and scenario are transcribed, every ability is scripted in
 `abilities/index.ts` and tested, and the pack plays standard and expert. `TRANSCRIPTION.md` lists what was read by eye
-and is unconfirmed; "Rules readings and open questions" below lists the calls made and the one engine gap.
+and is unconfirmed; "Rules readings and open questions" below lists the calls made and the engine gaps.
 
 ## Source layout
 
@@ -249,8 +249,11 @@ Raised by the scripting pass (the author's or the owner's answer is wanted; the 
 9. **"You control a Bargain attachment" is "is attached to your identity".** An encounter attachment is controlled by
    no player (RRG "Attachment", p. 8), so costs that discard "a card you control" cannot pick it: Blackheart's Action
    picks it as the cost (`chooseTargetCost`) and discards it as its first effect.
-10. **Blackheart's Boost "cancel this activation" (ENGINE GAP, see below).** The option is offered and its discard and
-    "put Blackheart into play" resolve; the cancel is approximated for an attack as "prevent all damage from it".
+10. **Blackheart's Boost "cancel this activation"** (`cancelBoostedActivation`, since 1.0.1). Discarding a Bargain
+    cancels the attack or scheme he is a boost card for, then he enters play engaged with you. The cancelled activation
+    deals no damage and places no threat, the activation's other boost cards are discarded without being turned faceup,
+    and no "after ... attacks / schemes / activates" response triggers (RRG 1.8 "Cancel", p. 11). Before 1.0.1 an attack
+    was only answered by preventing its damage and a scheme was not stopped.
 11. **Famished Power combines the used basic power with one other** (THW, ATK or DEF) chosen when it is triggered, the
     sum being +N to that use.
 12. **Gluttonous Restoration's "may discard any number of status cards"** is a keep/discard prompt for each status the
@@ -288,11 +291,6 @@ machinery uses the engine primitives added for this pack (`engine-only-features.
 
 ### What is not exact (engine gaps, for `game-rules-architect`)
 
-- **A Boost ability cannot cancel its activation.** Blackheart's Boost ("You may discard a Bargain attachment to cancel
-  this activation") runs with no triggering event (`gameAbilityFrames(..., null)` in `stepFaceupBoostCard`), so
-  `cancelIt()` finds nothing. Needed: a boost ability's `cancelTriggeringEvent` (or a `cancelActivation` effect) that
-  cancels the activation in progress. Meanwhile an attack is answered with `modifyAttack({ preventAllDamage })` and a
-  scheme activation goes on; `cancelIt()` stays in the script.
 - **"Discard this card ->" cannot read the card's own counters afterwards**, and an encounter attachment cannot pay a
   "you control" discard cost, so two costs are written as effects (the Corruptive Offers' Response, Blackheart's
   Action). The player-visible result is the same.
@@ -306,6 +304,6 @@ Pacts (heal, or threat when there is nothing to heal); the Damnation loss at 10 
 set-aside redirect; stage 3B win and loss; Fiendish Investment; Gateway to Hell with its acceleration token; Slothful
 Endurance's floor; Famished Power with and without Shackled Wrath; the facedown Mystic minions (1/1/1, Spawn Magic);
 Hell Lord's damage reduction and recovery; Alter the Deal, Dark Compulsions, Hotel Inferno, Culling the Damned, Exposing
-Intentions; Blackheart's Action and Boost; Lilin Remaking; the turn-start Responses; Deathless Persistence; Demon
+Intentions; Blackheart's Action and Boost (an attack and a scheme cancelled, and declined); Lilin Remaking; the turn-start Responses; Deathless Persistence; Demon
 Amalgam; Demonized; Lusting Existence; Condemned Soul Portal; and every encounter card revealed in hero and alter-ego
 form with and without a Bargain attachment. `mc-pack test` plays the scenario (standard and expert) and every modular set.

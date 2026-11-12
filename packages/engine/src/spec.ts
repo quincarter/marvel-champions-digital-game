@@ -5735,6 +5735,14 @@ export type EffectSpec =
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**
+   * "[star] Boost: … cancel this activation" (community pack `mephisto-nep`, Blackheart): cancels the enemy attack or
+   * scheme whose boost card this ability is resolving from (`selfInstanceId`). A Boost ability has no triggering event
+   * (RRG 1.8 "Boost, Boost Icon", p. 11: it resolves "when the card is turned face up"), so `cancelTriggeringEvent`
+   * finds nothing; this names the activation instead. The rest of the Boost ability still resolves; then the
+   * activation ends with nothing more of it resolved (`endedByBoostCancel`, `resolve/enemy-activation.ts`).
+   */
+  | { readonly kind: "cancelBoostedActivation" }
+  /**
    * "Response: After you spend this card to pay for an AERIAL event, return that event to your hand after resolving its
    * effects" (docs/phase7-wave7.md §3.68): a destination written on the play of each event `card` names (its
    * `playCard` frame, `afterResolving`), read when the event would be placed in the discard pile. `card` is the event

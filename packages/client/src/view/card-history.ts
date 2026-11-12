@@ -129,6 +129,8 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "enemyActivated":
     case "activationSkipped":
       return [event.enemyInstanceId];
+    case "activationCancelled":
+      return [event.enemyInstanceId, event.byInstanceId];
     case "boostWithheld":
     case "activationBlocked":
       return [event.enemyInstanceId];

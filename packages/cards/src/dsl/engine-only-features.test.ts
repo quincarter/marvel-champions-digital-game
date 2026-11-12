@@ -21,6 +21,7 @@ import {
   VILLAIN_OR_VILLAINOUS,
 } from "./abilities.js";
 import {
+  cancelBoostedActivation,
   blankTextBoxForPlayers,
   blankTextBoxUntil,
   cards,
@@ -222,12 +223,21 @@ describe("engine-only DSL primitives", () => {
     expect(putIntoPlayFacedown(you, mystic)).toEqual({ kind: "putIntoPlayFacedown", player: you, as: mystic });
   });
 
+  it("a Boost ability's 'cancel this activation'", () => {
+    expect(cancelBoostedActivation()).toEqual({ kind: "cancelBoostedActivation" });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.boost-cancels-activation"]).toMatchObject({
+      trigger: { kind: "boost" },
+      effects: [{ kind: "cancelBoostedActivation" }],
+    });
+  });
+
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
       "engine-only.activation-boost-card",
       "engine-only.agile",
       "engine-only.basic-power-boost",
+      "engine-only.boost-cancels-activation",
       "engine-only.double-stat",
       "engine-only.enemy-attacks-enemy-bind",
       "engine-only.extra-player-phase",

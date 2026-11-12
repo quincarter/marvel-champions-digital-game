@@ -1003,6 +1003,19 @@ export type GameEvent =
       readonly reason: "dashedStat" | "leftPlay";
     }
   /**
+   * An activation cancelled by a "Boost" ability of one of its own boost cards (`EffectSpec cancelBoostedActivation`)
+   * has ended: no damage or threat, no further boost card turned faceup. `discardedBoostCards` are the enemy's boost
+   * cards discarded with it, still facedown or the cancelling card itself (unless its ability moved it). Logged once
+   * the cancelling ability has resolved, before the activation's `triggerEvent` "cancelled" line.
+   */
+  | {
+      readonly type: "activationCancelled";
+      readonly enemyInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme";
+      readonly byInstanceId: InstanceId;
+      readonly discardedBoostCards: readonly InstanceId[];
+    }
+  /**
    * A keyword's enemy activation (quickstrike's attack, teamwork's activation) was initiated while an ability was
    * resolving: its status check and its "when … attacks / schemes" interrupt window are done, and it now waits beneath
    * that ability's root frame `abilityFrameId` until the ability has finished, then resolves its steps

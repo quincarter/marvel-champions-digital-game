@@ -27,6 +27,7 @@ import {
   attacksGainKeywords,
   blanksTextBox,
   boost,
+  cancelBoostedActivation,
   cancelIt,
   cannotLeavePlay,
   cards,
@@ -621,11 +622,10 @@ export default definePackAbilities({
   ),
   // [star] Boost: "You may discard a Bargain attachment to cancel this activation. If you do, put Blackheart into play
   // engaged with you."
-  // ENGINE GAP (reported to the owner): a Boost ability runs with no triggering event (`gameAbilityFrames(..., null)`), so
-  // `cancelIt()` finds nothing to cancel and the activation goes on. Until a boost ability can cancel its activation, an
-  // attack is answered with the nearest thing the engine has, `modifyAttack({ preventAllDamage })` (the damage is dealt
-  // and none is taken; retaliate and "after attacks" responses still hear it), and a scheme activation is not stopped.
-  // `cancelIt()` stays in so the script is right the day the primitive lands.
+  // A Boost ability has no triggering event, so "cancel this activation" is `cancelBoostedActivation()`: the attack or
+  // scheme Blackheart is a boost card for ends once this ability has resolved, with no damage or threat, its other boost
+  // cards discarded unturned, and no "after ... attacks / schemes" responses (RRG 1.8 "Cancel", p. 11). Blackheart has
+  // left the boost area by then, so he is not discarded with them.
   "x.mephisto-nep.22.boost": boost(
     ifThen(
       exists(bargainOf(you)),
@@ -634,8 +634,7 @@ export default definePackAbilities({
           "Discard a Bargain attachment: cancel this activation and put Blackheart into play engaged with you",
           chooseTarget("sacrifice", bargainOf(you)),
           discard(chosen("sacrifice")),
-          cancelIt(),
-          ifThen(activationIs("attack"), modifyAttack({ preventAllDamage: true })),
+          cancelBoostedActivation(),
           putIntoPlay(self, you),
         ),
         option("Do not discard"),

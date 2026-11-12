@@ -3,6 +3,7 @@ import { trait } from "@mc/content";
 import {
   action,
   agile,
+  boost,
   constant,
   costModifier,
   discardThis,
@@ -20,6 +21,7 @@ import {
 import {
   applyRuleUntil,
   blankTextBoxForPlayers,
+  cancelBoostedActivation,
   cancelIt,
   cards,
   dealDamage,
@@ -104,6 +106,8 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
     cancelIt(),
     replaceNextVillainPhaseWithPlayerPhase(),
   ),
+  // "[star] Boost: Cancel this activation" (`cancelBoostedActivation`; community pack `mephisto-nep`, Blackheart).
+  "engine-only.boost-cancels-activation": boost(cancelBoostedActivation()),
   // "Ignore one keyword or trait on one card until the end of the round" (`grantKeywordUntil` / `grantTraitUntil`'s
   // `loses`).
   "engine-only.lose-keyword": action(loseKeywordUntil({ name: "guard" }, theVillain, "endOfRound")),

@@ -251,6 +251,7 @@ import {
   boostCardBeingGivenTo,
   dealBoostCardOrAnnounce,
   dealChosenBoostCard,
+  cancelBoostedActivation,
   declareDefenderByLabeledEffect,
   getsBoostCard,
   giveBoostCard,
@@ -3302,6 +3303,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         setFrame(ctx, { ...play, afterResolving: effect.to });
         emit(ctx, { type: "playDestinationSet", instanceId: id, to: effect.to });
       }
+      return;
+    }
+    case "cancelBoostedActivation": {
+      // A Boost ability's "cancel this activation" (`cancelBoostedActivation`, `resolve/enemy-activation.ts`). Nothing
+      // to cancel (not resolving as a boost card, or already cancelled) fails a "then" like any cancel (RRG 1.8 p. 44).
+      if (!frame.selfInstanceId || !cancelBoostedActivation(ctx, frame.selfInstanceId))
+        markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
       return;
     }
     case "cancelTriggeringEvent": {

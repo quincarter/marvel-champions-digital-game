@@ -591,6 +591,15 @@ function describe(
         text: `No boost card is dealt for ${card(event.enemyInstanceId)}'s ${event.activation}.`,
         voice: "villain",
       };
+    // A boost card's "Boost: … cancel this activation" (mephisto-nep Blackheart): say why no damage or threat followed.
+    case "activationCancelled": {
+      const others = event.discardedBoostCards.filter((id) => id !== event.byInstanceId).length;
+      const rest = others === 0 ? "" : ` ${others} other boost card${others === 1 ? " is" : "s are"} discarded.`;
+      return {
+        text: `${card(event.byInstanceId)} cancels ${card(event.enemyInstanceId)}'s ${event.activation}.${rest}`,
+        voice: "villain",
+      };
+    }
     // §3.34: the activation never began.
     case "activationBlocked":
       return {

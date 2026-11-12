@@ -1322,6 +1322,77 @@ function endedByLeavingPlay(
 }
 
 /**
+ * `EffectSpec cancelBoostedActivation`: "[star] Boost: … cancel this activation". The activation is the innermost enemy
+ * attack or scheme whose boost card in progress is `boostInstanceId` (the Boost ability's own card). Its event frame is
+ * marked cancelled the way an interrupt's `cancelTriggeringEvent` marks it (an attack also `endedEarly`, as there:
+ * FFG ruling Feb 15, 2024, Ruling 148), and put back to its `apply` stage so that, once the procedure above it has
+ * ended, it takes the same cancel path as an activation cancelled in its interrupt window (`resolve/event.ts`): "after
+ * … defends" responses and "at the end of this attack" effects still resolve (RRG 1.8 pp. 9, 16), and no "after …
+ * attacks / schemes / activates" response can trigger (RRG 1.8 "Cancel", p. 11: "Abilities dependent on the canceled
+ * effect cannot trigger"; FFG ruling, Infinity Gauntlet / Grasping Tendrils, RRG 1.0-1.4 rulings: a cancelled
+ * activation "did not resolve"). The procedure itself is told (`cancelledByBoost`) and ends after the Boost ability
+ * has finished (`endedByBoostCancel`), so the rest of that ability still resolves ("If you do, put Blackheart into
+ * play"). False, cancelling nothing, when there is no such activation or it is already cancelled.
+ */
+export function cancelBoostedActivation(ctx: Ctx, boostInstanceId: InstanceId): boolean {
+  const procedure = ctx.state.stack.find(
+    (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+      (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.instanceId === boostInstanceId,
+  );
+  if (!procedure || procedure.stage === "done" || procedure.cancelledByBoost !== undefined) return false;
+  const eventFrameId = procedure.eventFrameId;
+  const activation = eventFrameId ? findFrame(ctx.state, eventFrameId) : undefined;
+  if (eventFrameId && activation?.kind === "event") {
+    if (activation.cancelled) return false;
+    const endsAnyway = activation.event.kind === "enemyAttack" || activation.event.kind === "enemyAttacksEnemy";
+    updateFrame(ctx, eventFrameId, (f) =>
+      f.kind === "event"
+        ? {
+            ...f,
+            cancelled: true,
+            ...(endsAnyway ? { endedEarly: true as const } : {}),
+            ...(f.stage === "responses" ? { stage: "apply" as const } : {}),
+          }
+        : f,
+    );
+  }
+  setFrame(ctx, { ...procedure, cancelledByBoost: boostInstanceId });
+  return true;
+}
+
+/**
+ * The activation was cancelled by one of its boost cards' "Boost" ability (`cancelBoostedActivation`), which has now
+ * resolved: the procedure ends here. No further boost card is turned faceup and no icons are counted, so no damage is
+ * dealt and no threat placed. The cancelling card (unless its ability moved it) and the boost cards still facedown on
+ * the enemy are discarded, each to its own discard pile: they were given for this activation (RRG 1.8 "Boost, Boost
+ * Icon", p. 11, "After applying a boost card to an activation, discard it"), and nothing in the RRG keeps one for a
+ * later activation. Engine interpretation (RRG 1.8 is silent on boost cards left when an activation is cancelled
+ * mid-flip); the alternative reading, leaving them facedown on the enemy like cards "dealt … outside of its own
+ * activation", was not taken (rules-expert reading, 2026-11-12). The cancelling card's own later steps (its icons being
+ * counted, its being applied and resolved) are skipped too: they are steps of the cancelled activation (RRG 1.8
+ * "Cancel" p. 11; "Activation" p. 6, "no further steps of that activation resolve"). Responses to its being turned
+ * faceup already resolved at step 3.a, before its Boost ability (FFG ruling, Sept 2024 part 2, Ruling 173).
+ */
+function endedByBoostCancel(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  activation: "attack" | "scheme",
+): boolean {
+  if (frame.stage === "done" || frame.cancelledByBoost === undefined) return false;
+  const discarded = [...(getInstance(ctx.state, frame.enemyInstanceId)?.boostCards ?? [])];
+  for (const id of discarded) moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+  emit(ctx, {
+    type: "activationCancelled",
+    enemyInstanceId: frame.enemyInstanceId,
+    activation,
+    byInstanceId: frame.cancelledByBoost,
+    discardedBoostCards: discarded,
+  });
+  setFrame(ctx, { ...frame, stage: "done", boost: null });
+  return true;
+}
+
+/**
  * RRG 1.8 "Attack (Enemy Activation)" step 5 (p. 9): "If the defending ally leaves play prior to damage from the
  * attack being dealt, the attack is considered to have no character defending and the identity of that ally's
  * controller becomes the target of the attack." "Defend, Defense" (p. 16): "if a defending ally is defeated before
@@ -1393,6 +1464,7 @@ function defenseDecider(state: GameState, frame: Frame<"enemyAttack">): PlayerId
 
 export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): void {
   if (endedByLeavingPlay(ctx, frame, "attack")) return;
+  if (endedByBoostCancel(ctx, frame, "attack")) return;
   switch (frame.stage) {
     case "giveBoost":
       return giveBoostStep(ctx, frame, frame.versusEnemy ? "flipBoosts" : "declareDefender", "attack");
@@ -1818,6 +1890,7 @@ export function pushEnemySchemeFrame(
 
 export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): void {
   if (endedByLeavingPlay(ctx, frame, "scheme")) return;
+  if (endedByBoostCancel(ctx, frame, "scheme")) return;
   switch (frame.stage) {
     case "giveBoost":
       return giveBoostStep(ctx, frame, "flipBoosts", "scheme");

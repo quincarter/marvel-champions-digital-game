@@ -64,6 +64,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   accelerationTokenRedirected: [ALLOWED, "counters, face up"],
   accusationMade: [STOPS, "a hidden accusation"],
   activationAwaitsAbility: [ALLOWED, "combat, all face up"],
+  activationCancelled: [STOPS, "boost cards are the encounter's"],
   activationBlocked: [ALLOWED, "rules bookkeeping, nothing hidden"],
   activationSkipped: [ALLOWED, "rules bookkeeping, nothing hidden"],
   activeVillainChanged: [ALLOWED, "table state, face up"],

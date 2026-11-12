@@ -837,6 +837,11 @@ export type StackFrame =
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
       /**
+       * A "Boost" ability of this boost card cancelled the activation (`EffectSpec cancelBoostedActivation`): once that
+       * ability has resolved, the procedure ends (`endedByBoostCancel`). Absent otherwise.
+       */
+      readonly cancelledByBoost?: InstanceId;
+      /**
        * The damage step has announced `TriggerEvent enemyAttackDamageStep`, so on its next run it deals the damage.
        * Absent in a game where nothing listens for that event (the step deals the damage on its first run).
        */
@@ -856,6 +861,8 @@ export type StackFrame =
       /** As `Frame<"enemyAttack">.boostsGiven`. */
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
+      /** As `Frame<"enemyAttack">.cancelledByBoost`. */
+      readonly cancelledByBoost?: InstanceId;
     })
   /**
    * RRG 1.8 "Villainous" (p. 47) on a character that is not an enemy (an ally or a hero: MC60 p. 26 FAQ, "The rules for

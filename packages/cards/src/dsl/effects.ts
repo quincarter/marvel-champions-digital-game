@@ -1250,6 +1250,13 @@ export const instead = (...effects: readonly EffectArg[]): EffectSpec => ({
 });
 /** RRG "Cancel": the interrupted event doesn't resolve. */
 export const cancelIt = (): EffectSpec => ({ kind: "cancelTriggeringEvent" });
+/**
+ * "[star] Boost: … cancel this activation": inside a `boost(...)` ability, cancels the enemy attack or scheme this boost
+ * card is resolving for. The rest of the Boost ability still resolves; then the activation ends (no damage or threat,
+ * its other boost cards discarded unturned). `cancelIt()` finds nothing in a Boost ability, which has no triggering
+ * event.
+ */
+export const cancelBoostedActivation = (): EffectSpec => ({ kind: "cancelBoostedActivation" });
 /** "Cancel its 'When Revealed' effects". */
 export const cancelWhenRevealed = (): EffectSpec => ({ kind: "cancelWhenRevealed" });
 /** "Cancel the effects of that card and discard it". */

@@ -689,18 +689,54 @@ describe("Blackheart (22)", () => {
     expect(used.state.instances[id]!.statuses.tough).toBe(1);
   });
 
-  it("Boost: discard a Bargain to cancel the activation and put him into play engaged with you", () => {
+  /** Lilith (villainous, so dealt a boost card) engaged with P1, who carries Endless Greed; Blackheart on top of the deck. */
+  const boosting = (form: "hero" | "alterEgo") => {
     const bargained = withBargain("05");
-    // Only a villain or a villainous minion is given a boost card: Lilith (villainous) is the activator, Blackheart on top.
     const minion = conjure(bargained, "41", { atk: 1 });
-    const staged = stackDeck(minion.state, ["22"]);
-    const next = toNextRound(staged, takes("Discard a Bargain"));
+    const formed: GameState = {
+      ...minion.state,
+      players: minion.state.players.map((p) => ({ ...p, identity: { ...p.identity, form, heroFormIndex: 0 } })),
+    };
+    return { lilith: minion.id, state: stackDeck(formed, ["22"]) };
+  };
+
+  it("Boost: discard a Bargain to cancel the attack and put him into play engaged with you", () => {
+    const { lilith, state } = boosting("hero");
+    const next = toNextRound(state, takes("Discard a Bargain"));
     expect(hostedOn(next.state, identityOf(next.state), "05"), "the Bargain was discarded").toBeUndefined();
     const blackheart = inPlay(next.state, "22").find((id) => next.state.instances[id]!.engagedWith === P1);
     expect(blackheart, "Blackheart is engaged with you").toBeDefined();
-    // A boost ability cannot cancel its activation yet (engine gap), so the attack's damage is prevented instead.
-    expect(damageFrom(next.events, minion.id, identityOf(next.state)), "Lilith dealt no damage").toEqual([]);
-    expect(next.events.some((e) => e.type === "damagePrevented")).toBe(true);
+    const cancelled = next.events.find((e) => e.type === "activationCancelled" && e.enemyInstanceId === lilith);
+    expect(cancelled, "the attack was cancelled").toMatchObject({ activation: "attack", byInstanceId: blackheart });
+    expect(damageFrom(next.events, lilith, identityOf(next.state)), "Lilith dealt no damage").toEqual([]);
+    expect(
+      next.events.some((e) => e.type === "damagePrevented"),
+      "cancelled, not prevented",
+    ).toBe(false);
+    expect(next.events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === lilith)).toBe(false);
+  });
+
+  it("Boost: discard a Bargain to cancel a scheme activation (no threat placed)", () => {
+    const { lilith, state } = boosting("alterEgo");
+    const bargain = hostedOn(state, identityOf(state), "05")!;
+    const next = toNextRound(state, takes("Discard a Bargain"));
+    // Blackheart then schemes in his own right and can complete stage 1, whose stage 2 finds the Bargain again: read the
+    // discard from the log.
+    expect(next.events.some((e) => e.type === "cardDiscardedFromPlay" && e.instanceId === bargain)).toBe(true);
+    expect(inPlay(next.state, "22").some((id) => next.state.instances[id]!.engagedWith === P1)).toBe(true);
+    expect(next.events.find((e) => e.type === "activationCancelled" && e.enemyInstanceId === lilith)).toMatchObject({
+      activation: "scheme",
+    });
+    expect(next.events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === lilith)).toBe(false);
+  });
+
+  it("Boost: declining leaves the attack to resolve, and Blackheart is discarded as a boost card", () => {
+    const { lilith, state } = boosting("hero");
+    const next = toNextRound(state, takes("Do not discard"));
+    expect(hostedOn(next.state, identityOf(next.state), "05"), "the Bargain stays").toBeDefined();
+    expect(inPlay(next.state, "22").some((id) => next.state.instances[id]!.engagedWith === P1)).toBe(false);
+    expect(next.events.some((e) => e.type === "activationCancelled")).toBe(false);
+    expect(next.events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === lilith)).toBe(true);
   });
 });
 
