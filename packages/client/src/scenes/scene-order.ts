@@ -76,6 +76,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.syncData,
   SCENES.endTurnConfirm,
   SCENES.optionNotice,
+  SCENES.modNotice,
   SCENES.gamesList,
   SCENES.tutorialResumeConfirm,
   SCENES.holdOn,

@@ -19,7 +19,7 @@
 import Phaser from "phaser";
 import { customCardPrefix, type AnyCard, type CardId, type PackIndex } from "@mc/content";
 import { accent, hit, ink, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
+import { CAMPAIGN_TOP_BAR, bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
@@ -95,6 +95,9 @@ import { SUPPORTED_DSL_FEATURES } from "../packs/supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { modNoticeSeen } from "../platform/mod-notice-seen.js";
+import { modNoticeControlLabelOf, showNoticeBeforeInstall, showNoticeOnOpen } from "../view/mod-notice.js";
+import type { ModNoticeData } from "./mod-notice.js";
 
 export interface ModStoreSceneData {
   /** Dev only (`?screen=mod-store&catalog=`): a catalog address other than the store's own. */
@@ -104,6 +107,7 @@ export interface ModStoreSceneData {
 }
 
 const TAB_HEIGHT = 44;
+const campaignTopBar = (phone: boolean): number => (phone ? CAMPAIGN_TOP_BAR.phone : CAMPAIGN_TOP_BAR.wide);
 const SCROLLBAR = 12;
 
 /** One install in flight, or the last one's failure, for the pack whose page is open. */
@@ -185,6 +189,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
+      // X (G / H on the keyboard) reopens the heads-up about mods.
+      onToggle: () => this.#showNotice(),
       onTab: (direction) => this.#stepTab(direction),
       onPage: (direction) => this.#list?.scrollByPage(direction),
       onScroll: (_dx, dy) => {
@@ -219,6 +225,18 @@ export class ModStoreScene extends Phaser.Scene {
     this.#draw();
     fadeScreenIn(this);
     void this.#load();
+    // The first time the store opens, the heads-up about mods shows over it (remembered once answered).
+    if (showNoticeOnOpen(modNoticeSeen())) this.#showNotice();
+  }
+
+  /** Deadpool and Spider-Man's heads-up about mods, over the store; `onClose` carries on with what it held back. */
+  #showNotice(onClose?: () => void): void {
+    if (this.scene.isActive(SCENES.modNotice)) return;
+    this.scene.launch(SCENES.modNotice, {
+      from: SCENES.modStore,
+      ...(onClose ? { onClose } : {}),
+    } satisfies ModNoticeData);
+    this.scene.bringToTop(SCENES.modNotice);
   }
 
   async #load(): Promise<void> {
@@ -326,6 +344,9 @@ export class ModStoreScene extends Phaser.Scene {
       this.#draw();
     } else if (action.id === "confirm-remove") {
       void this.#remove(tile);
+    } else if (showNoticeBeforeInstall(modNoticeSeen())) {
+      // An install the player never saw the warning for waits for it.
+      this.#showNotice(() => void this.#installTile(tile));
     } else {
       void this.#installTile(tile);
     }
@@ -436,16 +457,39 @@ export class ModStoreScene extends Phaser.Scene {
     // While the catalog loads a page opened by a dev jump has no tile yet: browse view, keep the id.
     if (this.#packId !== null && !tile && this.#status !== "loading") this.#packId = null;
 
+    // "About mods" at the bar's right edge: a "!" on a phone, words elsewhere.
+    const aboutWidth = phone ? hit.target : 132;
+    const aboutRect: Rect = {
+      x: width - (phone ? 12 : 22) - aboutWidth,
+      y: (campaignTopBar(phone) - hit.target) / 2,
+      width: aboutWidth,
+      height: hit.target,
+    };
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : tile ? "◂ STORE" : "◂ EXTRAS",
       onBack: () => this.#back(),
       hints: this.#hints,
       title: "Mod Store",
       ...(this.#installed.size > 0 ? { right: `${this.#installed.size} installed` } : {}),
+      rightInset: aboutWidth + 12,
+      reserveRight: aboutWidth + 12,
     });
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
     const order: string[] = bar.backRect ? ["back"] : [];
+    const aboutPress = (): void => this.#showNotice();
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: modNoticeControlLabelOf(phone),
+        type: typeRole.backLabel,
+        rect: aboutRect,
+        onClick: aboutPress,
+      }),
+    );
+    this.#hints.button(this.#buttons[this.#buttons.length - 1]!, ["guide"], "ink");
+    stops.set("about", { rect: aboutRect, activate: aboutPress });
+    order.push("about");
 
     if (tile) this.#drawPage(tile, { width, height, phone, gutter, top: bar.height }, stops, order);
     else this.#drawBrowse({ width, height, phone, gutter, top: bar.height }, stops, order);

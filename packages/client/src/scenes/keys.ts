@@ -132,6 +132,8 @@ export const SCENES = {
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Only one option" (`scenes/option-notice.ts`, #412): a choose-one that took its only option, over the Board. */
   optionNotice: "OptionNoticeOverlay",
+  /** The Mod Store's heads-up (`scenes/mod-notice.ts`): Deadpool and Spider-Man on mod risk, over the store. */
+  modNotice: "ModNoticeOverlay",
   /** "In-progress games" full screen (`scenes/games-list.ts`): the phone's version of the Title's list, over Title. */
   gamesList: "GamesListOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */

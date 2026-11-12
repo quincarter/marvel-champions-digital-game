@@ -67,6 +67,8 @@ export interface TopBarOptions {
   readonly right?: string;
   /** Room to keep clear at the right edge for a control the scene draws itself (a switch), so the title stops short of it. */
   readonly reserveRight?: number;
+  /** Pixels the right-hand label stands in from the edge, for a control the scene draws at the edge. */
+  readonly rightInset?: number;
   /** A red chip before the title ("ROUND 4" on the in-game beat). */
   readonly chip?: string;
   /** The scene's glyph hints: the back button then carries the Cancel glyph (B, Esc) on a pad or keyboard. */
@@ -128,7 +130,7 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   if (options.right) {
     const right = scene.add
       .text(
-        frame.width - pad,
+        frame.width - pad - (options.rightInset ?? 0),
         height / 2,
         options.right.toUpperCase(),
         textStyle(typeRole.label, surface.paper.hex, ink.meta),
