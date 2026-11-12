@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.28",
+  "type": "attachment",
+  "name": "Pestilent Nature",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "CO3/6",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-corruptive-offers"],
+  "attachesTo": {
+    "kind": "yourIdentity"
+  },
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When a card you control leaves play, place 1 corrupt counter here → shuffle that card into your deck instead.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When a card you control leaves play, place 1 corrupt counter here → shuffle that card into your deck instead.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.28.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.28.interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.28.response"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "x.mephisto-nep.41",
+  "type": "minion",
+  "name": "Lilith",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "MoD1/5",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mother-of-demons"],
+  "atk": 1,
+  "sch": 1,
+  "hp": 7,
+  "boostIcons": 2,
+  "traits": ["ELITE", "MYSTIC"],
+  "keywords": [
+    {
+      "name": "steady"
+    },
+    {
+      "name": "villainous"
+    }
+  ],
+  "text": {
+    "printed": "Steady. Villainous.\n[star] Forced Response: After Lilith activates against you, if Call of the Demoness is in play, put the top card of your discard pile facedown engaged with you as a Mystic minion.",
+    "current": "Steady. Villainous.\n[star] Forced Response: After Lilith activates against you, if Call of the Demoness is in play, put the top card of your discard pile facedown engaged with you as a Mystic minion."
+  },
+  "flavor": "\"We are devils and demons...violating spirits is what we do.\"—Lilith",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.41.forced-response"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.27",
+  "type": "attachment",
+  "name": "Famished Power",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "CO2/6",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-corruptive-offers"],
+  "attachesTo": {
+    "kind": "yourIdentity"
+  },
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When you use a basic power, place 1 corrupt counter here → combine the values of 2 basic powers of your hero for this use.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When you use a basic power, place 1 corrupt counter here → combine the values of 2 basic powers of your hero for this use.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.27.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.27.interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.27.response"
+    }
+  ]
+}

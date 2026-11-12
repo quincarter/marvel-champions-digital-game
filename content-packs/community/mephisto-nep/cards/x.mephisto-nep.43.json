@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.43",
+  "type": "attachment",
+  "name": "Lilin Remaking",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "MoD3/5",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mother-of-demons"],
+  "attachesTo": {
+    "kind": "yourIdentity"
+  },
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nTreat your identity's printed text box as blank (except for Traits). You cannot attack Lilith and she cannot activate against you. You gain the Mystic trait, retaliate 2, and villainous.\nResponse: After your turn begins, discard this card → find Lillith and reveal her. (If she is already in play, she engages you.) Lillith activates against you.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nTreat your identity's printed text box as blank (except for Traits). You cannot attack Lilith and she cannot activate against you. You gain the Mystic trait, retaliate 2, and villainous.\nResponse: After your turn begins, discard this card → find Lillith and reveal her. (If she is already in play, she engages you.) Lillith activates against you."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.43.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.43.lilin-remaking-constant"
+    },
+    {
+      "id": "x.mephisto-nep.43.response"
+    }
+  ]
+}

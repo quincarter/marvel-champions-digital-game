@@ -1,0 +1,24 @@
+{
+  "id": "x.mephisto-nep.16",
+  "type": "treachery",
+  "name": "Alter the Deal",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "20/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Shuffle each Bargain attachment you control into the encounter deck. For each Bargain attachment shuffled this way, resolve the \"Hidden Clause\" ability on the main scheme. Then, discard cards from the top of the encounter deck until a Bargain attachment is discarded. Attach that card to your identity. Otherwise, shuffle this card into the encounter deck.",
+    "current": "When Revealed: Shuffle each Bargain attachment you control into the encounter deck. For each Bargain attachment shuffled this way, resolve the \"Hidden Clause\" ability on the main scheme. Then, discard cards from the top of the encounter deck until a Bargain attachment is discarded. Attach that card to your identity. Otherwise, shuffle this card into the encounter deck."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.16.when-revealed"
+    }
+  ],
+  "flavor": "\"You were just the pawn, the victim of circumstance. The soul that hangs in the balance.\" —Mephisto"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "x.mephisto-nep.15",
+  "type": "side_scheme",
+  "name": "Hotel Inferno",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "19/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "traits": [],
+  "keywords": [],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["hazard"],
+  "boostIcons": 1,
+  "text": {
+    "printed": "When Revealed: Place 6 threat on the main scheme for every 6 cards in Damnation.\nWhen Defeated: The player who defeated this scheme looks at up to 6 cards in Damnation. Shuffle each card looked at this way back into its owner's deck.",
+    "current": "When Revealed: Place 6 threat on the main scheme for every 6 cards in Damnation.\nWhen Defeated: The player who defeated this scheme looks at up to 6 cards in Damnation. Shuffle each card looked at this way back into its owner's deck."
+  },
+  "flavor": "Inside this sinister Vegas casino, there may be a means to retrieve what has been lost.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.15.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.15.when-defeated"
+    }
+  ]
+}

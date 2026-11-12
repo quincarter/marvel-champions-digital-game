@@ -1,0 +1,34 @@
+{
+  "id": "x.mephisto-nep.23",
+  "type": "side_scheme",
+  "name": "Prince's Offer",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "B2/5",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-blackheart"],
+  "traits": [],
+  "keywords": [
+    {
+      "name": "incite",
+      "value": 1
+    }
+  ],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["acceleration"],
+  "boostIcons": 2,
+  "text": {
+    "printed": "Incite 1.\nWhen Defeated: Each player may shuffle 1 Bargain attachment they control into the encounter deck. The player who defeated this scheme finds the Black-Hearted attachment and reveals it.",
+    "current": "Incite 1.\nWhen Defeated: Each player may shuffle 1 Bargain attachment they control into the encounter deck. The player who defeated this scheme finds the Black-Hearted attachment and reveals it."
+  },
+  "flavor": "Blackheart can free you from his father's many deals, in exchange for a bargain of his own.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.23.when-defeated"
+    }
+  ]
+}

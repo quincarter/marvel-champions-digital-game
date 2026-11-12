@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.05",
+  "type": "attachment",
+  "name": "Endless Greed",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "9/28",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "attachesTo": {
+    "kind": "yourIdentity"
+  },
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nYour identity gains +2 hand size.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nYour identity gains +2 hand size.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.05.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.05.endless-greed-constant"
+    },
+    {
+      "id": "x.mephisto-nep.05.response"
+    }
+  ]
+}

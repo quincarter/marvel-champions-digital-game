@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.24",
+  "type": "attachment",
+  "name": "Black-Hearted",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "B3/5",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-blackheart"],
+  "attachesTo": {
+    "kind": "yourIdentity"
+  },
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When the villain phase begins, if this is the only Bargain attachment you control, look at the top 3 cards of the encounter deck. Put them back in any order.\nResponse: After your turn begins, discard this card → find Blackheart and reveal him. (If he is already in play, he engages you.) Blackheart activates against you.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When the villain phase begins, if this is the only Bargain attachment you control, look at the top 3 cards of the encounter deck. Put them back in any order.\nResponse: After your turn begins, discard this card → find Blackheart and reveal him. (If he is already in play, he engages you.) Blackheart activates against you."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.24.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.24.interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.24.response"
+    }
+  ]
+}

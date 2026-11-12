@@ -1,0 +1,35 @@
+{
+  "id": "x.mephisto-nep.12",
+  "type": "side_scheme",
+  "name": "Aid the Condemned",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "16/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "traits": [],
+  "keywords": [
+    {
+      "name": "hinder",
+      "value": 0,
+      "perPlayer": 2
+    }
+  ],
+  "startingThreat": {
+    "base": 2,
+    "perPlayer": 0
+  },
+  "icons": ["crisis"],
+  "boostIcons": 1,
+  "text": {
+    "printed": "Hinder 2[per_hero].\nWhen Defeated: Each player looks at 1[per_hero] card in Damnation and shuffles it back into their owner's deck.",
+    "current": "Hinder 2[per_hero].\nWhen Defeated: Each player looks at 1[per_hero] card in Damnation and shuffles it back into their owner's deck."
+  },
+  "flavor": "Mephisto has collected many souls over the years, but they're not without hope.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.12.when-defeated"
+    }
+  ]
+}

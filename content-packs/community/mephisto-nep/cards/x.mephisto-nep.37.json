@@ -1,0 +1,29 @@
+{
+  "id": "x.mephisto-nep.37",
+  "type": "attachment",
+  "name": "Demonized",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D9/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "attachesTo": {
+    "kind": "ally"
+  },
+  "boostIcons": 2,
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "text": {
+    "printed": "Treat attached ally as a Mystic minion with a blank text box. Attached minion's SCH is equal to its printed THW, and it does not take consequential damage. It gains the toughness keyword and 1 acceleration icon ([acceleration]).\nWhen Revealed: Discard cards from the top of your deck until you discard an ally. Put that ally into play engaged with you with Demonized attached to it.",
+    "current": "Treat attached ally as a Mystic minion with a blank text box. Attached minion's SCH is equal to its printed THW, and it does not take consequential damage. It gains the toughness keyword and 1 acceleration icon ([acceleration]).\nWhen Revealed: Discard cards from the top of your deck until you discard an ally. Put that ally into play engaged with you with Demonized attached to it."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.37.demonized-constant"
+    },
+    {
+      "id": "x.mephisto-nep.37.when-revealed"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "x.mephisto-nep.35",
+  "type": "minion",
+  "name": "Harmony Demon",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D6/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "atk": 1,
+  "sch": 3,
+  "hp": 4,
+  "boostIcons": 1,
+  "starIcon": true,
+  "traits": ["MYSTIC"],
+  "keywords": [
+    {
+      "name": "incite",
+      "value": 2
+    },
+    {
+      "name": "teamwork",
+      "sharedTrait": "MYSTIC"
+    }
+  ],
+  "text": {
+    "printed": "Incite 2. Teamwork (Mystic).\n[star] Forced Response: After Harmony Demon activates, heal 1 damage from each other Mystic minion in play.\n[star] Boost: If this activation is a scheme, give the activating enemy a tough status card and this card gets +1 boost icon ([boost]) for this activation.",
+    "current": "Incite 2. Teamwork (Mystic).\n[star] Forced Response: After Harmony Demon activates, heal 1 damage from each other Mystic minion in play.\n[star] Boost: If this activation is a scheme, give the activating enemy a tough status card and this card gets +1 boost icon ([boost]) for this activation."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.35.forced-response"
+    },
+    {
+      "id": "x.mephisto-nep.35.boost"
+    }
+  ]
+}

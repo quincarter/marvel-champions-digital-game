@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.06",
+  "type": "attachment",
+  "name": "Gluttonous Restoration",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "10/28",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "attachesTo": {
+    "kind": "yourIdentity"
+  },
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nAlter-Ego Interrupt: When you make a basic recovery, restore your identity to its printed hit point value and you may discard any number of status cards from it.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nAlter-Ego Interrupt: When you make a basic recovery, restore your identity to its printed hit point value and you may discard any number of status cards from it.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.06.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.06.alter-ego-interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.06.response"
+    }
+  ]
+}

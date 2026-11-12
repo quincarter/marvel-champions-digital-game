@@ -1,0 +1,29 @@
+{
+  "id": "x.mephisto-nep.25",
+  "type": "treachery",
+  "name": "Sinful Ambitions",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "B4/5, B5/5",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-blackheart"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "incite",
+      "value": 2
+    }
+  ],
+  "text": {
+    "printed": "Incite 2.\nWhen Revealed: If Blackheart is in play, you may shuffle a Bargain attachment you control into the encounter deck. If you do, give Blackheart a tough status. Otherwise, this card gains surge.",
+    "current": "Incite 2.\nWhen Revealed: If Blackheart is in play, you may shuffle a Bargain attachment you control into the encounter deck. If you do, give Blackheart a tough status. Otherwise, this card gains surge."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.25.when-revealed"
+    }
+  ],
+  "flavor": "\"Why can't they...why can't anyone...understand that I would be a far better ruler in Hell than my father?\" —Blackheart"
+}

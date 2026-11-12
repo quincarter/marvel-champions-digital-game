@@ -1,0 +1,58 @@
+{
+  "id": "x.mephisto-nep.03a",
+  "type": "environment",
+  "name": "Gateway to Corruption",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "7/28 (A/B)",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 0,
+  "traits": ["SETTING"],
+  "keywords": [
+    {
+      "name": "permanent"
+    },
+    {
+      "name": "setup"
+    }
+  ],
+  "text": {
+    "printed": "Permanent. Setup.\nForced Interrupt: When a card is set aside from a player's deck, put it facedown into Damnation instead.\nIf there are 10[per_hero] cards in Damnation, the players lose the game.",
+    "current": "Permanent. Setup.\nForced Interrupt: When a card is set aside from a player's deck, put it facedown into Damnation instead.\nIf there are 10[per_hero] cards in Damnation, the players lose the game."
+  },
+  "flavor": "Mephisto always has a price to his deals, none more apparent than the inevitable destination of those involved.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.03a.forced-interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.03a.damnation-loss"
+    }
+  ],
+  "flipSide": {
+    "name": "Hell",
+    "traits": ["LOCATION", "SETTING"],
+    "keywords": [
+      {
+        "name": "permanent"
+      }
+    ],
+    "text": {
+      "printed": "Permanent.\n[star] Forced Response: At the end of the round (after the first player token is passed), place 1 acceleration token here.\nForced Interrupt: When a card is set aside from a player's deck, put it facedown into Damnation instead.\nIf there are 10[per_hero] cards in Damnation, the players lose the game.",
+      "current": "Permanent.\n[star] Forced Response: At the end of the round (after the first player token is passed), place 1 acceleration token here.\nForced Interrupt: When a card is set aside from a player's deck, put it facedown into Damnation instead.\nIf there are 10[per_hero] cards in Damnation, the players lose the game."
+    },
+    "abilities": [
+      {
+        "id": "x.mephisto-nep.03b.forced-response"
+      },
+      {
+        "id": "x.mephisto-nep.03b.forced-interrupt"
+      },
+      {
+        "id": "x.mephisto-nep.03b.damnation-loss"
+      }
+    ]
+  }
+}

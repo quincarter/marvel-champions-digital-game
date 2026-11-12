@@ -1,0 +1,36 @@
+{
+  "id": "mephisto-nep",
+  "version": "1.0.0",
+  "kind": "scenario",
+  "name": "Mephisto",
+  "authors": ["Neptune (Typhon00)"],
+  "description": "Fan-made scenario pack by Neptune (Typhon00): a battle for your soul against Mephisto, with the Blackheart, Corruptive Offers, Damned and Mother of Demons encounter sets and new art for the Standard and Expert sets.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en"]
+  },
+  "altArt": {
+    "en": {
+      "01186": "alt-art/en/01186.webp",
+      "01187": "alt-art/en/01187.webp",
+      "01188": "alt-art/en/01188.webp",
+      "01189": "alt-art/en/01189.webp",
+      "01190": "alt-art/en/01190.webp",
+      "01191": "alt-art/en/01191.webp",
+      "01192": "alt-art/en/01192.webp",
+      "01193": "alt-art/en/01193.webp"
+    }
+  },
+  "permission": {
+    "by": "Neptune (Typhon00)",
+    "evidence": "Screenshot of the creator's message, shared by the owner: his content \"is free to play, download, print, what have you\". Given 2026-11-02 by direct message to the community member Dreadheart; confirmed by the owner 2026-11-12.",
+    "date": "2026-11-02",
+    "scope": "inclusion in the game and its Mod Store"
+  },
+  "templateCredit": "Hitch"
+}

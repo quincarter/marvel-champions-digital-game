@@ -1,0 +1,27 @@
+{
+  "id": "x.mephisto-nep.30",
+  "type": "treachery",
+  "name": "Soul Gambling",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "CO5/6, CO6/6",
+  "quantityInSet": 2,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-corruptive-offers"],
+  "boostIcons": 0,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Each player sets aside the top X[per_hero] cards of their deck, where X is equal to the number of corrupt counters on each Bargain attachment they have under their control. Otherwise, this card gains surge.\n[star] Boost: Place 1 corrupt counter on each Bargain attachment you control. If no counters were placed this way, shuffle this card into the encounter deck.",
+    "current": "When Revealed: Each player sets aside the top X[per_hero] cards of their deck, where X is equal to the number of corrupt counters on each Bargain attachment they have under their control. Otherwise, this card gains surge.\n[star] Boost: Place 1 corrupt counter on each Bargain attachment you control. If no counters were placed this way, shuffle this card into the encounter deck."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.30.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.30.boost"
+    }
+  ],
+  "starIcon": true
+}
