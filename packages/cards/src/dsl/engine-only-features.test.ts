@@ -9,6 +9,7 @@ import { trait } from "@mc/content";
 import type { AbilityDefinition } from "@mc/engine";
 import {
   agile,
+  cannotBeAttachedUnlessInPlay,
   constant,
   doubleStat,
   minDamageTaken,
@@ -18,6 +19,7 @@ import {
   setAsideDestination,
   special,
   tagged,
+  upgradesCannotBeRemoved,
   VILLAIN_OR_VILLAINOUS,
 } from "./abilities.js";
 import {
@@ -25,8 +27,10 @@ import {
   blankTextBoxForPlayers,
   blankTextBoxUntil,
   cards,
+  doubleNextCardSpent,
   draw,
   enemyActivates,
+  findCard,
   loseKeywordUntil,
   loseTraitUntil,
   moveCards,
@@ -231,18 +235,49 @@ describe("engine-only DSL primitives", () => {
     });
   });
 
+  it("the Yondu pack's primitives: attach only in play, removed from a host, next card doubled, held upgrades, find anywhere", () => {
+    expect(cannotBeAttachedUnlessInPlay).toEqual({ attachedOnlyWhileInPlay: true });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.attached-only-in-play"]).toMatchObject({
+      trigger: { kind: "constant", attachedOnlyWhileInPlay: true },
+    });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.card-unattached"]).toMatchObject({
+      trigger: {
+        kind: "response",
+        on: { on: "cardUnattached", sourceIs: { name: "Yaka Arrow" }, targetIs: { categories: ["enemy"] } },
+      },
+      effects: [{ kind: "dealDamage", target: { kind: "eventTarget" } }],
+    });
+    expect(doubleNextCardSpent()).toEqual({ kind: "doubleNextCardSpent" });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.double-next-card-spent"]).toMatchObject({
+      effects: [{ rule: { kind: "doubleNextCardSpent" }, until: "endOfRound" }],
+    });
+    expect(upgradesCannotBeRemoved()).toEqual({
+      rules: [{ kind: "cannotLeaveHost", target: { categories: ["upgrade"], host: { kind: "self" } } }],
+    });
+    expect(findCard({ name: "Tahlei" }, "hand", { anywhere: true })).toMatchObject({
+      kind: "findCard",
+      anywhere: true,
+    });
+    expect(findCard({ name: "Tahlei" }, "hand")).not.toHaveProperty("anywhere");
+  });
+
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
       "engine-only.activation-boost-card",
       "engine-only.agile",
+      "engine-only.attached-only-in-play",
       "engine-only.basic-power-boost",
       "engine-only.boost-cancels-activation",
+      "engine-only.cannot-leave-host",
+      "engine-only.card-unattached",
+      "engine-only.double-next-card-spent",
       "engine-only.double-stat",
       "engine-only.enemy-attacks-enemy-bind",
       "engine-only.extra-player-phase",
       "engine-only.facedown-from-discard",
       "engine-only.facedown-into-area",
+      "engine-only.find-anywhere",
       "engine-only.has-tagged",
       "engine-only.last-played",
       "engine-only.lasting-flip-lock",

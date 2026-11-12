@@ -170,6 +170,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "putIntoPlayRefused":
       return [event.instanceId];
     case "resourcesGenerated":
+    case "spentCardDoubled":
       return [event.instanceId];
     case "counterAdded":
     case "counterRemoved":

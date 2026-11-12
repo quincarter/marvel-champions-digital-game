@@ -1063,6 +1063,12 @@ function describe(
       };
     case "cardDiscardedFromPlay":
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
+    // "Treat the next card you spend as if it has double the resources" (yondu-dh Jackpot!): why it counted for more.
+    case "spentCardDoubled":
+      return {
+        text: `${card(event.instanceId)} counts ${event.factor === 2 ? "double" : `${event.factor} times`} its resources (the next card ${who(event.playerId)} spent).`,
+        voice: "player",
+      };
     case "playerSideSchemeLimitDiscard":
       return {
         text: `${who(event.chosenBy)} discarded ${card(event.instanceId)} for the player side scheme limit.`,

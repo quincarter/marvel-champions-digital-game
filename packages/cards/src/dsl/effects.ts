@@ -1257,6 +1257,12 @@ export const cancelIt = (): EffectSpec => ({ kind: "cancelTriggeringEvent" });
  * event.
  */
 export const cancelBoostedActivation = (): EffectSpec => ({ kind: "cancelBoostedActivation" });
+/**
+ * "Treat the next card you spend as if it has double the resources." (community pack `yondu-dh`, Jackpot!): a rule for
+ * `applyRuleUntil(doubleNextCardSpent(), "endOfRound")`. The first card from hand the granting ability's controller
+ * spends in a later payment generates double, and the grant is used up by it (`RuleSpec doubleNextCardSpent`).
+ */
+export const doubleNextCardSpent = (): RuleSpec => ({ kind: "doubleNextCardSpent" });
 /** "Cancel its 'When Revealed' effects". */
 export const cancelWhenRevealed = (): EffectSpec => ({ kind: "cancelWhenRevealed" });
 /** "Cancel the effects of that card and discard it". */
@@ -1867,6 +1873,9 @@ export const oneCopyOf = (from: CardSelector): CardSelector => atMost(1, from);
  *   wherever they are.
  * - `perPlayerAs`, with `to: "reveal"`: "… and reveal it, **treating each [per player] on it as 1**" (Embody Pathos;
  *   H3.5) is `perPlayerAs: 1` on that same find; see `revealCard`.
+ * - `anywhere`: "search everywhere in or out of play" (DesignHacker's Summon keyword, community pack `yondu-dh`): beyond
+ *   what a find reaches, also cards removed from the game, the victory display, the players' facedown dealt encounter
+ *   cards, facedown encounter cards in play, facedown attachments and boost cards. Wider than Find on purpose.
  */
 export const findCard = (
   q: TargetQuery,
@@ -1877,6 +1886,7 @@ export const findCard = (
     readonly choose?: boolean;
     readonly outOfPlay?: boolean;
     readonly perPlayerAs?: number;
+    readonly anywhere?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "findCard",
@@ -1886,6 +1896,7 @@ export const findCard = (
   ...withBind(opts.bind),
   ...(opts.choose ? { choose: true as const } : {}),
   ...(opts.outOfPlay ? { outOfPlay: true as const } : {}),
+  ...(opts.anywhere ? { anywhere: true as const } : {}),
   ...(opts.perPlayerAs !== undefined ? { perPlayerAs: opts.perPlayerAs } : {}),
 });
 /**

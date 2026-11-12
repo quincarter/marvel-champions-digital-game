@@ -22,7 +22,7 @@ import type { EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getInstance, mustInstance, isOwnedEncounterCard } from "../query.js";
 import { canHaveAttached, cannotBeUnattached } from "../rules.js";
-import { cardsInPlay, controllerOf, isFacedownAttachment } from "../select.js";
+import { attachedOnlyWhileInPlay, cardsInPlay, controllerOf, isFacedownAttachment } from "../select.js";
 import { attachmentHostCandidates } from "../attachment-hosts.js";
 import { isPermanent } from "../keywords.js";
 import { pushEvents } from "./frames.js";
@@ -34,13 +34,18 @@ import { sameFront } from "../hidden-reverse.js";
 
 /**
  * Whether `id` can be attached to `host` now: the host is in play and is not the card itself, the card is not one that
- * "cannot be unattached" from another host (docs/phase7-wave3.md §3.19), and the host can have it attached
+ * "cannot be unattached" from another host (docs/phase7-wave3.md §3.19) nor one out of play that "cannot be attached to
+ * cards unless it is in play" (`attachedOnlyWhileInPlay`), and the host can have it attached
  * (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8). A card already on that host passes: it stays where it is.
  */
 export function canAttachTo(state: GameState, deps: EngineDeps, id: InstanceId, host: InstanceId): boolean {
-  if (id === host || !cardsInPlay(state).includes(host)) return false;
+  const inPlay = cardsInPlay(state);
+  if (id === host || !inPlay.includes(host)) return false;
   const instance = getInstance(state, id);
   if (!instance) return false;
+  // "Cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`): from a hand, a deck, a discard pile
+  // or a set-aside area no effect attaches it.
+  if (!inPlay.includes(id) && attachedOnlyWhileInPlay(state, id, deps)) return false;
   const current = instance.attachedTo;
   if (current === host) return true;
   if (current !== null && cannotBeUnattached(state, deps, id)) return false;

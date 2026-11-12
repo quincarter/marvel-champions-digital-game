@@ -3113,6 +3113,11 @@ export type EffectSpec =
    * - `to: "play"`: "find X and put it into play" (Protect Humanity 59004), as `EffectSpec putIntoPlay` under the
    *   control of the player resolving the ability. A card already in play stays as it is.
    * - `perPlayerAs`, with `to: "reveal"` only: the reveal's `EffectSpec revealCard.perPlayerAs` (H3.5).
+   * - `anywhere`: "search everywhere in or out of play for the specified card" (DesignHacker's Summon keyword, community
+   *   pack `yondu-dh`), wider than Find on purpose: after every area a find reaches, in its order, the facedown
+   *   encounter cards in play, facedown attachments and boost cards, the players' facedown dealt encounter cards, the
+   *   victory display and the cards removed from the game (`findCards`' `anywhere`). Those areas hold no deck, so a card
+   *   found there shuffles nothing; one found in a deck still shuffles it as any find does.
    */
   | {
       readonly kind: "findCard";
@@ -3123,6 +3128,7 @@ export type EffectSpec =
       readonly choose?: true;
       readonly outOfPlay?: true;
       readonly perPlayerAs?: number;
+      readonly anywhere?: true;
     }
   /** Choose cards outside play ("look at the top 3 … add 1", "search your deck for an upgrade", "choose up to 3 different cards in your discard"). */
   | {
@@ -6061,6 +6067,13 @@ export type CardSelector =
       readonly kind: "ref";
       readonly ref: TargetRef;
       readonly filter?: TargetQuery;
+      /**
+       * The named cards may be ones removed from the game, which a ref otherwise never reaches (ruling Dec 17, 2025
+       * (4)). Set only by a `findCard` with `anywhere` that found its card there (DesignHacker's Summon, "everywhere in
+       * or out of play", community pack `yondu-dh`): card text that names that area overrides the ruling (RRG 1.8 "The
+       * Golden Rules", p. 4).
+       */
+      readonly includeRemoved?: true;
       /**
        * Only the named cards that are in this zone of their owner right now: "tuck that event **from your discard
        * pile** under this card" (Ionic Physiology, `wonder_man` 58002; docs/phase7-wave10-hero-packs.md §H3.12). A named

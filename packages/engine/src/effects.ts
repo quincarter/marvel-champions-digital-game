@@ -1697,7 +1697,7 @@ function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
 }
 
 const staysWithoutHost = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true);
+  isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true, true);
 
 /**
  * The attachments on `hostId` that its leaving play will leave in play, unattached (`discardWithLeavingHost`: a player's
@@ -1709,7 +1709,7 @@ function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: Insta
     const attachment = getInstance(state, id);
     if (!attachment || isFacedownAttachment(state, id) || !staysWithoutHost(state, deps, id)) return false;
     const unowned = playerCardOwnerOf(state, id) === null && attachment.controllerId === null;
-    if (unowned) return cannotLeavePlay(state, deps, id, undefined, true);
+    if (unowned) return cannotLeavePlay(state, deps, id, undefined, true, true);
     return permanentRehostFor(state, deps, id, hostId, true) === null && !removedWithoutHost(state, deps, id);
   });
 }
@@ -1730,7 +1730,8 @@ function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: Insta
  */
 function removedWithoutHost(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
   const instance = getInstance(state, id);
-  if (!instance || !isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true)) return false;
+  if (!instance || !isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true, true))
+    return false;
   if (playerCardOwnerOf(state, id) === null && instance.controllerId === null) return false;
   return !staysForOwnText(state, deps, id, instance.attachedTo);
 }
@@ -1762,7 +1763,7 @@ function discardedWithoutHost(ctx: Ctx, id: InstanceId): boolean {
   return (
     playerCardOwnerOf(ctx.state, id) === null &&
     instance.controllerId === null &&
-    !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true)
+    !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true, true)
   );
 }
 
@@ -2230,7 +2231,8 @@ export function leavePlayAtOnce(
   }
   // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
   if (leavingCancelled(ctx.state, id)) return;
-  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded)) {
+  // With its host: "upgrades cannot be removed from [the host]" does not hold it (`cannotLeaveHost`).
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded, true)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }

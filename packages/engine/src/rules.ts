@@ -1501,6 +1501,9 @@ export const evenlyDividesBasicPower = (
  * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card. `discard`:
  * the move is a discard, a move to a discard pile; a rule limited to discards (`by: "discard"`, "cannot be discarded",
  * docs/phase7-wave8.md §3.35) stops only that, with or without a source card.
+ *
+ * A card attached to a host under "upgrades cannot be removed from [it]" (`cannotLeaveHost`) cannot leave play either,
+ * unless `withHost`: it is leaving because its host is (RRG 1.8 "Attach To", p. 8), which that rule does not stop.
  */
 export const cannotLeavePlay = (
   state: GameState,
@@ -1508,13 +1511,15 @@ export const cannotLeavePlay = (
   id: InstanceId,
   sourceCardId?: CardId,
   discard = false,
+  withHost = false,
 ): boolean =>
   activeRules(state, deps, "cannotLeavePlay").some(
     ({ rule, context }) =>
       (rule.by !== "cardAbilities" || sourceCardId !== undefined) &&
       (rule.by !== "discard" || discard) &&
       matchesQuery(state, id, rule.target, context),
-  );
+  ) ||
+  (!withHost && cannotLeaveHost(state, deps, id));
 
 /**
  * "You cannot flip your [name] upgrades" (`cannotFlip`, docs/phase7-wave7.md §3.64): whether a rule stops this card in
@@ -1806,9 +1811,22 @@ export const excessDamageBonus = (state: GameState, deps: EngineDeps, attackerId
     .filter(({ rule, context }) => matchesQuery(state, attackerId, rule.attacker, context))
     .reduce((sum, { rule }) => sum + rule.amount, 0);
 
-/** "The Power Stone cannot be unattached from Ronan the Accuser." (`cannotBeUnattached`; docs/phase7-wave3.md §3.19). */
+/**
+ * "The Power Stone cannot be unattached from Ronan the Accuser." (`cannotBeUnattached`; docs/phase7-wave3.md §3.19), and
+ * "Upgrades cannot be removed from [this card]" (`cannotLeaveHost`), which also stops that.
+ */
 export const cannotBeUnattached = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotBeUnattached").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  ) || cannotLeaveHost(state, deps, id);
+
+/**
+ * "Upgrades cannot be removed from Sav'rkk" (`RuleSpec cannotLeaveHost`; community pack `yondu-dh`): `id` is attached to
+ * a card and a rule in force names it. Only an attached card is held: one in play unattached matches nothing.
+ */
+export const cannotLeaveHost = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  (getInstance(state, id)?.attachedTo ?? null) !== null &&
+  activeRules(state, deps, "cannotLeaveHost").some(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
 

@@ -1120,6 +1120,8 @@ export function findCards(
   query: TargetQuery,
   context: EffectContext,
   owners: ReadonlySet<PlayerId> | null,
+  /** `EffectSpec findCard.anywhere`: also the areas a find does not reach, looked at last. */
+  anywhere = false,
 ): readonly FoundCard[] {
   const found: FoundCard[] = [];
   const seen = new Set<InstanceId>();
@@ -1153,6 +1155,17 @@ export function findCards(
   for (const deckId of state.encounterDeckOrder) look(state.encounterDecks[deckId]?.discard ?? []);
   for (const piles of Object.values(state.scenarioDecks)) look(piles.discard);
   for (const { zone, ids } of findDecks(state, context)) look(ids, zone);
+  if (anywhere) {
+    // "Search everywhere in or out of play" (`findCard.anywhere`; community pack `yondu-dh`'s Summon): what Find leaves
+    // out (RRG 1.8 "Find", p. 19, facedown encounter cards), and the areas outside the game's reach.
+    look(inPlay);
+    look(inPlay.flatMap((id) => getInstance(state, id)?.tucked ?? []));
+    look(inPlay.flatMap((id) => getInstance(state, id)?.attachments ?? []));
+    look(inPlay.flatMap((id) => getInstance(state, id)?.boostCards ?? []));
+    for (const player of players) look(player.dealtEncounter);
+    look(state.victoryDisplay);
+    look(state.removedFromGame);
+  }
   return found;
 }
 
@@ -4628,6 +4641,20 @@ export function countsTowardHandSize(state: GameState, id: InstanceId, deps: Eng
   return !printedAbilityRefs(card).some((ref) => {
     const trigger = deps.abilities[ref.id]?.trigger;
     return trigger?.kind === "constant" && trigger.notCountedTowardHandSize === true;
+  });
+}
+
+/**
+ * "[This card] cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`; community pack `yondu-dh`,
+ * Yaka Arrow): whether the card prints it, read from the card wherever it is. The restriction binds only while the card is
+ * out of play: in play, effects attach and move it as any card (`canAttachTo`).
+ */
+export function attachedOnlyWhileInPlay(state: GameState, id: InstanceId, deps: EngineDeps): boolean {
+  const card = cardOf(state, id);
+  if (!card) return false;
+  return printedAbilityRefs(card).some((ref) => {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    return trigger?.kind === "constant" && trigger.attachedOnlyWhileInPlay === true;
   });
 }
 

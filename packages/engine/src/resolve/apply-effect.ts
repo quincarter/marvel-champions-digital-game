@@ -101,6 +101,7 @@ import {
 } from "../query.js";
 import {
   AFFECTED_SLOT,
+  attachedOnlyWhileInPlay,
   attachmentHolds,
   canAttack,
   cardsInPlay,
@@ -2352,6 +2353,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (effect.facedown === true) break;
         if (placed.includes(id) || cardOf(ctx.state, id)?.type !== "upgrade" || cardsInPlay(ctx.state).includes(id))
           continue;
+        // "Cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`): it enters play attached to
+        // nothing, in the play area, as a play of it does (`resolve/play-card.ts`), with the cards entering below.
+        if (attachedOnlyWhileInPlay(ctx.state, id, ctx.deps)) continue;
         const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, underOf(id));
         const [picked] = frame.bindings[putIntoPlayHostSlot(id)] ?? [];
         const host = picked !== undefined && hosts.includes(picked) ? picked : hosts[0];

@@ -135,7 +135,7 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         resolveRef(state, selector.ref, context).filter(
           (id) =>
             getInstance(state, id) !== undefined &&
-            !state.removedFromGame.includes(id) &&
+            (selector.includeRemoved === true || !state.removedFromGame.includes(id)) &&
             (selector.ownerZone === undefined || inOwnersZone(state, id, selector.ownerZone)),
         ),
         selector.filter,
@@ -1019,6 +1019,25 @@ export function announceEncounterCardsDealt(ctx: Ctx): boolean {
       const zone = locateCard(ctx.state, event.instanceId);
       return zone?.kind === "dealtEncounter" && zone.playerId === event.playerId && heard(ctx.state, ctx.deps, event);
     });
+  if (events.length === 0) return false;
+  pushEventsSharingResponses(ctx, events);
+  return true;
+}
+
+/**
+ * Announces each card that came off a host since the last look (`TriggerEvent cardUnattached`; community pack
+ * `yondu-dh`), when an ability hears it, and empties the list; the oldest resolves first. Cards that came off in one
+ * step share one response window, as cards leaving play together do (`announceCardsLeftPlay`). Returns true when it
+ * pushed a frame.
+ */
+export function announceCardsUnattached(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingUnattached;
+  if (!pending || pending.length === 0) return false;
+  const { pendingUnattached: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events: TriggerEvent[] = pending
+    .map((left): TriggerEvent => ({ kind: "cardUnattached", ...left }))
+    .filter((event) => heard(ctx.state, ctx.deps, event));
   if (events.length === 0) return false;
   pushEventsSharingResponses(ctx, events);
   return true;

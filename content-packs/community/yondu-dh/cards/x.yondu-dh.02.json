@@ -1,0 +1,28 @@
+{
+  "id": "x.yondu-dh.02",
+  "name": "Cheap Shot",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "2",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "event",
+  "cost": 2,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["ATTACK"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Action (attack): Stun an enemy. Then, if that enemy has the Yaka Arrow upgrade attached, deal 6 damage to that enemy.",
+    "current": "Hero Action (attack): Stun an enemy. Then, if that enemy has the Yaka Arrow upgrade attached, deal 6 damage to that enemy."
+  },
+  "flavor": "\"You caught me.\" —Yondu",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.02.cheap-shot-action"
+    }
+  ]
+}

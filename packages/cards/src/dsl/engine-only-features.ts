@@ -4,6 +4,7 @@ import {
   action,
   agile,
   boost,
+  cannotBeAttachedUnlessInPlay,
   constant,
   costModifier,
   discardThis,
@@ -17,6 +18,7 @@ import {
   resourcesGeneratedAsWild,
   setAsideDestination,
   tagged,
+  upgradesCannotBeRemoved,
 } from "./abilities.js";
 import {
   applyRuleUntil,
@@ -26,9 +28,11 @@ import {
   cards,
   dealDamage,
   discard,
+  doubleNextCardSpent,
   enemyActivates,
   draw,
   enemyAttacksEnemy,
+  findCard,
   giveBasicPowerBoostCard,
   instead,
   loseKeywordUntil,
@@ -48,6 +52,7 @@ import {
   each,
   eachPlayer,
   eventPlayer,
+  eventTarget,
   hasTaggedAbility,
   lastPlayedThisRound,
   query,
@@ -161,6 +166,25 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
     on.yourTurnBegins(),
     { cost: discardThis },
     enemyActivates(theVillain, { against: you, boostCards: self }),
+  ),
+  // "Yaka Arrow cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`; community pack `yondu-dh`).
+  "engine-only.attached-only-in-play": constant(cannotBeAttachedUnlessInPlay),
+  // "After the Yaka Arrow upgrade is removed from an enemy, deal 1 damage to that enemy" (`TriggerEvent cardUnattached`).
+  "engine-only.card-unattached": response(
+    on.cardUnattached(query("upgrade", { name: "Yaka Arrow" }), { from: query("enemy") }),
+    dealDamage(1, eventTarget),
+  ),
+  // "After you spend this card, treat the next card you spend as if it has double the resources" until the end of the
+  // round (`RuleSpec doubleNextCardSpent`; community pack `yondu-dh`, Jackpot!).
+  "engine-only.double-next-card-spent": response(
+    on.youSpendThis(),
+    applyRuleUntil(doubleNextCardSpent(), "endOfRound"),
+  ),
+  // "Upgrades cannot be removed from Sav'rkk" (`RuleSpec cannotLeaveHost`).
+  "engine-only.cannot-leave-host": constant(upgradesCannotBeRemoved()),
+  // "Summon the Tahlei upgrade and add it to your hand": search everywhere in or out of play (`findCard.anywhere`).
+  "engine-only.find-anywhere": action(
+    findCard(query("upgrade", { name: "Tahlei" }), "hand", { owner: you, anywhere: true }),
   ),
 };
 

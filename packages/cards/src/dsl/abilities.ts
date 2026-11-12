@@ -504,6 +504,7 @@ export interface ConstantPart {
   readonly spendableForAnyPlayer?: { readonly while?: Predicate };
   /** "[This card] does not count toward your hand size." (Connection to the Worldmind; docs/phase7-wave5.md §3.18). */
   readonly notCountedTowardHandSize?: true;
+  readonly attachedOnlyWhileInPlay?: true;
   /** "You may play Lockjaw from your discard pile during your turn." */
   readonly playableFrom?: readonly "discard"[];
   /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
@@ -613,6 +614,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
       ...(anyPlayerList[0] ? { spendableForAnyPlayer: anyPlayerList[0] } : {}),
       ...(parts.some((p) => p.notCountedTowardHandSize) ? { notCountedTowardHandSize: true as const } : {}),
+      ...(parts.some((p) => p.attachedOnlyWhileInPlay) ? { attachedOnlyWhileInPlay: true as const } : {}),
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
@@ -665,6 +667,25 @@ export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
  * draw back up, and "draw up to your hand size"; every other hand count still counts it.
  */
 export const notCountedTowardHandSize: ConstantPart = { notCountedTowardHandSize: true };
+/**
+ * "Yaka Arrow cannot be attached to cards unless it is in play." (community pack `yondu-dh`) →
+ * `constant(cannotBeAttachedUnlessInPlay)`. Read from the card wherever it is: out of play no effect attaches it (a
+ * find that attaches, an attach effect or cost), and played or put into play it enters play attached to nothing, in its
+ * controller's play area, instead of on a host. In play, effects attach it and move it as usual.
+ */
+export const cannotBeAttachedUnlessInPlay: ConstantPart = { attachedOnlyWhileInPlay: true };
+/**
+ * "Upgrades cannot be removed from Sav'rkk." (community pack `yondu-dh`) → `constant(upgradesCannotBeRemoved())`: while
+ * this card is in play, no effect takes a card matching `what` (default: any upgrade attached to this card) off it, by
+ * attaching it elsewhere, returning it to hand, discarding it or any other move out of play (`RuleSpec
+ * cannotLeaveHost`). When the card leaves play the rule goes with it, and its attachments go as the rules send them
+ * (discarded with it). `what` should name cards attached to this one (`host: self`); a card attached elsewhere is held
+ * to its own host.
+ */
+export const upgradesCannotBeRemoved = (
+  what: TargetQuery = { categories: ["upgrade"], host: { kind: "self" } },
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule({ kind: "cannotLeaveHost", target: what, ...(opts.while ? { while: opts.while } : {}) });
 /**
  * A card you overpay for when you play it ("for each resource you overpaid for Ant-Man's cost"): read from the card
  * paid for, it keeps a "while paying for" doubling (The Power of X) off its payment. FFG ruling Sep 21, 2023 (post-RRG
@@ -3782,6 +3803,22 @@ export const on = {
       opts.to === undefined ? {} : asTarget(opts.to),
       opts.by === "you" ? { playerIs: "controller" } : {},
     ),
+  /**
+   * "After the Yaka Arrow upgrade is **removed from** an enemy" (community pack `yondu-dh`, D'ast Whistlin'): `card`
+   * stopped being attached to a host matching `from` (absent: any host), however it went: moved to another host,
+   * returned to a hand, discarded, or taken out of play with its host (`TriggerEvent cardUnattached`). `eventSource` is
+   * the card, `eventTarget` the host it left (which may itself have left play). Response only. A move between hosts is
+   * heard here first, then as `on.cardAttached`.
+   */
+  cardUnattached: (card: TargetQuery, opts: { readonly from?: Who } = {}): EventPattern =>
+    pattern("cardUnattached", { sourceIs: card }, opts.from === undefined ? {} : asTarget(opts.from)),
+  /**
+   * "After the Yaka Arrow upgrade is **attached to or removed from** an enemy, deal 1 damage to that enemy" (community
+   * pack `yondu-dh`, D'ast Whistlin'): `on.cardAttached` and `on.cardUnattached` in one pattern, `eventTarget` the host
+   * it went on or came off. A move between two matching hosts is heard twice, removed first.
+   */
+  cardAttachedOrRemoved: (card: TargetQuery, opts: { readonly host?: Who } = {}): EventPattern =>
+    pattern(["cardAttached", "cardUnattached"], { sourceIs: card }, opts.host === undefined ? {} : asTarget(opts.host)),
   /**
    * "When a non-scenario-specific Tech attachment **would be attached** to the villain" (Fixer, `falcon` 53038;
    * docs/phase7-wave9.md §3.49; RRG 1.8 "'Would'", p. 48): `card` is about to be attached to a host matching `to`

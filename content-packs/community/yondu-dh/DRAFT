@@ -1,0 +1,2 @@
+Keeps this pack out of the generic community-packs tests and the publish workflow until its art bundle is uploaded and the
+engine primitives listed in README.md ("Engine primitives still needed") exist. Delete this file to publish.

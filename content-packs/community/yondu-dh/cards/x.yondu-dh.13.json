@@ -1,0 +1,23 @@
+{
+  "id": "x.yondu-dh.13",
+  "name": "Banished",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "13",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "obligation",
+  "encounterSetIds": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Give to the Yondu Udonta player.\nYou may flip to alter-ego form. Choose:\n• Exhaust your alter-ego → remove Banished from the game.\n• Discard the Yaka Arrow upgrade and exhaust the Tahlei upgrade. Discard this obligation.",
+    "current": "Give to the Yondu Udonta player.\nYou may flip to alter-ego form. Choose:\n• Exhaust your alter-ego → remove Banished from the game.\n• Discard the Yaka Arrow upgrade and exhaust the Tahlei upgrade. Discard this obligation."
+  },
+  "abilities": [
+    {
+      "id": "x.yondu-dh.13.obligation"
+    }
+  ]
+}

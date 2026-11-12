@@ -221,6 +221,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   ownershipChanged: [ALLOWED, "the hero's own visible play"],
   paidResourcesChosen: [ALLOWED, "cost bookkeeping"],
   paymentCommitted: [ALLOWED, "cost bookkeeping: each card spent logs its own discard, which is checked"],
+  spentCardDoubled: [ALLOWED, "cost bookkeeping, the doubled card is spent faceup"],
   permanentAttachmentRehosted: [ALLOWED, "the hero's own visible play"],
   playCostReduced: [ALLOWED, "cost bookkeeping"],
   playDestinationSet: [ALLOWED, "the hero's own visible play"],

@@ -45,6 +45,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   statusBeingGiven: "a status about to be given",
   hitPointsReset: "hit points reset",
   cardAttached: "a card attached",
+  cardUnattached: "a card removed from a card",
   keywordIgnored: "a keyword ignored",
   villainSwapped: "the villain swapped",
   mainSchemeCompleting: "the main scheme completing",

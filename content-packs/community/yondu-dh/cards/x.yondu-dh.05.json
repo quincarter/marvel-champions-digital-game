@@ -1,0 +1,28 @@
+{
+  "id": "x.yondu-dh.05",
+  "name": "Tough Motherlover",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "5",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "event",
+  "cost": 1,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Action: Give your identity a tough status card. Then, if you have the Yaka Arrow upgrade in your hand, draw a card.",
+    "current": "Action: Give your identity a tough status card. Then, if you have the Yaka Arrow upgrade in your hand, draw a card."
+  },
+  "flavor": "\"Tough to whistle with grillz!\" —Yondu",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.05.tough-motherlover-action"
+    }
+  ]
+}

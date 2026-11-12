@@ -651,6 +651,14 @@ export type AbilityTriggerSpec =
        */
       readonly notCountedTowardHandSize?: true;
       /**
+       * "[This card] cannot be attached to cards unless it is in play." (community pack `yondu-dh`, Yaka Arrow): read
+       * from the card wherever it is, like `notCountedTowardHandSize`. Out of play no effect may attach it (`attach`,
+       * a `findCard` that attaches, an attach cost: `canAttachTo`), and an upgrade with it that is played or put into
+       * play enters play unattached in its controller's play area instead of on a host (`resolve/play-card.ts`,
+       * `putIntoPlay`). Once in play, effects may attach it and move it between hosts as usual.
+       */
+      readonly attachedOnlyWhileInPlay?: true;
+      /**
        * "You may play Lockjaw from your discard pile during your turn." A permission read from the card itself (RRG 1.8
        * "Play Restrictions and Permissions", p. 33: "a permission might allow an ally card to be played from a player's
        * discard pile").
@@ -2321,6 +2329,23 @@ export type RuleSpec =
    * docs/phase7-wave3.md §3.19.
    */
   | { readonly kind: "cannotBeUnattached"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Upgrades cannot be removed from [this card]." (community pack `yondu-dh`, Sav'rkk): while this applies, no effect may
+   * take a matching card off the host it is attached to: not attach it to another card (as `cannotBeUnattached`), not
+   * return it to a hand, discard it or otherwise move it out of play (read with `cannotLeavePlay`). It does not stop the
+   * card going with its host when the host leaves play (RRG 1.8 "Attach To", p. 8: that is the game's rule, and a
+   * constant ability stops applying as its card leaves play), nor any move the host's own leaving makes. `target`
+   * names the attached cards (`query("upgrade", { host: self })`).
+   */
+  | { readonly kind: "cannotLeaveHost"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Treat the next card you spend as if it has double the resources." (community pack `yondu-dh`, Jackpot!): granted as
+   * a lasting rule (`applyRuleUntil`), its "you" the granting ability's controller. The first card from hand that player
+   * spends in a later payment generates double (every type, after its own multipliers), and the grant ends as
+   * `consumed` with that payment (`spentCardDoubled`). Read from lasting grants only: printed as a constant it would
+   * double every payment's first card.
+   */
+  | { readonly kind: "doubleNextCardSpent" }
   /**
    * "Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from play, put it faceup into
    * The Collection instead." (Collector I–III, Infiltrate the Museum, `gmw` 16070–16072). A matching card leaving play for

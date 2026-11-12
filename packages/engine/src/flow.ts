@@ -54,6 +54,7 @@ import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import { settleScenarioDeckTops } from "./resolve/scenario-deck-top.js";
 import {
   announceCardsLeftPlay,
+  announceCardsUnattached,
   announceDeckRunOuts,
   announceEncounterCardsDealt,
   announceEncounterDealsWaiting,
@@ -129,6 +130,10 @@ export function runFlow(ctx: Ctx): void {
     if (announceEncounterCardsFromDecks(ctx)) continue;
     // "When/After X leaves play" (docs/phase7-wave5.md §3.13).
     if (announceCardsLeftPlay(ctx)) continue;
+    // "After [an upgrade] is removed from an enemy" (`cardUnattached`; community pack `yondu-dh`). Looked at after the
+    // leavings, so its frame sits above theirs and resolves first; and pushed above a move's own `cardAttached` (pushed
+    // by the attach as it resolved), so a card moved between hosts is heard coming off before it is heard going on.
+    if (announceCardsUnattached(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
     const checked = checkStateTriggers(ctx);

@@ -299,6 +299,49 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
   }
 }
 
+/**
+ * "After [an upgrade] is removed from an enemy" (`TriggerEvent cardUnattached`; community pack `yondu-dh`): a card leaving
+ * a host for anywhere but that host, recorded for the flow to announce between frames (`announceCardsUnattached`). Read
+ * before the move. Every way a card comes off a host passes here: a move to another host, a return to hand, a discard,
+ * a host leaving play. A facedown attachment is out of play (RRG 1.8 "In Play and Out of Play", p. 23) and is not
+ * recorded. Recorded only when an ability listens, so a game without one keeps its state and log.
+ */
+function recordUnattached(ctx: Ctx, id: InstanceId, from: ZoneId | null, to: ZoneId): void {
+  if (from?.kind !== "attachment") return;
+  if (to.kind === "attachment" && to.hostInstanceId === from.hostInstanceId) return;
+  const instance = mustInstance(ctx.state, id);
+  if (!instance.faceup || instance.facedownAs) return;
+  if (!listensFor(ctx.deps, "cardUnattached")) return;
+  ctx.state = {
+    ...ctx.state,
+    pendingUnattached: [
+      ...(ctx.state.pendingUnattached ?? []),
+      { instanceId: id, hostInstanceId: from.hostInstanceId, playerId: instance.controllerId, to: to.kind },
+    ],
+  };
+}
+
+const LISTENS_FOR = new Map<string, WeakMap<EngineDeps, boolean>>();
+
+/** Whether any ability in the registry triggers on `kind`; cached per registry. */
+function listensFor(deps: EngineDeps, kind: string): boolean {
+  let byDeps = LISTENS_FOR.get(kind);
+  if (!byDeps) {
+    byDeps = new WeakMap();
+    LISTENS_FOR.set(kind, byDeps);
+  }
+  const cached = byDeps.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes(kind as never);
+  });
+  byDeps.set(deps, listens);
+  return listens;
+}
+
 const LISTENS_FOR_ENTERING_HAND = new WeakMap<EngineDeps, boolean>();
 
 /** Whether any ability in the registry triggers on `cardEntersHand` (docs/phase7-wave6.md §3.10); cached per registry. */
@@ -328,6 +371,7 @@ function forgetReturnedCopy(ctx: Ctx, id: InstanceId): void {
  */
 export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): ZoneId | null {
   const from = locateCard(ctx.state, id);
+  recordUnattached(ctx, id, from, to);
   if (from) {
     const remaining = zoneOf(ctx.state, from).filter((x) => x !== id);
     ctx.state = setZone(ctx.state, from, remaining);

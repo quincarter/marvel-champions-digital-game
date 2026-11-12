@@ -42,6 +42,7 @@ import {
   discardFromPlay,
   discardRandomFromHand,
   discardStatusCards,
+  endLastingEffect,
   exhaustCard,
   giveStatus,
   healDamage,
@@ -1101,6 +1102,52 @@ export function basicPowerCost(
 }
 
 /**
+ * The lasting grants of "treat the next card you spend as if it has double the resources" (`RuleSpec
+ * doubleNextCardSpent`; community pack `yondu-dh`, Jackpot!) waiting for `playerId`'s next card, oldest first. The
+ * grant's "you" is the controller of the ability that made it (`LastingScope.controllerId`).
+ */
+export function doubleNextSpentGrants(state: GameState, playerId: PlayerId): readonly string[] {
+  return state.lastingEffects.flatMap((effect) =>
+    effect.kind === "ruleGrant" && effect.rule.kind === "doubleNextCardSpent" && effect.scope.controllerId === playerId
+      ? [effect.id]
+      : [],
+  );
+}
+
+/**
+ * Which card of `payment` a waiting `doubleNextCardSpent` grant doubles: "the next card you spend" is the first card
+ * from hand (or spent as if from hand) that the grant's player spends, in payment order, and the factor is 2 for each
+ * grant waiting for that player (they all name that same next card; engine reading, no ruling). Cards of one payment
+ * are spent together (RRG 1.8 "Cost", p. 13), so the grant's own card never sees it: the grant is made by a response
+ * after the payment it was spent in. Null when no grant waits for any spender of the payment.
+ */
+export function doubledSpentCard(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  payment: readonly Payment[],
+): { readonly instanceId: InstanceId; readonly spenderId: PlayerId; readonly grants: readonly string[] } | null {
+  if (!state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "doubleNextCardSpent")) return null;
+  const done = new Set<PlayerId>();
+  for (const entry of payment) {
+    if (!("fromHand" in entry)) continue;
+    const spenderId = spentFromHandOf(state, deps, entry.fromHand, playerId, true) ?? playerId;
+    if (done.has(spenderId)) continue;
+    done.add(spenderId);
+    const grants = doubleNextSpentGrants(state, spenderId);
+    if (grants.length > 0) return { instanceId: entry.fromHand, spenderId, grants };
+  }
+  return null;
+}
+
+/** A hand card's pool with every waiting `doubleNextCardSpent` grant applied, when it is the card they double. */
+export const withSpentDoubling = (
+  pool: ResourcePool,
+  id: InstanceId,
+  doubled: { readonly instanceId: InstanceId; readonly grants: readonly string[] } | null,
+): ResourcePool => (doubled?.instanceId === id ? scalePool(pool, 2 ** doubled.grants.length) : pool);
+
+/**
  * A hand card's resources, including "double … while paying for an [aspect] card" (The Power of X, read from this
  * card) and "double … generated while paying for this card" (read from the card paid for, `paidForMultiplied`).
  */
@@ -1988,11 +2035,16 @@ function cardsThatPaid(
   resourceVarsRead: Vars,
 ): readonly InstanceId[] {
   const paidFor = paidRequirementOf(pool, requirement, cost, resourceVarsRead);
+  const doubled = doubledSpentCard(ctx.state, ctx.deps, playerId, payment);
   return payment.flatMap((entry) => {
     if (!("fromHand" in entry)) return [];
     if (cardTypeOf(ctx.state, entry.fromHand) === null) return [];
     const ownerId = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, true) ?? playerId;
-    const generated = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
+    const generated = withSpentDoubling(
+      handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor),
+      entry.fromHand,
+      doubled,
+    );
     return canBePaidFor(pool, generated, paidFor) ? [entry.fromHand] : [];
   });
 }
@@ -2106,6 +2158,8 @@ export function priceOf(
   const topOf = (id: PlayerId): InstanceId | null => mustPlayer(ctx.state, id).discard[0] ?? null;
   let pool = EMPTY_POOL;
   const discardedAsCost = asIfInHandSpentSource(ctx.state, ctx.deps, playerId, excludeInstanceId ?? payingFor);
+  // "Treat the next card you spend as if it has double the resources" (`RuleSpec doubleNextCardSpent`).
+  const doubled = doubledSpentCard(ctx.state, ctx.deps, playerId, payment);
   for (const entry of payment) {
     if ("fromHand" in entry) {
       const key = `hand:${entry.fromHand}`;
@@ -2143,7 +2197,14 @@ export function priceOf(
           message: `${displayNameOf(ctx.state, entry.fromHand)} can only be spent in ${spendableIn} form`,
         };
       }
-      pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor));
+      pool = addPools(
+        pool,
+        withSpentDoubling(
+          handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor),
+          entry.fromHand,
+          doubled,
+        ),
+      );
       // "Interrupt: When you spend this card, [cost] → generate …" (`whenSpent`): what it generates joins the payment.
       const use = spentCardUse(entry);
       if (use) {
@@ -2608,10 +2669,17 @@ export function payPayment(
   const handGenerated = new Map<InstanceId, GeneratedByPlayer>();
   // The same, by type and with the card, for the log's `paymentCommitted`.
   const handSpent: { instanceId: InstanceId; cardId: CardId; spenderId: PlayerId; resources: ResourcePool }[] = [];
+  // "Treat the next card you spend as if it has double the resources" (`RuleSpec doubleNextCardSpent`): read with the
+  // rest, before anything is spent, and used up by this payment below.
+  const doubled = doubledSpentCard(ctx.state, ctx.deps, playerId, payment);
   for (const entry of payment) {
     if (!("fromHand" in entry)) continue;
     const ownerId = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, true) ?? playerId;
-    const pool = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
+    const pool = withSpentDoubling(
+      handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor),
+      entry.fromHand,
+      doubled,
+    );
     handGenerated.set(entry.fromHand, { playerId: ownerId, amount: poolTotal(pool) });
     const cardId = getInstance(ctx.state, entry.fromHand)?.cardId;
     if (cardId) handSpent.push({ instanceId: entry.fromHand, cardId, spenderId: ownerId, resources: pool });
@@ -2705,6 +2773,16 @@ export function payPayment(
   }
   if (handSpent.length > 0) {
     emit(ctx, { type: "paymentCommitted", playerId, payingForInstanceId: payingFor, fromHand: handSpent });
+  }
+  if (doubled) {
+    emit(ctx, {
+      type: "spentCardDoubled",
+      playerId: doubled.spenderId,
+      instanceId: doubled.instanceId,
+      factor: 2 ** doubled.grants.length,
+      lastingEffectIds: doubled.grants,
+    });
+    for (const grant of doubled.grants) endLastingEffect(ctx, grant, "consumed");
   }
   return {
     cards: spent,

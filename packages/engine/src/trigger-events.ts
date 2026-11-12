@@ -1193,6 +1193,25 @@ export type TriggerEventBody =
       readonly imminent?: ImminentAttach;
     }
   /**
+   * A card stopped being attached to a host, however it went (community pack `yondu-dh`, D'ast Whistlin': "After the
+   * Yaka Arrow upgrade is attached to or removed from an enemy, deal 1 damage to that enemy"): moved to another host,
+   * returned to a hand, discarded, or taken out of play with its host. An announcement (response only), recorded by the
+   * one move every zone change makes (`relocateCard`, `pendingUnattached`) and announced between frames, only when an
+   * ability listens. The attached card is the source, `hostInstanceId` (the host it left, which may have left play
+   * itself) the target, so `eventTarget` is "that enemy". A move from one host to another is heard twice, this first and
+   * then that move's `cardAttached`; RRG 1.8 "Attach To" (p. 8) makes the move one change, and the engine reads "removed
+   * from" as having happened before "attached to" (an engine reading, no ruling). Not announced for a facedown card
+   * coming off its host (out of play, RRG 1.8 p. 23). `to`: the kind of zone it went to. `playerId`: the card's
+   * controller before the move (null for one no player controlled).
+   */
+  | {
+      readonly kind: "cardUnattached";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly playerId: PlayerId | null;
+      readonly to: ZoneId["kind"];
+    }
+  /**
    * A character ignored a guard or patrol keyword, or a crisis icon, that would otherwise have stopped the attack or
    * thwart it just made (docs/phase7-wave6.md §3.8, §4.1 Q6): "After you ignore the guard or patrol keyword on a minion"
    * (Acute Control, `mut_gen` 32034), "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035).
@@ -2676,6 +2695,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The attached card is the source ("a Frostbite upgrade"), its host the target ("to an enemy"), the attacher "you".
     case "cardAttached":
+      return of([event.instanceId], [event.hostInstanceId], [event.playerId]);
+    // The card that came off is the source ("the Yaka Arrow"), the host it left the target ("from an enemy").
+    case "cardUnattached":
       return of([event.instanceId], [event.hostInstanceId], [event.playerId]);
     // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
     case "hitPointsReset":

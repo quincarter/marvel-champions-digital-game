@@ -497,6 +497,18 @@ export interface EnteredHand {
 }
 
 /**
+ * A card that stopped being attached to a host, waiting to be announced between frames (`TriggerEvent cardUnattached`;
+ * community pack `yondu-dh`). `hostInstanceId`: the host it left; `playerId`: its controller before the move; `to`: the
+ * kind of zone it went to.
+ */
+export interface Unattached {
+  readonly instanceId: InstanceId;
+  readonly hostInstanceId: InstanceId;
+  readonly playerId: PlayerId | null;
+  readonly to: ZoneId["kind"];
+}
+
+/**
  * An encounter card that left a player's deck, drawn or discarded, waiting to be announced between frames (`TriggerEvent
  * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5).
  */
@@ -1165,6 +1177,12 @@ export interface GameState {
    * `cardLeavesPlay` went on the stack before it moved (§4.1 Q17).
    */
   readonly pendingLeftPlay?: readonly LeftPlay[];
+  /**
+   * Cards that came off a host since the flow last looked, oldest first, recorded by `relocateCard` only when some
+   * ability in the registry triggers on it: the flow announces each as `cardUnattached` between frames and empties the
+   * list. Absent until one first comes off. Community pack `yondu-dh` (D'ast Whistlin').
+   */
+  readonly pendingUnattached?: readonly Unattached[];
   /**
    * Status cards placed since the flow last looked, oldest first, recorded by `giveStatus` only when some ability in
    * the registry triggers on it: the flow announces each as `statusPlaced` between frames and empties the list. Absent

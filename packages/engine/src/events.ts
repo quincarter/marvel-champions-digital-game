@@ -1896,6 +1896,19 @@ export type GameEvent =
         readonly resources: ResourcePool;
       }[];
     }
+  /**
+   * "Treat the next card you spend as if it has double the resources" (`RuleSpec doubleNextCardSpent`; community pack
+   * `yondu-dh`, Jackpot!) doubled `instanceId`, the first card `playerId` spent in this payment: its `paymentCommitted`
+   * resources already count the `factor`. Logged right after that line; each grant in `lastingEffectIds` then ends as
+   * `consumed`.
+   */
+  | {
+      readonly type: "spentCardDoubled";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly factor: number;
+      readonly lastingEffectIds: readonly string[];
+    }
   | {
       readonly type: "resourcesGenerated";
       readonly playerId: PlayerId;

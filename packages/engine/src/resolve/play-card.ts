@@ -4,7 +4,7 @@ import type { AbilityId } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer, scenarioPlayAreaOf } from "../query.js";
-import { cardsInPlay, controllerOf, PLAYED_VIA_SLOT, printedAbilityRefs } from "../select.js";
+import { attachedOnlyWhileInPlay, cardsInPlay, controllerOf, PLAYED_VIA_SLOT, printedAbilityRefs } from "../select.js";
 import {
   PAID_CARDS_SLOT,
   paymentVarsIn,
@@ -164,6 +164,19 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
             frame.attachToInstanceId === null &&
             placeInScenarioPlayArea(ctx, frame.instanceId, frame.intoScenarioPlayArea, true) === "entered"
           ) {
+            entersExhausted(ctx, frame);
+            enterPlay(ctx, frame.instanceId, frame.controllerId);
+            break;
+          }
+          // "Cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`; community pack `yondu-dh`, Yaka
+          // Arrow): played from hand it enters play attached to nothing, in its controller's play area, as an upgrade
+          // with no "attach to" text is placed "near a player's identity card" (RRG 1.8 "Upgrade", p. 46). The host a
+          // play names by default (the identity) is not used.
+          if (
+            frame.intoScenarioPlayArea === undefined &&
+            attachedOnlyWhileInPlay(ctx.state, frame.instanceId, ctx.deps)
+          ) {
+            moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
             entersExhausted(ctx, frame);
             enterPlay(ctx, frame.instanceId, frame.controllerId);
             break;

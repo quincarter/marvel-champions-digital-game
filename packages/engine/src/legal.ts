@@ -32,7 +32,9 @@ import {
   isActionEvent,
   usableEventActions,
   eventActionToExplain,
+  doubleNextSpentGrants,
   handCardResources,
+  withSpentDoubling,
   isAlternativeAmount,
   isWhenSpentUse,
   minimumChosenX,
@@ -2121,6 +2123,9 @@ export function paymentFor(
   const claimed = new Set<InstanceId>(
     "costChoices" in bare && bare.costChoices ? Object.values(bare.costChoices).flat() : [],
   );
+  const doublingGrants = doubleNextSpentGrants(state, playerId);
+  const spentDoublingFor = (instanceId: InstanceId) =>
+    doublingGrants.length > 0 ? { instanceId, grants: doublingGrants } : null;
   const sources = paymentOptions(ctx, playerId, payable.excludeInstanceId, payable.payingFor).flatMap<PaymentSource>(
     (option) => {
       if (option.ref.kind === "card") {
@@ -2134,7 +2139,13 @@ export function paymentFor(
             kind: "handCard",
             instanceId: option.ref.instanceId,
             label: option.label,
-            pool: handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+            // A waiting "treat the next card you spend as if it has double the resources" shows on each card as
+            // if it were spent first; the payment itself doubles only the first (`doubledSpentCard`).
+            pool: withSpentDoubling(
+              handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+              option.ref.instanceId,
+              spentDoublingFor(option.ref.instanceId),
+            ),
             ...(at?.kind === "tucked" ? { tuckedUnder: at.hostInstanceId } : {}),
           },
         ];
@@ -2159,7 +2170,11 @@ export function paymentFor(
             instanceId: spending.fromHand,
             label: option.label,
             pool: addPools(
-              handCardResources(state, deps, spending.fromHand, playerId, payable.payingFor),
+              withSpentDoubling(
+                handCardResources(state, deps, spending.fromHand, playerId, payable.payingFor),
+                spending.fromHand,
+                spentDoublingFor(spending.fromHand),
+              ),
               paidForMultiplied(
                 state,
                 deps,

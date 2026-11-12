@@ -1,0 +1,127 @@
+{
+  "id": "yondu-dh-aggression",
+  "name": "Whistle While You Work - Yondu Precon",
+  "packCode": "yondu-dh",
+  "identityCardId": "x.yondu-dh.01a",
+  "aspects": ["aggression"],
+  "cards": [
+    {
+      "cardId": "16040",
+      "quantity": 1
+    },
+    {
+      "cardId": "16043",
+      "quantity": 3
+    },
+    {
+      "cardId": "16047",
+      "quantity": 1
+    },
+    {
+      "cardId": "17020",
+      "quantity": 1
+    },
+    {
+      "cardId": "17022",
+      "quantity": 1
+    },
+    {
+      "cardId": "18011",
+      "quantity": 1
+    },
+    {
+      "cardId": "18018",
+      "quantity": 1
+    },
+    {
+      "cardId": "19020",
+      "quantity": 1
+    },
+    {
+      "cardId": "19030",
+      "quantity": 3
+    },
+    {
+      "cardId": "25014",
+      "quantity": 1
+    },
+    {
+      "cardId": "46015",
+      "quantity": 3
+    },
+    {
+      "cardId": "46016",
+      "quantity": 3
+    },
+    {
+      "cardId": "56013",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.02",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.03",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.04",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.yondu-dh.05",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.06",
+      "quantity": 4
+    },
+    {
+      "cardId": "x.yondu-dh.07",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.08",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.09",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.10",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.11",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.yondu-dh.12",
+      "quantity": 1
+    },
+    {
+      "cardId": "06011",
+      "quantity": 1
+    },
+    {
+      "cardId": "01088",
+      "quantity": 1
+    },
+    {
+      "cardId": "01089",
+      "quantity": 1
+    },
+    {
+      "cardId": "01090",
+      "quantity": 1
+    }
+  ],
+  "provenance": {
+    "verified": false,
+    "sources": [
+      "The authors' own starter deck for Yondu (the Yondu Deck card in the pack; same list as MC4DB deck 2040, Whistle While You Work - Yondu Precon): his 15 hero cards, 18 Aggression and 7 basic cards. The MC4DB side deck (3 Follow Through) is not included."
+    ]
+  }
+}
