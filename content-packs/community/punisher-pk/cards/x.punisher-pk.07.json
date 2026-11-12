@@ -1,0 +1,32 @@
+{
+  "id": "x.punisher-pk.07",
+  "name": "Maggia Capo",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "7",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "minion",
+  "atk": 1,
+  "sch": 2,
+  "hp": 3,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 2,
+  "traits": ["CRIMINAL", "MAGGIA"],
+  "keywords": [
+    {
+      "name": "incite",
+      "value": 1
+    }
+  ],
+  "text": {
+    "printed": "Incite 1.\nWhen Revealed: Discard cards from the encounter deck until a Criminal minion is discarded. Put that minion into play engaged with you.",
+    "current": "Incite 1.\nWhen Revealed: Discard cards from the encounter deck until a Criminal minion is discarded. Put that minion into play engaged with you."
+  },
+  "flavor": "\"Castle's just one guy. Send twenty.\"",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.07.when-revealed"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "x.punisher-pk.17",
+  "name": "War on Vigilantes",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "17",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "startingThreat": {
+    "base": 3,
+    "perPlayer": 0
+  },
+  "icons": [],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "hinder",
+      "value": 0,
+      "perPlayer": 1
+    }
+  ],
+  "text": {
+    "printed": "[star] Hinder 1[per_hero].\nForced Interrupt: When the villain phase ends, in player order, each player discards the top card of the encounter deck. Each player who discards a minion this way puts it into play engaged with them.",
+    "current": "[star] Hinder 1[per_hero].\nForced Interrupt: When the villain phase ends, in player order, each player discards the top card of the encounter deck. Each player who discards a minion this way puts it into play engaged with them."
+  },
+  "flavor": "Criminals throughout the city are banding together and joining the fight.",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.17.war-on-vigilantes-forced-interrupt"
+    }
+  ]
+}

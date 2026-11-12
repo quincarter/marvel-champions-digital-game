@@ -1,0 +1,32 @@
+{
+  "id": "x.punisher-pk.14",
+  "name": "Rachel Cole-Alves",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "14",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": null,
+  "sch": null,
+  "hp": 4,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 2,
+  "traits": ["ELITE", "SOLDIER"],
+  "keywords": [],
+  "text": {
+    "printed": "The Punisher cannot attack Rachel Cole-Alves.\nThe Punisher gets +2 ATK while attacking a minion.\nForced Interrupt: When The Punisher schemes, heal 2 damage from him.",
+    "current": "The Punisher cannot attack Rachel Cole-Alves.\nThe Punisher gets +2 ATK while attacking a minion.\nForced Interrupt: When The Punisher schemes, heal 2 damage from him."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.14.rachel-cole-alves-constant"
+    },
+    {
+      "id": "x.punisher-pk.14.rachel-cole-alves-constant-2"
+    },
+    {
+      "id": "x.punisher-pk.14.rachel-cole-alves-forced-interrupt"
+    }
+  ]
+}

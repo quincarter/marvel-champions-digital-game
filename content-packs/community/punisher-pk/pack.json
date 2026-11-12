@@ -1,0 +1,26 @@
+{
+  "id": "punisher-pk",
+  "version": "0.1.0",
+  "kind": "scenario",
+  "name": "The Punisher",
+  "authors": ["PermaKarma"],
+  "description": "Fan-made scenario pack by PermaKarma: The Punisher wages a one-man war on crime, and the minions in your way are his targets as much as yours.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "permission": {
+    "by": "PermaKarma",
+    "scope": "inclusion"
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "en": "Francisco Merchán (rebuilt from the author's art)",
+    "es": "Francisco Merchán"
+  }
+}

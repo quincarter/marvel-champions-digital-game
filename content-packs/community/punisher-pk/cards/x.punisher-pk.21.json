@@ -1,0 +1,24 @@
+{
+  "id": "x.punisher-pk.21",
+  "name": "Submachine Gun Spray",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "21",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Deal 1 damage to each character you control and each minion engaged with you.",
+    "current": "When Revealed: Deal 1 damage to each character you control and each minion engaged with you."
+  },
+  "flavor": "\"How much longer before innocent people start getting caught in the crossfire?\" — Matt Murdock",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.21.when-revealed"
+    }
+  ]
+}

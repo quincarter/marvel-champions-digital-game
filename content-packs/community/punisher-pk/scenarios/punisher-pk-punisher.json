@@ -1,0 +1,15 @@
+{
+  "id": "punisher-pk-punisher",
+  "name": "The Punisher",
+  "packCode": "punisher-pk",
+  "villainCardId": "x.punisher-pk.01",
+  "mainSchemeCardId": "x.punisher-pk.04a",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "recommendedModularSetIds": ["sinister_syndicate"],
+  "standardEncounterSetIds": ["standard"],
+  "expertEncounterSetIds": ["expert"],
+  "villainStages": {
+    "standard": [1, 2],
+    "expert": [2, 3]
+  }
+}

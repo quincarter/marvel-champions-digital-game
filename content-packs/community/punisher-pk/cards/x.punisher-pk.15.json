@@ -1,0 +1,29 @@
+{
+  "id": "x.punisher-pk.15",
+  "name": "The Russian",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "15",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 3,
+  "sch": 1,
+  "hp": 4,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 2,
+  "traits": ["CRIMINAL", "ELITE"],
+  "keywords": [],
+  "text": {
+    "printed": "During step 2 of the villain phase, The Russian activates against you before The Punisher does.\nForced Interrupt: When The Russian would be defeated by a friendly character or a player card, discard the top card of the encounter deck. If that card is a minion, reset The Russian's hit points to 1 instead.",
+    "current": "During step 2 of the villain phase, The Russian activates against you before The Punisher does.\nForced Interrupt: When The Russian would be defeated by a friendly character or a player card, discard the top card of the encounter deck. If that card is a minion, reset The Russian's hit points to 1 instead."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.15.the-russian-constant"
+    },
+    {
+      "id": "x.punisher-pk.15.the-russian-forced-interrupt"
+    }
+  ]
+}

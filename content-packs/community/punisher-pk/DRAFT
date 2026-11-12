@@ -1,0 +1,7 @@
+This pack is a draft: it is neither tested with the other community packs nor published until this file is removed.
+
+Why:
+- The author (PermaKarma) has not yet confirmed the curators' rules and wording fixes (see README.md, "Open items").
+- Rachel Cole-Alves (x.punisher-pk.14) is the curators' proposal, not the author's card.
+- Four abilities wait for engine primitives (README.md, "Engine primitives still needed"; each is a marked
+  `TODO(engine)` in abilities/index.ts).

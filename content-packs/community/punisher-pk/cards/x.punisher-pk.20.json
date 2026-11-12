@@ -1,0 +1,24 @@
+{
+  "id": "x.punisher-pk.20",
+  "name": "Explosive Surprise",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "20",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: You are stunned. Deal 3 damage to the minion in play with the fewest remaining hit points.",
+    "current": "When Revealed: You are stunned. Deal 3 damage to the minion in play with the fewest remaining hit points."
+  },
+  "flavor": "\"You think heroes don't kill? Heroes get people killed all the time. Ask Daredevil. Lotsa people died on his watch.\" — Frank Castle",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.20.when-revealed"
+    }
+  ]
+}
