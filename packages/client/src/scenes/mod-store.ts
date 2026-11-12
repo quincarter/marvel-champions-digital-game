@@ -665,7 +665,7 @@ export class ModStoreScene extends Phaser.Scene {
     ground.lineStyle(1, surface.paper.hex, 0.4).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
     objects.push(ground);
     const preview = this.#previewOf(tile);
-    const art = tileArtOf(tile, preview);
+    const art = tileArtOf(tile, preview, artLanguageNow());
     if (art.kind === "thumbnail") {
       const image = drawPicture(
         this,
@@ -679,7 +679,7 @@ export class ModStoreScene extends Phaser.Scene {
         return objects;
       }
     }
-    const first = featuredFacesOf(preview, tile.baseUrl)[0];
+    const first = featuredFacesOf(preview, tile.baseUrl, artLanguageNow())[0];
     if (first) {
       objects.push(
         ...this.#drawCardFace(
@@ -795,7 +795,7 @@ export class ModStoreScene extends Phaser.Scene {
       ? gallerySectionsOf({ cards: source.cards, decks: source.decks, baseCards: currentCardsById() })
       : { sections: [], records: new Map<string, AnyCard>() };
     const cardCount = galleryCardCount(sections);
-    const faces = featuredFacesOf(preview, tile.baseUrl);
+    const faces = featuredFacesOf(preview, tile.baseUrl, artLanguageNow());
     const actions = actionsOf({ tile, busy, confirmingRemove: this.#confirmingRemove });
     const layout = packPageLayoutOf({
       width,

@@ -349,26 +349,43 @@ export interface FeaturedFace {
 export function featuredFacesOf(
   preview: ParsedPackPreview | null | undefined,
   base: string | undefined,
+  lang?: string,
 ): readonly FeaturedFace[] {
   const featured = preview?.featured;
   const card = featured ? preview?.cards.find((one) => (one.id as string) === featured.cardId) : undefined;
-  if (!featured || !card) return [];
-  const url = (index: number): string | undefined => {
-    const path = featured.images[index];
-    return path !== undefined && base !== undefined ? `${base}${path}` : undefined;
+  if (!preview || !featured || !card) return [];
+  const faceAt = (face: CardFace, index: number): FeaturedFace => {
+    const path = localizedPicturePath(preview, featured.images[index], lang);
+    const pictureUrl = path !== undefined && base !== undefined ? `${base}${path}` : undefined;
+    return { card, face, pictureUrl, path };
   };
-  if (card.type === "hero_identity") {
-    return [
-      { card, face: { kind: "hero" }, pictureUrl: url(0), path: featured.images[0] },
-      { card, face: { kind: "alterEgo" }, pictureUrl: url(1), path: featured.images[1] },
-    ];
-  }
-  return [{ card, face: defaultFaceFor(card), pictureUrl: url(0), path: featured.images[0] }];
+  if (card.type === "hero_identity") return [faceAt({ kind: "hero" }, 0), faceAt({ kind: "alterEgo" }, 1)];
+  return [faceAt(defaultFaceFor(card), 0)];
 }
 
-export function tileArtOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined): TileArt {
-  if (tile.thumbnail) return { kind: "thumbnail", url: tile.thumbnail };
-  const first = featuredFacesOf(preview, tile.baseUrl)[0];
+/**
+ * A featured picture's path in the player's language. The preview names the base language's picture
+ * (`cards/<base>/<file>`), so this swaps in `cards/<lang>/<file>` when the pack ships it, else keeps the base one (the
+ * same fallback as `previewPictureUrl`).
+ */
+function localizedPicturePath(
+  preview: Pick<ParsedPackPreview, "images" | "languages">,
+  path: string | undefined,
+  lang: string | undefined,
+): string | undefined {
+  if (path === undefined || lang === undefined) return path;
+  const match = /^cards\/([^/]+)\/(.+)$/.exec(path);
+  if (!match || match[1] === lang || !preview.languages?.available.includes(lang)) return path;
+  const localized = `cards/${lang}/${match[2]}`;
+  return preview.images.has(localized) ? localized : path;
+}
+
+export function tileArtOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined, lang?: string): TileArt {
+  const first = featuredFacesOf(preview, tile.baseUrl, lang)[0];
+  // The catalog's thumbnail is cut from the base language's picture: a player in another language the pack ships sees
+  // that language's picture instead.
+  const localized = first?.pictureUrl !== undefined && first.path !== preview?.featured?.images[0];
+  if (tile.thumbnail && !localized) return { kind: "thumbnail", url: tile.thumbnail };
   if (first?.pictureUrl) return { kind: "picture", url: first.pictureUrl };
   if (first) return { kind: "face", card: first.card, face: first.face };
   return { kind: "letter" };

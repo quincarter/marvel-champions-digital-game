@@ -326,4 +326,49 @@ describe("a tile's art", () => {
     expect(lone[0]!.pictureUrl).toBeUndefined();
     expect(featuredFacesOf(undefined, "https://h/")).toEqual([]);
   });
+
+  describe("a pack whose base language is Spanish, shown to an English player", () => {
+    const spanishBase = (images: string[]) =>
+      parsePackPreview(
+        {
+          schema: 1,
+          packId: "demo",
+          version: "1.0.0",
+          featured: { cardId: identity.id, images: ["cards/es/x.demo.01a.webp", "cards/es/x.demo.01b.webp"] },
+          images,
+          languages: { base: "es", available: ["en", "es"] },
+          cards: [identity],
+          decks: [],
+        },
+        "demo",
+      )!;
+    const both = [
+      "cards/es/x.demo.01a.webp",
+      "cards/es/x.demo.01b.webp",
+      "cards/en/x.demo.01a.webp",
+      "cards/en/x.demo.01b.webp",
+    ];
+
+    it("features the English pictures, and the Spanish ones in Spanish", () => {
+      const english = featuredFacesOf(spanishBase(both), "https://h/", "en");
+      expect(english.map((face) => face.path)).toEqual(["cards/en/x.demo.01a.webp", "cards/en/x.demo.01b.webp"]);
+      expect(english[0]!.pictureUrl).toBe("https://h/cards/en/x.demo.01a.webp");
+      const spanish = featuredFacesOf(spanishBase(both), "https://h/", "es");
+      expect(spanish.map((face) => face.path)).toEqual(["cards/es/x.demo.01a.webp", "cards/es/x.demo.01b.webp"]);
+    });
+
+    it("falls back to the Spanish picture where the English one is missing", () => {
+      const faces = featuredFacesOf(spanishBase(both.slice(0, 3)), "https://h/", "en");
+      expect(faces.map((face) => face.path)).toEqual(["cards/en/x.demo.01a.webp", "cards/es/x.demo.01b.webp"]);
+    });
+
+    it("puts the English picture on the tile in place of the Spanish thumbnail", () => {
+      const tile = withBase({}, { thumbnail: "https://h/thumb.webp" });
+      expect(tileArtOf(tile, spanishBase(both), "en")).toEqual({
+        kind: "picture",
+        url: "https://h/demo/1.0.0/cards/en/x.demo.01a.webp",
+      });
+      expect(tileArtOf(tile, spanishBase(both), "es")).toEqual({ kind: "thumbnail", url: "https://h/thumb.webp" });
+    });
+  });
 });
