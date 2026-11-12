@@ -6,7 +6,9 @@ import {
   clickText,
   findText,
   focusRect,
+  hasText,
   installPageHelpers,
+  isSceneUp,
   pressEndTurn,
   settle,
   trackPageErrors,
@@ -67,9 +69,16 @@ for (const packId of communityPackIds()) {
     // The store: the pack's page, Install, and wait for the install to finish (Remove appears).
     await page.goto(`/?screen=mod-store&pack=${packId}`);
     await waitForScene(page, "ModStore");
+    // The first visit shows Deadpool and Spider-Man's heads-up over the store, and it holds the store's input until
+    // it is answered: a press on Install would never reach the store.
+    await waitForScene(page, "ModNoticeOverlay");
+    expect(await hasText(page, "Got it", "ModNoticeOverlay")).toBe(true);
+    await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
+    await waitFor(async () => (!(await isSceneUp(page, "ModNoticeOverlay")) ? true : null), "the notice closes");
+    await settle(page);
     await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
     await waitFor(
-      async () => ((await findText(page, "REMOVE")).length > 0 ? true : null),
+      async () => ((await findText(page, "REMOVE", "ModStore")).length > 0 ? true : null),
       `${packId} installs`,
       90_000,
     );
