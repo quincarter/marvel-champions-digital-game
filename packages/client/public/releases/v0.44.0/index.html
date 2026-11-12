@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.44.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v0.44.0 of the fan-made Marvel Champions digital game: the title menu in Spanish, saved deck names on the campaign roster, and 21 fixes."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.44.0" />
+    <meta
+      property="og:description"
+      content="The title menu in Spanish, saved deck names on the campaign roster, and 21 fixes."
+    />
+    <meta property="og:image" content="https://marvel-champions-digital-game.netlify.app/releases/v0.44.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.44.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>The Title Menu<br /><span class="g">Speaks Spanish</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.44.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/653">#653</a><br />after v0.43.2
+          (Nov 5)<br />Android · Web · Windows · macOS · Linux<br />Nov 12, 2026<span data-history-link
+            ><br /><a href="../index.html#v0.44.0">All releases</a> ·
+            <a href="index.es.html" lang="es">Español</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star">★</div>
+          <div><small>Achievement unlocked</small><span>¡Hola!</span></div>
+        </div>
+        <p>
+          <b>The game's own text starts speaking Spanish.</b> @bluefireF5ran built a translation layer and translated
+          the title menu, the first screen of many. Your saved decks now show their names on the campaign roster, a 7 no
+          longer reads as a 1, and <b>21 fixes</b> came from your reports and from replaying real games.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big" style="grid-column: auto">
+          <h4>Fixes</h4>
+          <div class="n">21</div>
+          <p>from your reports and from replaying real games.</p>
+        </div>
+        <div class="tile">
+          <h4>Spanish labels</h4>
+          <div class="n c-red">14</div>
+          <p>on the title menu, the first screen translated.</p>
+        </div>
+        <div class="tile">
+          <h4>Attachments</h4>
+          <div class="n c-blue">11</div>
+          <p>encounter attachments that now give their printed stat boxes.</p>
+        </div>
+        <div class="tile">
+          <h4>Community PRs</h4>
+          <div class="n c-green">11</div>
+          <p>from @bluefireF5ran: the translation layer and ten rules fixes.</p>
+        </div>
+      </section>
+
+      <!-- ============ SPANISH ============ -->
+      <div class="band gold">
+        <h2>The title menu speaks Spanish</h2>
+        <div class="lab">Issue #390 · PR #664 by @bluefireF5ran</div>
+      </div>
+      <p class="lead">
+        <b>The cards have spoken Spanish since v0.39.0. Now the menus start to.</b> @bluefireF5ran built a translation
+        layer for the game's own text and translated the title menu with it. Any line that isn't translated yet stays in
+        English, so the game can be translated one screen at a time.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/title-es-desktop.webp"
+            alt="The title menu in Spanish on desktop: Nueva partida, Mazos y colección, Campaña, Extras, Sala de logros, Tus estadísticas, Aprende a jugar and Opciones"
+            width="790"
+            height="860"
+            loading="lazy"
+          />
+          <figcaption>The title menu in Spanish, on a test build ahead of this release</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/title-es-phone.webp"
+            alt="The same Spanish title menu on a phone"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+          <figcaption>On a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>How to switch</h3>
+          <ul class="ck">
+            <li>
+              The menu follows your card language, so <b>the globe button</b> beside the music button and
+              <b>Settings ▸ Card art language</b> switch the text and the card pictures together.
+            </li>
+            <li>The menu redraws in place the moment you switch.</li>
+            <li>
+              On the web, a new player starts in their browser's language. The Spanish downloads start in Spanish.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Still in English</h3>
+          <ul class="ck">
+            <li>Every screen past the title menu, for now.</li>
+            <li>Rank names such as "Sidekick in Training", which come with the Trophy Room later.</li>
+            <li>Next up for translation: the new game flow, then the Settings screens.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ DECK NAMES ============ -->
+      <div class="band">
+        <h2>Your decks, by name</h2>
+        <div class="lab">Issue #658 by @Kravenprime · PR #668</div>
+      </div>
+      <p class="lead">
+        <b>Two Leadership decks of one hero used to look the same on the campaign roster.</b> The hero picker and the
+        seat cards now show the name you saved each deck under, so you can tell them apart.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/deck-names-picker.webp"
+            alt="The campaign hero picker: Captain America's precon, then two saved Leadership decks named Cap's Avengers Assemble and Shield Bash Leadership"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The hero picker, with two saved Captain America decks under the precon</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/deck-names-seat.webp"
+            alt="Seat #1 on the roster shows Captain America with the deck name Cap's Avengers Assemble"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The seat card names the deck</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <h3>What changed</h3>
+        <ul class="ck">
+          <li>A built or imported deck shows its name under the hero's, with its aspect and "Built" or "Imported".</li>
+          <li>Only a precon says "starter deck" now. A saved deck with no aspect yet reads "No aspect".</li>
+          <li>The seat card's footer grows to fit, so the names no longer overlap on a short phone.</li>
+        </ul>
+      </div>
+
+      <!-- ============ YOU ASKED ============ -->
+      <div class="band">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issues #643, #654, #660, #663, #665, #675, #678 and #679</div>
+      </div>
+      <p class="lead">
+        <b>Each of these started with a report.</b> Thank you for taking the time to write them up, saves and
+        screenshots included.
+      </p>
+      <div class="cards">
+        <div class="paper wide">
+          <div>
+            <div class="eb">#660 · reported by @Kravenprime</div>
+            <h3>A 7 that reads as a 7</h3>
+            <p>
+              The comic number font drew a 7 as a slanted stem under a short bar, so
+              <b>a villain at 7 hit points read as 1</b>. Every 7 in that font now has a crossbar through its stem, in
+              the font's own slant. Nothing else about the font changes.
+            </p>
+          </div>
+          <figure>
+            <img
+              src="img/seven-crossbar.webp"
+              alt="Rhino at 7 of 14 hit points with a crossed 7, next to Spider-Man at 1 of 10 hit points"
+              width="1000"
+              height="834"
+              loading="lazy"
+            />
+            <figcaption>Rhino's 7 HP set by hand for the shot, beside Spider-Man's 1</figcaption>
+          </figure>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">#665 · reported by @Darksolice</div>
+            <h3>Psychic Misdirection, explained</h3>
+            <p>
+              When Psychic Misdirection sends an attack's damage to an enemy, <b>the defend sheet now says so</b>: the
+              damage goes to that enemy, and defending only takes your DEF off what it takes. The rules worked as
+              written. The sheet made it look like you were the one being protected.
+            </p>
+            <div class="src">RRG 1.8 "Defend, Defense", p. 15</div>
+          </div>
+          <figure>
+            <img
+              src="img/psychic-misdirection.webp"
+              alt="The defend sheet: This attack's damage goes to Hydra Mercenary instead of you, with each option's damage shown against the Mercenary"
+              width="1100"
+              height="540"
+              loading="lazy"
+            />
+            <figcaption>The reporter's game, Cable against Rhino</figcaption>
+          </figure>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">#678 · reported by @AlecHolland1582</div>
+            <h3>The Power Stone has its stats</h3>
+            <p>
+              The Power Stone now gives its printed <b>+1 ATK and +1 SCH or THW</b> to Nebula and Ronan, and to a hero
+              once it moves to them. Checking every encounter attachment's scan turned up <b>ten more</b> with missing
+              stat boxes, such as Blackjack's Bazooka and Cloak of Hercules, and they're fixed too.
+            </p>
+            <div class="src">RRG 1.8 "Attachment", p. 8</div>
+          </div>
+          <figure>
+            <img
+              src="img/power-stone.webp"
+              alt="Gamora holding the Power Stone, with +1 over her THW and ATK, against Nebula"
+              width="1040"
+              height="560"
+              loading="lazy"
+            />
+            <figcaption>Gamora with the Power Stone, in the reporter's game</figcaption>
+          </figure>
+        </div>
+        <div class="paper">
+          <div class="eb">#679 · reported by @AlecHolland1582</div>
+          <h3>The Market keeps your cart</h3>
+          <p>
+            In The Galaxy's Most Wanted, once every card of a price was bought, the Market still asked for that price
+            with nothing in it. <b>That empty question is gone</b>, and a hero's cart no longer gets lost on the way.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#654 · reported by @andy-xxvii27</div>
+          <h3>Machine Man with an empty hand</h3>
+          <p>
+            Machine Man was offered with nothing to spend and the game got stuck on an empty payment. Now he
+            <b>isn't offered without a resource</b>, and a payment always keeps its Don't use it button.
+          </p>
+          <div class="src">RRG 1.8 "Cost", pp. 13-14</div>
+        </div>
+        <div class="paper">
+          <div class="eb">#663 · reported by @josemarcoshernando-spec</div>
+          <h3>One Shawarma each</h3>
+          <p>
+            Save the Shawarma Place and Defensive Protocols give <b>each player 1 copy</b>, not every copy. Alias
+            Investigations no longer spends its counters on Proxima Midnight or Corvus Glaive while the other still has
+            hit points.
+          </p>
+          <div class="src">RRG 1.8 "Cannot", p. 11</div>
+        </div>
+        <div class="paper">
+          <div class="eb">#643 · suggested by @PermaKarma</div>
+          <h3>One trophy per win</h3>
+          <p>
+            Beating the Black Widow villain with Black Widow seated earns Seeing Double.
+            <b>Clearing the Ledger now needs Taskmaster.</b> If you earned it only from a Black Widow win, it locks
+            again until you beat Taskmaster with her.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#675 · Kang</div>
+          <h3>Pinned Down, as printed</h3>
+          <p>Pinned Down places <b>2 threat for each obligation in play</b>, as printed, instead of 1.</p>
+          <div class="src">RRG 1.8 "Side Scheme", p. 40</div>
+        </div>
+      </div>
+
+      <!-- ============ REPLAYED ============ -->
+      <div class="band">
+        <h2>Found by replaying real games</h2>
+        <div class="lab">10 PRs by @bluefireF5ran</div>
+      </div>
+      <p class="lead">
+        <b>@bluefireF5ran kept loading real two-player games from their saves</b> and watching for anything the cards
+        don't allow. Each of these showed up in a game someone actually played.
+      </p>
+      <div class="cards cards3">
+        <div class="paper wide" style="grid-template-columns: minmax(0, 1fr)">
+          <div>
+            <div class="eb">Wolverine · PR #657</div>
+            <h3>The bug that decided a game</h3>
+            <p>
+              Berserker Barrage defeated one Mutate, and Wolverine repeated it on the other, which has retaliate 1.
+              <b>It retaliated twice.</b> Wolverine fell later that turn on exactly his 10 hit points. The repeat is now
+              its own attack, so the second enemy retaliates once.
+            </p>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="eb">Crossbones · PR #651</div>
+          <h3>Your indirect damage</h3>
+          <p>
+            Machine Gun and Full Auto deal their indirect damage to <b>the player who takes it</b>, among their own
+            characters.
+          </p>
+          <div class="src">RRG 1.8 "You, Your", p. 49</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Absorbing Man · Kang · PR #652</div>
+          <h3>Each player chooses</h3>
+          <p>
+            Avalanche! and Corrupted Timestream let <b>each player choose their own option</b>, instead of the player
+            who revealed the card choosing for everyone.
+          </p>
+          <div class="src">RRG 1.8 "Each Player", p. 17</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Black Widow · PR #655</div>
+          <h3>One Widow's Bite is enough</h3>
+          <p>
+            Widow's Bite isn't offered for a minion that already left play, so <b>a second copy isn't spent</b> for
+            nothing after the first defeated it.
+          </p>
+          <div class="src">RRG 1.8 "Target", p. 42</div>
+        </div>
+        <div class="paper">
+          <div class="eb">PR #672</div>
+          <h3>Only while it's there</h3>
+          <p>
+            Hawkeye, Iceman and Prism Dust are offered <b>only while the minion that entered play</b> is still in play.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">Black Widow · PR #656</div>
+          <h3>A Preparation that fits</h3>
+          <p>
+            Winter, Widow, Soldier, Spy no longer offers a Max 1 per player Preparation you already control, and
+            <b>still deals its damage</b> when none can enter play.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">Nick Fury · PR #662</div>
+          <h3>Respond, then fall</h3>
+          <p>
+            An ally's "after uses a basic power" response <b>resolves before its consequential damage</b>, so it is
+            still offered when that damage defeats it.
+          </p>
+          <div class="src">RRG 1.8 "Consequential Damage", p. 13</div>
+        </div>
+        <div class="paper">
+          <div class="eb">Taunt · PR #671</div>
+          <h3>Defend after all</h3>
+          <p>
+            Another player's defense ability, like Herc's Helm, <b>no longer stops the taunting hero</b> from defending
+            the attack.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">Kang · PR #673</div>
+          <h3>Your own obligations</h3>
+          <p>
+            Time-Travel Tactics and Kang (Master of Time) count the obligations in
+            <b>the right player's own play area</b>.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">Taskmaster · PR #674</div>
+          <h3>A wild for Moon Knight</h3>
+          <p>Moon Knight's draw-2 Response needs <b>a [wild] resource</b>, as printed, not any resource.</p>
+          <div class="src">RRG 1.8 "Wild Resource", p. 48</div>
+        </div>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band">
+        <h2>Also in v0.44.0</h2>
+        <div class="lab">Rules and docs</div>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Rules</h3>
+          <ul class="ck">
+            <li>
+              An attachment's stat boxes <b>don't count while its identity is in alter-ego form</b>, and count again on
+              the flip back to hero.
+            </li>
+            <li>The SCH/THW attachments in Fear No Evil now count for THW on a hero.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Docs</h3>
+          <ul class="ck">
+            <li>This report, in English and Spanish.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            This release is built on what you asked for. Keep it coming from Pause ▸ Report a problem, a GitHub issue or
+            the community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person wide">
+            <h3>@bluefireF5ran</h3>
+            <p>
+              Built the translation layer and the Spanish title menu, <b>#664</b>, and replayed real games to write ten
+              rules fixes: <b>#651</b>, <b>#652</b>, <b>#655</b>, <b>#656</b>, <b>#657</b>, <b>#662</b>, <b>#671</b>,
+              <b>#672</b>, <b>#673</b> and <b>#674</b>.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@Kravenprime</h3>
+            <p>Asked for deck names on the roster, <b>#658</b>, and a 7 that reads as a 7, <b>#660</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@AlecHolland1582</h3>
+            <p>Reported the Power Stone, <b>#678</b>, and the Market that lost a cart, <b>#679</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@andy-xxvii27</h3>
+            <p>Reported Machine Man stuck on an empty hand, <b>#654</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@Darksolice</h3>
+            <p>Reported the confusing Psychic Misdirection defense, <b>#665</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@josemarcoshernando-spec</h3>
+            <p>Reported the Shawarma and Alias Investigations bugs, <b>#663</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@PermaKarma</h3>
+            <p>Suggested one trophy per Black Widow win, <b>#643</b>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.43.2</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.43.2">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">22</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">155</div>
+          <p>across the engine, the cards, the client and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">5,852</div>
+          <p>the fixes, their tests, the translation layer and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">205</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v0.44.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.44.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
