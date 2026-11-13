@@ -18,7 +18,7 @@
  */
 import Phaser from "phaser";
 import { customCardPrefix, type AnyCard, type CardId, type PackIndex } from "@mc/content";
-import { accent, hit, ink, surface, typeRole } from "../tokens.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { CAMPAIGN_TOP_BAR, bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -96,7 +96,12 @@ import { CLIENT_VERSION } from "../version.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { modNoticeSeen } from "../platform/mod-notice-seen.js";
-import { modNoticeControlLabelOf, showNoticeBeforeInstall, showNoticeOnOpen } from "../view/mod-notice.js";
+import {
+  MOD_STORE_BETA_CAPTION,
+  modNoticeControlLabelOf,
+  showNoticeBeforeInstall,
+  showNoticeOnOpen,
+} from "../view/mod-notice.js";
 import type { ModNoticeData } from "./mod-notice.js";
 
 export interface ModStoreSceneData {
@@ -470,6 +475,8 @@ export class ModStoreScene extends Phaser.Scene {
       onBack: () => this.#back(),
       hints: this.#hints,
       title: "Mod Store",
+      // Quin, 2026-11-13: the store and community packs are new; say so on every store screen.
+      badge: "Beta",
       ...(this.#installed.size > 0 ? { right: `${this.#installed.size} installed` } : {}),
       rightInset: aboutWidth + 12,
       reserveRight: aboutWidth + 12,
@@ -499,13 +506,59 @@ export class ModStoreScene extends Phaser.Scene {
 
   // ---- Browse ---------------------------------------------------------------------------------------------------
 
+  /**
+   * The beta caption above the store's tabs: a comic narration box (caution yellow, ink border, a hard offset shadow,
+   * square corners and no tail, so it never reads as a speech bubble). Returns the y below it, shadow included.
+   */
+  #drawBetaCaption(at: { x: number; y: number; width: number }, phone: boolean): number {
+    const pad = phone ? 8 : 12;
+    const shadow = 4;
+    const boxWidth = at.width - shadow;
+    const heading = this.add
+      .text(
+        at.x + pad,
+        at.y + pad,
+        MOD_STORE_BETA_CAPTION.heading.toUpperCase(),
+        textStyle(bangers(phone ? 16 : 20), surface.ink.hex),
+      )
+      .setOrigin(0, 0)
+      .setLetterSpacing(1)
+      .setDepth(2);
+    const bodyX = at.x + pad + heading.width + (phone ? 12 : 20);
+    const body = this.add
+      .text(bodyX, at.y + pad, phone ? MOD_STORE_BETA_CAPTION.phoneBody : MOD_STORE_BETA_CAPTION.body, {
+        ...textStyle(typeRole.body, surface.ink.hex),
+        wordWrap: { width: at.x + boxWidth - pad - bodyX, useAdvancedWrap: true },
+      })
+      .setOrigin(0, 0)
+      .setDepth(2);
+    if (phone) body.setFontSize(12);
+    const boxHeight = Math.max(heading.height, body.height) + pad * 2;
+    this.add
+      .rectangle(at.x + shadow, at.y + shadow, boxWidth, boxHeight, surface.ink.hex)
+      .setOrigin(0, 0)
+      .setDepth(1);
+    this.add
+      .rectangle(at.x, at.y, boxWidth, boxHeight, signal.caution.hex)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.ink.hex)
+      .setDepth(1);
+    // A thin ink rule sets the heading apart from the text, like a caption's lead-in.
+    this.add
+      .rectangle(bodyX - (phone ? 6 : 10), at.y + pad, 2, boxHeight - pad * 2, surface.ink.hex)
+      .setOrigin(0, 0)
+      .setDepth(2);
+    return at.y + boxHeight + shadow;
+  }
+
   #drawBrowse(
     frame: { width: number; height: number; phone: boolean; gutter: number; top: number },
     stops: Map<string, FocusStop>,
     order: string[],
   ): void {
     const { width, height, phone, gutter, top } = frame;
-    const tabRect: Rect = { x: gutter, y: top + 12, width: width - gutter * 2, height: TAB_HEIGHT };
+    const captionBottom = this.#drawBetaCaption({ x: gutter, y: top + 12, width: width - gutter * 2 }, phone);
+    const tabRect: Rect = { x: gutter, y: captionBottom + 12, width: width - gutter * 2, height: TAB_HEIGHT };
     this.#tabs = new McTabs(this, {
       rect: tabRect,
       tabs: MOD_STORE_TABS.map((tab) => ({ id: tab.id, label: tab.label })),

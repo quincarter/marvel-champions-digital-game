@@ -297,7 +297,7 @@ export class ExtrasScene extends Phaser.Scene {
       }),
       new McButton(this, {
         kind: "secondary",
-        label: phone ? "Mods ▸" : "Mod Store ▸",
+        label: phone ? "Mods (Beta) ▸" : "Mod Store (Beta) ▸",
         type: typeRole.label,
         rect: storeRect,
         onClick: openStore,
