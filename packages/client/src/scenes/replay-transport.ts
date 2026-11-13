@@ -30,6 +30,7 @@ import { skin, textStyle, type WidgetKind } from "../ui/theme.js";
 import { padButtonGlyph } from "../view/input-glyph-model.js";
 import { detectPlatform } from "../platform/platform.js";
 import { replayLinkOf, uploadReplay, type ReplayLinkFailure } from "../replay/replay-link.js";
+import { REPLAY_BANNER_HEIGHT } from "../view/layout.js";
 import { readBarOnTop, writeBarOnTop } from "../view/replay-bar-pref.js";
 import type { Rect } from "../view/layout.js";
 import {
@@ -260,6 +261,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   #tip: Phaser.GameObjects.GameObject[] = [];
   /** The replay is being uploaded for a link. */
   #sharing = false;
+  /** The link of this replay once it has been uploaded: Share never uploads twice. */
+  #sharedUrl: string | null = null;
 
   constructor() {
     super(SCENES.replayTransport);
@@ -276,6 +279,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#barOnTop = readBarOnTop();
     this.#tip = [];
     this.#sharing = false;
+    this.#sharedUrl = null;
     this.#auto = STOPPED;
     this.#speed = 1;
     this.#busy = 0;
@@ -423,10 +427,10 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #say(text: string): void {
+  #say(text: string, ms = 4000): void {
     this.#flash = text;
     this.#draw();
-    this.time.delayedCall(4000, () => {
+    this.time.delayedCall(ms, () => {
       if (this.#flash !== text) return;
       this.#flash = null;
       this.#draw();
@@ -513,6 +517,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   /** The failure wording of a share that did not make a link. */
   #failureText(failure: ReplayLinkFailure): string {
     switch (failure) {
+      case "full":
+        return t("replay.link.full");
       case "rate-limited":
         return t("replay.link.rateLimited");
       case "too-large":
@@ -531,8 +537,14 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   async #share(): Promise<void> {
     const host = this.#host;
     if (!host || this.#sharing) return;
+    // A second press only hands the cached link out again (the first may have been refused after the upload).
+    if (this.#sharedUrl) {
+      await this.#deliverLink(this.#sharedUrl);
+      return;
+    }
     this.#sharing = true;
     this.#draw();
+    let url: string | null = null;
     try {
       const { bytes } = await host.exportFile();
       const uploaded = await uploadReplay(bytes);
@@ -540,25 +552,39 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         this.#say(this.#failureText(uploaded.failure));
         return;
       }
-      const url = replayLinkOf(uploaded.value, detectPlatform() !== "web");
-      if (typeof navigator.share === "function") {
-        try {
-          await navigator.share({ url, title: t("replay.title") });
-          return;
-        } catch (cause) {
-          if (isAbort(cause)) return;
-          // A share the browser refused (the press is too old by now) falls back to copying.
-        }
-      }
-      await navigator.clipboard.writeText(url);
-      this.#say(t("replay.link.copied"));
+      url = replayLinkOf(uploaded.value, detectPlatform() !== "web");
+      this.#sharedUrl = url;
     } catch (cause) {
       if (isAbort(cause) || !this.#alive) return;
       console.warn("replay share failed", cause);
       this.#say(t("replay.link.offline"));
+      return;
     } finally {
       this.#sharing = false;
       if (this.#alive) this.#draw();
+    }
+    if (url && this.#alive) await this.#deliverLink(url);
+  }
+
+  /**
+   * Hands a link out: the share sheet where there is one (an AbortError is the player closing it), else the clipboard.
+   * A browser that refuses both (iOS, once the press is too old after the upload) is not a server failure: the link
+   * itself goes in the banner to read, and Share tries again with it.
+   */
+  async #deliverLink(url: string): Promise<void> {
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ url, title: t("replay.title") });
+        return;
+      } catch (cause) {
+        if (isAbort(cause)) return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      this.#say(t("replay.link.copied"));
+    } catch {
+      if (this.#alive) this.#say(`${t("replay.link.manual")} ${url}`, 30_000);
     }
   }
 
@@ -747,11 +773,17 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#tip = [];
     const titleBar = board?.replayTitleBar() ?? null;
     const onTop = titleBar !== null && this.#barOnTop;
+    // The board keeps room for a bar on top, so its tab rail and table start below it.
+    board?.setReplayBarTop(onTop);
     const bar = board?.replayBarRect(onTop) ?? null;
     this.#drawnKey = this.#placementKey(board);
     if (!host || !state || !bar) return;
     const { info } = state;
-    const layout = transportLayout(bar, { titleBar, onTop });
+    const layout = transportLayout(bar, {
+      titleBar,
+      onTop,
+      ...(onTop ? { bannerHeight: REPLAY_BANNER_HEIGHT } : {}),
+    });
     this.#layout = layout;
     this.#track = layout.track;
 
@@ -765,7 +797,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     if (layout.titleCover) {
       const cover = layout.titleCover;
       ground.fillStyle(surface.ink.hex, 1).fillRect(cover.x, cover.y, cover.width, cover.height);
+      this.#swallow(cover);
     }
+    // A bar on top keeps the room under it for its banner (the layout reserves it): ink there too.
+    const whole: Rect = onTop ? { ...bar, height: bar.height + layout.banner.height } : bar;
+    if (onTop) ground.fillStyle(surface.ink.hex, 1).fillRect(whole.x, whole.y, whole.width, whole.height);
+    // Nothing under the bar is tapped through its ink, its gaps or its banner.
+    this.#swallow(whole);
 
     this.#drawBanner(layout, info, onTop);
     this.#drawSeek(layout, state);
@@ -896,6 +934,11 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#tip = [box, label];
   }
 
+  /** A zone over `rect` that takes every press, so the table under it gets none. */
+  #swallow(rect: Rect): void {
+    this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+  }
+
   #drawBanner(layout: TransportLayout, info: ReplayPositionState["info"], onTop: boolean): void {
     const banner = bannerOf(info);
     const message = this.#flash
@@ -916,21 +959,21 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const rect = layout.banner;
     // Two lines on a narrow screen, so the strip is as tall as it needs to be, growing upward from the bar.
     const wide = rect.width >= 640;
-    const height = wide ? rect.height : rect.height * 2 - 2;
+    const base = onTop ? rect.height : wide ? rect.height : rect.height * 2 - 2;
+    const label = this.add
+      .text(rect.x + 8, 0, message, textStyle({ ...typeRole.rowTitle, size: 12 }, surface.inkOnHue.hex))
+      .setOrigin(0, 0.5)
+      .setWordWrapWidth(rect.width - 16, true);
+    // The link's own message runs to three lines on a phone; the strip grows to hold whatever it says.
+    if (wide && !this.#flash) fitTight(label, rect.width - 16, 12);
+    const height = Math.max(base, Math.ceil(label.height) + 8);
     const strip: Rect = { x: rect.x, y: onTop ? rect.y : rect.y + rect.height - height, width: rect.width, height };
     const g = this.add.graphics();
     g.fillStyle(0xf2b01e, 1).fillRect(strip.x, strip.y, strip.width, strip.height);
-    const label = this.add
-      .text(
-        strip.x + 8,
-        strip.y + strip.height / 2,
-        message,
-        textStyle({ ...typeRole.rowTitle, size: 12 }, surface.inkOnHue.hex),
-      )
-      .setOrigin(0, 0.5)
-      .setWordWrapWidth(strip.width - 16);
-    if (!wide) label.setMaxLines(2);
-    else fitTight(label, strip.width - 16, 12);
+    // The strip's ground goes under its words, which were made first only to measure them.
+    this.children.moveTo(g, this.children.getIndex(label));
+    label.setY(strip.y + strip.height / 2);
+    this.#swallow(strip);
   }
 
   #drawSeek(layout: TransportLayout, state: ReplayPositionState): void {

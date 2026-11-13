@@ -60,4 +60,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "replay.link.gone": "Ese enlace de repetición ha caducado o no existe.",
   "replay.link.offline": "No se pudo conectar con el servicio de repeticiones. Inténtalo más tarde.",
   "extras.trophies": "Trofeos ▸",
+  "replay.link.manual": "No se pudo copiar; este es el enlace:",
+  "replay.link.full": "Las repeticiones compartidas de hoy se han agotado. Inténtalo mañana o exporta el archivo.",
+  "replay.link.invalid": "Ese enlace de repetición no es válido.",
+  "replay.link.loading": "Cargando la repetición compartida…",
 };

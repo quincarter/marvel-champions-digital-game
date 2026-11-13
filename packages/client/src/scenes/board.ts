@@ -65,6 +65,8 @@ import { eventOnce } from "../view/event-once.js";
 import {
   CHROME_TICKER_ROW,
   PHONE_RAIL_TABS,
+  REPLAY_BAR_HEIGHT,
+  REPLAY_BAR_TOP_RESERVE,
   boardLayout,
   formFactorFor,
   isTabbed,
@@ -438,6 +440,7 @@ export class BoardScene extends Phaser.Scene {
 
   /** The replay being watched (#693), or null for a game: the table is then read-only and the transport runs over it. */
   #replay: ReplayHost | null = null;
+  #replayBarTop = false;
 
   constructor() {
     super(SCENES.board);
@@ -447,9 +450,24 @@ export class BoardScene extends Phaser.Scene {
   replayBarRect(onTop = false): Rect | null {
     const zones = this.#layout?.zones;
     if (!zones?.actionBar) return null;
-    // On top (a phone's choice) it sits under the title bar, over the tab rail, and the action bar zone stays empty.
-    if (onTop && zones.chrome) return { ...zones.actionBar, y: zones.chrome.y + zones.chrome.height };
+    // On top (a phone's choice) it sits under the title bar, in the room the layout keeps for it (`setReplayBarTop`).
+    if (onTop && zones.chrome) {
+      return {
+        x: zones.chrome.x,
+        y: zones.chrome.y + zones.chrome.height,
+        width: zones.chrome.width,
+        height: REPLAY_BAR_HEIGHT,
+      };
+    }
     return zones.actionBar;
+  }
+
+  /** A phone's replay bar is on top: the tab rail and the table under it start below the bar and its banner. */
+  setReplayBarTop(top: boolean): void {
+    const on = top && this.#replay !== null;
+    if (this.#replayBarTop === on) return;
+    this.#replayBarTop = on;
+    this.#draw();
   }
 
   /** A phone's title bar row, where the replay's play and step buttons go; null on any other layout. */
@@ -507,6 +525,7 @@ export class BoardScene extends Phaser.Scene {
   create(): void {
     holdGameArt(this);
     this.#replay = activeReplay();
+    this.#replayBarTop = false;
     // A scene is reused from game to game: each game shows its own first "not offered" notices.
     this.#unofferedShown = new Set();
     this.#hints = new GlyphHints(this, () => [
@@ -1526,6 +1545,7 @@ export class BoardScene extends Phaser.Scene {
         : {}),
       ...(cardScale > 1 ? { cardScale } : {}),
       ...(this.#reviewHandleShown() ? { reviewHandle: REVIEW_HANDLE_WIDTH } : {}),
+      ...(this.#replayBarTop ? { replayBar: REPLAY_BAR_TOP_RESERVE } : {}),
     });
     const layout = scrollLayout(atRest, this.#tableScroll);
     this.#tableScroll = layout.scrollY;

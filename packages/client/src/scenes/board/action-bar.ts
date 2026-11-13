@@ -45,6 +45,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
 
   // A replay is watched, not played: the transport (`scenes/replay-transport.ts`) takes this zone over.
   if (ctx.replay) {
+    if (rect.height <= 0) return;
     scene.add
       .text(
         rect.x + 10,

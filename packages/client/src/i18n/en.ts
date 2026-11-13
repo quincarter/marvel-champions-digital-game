@@ -58,4 +58,8 @@ export const en = {
   "replay.link.gone": "That replay link has expired or doesn't exist.",
   "replay.link.offline": "Couldn't reach the replay service. Try again later.",
   "extras.trophies": "Trophies ▸",
+  "replay.link.manual": "Copy didn't work, here's the link:",
+  "replay.link.full": "Today's shared replays are used up. Try again tomorrow, or export the file.",
+  "replay.link.invalid": "That replay link isn't valid.",
+  "replay.link.loading": "Loading the shared replay…",
 } as const;

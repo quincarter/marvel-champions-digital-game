@@ -19,7 +19,8 @@ import { WEB_VERSION_URL } from "../view/language-button.js";
 export const REPLAY_LINK_TIMEOUT_MS = 20_000;
 
 /** Why a share or a fetch failed, for the screen to word. */
-export type ReplayLinkFailure = "unavailable" | "rate-limited" | "too-large" | "not-found";
+/** `full`: the service took as many shared replays as it takes in a day; tomorrow it takes more. */
+export type ReplayLinkFailure = "unavailable" | "rate-limited" | "too-large" | "not-found" | "full";
 
 export type ReplayLinkResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -46,6 +47,7 @@ async function failureOf(response: Response): Promise<ReplayLinkFailure> {
   if (response.status === 404 || reason === "not-found") return "not-found";
   if (response.status === 413 || reason === "too-large") return "too-large";
   if (response.status === 429 || reason === "rate-limited") return "rate-limited";
+  if (reason === "full") return "full";
   return "unavailable";
 }
 

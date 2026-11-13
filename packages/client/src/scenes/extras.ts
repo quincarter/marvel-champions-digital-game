@@ -299,7 +299,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
-        label: phone ? t("extras.trophies") : "Trophy Room ▸",
+        label: phone ? t("extras.trophies") : `${t("title.trophyRoom")} ▸`,
         type: typeRole.label,
         rect: trophyRect,
         onClick: openTrophies,
