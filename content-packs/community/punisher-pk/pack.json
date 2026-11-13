@@ -21,7 +21,7 @@
     "evidence": "Granted by the author(s) in the Marvel Champions homebrew channel on Discord; confirmed by the project owner (Quin Carter) on 2026-11-13. The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a0c9f6000293115a9ecd58da347468ec875d52bb/punisher_pk/mod.json",
     "scope": "inclusion and translation: the Spanish edition, hand-translated by BluefireF5ran, is covered (owner, 2026-11-13)",
     "languages": ["en", "es"],
-    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message. The pack stays a DRAFT until the author confirms the curators' rules and wording fixes (Rachel Cole-Alves is their proposal)."
+    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message. The author accepted all of the curators' changes on 2026-11-13, Rachel Cole-Alves included (curated repository a51e50d, mod.json `open`)."
   },
   "templateCredit": "Hitch",
   "translators": {

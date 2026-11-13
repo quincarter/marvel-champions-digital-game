@@ -8,9 +8,8 @@ PermaKarma, the author of The Punisher, gave permission for this pack to be dist
 - Via: BluefireF5ran's curated repository https://github.com/bluefireF5ran/mc-digital-custom-packs, at commit
   `a0c9f6000293115a9ecd58da347468ec875d52bb` (folder `punisher_pk`, `mod.json`: `permission`).
 
-**The permission covers the author's own cards, not the curators' changes.** The author has not yet confirmed the rules
-and wording fixes in this version (`mod.json` status `waiting_author`), and Rachel Cole-Alves is the curators' proposal.
-The pack stays a draft (`DRAFT`) until he has. The registry review asks for the evidence (a link or a quoted message) and
-a date; the source has neither, so both are still to be asked of BluefireF5ran.
+**The curators' changes are accepted.** The author accepted all of the rules and wording fixes in this version on
+2026-11-13, Rachel Cole-Alves included (curated repository commit `a51e50da556ece0b0fe9a75848320416b8794cef`,
+`punisher_pk/mod.json` `open`), so the pack is no longer a draft.
 
-**Store approval:** granted (`pack.json` `permission`). The author(s) granted it in the Marvel Champions homebrew channel on Discord; the project owner, Quin Carter, confirmed it on 2026-11-13. The pack is still a `DRAFT` until the author confirms the curators' fixes.
+**Store approval:** granted (`pack.json` `permission`). The author(s) granted it in the Marvel Champions homebrew channel on Discord; the project owner, Quin Carter, confirmed it on 2026-11-13.
