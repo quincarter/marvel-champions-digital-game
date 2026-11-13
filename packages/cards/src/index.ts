@@ -1,7 +1,11 @@
 export * from "./dsl/index.js";
 export { obligation } from "./core/obligations.js";
+export { builtinPackProblems, defineBuiltinPack } from "./builtin-packs/define.js";
+export type { BuiltinPack, BuiltinPackManifest } from "./builtin-packs/define.js";
+export { BUILTIN_PACKS } from "./builtin-packs/index.js";
 export {
   CORE_ABILITIES,
+  CORE_BUILTIN_PACK,
   CORE_DEPS,
   coreScenario,
   encounterCardsOf,
@@ -11,6 +15,7 @@ export {
 export type { CoreDifficulty, CorePlayer, CoreScenarioOptions } from "./core/index.js";
 export {
   WAVE1_ABILITIES,
+  WAVE1_BUILTIN_PACKS,
   WAVE1_DEPS,
   WAVE1_REPRINT_ABILITIES,
   wave1ReprintPairs,
