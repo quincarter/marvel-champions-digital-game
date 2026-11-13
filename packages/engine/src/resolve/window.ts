@@ -800,6 +800,17 @@ function windowEventCost(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCan
 
 const candidateKey = (candidate: TriggerCandidate): string => `${candidate.instanceId}:${candidate.abilityId}`;
 
+/**
+ * The player who determines and pays a triggered candidate's cost: its controller, or the first player for an ability
+ * with none (an encounter card's forced ability heard from an event no player is a subject of: "When Kang is attacked,
+ * discard Temporal Shield →", `toafk` 11014, when an enemy attacks Kang: `enemyAttacksEnemy`, `patternHearsKind`). RRG
+ * 1.8 "First Player" (p. 19): "If an encounter card requires a card ability to be resolved … but does not specify which
+ * player should act, the first player does so." That a playerless event's forced ability is one the encounter card
+ * requires resolved is the engine's reading (authority step 5); no ruling covers it.
+ */
+const costPayerOf = (ctx: Ctx, candidate: TriggerCandidate): PlayerId =>
+  candidate.controllerId ?? ctx.state.firstPlayerId;
+
 /** The cards in play the player has picked for this candidate's cost so far (`Frame<"window">.costPicks`). */
 function costChoicesFor(frame: Frame<"window">, candidate: TriggerCandidate): CostChoices {
   return frame.costPicks?.key === candidateKey(candidate) ? frame.costPicks.choices : {};
@@ -840,9 +851,9 @@ function askCostCounters(
   candidate: TriggerCandidate,
   rest: readonly TriggerCandidate[],
 ): boolean {
-  const controller = candidate.controllerId;
+  const controller = costPayerOf(ctx, candidate);
   const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
-  if (!controller || !cost) return false;
+  if (!cost) return false;
   if (costSelectionFor(frame, candidate).counters !== undefined) return false;
   const choices = costChoicesFor(frame, candidate);
   const choice = upToCounterChoice(ctx.state, ctx.deps, candidate.instanceId, controller, cost, choices);
@@ -904,9 +915,9 @@ function askCostPick(
   candidate: TriggerCandidate,
   rest: readonly TriggerCandidate[],
 ): boolean {
-  const controller = candidate.controllerId;
+  const controller = costPayerOf(ctx, candidate);
   const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
-  if (!controller || !cost) return false;
+  if (!cost) return false;
   const choices = costChoicesFor(frame, candidate);
   const taken = new Set(Object.values(choices).flat());
   for (const { mode, pick } of inPlayPicksOf(cost)) {
@@ -968,8 +979,7 @@ function askHandDiscard(
   candidate: TriggerCandidate,
   rest: readonly TriggerCandidate[],
 ): boolean {
-  const controller = candidate.controllerId;
-  if (!controller) return false;
+  const controller = costPayerOf(ctx, candidate);
   // A "change form →" cost's hand discard may be an additional cost to change form (`change-form-cost.ts`).
   const written = ctx.deps.abilities[candidate.abilityId]?.cost;
   const cost = costWithChangeForm(ctx.state, ctx.deps, candidate.instanceId, controller, written);
@@ -1034,10 +1044,9 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
   const candidate = frame.paying;
   const { costPicks: _dropped, ...cleared } = { ...frame, answer: null, awaiting: null, paying: null };
   const written = candidate ? ctx.deps.abilities[candidate.abilityId]?.cost : undefined;
-  const cost =
-    candidate?.controllerId != null
-      ? costWithChangeForm(ctx.state, ctx.deps, candidate.instanceId, candidate.controllerId, written)
-      : written;
+  const cost = candidate
+    ? costWithChangeForm(ctx.state, ctx.deps, candidate.instanceId, costPayerOf(ctx, candidate), written)
+    : written;
   // A pick of cards in play, or the hand-discard cost's (`askHandDiscard`), which needs at least one card.
   const pick =
     inPlayPicksOf(cost).find((entry) => entry.pick.slot === slot)?.pick ??
@@ -1086,13 +1095,11 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId)]);
     return;
   }
-  // A forced ability on an encounter card heard from an event no player is a subject of ("When Kang is attacked,
-  // discard Temporal Shield →", `toafk` 11014, when an enemy attacks Kang: `enemyAttacksEnemy`, `patternHearsKind`) still
-  // pays its cost before its effects resolve (RRG 1.8 "Cost", p. 13). With no player to resolve it, the first player
-  // pays a cost that takes no resources (a self-discard), as the window's other playerless decisions fall to them
-  // (RRG 1.8 "First Player", p. 19); one that takes resources nobody is resolving it to pay, so it is not resolved.
-  // Engine reading (authority step 5), no ruling covers it.
-  const payer = controller ?? ctx.state.firstPlayerId;
+  // A forced ability with no controller still pays its cost before its effects resolve (RRG 1.8 "Cost", p. 13); the
+  // first player determines and pays all of it, resources included (`costPayerOf`, RRG 1.8 "First Player", p. 19).
+  // The ability frame keeps the candidate's null controller: the first player acts for the encounter card, which does
+  // not make the ability theirs ("you" in its effects, its limit, its log entry stay the encounter card's).
+  const payer = costPayerOf(ctx, candidate);
   const plan = planCost(
     ctx.state,
     ctx.deps,
@@ -1112,12 +1119,11 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   // prompt carries its range, and `resolveChoice` refuses a selection below it (above it, the rest is overpaid).
   const chosenSize = resourcesChoiceOf(plan.cost ?? definition.cost);
   if (needed > 0 || definition.cost.resourcesX !== undefined || chosenSize) {
-    if (!controller) return;
     const payingFor = plan.payingFor ?? candidate.instanceId;
-    const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, controller, null, payingFor));
+    const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, payer, null, payingFor));
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
     requestChoice(ctx, {
-      playerId: controller,
+      playerId: payer,
       prompt: {
         kind: "payForAbility",
         instanceId: candidate.instanceId,
@@ -1142,9 +1148,10 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   setFrame(ctx, { ...frame, answer: null, awaiting: null, paying: null });
   const selection = candidate ? costSelectionFor(frame, candidate) : {};
   spendCostCounters(ctx, frame);
-  const controller = candidate?.controllerId;
   const definition = candidate ? ctx.deps.abilities[candidate.abilityId] : undefined;
-  if (!candidate || !controller || !definition) return;
+  if (!candidate || !definition) return;
+  // The first player pays for an ability with no controller (`costPayerOf`); the ability frame keeps its null one.
+  const controller = costPayerOf(ctx, candidate);
   const on = answered(ctx, frame, candidate);
   const payment = paymentsFromOptionIds(answer);
   const plan = planCost(
