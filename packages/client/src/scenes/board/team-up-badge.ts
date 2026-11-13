@@ -59,8 +59,8 @@ const BAKED_SIZE = 128;
 
 /**
  * The closeup, cropped to a square (the whole picture centered, unless `art/team-up-art.ts#badgeFocusFor` says
- * otherwise for this pair) and downscaled by halves into its own small texture, once per picture and size. Returns
- * that texture's key.
+ * otherwise for this pair, or `square` when given) and downscaled by halves into its own small texture, once per
+ * picture, size and crop. Returns that texture's key.
  */
 export function bakedBadge(
   scene: Phaser.Scene,
@@ -68,11 +68,13 @@ export function bakedBadge(
   source: { width: number; height: number },
   bakedSize: number = BAKED_SIZE,
   disc = false,
+  square?: Rect,
 ): string {
-  const bakedKey = `${key}:badge:${bakedSize}${disc ? ":disc" : ""}`;
+  const cropTag = square ? `:${[square.x, square.y, square.width].map(Math.round).join(",")}` : "";
+  const bakedKey = `${key}:badge:${bakedSize}${disc ? ":disc" : ""}${cropTag}`;
   if (scene.textures.exists(bakedKey)) return bakedKey;
   const image = scene.textures.get(key).getSourceImage() as CanvasImageSource;
-  const crop = badgeCropRect(source, badgeFocusFor(key));
+  const crop = square ?? badgeCropRect(source, badgeFocusFor(key));
   const side = crop.width;
   let size = Math.round(side);
   let canvas = document.createElement("canvas");
