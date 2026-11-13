@@ -320,6 +320,39 @@ describe("Hammer Throw", () => {
     expect(hostOf(run.state, armed.id)).toBeNull();
   });
 
+  it("ignores guard: with a guard minion engaged, it hits the villain past it", () => {
+    let state = emptyHand(open());
+    const hammer = toHand(state, `${P}04`);
+    const paid = withResources(hammer.state, 2);
+    const armed = intoPlay(paid.state, "02");
+    // A Hydra Mercenary (Core 01101, guard) engaged with Throg: a deep encounter card relabeled and moved (surgery).
+    const piles = activeEncounterDeck(armed.state);
+    const deckId = Object.keys(armed.state.encounterDecks).find((id) => armed.state.encounterDecks[id] === piles)!;
+    const guard = piles.deck[8]!;
+    state = {
+      ...armed.state,
+      encounterDecks: {
+        ...armed.state.encounterDecks,
+        [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== guard) },
+      },
+      players: armed.state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, guard] } : p)),
+    };
+    state = patch(state, guard, { cardId: "01101" as never, faceup: true, engagedWith: P1, controllerId: null });
+    const before = damageOf(state, villainOf(state));
+    let offered: readonly string[] = [];
+    const pick = (s: GameState): readonly string[] => {
+      const c = s.pendingChoice!;
+      if (c.prompt.kind === "chooseTarget" && offered.length === 0) offered = c.options.map((o) => o.label);
+      return takes(/Rhino/)(s);
+    };
+    const run = drive(state, play(hammer.id, paid.ids), pick);
+    expect(offered, "the villain is offered past the guard minion").toEqual(
+      expect.arrayContaining([expect.stringMatching(/Rhino/), expect.stringMatching(/Hydra Mercenary/)]),
+    );
+    expect(damageOf(run.state, villainOf(run.state)) - before, "4 damage to Rhino").toBe(4);
+    expect(damageOf(run.state, guard), "the guard minion untouched").toBe(0);
+  });
+
   it("cannot be played without a Frogjolnir to exhaust", () => {
     const state = emptyHand(open());
     const hammer = toHand(state, `${P}04`);

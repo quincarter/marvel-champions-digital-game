@@ -6,5 +6,3 @@ Why:
   Thanos is not in play, attach to the villain."), Thanos and An Unexpected Guest "find the Power Stone and put it into
   play", the obligation discarding from your hand, Hammer Throw's "ignores" covering the thwart, and Thor's subtitle
   ODINSON. The owner decides when to remove this file (as The Punisher's was removed once its author accepted).
-- One ability waits for an engine primitive (README.md, "Engine primitives still needed"; a marked `TODO(engine)` in
-  abilities/index.ts): Hammer Throw's "This attack ignores guard".

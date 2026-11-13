@@ -267,6 +267,11 @@ export const useThwInsteadOfAtk = (): EffectSpec => ({ kind: "modifyBasicPower",
  * `attackUsedAtk()` reads (Cap's Shield). Set for you when the amount reads the attacker's ATK: `attack(statOf(
  * yourIdentity, "atk"), …)` and `attack(sum(statOf(yourIdentity, "atk"), 2), …)` are marked, `attack(4, …)` is not.
  * Pass `usesAtk: true` or `false` only when the card's wording says otherwise.
+ *
+ * `ignores: ["guard"]`: "This attack ignores guard" (Hammer Throw, community pack `throg-ptt`), the attack's own
+ * waiver, as `thwart`'s `ignorePatrol` is the thwart's. It covers the whole attack, so pair it with `anAttackableEnemy`
+ * as usual: the choice offers the villain past a guard minion too (RRG 1.8 "Ignore", p. 23; "Guard", p. 21). A
+ * standing "[character] ignores the guard keyword" is `ignores(...)` (`characterIgnores`) instead.
  */
 export const attack = (
   n: Amount,
@@ -278,6 +283,7 @@ export const attack = (
     readonly bind?: string;
     readonly keywords?: readonly AttackKeyword[];
     readonly usesAtk?: boolean;
+    readonly ignores?: readonly "guard"[];
   } = {},
 ): EffectSpec => ({
   kind: "attack",
@@ -288,6 +294,7 @@ export const attack = (
   ...(opts.attacker ? { attacker: opts.attacker } : {}),
   ...(opts.moveDamageFrom ? { moveDamageFrom: opts.moveDamageFrom } : {}),
   ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
+  ...(opts.ignores && opts.ignores.length > 0 ? { ignores: opts.ignores } : {}),
   ...withBind(opts.bind),
 });
 /**

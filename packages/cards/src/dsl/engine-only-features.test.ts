@@ -27,6 +27,7 @@ import {
   VILLAIN_OR_VILLAINOUS,
 } from "./abilities.js";
 import {
+  attack,
   cancelBoostedActivation,
   blankTextBoxForPlayers,
   blankTextBoxUntil,
@@ -49,6 +50,7 @@ import {
 import { ENGINE_ONLY_DSL_EXAMPLES, engineOnlyDslProblems } from "./engine-only-features.js";
 import { validateDefinition } from "./validate.js";
 import {
+  chosen,
   each,
   hasTaggedAbility,
   lastPlayedThisRound,
@@ -300,6 +302,21 @@ describe("engine-only DSL primitives", () => {
     });
   });
 
+  it("attack(..., { ignores: ['guard'] }) is the attack's own guard waiver; absent or empty, nothing is written", () => {
+    expect(attack(4, chosen("enemy"), { ignores: ["guard"] })).toEqual({
+      kind: "attack",
+      target: { kind: "slot", slot: "enemy" },
+      amount: { kind: "const", value: 4 },
+      ignores: ["guard"],
+    });
+    expect(attack(4, chosen("enemy"), { ignores: [] })).not.toHaveProperty("ignores");
+    expect(attack(4, chosen("enemy"))).not.toHaveProperty("ignores");
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.attack-ignores-guard"]).toMatchObject({
+      label: ["attack"],
+      effects: [{ kind: "chooseTarget" }, { kind: "attack", ignores: ["guard"] }],
+    });
+  });
+
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
@@ -307,6 +324,7 @@ describe("engine-only DSL primitives", () => {
       "engine-only.activation-boost-card",
       "engine-only.agile",
       "engine-only.attached-only-in-play",
+      "engine-only.attack-ignores-guard",
       "engine-only.attacked-by-enemy-extra-boost",
       "engine-only.basic-power-boost",
       "engine-only.boost-cancels-activation",

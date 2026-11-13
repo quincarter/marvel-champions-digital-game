@@ -44,17 +44,12 @@ thwart ("this thwart ignores crisis and patrol"); Thor's subtitle is ODINSON.
 
 **Fully scripted:** Throg's Asgard trait and Toad-ally Unexpected!, Worthy, Frogjolnir, Frog of Thunder, Frogbolt (X cost,
 piercing with Aerial), Telepathic Link, Defender of the Nine Puddles, Amphibious Agility, Thor, Between Two Worlds,
-Thanos, An Unexpected Guest, Power Stone (attach, hand-off after a 3-damage attack, hero action) and Inevitable Power.
+Thanos, An Unexpected Guest, Power Stone (attach, hand-off after a 3-damage attack, hero action), Inevitable Power and
+Hammer Throw: its attack ignores guard for the whole attack (`attack(4, chosen("enemy"), { ignores: ["guard"] })`, so
+the villain can be chosen past a guard minion; RRG 1.8 "Ignore", p. 23, "Guard", p. 21) and its thwart ignores crisis and
+patrol.
 
-**Engine primitives still needed** (each a marked `TODO(engine)` in `abilities/index.ts`):
-
-1. **Hammer Throw, "This attack ignores guard."** No per-attack guard ignore exists. Shape: `attack(n, target, { ignores:
-   ["guard"] })` (the sibling of `thwart.ignorePatrol`; `BasicPowerTerms.ignores` says "not built for guard"), or
-   `applyRuleUntil(characterIgnores guard, "endOfAttack")` usable for a player attack from an event (today `"current"`
-   needs an attack already in progress and `attack: "initiated"` is for `enemyAttack`). Timing: the whole attack, from the
-   choice of the enemy (`anAttackableEnemy` reads `canAttack`) to its end. Source: the card text, RRG 1.8 "Ignore"
-   (p. 23) and "Guard" (p. 21). Until then the attack respects guard: with a guard minion engaged it can only choose
-   that minion. The thwart half (crisis and patrol) is exact.
+**Engine primitives still needed:** none.
 
 ## Rules readings made
 

@@ -10,6 +10,7 @@ import {
   cannotHaveStatus,
   constant,
   costModifier,
+  heroAction,
   discardThis,
   response,
   doubleStat,
@@ -25,7 +26,9 @@ import {
   upgradesCannotBeRemoved,
 } from "./abilities.js";
 import {
+  anAttackableEnemy,
   applyRuleUntil,
+  attack,
   blankTextBoxForPlayers,
   cancelBoostedActivation,
   cancelIt,
@@ -216,6 +219,13 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   "engine-only.attacked-by-enemy-extra-boost": forcedInterrupt(
     on.thisIsAttacked({ by: query("villain") }),
     modifyAttack({ extraBoostCards: 1 }),
+  ),
+  // "Deal 4 damage to an enemy. This attack ignores guard." (Hammer Throw, `throg-ptt`): the attack's own guard waiver
+  // (`EffectSpec attack.ignores`).
+  "engine-only.attack-ignores-guard": heroAction(
+    { label: ["attack"] },
+    anAttackableEnemy("enemy"),
+    attack(4, chosen("enemy"), { ignores: ["guard"] }),
   ),
 };
 

@@ -259,6 +259,12 @@ export interface EffectContext {
    */
   readonly attackLabeled?: boolean;
   /**
+   * The ability's attack ignores guard (`EffectSpec attack.ignores`, `attackIgnoringOf`): every guard check read in
+   * this context waives guard (`canAttack`'s `ignoreGuard`), so its enemy may be chosen past a guard minion. Set by
+   * `contextOf` and by `abilityLacksValidTarget`.
+   */
+  readonly attackIgnoresGuard?: true;
+  /**
    * What this context may match inside a closed in-play scenario area (`closedScenarioPlayArea`,
    * docs/phase7-wave8.md §3.33): the area its ability declares (`AbilityDefinition.reaches`, `reachOf`), or `"all"`
    * for a read. A condition, a count and an event pattern are reads (§4.1 Q18 = A: "counting or watching them does
@@ -304,6 +310,35 @@ export const reachOf = (
   definition: AbilityDefinition | undefined,
 ): { readonly reaches?: { readonly scenarioPlayArea: string } } =>
   definition?.reaches ? { reaches: definition.reaches } : {};
+
+const IGNORES_GUARD = new WeakMap<AbilityDefinition, boolean>();
+
+/** Whether `value` holds an `attack` instruction marked "this attack ignores guard", anywhere inside it. */
+function holdsGuardIgnoringAttack(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(holdsGuardIgnoringAttack);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "attack" && Array.isArray(record.ignores) && record.ignores.includes("guard")) return true;
+  return Object.values(record).some(holdsGuardIgnoringAttack);
+}
+
+/**
+ * "This attack ignores guard" (`EffectSpec attack.ignores`) as a context field: spread into the context an ability's
+ * queries are read in, so the waiver covers the whole attack, from the choice of its enemy on (RRG 1.8 "Ignore", p. 23;
+ * "Guard", p. 21). It is the ability's: an "(attack)" ability is one attack (RRG 1.8 "Attack (Player Ability Type)",
+ * p. 10), so its other damage instructions are that attack and ignore guard with it. An unlabeled ability with an
+ * `attack` instruction marked so reads every attack it makes with the waiver too (interpretation: no card mixes an
+ * attack that ignores guard with one that does not in the same ability).
+ */
+export const attackIgnoringOf = (definition: AbilityDefinition | undefined): { readonly attackIgnoresGuard?: true } => {
+  if (definition === undefined) return {};
+  let ignores = IGNORES_GUARD.get(definition);
+  if (ignores === undefined) {
+    ignores = holdsGuardIgnoringAttack(definition.effects);
+    IGNORES_GUARD.set(definition, ignores);
+  }
+  return ignores ? { attackIgnoresGuard: true } : {};
+};
 
 /**
  * MC45 p. 5: "Cards in the mission area are in play but under no player's control. They cannot be affected by card
@@ -1700,7 +1735,8 @@ export function explainQuery(
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
-    if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
+    if (!attacker || !canAttack(state, attacker, id, context.deps, false, context.attackIgnoresGuard === true))
+      return "cannotBeAttacked";
   }
   if (query.canTakeAttackInProgress === "player") {
     const attack = playerAttackInProgress(state.stack);
@@ -2429,6 +2465,8 @@ export function canAttack(
   deps: EngineDeps = DEFAULT_DEPS,
   /** The attack is the attacker's basic attack, so a `cannotAttack` rule with `basicOnly` binds it (§3.72). */
   basic = false,
+  /** "This attack ignores guard" (`EffectSpec attack.ignores`): guard does not stop it; everything else still does. */
+  ignoreGuard = false,
 ): boolean {
   const controller = controllerOf(state, attackerId);
   // An attack by an enemy is nobody's attack: neither guard nor a player-scoped `cannotAttack` (an `attacker`-scoped
@@ -2439,7 +2477,7 @@ export function canAttack(
   // the attacker's controller cannot pay for is one they cannot attack (RRG 1.8 "Cost", p. 14).
   if (attackCostBars(state, deps, attackerId, targetId)) return false;
   if (!isVillain(state, targetId)) return true;
-  if (hasKeyword(state, targetId, "guard", deps)) return true;
+  if (ignoreGuard || hasKeyword(state, targetId, "guard", deps)) return true;
   if (characterIgnores(state, deps, attackerId, "guard")) return true;
   return !guardEngagedWith(state, controller, deps);
 }

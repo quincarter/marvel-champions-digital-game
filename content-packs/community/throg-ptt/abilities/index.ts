@@ -9,8 +9,7 @@
  *
  * Ability ids are `<card code>.<slug>`, as the importer wrote them.
  *
- * Every ability is scripted. One is an APPROXIMATION waiting for an engine primitive, marked `TODO(engine)`:
- *   1. Hammer Throw, "This attack ignores guard": no per-attack guard ignore exists (see the stub's comment).
+ * Every ability is scripted, none as an approximation.
  */
 import {
   after,
@@ -157,20 +156,13 @@ export default definePackAbilities({
   // "Hero Action (attack/thwart): Exhaust Frogjolnir -> deal 4 damage to an enemy, remove 4 threat from a scheme, and
   // return Frogjolnir to your hand. This attack ignores guard, and this thwart ignores crisis and patrol." Thor's
   // Hammer Throw (06005): the exhaust is a cost on a Frogjolnir you control, bound as `exhausted` and returned to
-  // hand. The thwart ignores crisis and patrol natively (`thwart.ignoreCrisis` / `ignorePatrol`).
-  //
-  // TODO(engine): "This attack ignores guard." needs a one-use guard ignore for the player's own attack: either
-  // `attack(n, target, { ignores: ["guard"] })` (the sibling of `thwart.ignorePatrol`, and of `BasicPowerTerms.ignores`,
-  // which says "not built for guard") or `applyRuleUntil(characterIgnores guard, "endOfAttack", undefined, { attack:
-  // "initiated" })` for a player attack (today `attack: "initiated"` is for `enemyAttack` only, and "current" needs an
-  // attack already in progress, which is none when this effect runs). Timing: the attack's whole resolution, from the
-  // choice of the enemy (`anAttackableEnemy` reads `canAttack`) to its end. Source: the card text; RRG 1.8 "Ignore",
-  // p. 23, "Guard", p. 21. UNTIL THEN this attack respects guard (narrower than the text: with a guard minion engaged it
-  // may only choose the guard minion).
+  // hand. The attack ignores guard for the whole of it (`attack.ignores`), so `anAttackableEnemy` offers the villain
+  // past a guard minion; the thwart ignores crisis and patrol (`thwart.ignoreCrisis` / `ignorePatrol`). RRG 1.8
+  // "Ignore", p. 23; "Guard", p. 21.
   "x.throg-ptt.04.hammer-throw-constant": heroAction(
     { label: ["attack", "thwart"], cost: exhaustCardsCost(FROGJOLNIR) },
     anAttackableEnemy("enemy"),
-    attack(4, chosen("enemy")),
+    attack(4, chosen("enemy"), { ignores: ["guard"] }),
     aScheme("scheme"),
     thwart(4, chosen("scheme"), { ignoreCrisis: true, ignorePatrol: true }),
     moveCards(cards(chosen("exhausted")), "hand"),
