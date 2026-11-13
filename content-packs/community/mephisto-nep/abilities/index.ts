@@ -61,6 +61,7 @@ import {
   engage,
   eventPlayer,
   eventSource,
+  eventAmount,
   eventTarget,
   exhaustCardsCost,
   exists,
@@ -90,12 +91,12 @@ import {
   isAlterEgo,
   isHero,
   lookAtAndRearrange,
-  minDamageTaken,
   modifyAttack,
   modifyBasicPower,
   moveCards,
   named,
   not,
+  preventDamage,
   on,
   option,
   placeCountersCost,
@@ -214,7 +215,7 @@ const bargainDiscardResponse = () =>
  * The Corruptive Offers' printed "Response: Discard this card -> set-aside X[per_hero] cards from the top of your deck
  * facedown, where X is equal to the number of corrupt counters here." has no triggering condition on the card. Read as
  * the Bargain family's (the insert: "Bargain can be discarded at the start of your turn"): after your turn begins.
- * OPEN question for the author (recorded in the README). Set aside goes through `"setAside"`, which Gateway to
+ * Author ruling, 2026-11-13 (Neptune): "After your turn begins", no exhaust cost, as built. Set aside goes through `"setAside"`, which Gateway to
  * Corruption's rule turns into Damnation (facedown); outside that scenario they are set aside as printed. The discard is
  * the last effect, not a cost: a discarded card's counters are gone, and X reads them here.
  */
@@ -250,6 +251,7 @@ const hiddenClauseEachBargain = () =>
  * Corridors, Shadowland 65037, is the shape), the player activated against being the event's player. "No damage healed"
  * reads `healed.amount` as Rhino's Hard to Keep Down (01104).
  */
+// Author ruling, 2026-11-13 (Neptune): it catches EVERY activation against you, as printed (intended), as built.
 const devilsPacts = (n: number) =>
   forcedInterrupt(
     on.enemyActivating("self"),
@@ -278,6 +280,7 @@ export default definePackAbilities({
 
   // When Revealed (II): "Find and attach the Hell Lord attachment to Mephisto." The Hell Lord is set aside by the
   // scenario (`setAsideCardIds`), so it is found there. Read in every mode as printed (author's open question).
+  // Author ruling, 2026-11-13 (Neptune): Hell Lord arrives in every mode, as the card says (his insert is outdated).
   "x.mephisto-nep.01.when-revealed-ii": whenRevealed(
     selectCards("hellLord", encounterSetAside(query("attachment", { name: "Hell Lord" }))),
     attachCard(chosen("hellLord"), theVillain),
@@ -425,13 +428,25 @@ export default definePackAbilities({
   "x.mephisto-nep.09.response": bargainDiscardResponse(),
 
   "x.mephisto-nep.10.when-revealed": bargainWhenRevealed(),
-  // "Your identity cannot take damage less than its DEF from each attack. Double the DEF value of your identity." The
-  // floor raises any positive attack damage to the DEF; full prevention or a defense to 0 is not raised (the rules
-  // expert's verdict A, `RuleSpec minDamageTakenPerAttack`).
-  "x.mephisto-nep.10.slothful-endurance-constant": constant(
-    minDamageTaken({ hostOfSelf: true }, statOf({ kind: "slot", slot: "affected" }, "def")),
-    doubleStat("def", { hostOfSelf: true }),
+  // "Your identity cannot take damage less than its DEF from each attack. Double the DEF value of your identity."
+  // Author ruling, 2026-11-13 (Neptune): "attacks that would deal less than that DEF deal no damage (all prevented)".
+  // This replaces the engine's `minDamageTaken` floor (which raised such damage UP to the DEF, 1.0.x/1.1.0). Read as
+  // a forced interrupt to the attack's damage, before a tough status card (`wouldBeDealt`), over the amount about to
+  // be dealt: damage of at least the doubled DEF goes through as it is, any smaller (positive) damage is prevented in
+  // full. Damage that is not an attack's (a treachery's) is not touched.
+  // TODO(engine): the rule is a constant of the card in the printed text; as a trigger it reads the pending amount
+  // (before later damage modifiers), where a `RuleSpec` threshold (a `minDamageTaken` variant that prevents instead of
+  // raises, read after every modifier like the floor) would read the final amount. Say so to game-rules-architect if
+  // the two ever differ in play.
+  "x.mephisto-nep.10.slothful-endurance-forced-interrupt": forcedInterrupt(
+    on.damage({ hostOfSelf: true }, { fromAttack: true }),
+    { wouldBeDealt: true },
+    ifThen(
+      allOf(valueAtLeast(eventAmount, 1), not(valueAtLeast(eventAmount, statOf(eventTarget, "def")))),
+      preventDamage(),
+    ),
   ),
+  "x.mephisto-nep.10.slothful-endurance-constant": constant(doubleStat("def", { hostOfSelf: true })),
   "x.mephisto-nep.10.response": bargainDiscardResponse(),
 
   "x.mephisto-nep.11.when-revealed": bargainWhenRevealed(),
@@ -457,6 +472,7 @@ export default definePackAbilities({
   // number of scorned counters here. Shuffle each card looked at this way back into its owner's deck."
   "x.mephisto-nep.13.when-defeated": whenDefeated(lookAndShuffleBack(countersOn(self, "scorned"))),
 
+  // Author ruling, 2026-11-13 (Neptune): the extra card does not retrigger it (`notFromSelf`), as built.
   // Exposing Intentions. "Forced Interrupt: When a card is put into Damnation from a player's deck, put 1 additional card
   // into Damnation from that player's deck." The engine announces `cardPutIntoScenarioArea` once the card has moved, so
   // it is heard as a forced response; `notFromSelf` keeps the additional card from chaining.
@@ -478,6 +494,7 @@ export default definePackAbilities({
     ),
   ),
 
+  // Author ruling, 2026-11-13 (Neptune): 6 threat per 6 cards in Damnation, as printed (a 666 pun), as built.
   // Hotel Inferno. When Revealed: "Place 6 threat on the main scheme for every 6 cards in Damnation."
   "x.mephisto-nep.15.when-revealed": whenRevealed(
     placeThreat(scaled(scenarioAreaCount(DAMNATION), { divide: { by: 6, round: "down" }, times: 6 }), theMainScheme),
@@ -494,14 +511,19 @@ export default definePackAbilities({
   // shuffled this way, resolve the 'Hidden Clause' ability on the main scheme. Then, discard cards from the top of the
   // encounter deck until a Bargain attachment is discarded. Attach that card to your identity. Otherwise, shuffle this
   // card into the encounter deck."
+  // Author ruling, 2026-11-13 (Neptune): "Otherwise" is "if you do not control a Bargain attachment": the card then just
+  // shuffles itself back into the encounter deck (no search). With a Bargain attachment the whole text resolves, and the
+  // search always finds one (the one shuffled in at least), so no other fallback is printed.
   "x.mephisto-nep.16.when-revealed": whenRevealed(
-    selectCards("mine", cards(each(bargainOf(you)))),
-    moveCards(cards(chosen("mine")), "encounterDeckShuffle", "shuffled"),
-    repeatTimes(varOf("shuffled.count"), HIDDEN_CLAUSE),
-    discardEncounterUntil(query("attachment", { trait: BARGAIN }), "found"),
     ifThen(
-      valueAtLeast(refCount(chosen("found")), 1),
-      attachCard(chosen("found"), yourIdentity),
+      exists(bargainOf(you)),
+      [
+        selectCards("mine", cards(each(bargainOf(you)))),
+        moveCards(cards(chosen("mine")), "encounterDeckShuffle", "shuffled"),
+        repeatTimes(varOf("shuffled.count"), HIDDEN_CLAUSE),
+        discardEncounterUntil(query("attachment", { trait: BARGAIN }), "found"),
+        attachCard(chosen("found"), yourIdentity),
+      ],
       moveCards(cards(self), "encounterDeckShuffle"),
     ),
   ),
@@ -707,6 +729,8 @@ export default definePackAbilities({
   // powers of your hero for this use." The power in use takes the value of another basic power added to it
   // (`modifyBasicPower`, an additive modifier); with Shackled Wrath the doubling comes after the sum (RRG "Modifiers",
   // p. 29), as the engine orders them.
+  // Author ruling, 2026-11-13 (Neptune): the basic power used plus 1 different basic power of your choice, the values
+  // added, for that use only: as built (the option for the power in use is not offered).
   "x.mephisto-nep.27.when-revealed": bargainWhenRevealed(),
   "x.mephisto-nep.27.interrupt": heroInterrupt(
     on.basicPowerUsing(YOUR_IDENTITY),
@@ -877,6 +901,8 @@ export default definePackAbilities({
   // Call of the Demoness (side scheme). "This card cannot leave play while facedown Mystic minion is in play." "Each facedown
   // Mystic minion engaged with a player has a base SCH of 1, a base ATK of 1, and a base hit points of 1." (Ultron's
   // facedown Drones, `ultron` 01xxx, `gets(..., { setBase: true })`.)
+  // Author ruling, 2026-11-13 (Neptune): a defeated facedown Mystic minion goes to its owner's discard pile (what the
+  // engine does for a facedown player card; tested).
   "x.mephisto-nep.42.call-of-the-demoness-constant": constant(
     cannotLeavePlay({ self: true }, { while: exists(MYSTIC_FACEDOWN) }),
     gets("sch", 1, FACEDOWN_MYSTIC_ENGAGED, { setBase: true }),
@@ -892,6 +918,7 @@ export default definePackAbilities({
 
   // Lilin Remaking (attachment). "Treat your identity's printed text box as blank (except for Traits). You cannot attack
   // Lilith and she cannot activate against you. You gain the Mystic trait, retaliate 2, and villainous."
+  // Author ruling, 2026-11-13 (Neptune): "villainous" on your identity is an intended buff, as built.
   "x.mephisto-nep.43.when-revealed": bargainWhenRevealed(),
   "x.mephisto-nep.43.lilin-remaking-constant": constant(
     blanksTextBox(query("identity", { hostOfSelf: true })),

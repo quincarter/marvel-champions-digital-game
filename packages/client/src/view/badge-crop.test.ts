@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { DEFAULT_BADGE_FOCUS, badgeCropRect } from "./badge-crop.js";
+import { coverFit } from "../art/pictures.js";
+import { DEFAULT_BADGE_FOCUS, badgeCropRect, portraitCropRect } from "./badge-crop.js";
 
 describe("badgeCropRect", () => {
   test("the default is the largest centered square", () => {
@@ -47,5 +48,61 @@ describe("badgeCropRect", () => {
           expect(r.x + r.width).toBeLessThanOrEqual(size.width + 1e-9);
           expect(r.y + r.height).toBeLessThanOrEqual(size.height + 1e-9);
         }
+  });
+});
+
+describe("portraitCropRect", () => {
+  test("a tall picture keeps the fraction from the top, centered across", () => {
+    expect(portraitCropRect({ width: 400, height: 1000 }, undefined, 0.15)).toEqual({
+      x: 0,
+      y: 90,
+      width: 400,
+      height: 400,
+    });
+  });
+
+  test("a wide picture is centered across", () => {
+    expect(portraitCropRect({ width: 1000, height: 400 }, undefined, 0.15)).toEqual({
+      x: 300,
+      y: 0,
+      width: 400,
+      height: 400,
+    });
+  });
+
+  test("the picture's own focus wins on the axis it names, kept inside the picture", () => {
+    expect(portraitCropRect({ width: 400, height: 1000 }, { y: 0.5 }, 0.15)).toEqual({
+      x: 0,
+      y: 300,
+      width: 400,
+      height: 400,
+    });
+    expect(portraitCropRect({ width: 1000, height: 400 }, { x: 0.95 }, 0.15)).toEqual({
+      x: 600,
+      y: 0,
+      width: 400,
+      height: 400,
+    });
+  });
+
+  test("matches drawPicture's cover-fit of a square panel", () => {
+    const shapes = [
+      { width: 400, height: 1000 },
+      { width: 1000, height: 400 },
+      { width: 512, height: 512 },
+    ];
+    const focuses = [undefined, { x: 0.2 }, { y: 0.8 }, { x: 0.9, y: 0.1 }];
+    for (const source of shapes) {
+      for (const focus of focuses) {
+        const fit = coverFit(source, { width: 64, height: 64 }, focus);
+        const room = source.height - fit.cropHeight;
+        expect(portraitCropRect(source, focus, 0.15)).toEqual({
+          x: focus?.x !== undefined ? fit.cropX : (source.width - fit.cropWidth) / 2,
+          y: focus?.y !== undefined ? fit.cropY : Math.max(0, Math.min(room, room * 0.15)),
+          width: fit.cropWidth,
+          height: fit.cropHeight,
+        });
+      }
+    }
   });
 });

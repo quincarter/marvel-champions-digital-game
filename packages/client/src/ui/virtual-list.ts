@@ -63,6 +63,7 @@ import Phaser from "phaser";
 import { ListScroll, thumbOf } from "../view/list-scroll.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import { withinTapSlop } from "../view/press-arm.js";
+import { listWantsHandCursor } from "../view/list-cursor.js";
 import { HOLD_SLOP_PX, INSPECT_HOLD_MS } from "../view/hold-gesture.js";
 import type { Rect } from "../view/layout.js";
 import { surface, typeRole } from "../tokens.js";
@@ -109,6 +110,14 @@ export interface McVirtualListOptions {
    * `isDragSuppressingClick` to those buttons (see the module doc comment).
    */
   readonly onRowActivate?: (index: number, pointer: Phaser.Input.Pointer) => void;
+  /**
+   * With `onRowActivate`, opts the list into the hand cursor: whether a tap here does anything (a tile, not the gap
+   * between tiles), so a mouse shows the hand only there. Absent means no cursor change (a list opts in screen by
+   * screen). Touch has no cursor and is untouched.
+   */
+  readonly rowPressableAt?: (index: number, pointer: Phaser.Input.Pointer) => boolean;
+  /** True while something sits over the list (Inspect, a notice): the hand cursor is not shown then. */
+  readonly cursorBlocked?: () => boolean;
   /**
    * A row whose tap only reads it (the Decks pool, where a tap opens Inspect): a press held there opens it at once,
    * as a long press does on the table, without waiting for the lift, and the list allows a held finger's wobble
@@ -159,6 +168,10 @@ export class McVirtualList {
   #count: number;
   #renderRow: (index: number, rect: Rect) => VirtualListRow;
   #onRowActivate: ((index: number, pointer: Phaser.Input.Pointer) => void) | undefined;
+  readonly #rowPressableAt: ((index: number, pointer: Phaser.Input.Pointer) => boolean) | undefined;
+  readonly #cursorBlocked: (() => boolean) | undefined;
+  /** True while this list has set the scene's default cursor to the hand. */
+  #handCursor = false;
   #thumbDragStartY = 0;
   #thumbDragStartOffset = 0;
   /** True once the current list-body drag has passed the tap threshold — see `ui/scroll-clip.ts`'s own doc comment on why every row is disabled for the duration rather than relying on each row's own `suppressClick`. */
@@ -180,6 +193,8 @@ export class McVirtualList {
     this.#measureRows();
     this.#renderRow = options.renderRow;
     this.#onRowActivate = options.onRowActivate;
+    this.#rowPressableAt = options.rowPressableAt;
+    this.#cursorBlocked = options.cursorBlocked;
     this.#activateOnHold = options.activateOnHold === true;
     if (this.#activateOnHold) this.#drag = new DragGesture({ tapThresholdPx: HOLD_SLOP_PX });
     this.#scroll = options.scroll;
@@ -366,6 +381,7 @@ export class McVirtualList {
   /** Torn down at the start of every scene rebuild (not just on shutdown), so its listeners never double up across the fresh instance the scene creates next. */
   destroy(): void {
     for (const fn of this.#onDestroy.splice(0)) fn();
+    this.#setHandCursor(false);
     this.#snapTimer?.remove();
     this.#scene.input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
@@ -481,7 +497,35 @@ export class McVirtualList {
     });
   }
 
+  /** The hand cursor over a pressable row, for a mouse: the row's tap has no game object to carry `useHandCursor`. */
+  #setHandCursor(on: boolean): void {
+    if (on === this.#handCursor) return;
+    this.#handCursor = on;
+    this.#scene.input.setDefaultCursor(on ? "pointer" : "");
+  }
+
+  #updateCursor(pointer: Phaser.Input.Pointer): void {
+    if (!this.#onRowActivate || !this.#rowPressableAt) return;
+    if (pointer.wasTouch || this.#cursorBlocked?.()) {
+      this.#setHandCursor(false);
+      return;
+    }
+    const rowIndex = this.#rowIndexAt(pointer.y);
+    this.#setHandCursor(
+      listWantsHandCursor({
+        x: pointer.x,
+        y: pointer.y,
+        rect: this.#rect,
+        scrollbarWidth: SCROLLBAR_HIT_WIDTH,
+        rowIndex,
+        rowCount: this.#count,
+        pressable: this.#rowPressableAt(rowIndex, pointer),
+      }),
+    );
+  }
+
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
+    this.#updateCursor(pointer);
     if (!pointer.isDown) return;
     const delta = this.#drag.move(pointer.id, pointer.y, this.#scene.time.now);
     if (delta === null) return;

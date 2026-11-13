@@ -368,10 +368,10 @@ const damageFrom = (events: readonly GameEvent[], source: InstanceId, target: In
   );
 
 describe("Slothful Endurance (10)", () => {
-  /** A Demon Soldier with 1 ATK engaged with P1 while Slothful Endurance (or nothing) is on P1's identity. */
-  function attackedBy(withSlothful: boolean, defend: boolean) {
+  /** A Demon Soldier with `atk` ATK engaged with P1 while Slothful Endurance (or nothing) is on P1's identity. */
+  function attackedBy(withSlothful: boolean, defend: boolean, atk = 1) {
     const base = withSlothful ? withBargain("10") : open();
-    const minion = conjure(base, "33", { atk: 1 });
+    const minion = conjure(base, "33", { atk });
     const staged = stackDeck(minion.state, ["04"]);
     const pick = (s: GameState): readonly string[] => {
       const c = s.pendingChoice!;
@@ -381,15 +381,33 @@ describe("Slothful Endurance (10)", () => {
     return { id: identityOf(staged), run: toNextRound(staged, pick), minion: minion.id };
   }
 
-  it("raises damage from an attack to your identity DEF (doubled to 6): 1 damage becomes 6", () => {
-    const plain = attackedBy(false, false);
-    expect(damageFrom(plain.run.events, plain.minion, plain.id), "without Slothful Endurance").toEqual([1]);
-    const slothful = attackedBy(true, false);
-    // Core Spider-Man has 3 DEF, doubled to 6: any attack that deals damage deals at least 6.
-    expect(damageFrom(slothful.run.events, slothful.minion, slothful.id)).toEqual([6]);
+  // Author ruling, 2026-11-13 (Neptune): attacks that would deal less than the doubled DEF deal no damage (all
+  // prevented), where 1.0.x/1.1.0 raised them up to the DEF.
+  it("an attack that would deal less than your doubled DEF (6) deals no damage at all: ATK 1 and ATK 5 are prevented", () => {
+    for (const atk of [1, 5]) {
+      const plain = attackedBy(false, false, atk);
+      expect(
+        damageFrom(plain.run.events, plain.minion, plain.id).filter((n) => n > 0),
+        "without it",
+      ).toEqual([atk]);
+      const slothful = attackedBy(true, false, atk);
+      expect(
+        damageFrom(slothful.run.events, slothful.minion, slothful.id).filter((n) => n > 0),
+        `ATK ${atk}`,
+      ).toEqual([]);
+      expect(
+        slothful.run.events.flatMap((e) => (e.type === "damagePrevented" ? [e.amount] : [])),
+        "all of it prevented",
+      ).toEqual([atk]);
+    }
   });
 
-  it("does not raise damage that a defense or prevention takes to 0", () => {
+  it("an attack of at least your doubled DEF deals its damage as it is (not raised, not prevented)", () => {
+    const slothful = attackedBy(true, false, 7);
+    expect(damageFrom(slothful.run.events, slothful.minion, slothful.id).filter((n) => n > 0)).toEqual([7]);
+  });
+
+  it("a defended attack deals no damage either", () => {
     const defended = attackedBy(true, true);
     expect(damageFrom(defended.run.events, defended.minion, defended.id).filter((n) => n > 0)).toEqual([]);
   });
@@ -496,6 +514,9 @@ describe("Facedown Mystic minions from the discard pile (Call of the Demoness, 4
     expect([profile.atk, profile.sch, profile.maxHp], "base ATK, SCH and hit points of 1").toEqual([1, 1, 1]);
     expect(damageTo(attacked.events, minionId as InstanceId).length, "the attack hit it").toBe(1);
     expect(attacked.state.instances[minionId]!.home.kind, "defeated and out of play").not.toBe("play");
+    // Author ruling, 2026-11-13 (Neptune): a defeated facedown Mystic minion goes to its owner's discard pile.
+    expect(attacked.state.players[0]!.discard, "in its owner's discard pile").toContain(minionId);
+    expect(attacked.state.instances[minionId]!.facedownAs ?? null, "and no longer a minion").toBeNull();
   });
 });
 
@@ -622,6 +643,19 @@ describe("Treacheries and side schemes", () => {
     expect(attached.length, "one Bargain attachment was found in the encounter deck and attached").toBe(1);
     // The turn's Hidden Clause (1 Bargain) and Alter the Deal's (1 Bargain shuffled).
     expect(damnation(next.state).length - before).toBe(2);
+  });
+
+  it("Alter the Deal with no Bargain attachment you control: it just shuffles itself back into the encounter deck (author ruling, 2026-11-13)", () => {
+    const state = open();
+    const before = damnation(state).length;
+    const staged = stackDeck(state, ["04", "16", "05"]);
+    const next = toNextRound(staged);
+    expect(bargainsOn(next.state), "no Bargain was searched for or attached").toEqual([]);
+    const cards = activeEncounterDeck(next.state);
+    const alter = activeEncounterDeck(staged).deck[1]!;
+    expect(cards.deck, "the treachery is back in the deck").toContain(alter);
+    expect(cards.discard, "not discarded").not.toContain(alter);
+    expect(damnation(next.state).length, "no Hidden Clause for it").toBe(before);
   });
 
   it("Dark Compulsions: a player with a Bargain resolves Hidden Clause; with none, cards in Damnation can go back", () => {
