@@ -11,7 +11,7 @@ import {
   type AchievementSave,
 } from "./achievements.js";
 import { factsOf } from "./achievements.js";
-import { MOD_ACHIEVEMENT_ROWS, packAchievementId } from "./mod-achievements.js";
+import { MOD_ACHIEVEMENT_ROWS, packAchievementId, type PackAchievementSource } from "./mod-achievements.js";
 import { UNLOCK_HEROES, progressOf } from "./unlocks.js";
 import type { PackAchievement } from "@mc/content";
 
@@ -250,5 +250,50 @@ describe("pack-defined achievements", () => {
     expect(achievementDefOf(id("rising"), h)).toMatchObject({ name: "Rising", points: 0 });
     expect(achievementDefOf("pack:fan-x/nope", h)).toBeUndefined();
     expect(achievementDefOf("mods-install-1", h)?.family).toBe("mods");
+  });
+});
+
+describe("untrusted embedded achievements and renamed packs", () => {
+  const id = (local: string) => packAchievementId("fan-x", local);
+  const junkPack = (achievements: unknown) => ({ ...fanX, achievements });
+
+  it("ignores junk rows in a save's embedded list and never earns an unknown measure; points and progress still work", () => {
+    const junk = [
+      null,
+      { id: "no-when", name: "N", description: "d" },
+      { id: "future", name: "Future", description: "d", when: { kills: 5 } },
+      ACHIEVEMENTS_OF_PACK[0],
+    ];
+    const h = hist([save("won", { packs: [junkPack(junk)] })], { mods: { installed: {}, packs: [] } });
+    const found = achievementStatuses(h).filter((s) => s.def.pack);
+    expect(found.map((s) => s.def.id)).toEqual([id("suited-up")]);
+    expect(found.every((s) => s.earned)).toBe(true);
+    expect(lifetimePointsOf(h)).toBe(lifetimePointsOf(hist([])));
+    expect(progressOf(h.saves, h.campaigns)).toBeDefined();
+  });
+
+  it("keeps an earned achievement the installed version renamed or dropped, and hides an unearned one", () => {
+    const v2: PackAchievementSource = {
+      id: "fan-x",
+      name: "Fan X",
+      installed: true,
+      achievements: [
+        { id: "rising-2", name: "Rising 2", description: "Win.", when: { win: true, hero: "x.fan-x.01a" } },
+      ],
+    };
+    const h = hist([save("won")], { mods: { installed: {}, packs: [v2] } });
+    const ids = achievementStatuses(h)
+      .filter((s) => s.def.pack)
+      .map((s) => s.def.id)
+      .sort();
+    // v1's "rising" and "suited-up" were earned and are gone from v2; v1's unearned ones stay hidden.
+    expect(ids).toEqual([id("rising"), id("rising-2"), id("suited-up")].sort());
+  });
+
+  it("reads a campaign win only from the achievement's own pack (fan vs fan-x)", () => {
+    const fan = { id: "fan", name: "Fan", installed: true, achievements: [ACHIEVEMENTS_OF_PACK[5]!] };
+    const saga = { status: "won", campaignId: "fan-x-saga", pack: { id: "fan-x" } };
+    const h = hist([], { campaigns: [saga], mods: { installed: {}, packs: [fan] } });
+    expect(achievementStatuses(h).find((s) => s.def.id === packAchievementId("fan", "campaign"))?.earned).toBe(false);
   });
 });

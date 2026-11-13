@@ -8,7 +8,7 @@
  * nothing stored but which mods were ever installed (`mod-installs.ts`). Pure: no storage, no Phaser.
  */
 import { isLessonSave } from "../engine/game-storage.js";
-import type { PackAchievement, PackAchievementWhen } from "@mc/content";
+import { parsePackAchievements, type PackAchievement, type PackAchievementWhen } from "@mc/content";
 import type { AchievementCampaign, AchievementProgress, AchievementSave } from "./achievements.js";
 
 /** What a game's embedded pack (a `PackRuntime` in `SessionConfig.packs`) says, read loosely: a save is untrusted data. */
@@ -37,7 +37,8 @@ export function embeddedPacksOf(save: Pick<AchievementSave, "config">): readonly
           typeof d.id === "string" && typeof d.identityCardId === "string" ? [[d.id, d.identityCardId] as const] : [],
         ),
       ),
-      achievements: Array.isArray(pack.achievements) ? (pack.achievements as PackAchievement[]) : [],
+      // A save is untrusted: only well-formed entries survive, so an unknown future measure is never earned.
+      achievements: parsePackAchievements(pack.achievements),
     });
   }
   return out;
@@ -324,7 +325,10 @@ export function measurePackAchievement(
 ): { readonly progress: AchievementProgress; readonly showProgress: boolean } {
   const when = achievement.when;
   if (when.campaignWon !== undefined) {
-    const won = campaigns.some((c) => c.status === "won" && c.pack !== undefined && c.campaignId === when.campaignWon);
+    // The run must be of THIS pack's campaign: a campaign id alone could collide across packs.
+    const won = campaigns.some(
+      (c) => c.status === "won" && isRecord(c.pack) && c.pack.id === packId && c.campaignId === when.campaignWon,
+    );
     return { progress: flag(won), showProgress: false };
   }
   const mine = games.filter((g) => g.packs.some((p) => p.id === packId) && matchesFilters(when, g, packId));
@@ -345,21 +349,27 @@ export function packAchievementsOf(
 ): readonly PackAchievementRead[] {
   const games = finishedGames(history.saves);
   const sources = new Map<string, PackAchievementSource>();
+  const embedded = new Map<string, readonly PackAchievement[]>();
   // A game's embedded copy first (the later game wins), so what an uninstalled pack defined is still known...
   for (const game of games) {
     for (const pack of game.packs) {
-      if (pack.achievements.length > 0)
+      if (pack.achievements.length > 0) {
+        embedded.set(pack.id, pack.achievements);
         sources.set(pack.id, { id: pack.id, name: pack.name, achievements: pack.achievements, installed: false });
+      }
     }
   }
   // ...then the installed pack's own current list replaces it.
   for (const pack of history.packs ?? []) sources.set(pack.id, pack);
   const out: PackAchievementRead[] = [];
   for (const source of sources.values()) {
-    for (const achievement of source.achievements) {
+    // What a game embedded that the installed version no longer lists (renamed or dropped in an update) stays while earned.
+    const current = new Set(source.achievements.map((a) => a.id));
+    const dropped = source.installed ? (embedded.get(source.id) ?? []).filter((a) => !current.has(a.id)) : [];
+    for (const achievement of [...source.achievements, ...dropped]) {
       const { progress, showProgress } = measurePackAchievement(achievement, source.id, games, history.campaigns);
       const earned = progress.current >= progress.target;
-      if (!source.installed && !earned) continue;
+      if ((!source.installed || dropped.includes(achievement)) && !earned) continue;
       out.push({
         id: packAchievementId(source.id, achievement.id),
         packId: source.id,

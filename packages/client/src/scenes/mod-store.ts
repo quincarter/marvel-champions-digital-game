@@ -889,9 +889,10 @@ export class ModStoreScene extends Phaser.Scene {
     const { width, height, phone, gutter, top } = frame;
     const entry = this.#index?.packs.find((one) => one.id === tile.id);
     const installed = this.#installed.get(tile.id);
+    const installedAchievements = parsePackAchievements(installed?.manifest.achievements);
     const achievements =
-      parsePackAchievements(installed?.manifest.achievements).length > 0
-        ? parsePackAchievements(installed?.manifest.achievements)
+      installedAchievements.length > 0
+        ? installedAchievements
         : (loadedPacks().find((pack) => pack.id === tile.id)?.achievements ??
           this.#previewOf(tile)?.achievements ??
           []);

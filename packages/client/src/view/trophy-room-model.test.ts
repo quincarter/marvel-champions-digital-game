@@ -228,11 +228,11 @@ describe("the Mods family", () => {
     expect(folded.some((r) => r.kind === "group")).toBe(false);
   });
 
-  it("counts the pack's achievements in the Mods heading and the header's total", () => {
+  it("counts the pack's achievements in the Mods heading, and keeps the header's total to the game's own", () => {
     const heading = rows.find((r) => r.kind === "section" && r.id === "mods");
     expect(heading).toMatchObject({ count: expect.stringMatching(/^1 of \d+ · \d+%$/) });
     const header = trophyHeaderOf(0, achievementStatuses(modHistory));
-    expect(header.earnedLabel).toBe(`1 of ${ACHIEVEMENTS.length + 3} achievements`);
+    expect(header.earnedLabel).toBe(`0 of ${ACHIEVEMENTS.filter((a) => a.family !== "mods").length} achievements`);
   });
 });
 

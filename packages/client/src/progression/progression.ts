@@ -16,6 +16,7 @@ import { guidePrefs } from "../guide/guide-store.js";
 import { howToPlayProgressOf } from "../view/how-to-play-model.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
+import { parsePackAchievements } from "@mc/content";
 import { IdbPackStore, type InstalledPack } from "../packs/pack-store.js";
 import { loadedPacks, onLoadedPacksChange } from "../packs/pack-registry.js";
 import { noteModInstalls, readModInstalls } from "./mod-installs.js";
@@ -123,10 +124,6 @@ export function extras(): Extras {
   return currentExtras;
 }
 
-/**
- * Re-reads progress from storage. True when the unlocks changed since the last read; Extras progress is refreshed by
- * the same read, and the Extras screen redraws after it regardless.
- */
 /** One read-only handle on the pack store for the install record: it only lists, the Mod Store has its own. */
 let modInstallStore: IdbPackStore | undefined;
 function modInstalls(): Promise<InstalledPack[]> {
@@ -135,6 +132,10 @@ function modInstalls(): Promise<InstalledPack[]> {
   return modInstallStore.list();
 }
 
+/**
+ * Re-reads progress from storage. True when the unlocks changed since the last read; Extras progress is refreshed by
+ * the same read, and the Extras screen redraws after it regardless.
+ */
 export async function refreshUnlocks(): Promise<boolean> {
   const [saves, campaigns, savedDecks] = await Promise.all([
     appSession().store.listSaves(),
@@ -160,12 +161,23 @@ export async function refreshUnlocks(): Promise<boolean> {
     decks: { ...deckFeats, built: deckFeats.built || savedDecks.some((deck) => deck.source.kind === "userBuilt") },
     mods: {
       installed: readModInstalls(),
-      packs: loadedPacks().map((pack) => ({
-        id: pack.id,
-        name: pack.name,
-        achievements: pack.achievements ?? [],
-        installed: true,
-      })),
+      // Every installed pack's list, active or not (a pack switched off keeps its locked rows); a loaded runtime wins.
+      packs: [
+        ...loadedPacks().map((pack) => ({
+          id: pack.id,
+          name: pack.name,
+          achievements: pack.achievements ?? [],
+          installed: true,
+        })),
+        ...installedPacks
+          .filter((pack) => !loadedPacks().some((one) => one.id === pack.id))
+          .map((pack) => ({
+            id: pack.id,
+            name: pack.manifest.name,
+            achievements: parsePackAchievements(pack.manifest.achievements),
+            installed: true,
+          })),
+      ],
     },
   };
   const nextEarned = achievementStatuses(nextHistory)

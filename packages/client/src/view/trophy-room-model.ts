@@ -72,7 +72,9 @@ export const formatTrophyNumber = (n: number): string => String(Math.round(n)).r
 
 export function trophyHeaderOf(lifetimePoints: number, statuses: readonly AchievementStatus[]): TrophyHeader {
   const progress = rankProgressOf(lifetimePoints);
-  const earned = statuses.filter((s) => s.earned).length;
+  // The game's own achievements only: the total must not move as packs come and go (the Mods section counts its own).
+  const base = statuses.filter((s) => s.def.family !== "mods");
+  const earned = base.filter((s) => s.earned).length;
   return {
     rankLabel: `Rank ${progress.rank.rank} of 9`,
     title: progress.rank.title,
@@ -81,7 +83,7 @@ export function trophyHeaderOf(lifetimePoints: number, statuses: readonly Achiev
     nextLabel: progress.next
       ? `${formatTrophyNumber(progress.next.threshold - lifetimePoints)} to ${progress.next.title}`
       : "Top rank",
-    earnedLabel: `${earned} of ${statuses.length} achievements`,
+    earnedLabel: `${earned} of ${base.length} achievements`,
   };
 }
 

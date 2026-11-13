@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mergeUnlocks } from "./sync-merge.js";
+import { DEFAULT_MERGERS, mergeModInstalls, mergeUnlocks } from "./sync-merge.js";
 
 const prefs = (over: Record<string, unknown>) =>
   JSON.stringify({ version: 2, unlockAll: false, heroIds: [], campaignIds: [], scenarioIds: [], charges: [], ...over });
@@ -53,5 +53,34 @@ describe("mergeUnlocks", () => {
     expect(mergeUnlocks("garbage", a)).toBe(a);
     expect(mergeUnlocks(a, "garbage")).toBe(a);
     expect(mergeUnlocks("garbage", "junk")).toBe("garbage");
+  });
+});
+
+describe("mergeModInstalls", () => {
+  it("unions both devices' packs and keeps the first kind seen for a pack on both", () => {
+    const merged = JSON.parse(
+      mergeModInstalls(JSON.stringify({ a: "hero", b: "art" }), JSON.stringify({ b: "scenario", c: "modular" })),
+    );
+    expect(merged).toEqual({ a: "hero", b: "art", c: "modular" });
+  });
+
+  it("drops non-text kinds, caps at the reader's 500, and lets bad text lose to a record", () => {
+    const many = Object.fromEntries(Array.from({ length: 600 }, (_, i) => [`p${i}`, "hero"]));
+    expect(Object.keys(JSON.parse(mergeModInstalls(JSON.stringify(many), "{}")))).toHaveLength(500);
+    expect(Object.keys(JSON.parse(mergeModInstalls(JSON.stringify(many), JSON.stringify({ z: "art" }))))).toHaveLength(
+      500,
+    );
+    expect(JSON.parse(mergeModInstalls(JSON.stringify({ a: 1, b: "art" }), JSON.stringify({ c: "hero" })))).toEqual({
+      b: "art",
+      c: "hero",
+    });
+    const a = JSON.stringify({ a: "hero" });
+    expect(mergeModInstalls(a, "garbage")).toBe(a);
+    expect(mergeModInstalls("garbage", a)).toBe(a);
+    expect(mergeModInstalls("garbage", "junk")).toBe("garbage");
+  });
+
+  it("is registered for the mc-mod-installs key", () => {
+    expect(DEFAULT_MERGERS["ls:mc-mod-installs"]).toBe(mergeModInstalls);
   });
 });
