@@ -247,6 +247,11 @@ export class ModStoreScene extends Phaser.Scene {
     if (showNoticeOnOpen(modNoticeSeen())) this.#showNotice();
   }
 
+  /** Inspect or the mods notice is over the store: the list's hand cursor stands down. */
+  #overlayUp(): boolean {
+    return this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.modNotice);
+  }
+
   /** Deadpool and Spider-Man's heads-up about mods, over the store; `onClose` carries on with what it held back. */
   #showNotice(onClose?: () => void): void {
     if (this.scene.isActive(SCENES.modNotice)) return;
@@ -682,6 +687,8 @@ export class ModStoreScene extends Phaser.Scene {
         const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
         if (index !== null) this.#openPack(tiles[index]!);
       },
+      rowPressableAt: (rowIndex, pointer) => extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
+      cursorBlocked: () => this.#overlayUp(),
     });
     this.#list = list;
     tiles.forEach((tile, index) => {
@@ -1073,6 +1080,11 @@ export class ModStoreScene extends Phaser.Scene {
         const column = extrasTileAt(pointer.x, 0, grid, rect.x, row.cards.length);
         if (column !== null) this.#inspectCard(row.cards[column]!);
       },
+      rowPressableAt: (rowIndex, pointer) => {
+        const row = rows[rowIndex];
+        return row?.kind === "tiles" && extrasTileAt(pointer.x, 0, grid, rect.x, row.cards.length) !== null;
+      },
+      cursorBlocked: () => this.#overlayUp(),
     });
     this.#gallery = list;
     rows.forEach((row, rowIndex) => {
