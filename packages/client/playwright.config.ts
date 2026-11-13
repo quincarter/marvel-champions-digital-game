@@ -54,6 +54,9 @@ export default defineConfig({
         },
       ],
     },
+    // English for the whole suite: the app's language follows the browser's (`Settings.cardLanguage`), and specs find
+    // menu text by its English label (#390). A spec about another language sets it itself.
+    locale: "en-US",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
