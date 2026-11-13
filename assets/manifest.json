@@ -406,10 +406,10 @@
       "group": "pack-art",
       "optional": true,
       "dir": "content-packs/community/throg-ptt",
-      "tag": "pack-art-throg-ptt-ae0777f20662",
+      "tag": "pack-art-throg-ptt-b7350cb71d87",
       "file": "pack-art-throg-ptt.zip",
-      "size": 2975460,
-      "sha256": "ae0777f2066220b7c9248cd5382f98cdb524a6e5f6b246b9fa44afb796f5a380",
+      "size": 2986674,
+      "sha256": "b7350cb71d87d1b2a350608d30c3cd1cded5c44bc23a772da7a14504f44ff530",
       "files": 31
     },
     {
