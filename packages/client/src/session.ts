@@ -181,6 +181,21 @@ export function useDevHost(host: EngineHost): void {
 }
 
 /**
+ * Watching a replay (`replay/replay-mode.ts`, issue #693): puts the replay's host and store on the session and hands
+ * back what was there, which the same call puts back on leaving. Only the replay mode calls this.
+ */
+export function swapSessionHost(
+  host: EngineHost,
+  store: SessionStore,
+): { readonly host: EngineHost; readonly store: SessionStore } {
+  const current = appSession();
+  const previous = { host: current.host, store: current.store };
+  (current as { host: EngineHost }).host = host;
+  (current as { store: SessionStore }).store = store;
+  return previous;
+}
+
+/**
  * Where imported and user-built decks live (PLAN.md Phase 9). A separate
  * concern from `appSession`'s engine host on purpose: decks aren't game
  * state, are read and written from the main thread (Title, Decks, the
