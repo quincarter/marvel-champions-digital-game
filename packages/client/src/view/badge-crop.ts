@@ -8,6 +8,7 @@
  *
  * Pure: the scene reads the picture's size and draws `badgeCropRect`; nothing here knows what is in the picture.
  */
+import { focusedOffset, type PictureFocus } from "../art/focus.js";
 import type { Rect } from "./layout.js";
 
 export type BadgeSource = "badge" | "splash";
@@ -34,6 +35,29 @@ export function badgeCropRect(source: { width: number; height: number }, focus: 
   return {
     x: Math.max(0, Math.min(source.width - side, source.width * focus.x - side / 2)),
     y: Math.max(0, Math.min(source.height - side, source.height * focus.y - side / 2)),
+    width: side,
+    height: side,
+  };
+}
+
+/**
+ * The square a round portrait shows (the Briefing's speaker): the largest square in the picture, placed the way
+ * `drawPicture` cover-fits a square panel. An axis the picture's own `focus.json` names centers on that point; the other
+ * keeps the caller's fraction (`fallbackY` of the spare height from the top, the spare width shared evenly).
+ */
+export function portraitCropRect(
+  source: { width: number; height: number },
+  focus: PictureFocus | undefined,
+  fallbackY: number,
+): Rect {
+  const side = Math.min(source.width, source.height);
+  const roomY = source.height - side;
+  return {
+    x: focus?.x !== undefined ? focusedOffset(source.width, side, focus.x) : (source.width - side) / 2,
+    y:
+      focus?.y !== undefined
+        ? focusedOffset(source.height, side, focus.y)
+        : Math.max(0, Math.min(roomY, roomY * fallbackY)),
     width: side,
     height: side,
   };
