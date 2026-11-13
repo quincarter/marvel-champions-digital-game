@@ -1,0 +1,30 @@
+{
+  "id": "x.throg-ptt.03",
+  "name": "Frog of Thunder",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "3",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 2,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["ASGARD", "TITLE"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "You get +2 hit points.\nHero Resource: If you control a hero or ally with the Asgard trait, exhaust Frog of Thunder → generate an [energy] resource.",
+    "current": "You get +2 hit points.\nHero Resource: If you control a hero or ally with the Asgard trait, exhaust Frog of Thunder → generate an [energy] resource."
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.03.frog-of-thunder-constant"
+    },
+    {
+      "id": "x.throg-ptt.03.frog-of-thunder-resource"
+    }
+  ]
+}

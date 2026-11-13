@@ -1,0 +1,27 @@
+{
+  "id": "x.throg-ptt.07",
+  "name": "Defender of the Nine Puddles",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "7",
+  "quantityInSet": 3,
+  "unique": false,
+  "type": "event",
+  "cost": 0,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["ATTACK"],
+  "keywords": [],
+  "deckLimit": 3,
+  "text": {
+    "printed": "Hero Action (attack): Discard cards from the top of the encounter deck until you discard a side scheme. Put that side scheme into play → deal 5 damage to an enemy.",
+    "current": "Hero Action (attack): Discard cards from the top of the encounter deck until you discard a side scheme. Put that side scheme into play → deal 5 damage to an enemy."
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.07.defender-of-the-nine-puddles-action"
+    }
+  ]
+}

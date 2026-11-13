@@ -1,0 +1,28 @@
+{
+  "id": "x.throg-ptt.04",
+  "name": "Hammer Throw",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "4",
+  "quantityInSet": 3,
+  "unique": false,
+  "type": "event",
+  "cost": 3,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["ATTACK", "THWART", "SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 3,
+  "text": {
+    "printed": "Hero Action (attack/thwart): Exhaust Frogjolnir → deal 4 damage to an enemy, remove 4 threat from a scheme, and return Frogjolnir to your hand. This attack ignores guard, and this thwart ignores crisis ([crisis]) and patrol.",
+    "current": "Hero Action (attack/thwart): Exhaust Frogjolnir → deal 4 damage to an enemy, remove 4 threat from a scheme, and return Frogjolnir to your hand. This attack ignores guard, and this thwart ignores crisis ([crisis]) and patrol."
+  },
+  "flavor": "\"Take this, creature!\"",
+  "abilities": [
+    {
+      "id": "x.throg-ptt.04.hammer-throw-constant"
+    }
+  ]
+}

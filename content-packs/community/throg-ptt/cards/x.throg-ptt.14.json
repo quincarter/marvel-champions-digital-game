@@ -1,0 +1,26 @@
+{
+  "id": "x.throg-ptt.14",
+  "name": "Inevitable Power",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "14",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["throg-ptt-nemesis"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed (Alter-Ego): Place 2 threat on the main scheme.\nWhen Revealed (Hero): Deal 2 damage to your hero (3 damage instead if Thanos has the Power Stone attached).",
+    "current": "When Revealed (Alter-Ego): Place 2 threat on the main scheme.\nWhen Revealed (Hero): Deal 2 damage to your hero (3 damage instead if Thanos has the Power Stone attached)."
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.14.when-revealed-alter-ego"
+    },
+    {
+      "id": "x.throg-ptt.14.when-revealed-hero"
+    }
+  ]
+}

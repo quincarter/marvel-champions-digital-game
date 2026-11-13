@@ -1,0 +1,23 @@
+{
+  "id": "x.throg-ptt.10",
+  "name": "Between Two Worlds",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "10",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "obligation",
+  "encounterSetIds": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Give this card to the player who controls Puddlegulper.\nYou may change to alter-ego form. Choose one:\n• Exhaust Puddlegulper → remove Between Two Worlds from the game.\n• Discard 1 card with the Asgard or Pet trait from your hand. You are confused. Discard this obligation.",
+    "current": "Give this card to the player who controls Puddlegulper.\nYou may change to alter-ego form. Choose one:\n• Exhaust Puddlegulper → remove Between Two Worlds from the game.\n• Discard 1 card with the Asgard or Pet trait from your hand. You are confused. Discard this obligation."
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.10.obligation"
+    }
+  ]
+}

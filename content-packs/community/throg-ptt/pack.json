@@ -1,0 +1,31 @@
+{
+  "id": "throg-ptt",
+  "version": "0.1.0",
+  "kind": "hero",
+  "name": "Throg",
+  "authors": ["Patatasaurio & Caurel"],
+  "description": "Fan-made hero pack by Patatasaurio & Caurel: Throg / Puddlegulper, 15 hero cards around the Frogjolnir upgrade, the Between Two Worlds obligation and a 5-card nemesis set (Thanos, An Unexpected Guest, the Power Stone, Inevitable Power x2).",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "es",
+    "available": ["en", "es"],
+    "text": "en"
+  },
+  "permission": {
+    "status": "granted",
+    "by": "Patatasaurio & Caurel",
+    "date": "2026-11-13",
+    "evidence": "Granted in the Marvel Champions homebrew channel on Discord; confirmed by the project owner (Quin Carter) on 2026-11-13. The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a51e50da556ece0b0fe9a75848320416b8794cef/throg_ptt/mod.json",
+    "scope": "inclusion and translation: the Spanish edition and the English translation by Francisco Merchán are covered (owner, 2026-11-13)",
+    "languages": ["es", "en"],
+    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message."
+  },
+  "templateCredit": "G.Triskelion",
+  "translators": {
+    "en": "Francisco Merchán"
+  }
+}

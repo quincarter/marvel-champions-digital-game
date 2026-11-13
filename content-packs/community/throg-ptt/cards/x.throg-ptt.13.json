@@ -1,0 +1,47 @@
+{
+  "id": "x.throg-ptt.13",
+  "name": "Power Stone",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "13",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "attachment",
+  "attachesTo": {
+    "kind": "ifAble",
+    "preferred": {
+      "kind": "namedCard",
+      "name": "Thanos"
+    },
+    "otherwise": {
+      "kind": "villain"
+    }
+  },
+  "statModifiers": {
+    "atk": 1,
+    "sch": 1
+  },
+  "encounterSetIds": ["throg-ptt-nemesis"],
+  "boostIcons": 2,
+  "traits": ["INFINITY STONE"],
+  "keywords": [
+    {
+      "name": "permanent"
+    }
+  ],
+  "text": {
+    "printed": "Attach to Thanos. If Thanos is not in play, attach to the villain.\nPermanent.\nForced Response: After a hero or villain deals 3 or more damage to the attached character with a single attack, attach this card to the attacking hero or villain.\nHero Action: Spend 2 resources of any type → attach this card to another hero.",
+    "current": "Attach to Thanos. If Thanos is not in play, attach to the villain.\nPermanent.\nForced Response: After a hero or villain deals 3 or more damage to the attached character with a single attack, attach this card to the attacking hero or villain.\nHero Action: Spend 2 resources of any type → attach this card to another hero."
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.13.power-stone-constant"
+    },
+    {
+      "id": "x.throg-ptt.13.power-stone-forced-response"
+    },
+    {
+      "id": "x.throg-ptt.13.power-stone-action"
+    }
+  ]
+}
