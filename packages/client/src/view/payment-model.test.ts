@@ -417,6 +417,64 @@ describe("allianceHelpersOf", () => {
   });
 });
 
+// "Treat the next card you spend as if it has double the resources" (`RuleSpec doubleNextCardSpent`, community pack
+// `yondu-dh`, Jackpot!): only the first card of the payment is doubled, so the bar counts that one doubled and every
+// other card as printed, the way the engine prices the payment.
+describe("a waiting 'double the next card you spend' (doubleNextCardSpent)", () => {
+  beforeEach(() => intoTurn(true));
+
+  /** Test surgery: the lasting rule `applyRuleUntil` leaves behind for `me`. */
+  const withGrant = (): GameState => ({
+    ...state,
+    lastingEffects: [
+      ...state.lastingEffects,
+      {
+        id: "double-test",
+        kind: "ruleGrant",
+        rule: { kind: "doubleNextCardSpent" },
+        scope: { selfInstanceId: null, controllerId: me, vars: {}, bindings: {} },
+        duration: { kind: "endOfRound" },
+      },
+    ],
+  });
+  const total = (pool: Readonly<Record<string, number>> | undefined) =>
+    Object.values(pool ?? {}).reduce((sum, n) => sum + n, 0);
+
+  test("doubles only the first picked hand card, in pick order, and shows the doubled value on unpicked cards", () => {
+    const game = withGrant();
+    const entry = costedPlay();
+    const opened = beginPayment(game, me, entry.action, null, CORE_DEPS)!;
+    const cards = opened.query.sources.filter((source) => source.kind === "handCard");
+    expect(cards.length).toBeGreaterThanOrEqual(2);
+    const [first, second] = cards as [PaymentSource, PaymentSource];
+    expect(total(first.doubledPool)).toBe(2 * total(first.pool));
+
+    // Nothing picked: any card picked next would be the doubled one.
+    const none = paymentView(game, me, opened, "test", CORE_DEPS);
+    expect(total(none.spendable.get(first.optionId)?.pool)).toBe(total(first.doubledPool));
+
+    const both = togglePayment(togglePayment(opened, first.optionId), second.optionId);
+    const view = paymentView(game, me, both, "test", CORE_DEPS);
+    expect(view.paid).toBe(total(first.doubledPool) + total(second.pool));
+    expect(total(view.spent.get(second.optionId)?.pool)).toBe(total(second.pool));
+    // Picked the other way round, the other card is the doubled one.
+    const swapped = togglePayment(togglePayment(opened, second.optionId), first.optionId);
+    expect(paymentView(game, me, swapped, "test", CORE_DEPS).paid).toBe(total(second.doubledPool) + total(first.pool));
+    // One card picked: the rest show what they add, as printed.
+    const one = paymentView(game, me, togglePayment(opened, first.optionId), "test", CORE_DEPS);
+    expect(total(one.spendable.get(second.optionId)?.pool)).toBe(total(second.pool));
+    // The bar's overpay is the engine's: the accepted command pays what the bar counts.
+    if (view.command) expect(applyCommand(game, view.command, CORE_DEPS).ok).toBe(true);
+    expect(view.overpaid).toBe(view.payReady ? Math.max(0, view.paid - view.required) : 0);
+  });
+
+  test("without a grant every card counts as printed", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    expect(opened.query.sources.every((source) => source.doubledPool === undefined)).toBe(true);
+  });
+});
+
 // Issue #174: Nebula's Ship's "spend up to 2 resources" read "PAYING 0 / 0".
 describe("the pay bar's denominator", () => {
   test("is the fixed cost, or a range when the player chooses how many resources to spend", () => {

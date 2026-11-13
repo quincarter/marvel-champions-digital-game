@@ -20,6 +20,7 @@ import type { AbilityId, ResourceIconType } from "@mc/content";
 import {
   cardOf,
   controllerOf,
+  doubledPaymentSource,
   locateCard,
   minimumChosenX,
   paymentFor,
@@ -614,11 +615,12 @@ export function paymentView(
   shown: PaymentVerdict | null = null,
 ): PaymentView {
   const { query, picked } = payment;
-  const byOption = new Map(query.sources.map((source) => [source.optionId, source] as const));
+  const pricedSources = withSpentDoubling(state, playerId, payment, deps);
+  const byOption = new Map(pricedSources.map((source) => [source.optionId, source] as const));
 
   const spendable = new Map<string, PaymentSource>();
   const spent = new Map<string, PaymentSource>();
-  for (const source of query.sources) {
+  for (const source of pricedSources) {
     if (picked.includes(source.optionId)) spent.set(source.optionId, source);
     else spendable.set(source.optionId, source);
   }
@@ -650,7 +652,7 @@ export function paymentView(
       : query.requirement;
   const landing = subjectDiscardLanding(state, action);
   const order = discardOrderOf(state, playerId, picked, byOption, landing?.pile ?? null);
-  const sources: PaymentSourceView[] = query.sources.map((source) => {
+  const sources: PaymentSourceView[] = pricedSources.map((source) => {
     const place = order.get(source.optionId);
     const underSubject = place?.underSubject && landing ? cardName(state, landing.id) : null;
     const onTop = place?.onTop ?? false;
@@ -878,6 +880,30 @@ interface DiscardPlace {
   readonly onTop: boolean;
   /** The last card picked for the pile the paid-for event lands on: left second. */
   readonly underSubject: boolean;
+}
+
+/**
+ * The sources with what each is worth for these picks. A waiting "treat the next card you spend as if it has double
+ * the resources" (`PaymentSource.doubledPool`) doubles one card of the payment, the one the engine names for the picks
+ * in their order (`doubledPaymentSource`); every other picked source is worth its plain `pool`. An unpicked source
+ * shows what it would add if picked next: doubled while no picked card takes the doubling yet.
+ */
+function withSpentDoubling(
+  state: GameState,
+  playerId: PlayerId,
+  payment: PaymentState,
+  deps: EngineDeps,
+): readonly PaymentSource[] {
+  const { query, picked } = payment;
+  if (!query.sources.some((source) => source.doubledPool)) return query.sources;
+  const doubledId = doubledPaymentSource(state, playerId, picked, deps);
+  return query.sources.map((source) => {
+    if (!source.doubledPool) return source;
+    const doubled = picked.includes(source.optionId)
+      ? source.instanceId === doubledId
+      : doubledId === null || doubledId === source.instanceId;
+    return doubled ? { ...source, pool: source.doubledPool } : source;
+  });
 }
 
 /**

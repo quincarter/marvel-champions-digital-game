@@ -171,12 +171,15 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
           // "Cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`; community pack `yondu-dh`, Yaka
           // Arrow): played from hand it enters play attached to nothing, in its controller's play area, as an upgrade
           // with no "attach to" text is placed "near a player's identity card" (RRG 1.8 "Upgrade", p. 46). The host a
-          // play names by default (the identity) is not used.
-          if (
-            frame.intoScenarioPlayArea === undefined &&
-            attachedOnlyWhileInPlay(ctx.state, frame.instanceId, ctx.deps)
-          ) {
-            moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
+          // play names by default (the identity) is not used, nor a host the play names: played into an in-play
+          // scenario area on a card there, it is in that area attached to nothing, as an upgrade with no "attach to"
+          // text played there is (above).
+          if (attachedOnlyWhileInPlay(ctx.state, frame.instanceId, ctx.deps)) {
+            if (
+              frame.intoScenarioPlayArea === undefined ||
+              placeInScenarioPlayArea(ctx, frame.instanceId, frame.intoScenarioPlayArea, true) !== "entered"
+            )
+              moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
             entersExhausted(ctx, frame);
             enterPlay(ctx, frame.instanceId, frame.controllerId);
             break;

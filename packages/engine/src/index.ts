@@ -135,6 +135,7 @@ export {
   forcedActionOptionId,
   legalActions,
   outstandingForcedActions,
+  doubledPaymentSource,
   paymentFor,
   tryPayment,
   type OutstandingForcedAction,

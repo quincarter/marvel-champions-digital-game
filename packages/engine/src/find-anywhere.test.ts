@@ -104,4 +104,30 @@ describe("findCard.anywhere: 'search everywhere in or out of play'", () => {
     expect(locateCard(anywhere.state, id)).toEqual({ kind: "hand", playerId: P1 });
     expect(anywhere.events.some((e) => e.type === "cardFound" && e.instanceId === id && e.deckShuffled)).toBe(true);
   });
+
+  it("with one copy in a discard pile and one removed from the game, takes the one in the discard pile", () => {
+    const base = gameAtFirstTurn({
+      cards: [TAHLEI, THUG, ...EVENTS.map((e) => e.card)],
+      deps,
+      encounter: [...copiesOf(TREACHERY.id, 29), THUG.id],
+      deck: [TAHLEI.id, TAHLEI.id, ...EVENTS.map((e) => e.card.id)],
+    });
+    const [inDiscard, removed] = Object.values(base.instances)
+      .filter((i) => i.cardId === TAHLEI.id)
+      .map((i) => i.instanceId) as [InstanceId, InstanceId];
+    // Surgery: one copy on the player's discard pile, the other removed from the game.
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p) => ({
+        ...p,
+        hand: p.hand.filter((x) => x !== inDiscard && x !== removed),
+        deck: p.deck.filter((x) => x !== inDiscard && x !== removed),
+        discard: p.playerId === P1 ? [inDiscard, ...p.discard] : p.discard,
+      })),
+      removedFromGame: [...base.removedFromGame, removed],
+    };
+    const anywhere = playFree(state, deps, SUMMON_TAHLEI.card.id);
+    expect(locateCard(anywhere.state, inDiscard)).toEqual({ kind: "hand", playerId: P1 });
+    expect(locateCard(anywhere.state, removed)?.kind).toBe("removedFromGame");
+  });
 });

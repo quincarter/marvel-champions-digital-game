@@ -15,6 +15,7 @@ import type { Command } from "./commands.js";
 import { applyCommand } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
+import { doubledPaymentSource, paymentFor, tryPayment } from "./legal.js";
 import { mustPlayer } from "./query.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -101,8 +102,9 @@ describe("doubleNextCardSpent: 'treat the next card you spend as if it has doubl
   });
 
   it("used up: the card after the next one counts as printed", () => {
-    const given = hand(start(), GRANT.card.id, TWO.card.id, TWO.card.id, RESOURCE.id, RESOURCE.id);
-    const [grantCard, twoA, twoB, resA, resB] = given.ids as [
+    const given = hand(start(), GRANT.card.id, TWO.card.id, TWO.card.id, RESOURCE.id, RESOURCE.id, RESOURCE.id);
+    const [grantCard, twoA, twoB, resA, resB, resC] = given.ids as [
+      InstanceId,
       InstanceId,
       InstanceId,
       InstanceId,
@@ -112,6 +114,11 @@ describe("doubleNextCardSpent: 'treat the next card you spend as if it has doubl
     const paid = runCommands(given.state, deps, play(grantCard), play(twoA, [resA]));
     const again = applyCommand(paid.state, play(twoB, [resB]), deps);
     expect(again.ok).toBe(false);
+    expect(!again.ok && again.error.code).toBe("insufficient_resources");
+    // Two printed resources pay it, and nothing is doubled.
+    const printed = runCommands(paid.state, deps, play(twoB, [resB, resC]));
+    expect(mustPlayer(printed.state, P1).hand).not.toContain(twoB);
+    expect(doubled(printed.events)).toEqual([]);
   });
 
   it("several cards in one payment: only the first is doubled (1 doubled + 1 pays 3)", () => {
@@ -131,6 +138,35 @@ describe("doubleNextCardSpent: 'treat the next card you spend as if it has doubl
     const second = runCommands(first.state, deps, play(twoB, [resB]));
     expect(doubled(second.events).map((e) => e.instanceId)).toEqual([resB]);
     expect(grants(second.state)).toEqual([]);
+  });
+
+  it("the pay step: each hand card has its plain and its doubled pool, and the first card picked is the doubled one", () => {
+    const given = hand(start(), GRANT.card.id, THREE.card.id, RESOURCE.id, RESOURCE.id, RESOURCE.id);
+    const [grantCard, three, resA, resB, resC] = given.ids as [
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+    ];
+    const playThree = { kind: "playCard", instanceId: three } as const;
+    const granted = runCommands(given.state, deps, play(grantCard)).state;
+    const query = paymentFor(granted, P1, playThree, { target: null }, deps)!;
+    const source = (id: InstanceId) => query.sources.find((s) => s.kind === "handCard" && s.instanceId === id)!;
+    for (const id of [resA, resB, resC]) {
+      expect(source(id).pool).toMatchObject({ wild: 1 });
+      expect(source(id).doubledPool).toMatchObject({ wild: 2 });
+    }
+    const ids = (...cards: InstanceId[]) => cards.map((id) => source(id).optionId);
+    expect(doubledPaymentSource(granted, P1, ids(resA, resB, resC), deps)).toBe(resA);
+    expect(doubledPaymentSource(granted, P1, ids(resC, resA), deps)).toBe(resC);
+    expect(doubledPaymentSource(granted, P1, [], deps)).toBeNull();
+    // 2 + 1 pays 3: the doubled first card and one more.
+    expect(tryPayment(granted, P1, playThree, ids(resB, resA), { target: null }, deps).ok).toBe(true);
+    // Without a grant there is no doubled pool and no doubled card.
+    const plain = paymentFor(given.state, P1, playThree, { target: null }, deps)!;
+    expect(plain.sources.every((s) => s.doubledPool === undefined)).toBe(true);
+    expect(doubledPaymentSource(given.state, P1, ids(resA), deps)).toBeNull();
   });
 
   it("no grant: a payment is priced as printed and logs nothing", () => {

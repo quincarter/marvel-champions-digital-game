@@ -2382,8 +2382,8 @@ export type RuleSpec =
    * "Treat the next card you spend as if it has double the resources." (community pack `yondu-dh`, Jackpot!): granted as
    * a lasting rule (`applyRuleUntil`), its "you" the granting ability's controller. The first card from hand that player
    * spends in a later payment generates double (every type, after its own multipliers), and the grant ends as
-   * `consumed` with that payment (`spentCardDoubled`). Read from lasting grants only: printed as a constant it would
-   * double every payment's first card.
+   * `consumed` with that payment (`spentCardDoubled`). Read from lasting grants only (`doubleNextSpentGrants`): printed
+   * in a constant ability's `rules` it does nothing.
    */
   | { readonly kind: "doubleNextCardSpent" }
   /**

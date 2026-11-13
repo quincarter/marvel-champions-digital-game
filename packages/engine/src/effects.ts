@@ -1515,7 +1515,7 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId, sourceCardId?: CardId,
  * villain removed or flipped): no "when this leaves play" window of its own before it moves (`leavePlayAtOnce`).
  */
 export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
-  leavePlayAtOnce(ctx, id, discardZoneFor(ctx.state, id), "top", true);
+  leavePlayAtOnce(ctx, id, discardZoneFor(ctx.state, id), "top", true, true);
 }
 
 /**
@@ -1631,7 +1631,7 @@ export function defeatFromPlay(ctx: Ctx, id: InstanceId, placement?: DefeatPlace
   }
   for (const attachment of [...instance.attachments]) {
     if (hasKeyword(ctx.state, attachment, "victory", ctx.deps))
-      leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" });
+      leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" }, "top", false, true);
   }
   if (victory) leavePlay(ctx, id, { kind: "victoryDisplay" }, "top", false, undefined, sourceCardId);
   else if (holder !== null) {
@@ -2216,6 +2216,12 @@ export function applyLeavePatch(ctx: Ctx, id: InstanceId, patch: LeavePatch): vo
  * they do not wait for a window of their own while the host moves: when an interrupt hears them, their interrupts
  * resolved in the host's window, still in play (docs/phase7-wave5.md §4.1 Q32; their `withHost` leavings record the
  * move). Otherwise a listener hears them after the move (`pendingLeftPlay`).
+ *
+ * `withHost`: the card leaves because its host does (an attachment as its host leaves play, is flipped or removed), so
+ * "upgrades cannot be removed from [the host]" (`cannotLeaveHost`) does not hold it (RRG 1.8 "Attach To", p. 8). A
+ * caller moving the card for any other reason leaves it false: a player's elimination taking their upgrade off a
+ * host that rule names is stopped by it, as "cannot" is absolute (RRG 1.8 "Cannot", p. 11), and the upgrade stays
+ * (engine reading, no ruling on elimination against a "cannot").
  */
 export function leavePlayAtOnce(
   ctx: Ctx,
@@ -2223,6 +2229,7 @@ export function leavePlayAtOnce(
   requested: ZoneId,
   position: "top" | "bottom" = "top",
   discarded = false,
+  withHost = false,
 ): void {
   // Leaving with its host is the game's rule, with no source card.
   if (permanentStopsLeaving(ctx.state, ctx.deps, id, undefined)) {
@@ -2231,8 +2238,7 @@ export function leavePlayAtOnce(
   }
   // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
   if (leavingCancelled(ctx.state, id)) return;
-  // With its host: "upgrades cannot be removed from [the host]" does not hold it (`cannotLeaveHost`).
-  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded, true)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded, withHost)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }

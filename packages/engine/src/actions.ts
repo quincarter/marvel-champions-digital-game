@@ -1120,6 +1120,12 @@ export function doubleNextSpentGrants(state: GameState, playerId: PlayerId): rea
  * grant waiting for that player (they all name that same next card; engine reading, no ruling). Cards of one payment
  * are spent together (RRG 1.8 "Cost", p. 13), so the grant's own card never sees it: the grant is made by a response
  * after the payment it was spent in. Null when no grant waits for any spender of the payment.
+ *
+ * Several spenders (another player's cards paying an alliance cost, a card tucked under another player's card): only
+ * the first spender in payment order with a waiting grant has a card doubled, and only their grants are used up. A
+ * second spender's own grant waits for a later payment, though their card in this one was, strictly, the next they
+ * spent (engine reading, no ruling; no printed card yet gives one player's grant while another pays). The pay step
+ * (`paymentFor`'s `doubledPool`, `doubledPaymentSource`) reads the same function, so it shows what the payment does.
  */
 export function doubledSpentCard(
   state: GameState,
@@ -1138,6 +1144,22 @@ export function doubledSpentCard(
     if (grants.length > 0) return { instanceId: entry.fromHand, spenderId, grants };
   }
   return null;
+}
+
+/**
+ * What a waiting `doubleNextCardSpent` grant multiplies `id`'s resources by when it is the card doubled: 2 for each
+ * grant waiting for the player who would spend it (its hand's player, or the player a tucked card is spent for). 1 when
+ * none waits.
+ */
+export function spentCardDoublingFactor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+): number {
+  if (!state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "doubleNextCardSpent")) return 1;
+  const spenderId = spentFromHandOf(state, deps, id, playerId, true) ?? playerId;
+  return 2 ** doubleNextSpentGrants(state, spenderId).length;
 }
 
 /** A hand card's pool with every waiting `doubleNextCardSpent` grant applied, when it is the card they double. */
