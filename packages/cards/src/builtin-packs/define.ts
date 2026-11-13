@@ -17,7 +17,7 @@ export interface BuiltinPackManifest {
   /** The product's set code (`core`, `cap`, `gob`), which every card of the pack carries as its `setCode`. */
   readonly id: string;
   /** `core` for the Core Set; otherwise the store's pack kinds (a campaign box is `campaign`). */
-  readonly kind: "core" | Exclude<PackKind, "art">;
+  readonly kind: "core" | Exclude<PackKind, "art" | "house-rule">;
   readonly name: string;
   /** The product record from `@mc/content` (cycle, release date). */
   readonly product: Pack;

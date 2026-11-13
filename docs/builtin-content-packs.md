@@ -2,7 +2,7 @@
 
 The base game's own products are defined the way a Mod Store pack is (`docs/custom-content-packs.md` §11.2), one
 product at a time. This doc is the pattern a future agent follows to move a product, what has moved, what is left,
-and the gaps the move has found. The summary in the store design is `docs/custom-content-packs.md` §11.11; the
+and the gaps the move has found. The summary in the store design is `docs/custom-content-packs.md` §11.13; the
 tracking issues are #686 (Core and wave 1, PR #687) and #690 (waves 2 and 3).
 
 **Why:** the SDK is proven on content we already trust, built-in content and store packs get one shape and one set
@@ -137,7 +137,7 @@ the ones about `x.` codes, ids and files, plus the cross references:
 5. Extend the tests: the product list, the waves table in `builtin-packs.test.ts`, the newest-wave registry, the
    precon list, and one game of the wave in `builtin.test.ts`.
 6. Re-run the fingerprint (must match), the wave's own tests, `builtin-packs/` and `mod-sdk/src/builtin.test.ts`,
-   then typecheck, lint and format. Update §3 below and `docs/custom-content-packs.md` §11.11.
+   then typecheck, lint and format. Update §3 below and `docs/custom-content-packs.md` §11.13.
 
 ## 3. Status
 
