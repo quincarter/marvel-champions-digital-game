@@ -383,13 +383,23 @@
       "name": "pack-art-punisher-pk",
       "group": "pack-art",
       "optional": true,
-      "dir": "content-packs/community/punisher-pk"
+      "dir": "content-packs/community/punisher-pk",
+      "tag": "pack-art-punisher-pk-206a0263bb6f",
+      "file": "pack-art-punisher-pk.zip",
+      "size": 4217392,
+      "sha256": "206a0263bb6fcfe654575634ac5176c15029939f2fb6b133a89d1346d584852a",
+      "files": 44
     },
     {
       "name": "pack-art-yondu-dh",
       "group": "pack-art",
       "optional": true,
-      "dir": "content-packs/community/yondu-dh"
+      "dir": "content-packs/community/yondu-dh",
+      "tag": "pack-art-yondu-dh-ea2d0ba38bef",
+      "file": "pack-art-yondu-dh.zip",
+      "size": 4827384,
+      "sha256": "ea2d0ba38bef15bb70d042f1b6c016bb05bc832629141dd2a79e4ea1e552ecb5",
+      "files": 38
     },
     {
       "name": "artifacts",
