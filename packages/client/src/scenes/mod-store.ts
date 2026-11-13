@@ -48,12 +48,14 @@ import {
   featuredFacesOf,
   packPageOf,
   progressOf,
+  coverOf,
   tileArtOf,
   tilesOf,
   type ModStoreContext,
   type ModStoreTab,
   type ModStoreTile,
   type PackAction,
+  type PackCover,
 } from "../view/mod-store-model.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
@@ -734,8 +736,21 @@ export class ModStoreScene extends Phaser.Scene {
   }
 
   /**
-   * A tile's left side, a portrait card: the catalog's thumbnail, else the featured card's picture, else its generated
-   * face from the preview's record, else the pack's initial, big and faint, on ink while nothing has loaded.
+   * A pack's cover into `rect`, whole (contain: its title and credit stay in), centered on whatever ground is behind it:
+   * the installed copy's own file first, so it shows offline, else the catalog's thumbnail. Null while it loads.
+   */
+  #drawCover(packId: string, cover: PackCover, rect: Rect): Phaser.GameObjects.Image | null {
+    const source: ArtSource | null =
+      (cover.path !== undefined ? packFileArt(packId, cover.path) : null) ??
+      (cover.url !== undefined ? previewPictureFor(cover.url) : null);
+    const key = source ? cardArt(this).request(this, source) : null;
+    return key ? drawArt(this, key, rect) : null;
+  }
+
+  /**
+   * A tile's left side, a portrait card: the pack's cover, else the catalog's thumbnail, else the featured card's
+   * picture, else its generated face from the preview's record, else the pack's initial, big and faint, on ink while
+   * nothing has loaded.
    */
   #drawThumb(tile: ModStoreTile, rect: Rect): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
@@ -745,6 +760,13 @@ export class ModStoreScene extends Phaser.Scene {
     objects.push(ground);
     const preview = this.#previewOf(tile);
     const art = tileArtOf(tile, preview, artLanguageNow(), ruleCardsOf(tile));
+    if (art.kind === "cover") {
+      const image = this.#drawCover(tile.id, art, rect);
+      if (image) {
+        objects.push(image);
+        return objects;
+      }
+    }
     if (art.kind === "thumbnail") {
       const image = drawPicture(
         this,
@@ -879,8 +901,10 @@ export class ModStoreScene extends Phaser.Scene {
         : { sections: [], records: new Map<string, AnyCard>() };
     const cardCount = galleryCardCount(sections);
     const faces = featuredFacesOf(preview, tile.baseUrl, artLanguageNow(), ruleCardsOf(tile));
+    const cover = coverOf(tile, preview);
     const actions = actionsOf({ tile, busy, confirmingRemove: this.#confirmingRemove });
     const layout = packPageLayoutOf({
+      cover: cover !== undefined,
       width,
       height,
       phone,
@@ -892,7 +916,12 @@ export class ModStoreScene extends Phaser.Scene {
     });
     this.#pageContext = { packId: tile.id, preview, base: tile.baseUrl, records, rule };
 
-    // The featured card(s), then the name, byline, meta and the state chip.
+    // The cover and the featured card(s), then the name, byline, meta and the state chip.
+    if (cover && layout.cover) {
+      const rect = layout.cover;
+      this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
+      this.#drawCover(tile.id, cover, rect);
+    }
     if (layout.squareThumb) this.#drawThumb(tile, layout.faces[0]!);
     else {
       layout.faces.forEach((rect, index) => {

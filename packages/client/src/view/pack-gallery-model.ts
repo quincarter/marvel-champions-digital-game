@@ -226,6 +226,8 @@ export function galleryPictureHeight(grid: ExtrasGrid): number {
 
 /** The portrait ratio of a card: width over height. */
 const CARD_RATIO = 5 / 7;
+/** A pack cover's ratio, width over height: the 600x984 portrait box art of the curated packs. */
+export const COVER_RATIO = 600 / 984;
 const COUNT_LINE = 22;
 const MIN_TEXT = 84;
 const MIN_GALLERY = 120;
@@ -245,10 +247,17 @@ export interface PackPageLayoutInput {
   readonly cardCount: number;
   /** The height of the button row, 0 for none. */
   readonly buttonsHeight: number;
+  /** Whether the pack has a cover (`PackManifest.cover`) to lead the header with. */
+  readonly cover?: boolean;
 }
 
 export interface PackPageLayout {
-  /** The featured faces, left to right; one square slot (the old thumbnail) when the pack has none. */
+  /** The pack's cover, left of the faces, when it has one. */
+  readonly cover: Rect | null;
+  /**
+   * The featured faces, left to right; one square slot (the old thumbnail) when the pack has neither faces nor a cover.
+   * Beside a cover, only as many as leave the title block room (none on the narrowest phones).
+   */
   readonly faces: readonly Rect[];
   readonly squareThumb: boolean;
   readonly title: { readonly x: number; readonly y: number; readonly width: number };
@@ -268,25 +277,35 @@ export interface PackPageLayout {
  * `MIN_TEXT`, the gallery never below `MIN_GALLERY` (one row of tiles, with its count line).
  */
 export function packPageLayoutOf(input: PackPageLayoutInput): PackPageLayout {
-  const { width, height, phone, gutter, top, faceCount, cardCount, buttonsHeight } = input;
+  const { width, height, phone, gutter, top, faceCount, cardCount, buttonsHeight, cover = false } = input;
   const innerWidth = width - gutter * 2;
   const buttonsY = height - gutter - buttonsHeight;
   const statusH = 30;
   const statusY = buttonsY - (buttonsHeight > 0 ? 10 : 0) - statusH;
   const bodyBottom = statusY - 10;
   const headY = top + 14;
-  const square = faceCount === 0;
+  const square = faceCount === 0 && !cover;
   const faceH = square ? (phone ? 72 : 112) : phone ? 124 : Math.min(200, Math.round((bodyBottom - headY) * 0.45));
   const faceW = square ? faceH : Math.round(faceH * CARD_RATIO);
-  // Two faces only where the title block still has room beside them.
-  const shown = square ? 1 : faceCount >= 2 && innerWidth - 2 * faceW - 8 - 14 >= 150 ? 2 : 1;
+  const coverW = cover ? Math.round(faceH * COVER_RATIO) : 0;
+  const lead = cover ? coverW + 8 : 0;
+  // The faces only where the title block still has room beside them (the cover always shows).
+  const roomFor = (count: number): boolean => innerWidth - lead - count * faceW - (count - 1) * 8 - 14 >= 150;
+  const shown = square
+    ? 1
+    : cover
+      ? [2, 1, 0].find((count) => count <= faceCount && (count === 0 || roomFor(count)))!
+      : faceCount >= 2 && roomFor(2)
+        ? 2
+        : 1;
+  const coverRect = cover ? { x: gutter, y: headY, width: coverW, height: faceH } : null;
   const faces: Rect[] = Array.from({ length: shown }, (_, i) => ({
-    x: gutter + i * (faceW + 8),
+    x: gutter + lead + i * (faceW + 8),
     y: headY,
     width: faceW,
     height: faceH,
   }));
-  const facesWidth = shown * faceW + (shown - 1) * 8;
+  const facesWidth = shown > 0 ? lead + shown * faceW + (shown - 1) * 8 : coverW;
   const titleX = gutter + facesWidth + 14;
   const title = { x: titleX, y: headY, width: width - gutter - titleX };
   const beside = !phone && !square;
@@ -314,6 +333,7 @@ export function packPageLayoutOf(input: PackPageLayoutInput): PackPageLayout {
       }
     : null;
   return {
+    cover: coverRect,
     faces,
     squareThumb: square,
     title,

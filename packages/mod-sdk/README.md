@@ -42,6 +42,10 @@ every shipped file) and `totalBytes`.
 Optional fields the build copies through: `languages` (`{ base, available, text? }`), `altArt`, `permission`
 (`{ by, evidence?, date?, scope? }`), `templateCredit` and `translators` (`{ es: "Name" }`).
 
+`cover` (optional) names the pack's store cover, a `.webp` file in the source folder (`"cover": "cover.webp"`): portrait
+box art (600x984 is the curated packs' size; width/height 0.5 to 0.8, 300 to 4096 pixels tall, at most 1 MB). The build
+ships it in the pack and writes it as `thumb.webp`, the store tile's picture, in place of the featured card's.
+
 ### Pictures, languages and alternate art
 
 A card's picture is `cards/<lang>/<card code>.webp`, in the source folder and in the built pack alike (the card records

@@ -86,6 +86,8 @@ export interface ModStoreTile {
   readonly size: string;
   readonly installed: boolean;
   readonly thumbnail: string | undefined;
+  /** The installed copy's cover (`PackManifest.cover`), a path among its own files, when it has one. */
+  readonly cover: string | undefined;
   /** The version's `preview.json` and the folder its files are served from, when the catalog lists them. */
   readonly previewUrl: string | undefined;
   readonly baseUrl: string | undefined;
@@ -93,6 +95,14 @@ export interface ModStoreTile {
   readonly reason: string | undefined;
   /** False for an installed pack the catalog no longer lists. */
   readonly inCatalog: boolean;
+}
+
+/** An installed pack's cover path, read defensively (an install from before covers has none). */
+function installedCoverOf(pack: InstalledPack | undefined): string | undefined {
+  const cover: unknown = pack?.manifest.cover;
+  const files: unknown = pack?.manifest.files;
+  if (typeof cover !== "string" || !Array.isArray(files)) return undefined;
+  return (files as readonly { path?: unknown }[]).some((file) => file?.path === cover) ? cover : undefined;
 }
 
 export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStoreTile {
@@ -116,6 +126,7 @@ export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStor
     size: view.size,
     installed: installed !== undefined,
     thumbnail: entry.thumbnail,
+    cover: installedCoverOf(installed),
     previewUrl: entry.versions[view.version]?.preview,
     baseUrl: entry.versions[view.version]?.base,
     reason: view.reason,
@@ -138,6 +149,7 @@ export function orphanTileOf(pack: InstalledPack): ModStoreTile {
     size: formatBytes(pack.manifest.totalBytes),
     installed: true,
     thumbnail: undefined,
+    cover: installedCoverOf(pack),
     previewUrl: undefined,
     baseUrl: undefined,
     reason: undefined,
@@ -343,8 +355,12 @@ export function modStoreGridOf(width: number, phone: boolean): ExtrasGrid {
   return { columns, gap, tileWidth, tileHeight, rowHeight: tileHeight + gap };
 }
 
-/** What a browse tile's left side shows, best first: the catalog's thumbnail, the featured picture, the featured card's generated face, a letter. */
+/**
+ * What a browse tile's left side shows, best first: the pack's cover, the catalog's thumbnail, the featured picture, the
+ * featured card's generated face, a letter.
+ */
 export type TileArt =
+  | ({ readonly kind: "cover" } & PackCover)
   | { readonly kind: "thumbnail"; readonly url: string }
   | { readonly kind: "picture"; readonly url: string }
   | { readonly kind: "face"; readonly card: AnyCard; readonly face: CardFace }
@@ -407,14 +423,34 @@ function localizedPicturePath(
   return preview.images.has(localized) ? localized : path;
 }
 
+/**
+ * Where a pack's cover comes from: `path`, the installed copy's own file (no network needed), and `url`, the catalog's
+ * thumbnail when the preview says the pack has a cover (`mc-pack build` then writes the cover as `thumb.webp`). At least
+ * one is set.
+ */
+export interface PackCover {
+  readonly path: string | undefined;
+  readonly url: string | undefined;
+}
+
+/** The pack's cover, or undefined when neither the installed copy nor the store's preview has one. */
+export function coverOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined): PackCover | undefined {
+  const url = preview?.cover !== undefined ? tile.thumbnail : undefined;
+  if (tile.cover === undefined && url === undefined) return undefined;
+  return { path: tile.cover, url };
+}
+
 export function tileArtOf(
   tile: ModStoreTile,
   preview: ParsedPackPreview | null | undefined,
   lang?: string,
   ruleCards?: ReadonlyMap<string, AnyCard>,
 ): TileArt {
+  // A cover is the pack's box art, the same in every language: it leads wherever the pack has one.
+  const cover = coverOf(tile, preview);
+  if (cover) return { kind: "cover", ...cover };
   const first = featuredFacesOf(preview, tile.baseUrl, lang, ruleCards)[0];
-  // The catalog's thumbnail is cut from the base language's picture: a player in another language the pack ships sees
+  // Without one, the catalog's thumbnail is cut from the base language's picture: a player in another language the pack ships sees
   // that language's picture instead.
   const localized = first?.pictureUrl !== undefined && first.path !== preview?.featured?.images[0];
   if (tile.thumbnail && !localized) return { kind: "thumbnail", url: tile.thumbnail };

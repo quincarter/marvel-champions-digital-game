@@ -237,6 +237,11 @@ export interface PackManifest {
   readonly templateCredit?: string;
   /** Who translated the pack, by language: `{ es: "Francisco Merchán" }`. */
   readonly translators?: Readonly<Record<string, string>>;
+  /**
+   * The pack's store cover, a listed `.webp` file of the pack (`"cover.webp"`): a portrait box-art picture, the same in
+   * every language. `mc-pack build` makes it the catalog's `thumb.webp` in place of the featured card's picture.
+   */
+  readonly cover?: string;
   /** Every file in the pack except `pack.json` itself. */
   readonly files: readonly PackFile[];
   readonly totalBytes: number;
@@ -276,7 +281,7 @@ export interface PackPreviewDeck {
 
 /**
  * What the store shows of a pack before it is installed (`mc-pack build` writes it next to the zip as `preview.json`,
- * with `thumb.webp` when the featured card has a picture). The cards are the pack's own full records; their pictures
+ * with `thumb.webp`: the pack's cover when it has one, else the featured card's picture when it has one). The cards are the pack's own full records; their pictures
  * are `<version base>/<path>` for each path in `images`.
  */
 export interface PackPreview {
@@ -288,6 +293,11 @@ export interface PackPreview {
    * of a scenario pack, the first scenario's villain of a campaign pack. `images` are its faces' pictures, pack paths.
    */
   readonly featured?: { readonly cardId: string; readonly images: readonly string[] };
+  /**
+   * The pack's cover (`PackManifest.cover`), a pack path, when it has one. `thumb.webp` is then that cover, not the
+   * featured card's picture, so the store shows it in every language. The file itself ships only in the zip.
+   */
+  readonly cover?: string;
   /** The pictures the pack ships: `cards/<lang>/<code>.webp` paths, every language. */
   readonly images: readonly string[];
   readonly languages?: PackLanguages;
@@ -355,6 +365,38 @@ export function packIdOfCardCode(code: string): string | undefined {
 export function isSafePackPath(path: string): boolean {
   if (path.length === 0 || path.startsWith("/") || path.includes("\\")) return false;
   return path.split("/").every((part) => part.length > 0 && part !== "." && part !== "..");
+}
+
+/** The most bytes a pack's cover may have (`PackManifest.cover`): a store thumbnail, a few hundred KB at most. */
+export const PACK_COVER_MAX_BYTES = 1_000_000;
+
+/** Whether `path` can name a pack's cover: a safe pack path to a `.webp` file. */
+export function isPackCoverPath(path: string): boolean {
+  return isSafePackPath(path) && path.endsWith(".webp");
+}
+
+/**
+ * A WebP file's pixel size, read from its header (lossy `VP8 `, lossless `VP8L` or extended `VP8X`), or undefined when
+ * the bytes are not a WebP file.
+ */
+export function webpSize(bytes: Uint8Array): { readonly width: number; readonly height: number } | undefined {
+  const ascii = (at: number, length: number): string => String.fromCharCode(...bytes.subarray(at, at + length));
+  if (bytes.length < 30 || ascii(0, 4) !== "RIFF" || ascii(8, 4) !== "WEBP") return undefined;
+  const u16 = (at: number): number => bytes[at]! | (bytes[at + 1]! << 8);
+  const u24 = (at: number): number => u16(at) | (bytes[at + 2]! << 16);
+  const chunk = ascii(12, 4);
+  if (chunk === "VP8X") return { width: u24(24) + 1, height: u24(27) + 1 };
+  if (chunk === "VP8 ") {
+    // The key frame's start code, then 14-bit width and height.
+    if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) return undefined;
+    return { width: u16(26) & 0x3fff, height: u16(28) & 0x3fff };
+  }
+  if (chunk === "VP8L") {
+    if (bytes[20] !== 0x2f) return undefined;
+    const bits = (u24(21) | (bytes[24]! << 24)) >>> 0;
+    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 };
+  }
+  return undefined;
 }
 
 /** A language tag as a pack folder uses it: `en`, `es`, `pt-BR`. */

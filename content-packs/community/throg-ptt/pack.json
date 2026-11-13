@@ -5,6 +5,7 @@
   "name": "Throg",
   "authors": ["Patatasaurio & Caurel"],
   "description": "Fan-made hero pack by Patatasaurio & Caurel: Throg / Puddlegulper, 15 hero cards around the Frogjolnir upgrade, the Between Two Worlds obligation and a 5-card nemesis set (Thanos, An Unexpected Guest, the Power Stone, Inevitable Power x2).",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.1.0",

@@ -70,3 +70,4 @@ packages/mod-sdk/*.tgz
 # fetch-art.sh (or README) says how to get them for a local build.
 content-packs/community/*/cards/*/
 content-packs/community/*/alt-art/
+content-packs/community/*/cover.webp

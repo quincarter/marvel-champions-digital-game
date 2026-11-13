@@ -45,12 +45,13 @@ function stage(name: string): { readonly src: string; readonly hasArt: boolean }
   const src = join(root, name);
   cpSync(join(COMMUNITY_DIR, name), src, { recursive: true });
   const hasArt = existsSync(join(src, "alt-art"));
-  if (!hasArt) {
-    const file = join(src, "pack.json");
-    const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    delete manifest.altArt;
-    writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
-  }
+  const file = join(src, "pack.json");
+  const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  // The store cover is git-ignored like the pictures: a checkout without it builds the pack without its cover.
+  const coverMissing = typeof manifest.cover === "string" && !existsSync(join(src, ...manifest.cover.split("/")));
+  if (!hasArt) delete manifest.altArt;
+  if (coverMissing) delete manifest.cover;
+  if (!hasArt || coverMissing) writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
   return { src, hasArt };
 }
 
@@ -113,6 +114,13 @@ describe("community packs", () => {
               expect(pack.files.has(`cards/${lang}/${code}.webp`), `${lang}: ${code}`).toBe(true);
           }
         }
+      });
+
+      it("ships its store cover when the cover file is present", () => {
+        const source = JSON.parse(readFileSync(join(COMMUNITY_DIR, name, "pack.json"), "utf8")) as { cover?: string };
+        if (source.cover === undefined || !existsSync(join(COMMUNITY_DIR, name, source.cover))) return;
+        expect(pack.manifest.cover).toBe(source.cover);
+        expect(pack.files.has(source.cover)).toBe(true);
       });
 
       it("plays 3 seeds of each of its decks and each of its modular sets to an outcome, and replays", () => {

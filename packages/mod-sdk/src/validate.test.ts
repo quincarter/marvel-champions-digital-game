@@ -1,4 +1,4 @@
-import { tinyPack } from "./fixtures/load.js";
+import { fakeWebp, tinyPack } from "./fixtures/load.js";
 import { sha256Hex } from "./sha256.js";
 import type { PackManifest } from "@mc/content";
 import { isUnscriptedAbilityIssue, publishIssues, splitIssues, validatePack, type PackInput } from "./validate.js";
@@ -117,6 +117,44 @@ describe("validatePack", () => {
     expect(messages(size)).toMatch(/CREDITS.md: size is/);
     const hash = await broken((p) => p.files.set("CREDITS.md", new Uint8Array(p.files.get("CREDITS.md")!).fill(65)));
     expect(messages(hash)).toMatch(/CREDITS.md: sha256 does not match/);
+  });
+
+  describe("a store cover", () => {
+    /** The fixture with `bytes` added as a listed file at `path` and named as its cover. */
+    const withCover = (bytes: Uint8Array, path = "cover.webp", cover: unknown = path) =>
+      broken((p) => {
+        p.files.set(path, bytes);
+        p.manifest.files.push({ path, bytes: bytes.length, sha256: sha256Hex(bytes) });
+        p.manifest.totalBytes += bytes.length;
+        p.manifest.cover = cover;
+      });
+
+    it("passes a portrait WebP file of the pack", async () => {
+      expect(validatePack(await withCover(fakeWebp(600, 984)))).toEqual([]);
+      expect(validatePack(await withCover(fakeWebp(600, 984), "art/box.webp"))).toEqual([]);
+    });
+
+    it("rejects a cover the pack does not ship", async () => {
+      expect(messages(await broken((p) => (p.manifest.cover = "cover.webp")))).toMatch(
+        /pack.json cover: "cover.webp" is not a file of the pack/,
+      );
+    });
+
+    it("rejects a file that is not a WebP picture, or a path that is not a .webp", async () => {
+      expect(messages(await withCover(text("a PNG, really, not a WebP")))).toMatch(
+        /cover: "cover.webp" is not a WebP picture/,
+      );
+      expect(messages(await withCover(fakeWebp(600, 984), "cover.png"))).toMatch(/cover: must be the path of a .webp/);
+      expect(messages(await withCover(fakeWebp(600, 984), "cover.webp", "../cover.webp"))).toMatch(
+        /cover: must be the path of a .webp/,
+      );
+    });
+
+    it("rejects a landscape, tiny or oversized cover", async () => {
+      expect(messages(await withCover(fakeWebp(984, 600)))).toMatch(/is 984x600: a cover is portrait/);
+      expect(messages(await withCover(fakeWebp(100, 160)))).toMatch(/is 100x160: its height must be 300 to 4096/);
+      expect(messages(await withCover(fakeWebp(600, 984, 1_000_001)))).toMatch(/is 1000001 bytes, more than/);
+    });
   });
 
   it("rejects an unlisted file and a wrong totalBytes", async () => {

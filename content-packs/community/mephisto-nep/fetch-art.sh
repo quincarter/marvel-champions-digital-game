@@ -22,6 +22,13 @@ fi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+# The store cover (pack.json "cover", git-ignored like the pictures), from the commit that added the curated
+# covers: a blob-less fetch, then just that one file.
+COVER_COMMIT=a51e50da556ece0b0fe9a75848320416b8794cef
+git init --quiet "$TMP/cover"
+git -C "$TMP/cover" remote add origin "$REPO"
+git -C "$TMP/cover" fetch --quiet --depth 1 --filter=blob:none origin "$COVER_COMMIT"
+git -C "$TMP/cover" show "FETCH_HEAD:mephisto_nep/cover.webp" > "$HERE/cover.webp"
 git init --quiet "$TMP/src"
 git -C "$TMP/src" fetch --quiet --depth 1 "$REPO" "$COMMIT"
 git -C "$TMP/src" checkout --quiet FETCH_HEAD -- mephisto_nep/images mephisto_nep/alt-art
@@ -89,4 +96,4 @@ MAP
 
 # Alternate art keeps its official card codes (01186.webp ... 01193.webp). English is the author's, from his download.
 cp "$SRC/alt-art/es/"*.webp "$HERE/alt-art/es/"
-echo "Pictures written to $HERE/cards and $HERE/alt-art."
+echo "Pictures written to $HERE/cover.webp, $HERE/cards and $HERE/alt-art."

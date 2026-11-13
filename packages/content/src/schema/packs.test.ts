@@ -9,7 +9,51 @@ import {
   packIdOfCardCode,
   parsePackCardImagePath,
   resolvePackCardImage,
+  isPackCoverPath,
+  webpSize,
 } from "./packs.js";
+
+describe("pack covers", () => {
+  /** A RIFF/WEBP file whose first chunk is `chunk` with `body` from byte 20. */
+  const webp = (chunk: string, body: number[]): Uint8Array => {
+    const out = new Uint8Array(32);
+    [..."RIFF"].forEach((c, i) => (out[i] = c.charCodeAt(0)));
+    [...`WEBP${chunk}`].forEach((c, i) => (out[8 + i] = c.charCodeAt(0)));
+    body.forEach((b, i) => (out[20 + i] = b));
+    return out;
+  };
+
+  it("reads a lossy, lossless and extended WebP's size", () => {
+    // VP8: frame tag, start code 9d 01 2a, then 14-bit width and height (600 = 0x258, 984 = 0x3d8).
+    expect(webpSize(webp("VP8 ", [0, 0, 0, 0x9d, 0x01, 0x2a, 0x58, 0x02, 0xd8, 0x03]))).toEqual({
+      width: 600,
+      height: 984,
+    });
+    // VP8L: signature 0x2f, then width-1 and height-1 in 14 bits each: 599 | 983 << 14.
+    const bits = 599 | (983 << 14);
+    expect(webpSize(webp("VP8L", [0x2f, bits & 0xff, (bits >> 8) & 0xff, (bits >> 16) & 0xff, bits >>> 24]))).toEqual({
+      width: 600,
+      height: 984,
+    });
+    // VP8X: flags, then width-1 and height-1 in 24 bits each.
+    expect(webpSize(webp("VP8X", [0, 0, 0, 0, 0x57, 0x02, 0, 0xd7, 0x03, 0]))).toEqual({ width: 600, height: 984 });
+  });
+
+  it("is undefined for bytes that are not WebP", () => {
+    expect(
+      webpSize(new TextEncoder().encode("\x89PNG\r\n\x1a\n and some more bytes to be long enough")),
+    ).toBeUndefined();
+    expect(webpSize(new Uint8Array(4))).toBeUndefined();
+    expect(webpSize(webp("VP8 ", [0, 0, 0, 1, 2, 3]))).toBeUndefined();
+  });
+
+  it("names a .webp file at a safe path", () => {
+    expect(isPackCoverPath("cover.webp")).toBe(true);
+    expect(isPackCoverPath("art/cover.webp")).toBe(true);
+    expect(isPackCoverPath("cover.png")).toBe(false);
+    expect(isPackCoverPath("../cover.webp")).toBe(false);
+  });
+});
 
 describe("custom pack ids and codes", () => {
   it("accepts kebab-case pack ids only", () => {

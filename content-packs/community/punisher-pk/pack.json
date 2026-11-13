@@ -5,6 +5,7 @@
   "name": "The Punisher",
   "authors": ["PermaKarma"],
   "description": "Fan-made scenario pack by PermaKarma: The Punisher wages a one-man war on crime, and the minions in your way are his targets as much as yours.",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.1.0",

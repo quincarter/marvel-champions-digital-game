@@ -239,6 +239,9 @@ needs a paid Workers plan to survive another Reddit day.
   },
   "templateCredit": "Hitch",
   "translators": { "es": "Francisco Merchán" },
+  // optional, added 2026-11-13: the store cover, a portrait .webp file of the pack (600x984 box art, the same in every
+  // language). `mc-pack build` makes it the version's thumb.webp (§11.5); a cover is at most 1 MB, width/height 0.5-0.8.
+  "cover": "cover.webp",
   "files": [
     { "path": "cards/x.fan-moon-knight.01a.webp", "bytes": 182044, "sha256": "…" },
     // every file, so a download can be verified and resumed file by file
@@ -641,8 +644,12 @@ The store's catalog is §5.2's, with the extra fields the store screen shows:
 }
 ```
 
-Each version may carry `"preview": "<base>preview.json"`. `mc-pack build` writes `preview.json` (and `thumb.webp`, when the
-featured card has a picture) next to the zip, never inside it, so the zip bytes do not depend on it. It holds the
+Each version may carry `"preview": "<base>preview.json"`. `mc-pack build` writes `preview.json` (and `thumb.webp`: the
+pack's `cover` when it has one, else the featured card's picture when it has one) next to the zip, never inside it, so
+the zip bytes do not depend on it. A pack with a cover says so in `preview.json` (`"cover": "cover.webp"`), so the
+store shows the thumbnail as a cover, whole and in every language, where it would otherwise show a non-base-language
+player the featured card's picture in their language; an installed pack shows the cover from its own files, offline.
+Neither publisher changes for it: the cover reaches the catalog as the `thumbnail` it already lists. It holds the
 featured card (a hero pack's identity with both faces, a scenario pack's villain, a campaign pack's first scenario's
 villain), the pack's own full card records, each precon deck as card ids and quantities (base-game ids stay ids) and the
 list of `cards/<lang>/<code>.webp` pictures the pack ships (`PackPreview` in `@mc/content`). The client reads it

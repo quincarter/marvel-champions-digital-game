@@ -1,10 +1,11 @@
 {
   "id": "carnage-nep",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "kind": "hero",
   "name": "Carnage",
   "authors": ["Neptune"],
   "description": "Fan-made hero pack by Neptune: Carnage.",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.1.0",

@@ -8,6 +8,7 @@ import {
   PACK_PREVIEW_MAX_BYTES,
   PACK_PREVIEW_SCHEMA_VERSION,
   customCardPrefix,
+  isPackCoverPath,
   parsePackCardImagePath,
   validateCard,
   type AnyCard,
@@ -19,6 +20,8 @@ export interface ParsedPackPreview {
   readonly packId: string;
   readonly version: string;
   readonly featured: { readonly cardId: string; readonly images: readonly string[] } | undefined;
+  /** The pack's cover path (`PackPreview.cover`): the catalog's thumbnail is then that cover. */
+  readonly cover: string | undefined;
   readonly images: ReadonlySet<string>;
   readonly languages: PackLanguages | undefined;
   readonly cards: readonly AnyCard[];
@@ -97,7 +100,17 @@ export function parsePackPreview(data: unknown, packId: string): ParsedPackPrevi
           images: data.featured.images.filter((path): path is string => isString(path) && images.has(path)),
         }
       : undefined;
-  return { packId, version: data.version, featured, images, languages: languagesOf(data.languages), cards, decks };
+  const cover = isString(data.cover) && isPackCoverPath(data.cover) ? data.cover : undefined;
+  return {
+    packId,
+    version: data.version,
+    featured,
+    cover,
+    images,
+    languages: languagesOf(data.languages),
+    cards,
+    decks,
+  };
 }
 
 /** Parses the file's text: undefined when it is too big (`PACK_PREVIEW_MAX_BYTES`), not JSON or the wrong shape. */

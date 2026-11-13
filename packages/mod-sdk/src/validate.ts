@@ -6,6 +6,7 @@ import {
   validateDefinition,
 } from "@mc/cards";
 import {
+  PACK_COVER_MAX_BYTES,
   PACK_HOUSE_RULE_MODES,
   PACK_KINDS,
   PACK_PERMISSION_STATUSES,
@@ -13,6 +14,7 @@ import {
   PLAYABLE_CARDS,
   customCardPrefix,
   isLanguageTag,
+  isPackCoverPath,
   isPackId,
   isSafePackPath,
   officialFaceOfCode,
@@ -23,6 +25,7 @@ import {
   validateEncounterSet,
   validateScenario,
   validateStarterDeck,
+  webpSize,
   type AnyCard,
   type EncounterSet,
   type PackManifest,
@@ -232,6 +235,7 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     add("pack.json requires.dslFeatures", `must list exactly the features the abilities use: ${features.join(", ")}`);
 
   checkFiles(input, add);
+  checkCover(input, add);
   // A picture may be of any face of a pack card: `01b` is the back of card `01a`, which shares its number.
   const isPackFace = (code: string): boolean =>
     code.startsWith(prefix) &&
@@ -733,6 +737,43 @@ function checkStagePictures(input: PackInput, cards: readonly Obj[], add: Add): 
       if (!shipped.has(code)) add(`cards/${id}`, `stage picture "cards/${base}/${code}.webp" is not a listed file`);
     }
   }
+}
+
+/** The narrowest and widest a cover may be, as width over height: portrait box art (600x984 is 0.61, a card 0.71). */
+const COVER_ASPECT = { min: 0.5, max: 0.8 } as const;
+/** The smallest and largest a cover may be on its long side, in pixels. */
+const COVER_HEIGHT = { min: 300, max: 4096 } as const;
+
+/**
+ * The store cover (`pack.json` `cover`): a listed `.webp` file of the pack, a real WebP under `PACK_COVER_MAX_BYTES`, in
+ * portrait (`COVER_ASPECT`) and of a sane size (`COVER_HEIGHT`). It becomes the catalog's thumbnail (`preview.ts`).
+ */
+function checkCover(input: PackInput, add: Add): void {
+  const cover: unknown = input.manifest.cover;
+  if (cover === undefined) return;
+  const at = "pack.json cover";
+  if (typeof cover !== "string" || !isPackCoverPath(cover)) {
+    add(at, 'must be the path of a .webp file in the pack, such as "cover.webp"');
+    return;
+  }
+  const bytes = input.files instanceof Map ? input.files.get(cover) : undefined;
+  if (!(bytes instanceof Uint8Array)) {
+    add(at, `"${cover}" is not a file of the pack`);
+    return;
+  }
+  if (bytes.length > PACK_COVER_MAX_BYTES)
+    add(at, `"${cover}" is ${bytes.length} bytes, more than a cover's ${PACK_COVER_MAX_BYTES}`);
+  const size = webpSize(bytes);
+  if (!size) {
+    add(at, `"${cover}" is not a WebP picture`);
+    return;
+  }
+  const { width, height } = size;
+  const aspect = width / height;
+  if (aspect < COVER_ASPECT.min || aspect > COVER_ASPECT.max)
+    add(at, `"${cover}" is ${width}x${height}: a cover is portrait, about 600x984 (width/height 0.5 to 0.8)`);
+  if (height < COVER_HEIGHT.min || height > COVER_HEIGHT.max)
+    add(at, `"${cover}" is ${width}x${height}: its height must be ${COVER_HEIGHT.min} to ${COVER_HEIGHT.max} pixels`);
 }
 
 function checkFiles(input: PackInput, add: Add): void {

@@ -1,10 +1,11 @@
 {
   "id": "yondu-dh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "kind": "hero",
   "name": "Yondu",
   "authors": ["DesignHacker & BlueHG (nemesis set)"],
   "description": "Fan-made hero pack by DesignHacker & BlueHG (nemesis set): Yondu.",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.1.0",

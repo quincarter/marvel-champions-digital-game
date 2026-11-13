@@ -1,10 +1,11 @@
 {
   "id": "night-thrasher-dh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "kind": "hero",
   "name": "Night Thrasher",
   "authors": ["DesignHacker"],
   "description": "Fan-made hero pack by DesignHacker: Night Thrasher.",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.1.0",

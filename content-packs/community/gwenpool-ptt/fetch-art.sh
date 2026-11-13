@@ -7,6 +7,13 @@ COMMIT=3a5dff953ec7f2d64473039874fb6568693aa3f6
 HERE=$(cd "$(dirname "$0")" && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+# The store cover (pack.json "cover", git-ignored like the pictures), from the commit that added the curated
+# covers: a blob-less fetch, then just that one file.
+COVER_COMMIT=a51e50da556ece0b0fe9a75848320416b8794cef
+git init --quiet "$TMP/cover"
+git -C "$TMP/cover" remote add origin "$REPO"
+git -C "$TMP/cover" fetch --quiet --depth 1 --filter=blob:none origin "$COVER_COMMIT"
+git -C "$TMP/cover" show "FETCH_HEAD:gwenpool_ptt/cover.webp" > "$HERE/cover.webp"
 git clone --quiet --filter=blob:none --no-checkout "$REPO" "$TMP/src"
 git -C "$TMP/src" checkout --quiet "$COMMIT" -- gwenpool_ptt/images
 SRC="$TMP/src/gwenpool_ptt"
@@ -18,4 +25,4 @@ for lang in en es; do
     cp "$file" "$HERE/cards/$lang/x.gwenpool-ptt.${name#gwenpool_ptt_}"
   done
 done
-echo "Pictures written to $HERE/cards."
+echo "Pictures written to $HERE/cover.webp, $HERE/cards."

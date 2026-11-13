@@ -414,4 +414,51 @@ describe("a tile's art", () => {
       expect(tileArtOf(tile, spanishBase(both), "es")).toEqual({ kind: "thumbnail", url: "https://h/thumb.webp" });
     });
   });
+
+  describe("a pack with a cover", () => {
+    const withCover = (cover: unknown, languages = { base: "es", available: ["en", "es"] }) =>
+      parsePackPreview(
+        {
+          schema: 1,
+          packId: "demo",
+          version: "1.0.0",
+          featured: { cardId: identity.id, images: ["cards/es/x.demo.01a.webp", "cards/es/x.demo.01b.webp"] },
+          cover,
+          images: ["cards/es/x.demo.01a.webp", "cards/es/x.demo.01b.webp", "cards/en/x.demo.01a.webp"],
+          languages,
+          cards: [identity],
+          decks: [],
+        },
+        "demo",
+      )!;
+    const tile = withBase({}, { thumbnail: "https://h/thumb.webp" });
+
+    it("shows the cover (the catalog's thumbnail) in every language, never a localized card picture", () => {
+      const art = { kind: "cover", path: undefined, url: "https://h/thumb.webp" };
+      expect(tileArtOf(tile, withCover("cover.webp"), "es")).toEqual(art);
+      expect(tileArtOf(tile, withCover("cover.webp"), "en")).toEqual(art);
+      expect(tileArtOf(tile, withCover("cover.webp"))).toEqual(art);
+    });
+
+    it("shows an installed copy's own cover file, with no catalog thumbnail or preview (offline)", () => {
+      const installed = installedPack("demo");
+      const manifest = {
+        ...installed.manifest,
+        cover: "cover.webp",
+        files: [{ path: "cover.webp", bytes: 1, sha256: "0".repeat(64) }],
+      };
+      const offline = tileOf(entry("demo"), context([{ ...installed, manifest }]));
+      expect(offline.cover).toBe("cover.webp");
+      expect(tileArtOf(offline, null, "en")).toEqual({ kind: "cover", path: "cover.webp", url: undefined });
+      // An installed copy that names a cover it does not ship has none.
+      const broken = tileOf(entry("demo"), context([{ ...installed, manifest: { ...manifest, files: [] } }]));
+      expect(broken.cover).toBeUndefined();
+    });
+
+    it("ignores a preview cover that is not a .webp pack path", () => {
+      expect(withCover("../cover.webp").cover).toBeUndefined();
+      expect(withCover(7).cover).toBeUndefined();
+      expect(tileArtOf(tile, withCover("cover.png"), "en")).toMatchObject({ kind: "picture" });
+    });
+  });
 });

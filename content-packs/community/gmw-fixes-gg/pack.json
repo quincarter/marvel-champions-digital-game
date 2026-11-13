@@ -5,6 +5,7 @@
   "name": "GMW Fixes",
   "authors": ["Gideon's Gaming", "Bluefire"],
   "description": "Gideon's Gaming's fixes for The Galaxy's Most Wanted, rebuilt as full cards by Bluefire. Installing it offers the Balanced version when a Galaxy's Most Wanted campaign starts (Collector I-III and The Grand Collection, Nebula's Ship, the Milano, Interception Imminent and Take What Is Mine), and its rebuilt faces show in Balanced games.",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.44.0",
