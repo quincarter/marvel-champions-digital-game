@@ -90,6 +90,9 @@ import { onSyncApplied } from "../sync/sync-events.js";
 import { onLanguageChange } from "../language-change.js";
 import { t } from "../i18n/translate.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
+import { fetchReplay, takeReplayLink } from "../replay/replay-link.js";
+import { openReplay, replayErrorKey } from "../replay/replay-files.js";
+import { watchReplay } from "./replay-entry.js";
 import { maybeAskGlobalStats } from "./global-ask-launch.js";
 import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
@@ -177,6 +180,31 @@ export class TitleScene extends Phaser.Scene {
     super(SCENES.title);
   }
 
+  /** A `#replay=` link: fetches the shared replay and opens it on the board; Exit comes back here. */
+  async #watchSharedReplay(id: string): Promise<void> {
+    const fetched = await fetchReplay(id);
+    if (!this.sys.isActive()) return;
+    if (!fetched.ok)
+      return this.#replayProblem(t(fetched.failure === "not-found" ? "replay.link.gone" : "replay.link.offline"));
+    try {
+      const host = await openReplay({ kind: "file", bytes: fetched.value });
+      if (!this.sys.isActive()) return host.dispose();
+      await watchReplay(this, host, SCENES.title);
+    } catch (cause) {
+      if (this.sys.isActive()) this.#replayProblem(t(replayErrorKey(cause)));
+    }
+  }
+
+  /** Says why a shared replay didn't open, at the top of the screen, for a few seconds. */
+  #replayProblem(text: string): void {
+    const { width } = this.scale.gameSize;
+    const line = this.add
+      .text(width / 2, 8, text, textStyle(typeRole.body, signal.caution.hex))
+      .setOrigin(0.5, 0)
+      .setDepth(1000);
+    this.time.delayedCall(6000, () => line.destroy());
+  }
+
   create(data: TitleSceneData = {}): void {
     if (data.initialSeatDeckId) {
       const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
@@ -255,6 +283,9 @@ export class TitleScene extends Phaser.Scene {
     this.#checkRankUp();
     this.#rebuild();
     fadeScreenIn(this);
+    // Opened from a shared replay's link (issue #693): fetch it and watch it (read and cleared once).
+    const replayId = takeReplayLink();
+    if (replayId) void this.#watchSharedReplay(replayId);
     // Opened from a Send screen's QR code: straight to Settings, Save data, Receive (read and cleared once).
     const receive = takeReceiveLink();
     if (receive) this.scene.launch(SCENES.settings, { receive });

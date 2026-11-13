@@ -129,3 +129,49 @@ describe("replay transport model", () => {
     }
   });
 });
+
+describe("replay transport model, phone and autoplay at the end", () => {
+  test("Play at the end waits on the seek to the start instead of stopping", () => {
+    const state = { playing: true, elapsedMs: 0 };
+    const waiting = tickAutoPlay(state, 16, { speed: 1, waiting: true, position: 25, length: 25 });
+    expect(waiting.state.playing).toBe(true);
+    expect(tickAutoPlay(state, 16, { speed: 1, waiting: false, position: 25, length: 25 }).state).toEqual(STOPPED);
+  });
+
+  test("a difference at the setup is its own banner", () => {
+    expect(bannerOf({ otherBuild: false, divergedAt: 0, failure: null })).toEqual({ kind: "divergedSetup", n: 0 });
+  });
+
+  test("the phone puts play and the steps in the title bar and the rest in the bar", () => {
+    const bar = { x: 0, y: 571, width: 375, height: 96 };
+    const titleBar = { x: 0, y: 0, width: 375, height: 36 };
+    for (const onTop of [false, true]) {
+      const layout = transportLayout(bar, { titleBar, onTop });
+      expect(layout.kind).toBe("phone");
+      for (const id of ["back", "play", "forward"] as const) {
+        const rect = layout.controls.get(id)!;
+        expect(rect.y + rect.height).toBeLessThanOrEqual(titleBar.height);
+        // Left of the menu button (40 wide, 8 from the edge).
+        expect(rect.x + rect.width).toBeLessThanOrEqual(375 - 56);
+      }
+      for (const id of ["prevMoment", "nextMoment", "speed", "move", "share", "exportLog", "export", "exit"] as const) {
+        const rect = layout.controls.get(id)!;
+        expect(rect, id).toBeDefined();
+        expect(rect.x).toBeGreaterThanOrEqual(0);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(375);
+        expect(rect.y).toBeGreaterThanOrEqual(bar.y);
+        expect(rect.y + rect.height).toBeLessThanOrEqual(bar.y + bar.height);
+      }
+      expect(layout.label.width).toBeGreaterThan(60);
+      expect(layout.seek.width).toBeGreaterThan(60);
+      // The banner sits on the side of the bar that faces the table.
+      expect(layout.banner.y).toBe(onTop ? bar.y + bar.height : bar.y - 22);
+      const rects = [...layout.controls.values(), layout.seek, layout.label].filter((r) => r.y >= bar.y);
+      for (const [i, a] of rects.entries())
+        for (const b of rects.slice(i + 1))
+          expect(a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height).toBe(
+            false,
+          );
+    }
+  });
+});

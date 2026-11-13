@@ -28,6 +28,9 @@ import { onTap, tapId } from "../ui/tap.js";
 import { fitTight, McButton, paintPanel } from "../ui/widgets.js";
 import { skin, textStyle, type WidgetKind } from "../ui/theme.js";
 import { padButtonGlyph } from "../view/input-glyph-model.js";
+import { detectPlatform } from "../platform/platform.js";
+import { replayLinkOf, uploadReplay, type ReplayLinkFailure } from "../replay/replay-link.js";
+import { readBarOnTop, writeBarOnTop } from "../view/replay-bar-pref.js";
 import type { Rect } from "../view/layout.js";
 import {
   STOPPED,
@@ -82,6 +85,10 @@ const PAD = {
   start: 8,
   end: 9,
   exportLog: 11,
+  /** Left stick click: moves a phone's bar between the bottom and the top. */
+  move: 10,
+  /** D-pad up: shares the replay as a link. */
+  share: 12,
   left: 14,
   right: 15,
 } as const;
@@ -97,6 +104,8 @@ const KEYS: Readonly<Partial<Record<TransportControl, string>>> = {
   speed: "S",
   export: "E",
   exit: "Esc",
+  move: "M",
+  share: "L",
 };
 
 const PAD_OF: Readonly<Record<TransportControl, number>> = {
@@ -111,11 +120,13 @@ const PAD_OF: Readonly<Record<TransportControl, number>> = {
   export: PAD.export,
   exportLog: PAD.exportLog,
   exit: PAD.exit,
+  move: PAD.move,
+  share: PAD.share,
 };
 
 const GLYPH_HEIGHT = 12;
 
-type IconId = "play" | "pause" | "back" | "forward" | "prevMoment" | "nextMoment" | "start" | "end";
+type IconId = "play" | "pause" | "back" | "forward" | "prevMoment" | "nextMoment" | "start" | "end" | "up" | "down";
 
 function triangle(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number, dir: 1 | -1): void {
   g.fillTriangle(cx - dir * size * 0.6, cy - size, cx - dir * size * 0.6, cy + size, cx + dir * size * 0.8, cy);
@@ -148,6 +159,12 @@ function paintIcon(g: Phaser.GameObjects.Graphics, icon: IconId, rect: Rect, col
       triangle(g, cx - s * 0.7, cy, s * 0.85, 1);
       triangle(g, cx + s * 0.7, cy, s * 0.85, 1);
       break;
+    case "up":
+      g.fillTriangle(cx - s * 1.1, cy + s * 0.7, cx + s * 1.1, cy + s * 0.7, cx, cy - s * 0.9);
+      break;
+    case "down":
+      g.fillTriangle(cx - s * 1.1, cy - s * 0.7, cx + s * 1.1, cy - s * 0.7, cx, cy + s * 0.9);
+      break;
     case "start":
       g.fillRect(cx - s * 1.3, cy - s, s * 0.45, s * 2);
       triangle(g, cx + s * 0.3, cy, s, -1);
@@ -177,6 +194,7 @@ class IconButton {
     enabled: boolean,
     activate: () => void,
     id: string,
+    onTip: ((over: boolean) => void) | null = null,
   ) {
     this.#rect = rect;
     this.#kind = kind;
@@ -190,10 +208,12 @@ class IconButton {
     this.#zone.on("pointerover", () => {
       this.#hovered = true;
       this.#paint();
+      onTip?.(true);
     });
     this.#zone.on("pointerout", () => {
       this.#hovered = false;
       this.#paint();
+      onTip?.(false);
     });
     onTap(this.#zone, () => (enabled ? activate() : undefined), tapId("replay", rect, id));
     this.#paint();
@@ -233,6 +253,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   #icons: IconButton[] = [];
   #padDown = new Map<number, boolean[]>();
   #scrub = { dir: 0 as -1 | 0 | 1, heldMs: 0, lastMs: -1 };
+  /** False once the scene is shutting down: a request that fails because the replay closed is then no error. */
+  #alive = false;
+  /** A phone's bar is at the top of the screen (`view/replay-bar-pref.ts`). */
+  #barOnTop = false;
+  #tip: Phaser.GameObjects.GameObject[] = [];
+  /** The replay is being uploaded for a link. */
+  #sharing = false;
 
   constructor() {
     super(SCENES.replayTransport);
@@ -245,6 +272,10 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       return;
     }
     this.#host = host;
+    this.#alive = true;
+    this.#barOnTop = readBarOnTop();
+    this.#tip = [];
+    this.#sharing = false;
     this.#auto = STOPPED;
     this.#speed = 1;
     this.#busy = 0;
@@ -267,6 +298,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_UP, this.#endDrag, this);
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#endDrag, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#alive = false;
       unPosition();
       unLanguage();
       this.scale.off("resize", onResize, this);
@@ -297,9 +329,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const state = this.#state;
     if (!host || !state) return;
     const board = this.#board();
-    const rect = board?.replayBarRect() ?? null;
-    const key = rect ? `${rect.x},${rect.y},${rect.width},${rect.height}` : "";
-    if (key !== this.#drawnKey) this.#draw();
+    if (this.#placementKey(board) !== this.#drawnKey) this.#draw();
     this.#pollPads(delta);
     const wasPlaying = this.#auto.playing;
     const waiting = this.#busy > 0 || this.#drag !== null || !(board?.replayIdle() ?? true);
@@ -310,8 +340,23 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       length: state.info.length,
     });
     this.#auto = next.state;
-    if (next.step) void this.#stepForward().then((moved) => !moved && this.#stop());
+    if (next.step) this.#settle(this.#stepForward().then((moved) => !moved && this.#stop()));
     if (wasPlaying !== this.#auto.playing) this.#draw();
+  }
+
+  /** Swallows what a request that outlived its replay throws; any other failure is logged, never unhandled. */
+  #settle(job: Promise<unknown>): void {
+    job.catch((cause: unknown) => {
+      if (this.#alive && activeReplay() === this.#host) console.warn("replay", cause);
+    });
+  }
+
+  /** The bar's rect and the title bar's, as the board has them now: what a redraw is keyed on. */
+  #placementKey(board: BoardScene | null): string {
+    const title = board?.replayTitleBar() ?? null;
+    const bar = board?.replayBarRect(title !== null && this.#barOnTop) ?? null;
+    const of = (rect: Rect | null): string => (rect ? `${rect.x},${rect.y},${rect.width},${rect.height}` : "-");
+    return `${of(bar)}|${of(title)}|${this.#barOnTop}`;
   }
 
   #board(): BoardScene | null {
@@ -333,7 +378,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       this.#stop();
       return;
     }
-    if (playFrom(state.position, state.info.length).restart) void this.#seek(0);
+    if (playFrom(state.position, state.info.length).restart) this.#settle(this.#seek(0));
     // The first step comes at once, then one per interval.
     this.#auto = { playing: true, elapsedMs: stepDelayMs(this.#speed) };
     this.#draw();
@@ -368,8 +413,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const state = this.#state;
     if (!state) return;
     const { moments, length } = state.info;
-    void this.#seek(
-      direction > 0 ? nextMoment(moments, state.position, length) : previousMoment(moments, state.position),
+    this.#settle(
+      this.#seek(direction > 0 ? nextMoment(moments, state.position, length) : previousMoment(moments, state.position)),
     );
   }
 
@@ -419,11 +464,11 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         break;
       case "back":
         this.#stop();
-        void this.#stepBack();
+        this.#settle(this.#stepBack());
         break;
       case "forward":
         this.#stop();
-        void this.#stepForward();
+        this.#settle(this.#stepForward());
         break;
       case "prevMoment":
         this.#stop();
@@ -435,24 +480,85 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         break;
       case "start":
         this.#stop();
-        void this.#seek(0);
+        this.#settle(this.#seek(0));
         break;
       case "end":
         this.#stop();
-        if (state) void this.#seek(state.info.length);
+        if (state) this.#settle(this.#seek(state.info.length));
         break;
       case "speed":
         this.#cycleSpeed();
         break;
       case "export":
-        void this.#export("replay");
+        this.#settle(this.#export("replay"));
         break;
       case "exportLog":
-        void this.#export("log");
+        this.#settle(this.#export("log"));
         break;
       case "exit":
         this.#exit();
         break;
+      case "share":
+        this.#settle(this.#share());
+        break;
+      case "move":
+        if (this.#layout?.kind !== "phone") break;
+        this.#barOnTop = !this.#barOnTop;
+        writeBarOnTop(this.#barOnTop);
+        this.#draw();
+        break;
+    }
+  }
+
+  /** The failure wording of a share that did not make a link. */
+  #failureText(failure: ReplayLinkFailure): string {
+    switch (failure) {
+      case "rate-limited":
+        return t("replay.link.rateLimited");
+      case "too-large":
+        return t("replay.link.tooLarge");
+      case "not-found":
+        return t("replay.link.gone");
+      case "unavailable":
+        return t("replay.link.offline");
+    }
+  }
+
+  /**
+   * Share link: uploads the replay, then hands the link to the system's share sheet where there is one (an
+   * AbortError is the player closing it), else copies it and says so in the banner.
+   */
+  async #share(): Promise<void> {
+    const host = this.#host;
+    if (!host || this.#sharing) return;
+    this.#sharing = true;
+    this.#draw();
+    try {
+      const { bytes } = await host.exportFile();
+      const uploaded = await uploadReplay(bytes);
+      if (!uploaded.ok) {
+        this.#say(this.#failureText(uploaded.failure));
+        return;
+      }
+      const url = replayLinkOf(uploaded.value, detectPlatform() !== "web");
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({ url, title: t("replay.title") });
+          return;
+        } catch (cause) {
+          if (isAbort(cause)) return;
+          // A share the browser refused (the press is too old by now) falls back to copying.
+        }
+      }
+      await navigator.clipboard.writeText(url);
+      this.#say(t("replay.link.copied"));
+    } catch (cause) {
+      if (isAbort(cause) || !this.#alive) return;
+      console.warn("replay share failed", cause);
+      this.#say(t("replay.link.offline"));
+    } finally {
+      this.#sharing = false;
+      if (this.#alive) this.#draw();
     }
   }
 
@@ -489,6 +595,10 @@ export class ReplayTransportOverlay extends Phaser.Scene {
           return "speed";
         case "KeyE":
           return "export";
+        case "KeyL":
+          return "share";
+        case "KeyM":
+          return "move";
         case "Escape":
           return "exit";
         default:
@@ -523,10 +633,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       const was = before.get(index) ?? [];
       const now = this.#padDown.get(index) ?? [];
       const edge = (button: number): boolean => now[button] === true && was[button] !== true;
-      if (blocked) continue;
-      const walkthrough = this.scene.isActive(SCENES.villainPhase);
-      if (edge(PAD.play) && !walkthrough) this.#act("play");
-      if (edge(PAD.exit) && !walkthrough) this.#act("exit");
+      // While the villain walkthrough is up the pad is its own (A / B, X, Y, the bumpers and triggers for the defend's
+      // picks, View, Start and the d-pad all do something there): nothing here fires until it closes.
+      if (blocked || this.scene.isActive(SCENES.villainPhase)) continue;
+      if (edge(PAD.play)) this.#act("play");
+      if (edge(PAD.exit)) this.#act("exit");
+      if (edge(PAD.move)) this.#act("move");
+      if (edge(PAD.share)) this.#act("share");
       if (edge(PAD.export)) this.#act("export");
       if (edge(PAD.exportLog)) this.#act("exportLog");
       if (edge(PAD.speed)) this.#act("speed");
@@ -557,7 +670,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#scrub.lastMs = this.#scrub.heldMs;
     this.#stop();
     const target = Math.max(0, Math.min(state.info.length, state.position + dir * steps));
-    if (target !== state.position) void this.#seek(target);
+    if (target !== state.position) this.#settle(this.#seek(target));
   }
 
   #beginDrag(pointer: Phaser.Input.Pointer): void {
@@ -581,7 +694,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const position = positionAtX(x, track.x, track.width, state.info.length);
     if (position === drag.position && position === state.position) return;
     drag.position = position;
-    void this.#seek(position);
+    this.#settle(this.#seek(position));
     this.#draw();
   }
 
@@ -604,7 +717,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     return (set, snapshot) => {
       if (set === "keyboard") {
         const key = KEYS[control];
-        return key ? [{ kind: "key", label: key, name: `${key} key` }] : null;
+        return key ? [{ kind: "key", label: key, name: t("replay.keyName", { key }) }] : null;
       }
       const glyph = padButtonGlyph(PAD_OF[control], snapshot.state, snapshot.settings);
       return glyph ? [glyph] : null;
@@ -630,20 +743,31 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#clear();
     destroyChildren(this);
     this.#hints.reset();
-    const bar = this.#board()?.replayBarRect() ?? null;
-    this.#drawnKey = bar ? `${bar.x},${bar.y},${bar.width},${bar.height}` : "";
+    const board = this.#board();
+    this.#tip = [];
+    const titleBar = board?.replayTitleBar() ?? null;
+    const onTop = titleBar !== null && this.#barOnTop;
+    const bar = board?.replayBarRect(onTop) ?? null;
+    this.#drawnKey = this.#placementKey(board);
     if (!host || !state || !bar) return;
     const { info } = state;
-    const layout = transportLayout(bar);
+    const layout = transportLayout(bar, { titleBar, onTop });
     this.#layout = layout;
     this.#track = layout.track;
 
     // The bar's own ground, and a rule along its top edge.
     const ground = this.add.graphics();
     ground.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
-    ground.fillStyle(surface.paperOnInk.hex, 0.35).fillRect(bar.x, bar.y, bar.width, 1);
+    ground
+      .fillStyle(surface.paperOnInk.hex, 0.35)
+      .fillRect(bar.x, onTop ? bar.y + bar.height - 1 : bar.y, bar.width, 1);
+    // On a phone the title bar's own words end where play and the steps begin.
+    if (layout.titleCover) {
+      const cover = layout.titleCover;
+      ground.fillStyle(surface.ink.hex, 1).fillRect(cover.x, cover.y, cover.width, cover.height);
+    }
 
-    this.#drawBanner(layout, info);
+    this.#drawBanner(layout, info, onTop);
     this.#drawSeek(layout, state);
 
     const shown = this.#drag?.position ?? state.position;
@@ -669,7 +793,18 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const icon = (control: TransportControl, glyph: IconId, enabled: boolean, kind: WidgetKind = "onInk"): void => {
       const rect = layout.controls.get(control);
       if (!rect) return;
-      this.#icons.push(new IconButton(this, rect, kind, glyph, enabled, () => this.#act(control), control));
+      this.#icons.push(
+        new IconButton(
+          this,
+          rect,
+          kind,
+          glyph,
+          enabled,
+          () => this.#act(control),
+          control,
+          (over) => this.#showTip(over ? rect : null, this.#nameOf(control)),
+        ),
+      );
       this.#hint(control, rect);
     };
     icon("start", "start", !atStart);
@@ -679,6 +814,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     icon("forward", "forward", !atEnd);
     icon("nextMoment", "nextMoment", !atEnd);
     icon("end", "end", !atEnd);
+    icon("move", onTop ? "down" : "up", true);
 
     const word = (control: TransportControl, labelText: string, kind: WidgetKind = "onInk", wrap = false): void => {
       const rect = layout.controls.get(control);
@@ -690,19 +826,77 @@ export class ReplayTransportOverlay extends Phaser.Scene {
           type: { ...typeRole.label, size: 12 },
           rect,
           wrap,
+          enabled: control !== "share" || !this.#sharing,
           onClick: () => this.#act(control),
+          ...(control === "speed"
+            ? { onHover: (over: boolean) => this.#showTip(over ? rect : null, this.#nameOf(control)) }
+            : {}),
         }),
       );
       this.#hint(control, rect, true);
     };
     word("speed", `${this.#speed}×`);
-    const narrow = layout.kind === "stacked" || layout.shortLabel;
+    const narrow = layout.kind !== "row" || layout.shortLabel;
+    word("share", this.#sharing ? t("replay.link.sharing") : t("replay.share"), "onInk", true);
     word("exportLog", t("replay.exportLog"), "onInk", true);
     word("export", narrow ? t("replay.exportShort") : t("replay.export"), "onInk", true);
     word("exit", t("replay.exit"));
   }
 
-  #drawBanner(layout: TransportLayout, info: ReplayPositionState["info"]): void {
+  /** What an icon control is called: its tooltip on a desktop, where a pointer hovers. */
+  #nameOf(control: TransportControl): string {
+    switch (control) {
+      case "play":
+        return t(this.#auto.playing ? "replay.pause" : "replay.play");
+      case "back":
+        return t("replay.stepBack");
+      case "forward":
+        return t("replay.stepForward");
+      case "prevMoment":
+        return t("replay.prevMoment");
+      case "nextMoment":
+        return t("replay.nextMoment");
+      case "start":
+        return t("replay.toStart");
+      case "end":
+        return t("replay.toEnd");
+      case "speed":
+        return t("replay.speed", { speed: this.#speed });
+      case "move":
+        return t(this.#barOnTop ? "replay.moveBarBottom" : "replay.moveBarTop");
+      case "share":
+        return t("replay.share");
+      case "export":
+        return t("replay.export");
+      case "exportLog":
+        return t("replay.exportLog");
+      case "exit":
+        return t("replay.exit");
+    }
+  }
+
+  /** A small label by `rect` (above it, or below near the top of the screen); null takes it away. */
+  #showTip(rect: Rect | null, text: string): void {
+    for (const object of this.#tip) object.destroy();
+    this.#tip = [];
+    if (!rect) return;
+    const label = this.add
+      .text(0, 0, text, textStyle({ ...typeRole.rowTitle, size: 12 }, surface.ink.hex))
+      .setOrigin(0.5, 0.5);
+    const width = Math.min(label.width + 16, this.scale.gameSize.width - 8);
+    const height = label.height + 8;
+    const below = rect.y < 40;
+    const x = Math.max(4, Math.min(this.scale.gameSize.width - width - 4, rect.x + rect.width / 2 - width / 2));
+    const y = below ? rect.y + rect.height + 4 : rect.y - height - 4;
+    const box = this.add.graphics();
+    box.fillStyle(surface.paper.hex, 1).fillRect(x, y, width, height);
+    box.lineStyle(1, surface.ink.hex, 1).strokeRect(x, y, width, height);
+    box.setDepth(1000);
+    label.setPosition(x + width / 2, y + height / 2).setDepth(1001);
+    this.#tip = [box, label];
+  }
+
+  #drawBanner(layout: TransportLayout, info: ReplayPositionState["info"], onTop: boolean): void {
     const banner = bannerOf(info);
     const message = this.#flash
       ? this.#flash
@@ -712,7 +906,9 @@ export class ReplayTransportOverlay extends Phaser.Scene {
               ? "replay.banner.failure"
               : banner.kind === "diverged"
                 ? "replay.banner.diverged"
-                : "replay.banner.otherBuild",
+                : banner.kind === "divergedSetup"
+                  ? "replay.banner.divergedSetup"
+                  : "replay.banner.otherBuild",
             { n: banner.n },
           )
         : null;
@@ -721,7 +917,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     // Two lines on a narrow screen, so the strip is as tall as it needs to be, growing upward from the bar.
     const wide = rect.width >= 640;
     const height = wide ? rect.height : rect.height * 2 - 2;
-    const strip: Rect = { x: rect.x, y: rect.y + rect.height - height, width: rect.width, height };
+    const strip: Rect = { x: rect.x, y: onTop ? rect.y : rect.y + rect.height - height, width: rect.width, height };
     const g = this.add.graphics();
     g.fillStyle(0xf2b01e, 1).fillRect(strip.x, strip.y, strip.width, strip.height);
     const label = this.add
@@ -759,5 +955,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.#beginDrag(pointer));
+    zone.on("pointerover", () => this.#showTip(this.#drag ? null : layout.seek, t("replay.seekBar")));
+    zone.on("pointerout", () => this.#showTip(null, ""));
   }
 }

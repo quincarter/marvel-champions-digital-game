@@ -63,6 +63,7 @@ import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
 import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
 import { eventOnce } from "../view/event-once.js";
 import {
+  CHROME_TICKER_ROW,
   PHONE_RAIL_TABS,
   boardLayout,
   formFactorFor,
@@ -443,8 +444,20 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /** The transport's bar: where the action bar zone is on this draw (null before the first one). */
-  replayBarRect(): Rect | null {
-    return this.#layout?.zones.actionBar ?? null;
+  replayBarRect(onTop = false): Rect | null {
+    const zones = this.#layout?.zones;
+    if (!zones?.actionBar) return null;
+    // On top (a phone's choice) it sits under the title bar, over the tab rail, and the action bar zone stays empty.
+    if (onTop && zones.chrome) return { ...zones.actionBar, y: zones.chrome.y + zones.chrome.height };
+    return zones.actionBar;
+  }
+
+  /** A phone's title bar row, where the replay's play and step buttons go; null on any other layout. */
+  replayTitleBar(): Rect | null {
+    const layout = this.#layout;
+    const chrome = layout?.zones.chrome;
+    if (!layout || !chrome || layout.formFactor !== "phone") return null;
+    return { ...chrome, height: chrome.height - CHROME_TICKER_ROW };
   }
 
   /**
