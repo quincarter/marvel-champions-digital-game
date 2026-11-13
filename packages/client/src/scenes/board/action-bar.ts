@@ -4,6 +4,7 @@
 
 import type Phaser from "phaser";
 import { appSession } from "../../session.js";
+import { t } from "../../i18n/translate.js";
 import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton } from "../../ui/widgets.js";
@@ -41,6 +42,19 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   const selection = controller.selection;
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+
+  // A replay is watched, not played: the transport (`scenes/replay-transport.ts`) takes this zone over.
+  if (ctx.replay) {
+    scene.add
+      .text(
+        rect.x + 10,
+        rect.y + rect.height / 2,
+        t("replay.watching"),
+        textStyle(typeRole.barTitle, signal.caution.hex),
+      )
+      .setOrigin(0, 0.5);
+    return;
+  }
 
   // The villain phase is still replaying: the engine is already past it, so End turn and Undo would act on a game the
   // table is not yet showing. They come back when the phase closes.

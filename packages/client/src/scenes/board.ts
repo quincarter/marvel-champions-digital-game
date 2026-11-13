@@ -32,6 +32,8 @@ import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phas
 import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from "../view/villain-end-of-turn.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession, holdGameArt } from "../session.js";
+import { activeReplay, leaveReplay } from "../replay/replay-mode.js";
+import type { ReplayHost } from "../replay/replay-host.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McSelectionRing, McTabs, fitText, paintDotGrid } from "../ui/widgets.js";
@@ -433,8 +435,30 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
+  /** The replay being watched (#693), or null for a game: the table is then read-only and the transport runs over it. */
+  #replay: ReplayHost | null = null;
+
   constructor() {
     super(SCENES.board);
+  }
+
+  /** The transport's bar: where the action bar zone is on this draw (null before the first one). */
+  replayBarRect(): Rect | null {
+    return this.#layout?.zones.actionBar ?? null;
+  }
+
+  /**
+   * Whether autoplay may play the next command: the last one's band and travels are done and the villain-phase
+   * walkthrough, which narrates a phase at its own pace, has shown everything it has and closed. A walkthrough paused on
+   * a decision the replay is about to answer does not hold it (the next command is the answer).
+   */
+  replayIdle(): boolean {
+    if (this.#walkthroughLaunching) return false;
+    // While the walkthrough is up the round band waits for it (`#tableCoveredForBand`), so only the walkthrough decides.
+    if (this.scene.isActive(SCENES.villainPhase)) {
+      return !(this.scene.get(SCENES.villainPhase) as VillainPhaseOverlay).replayHolds();
+    }
+    return !this.#motion.isTransitioning();
   }
 
   /** The hand's flick coasts frame by frame; everything else on the table moves by tween or by redraw. */
@@ -469,6 +493,7 @@ export class BoardScene extends Phaser.Scene {
 
   create(): void {
     holdGameArt(this);
+    this.#replay = activeReplay();
     // A scene is reused from game to game: each game shows its own first "not offered" notices.
     this.#unofferedShown = new Set();
     this.#hints = new GlyphHints(this, () => [
@@ -476,6 +501,8 @@ export class BoardScene extends Phaser.Scene {
       ...this.#frame.focusRects.values(),
       ...this.#frame.pileRects.values(),
     ]);
+    // The board's own keys are held by the transport in a replay, so its glyphs would promise what does nothing.
+    this.#hints.setMuted(this.#replay !== null);
     this.#watchGuideHint();
     this.#walkthroughLaunching = false;
     // Dev only: `?padhold=lt|rt` (`boot-dev-jump.ts`) shows a layer's sheet with no real trigger, for screenshots.
@@ -520,6 +547,8 @@ export class BoardScene extends Phaser.Scene {
     this.#turnFocusKey = null;
     this.#zoomOn = false;
     this.#controller.setUndoFocus(false);
+    // Nothing done on a replay reaches a game: every input mode and dispatch is a no-op (the host refuses commands too).
+    this.#controller.setReadOnly(this.#replay !== null);
     this.#focusRegion = "board";
     this.#guideFocusOwner = null;
     this.#saveFailureAnnounced = false;
@@ -558,7 +587,7 @@ export class BoardScene extends Phaser.Scene {
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
     const config = store.state.config;
-    if (config?.scenarioId) {
+    if (config?.scenarioId && !this.#replay) {
       const scenario = POOL_SCENARIOS.find((s) => s.id === config.scenarioId);
       appSession().music?.playBattle({ scenarioId: config.scenarioId, packCode: scenario?.packCode });
     }
@@ -584,6 +613,8 @@ export class BoardScene extends Phaser.Scene {
       // is up — the walkthrough used to leave arrows walking the board unseen
       // underneath it, and Pause's own Escape must not also reopen itself.
       blocked: () =>
+        // A replay's transport owns the keyboard and the pad (Space, arrows, Escape, A, B ...).
+        this.#replay !== null ||
         this.#choiceOpen ||
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.villainPhase) ||
@@ -697,15 +728,24 @@ export class BoardScene extends Phaser.Scene {
         SCENES.roundDebrief,
         SCENES.teamUpSplash,
         SCENES.teamUpInfo,
+        SCENES.replayTransport,
       ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       this.#choiceOpen = false;
+      // However the replay was left, the game's own host and store come back and the replay closes.
+      if (this.#replay) {
+        this.#replay = null;
+        leaveReplay();
+        appSession().gameLog = emptyLog();
+        appSession().villainReview = null;
+      }
       this.#guide?.destroy();
       this.#guide = null;
       this.#tip = null;
     });
     fadeScreenIn(this);
+    if (this.#replay) this.scene.launch(SCENES.replayTransport);
 
     // Headless click-through hook only (never referenced by product code) — mirrors every other `?screen=…demo`
     // scene's own `__mc*Debug` accessor (`scenes/guide-panel-demo.ts`, `scenes/guide-callout-demo.ts`, …), so a
@@ -790,6 +830,29 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  /** A replay's jump to a position: everything the last position queued or accumulated is dropped; the history rebuilds the log. */
+  #resetForSeek(): void {
+    this.#log = emptyLog();
+    this.#cardHistory = emptyCardHistoryLog();
+    this.#logAt.clear();
+    this.#refill = NO_REFILL;
+    this.#refillEnded = null;
+    this.#logBeforePhase = null;
+    this.#motion.reset();
+    this.#pendingCampaignBeat = null;
+    this.#pendingSplashes = [];
+    this.#tabChanged.clear();
+    this.#tabBadges.clear();
+    this.#walkthroughLaunching = false;
+    this.#villainReplay = null;
+    this.#outcomeHeld = false;
+    holdTableGame(null);
+    // The villain phase walkthrough told the phase the replay has now left.
+    if (this.scene.isActive(SCENES.villainPhase)) this.scene.stop(SCENES.villainPhase);
+    // The next step's walkthrough compares against what this seek shows, not a position from before it.
+    this.#previousGame = null;
+  }
+
   #onState(state: SessionState): void {
     if (!state.game || state.perspectiveId === null) return;
     // The table's sounds (`view/sound-effects.ts`): a card played, then its attack or thwart, then the end-of-turn
@@ -807,10 +870,14 @@ export class BoardScene extends Phaser.Scene {
       );
     }
     this.#soundTrail = trail.length;
-    this.#syncGuide(state);
+    const replay = this.#replay;
+    if (!replay) this.#syncGuide(state);
 
     // Fold this command's events onto the log before the state replaces it.
     const fresh = state.version !== this.#version;
+    // A replay seek (its update carries the history up to there and no events; position 0 has an empty one) starts the
+    // log, the refill and the table's motion over from that history, not on top of wherever the replay was before.
+    if (replay && fresh && (state.resumedHistory.length > 0 || replay.position === 0)) this.#resetForSeek();
     // The game as it stood before this command, for the villain phase recap's "what changed" tiles.
     const previousGame = this.#previousGame;
     if (fresh) this.#previousGame = state.game;
@@ -928,7 +995,8 @@ export class BoardScene extends Phaser.Scene {
     this.#teamUpWatch = seen.watch;
     this.#pendingSplashes.push(...seen.announce.filter((pair) => teamUpArtFor(TEAM_UP_ART, pair.names)?.splash));
 
-    if (state.game.outcome) {
+    // A replay never hands off to Game over: it ends where the game did, on the table, and the transport says so.
+    if (state.game.outcome && !replay) {
       // The engine finished the game inside the command; the rail may still be replaying the beats that ended it, so the
       // outcome waits for it (`releaseOutcome`). A command that ran the whole villain phase to the end opens it too.
       if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore);
@@ -943,24 +1011,25 @@ export class BoardScene extends Phaser.Scene {
     // Only a *new* command can start a villain phase; a plain redraw re-reads
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
     if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore);
-    if (fresh) this.#queueCampaignBeat(state);
+    if (fresh && !replay) this.#queueCampaignBeat(state);
     // Guided mode G8 part 2: only a *new* command's own events ever get folded into the round debrief's
     // accumulator — same reasoning as the villain-phase walkthrough just above (`fresh`'s own doc comment on
     // `#version`), and `#syncGuide` above has already fed this same batch to `onObservation`, so a lesson this
     // batch just finished is already reflected in the controller's state by the time this runs.
     if (fresh) this.#guide?.noteRoundEvents(state.lastEvents);
-    this.#syncChoiceOverlay(state);
+    // A replay answers no decision: a pending choice is shown on the table as it stood, and the next command is the answer.
+    if (!replay) this.#syncChoiceOverlay(state);
     // A choose-one that took its only option says what the others were and why they could not be chosen (#412). Every
     // seat is this player's (one person plays them all), so no viewer narrows it.
-    if (fresh) this.#openOptionNotices(optionNoticesOf(state.lastEvents, state.game, null, POOL_DEPS));
+    if (fresh && !replay) this.#openOptionNotices(optionNoticesOf(state.lastEvents, state.game, null, POOL_DEPS));
     // An interrupt or response that answered but could not be used says why, the first time for each card (#431).
-    if (fresh) this.#openOptionNotices(this.#firstUnofferedNotices(state.lastEvents, state.game));
+    if (fresh && !replay) this.#openOptionNotices(this.#firstUnofferedNotices(state.lastEvents, state.game));
     this.#tryOpenCampaignBeat();
     // Guided mode G10e part 2: fed *after* the choice/campaign-beat overlays above have had their own chance to
     // open this frame, so `#tipBlocked()` already sees this command's own overlay, not last frame's. Gated on
     // `fresh` the same way `#guide?.noteRoundEvents` is just above — a plain redraw must not re-run the scheduler
     // against the same `lastEvents` a second time (it would auto-hide a tip the instant it was shown).
-    if (fresh) {
+    if (fresh && !replay) {
       const observation: LessonObservation = {
         game: state.game,
         lastEvents: state.lastEvents,
@@ -1123,6 +1192,7 @@ export class BoardScene extends Phaser.Scene {
    * decision, and must not be the thing between a player and something the engine is actually waiting on.
    */
   #tryOpenCampaignBeat(): void {
+    if (this.#replay) return;
     if (!this.#pendingCampaignBeat) return;
     if (appSession().store.state.game?.pendingChoice) return;
     if (this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.campaignBeat)) return;
@@ -1137,6 +1207,7 @@ export class BoardScene extends Phaser.Scene {
    * choice, but it dismisses itself after `TEAM_UP_SPLASH_MS`, and takes the choice's input only for that long.
    */
   #tryOpenTeamUpSplash(): void {
+    if (this.#replay) return;
     const pair = this.#pendingSplashes[0];
     if (!pair) return;
     if (
@@ -1475,6 +1546,7 @@ export class BoardScene extends Phaser.Scene {
       teamUpRoles: this.#teamUpRoles(model),
       villainHandTags: this.#villainHandTags,
       actionsHeld: this.#villainReplay !== null,
+      replay: this.#replay !== null,
       makeTapTarget: (rect, id, onTap, drag, onHover, clip) =>
         this.#makeTapTarget(rect, id, onTap, drag, onHover, clip),
       dealtCaptionOf: (ids) => {
@@ -2384,6 +2456,11 @@ export class BoardScene extends Phaser.Scene {
 
   /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
   #openPause(): void {
+    // A replay has no game to save, concede or rewind: its menu is Settings alone.
+    if (this.#replay) {
+      if (!this.scene.isActive(SCENES.settings)) this.scene.launch(SCENES.settings);
+      return;
+    }
     if (this.scene.isActive(SCENES.pause)) return;
     this.scene.launch(SCENES.pause);
   }
@@ -2488,6 +2565,8 @@ export class BoardScene extends Phaser.Scene {
     const overlays = Object.values(SCENES).filter(
       (key) =>
         key !== SCENES.board &&
+        // The replay transport is a bar over the action bar zone, not a sheet over the table.
+        key !== SCENES.replayTransport &&
         key !== SCENES.music &&
         !CHROME_SCENES.has(key) &&
         // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
@@ -3050,7 +3129,7 @@ export class BoardScene extends Phaser.Scene {
 
   /** The villain phase has shown everything (or closed): the held Game Over can come up. */
   releaseOutcome(): void {
-    if (!this.#outcomeHeld) return;
+    if (this.#replay || !this.#outcomeHeld) return;
     this.#outcomeHeld = false;
     if (appSession().store.state.game?.outcome) goToScreen(this, SCENES.gameOver);
   }
@@ -3065,7 +3144,7 @@ export class BoardScene extends Phaser.Scene {
    * decisions are answered on the phase or its sheet, never through the board.
    */
   setVillainPhaseOpen(open: boolean): void {
-    this.#controller.setReadOnly(open);
+    this.#controller.setReadOnly(open || this.#replay !== null);
     // The phase takes priority over an open log (issue #550); its own Log button is the way back to it.
     if (open && this.#logOpen) {
       this.#shutLog();

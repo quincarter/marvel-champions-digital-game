@@ -375,6 +375,22 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=replay[&commands=N][&at=N][&other=1]` (issue #693): plays a short real game in the page, opens it as a replay and
+  // shows it on the Board with the transport over it (`store/dev-replay-game.ts`). `at` starts it at that position.
+  if (screen === "replay") {
+    const [{ openDevReplay }, { enterReplay }] = await Promise.all([
+      import("../store/dev-replay-game.js"),
+      import("../replay/replay-mode.js"),
+    ]);
+    const host = await openDevReplay(intParam(params.get("commands"), 120), {
+      otherBuild: params.get("other") === "1",
+    });
+    const at = intParam(params.get("at"), 0);
+    if (at > 0) await host.seek(at);
+    await enterReplay(host);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=drones[&seats=N]`: a two-seat Ultron game at the first turn (up to four with `seats`), each seat with its own
   // facedown Drone, in hero form (the attack target picker's Drone labels, issue #357; `view/targeting-panel.test.ts`
   // plays the same game). Four seats give an attack five targets, one more than a page of the pad's direct picks.

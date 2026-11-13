@@ -119,6 +119,8 @@ export class GlyphHints {
     readonly activateText: string;
   } | null = null;
   readonly #obstacles: () => readonly Rect[];
+  /** Draws nothing while set: a screen whose own keys are held by another scene (a replay's board) must not promise them. */
+  #muted = false;
 
   /** `obstacles`: the rects a hanging glyph must not cover (cards, piles, panels), read when it is placed. */
   constructor(scene: Phaser.Scene, obstacles: () => readonly Rect[] = () => []) {
@@ -159,6 +161,13 @@ export class GlyphHints {
 
   get layer(): PadLayer | null {
     return this.#layer;
+  }
+
+  /** Shows no glyph and no legend while muted. */
+  setMuted(muted: boolean): void {
+    if (this.#muted === muted) return;
+    this.#muted = muted;
+    this.#binding.refresh();
   }
 
   /** Re-applies now (a setting, or something a `when` reads, changed). */
@@ -345,6 +354,10 @@ export class GlyphHints {
   #applyEntry(entry: Entry, snapshot: InputHintsSnapshot): void {
     // Destroyed by a redraw that did not go through `reset()`: drop it quietly.
     if (entry.glyph && !entry.glyph.active) return;
+    if (this.#muted) {
+      this.#hide(entry);
+      return;
+    }
     const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource);
     const specs =
       set !== null && (entry.when?.(set) ?? true)
@@ -397,7 +410,7 @@ export class GlyphHints {
       ? glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource)
       : null;
     // Under a held trigger the legend gives way (it would sit where the layer's glyphs go).
-    if (!target || !snapshot || set === null || (set === "pad" && this.#layer !== null)) {
+    if (!target || !snapshot || set === null || this.#muted || (set === "pad" && this.#layer !== null)) {
       this.#legend?.destroy();
       this.#legend = null;
       return;
