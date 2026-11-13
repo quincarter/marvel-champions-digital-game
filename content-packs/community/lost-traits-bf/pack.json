@@ -1,0 +1,47 @@
+{
+  "id": "lost-traits-bf",
+  "version": "1.0.0",
+  "kind": "house-rule",
+  "name": "Lost Traits",
+  "authors": ["Bluefire"],
+  "description": "Optional house rule by Bluefire (idea: Borja): thirteen official heroes and alter-egos gain one trait another card of the same character already has (Web-Warrior, Avenger, Aerial, Defender, Mutant), or Martial Artist for heroes whose lore is built on it. Nothing else changes. Turn it on per game in Table setup; the rebuilt card faces show while it is on.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.44.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "houseRule": {
+    "traitAdditions": [
+      { "code": "01001a", "traits": ["Web-Warrior"] },
+      { "code": "04031a", "traits": ["Web-Warrior"] },
+      { "code": "54001a", "traits": ["Avenger"] },
+      { "code": "21031a", "traits": ["Aerial"] },
+      { "code": "10001a", "traits": ["Defender"] },
+      { "code": "01019a", "traits": ["Defender"] },
+      { "code": "25001a", "traits": ["Defender"] },
+      { "code": "14001b", "traits": ["Mutant"] },
+      { "code": "15001b", "traits": ["Mutant"] },
+      { "code": "08001a", "traits": ["Martial Artist"] },
+      { "code": "01040a", "traits": ["Martial Artist"] },
+      { "code": "18001a", "traits": ["Martial Artist"] },
+      { "code": "41001a", "traits": ["Martial Artist"] }
+    ]
+  },
+  "permission": {
+    "status": "granted",
+    "by": "Bluefire",
+    "date": "2026-11-13",
+    "evidence": "Bluefire's own house rule, in the curated repository he keeps: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a51e50da556ece0b0fe9a75848320416b8794cef/lost_traits_bf/mod.json (permission: status \"own\", scope \"inclusion\"); confirmed by the project owner (Quin Carter) on 2026-11-13.",
+    "scope": "inclusion: the author's own work, in English and Spanish (both by Bluefire)",
+    "languages": ["en", "es"],
+    "note": "The source records the status as \"own\" (the author's own work) with no date; 2026-11-13 is the owner's confirmation. The idea is Borja's, from the Digital Discord server, and the server's poll approved the rule (2026-11)."
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "es": "Bluefire"
+  }
+}

@@ -694,7 +694,7 @@ existed, by this repo, so both sides read it as `"game"`.
 
 The store screen is **Extras ▸ Mod Store**. Like every other screen, it's drawn in Phaser with the `Mc*` widgets.
 
-- **Browse:** tabs for All, Heroes, Scenarios and Installed. Each pack is a tile with its thumbnail, name, creator,
+- **Browse:** tabs for All, Heroes, Scenarios, House rules (§11.11) and Installed. Each pack is a tile with its thumbnail, name, creator,
   kind, size and state: Install, Installed, Update, Needs app update or Withdrawn.
 - **Pack page:**
   - the pack's cards as a gallery, with the hover popover on desktop;
@@ -808,6 +808,48 @@ none of its log fields fails. What it cannot cover, and `mc-pack test` says so i
 two nodes, a number and a flag written between games and read by a game's setup) is the example. A client lists packs'
 campaigns with `packCampaignRecords(packs)`, finds a definition with `packCampaignDefinitionOf(packs, id)` (the campaign
 service's `definitionOf`), and builds a node's game with `campaignGameWithPacks(start, packs)`.
+
+### 11.11 House rules (2026-11-13)
+
+The owner's decisions: a house-rule mod is its own pack kind, `house-rule`, with its own **House rules** tab in the
+store. A house rule adds no card and no ability: it changes official cards, as data, and is switched on per game.
+
+```jsonc
+// pack.json
+"kind": "house-rule",
+"houseRule": {
+  "traitAdditions": [{ "code": "01001a", "traits": ["Web-Warrior"] }, { "code": "14001b", "traits": ["Mutant"] }],
+  // or, instead of (or beside) traitAdditions:
+  "enablesMode": "balanced"
+}
+```
+
+- **Faces.** The rule's rebuilt card faces are its ordinary pictures, `cards/<lang>/<code>.webp`, filed under the
+  official face code they rebuild (`01001a`, an alter-ego's `14001b`, a scheme stage's `16107b`). So the language
+  fallback, `preview.json`, `thumb.webp` (the first face) and the client's pack art work as for any pack. They show
+  only while the rule is on, in that game.
+- **`mc-pack validate`** checks: `houseRule` on a `house-rule` pack only, and required there; no cards, abilities,
+  decks, scenarios, encounter sets, campaigns or `altArt`; each trait addition's code is an official face (a card id,
+  or a hero identity's `b` alter-ego) listed once, with at least one trait; the fields are only `code` and `traits`
+  (additions only, nothing is removed); `enablesMode` is a known mode; the rule does something; every picture's code is
+  an official picture code (`officialCardsByPictureCode`, from the cards' own scans).
+- **Trait additions** (`traitAdditions`): the rule is a toggle in Table setup ("House rule: Lost Traits"). On, the game
+  carries the pack (`SessionConfig.houseRules` lists it, `withLoadedPacks` embeds it in `SessionConfig.packs`), and the
+  game's pool has the traits added (`applyTraitAdditions`) before the engine starts: the engine is unchanged and reads
+  them as printed. The browsing pool (`currentPool`) never applies them. A trait is written as printed and normalized
+  like any other (`trait`); the content has no translated traits yet, so a Spanish name lives only on the Spanish face.
+- **Modes** (`enablesMode: "balanced"`): the rules are the game's own scripted Balanced option (issue #609); the pack is
+  what offers it. Galaxy's Most Wanted asks Normal or Rebalance only with the pack installed and loaded. A run signed
+  Balanced carries `modes.campaign.balanced` and plays its rules with or without the pack. With the pack, its faces
+  replace the old edited scans for the Balanced cards on screen (a toggle's cards only with that toggle on; a second
+  version of a scan it does not rebuild keeps its scan); without it, the old scans show.
+- **Progression.** A house-rule pack is not custom content: a game played with one counts like a Balanced campaign does
+  (`isCustomSave` skips house-rule packs).
+- First version limits: trait additions only on a card's front or a hero identity's alter-ego (no flip sides, no
+  three-sided identity's inside form); house rules are offered in Table setup, not inside a campaign run.
+
+The repo's two: `content-packs/community/lost-traits-bf` (Lost Traits, trait additions) and
+`content-packs/community/gmw-fixes-gg` (GMW Fixes, `enablesMode: "balanced"`).
 
 ## Sources
 

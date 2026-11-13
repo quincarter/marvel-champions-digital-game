@@ -200,6 +200,7 @@ import { packEncounterSetRecords, packScenarioRecords, scenarioWithPacks } from 
 import { loadedPacks } from "../packs/pack-registry.js";
 import {
   depsWithPacks,
+  isHouseRulePack,
   packsOwningContent,
   poolWithPacks,
   seatsWithPackDecks,
@@ -263,10 +264,14 @@ export interface PoolView {
 const BASE_VIEW: PoolView = { packs: [], cards: POOL_CARDS, cardsById: CARDS_BY_ID, deps: POOL_DEPS };
 let view: PoolView = BASE_VIEW;
 
-/** The pool and deps with `packs` added (the base ones, untouched, for none). Throws if a pack shadows a base card or ability. */
-export function poolViewWithPacks(packs: readonly PackRuntime[]): PoolView {
+/**
+ * The pool and deps with `packs` added (the base ones, untouched, for none). Throws if a pack shadows a base card or
+ * ability. A game's view (`poolViewOfPacks`) applies its house rules' trait additions; the app's browsing view
+ * (`currentPool`) passes `houseRules: false`, so installing a house rule never changes a card outside a game that has it on.
+ */
+export function poolViewWithPacks(packs: readonly PackRuntime[], houseRules = true): PoolView {
   if (packs.length === 0) return BASE_VIEW;
-  const cards = poolWithPacks(POOL_CARDS, packs);
+  const cards = poolWithPacks(POOL_CARDS, packs, houseRules);
   return {
     packs,
     cards,
@@ -353,14 +358,17 @@ export function currentHeroShelfPacks(): readonly ShelfPack[] {
     const order = Math.max(0, ...POOL_HERO_SHELF_PACKS.map((pack) => pack.cycleOrder)) + 1;
     shelf = [
       ...POOL_HERO_SHELF_PACKS,
-      ...packs.flatMap((pack) =>
-        [...new Set([pack.id, ...pack.decks.map((deck) => deck.packCode as string)])].map((code): ShelfPack => ({
-          code,
-          cycleId: CUSTOM_SHELF_ID,
-          cycleName: "Custom packs",
-          cycleOrder: order,
-        })),
-      ),
+      // A house rule brings no hero of its own: it has no shelf entry.
+      ...packs
+        .filter((pack) => !isHouseRulePack(pack))
+        .flatMap((pack) =>
+          [...new Set([pack.id, ...pack.decks.map((deck) => deck.packCode as string)])].map((code): ShelfPack => ({
+            code,
+            cycleId: CUSTOM_SHELF_ID,
+            cycleName: "Custom packs",
+            cycleOrder: order,
+          })),
+        ),
     ];
     SHELF_VIEWS.set(packs, shelf);
   }
@@ -414,7 +422,7 @@ function currentPoolView(): PoolView {
   const packs = loadedPacks();
   if (view.packs !== packs && !(packs.length === 0 && view === BASE_VIEW)) {
     try {
-      view = poolViewWithPacks(packs);
+      view = poolViewWithPacks(packs, false);
     } catch {
       // A pack that now collides with the base game (a newer app added the same code) must not break the app: base pool only.
       view = BASE_VIEW;

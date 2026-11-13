@@ -211,7 +211,9 @@ export interface SetupOptionRow {
     | "heroic"
     | "skirmish"
     /** One per seat, `mainScheme:<seat index>`. */
-    | `mainScheme:${number}`;
+    | `mainScheme:${number}`
+    /** One per installed house rule, `houseRule:<pack id>` (docs/custom-content-packs.md §11.11). */
+    | `houseRule:${string}`;
   /** The card's name: a few words. */
   readonly name: string;
   /** One short line of state under the name; empty when the name and the chips say it all. */
@@ -233,14 +235,27 @@ export function setChipLabel(setName: string): string {
 
 const DEFAULT_SET = "default";
 
+/** An installed house rule the setup can switch on (a loaded `house-rule` pack that adds traits). */
+export interface SetupHouseRule {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+}
+
+/** Whether the draft has house rule `id` on. */
+export const houseRuleOn = (draft: Pick<SetupDraft, "houseRules">, id: string): boolean =>
+  draft.houseRules?.includes(id) ?? false;
+
 /**
  * Every option card the draft's scenario offers, in the order they are drawn. `setNames` maps an encounter set id to
- * its printed name (the pool's `POOL_ENCOUNTER_SETS`).
+ * its printed name (the pool's `POOL_ENCOUNTER_SETS`). `houseRules` are the installed house rules: one toggle each,
+ * after the scenario's own options, whatever the scenario.
  */
 export function setupOptionRowsOf(
   draft: SetupDraft,
   setNames: ReadonlyMap<string, string>,
   offer: PlayableScenarioOffer = offerOf(draft),
+  houseRules: readonly SetupHouseRule[] = [],
 ): readonly SetupOptionRow[] {
   const rows: SetupOptionRow[] = [];
 
@@ -414,7 +429,35 @@ export function setupOptionRowsOf(
       control: { kind: "toggle", action: "easierStart:toggle" },
     });
   }
+  for (const rule of houseRules) {
+    const on = houseRuleOn(draft, rule.id);
+    rows.push({
+      id: `houseRule:${rule.id}`,
+      name: `House rule: ${rule.name}`,
+      meta: on ? "On · changes official cards this game" : "Off · cards as printed",
+      span: 1,
+      active: on,
+      help: rule.description,
+      control: { kind: "toggle", action: `houseRule:${rule.id}` },
+    });
+  }
   return rows;
+}
+
+/**
+ * The draft with house rule `id` switched on or off. The rule's id order follows the order switched on; only a rule in
+ * `installed` can be switched on (a stale tap after a rule was removed changes nothing), and one no longer installed
+ * can always be switched off.
+ */
+export function toggleHouseRule(draft: SetupDraft, id: string, installed: readonly SetupHouseRule[]): SetupDraft {
+  const current = draft.houseRules ?? [];
+  if (current.includes(id)) {
+    const rest = current.filter((one) => one !== id);
+    if (rest.length > 0) return { ...draft, houseRules: rest };
+    const { houseRules: _gone, ...without } = draft;
+    return without;
+  }
+  return installed.some((rule) => rule.id === id) ? { ...draft, houseRules: [...current, id] } : draft;
 }
 
 /**
@@ -529,8 +572,11 @@ export function applySetupOption(
   draft: SetupDraft,
   action: string,
   offer: PlayableScenarioOffer = offerOf(draft),
+  houseRules: readonly SetupHouseRule[] = [],
 ): SetupDraft {
   const [kind, first, second] = action.split(":");
+
+  if (kind === "houseRule") return first ? toggleHouseRule(draft, first, houseRules) : draft;
 
   if (kind === "standardSet" || kind === "expertSet") {
     const which = kind === "standardSet" ? "standard" : "expert";

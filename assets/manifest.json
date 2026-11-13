@@ -402,6 +402,24 @@
       "files": 38
     },
     {
+      "name": "pack-art-throg-ptt",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/throg-ptt"
+    },
+    {
+      "name": "pack-art-lost-traits-bf",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/lost-traits-bf"
+    },
+    {
+      "name": "pack-art-gmw-fixes-gg",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/gmw-fixes-gg"
+    },
+    {
       "name": "artifacts",
       "group": "artifacts",
       "kind": "archive",

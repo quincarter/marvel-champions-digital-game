@@ -6,6 +6,7 @@ import {
   validateDefinition,
 } from "@mc/cards";
 import {
+  PACK_HOUSE_RULE_MODES,
   PACK_KINDS,
   PACK_PERMISSION_STATUSES,
   PACK_SCHEMA_VERSION,
@@ -14,6 +15,8 @@ import {
   isLanguageTag,
   isPackId,
   isSafePackPath,
+  officialFaceOfCode,
+  officialCardsByPictureCode,
   packStagedPictureCodes,
   parsePackCardImagePath,
   validateCard,
@@ -80,6 +83,8 @@ export interface PackInput {
 export interface ValidateOptions {
   readonly baseAbilities?: AbilityRegistry;
   readonly baseCardCodes?: ReadonlySet<string>;
+  /** The base game's card records, which a house rule's codes must name (`officialFaceOfCode`). Default: the pool. */
+  readonly baseCards?: readonly AnyCard[];
   readonly supportedFeatures?: readonly string[];
   /**
    * The card codes of the packs this one lists in `requires.packs`, so its decks and cards may name them. Without
@@ -106,6 +111,11 @@ const SHA256 = /^[0-9a-f]{64}$/;
 
 let defaultBaseCodes: ReadonlySet<string> | undefined;
 const baseCodes = (): ReadonlySet<string> => (defaultBaseCodes ??= new Set(PLAYABLE_CARDS.map((card) => card.id)));
+let defaultBaseCards: ReadonlyMap<string, AnyCard> | undefined;
+const baseCardsById = (cards: readonly AnyCard[] | undefined): ReadonlyMap<string, AnyCard> =>
+  cards
+    ? new Map(cards.map((card) => [card.id as string, card]))
+    : (defaultBaseCards ??= new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card])));
 
 type Add = (path: string, message: string, category?: PackIssueCategory) => void;
 type Obj = Record<string, unknown>;
@@ -227,7 +237,17 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     code.startsWith(prefix) &&
     CARD_NUMBER.test(code.slice(prefix.length)) &&
     cardNumbers.has(digitsOf(code.slice(prefix.length)));
-  checkLanguagesAndArt(input, (code) => knownCard(code) || isPackFace(code), isPackFace, add);
+  // A house rule's pictures are the official faces it rebuilds, by their printed codes (§11.11).
+  const officialById = baseCardsById(options.baseCards);
+  const officialPictures = officialCardsByPictureCode(options.baseCards ?? PLAYABLE_CARDS);
+  const isRuleFace = (code: string): boolean => manifest.kind === "house-rule" && officialPictures.has(code);
+  checkLanguagesAndArt(
+    input,
+    (code) => knownCard(code) || isPackFace(code),
+    (code) => isPackFace(code) || isRuleFace(code),
+    add,
+  );
+  checkHouseRule(input, officialById, add);
   checkStagePictures(input, cards, add);
 
   // Decks: unique ids under the pack's id, every card in the pack or the base pool, and the content schema's checks.
@@ -350,6 +370,77 @@ function checkEncounterSets(
     const nemesis = card.type === "hero_identity" ? card.nemesisEncounterSetId : undefined;
     if (typeof nemesis === "string" && belongsToPack(nemesis) && !ids.has(nemesis))
       add(at, `nemesis set "${nemesis}" has no record in the pack's encounter sets`);
+  }
+}
+
+/**
+ * A `house-rule` pack (docs/custom-content-packs.md §11.11): its `houseRule` block, and nothing a house rule may not
+ * carry. It adds no card, ability, deck, scenario, encounter set or campaign; each trait addition names an official
+ * card face (`officialFaceOfCode`) once and only adds traits; and the rule does something (adds traits or enables a
+ * mode). Any other kind of pack may not carry a `houseRule`.
+ */
+function checkHouseRule(input: PackInput, officialById: ReadonlyMap<string, AnyCard>, add: Add): void {
+  const { manifest } = input;
+  const at = (field: string): string => `pack.json ${field}`;
+  const rule: unknown = manifest.houseRule;
+  if (manifest.kind !== "house-rule") {
+    if (rule !== undefined) add(at("houseRule"), 'only a "house-rule" pack may carry a house rule');
+    return;
+  }
+  if (!isObj(rule)) {
+    add(at("houseRule"), "a house-rule pack needs its houseRule: { traitAdditions?, enablesMode? }");
+    return;
+  }
+  for (const key of Object.keys(rule)) {
+    if (key !== "traitAdditions" && key !== "enablesMode") add(at(`houseRule.${key}`), "is not a house rule field");
+  }
+  const lengthOf = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
+  if (lengthOf(input.cards) > 0) add("data/cards.json", "a house-rule pack adds no cards: it changes official ones");
+  if (Object.keys(isObj(input.abilities) ? input.abilities : {}).length > 0)
+    add("data/abilities.json", "a house-rule pack carries no abilities (its rules are data, or the game's own)");
+  for (const [field, path] of [
+    ["decks", "data/decks.json"],
+    ["scenarios", "data/scenarios.json"],
+    ["encounterSets", "data/encounter-sets.json"],
+    ["campaigns", "data/campaigns.json"],
+  ] as const) {
+    if (lengthOf(input[field]) > 0) add(path, "a house-rule pack carries none");
+  }
+  if (manifest.altArt !== undefined)
+    add(at("altArt"), "a house rule's faces are its cards/<lang>/<code>.webp pictures, not altArt");
+  const mode: unknown = rule.enablesMode;
+  if (mode !== undefined && !(PACK_HOUSE_RULE_MODES as readonly unknown[]).includes(mode))
+    add(at("houseRule.enablesMode"), `must be one of ${PACK_HOUSE_RULE_MODES.join(", ")}`);
+  const additions: unknown = rule.traitAdditions;
+  if (additions !== undefined && !Array.isArray(additions)) {
+    add(at("houseRule.traitAdditions"), "must be a list of { code, traits }");
+    return;
+  }
+  if (mode === undefined && lengthOf(additions) === 0)
+    add(at("houseRule"), "does nothing: give it traitAdditions or enablesMode");
+  const seen = new Set<string>();
+  for (const [index, addition] of (Array.isArray(additions) ? additions : []).entries()) {
+    const where = at(`houseRule.traitAdditions[${index}]`);
+    if (!isObj(addition)) {
+      add(where, "must be { code, traits }");
+      continue;
+    }
+    for (const key of Object.keys(addition)) {
+      if (key !== "code" && key !== "traits")
+        add(`${where}.${key}`, "is not a trait addition field (traits are only added)");
+    }
+    const code = typeof addition.code === "string" ? addition.code : "";
+    if (code === "" || officialFaceOfCode(code, officialById) === undefined)
+      add(where, `code "${code}" is not a face of an official card (a card code, or a hero identity's alter-ego "b")`);
+    if (seen.has(code)) add(where, `code "${code}" is listed twice`);
+    seen.add(code);
+    const traits: unknown = addition.traits;
+    if (
+      !Array.isArray(traits) ||
+      traits.length === 0 ||
+      traits.some((name) => typeof name !== "string" || name.trim() === "" || name.length > 40)
+    )
+      add(where, "traits must list at least one trait name");
   }
 }
 

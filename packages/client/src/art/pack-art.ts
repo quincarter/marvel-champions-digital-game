@@ -23,7 +23,7 @@ import {
   type PackManifest,
 } from "@mc/content";
 import { announceArtChange } from "../language-change.js";
-import { setPackArtResolver, type ArtSource } from "./art-source.js";
+import { setHouseRuleFaceSource, setPackArtResolver, type ArtSource } from "./art-source.js";
 
 /** The part of the pack store this module reads: a file's `blob:` URL, and revoking it. */
 export interface PackArtStore {
@@ -38,6 +38,8 @@ interface PackArtPack {
   readonly files: ReadonlySet<string>;
   /** The manifest's full-bleed pictures, by role then card code. */
   readonly pictures: PackManifest["pictures"];
+  /** A `house-rule` pack's rule: its pictures are rebuilt official faces (docs/custom-content-packs.md §11.11). */
+  readonly houseRule: PackManifest["houseRule"];
 }
 
 let packs: ReadonlyMap<string, PackArtPack> = new Map();
@@ -83,6 +85,7 @@ export function setPackArt(manifests: readonly PackManifest[], from: PackArtStor
         languages: manifest.languages,
         files: new Set(manifest.files.map((file) => file.path)),
         pictures: manifest.pictures,
+        houseRule: manifest.houseRule,
       },
     ]),
   );
@@ -120,6 +123,23 @@ export function packArtFor(code: string, lang: string): ArtSource | null {
   const path = resolvePackCardImage(pack.languages, code, lang, (candidate) => pack.files.has(candidate));
   if (path === undefined) return null;
   return sourceOf(pack, path);
+}
+
+/**
+ * A house-rule pack's rebuilt face of official face code `code` (`cards/<lang>/<code>.webp`), in `lang` or the pack's
+ * base language, or null when the pack is not a loaded house rule, has no such face, or its URL is still being read.
+ */
+export function houseRuleFaceFor(packId: string, code: string, lang: string): ArtSource | null {
+  const pack = packs.get(packId);
+  if (!pack?.houseRule) return null;
+  const path = resolvePackCardImage(pack.languages, code, lang, (candidate) => pack.files.has(candidate));
+  return path === undefined ? null : sourceOf(pack, path);
+}
+
+/** The loaded house-rule pack that enables `mode`, by id. */
+export function packEnablingMode(mode: string): string | undefined {
+  for (const pack of packs.values()) if (pack.houseRule?.enablesMode === mode) return pack.id;
+  return undefined;
 }
 
 /**
@@ -199,3 +219,4 @@ export function resetPackArt(): void {
 }
 
 setPackArtResolver(packArtFor);
+setHouseRuleFaceSource({ face: houseRuleFaceFor, packEnabling: packEnablingMode });

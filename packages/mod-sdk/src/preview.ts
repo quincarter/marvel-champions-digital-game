@@ -33,6 +33,15 @@ function featuredCardId(pack: PackInput): string | undefined {
   const firstOfType = (type: string): string | undefined =>
     pack.cards.find((card) => card.type === type)?.id as string | undefined;
   if (pack.manifest.kind === "hero") return firstOfType("hero_identity");
+  // A house rule has no card of its own: it leads with the first official face it rebuilds (§11.11).
+  if (pack.manifest.kind === "house-rule") {
+    const base = pack.manifest.languages?.base;
+    const first = [...pack.files.keys()]
+      .sort()
+      .map((path) => parsePackCardImagePath(path))
+      .find((picture) => picture !== undefined && picture.lang === base);
+    return first?.code;
+  }
   if (pack.manifest.kind === "campaign") {
     const scenarioId = firstCampaignScenarioId(pack.campaigns);
     const scenario = ((pack.scenarios ?? []) as readonly { id?: unknown }[]).find((one) => one.id === scenarioId);
@@ -51,6 +60,7 @@ function featuredCardId(pack: PackInput): string | undefined {
 function featuredImages(pack: PackInput, cardId: string, images: ReadonlySet<string>): string[] {
   const base = pack.manifest.languages?.base;
   if (!base) return [];
+  if (pack.manifest.kind === "house-rule") return [packCardImagePath(base, cardId)].filter((path) => images.has(path));
   const type = pack.cards.find((card) => (card.id as string) === cardId)?.type;
   const codes = [cardId];
   if (type === "hero_identity" && cardId.endsWith("a")) codes.push(`${cardId.slice(0, -1)}b`);

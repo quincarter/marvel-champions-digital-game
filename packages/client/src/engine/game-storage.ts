@@ -321,9 +321,13 @@ export class MemoryGameStorage implements GameStorage {
 /**
  * A game played with custom content (a pack's hero, scenario, modular set or campaign: `SessionConfig.packs`). Custom
  * content never earns the base game's progression (champion points, Extras, trophies), so every result reader leaves it out.
+ * A house-rule pack is not custom content (docs/custom-content-packs.md §11.11): it only changes official cards, and a
+ * game played with one counts like a Balanced campaign does.
  */
 export const isCustomSave = (meta: { readonly config?: { readonly packs?: readonly unknown[] } }): boolean =>
-  (meta.config?.packs?.length ?? 0) > 0;
+  (meta.config?.packs ?? []).some(
+    (pack) => typeof pack !== "object" || pack === null || (pack as { houseRule?: unknown }).houseRule === undefined,
+  );
 
 export const isLessonSave = (meta: { readonly guided?: { readonly kind: string } }): boolean =>
   meta.guided?.kind === "aspect" || meta.guided?.kind === "mechanic";

@@ -8,7 +8,9 @@ import {
   emptyTextOf,
   errorTextOf,
   featuredFacesOf,
+  MOD_STORE_TABS,
   modStoreGridOf,
+  modStoreTabRowsOf,
   packPageOf,
   progressOf,
   tileArtOf,
@@ -87,6 +89,25 @@ describe("tilesOf", () => {
     const withdrawn = entry("w", { withdrawn: true });
     expect(tilesOf(index([withdrawn]), context(), "all")).toEqual([]);
     expect(tilesOf(index([withdrawn]), context([installedPack("w")]), "all")[0]!.state).toBe("withdrawn");
+  });
+
+  it("lists house rules on their own tab, labelled as house rules (docs/custom-content-packs.md §11.11)", () => {
+    const withRule = [...packs, entry("lost-traits-bf", { kind: "house-rule", name: "Lost Traits" })];
+    expect(MOD_STORE_TABS.map((tab) => tab.label)).toEqual(["All", "Heroes", "Scenarios", "House rules", "Installed"]);
+    const rules = tilesOf(index(withRule), context(), "house-rules");
+    expect(rules.map((t) => t.id)).toEqual(["lost-traits-bf"]);
+    expect(rules[0]!.kindLabel).toBe("House rule");
+    expect(tilesOf(index(withRule), context(), "heroes").map((t) => t.id)).toEqual(["b-hero"]);
+    expect(tilesOf(index(withRule), context(), "all").map((t) => t.id)).toContain("lost-traits-bf");
+    expect(emptyTextOf("house-rules")).toMatch(/house rules/);
+  });
+
+  it("puts the five tabs in one row, or two on a phone as narrow as the iPhone SE", () => {
+    expect(modStoreTabRowsOf(1392).map((row) => row.length)).toEqual([5]);
+    expect(modStoreTabRowsOf(343).map((row) => row.map((tab) => tab.id))).toEqual([
+      ["all", "heroes", "scenarios"],
+      ["house-rules", "installed"],
+    ]);
   });
 
   it("handles a missing catalog", () => {
@@ -325,6 +346,28 @@ describe("a tile's art", () => {
     expect(lone).toHaveLength(1);
     expect(lone[0]!.pictureUrl).toBeUndefined();
     expect(featuredFacesOf(undefined, "https://h/")).toEqual([]);
+  });
+
+  it("features a house rule's first rebuilt face as the official card it rebuilds", () => {
+    const rule = parsePackPreview(
+      {
+        schema: 1,
+        packId: "lost-traits-bf",
+        version: "1.0.0",
+        featured: { cardId: "14001b", images: ["cards/en/14001b.webp"] },
+        images: ["cards/en/14001b.webp"],
+        languages: { base: "en", available: ["en"] },
+        cards: [],
+        decks: [],
+      },
+      "lost-traits-bf",
+    );
+    const official = new Map(CORE_CARDS.map((card) => [card.id as string, card]));
+    expect(featuredFacesOf(rule, "https://h/")).toEqual([]);
+    official.set("14001b", { ...CORE_CARDS.find((card) => card.type === "hero_identity")!, id: "14001a" } as never);
+    const [face] = featuredFacesOf(rule, "https://h/", "en", official);
+    expect(face?.face).toEqual({ kind: "alterEgo" });
+    expect(face?.pictureUrl).toBe("https://h/cards/en/14001b.webp");
   });
 
   describe("a pack whose base language is Spanish, shown to an English player", () => {

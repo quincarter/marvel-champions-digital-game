@@ -123,6 +123,7 @@ import {
   type OptionChip,
   type SetupOptionRow,
 } from "../view/setup-options.js";
+import { installedSetupHouseRules } from "../packs/game-packs.js";
 import { difficultyLabelOf } from "../view/difficulty-label.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
@@ -476,7 +477,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#dealBlocked = this.#cwSummary ? null : modularDealBlockOf(this.#draft, scenario);
 
     // The setup options this scenario offers under the draft's difficulty and modular picks (`playableScenarioOffer`).
-    const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES);
+    const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES, undefined, installedSetupHouseRules());
     // The Standard / Expert set chips are folded into the difficulty row; the rest are cards under it.
     const { setChoices, cards: optionRows } = splitOptionRows(allOptionRows);
     this.#setChoiceRows = setChoices;
@@ -1823,7 +1824,7 @@ export class TableSetupScene extends Phaser.Scene {
       ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick }
       : ({} as Record<string, never>);
     const act = (action: string) => (): void => {
-      this.#draft = applySetupOption(this.#draft, action);
+      this.#draft = applySetupOption(this.#draft, action, undefined, installedSetupHouseRules());
       this.#rebuild();
     };
     const chipButton = (chip: OptionChip, chipRect: Rect): void =>
@@ -2055,7 +2056,7 @@ export class TableSetupScene extends Phaser.Scene {
     stopFor: (key: string, controlRect: Rect, activate: () => void) => void,
   ): void {
     const onClick = (): void => {
-      this.#draft = applySetupOption(this.#draft, chip.action);
+      this.#draft = applySetupOption(this.#draft, chip.action, undefined, installedSetupHouseRules());
       this.#rebuild();
     };
     if (chip.enabled) {

@@ -13,15 +13,28 @@ import type { InstalledPack } from "../packs/pack-store.js";
 import type { InstallProgress } from "../packs/install-pack.js";
 import type { PackInstallErrorCode } from "../packs/unpack-pack.js";
 import type { ExtrasGrid } from "./extras-model.js";
+import { ruleFaceOf } from "./pack-gallery-model.js";
 
-export type ModStoreTab = "all" | "heroes" | "scenarios" | "installed";
+export type ModStoreTab = "all" | "heroes" | "scenarios" | "house-rules" | "installed";
 
+/** The browse tabs. House rules have their own (the owner, 2026-11-13; docs/custom-content-packs.md §11.11). */
 export const MOD_STORE_TABS: readonly { readonly id: ModStoreTab; readonly label: string }[] = [
   { id: "all", label: "All" },
   { id: "heroes", label: "Heroes" },
   { id: "scenarios", label: "Scenarios" },
+  { id: "house-rules", label: "House rules" },
   { id: "installed", label: "Installed" },
 ];
+
+/** The narrowest tab that still fits its label ("SCENARIOS", "INSTALLED") on one line. */
+const MIN_TAB_WIDTH = 84;
+
+/** The tabs laid out in rows for a row `width` wide: one row, or two (3 + 2) where five tabs would cut their labels. */
+export function modStoreTabRowsOf(width: number): readonly (typeof MOD_STORE_TABS)[number][][] {
+  if (width / MOD_STORE_TABS.length >= MIN_TAB_WIDTH) return [[...MOD_STORE_TABS]];
+  const split = Math.ceil(MOD_STORE_TABS.length / 2);
+  return [MOD_STORE_TABS.slice(0, split), MOD_STORE_TABS.slice(split)];
+}
 
 export interface ModStoreContext {
   readonly appVersion: string;
@@ -35,6 +48,7 @@ export const KIND_LABELS: Readonly<Record<PackKind, string>> = {
   modular: "Modular set",
   campaign: "Campaign",
   art: "Art",
+  "house-rule": "House rule",
 };
 
 /** The chip's words. Never color alone: every state has its own label. */
@@ -54,6 +68,7 @@ export function emptyTextOf(tab: ModStoreTab): string {
   if (tab === "installed") return "No custom packs are installed yet.";
   if (tab === "heroes") return "The store has no hero packs yet.";
   if (tab === "scenarios") return "The store has no scenario packs yet.";
+  if (tab === "house-rules") return "The store has no house rules yet.";
   return "The store has no packs yet. Check back soon.";
 }
 
@@ -138,6 +153,8 @@ function inTab(tile: ModStoreTile, tab: ModStoreTab): boolean {
       return tile.kind === "hero";
     case "scenarios":
       return tile.kind === "scenario";
+    case "house-rules":
+      return tile.kind === "house-rule";
     case "installed":
       return tile.installed;
   }
@@ -344,15 +361,25 @@ export interface FeaturedFace {
 
 /**
  * The featured card's faces: a hero's identity shows both (hero and alter-ego), any other card its one face. Empty when
- * the preview names no featured card or its record did not survive validation.
+ * the preview names no featured card or its record did not survive validation. A house rule's featured card is an
+ * official face it rebuilds (docs/custom-content-packs.md §11.11): `ruleCards` (`officialCardsByPictureCode`) finds
+ * its card, and it shows that one face, in the rule's picture.
  */
 export function featuredFacesOf(
   preview: ParsedPackPreview | null | undefined,
   base: string | undefined,
   lang?: string,
+  ruleCards?: ReadonlyMap<string, AnyCard>,
 ): readonly FeaturedFace[] {
   const featured = preview?.featured;
-  const card = featured ? preview?.cards.find((one) => (one.id as string) === featured.cardId) : undefined;
+  const own = featured ? preview?.cards.find((one) => (one.id as string) === featured.cardId) : undefined;
+  const official = !own && featured ? ruleCards?.get(featured.cardId) : undefined;
+  if (preview && featured && official) {
+    const path = localizedPicturePath(preview, featured.images[0], lang);
+    const pictureUrl = path !== undefined && base !== undefined ? `${base}${path}` : undefined;
+    return [{ card: official, face: ruleFaceOf(featured.cardId, official), pictureUrl, path }];
+  }
+  const card = own;
   if (!preview || !featured || !card) return [];
   const faceAt = (face: CardFace, index: number): FeaturedFace => {
     const path = localizedPicturePath(preview, featured.images[index], lang);
@@ -380,8 +407,13 @@ function localizedPicturePath(
   return preview.images.has(localized) ? localized : path;
 }
 
-export function tileArtOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined, lang?: string): TileArt {
-  const first = featuredFacesOf(preview, tile.baseUrl, lang)[0];
+export function tileArtOf(
+  tile: ModStoreTile,
+  preview: ParsedPackPreview | null | undefined,
+  lang?: string,
+  ruleCards?: ReadonlyMap<string, AnyCard>,
+): TileArt {
+  const first = featuredFacesOf(preview, tile.baseUrl, lang, ruleCards)[0];
   // The catalog's thumbnail is cut from the base language's picture: a player in another language the pack ships sees
   // that language's picture instead.
   const localized = first?.pictureUrl !== undefined && first.path !== preview?.featured?.images[0];

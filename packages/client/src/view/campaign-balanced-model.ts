@@ -20,8 +20,14 @@ export const BALANCED_CREDIT = {
   url: "https://gideonsgaming.com/marvel-champions-fixing-galaxys-most-wanted/",
 } as const;
 
-/** True when starting `campaignId` asks Normal or Rebalance first. */
-export const hasBalancedPrompt = (campaignId: string): boolean => campaignId === BALANCED_CAMPAIGN_ID;
+/**
+ * True when starting `campaignId` asks Normal or Rebalance first: Galaxy's Most Wanted, with the GMW Fixes house-rule
+ * pack installed (`modInstalled`, the owner's decision of 2026-11-13: the mod is what offers the option;
+ * docs/custom-content-packs.md §11.11). Without it the run starts as printed. A run already signed Balanced keeps its
+ * `modes.campaign.balanced` flag and its rules whatever is installed: this gate is only asked when a run starts.
+ */
+export const hasBalancedPrompt = (campaignId: string, modInstalled: boolean): boolean =>
+  modInstalled && campaignId === BALANCED_CAMPAIGN_ID;
 
 /** What the prompt is holding: the mode, and the toggles chosen (kept while Normal is picked, but not carried). */
 export interface BalancedChoice {

@@ -74,6 +74,7 @@ import {
   currentStarterDecks,
 } from "../content/pool.js";
 import { loadedPacks } from "../packs/pack-registry.js";
+import { isHouseRulePack } from "../packs/pack-runtime.js";
 import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor } from "../art/art-source.js";
 import { packPictureFor } from "../art/pack-art.js";
@@ -360,7 +361,10 @@ const packInfos = (): readonly PackInfo[] => {
   if (packs.length === 0) return BASE_PACK_INFOS;
   return [
     ...BASE_PACK_INFOS,
-    ...packs.map((pack) => ({ code: pack.id, name: pack.name, cycleId: CUSTOM_SHELF_ID, cycleName: "Custom packs" })),
+    // A house rule has no cards of its own to filter by.
+    ...packs
+      .filter((pack) => !isHouseRulePack(pack))
+      .map((pack) => ({ code: pack.id, name: pack.name, cycleId: CUSTOM_SHELF_ID, cycleName: "Custom packs" })),
   ];
 };
 

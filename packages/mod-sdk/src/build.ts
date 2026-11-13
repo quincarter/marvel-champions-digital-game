@@ -36,6 +36,7 @@ export type PackAuthorManifest = Pick<
   | "pictures"
   | "languages"
   | "altArt"
+  | "houseRule"
   | "permission"
   | "templateCredit"
   | "translators"
@@ -186,6 +187,7 @@ export function assemblePack(source: PackSource): PackInput {
     ...(author.pictures ? { pictures: author.pictures } : {}),
     ...(author.languages ? { languages: author.languages } : {}),
     ...(author.altArt ? { altArt: author.altArt } : {}),
+    ...(author.houseRule ? { houseRule: author.houseRule } : {}),
     ...(author.permission ? { permission: author.permission } : {}),
     ...(author.templateCredit ? { templateCredit: author.templateCredit } : {}),
     ...(author.translators ? { translators: author.translators } : {}),

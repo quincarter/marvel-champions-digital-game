@@ -4,10 +4,13 @@
  * JSON, plus images. Nothing here imports the engine, so the client, the mod SDK and the build scripts can all read it.
  */
 
-/** What a pack adds. Only `hero` and `scenario` are planned for the first store version (§11). */
-export type PackKind = "hero" | "scenario" | "modular" | "campaign" | "art";
+/**
+ * What a pack adds. `house-rule` (§11.11) adds no card: it changes official cards (`PackHouseRule`) and is switched on
+ * per game.
+ */
+export type PackKind = "hero" | "scenario" | "modular" | "campaign" | "art" | "house-rule";
 
-export const PACK_KINDS: readonly PackKind[] = ["hero", "scenario", "modular", "campaign", "art"];
+export const PACK_KINDS: readonly PackKind[] = ["hero", "scenario", "modular", "campaign", "art", "house-rule"];
 
 /** The current `pack.json` schema version. */
 export const PACK_SCHEMA_VERSION = 1;
@@ -147,6 +150,34 @@ export interface PackCampaignOf<Definition = unknown> {
   readonly art?: { readonly cover?: string };
 }
 
+/**
+ * Traits a house rule adds to one official card face (§11.11). `code` is a printed face code of the base game: a card's
+ * own code (a hero identity's hero face), or the `b` sibling of a hero identity for its alter-ego face. `traits` are
+ * written as printed ("Web-Warrior"); the game compares them in their normalized form (`trait`).
+ */
+export interface PackTraitAddition {
+  readonly code: string;
+  readonly traits: readonly string[];
+}
+
+/** The game modes a house rule may switch on: `balanced` is Galaxy's Most Wanted's rebalanced campaign. */
+export type PackHouseRuleMode = "balanced";
+
+export const PACK_HOUSE_RULE_MODES: readonly PackHouseRuleMode[] = ["balanced"];
+
+/**
+ * A `house-rule` pack's rule (§11.11): data only, no cards and no abilities. While the rule is on, its pictures
+ * (`cards/<lang>/<code>.webp`, keyed by the official face code they rebuild) replace those faces' normal pictures.
+ *
+ * - `traitAdditions`: the rule is a per-game toggle in Table setup; while on, the game's pool carries the added traits.
+ * - `enablesMode`: the rule unlocks a mode the game already scripts (the Balanced campaign option is offered only with
+ *   the pack installed). A saved game or run in that mode carries its own flag and keeps playing without the pack.
+ */
+export interface PackHouseRule {
+  readonly traitAdditions?: readonly PackTraitAddition[];
+  readonly enablesMode?: PackHouseRuleMode;
+}
+
 /** The permission a pack's content may be distributed under (§11.4), as the store's reviewers check it. */
 export interface PackPermission {
   /**
@@ -198,6 +229,8 @@ export interface PackManifest {
   readonly languages?: PackLanguages;
   /** Alternate art for base-game cards, or the pack's own (see `PackAltArt`). Any pack kind may carry it. */
   readonly altArt?: PackAltArt;
+  /** A `house-rule` pack's rule; required for that kind and refused on any other. */
+  readonly houseRule?: PackHouseRule;
   /** The permission the pack's creator gave for the store to distribute it; mirrors `PERMISSION.md`. */
   readonly permission?: PackPermission;
   /** Who made the card template the pack's cards are laid out on ("Hitch", "G.Triskelion"). */

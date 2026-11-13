@@ -1,0 +1,33 @@
+{
+  "id": "gmw-fixes-gg",
+  "version": "1.0.0",
+  "kind": "house-rule",
+  "name": "GMW Fixes",
+  "authors": ["Gideon's Gaming", "Bluefire"],
+  "description": "Gideon's Gaming's fixes for The Galaxy's Most Wanted, rebuilt as full cards by Bluefire. Installing it offers the Balanced version when a Galaxy's Most Wanted campaign starts (Collector I-III and The Grand Collection, Nebula's Ship, the Milano, Interception Imminent and Take What Is Mine), and its rebuilt faces show in Balanced games.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.44.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "houseRule": {
+    "enablesMode": "balanced"
+  },
+  "permission": {
+    "status": "granted",
+    "by": "Gideon's Gaming (the errata); Bluefire (the rebuilt cards and the Spanish)",
+    "date": "2026-11-13",
+    "evidence": "The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a51e50da556ece0b0fe9a75848320416b8794cef/gmw_fixes_gg/mod.json (permission: status \"granted\", scope \"inclusion\"; version \"1.0 (approved 2026-11-03)\"); confirmed by the project owner (Quin Carter) on 2026-11-13. The errata's source: https://gideonsgaming.com/marvel-champions-fixing-galaxys-most-wanted/",
+    "scope": "inclusion (as the source records it); the Spanish faces are Bluefire's own translation and rebuild",
+    "languages": ["en", "es"],
+    "note": "The source gives no date for the grant; 2026-11-13 is the owner's confirmation. Its scope says \"inclusion\" only: the Spanish is covered as Bluefire's own work, not by a separate grant from Gideon's Gaming."
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "es": "Bluefire"
+  }
+}

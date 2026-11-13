@@ -67,6 +67,7 @@ export function loadPackRuntime(
         ...((input.scenarios?.length ?? 0) > 0 ? { scenarios: input.scenarios as readonly Scenario[] } : {}),
         ...((input.encounterSets?.length ?? 0) > 0 ? { encounterSets: input.encounterSets } : {}),
         ...(packCampaignsOf(input.campaigns).length > 0 ? { campaigns: packCampaignsOf(input.campaigns) } : {}),
+        ...(manifest.houseRule ? { houseRule: { ...manifest.houseRule, description: manifest.description } } : {}),
       },
     };
   } catch (error) {
