@@ -1,0 +1,11 @@
+{
+  "id": "tiny-pack",
+  "version": "1.0.0",
+  "kind": "hero",
+  "name": "Tiny Pack",
+  "authors": ["Test Author"],
+  "description": "A minimal hero pack for the mod SDK's own tests.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": { "app": ">=0.1.0", "packs": [] },
+  "pictures": { "hero": { "x.tiny-pack.01a": "art/placeholder.svg" } }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "x.carnage-nep.02",
+  "name": "Spider-Man",
+  "subtitle": "Peter Parker",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "2",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "ally",
+  "cost": 4,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "atk": 2,
+  "thw": 2,
+  "hp": 4,
+  "consequentialDamage": {
+    "attack": 1,
+    "thwart": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["WEB-WARRIOR"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Interrupt: When you would take any amount of damage from Carnage's \"Need to Kill\" ability, exhaust Spider-Man and deal 1 damage to him → prevent all of that damage.",
+    "current": "Interrupt: When you would take any amount of damage from Carnage's \"Need to Kill\" ability, exhaust Spider-Man and deal 1 damage to him → prevent all of that damage."
+  },
+  "flavor": "\"One way or another...Eddie needs our help.\"",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.02.spider-man-interrupt"
+    }
+  ]
+}

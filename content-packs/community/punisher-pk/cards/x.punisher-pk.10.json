@@ -1,0 +1,33 @@
+{
+  "id": "x.punisher-pk.10",
+  "name": "Barracuda",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "10",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 2,
+  "sch": 2,
+  "hp": 6,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 2,
+  "traits": ["CRIMINAL", "ELITE"],
+  "keywords": [
+    {
+      "name": "toughness"
+    }
+  ],
+  "text": {
+    "printed": "Toughness.\nDuring step 2 of the villain phase, Barracuda activates against you before The Punisher does.\nWhen Defeated: If Barracuda was defeated by The Punisher, give The Punisher a tough status card.",
+    "current": "Toughness.\nDuring step 2 of the villain phase, Barracuda activates against you before The Punisher does.\nWhen Defeated: If Barracuda was defeated by The Punisher, give The Punisher a tough status card."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.10.barracuda-constant"
+    },
+    {
+      "id": "x.punisher-pk.10.when-defeated"
+    }
+  ]
+}

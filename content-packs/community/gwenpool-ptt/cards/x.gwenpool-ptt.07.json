@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.07",
+  "name": "Out Of The Game",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "7",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 4,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Forced Interrupt: When the villain phase is about to begin, instead remove this card from the game → start again player phase.",
+    "current": "Forced Interrupt: When the villain phase is about to begin, instead remove this card from the game → start again player phase."
+  },
+  "flavor": "\"Soo.. It's my turn again?\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.07.out-of-the-game-forced-interrupt"
+    },
+    {
+      "id": "x.gwenpool-ptt.07.pink-bubble"
+    }
+  ]
+}

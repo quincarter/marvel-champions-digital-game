@@ -1,0 +1,33 @@
+{
+  "id": "x.mephisto-nep.07",
+  "type": "attachment",
+  "name": "Lusting Existence",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "11/28",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nAction: Exhaust an identity-specific card you control → ready your identity.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nAction: Exhaust an identity-specific card you control → ready your identity.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.07.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.07.action"
+    },
+    {
+      "id": "x.mephisto-nep.07.response"
+    }
+  ]
+}

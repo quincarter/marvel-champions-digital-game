@@ -1,0 +1,34 @@
+{
+  "id": "x.throg-ptt.12",
+  "name": "An Unexpected Guest",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "12",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["throg-ptt-nemesis"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 3
+  },
+  "icons": [],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "incite",
+      "value": 2
+    }
+  ],
+  "text": {
+    "printed": "Incite 2.\nWhen Revealed: Find the Power Stone and put it into play.",
+    "current": "Incite 2.\nWhen Revealed: Find the Power Stone and put it into play."
+  },
+  "flavor": "\"I came in search of the Infinity Stones, expecting those so-called heroes to be ready to face me, but instead I find mere animals.\"",
+  "abilities": [
+    {
+      "id": "x.throg-ptt.12.when-revealed"
+    }
+  ]
+}

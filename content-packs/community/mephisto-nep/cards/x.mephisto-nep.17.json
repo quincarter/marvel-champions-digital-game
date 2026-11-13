@@ -1,0 +1,28 @@
+{
+  "id": "x.mephisto-nep.17",
+  "type": "treachery",
+  "name": "Dark Compulsions",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "21/28, 22/28",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 0,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Each player resolves the \"Hidden Clause\" ability on the main scheme if they control a Bargain attachment. If no player controls a Bargain attachment, you may look at 1[per_hero] card in Damnation and shuffle it back into its owner's deck.\n[star] Boost: This card gains boost icons ([boost]) equal to the number of Bargain attachments in play.",
+    "current": "When Revealed: Each player resolves the \"Hidden Clause\" ability on the main scheme if they control a Bargain attachment. If no player controls a Bargain attachment, you may look at 1[per_hero] card in Damnation and shuffle it back into its owner's deck.\n[star] Boost: This card gains boost icons ([boost]) equal to the number of Bargain attachments in play."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.17.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.17.boost"
+    }
+  ],
+  "starIcon": true,
+  "flavor": "\"I wanted to be the guy who even gods had to make an appointment to see. Now, I am that guy.\" —Phil Coulson"
+}

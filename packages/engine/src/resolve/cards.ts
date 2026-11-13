@@ -86,7 +86,7 @@ import { tuckLeavingCard } from "./tuck.js";
 import { placeLeavingInSeparateDeck } from "./leave-to-separate-deck.js";
 import { noteUnoffered, pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
-import { cannotLeavePlay, staysInHand } from "../rules.js";
+import { cannotLeavePlay, setAsideRedirect, staysInHand } from "../rules.js";
 import { shuffleSearchedDecks } from "./find.js";
 import { markPreThenUnresolved } from "./then.js";
 
@@ -94,7 +94,7 @@ import { markPreThenUnresolved } from "./then.js";
  * `count` cards of `pool` at random, without replacement, in the order drawn; every card of a smaller pool, none of an
  * empty one. Each pick is one draw on the game's seeded RNG (`GameState.rng`), which advances with it, so a replay of
  * the command log picks the same cards; an empty pool or a count of zero draws nothing and leaves the RNG as it was.
- * The one place a selector's `random` is resolved (`zone`, `encounter`, `encounterSetAside`, `setAside`,
+ * The one place a selector's `random` is resolved (`ref`, `zone`, `encounter`, `encounterSetAside`, `setAside`,
  * `victoryDisplay`, `tucked`).
  */
 function pickAtRandom(ctx: Ctx, pool: readonly InstanceId[], count: number): InstanceId[] {
@@ -127,19 +127,22 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         0,
         Math.max(0, resolveValue(ctx.state, selector.count, context)),
       );
-    case "ref":
+    case "ref": {
       // Ruling Dec 17, 2025 (4): a card removed from the game "cannot be returned to the game by any means", so a ref
       // never reaches it (Odin removed by his forced interrupt before Med Lab's response; docs/phase7-wave6.md §3.57).
       // Only card text naming that area does (`CardSelector removedFromGame`, Loose Ends).
-      return filtered(
+      const named = filtered(
         resolveRef(state, selector.ref, context).filter(
           (id) =>
             getInstance(state, id) !== undefined &&
-            !state.removedFromGame.includes(id) &&
+            (selector.includeRemoved === true || !state.removedFromGame.includes(id)) &&
             (selector.ownerZone === undefined || inOwnersZone(state, id, selector.ownerZone)),
         ),
         selector.filter,
       );
+      if (!selector.random) return named;
+      return pickAtRandom(ctx, named, resolveValue(ctx.state, selector.random, context));
+    }
     case "campaignLog": {
       // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7): the field lists *titles*, and one
       // title can be listed twice (ruling June 2, 2026 (3) answer 3), so each entry claims one not-yet-claimed
@@ -222,8 +225,11 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       if (!selector.random) return matching;
       return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
     }
-    case "scenarioArea":
-      return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
+    case "scenarioArea": {
+      const matching = [...filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter)];
+      if (!selector.random) return matching;
+      return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
+    }
     case "scenarioDeck": {
       const piles = state.scenarioDecks[selector.name];
       if (!piles) return [];
@@ -325,6 +331,8 @@ export function moveCardsTo(
   sourceCardId?: CardId,
   deckDiscardBy: DeckDiscarder = { sourceInstanceId: null },
   asCost = false,
+  /** `to: { scenarioArea }` only: the cards go in facedown (`EffectSpec moveCards.facedown`). */
+  facedown = false,
 ): void {
   // Empty scenario decks reset once the whole batch has moved (`Ctx.scenarioResetsHeld`), not at its first card.
   ctx.scenarioResetsHeld = (ctx.scenarioResetsHeld ?? 0) + 1;
@@ -333,6 +341,20 @@ export function moveCardsTo(
   let shuffleEncounter = false;
   const scenarioDecksToShuffle = new Set<string>();
   const separateDecks = new Map<string, { readonly playerId: PlayerId; readonly name: string }>();
+  // Cards put into a scenario area by this move, announced after it when an ability listens (`cardPutIntoScenarioArea`).
+  const intoArea: TriggerEvent[] = [];
+  const enteredArea = (id: InstanceId, area: string, from: ZoneId | null): void => {
+    const fromPlayerId = from !== null && "playerId" in from ? from.playerId : null;
+    intoArea.push({
+      kind: "cardPutIntoScenarioArea",
+      instanceId: id,
+      area,
+      ownerId: getInstance(ctx.state, id)?.ownerId ?? null,
+      from: from?.kind ?? "unknown",
+      fromPlayerId,
+      sourceInstanceId: deckDiscardBy.sourceInstanceId,
+    });
+  };
   // A scenario deck closed to player card effects (the show deck, docs/phase7-wave6.md §3.66): a player card's ability
   // moves no card out of it, into it or within it. Each refused deck is logged once, with the cards left where they were.
   const refused = new Map<string, InstanceId[]>();
@@ -383,11 +405,30 @@ export function moveCardsTo(
         continue;
     }
     // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
+    // "… facedown into Damnation" (`facedown`): closed to every player there.
     if (typeof destination === "object" && "scenarioArea" in destination) {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
+      const from = locateCard(ctx.state, id);
       if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId, asCost);
       else moveCard(ctx, id, area, "bottom");
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: !facedown }));
+      if (ctx.state.scenarioAreas?.[destination.scenarioArea]?.includes(id))
+        enteredArea(id, destination.scenarioArea, from);
+      continue;
+    }
+    // "When a card is set aside from a player's deck, put it facedown into Damnation instead" (`RuleSpec
+    // setAsideDestination`): a replacement read as the card moves, so the card never reaches the set-aside area.
+    const asideTo = destination === "setAside" && !inPlay.has(id) ? setAsideRedirect(ctx.state, ctx.deps, id) : null;
+    if (asideTo !== null) {
+      enteredArea(id, asideTo.area, locateCard(ctx.state, id));
+      moveCard(ctx, id, { kind: "scenarioArea", name: asideTo.area }, "bottom");
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: !asideTo.facedown }));
+      emit(ctx, {
+        type: "setAsideRedirected",
+        instanceId: id,
+        area: asideTo.area,
+        sourceInstanceId: asideTo.sourceInstanceId,
+      });
       continue;
     }
     // `into` (docs/phase7-wave5.md §3.5): that player's zones, whoever owns the card.
@@ -542,6 +583,8 @@ export function moveCardsTo(
   if (sourceCardId !== undefined)
     for (const [name, instanceIds] of refused)
       emit(ctx, { type: "scenarioDeckClosed", name, sourceCardId, instanceIds });
+  const heardEntries = intoArea.filter((event) => heard(ctx.state, ctx.deps, event));
+  if (heardEntries.length > 0) pushEvents(ctx, heardEntries);
   for (const owner of shuffleOwners) {
     const order = shuffleZone(ctx, { kind: "deck", playerId: owner }, mustPlayer(ctx.state, owner).deck);
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
@@ -976,6 +1019,25 @@ export function announceEncounterCardsDealt(ctx: Ctx): boolean {
       const zone = locateCard(ctx.state, event.instanceId);
       return zone?.kind === "dealtEncounter" && zone.playerId === event.playerId && heard(ctx.state, ctx.deps, event);
     });
+  if (events.length === 0) return false;
+  pushEventsSharingResponses(ctx, events);
+  return true;
+}
+
+/**
+ * Announces each card that came off a host since the last look (`TriggerEvent cardUnattached`; community pack
+ * `yondu-dh`), when an ability hears it, and empties the list; the oldest resolves first. Cards that came off in one
+ * step share one response window, as cards leaving play together do (`announceCardsLeftPlay`). Returns true when it
+ * pushed a frame.
+ */
+export function announceCardsUnattached(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingUnattached;
+  if (!pending || pending.length === 0) return false;
+  const { pendingUnattached: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events: TriggerEvent[] = pending
+    .map((left): TriggerEvent => ({ kind: "cardUnattached", ...left }))
+    .filter((event) => heard(ctx.state, ctx.deps, event));
   if (events.length === 0) return false;
   pushEventsSharingResponses(ctx, events);
   return true;

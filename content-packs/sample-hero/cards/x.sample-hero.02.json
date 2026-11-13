@@ -1,0 +1,35 @@
+{
+  "id": "x.sample-hero.02",
+  "type": "ally",
+  "name": "Rook",
+  "subtitle": "Test Partner",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "2",
+  "quantityInSet": 1,
+  "unique": true,
+  "cost": 2,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "atk": 1,
+  "thw": 1,
+  "hp": 2,
+  "consequentialDamage": {
+    "attack": 0,
+    "thwart": 1
+  },
+  "aspect": "hero:x.sample-hero.01a",
+  "traits": ["PARTNER"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Forced Response: After you play Rook, discard the top 2 cards of your deck. Add each card with a printed [physical] resource discarded this way to your hand.",
+    "current": "Forced Response: After you play Rook, discard the top 2 cards of your deck. Add each card with a printed [physical] resource discarded this way to your hand."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-hero.02.rook-forced-response"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "id": "mephisto-nep",
+  "version": "1.1.1",
+  "kind": "scenario",
+  "name": "Mephisto",
+  "authors": ["Neptune (Typhon00)"],
+  "description": "Fan-made scenario pack by Neptune (Typhon00): a battle for your soul against Mephisto, with the Blackheart, Corruptive Offers, Damned and Mother of Demons encounter sets and new art for the Standard and Expert sets.",
+  "cover": "cover.webp",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "altArt": {
+    "en": {
+      "01186": "alt-art/en/01186.webp",
+      "01187": "alt-art/en/01187.webp",
+      "01188": "alt-art/en/01188.webp",
+      "01189": "alt-art/en/01189.webp",
+      "01190": "alt-art/en/01190.webp",
+      "01191": "alt-art/en/01191.webp",
+      "01192": "alt-art/en/01192.webp",
+      "01193": "alt-art/en/01193.webp"
+    },
+    "es": {
+      "01186": "alt-art/es/01186.webp",
+      "01187": "alt-art/es/01187.webp",
+      "01188": "alt-art/es/01188.webp",
+      "01189": "alt-art/es/01189.webp",
+      "01190": "alt-art/es/01190.webp",
+      "01191": "alt-art/es/01191.webp",
+      "01192": "alt-art/es/01192.webp",
+      "01193": "alt-art/es/01193.webp"
+    }
+  },
+  "permission": {
+    "status": "granted",
+    "by": "Neptune (Typhon00)",
+    "evidence": "Screenshot of the creator's message, shared by the owner: his content \"is free to play, download, print, what have you\". Given 2026-11-02 by direct message to the community member Dreadheart; confirmed by the owner 2026-11-12. Translation: BluefireF5ran's curated repository records the grant for the pack, translation included (mod.json permission, status granted, scope \"inclusion and translation\", 2026-11-05): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a51e50da556ece0b0fe9a75848320416b8794cef/mephisto_nep/mod.json. The message itself is not kept in this repository.",
+    "date": "2026-11-02",
+    "scope": "inclusion in the game and its Mod Store, and translation (Spanish)",
+    "languages": ["en", "es"]
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "es": "Francisco Merchán"
+  }
+}

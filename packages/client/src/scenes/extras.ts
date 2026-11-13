@@ -238,14 +238,40 @@ export class ExtrasScene extends Phaser.Scene {
     // The Trophy Room and Art & Credits doors: beside the tabs on a wide screen, on a row of their own above them on
     // a phone.
     const doorWidth = 150;
-    const trophyWidth = doorWidth * 2 + 8;
+    const trophyWidth = doorWidth * 3 + 16;
     const rowGap = 8;
-    const trophyRect: Rect = phone
-      ? { x: gutter, y: bar.height + 10, width: (width - gutter * 2 - rowGap) / 2, height: hit.target }
+    // Three doors beside the tab strip leave it too narrow to print every tab's label whole at some widths (measured, not
+    // guessed): then the doors take a row of their own above it, as on a phone.
+    const tabs = extrasTabsOf(current);
+    const widestTab = Math.max(
+      ...tabs.map((tab) => {
+        const probe = this.add.text(
+          0,
+          0,
+          (phone ? tab.name : tab.label).toUpperCase(),
+          textStyle(typeRole.label, surface.ink.hex),
+        );
+        const w = probe.width;
+        probe.destroy();
+        return w;
+      }),
+    );
+    const besideTabsWidth = width - gutter * 2 - trophyWidth - 12;
+    const stackDoors = phone || besideTabsWidth / tabs.length < widestTab + 24;
+    const doorW = stackDoors ? (width - gutter * 2 - rowGap * 2) / 3 : doorWidth;
+    const trophyRect: Rect = stackDoors
+      ? { x: gutter, y: bar.height + 10, width: doorW, height: hit.target }
       : { x: width - gutter - doorWidth, y: bar.height + 12, width: doorWidth, height: TAB_HEIGHT };
-    const creditsRect: Rect = phone
+    const creditsRect: Rect = stackDoors
       ? { ...trophyRect, x: trophyRect.x + trophyRect.width + rowGap }
       : { ...trophyRect, x: trophyRect.x - doorWidth - rowGap };
+    const storeRect: Rect = stackDoors
+      ? { ...trophyRect, x: creditsRect.x + creditsRect.width + rowGap }
+      : { ...trophyRect, x: creditsRect.x - doorWidth - rowGap };
+    const openStore = (): void => {
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.modStore);
+    };
     const openTrophies = (): void => {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.trophyRoom);
@@ -269,12 +295,19 @@ export class ExtrasScene extends Phaser.Scene {
         rect: creditsRect,
         onClick: openCredits,
       }),
+      new McButton(this, {
+        kind: "secondary",
+        label: phone ? "Mods (Beta) ▸" : "Mod Store (Beta) ▸",
+        type: typeRole.label,
+        rect: storeRect,
+        onClick: openStore,
+      }),
     );
     stops.set("trophies", { rect: trophyRect, activate: openTrophies });
     stops.set("credits", { rect: creditsRect, activate: openCredits });
+    stops.set("modStore", { rect: storeRect, activate: openStore });
 
-    const tabs = extrasTabsOf(current);
-    const tabRect: Rect = phone
+    const tabRect: Rect = stackDoors
       ? { x: gutter, y: trophyRect.y + trophyRect.height + 8, width: width - gutter * 2, height: TAB_HEIGHT }
       : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };
     this.#tabs = new McTabs(this, {
@@ -290,7 +323,7 @@ export class ExtrasScene extends Phaser.Scene {
       ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 11 }),
       { avoidObstacles: true },
     );
-    this.#obstacles.push(trophyRect, creditsRect, tabRect);
+    this.#obstacles.push(trophyRect, creditsRect, storeRect, tabRect);
     if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {
@@ -346,6 +379,7 @@ export class ExtrasScene extends Phaser.Scene {
         const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
         if (index !== null) this.#activate(tiles[index]!);
       },
+      rowPressableAt: (rowIndex, pointer) => extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
     });
     this.#list = list;
     this.#promoTiles =
@@ -373,6 +407,7 @@ export class ExtrasScene extends Phaser.Scene {
       ...(bar.backRect ? ["back"] : []),
       "trophies",
       "credits",
+      "modStore",
       ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
       ...playerStops,
     ];

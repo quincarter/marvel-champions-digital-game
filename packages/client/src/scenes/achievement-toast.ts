@@ -23,8 +23,8 @@ import { onTap } from "../ui/tap.js";
 import { drawMusicIcon } from "../ui/music-icon.js";
 import { appSession } from "../session.js";
 import { achievementPopupHoldMs, achievementPopupScale } from "../settings.js";
-import { ACHIEVEMENTS } from "../progression/achievements.js";
-import { earnedAchievementIds, refreshUnlocks } from "../progression/progression.js";
+import { achievementDefOf } from "../progression/achievements.js";
+import { achievementHistory, earnedAchievementIds, refreshUnlocks } from "../progression/progression.js";
 import { backfillProgress } from "../progression/stats-backfill.js";
 import { onGuidePrefsChange } from "../guide/guide-store.js";
 import { achievementsSeen, rememberAchievementsSeen } from "../platform/achievements-seen.js";
@@ -186,7 +186,7 @@ export class AchievementToastScene extends Phaser.Scene {
     this.#gathered = null;
     if (!gathered) return;
     const sources = gathered.achievements.flatMap((id) => {
-      const def = ACHIEVEMENTS.find((a) => a.id === id);
+      const def = achievementDefOf(id, achievementHistory());
       return def ? [def] : [];
     });
     this.#queue.push(...achievementToastsOf(sources), ...extrasToastsOf(gathered.extras));

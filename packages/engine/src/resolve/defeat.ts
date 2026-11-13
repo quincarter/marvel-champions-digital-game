@@ -1166,6 +1166,7 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // card does, so its threat and tokens are cleared and what is attached to it is discarded.
   for (const id of cardsInPlay(ctx.state)) {
     if (id === identityId || getInstance(ctx.state, id)?.ownerId !== playerId) continue;
+    // Not with a host (`withHost` false): an upgrade held by "upgrades cannot be removed from [its host]" stays.
     leavePlayAtOnce(ctx, id, { kind: "discard", playerId }, "top");
   }
   for (const id of [...mustPlayer(ctx.state, playerId).hand]) {

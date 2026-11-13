@@ -21,6 +21,7 @@ import {
   getPlayer,
   identityFace,
   isPlayerCardType,
+  locateCard,
   mainSchemeFor,
   mainSchemeStageOf,
   mainSchemeStates,
@@ -34,6 +35,7 @@ import {
 import {
   activeAbilityRefs,
   activeRules,
+  AFFECTED_SLOT,
   cardsInPlay,
   categoriesOf,
   constantYouOf,
@@ -54,6 +56,9 @@ import {
   resolveValue,
   restrictedWeightOf,
   rulePlayers,
+  ruleBindsPlayer,
+  ruleKindMayApply,
+  textBoxBlankedFor,
   textBoxBlankFor,
   timingWordOf,
   traitsOf,
@@ -141,6 +146,12 @@ export interface DamageAttackInfo {
   readonly attackerInstanceId: InstanceId | null;
   readonly cardInstanceId: InstanceId | null;
   readonly keywords: readonly AttackKeyword[];
+  /**
+   * An enemy attack that nobody defends as its damage is dealt: the attack's `undefended` result (RRG 1.8 "Attack
+   * (Enemy Activation)", steps 2 and 5, p. 9; "Undefended", p. 46), read off the activation frame the damage belongs
+   * to. Absent (false) for a player's attack and for damage read before it is dealt. `reduceDamageTaken.onlyUndefended`.
+   */
+  readonly undefended?: boolean;
 }
 
 /** The "unless the attacker or attack …" exceptions of a damage rule (`cannotTakeDamage`, `reduceDamageTaken`). */
@@ -543,7 +554,7 @@ export const threatCannotBeRemoved = (
     }
     const fromSource = rule.exceptFromSource;
     if (fromSource && removingCards.some((id) => matchesQuery(state, id, fromSource, context))) return false;
-    if (!rule.player) return true;
+    if (!rule.player) return ruleBindsPlayer(active, removerId);
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
 
@@ -587,7 +598,7 @@ export const cannotThwart = (
     }
     if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, context))) return false;
     if (rule.player) return rulePlayers(state, { player: rule.player }, active).includes(playerId);
-    return true;
+    return ruleBindsPlayer(active, playerId);
   });
 
 /** A tucked card a player may spend as if it were in their hand, and the card it is tucked under. */
@@ -1020,10 +1031,12 @@ export const cannotReady = (
 ): boolean =>
   // "Allies you control cannot ready" on an obligation or on an attachment on a player card names the player the card
   // speaks to (`ActiveRule.context`; RRG 1.8 "Obligation", p. 30; "Attachment", p. 8), whom no one controls it for.
+  // A rule whose card the readied card's controller treats as blank does not bind them (a per-player blank).
   activeRules(state, deps, "cannotReady").some(
-    ({ rule, context }) =>
-      (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
-      matchesQuery(state, id, rule.target, context),
+    (active) =>
+      (active.rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
+      ruleBindsPlayer(active, controllerOf(state, id)) &&
+      matchesQuery(state, id, active.rule.target, active.context),
   );
 
 /**
@@ -1058,6 +1071,7 @@ export function readyCostFor(
     const { rule, context } = active;
     if (!matchesQuery(state, id, rule.target, context)) continue;
     if (rule.player && !rulePlayers(state, { player: rule.player }, active).includes(readierId)) continue;
+    if (!ruleBindsPlayer(active, readierId)) continue;
     total = combineRequirements(total ?? 0, rule.resources);
   }
   return total;
@@ -1071,12 +1085,15 @@ export function thwartCostFor(
   state: GameState,
   deps: EngineDeps,
   schemeId: InstanceId,
+  /** The thwarting player: a rule whose card they treat as blank asks them nothing (a per-player blank). */
+  byPlayer: PlayerId | null = null,
 ): { readonly resources: ResolvedRequirement | null; readonly indirectDamage: number } | null {
   let resources: ResolvedRequirement | null = null;
   let indirectDamage = 0;
   let any = false;
-  for (const { rule, context } of activeRules(state, deps, "additionalThwartCost")) {
-    if (!matchesQuery(state, schemeId, rule.scheme, context)) continue;
+  for (const active of activeRules(state, deps, "additionalThwartCost")) {
+    const { rule, context } = active;
+    if (!ruleBindsPlayer(active, byPlayer) || !matchesQuery(state, schemeId, rule.scheme, context)) continue;
     any = true;
     if (rule.resources) resources = combineRequirements(resources ?? 0, rule.resources);
     indirectDamage += rule.indirectDamage ?? 0;
@@ -1097,7 +1114,10 @@ export function additionalPowerCostFor(
 ): { readonly resources: ResolvedRequirement; readonly sourceInstanceIds: readonly InstanceId[] } | null {
   let resources: ResolvedRequirement | null = null;
   const sourceInstanceIds: InstanceId[] = [];
-  for (const { rule, context } of activeRules(state, deps, "additionalPowerCost")) {
+  const payer = controllerOf(state, characterId);
+  for (const active of activeRules(state, deps, "additionalPowerCost")) {
+    const { rule, context } = active;
+    if (!ruleBindsPlayer(active, payer)) continue;
     if (!rule.powers.includes(power) || !matchesQuery(state, characterId, rule.character, context)) continue;
     resources = combineRequirements(resources ?? 0, rule.resources);
     if (context.selfInstanceId !== null && !sourceInstanceIds.includes(context.selfInstanceId)) {
@@ -1122,9 +1142,13 @@ export function additionalAttackCostsFor(
   state: GameState,
   deps: EngineDeps,
   targetId: InstanceId,
+  /** The attacking player: a rule whose card they treat as blank asks them nothing (a per-player blank). */
+  byPlayer: PlayerId | null = null,
 ): readonly AttackCostOwed[] {
   const owed: AttackCostOwed[] = [];
-  for (const { rule, context } of activeRules(state, deps, "additionalAttackCost")) {
+  for (const active of activeRules(state, deps, "additionalAttackCost")) {
+    const { rule, context } = active;
+    if (!ruleBindsPlayer(active, byPlayer)) continue;
     if (context.selfInstanceId === null || context.selfInstanceId === undefined) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
     owed.push({ sourceInstanceId: context.selfInstanceId, cost: rule.cost });
@@ -1345,8 +1369,9 @@ function enterPlayBar(
   return activeRules(state, deps, "cannotEnterPlay").find((active) => {
     const { rule, context } = active;
     if (rule.player !== undefined) {
-      if (forPlayer === null || !resolvePlayers(state, rule.player, context).includes(forPlayer)) return false;
+      if (forPlayer === null || !rulePlayers(state, { player: rule.player }, active).includes(forPlayer)) return false;
     }
+    if (!ruleBindsPlayer(active, forPlayer)) return false;
     return matchesQuery(state, id, rule.cards, context);
   });
 }
@@ -1372,15 +1397,22 @@ export function enterPlayBarMessage(
   return source ? `${source}: ${name} cannot enter play` : `${name} cannot enter play during this game`;
 }
 
-/** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
+/**
+ * Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). `byPlayer`:
+ * the player triggering it; a rule whose card they treat as blank does not stop them (a per-player blank).
+ */
 export const cannotTriggerAction = (
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   form: Form | undefined,
+  byPlayer: PlayerId | null = null,
 ): boolean =>
   activeRules(state, deps, "cannotTriggerActions").some(
-    ({ rule, context }) => (rule.form === undefined || rule.form === form) && matchesQuery(state, id, rule.on, context),
+    (active) =>
+      (active.rule.form === undefined || active.rule.form === form) &&
+      ruleBindsPlayer(active, byPlayer) &&
+      matchesQuery(state, id, active.rule.on, active.context),
   );
 
 /**
@@ -1402,15 +1434,19 @@ export function triggeredAbilityForbidden(
     "cannotResolveTriggeredAbilities",
   ),
 ): boolean {
-  if (rules.length === 0) return false;
   const word = timingWordOf(trigger);
   if (word === null) return false;
+  // A player who treats this card's text box as blank (a per-player blank, `textBoxBlankedFor`) resolves none of its
+  // triggered abilities: they are neither offered to nor, when forced, resolved by that player.
+  if (resolver !== null && textBoxBlankedFor(state, id, deps).includes(resolver)) return true;
+  if (rules.length === 0) return false;
   return rules.some((active) => {
     const { rule, context } = active;
     if (rule.timings && !rule.timings.includes(word)) return false;
     if (rule.player !== undefined) {
       if (resolver === null || !rulePlayers(state, { player: rule.player }, active).includes(resolver)) return false;
     }
+    if (!ruleBindsPlayer(active, resolver)) return false;
     if (rule.playerCards === true && !isPlayerCard(state, id)) return false;
     if (rule.identityFace !== undefined) {
       const seat = state.players.find((p) => p.identity.instanceId === id);
@@ -1465,6 +1501,9 @@ export const evenlyDividesBasicPower = (
  * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card. `discard`:
  * the move is a discard, a move to a discard pile; a rule limited to discards (`by: "discard"`, "cannot be discarded",
  * docs/phase7-wave8.md §3.35) stops only that, with or without a source card.
+ *
+ * A card attached to a host under "upgrades cannot be removed from [it]" (`cannotLeaveHost`) cannot leave play either,
+ * unless `withHost`: it is leaving because its host is (RRG 1.8 "Attach To", p. 8), which that rule does not stop.
  */
 export const cannotLeavePlay = (
   state: GameState,
@@ -1472,20 +1511,31 @@ export const cannotLeavePlay = (
   id: InstanceId,
   sourceCardId?: CardId,
   discard = false,
+  withHost = false,
 ): boolean =>
   activeRules(state, deps, "cannotLeavePlay").some(
     ({ rule, context }) =>
       (rule.by !== "cardAbilities" || sourceCardId !== undefined) &&
       (rule.by !== "discard" || discard) &&
       matchesQuery(state, id, rule.target, context),
-  );
+  ) ||
+  (!withHost && cannotLeaveHost(state, deps, id));
 
 /**
  * "You cannot flip your [name] upgrades" (`cannotFlip`, docs/phase7-wave7.md §3.64): whether a rule stops this card in
  * play being turned to its other face. "Your" is the rule card's speaker (an obligation's player, RRG 1.8 p. 30).
+ * `byPlayer`: the player making the flip (the resolving ability's controller); a rule whose card that player treats as
+ * blank does not stop it (a per-player blank, `ruleBindsPlayer`). Null or absent: every rule is read.
  */
-export const cannotFlip = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotFlip").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+export const cannotFlip = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  byPlayer: PlayerId | null = null,
+): boolean =>
+  activeRules(state, deps, "cannotFlip").some(
+    (active) => ruleBindsPlayer(active, byPlayer) && matchesQuery(state, id, active.rule.target, active.context),
+  );
 
 /**
  * "Card abilities cannot remove this ally from play" (`cannotLeavePlay` with `by: "cardAbilities"`) on its own, for a
@@ -1663,6 +1713,12 @@ export function damageTakenBreakdown(
     // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30); "… unless the attacker or attack has
     // the [AERIAL] trait, or the attack has ranged" (docs/phase7-wave9.md §3.25).
     if (attackMeetsException(state, source?.attack, rule, context)) continue;
+    // "… from undefended villain and villainous attacks" (Agile X, a custom-content keyword; the rule's positive filters).
+    if (rule.onlyUndefended === true && source?.attack?.undefended !== true) continue;
+    if (rule.onlyAttacker !== undefined) {
+      const attacker = source?.attack?.attackerInstanceId ?? null;
+      if (attacker === null || !matchesQuery(state, attacker, rule.onlyAttacker, context)) continue;
+    }
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) {
       taken -= reductionAmount(state, deps, rule.amount, context);
     }
@@ -1685,9 +1741,36 @@ export function damageTakenBreakdown(
       doubledBy.push(context.selfInstanceId);
     }
   }
+  // "Cannot take damage less than its DEF from each attack" (`minDamageTakenPerAttack`): after every modifier, before
+  // the cap, which keeps the last word. A damage event of 0 was never dealt and is not raised.
+  const floor = amount > 0 ? perAttackDamageFloor(state, deps, targetId, fromAttack) : null;
+  if (floor !== null) taken = Math.max(taken, floor);
   const cap = perAttackDamageCap(state, deps, targetId, fromAttack);
   if (cap !== null) taken = Math.min(taken, cap);
   return { taken: Math.max(0, taken), beforeDoubling, doubledBy };
+}
+
+/**
+ * The highest `minDamageTakenPerAttack` floor on this character for damage from an attack ("cannot take damage less
+ * than its DEF from each attack"), or null (none, or not attack damage). Each amount is read in its rule's context with
+ * the character bound to `affected`.
+ */
+export function perAttackDamageFloor(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  fromAttack: boolean,
+): number | null {
+  if (!fromAttack) return null;
+  let floor: number | null = null;
+  for (const { rule, context } of activeRules(state, deps, "minDamageTakenPerAttack")) {
+    if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    const reading = { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } };
+    const amount =
+      typeof rule.amount === "number" ? rule.amount : Math.max(0, resolveValue(state, rule.amount, reading, deps));
+    floor = floor === null ? amount : Math.max(floor, amount);
+  }
+  return floor;
 }
 
 /**
@@ -1728,9 +1811,22 @@ export const excessDamageBonus = (state: GameState, deps: EngineDeps, attackerId
     .filter(({ rule, context }) => matchesQuery(state, attackerId, rule.attacker, context))
     .reduce((sum, { rule }) => sum + rule.amount, 0);
 
-/** "The Power Stone cannot be unattached from Ronan the Accuser." (`cannotBeUnattached`; docs/phase7-wave3.md §3.19). */
+/**
+ * "The Power Stone cannot be unattached from Ronan the Accuser." (`cannotBeUnattached`; docs/phase7-wave3.md §3.19), and
+ * "Upgrades cannot be removed from [this card]" (`cannotLeaveHost`), which also stops that.
+ */
 export const cannotBeUnattached = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotBeUnattached").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  ) || cannotLeaveHost(state, deps, id);
+
+/**
+ * "Upgrades cannot be removed from Sav'rkk" (`RuleSpec cannotLeaveHost`; community pack `yondu-dh`): `id` is attached to
+ * a card and a rule in force names it. Only an attached card is held: one in play unattached matches nothing.
+ */
+export const cannotLeaveHost = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  (getInstance(state, id)?.attachedTo ?? null) !== null &&
+  activeRules(state, deps, "cannotLeaveHost").some(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
 
@@ -1753,6 +1849,46 @@ export function discardRedirectArea(state: GameState, deps: EngineDeps, id: Inst
     ...(match.rule.thenPlaceThreat !== undefined ? { thenPlaceThreat: match.rule.thenPlaceThreat } : {}),
     sourceInstanceId: match.context.selfInstanceId,
   };
+}
+
+/**
+ * Where a card being set aside goes instead (`RuleSpec setAsideDestination`; community pack `mephisto-nep`'s
+ * Damnation), or null: the first active rule whose `from` names the player zone the card is in now.
+ */
+export function setAsideRedirect(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+): { readonly area: string; readonly facedown: boolean; readonly sourceInstanceId: InstanceId | null } | null {
+  const rules = activeRules(state, deps, "setAsideDestination");
+  if (rules.length === 0) return null;
+  const at = locateCard(state, id);
+  if (at?.kind !== "deck" && at?.kind !== "hand" && at?.kind !== "discard") return null;
+  const match = rules.find(({ rule }) => (rule.from ?? ["deck"]).includes(at.kind));
+  if (!match) return null;
+  return {
+    area: match.rule.area,
+    facedown: match.rule.facedown === true,
+    sourceInstanceId: match.context.selfInstanceId,
+  };
+}
+
+/**
+ * Whether every resource `playerId` generates is wild (`RuleSpec resourcesGeneratedAsWild`), and the pool as it then
+ * counts: the same number of resources, all wild. Unchanged when no rule binds the player.
+ */
+export function generatedAsWild(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  pool: ResourcePool,
+): ResourcePool {
+  const total = pool.physical + pool.mental + pool.energy + pool.wild;
+  if (total === pool.wild || !ruleKindMayApply(state, deps, "resourcesGeneratedAsWild")) return pool;
+  const binds = activeRules(state, deps, "resourcesGeneratedAsWild").some((active) =>
+    rulePlayers(state, active.rule, active).includes(playerId),
+  );
+  return binds ? { ...EMPTY_POOL, wild: total } : pool;
 }
 
 /** The main scheme a redirect's follow-up threat lands on: the redirecting rule's own game area's stage. */
@@ -1848,14 +1984,28 @@ export function statusLimit(state: GameState, deps: EngineDeps, id: InstanceId, 
   return limit;
 }
 
+/**
+ * "X cannot be stunned" (`RuleSpec cannotHaveStatus`). `sourceInstanceId` is the card giving the status card: a rule
+ * with `from` ("minions cannot stun him") refuses only a card from a giver matching it, and none when the giver is
+ * unknown (null) or no longer exists. So a caller that names no giver (a target picker, the AI, a preview asking
+ * whether X could be stunned at all) is told X is stunnable under a `from` rule: the refusal is decided only when a
+ * status card is actually given, by a known card.
+ */
 export const cannotHaveStatus = (
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   status: "stunned" | "confused" | "tough",
+  sourceInstanceId: InstanceId | null = null,
 ): boolean =>
   activeRules(state, deps, "cannotHaveStatus").some(
-    ({ rule, context }) => rule.statuses.includes(status) && matchesQuery(state, id, rule.target, context),
+    ({ rule, context }) =>
+      rule.statuses.includes(status) &&
+      matchesQuery(state, id, rule.target, context) &&
+      (rule.from === undefined ||
+        (sourceInstanceId !== null &&
+          state.instances[sourceInstanceId] !== undefined &&
+          matchesQuery(state, sourceInstanceId, rule.from, context))),
   );
 
 /**
@@ -2004,10 +2154,18 @@ export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, sc
   return null;
 }
 
-/** "Players cannot discard [these cards]" (`RuleSpec playersCannotDiscard`, docs/phase7-wave4.md §3.44). */
-export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "playersCannotDiscard").some(({ rule, context }) =>
-    matchesQuery(state, id, rule.target, context),
+/**
+ * "Players cannot discard [these cards]" (`RuleSpec playersCannotDiscard`, docs/phase7-wave4.md §3.44). `byPlayer`: the
+ * discarding player; a rule whose card they treat as blank does not stop them (a per-player blank).
+ */
+export const playersCannotDiscard = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  byPlayer: PlayerId | null = null,
+): boolean =>
+  activeRules(state, deps, "playersCannotDiscard").some(
+    (active) => ruleBindsPlayer(active, byPlayer) && matchesQuery(state, id, active.rule.target, active.context),
   );
 
 /**
@@ -2033,25 +2191,67 @@ export const boostIgnored = (
   deps: EngineDeps,
   enemyId: InstanceId,
   eventFrameId: FrameId | null,
-): boolean =>
-  activeRules(state, deps, "ignoreBoost").some(({ rule, context, lastingUntil }) => {
-    if (lastingUntil?.kind === "awaitingAttack") return false;
-    if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) return false;
-    return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, context);
-  });
+): boolean => boostIgnoreScope(state, deps, enemyId, eventFrameId) === "all";
 
-/** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
+/** A minion that activates before the villain in step 2 of the villain phase (`RuleSpec activatesBeforeVillain`). */
+export const activatesBeforeVillain = (state: GameState, deps: EngineDeps, minionId: InstanceId): boolean =>
+  activeRules(state, deps, "activatesBeforeVillain").some(({ rule, context }) =>
+    matchesQuery(state, minionId, rule.target, context),
+  );
+
+/**
+ * The factor each boost card of this activation's count is multiplied by (`RuleSpec boostIconsMultiplied`): the product
+ * of the matching rules' factors, 1 with none. Read at the count, so a `while` on the attack in progress is read then.
+ */
+export function boostIconFactor(state: GameState, deps: EngineDeps, enemyId: InstanceId): number {
+  let factor = 1;
+  for (const { rule, context } of activeRules(state, deps, "boostIconsMultiplied")) {
+    if (rule.enemy !== undefined && !matchesQuery(state, enemyId, rule.enemy, context)) continue;
+    factor *= Math.max(0, rule.factor);
+  }
+  return factor;
+}
+
+/**
+ * What of this activation's boost cards is ignored: `"all"` (icons and "Boost" abilities, `boostIgnored`),
+ * `"abilities"` (only the "Boost" abilities: every matching rule is `only: "abilities"`), or null (nothing).
+ */
+export function boostIgnoreScope(
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  eventFrameId: FrameId | null,
+): "all" | "abilities" | null {
+  let scope: "abilities" | null = null;
+  for (const { rule, context, lastingUntil } of activeRules(state, deps, "ignoreBoost")) {
+    if (lastingUntil?.kind === "awaitingAttack") continue;
+    if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) continue;
+    if (rule.enemy !== undefined && !matchesQuery(state, enemyId, rule.enemy, context)) continue;
+    if (rule.only !== "abilities") return "all";
+    scope = "abilities";
+  }
+  return scope;
+}
+
+/**
+ * "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). A rule whose card the
+ * would-be defender's controller treats as blank does not bind them (a per-player blank, `ruleBindsPlayer`).
+ */
 export const cannotDefend = (
   state: GameState,
   deps: EngineDeps,
   characterId: InstanceId,
   attackerId: InstanceId | null,
-): boolean =>
-  activeRules(state, deps, "cannotDefend").some(
-    ({ rule, context }) =>
-      matchesQuery(state, characterId, rule.target, context) &&
-      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
+): boolean => {
+  const defendingPlayer = controllerOf(state, characterId);
+  return activeRules(state, deps, "cannotDefend").some(
+    (active) =>
+      ruleBindsPlayer(active, defendingPlayer) &&
+      matchesQuery(state, characterId, active.rule.target, active.context) &&
+      (active.rule.attacker === undefined ||
+        (attackerId !== null && matchesQuery(state, attackerId, active.rule.attacker, active.context))),
   );
+};
 
 /**
  * "[This character] does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47): its
@@ -2064,10 +2264,19 @@ export const defendsWithoutExhausting = (state: GameState, deps: EngineDeps, cha
     matchesQuery(state, characterId, rule.character, context),
   );
 
-/** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
-export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
-  activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>
-    matchesQuery(state, attackerId, rule.attacker, context),
+/**
+ * "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter).
+ * `defendingPlayer`: a rule whose card they treat as blank does not bind them (a per-player blank).
+ */
+export const mustDefendWithAlly = (
+  state: GameState,
+  deps: EngineDeps,
+  attackerId: InstanceId,
+  defendingPlayer: PlayerId | null = null,
+): boolean =>
+  activeRules(state, deps, "mustDefendWithAlly").some(
+    (active) =>
+      ruleBindsPlayer(active, defendingPlayer) && matchesQuery(state, attackerId, active.rule.attacker, active.context),
   );
 
 /**

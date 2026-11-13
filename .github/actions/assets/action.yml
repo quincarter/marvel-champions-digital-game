@@ -7,7 +7,7 @@ name: Fetch media assets
 description: Download, verify and unpack the media bundles assets/manifest.json names.
 inputs:
   bundles:
-    description: Bundle and group names for pnpm assets:fetch (e.g. "card-art music art"); "all" is every media bundle.
+    description: Bundle and group names for pnpm assets:fetch (e.g. "card-art music art"); "all" is every media bundle not marked optional.
     default: all
 runs:
   using: composite

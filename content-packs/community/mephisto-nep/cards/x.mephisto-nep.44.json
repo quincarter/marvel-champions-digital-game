@@ -1,0 +1,27 @@
+{
+  "id": "x.mephisto-nep.44",
+  "type": "treachery",
+  "name": "Spawn Magic",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "MoD4/5, MoD5/5",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mother-of-demons"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: If Call of the Demoness is in play, put the top 2 cards of your discard pile into play each facedown and engaged with you as a Mystic minion. Otherwise, find Call of the Demoness and reveal it.\n[star] Boost: Resolve this card's \"When Revealed\" ability.",
+    "current": "When Revealed: If Call of the Demoness is in play, put the top 2 cards of your discard pile into play each facedown and engaged with you as a Mystic minion. Otherwise, find Call of the Demoness and reveal it.\n[star] Boost: Resolve this card's \"When Revealed\" ability."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.44.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.44.boost"
+    }
+  ],
+  "flavor": "\"You seek to challenge me!\" —Lilith"
+}

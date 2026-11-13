@@ -1,0 +1,28 @@
+{
+  "id": "x.carnage-nep.23",
+  "name": "Hunting Victims",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "23",
+  "quantityInSet": 3,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["carnage-nep-twisted-killers"],
+  "boostIcons": 1,
+  "starIcon": true,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Each Killer minion engaged with a player activates against that player. If no minion activates this way, this card gains surge.\n[star] Boost: If this is an attack that defeats a character, place threat on the main scheme equal to the excess damage dealt by this attack.",
+    "current": "When Revealed: Each Killer minion engaged with a player activates against that player. If no minion activates this way, this card gains surge.\n[star] Boost: If this is an attack that defeats a character, place threat on the main scheme equal to the excess damage dealt by this attack."
+  },
+  "flavor": "\"Through my work...you will live forever.\" —Muse",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.23.when-revealed"
+    },
+    {
+      "id": "x.carnage-nep.23.boost"
+    }
+  ]
+}

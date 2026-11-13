@@ -1,0 +1,34 @@
+{
+  "id": "x.sample-hero.05",
+  "type": "upgrade",
+  "name": "Sentinel Cell",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "5",
+  "quantityInSet": 2,
+  "unique": false,
+  "cost": 1,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.sample-hero.01a",
+  "traits": ["ITEM", "TECH"],
+  "keywords": [
+    {
+      "name": "uses",
+      "count": 3,
+      "counterType": "charge"
+    }
+  ],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Uses (3 charge counters). (Enters play with 3 counters. When those are gone, discard this card)\nHero Resource: Exhaust Sentinel Cell and remove 1 charge counter from it → generate a [wild] resource.",
+    "current": "Uses (3 charge counters). (Enters play with 3 counters. When those are gone, discard this card)\nHero Resource: Exhaust Sentinel Cell and remove 1 charge counter from it → generate a [wild] resource."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-hero.05.sentinel-cell-resource",
+      "notesForScripting": "Removing the counter is part of the cost; the Uses keyword discards the card at zero."
+    }
+  ]
+}

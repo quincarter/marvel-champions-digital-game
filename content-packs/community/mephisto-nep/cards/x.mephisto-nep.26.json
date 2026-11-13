@@ -1,0 +1,33 @@
+{
+  "id": "x.mephisto-nep.26",
+  "type": "attachment",
+  "name": "Deathless Persistence",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "CO1/6",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-corruptive-offers"],
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When a character you control would be defeated, place 1 corrupt counter here → heal 1 damage from that character instead.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nInterrupt: When a character you control would be defeated, place 1 corrupt counter here → heal 1 damage from that character instead.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.26.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.26.interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.26.response"
+    }
+  ]
+}

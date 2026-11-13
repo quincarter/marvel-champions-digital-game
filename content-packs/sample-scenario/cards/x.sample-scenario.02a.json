@@ -1,0 +1,78 @@
+{
+  "id": "x.sample-scenario.02a",
+  "type": "main_scheme",
+  "name": "Ticking Away",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "2A/2B/3A/3B",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "stages": [
+    {
+      "stageNumber": 1,
+      "startingThreat": {
+        "base": 0,
+        "perPlayer": 0
+      },
+      "targetThreat": {
+        "base": 0,
+        "perPlayer": 6
+      },
+      "acceleration": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "icons": [],
+      "text": {
+        "printed": "If this stage is completed, advance to stage 2.",
+        "current": "If this stage is completed, advance to stage 2."
+      },
+      "traits": [],
+      "keywords": [],
+      "abilities": [],
+      "aSide": {
+        "text": {
+          "printed": "Contents: The Clockmaker (I) and (II). (Stage II alone in expert mode.) Clockwork and Standard encounter sets. One modular encounter set (recommended: Gears).\nSetup: Advance to stage 1B.",
+          "current": "Contents: The Clockmaker (I) and (II). (Stage II alone in expert mode.) Clockwork and Standard encounter sets. One modular encounter set (recommended: Gears).\nSetup: Advance to stage 1B."
+        },
+        "abilities": [
+          {
+            "id": "x.sample-scenario.02a.setup"
+          }
+        ]
+      }
+    },
+    {
+      "stageNumber": 2,
+      "name": "Last Hour",
+      "startingThreat": {
+        "base": 0,
+        "perPlayer": 0
+      },
+      "targetThreat": {
+        "base": 0,
+        "perPlayer": 8
+      },
+      "acceleration": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "icons": [],
+      "text": {
+        "printed": "If this stage is completed, the players lose the game.",
+        "current": "If this stage is completed, the players lose the game."
+      },
+      "traits": [],
+      "keywords": [],
+      "abilities": [],
+      "aSide": {
+        "text": {
+          "printed": "Advance to stage 2B.",
+          "current": "Advance to stage 2B."
+        },
+        "abilities": []
+      }
+    }
+  ]
+}

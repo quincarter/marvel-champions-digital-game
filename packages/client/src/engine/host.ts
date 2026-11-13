@@ -29,6 +29,7 @@ import type {
   TableRules,
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
 import type { GameRecord } from "./game-record.js";
@@ -68,6 +69,19 @@ export interface SessionConfig {
   /** Defaults to the scenario's recommended modular set(s) when omitted. */
   readonly modularSetIds?: readonly string[];
   readonly players: readonly CorePlayer[];
+  /**
+   * Custom content packs this game uses (docs/custom-content-packs.md §7.4), as plain data: their cards, abilities and
+   * precon decks, merged into the pool and the engine's deps for this game only. Attached by the host's `start` from
+   * the packs loaded on the main thread (`packs/game-packs.ts`), stored with the save so a resume needs no store.
+   * Absent for every base-game game and every save written before packs existed.
+   */
+  readonly packs?: readonly PackRuntime[];
+  /**
+   * The house rules switched on for this game (docs/custom-content-packs.md §11.11): installed `house-rule` pack ids,
+   * chosen in Table setup. `withLoadedPacks` embeds each one in `packs` (so a resume needs it no more than any other
+   * pack) and keeps only those it embedded. Absent: no house rule, and every save written before they existed.
+   */
+  readonly houseRules?: readonly string[];
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

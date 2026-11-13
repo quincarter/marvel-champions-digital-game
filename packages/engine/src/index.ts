@@ -135,6 +135,7 @@ export {
   forcedActionOptionId,
   legalActions,
   outstandingForcedActions,
+  doubledPaymentSource,
   paymentFor,
   tryPayment,
   type OutstandingForcedAction,
@@ -600,6 +601,8 @@ export {
   shownEncounterTop,
   TOGETHER_TARGETS_SLOT,
   textBoxBlankFor,
+  textBoxBlankedFor,
+  textBoxBlankToPlayer,
   villainAliasOf,
   traitsOf,
 } from "./select.js";

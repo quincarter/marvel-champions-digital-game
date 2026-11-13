@@ -1,0 +1,31 @@
+{
+  "id": "x.carnage-nep.03",
+  "name": "Symbiote Hive-Mind",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "3",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "support",
+  "cost": 1,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["LOCATION", "SYMBIOTE"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Eddie Brock gets +1 REC.\nAlter-Ego Action: Exhaust this card → shuffle 1 Carnage card from your discard pile into your deck.",
+    "current": "Eddie Brock gets +1 REC.\nAlter-Ego Action: Exhaust this card → shuffle 1 Carnage card from your discard pile into your deck."
+  },
+  "flavor": "\"The King in Black is the center of the whole symbiote web. Every symbiote everywhere is connected to the king.\" —Eddie Brock",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.03.symbiote-hive-mind-constant"
+    },
+    {
+      "id": "x.carnage-nep.03.symbiote-hive-mind-action"
+    }
+  ]
+}

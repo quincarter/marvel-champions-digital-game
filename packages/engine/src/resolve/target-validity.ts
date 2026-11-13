@@ -121,6 +121,7 @@ import {
   resolveRef,
   resolveValue,
   selectTargets,
+  attackIgnoringOf,
   reachOf,
 } from "../select.js";
 import type { AttackKeyword, CardSelector, EffectSpec, StatusName, TargetRef } from "../spec.js";
@@ -434,7 +435,9 @@ export function attackTargetAllowed(
         )
       : attackInstructions(rest).map((effect) => attackerOf(state, effect, context) ?? labeledAttacker(state, context));
   if (attackers.length === 0) attackers.push(labeledAttacker(state, context));
-  return attackers.every((attacker) => attacker === null || canAttack(state, attacker, id, deps));
+  return attackers.every(
+    (attacker) => attacker === null || canAttack(state, attacker, id, deps, false, context.attackIgnoresGuard === true),
+  );
 }
 
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */
@@ -449,14 +452,15 @@ function judgedCanAffect(
     // An "(attack)" ability's damage to an enemy attacks it (owner rulings Q48 and Q49): not one it may not attack.
     if (context.attackLabeled && isAttackInstruction(effect) && isAttackTarget(state, id, deps)) {
       const attacker = labeledAttacker(state, context);
-      if (attacker !== null && !canAttack(state, attacker, id, deps)) return false;
+      if (attacker !== null && !canAttack(state, attacker, id, deps, false, context.attackIgnoresGuard === true))
+        return false;
     }
     return canDealDamageTo(state, deps, id, context.selfInstanceId, effect.fromAttack === true);
   }
   if (effect.kind === "attack") return attackCanDamage(state, deps, effect, id, context);
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   // "You cannot flip …" (docs/phase7-wave7.md §3.64): a card a `cannotFlip` rule names is no target for a flip.
-  if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
+  if (effect.kind === "flipCard") return !cannotFlip(state, deps, id, context.controllerId);
   // A card a `cannotBeHealed` rule names for this source is no target for its heal (Ruling 125, Dec 8, 2023).
   if (effect.kind === "heal") return !cannotBeHealed(state, deps, id, context.selfInstanceId);
   if (effect.kind === "ready") return canBeReadied(state, deps, id, context.selfInstanceId);
@@ -468,7 +472,8 @@ function judgedCanAffect(
     // An "(attack)" ability's defeat of an enemy attacks it (`attack-ability.ts`, "A defeat instruction").
     if (context.attackLabeled && isAttackTarget(state, id, deps)) {
       const attacker = labeledAttacker(state, context);
-      if (attacker !== null && !canAttack(state, attacker, id, deps)) return false;
+      if (attacker !== null && !canAttack(state, attacker, id, deps, false, context.attackIgnoresGuard === true))
+        return false;
     }
     return !alreadyDefeated(state, id);
   }
@@ -1080,6 +1085,7 @@ export function abilityTargetFault(
     vars: carriedByEvent(event).vars,
     deps,
     ...reachOf(definition),
+    ...attackIgnoringOf(definition),
     ...(definition.label?.includes("thwart") && playerId !== null ? { thwartLabeled: true } : {}),
     ...(definition.label?.includes("attack") && playerId !== null ? { attackLabeled: true } : {}),
   };
@@ -1480,7 +1486,9 @@ function attackNamesNoAttackableEnemy(
     // Damage to the player's own characters only is not an attack on anything.
     if (enemies.length === 0) return null;
     if (enemies.length !== present.length || attacker === null) return "unknown";
-    return enemies.some((id) => canAttack(state, attacker, id, deps)) ? "valid" : "invalid";
+    return enemies.some((id) => canAttack(state, attacker, id, deps, false, context.attackIgnoresGuard === true))
+      ? "valid"
+      : "invalid";
   };
   const note = (verdict: Verdict | null): void => {
     if (verdict !== null) verdicts.push(verdict);

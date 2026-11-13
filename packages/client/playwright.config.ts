@@ -96,6 +96,7 @@ export default defineConfig({
       // tips.spec.ts only click focus-rect actions that exist on the phone board's default tab, so those two run
       // here unchanged.
       testMatch: [
+        "mod-store-play.spec.ts",
         "power-stone-holder-stats.spec.ts",
         "crushing-blow-mixed-hand.spec.ts",
         "miles-morales-alter-ego-shuffle.spec.ts",

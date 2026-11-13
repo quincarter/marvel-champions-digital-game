@@ -1,0 +1,32 @@
+{
+  "id": "x.mephisto-nep.42",
+  "type": "side_scheme",
+  "name": "Call of the Demoness",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "MoD2/5",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mother-of-demons"],
+  "traits": [],
+  "keywords": [],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 3
+  },
+  "icons": [],
+  "boostIcons": 2,
+  "text": {
+    "printed": "This card cannot leave play while facedown Mystic minion is in play.\nEach facedown Mystic minion engaged with a player has a base SCH of 1, a base ATK of 1, and a base hit points of 1.\nForced Response: After the villain phase begins, the first players puts the top card of their discard pile into play facedown engaged with them as a Mystic minion.",
+    "current": "This card cannot leave play while facedown Mystic minion is in play.\nEach facedown Mystic minion engaged with a player has a base SCH of 1, a base ATK of 1, and a base hit points of 1.\nForced Response: After the villain phase begins, the first players puts the top card of their discard pile into play facedown engaged with them as a Mystic minion."
+  },
+  "flavor": "Lilith is using her magic to create an army of hellspawn loyal to her.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.42.call-of-the-demoness-constant"
+    },
+    {
+      "id": "x.mephisto-nep.42.forced-response"
+    }
+  ]
+}

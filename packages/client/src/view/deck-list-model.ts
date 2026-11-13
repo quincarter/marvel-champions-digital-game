@@ -9,9 +9,9 @@
  * verdicts, plus "has the pool moved under this deck", into one status a
  * screen can render without itself knowing a rule.
  */
-import { deckFromStarterDeck, type AnyCard, type CardId, type Deck } from "@mc/content";
+import { deckFromStarterDeck, type AnyCard, type CardId, type Deck, type StarterDeck } from "@mc/content";
 import { unscriptedCards, validateDeck, type CardPool, type DeckProblem, type EngineDeps } from "@mc/engine";
-import { POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
+import { POOL_VERSION, currentStarterDecks } from "../content/pool.js";
 import { qualifiedHeroName } from "./hero-names.js";
 
 export interface DeckOption {
@@ -61,16 +61,17 @@ export function shortWarningOf(warning: string | null): string | null {
 }
 
 /** The same deck objects every time, so `deckOptionOf` can remember their status. */
-const precons = new Map<string, readonly Deck[]>();
+const precons = new Map<string, { readonly source: readonly StarterDeck[]; readonly decks: readonly Deck[] }>();
 
-/** Every precon deck, derived from `POOL_STARTER_DECKS` (Core's six plus wave 1's six) — never saved, since a precon is data, not something a player edits. Built once per pool version. */
+/** Every precon deck, derived from `currentStarterDecks()` (every base precon, plus those of the loaded custom packs) — never saved, since a precon is data, not something a player edits. Built once per pool version and set of loaded packs. */
 export function preconDecks(poolVersion: string = POOL_VERSION): readonly Deck[] {
-  let decks = precons.get(poolVersion);
-  if (!decks) {
-    decks = POOL_STARTER_DECKS.map((starter) => deckFromStarterDeck(starter, poolVersion));
-    precons.set(poolVersion, decks);
+  const source = currentStarterDecks();
+  let known = precons.get(poolVersion);
+  if (known?.source !== source) {
+    known = { source, decks: source.map((starter) => deckFromStarterDeck(starter, poolVersion)) };
+    precons.set(poolVersion, known);
   }
-  return decks;
+  return known.decks;
 }
 
 /**

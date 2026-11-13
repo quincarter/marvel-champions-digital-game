@@ -1,0 +1,26 @@
+{
+  "id": "x.sample-scenario.09",
+  "type": "minion",
+  "name": "Gear Crawler",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "9",
+  "quantityInSet": 2,
+  "unique": false,
+  "atk": 1,
+  "sch": 1,
+  "hp": 2,
+  "encounterSetIds": ["sample-scenario-gears"],
+  "boostIcons": 1,
+  "traits": ["ROBOT"],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Place 1 threat on the main scheme.",
+    "current": "When Revealed: Place 1 threat on the main scheme."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-scenario.09.when-revealed"
+    }
+  ]
+}

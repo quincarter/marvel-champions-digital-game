@@ -1,0 +1,55 @@
+{
+  "id": "x.sample-scenario.01",
+  "type": "villain",
+  "name": "The Clockmaker",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "1/2",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "sides": [
+    {
+      "side": "A",
+      "name": "The Clockmaker",
+      "stages": [
+        {
+          "stageNumber": 1,
+          "hp": {
+            "base": 0,
+            "perPlayer": 12
+          },
+          "atk": 2,
+          "sch": 1,
+          "text": {
+            "printed": "",
+            "current": ""
+          },
+          "traits": ["INVENTOR", "CRIMINAL"],
+          "keywords": [],
+          "abilities": []
+        },
+        {
+          "stageNumber": 2,
+          "hp": {
+            "base": 0,
+            "perPlayer": 14
+          },
+          "atk": 3,
+          "sch": 1,
+          "text": {
+            "printed": "When Revealed: Search the encounter deck and discard pile for the Stopped Clocks side scheme and reveal it. Shuffle the encounter deck.",
+            "current": "When Revealed: Search the encounter deck and discard pile for the Stopped Clocks side scheme and reveal it. Shuffle the encounter deck."
+          },
+          "traits": ["INVENTOR", "CRIMINAL"],
+          "keywords": [],
+          "abilities": [
+            {
+              "id": "x.sample-scenario.01.stage-two-when-revealed"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

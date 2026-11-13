@@ -84,7 +84,9 @@ export function giveStatusOrAnnounce(
       };
       const waits =
         waiting.length > 0 ||
-        (listens && canTakeStatus(ctx.state, instanceId, status, ctx.deps) && heard(ctx.state, ctx.deps, event));
+        (listens &&
+          canTakeStatus(ctx.state, instanceId, status, ctx.deps, by.sourceInstanceId) &&
+          heard(ctx.state, ctx.deps, event));
       if (waits) waiting.push(event);
       else if (giveStatus(ctx, instanceId, status, by)) given += 1;
       else markPreThenUnresolved(ctx, givingFrameId, "statusNotGiven", instanceId);
@@ -96,7 +98,7 @@ export function giveStatusOrAnnounce(
 
 /** Whether a waiting give still has a card to place: its character is in play with room for it (RRG 1.8 p. 41). */
 export const statusStillToGive = (ctx: Ctx, event: BeingGiven): boolean =>
-  canTakeStatus(ctx.state, event.instanceId, event.status, ctx.deps);
+  canTakeStatus(ctx.state, event.instanceId, event.status, ctx.deps, event.sourceInstanceId);
 
 /**
  * A `statusBeingGiven` whose interrupts have resolved: the card is given now. Returns whether one was placed; an

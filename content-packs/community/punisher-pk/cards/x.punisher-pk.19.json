@@ -1,0 +1,24 @@
+{
+  "id": "x.punisher-pk.19",
+  "name": "Collateral Damage",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "19",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Discard a Location or Vehicle support or upgrade you control. Then take 3 indirect damage. If no card was discarded this way, this card gains surge.",
+    "current": "When Revealed: Discard a Location or Vehicle support or upgrade you control. Then take 3 indirect damage. If no card was discarded this way, this card gains surge."
+  },
+  "flavor": "\"I don't smile much. Don't smile ever. But if I did… this would be one.\" — Frank Castle",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.19.when-revealed"
+    }
+  ]
+}

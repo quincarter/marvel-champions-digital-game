@@ -19,7 +19,7 @@ import type {
 import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps, type MainSchemeStageRef } from "./abilities.js";
 import { EngineInvariantError } from "./errors.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
-import { baseOverride, statBonus } from "./modifiers.js";
+import { baseOverride, statBonus, withMultipliers } from "./modifiers.js";
 import { podOf, type SharedPodState } from "./pod.js";
 import { statUsedInPlaceOf } from "./rules.js";
 import { perPlayerCount } from "./team.js";
@@ -729,7 +729,9 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
  * (ruling, Apr 30, 2026 (3) answer 4).
  */
 export const textBoxBlank = (state: GameState, id: InstanceId): boolean =>
-  state.lastingEffects.some((effect) => effect.kind === "blankTextBox" && effect.targets.includes(id));
+  state.lastingEffects.some(
+    (effect) => effect.kind === "blankTextBox" && effect.forPlayers === undefined && effect.targets.includes(id),
+  );
 
 /** Whether this card sits in any encounter discard pile. */
 export const inAnyEncounterDiscard = (state: GameState, id: InstanceId): boolean =>
@@ -1011,7 +1013,13 @@ function modifiedStatPlain(
       : treated?.kind === "minion" && treated.schFromThw === "base"
         ? Math.max(0, baseOverride(state, deps, id, "thw") ?? printed.sch)
         : printed[stat];
-  return Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
+  return withMultipliers(
+    state,
+    deps,
+    id,
+    stat,
+    (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat),
+  );
 }
 
 /**
@@ -1033,7 +1041,13 @@ export function characterProfile(
     def: modifiedStat(state, deps, id, printed, "def"),
     rec: modifiedStat(state, deps, id, printed, "rec"),
     sch: modifiedStat(state, deps, id, printed, "sch"),
-    maxHp: Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp")),
+    maxHp: withMultipliers(
+      state,
+      deps,
+      id,
+      "hp",
+      (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"),
+    ),
   };
 }
 
@@ -1272,7 +1286,13 @@ export function printedHpNumeral(state: GameState, id: InstanceId): number {
 export function maxHitPoints(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): number | undefined {
   const printed = printedProfile(state, id);
   if (!printed) return undefined;
-  return Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"));
+  return withMultipliers(
+    state,
+    deps,
+    id,
+    "hp",
+    (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"),
+  );
 }
 
 export function remainingHitPoints(

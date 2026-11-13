@@ -76,7 +76,7 @@ import {
   environmentStripPlan,
   isCompactEnvironment,
 } from "../../view/environment-layout.js";
-import { POOL_DEPS } from "../../content/pool.js";
+import { gameDeps } from "../../content/game-deps.js";
 import { otherSeatAbilityCards, type OtherSeatAbilityCard } from "../../view/other-seat-abilities.js";
 import { seatPeekSlot } from "../../view/seat-peek.js";
 import { pickGlyphSpecs } from "../../view/input-glyph-model.js";
@@ -1887,7 +1887,7 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   // Cards another seat controls that this player may use now ("any player" Actions), as chips under that seat's row.
   const { game, legal } = appSession().store.state;
   const usable = game
-    ? otherSeatAbilityCards(game, legal?.actions ?? null, model.perspectiveId, POOL_DEPS).filter(
+    ? otherSeatAbilityCards(game, legal?.actions ?? null, model.perspectiveId, gameDeps()).filter(
         (card) => ctx.controller.abilityLine(card.instanceId) !== null,
       )
     : [];

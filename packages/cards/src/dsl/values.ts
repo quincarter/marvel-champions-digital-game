@@ -779,6 +779,22 @@ export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => 
   ...(icons ? { icons } : {}),
 });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
+/**
+ * "X equals the PINK BUBBLES you control" (custom content): the abilities tagged `tag` (`tagged(...)`) on the cards in
+ * play `cards` matches (absent: every card in play), each counted: `taggedAbilitiesOn("pinkBubble", { controller:
+ * "you" })`. Live, so a blanked text box counts none. Engine `ValueSpec taggedAbilities`.
+ */
+export const taggedAbilitiesOn = (tag: string, cards?: TargetQuery): ValueSpec => ({
+  kind: "taggedAbilities",
+  tag,
+  ...(cards ? { cards } : {}),
+});
+/**
+ * "Cards with a PINK BUBBLE" (custom content): a query fragment for a card that has an ability tagged `tag`, read live
+ * (in hand: its printed ones): `query(["upgrade", "support", "ally"], hasTaggedAbility("pinkBubble"))`. Engine
+ * `TargetQuery hasTaggedAbility`.
+ */
+export const hasTaggedAbility = (tag: string): Pick<TargetQuery, "hasTaggedAbility"> => ({ hasTaggedAbility: tag });
 /** The star icons (★) in the boost areas of the cards `cards` names: 1 for each card that prints one. */
 export const starIconsOn = (cards: TargetRef): ValueSpec => ({ kind: "starIcons", cards });
 /**
@@ -1861,4 +1877,18 @@ export const playedThisRound = (atMost: number, opts: { cardType?: string; playe
   player: opts.player ?? you,
   ...(opts.cardType ? { cardType: opts.cardType } : {}),
   atMost,
+});
+
+/**
+ * "If the last card you played this round was a Night Thrasher event, reduce the cost to play this card by 1."
+ * (Kickflip, a custom-content card): the most recent card `player` (default "you") played this round, by play order,
+ * matches `cards`; false when they have played nothing this round. As the condition of a cost reduction read from the
+ * hand it sees the play before this card's own (the play is recorded when it commits):
+ * `constant(costModifier({ delta: -1, appliesTo: { self: true }, activeIn: "hand", while: lastPlayedThisRound(
+ * query("event", { identitySetOf: you })) }))`.
+ */
+export const lastPlayedThisRound = (cards: TargetQuery, opts: { player?: PlayerRef } = {}): Predicate => ({
+  kind: "lastPlayedThisRound",
+  player: opts.player ?? you,
+  cards,
 });

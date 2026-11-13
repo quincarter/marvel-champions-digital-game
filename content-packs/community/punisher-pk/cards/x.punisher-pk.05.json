@@ -1,0 +1,40 @@
+{
+  "id": "x.punisher-pk.05",
+  "name": "War on Crime",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "5",
+  "quantityInSet": 1,
+  "unique": false,
+  "definedCounterTypes": ["war"],
+  "type": "environment",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 0,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "permanent"
+    },
+    {
+      "name": "setup"
+    }
+  ],
+  "text": {
+    "printed": "Permanent. Setup.\nIf the number of war counters here is at least:\n• 1[per_hero] — The Punisher gains steady.\n• 2[per_hero] — The Punisher gets +1 SCH and +1 ATK.\n• 4[per_hero] — The Punisher gains 1[per_hero] hazard icon ([hazard]).\n• 6[per_hero] — Threat cannot be removed from the main scheme.",
+    "current": "Permanent. Setup.\nIf the number of war counters here is at least:\n• 1[per_hero] — The Punisher gains steady.\n• 2[per_hero] — The Punisher gets +1 SCH and +1 ATK.\n• 4[per_hero] — The Punisher gains 1[per_hero] hazard icon ([hazard]).\n• 6[per_hero] — Threat cannot be removed from the main scheme."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.05.war-on-crime-constant"
+    },
+    {
+      "id": "x.punisher-pk.05.war-on-crime-constant-2"
+    },
+    {
+      "id": "x.punisher-pk.05.war-on-crime-constant-3"
+    },
+    {
+      "id": "x.punisher-pk.05.war-on-crime-constant-4"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "x.punisher-pk.11",
+  "name": "Bullseye",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "11",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 3,
+  "sch": 2,
+  "hp": 5,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 2,
+  "traits": ["CRIMINAL", "ELITE"],
+  "keywords": [],
+  "text": {
+    "printed": "During step 2 of the villain phase, Bullseye activates against you before The Punisher does.\nForced Response: After Bullseye attacks and damages an ally, discard that ally.\nWhen Defeated: If Bullseye was defeated by The Punisher, place 1[per_hero] war counter on War on Crime.",
+    "current": "During step 2 of the villain phase, Bullseye activates against you before The Punisher does.\nForced Response: After Bullseye attacks and damages an ally, discard that ally.\nWhen Defeated: If Bullseye was defeated by The Punisher, place 1[per_hero] war counter on War on Crime."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.11.bullseye-constant"
+    },
+    {
+      "id": "x.punisher-pk.11.bullseye-forced-response"
+    },
+    {
+      "id": "x.punisher-pk.11.when-defeated"
+    }
+  ]
+}

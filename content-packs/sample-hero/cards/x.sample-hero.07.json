@@ -1,0 +1,26 @@
+{
+  "id": "x.sample-hero.07",
+  "type": "minion",
+  "name": "Rust Warden",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "7",
+  "quantityInSet": 1,
+  "unique": true,
+  "atk": 3,
+  "sch": 1,
+  "hp": 4,
+  "encounterSetIds": ["sample-hero-nemesis"],
+  "boostIcons": 2,
+  "traits": ["ROBOT"],
+  "keywords": [
+    {
+      "name": "quickstrike"
+    }
+  ],
+  "text": {
+    "printed": "Quickstrike. (After this minion engages your hero, it attacks.)",
+    "current": "Quickstrike. (After this minion engages your hero, it attacks.)"
+  },
+  "abilities": []
+}

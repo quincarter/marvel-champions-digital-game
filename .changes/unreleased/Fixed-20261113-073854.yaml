@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Mod Store publishing: a publish no longer lists a withdrawn pack again, latest follows SemVer order (beta.10 after beta.2), the shared index.json is written with an ETag check and retried when the registry wrote in between, and pack code (mc-pack build, the SDK smoke test) runs in jobs without secrets'
+time: 2026-11-13T07:38:54.9685451-05:00

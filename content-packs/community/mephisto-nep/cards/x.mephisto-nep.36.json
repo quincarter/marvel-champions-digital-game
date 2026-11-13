@@ -1,0 +1,38 @@
+{
+  "id": "x.mephisto-nep.36",
+  "type": "minion",
+  "name": "Human Demon",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D7/12, D8/12",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "atk": 1,
+  "sch": 2,
+  "hp": 2,
+  "boostIcons": 0,
+  "starIcon": true,
+  "traits": ["MYSTIC"],
+  "keywords": [
+    {
+      "name": "patrol"
+    },
+    {
+      "name": "teamwork",
+      "sharedTrait": "MYSTIC"
+    }
+  ],
+  "text": {
+    "printed": "Patrol. Teamwork (Mystic).\nWhen Revealed: Place 1 threat on the main scheme.\n[star] Boost: Put Human Demon into play against you.",
+    "current": "Patrol. Teamwork (Mystic).\nWhen Revealed: Place 1 threat on the main scheme.\n[star] Boost: Put Human Demon into play against you."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.36.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.36.boost"
+    }
+  ]
+}

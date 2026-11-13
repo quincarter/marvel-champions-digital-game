@@ -14,6 +14,7 @@ import {
   resourceIconsInPlay,
   scenarioPlayAreaOf,
   textBoxBlankFor,
+  textBoxBlankedFor,
   type EngineDeps,
   type GameState,
   type InstanceId,
@@ -21,6 +22,17 @@ import {
   type ResourceType,
 } from "@mc/engine";
 import { heldByOf, tuckedCardsUnder } from "./board-model.js";
+import { playerName } from "./names.js";
+
+/**
+ * "Its text box is blank for Night Thrasher only": a per-player blank (`EffectSpec blankTextBox.forPlayers`) is blank to
+ * the players it names and to no one else, so the card's text still applies to the others. Null when there is none.
+ */
+export function perPlayerBlankNote(state: GameState, deps: EngineDeps, id: InstanceId): string | null {
+  const players = textBoxBlankedFor(state, id, deps);
+  if (players.length === 0) return null;
+  return `Its text box is blank for ${players.map((p) => playerName(state, p)).join(" and ")} only`;
+}
 
 /** "Considered to have at least 1 hit point", or null when no rule sets a floor on this card. */
 export function hitPointFloorNote(state: GameState, id: InstanceId, deps: EngineDeps): string | null {
@@ -50,17 +62,20 @@ export function resourceIconNote(state: GameState, deps: EngineDeps, id: Instanc
 
 /**
  * What being in a scenario play area means for this card: no player controls it, a closed area is not reached by
- * abilities that do not name it, and an ally there has a blank text box except for its traits. Empty for a card outside
- * every such area.
+ * abilities that do not name it, and an ally there has a blank text box except for its traits; and, for any card, a
+ * per-player blank on it (`perPlayerBlankNote`). Empty for a card outside every such area with no per-player blank.
  */
 export function scenarioAreaNotes(state: GameState, deps: EngineDeps, id: InstanceId): readonly string[] {
   const area = scenarioPlayAreaOf(state, id);
-  if (area === null) return [];
+  // A per-player blank is shown here too, wherever the card is: these are the notes the inspect sheet lists for it.
+  const blankNote = perPlayerBlankNote(state, deps, id);
+  if (area === null) return blankNote ? [blankNote] : [];
   const notes = [`In the ${area} area: in play, but no player controls it`];
   if (state.scenarioPlayAreas?.[area]?.closed) notes.push("Card abilities don't reach it unless they name the area");
   if (cardOf(state, id)?.type === "ally" && textBoxBlankFor(state, id, deps)) {
     notes.push("Its text box is blank, except for traits");
   }
+  if (blankNote) notes.push(blankNote);
   return notes;
 }
 

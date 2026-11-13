@@ -1,0 +1,36 @@
+{
+  "id": "x.mephisto-nep.39",
+  "type": "side_scheme",
+  "name": "Hell's Legions",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D11/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "traits": [],
+  "keywords": [
+    {
+      "name": "assault"
+    }
+  ],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 3
+  },
+  "icons": [],
+  "boostIcons": 2,
+  "text": {
+    "printed": "Assault.\nEach Mystic minion gains toughness.\n[star] Boost: Reveal this card.",
+    "current": "Assault.\nEach Mystic minion gains toughness.\n[star] Boost: Reveal this card."
+  },
+  "flavor": "With souls from across the universe, Hell's forces need to be quelled consistently to keep the balance of power.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.39.hells-legions-constant"
+    },
+    {
+      "id": "x.mephisto-nep.39.boost"
+    }
+  ]
+}

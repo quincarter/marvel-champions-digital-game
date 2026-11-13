@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.03",
+  "name": "Precise Cut",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "3",
+  "quantityInSet": 3,
+  "unique": false,
+  "type": "event",
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["ATTACK"],
+  "keywords": [],
+  "deckLimit": 3,
+  "text": {
+    "printed": "Hero Action (attack): Deal 2 damage to an enemy. Deal X additional damage, where X equals to the PINK BUBBLES you control. This attack gains overkill.",
+    "current": "Hero Action (attack): Deal 2 damage to an enemy. Deal X additional damage, where X equals to the PINK BUBBLES you control. This attack gains overkill."
+  },
+  "flavor": "\"¡Snip slash! ¡Slice! ¡Snikt!\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.03.precise-cut-action"
+    },
+    {
+      "id": "x.gwenpool-ptt.03.pink-bubble"
+    }
+  ]
+}

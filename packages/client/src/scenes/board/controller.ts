@@ -7,7 +7,7 @@
  * whenever the selection changes it asks the scene to redraw.
  */
 
-import { POOL_DEPS } from "../../content/pool.js";
+import { gameDeps } from "../../content/game-deps.js";
 import type { AbilityId } from "@mc/content";
 import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { paymentFor, tryPayment } from "@mc/engine";
@@ -254,11 +254,11 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
   }
   if (ref.kind === "useAbility") {
     // An ability whose cost picks a card (Rogue's friend, the Setting for a Special cost) asks that pick by name.
-    const picksForCost = costPickSlot(actionAbilityCost(state, POOL_DEPS, action.example.playerId, ref)) !== null;
+    const picksForCost = costPickSlot(actionAbilityCost(state, gameDeps(), action.example.playerId, ref)) !== null;
     return {
       label: picksForCost
-        ? playAimPrompt(state, POOL_DEPS, action)
-        : abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS),
+        ? playAimPrompt(state, gameDeps(), action)
+        : abilityLabelOf(state, ref.instanceId, ref.abilityId, gameDeps()),
       name: cardName(state, ref.instanceId),
       instanceId: ref.instanceId,
     };
@@ -268,7 +268,7 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
   const played = action.action;
   if (played.kind === "playCard") {
     return {
-      label: playAimPrompt(state, POOL_DEPS, action),
+      label: playAimPrompt(state, gameDeps(), action),
       name: cardName(state, played.instanceId),
       instanceId: played.instanceId,
     };
@@ -278,13 +278,13 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
 }
 
 function statSuffix(state: GameState, instanceId: InstanceId, label: "ATK" | "THW"): string {
-  const value = characterPanel(state, instanceId, POOL_DEPS).stats.find((stat) => stat.label === label)?.value;
+  const value = characterPanel(state, instanceId, gameDeps()).stats.find((stat) => stat.label === label)?.value;
   return value && value !== "—" ? ` ${value}` : "";
 }
 
 /** " 2", or the assault wording (" 2 · ATK 3 vs assault") when the legal schemes include one with assault. */
 function thwartStat(state: GameState, action: LegalAction, id: InstanceId): string {
-  const suffix = assaultThwartSuffix(powerSources(state, [action], "thwart", POOL_DEPS)[0]!);
+  const suffix = assaultThwartSuffix(powerSources(state, [action], "thwart", gameDeps())[0]!);
   return suffix === null ? statSuffix(state, id, "THW") : ` ${suffix}`;
 }
 
@@ -518,11 +518,11 @@ export class BoardController {
     // Two questions that are answered with tiles but not with a target: which cards pay a cost with a range, and whose
     // play area a card goes to. Same panel, so they read and work the same on every layout.
     if (this.#selection.kind === "choosingInPlayCost") {
-      return inPlayCostPanelOf(game, POOL_DEPS, inPlayCostChoiceView(game, POOL_DEPS, this.#selection.choice));
+      return inPlayCostPanelOf(game, gameDeps(), inPlayCostChoiceView(game, gameDeps(), this.#selection.choice));
     }
     if (this.#selection.kind === "dividingPower") {
       const { choice } = this.#selection;
-      return dividePanelOf(game, POOL_DEPS, choice, sourceOf(game, choice.action));
+      return dividePanelOf(game, gameDeps(), choice, sourceOf(game, choice.action));
     }
     if (this.#selection.kind === "choosingController") {
       const { action, controllers } = this.#selection;
@@ -535,7 +535,7 @@ export class BoardController {
       action,
       sourceOf(game, action),
       (target) => retarget(game, action.example, target),
-      POOL_DEPS,
+      gameDeps(),
     );
   }
 
@@ -874,14 +874,14 @@ export class BoardController {
   powerSourcesFor(power: PowerKind): readonly PowerSource[] {
     const { game, legal } = appSession().store.state;
     if (!game) return [];
-    return powerSources(game, powerEntries(legal?.actions, power), power, POOL_DEPS);
+    return powerSources(game, powerEntries(legal?.actions, power), power, gameDeps());
   }
 
   /** Every legal `changeForm` destination right now, labeled. */
   formSourcesFor(): readonly FormSource[] {
     const { game, legal } = appSession().store.state;
     if (!game) return [];
-    return formSources(game, formEntries(legal?.actions), POOL_DEPS);
+    return formSources(game, formEntries(legal?.actions), gameDeps());
   }
 
   /**
@@ -896,7 +896,7 @@ export class BoardController {
       // The one scheme to thwart may still let the thwart use ATK (The Red House; issue #365): that is a decision.
       const only = entry.targets[0];
       const { game } = appSession().store.state;
-      const stats = game && only !== undefined ? thwartStatOptions(game, POOL_DEPS, entry, only) : [];
+      const stats = game && only !== undefined ? thwartStatOptions(game, gameDeps(), entry, only) : [];
       if (only !== undefined && stats.length > 1) {
         this.#selection = { kind: "choosingThwartStat", action: entry, schemeId: only, options: stats };
         this.#host.redraw();
@@ -911,8 +911,8 @@ export class BoardController {
     const { game, perspectiveId } = appSession().store.state;
     // A basic power its character may divide (Wasp's Giant face; issue #322): the player places it point by point. A
     // power with a hand discard to choose keeps the one-target flow, which asks for the discard.
-    const divide = game ? beginDividePower(game, POOL_DEPS, entry) : null;
-    if (game && divide && (perspectiveId === null || !beginDiscardChoice(game, perspectiveId, entry, POOL_DEPS))) {
+    const divide = game ? beginDividePower(game, gameDeps(), entry) : null;
+    if (game && divide && (perspectiveId === null || !beginDiscardChoice(game, perspectiveId, entry, gameDeps()))) {
       this.#selection = { kind: "dividingPower", choice: divide };
       this.#host.redraw();
       return;
@@ -936,7 +936,7 @@ export class BoardController {
     }
     const { game } = appSession().store.state;
     // A scheme that lets the thwart use ATK instead of THW (The Red House; issue #365) asks which, before any cost.
-    const stats = game ? thwartStatOptions(game, POOL_DEPS, action, id) : [];
+    const stats = game ? thwartStatOptions(game, gameDeps(), action, id) : [];
     if (stats.length > 1) {
       this.#selection = { kind: "choosingThwartStat", action, schemeId: id, options: stats };
       this.#host.redraw();
@@ -1038,7 +1038,7 @@ export class BoardController {
     this.#selection = {
       kind: "choosingHandUse",
       instanceId,
-      options: handUseOptions(game, instanceId, playable, abilities, POOL_DEPS),
+      options: handUseOptions(game, instanceId, playable, abilities, gameDeps()),
     };
     this.#host.redraw();
     return true;
@@ -1097,7 +1097,7 @@ export class BoardController {
 
   #abilityOptionsFor(entry: LegalAction): readonly EventAbilityOption[] {
     const { game } = appSession().store.state;
-    return game && needsEventAbilityChoice(entry) ? eventAbilityOptions(game, entry, POOL_DEPS) : [];
+    return game && needsEventAbilityChoice(entry) ? eventAbilityOptions(game, entry, gameDeps()) : [];
   }
 
   /** The "Which ability?" bar's answer: the play goes on with that ability's own cost, targets and seat. */
@@ -1109,7 +1109,7 @@ export class BoardController {
     if (!option || !game || option.command.type !== "playCard") return;
     this.#selection = { kind: "idle" };
     // Each ability has its own price: ask the engine what this one costs rather than reusing the first one's.
-    const needsPayment = paymentFor(game, option.command.playerId, entry.action, { abilityId }, POOL_DEPS) !== null;
+    const needsPayment = paymentFor(game, option.command.playerId, entry.action, { abilityId }, gameDeps()) !== null;
     await this.#playEntry({ ...entry, example: option.command, needsPayment, abilities: [abilityId] }, false);
   }
 
@@ -1257,7 +1257,7 @@ export class BoardController {
     const { game } = appSession().store.state;
     // A search cost (Hunted) or an ally in a discard pile (Make the Call): the candidates are not on the board, so a
     // list asks; Make the Call's asks even for one ally, so the player sees which it is before paying (#419).
-    const pick = target === null && game ? searchedPickFor(game, POOL_DEPS, entry) : null;
+    const pick = target === null && game ? searchedPickFor(game, gameDeps(), entry) : null;
     if (pick) {
       this.#selection = { kind: "choosingSearched", entry, pick, chosen: null, page: 0, controllerId, confirmFree };
       this.#host.redraw();
@@ -1267,7 +1267,7 @@ export class BoardController {
       this.#selection = {
         kind: "targeting",
         action: entry,
-        prompt: playAimPrompt(game, POOL_DEPS, entry),
+        prompt: playAimPrompt(game, gameDeps(), entry),
         playAs: { controllerId },
       };
       this.#host.redraw();
@@ -1277,7 +1277,7 @@ export class BoardController {
     // reduction can read the destination (`view/play-destination.ts`). The engine lists the areas; nothing is guessed.
     let destinationNote: string | null = null;
     if (!destinationAsked && game) {
-      const choice = playDestinationChoice(game, POOL_DEPS, entry);
+      const choice = playDestinationChoice(game, gameDeps(), entry);
       if (choice?.needsChoice) {
         this.#selection = { kind: "choosingDestination", entry, choice, target, controllerId, confirmFree };
         this.#host.redraw();
@@ -1289,7 +1289,7 @@ export class BoardController {
     if (this.#tryOpenCostChoice(entry, target, controllerId)) return;
     if (this.#tryOpenInPlayCost(entry, target, controllerId)) return;
     // A pick for a cost that searches the encounter deck (Hunted) is a cost choice, not a host (`view/play-aim.ts`).
-    const aim = game ? paymentAimOf(game, POOL_DEPS, entry.action, target) : { target };
+    const aim = game ? paymentAimOf(game, gameDeps(), entry.action, target) : { target };
     if (
       entry.needsPayment &&
       this.#openPayment(entry, aim.target, controllerId, undefined, aim.costChoices, destinationNote)
@@ -1348,15 +1348,15 @@ export class BoardController {
     if (entry.targets.length > 1) {
       const { game } = appSession().store.state;
       const name = game
-        ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, POOL_DEPS)
+        ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, gameDeps())
         : "this ability";
       const picksForCost =
         game !== null &&
-        costPickSlot(actionAbilityCost(game, POOL_DEPS, entry.example.playerId, entry.action)) !== null;
+        costPickSlot(actionAbilityCost(game, gameDeps(), entry.example.playerId, entry.action)) !== null;
       this.#selection = {
         kind: "targeting",
         action: entry,
-        prompt: game && picksForCost ? playAimPrompt(game, POOL_DEPS, entry) : `Choose a target for ${name}`,
+        prompt: game && picksForCost ? playAimPrompt(game, gameDeps(), entry) : `Choose a target for ${name}`,
       };
       this.#host.redraw();
       return;
@@ -1391,7 +1391,7 @@ export class BoardController {
     // prices at nothing, which is still worth a tap target.
     const text =
       abilities.length === 1
-        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, POOL_DEPS) ?? "use")
+        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, gameDeps()) ?? "use")
         : `${abilities.length} abilities — tap to see`;
     return `▶ ${text}`;
   }
@@ -1405,7 +1405,7 @@ export class BoardController {
     const ids = this.#host.marks()?.refusedAbilities?.get(instanceId);
     const { game, perspectiveId } = appSession().store.state;
     if (!ids || !game || perspectiveId === null) return [];
-    return ids.map((id) => refusedAbilityLine(game, instanceId, perspectiveId, id, POOL_DEPS, ids.length > 1));
+    return ids.map((id) => refusedAbilityLine(game, instanceId, perspectiveId, id, gameDeps(), ids.length > 1));
   }
 
   /**
@@ -1418,7 +1418,7 @@ export class BoardController {
   #tryOpenDiscardChoice(entry: LegalAction): boolean {
     const { game, perspectiveId } = appSession().store.state;
     if (!game || perspectiveId === null) return false;
-    const choice = beginDiscardChoice(game, perspectiveId, entry, POOL_DEPS);
+    const choice = beginDiscardChoice(game, perspectiveId, entry, gameDeps());
     if (!choice) return false;
     this.#selection = { kind: "choosingDiscard", choice };
     this.#host.redraw();
@@ -1438,7 +1438,7 @@ export class BoardController {
     if (this.#selection.kind !== "choosingDiscard") return null;
     const { game } = appSession().store.state;
     if (!game) return null;
-    return buildDiscardChoiceView(game, this.#selection.choice, POOL_DEPS);
+    return buildDiscardChoiceView(game, this.#selection.choice, gameDeps());
   }
 
   /**
@@ -1477,7 +1477,7 @@ export class BoardController {
       perspectiveId,
       entry.action,
       target,
-      POOL_DEPS,
+      gameDeps(),
       controllerId,
       withEntryPayers(entry, costSelection),
       costChoices,
@@ -1502,7 +1502,7 @@ export class BoardController {
   #tryOpenCostChoice(entry: LegalAction, target: InstanceId | null, controllerId: PlayerId | null): boolean {
     const { game } = appSession().store.state;
     if (!game) return false;
-    const prompt = costChoicePromptFor(game, POOL_DEPS, entry);
+    const prompt = costChoicePromptFor(game, gameDeps(), entry);
     if (!prompt) return false;
     this.#selection = { kind: "choosingCostSelection", action: entry, target, controllerId, prompt };
     this.#host.redraw();
@@ -1526,7 +1526,7 @@ export class BoardController {
   ): boolean {
     const { game } = appSession().store.state;
     if (!game) return false;
-    const choice = beginInPlayCostChoice(game, POOL_DEPS, entry);
+    const choice = beginInPlayCostChoice(game, gameDeps(), entry);
     if (!choice) return false;
     this.#selection = {
       kind: "choosingInPlayCost",
@@ -1552,7 +1552,7 @@ export class BoardController {
     if (this.#readOnly || this.#selection.kind !== "dividingPower") return;
     const { game } = appSession().store.state;
     if (!game) return;
-    this.#selection = { kind: "dividingPower", choice: tapDivideTarget(game, POOL_DEPS, this.#selection.choice, id) };
+    this.#selection = { kind: "dividingPower", choice: tapDivideTarget(game, gameDeps(), this.#selection.choice, id) };
     this.#host.redraw();
   }
 
@@ -1562,11 +1562,11 @@ export class BoardController {
     if (this.#selection.kind !== "dividingPower") return this.confirmInPlayCost();
     const { game } = appSession().store.state;
     const { choice } = this.#selection;
-    const command = game ? divideCommand(game, POOL_DEPS, choice) : null;
+    const command = game ? divideCommand(game, gameDeps(), choice) : null;
     if (!command) return;
     // Every point on one scheme is an undivided thwart, which The Red House lets use ATK (issue #365): ask which.
     const only = choice.shares.length === 1 ? choice.shares[0]!.targetInstanceId : null;
-    const stats = game && only !== null ? thwartStatOptions(game, POOL_DEPS, choice.action, only) : [];
+    const stats = game && only !== null ? thwartStatOptions(game, gameDeps(), choice.action, only) : [];
     if (only !== null && stats.length > 1) {
       this.#selection = { kind: "choosingThwartStat", action: choice.action, schemeId: only, options: stats };
       this.#host.redraw();
@@ -1580,7 +1580,7 @@ export class BoardController {
   inPlayCostView(): InPlayCostChoiceView | null {
     if (this.#selection.kind !== "choosingInPlayCost") return null;
     const { game } = appSession().store.state;
-    return game ? inPlayCostChoiceView(game, POOL_DEPS, this.#selection.choice) : null;
+    return game ? inPlayCostChoiceView(game, gameDeps(), this.#selection.choice) : null;
   }
 
   /**
@@ -1592,9 +1592,9 @@ export class BoardController {
     if (this.#readOnly || this.#selection.kind !== "choosingInPlayCost") return;
     const { choice, target, controllerId, costSelection } = this.#selection;
     const { game: current } = appSession().store.state;
-    if (!current || !slotAnswered(choice, current, POOL_DEPS)) return;
+    if (!current || !slotAnswered(choice, current, gameDeps())) return;
     if (!isLastSlot(choice)) {
-      this.#selection = { ...this.#selection, choice: advanceInPlayCostChoice(choice, current, POOL_DEPS) };
+      this.#selection = { ...this.#selection, choice: advanceInPlayCostChoice(choice, current, gameDeps()) };
       this.#host.redraw();
       return;
     }
@@ -1616,7 +1616,7 @@ export class BoardController {
         costChoices,
         ...paymentIntoOf({ into: intoOf(action) ?? null }),
       },
-      POOL_DEPS,
+      gameDeps(),
     );
     if (attempt.ok) await this.#send(attempt.command);
     else this.#host.redraw();
@@ -1656,7 +1656,7 @@ export class BoardController {
         ...optionalSelection(withEntryPayers(action, costSelection)),
         ...paymentIntoOf({ into: intoOf(action) ?? null }),
       },
-      POOL_DEPS,
+      gameDeps(),
     );
     if (attempt.ok) await this.#send(attempt.command);
   }
@@ -1724,7 +1724,7 @@ export class BoardController {
     if (!game || perspectiveId === null) return;
     this.#selection = {
       kind: "paying",
-      payment: setPaymentX(game, perspectiveId, payment, payment.x + delta, POOL_DEPS),
+      payment: setPaymentX(game, perspectiveId, payment, payment.x + delta, gameDeps()),
     };
     this.#host.redraw();
   }
@@ -1754,7 +1754,7 @@ export class BoardController {
     const verdict = this.#verdictFor(payment, perspectiveId);
     if (verdict) this.#shown = { action: payment.action, verdict };
     const shown = this.#shown?.action === payment.action ? this.#shown.verdict : null;
-    return paymentView(game, perspectiveId, payment, headline, POOL_DEPS, verdict, shown);
+    return paymentView(game, perspectiveId, payment, headline, gameDeps(), verdict, shown);
   }
 
   /**
@@ -1936,7 +1936,7 @@ export class BoardController {
     if (!entry.costHelp || this.#helpAnswered.has(entry)) return false;
     const { game } = appSession().store.state;
     if (!game) return false;
-    const prompts = costHelpPromptsFor(game, entry, POOL_DEPS);
+    const prompts = costHelpPromptsFor(game, entry, gameDeps());
     if (prompts.length === 0) return false;
     this.#selection = { kind: "choosingCostHelp", entry, prompts, answers: [], resume };
     this.#host.redraw();
@@ -2136,7 +2136,7 @@ export class BoardController {
     if (kind === "endTurn") {
       const { game, legal } = appSession().store.state;
       // A hand size under 4 always asks (issue #150); what's still open asks only with the setting on.
-      const smallHand = game && legal ? smallHandSizeConfirmOf(game, legal.playerId, POOL_DEPS) : null;
+      const smallHand = game && legal ? smallHandSizeConfirmOf(game, legal.playerId, gameDeps()) : null;
       const confirm =
         game && legal && appSession().settings.confirmBeforeEndTurn
           ? endTurnConfirmOf(game, legal.actions, legal.playerId)
@@ -2164,7 +2164,7 @@ export class BoardController {
     return hintsFor(
       {
         state: game,
-        deps: POOL_DEPS,
+        deps: gameDeps(),
         playerId: perspectiveId,
         trigger,
         ...(legal?.playerId === perspectiveId ? { legal: legal.actions } : {}),

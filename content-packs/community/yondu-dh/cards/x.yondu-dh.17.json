@@ -1,0 +1,28 @@
+{
+  "id": "x.yondu-dh.17",
+  "name": "Hard to Kill",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "17",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["yondu-dh-nemesis"],
+  "boostIcons": 2,
+  "starIcon": true,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: If Sav'rkk is in play, he heals 2 damage. Otherwise, summon Sav'rkk and reveal him.\n[star] Boost: The villain heals 2 damage.",
+    "current": "When Revealed: If Sav'rkk is in play, he heals 2 damage. Otherwise, summon Sav'rkk and reveal him.\n[star] Boost: The villain heals 2 damage."
+  },
+  "flavor": "\"Let us see what chaos holds in store for us this time...\" —Sav'rkk",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.17.when-revealed"
+    },
+    {
+      "id": "x.yondu-dh.17.boost"
+    }
+  ]
+}

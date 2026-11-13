@@ -43,6 +43,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.sideStoryReader,
   SCENES.trophyRoom,
   SCENES.credits,
+  SCENES.modStore,
   // Dev-only demo scenes: reachable only through `?screen=…` jumps (`scenes/boot-dev-jump.ts`).
   SCENES.termTextDemo,
   SCENES.guideCalloutDemo,
@@ -75,6 +76,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.syncData,
   SCENES.endTurnConfirm,
   SCENES.optionNotice,
+  SCENES.modNotice,
   SCENES.gamesList,
   SCENES.tutorialResumeConfirm,
   SCENES.holdOn,

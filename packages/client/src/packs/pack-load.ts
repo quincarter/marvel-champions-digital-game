@@ -1,0 +1,79 @@
+/**
+ * Reading and validating one installed pack's files into a `PackRuntime` (docs/custom-content-packs.md §7.4). Plain and
+ * synchronous: `pack-load.worker.ts` runs it off the main thread, and `load-client.ts` runs it here when it has no worker.
+ */
+import { PLAYABLE_PACK_KINDS, satisfiesApp } from "./pack-state.js";
+import { CLIENT_VERSION } from "../version.js";
+import { packCampaignsOf, readPackInput, validatePack, SUPPORTED_DSL_FEATURES } from "@mc/mod-sdk";
+import { parsePackAchievements, type AnyCard, type EncounterSet, type PackManifest, type Scenario } from "@mc/content";
+import type { PackRuntime } from "./pack-runtime.js";
+
+export type PackLoadResult =
+  | { readonly ok: true; readonly runtime: PackRuntime }
+  | { readonly ok: false; readonly reason: string };
+
+/** The most issues a skip reason spells out; the rest are counted. */
+const REASON_ISSUES = 3;
+
+/** What the loaded packs a pack's `requires.packs` lists offer it: their cards, encounter sets and scenarios. */
+export interface RequiredPackContent {
+  readonly cards: readonly AnyCard[];
+  readonly encounterSets: readonly EncounterSet[];
+  readonly scenarios: readonly Scenario[];
+}
+
+export const NO_REQUIRED_CONTENT: RequiredPackContent = { cards: [], encounterSets: [], scenarios: [] };
+
+/**
+ * Reads and validates one installed pack's files. `required` is the content of the loaded packs its manifest
+ * `requires.packs` lists, so its scenarios and campaigns may name a required pack's villain, sets and scenarios. Never throws: a pack that cannot be read, fails `validatePack` or needs a feature this client
+ * lacks comes back as a reason the store screen can show.
+ */
+export function loadPackRuntime(
+  manifest: PackManifest,
+  files: ReadonlyMap<string, Uint8Array>,
+  required: RequiredPackContent = NO_REQUIRED_CONTENT,
+): PackLoadResult {
+  try {
+    const range = manifest.requires?.app;
+    if (range && !satisfiesApp(range, CLIENT_VERSION))
+      return { ok: false, reason: `Needs app ${range} (this is ${CLIENT_VERSION})` };
+    const missing = (manifest.requires?.dslFeatures ?? []).filter(
+      (feature) => !SUPPORTED_DSL_FEATURES.includes(feature),
+    );
+    if (missing.length > 0) return { ok: false, reason: `Needs newer app features: ${missing.join(", ")}` };
+    if (!PLAYABLE_PACK_KINDS.includes(manifest.kind))
+      return { ok: false, reason: `This game can't play ${manifest.kind} packs yet` };
+    const input = readPackInput(manifest, files);
+    const issues = validatePack(input, {
+      requiredPackCards: new Set(required.cards.map((card) => card.id as string)),
+      requiredPackContent: required,
+    });
+    if (issues.length > 0) {
+      const shown = issues.slice(0, REASON_ISSUES).map((issue) => `${issue.path}: ${issue.message}`);
+      const more = issues.length - shown.length;
+      return { ok: false, reason: `Failed validation: ${shown.join("; ")}${more > 0 ? ` (and ${more} more)` : ""}` };
+    }
+    return {
+      ok: true,
+      runtime: {
+        id: manifest.id,
+        version: manifest.version,
+        name: manifest.name,
+        requires: manifest.requires?.packs ?? [],
+        cards: input.cards,
+        abilities: input.abilities,
+        decks: input.decks ?? [],
+        ...((input.scenarios?.length ?? 0) > 0 ? { scenarios: input.scenarios as readonly Scenario[] } : {}),
+        ...((input.encounterSets?.length ?? 0) > 0 ? { encounterSets: input.encounterSets } : {}),
+        ...(packCampaignsOf(input.campaigns).length > 0 ? { campaigns: packCampaignsOf(input.campaigns) } : {}),
+        ...(parsePackAchievements(manifest.achievements).length > 0
+          ? { achievements: parsePackAchievements(manifest.achievements) }
+          : {}),
+        ...(manifest.houseRule ? { houseRule: { ...manifest.houseRule, description: manifest.description } } : {}),
+      },
+    };
+  } catch (error) {
+    return { ok: false, reason: `Could not be loaded: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}

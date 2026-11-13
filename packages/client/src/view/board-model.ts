@@ -68,7 +68,8 @@ import {
   villainStageOf,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace, type StandIn } from "../art/art-source.js";
-import { POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { gameEncounterSetName } from "../content/game-deps.js";
+import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
@@ -509,7 +510,7 @@ export interface SetAsidePanel {
 
 /** The encounter set's printed name, falling back to its id with the first letter raised for a set outside the pool. */
 function encounterSetName(id: string): string {
-  return SET_NAMES.get(id) ?? id.charAt(0).toUpperCase() + id.slice(1);
+  return gameEncounterSetName(id) ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
 
 /**
@@ -1370,8 +1371,6 @@ export function engagedNameOf(state: GameState, seat: PlayerId | null): string |
   return `${name} ${state.players.findIndex((player) => player.playerId === seat) + 1}`;
 }
 
-const SET_NAMES: ReadonlyMap<string, string> = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
-
 export function characterPanel(state: GameState, id: InstanceId, deps: EngineDeps): CharacterPanel {
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
@@ -1514,7 +1513,7 @@ function backKindOf(state: GameState, instance: CardInstance | undefined): CardB
  */
 function standInOf(state: GameState, instance: CardInstance | undefined): StandIn | null {
   if (!instance || !isDroneRole(instance.facedownAs)) return null;
-  const atk = characterProfile(state, instance.instanceId, POOL_DEPS)?.atk;
+  const atk = characterProfile(state, instance.instanceId, gameDeps())?.atk;
   return atk === undefined ? null : { kind: "ultronDrone", atk };
 }
 

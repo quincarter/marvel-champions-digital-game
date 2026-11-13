@@ -221,9 +221,11 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // on the damage, so a tough status card on Kang cannot absorb the hit first (RRG 1.8 "Damage", p. 14; audit finding
   // 17, owner decision 2026-10-16). "(Max 1 per attack.)" is a narrow edge case (two copies attached to Kang at once,
   // both interrupting the same attack) this DSL's `AbilityLimit.period` ("turn" | "phase" | "round") can't express
-  // "per attack"; not modeled — the primary effect is exact either way.
+  // "per attack"; not modeled — the primary effect is exact either way. The text names no attacker, so an enemy's
+  // attack on Kang counts too, and "the attacker" is that enemy (an enemy is a character, RRG 1.8 "Character", p. 12;
+  // heard as `enemyAttacksEnemy`, `patternHearsKind`; rules-expert reading 2026-11-12, no FFG ruling).
   "11014.temporal-shield-forced-interrupt": forcedInterrupt(
-    when.attacks(query(["identity", "ally"]), { target: { hostOfSelf: true } }),
+    when.attacks(query("character"), { target: { hostOfSelf: true } }),
     { cost: discardThis },
     modifyAttack({ preventAllDamage: true }),
     dealDamage(1, eventSource),

@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.04",
+  "name": "Plot Armor",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "4",
+  "quantityInSet": 3,
+  "unique": false,
+  "type": "event",
+  "cost": 0,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["DEFENSE", "SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 3,
+  "text": {
+    "printed": "Hero Interrupt (defense): When you would take any amount of damage, prevent X of that damage, where X equals to the PINK BUBBLES you control.",
+    "current": "Hero Interrupt (defense): When you would take any amount of damage, prevent X of that damage, where X equals to the PINK BUBBLES you control."
+  },
+  "flavor": "\"Did you think I was going to just take the attack?\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.04.plot-armor-interrupt"
+    },
+    {
+      "id": "x.gwenpool-ptt.04.pink-bubble"
+    }
+  ]
+}

@@ -57,7 +57,7 @@
 
 import Phaser from "phaser";
 import type { InstanceId, PendingChoice } from "@mc/engine";
-import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
+import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { setMask } from "../ui/rex.js";
@@ -339,7 +339,7 @@ export class SetupDealScene extends Phaser.Scene {
 
     const fresh = state.version !== this.#version;
     if (fresh) {
-      this.#log = advanceSetupWalkthroughLog(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
+      this.#log = advanceSetupWalkthroughLog(this.#log, state.lastEvents, state.game, state.perspectiveId, gameDeps());
       this.#version = state.version;
     }
 
@@ -350,7 +350,7 @@ export class SetupDealScene extends Phaser.Scene {
       return;
     }
 
-    this.#view = setupWalkthroughViewOf(state.game, this.#log, POOL_DEPS, CARDS_BY_ID);
+    this.#view = setupWalkthroughViewOf(state.game, this.#log, gameDeps(), gameCardsById());
 
     const choice = state.game.pendingChoice;
     const isMulligan = choice !== null && choice.prompt.kind === "mulligan";

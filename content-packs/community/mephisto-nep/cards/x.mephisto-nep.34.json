@@ -1,0 +1,37 @@
+{
+  "id": "x.mephisto-nep.34",
+  "type": "minion",
+  "name": "Dweller Demon",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D5/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "atk": 0,
+  "sch": 3,
+  "hp": 5,
+  "boostIcons": 2,
+  "traits": ["MYSTIC"],
+  "keywords": [
+    {
+      "name": "surge"
+    },
+    {
+      "name": "teamwork",
+      "sharedTrait": "MYSTIC"
+    }
+  ],
+  "text": {
+    "printed": "Surge. Teamwork (Mystic).\nWhen Revealed: Place X threat on a scheme, where X is equal to the number of other Mystic minions in play.\n[star] Forced Response: After Dweller Demon attacks you, if there are no other minions engaged with you, deal yourself 1 facedown encounter card.",
+    "current": "Surge. Teamwork (Mystic).\nWhen Revealed: Place X threat on a scheme, where X is equal to the number of other Mystic minions in play.\n[star] Forced Response: After Dweller Demon attacks you, if there are no other minions engaged with you, deal yourself 1 facedown encounter card."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.34.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.34.forced-response"
+    }
+  ]
+}

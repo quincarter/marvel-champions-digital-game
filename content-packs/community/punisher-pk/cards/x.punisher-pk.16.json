@@ -1,0 +1,29 @@
+{
+  "id": "x.punisher-pk.16",
+  "name": "Extreme Prejudice",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "16",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["hazard"],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Each boost icon counts twice during The Punisher's attacks against minions.",
+    "current": "Each boost icon counts twice during The Punisher's attacks against minions."
+  },
+  "flavor": "The Punisher is brutally torturing any criminal unlucky enough to cross his path.",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.16.extreme-prejudice-constant"
+    }
+  ]
+}

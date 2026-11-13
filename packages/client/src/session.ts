@@ -9,11 +9,20 @@
 import type Phaser from "phaser";
 import type { VillainReview } from "./view/villain-review.js";
 import { campaignDefinitionOf } from "@mc/cards";
-import type { CampaignDefinition } from "@mc/engine";
+import type { CampaignDefinition, CampaignDeps } from "@mc/engine";
 import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
 import type { MechanicTryItId } from "./guide/mechanic-tryits.js";
 import { CampaignService } from "./campaign/campaign-service.js";
-import { POOL_CARDS, POOL_DEPS, POOL_STARTER_DECKS, POOL_VERSION } from "./content/pool.js";
+import {
+  campaignOfPackRecord,
+  loadedPackCampaignDefinition,
+  packCampaignEntryOf,
+  packRefOf,
+} from "./campaign/pack-campaigns.js";
+import { loadedPacks } from "./packs/pack-registry.js";
+import { campaignDepsWithPacks } from "@mc/mod-sdk/game";
+import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "./content/pool.js";
+import { gameDeps } from "./content/game-deps.js";
 import { deckFromStarterDeck } from "@mc/content";
 import { RepairingDeckStorage } from "./engine/precon-edit-repair.js";
 import { repairedStoredDeck } from "./view/deck-builder-model.js";
@@ -26,8 +35,9 @@ import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
 import { colorSchemeOf, setColorScheme } from "./view/color-scheme.js";
-import { setArtLanguage, setShownBalancedScans } from "./art/art-source.js";
+import { setArtLanguage, setShownBalancedScans, setShownHouseRules } from "./art/art-source.js";
 import { BalancedArtGate } from "./art/balanced-art.js";
+import { HouseRuleArtGate } from "./art/house-rule-art.js";
 import { onLanguageChange } from "./language-change.js";
 import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
@@ -110,6 +120,8 @@ let session: AppSession | null = null;
 
 /** Which Balanced scans show, and when (`art/balanced-art.ts`): while a game screen is up, for that game's config. */
 const balancedArt = new BalancedArtGate(setShownBalancedScans);
+/** Which house rules' rebuilt faces show (`art/house-rule-art.ts`): the same lifetime, for the game's own rules. */
+const houseRuleArt = new HouseRuleArtGate(setShownHouseRules);
 
 /**
  * A game screen calls this as it opens: the game's Balanced scans (issue #609) show until it closes. A resume and a
@@ -119,7 +131,11 @@ const balancedArt = new BalancedArtGate(setShownBalancedScans);
 export function holdGameArt(scene: Phaser.Scene): void {
   appSession();
   balancedArt.enter();
-  scene.events.once("shutdown", () => balancedArt.leave());
+  houseRuleArt.enter();
+  scene.events.once("shutdown", () => {
+    balancedArt.leave();
+    houseRuleArt.leave();
+  });
 }
 
 export function appSession(): AppSession {
@@ -165,7 +181,10 @@ export function appSession(): AppSession {
     const current = session;
     onLanguageChange(() => current.store.republish());
     // A Balanced Galaxy's Most Wanted game's edited scans (issue #609) follow the game screens' lifetime, below.
-    current.store.subscribe((state) => balancedArt.setConfig(state.config));
+    current.store.subscribe((state) => {
+      balancedArt.setConfig(state.config);
+      houseRuleArt.setConfig(state.config);
+    });
   }
   return session;
 }
@@ -241,16 +260,44 @@ export function registerDevCampaignDefinition(definition: CampaignDefinition): v
   devDefinitions.set(definition.campaignId as string, definition);
 }
 
+const BASE_CAMPAIGN_POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
+let packCampaignPool: { readonly packs: object; readonly deps: CampaignDeps } | undefined;
+
+/** The card pool a campaign choice draws from: the base game's, plus every loaded pack's cards (built once per loaded set). */
+function campaignDeps(): CampaignDeps {
+  const packs = loadedPacks();
+  if (packs.length === 0) return { pool: BASE_CAMPAIGN_POOL };
+  if (packCampaignPool?.packs !== packs) {
+    let deps: CampaignDeps = { pool: BASE_CAMPAIGN_POOL };
+    try {
+      deps = campaignDepsWithPacks(POOL_CARDS, packs);
+    } catch {
+      // A pack that now collides with the base game (see `currentPoolView`): the base pool only.
+    }
+    packCampaignPool = { packs, deps };
+  }
+  return packCampaignPool.deps;
+}
+
 export function campaignService(): CampaignService {
   campaigns ??= new CampaignService({
     storage: typeof indexedDB !== "undefined" ? new IdbCampaignStorage() : new MemoryCampaignStorage(),
-    campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
-    engineDeps: POOL_DEPS,
+    campaignDeps,
+    contentOf: (campaignId) => {
+      const entry = packCampaignEntryOf(loadedPacks(), campaignId);
+      return entry ? campaignOfPackRecord(entry) : undefined;
+    },
+    packOf: (campaignId) => packRefOf(loadedPacks(), campaignId),
+    engineDeps: gameDeps,
     games: {
       list: () => appSession().store.listSaves(),
       retire: (gameId) => appSession().store.retireSave(gameId),
     },
-    definitionOf: (campaignId) => campaignDefinitionOf(campaignId) ?? devDefinitions.get(campaignId as string),
+    // The base game always wins; a loaded pack's campaign is last (a run keeps its own copy: `CampaignRecord.pack`).
+    definitionOf: (campaignId) =>
+      campaignDefinitionOf(campaignId) ??
+      devDefinitions.get(campaignId as string) ??
+      loadedPackCampaignDefinition(loadedPacks(), campaignId),
   });
   return campaigns;
 }

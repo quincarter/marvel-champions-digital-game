@@ -1,0 +1,38 @@
+{
+  "id": "x.mephisto-nep.22",
+  "type": "minion",
+  "name": "Blackheart",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "B1/5",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-blackheart"],
+  "atk": 2,
+  "sch": 2,
+  "hp": 9,
+  "boostIcons": 2,
+  "starIcon": true,
+  "traits": ["BRUTE", "MYSTIC", "ELITE"],
+  "keywords": [
+    {
+      "name": "toughness"
+    },
+    {
+      "name": "villainous"
+    }
+  ],
+  "text": {
+    "printed": "Toughness. Villainous.\nAction: Discard a Bargain attachment you control → heal 3 damage from Blackheart. If no damage was healed this way, give him a tough status card.\n[star] Boost: You may discard a Bargain attachment to cancel this activation. If you do, put Blackheart into play engaged with you.",
+    "current": "Toughness. Villainous.\nAction: Discard a Bargain attachment you control → heal 3 damage from Blackheart. If no damage was healed this way, give him a tough status card.\n[star] Boost: You may discard a Bargain attachment to cancel this activation. If you do, put Blackheart into play engaged with you."
+  },
+  "flavor": "\"Do you really think you can defeat the Prince of Hell?\"",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.22.action"
+    },
+    {
+      "id": "x.mephisto-nep.22.boost"
+    }
+  ]
+}

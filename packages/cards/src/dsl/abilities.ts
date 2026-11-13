@@ -395,6 +395,17 @@ export const special = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
   return build({ kind: "special" }, options, effects);
 };
+/**
+ * A tagged ability with no trigger (custom content's "speech bubbles"): it resolves only when an effect names its tag
+ * (`resolveTagged`, `resolveOneTagged`), and counts for `taggedAbilitiesOn` and `hasTaggedAbility` while its card has
+ * it. `tag` is the pack's own name for the kind ("pinkBubble"). With no effects it is text with nothing to resolve
+ * (a flavor bubble), which still counts: `tagged("pinkBubble")`. A pink bubble that draws a card:
+ * `tagged("pinkBubble", draw(1))`. Engine `AbilityTriggerSpec special.tag`.
+ */
+export const tagged = (tag: string, ...args: Args): AbilityDefinition => {
+  const { options, effects } = split(args);
+  return build({ kind: "special", tag }, options, effects);
+};
 
 // ---------------------------------------------------------------------------
 // Encounter / scenario abilities
@@ -493,6 +504,7 @@ export interface ConstantPart {
   readonly spendableForAnyPlayer?: { readonly while?: Predicate };
   /** "[This card] does not count toward your hand size." (Connection to the Worldmind; docs/phase7-wave5.md §3.18). */
   readonly notCountedTowardHandSize?: true;
+  readonly attachedOnlyWhileInPlay?: true;
   /** "You may play Lockjaw from your discard pile during your turn." */
   readonly playableFrom?: readonly "discard"[];
   /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
@@ -602,6 +614,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
       ...(anyPlayerList[0] ? { spendableForAnyPlayer: anyPlayerList[0] } : {}),
       ...(parts.some((p) => p.notCountedTowardHandSize) ? { notCountedTowardHandSize: true as const } : {}),
+      ...(parts.some((p) => p.attachedOnlyWhileInPlay) ? { attachedOnlyWhileInPlay: true as const } : {}),
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
@@ -654,6 +667,25 @@ export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
  * draw back up, and "draw up to your hand size"; every other hand count still counts it.
  */
 export const notCountedTowardHandSize: ConstantPart = { notCountedTowardHandSize: true };
+/**
+ * "Yaka Arrow cannot be attached to cards unless it is in play." (community pack `yondu-dh`) →
+ * `constant(cannotBeAttachedUnlessInPlay)`. Read from the card wherever it is: out of play no effect attaches it (a
+ * find that attaches, an attach effect or cost), and played or put into play it enters play attached to nothing, in its
+ * controller's play area, instead of on a host. In play, effects attach it and move it as usual.
+ */
+export const cannotBeAttachedUnlessInPlay: ConstantPart = { attachedOnlyWhileInPlay: true };
+/**
+ * "Upgrades cannot be removed from Sav'rkk." (community pack `yondu-dh`) → `constant(upgradesCannotBeRemoved())`: while
+ * this card is in play, no effect takes a card matching `what` (default: any upgrade attached to this card) off it, by
+ * attaching it elsewhere, returning it to hand, discarding it or any other move out of play (`RuleSpec
+ * cannotLeaveHost`). When the card leaves play the rule goes with it, and its attachments go as the rules send them
+ * (discarded with it). `what` should name cards attached to this one (`host: self`); a card attached elsewhere is held
+ * to its own host.
+ */
+export const upgradesCannotBeRemoved = (
+  what: TargetQuery = { categories: ["upgrade"], host: { kind: "self" } },
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule({ kind: "cannotLeaveHost", target: what, ...(opts.while ? { while: opts.while } : {}) });
 /**
  * A card you overpay for when you play it ("for each resource you overpaid for Ant-Man's cost"): read from the card
  * paid for, it keeps a "while paying for" doubling (The Power of X) off its payment. FFG ruling Sep 21, 2023 (post-RRG
@@ -1029,6 +1061,65 @@ export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Pre
  */
 export const ignoreBoost = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "ignoreBoost", ...(enemy ? { enemy } : {}), ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "Ignore each 'Boost' ability" while the boost icons still count (The Punisher community scenario, on his attacks
+ * against minions) → `constant(ignoreBoostAbilities(self, { while: attackInProgress({ attacker: ..., target:
+ * query("minion") }) }))`: each boost card of a matching enemy's activation, or of its boosted attack on another enemy
+ * (`enemyAttacksEnemy(..., { boost: true })`), is turned faceup, its icons are added as usual, and its "Boost" ability
+ * is not resolved (nor can it be canceled). `ignoreBoost` ignores both. (`RuleSpec ignoreBoost` `only: "abilities"`.)
+ */
+export const ignoreBoostAbilities = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({
+    kind: "ignoreBoost",
+    only: "abilities",
+    ...(enemy ? { enemy } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Each boost icon counts twice during The Punisher's attacks against minions." (Extreme Prejudice, The Punisher
+ * community scenario) → `constant(boostIconsCount(2, THE_PUNISHER, { while: attackInProgress({ attacker: THE_PUNISHER,
+ * target: query("minion") }) }))`: each boost card of a matching enemy's activation (absent = any enemy), or of its
+ * boosted attack on another enemy, adds `factor` times the icons it counts (`RuleSpec boostIconsMultiplied`).
+ */
+export const boostIconsCount = (
+  factor: number,
+  enemy?: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "boostIconsMultiplied",
+    factor,
+    ...(enemy ? { enemy } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "During step 2 of the villain phase, Barracuda activates against you before The Punisher does." (The Punisher
+ * community scenario) → `constant(activatesBeforeVillain())`: the minion (default: this card) activates against its
+ * engaged player before the villain's step-2 activation against that player, not after it (RRG 1.8 "Villain Phase",
+ * p. 47; `RuleSpec activatesBeforeVillain`). Several such minions go in the engaged player's order.
+ */
+export const activatesBeforeVillain = (
+  minion: TargetQuery = { self: true },
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "activatesBeforeVillain", target: minion, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "Ronan the Accuser cannot be stunned." → `constant(cannotHaveStatus(["stunned"]))`; "Minions cannot stun him" (The
+ * Punisher community scenario) → `constant(cannotHaveStatus(["stunned"], { from: query("minion") }))`: no status card of
+ * those types is placed on `target` (default: this card), or, with `from`, none that a card matching `from` gives (the
+ * card whose ability or constant places it). A card already held stays. (`RuleSpec cannotHaveStatus`.)
+ */
+export const cannotHaveStatus = (
+  statuses: readonly ("stunned" | "confused" | "tough")[],
+  opts: { readonly target?: TargetQuery; readonly from?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotHaveStatus",
+    target: opts.target ?? { self: true },
+    statuses,
+    ...(opts.from ? { from: opts.from } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
 /**
  * "Ignore the Forced Interrupt on the main scheme." (No Longer Worthy, `aoa` 45105b; docs/phase7-wave8.md §3.21) →
  * `constant(ignoreAbilities(query("mainScheme"), ["45103b.the-age-of-apocalypse-forced-interrupt"]))`: while the rule
@@ -1485,6 +1576,10 @@ export const reducesAttackDamageTaken = (
     readonly exceptAttacker?: TargetQuery;
     readonly exceptAttackCard?: TargetQuery;
     readonly exceptAttackKeyword?: AttackKeyword;
+    /** Only an attack whose attacking character matches (`RuleSpec reduceDamageTaken.onlyAttacker`). */
+    readonly onlyAttacker?: TargetQuery;
+    /** Only an enemy attack nobody defends (`RuleSpec reduceDamageTaken.onlyUndefended`). */
+    readonly onlyUndefended?: boolean;
     readonly while?: Predicate;
   } = {},
 ): ConstantPart =>
@@ -1496,8 +1591,28 @@ export const reducesAttackDamageTaken = (
     ...(opts.exceptAttacker ? { exceptAttacker: opts.exceptAttacker } : {}),
     ...(opts.exceptAttackCard ? { exceptAttackCard: opts.exceptAttackCard } : {}),
     ...(opts.exceptAttackKeyword ? { exceptAttackKeyword: opts.exceptAttackKeyword } : {}),
+    ...(opts.onlyAttacker ? { onlyAttacker: opts.onlyAttacker } : {}),
+    ...(opts.onlyUndefended ? { onlyUndefended: true } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
+/** "Villain and villainous attacks": the attacker is a villain or has the villainous keyword (printed or granted). */
+export const VILLAIN_OR_VILLAINOUS: TargetQuery = {
+  anyOf: [{ categories: ["villain"] }, { withKeyword: "villainous" }],
+};
+/**
+ * **Agile X**, a custom-content keyword with no RRG entry, defined by its reminder text: "reduce damage taken from
+ * undefended villain and villainous attacks by X" (Night Thrasher's Battle Board, DesignHacker; the author confirmed it
+ * reaches undefended attacks only). Not a printed keyword (`KeywordInstance` is the official list): a constant
+ * `reduceDamageTaken` with `onlyUndefended` and `onlyAttacker: VILLAIN_OR_VILLAINOUS`, so it stacks with every other
+ * reduction, is read before tough (RRG 1.8 FAQ p. 58) and is skipped by "cannot be reduced" damage like any constant.
+ * "Night Thrasher gains agile 1" on an upgrade: `constant(agile(1, { categories: ["hero"], controller: "you" }))`.
+ */
+export const agile = (
+  x: number | ValueSpec,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  reducesAttackDamageTaken(target, x, { onlyAttacker: VILLAIN_OR_VILLAINOUS, onlyUndefended: true, ...opts });
 /**
  * "Double the amount of damage this minion takes from cards with a printed [energy] resource" (Dragon, 39042):
  * `constant(doubleDamageTaken({ self: true }, { fromSource: { printedResource: "energy" } }))`; "Attacks with piercing
@@ -1532,6 +1647,69 @@ export const maxDamageTaken = (
     target,
     amount: cap,
     ...(opts.per === "phase" ? { per: "phase" as const } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Your identity cannot take damage less than its DEF from each attack." (Slothful Endurance, community pack
+ * `mephisto-nep` 10): `constant(minDamageTaken(YOUR_IDENTITY, statOf(theAffectedRef, "def")))`, where
+ * `theAffectedRef` (`{ kind: "slot", slot: "affected" }`) is the character taking the damage. A floor on one attack's
+ * damage event of more than 0, applied after every modifier and before any "cannot take more than" cap (engine
+ * `RuleSpec minDamageTakenPerAttack`).
+ */
+export const minDamageTaken = (
+  target: TargetQuery,
+  floor: Amount,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "minDamageTakenPerAttack",
+    target,
+    amount: floor,
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Double the THW value of your identity." (Prideful Ambitions, community pack `mephisto-nep` 08):
+ * `constant(multiplyStat("thw", 2, YOUR_IDENTITY))`; "halve" is a factor of 0.5. RRG 1.8 "Modifiers" (p. 29): applied
+ * after the base and every additive modifier, then rounded up (engine `RuleSpec multiplyStat`).
+ */
+export const multiplyStat = (
+  stat: StatName | "hp",
+  factor: number,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule({ kind: "multiplyStat", stat, factor, target, ...(opts.while ? { while: opts.while } : {}) });
+/** "Double the [stat] value of X": `multiplyStat(stat, 2, target)`. */
+export const doubleStat = (
+  stat: StatName | "hp",
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => multiplyStat(stat, 2, target, opts);
+/**
+ * "Each resource you generate is considered a wild ([wild]) resource instead of its current resource." (Unquenchable
+ * Envy, community pack `mephisto-nep` 11): `constant(resourcesGeneratedAsWild(you))`. Every resource the player
+ * generates, after every multiplier, counts as that many wild resources (engine `RuleSpec resourcesGeneratedAsWild`).
+ */
+export const resourcesGeneratedAsWild = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "resourcesGeneratedAsWild", player, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "When a card is set aside from a player's deck, put it facedown into Damnation instead." (Gateway to Corruption,
+ * community pack `mephisto-nep` 03a): `constant(setAsideDestination("Damnation", { facedown: true }))`. A card set aside
+ * (`moveCards(…, "setAside")`) from any player's deck goes to that scenario area instead; `from` widens it to their hand
+ * or discard pile (engine `RuleSpec setAsideDestination`).
+ */
+export const setAsideDestination = (
+  area: string,
+  opts: {
+    readonly facedown?: boolean;
+    readonly from?: readonly ("deck" | "hand" | "discard")[];
+    readonly while?: Predicate;
+  } = {},
+): ConstantPart =>
+  rule({
+    kind: "setAsideDestination",
+    area,
+    ...(opts.facedown ? { facedown: true as const } : {}),
+    ...(opts.from ? { from: opts.from } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
@@ -3166,6 +3344,16 @@ export const on = {
   villainAttacks: (opts: EnemyAttackOptions = {}): EventPattern => enemyAttacks({ categories: ["villain"] }, opts),
   /** "When/After [enemy] schemes". */
   enemySchemes: (by: Who): EventPattern => pattern("enemyScheme", asSource(by)),
+  /**
+   * "When/After [this card] is attacked", "When a character attacks [this card]": any attack on this card, a player's
+   * character's (`attack`) or an enemy's (`enemyAttacksEnemy`, which a pattern on `attack` with the card as its target
+   * also hears: `patternHearsKind`, RRG 1.8 "Character", p. 12). `by`: only an attacker matching it, "When The Punisher
+   * attacks Jigsaw" (The Punisher community scenario); "a friendly character" is `{ not: { controller: "encounter" }
+   * }`. `eventSource` is the attacker. An interrupt's `modifyAttack` changes the attack in progress, an enemy's
+   * included: `modifyAttack({ extraBoostCards: 1 })` gives a boosted enemy-against-enemy attack another boost card.
+   */
+  thisIsAttacked: (opts: { readonly by?: TargetQuery } = {}): EventPattern =>
+    pattern("attack", { selfIs: "target" }, opts.by ? { sourceIs: opts.by } : {}),
   /** "After [enemy] schemes or attacks". */
   enemySchemesOrAttacks: (by: Who): EventPattern => pattern(["enemyScheme", "enemyAttack"], asSource(by)),
   /**
@@ -3685,6 +3873,22 @@ export const on = {
       opts.by === "you" ? { playerIs: "controller" } : {},
     ),
   /**
+   * "After the Yaka Arrow upgrade is **removed from** an enemy" (community pack `yondu-dh`, D'ast Whistlin'): `card`
+   * stopped being attached to a host matching `from` (absent: any host), however it went: moved to another host,
+   * returned to a hand, discarded, or taken out of play with its host (`TriggerEvent cardUnattached`). `eventSource` is
+   * the card, `eventTarget` the host it left (which may itself have left play). Response only. A move between hosts is
+   * heard here first, then as `on.cardAttached`.
+   */
+  cardUnattached: (card: TargetQuery, opts: { readonly from?: Who } = {}): EventPattern =>
+    pattern("cardUnattached", { sourceIs: card }, opts.from === undefined ? {} : asTarget(opts.from)),
+  /**
+   * "After the Yaka Arrow upgrade is **attached to or removed from** an enemy, deal 1 damage to that enemy" (community
+   * pack `yondu-dh`, D'ast Whistlin'): `on.cardAttached` and `on.cardUnattached` in one pattern, `eventTarget` the host
+   * it went on or came off. A move between two matching hosts is heard twice, removed first.
+   */
+  cardAttachedOrRemoved: (card: TargetQuery, opts: { readonly host?: Who } = {}): EventPattern =>
+    pattern(["cardAttached", "cardUnattached"], { sourceIs: card }, opts.host === undefined ? {} : asTarget(opts.host)),
+  /**
    * "When a non-scenario-specific Tech attachment **would be attached** to the villain" (Fixer, `falcon` 53038;
    * docs/phase7-wave9.md §3.49; RRG 1.8 "'Would'", p. 48): `card` is about to be attached to a host matching `to`
    * (absent: any host), by its own "attach to" text as it is revealed or put into play, or by another ability's
@@ -3939,6 +4143,33 @@ export const on = {
    * Q32), and no other response is offered for it. The card whose discard emptied the deck is in the new deck when
    * the response resolves (RRG 1.8 "Encounter Deck", p. 17), and is taken from there.
    */
+  /**
+   * "When a card is put into Damnation from a player's deck" (Exposing Intentions, community pack `mephisto-nep` 14):
+   * `on.cardPutIntoScenarioArea("Damnation", { from: "deck" })`. One event per card, heard after the move (engine
+   * `TriggerEvent cardPutIntoScenarioArea`); `eventTarget` is the card, `eventPlayer` the player whose zone it left
+   * (else its owner), so "put 1 additional card into Damnation from that player's deck" is
+   * `moveCards(topOfDeck(1, eventPlayer), { scenarioArea: "Damnation" }, undefined, { facedown: true })`. That card is
+   * announced too: to stop a loop, narrow the pattern with `notFromSelf` (the event's source is not this card).
+   */
+  cardPutIntoScenarioArea: (
+    area?: string,
+    opts: {
+      readonly from?: "deck" | "hand" | "discard" | readonly ("deck" | "hand" | "discard")[];
+      readonly notFromSelf?: boolean;
+    } = {},
+  ): EventPattern =>
+    pattern(
+      "cardPutIntoScenarioArea",
+      area !== undefined || opts.from !== undefined
+        ? {
+            eventIs: {
+              ...(area !== undefined ? { area } : {}),
+              ...(opts.from !== undefined ? { from: opts.from } : {}),
+            },
+          }
+        : {},
+      opts.notFromSelf ? { sourceIs: { not: { self: true } } } : {},
+    ),
   discardedFromEncounterDeck: (
     card: TargetQuery = {},
     opts: { readonly how?: "effect" | "cost"; readonly by?: LeaveCauseSide } = {},

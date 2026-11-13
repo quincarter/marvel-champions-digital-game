@@ -1,0 +1,37 @@
+{
+  "id": "x.carnage-nep.08",
+  "name": "Amorphous Arsenal",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "upgrade",
+  "cost": 3,
+  "resourceIcons": {
+    "wild": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["SUPERPOWER", "SYMBIOTE"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "When you make an attack that has a keyword (overkill, piercing, or ranged), that attack deals 1 additional damage for each keyword it has.\nHero Interrupt: When you attack, exhaust this card and choose a keyword (overkill, piercing, or ranged) → that attack gains the chosen keyword.",
+    "current": "When you make an attack that has a keyword (overkill, piercing, or ranged), that attack deals 1 additional damage for each keyword it has.\nHero Interrupt: When you attack, exhaust this card and choose a keyword (overkill, piercing, or ranged) → that attack gains the chosen keyword."
+  },
+  "flavor": "\"It's why I don't use guns. I prefer blades.\" —Carnage",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.08.amorphous-arsenal-constant"
+    },
+    {
+      "id": "x.carnage-nep.08.amorphous-arsenal-interrupt"
+    },
+    {
+      "id": "x.carnage-nep.08.amorphous-arsenal-constant-piercing"
+    },
+    {
+      "id": "x.carnage-nep.08.amorphous-arsenal-constant-ranged"
+    }
+  ]
+}

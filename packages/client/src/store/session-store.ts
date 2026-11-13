@@ -28,6 +28,7 @@ import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { EngineHost, EngineUpdate, LegalActionsFor, SavedGame, SessionConfig } from "../engine/host.js";
+import { setGamePacks } from "../content/game-deps.js";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
@@ -455,6 +456,8 @@ export class SessionStore {
 
   #set(next: SessionState): void {
     this.#state = next;
+    // The game on the table's own packs, which every in-game screen reads its deps and cards through (`content/game-deps.ts`).
+    setGamePacks(next.config?.packs);
     for (const listener of [...this.#listeners]) listener(next);
   }
 }

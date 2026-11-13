@@ -1,0 +1,58 @@
+{
+  "id": "carnage-nep",
+  "version": "3.0.1",
+  "kind": "hero",
+  "name": "Carnage",
+  "authors": ["Neptune"],
+  "description": "Fan-made hero pack by Neptune: Carnage.",
+  "cover": "cover.webp",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "altArt": {
+    "en": {
+      "21022": "alt-art/en/21022.webp",
+      "27191": "alt-art/en/27191.webp",
+      "49022": "alt-art/en/49022.webp",
+      "01088": "alt-art/en/01088.webp",
+      "01089": "alt-art/en/01089.webp",
+      "01090": "alt-art/en/01090.webp",
+      "03034": "alt-art/en/03034.webp",
+      "05023": "alt-art/en/05023.webp",
+      "05024": "alt-art/en/05024.webp",
+      "05033": "alt-art/en/05033.webp",
+      "06034": "alt-art/en/06034.webp"
+    },
+    "es": {
+      "21022": "alt-art/es/21022.webp",
+      "27191": "alt-art/es/27191.webp",
+      "49022": "alt-art/es/49022.webp",
+      "01088": "alt-art/es/01088.webp",
+      "01089": "alt-art/es/01089.webp",
+      "01090": "alt-art/es/01090.webp",
+      "03034": "alt-art/es/03034.webp",
+      "05023": "alt-art/es/05023.webp",
+      "05024": "alt-art/es/05024.webp",
+      "05033": "alt-art/es/05033.webp",
+      "06034": "alt-art/es/06034.webp"
+    }
+  },
+  "permission": {
+    "status": "granted",
+    "by": "Neptune",
+    "date": "2026-11-05",
+    "evidence": "BluefireF5ran's curated repository records the grant (mod.json `permission`): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/9ce0a25ec5b1b6f08b3a926838d9295babe69758/carnage_nep/mod.json. Given by direct message; the message itself is not kept in this repository.",
+    "scope": "inclusion and translation",
+    "languages": ["en", "es"]
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "es": "Francisco Merchán"
+  }
+}

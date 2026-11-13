@@ -1,0 +1,28 @@
+{
+  "id": "x.carnage-nep.13",
+  "name": "Rend",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "13",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 3,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["ATTACK"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action (attack): Deal 6 damage to an enemy. This attack gains overkill. Deal 2 additional damage to that enemy for each [physical] resource you overpaid for this card (to a maximum of [physical][physical][physical]).",
+    "current": "Hero Action (attack): Deal 6 damage to an enemy. This attack gains overkill. Deal 2 additional damage to that enemy for each [physical] resource you overpaid for this card (to a maximum of [physical][physical][physical])."
+  },
+  "flavor": "\"This feels...it feels so...good.\" —Carnage",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.13.rend-action"
+    }
+  ]
+}

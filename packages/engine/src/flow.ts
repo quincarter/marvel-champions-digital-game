@@ -54,6 +54,7 @@ import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import { settleScenarioDeckTops } from "./resolve/scenario-deck-top.js";
 import {
   announceCardsLeftPlay,
+  announceCardsUnattached,
   announceDeckRunOuts,
   announceEncounterCardsDealt,
   announceEncounterDealsWaiting,
@@ -129,6 +130,10 @@ export function runFlow(ctx: Ctx): void {
     if (announceEncounterCardsFromDecks(ctx)) continue;
     // "When/After X leaves play" (docs/phase7-wave5.md §3.13).
     if (announceCardsLeftPlay(ctx)) continue;
+    // "After [an upgrade] is removed from an enemy" (`cardUnattached`; community pack `yondu-dh`). Looked at after the
+    // leavings, so its frame sits above theirs and resolves first; and pushed above a move's own `cardAttached` (pushed
+    // by the attach as it resolved), so a card moved between hosts is heard coming off before it is heard going on.
+    if (announceCardsUnattached(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
     const checked = checkStateTriggers(ctx);
@@ -191,7 +196,7 @@ function executeStep(ctx: Ctx): void {
     // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
       // A skip made while the player phase's end resolved (`skipsVillainPhaseNow`) is taken before step one.
-      if (!step.placed && skipsVillainPhaseNow(ctx)) return;
+      if (!step.placed && (playerPhaseInsteadNow(ctx) || skipsVillainPhaseNow(ctx))) return;
       return executePlaceThreat(ctx);
     case "enemyActivations":
       return executeEnemyActivations(ctx, step);
@@ -698,7 +703,10 @@ function readyEveryCard(ctx: Ctx): boolean {
 
 /** RRG 1.8 "End of Player Phase" (p. 18) step 5 and the move to the villain phase. */
 function finishPlayerPhase(ctx: Ctx): void {
-  const skipping = (ctx.state.villainPhasesToSkip ?? 0) > 0;
+  // A player phase in place of the villain phase (`replaceNextVillainPhaseWithPlayerPhase`) comes first: it begins from
+  // step one's place once this end has resolved (`playerPhaseInsteadNow`), and a waiting skip waits for the next one.
+  const replacing = (ctx.state.villainPhasesReplacedByPlayerPhase ?? 0) > 0;
+  const skipping = !replacing && (ctx.state.villainPhasesToSkip ?? 0) > 0;
   if (skipping) skipVillainPhase(ctx);
   else setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
@@ -716,7 +724,8 @@ function finishPlayerPhase(ctx: Ctx): void {
   expireLastingEffects(ctx, "endOfPlayerPhase");
   // A skipped villain phase never begins (docs/phase7-wave11-hero-packs.md H3.7): no beginning to answer, and "until
   // the next villain phase begins" lasts on to the next one played (H3.8).
-  if (!skipping) pushVillainPhaseBeginning(ctx);
+  // Nor does one a player phase is played in place of.
+  if (!skipping && !replacing) pushVillainPhaseBeginning(ctx);
   announce(ctx, { kind: "playerPhaseEnded" });
   if (listened) {
     pushEvent(ctx, ending);
@@ -738,8 +747,12 @@ function pushVillainPhaseBeginning(ctx: Ctx): void {
     // p. 26: it "expires as soon as the timing point specified by its duration is reached"). So who hears the beginning
     // is read as the game will stand then, with those effects gone (a text box they blanked is back).
     const then = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((e) => !untilNow.includes(e)) };
-    if (heard(then, ctx.deps, beginning)) pushEvent(ctx, beginning);
-    pushEffects(ctx, { effects: [{ kind: "villainPhaseBegins" }], selfInstanceId: null, controllerId: null });
+    const beginningFrame = heard(then, ctx.deps, beginning) ? pushEvent(ctx, beginning) : null;
+    pushEffects(ctx, {
+      effects: [{ kind: "villainPhaseBegins", ...(beginningFrame ? { beginning: beginningFrame } : {}) }],
+      selfInstanceId: null,
+      controllerId: null,
+    });
   }
 }
 
@@ -774,6 +787,27 @@ function skipVillainPhase(ctx: Ctx): void {
 function skipsVillainPhaseNow(ctx: Ctx): boolean {
   if ((ctx.state.villainPhasesToSkip ?? 0) <= 0) return false;
   skipVillainPhase(ctx);
+  return true;
+}
+
+/**
+ * "Start another player phase" in place of the villain phase about to begin (`EffectSpec
+ * replaceNextVillainPhaseWithPlayerPhase`): one replacement is used up, and a player phase begins within the same
+ * round, before step one. Nothing of the round's end happens (no new round number, token pass, "end of the round"
+ * effects or fresh round limits; RRG 1.8 "Round Overview", p. 4, ends the round at step 10, after the villain phase).
+ * The new phase ends as every player phase does (discard, draw, ready; RRG 1.8 "End of Player Phase", p. 18), and the
+ * villain phase follows. The card's own text starts "player phase", and the RRG defines every player phase with those
+ * end steps ("Player Phase", p. 34; "End of Player Phase", p. 18), so the extra phase gets its own discard, draw and
+ * ready; the author can still override that in the card's text (docs/custom-content-packs.md §6, the pack text is the
+ * authority for custom cards). Returns false when no replacement is waiting.
+ */
+function playerPhaseInsteadNow(ctx: Ctx): boolean {
+  const waiting = ctx.state.villainPhasesReplacedByPlayerPhase ?? 0;
+  if (waiting <= 0) return false;
+  const { villainPhasesReplacedByPlayerPhase: _used, ...rest } = ctx.state;
+  ctx.state = waiting > 1 ? { ...rest, villainPhasesReplacedByPlayerPhase: waiting - 1 } : rest;
+  emit(ctx, { type: "villainPhaseSkipped", round: ctx.state.round, remaining: waiting - 1, playerPhaseInstead: true });
+  beginPlayerPhase(ctx);
   return true;
 }
 
@@ -832,8 +866,10 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
   }
   clearAbilityUses(ctx, "round");
   // "Max X per round" and "first … each round" count again from zero.
+  // "The last card you played this round" (`playedInOrderThisRound`): removed, so a round with no play has no record.
+  const { playedInOrderThisRound: _inOrder, ...previous } = ctx.state;
   ctx.state = {
-    ...ctx.state,
+    ...previous,
     round: ctx.state.round + 1,
     playedThisRound: {},
     playedThisPhase: {},

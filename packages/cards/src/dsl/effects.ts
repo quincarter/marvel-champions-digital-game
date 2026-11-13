@@ -267,6 +267,11 @@ export const useThwInsteadOfAtk = (): EffectSpec => ({ kind: "modifyBasicPower",
  * `attackUsedAtk()` reads (Cap's Shield). Set for you when the amount reads the attacker's ATK: `attack(statOf(
  * yourIdentity, "atk"), …)` and `attack(sum(statOf(yourIdentity, "atk"), 2), …)` are marked, `attack(4, …)` is not.
  * Pass `usesAtk: true` or `false` only when the card's wording says otherwise.
+ *
+ * `ignores: ["guard"]`: "This attack ignores guard" (Hammer Throw, community pack `throg-ptt`), the attack's own
+ * waiver, as `thwart`'s `ignorePatrol` is the thwart's. It covers the whole attack, so pair it with `anAttackableEnemy`
+ * as usual: the choice offers the villain past a guard minion too (RRG 1.8 "Ignore", p. 23; "Guard", p. 21). A
+ * standing "[character] ignores the guard keyword" is `ignores(...)` (`characterIgnores`) instead.
  */
 export const attack = (
   n: Amount,
@@ -278,6 +283,7 @@ export const attack = (
     readonly bind?: string;
     readonly keywords?: readonly AttackKeyword[];
     readonly usesAtk?: boolean;
+    readonly ignores?: readonly "guard"[];
   } = {},
 ): EffectSpec => ({
   kind: "attack",
@@ -288,6 +294,7 @@ export const attack = (
   ...(opts.attacker ? { attacker: opts.attacker } : {}),
   ...(opts.moveDamageFrom ? { moveDamageFrom: opts.moveDamageFrom } : {}),
   ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
+  ...(opts.ignores && opts.ignores.length > 0 ? { ignores: opts.ignores } : {}),
   ...withBind(opts.bind),
 });
 /**
@@ -766,9 +773,17 @@ export const enemyActivates = (
     readonly bonusAfterInterrupts?: boolean;
     readonly extraBoostCards?: Amount;
     readonly boostIconsEach?: Amount;
+    /**
+     * "Apply this card's boost icons for this activation as if it were a boost card" (the Bargain attachments'
+     * Response, community pack `mephisto-nep`): `enemyActivates(theVillain, { against: you, boostCards: self })` after
+     * a `discardThis` cost. The card joins this activation as one of its boost cards and is discarded with it; an
+     * activation that never begins leaves it where it is (`EffectSpec enemyActivation.boostCards`).
+     */
+    readonly boostCards?: TargetRef;
   } = {},
 ): EffectSpec => ({
   kind: "enemyActivation",
+  ...(opts.boostCards ? { boostCards: opts.boostCards } : {}),
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
@@ -1242,6 +1257,19 @@ export const instead = (...effects: readonly EffectArg[]): EffectSpec => ({
 });
 /** RRG "Cancel": the interrupted event doesn't resolve. */
 export const cancelIt = (): EffectSpec => ({ kind: "cancelTriggeringEvent" });
+/**
+ * "[star] Boost: … cancel this activation": inside a `boost(...)` ability, cancels the enemy attack or scheme this boost
+ * card is resolving for. The rest of the Boost ability still resolves; then the activation ends (no damage or threat,
+ * its other boost cards discarded unturned). `cancelIt()` finds nothing in a Boost ability, which has no triggering
+ * event.
+ */
+export const cancelBoostedActivation = (): EffectSpec => ({ kind: "cancelBoostedActivation" });
+/**
+ * "Treat the next card you spend as if it has double the resources." (community pack `yondu-dh`, Jackpot!): a rule for
+ * `applyRuleUntil(doubleNextCardSpent(), "endOfRound")`. The first card from hand the granting ability's controller
+ * spends in a later payment generates double, and the grant is used up by it (`RuleSpec doubleNextCardSpent`).
+ */
+export const doubleNextCardSpent = (): RuleSpec => ({ kind: "doubleNextCardSpent" });
 /** "Cancel its 'When Revealed' effects". */
 export const cancelWhenRevealed = (): EffectSpec => ({ kind: "cancelWhenRevealed" });
 /** "Cancel the effects of that card and discard it". */
@@ -1328,11 +1356,25 @@ export const gainTraitsOfUntil = (
  * Giant Robot). On an identity the whole card is blank, both faces and its keywords, traits and the stat line kept
  * (RRG 1.8 "Text Box", p. 44; "Traits", p. 45), as under the constant `blanksTextBox`.
  */
-export const blankTextBoxUntil = (target: TargetRef, until: LastingUntil): EffectSpec => ({
+export const blankTextBoxUntil = (
+  target: TargetRef,
+  until: LastingUntil,
+  opts: { readonly forPlayers?: PlayerRef } = {},
+): EffectSpec => ({
   kind: "blankTextBox",
   target,
   until,
+  ...(opts.forPlayers ? { forPlayers: opts.forPlayers } : {}),
 });
+/**
+ * "Each player who discarded a card this way may treat this card's printed text box as if it were blank until the end
+ * of the phase" (Cemented, a custom-content side scheme): a blank for the players `players` names only (engine
+ * `EffectSpec blankTextBox.forPlayers`). The card keeps its text for the game and everyone else; for those players its
+ * constant rules do not bind them and its actions are not theirs to trigger. Inside `forEachPlayer`, `thatPlayer`
+ * names the player the iteration is on: `blankTextBoxForPlayers(self, thatPlayer, "endOfPhase")`.
+ */
+export const blankTextBoxForPlayers = (target: TargetRef, players: PlayerRef, until: LastingUntil): EffectSpec =>
+  blankTextBoxUntil(target, until, { forPlayers: players });
 /**
  * A `RuleSpec` restriction that outlives its own card — "You cannot change form until your next turn ends." (Care
  * for Cassie, `ant` 12025) / "You cannot ready your identity until your next turn ends." (Need for Speed, `qsv`
@@ -1560,10 +1602,17 @@ export const zone = (
 });
 /** "The top N cards of your deck". */
 export const topOfDeck = (n: Amount, player: PlayerRef = you): CardSelector => zone("deck", player, { top: n });
-export const cards = (ref: TargetRef, filter?: TargetQuery): CardSelector => ({
+/**
+ * The cards a ref names (in play, or wherever the ref finds them). `opts.random`: that many of them, picked by the
+ * game's seeded RNG, fewer when fewer are there: "discard 1 upgrade you control at random" is
+ * `selectCards("up", cards(each(query("upgrade", { controller: "you" })), undefined, { random: 1 }))` then
+ * `discard(chosen("up"))` (`CardSelector ref.random`).
+ */
+export const cards = (ref: TargetRef, filter?: TargetQuery, opts: { readonly random?: Amount } = {}): CardSelector => ({
   kind: "ref",
   ref,
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /**
  * The cards a ref names that are in that zone of their owner right now: "tuck that event **from your discard pile**
@@ -1659,12 +1708,24 @@ export const setAside = (
 /**
  * The cards in a scenario out-of-play area, e.g. "The Collection" (docs/phase7-wave3.md §3.14): `scenarioArea(name)`
  * as a `CardSelector` ("discard 1 card from The Collection"); `{ scenarioArea: name }` is already a valid
- * `CardDestination` for `moveCards`' own `to`, with no wrapper needed ("put it faceup into The Collection").
+ * `CardDestination` for `moveCards`' own `to`, with no wrapper needed ("put it faceup into The Collection"), and
+ * `moveCards(from, { scenarioArea: name }, undefined, { facedown: true })` puts cards in facedown ("put 1[per_hero] card
+ * from the top of your deck facedown into Damnation", community pack `mephisto-nep`).
+ *
+ * `opts.random`: that many of the area's cards at random, for a facedown area whose cards nobody can tell apart: "look
+ * at 1 card in Damnation -> shuffle it back into its owner's deck" is
+ * `moveCards(scenarioArea("Damnation", undefined, { random: 1 }), "deckShuffle")` (each card goes to its own owner's
+ * deck). Count with `scenarioAreaCount(name, filter)`; "your cards in Damnation" is the filter `{ owner: "you" }`.
  */
-export const scenarioArea = (name: string, filter?: TargetQuery): CardSelector => ({
+export const scenarioArea = (
+  name: string,
+  filter?: TargetQuery,
+  opts: { readonly random?: Amount } = {},
+): CardSelector => ({
   kind: "scenarioArea",
   name,
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /**
  * "Prepare the evidence" (MC50 p. 18, by the three steps of p. 5; docs/phase7-wave9.md §3.29 (a)): the evidence cards
@@ -1819,6 +1880,9 @@ export const oneCopyOf = (from: CardSelector): CardSelector => atMost(1, from);
  *   wherever they are.
  * - `perPlayerAs`, with `to: "reveal"`: "… and reveal it, **treating each [per player] on it as 1**" (Embody Pathos;
  *   H3.5) is `perPlayerAs: 1` on that same find; see `revealCard`.
+ * - `anywhere`: "search everywhere in or out of play" (DesignHacker's Summon keyword, community pack `yondu-dh`): beyond
+ *   what a find reaches, also cards removed from the game, the victory display, the players' facedown dealt encounter
+ *   cards, facedown encounter cards in play, facedown attachments and boost cards. Wider than Find on purpose.
  */
 export const findCard = (
   q: TargetQuery,
@@ -1829,6 +1893,7 @@ export const findCard = (
     readonly choose?: boolean;
     readonly outOfPlay?: boolean;
     readonly perPlayerAs?: number;
+    readonly anywhere?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "findCard",
@@ -1838,6 +1903,7 @@ export const findCard = (
   ...withBind(opts.bind),
   ...(opts.choose ? { choose: true as const } : {}),
   ...(opts.outOfPlay ? { outOfPlay: true as const } : {}),
+  ...(opts.anywhere ? { anywhere: true as const } : {}),
   ...(opts.perPlayerAs !== undefined ? { perPlayerAs: opts.perPlayerAs } : {}),
 });
 /**
@@ -1848,7 +1914,12 @@ export const moveCards = (
   from: CardSelector,
   to: CardDestination,
   bind?: string,
-  options: { readonly takenAwayNotCounted?: true; readonly shuffleEvenIfEmpty?: true } = {},
+  options: {
+    readonly takenAwayNotCounted?: true;
+    readonly shuffleEvenIfEmpty?: true;
+    /** `to: { scenarioArea }` only: the cards go in facedown (`EffectSpec moveCards.facedown`). */
+    readonly facedown?: true;
+  } = {},
 ): EffectSpec => ({
   kind: "moveCards",
   cards: from,
@@ -1856,6 +1927,7 @@ export const moveCards = (
   ...withBind(bind),
   ...(options.takenAwayNotCounted ? { takenAwayNotCounted: true as const } : {}),
   ...(options.shuffleEvenIfEmpty ? { shuffleEvenIfEmpty: true as const } : {}),
+  ...(options.facedown ? { facedown: true as const } : {}),
 });
 /**
  * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): `from` is an
@@ -2240,12 +2312,22 @@ export const putLinkedAllyIntoPlay = (controller: PlayerRef, slot = "linkedAlly"
   selectCards(slot, encounterSetAside(query("ally", { sharesTitleWith: self }))),
   putIntoPlay(chosen(slot), controller),
 ];
-/** "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." */
-export const putIntoPlayFacedown = (player: PlayerRef, as: FacedownRole, count?: Amount): EffectSpec => ({
+/**
+ * "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." `opts.from: "discard"`:
+ * the top card of the player's discard pile instead ("put the top card of your discard pile facedown engaged with you as
+ * a Mystic minion", Lilith, community pack `mephisto-nep` 41); an empty pile puts nothing in.
+ */
+export const putIntoPlayFacedown = (
+  player: PlayerRef,
+  as: FacedownRole,
+  count?: Amount,
+  opts: { readonly from?: "deck" | "discard" } = {},
+): EffectSpec => ({
   kind: "putIntoPlayFacedown",
   player,
   as,
   ...(count !== undefined ? { count: amount(count) } : {}),
+  ...(opts.from === "discard" ? { from: "discard" as const } : {}),
 });
 export const AS_DRONE: FacedownRole = { kind: "minion", traits: [TRAIT.DRONE] };
 /** "… puts the top card of their deck into play facedown, engaged with them as a Drone minion." */
@@ -2549,6 +2631,14 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  * 32151; docs/phase7-wave6.md §3.16), with `card` a slot an earlier `selectCards` bound. Only a card out of play is
  * given; none found, nothing given.
  */
+/**
+ * "Hero Interrupt: When Carnage uses a basic power, you may give him a boost card." (Klyntar Bond, a custom-content
+ * card): `heroInterrupt(on.basicPowerUsing(YOUR_IDENTITY), giveBasicPowerBoostCard())`. Gives the character using the
+ * power a facedown boost card and resolves it with that use as the villainous keyword does (engine `EffectSpec
+ * giveBasicPowerBoostCard`; RRG 1.8 "Villainous", p. 47): its Boost ability resolves and its icons add to the stat
+ * powering the use, then it is discarded. Only in an interrupt to `basicPowerUsing`; the optional interrupt is the "may".
+ */
+export const giveBasicPowerBoostCard = (): EffectSpec => ({ kind: "giveBasicPowerBoostCard" });
 export const giveBoostCard = (
   enemy: TargetRef = theVillain,
   countOrCard: Amount | { readonly card: TargetRef } = 1,
@@ -2598,6 +2688,69 @@ export const removeAccelerationToken = (from?: TargetRef): EffectSpec => ({
  * Q101 open, default A: the first player token stays). Cards dealt meanwhile wait for the next villain phase played.
  */
 export const skipNextVillainPhase = (): EffectSpec => ({ kind: "skipNextVillainPhase" });
+/**
+ * "When the villain phase would begin, instead remove this card from the game → start another player phase" (custom
+ * content): the next villain phase is replaced by a player phase within the same round (no new round, no token pass,
+ * round limits and "until the end of the round" effects carry on; the extra phase ends with its own discard, draw and
+ * ready). As an interrupt to the villain phase beginning, cancel that beginning too:
+ * `forcedInterrupt(on.phaseBeginning("villain"), cancelIt(), moveCards(cards(self), "removedFromGame"),
+ * replaceNextVillainPhaseWithPlayerPhase())`. Engine `EffectSpec replaceNextVillainPhaseWithPlayerPhase`.
+ */
+export const replaceNextVillainPhaseWithPlayerPhase = (): EffectSpec => ({
+  kind: "replaceNextVillainPhaseWithPlayerPhase",
+});
+/**
+ * "Resolve all the PURPLE BUBBLES in play" (custom content): every ability tagged `tag` (`tagged(...)`) on the cards in
+ * play `cards` matches (absent: every card in play), in the order the calling ability's player chooses (the first
+ * player's for a card nobody controls). `of`: cards named wherever they are, resolved with the others ("remove this
+ * card from the game → resolve all the PINK BUBBLES in play", with this card's own bubble: `{ of: self }`). `bind`:
+ * `<bind>.count`, how many resolved. Engine `EffectSpec resolveSpecials` with `tag`.
+ */
+export const resolveTagged = (tag: string, opts: TaggedResolveOptions = {}): EffectSpec =>
+  taggedResolve(tag, opts, false);
+/**
+ * "Resolve whatever is written in a PINK BUBBLE in play" (custom content): `resolveTagged` with `pick: "one"`: the
+ * calling ability's player picks one of the tagged abilities (a flavor one included) and only it resolves.
+ */
+export const resolveOneTagged = (tag: string, opts: TaggedResolveOptions = {}): EffectSpec =>
+  taggedResolve(tag, opts, true);
+interface TaggedResolveOptions {
+  readonly cards?: TargetQuery;
+  readonly of?: TargetRef;
+  readonly player?: PlayerRef;
+  readonly bind?: string;
+}
+const taggedResolve = (tag: string, opts: TaggedResolveOptions, one: boolean): EffectSpec => ({
+  kind: "resolveSpecials",
+  cards: opts.cards ?? {},
+  tag,
+  ...(one ? { pick: "one" as const } : {}),
+  ...(opts.of ? { of: opts.of } : {}),
+  ...(opts.player ? { player: opts.player } : {}),
+  ...withBind(opts.bind),
+});
+/**
+ * "Ignore one keyword on one card until the end of the round" (custom content): the card loses every `keyword` of that
+ * name for the duration (RRG 1.8 "'Loses'", p. 27). Engine `EffectSpec grantKeywordUntil.loses`.
+ */
+export const loseKeywordUntil = (keyword: KeywordInstance, target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "grantKeywordUntil",
+  keyword,
+  target,
+  until,
+  loses: true,
+});
+/**
+ * "Ignore one trait on one card until the end of the round" (custom content): the card loses the trait for the
+ * duration (RRG 1.8 "'Loses'", p. 27); still printed. Engine `EffectSpec grantTraitUntil.loses`.
+ */
+export const loseTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "grantTraitUntil",
+  trait: t,
+  target,
+  until,
+  loses: true,
+});
 /**
  * "Remove an acceleration token from play" (De-escalation 60024): the chooser (default the ability's controller) picks
  * a card in play holding one, any main scheme stage, in any game area, or an `acceleration` counter on another card,

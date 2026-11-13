@@ -1,0 +1,141 @@
+{
+  "id": "sample-scenario-crisis",
+  "version": "1",
+  "name": "Clockwork Crisis",
+  "description": "A two-scenario sample campaign: stop the Clockmaker, then face Rhino with the parts you took from his workshop. Shows a campaign log with a number and a flag, written between games and read in a game's setup.",
+  "tagline": "A story in two issues",
+  "definition": {
+    "campaignId": "sample-scenario-crisis",
+    "version": "1",
+    "logFields": [
+      {
+        "id": "cogs",
+        "label": "Spare cogs",
+        "scope": "shared",
+        "type": { "kind": "number", "min": 0 },
+        "citation": "Clockwork Crisis p. 1"
+      },
+      {
+        "id": "stopped",
+        "label": "Clockmaker stopped?",
+        "scope": "shared",
+        "type": { "kind": "flag" },
+        "citation": "Clockwork Crisis p. 1"
+      }
+    ],
+    "graph": {
+      "kind": "linear",
+      "nodes": [
+        {
+          "id": "clockmaker",
+          "label": "The Clockmaker",
+          "scenario": { "kind": "fixed", "scenarioId": "sample-scenario-clockwork" },
+          "setup": [],
+          "victory": [
+            {
+              "id": "crisis.s1.victory.stopped",
+              "text": "Check the \"Clockmaker stopped?\" box in the campaign log, and record 1 spare cog.",
+              "citation": "Clockwork Crisis p. 1",
+              "step": {
+                "kind": "betweenGames",
+                "ops": [
+                  { "kind": "setField", "field": "stopped", "value": { "kind": "const", "value": true } },
+                  { "kind": "setField", "field": "cogs", "value": { "kind": "const", "value": 1 } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "street-fight",
+          "label": "Rhino on the Street",
+          "scenario": { "kind": "fixed", "scenarioId": "rhino" },
+          "setup": [
+            {
+              "id": "crisis.s2.setup.cogs",
+              "text": "If the Clockmaker was stopped, each player draws 1 card for each spare cog recorded in the campaign log.",
+              "citation": "Clockwork Crisis p. 2",
+              "step": {
+                "kind": "inGame",
+                "window": "afterScenarioSetup",
+                "effects": [
+                  {
+                    "kind": "if",
+                    "condition": { "kind": "campaignLog", "field": "stopped", "isSet": true },
+                    "then": [
+                      {
+                        "kind": "forEachPlayer",
+                        "players": { "kind": "each" },
+                        "effects": [
+                          {
+                            "kind": "draw",
+                            "player": { "kind": "scoped" },
+                            "amount": { "kind": "campaignLog", "field": "cogs" }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "victory": [
+            {
+              "id": "crisis.s2.victory.cogs",
+              "text": "Add 1 to the spare cogs recorded in the campaign log.",
+              "citation": "Clockwork Crisis p. 2",
+              "step": {
+                "kind": "betweenGames",
+                "ops": [{ "kind": "addToField", "field": "cogs", "value": { "kind": "const", "value": 1 } }]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "loss": { "retry": "free", "retryBaseline": "nodeStart", "citation": "Clockwork Crisis p. 1" }
+  },
+  "record": {
+    "scenarioIds": ["sample-scenario-clockwork", "rhino"],
+    "campaignSetIds": []
+  },
+  "story": {
+    "blurb": "The Clockmaker's workshop ticks beneath the city. Shut it down, then keep what you took from it ahead of Rhino's charge.",
+    "rosterBanner": "Two issues. One workshop. Plenty of spare parts.",
+    "issues": [
+      {
+        "nodeId": "clockmaker",
+        "title": "Ticking Away",
+        "villain": "The Clockmaker",
+        "blurb": "Every clock in the district has stopped at the same minute.",
+        "briefing": {
+          "speaker": { "kind": "narrator" },
+          "text": "The city's clocks have stopped. Someone is winding something much bigger."
+        },
+        "aftermath": {
+          "speaker": { "kind": "villain" },
+          "text": "You may have stopped me, but time is not on your side."
+        },
+        "rewindTaunt": "Tick. Tock. Try again."
+      },
+      {
+        "nodeId": "street-fight",
+        "title": "Rhino on the Street",
+        "villain": "Rhino",
+        "blurb": "Someone has hired muscle to take back the workshop's parts.",
+        "briefing": {
+          "speaker": { "kind": "narrator" },
+          "text": "With the workshop quiet, a familiar rampage comes down the avenue."
+        },
+        "rewindTaunt": "Nothing stops the Rhino!"
+      }
+    ],
+    "finale": {
+      "caption": "The city's clocks start again.",
+      "headline": "Time Restored",
+      "villainLine": "A broken clock is right twice a day. Not today.",
+      "heroLines": ["Back on schedule."]
+    }
+  }
+}

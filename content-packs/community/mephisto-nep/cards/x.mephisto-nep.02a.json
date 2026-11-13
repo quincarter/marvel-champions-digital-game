@@ -1,0 +1,142 @@
+{
+  "id": "x.mephisto-nep.02a",
+  "type": "main_scheme",
+  "name": "Battle for the Soul",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "4/28, 5/28, 6/28 (1A/1B, 2A/2B, 3A/3B)",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "stages": [
+    {
+      "stageNumber": 1,
+      "startingThreat": {
+        "base": 0,
+        "perPlayer": 2
+      },
+      "targetThreat": {
+        "base": 0,
+        "perPlayer": 6
+      },
+      "acceleration": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "icons": [],
+      "text": {
+        "printed": "Forced Response: At the end of your turn, resolve the \"Hidden Clause\" ability for each Bargain attachment you control.\nHidden Clause — Special: Put 1[per_hero] card from the top of your deck facedown into Damnation.",
+        "current": "Forced Response: At the end of your turn, resolve the \"Hidden Clause\" ability for each Bargain attachment you control.\nHidden Clause — Special: Put 1[per_hero] card from the top of your deck facedown into Damnation."
+      },
+      "traits": [],
+      "keywords": [],
+      "abilities": [
+        {
+          "id": "x.mephisto-nep.02a.forced-response"
+        },
+        {
+          "id": "x.mephisto-nep.02a.hidden-clause"
+        }
+      ],
+      "aSide": {
+        "text": {
+          "printed": "Contents: Mephisto (I) and Mephisto (II). (Mephisto (II) and Mephisto (III) for expert mode.) Mephisto, Blackheart, Damned, and Standard encounter sets. One modular encounter set (Corruptive Offers or Mother of Demons).\nSetup: Put the Hell Lord attachment aside, out of play. Put the Gateway to Corruption environment into play. Create the \"Damnation\" game area (see insert for details).",
+          "current": "Contents: Mephisto (I) and Mephisto (II). (Mephisto (II) and Mephisto (III) for expert mode.) Mephisto, Blackheart, Damned, and Standard encounter sets. One modular encounter set (Corruptive Offers or Mother of Demons).\nSetup: Put the Hell Lord attachment aside, out of play. Put the Gateway to Corruption environment into play. Create the \"Damnation\" game area (see insert for details)."
+        },
+        "abilities": [
+          {
+            "id": "x.mephisto-nep.02a.setup"
+          }
+        ]
+      }
+    },
+    {
+      "stageNumber": 2,
+      "startingThreat": {
+        "base": 0,
+        "perPlayer": 3
+      },
+      "targetThreat": {
+        "base": 0,
+        "perPlayer": 9
+      },
+      "acceleration": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "icons": [],
+      "text": {
+        "printed": "Forced Response: At the end of your turn, resolve the \"Hidden Clause\" ability for each Bargain attachment you control.\nHidden Clause — Special: Put 2[per_hero] cards from the top of your deck facedown into Damnation.",
+        "current": "Forced Response: At the end of your turn, resolve the \"Hidden Clause\" ability for each Bargain attachment you control.\nHidden Clause — Special: Put 2[per_hero] cards from the top of your deck facedown into Damnation."
+      },
+      "traits": [],
+      "keywords": [],
+      "abilities": [
+        {
+          "id": "x.mephisto-nep.02a.forced-response-2"
+        },
+        {
+          "id": "x.mephisto-nep.02a.hidden-clause-2"
+        }
+      ],
+      "aSide": {
+        "text": {
+          "printed": "When Revealed: Shuffle each Bargain attachment from the encounter discard pile into the encounter deck. In player order, each player must search the encounter deck for a Bargain attachment and reveal it. (Shuffle.)",
+          "current": "When Revealed: Shuffle each Bargain attachment from the encounter discard pile into the encounter deck. In player order, each player must search the encounter deck for a Bargain attachment and reveal it. (Shuffle.)"
+        },
+        "abilities": [
+          {
+            "id": "x.mephisto-nep.02a.when-revealed-2"
+          }
+        ]
+      },
+      "name": "Fiendish Investment"
+    },
+    {
+      "stageNumber": 3,
+      "startingThreat": {
+        "base": 0,
+        "perPlayer": 9
+      },
+      "targetThreat": {
+        "base": 0,
+        "perPlayer": 18
+      },
+      "acceleration": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "completionLoses": true,
+      "icons": [],
+      "text": {
+        "printed": "Forced Response: At the end of your turn, resolve the \"Hidden Clause\" ability for each Bargain attachment you control.\nHidden Clause — Special: Put 3[per_hero] cards from the top of your deck facedown into Damnation.\nIf there is no threat here, the players win the game.\nIf this stage is completed, the players lose the game.",
+        "current": "Forced Response: At the end of your turn, resolve the \"Hidden Clause\" ability for each Bargain attachment you control.\nHidden Clause — Special: Put 3[per_hero] cards from the top of your deck facedown into Damnation.\nIf there is no threat here, the players win the game.\nIf this stage is completed, the players lose the game."
+      },
+      "traits": [],
+      "keywords": [],
+      "abilities": [
+        {
+          "id": "x.mephisto-nep.02a.forced-response-3"
+        },
+        {
+          "id": "x.mephisto-nep.02a.hidden-clause-3"
+        },
+        {
+          "id": "x.mephisto-nep.02a.win-condition"
+        }
+      ],
+      "aSide": {
+        "text": {
+          "printed": "When Revealed: Shuffle each Bargain attachment from the encounter discard pile into the encounter deck. Flip the Gateway to Corruption environment to reveal the Hell environment.",
+          "current": "When Revealed: Shuffle each Bargain attachment from the encounter discard pile into the encounter deck. Flip the Gateway to Corruption environment to reveal the Hell environment."
+        },
+        "abilities": [
+          {
+            "id": "x.mephisto-nep.02a.when-revealed-3"
+          }
+        ]
+      },
+      "name": "Hellbound Obsession"
+    }
+  ]
+}

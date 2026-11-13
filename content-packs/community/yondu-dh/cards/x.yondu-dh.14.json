@@ -1,0 +1,29 @@
+{
+  "id": "x.yondu-dh.14",
+  "name": "Price on Your Head",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "14",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["yondu-dh-nemesis"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["acceleration"],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Forced Response: After a friendly character is defeated, heal 1 damage from Sav'rkk. If Sav'rkk is not in play, heal 1 damage from the villain instead.",
+    "current": "Forced Response: After a friendly character is defeated, heal 1 damage from Sav'rkk. If Sav'rkk is not in play, heal 1 damage from the villain instead."
+  },
+  "flavor": "The heroes are on the bad side of some nasty intergalactic malcontents who have sent the bounty hunter Sav'rkk after them.",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.14.price-on-your-head-forced-response"
+    }
+  ]
+}

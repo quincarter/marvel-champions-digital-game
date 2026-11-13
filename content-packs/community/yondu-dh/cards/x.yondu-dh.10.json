@@ -1,0 +1,30 @@
+{
+  "id": "x.yondu-dh.10",
+  "name": "Ravage",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "10",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 2,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["SKILL", "TACTIC"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Minions with a wound counter gain the fragile keyword. (Attacks against fragile characters gain overkill.)\nHero Response: After the Yaka Arrow upgrade is attached to a minion, exhaust Ravage → place a wound counter on that minion.",
+    "current": "Minions with a wound counter gain the fragile keyword. (Attacks against fragile characters gain overkill.)\nHero Response: After the Yaka Arrow upgrade is attached to a minion, exhaust Ravage → place a wound counter on that minion."
+  },
+  "abilities": [
+    {
+      "id": "x.yondu-dh.10.ravage-constant"
+    },
+    {
+      "id": "x.yondu-dh.10.ravage-response"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "id": "x.night-thrasher-dh.01a",
+  "name": "Night Thrasher",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "hero_identity",
+  "hp": 9,
+  "hero": {
+    "faceName": "Night Thrasher",
+    "traits": ["AVENGER", "NEW WARRIOR"],
+    "atk": 1,
+    "thw": 1,
+    "def": 1,
+    "handSize": 5,
+    "keywords": [],
+    "text": {
+      "printed": "Varial Heelflip — Response: After you play a SKILL card, flip the Battle Board upgrade. (Limit once per phase.)",
+      "current": "Varial Heelflip — Response: After you play a SKILL card, flip the Battle Board upgrade. (Limit once per phase.)"
+    },
+    "flavor": "\"I'm sick of you amateurs getting in my way!\"",
+    "abilities": [
+      {
+        "id": "x.night-thrasher-dh.01a.varial-heelflip",
+        "label": "Varial Heelflip"
+      }
+    ]
+  },
+  "alterEgo": {
+    "faceName": "Dwayne Taylor",
+    "traits": ["GENIUS"],
+    "rec": 3,
+    "handSize": 6,
+    "keywords": [],
+    "text": {
+      "printed": "Tech Deck — During deck-building you may include up to 4 SKILL cards in your deck from aspects other than your own.\nManual — Action: Shuffle X SKILL cards from your hand into your deck → draw X cards. (Limit once per round.)",
+      "current": "Tech Deck — During deck-building you may include up to 4 SKILL cards in your deck from aspects other than your own.\nManual — Action: Shuffle X SKILL cards from your hand into your deck → draw X cards. (Limit once per round.)"
+    },
+    "abilities": [
+      {
+        "id": "x.night-thrasher-dh.01b.dwayne-taylor-constant"
+      },
+      {
+        "id": "x.night-thrasher-dh.01b.manual",
+        "label": "Manual"
+      }
+    ]
+  },
+  "obligationCardId": "x.night-thrasher-dh.12",
+  "nemesisEncounterSetId": "night-thrasher-dh-nemesis",
+  "deckbuilding": {
+    "offAspectAllowance": {
+      "anyTrait": ["SKILL"],
+      "maxCards": 4
+    }
+  }
+}

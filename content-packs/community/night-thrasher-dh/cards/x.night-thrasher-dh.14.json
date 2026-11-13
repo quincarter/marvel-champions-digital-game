@@ -1,0 +1,37 @@
+{
+  "id": "x.night-thrasher-dh.14",
+  "name": "Cemented",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "14",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["night-thrasher-dh-nemesis"],
+  "startingThreat": {
+    "base": 2,
+    "perPlayer": 0
+  },
+  "icons": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "hinder",
+      "value": 0,
+      "perPlayer": 1
+    }
+  ],
+  "text": {
+    "printed": "Hinder 1[per_hero].\nPlayers cannot make basic attacks with heroes or allies or flip upgrades or identities.\nAction: Each player may discard 1 card from their hand. Until the end of the phase, each player who discarded a card this way may treat this card's printed text box as if it were blank.",
+    "current": "Hinder 1[per_hero].\nPlayers cannot make basic attacks with heroes or allies or flip upgrades or identities.\nAction: Each player may discard 1 card from their hand. Until the end of the phase, each player who discarded a card this way may treat this card's printed text box as if it were blank."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.14.cemented-constant"
+    },
+    {
+      "id": "x.night-thrasher-dh.14.cemented-action"
+    }
+  ]
+}

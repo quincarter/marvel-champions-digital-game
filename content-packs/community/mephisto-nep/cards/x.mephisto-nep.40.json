@@ -1,0 +1,30 @@
+{
+  "id": "x.mephisto-nep.40",
+  "type": "environment",
+  "name": "Condemned Soul Portal",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D12/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Discard a non-Elite minion in play. Otherwise, this card gains surge.\nForced Response: After a printed non-Elite Mystic minion is defeated, shuffle that minion into the encounter deck.\nHero Action: If there are no Mystic minions in play, spend 2 resources of any type → discard this card.",
+    "current": "When Revealed: Discard a non-Elite minion in play. Otherwise, this card gains surge.\nForced Response: After a printed non-Elite Mystic minion is defeated, shuffle that minion into the encounter deck.\nHero Action: If there are no Mystic minions in play, spend 2 resources of any type → discard this card."
+  },
+  "flavor": "Through sacrificing the guilty, greater evils can breach the realms across the multiverse.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.40.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.40.forced-response"
+    },
+    {
+      "id": "x.mephisto-nep.40.hero-action"
+    }
+  ]
+}

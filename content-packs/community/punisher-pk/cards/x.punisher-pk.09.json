@@ -1,0 +1,27 @@
+{
+  "id": "x.punisher-pk.09",
+  "name": "Maggia Thug",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "9",
+  "quantityInSet": 4,
+  "unique": false,
+  "type": "minion",
+  "atk": 1,
+  "sch": 1,
+  "hp": 3,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 1,
+  "traits": ["CRIMINAL", "MAGGIA"],
+  "keywords": [],
+  "text": {
+    "printed": "Ignore Maggia Thug when resolving Frank's War's \"Forced Interrupt\" ability.",
+    "current": "Ignore Maggia Thug when resolving Frank's War's \"Forced Interrupt\" ability."
+  },
+  "flavor": "\"Nobody said nothin' about the Punisher when I took this job!\"",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.09.maggia-thug-constant"
+    }
+  ]
+}

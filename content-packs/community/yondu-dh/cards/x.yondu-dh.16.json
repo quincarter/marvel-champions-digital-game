@@ -1,0 +1,45 @@
+{
+  "id": "x.yondu-dh.16",
+  "name": "Sword-Gun-Arm",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "16",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "attachment",
+  "attachesTo": {
+    "kind": "ifAble",
+    "preferred": {
+      "kind": "namedCard",
+      "name": "Sav'rkk"
+    },
+    "otherwise": {
+      "kind": "superlative",
+      "among": "minion",
+      "order": "highest",
+      "measure": "atk"
+    }
+  },
+  "statModifiers": {
+    "atk": 1
+  },
+  "encounterSetIds": ["yondu-dh-nemesis"],
+  "boostIcons": 2,
+  "traits": ["WEAPON"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to Sav'rkk. If you cannot, attach to the minion with the highest ATK. If you cannot, this card gains surge.\n[star] Attached character's attacks gain overkill.\nForced Response: When attached character has 2 or less remaining hit points, discard Sword-Gun-Arm.",
+    "current": "Attach to Sav'rkk. If you cannot, attach to the minion with the highest ATK. If you cannot, this card gains surge.\n[star] Attached character's attacks gain overkill.\nForced Response: When attached character has 2 or less remaining hit points, discard Sword-Gun-Arm."
+  },
+  "abilities": [
+    {
+      "id": "x.yondu-dh.16.sword-gun-arm-constant"
+    },
+    {
+      "id": "x.yondu-dh.16.sword-gun-arm-constant-2"
+    },
+    {
+      "id": "x.yondu-dh.16.sword-gun-arm-forced-response"
+    }
+  ]
+}

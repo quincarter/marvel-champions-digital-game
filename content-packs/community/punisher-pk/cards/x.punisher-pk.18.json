@@ -1,0 +1,35 @@
+{
+  "id": "x.punisher-pk.18",
+  "name": "War Zone",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "18",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "startingThreat": {
+    "base": 2,
+    "perPlayer": 0
+  },
+  "icons": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "hinder",
+      "value": 0,
+      "perPlayer": 1
+    }
+  ],
+  "text": {
+    "printed": "[star] Hinder 1[per_hero].\nThe Punisher cannot be attacked while there is a minion in play.",
+    "current": "[star] Hinder 1[per_hero].\nThe Punisher cannot be attacked while there is a minion in play."
+  },
+  "flavor": "The streets have turned into a warzone. Take down the criminals and regain control.",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.18.war-zone-constant"
+    }
+  ]
+}

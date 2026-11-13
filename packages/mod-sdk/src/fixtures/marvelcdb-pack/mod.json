@@ -1,0 +1,14 @@
+{
+  "format": "draft-0",
+  "id": "ember_test",
+  "name": "Ember Warden",
+  "kind": "hero_pack",
+  "author": "Test Author",
+  "template": "Test Template",
+  "version": "1.2 (test edition)",
+  "permission": { "status": "granted", "scope": "inclusion", "date": "2026-01-02" },
+  "languages": { "base": "en", "en": "author", "es": "Test Translator" },
+  "status": "ready",
+  "files": { "images": { "en": "images/en/", "es": "images/es/" }, "alt_art": "alt-art/" },
+  "open": ["Check the flip side's text against the art."]
+}

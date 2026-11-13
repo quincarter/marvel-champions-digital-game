@@ -1,0 +1,39 @@
+{
+  "id": "night-thrasher-dh",
+  "version": "0.1.1",
+  "kind": "hero",
+  "name": "Night Thrasher",
+  "authors": ["DesignHacker"],
+  "description": "Fan-made hero pack by DesignHacker: Night Thrasher.",
+  "cover": "cover.webp",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": {
+    "app": ">=0.1.0",
+    "packs": []
+  },
+  "languages": {
+    "base": "en",
+    "available": ["en", "es"]
+  },
+  "altArt": {
+    "en": {
+      "x.night-thrasher-dh.01b": "alt-art/en/x.night-thrasher-dh.01b.webp"
+    },
+    "es": {
+      "x.night-thrasher-dh.01b": "alt-art/es/x.night-thrasher-dh.01b.webp"
+    }
+  },
+  "permission": {
+    "status": "granted",
+    "by": "DesignHacker",
+    "date": "2026-11-13",
+    "evidence": "Granted by the author(s) in the Marvel Champions homebrew channel on Discord; confirmed by the project owner (Quin Carter) on 2026-11-13. The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/9ce0a25ec5b1b6f08b3a926838d9295babe69758/night_thrasher_dh/mod.json",
+    "scope": "inclusion and translation: the Spanish edition, hand-translated by BluefireF5ran, is covered (owner, 2026-11-13)",
+    "languages": ["en", "es"],
+    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message."
+  },
+  "templateCredit": "Hitch",
+  "translators": {
+    "es": "Francisco Merchán"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "x.gwenpool-ptt.11",
+  "name": "Too Much Pink",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "11",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "obligation",
+  "encounterSetIds": [],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Give to the Gwendolyn Poole player.\nIncrease the resource cost of each upgrade, support and ally with PINK BUBBLES you play by 2.\nAlter-Ego Action: Discard 2 cards with PINK BUBBLES → discard this obligation.",
+    "current": "Give to the Gwendolyn Poole player.\nIncrease the resource cost of each upgrade, support and ally with PINK BUBBLES you play by 2.\nAlter-Ego Action: Discard 2 cards with PINK BUBBLES → discard this obligation."
+  },
+  "flavor": "\"Oh no...\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.11.too-much-pink-constant"
+    },
+    {
+      "id": "x.gwenpool-ptt.11.too-much-pink-action"
+    }
+  ]
+}

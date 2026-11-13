@@ -16,6 +16,10 @@ import { guidePrefs } from "../guide/guide-store.js";
 import { howToPlayProgressOf } from "../view/how-to-play-model.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
+import { parsePackAchievements } from "@mc/content";
+import { IdbPackStore, type InstalledPack } from "../packs/pack-store.js";
+import { loadedPacks, onLoadedPacksChange } from "../packs/pack-registry.js";
+import { noteModInstalls, readModInstalls } from "./mod-installs.js";
 import { readDeckFeats } from "./deck-feats.js";
 import {
   NO_HISTORY,
@@ -86,6 +90,9 @@ let current: Unlocks | null = null;
 let extrasProgress: ExtrasProgress = NO_EXTRAS_PROGRESS;
 let currentExtras: Extras | null = null;
 
+// A pack installed, updated or removed changes which mods are noted and which pack achievements are listed.
+onLoadedPacksChange(() => void refreshUnlocks().catch(() => false));
+
 export function unlocks(): Unlocks {
   prefs ??= readPrefs();
   current ??= new Unlocks({ progress, prefs, devUnlockAll, achievementPoints });
@@ -117,6 +124,14 @@ export function extras(): Extras {
   return currentExtras;
 }
 
+/** One read-only handle on the pack store for the install record: it only lists, the Mod Store has its own. */
+let modInstallStore: IdbPackStore | undefined;
+function modInstalls(): Promise<InstalledPack[]> {
+  if (typeof indexedDB === "undefined") return Promise.resolve([]);
+  modInstallStore ??= new IdbPackStore();
+  return modInstallStore.list();
+}
+
 /**
  * Re-reads progress from storage. True when the unlocks changed since the last read; Extras progress is refreshed by
  * the same read, and the Extras screen redraws after it regardless.
@@ -132,7 +147,11 @@ export async function refreshUnlocks(): Promise<boolean> {
       .catch(() => []),
   ]);
   const deckFeats = readDeckFeats();
-  const nextHistory = {
+  // Mods (docs/custom-content-packs.md section 11.12): every installed pack is noted once, for good, so removing a mod
+  // never takes its install achievements back. The achievements of the packs loaded now come from the loaded runtimes.
+  const installedPacks = await modInstalls().catch((): InstalledPack[] => []);
+  noteModInstalls(installedPacks.map((pack) => ({ id: pack.id, kind: pack.manifest.kind })));
+  const nextHistory: AchievementHistory = {
     saves,
     campaigns,
     howToPlay: howToPlayProgressOf(guidePrefs()),
@@ -140,6 +159,26 @@ export async function refreshUnlocks(): Promise<boolean> {
     unlockedEverything: unlockedEverythingEver((prefs ?? readPrefs()).unlockAll),
     // A deck built before the feat was noted still counts while it is in your decks.
     decks: { ...deckFeats, built: deckFeats.built || savedDecks.some((deck) => deck.source.kind === "userBuilt") },
+    mods: {
+      installed: readModInstalls(),
+      // Every installed pack's list, active or not (a pack switched off keeps its locked rows); a loaded runtime wins.
+      packs: [
+        ...loadedPacks().map((pack) => ({
+          id: pack.id,
+          name: pack.name,
+          achievements: pack.achievements ?? [],
+          installed: true,
+        })),
+        ...installedPacks
+          .filter((pack) => !loadedPacks().some((one) => one.id === pack.id))
+          .map((pack) => ({
+            id: pack.id,
+            name: pack.manifest.name,
+            achievements: parsePackAchievements(pack.manifest.achievements),
+            installed: true,
+          })),
+      ],
+    },
   };
   const nextEarned = achievementStatuses(nextHistory)
     .filter((status) => status.earned)

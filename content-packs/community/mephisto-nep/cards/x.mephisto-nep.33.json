@@ -1,0 +1,38 @@
+{
+  "id": "x.mephisto-nep.33",
+  "type": "minion",
+  "name": "Demon Soldier",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D3/12, D4/12",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "atk": 2,
+  "sch": 1,
+  "hp": 3,
+  "boostIcons": 0,
+  "starIcon": true,
+  "traits": ["MYSTIC"],
+  "keywords": [
+    {
+      "name": "guard"
+    },
+    {
+      "name": "teamwork",
+      "sharedTrait": "MYSTIC"
+    }
+  ],
+  "text": {
+    "printed": "Guard. Teamwork (Mystic).\nWhen Revealed: Take 1 indirect damage.\n[star] Boost: After this activation, put this minion into play engaged with you.",
+    "current": "Guard. Teamwork (Mystic).\nWhen Revealed: Take 1 indirect damage.\n[star] Boost: After this activation, put this minion into play engaged with you."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.33.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.33.boost"
+    }
+  ]
+}

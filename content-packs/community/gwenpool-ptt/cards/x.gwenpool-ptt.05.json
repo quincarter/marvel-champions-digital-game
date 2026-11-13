@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.05",
+  "name": "Secrets From The Comics",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "5",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["TACTIC"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action: choose an enemy → mention one of his secrets and confuse that enemy. (You can't mention the same secret again.) That enemy gains -2 ATK until the end of the round.",
+    "current": "Hero Action: choose an enemy → mention one of his secrets and confuse that enemy. (You can't mention the same secret again.) That enemy gains -2 ATK until the end of the round."
+  },
+  "flavor": "\"Jane!\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.05.secrets-from-the-comics-action"
+    },
+    {
+      "id": "x.gwenpool-ptt.05.pink-bubble"
+    }
+  ]
+}

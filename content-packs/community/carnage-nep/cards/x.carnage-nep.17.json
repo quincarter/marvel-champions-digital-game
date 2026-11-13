@@ -1,0 +1,33 @@
+{
+  "id": "x.carnage-nep.17",
+  "name": "Death Spiral",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "17",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "attachment",
+  "attachesTo": {
+    "kind": "namedCard",
+    "name": "Torment"
+  },
+  "encounterSetIds": ["carnage-nep-nemesis"],
+  "boostIcons": 2,
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to Torment. Otherwise, this card gains surge.\n[star] Forced Response: After Torment attacks a friendly character you control, search your deck for an ally or Persona support with the same classification as that character. Discard that card. (Shuffle.)\nHero Action: Spend [mental][physical] resources → discard this card.",
+    "current": "Attach to Torment. Otherwise, this card gains surge.\n[star] Forced Response: After Torment attacks a friendly character you control, search your deck for an ally or Persona support with the same classification as that character. Discard that card. (Shuffle.)\nHero Action: Spend [mental][physical] resources → discard this card."
+  },
+  "abilities": [
+    {
+      "id": "x.carnage-nep.17.death-spiral-constant"
+    },
+    {
+      "id": "x.carnage-nep.17.death-spiral-forced-response"
+    },
+    {
+      "id": "x.carnage-nep.17.death-spiral-action"
+    }
+  ]
+}

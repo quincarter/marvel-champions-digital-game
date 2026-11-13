@@ -186,7 +186,7 @@ export function flipSeparatedCard(ctx: Ctx, playerId: PlayerId, to: Form): void 
     if (canHaveAttached(ctx.state, ctx.deps, identityId, attachment)) {
       moveCard(ctx, attachment, { kind: "attachment", hostInstanceId: identityId });
       movedAttachments.push(attachment);
-    } else leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+    } else leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true, true);
   }
   // What the discard left stays attached to the other card, which flips but stays in play: one whose own leaving an
   // interrupt cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip

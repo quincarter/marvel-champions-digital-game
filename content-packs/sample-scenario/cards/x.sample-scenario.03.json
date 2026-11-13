@@ -1,0 +1,27 @@
+{
+  "id": "x.sample-scenario.03",
+  "type": "minion",
+  "name": "Cog Sentry",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "3",
+  "quantityInSet": 2,
+  "unique": false,
+  "atk": 2,
+  "sch": 1,
+  "hp": 3,
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "boostIcons": 1,
+  "traits": ["ROBOT"],
+  "keywords": [
+    {
+      "name": "retaliate",
+      "value": 1
+    }
+  ],
+  "text": {
+    "printed": "Retaliate 1. (After this character is attacked, deal 1 damage to the attacking character.)",
+    "current": "Retaliate 1. (After this character is attacked, deal 1 damage to the attacking character.)"
+  },
+  "abilities": []
+}

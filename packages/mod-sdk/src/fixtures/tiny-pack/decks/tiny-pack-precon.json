@@ -1,0 +1,12 @@
+{
+  "id": "tiny-pack-precon",
+  "name": "Test Hero (Justice) starter deck",
+  "packCode": "tiny-pack",
+  "identityCardId": "x.tiny-pack.01a",
+  "aspects": ["justice"],
+  "cards": [
+    { "cardId": "x.tiny-pack.02", "quantity": 3 },
+    { "cardId": "01058", "quantity": 1 }
+  ],
+  "provenance": { "verified": false, "sources": ["mod SDK test fixture"] }
+}

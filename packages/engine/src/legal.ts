@@ -32,7 +32,9 @@ import {
   isActionEvent,
   usableEventActions,
   eventActionToExplain,
+  doubledSpentCard,
   handCardResources,
+  spentCardDoublingFactor,
   isAlternativeAmount,
   isWhenSpentUse,
   minimumChosenX,
@@ -96,7 +98,16 @@ import {
   scenarioPlayAreaOf,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { addPools, combineRequirements, poolTotal, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import {
+  addPools,
+  combineRequirements,
+  EMPTY_POOL,
+  poolTotal,
+  requirementTotal,
+  scalePool,
+  type ResolvedRequirement,
+  type ResourcePool,
+} from "./resources.js";
 import { basicPowerCostNeeds } from "./basic-power-uses.js";
 import { dealToCostChoices } from "./deal-to-cost.js";
 import {
@@ -1728,6 +1739,13 @@ export interface PaymentSource {
    * per legal pick, each with what that pick generates ("generate that upgrade's resources", Sync Ratio).
    */
   readonly pool: Readonly<Record<ResourceIconType, number>>;
+  /**
+   * What this hand-card source contributes when it is the card a waiting "treat the next card you spend as if it has
+   * double the resources" doubles (`RuleSpec doubleNextCardSpent`): `pool` with the card's own resources multiplied
+   * (2 per grant). Absent when no grant waits for the card's spender. Only one card of a payment is doubled, the first
+   * spent: `doubledPaymentSource` names it for a selection, and every other picked source counts its `pool`.
+   */
+  readonly doubledPool?: Readonly<Record<ResourceIconType, number>>;
   /** The cards this source's own cost picks, by slot (a resource ability's `ResourceAbilityUse.costChoices`). */
   readonly costChoices?: CostChoices;
   /**
@@ -2121,6 +2139,13 @@ export function paymentFor(
   const claimed = new Set<InstanceId>(
     "costChoices" in bare && bare.costChoices ? Object.values(bare.costChoices).flat() : [],
   );
+  // "Treat the next card you spend as if it has double the resources" (`RuleSpec doubleNextCardSpent`): a waiting grant
+  // doubles one card of the payment, whichever is spent first (`doubledSpentCard`), so a source's `pool` is its plain
+  // value and `doubledPool` the value it has as that card. Which one it is follows the picks (`doubledPaymentSource`).
+  const doubledPoolOf = (id: InstanceId, hand: ResourcePool, rest: ResourcePool = EMPTY_POOL) => {
+    const factor = spentCardDoublingFactor(state, deps, playerId, id);
+    return factor > 1 ? { doubledPool: addPools(scalePool(hand, factor), rest) } : {};
+  };
   const sources = paymentOptions(ctx, playerId, payable.excludeInstanceId, payable.payingFor).flatMap<PaymentSource>(
     (option) => {
       if (option.ref.kind === "card") {
@@ -2128,13 +2153,15 @@ export function paymentFor(
         if (payable.reserved.has(option.ref.instanceId)) return [];
         // A card spent "as if it were in their hand" from under its host (`RuleSpec spendableFromTucked`).
         const at = locateCard(state, option.ref.instanceId);
+        const pool = handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor);
         return [
           {
             optionId: option.optionId,
             kind: "handCard",
             instanceId: option.ref.instanceId,
             label: option.label,
-            pool: handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+            pool,
+            ...doubledPoolOf(option.ref.instanceId, pool),
             ...(at?.kind === "tucked" ? { tuckedUnder: at.hostInstanceId } : {}),
           },
         ];
@@ -2152,29 +2179,30 @@ export function paymentFor(
           abilityId: spending.whenSpent.abilityId,
           ...(amounts ? { costSelection: amounts } : {}),
         };
+        const hand = handCardResources(state, deps, spending.fromHand, playerId, payable.payingFor);
+        const generated = paidForMultiplied(
+          state,
+          deps,
+          payable.payingFor,
+          resourceAbilityGenerates(
+            state,
+            deps,
+            { ...use, ...(picks ? { costChoices: picks } : {}) },
+            playerId,
+            discardTop,
+            payable.payingFor,
+          ),
+          playerId,
+        );
         return [
           {
             optionId: option.optionId,
             kind: "resourceAbility",
             instanceId: spending.fromHand,
             label: option.label,
-            pool: addPools(
-              handCardResources(state, deps, spending.fromHand, playerId, payable.payingFor),
-              paidForMultiplied(
-                state,
-                deps,
-                payable.payingFor,
-                resourceAbilityGenerates(
-                  state,
-                  deps,
-                  { ...use, ...(picks ? { costChoices: picks } : {}) },
-                  playerId,
-                  discardTop,
-                  payable.payingFor,
-                ),
-                playerId,
-              ),
-            ),
+            pool: addPools(hand, generated),
+            // Only the card's own resources double; what its ability generates is not the card's (`priceOf`).
+            ...doubledPoolOf(spending.fromHand, hand, generated),
             spendsHandCard: true,
             ...(picks ? { costChoices: picks } : {}),
             ...(amounts ? { costSelection: amounts } : {}),
@@ -2254,6 +2282,21 @@ export function paymentFor(
  * client to issue; `ok: false` carries the engine's own code and message
  * ("insufficient_resources", "a card cannot pay for itself", …).
  */
+/**
+ * The hand card of a selection (option ids in payment order, as `tryPayment` takes them) that a waiting "treat the next
+ * card you spend as if it has double the resources" doubles (`RuleSpec doubleNextCardSpent`), or null when none does.
+ * The pay step counts that source's `doubledPool` and every other picked source's `pool`, which is what the payment
+ * generates (`doubledSpentCard`, read by `priceOf` and `payPayment` alike). Cheap: no grant waiting, no work.
+ */
+export function doubledPaymentSource(
+  state: GameState,
+  playerId: PlayerId,
+  selectedOptionIds: readonly string[],
+  deps: EngineDeps = DEFAULT_DEPS,
+): InstanceId | null {
+  return doubledSpentCard(state, deps, playerId, paymentsFromOptionIds(selectedOptionIds))?.instanceId ?? null;
+}
+
 export function tryPayment(
   state: GameState,
   playerId: PlayerId,

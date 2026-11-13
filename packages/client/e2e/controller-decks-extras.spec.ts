@@ -235,6 +235,7 @@ test("Decks: Y on a pool card opens the inspect view", async ({ page }) => {
   await walkTo(page, "Decks", "deck:");
   await walkTo(page, "Decks", "pool-card:", "ArrowRight");
   await press(page, Y, async () => (await activeScenes(page)).includes("InspectOverlay"));
-  expect(await activeScenes(page)).toContain("InspectOverlay");
+  // Inspect can take longer than the press's 3 s to come up when the whole suite loads the machine.
+  await expect.poll(() => activeScenes(page), { timeout: 15_000 }).toContain("InspectOverlay");
   expect(errors).toEqual([]);
 });

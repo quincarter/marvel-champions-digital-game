@@ -67,8 +67,12 @@ export interface TopBarOptions {
   readonly right?: string;
   /** Room to keep clear at the right edge for a control the scene draws itself (a switch), so the title stops short of it. */
   readonly reserveRight?: number;
+  /** Pixels the right-hand label stands in from the edge, for a control the scene draws at the edge. */
+  readonly rightInset?: number;
   /** A red chip before the title ("ROUND 4" on the in-game beat). */
   readonly chip?: string;
+  /** A caution-yellow tag after the title ("BETA" on the Mod Store): a screen that is new and still rough. */
+  readonly badge?: string;
   /** The scene's glyph hints: the back button then carries the Cancel glyph (B, Esc) on a pad or keyboard. */
   readonly hints?: GlyphHints | null;
 }
@@ -128,7 +132,7 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   if (options.right) {
     const right = scene.add
       .text(
-        frame.width - pad,
+        frame.width - pad - (options.rightInset ?? 0),
         height / 2,
         options.right.toUpperCase(),
         textStyle(typeRole.label, surface.paper.hex, ink.meta),
@@ -142,7 +146,26 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
     .text(x, height / 2, options.title.toUpperCase(), textStyle(bangers(frame.phone ? 22 : 28), surface.paper.hex))
     .setOrigin(0, 0.5)
     .setLetterSpacing(1);
-  fitText(title, frame.width - pad - rightWidth - x, frame.phone ? 22 : 28);
+  if (!options.badge) {
+    fitText(title, frame.width - pad - rightWidth - x, frame.phone ? 22 : 28);
+    return { height, back, backRect };
+  }
+  const badgeText = scene.add
+    .text(0, height / 2, options.badge.toUpperCase(), textStyle(typeRole.label, surface.ink.hex))
+    .setOrigin(0, 0.5)
+    .setLetterSpacing(1.1);
+  const badgeWidth = badgeText.width + 16;
+  fitText(title, frame.width - pad - rightWidth - x - badgeWidth - 10, frame.phone ? 22 : 28);
+  const badgeX = x + title.displayWidth + 10;
+  // The light/dark toggle sits at the bar's center: on a narrow bar the tag would run under it, so it is left out
+  // there (a screen with a tag says the same thing in its content too).
+  if (badgeX + badgeWidth > frame.width / 2 - 30) {
+    badgeText.destroy();
+    fitText(title, frame.width - pad - rightWidth - x, frame.phone ? 22 : 28);
+    return { height, back, backRect };
+  }
+  scene.add.rectangle(badgeX, height / 2, badgeWidth, 22, signal.caution.hex).setOrigin(0, 0.5);
+  badgeText.setX(badgeX + 8).setDepth(1);
   return { height, back, backRect };
 }
 

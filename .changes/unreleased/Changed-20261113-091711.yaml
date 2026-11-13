@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Mod Store publishing: a community pack publishes only with a granted permission recorded in its pack.json (mc-pack validate --publish)'
+time: 2026-11-13T09:17:11.3064009-05:00

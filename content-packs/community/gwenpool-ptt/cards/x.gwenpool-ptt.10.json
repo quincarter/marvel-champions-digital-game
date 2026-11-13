@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.10",
+  "name": "Comic Shop",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "10",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "support",
+  "cost": 2,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["PLACE"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Alter-Ego Action: exhaust Comic Shop → place 1 card from your discard pile on the top of your deck.",
+    "current": "Alter-Ego Action: exhaust Comic Shop → place 1 card from your discard pile on the top of your deck."
+  },
+  "flavor": "\"Sorry! I'll place it now.\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.10.comic-shop-action"
+    },
+    {
+      "id": "x.gwenpool-ptt.10.pink-bubble"
+    }
+  ]
+}

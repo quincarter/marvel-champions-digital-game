@@ -17,7 +17,8 @@
  */
 import Phaser from "phaser";
 
-import { recordError } from "./error-log.js";
+import { SCENES } from "../scenes/keys.js";
+import { failedScreenText, recordError } from "./error-log.js";
 
 export { recentErrors, recordError } from "./error-log.js";
 
@@ -45,6 +46,50 @@ function guardDispatch(
 
 let tweensGuarded = false;
 
+const FAILED_SCREEN_PANEL_ID = "mc-screen-failure";
+/** How long a screen may stay in its `create` after a frame threw before it is called failed. */
+const FAILED_SCREEN_GRACE_MS = 400;
+
+/**
+ * A screen whose `create` threw is left half built and never runs, so the player sees an empty background with nothing
+ * to press (the pack hero's "Play 1 hero" blank screen, 2026-11-11). The frame guard above keeps the loop alive; this
+ * says what happened: when a frame threw and a scene is still stuck in its `create` a moment later, a plain panel with
+ * the error and a way out goes over the canvas.
+ */
+function watchForFailedScreen(game: Phaser.Game, message: string): void {
+  window.setTimeout(() => {
+    if (document.getElementById(FAILED_SCREEN_PANEL_ID)) return;
+    const stuck = game.scene.scenes.filter((scene) => scene.sys.settings.status === Phaser.Scenes.CREATING);
+    if (stuck.length === 0) return;
+    const panel = document.createElement("div");
+    panel.id = FAILED_SCREEN_PANEL_ID;
+    panel.setAttribute("role", "alert");
+    panel.style.cssText =
+      "position:fixed;inset:0;z-index:10;overflow:auto;padding:24px 16px;box-sizing:border-box;" +
+      "background:#0e0c0a;color:#f3ead8;font:14px/1.5 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word";
+    panel.textContent = failedScreenText(
+      stuck.map((scene) => scene.sys.settings.key),
+      message,
+    );
+    const button = (label: string, onClick: () => void): HTMLButtonElement => {
+      const element = document.createElement("button");
+      element.textContent = label;
+      element.style.cssText = "display:block;margin-top:16px;padding:10px 20px;font:inherit";
+      element.addEventListener("click", onClick);
+      return element;
+    };
+    panel.append(
+      button("Back to title", () => {
+        panel.remove();
+        for (const scene of stuck) game.scene.stop(scene.sys.settings.key);
+        game.scene.start(SCENES.title);
+      }),
+      button("Reload", () => window.location.reload()),
+    );
+    document.body.append(panel);
+  }, FAILED_SCREEN_GRACE_MS);
+}
+
 /** Installs both nets. Call once, right after `new Phaser.Game(...)` — before boot binds the game's step. */
 export function installFrameGuard(game: Phaser.Game): void {
   if (!tweensGuarded) {
@@ -68,6 +113,7 @@ export function installFrameGuard(game: Phaser.Game): void {
         original(time, delta);
       } catch (cause) {
         recordError(cause, "frame");
+        watchForFailedScreen(game, cause instanceof Error ? cause.message : String(cause));
       }
     };
   }

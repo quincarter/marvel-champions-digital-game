@@ -1,0 +1,31 @@
+{
+  "id": "x.carnage-nep.04",
+  "name": "Lethal Restraint",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "4",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 1,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Carnage gains retaliate 1.\nHero Action: Return this card to your hand (from play) → reduce the cost of the next Carnage event you play this phase by 1.",
+    "current": "Carnage gains retaliate 1.\nHero Action: Return this card to your hand (from play) → reduce the cost of the next Carnage event you play this phase by 1."
+  },
+  "flavor": "\"I've got a voice in my head. It tells me to do things. Bad things.\" —Eddie Brock",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.04.lethal-restraint-constant"
+    },
+    {
+      "id": "x.carnage-nep.04.lethal-restraint-action"
+    }
+  ]
+}

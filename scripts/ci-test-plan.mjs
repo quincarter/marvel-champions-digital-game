@@ -86,6 +86,8 @@ const include = [
   ...(has("sync-worker")
     ? [{ name: "sync-worker", title: "Sync Worker tests", args: "--project @mc/sync-worker" }]
     : []),
+  // The mod SDK's tests build and validate the sample packs; they import the cards package but nothing imports them.
+  ...(has("mod-sdk") ? [{ name: "mod-sdk", title: "Mod SDK tests", args: "--project @mc/mod-sdk" }] : []),
   ...(has("client")
     ? [
         ...shards(CLIENT_SHARDS).map((part) => ({

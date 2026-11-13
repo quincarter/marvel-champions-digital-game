@@ -9,7 +9,12 @@
  */
 import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
+import { deckUsesCustomCards } from "./custom-content.js";
 import { preconDecks } from "./deck-list-model.js";
+
+/** Campaigns are base content only (docs/custom-content-packs.md §7.4): a pack's precon, or a saved deck holding a custom card, is never offered. */
+export const basePreconDecks = (poolVersion: string): readonly Deck[] =>
+  preconDecks(poolVersion).filter((deck) => !deckUsesCustomCards(deck));
 import { type AspectStamp, aspectName, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
 import { matchesSearch } from "./roster-filter.js";
@@ -66,7 +71,7 @@ function identityNameOf(deck: Deck, pool: CardPool): string | null {
 
 /** The box's own cast, pre-filled: one precon per `castIdentityIds`, in order, at seats 1..N. Extra seats are empty. */
 export function preconRosterOf(castIdentityIds: readonly CardId[], poolVersion: string): (Deck | null)[] {
-  const precons = preconDecks(poolVersion);
+  const precons = basePreconDecks(poolVersion);
   const seats: (Deck | null)[] = Array.from({ length: ROSTER_SEAT_COUNT }, () => null);
   castIdentityIds.forEach((identityId, index) => {
     if (index >= ROSTER_SEAT_COUNT) return;
@@ -106,7 +111,7 @@ export function rosterDeckOptions(
     if (index + 1 === seatNumber || !deck) return;
     usedElsewhere.set(deck.identityCardId as string, index + 1);
   });
-  return [...preconDecks(poolVersion), ...savedDecks].map((deck) => {
+  return [...basePreconDecks(poolVersion), ...savedDecks.filter((deck) => !deckUsesCustomCards(deck))].map((deck) => {
     const seat = usedElsewhere.get(deck.identityCardId as string);
     const lock = deckLockOf(deck);
     return {

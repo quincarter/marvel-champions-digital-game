@@ -1,0 +1,39 @@
+{
+  "id": "x.mephisto-nep.32",
+  "type": "minion",
+  "name": "Demon Lieutenant",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D2/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "atk": 3,
+  "sch": 1,
+  "hp": 6,
+  "boostIcons": 1,
+  "starIcon": true,
+  "traits": ["MYSTIC"],
+  "keywords": [
+    {
+      "name": "retaliate",
+      "value": 1
+    },
+    {
+      "name": "teamwork",
+      "sharedTrait": "MYSTIC"
+    }
+  ],
+  "text": {
+    "printed": "Retaliate 1. Teamwork (Mystic).\n[star] Demon Lieutenant's attacks gain overkill.\n[star] Boost: If this activation is an attack, this attack gains overkill and this card gets +1 boost icon ([boost]) for this activation.",
+    "current": "Retaliate 1. Teamwork (Mystic).\n[star] Demon Lieutenant's attacks gain overkill.\n[star] Boost: If this activation is an attack, this attack gains overkill and this card gets +1 boost icon ([boost]) for this activation."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.32.demon-lieutenant-constant"
+    },
+    {
+      "id": "x.mephisto-nep.32.boost"
+    }
+  ]
+}

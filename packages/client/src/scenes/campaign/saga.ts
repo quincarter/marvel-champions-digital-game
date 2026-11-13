@@ -12,6 +12,11 @@
  */
 import Phaser from "phaser";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
+import { customSagaVolumes, packCampaignEntryOf } from "../../campaign/pack-campaigns.js";
+import { packFileArt } from "../../art/pack-art.js";
+import { loadedPacks } from "../../packs/pack-registry.js";
+import { CUSTOM_BADGE } from "../../view/custom-content.js";
+import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { hit, ink, signal, surface, typeRole } from "../../tokens.js";
@@ -40,7 +45,7 @@ import {
   openVolumeCount,
   type SagaVolumeRow,
 } from "../../view/campaign-saga-model.js";
-import { SAGA_NOTE } from "../../campaign/story.js";
+import { SAGA_NOTE, type SagaVolume } from "../../campaign/story.js";
 import { rememberSagaVolumesView, sagaVolumesView, type SagaVolumesView } from "../../platform/saga-view.js";
 import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
@@ -72,9 +77,26 @@ const identityNameOf = (id: string): string => {
   return card ? cardDisplayName(card) : id;
 };
 
-/** A volume's art: the box's own cover (`art/campaigns/<id>/cover.*`) when it has one, as the Cover screen uses, else its final villain. */
-const volumeArtOf = (campaignId: string) =>
-  campaignCoverPicture(campaignId) ?? villainPicture(finalScenarioIdOf(campaignId));
+/**
+ * A volume's art: the box's own cover (`art/campaigns/<id>/cover.*`) when it has one, as the Cover screen uses, else its
+ * final villain. A pack campaign's is the cover file its pack lists (null when it lists none, or once the pack is gone:
+ * the tile then draws its generated ink cover).
+ */
+const volumeArtOf = (volume: SagaVolume) => {
+  if (volume.custom) {
+    const cover = packCampaignEntryOf(loadedPacks(), volume.campaignId)?.campaign.art?.cover;
+    return cover === undefined ? null : packFileArt(volume.custom.packId, cover);
+  }
+  return campaignCoverPicture(volume.campaignId) ?? villainPicture(finalScenarioIdOf(volume.campaignId));
+};
+
+/** "VOL. 3" for a base box; a pack campaign says CUSTOM in words (never a number past the base game's). */
+const volumeTagOf = (volume: SagaVolume): string => (volume.custom ? CUSTOM_BADGE : `VOL. ${volume.number}`);
+
+const CUSTOM_HEADER_HEIGHT = 34;
+
+/** One row of the volumes list: a section header, or a run of volumes (a tile row, or a single phone row). */
+type ShelfItem = { readonly kind: "header" } | { readonly kind: "volumes"; readonly rows: readonly SagaVolumeRow[] };
 
 /** A box's own final scenario (its `Campaign.scenarioIds`' last entry) — the villain art `villainPicture` keys on. */
 const finalScenarioIdOf = (campaignId: string): string =>
@@ -142,6 +164,8 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#listScroll.reset();
     this.#phoneList = null;
     void this.#load();
+    // Installed packs load a moment after boot, and again after an install or removal in the Mod Store.
+    rebuildOnPackChange(this, () => void this.#load());
     fadeScreenIn(this);
   }
 
@@ -150,6 +174,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     if (!this.sys.isActive()) return;
     const unlocked = unlocks();
     this.#rows = campaignSagaRows(summaries, {
+      customVolumes: customSagaVolumes(loadedPacks(), summaries),
       identityNameOf,
       waveLockOf: (campaignId) => unlocked.campaignLock(campaignId),
       openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
@@ -168,6 +193,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     if (this.#rows.length === 0) return;
 
     const frame = campaignFrame(this);
+    const baseRows = this.#rows.filter((r) => !r.volume.custom);
     // A phone starts on its rows and an upright tablet on the tiles, until the player chooses.
     this.#volumesView = this.#volumesChosen ?? sagaVolumesView(frame.phone ? "list" : "grid");
     const top = drawTopBar(this, {
@@ -175,7 +201,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       onBack: () => goToScreen(this, SCENES.title),
       hints: this.#hints,
       title: "The saga",
-      right: `${doneVolumeCount(this.#rows)} OF ${this.#rows.length} COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
+      right: `${doneVolumeCount(baseRows)} OF ${baseRows.length} COMPLETE · ${openVolumeCount(baseRows)} OPEN`,
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => goToScreen(this, SCENES.title) });
 
@@ -250,48 +276,92 @@ export class CampaignSagaScene extends Phaser.Scene {
       width: tileWidth,
       height: tiles?.height ?? 0,
     });
+    // The base volumes, then (when a pack ships a campaign) a Custom campaigns header and those: rows of the list.
+    const chunk = (rows: readonly SagaVolumeRow[]): ShelfItem[] =>
+      Array.from({ length: Math.ceil(rows.length / columns) }, (_, i) => ({
+        kind: "volumes" as const,
+        rows: rows.slice(i * columns, (i + 1) * columns),
+      }));
+    const customRows = this.#rows.filter((r) => r.volume.custom);
+    const items: ShelfItem[] = [
+      ...chunk(this.#rows.filter((r) => !r.volume.custom)),
+      ...(customRows.length > 0 ? [{ kind: "header" as const }, ...chunk(customRows)] : []),
+    ];
+    const rowHeight = tiles ? tiles.height + TILE_GAP : VOLUME_ROW_HEIGHT;
     this.#phoneList = new McVirtualList(this, {
       rect: listRect,
-      rowHeight: tiles ? tiles.height + TILE_GAP : VOLUME_ROW_HEIGHT,
-      count: Math.ceil(this.#rows.length / columns),
+      rowHeight,
+      // A list with no header keeps its fixed rows and their snap, exactly as before.
+      ...(customRows.length > 0
+        ? { rowHeightOf: (index: number) => (items[index]?.kind === "header" ? CUSTOM_HEADER_HEIGHT : rowHeight) }
+        : {}),
+      count: items.length,
       scroll: this.#listScroll,
       background: false,
       snapRows: true,
       moreHint: { fadeTo: surface.paper.hex, moreLabel: "SCROLL FOR MORE VOLUMES ▾" },
-      renderRow: (index, rect) =>
-        tiles
+      renderRow: (index, rect) => {
+        const item = items[index]!;
+        if (item.kind === "header") return this.#drawCustomHeader(rect);
+        return tiles
           ? {
-              objects: this.#rows
-                .slice(index * columns, (index + 1) * columns)
-                .flatMap((tileRow, column) => this.#drawTile(tileRow, cellAt(rect, column)).objects),
+              objects: item.rows.flatMap((tileRow, column) => this.#drawTile(tileRow, cellAt(rect, column)).objects),
             }
-          : this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
+          : this.#drawPhoneVolumeRow(item.rows[0]!, rect);
+      },
       onRowActivate: (index, pointer) => {
+        const item = items[index];
+        if (item?.kind !== "volumes") return;
         const column = tiles ? Math.floor((pointer.x - listRect.x) / (tileWidth + TILE_GAP)) : 0;
-        const tapped = this.#rows[index * columns + column];
+        const tapped = item.rows[column];
         if (tapped) this.#feature(tapped.volume.number);
       },
     });
     const list = this.#phoneList;
-    this.#rows.forEach((volumeRow, index) => {
-      const row = Math.floor(index / columns);
-      this.#stops.set(`vol-${volumeRow.volume.number}`, {
-        rect: () => (tiles ? cellAt(list.rectFor(row), index % columns) : list.rectFor(row)),
-        activate: () => this.#feature(volumeRow.volume.number),
-        ensureVisible: () => list.scrollIntoView(row),
+    items.forEach((item, row) => {
+      if (item.kind !== "volumes") return;
+      item.rows.forEach((volumeRow, column) => {
+        this.#stops.set(`vol-${volumeRow.volume.number}`, {
+          rect: () => (tiles ? cellAt(list.rectFor(row), column) : list.rectFor(row)),
+          activate: () => this.#feature(volumeRow.volume.number),
+          ensureVisible: () => list.scrollIntoView(row),
+        });
       });
     });
+  }
+
+  /** The Custom campaigns section's header: the section named in words, ruled like ALL VOLUMES. */
+  #drawCustomHeader(rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } {
+    const label = this.add
+      .text(
+        rect.x,
+        rect.y + rect.height / 2,
+        "CUSTOM CAMPAIGNS",
+        textStyle({ ...typeRole.barTitle, size: 14 }, surface.ink.hex),
+      )
+      .setLetterSpacing(0.6)
+      .setOrigin(0, 0.5);
+    const rule = this.add
+      .rectangle(
+        rect.x + label.width + 12,
+        rect.y + rect.height / 2,
+        Math.max(0, rect.width - label.width - 12),
+        3,
+        surface.ink.hex,
+      )
+      .setOrigin(0, 0.5);
+    return { objects: [label, rule] };
   }
 
   #drawTile(tileRow: SagaVolumeRow, rect: Rect): ReturnType<typeof campaignTile> {
     return campaignTile(this, {
       rect,
-      eyebrow: tileRow.volume.boxCode,
-      title: `Vol. ${tileRow.volume.number}`,
+      eyebrow: tileRow.volume.custom ? tileRow.volume.custom.packName : tileRow.volume.boxCode,
+      title: tileRow.volume.custom ? CUSTOM_BADGE : `Vol. ${tileRow.volume.number}`,
       subtitle: tileRow.volume.name,
       chip: this.#gridChip(tileRow),
       status: tileRow.status,
-      art: volumeArtOf(tileRow.volume.campaignId),
+      art: volumeArtOf(tileRow.volume),
       onArtReady: this.#onArt,
       selected: tileRow.volume.number === this.#featured,
       onClick: () => undefined,
@@ -423,10 +493,15 @@ export class CampaignSagaScene extends Phaser.Scene {
     numberBg.fillStyle(surface.ink.hex, 1).fillRect(rowRect.x, rowRect.y, blockW, rowRect.height);
     objects.push(numberBg);
     const number = this.add
-      .text(rowRect.x + blockW / 2, rowRect.y + rowRect.height / 2, `VOL.\n${row.volume.number}`, {
-        ...textStyle(bangers(15, 1), surface.paper.hex),
-        align: "center",
-      })
+      .text(
+        rowRect.x + blockW / 2,
+        rowRect.y + rowRect.height / 2,
+        row.volume.custom ? `${CUSTOM_BADGE}\n▸` : `VOL.\n${row.volume.number}`,
+        {
+          ...textStyle(bangers(15, 1), surface.paper.hex),
+          align: "center",
+        },
+      )
       .setOrigin(0.5, 0.5);
     objects.push(number);
 
@@ -435,10 +510,15 @@ export class CampaignSagaScene extends Phaser.Scene {
       wordWrap: { width: rowRect.width - blockW - 24, useAdvancedWrap: true },
     });
     objects.push(name);
-    const meta = this.add.text(rowRect.x + blockW + 10, rowRect.y + rowRect.height - 18, row.volume.boxCode, {
-      ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
-      fontSize: "9px",
-    });
+    const meta = this.add.text(
+      rowRect.x + blockW + 10,
+      rowRect.y + rowRect.height - 18,
+      row.volume.custom ? row.volume.custom.packName : row.volume.boxCode,
+      {
+        ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
+        fontSize: "9px",
+      },
+    );
     objects.push(meta);
 
     const chip = this.#gridChip(row);
@@ -508,7 +588,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#drawFeaturedArt(artRect, row);
 
     // "VOL. N" tab
-    const tab = this.add.text(0, 0, `VOL. ${row.volume.number}`, textStyle(bangers(18, 1), surface.inkOnHue.hex));
+    const tab = this.add.text(0, 0, volumeTagOf(row.volume), textStyle(bangers(18, 1), surface.inkOnHue.hex));
     const tabBg = this.add.graphics();
     tabBg.fillStyle(signal.caution.hex, 1).fillRect(artRect.x, artRect.y, tab.width + 20, tab.height + 12);
     tab.setPosition(artRect.x + 10, artRect.y + 6);
@@ -539,7 +619,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       .text(
         footerRect.x + pad,
         y,
-        `${copy.status} · ${row.volume.boxCode}`.toUpperCase(),
+        `${copy.status} · ${row.volume.custom ? `${CUSTOM_BADGE} · ${row.volume.custom.packName}` : row.volume.boxCode}`.toUpperCase(),
         textStyle(typeRole.label, signal.caution.hex, 1),
       )
       .setLetterSpacing(1);
@@ -623,7 +703,7 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   #drawFeaturedArt(rect: Rect, row: SagaVolumeRow): void {
-    const picture = volumeArtOf(row.volume.campaignId);
+    const picture = volumeArtOf(row.volume);
     if (picture) {
       const image = drawPicture(this, picture, rect, this.#onArt, { focusY: 0.15 });
       void image;
@@ -631,7 +711,12 @@ export class CampaignSagaScene extends Phaser.Scene {
     }
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    const glyph = row.status === "sealed" && !row.hasDefinition ? "?" : `${row.volume.number}`;
+    // A pack campaign with no cover gets its first letter, big, on the ink: a generated cover.
+    const glyph = row.volume.custom
+      ? row.volume.name.slice(0, 1).toUpperCase()
+      : row.status === "sealed" && !row.hasDefinition
+        ? "?"
+        : `${row.volume.number}`;
     this.add
       .text(rect.x + rect.width / 2, rect.y + rect.height / 2, glyph, {
         ...textStyle(bangers(Math.min(rect.width, rect.height) * 0.5), surface.paper.hex, 0.18),
@@ -660,7 +745,7 @@ export class CampaignSagaScene extends Phaser.Scene {
           hasPips: true,
           hasAlt: true,
           alt: this.#altActionsFor(row),
-          foot: "A new run gets its own log. The finished one stays on the shelf to reread.",
+          foot: `${row.packNote ? `${row.packNote} ` : ""}A new run gets its own log. The finished one stays on the shelf to reread.`,
         };
       case "live":
         return {
@@ -670,7 +755,7 @@ export class CampaignSagaScene extends Phaser.Scene {
           hasPips: true,
           hasAlt: true,
           alt: this.#altActionsFor(row),
-          foot: "Starting over archives this run; it doesn't delete it.",
+          foot: `${row.packNote ? `${row.packNote} ` : ""}Starting over archives this run; it doesn't delete it.`,
         };
       case "fresh":
         return {
@@ -678,7 +763,9 @@ export class CampaignSagaScene extends Phaser.Scene {
           right: row.lost ? `Lost at issue #${row.lost.issueNumber}` : "Not started",
           sub: row.lost
             ? "The record stays on the shelf. Sign a new roster to try again."
-            : "Sign a new roster. Any hero can sign, including ones who finished an earlier volume.",
+            : row.volume.custom
+              ? "Sign a new roster. Base-game heroes can sign; a custom hero cannot join a custom campaign yet."
+              : "Sign a new roster. Any hero can sign, including ones who finished an earlier volume.",
           hasPips: false,
           hasAlt: row.lost !== null,
           alt: this.#altActionsFor(row),
@@ -724,7 +811,7 @@ export class CampaignSagaScene extends Phaser.Scene {
         };
       case "fresh":
         return {
-          label: `Start vol. ${row.volume.number} ▸`,
+          label: row.volume.custom ? "Start campaign ▸" : `Start vol. ${row.volume.number} ▸`,
           enabled: true,
           onClick: () => goToScreen(this, SCENES.campaignCover, { campaignId: row.volume.campaignId }),
         };

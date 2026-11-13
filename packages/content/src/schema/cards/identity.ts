@@ -68,7 +68,11 @@ export interface OffAspectPackage {
 
 /** See `IdentityDeckbuilding.offAspectAllowance`. */
 export interface OffAspectAllowance {
-  readonly cardType: CardType;
+  /**
+   * The card's type is this one, or one of these. Absent: any type (Night Thrasher's Tech Deck, a community pack:
+   * "up to 4 Skill cards", whatever their type, which `anyTrait` then names). Present as a list, it is never empty.
+   */
+  readonly cardType?: CardType | readonly CardType[];
   /**
    * At least one of these traits on the card. Absent: the allowance is by card type alone (Cable, `next_evol`
    * 40001b: "You may include player side schemes from any aspect in your deck." →

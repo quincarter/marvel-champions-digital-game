@@ -1,0 +1,30 @@
+{
+  "id": "x.night-thrasher-dh.09",
+  "name": "Escrima Sticks",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "9",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "upgrade",
+  "cost": 3,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["WEAPON"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "While the Battle Board upgrade has the VEHICLE trait, your attacks gain piercing and overkill.\nHero Action (attack): Deal 6 damage to an enemy. Shuffle this card into your deck.",
+    "current": "While the Battle Board upgrade has the VEHICLE trait, your attacks gain piercing and overkill.\nHero Action (attack): Deal 6 damage to an enemy. Shuffle this card into your deck."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.09.escrima-sticks-constant"
+    },
+    {
+      "id": "x.night-thrasher-dh.09.escrima-sticks-action"
+    }
+  ]
+}

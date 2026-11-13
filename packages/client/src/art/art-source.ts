@@ -33,6 +33,50 @@ import { BALANCED_SCANS, BALANCED_SCAN_STEMS } from "./balanced-scans.js";
 export const CARD_ART_ROUTE = "/card-art/";
 
 /**
+ * How a custom pack card (`x.<pack>.…`) finds its picture. `pack-art.ts` registers itself here when it loads, rather
+ * than this module importing it: `vite-card-art.ts` imports this module at config time in plain Node, which can't
+ * load the pack code's `@mc/content` imports.
+ */
+let packArtResolver: ((code: string, lang: CardLanguage) => ArtSource | null) | undefined;
+
+export function setPackArtResolver(resolver: (code: string, lang: CardLanguage) => ArtSource | null): void {
+  packArtResolver = resolver;
+}
+
+/**
+ * The rebuilt faces of the installed house-rule packs (docs/custom-content-packs.md §11.11), set by `pack-art.ts`: a
+ * pack's picture of an official face code, and which loaded pack enables a mode (`balanced`: GMW Fixes).
+ */
+export interface HouseRuleFaceSource {
+  /**
+   * The pack's rebuilt face of `code`, only when the rule may rebuild that code (`houseRuleMayRebuild`) and, when
+   * `version` is given, only when the installed pack is that version.
+   */
+  face(packId: string, code: string, lang: CardLanguage, version?: string): ArtSource | null;
+  packEnabling(mode: string): string | undefined;
+}
+
+let houseRuleFaces: HouseRuleFaceSource | undefined;
+
+export function setHouseRuleFaceSource(source: HouseRuleFaceSource): void {
+  houseRuleFaces = source;
+}
+
+/**
+ * The house rules whose rebuilt faces show now: the trait rules the current game carries (`art/house-rule-art.ts` sets
+ * it while a game screen is up, and clears it after). Empty otherwise, so every other screen shows the printed cards.
+ */
+let shownHouseRules: readonly { readonly id: string; readonly version: string }[] = [];
+
+export function setShownHouseRules(rules: readonly { readonly id: string; readonly version: string }[]): void {
+  shownHouseRules = rules;
+}
+
+/** The GMW Fixes pack whose faces stand in for the Balanced scans, in a Balanced game with that pack installed. */
+const balancedFacePack = (): string | undefined =>
+  shownBalanced.size > 0 ? houseRuleFaces?.packEnabling("balanced") : undefined;
+
+/**
  * Where a language's scans are served: the build language's at `CARD_ART_ROUTE`, any other language the bundle
  * carries (the web build, `card-language.ts`) at `/card-art-<lang>/`. Each folder is already resolved to English where
  * the language has no scan, so the app never falls back by itself.
@@ -145,7 +189,11 @@ export function setShownBalancedScans(scans: ReadonlySet<string>): void {
 /** The stem of the normal scan a Balanced picture stands in for, or null when this picture is not a Balanced one. */
 export function balancedScanOf(art: ArtSource | null): string | null {
   const found = art ? /\/bundles\/cards\/(\w+)-balanced(?:-(\w+))?\.png$/.exec(art.url) : null;
-  return found ? (found[2] ? `${found[1]}-${found[2]}` : found[1]!) : null;
+  if (found) return found[2] ? `${found[1]}-${found[2]}` : found[1]!;
+  // The GMW Fixes pack's rebuilt face of a Balanced card (`art:pack:<id>@<version>/cards/<lang>/<code>.webp`).
+  const pack = balancedFacePack();
+  const rebuilt = art && pack ? /^art:pack:([^@]+)@[^/]+\/cards\/[^/]+\/(\w+)\.webp$/.exec(art.key) : null;
+  return rebuilt && rebuilt[1] === pack && shownBalanced.has(rebuilt[2]!) ? rebuilt[2]! : null;
 }
 
 /** The ATKs the Drone pictures print; a Drone's ATK outside them shows the nearest one. */
@@ -165,17 +213,78 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
     return face.standIn && shownStandIns.has(face.standIn.kind) ? standInArt(face.standIn) : CARD_BACKS[face.back];
   }
   if (!card) return null;
+  // A custom card's picture is a file of its installed pack, never a scan under `assets/card-art/` (`pack-art.ts`).
+  if ((card.id as string).startsWith("x.")) {
+    for (const code of packPictureCodes(card, face)) {
+      const art = packArtResolver?.(code, artLanguage);
+      if (art) return art;
+    }
+    return null;
+  }
   const local = localRefFor(card, face);
   if (local) return promoOrFace(`${local as string}.png`);
   const upstream = imageRefFor(card, face);
   return upstream ? promoOrFace(upstream as string) : null;
 }
 
+/**
+ * The pack picture codes to try for a custom card's face, best first. A pack ships `cards/<lang>/<code>.webp` per printed
+ * picture: the card's own code for its front (a hero identity's hero face), and the sibling `...b` code for the back
+ * (the alter-ego face, a double-sided card's flip side). A card whose code does not end in `a` has no sibling, so every
+ * face is its one picture; a missing back picture falls back to the front.
+ */
+export function packPictureCodes(card: AnyCard, face: CardFace): readonly string[] {
+  // A villain stage or a main scheme stage and side has its own lettered picture.
+  if (face.kind === "villainStage" || face.kind === "mainSchemeStage") return stagePictureCodes(card, face);
+  const id = card.id as string;
+  const isBack =
+    (face.kind === "alterEgo" && card.type === "hero_identity") ||
+    (face.kind === "flipSide" && "flipSide" in card && !!card.flipSide);
+  return isBack && id.endsWith("a") ? [`${id.slice(0, -1)}b`, id] : [id];
+}
+
+/**
+ * The pack picture codes for a villain stage or a main scheme stage and side, best first: the stage's own lettered
+ * picture (`01`, `01b`, `01c`; `02a` ... `02f`), then the card's own code. A local copy of `packStagePictureCodes`
+ * (`@mc/content`), which this module cannot import at runtime (`vite-card-art.ts` loads it in plain Node);
+ * `pack-art-faces.test.ts` checks the two agree.
+ */
+function stagePictureCodes(card: AnyCard, face: CardFace): readonly string[] {
+  const id = card.id as string;
+  let index = -1;
+  if (face.kind === "villainStage" && card.type === "villain") {
+    const before = card.sides.slice(0, face.sideIndex).reduce((n, side) => n + side.stages.length, 0);
+    index = before + face.stageIndex;
+  } else if (face.kind === "mainSchemeStage" && card.type === "main_scheme") {
+    index = face.stageIndex * 2 + (face.side === "B" ? 1 : 0);
+  }
+  const lettered = /[a-z]$/.test(id);
+  if (index < 0 || (index === 0 && !lettered)) return [id];
+  const own = `${lettered ? id.slice(0, -1) : id}${String.fromCharCode(97 + index)}`;
+  return own === id ? [id] : [own, id];
+}
+
 /** The promo picture chosen for this scan, else the scan. A promo is the same picture in every card language. */
 function promoOrFace(refPath: string): ArtSource {
   const scan = refPath.slice(refPath.lastIndexOf("/") + 1).replace(/\.\w+$/, "");
   const balanced = BALANCED_SCANS.find((entry) => entry.scan === scan && shownBalanced.has(entry.id));
-  if (balanced) return faceSource(balanced.path);
+  // With the GMW Fixes pack installed, its rebuilt face stands in for a Balanced scan (not for a second version of one,
+  // such as 16106a's "no Kree Supremacy" setup, which it does not rebuild), and for a card of the fixed schemes whose
+  // text is unchanged (16107a). A toggle that is off keeps the printed card, as before.
+  const pack = balancedFacePack();
+  if (balanced) {
+    const rebuilt = pack && balanced.id === scan ? houseRuleFaces!.face(pack, scan, artLanguage) : null;
+    return rebuilt ?? faceSource(balanced.path);
+  }
+  if (pack && !BALANCED_SCANS.some((entry) => entry.scan === scan)) {
+    const rebuilt = houseRuleFaces!.face(pack, scan, artLanguage);
+    if (rebuilt) return rebuilt;
+  }
+  // A trait house rule the game has on (Lost Traits): its rebuilt face, which prints the added trait.
+  for (const { id, version } of shownHouseRules) {
+    const rebuilt = houseRuleFaces?.face(id, scan, artLanguage, version);
+    if (rebuilt) return rebuilt;
+  }
   return shownPromos.get(scan) ?? faceSource(refPath);
 }
 

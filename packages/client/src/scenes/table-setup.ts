@@ -19,17 +19,21 @@
  * difficulty/modular set/first-player seat is marked with a 4px **red
  * border** on an otherwise-white card, never a red or ink fill.
  */
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import Phaser from "phaser";
 import type { Deck, Scenario } from "@mc/content";
 import {
-  buildScenario,
+  buildScenarioWithLoadedPacks,
   CARDS_BY_ID,
-  POOL_CARDS,
-  POOL_DEPS,
   POOL_ENCOUNTER_SETS,
   packNameOf,
   POOL_SCENARIOS,
   POOL_VERSION,
+  currentCardsById,
+  currentEncounterSets,
+  currentScenarios,
+  currentDeps,
+  currentPool,
 } from "../content/pool.js";
 import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -119,6 +123,7 @@ import {
   type OptionChip,
   type SetupOptionRow,
 } from "../view/setup-options.js";
+import { installedSetupHouseRules } from "../packs/game-packs.js";
 import { difficultyLabelOf } from "../view/difficulty-label.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
@@ -338,6 +343,7 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   create(): void {
+    rebuildOnPackChange(this, () => this.#rebuild());
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.#compactScroll = new VariableListScroll();
@@ -412,14 +418,14 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   #deckOptions(): readonly DeckOption[] {
-    return seatableDeckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    return seatableDeckOptionsOf(this.#savedDecks, currentPool(), POOL_VERSION, currentDeps());
   }
 
   /** The draft's scenario as it is played: the record, with the chosen villain in place of the default one (Fear No Evil). */
   #scenario(): Scenario {
     return scenarioOfDraft(
       this.#draft,
-      POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!,
+      currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId)!,
     );
   }
 
@@ -459,10 +465,10 @@ export class TableSetupScene extends Phaser.Scene {
 
     // A Civil War build: the read-only summary stands in for the picker (one tile per line, then "Edit scenario").
     this.#cwSummary = civilWarTableSummaryOf(this.#draft, CW_SUMMARY_CONTEXT);
-    const requiredSets = this.#cwSummary ? [] : requiredEncounterSetsFor(scenario, CARDS_BY_ID);
+    const requiredSets = this.#cwSummary ? [] : requiredEncounterSetsFor(scenario, currentCardsById());
     const modularOptions = this.#cwSummary
       ? []
-      : modularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID, { scope: progressionScope() });
+      : modularSetOptionsFor(this.#draft, scenario, currentCardsById(), { scope: progressionScope() });
     const modularCardCount = this.#cwSummary
       ? this.#cwSummary.rows.length + 1
       : requiredSets.length + modularOptions.length;
@@ -471,7 +477,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#dealBlocked = this.#cwSummary ? null : modularDealBlockOf(this.#draft, scenario);
 
     // The setup options this scenario offers under the draft's difficulty and modular picks (`playableScenarioOffer`).
-    const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES);
+    const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES, undefined, installedSetupHouseRules());
     // The Standard / Expert set chips are folded into the difficulty row; the rest are cards under it.
     const { setChoices, cards: optionRows } = splitOptionRows(allOptionRows);
     this.#setChoiceRows = setChoices;
@@ -479,7 +485,7 @@ export class TableSetupScene extends Phaser.Scene {
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
     // The Hood's own "choose 7 modular encounter sets and set them aside" (§2.3, §3.18): empty for every other scenario.
     const hoodOptions = hasSetAsideModularChoice(scenario)
-      ? hoodModularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID)
+      ? hoodModularSetOptionsFor(this.#draft, scenario, currentCardsById())
       : [];
 
     let compositionRows: readonly CompositionRow[] = [];
@@ -493,17 +499,17 @@ export class TableSetupScene extends Phaser.Scene {
       const sessionOptions = toSessionConfig(
         this.#draft,
         players,
-        POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+        currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId),
         tableRulesOf(appSession().settings),
       );
-      const config = buildScenario(this.#draft.scenarioId, sessionOptions);
+      const config = buildScenarioWithLoadedPacks(this.#draft.scenarioId, sessionOptions);
       previewStartStageIndex = config.villainStartStageIndex;
       preview = tableSetupPreviewOf(
         config,
         scenario,
         this.#draft.difficulty,
-        CARDS_BY_ID,
-        POOL_ENCOUNTER_SETS,
+        currentCardsById(),
+        currentEncounterSets(),
         undefined,
         blindRevealOf(sessionOptions, null),
         sessionOptions.modes?.skirmish?.villainVersion,
@@ -912,7 +918,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#compactRegion = null;
     this.#compactSeedBoxRect = null;
 
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
+    const villainName = scenarioDetailOf(scenario, currentCardsById(), currentEncounterSets()).displayName;
     const modularRightLabel = this.#modularRightLabel(scenario, requiredSets.length, modularOptions).toUpperCase();
     // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
@@ -1818,7 +1824,7 @@ export class TableSetupScene extends Phaser.Scene {
       ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick }
       : ({} as Record<string, never>);
     const act = (action: string) => (): void => {
-      this.#draft = applySetupOption(this.#draft, action);
+      this.#draft = applySetupOption(this.#draft, action, undefined, installedSetupHouseRules());
       this.#rebuild();
     };
     const chipButton = (chip: OptionChip, chipRect: Rect): void =>
@@ -2014,7 +2020,7 @@ export class TableSetupScene extends Phaser.Scene {
   #difficultySetCardsButton(rect: Rect, compact = false): void {
     const rows = this.#setChoiceRows;
     const open = (): void => {
-      const ctx = { cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS };
+      const ctx = { cards: currentCardsById(), encounterSets: currentEncounterSets() };
       const sections = difficultySetSections(rows, setProductName, (id) => setSheetFor(ctx, id).totalCards);
       if (sections.length === 0) return;
       this.scene.launch(SCENES.setCards, {
@@ -2050,7 +2056,7 @@ export class TableSetupScene extends Phaser.Scene {
     stopFor: (key: string, controlRect: Rect, activate: () => void) => void,
   ): void {
     const onClick = (): void => {
-      this.#draft = applySetupOption(this.#draft, chip.action);
+      this.#draft = applySetupOption(this.#draft, chip.action, undefined, installedSetupHouseRules());
       this.#rebuild();
     };
     if (chip.enabled) {
@@ -2347,7 +2353,7 @@ export class TableSetupScene extends Phaser.Scene {
   ): void {
     const rect = layout.modularGrid;
     const plan = layout.modularPlan;
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
+    const villainName = scenarioDetailOf(scenario, currentCardsById(), currentEncounterSets()).displayName;
     this.#modularRowOfItem = plan.rowOfItem;
 
     const cellAt = (index: number): Rect => {
@@ -2586,7 +2592,7 @@ export class TableSetupScene extends Phaser.Scene {
       this,
       space.x,
       space.y,
-      `Villain · ${scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName}`,
+      `Villain · ${scenarioDetailOf(scenario, currentCardsById(), currentEncounterSets()).displayName}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,
@@ -2608,7 +2614,7 @@ export class TableSetupScene extends Phaser.Scene {
     const url = unknown
       ? CARD_BACKS.encounter.url
       : (villainArtFor(ART_CATALOG, scenario.id as string, () => 0)?.url ??
-        artFor(CARDS_BY_ID.get(villainId), { kind: "villainStage", sideIndex: 0, stageIndex: 0 })?.url ??
+        artFor(currentCardsById().get(villainId), { kind: "villainStage", sideIndex: 0, stageIndex: 0 })?.url ??
         null);
     if (url) this.#thumbs.push({ rect: picture, url, parent: null, alpha: 1, done: false });
     const frame = this.add.graphics();
@@ -2618,7 +2624,7 @@ export class TableSetupScene extends Phaser.Scene {
 
   /** A seat's hero picture; on desktop it opens the identity card's hover popover like any card picture. */
   #drawSeatAvatar(rect: Rect, cell: SeatCell, phone: boolean): void {
-    const identity = cell.identityCardId ? CARDS_BY_ID.get(cell.identityCardId) : undefined;
+    const identity = cell.identityCardId ? currentCardsById().get(cell.identityCardId) : undefined;
     drawHeroAvatar(this, rect, identity, surface.ink.hex);
     if (cell.identityCardId)
       this.#hoverFaces.push({ cardId: cell.identityCardId, rect, region: phone ? "page" : "none" });
@@ -2626,7 +2632,7 @@ export class TableSetupScene extends Phaser.Scene {
 
   /** A set's most recognizable card (`setFacesOf`), the one its tile pictures; null for a set with no cards on hand. */
   #setFace(setId: string): FaceRef | null {
-    return setFacesOf(cardsBySet(CARDS_BY_ID).get(setId) ?? [], 1)[0] ?? null;
+    return setFacesOf(cardsBySet(currentCardsById()).get(setId) ?? [], 1)[0] ?? null;
   }
 
   /** The tile pictures on screen now, each clipped to the region it scrolls in (the phone's page, or the wide grid). */
@@ -2684,7 +2690,7 @@ export class TableSetupScene extends Phaser.Scene {
   #setPictureUrl(setId: string): string | null {
     const face = this.#setFace(setId);
     if (!face) return null;
-    return artFor(CARDS_BY_ID.get(face.cardId as string), face.face)?.url ?? null;
+    return artFor(currentCardsById().get(face.cardId as string), face.face)?.url ?? null;
   }
 
   /** Draws every waiting picture whose baked face is on hand. */
@@ -2729,7 +2735,7 @@ export class TableSetupScene extends Phaser.Scene {
   #drawModularRandom(rect: Rect, compact = false): void {
     const roll = (): void => {
       const scenario = this.#scenario();
-      this.#draft = withRandomModularSets(this.#draft, scenario, CARDS_BY_ID, Math.random, {
+      this.#draft = withRandomModularSets(this.#draft, scenario, currentCardsById(), Math.random, {
         scope: progressionScope(),
       });
       this.#rebuild();
@@ -3046,7 +3052,7 @@ export class TableSetupScene extends Phaser.Scene {
       toSessionConfig(
         this.#draft,
         players,
-        POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId),
+        currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId),
         tableRulesOf(appSession().settings),
       ),
     );

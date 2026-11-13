@@ -48,7 +48,8 @@
  */
 
 import { applyCommand, type Command, type EngineDeps, type GameEvent, type GameState } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
+import { poolViewOfPacks } from "../content/pool.js";
+import { gameDeps } from "../content/game-deps.js";
 import { rebuildBaseline } from "../engine/session-core.js";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
 
@@ -129,7 +130,7 @@ export class ReplayCursor {
     config: SessionConfig,
     storedInitialState: StateWithoutPool,
     commands: readonly Command[],
-    deps: EngineDeps = POOL_DEPS,
+    deps: EngineDeps = poolViewOfPacks(config.packs).deps,
   ): ReplayCursor {
     const baseline = rebuildBaseline(config, storedInitialState);
     return ReplayCursor.#build(baseline.initialState, baseline.setupEvents, commands, deps);
@@ -141,7 +142,7 @@ export class ReplayCursor {
    * No scenario rebuild is needed or attempted; the caller's `initialState`
    * is trusted as-is (still defensively cloned, so the cursor never aliases it).
    */
-  static fromLog(initialState: GameState, commands: readonly Command[], deps: EngineDeps = POOL_DEPS): ReplayCursor {
+  static fromLog(initialState: GameState, commands: readonly Command[], deps: EngineDeps = gameDeps()): ReplayCursor {
     return ReplayCursor.#build(initialState, [], commands, deps);
   }
 

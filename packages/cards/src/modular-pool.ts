@@ -269,9 +269,14 @@ export function modularPickCountProblem(scenario: Scenario, count: number): stri
 }
 
 /** A scenario without a modular pool wants a number of picks in its range (`modularPickCountRange`). */
-export function checkModularPickCount(scenario: Scenario, picks: readonly string[] | undefined): void {
+export function checkModularPickCount(
+  scenario: Scenario,
+  picks: readonly string[] | undefined,
+  /** Picks from a custom pack, counted with the base ones (`playableScenario`'s `customModularPicks`). */
+  customPicks = 0,
+): void {
   if (picks === undefined) return;
-  const problem = modularPickCountProblem(scenario, picks.length);
+  const problem = modularPickCountProblem(scenario, picks.length + customPicks);
   if (problem) throw new Error(problem);
 }
 

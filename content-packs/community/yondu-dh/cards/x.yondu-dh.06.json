@@ -1,0 +1,31 @@
+{
+  "id": "x.yondu-dh.06",
+  "name": "Twirlin' and Whirlin'",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "6",
+  "quantityInSet": 4,
+  "unique": false,
+  "type": "event",
+  "cost": 0,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 4,
+  "text": {
+    "printed": "You may repeat this ability for each resource you overpaid for this card.\nHero Action: Attach the Yaka Arrow upgrade to an enemy or to your identity.",
+    "current": "You may repeat this ability for each resource you overpaid for this card.\nHero Action: Attach the Yaka Arrow upgrade to an enemy or to your identity."
+  },
+  "flavor": "\"I don't use my head to fly the arrow boy, I use my heart...\" —Yondu",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.06.twirlin-and-whirlin-constant"
+    },
+    {
+      "id": "x.yondu-dh.06.twirlin-and-whirlin-action"
+    }
+  ]
+}

@@ -1,0 +1,160 @@
+# The mod SDK's two shipments (docs/custom-content-packs.md §11.2): its npm tarball, attached to the game release it
+# was built from, and the same tarball published to npm.
+#
+# release-on-merge.yml calls this as its `mod-sdk` job once it has tagged a release: that workflow publishes releases
+# with GITHUB_TOKEN, which starts no other workflow, so the `release: published` trigger below only fires for a
+# release published by hand. A manual run builds from the chosen tag (or the branch it runs on) and is a dry run by
+# default: it builds, smoke-tests and `npm publish --dry-run`s, and attaches nothing.
+#
+# npm: publishes only when the NPM_TOKEN secret exists (a notice says so otherwise), with provenance, and skips a
+# version npm already has. The package name is the repository variable MC_SDK_PACKAGE_NAME, or
+# @champions-digital-game/mod-sdk.
+name: Mod SDK
+
+on:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: "The release tag to build from and attach the tarball to"
+        required: true
+        type: string
+      npm:
+        # A string: a boolean input that is absent (the release and manual triggers) reads as false.
+        description: "Publish to npm unless 'false' (the tarball is attached either way)"
+        required: false
+        default: "true"
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build from and attach to (empty: the branch this runs on, nothing attached)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Dry run: build and smoke-test, attach nothing, npm publish --dry-run"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mod-sdk-${{ inputs.tag || github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+# Two jobs, because the smoke test runs pack code (`mc-pack validate`/`test`/`build` import a pack's
+# abilities/index.ts): `build` builds and smoke-tests with no secrets and a read-only token, and `publish` attaches
+# and publishes the tarball it built without running any pack code. scripts/workflow-secrets.test.mjs checks this.
+jobs:
+  build:
+    name: Build and smoke-test (no secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ inputs.tag || github.event.release.tag_name || '' }}
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      tarball: ${{ steps.build.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG || github.ref }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The version is the release's (its tag without the v), which the release PR also wrote to package.json.
+      - name: Build the tarball
+        id: build
+        shell: bash
+        env:
+          MC_SDK_PACKAGE_NAME: ${{ vars.MC_SDK_PACKAGE_NAME || '@champions-digital-game/mod-sdk' }}
+        run: |
+          if [ -n "$TAG" ]; then export MC_SDK_VERSION="${TAG#v}"; fi
+          pnpm --filter @mc/mod-sdk build:dist
+          TARBALL=$(ls packages/mod-sdk/dist-npm/*.tgz)
+          VERSION=$(node -p "require('./packages/mod-sdk/dist-npm/package/package.json').version")
+          echo "Built ${TARBALL} (${MC_SDK_PACKAGE_NAME}@${VERSION})."
+          {
+            echo "name=$(basename "$TARBALL")"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Installs the tarball into a temp pack repo and runs what the registry's CI runs: validate, test, build, and a
+      # tsc over the sample pack's abilities.
+      - name: Smoke-test the tarball
+        env:
+          MC_SDK_PACKAGE_NAME: ${{ vars.MC_SDK_PACKAGE_NAME || '@champions-digital-game/mod-sdk' }}
+        run: pnpm --filter @mc/mod-sdk smoke:dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mod-sdk-tarball
+          path: packages/mod-sdk/dist-npm/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Attach and publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      # npm provenance signs the package with the run's OIDC token.
+      id-token: write
+    env:
+      TAG: ${{ inputs.tag || github.event.release.tag_name || '' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      NPM: ${{ inputs.npm != 'false' && 'true' || 'false' }}
+      MC_SDK_PACKAGE_NAME: ${{ vars.MC_SDK_PACKAGE_NAME || '@champions-digital-game/mod-sdk' }}
+      TARBALL: ${{ github.workspace }}/dist/${{ needs.build.outputs.tarball }}
+      VERSION: ${{ needs.build.outputs.version }}
+    # No checkout of pack code and no install: this job only moves the tarball the build job made.
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: mod-sdk-tarball
+          path: dist
+
+      - name: Attach the tarball to the release
+        if: env.TAG != '' && env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" "$TARBALL" --clobber
+
+      - name: Publish to npm
+        if: env.NPM == 'true'
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::notice::No NPM_TOKEN secret, so ${MC_SDK_PACKAGE_NAME}@${VERSION} was not published to npm (the release still has the tarball)."
+            exit 0
+          fi
+          if npm view "${MC_SDK_PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${MC_SDK_PACKAGE_NAME}@${VERSION} is already on npm."
+            exit 0
+          fi
+          ARGS=(publish "$TARBALL" --provenance --access public)
+          if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          npm "${ARGS[@]}"

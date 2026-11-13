@@ -1,0 +1,35 @@
+{
+  "id": "x.carnage-nep.22",
+  "name": "Murderous Nature",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "22",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "attachment",
+  "attachesTo": {
+    "kind": "qualified",
+    "category": "minion",
+    "withoutTrait": "ELITE",
+    "withoutAttachmentNamed": "Murderous Nature"
+  },
+  "encounterSetIds": ["carnage-nep-twisted-killers"],
+  "boostIcons": 3,
+  "traits": ["CONDITION"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to a non-Elite minion without a copy of Murderous Nature attached. Otherwise, this card gains surge.\nAttached enemy gains the Killer trait and villainous.\n[star] Forced Interrupt: When attached enemy attacks, it attacks the friendly character or other enemy with the fewest remaining hit points. That attack gains overkill.",
+    "current": "Attach to a non-Elite minion without a copy of Murderous Nature attached. Otherwise, this card gains surge.\nAttached enemy gains the Killer trait and villainous.\n[star] Forced Interrupt: When attached enemy attacks, it attacks the friendly character or other enemy with the fewest remaining hit points. That attack gains overkill."
+  },
+  "abilities": [
+    {
+      "id": "x.carnage-nep.22.murderous-nature-constant"
+    },
+    {
+      "id": "x.carnage-nep.22.murderous-nature-constant-2"
+    },
+    {
+      "id": "x.carnage-nep.22.murderous-nature-forced-interrupt"
+    }
+  ]
+}

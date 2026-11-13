@@ -1,0 +1,27 @@
+{
+  "id": "x.sample-hero.03",
+  "type": "event",
+  "name": "Sentinel Slam",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "3",
+  "quantityInSet": 3,
+  "unique": false,
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.sample-hero.01a",
+  "traits": ["ATTACK", "SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 3,
+  "text": {
+    "printed": "Hero Action (attack): Deal 6 damage to an enemy.",
+    "current": "Hero Action (attack): Deal 6 damage to an enemy."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-hero.03.sentinel-slam-action"
+    }
+  ]
+}

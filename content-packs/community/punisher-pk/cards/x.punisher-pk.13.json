@@ -1,0 +1,32 @@
+{
+  "id": "x.punisher-pk.13",
+  "name": "Jigsaw",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "13",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 2,
+  "sch": 2,
+  "hp": 7,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 3,
+  "traits": ["CRIMINAL", "ELITE"],
+  "keywords": [],
+  "text": {
+    "printed": "During step 2 of the villain phase, Jigsaw activates against you before The Punisher does.\nForced Interrupt: When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack.\nWhen Defeated: If Jigsaw was defeated by The Punisher, heal 3 damage from The Punisher.",
+    "current": "During step 2 of the villain phase, Jigsaw activates against you before The Punisher does.\nForced Interrupt: When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack.\nWhen Defeated: If Jigsaw was defeated by The Punisher, heal 3 damage from The Punisher."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.13.jigsaw-constant"
+    },
+    {
+      "id": "x.punisher-pk.13.jigsaw-forced-interrupt"
+    },
+    {
+      "id": "x.punisher-pk.13.when-defeated"
+    }
+  ]
+}

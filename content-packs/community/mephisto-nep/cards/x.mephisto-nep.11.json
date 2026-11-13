@@ -1,0 +1,33 @@
+{
+  "id": "x.mephisto-nep.11",
+  "type": "attachment",
+  "name": "Unquenchable Envy",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "15/28",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nEach resource you generate is considered a wild ([wild]) resource instead of its current resource.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and Mephisto activates against you.\nEach resource you generate is considered a wild ([wild]) resource instead of its current resource.\nResponse: After your turn begins, discard this card → Mephisto activates against you. Apply this card's boost icons ([boost]) for this activation as if it were a boost card."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.11.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.11.unquenchable-envy-constant"
+    },
+    {
+      "id": "x.mephisto-nep.11.response"
+    }
+  ]
+}

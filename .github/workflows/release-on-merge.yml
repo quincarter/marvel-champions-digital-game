@@ -535,6 +535,24 @@ jobs:
           path: |
             release/*.apk
 
+  # The mod SDK's npm tarball, attached to the release and published to npm (mod-sdk.yml). Called from here because a
+  # release this workflow publishes starts no other workflow. Not in finalize-release's needs, so an npm outage
+  # never holds the game's release back.
+  mod-sdk:
+    name: Mod SDK
+    needs: check-and-cut-release
+    if: needs.check-and-cut-release.outputs.should_release == 'true'
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/mod-sdk.yml
+    with:
+      tag: ${{ needs.check-and-cut-release.outputs.tag }}
+      # A draft release (the publish input off) is not on npm yet: publishing it by hand later runs mod-sdk.yml again.
+      npm: ${{ needs.check-and-cut-release.outputs.publish != 'false' && 'true' || 'false' }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   finalize-release:
     name: Finalize Release Manifest
     needs: [check-and-cut-release, desktop-builds, android-build]

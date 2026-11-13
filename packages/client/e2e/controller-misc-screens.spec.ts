@@ -152,6 +152,7 @@ async function openEveryFamily(page: Page): Promise<void> {
       "decks",
       "teamups",
       "funny",
+      "mods",
     ];
     localStorage.setItem("mc-trophy-room-view", JSON.stringify({ sort: "category", descending: false, expanded }));
   });

@@ -1,5 +1,5 @@
 {
-  "$comment": "Media bundles on the content repo's releases (issue #495). pnpm assets:fetch installs them; pnpm assets:pack <bundle> uploads a changed one and rewrites its tag, file, size and sha256. Card-art prefixes are the pack numbers that start a card code. CONTRIBUTING.md#media-assets.",
+  "$comment": "Media bundles on the content repo's releases (issue #495). pnpm assets:fetch installs them; pnpm assets:pack <bundle> uploads a changed one and rewrites its tag, file, size and sha256. Card-art prefixes are the pack numbers that start a card code. pack-art bundles (optional: fetched only by name or group, pnpm assets:fetch pack-art) hold a community content pack's pictures, the media files under its folder; the publish-packs workflow builds the packs with them. CONTRIBUTING.md#media-assets.",
   "repo": "quincarter/marvel-champions-content",
   "bundles": [
     {
@@ -334,6 +334,105 @@
       "size": 2081069,
       "sha256": "08d0d8fd26c6e8942e090ab1dafbf2156e89b96119320461bcc0d9d94b46e73d",
       "files": 6
+    },
+    {
+      "name": "pack-art-carnage-nep",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/carnage-nep",
+      "tag": "pack-art-carnage-nep-e189046817c9",
+      "file": "pack-art-carnage-nep.zip",
+      "size": 7812252,
+      "sha256": "e189046817c988ce065f77dd153b6ea6cdbe9075c64187c92324b6b267c28624",
+      "files": 71
+    },
+    {
+      "name": "pack-art-gwenpool-ptt",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/gwenpool-ptt",
+      "tag": "pack-art-gwenpool-ptt-5dc9a0a1b4ca",
+      "file": "pack-art-gwenpool-ptt.zip",
+      "size": 3536514,
+      "sha256": "5dc9a0a1b4ca9695f36a4350268f36102404edc4980141cd41f2e9837cc625d8",
+      "files": 33
+    },
+    {
+      "name": "pack-art-night-thrasher-dh",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/night-thrasher-dh",
+      "tag": "pack-art-night-thrasher-dh-d3ccfaa82458",
+      "file": "pack-art-night-thrasher-dh.zip",
+      "size": 4034820,
+      "sha256": "d3ccfaa82458677546f64d47c2cb2426f101b10e5d7de037d3848343e42e15bb",
+      "files": 39
+    },
+    {
+      "name": "pack-art-mephisto-nep",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/mephisto-nep",
+      "tag": "pack-art-mephisto-nep-1e1bb51c2834",
+      "file": "pack-art-mephisto-nep.zip",
+      "size": 13703176,
+      "sha256": "1e1bb51c283407006b9be49ab51439698d1ed5d116d9aef5827c1bd1036df92c",
+      "files": 121
+    },
+    {
+      "name": "pack-art-punisher-pk",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/punisher-pk",
+      "tag": "pack-art-punisher-pk-5f6a925e79bf",
+      "file": "pack-art-punisher-pk.zip",
+      "size": 4317612,
+      "sha256": "5f6a925e79bf1141ddc5d5b55e0fcdbc5e3ba915e1a6fa8b6cf2d7f0400a72c0",
+      "files": 45
+    },
+    {
+      "name": "pack-art-yondu-dh",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/yondu-dh",
+      "tag": "pack-art-yondu-dh-a6951ce68532",
+      "file": "pack-art-yondu-dh.zip",
+      "size": 4968288,
+      "sha256": "a6951ce68532f9aecc0cb4f33de69deb1ce77e9b80fdc34a1f0c4c6e0d57035f",
+      "files": 39
+    },
+    {
+      "name": "pack-art-throg-ptt",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/throg-ptt",
+      "tag": "pack-art-throg-ptt-b7350cb71d87",
+      "file": "pack-art-throg-ptt.zip",
+      "size": 2986674,
+      "sha256": "b7350cb71d87d1b2a350608d30c3cd1cded5c44bc23a772da7a14504f44ff530",
+      "files": 31
+    },
+    {
+      "name": "pack-art-lost-traits-bf",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/lost-traits-bf",
+      "tag": "pack-art-lost-traits-bf-8250d02d8b05",
+      "file": "pack-art-lost-traits-bf.zip",
+      "size": 3428292,
+      "sha256": "8250d02d8b05efbbdb568908a0e567d75b83294a087a69424175b23566fb601e",
+      "files": 27
+    },
+    {
+      "name": "pack-art-gmw-fixes-gg",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/gmw-fixes-gg",
+      "tag": "pack-art-gmw-fixes-gg-dddd36ac6889",
+      "file": "pack-art-gmw-fixes-gg.zip",
+      "size": 2562590,
+      "sha256": "dddd36ac6889b68d2206a9e0d0d8c246bbd0be5fb81aa3446879828722f854db",
+      "files": 23
     },
     {
       "name": "artifacts",

@@ -203,7 +203,7 @@ export function tuckLeavingCard(ctx: Ctx, id: InstanceId, request: Extract<Leave
   if (made.kind === "defeat") {
     for (const attachment of [...mustInstance(ctx.state, id).attachments]) {
       if (hasKeyword(ctx.state, attachment, "victory", ctx.deps))
-        leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" });
+        leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" }, "top", false, true);
     }
   }
   const asCost = "asCost" in made && made.asCost === true;

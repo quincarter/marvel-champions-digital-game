@@ -70,7 +70,7 @@
 import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
 import type { CoreAspect, Deck } from "@mc/content";
-import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
+import { POOL_VERSION, currentCardsById, currentDeps, currentPool } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { SELECTABLE_ASPECTS } from "../view/deck-builder-model.js";
@@ -328,11 +328,11 @@ export class DeckCheckScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const layout = deckCheckLayout({ width, height });
 
-    const option = deckOptionOf(this.#deck, POOL_CARDS, POOL_VERSION, POOL_DEPS);
-    const stats = deckStatsOf(this.#deck, POOL_CARDS);
+    const option = deckOptionOf(this.#deck, currentPool(), POOL_VERSION, currentDeps());
+    const stats = deckStatsOf(this.#deck, currentPool());
     // The Curve and Aspect tabs read the deck by aspect whatever the card list's sort.
-    const groups = deckListGroupsOf(this.#deck, POOL_CARDS);
-    const sorted = deckListGroupsOf(this.#deck, POOL_CARDS, this.#deckSort);
+    const groups = deckListGroupsOf(this.#deck, currentPool());
+    const sorted = deckListGroupsOf(this.#deck, currentPool(), this.#deckSort);
     const status = this.#verdict?.status ?? deckStatusOf(option);
     const inFlow = this.#returnTo.scene === SCENES.seats;
 
@@ -1040,7 +1040,7 @@ export class DeckCheckScene extends Phaser.Scene {
     const artFill = this.add.graphics();
     artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
     objects.push(artFill);
-    const card = CARDS_BY_ID.get(entry.cardId as string);
+    const card = currentCardsById().get(entry.cardId as string);
     const key = cardArt(this).request(this, artFor(card, { kind: "front" }));
     const art = drawArt(this, key, artRect);
     if (art) objects.push(art);

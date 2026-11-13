@@ -18,13 +18,6 @@ import {
 } from "@mc/engine";
 
 /**
- * A private marker for `allowUnlabeledAttack`'s opt-out (below). A symbol key never appears in `Object.entries`/
- * `Object.keys`, so it is invisible to `checkPlain`'s "is this JSON?" walk and to `bindsOf`'s field scan, and it is
- * dropped by `structuredClone` if a definition object is ever cloned — it never reaches the engine as data.
- */
-const UNLABELED_ATTACK = Symbol("ability-scripting-engineer: unlabeled attack, see allowUnlabeledAttack");
-
-/**
  * Opts one ability out of `checkLabels`'s "an attack effect belongs to an (attack)-labeled ability" rule.
  *
  * The rule holds for almost every Core and wave 1 card: a stunned identity cancels a labeled ability's attack
@@ -32,8 +25,11 @@ const UNLABELED_ATTACK = Symbol("ability-scripting-engineer: unlabeled attack, s
  * exception: it prints no "(attack)" label at all, and FAQ "Dance of Death (#4)" (RRG 1.8 p. 59) rules that its
  * first sentence "defines each damage-dealing effect ... as an individual attack" anyway, with a stun cancelling
  * only the first of the three. `dsl/validate.ts` cannot tell that apart from a card that simply forgot its label,
- * so the opt-out must be requested by name, with a citation, right where the ability is defined — never a blanket
+ * so the opt-out must be requested by name, with a citation, right where the ability is defined, never a blanket
  * relaxation of the check.
+ *
+ * The opt-out is plain data (`AbilityDefinition.unlabeledAttack`, ignored by the engine), so it survives a JSON round
+ * trip: a pack's built `abilities.json` validates the same as its source.
  *
  * Use only when a card's own text (or an FAQ ruling on it) makes an unlabeled attack effect correct; every other
  * ability with an `attack` effect must still carry `{ label: "attack" }`.
@@ -43,12 +39,11 @@ export function allowUnlabeledAttack<T extends AbilityDefinition>(
   reason: { readonly citation: string },
 ): T {
   if (!reason.citation.trim()) throw new Error("allowUnlabeledAttack needs a citation");
-  Object.defineProperty(definition, UNLABELED_ATTACK, { value: true, enumerable: false, configurable: false });
-  return definition;
+  return { ...definition, unlabeledAttack: { citation: reason.citation } };
 }
 
 const hasUnlabeledAttackOptOut = (definition: AbilityDefinition): boolean =>
-  (definition as unknown as Record<symbol, unknown>)[UNLABELED_ATTACK] === true;
+  typeof definition.unlabeledAttack?.citation === "string" && definition.unlabeledAttack.citation.trim() !== "";
 
 /**
  * Shape validation for compiled abilities. The engine trusts its registry, so
@@ -72,6 +67,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkFinds(definition, problems);
   checkPreparations(definition, problems);
   checkBorrowedBoosts(definition, problems);
+  checkTaggedAbilities(definition, problems);
   checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
   checkRandomPicks(definition, "definition", problems);
@@ -91,6 +87,8 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkAttackKeywordLoss(definition, "definition", problems);
   checkCounterDivision(definition, problems);
   checkSpendX(definition, problems);
+  checkFacedownAreaMoves(definition, problems);
+  checkStatMultipliers(definition, problems);
   checkPod(definition, problems);
   checkCompetitiveOnly(definition.effects, false, problems);
   checkCost(definition, problems);
@@ -915,6 +913,21 @@ function checkBorrowedBoosts(definition: AbilityDefinition, problems: string[]):
 }
 
 /**
+ * Tagged abilities (custom content's "speech bubbles"; `tagged`, `resolveTagged`): a tag is a non-empty name, and only
+ * Specials carry one, so a `resolveSpecials` that names a tag resolves Specials.
+ */
+function checkTaggedAbilities(definition: AbilityDefinition, problems: string[]): void {
+  if (definition.trigger.kind === "special" && definition.trigger.tag === "")
+    problems.push("tagged ability: the tag is a non-empty name");
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "resolveSpecials" || effect.tag === undefined) continue;
+    if (effect.tag === "") problems.push("resolveSpecials: the tag is a non-empty name");
+    if (effect.trigger !== undefined && effect.trigger !== "special")
+      problems.push('resolveSpecials: `tag` names tagged abilities, which are `trigger: "special"`');
+  }
+}
+
+/**
  * `modifyAttack`'s `bind` (docs/phase7-wave9.md §3.4) names where a "prevent all damage from this attack" reports what
  * it stopped, so it needs `preventAllDamage` and a name. The numbers are the attack's results, known once it has dealt
  * its damage: a var read under that name in the same ability (`varOf("<bind>.amount")`) is the likely slip, and is
@@ -995,6 +1008,34 @@ function checkSpendX(definition: AbilityDefinition, problems: string[]): void {
     if (each < 1) problems.push("spendResources x: resources is the price of one and must ask for at least 1 resource");
     if (effect.required) problems.push("spendResources x: not with required (X of 0 is the player's to choose)");
     if (effect.distinctTypes !== undefined) problems.push("spendResources x: not with distinctTypes");
+  }
+}
+
+/**
+ * `EffectSpec moveCards.facedown` (community pack `mephisto-nep`'s Damnation): only a scenario out-of-play area takes
+ * cards facedown by this flag; every other destination sets its own face, so the flag would be silently ignored there.
+ */
+function checkFacedownAreaMoves(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "moveCards" || effect.facedown !== true) continue;
+    if (typeof effect.to !== "object" || !("scenarioArea" in effect.to))
+      problems.push("moveCards facedown is only for a { scenarioArea } destination");
+  }
+}
+
+/**
+ * `RuleSpec multiplyStat`: a factor of 0 or less (or not a finite number) is no "double" or "halve"; "has a base … of
+ * 0" is `gets(..., { setBase: true })`.
+ */
+function checkStatMultipliers(definition: AbilityDefinition, problems: string[]): void {
+  // A constant's rules, and a rule granted for a while (`applyRuleUntil`, "double … until the end of the phase").
+  const rules = [
+    ...(definition.trigger.kind === "constant" ? (definition.trigger.rules ?? []) : []),
+    ...allEffects(definition.effects).flatMap((effect) => (effect.kind === "applyRuleUntil" ? [effect.rule] : [])),
+  ];
+  for (const rule of rules) {
+    if (rule.kind === "multiplyStat" && !(Number.isFinite(rule.factor) && rule.factor > 0))
+      problems.push(`multiplyStat ${rule.stat}: the factor must be a number above 0`);
   }
 }
 
@@ -1329,6 +1370,8 @@ function checkHiddenPiles(definition: AbilityDefinition, problems: string[]): vo
 
 /** The card selectors that take `random`: that many of their cards, by the game's seeded RNG. */
 const RANDOM_SELECTORS: readonly string[] = [
+  "ref",
+  "scenarioArea",
   "zone",
   "encounter",
   "encounterSetAside",
@@ -2011,8 +2054,14 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   if (definition.trigger.kind === "constant") {
     // A constant modifier's `while` and amount are read with the card whose stat it is bound to "affected" (engine
     // `AFFECTED_SLOT`): "each X-MEN character gets +1 THW while making a basic thwart against this scheme".
-    const { modifiers, ...rest } = definition.trigger;
+    const { modifiers, rules, ...rest } = definition.trigger;
     checkRefs(rest, scope, "constant", problems);
+    // So are a damage floor's amount and a stat multiplier's target (`minDamageTakenPerAttack`, `multiplyStat`).
+    rules?.forEach((rule) => {
+      const readsAffected = rule.kind === "minDamageTakenPerAttack" || rule.kind === "multiplyStat";
+      const ruleScope = readsAffected ? { ...scope, slots: new Set([...scope.slots, "affected"]) } : scope;
+      checkRefs(rule, ruleScope, "constant", problems);
+    });
     if (modifiers !== undefined) {
       const reading = { ...scope, slots: new Set([...scope.slots, "affected"]) };
       modifiers.forEach((modifier, index) => {

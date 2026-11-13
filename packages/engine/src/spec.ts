@@ -735,6 +735,14 @@ export interface TargetQuery {
     readonly kinds: readonly ("action" | "response")[];
     readonly form: "hero" | "alterEgo";
   };
+  /**
+   * The card has an ability tagged `tag` (`AbilityTriggerSpec special.tag`; custom content's "speech bubbles"): "cards
+   * with a PINK BUBBLE" is `{ hasTaggedAbility: "pinkBubble" }`, in a cost modifier's `appliesTo` or a discard cost's
+   * filter. Read from the card's live abilities as `abilityTiming` is: a card in hand or a discard pile has its printed
+   * ones, an identity those of the face showing, and a blank text box or a facedown card has none. An ability tagged
+   * with no effects (flavor text) counts. Exclusion `noSuchAbility`.
+   */
+  readonly hasTaggedAbility?: string;
 }
 
 /**
@@ -1238,6 +1246,14 @@ export type ValueSpec =
    * not icons (RRG 1.8 "Acceleration Token", p. 5). A type listed twice counts once.
    */
   | { readonly kind: "iconsInPlay"; readonly icons?: readonly CardIcon[] }
+  /**
+   * How many abilities tagged `tag` (`AbilityTriggerSpec special.tag`; custom content's "speech bubbles") the cards in
+   * play matching `cards` have, each ability counted (a card with two is two): "X equals the PINK BUBBLES you control"
+   * is `{ tag: "pinkBubble", cards: { controller: "you" } }`, "the number of PURPLE BUBBLES in play" `{ tag:
+   * "purpleBubble" }` (`cards` absent: every card in play). Live abilities, as `TargetQuery hasTaggedAbility` reads
+   * them: a blanked text box has none, an identity counts the face showing. Tagged abilities with no effects count.
+   */
+  | { readonly kind: "taggedAbilities"; readonly tag: string; readonly cards?: TargetQuery }
   /**
    * The main scheme's printed stage number, as it reads now: "[Collector] gets +X SCH and +X ATK, where X is equal
    * to the main scheme's current stage number" (Collector I/II, `gmw` 16080a/16081a). Defaults to the central main
@@ -1774,6 +1790,15 @@ export type Predicate =
       readonly atMost: number;
     }
   /**
+   * The last card `player` played this round matches `cards`: "If the last card you played this round was a [title]
+   * event, reduce the cost to play this card by 1" (a custom-content card, docs/custom-content-packs.md §6). Read from
+   * `GameState.playedInOrderThisRound`, so it is the most recent play by order, wherever that card is now (an event in
+   * the discard pile matches as the card it is). False when the player has played nothing this round. A card counts as
+   * played from the moment its play commits, so while a card resolves its own play is the last one; a cost reduction
+   * read from the hand (`CostModifierSpec activeIn: "hand"`) is read before the play commits and sees the play before.
+   */
+  | { readonly kind: "lastPlayedThisRound"; readonly player: PlayerRef; readonly cards: TargetQuery }
+  /**
    * Compares two live values: "if there is 10 or more threat here" (the Wrecking Crew signature side schemes) →
    * `{ left: { kind: "threat", of: self }, op: "atLeast", right: 10 }`.
    *
@@ -2183,6 +2208,17 @@ export type EffectSpec =
        * to an enemy" does not. The DSL's `attack` sets it when the amount reads the attacker's ATK.
        */
       readonly usesAtk?: true;
+      /**
+       * "This attack ignores guard" (Hammer Throw, community pack `throg-ptt`): this one attack is not stopped by a
+       * guard minion engaged with the attacker's controller (RRG 1.8 "Ignore", p. 23; "Guard", p. 21). Unlike a
+       * `characterIgnores` rule it belongs to the attack, not the character, and lasts for the whole of it: the
+       * ability carrying it (`attackIgnoresGuard`, `select.ts`) reads every guard check with the waiver, from the
+       * choice of its enemy (`attackableBy`, `attackTargetAllowed`) and the check whether it can be initiated at all
+       * (`attackNamesNoAttackableEnemy`) to each instance of its damage, and its `attack` event carries it
+       * (`TriggerEvent attack.ignoresGuard`) so "after you ignore guard" answers it. A `cannotAttack` rule is not
+       * guard and still applies (RRG 1.8 "'Cannot'", p. 11).
+       */
+      readonly ignores?: readonly "guard"[];
       readonly moveDamageFrom?: TargetRef;
       readonly bind?: string;
     }
@@ -2399,7 +2435,12 @@ export type EffectSpec =
        * prevention. A tough card that absorbs the damage leaves the budget unspent (nothing is taken to prevent).
        */
       readonly preventDamage?: ValueSpec;
-      /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
+      /**
+       * A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist;
+       * §3.11). An enemy's boosted attack on another enemy (`enemyAttacksEnemy.boost`) takes it too, from an interrupt
+       * to that attack: "When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack"
+       * (The Punisher community scenario; the attack's boost cards are dealt from its own event frame).
+       */
       readonly extraBoostCards?: number | ValueSpec;
       /**
        * "Do not give Master Mold a boost card for this activation" (Master Mold I–III, `mut_gen` 32109–32111;
@@ -2856,7 +2897,20 @@ export type EffectSpec =
    * form's is (`RuleSpec blankTextBox`, docs/phase7-wave7.md §4.1 Q12 = A): both faces, keywords included, traits and
    * the printed stat line kept, and changing form restores nothing.
    */
-  | { readonly kind: "blankTextBox"; readonly target: TargetRef; readonly until: LastingUntil }
+  /**
+   * `forPlayers`: a blank for some players only. "Each player who discarded a card this way may treat this card's
+   * printed text box as if it were blank" (Cemented, a custom-content side scheme; docs/custom-content-packs.md §6):
+   * the players the ref names when the effect resolves treat the text box as blank, and nobody else does. The card
+   * keeps its abilities for the game and every other player; for those players its constant rules do not bind them
+   * (`ActiveRule.blankedFor`: a rule's `player` scope leaves them out, `cannotFlip` does not stop their flips) and its
+   * action abilities cannot be triggered by them. Absent: the blank is everyone's, as before.
+   */
+  | {
+      readonly kind: "blankTextBox";
+      readonly target: TargetRef;
+      readonly until: LastingUntil;
+      readonly forPlayers?: PlayerRef;
+    }
   /**
    * "You cannot change form **until your next turn ends**" (Care for Cassie, `ant` 12025) / "You cannot ready your
    * identity until your next turn ends" (Need for Speed, `qsv` 14024): a `RuleSpec` with a clock on it, as a
@@ -2945,6 +2999,12 @@ export type EffectSpec =
       readonly target?: TargetRef;
       readonly affects?: TargetQuery;
       readonly until: LastingGrantUntil;
+      /**
+       * The card loses the keyword for the duration instead (RRG 1.8 "'Loses'", p. 27: it "functions as if it does
+       * not possess" it, and cannot regain it while this lasts; still printed). Custom content's "ignore one keyword
+       * on one card until the end of the round". `keyword`'s value is not read: every instance of that name is lost.
+       */
+      readonly loses?: true;
     }
   /**
    * "Gain the Aerial trait until the end of the phase" (Rocket Boots): `trait`. Or, with `traitsOf` instead, "You gain
@@ -2965,8 +3025,17 @@ export type EffectSpec =
       readonly until: LastingGrantUntil;
       readonly whileAttached?: { readonly card: TargetRef; readonly to: TargetRef };
     } & (
-      | { readonly trait: Trait; readonly traitsOf?: undefined }
-      | { readonly trait?: undefined; readonly traitsOf: TargetRef }
+      | {
+          readonly trait: Trait;
+          readonly traitsOf?: undefined;
+          /**
+           * The card loses `trait` for the duration instead (RRG 1.8 "'Loses'", p. 27: it "functions as if it does not
+           * possess" it, and no grant gives it back while this lasts; it is still printed, so a printed-trait read
+           * still finds it). Custom content's "ignore one trait on one card until the end of the round".
+           */
+          readonly loses?: true;
+        }
+      | { readonly trait?: undefined; readonly traitsOf: TargetRef; readonly loses?: undefined }
     ))
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */
   | { readonly kind: "atEndOfRound"; readonly effects: readonly EffectSpec[] }
@@ -3016,6 +3085,14 @@ export type EffectSpec =
        * effect naming a card with none to move has no valid target and does not use it (RRG 1.8 "Target", p. 42).
        */
       readonly shuffleEvenIfEmpty?: true;
+      /**
+       * `to: { scenarioArea }` only: the cards go into the area facedown, where they are closed to every player
+       * (`visibility.ts`: an out-of-play card is open exactly when it is faceup). Without it they go in faceup, as The
+       * Collection's do. "Put 1[per_hero] card from the top of your deck facedown into Damnation" (community pack
+       * `mephisto-nep`). Each card keeps its owner, so `"deckShuffle"` later returns it to its owner's deck. The
+       * validator refuses it with any other destination.
+       */
+      readonly facedown?: true;
     }
   /**
    * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue, `rogue` 38001, 38007;
@@ -3052,6 +3129,11 @@ export type EffectSpec =
    * - `to: "play"`: "find X and put it into play" (Protect Humanity 59004), as `EffectSpec putIntoPlay` under the
    *   control of the player resolving the ability. A card already in play stays as it is.
    * - `perPlayerAs`, with `to: "reveal"` only: the reveal's `EffectSpec revealCard.perPlayerAs` (H3.5).
+   * - `anywhere`: "search everywhere in or out of play for the specified card" (DesignHacker's Summon keyword, community
+   *   pack `yondu-dh`), wider than Find on purpose: after every area a find reaches, in its order, the facedown
+   *   encounter cards in play, facedown attachments and boost cards, the players' facedown dealt encounter cards, the
+   *   victory display and the cards removed from the game (`findCards`' `anywhere`). Those areas hold no deck, so a card
+   *   found there shuffles nothing; one found in a deck still shuffles it as any find does.
    */
   | {
       readonly kind: "findCard";
@@ -3062,6 +3144,7 @@ export type EffectSpec =
       readonly choose?: true;
       readonly outOfPlay?: true;
       readonly perPlayerAs?: number;
+      readonly anywhere?: true;
     }
   /** Choose cards outside play ("look at the top 3 … add 1", "search your deck for an upgrade", "choose up to 3 different cards in your discard"). */
   | {
@@ -3280,7 +3363,9 @@ export type EffectSpec =
   /**
    * `of` names cards wherever they are, for a Special resolved out of play: "resolve the 'Special' ability on [the top
    * card of the Invocation deck]". Resolving a Special is not playing the card, so no `cardPlayed` event (FAQ
-   * "Depowered (#20)", p. 60: "merely resolved, not played").
+   * "Depowered (#20)", p. 60: "merely resolved, not played"). With both `of` and `cards`, the cards of both resolve
+   * together (`of`'s first, a card named twice once): "remove this card from the game → resolve all the PINK BUBBLES in
+   * play", whose author has the removed card's own bubble resolve too, is `{ of: self, cards: {}, tag }`.
    */
   /**
    * `player`: who "you" is inside a Special whose card has no controller ("Each player must resolve The Hood's 'Foul
@@ -3399,6 +3484,21 @@ export type EffectSpec =
        * wording of FFG's announced erratum to Change of Venue (`fne` 60141) and similar cards (same ruling).
        */
       readonly excludeKeywords?: readonly ("incite" | "surge")[];
+      /**
+       * Tagged abilities (`AbilityTriggerSpec special.tag`; custom content's "speech bubbles"): with `trigger` absent or
+       * `"special"`, only the abilities tagged `tag` resolve, and no untagged Special does. "Resolve all the PURPLE
+       * BUBBLES in play" is `{ cards: {}, tag: "purpleBubble" }`; the same `tag` must be named to count one
+       * (`ValueSpec taggedAbilities`) or to match a card by one (`TargetQuery hasTaggedAbility`).
+       */
+      readonly tag?: string;
+      /**
+       * `"one"`: "Resolve whatever is written in a PINK BUBBLE in play": of every ability this effect would resolve, the
+       * calling ability's player picks one (the first player, when the card resolving this effect has no controller)
+       * and only that one resolves. Every candidate is a legal pick, one with nothing to resolve (flavor text) included,
+       * so a pick is never forced on the player by what the abilities do. With one candidate it is taken unasked; with
+       * none nothing resolves. Absent: every one resolves, in the order that player chooses.
+       */
+      readonly pick?: "one";
       /**
        * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"): only
        * those whose effects changed the game (RRG 1.8 "Resolve", p. 37), read as each finishes (`Frame<"effects">.resolvedCount`),
@@ -3591,6 +3691,17 @@ export type EffectSpec =
       readonly statBonusTiming?: "afterInterrupts";
       readonly extraBoostCards?: number | ValueSpec;
       readonly boostIconsEach?: ValueSpec;
+      /**
+       * "Mephisto activates against you. Apply this card's boost icons for this activation as if it were a boost card"
+       * (the Bargain attachments' Response, community pack `mephisto-nep`): the cards `boostCards` names now (each out
+       * of play, in a zone a boost card can be given from, `BOOST_SOURCE_ZONES`) join the first activation this effect
+       * starts as boost cards of that activation, given at its give-boost step (after its own boost cards, also when
+       * the activation gets none of its own), then turned faceup, resolved, counted and discarded with them (RRG 1.8
+       * "Boost, Boost Icon", p. 11). An activation that never begins (cancelled by an interrupt, a stun or a confuse)
+       * never takes them, so they stay where they were: for a card discarded as the ability's cost, the encounter
+       * discard pile. They never wait on the enemy for a later activation.
+       */
+      readonly boostCards?: TargetRef;
     }
   /**
    * "This card gains surge": the encounter card whose ability this is surges when its reveal finishes.
@@ -3735,12 +3846,19 @@ export type EffectSpec =
    * resets first (FFG ruling: "Put the second drone into play after reshuffling
    * your deck and dealing yourself a facedown encounter card"). When it leaves
    * play it goes to its owner's zones and is itself again.
+   *
+   * `from: "discard"`: the top card of that player's discard pile instead ("put the top card of your discard pile
+   * facedown engaged with you as a Mystic minion", Lilith, community pack `mephisto-nep` 41). An empty discard pile
+   * puts nothing in (nothing resets it), and a count above its size stops when it is empty. Its stats are set as any
+   * facedown minion's are, by a constant with `setBase` on the facedown cards (Ultron's Drones; "Each facedown Mystic
+   * minion engaged with a player has a base SCH of 1 …", Call of the Demoness 42).
    */
   | {
       readonly kind: "putIntoPlayFacedown";
       readonly player: PlayerRef;
       readonly count?: ValueSpec;
       readonly as: FacedownRole;
+      readonly from?: "deck" | "discard";
     }
   /** Binds the cards a selector names now into `slot` (and `<slot>.count`): "your set-aside nemesis minion", "the Breakin' & Takin' side scheme in the encounter deck or discard". */
   | { readonly kind: "selectCards"; readonly slot: string; readonly cards: CardSelector }
@@ -4936,6 +5054,17 @@ export type EffectSpec =
    */
   | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec; readonly card?: TargetRef }
   /**
+   * "When Carnage uses a basic power, you may give him a boost card." (Klyntar Bond, a custom-content card; docs/
+   * custom-content-packs.md §6): in an interrupt to a `basicPowerUsing` event, give the character using the power a
+   * facedown boost card from the top of the encounter deck and resolve it with that use as the villainous keyword does
+   * for a friendly character (RRG 1.8 "Villainous", p. 47; MC60 p. 26 FAQ): turned faceup as the power resolves, its
+   * Boost ability resolved with the character's controller as "you", its icons added to the stat powering this use, and
+   * the card discarded once the use has resolved (`resolve/villainous.ts` `registerCharacterBoost`). The character need
+   * not have villainous; one that has it gets this card in addition to the keyword's. Outside such an interrupt, or for
+   * a use that gets no boost card (an ally's defense), it does nothing. Make the ability optional for "you may".
+   */
+  | { readonly kind: "giveBasicPowerBoostCard" }
+  /**
    * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
    * docs/phase7-wave5.md §3.6): every facedown boost card on each card `from` names, in the order dealt, onto the first
    * card in play `to` names, where they wait as boost cards dealt outside that enemy's activation (RRG 1.8 "Boost, Boost
@@ -4968,6 +5097,29 @@ export type EffectSpec =
    * default A): the first player token stays (`SKIPPED_VILLAIN_PHASE_PASSES_TOKEN`, `flow.ts`).
    */
   | { readonly kind: "skipNextVillainPhase" }
+  /**
+   * "When the villain phase would begin, instead remove this card from the game → start another player phase" (custom
+   * content): adds 1 to `GameState.villainPhasesReplacedByPlayerPhase`. The next villain phase does not happen and a
+   * player phase is played in its place, **within the same round**: the round does not end and no new one starts, so
+   * the round number, the first player, "until the end of the round" effects and "once per round" limits all carry on
+   * (RRG 1.8 "Round Overview", p. 4: the round ends only at step 10, after the villain phase). No threat is placed,
+   * nothing activates, no card is dealt or revealed and the first player token is not passed. The extra player phase
+   * is a player phase like any other (RRG 1.8 "Player Phase", p. 34): it begins ("when the player phase begins"
+   * answers it, "once per phase" limits are fresh), each player takes a turn in player order, and it ends with every
+   * step of "End of Player Phase" (p. 18): discard down to hand size, draw up to it, ready every card, then "until the
+   * end of the phase" effects end. Then the villain phase it was in place of is played, unless this was used again.
+   *
+   * Read where the villain phase would begin: at the player phase's end when this was made earlier (no "villain phase
+   * begins" is raised), or, made by an interrupt to the villain phase beginning (`on.phaseBeginning("villain")`, which
+   * also `cancelTriggeringEvent`s it), before step one. Either way the replaced beginning is not considered to have
+   * occurred (RRG v1.8 "Replacement Effect" p. 37, "Cancel" p. 11), so "until the next villain phase begins" lasting
+   * effects run on through the extra player phase and expire when the villain phase actually played begins ("Lasting
+   * Effects" p. 26): a cancelled beginning puts back the ones its `villainPhaseBegins` step had ended (the event
+   * frame's `restoreIfCancelled`). Consistent with a skipped villain phase, which never begins
+   * (docs/phase7-wave11-hero-packs.md H3.7, H3.8). Ahead of `skipNextVillainPhase`: a skip waiting for the same villain
+   * phase waits for the one after the extra player phase. Logged as `villainPhaseSkipped` with `playerPhaseInstead`.
+   */
+  | { readonly kind: "replaceNextVillainPhaseWithPlayerPhase" }
   /**
    * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
    * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's
@@ -5605,6 +5757,14 @@ export type EffectSpec =
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**
+   * "[star] Boost: … cancel this activation" (community pack `mephisto-nep`, Blackheart): cancels the enemy attack or
+   * scheme whose boost card this ability is resolving from (`selfInstanceId`). A Boost ability has no triggering event
+   * (RRG 1.8 "Boost, Boost Icon", p. 11: it resolves "when the card is turned face up"), so `cancelTriggeringEvent`
+   * finds nothing; this names the activation instead. The rest of the Boost ability still resolves; then the
+   * activation ends with nothing more of it resolved (`endedByBoostCancel`, `resolve/enemy-activation.ts`).
+   */
+  | { readonly kind: "cancelBoostedActivation" }
+  /**
    * "Response: After you spend this card to pay for an AERIAL event, return that event to your hand after resolving its
    * effects" (docs/phase7-wave7.md §3.68): a destination written on the play of each event `card` names (its
    * `playCard` frame, `afterResolving`), read when the event would be placed in the discard pile. `card` is the event
@@ -5724,7 +5884,14 @@ export type EffectSpec =
    * there (`LastingDuration nextVillainPhaseBegins`, docs/phase7-wave8.md §3.13). Pushed as the player phase finishes,
    * beneath everything its end queues and above the villain phase's own beginning, and only when such an effect exists.
    */
-  | { readonly kind: "villainPhaseBegins" }
+  | {
+      readonly kind: "villainPhaseBegins";
+      /**
+       * The villain phase's beginning event frame pushed beneath this step, when one was: the effects this ends are
+       * kept on it (`restoreIfCancelled`) and come back if that beginning is cancelled.
+       */
+      readonly beginning?: FrameId;
+    }
   /**
    * **Engine-internal; no DSL builder.** The last step of paying a "resolve its 'Forced Response' … →" cost
    * (`AbilityCost.resolveAbility`, `resolve-ability-cost.ts`, docs/phase7-wave8.md §3.11): reads `<bind>.count`, how
@@ -5917,6 +6084,13 @@ export type CardSelector =
       readonly ref: TargetRef;
       readonly filter?: TargetQuery;
       /**
+       * The named cards may be ones removed from the game, which a ref otherwise never reaches (ruling Dec 17, 2025
+       * (4)). Set only by a `findCard` with `anywhere` that found its card there (DesignHacker's Summon, "everywhere in
+       * or out of play", community pack `yondu-dh`): card text that names that area overrides the ruling (RRG 1.8 "The
+       * Golden Rules", p. 4).
+       */
+      readonly includeRemoved?: true;
+      /**
        * Only the named cards that are in this zone of their owner right now: "tuck that event **from your discard
        * pile** under this card" (Ionic Physiology, `wonder_man` 58002; docs/phase7-wave10-hero-packs.md §H3.12). A named
        * card anywhere else (shuffled into its deck, returned to hand, removed, still in play) is not selected. With
@@ -5925,6 +6099,15 @@ export type CardSelector =
        * `tuckNamedNoCard`; RRG 1.8 "'Then'", p. 44).
        */
       readonly ownerZone?: PlayerZone;
+      /**
+       * That many of the named cards at random, from the game's seeded RNG, as `encounterSetAside.random`: over every
+       * card `ref` names as one pool, after `filter` and `ownerZone`, fewer when fewer are there and none of an empty
+       * pool (which draws nothing). The in-play counterpart of the out-of-play selectors' `random`: "discard 1 upgrade
+       * you control at random" is `selectCards(slot, { kind: "ref", ref: each(upgrade you control), random: 1 })` then
+       * `discardFromPlay(chosen(slot))` (Hello Again, community pack `gwenpool-ptt` 15). Nobody chooses, so it is a
+       * pick, not a target choice.
+       */
+      readonly random?: ValueSpec;
     }
   /**
    * The encounter deck and/or discard pile ("search the encounter deck and discard pile for …"): the active
@@ -6061,8 +6244,14 @@ export type CardSelector =
    * Negative or zero `count` names nothing. The other copies are not touched: they stay where they were.
    */
   | { readonly kind: "atMost"; readonly count: ValueSpec; readonly of: CardSelector }
-  /** The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14). */
-  | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery }
+  /**
+   * The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14).
+   * `random`: that many of them (after `filter`), picked by the game's seeded RNG, fewer when fewer are there, as
+   * `encounterSetAside.random`. A facedown area's cards cannot be told apart, so "look at 1 card in Damnation → shuffle
+   * it back into its owner's deck" (community pack `mephisto-nep`) is a pick at random, not a choice: `moveCards({ kind:
+   * "scenarioArea", name: "Damnation", random: 1 }, "deckShuffle")`.
+   */
+  | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery; readonly random?: ValueSpec }
   /**
    * The cards a campaign-log field names, wherever they are in the game: "Shuffle each EXPERIMENTAL attachment
    * recorded in the campaign log into the encounter deck" (MC10 p. 7), MC21 p. 7's campaign pool, MC50 p. 19.

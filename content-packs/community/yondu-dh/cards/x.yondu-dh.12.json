@@ -1,0 +1,30 @@
+{
+  "id": "x.yondu-dh.12",
+  "name": "Yaka Arrow",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "12",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 1,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["TECH", "WEAPON"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Yaka Arrow cannot be attached to cards unless it is in play. While Yaka Arrow is attached to Yondu, he gets +1 THW and +1 ATK.\nForced Interrupt: When attached enemy would be defeated, attach Yaka Arrow to an enemy, to your identity, or add it to your hand.",
+    "current": "Yaka Arrow cannot be attached to cards unless it is in play. While Yaka Arrow is attached to Yondu, he gets +1 THW and +1 ATK.\nForced Interrupt: When attached enemy would be defeated, attach Yaka Arrow to an enemy, to your identity, or add it to your hand."
+  },
+  "abilities": [
+    {
+      "id": "x.yondu-dh.12.yaka-arrow-constant"
+    },
+    {
+      "id": "x.yondu-dh.12.yaka-arrow-forced-interrupt"
+    }
+  ]
+}

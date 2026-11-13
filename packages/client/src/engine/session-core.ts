@@ -28,7 +28,15 @@
 import { cardsOfComposedSets } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
-import { POOL_CARDS, POOL_DEPS, POOL_VERSION, buildScenario } from "../content/pool.js";
+import {
+  POOL_VERSION,
+  POOL_STARTER_DECKS,
+  buildScenario,
+  poolViewOfPacks,
+  type PlayableScenarioOptions,
+} from "../content/pool.js";
+import { packsOwningContent, seatsWithPackDecks, type PackRuntime } from "../packs/pack-runtime.js";
+import { scenarioWithPacks } from "@mc/mod-sdk/game";
 import {
   applyCommand,
   createGame,
@@ -36,6 +44,7 @@ import {
   sessionApply,
   startSession,
   type Command,
+  type EngineDeps,
   type EngineError,
   type EngineErrorCode,
   type EventState,
@@ -184,6 +193,9 @@ function sealedEventStates(states: readonly EventState[]): readonly SealedEventS
   return kept;
 }
 
+/** Base-game precon ids: a pack deck may never take one (`seatsWithPackDecks`). */
+const BASE_DECK_IDS: ReadonlySet<string> = new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string));
+
 /**
  * The one place a `SessionConfig` becomes a `GameSetupConfig` — shared by `start`, `resume` and the read-only
  * replay cursor, so none of them can disagree about what a save means.
@@ -205,9 +217,15 @@ function sealedEventStates(states: readonly EventState[]): readonly SealedEventS
  * every standalone game and for a campaign save written before this field existed, so neither's setup changes.
  */
 const scenarioFor = (config: SessionConfig) => {
-  const setup = buildScenario(config.scenarioId, {
+  const view = viewOf(config);
+  // A pack's own scenario, or a pack's modular set at any scenario, goes through the SDK's builder, which knows the
+  // packs' scenario and encounter set records; every other game takes the base builder exactly as before.
+  const build = usesPackContent(config, view.packs)
+    ? (id: string, options: PlayableScenarioOptions) => scenarioWithPacks(id, options, view.packs)
+    : buildScenario;
+  const built = build(config.scenarioId, {
     difficulty: config.difficulty,
-    players: config.players,
+    players: view.packs.length > 0 ? seatsWithPackDecks(config.players, view.packs, BASE_DECK_IDS) : config.players,
     seed: config.seed,
     ...(config.modes ? { modes: config.modes } : {}),
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
@@ -227,6 +245,9 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.gameMode ? { gameMode: config.gameMode } : {}),
     ...(config.stack ? { stack: config.stack } : {}),
   });
+  // The packs' cards join the game's pool after the builder, which knows only the base game's cards. They ride with
+  // the config (`SessionConfig.packs`), so this worker needs no packs of its own and a resume rebuilds the same pool.
+  const setup = view.packs.length > 0 ? { ...built, cards: view.cards } : built;
   const seated = config.outsideFacts
     ? {
         ...setup,
@@ -241,17 +262,27 @@ const scenarioFor = (config: SessionConfig) => {
         ...seated,
         encounterDeck: [
           ...seated.encounterDeck,
-          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.deck, removed),
+          ...cardsOfComposedSets(view.cards, config.campaignEncounterSets.deck, removed),
         ],
         setAside: [
           ...(seated.setAside ?? []),
-          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.setAside, removed),
+          ...cardsOfComposedSets(view.cards, config.campaignEncounterSets.setAside, removed),
         ],
       }
     : seated;
   const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
   return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
 };
+
+/** Whether a game's scenario or one of its modular picks belongs to one of its packs. */
+const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): boolean =>
+  packs.length > 0 &&
+  packsOwningContent(config.scenarioId, [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])], packs)
+    .length > 0;
+
+/** The engine deps a game runs with: the base game's, plus its packs' abilities (`SessionConfig.packs`). */
+const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);
+const depsOf = (config: SessionConfig | null): EngineDeps => viewOf(config).deps;
 
 const statusOf = (state: GameState): SaveStatus =>
   state.outcome
@@ -287,7 +318,7 @@ export interface ReplayBaseline {
  * config referencing content that no longer exists).
  */
 export function rebuildBaseline(config: SessionConfig, storedInitialState: StateWithoutPool): ReplayBaseline {
-  const fresh = createGame(scenarioFor(config), POOL_DEPS);
+  const fresh = createGame(scenarioFor(config), depsOf(config));
   if (!fresh.ok) {
     throw new SetupError({
       ...fresh.error,
@@ -358,13 +389,13 @@ export class EngineSessionCore {
   /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
   async start(given: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
     const config = await this.#withHistoryFacts(given);
-    const setup = createGame(scenarioFor(config), POOL_DEPS);
+    const setup = createGame(scenarioFor(config), depsOf(config));
     if (!setup.ok) throw new SetupError({ ...setup.error, message: `setup failed: ${setup.error.message}` });
 
     this.#session = startSession(setup.state);
     this.#config = config;
     this.#version = 0;
-    this.#record = recordEvents(emptyRecord(), setup.events, setup.state, POOL_DEPS);
+    this.#record = recordEvents(emptyRecord(), setup.events, setup.state, depsOf(config));
     this.#writes = Promise.resolve();
     this.#saveError = null;
     this.#gameId = null;
@@ -469,12 +500,12 @@ export class EngineSessionCore {
     const { initialState } = baseline;
     // Setup's own events aren't stored; setup is deterministic from the config,
     // so a fresh setup emits the same ones (the scheme's starting threat among them).
-    let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState, POOL_DEPS);
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState, depsOf(stored.meta.config));
     let state = initialState;
     const history: GameEvent[] = [...baseline.setupEvents];
     const trail: BackOutTrailEntry[] = [];
     for (const [index, command] of stored.commands.entries()) {
-      const result = applyCommand(state, command, POOL_DEPS);
+      const result = applyCommand(state, command, depsOf(stored.meta.config));
       if (!result.ok) {
         if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
         await storage.setStatus(gameId, "incompatible");
@@ -488,7 +519,7 @@ export class EngineSessionCore {
         events: result.events,
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
-      record = recordEvents(record, result.events, result.state, POOL_DEPS);
+      record = recordEvents(record, result.events, result.state, depsOf(stored.meta.config));
       state = result.state;
       history.push(...result.events);
     }
@@ -528,12 +559,12 @@ export class EngineSessionCore {
     }
     const truncated = session.log.commands.slice(0, commandCount);
     const baseline = rebuildBaseline(config, stripPool(session.log.initialState));
-    let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, POOL_DEPS);
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, depsOf(config));
     let state = baseline.initialState;
     for (const command of truncated) {
-      const result = applyCommand(state, command, POOL_DEPS);
+      const result = applyCommand(state, command, depsOf(config));
       if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
-      record = recordEvents(record, result.events, result.state, POOL_DEPS);
+      record = recordEvents(record, result.events, result.state, depsOf(config));
       state = result.state;
     }
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
@@ -550,7 +581,7 @@ export class EngineSessionCore {
         ...this.#playedField(),
         status: statusOf(state),
         outcome: state.outcome,
-        summary: summarizeGame(state, record, POOL_DEPS),
+        summary: summarizeGame(state, record, depsOf(config)),
       };
       // Chained onto `#writes`, the same queue `#persist` appends onto — a command dispatched just before this
       // rewind may still have an `append` in flight, and truncating ahead of it would let that append land
@@ -568,18 +599,18 @@ export class EngineSessionCore {
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
-    const result = sessionApply(session, command, POOL_DEPS, { recordStates: inVillainPhase });
+    const result = sessionApply(session, command, depsOf(this.#config), { recordStates: inVillainPhase });
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
-    this.#record = recordEvents(this.#record, result.events, result.session.state, POOL_DEPS);
+    this.#record = recordEvents(this.#record, result.events, result.session.state, depsOf(this.#config));
     this.#persist(command, this.#version - 1, result.session.state, this.#played());
     const states = sealedEventStates(result.states ?? []);
     return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };
   }
 
   legalActions(playerId: PlayerId): LegalActions {
-    return queryLegalActions(this.#require().state, playerId, POOL_DEPS);
+    return queryLegalActions(this.#require().state, playerId, depsOf(this.#config));
   }
 
   /**
@@ -587,7 +618,10 @@ export class EngineSessionCore {
    * the costly half of paying, so it runs here, off the main thread, tagged with the version it was judged at.
    */
   judgePayment(playerId: PlayerId, payment: PaymentState): JudgedPayment {
-    return { version: this.#version, verdict: judgePayment(this.#require().state, playerId, payment, POOL_DEPS) };
+    return {
+      version: this.#version,
+      verdict: judgePayment(this.#require().state, playerId, payment, depsOf(this.#config)),
+    };
   }
 
   /**
@@ -662,17 +696,22 @@ export class EngineSessionCore {
       this.#writer,
       async (stored) => {
         const baseline = rebuildBaseline(stored.meta.config, stored.initialState);
-        let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, POOL_DEPS);
+        let record = recordEvents(
+          emptyRecord(),
+          baseline.setupEvents,
+          baseline.initialState,
+          depsOf(stored.meta.config),
+        );
         let state = baseline.initialState;
         for (const [index, command] of stored.commands.entries()) {
           // A long log yields now and then, so a game started meanwhile is answered between steps.
           if (index > 0 && index % BACKFILL_YIELD_EVERY === 0) await new Promise((resolve) => setTimeout(resolve, 0));
-          const result = applyCommand(state, command, POOL_DEPS);
+          const result = applyCommand(state, command, depsOf(stored.meta.config));
           if (!result.ok) return null;
-          record = recordEvents(record, result.events, result.state, POOL_DEPS);
+          record = recordEvents(record, result.events, result.state, depsOf(stored.meta.config));
           state = result.state;
         }
-        const summary = summarizeGame(state, record, POOL_DEPS);
+        const summary = summarizeGame(state, record, depsOf(stored.meta.config));
         return summary ? { state, summary } : null;
       },
       undefined,
@@ -724,7 +763,7 @@ export class EngineSessionCore {
       ...this.#playedField(),
       status: statusOf(state),
       outcome: state.outcome,
-      summary: summarizeGame(state, this.#record, POOL_DEPS),
+      summary: summarizeGame(state, this.#record, depsOf(this.#config)),
     };
     this.#writes = this.#writes
       .then(() => storage.append(gameId, seq, command, progress))
@@ -751,7 +790,7 @@ export class EngineSessionCore {
       // the full state, here.
       state: stripSealedPool(sealed),
       events,
-      legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, POOL_DEPS) } : null,
+      legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, depsOf(this.#config)) } : null,
       record: this.#record,
       saveError: this.#saveError,
       config: this.#config,
