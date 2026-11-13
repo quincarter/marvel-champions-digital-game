@@ -128,6 +128,13 @@ mc-pack test <dir> [--games <n>] [--scenario rhino|klaw|ultron] [--max-commands 
 mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
 ```
 
+- **`validate`, `build` and `test` run the pack's code.** They import its `abilities/index.ts` (with jiti) in the
+  same process, so a pack can do anything its runner can: read files and environment variables, open network
+  connections. Run them only on a pack you trust, or in a sandbox with nothing to steal: no publishing tokens or other
+  secrets in the environment, a read-only GitHub token, no saved credentials. The store's workflows do that: the
+  jobs that run pack code have no secrets, and the jobs that hold them run no pack code
+  (docs/custom-content-packs.md §11.9; `scripts/check-workflow-secrets.mjs` checks it). `import-marvelcdb` only reads
+  JSON and runs no pack code.
 - Exit codes: 0 success, 1 the pack has a problem (invalid, fails to load, a smoke game failed), 2 a usage error.
 - `validate` lists real problems first and the `unscripted-ability` issues as their own group; `--allow-unscripted`
   passes a pack whose only issues are those. `build` and `test` never allow them.

@@ -298,7 +298,12 @@ packs creators submit go through the registry repo instead.
   prints the `index.json` it would upload).
 - **What:** it fetches the `pack-art` bundles, builds every pack with `mc-pack build`, uploads each one's zip,
   `pack.json`, `preview.json` and `thumb.webp` to `<id>/<version>/`, then upserts the built packs into `index.json`
-  (other packs and older versions stay; `approved` keeps its first date; `scripts/lib/pack-index.mjs`).
+  (other packs and older versions stay; `approved` keeps its first date; `latest` is the highest SemVer version;
+  `scripts/lib/pack-index.mjs`). The build runs pack code, so it is its own job with no secrets; a second job holds
+  the R2 secrets and only uploads (§11.9). The `index.json` write is conditional on its ETag and retried when the
+  registry's publish wrote in between (§11.5).
+- **Withdrawn packs stay withdrawn.** A publish never lists a withdrawn pack again; a manual run with the
+  `unwithdraw` input (pack ids, comma-separated) does.
 - **Versions never change once published.** A version already in the bucket with the same zip is skipped; with a
   different zip the run fails: bump `version` in the pack's `pack.json`. That includes a change to a pack's pictures
   (pack its `pack-art-<id>` bundle and bump the version in the same pull request) and an SDK change that alters the

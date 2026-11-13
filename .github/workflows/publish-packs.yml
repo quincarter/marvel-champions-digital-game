@@ -3,11 +3,18 @@
 # Packs a community creator submits go through the registry repo (quincarter/marvel-champions-mods) instead; both
 # write the same index.json.
 #
+# Two jobs, because building a pack runs its code (`mc-pack build` imports the pack's abilities/index.ts):
+#   - `build` runs the pack code with no secrets and a read-only token, and hands the staged packs on as an artifact;
+#   - `publish` holds the R2 secrets (in the `store` environment) and runs no pack code: it only uploads the staged
+#     files and runs this repo's own index scripts on them.
+# scripts/workflow-secrets.test.mjs fails the tests if a job that runs pack code gets a secret.
+#
 # Each pack is built with `mc-pack build` (deterministic zip) and uploaded to <id>/<version>/: its zip, pack.json, and
 # preview.json and thumb.webp when the build wrote them. A version is never overwritten: one already in the bucket
-# with the same zip is skipped, one with a different zip fails the run ("bump the version"). Then index.json is
-# downloaded, the built packs are upserted into it (scripts/lib/pack-index.mjs: other packs and older versions stay,
-# `approved` keeps its first date) and it is uploaded with a short cache.
+# with the same zip is skipped, one with a different zip fails the run ("bump the version"). Then the built packs are
+# upserted into index.json (scripts/lib/pack-index.mjs: other packs and older versions stay, `approved` keeps its
+# first date, `withdrawn` is never cleared by a publish) with a conditional write (scripts/r2-conditional-update.mjs:
+# If-Match on the ETag read, re-read and re-merge on 412), because the registry's publish writes the same object.
 #
 # The community packs' pictures are not in git: they are the optional `pack-art` media bundles on the content repo's
 # releases (assets/manifest.json), which `pnpm assets:fetch` skips unless asked.
@@ -17,7 +24,7 @@
 # bucket is served, e.g. https://packs.example.app; required to upload), R2_BUCKET (default mc-packs).
 #
 # A manual run is a dry run by default: it builds, checks what is already published (when the secrets exist) and
-# prints the index.json it would upload, and uploads nothing.
+# prints the index.json it would upload, and uploads nothing. Its `unwithdraw` input lists packs to list again.
 name: Publish packs
 
 on:
@@ -34,33 +41,34 @@ on:
         required: false
         default: true
         type: boolean
+      unwithdraw:
+        description: "Pack ids to list again in the store, comma-separated (a publish never clears withdrawn)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
-# One publish at a time: each run reads, upserts and writes index.json.
+# One publish at a time from this repo. The registry repo's publish is not in this group: the index.json write is
+# conditional instead (see above).
 concurrency:
   group: publish-packs
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Build and publish the content packs
+  build:
+    name: Build the content packs (no secrets)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     env:
-      DRY_RUN: >-
-        ${{ (github.event_name == 'workflow_dispatch' && inputs.dry-run) ||
-        (github.ref_name == 'feature/custom-content-packs' && vars.PUBLISH_PACKS_FROM_BRANCH != 'true') }}
-      BUCKET: ${{ vars.R2_BUCKET || 'mc-packs' }}
-      BASE_URL: ${{ vars.PACKS_BASE_URL }}
-      STAGING: ${{ github.workspace }}/.publish/staging
-      AWS_DEFAULT_REGION: auto
-      # aws cli 2.23+ adds checksum headers R2 doesn't need; send them only where an operation requires one.
-      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
-      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      STAGING: ${{ github.workspace }}/pack-artifact/staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -111,6 +119,52 @@ jobs:
             fi
             echo "Staged $id $version: $(ls "$target" | tr '\n' ' ')"
           done
+          # A list beside the staging folder, so the artifact is never empty (every pack a DRAFT still publishes an
+          # unwithdraw).
+          {
+            echo "# <id>/<version> staged by run ${GITHUB_RUN_ID}"
+            (cd "$STAGING" && find . -mindepth 2 -maxdepth 2 -type d | sed 's|^\./||' | sort)
+          } > "$STAGING/../staged.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staged-packs
+          path: pack-artifact
+          retention-days: 7
+
+  publish:
+    name: Publish the content packs
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: store
+    permissions:
+      contents: read
+    env:
+      DRY_RUN: >-
+        ${{ (github.event_name == 'workflow_dispatch' && inputs.dry-run) ||
+        (github.ref_name == 'feature/custom-content-packs' && vars.PUBLISH_PACKS_FROM_BRANCH != 'true') }}
+      UNWITHDRAW: ${{ inputs.unwithdraw || '' }}
+      BUCKET: ${{ vars.R2_BUCKET || 'mc-packs' }}
+      BASE_URL: ${{ vars.PACKS_BASE_URL }}
+      STAGING: ${{ github.workspace }}/pack-artifact/staging
+      AWS_DEFAULT_REGION: auto
+      # aws cli 2.23+ adds checksum headers R2 doesn't need; send them only where an operation requires one.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    # No pnpm install and no mc-pack here: this job only moves the files the build job staged, and runs this repo's
+    # own scripts (Node built-ins only) on them.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: staged-packs
+          path: pack-artifact
 
       - name: Check the R2 settings
         id: r2
@@ -120,6 +174,7 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
+          mkdir -p "$STAGING"
           if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
             echo "::notice::No R2 secrets (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY), so nothing was uploaded; the packs built."
             echo "ready=false" >> "$GITHUB_OUTPUT"
@@ -143,6 +198,7 @@ jobs:
           : > "$RUNNER_TEMP/skip.txt"
           failed=0
           for target in "$STAGING"/*/*/; do
+            [ -d "$target" ] || continue
             target="${target%/}"
             version=$(basename "$target")
             id=$(basename "$(dirname "$target")")
@@ -183,6 +239,7 @@ jobs:
               --content-type "$3" --cache-control "$immutable"
           }
           for target in "$STAGING"/*/*/; do
+            [ -d "$target" ] || continue
             target="${target%/}"
             version=$(basename "$target")
             id=$(basename "$(dirname "$target")")
@@ -192,12 +249,16 @@ jobs:
             if [ -f "$target/preview.json" ]; then put "$target/preview.json" "$id/$version/preview.json" application/json; fi
             if [ -f "$target/thumb.webp" ]; then put "$target/thumb.webp" "$id/$version/thumb.webp" image/webp; fi
             if [ -d "$target/cards" ]; then
-              aws s3 cp --only-show-errors --recursive --endpoint-url "$ENDPOINT" "$target/cards"                 "s3://$BUCKET/$id/$version/cards" --content-type image/webp --cache-control "$immutable"
+              aws s3 cp --only-show-errors --recursive --endpoint-url "$ENDPOINT" "$target/cards" \
+                "s3://$BUCKET/$id/$version/cards" --content-type image/webp --cache-control "$immutable"
             fi
             put "$target/$id-$version.zip" "$id/$version/$id-$version.zip" application/zip
             echo "Published $id $version."
           done
 
+      # A conditional write (scripts/r2-conditional-update.mjs): the registry repo's publish writes the same object,
+      # so the put carries If-Match on the ETag read (If-None-Match when there is no index yet), and a 412 or 409
+      # re-reads, re-merges and tries again.
       - name: Update index.json
         shell: bash
         env:
@@ -207,21 +268,24 @@ jobs:
           ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
           set -euo pipefail
-          current="$RUNNER_TEMP/current-index.json"
-          rm -f "$current"
-          if [ "$READY" = "true" ]; then
-            if ! aws s3api get-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key index.json "$current" > /dev/null 2> "$RUNNER_TEMP/get.err"; then
-              if ! grep -qE 'NoSuchKey|404|Not Found' "$RUNNER_TEMP/get.err"; then
-                cat "$RUNNER_TEMP/get.err" >&2
-                exit 1
-              fi
-              rm -f "$current"
-              echo "No index.json in the bucket yet; starting one."
-            fi
-          fi
           base="${BASE_URL:-https://packs.example.invalid}"
-          node scripts/publish-pack-index.mjs "$STAGING" "$base" "$current" > "$RUNNER_TEMP/index.json"
+          merge=(node scripts/publish-pack-index.mjs)
+          if [ -n "$UNWITHDRAW" ]; then merge+=("--unwithdraw=$UNWITHDRAW"); fi
+          merge+=("$STAGING" "$base")
           if [ "$READY" != "true" ] || [ "$DRY_RUN" = "true" ]; then
+            current="$RUNNER_TEMP/current-index.json"
+            rm -f "$current"
+            if [ "$READY" = "true" ]; then
+              if ! aws s3api get-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key index.json "$current" > /dev/null 2> "$RUNNER_TEMP/get.err"; then
+                if ! grep -qE 'NoSuchKey|404|Not Found' "$RUNNER_TEMP/get.err"; then
+                  cat "$RUNNER_TEMP/get.err" >&2
+                  exit 1
+                fi
+                rm -f "$current"
+                echo "No index.json in the bucket yet; starting one."
+              fi
+            fi
+            "${merge[@]}" "$current" > "$RUNNER_TEMP/index.json"
             echo "Dry run (or no R2 secrets): the index.json this run would upload:"
             cat "$RUNNER_TEMP/index.json"
             {
@@ -232,6 +296,6 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          aws s3 cp --only-show-errors --endpoint-url "$ENDPOINT" "$RUNNER_TEMP/index.json" "s3://$BUCKET/index.json" \
-            --content-type application/json --cache-control "public, max-age=300"
-          echo "Uploaded index.json ($(node -p 'require(process.argv[1]).packs.length' "$RUNNER_TEMP/index.json") packs)."
+          node scripts/r2-conditional-update.mjs --endpoint "$ENDPOINT" --bucket "$BUCKET" --key index.json \
+            --content-type application/json --cache-control "public, max-age=300" -- "${merge[@]}" "{current}"
+          echo "Updated index.json."

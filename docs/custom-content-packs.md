@@ -566,7 +566,8 @@ tags: [hero, justice]
    - regenerates `index.json`.
 5. **Update:** a new version is a PR that changes `tag` and `commit`. Older versions stay in R2, so saves that used
    them still load (§7.4).
-6. **Withdraw:** removing a pack's file drops it from the catalog. The client keeps an installed copy and marks it
+6. **Withdraw:** removing a pack's file drops it from the catalog (a publish never lists a withdrawn pack again,
+   §11.5). The client keeps an installed copy and marks it
    "withdrawn": it's still playable, so saves still load, but the store doesn't offer it.
 
 **The repo's own packs** (`content-packs/`: the samples and the community packs the owner imported with permission)
@@ -616,6 +617,29 @@ step) is not done yet.
 
 The client fetches the catalog when the store opens, with a short cache. It keeps the last copy, so the store still
 opens offline and shows what's installed.
+
+**Two publishers, one `index.json` (2026-11-13).** This repo's `publish-packs.yml` and the registry's `publish.yml`
+both read `index.json`, upsert their own packs and write it back. A workflow `concurrency` group only serializes runs
+inside one repo, so each write is conditional (`scripts/r2-conditional-update.mjs`, a copy in each repo):
+
+1. read `index.json` and its ETag (`aws s3api get-object`);
+2. merge this run's packs into it (`scripts/lib/pack-index.mjs` here, `scripts/update-index.mjs` in the registry);
+3. put it with `--if-match <ETag>`, or `--if-none-match '*'` when there was no `index.json` yet;
+4. on `412 PreconditionFailed` (the other repo wrote in between) or `409 ConditionalRequestConflict`, wait (500 ms,
+   doubling, with jitter), then read, merge and put again, up to 6 times before the run fails.
+
+R2 evaluates `If-Match` and `If-None-Match` on PutObject atomically, and the aws cli has the two options on
+`s3api put-object` from 2.22 (ubuntu-latest has 2.39). A run that gives up leaves the packs uploaded and the old
+catalog in place; re-running it lists them, since a re-published version with the same zip is skipped.
+
+The merge rules on both sides:
+
+- `latest` is the highest version by SemVer precedence (numeric identifiers as numbers, so `1.0.0-beta.10` is newer
+  than `1.0.0-beta.2`, and a release is newer than its pre-releases), not the version a run happened to publish. The
+  pack's name, summary and thumbnail follow `latest`.
+- `withdrawn` is never cleared by a publish, whether of a new version or the same one again. In this repo only the
+  workflow's manual `unwithdraw` input lists a pack again. In the registry a deleted `packs/<id>.yaml` drops the
+  pack, and adding the file back lists it again; a pack the other publisher withdrew stays withdrawn.
 
 ### 11.6 The store screen
 
@@ -669,6 +693,27 @@ The owner does these steps while the code is built. The code doesn't wait on the
 
 R2's free tier covers 10 GB of storage, 1 million writes and 10 million reads a month, and egress is free. The 30
 community packs come to about 150 to 200 MB (§10), so even every version of every pack stays far under the limit.
+
+### 11.9 Pack code never sees a secret (2026-11-13)
+
+`mc-pack validate`, `build` and `test` import the pack's `abilities/index.ts` (with jiti) in their own process. That is
+running the pack author's code, with everything the process can reach: files, environment variables, the network. The
+CLI's help and the SDK README say so. The workflows are built around it:
+
+- **This repo's `publish-packs.yml`:** the `build` job runs `mc-pack build` with a read-only token, no secrets and a
+  checkout that keeps no credentials, and hands the staged packs on as an artifact. The `publish` job (the `store`
+  environment) holds the R2 secrets, installs nothing and runs no pack code: it uploads the staged files and runs
+  this repo's own index scripts, which use Node built-ins only.
+- **This repo's `mod-sdk.yml`:** the `build` job builds the SDK tarball and smoke-tests it on the sample pack with no
+  secrets; the `publish` job attaches the tarball to the release and publishes it to npm with `NPM_TOKEN`, and runs
+  no pack code.
+- **The registry's `check.yml`** runs a submitted pack's code with a read-only token and no secrets, and its
+  `publish.yml` builds in a job without secrets; only its `upload` job has the R2 secrets, and it runs no pack code.
+
+`scripts/check-workflow-secrets.mjs` (in both repos; here run by `pnpm test:scripts`, in the registry by its CI)
+fails if a job that runs pack code (`mc-pack`, `smoke:dist`, `build-entry.sh`) references `secrets.`, runs in a
+deployment environment, has a write permission or keeps its checkout token, or if a job in the same workflow that
+holds secrets installs dependencies.
 
 ### 11.10 Campaigns
 

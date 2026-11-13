@@ -42,6 +42,10 @@ Usage:
       Convert a MarvelCDB-shaped community pack folder into a pack source folder. Without --out, a dry run.
   mc-pack --version | --help
 
+validate, build and test run the pack's own code: they import its abilities/index.ts in this process, with your
+user's access to files, the network and the environment. Run them only on a pack you trust, or in a sandbox (a CI
+job with no secrets).
+
 Exit codes: 0 success, 1 the pack has a problem, 2 usage error.`;
 
 class UsageError extends Error {}

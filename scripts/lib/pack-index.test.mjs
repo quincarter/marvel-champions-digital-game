@@ -69,6 +69,43 @@ describe("compareVersions", () => {
     const sorted = ["1.10.0", "1.2.0", "2.0.0", "1.2.0-beta", "1.2.1"].sort(compareVersions);
     assert.deepEqual(sorted, ["1.2.0-beta", "1.2.0", "1.2.1", "1.10.0", "2.0.0"]);
   });
+
+  it("compares numeric pre-release identifiers as numbers (beta.2 before beta.10)", () => {
+    assert.ok(compareVersions("1.0.0-beta.2", "1.0.0-beta.10") < 0);
+    assert.ok(compareVersions("1.0.0-beta.10", "1.0.0-beta.2") > 0);
+    assert.ok(compareVersions("1.0.0-rc.9", "1.0.0-rc.11") < 0);
+  });
+
+  it("puts a release after every pre-release of it, and before the next patch's pre-releases", () => {
+    assert.ok(compareVersions("1.0.0", "1.0.0-rc.99") > 0);
+    assert.ok(compareVersions("1.0.0-alpha", "1.0.0") < 0);
+    assert.ok(compareVersions("1.0.1-alpha", "1.0.0") > 0);
+    assert.equal(compareVersions("1.0.0", "1.0.0"), 0);
+    assert.equal(compareVersions("1.0.0-beta.2", "1.0.0-beta.2"), 0);
+  });
+
+  it("follows the semver.org section 11 order for nested identifiers", () => {
+    const order = [
+      "1.0.0-alpha",
+      "1.0.0-alpha.1",
+      "1.0.0-alpha.beta",
+      "1.0.0-beta",
+      "1.0.0-beta.2",
+      "1.0.0-beta.11",
+      "1.0.0-beta.11.1",
+      "1.0.0-rc.1",
+      "1.0.0",
+    ];
+    const shuffled = [order[5], order[8], order[0], order[3], order[7], order[2], order[6], order[1], order[4]];
+    assert.deepEqual(shuffled.sort(compareVersions), order);
+  });
+
+  it("keeps hyphens inside a pre-release and ignores build metadata", () => {
+    assert.ok(compareVersions("1.0.0-x-2", "1.0.0-x-10") > 0, "x-2 and x-10 are alphanumeric: ASCII order");
+    assert.ok(compareVersions("1.0.0-x-y", "1.0.0-x") > 0);
+    assert.equal(compareVersions("1.0.0+build.5", "1.0.0+build.9"), 0);
+    assert.ok(compareVersions("1.0.0-beta.2+abc", "1.0.0-beta.10") < 0);
+  });
 });
 
 describe("upsertPackIndex", () => {
@@ -121,13 +158,35 @@ describe("upsertPackIndex", () => {
     assert.ok(carnage.versions["2.5.0"]);
   });
 
-  it("lists a withdrawn pack again when it is published", () => {
+  it("keeps a withdrawn pack withdrawn when its unchanged version is published again", () => {
     const current = upsertPackIndex(undefined, [entry("carnage-nep", "3.0.0")], at);
     current.packs[0].withdrawn = true;
-    assert.equal(
-      upsertPackIndex(current, [entry("carnage-nep", "3.1.0", "e".repeat(64))], at).packs[0].withdrawn,
-      false,
-    );
+    assert.equal(upsertPackIndex(current, [entry("carnage-nep", "3.0.0")], at).packs[0].withdrawn, true);
+  });
+
+  it("keeps a withdrawn pack withdrawn when a new version is published", () => {
+    const current = upsertPackIndex(undefined, [entry("carnage-nep", "3.0.0")], at);
+    current.packs[0].withdrawn = true;
+    const next = upsertPackIndex(current, [entry("carnage-nep", "3.1.0", "e".repeat(64))], at).packs[0];
+    assert.equal(next.withdrawn, true);
+    assert.equal(next.latest, "3.1.0");
+  });
+
+  it("lists a withdrawn pack again only when asked to unwithdraw it", () => {
+    const current = upsertPackIndex(undefined, [entry("carnage-nep", "3.0.0"), entry("gwenpool", "1.0.0")], at);
+    for (const pack of current.packs) pack.withdrawn = true;
+    const next = upsertPackIndex(current, [entry("carnage-nep", "3.0.0")], { ...at, unwithdraw: ["gwenpool"] });
+    assert.equal(next.packs.find((p) => p.id === "carnage-nep").withdrawn, true);
+    assert.equal(next.packs.find((p) => p.id === "gwenpool").withdrawn, false, "unwithdrawn without being built");
+    assert.throws(() => upsertPackIndex(current, [], { ...at, unwithdraw: ["nobody"] }), /no such pack/);
+  });
+
+  it("makes the highest version by SemVer latest, not the last one published", () => {
+    let index = upsertPackIndex(undefined, [entry("carnage-nep", "1.0.0-beta.10", "1".repeat(64))], at);
+    index = upsertPackIndex(index, [entry("carnage-nep", "1.0.0-beta.2", "2".repeat(64))], at);
+    assert.equal(index.packs[0].latest, "1.0.0-beta.10");
+    index = upsertPackIndex(index, [entry("carnage-nep", "1.0.0", "3".repeat(64))], at);
+    assert.equal(index.packs[0].latest, "1.0.0");
   });
 
   it("refuses a catalog of another schema", () => {

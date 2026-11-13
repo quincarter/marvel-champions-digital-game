@@ -10,7 +10,10 @@
 //   - a built pack keeps its older versions, so saves that used them still load;
 //   - a version already listed with a different zip sha256 is an error: published versions never change;
 //   - `approved` keeps the date the pack was first listed;
-//   - the pack's name, summary, thumbnail and the rest follow its newest version, and `latest` is the newest version.
+//   - the pack's name, summary, thumbnail and the rest follow its newest version, and `latest` is the newest version
+//     by SemVer precedence;
+//   - `withdrawn` stays as it is: publishing (or re-publishing) a version never lists a withdrawn pack again. Only an
+//     explicit `unwithdraw` (the workflow's manual input) clears it, for any pack in the catalog, built this run or not.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
@@ -64,31 +67,61 @@ export function versionBase(baseUrl, id, version) {
 }
 
 /**
- * Compares two `major.minor.patch[-pre]` versions: negative when `a` is older. A version with a pre-release part
- * sorts before the same version without one; pre-release parts compare as strings.
+ * Compares two versions by SemVer 2.0.0 precedence (semver.org §11): negative when `a` is older.
+ * `major.minor.patch` compare as numbers; a version with a pre-release part sorts before the same version without
+ * one; pre-release parts compare identifier by identifier (dot-separated), numeric identifiers as numbers and below
+ * alphanumeric ones, which compare in ASCII order, and a shorter list sorts first when the shared identifiers are
+ * equal. Build metadata (`+…`) is ignored. The registry repo's scripts/update-index.mjs carries the same function.
  */
 export function compareVersions(a, b) {
   const parse = (v) => {
-    const [core, pre] = String(v).split("-", 2);
+    const text = String(v).split("+")[0];
+    const dash = text.indexOf("-");
+    const core = dash < 0 ? text : text.slice(0, dash);
+    const pre = dash < 0 ? [] : text.slice(dash + 1).split(".");
     return { nums: core.split(".").map((n) => Number.parseInt(n, 10) || 0), pre };
   };
   const x = parse(a);
   const y = parse(b);
   for (let i = 0; i < Math.max(x.nums.length, y.nums.length); i++) {
     const d = (x.nums[i] ?? 0) - (y.nums[i] ?? 0);
+    if (d !== 0) return Math.sign(d);
+  }
+  if (x.pre.length === 0 || y.pre.length === 0) return Math.sign(y.pre.length) - Math.sign(x.pre.length);
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const d = compareIdentifiers(x.pre[i], y.pre[i]);
     if (d !== 0) return d;
   }
-  if (x.pre === y.pre) return 0;
-  if (x.pre === undefined) return 1;
-  if (y.pre === undefined) return -1;
-  return x.pre < y.pre ? -1 : 1;
+  return 0;
+}
+
+const NUMERIC = /^\d+$/;
+
+/** One pre-release identifier against another; `undefined` (that list ran out first) sorts first. */
+function compareIdentifiers(p, q) {
+  if (p === q) return 0;
+  if (p === undefined) return -1;
+  if (q === undefined) return 1;
+  const pn = NUMERIC.test(p);
+  const qn = NUMERIC.test(q);
+  if (pn && qn) {
+    // Digit strings of any length: without leading zeros, the longer one is larger.
+    const ps = p.replace(/^0+(?=\d)/, "");
+    const qs = q.replace(/^0+(?=\d)/, "");
+    if (ps.length !== qs.length) return ps.length < qs.length ? -1 : 1;
+    return ps === qs ? 0 : ps < qs ? -1 : 1;
+  }
+  if (pn) return -1;
+  if (qn) return 1;
+  return p < q ? -1 : 1;
 }
 
 /**
  * Returns a new catalog: `current` (the index.json on R2, or undefined when there is none yet) with `built` upserted.
  * `built` is a list of `packIndexEntry` results, one version each. `today` is `YYYY-MM-DD`, `now` an ISO time.
+ * `unwithdraw` lists pack ids to list again; an id the catalog doesn't have is an error.
  */
-export function upsertPackIndex(current, built, { today, now }) {
+export function upsertPackIndex(current, built, { today, now, unwithdraw = [] }) {
   if (current !== undefined && current !== null) {
     if (typeof current !== "object" || !Array.isArray(current.packs))
       throw new Error("the current index.json has no packs list");
@@ -118,8 +151,13 @@ export function upsertPackIndex(current, built, { today, now }) {
       approved: previous?.approved ?? entry.approved ?? today,
       latest: newest,
       versions,
-      withdrawn: false,
+      withdrawn: previous?.withdrawn ?? false,
     });
+  }
+  for (const id of unwithdraw) {
+    const pack = byId.get(id);
+    if (!pack) throw new Error(`cannot unwithdraw ${id}: the catalog has no such pack`);
+    byId.set(id, { ...pack, withdrawn: false });
   }
   const packs = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "en") || (a.id < b.id ? -1 : 1));
   return { schema: PACK_INDEX_SCHEMA, generated: now, packs };
