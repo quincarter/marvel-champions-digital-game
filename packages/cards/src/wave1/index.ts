@@ -30,7 +30,8 @@ import { WAVE1_REPRINT_ABILITIES } from "./reprints.js";
 
 /**
  * Wave 1's products as built-in packs (`../builtin-packs/define.ts`), in the order their scripts merge. Core is its own
- * pack (`CORE_BUILTIN_PACK`), and the Core reprints are a wave-level alias layer rather than any one product's.
+ * pack (`CORE_BUILTIN_PACK`). Each pack carries the Core reprint aliases its cards use, so the packs together hold every
+ * script the wave 1 pool needs.
  */
 export const WAVE1_BUILTIN_PACKS: readonly BuiltinPack[] = [
   CAP_BUILTIN_PACK,
@@ -43,19 +44,24 @@ export const WAVE1_BUILTIN_PACKS: readonly BuiltinPack[] = [
   TWC_BUILTIN_PACK,
 ];
 
+/** A pack's own scripts: its abilities less the reprint aliases, which merge as one layer ahead of every pack. */
+const ownScriptsOf = (pack: BuiltinPack): AbilityRegistry =>
+  Object.fromEntries(Object.entries(pack.abilities).filter(([id]) => !Object.hasOwn(WAVE1_REPRINT_ABILITIES, id)));
+
 /**
  * Every scripted ability in the wave 1 pool, keyed by `AbilityReference` id: Core's own scripts (`WAVE1_CARDS`
- * includes Core, and the engine skips an unregistered ability silently), Core reprints, then each pack's own.
+ * includes Core, and the engine skips an unregistered ability silently), Core reprints, then each pack's own. The
+ * reprints merge as one layer, as they always have, so the registry's key order is unchanged.
  */
 export const WAVE1_ABILITIES: AbilityRegistry = mergeRegistries(
   CORE_ABILITIES,
   WAVE1_REPRINT_ABILITIES,
-  ...WAVE1_BUILTIN_PACKS.map((pack) => pack.abilities),
+  ...WAVE1_BUILTIN_PACKS.map(ownScriptsOf),
 );
 
 /** Engine dependencies for games that use the wave 1 pool (Core plus every wave 1 pack). */
 export const WAVE1_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 
-export { wave1ReprintPairs, WAVE1_REPRINT_ABILITIES } from "./reprints.js";
+export { wave1ReprintAbilitiesOf, wave1ReprintPairs, WAVE1_REPRINT_ABILITIES } from "./reprints.js";
 export { wave1StarterDeckSetup, wave1Scenario } from "./setup.js";
 export type { Wave1ScenarioOptions } from "./setup.js";

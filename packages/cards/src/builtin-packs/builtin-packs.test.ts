@@ -1,4 +1,13 @@
-import { CORE_CARDS, WAVE1_CARDS } from "@mc/content";
+import {
+  CORE_CARDS,
+  CORE_ENCOUNTER_SETS,
+  CORE_SCENARIOS,
+  CORE_STARTER_DECKS,
+  WAVE1_CARDS,
+  WAVE1_ENCOUNTER_SETS,
+  WAVE1_SCENARIOS,
+  WAVE1_STARTER_DECKS,
+} from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { CORE_ABILITIES } from "../core/index.js";
 import { CORE_BUILTIN_PACK } from "../core/pack.js";
@@ -32,12 +41,38 @@ describe("built-in packs", () => {
     expect(CORE_BUILTIN_PACK.cards).toBe(CORE_CARDS);
   });
 
+  it.each([
+    ["scenarios", [...CORE_SCENARIOS, ...WAVE1_SCENARIOS], (pack: BuiltinPack) => pack.scenarios],
+    ["encounter sets", [...CORE_ENCOUNTER_SETS, ...WAVE1_ENCOUNTER_SETS], (pack: BuiltinPack) => pack.encounterSets],
+    ["precons", [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS], (pack: BuiltinPack) => pack.decks],
+  ] as const)("covers every Core and wave 1 record of %s once, by id", (_, expected, of) => {
+    const ids = BUILTIN_PACKS.flatMap((pack) => of(pack).map((record) => record.id as string));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...ids].sort()).toEqual(expected.map((record) => record.id as string).sort());
+  });
+
+  it("together hold every wave 1 script, as the same definitions, each in one pack", () => {
+    const fromPacks = BUILTIN_PACKS.flatMap((pack) => Object.entries(pack.abilities));
+    expect(new Set(fromPacks.map(([id]) => id)).size).toBe(fromPacks.length);
+    expect(fromPacks.map(([id]) => id).sort()).toEqual(Object.keys(WAVE1_ABILITIES).sort());
+    for (const [id, definition] of fromPacks) expect(WAVE1_ABILITIES[id]).toBe(definition);
+  });
+
+  it("gives each reprint alias to the product holding its card", () => {
+    const placed = WAVE1_BUILTIN_PACKS.flatMap((pack) =>
+      Object.keys(pack.abilities).filter((id) => Object.hasOwn(WAVE1_REPRINT_ABILITIES, id)),
+    );
+    expect(placed.sort()).toEqual(Object.keys(WAVE1_REPRINT_ABILITIES).sort());
+  });
+
   it("is where the Core registry comes from", () => {
     expect(CORE_ABILITIES).toBe(CORE_BUILTIN_PACK.abilities);
   });
 
   it("builds the wave 1 registry as Core, then the reprint aliases, then each pack's own scripts", () => {
-    const layers = [CORE_ABILITIES, WAVE1_REPRINT_ABILITIES, ...WAVE1_BUILTIN_PACKS.map((pack) => pack.abilities)];
+    const own = (pack: BuiltinPack) =>
+      Object.fromEntries(Object.entries(pack.abilities).filter(([id]) => !Object.hasOwn(WAVE1_REPRINT_ABILITIES, id)));
+    const layers = [CORE_ABILITIES, WAVE1_REPRINT_ABILITIES, ...WAVE1_BUILTIN_PACKS.map(own)];
     expect(Object.keys(WAVE1_ABILITIES)).toEqual(layers.flatMap((layer) => Object.keys(layer)));
     for (const layer of layers) {
       for (const [id, definition] of Object.entries(layer)) expect(WAVE1_ABILITIES[id]).toBe(definition);

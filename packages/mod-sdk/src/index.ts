@@ -28,5 +28,5 @@ export {
 } from "./game.js";
 export type { PackGameContent } from "./game.js";
 export { packObligation } from "./obligation.js";
-export { validateBuiltinPack } from "./builtin.js";
+export { builtinGameDeps, validateBuiltinPack } from "./builtin.js";
 export type { BuiltinValidateOptions } from "./builtin.js";
