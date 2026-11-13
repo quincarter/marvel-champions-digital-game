@@ -469,3 +469,63 @@ describe("publishIssues", () => {
     expect(issuesOf(m)).toMatch(/permission.languages: does not cover es/);
   });
 });
+
+describe("validatePack: achievements", () => {
+  const heroId = async () => {
+    const pack = await tinyPack();
+    return pack.cards.find((c) => c.type === "hero_identity")!.id as string;
+  };
+  const withAchievements = async (list: unknown) => broken((pack) => void (pack.manifest.achievements = list));
+  const entry = (when: unknown, over: object = {}) => ({
+    id: "a-one",
+    name: "A One",
+    description: "Does it.",
+    when,
+    ...over,
+  });
+
+  it("accepts a pack with no achievements and one whose conditions name its own hero", async () => {
+    expect(messages(await broken(() => {}))).toBe("");
+    const hero = await heroId();
+    expect(
+      messages(await withAchievements([entry({ win: true, hero }), entry({ gamesWon: 3 }, { id: "b-two" })])),
+    ).toBe("");
+  });
+
+  it("refuses a condition that names another pack's hero, a base hero or a scenario the pack lacks", async () => {
+    expect(messages(await withAchievements([entry({ win: true, hero: "x.other.01a" })]))).toContain(
+      "pack.json achievements: [0] when.hero",
+    );
+    expect(messages(await withAchievements([entry({ win: true, hero: "01001a" })]))).toContain(
+      "is not one of this pack's heroes",
+    );
+    expect(messages(await withAchievements([entry({ win: true, villain: "rhino" })]))).toContain(
+      "is not one of this pack's scenarios",
+    );
+    expect(messages(await withAchievements([entry({ campaignWon: "x-saga" })]))).toContain(
+      "is not one of this pack's campaigns",
+    );
+  });
+
+  it("refuses code-shaped conditions, a missing measure, duplicate ids and an over-long list", async () => {
+    expect(messages(await withAchievements([entry({ win: true, script: "1" })]))).toContain(
+      "when.script is not a condition",
+    );
+    expect(messages(await withAchievements([entry({})]))).toContain("exactly one of");
+    expect(messages(await withAchievements([entry({ win: true }), entry({ play: true })]))).toContain(
+      "used by two achievements",
+    );
+    const many = Array.from({ length: 25 }, (_, i) => entry({ win: true }, { id: `a-${i}` }));
+    expect(messages(await withAchievements(many))).toContain("over the 24 limit");
+    expect(messages(await withAchievements("nope"))).toContain("must be a list");
+  });
+
+  it("refuses over-long text and houseRule on a pack that is not a trait house rule", async () => {
+    expect(messages(await withAchievements([entry({ win: true }, { name: "n".repeat(60) })]))).toContain(
+      "name is 60 characters",
+    );
+    expect(messages(await withAchievements([entry({ win: true, houseRule: "tiny-pack" })]))).toContain(
+      "house-rule pack",
+    );
+  });
+});

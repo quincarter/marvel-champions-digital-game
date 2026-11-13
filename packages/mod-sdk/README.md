@@ -46,6 +46,12 @@ Optional fields the build copies through: `languages` (`{ base, available, text?
 box art (600x984 is the curated packs' size; width/height 0.5 to 0.8, 300 to 4096 pixels tall, at most 1 MB). The build
 ships it in the pack and writes it as `thumb.webp`, the store tile's picture, in place of the featured card's.
 
+`achievements` (optional) lists up to 24 data-only achievements, worth no points, shown in the Trophy Room under the pack:
+`{ "id": "sentinel-rising", "name": "Sentinel Rising", "description": "Win a game with Sample Sentinel.", "when": { "win": true, "hero": "x.my-pack.01a" } }`.
+`when` has exactly one of `win`, `play`, `gamesWon: N`, `gamesPlayed: N` or `campaignWon: "<campaign id>"`, plus optional
+filters `hero`, `villain`, `expert` and `houseRule` that name the pack's own content (docs/custom-content-packs.md
+section 11.12). `mc-pack validate` checks them.
+
 ### Pictures, languages and alternate art
 
 A card's picture is `cards/<lang>/<card code>.webp`, in the source folder and in the built pack alike (the card records

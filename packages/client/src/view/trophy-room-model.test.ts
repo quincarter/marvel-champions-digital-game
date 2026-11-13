@@ -7,7 +7,9 @@ import {
   achievementStatuses,
   type AchievementHistory,
 } from "../progression/achievements.js";
+import type { PackAchievementSource } from "../progression/mod-achievements.js";
 import {
+  ALL_OPEN_TROPHY_VIEW as ALL_OPEN,
   DEFAULT_TROPHY_VIEW,
   TRACKED_LATER,
   formatTrophyNumber,
@@ -168,6 +170,69 @@ describe("trophyHeaderOf", () => {
   it("is full at the top rank", () => {
     const top = trophyHeaderOf(RANKS[8]!.threshold, achievementStatuses(NO_HISTORY));
     expect(top).toMatchObject({ rankLabel: "Rank 9 of 9", fraction: 1, nextLabel: "Top rank" });
+  });
+});
+
+describe("the Mods family", () => {
+  const fanX: PackAchievementSource = {
+    id: "fan-x",
+    name: "Fan X",
+    installed: true,
+    achievements: [
+      { id: "rising", name: "Rising", description: "Win.", when: { win: true } },
+      { id: "five", name: "Five", description: "Win 5.", when: { gamesWon: 5 } },
+    ],
+  };
+  const fanZ = { ...fanX, id: "fan-z", name: "Fan Z", achievements: [fanX.achievements[0]!] };
+  const modHistory: AchievementHistory = {
+    saves: [],
+    campaigns: [],
+    mods: { installed: { a: "hero" }, packs: [fanX, fanZ] },
+  };
+  const rows = trophyRowsOf(achievementStatuses(modHistory));
+  const modRows = rows.slice(rows.findIndex((r) => r.kind === "section" && r.id === "mods"));
+
+  it("is the last family, and its achievements give no points", () => {
+    expect(ACHIEVEMENT_FAMILIES.at(-1)).toEqual({ id: "mods", label: "Mods" });
+    const mine = modRows.filter((r) => r.kind === "achievement");
+    expect(mine.length).toBeGreaterThan(10);
+    expect(mine.every((r) => r.kind === "achievement" && r.reward === "No points")).toBe(true);
+  });
+
+  it("puts the game's own first, then a heading per pack with that pack's achievements under it", () => {
+    const shape = modRows.map((r) => (r.kind === "achievement" ? (r.packName ?? "own") : r.kind));
+    const firstGroup = shape.indexOf("group");
+    expect(shape.slice(1, firstGroup).every((s) => s === "own")).toBe(true);
+    expect(shape.slice(firstGroup)).toEqual(["group", "Fan X", "Fan X", "group", "Fan Z"]);
+    const headings = modRows.filter((r) => r.kind === "group");
+    expect(headings).toMatchObject([
+      { title: "Fan X", count: "0 of 2" },
+      { title: "Fan Z", count: "0 of 1" },
+    ]);
+  });
+
+  it("keeps a pack's achievements together whichever way the list is sorted, and folds with the family", () => {
+    const sorted = trophyRowsOf(achievementStatuses(modHistory), { ...ALL_OPEN, sort: "name", descending: true });
+    const start = sorted.findIndex((r) => r.kind === "section" && r.id === "mods") + 1;
+    const end = sorted.findIndex((r, i) => i >= start && r.kind === "section");
+    const names = sorted
+      .slice(start, end === -1 ? undefined : end)
+      .flatMap((r) => (r.kind === "achievement" ? [r.packName ?? ""] : []));
+    // The game's own come first, then each pack's together (a pack never splits, whatever the sort).
+    const packed = names.filter((n) => n !== "");
+    expect(names.slice(0, names.length - packed.length).every((n) => n === "")).toBe(true);
+    expect([...packed].sort()).toEqual(["Fan X", "Fan X", "Fan Z"]);
+    expect(packed[0] === packed[1] || packed[1] === packed[2]).toBe(true);
+    expect(packed.join() === "Fan X,Fan Z,Fan X" || packed.join() === "Fan Z,Fan X,Fan X").toBe(false);
+    const folded = trophyRowsOf(achievementStatuses(modHistory), DEFAULT_TROPHY_VIEW);
+    expect(folded.some((r) => r.kind === "group")).toBe(false);
+  });
+
+  it("counts the pack's achievements in the Mods heading and the header's total", () => {
+    const heading = rows.find((r) => r.kind === "section" && r.id === "mods");
+    expect(heading).toMatchObject({ count: expect.stringMatching(/^1 of \d+ · \d+%$/) });
+    const header = trophyHeaderOf(0, achievementStatuses(modHistory));
+    expect(header.earnedLabel).toBe(`1 of ${ACHIEVEMENTS.length + 3} achievements`);
   });
 });
 

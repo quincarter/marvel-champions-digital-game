@@ -94,6 +94,7 @@ export function buildPreview(pack: PackInput, manifest: PackManifest = pack.mani
     images,
     ...(manifest.languages ? { languages: manifest.languages } : {}),
     cards: pack.cards,
+    ...((manifest.achievements?.length ?? 0) > 0 ? { achievements: manifest.achievements } : {}),
     decks: [...(pack.decks ?? [])].map((deck) => ({
       id: deck.id as string,
       name: deck.name,

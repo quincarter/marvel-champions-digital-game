@@ -4,6 +4,7 @@ import { parsePackPreview } from "../packs/pack-preview.js";
 import { PackInstallError } from "../packs/unpack-pack.js";
 import type { InstalledPack } from "../packs/pack-store.js";
 import {
+  achievementsParagraphOf,
   actionsOf,
   emptyTextOf,
   errorTextOf,
@@ -465,5 +466,21 @@ describe("a tile's art", () => {
       expect(withCover(7).cover).toBeUndefined();
       expect(tileArtOf(tile, withCover("cover.png"), "en")).toMatchObject({ kind: "picture" });
     });
+  });
+});
+
+describe("a pack page's achievements", () => {
+  it("lists them, saying they give no points, and shows nothing for a pack with none", () => {
+    const e = entry("p");
+    const tile = tileOf(e, context());
+    const list = [
+      { name: "Suited Up", description: "Finish a game." },
+      { name: "Rising", description: "Win a game." },
+    ];
+    const body = packPageOf(tile, e, undefined, list).body;
+    expect(body).toContain("adds 2 achievements to the Trophy Room (they give no points):");
+    expect(body).toContain("- Suited Up: Finish a game.");
+    expect(achievementsParagraphOf(list.slice(0, 1))).toContain("adds 1 achievement ");
+    expect(packPageOf(tile, e, undefined).body).not.toContain("achievement");
   });
 });

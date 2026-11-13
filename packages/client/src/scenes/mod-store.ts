@@ -20,6 +20,7 @@ import Phaser from "phaser";
 import {
   customCardPrefix,
   officialCardsByPictureCode,
+  parsePackAchievements,
   parsePackCardImagePath,
   type AnyCard,
   type PackIndex,
@@ -58,6 +59,7 @@ import {
   type PackCover,
 } from "../view/mod-store-model.js";
 import { loadCatalog } from "../packs/catalog.js";
+import { refreshUnlocks } from "../progression/progression.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
 import {
   activePackStatuses,
@@ -387,6 +389,8 @@ export class ModStoreScene extends Phaser.Scene {
       });
       if (token !== this.#installToken) return;
       await this.#refreshInstalled();
+      // The install is noted for the "install a mod" achievements (docs/custom-content-packs.md section 11.12).
+      void refreshUnlocks().catch(() => false);
       if (token !== this.#installToken) return;
       this.#install = null;
     } catch (error) {
@@ -885,7 +889,13 @@ export class ModStoreScene extends Phaser.Scene {
     const { width, height, phone, gutter, top } = frame;
     const entry = this.#index?.packs.find((one) => one.id === tile.id);
     const installed = this.#installed.get(tile.id);
-    const page = packPageOf(tile, entry, installed);
+    const achievements =
+      parsePackAchievements(installed?.manifest.achievements).length > 0
+        ? parsePackAchievements(installed?.manifest.achievements)
+        : (loadedPacks().find((pack) => pack.id === tile.id)?.achievements ??
+          this.#previewOf(tile)?.achievements ??
+          []);
+    const page = packPageOf(tile, entry, installed, achievements);
     const running = this.#install?.id === tile.id ? this.#install : null;
     const busy = (running !== null && running.error === null) || this.#removing;
 

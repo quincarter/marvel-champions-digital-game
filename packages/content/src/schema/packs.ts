@@ -210,6 +210,164 @@ export type PackPermissionStatus = "granted" | "pending";
 /** Every `PackPermissionStatus`. */
 export const PACK_PERMISSION_STATUSES: readonly PackPermissionStatus[] = ["granted", "pending"];
 
+/**
+ * What a pack achievement asks for (docs/custom-content-packs.md §11.12): data only, never code. Exactly one MEASURE
+ * (`win`, `play`, `gamesWon`, `gamesPlayed` or `campaignWon`), plus FILTERS that narrow which games count. A game counts
+ * once it is finished (won or lost) and carries the pack; a `win` or `gamesWon` needs the win. Filters name the pack's
+ * OWN content only, so one pack can never be earned by playing another's.
+ */
+export interface PackAchievementWhen {
+  /** Win one game. */
+  readonly win?: true;
+  /** Finish one game, won or lost. */
+  readonly play?: true;
+  /** Win this many games (1 to 1000). */
+  readonly gamesWon?: number;
+  /** Finish this many games, won or lost (1 to 1000). */
+  readonly gamesPlayed?: number;
+  /** Win one of the pack's own campaigns, by its campaign id. No filters with it. */
+  readonly campaignWon?: string;
+  /** Filter: the game seats this hero (the identity card id of one of the pack's heroes, e.g. `x.my-pack.01a`). */
+  readonly hero?: string;
+  /** Filter: the game's scenario is this one of the pack's own scenarios. */
+  readonly villain?: string;
+  /** Filter: the game was played on Expert. */
+  readonly expert?: true;
+  /** Filter: the game switched this house rule on: the pack's own id, on a house-rule pack that adds traits. */
+  readonly houseRule?: string;
+}
+
+/** One pack-defined achievement (`PackManifest.achievements`): worth no points, shown in the Trophy Room under its pack. */
+export interface PackAchievement {
+  /** Lowercase letters, digits and single dashes, unique in the pack; the game scopes it as `<pack-id>/<id>`. */
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly when: PackAchievementWhen;
+}
+
+/** The most achievements one pack may define. */
+export const PACK_ACHIEVEMENTS_MAX = 24;
+export const PACK_ACHIEVEMENT_NAME_MAX = 48;
+export const PACK_ACHIEVEMENT_DESCRIPTION_MAX = 160;
+const PACK_ACHIEVEMENT_COUNT_MAX = 1000;
+const PACK_ACHIEVEMENT_MEASURES = ["win", "play", "gamesWon", "gamesPlayed", "campaignWon"] as const;
+const PACK_ACHIEVEMENT_FILTERS = ["hero", "villain", "expert", "houseRule"] as const;
+
+/** The pack's own content a pack achievement's conditions may name (`packAchievementProblems`). */
+export interface PackAchievementContext {
+  readonly packId: string;
+  /** Identity card ids (`a` faces) of the pack's heroes. */
+  readonly heroIds: ReadonlySet<string>;
+  readonly scenarioIds: ReadonlySet<string>;
+  readonly campaignIds: ReadonlySet<string>;
+  /** The pack is a house rule whose trait additions are a per-game toggle (the only rule `houseRule` can name). */
+  readonly houseRuleToggle: boolean;
+}
+
+const isRecordValue = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+const ACHIEVEMENT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const isCount = (v: unknown): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= PACK_ACHIEVEMENT_COUNT_MAX;
+
+/** The problems with one achievement's own shape (no look at the pack's content). Messages start with the field. */
+function achievementShapeProblems(entry: unknown): string[] {
+  if (!isRecordValue(entry)) return ["must be an object { id, name, description, when }"];
+  const problems: string[] = [];
+  for (const key of Object.keys(entry)) {
+    if (!["id", "name", "description", "when"].includes(key)) problems.push(`${key} is not an achievement field`);
+  }
+  if (typeof entry.id !== "string" || !ACHIEVEMENT_ID.test(entry.id) || entry.id.length > 48)
+    problems.push("id must be lowercase letters, digits and single dashes, at most 48 characters");
+  for (const [field, max] of [
+    ["name", PACK_ACHIEVEMENT_NAME_MAX],
+    ["description", PACK_ACHIEVEMENT_DESCRIPTION_MAX],
+  ] as const) {
+    const value = entry[field];
+    if (typeof value !== "string" || value.trim() === "") problems.push(`${field} must be non-empty text`);
+    else if (value.length > max) problems.push(`${field} is ${value.length} characters, over the ${max} limit`);
+  }
+  const when = entry.when;
+  if (!isRecordValue(when)) {
+    problems.push("when must be a condition object, such as { win: true }");
+    return problems;
+  }
+  const known: readonly string[] = [...PACK_ACHIEVEMENT_MEASURES, ...PACK_ACHIEVEMENT_FILTERS];
+  for (const key of Object.keys(when)) if (!known.includes(key)) problems.push(`when.${key} is not a condition`);
+  const measures = PACK_ACHIEVEMENT_MEASURES.filter((key) => when[key] !== undefined);
+  if (measures.length !== 1)
+    problems.push(`when needs exactly one of ${PACK_ACHIEVEMENT_MEASURES.join(", ")} (it has ${measures.length})`);
+  for (const key of ["win", "play", "expert"] as const)
+    if (when[key] !== undefined && when[key] !== true) problems.push(`when.${key} must be true`);
+  for (const key of ["gamesWon", "gamesPlayed"] as const)
+    if (when[key] !== undefined && !isCount(when[key]))
+      problems.push(`when.${key} must be a whole number from 1 to ${PACK_ACHIEVEMENT_COUNT_MAX}`);
+  for (const key of ["campaignWon", "hero", "villain", "houseRule"] as const)
+    if (when[key] !== undefined && (typeof when[key] !== "string" || (when[key] as string).length > 96))
+      problems.push(`when.${key} must be an id (text up to 96 characters)`);
+  if (when.campaignWon !== undefined && PACK_ACHIEVEMENT_FILTERS.some((key) => when[key] !== undefined))
+    problems.push("when.campaignWon takes no filters (hero, villain, expert, houseRule)");
+  return problems;
+}
+
+/**
+ * Everything wrong with a pack's `achievements`, as messages (each starts with its entry, `[0] ...`; the caller adds the
+ * `pack.json achievements` path): the list's shape and size, each entry's shape, ids unique, and every `hero`,
+ * `villain`, `campaignWon` and `houseRule` naming the pack's OWN content (`context`).
+ */
+export function packAchievementProblems(achievements: unknown, context: PackAchievementContext): string[] {
+  if (achievements === undefined) return [];
+  if (!Array.isArray(achievements)) return ["must be a list of { id, name, description, when }"];
+  const problems: string[] = [];
+  if (achievements.length > PACK_ACHIEVEMENTS_MAX)
+    problems.push(`has ${achievements.length} achievements, over the ${PACK_ACHIEVEMENTS_MAX} limit`);
+  const seen = new Set<string>();
+  achievements.forEach((entry: unknown, index) => {
+    const at = `[${index}]`;
+    for (const problem of achievementShapeProblems(entry)) problems.push(`${at} ${problem}`);
+    if (!isRecordValue(entry)) return;
+    if (typeof entry.id === "string") {
+      if (seen.has(entry.id)) problems.push(`${at} id "${entry.id}" is used by two achievements`);
+      seen.add(entry.id);
+    }
+    const when = entry.when;
+    if (!isRecordValue(when)) return;
+    if (typeof when.hero === "string" && !context.heroIds.has(when.hero))
+      problems.push(`${at} when.hero "${when.hero}" is not one of this pack's heroes (an identity card id)`);
+    if (typeof when.villain === "string" && !context.scenarioIds.has(when.villain))
+      problems.push(`${at} when.villain "${when.villain}" is not one of this pack's scenarios`);
+    if (typeof when.campaignWon === "string" && !context.campaignIds.has(when.campaignWon))
+      problems.push(`${at} when.campaignWon "${when.campaignWon}" is not one of this pack's campaigns`);
+    if (typeof when.houseRule === "string") {
+      if (when.houseRule !== context.packId)
+        problems.push(`${at} when.houseRule must be this pack's own id "${context.packId}"`);
+      else if (!context.houseRuleToggle)
+        problems.push(`${at} when.houseRule needs a house-rule pack whose trait additions are switched on per game`);
+    }
+  });
+  return problems;
+}
+
+/**
+ * The well-formed achievements of untrusted data (a `preview.json`, a manifest from a store): each entry that passes the
+ * shape check, ids unique, at most `PACK_ACHIEVEMENTS_MAX`. The rest are dropped, never thrown on.
+ */
+export function parsePackAchievements(data: unknown): readonly PackAchievement[] {
+  if (!Array.isArray(data)) return [];
+  const out: PackAchievement[] = [];
+  const seen = new Set<string>();
+  for (const entry of data as unknown[]) {
+    if (out.length >= PACK_ACHIEVEMENTS_MAX) break;
+    if (achievementShapeProblems(entry).length > 0) continue;
+    const one = entry as PackAchievement;
+    if (seen.has(one.id)) continue;
+    seen.add(one.id);
+    out.push({ id: one.id, name: one.name, description: one.description, when: { ...one.when } });
+  }
+  return out;
+}
+
 /** A pack's `pack.json` (§5.1). */
 export interface PackManifest {
   readonly schema: typeof PACK_SCHEMA_VERSION;
@@ -233,6 +391,8 @@ export interface PackManifest {
   readonly houseRule?: PackHouseRule;
   /** The permission the pack's creator gave for the store to distribute it; mirrors `PERMISSION.md`. */
   readonly permission?: PackPermission;
+  /** The pack's own achievements (§11.12): worth no points, conditions are data only (`PackAchievementWhen`). */
+  readonly achievements?: readonly PackAchievement[];
   /** Who made the card template the pack's cards are laid out on ("Hitch", "G.Triskelion"). */
   readonly templateCredit?: string;
   /** Who translated the pack, by language: `{ es: "Francisco Merchán" }`. */
@@ -304,6 +464,8 @@ export interface PackPreview {
   /** The pack's own card records, sorted by id. */
   readonly cards: readonly unknown[];
   readonly decks: readonly PackPreviewDeck[];
+  /** The pack's achievements (`PackManifest.achievements`), for the store page's list. */
+  readonly achievements?: readonly PackAchievement[];
 }
 
 /** One pack in the store catalog (§11.5). */

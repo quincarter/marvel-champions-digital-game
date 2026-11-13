@@ -37,6 +37,17 @@ export type TrophyRow =
       readonly expanded: boolean;
     }
   | {
+      /**
+       * A pack's heading inside the Mods family (docs/custom-content-packs.md section 11.12): the achievements the pack
+       * defines follow it. A label only: it does not fold or open.
+       */
+      readonly kind: "group";
+      readonly id: string;
+      readonly title: string;
+      /** "1 of 3". */
+      readonly count: string;
+    }
+  | {
       readonly kind: "achievement";
       readonly id: string;
       readonly name: string;
@@ -50,6 +61,8 @@ export type TrophyRow =
       readonly progress: { readonly current: number; readonly target: number; readonly fraction: number } | null;
       /** "3 / 10". */
       readonly progressLabel: string;
+      /** The pack that defines it, for a pack's own achievement; absent on the game's. */
+      readonly packName?: string;
     };
 
 export const TRACKED_LATER = "Tracked from a future update";
@@ -74,6 +87,7 @@ export function trophyHeaderOf(lifetimePoints: number, statuses: readonly Achiev
 
 function rewardOf(status: AchievementStatus): string {
   if (status.def.points > 0) return `+${status.def.points} points`;
+  if (status.def.family === "mods") return "No points";
   return status.def.rewardPackId ? "Silly pack" : "";
 }
 
@@ -182,7 +196,24 @@ export function trophyRowsOf(
       expanded,
     });
     if (!expanded) continue;
-    for (const status of ordered(f.members, statusKey, (s) => order.get(s.def.id)!, view.descending)) {
+    const sorted = ordered(f.members, statusKey, (s) => order.get(s.def.id)!, view.descending);
+    // Inside Mods, the game's own achievements come first and each pack's follow under its own heading.
+    const packIds = [...new Set(sorted.flatMap((s) => (s.def.pack ? [s.def.pack.id] : [])))];
+    const grouped = [
+      ...sorted.filter((s) => !s.def.pack).map((status) => ({ status, heading: null as TrophyRow | null })),
+      ...packIds.flatMap((packId) => {
+        const members = sorted.filter((s) => s.def.pack?.id === packId);
+        const heading: TrophyRow = {
+          kind: "group",
+          id: packId,
+          title: members[0]!.def.pack!.name,
+          count: `${members.filter((s) => s.earned).length} of ${members.length}`,
+        };
+        return members.map((status, i) => ({ status, heading: i === 0 ? heading : null }));
+      }),
+    ];
+    for (const { status, heading } of grouped) {
+      if (heading) rows.push(heading);
       const state: TrophyState = !status.def.tracked ? "untracked" : status.earned ? "earned" : "locked";
       const progress = status.progress
         ? {
@@ -201,6 +232,7 @@ export function trophyRowsOf(
         reward: rewardOf(status),
         progress,
         progressLabel: progress ? `${progress.current} / ${progress.target}` : "",
+        ...(status.def.pack ? { packName: status.def.pack.name } : {}),
       });
     }
   }
@@ -208,6 +240,10 @@ export function trophyRowsOf(
 }
 
 /** Row heights: a family heading is slim; an achievement takes a line more on a phone, where its text wraps. */
-export function trophyRowHeightsOf(phone: boolean): { readonly section: number; readonly achievement: number } {
-  return phone ? { section: 44, achievement: 108 } : { section: 46, achievement: 84 };
+export function trophyRowHeightsOf(phone: boolean): {
+  readonly section: number;
+  readonly group: number;
+  readonly achievement: number;
+} {
+  return phone ? { section: 44, group: 34, achievement: 108 } : { section: 46, group: 34, achievement: 84 };
 }

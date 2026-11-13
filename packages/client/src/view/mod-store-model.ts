@@ -316,6 +316,17 @@ function requirementOf(tile: ModStoreTile, installed: InstalledPack | undefined)
     : `This pack needs a newer game (${need}), so it cannot be installed yet.`;
 }
 
+/** The page's achievements list: one line each, and the note that a mod's achievements never give points. */
+export function achievementsParagraphOf(
+  achievements: readonly { readonly name: string; readonly description: string }[],
+): string {
+  const noun = achievements.length === 1 ? "achievement" : "achievements";
+  return [
+    `This pack adds ${achievements.length} ${noun} to the Trophy Room (they give no points):`,
+    ...achievements.map((one) => `- ${one.name}: ${one.description}`),
+  ].join("\n");
+}
+
 /**
  * The pack page's words. The catalog does not carry a pack's license or authors list, so credits come from the
  * installed manifest when there is one and from the catalog's creator otherwise.
@@ -324,9 +335,12 @@ export function packPageOf(
   tile: ModStoreTile,
   entry: PackIndexEntry | undefined,
   installed: InstalledPack | undefined,
+  /** The pack's own achievements (docs/custom-content-packs.md section 11.12), when it defines any. */
+  achievements: readonly { readonly name: string; readonly description: string }[] = [],
 ): PackPage {
   const paragraphs: string[] = [];
   paragraphs.push(installed?.manifest.description || tile.summary || "No description.");
+  if (achievements.length > 0) paragraphs.push(achievementsParagraphOf(achievements));
   const authors = installed?.manifest.authors.length ? installed.manifest.authors.join(", ") : tile.creator;
   const license = installed?.manifest.license;
   paragraphs.push(`Credits: made by ${authors}.${license ? ` License: ${license}.` : ""}`);

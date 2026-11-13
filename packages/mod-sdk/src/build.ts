@@ -42,6 +42,7 @@ export type PackAuthorManifest = Pick<
   | "templateCredit"
   | "translators"
   | "cover"
+  | "achievements"
 > & { readonly requires: { readonly app: string; readonly packs?: readonly string[] } };
 
 /** A pack's source tree, loaded. */
@@ -200,6 +201,7 @@ export function assemblePack(source: PackSource): PackInput {
     ...(author.templateCredit ? { templateCredit: author.templateCredit } : {}),
     ...(author.translators ? { translators: author.translators } : {}),
     ...(author.cover !== undefined ? { cover: author.cover } : {}),
+    ...(author.achievements ? { achievements: author.achievements } : {}),
     files: listed,
     totalBytes: listed.reduce((sum, file) => sum + file.bytes, 0),
     license: author.license,

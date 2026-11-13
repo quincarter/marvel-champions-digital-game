@@ -867,6 +867,61 @@ store. A house rule adds no card and no ability: it changes official cards, as d
 The repo's two: `content-packs/community/lost-traits-bf` (Lost Traits, trait additions) and
 `content-packs/community/gmw-fixes-gg` (GMW Fixes, `enablesMode: "balanced"`).
 
+### 11.12 Mod achievements (2026-11-13)
+
+The owner's decisions: mods get achievements, and **no mod achievement awards points**, built in or pack-defined, so
+mods never move a rank or lifetime points. They live in a Trophy Room family called **Mods**, and earning one shows the
+ordinary achievement toast.
+
+- **Built in** (`progression/mod-achievements.ts`): installing mods (1, 5, 10, one of every kind), playing and winning
+  with a community hero, beating a community scenario's villain, a community campaign, two community heroes in one game,
+  a house rule on (and Lost Traits specifically), an Expert win with community content, and win counts. Each is 0 points.
+- **Read from custom games.** Base progression skips a custom-content game (`isCustomSave`), so base `factsOf` never sees
+  one. The mod facts read the same save rows separately (`modFactsOf`): every finished (won or lost) real game, custom or
+  not, feeding only the Mods family. Base stats, points and rank are unchanged by custom games; a test pins that.
+- **Installs are the one stored fact.** An uninstalled pack leaves nothing in the saves, so each installed pack is noted
+  once (`mc-mod-installs`, `{ <pack id>: <kind> }`, synced with the other progress keys) the first time the pack store
+  lists it. Removing a mod never takes an install achievement back.
+- **Pack-defined**: `pack.json` carries `achievements: [{ id, name, description, when }]`, data only, no code:
+
+  ```jsonc
+  "achievements": [
+    { "id": "sentinel-rising", "name": "Sentinel Rising", "description": "Win a game with Sample Sentinel.",
+      "when": { "win": true, "hero": "x.sample-hero.01a" } }
+  ]
+  ```
+
+  `when` has exactly one **measure** and any **filters**:
+
+  | Measure               | Meaning                                          |
+  | --------------------- | ------------------------------------------------ |
+  | `win: true`           | win one game                                     |
+  | `play: true`          | finish one game, won or lost                     |
+  | `gamesWon: N`         | win N games (1 to 1000)                          |
+  | `gamesPlayed: N`      | finish N games, won or lost (1 to 1000)          |
+  | `campaignWon: "<id>"` | win one of the pack's own campaigns (no filters) |
+
+  | Filter              | Meaning                                                                           |
+  | ------------------- | --------------------------------------------------------------------------------- |
+  | `hero: "<card id>"` | the game seats this hero (a hero identity card of the pack, e.g. `x.my-pack.01a`) |
+  | `villain: "<id>"`   | the game's scenario is this one of the pack's scenarios                           |
+  | `expert: true`      | the game was played on Expert                                                     |
+  | `houseRule: "<id>"` | the game switched the pack's own house rule on (a trait-addition house-rule pack) |
+
+  A game counts only if it carries the pack (`SessionConfig.packs`), so one pack's achievements are never earned by
+  playing another's. Limits: at most 24 per pack; `id` lowercase letters, digits and dashes (48 characters), unique in
+  the pack and scoped by the game as `pack:<pack-id>/<id>`; `name` 48 characters; `description` 160.
+
+- **`mc-pack validate`** checks the list's shape and size, each entry, ids unique, and that every `hero`, `villain`,
+  `campaignWon` and `houseRule` names the pack's OWN content (a hero identity of the pack, one of its scenarios, one of
+  its campaigns, its own id on a house-rule pack with trait additions). `mc-pack build` carries the list into the built
+  `pack.json` and `preview.json`.
+- **Where they show.** The Trophy Room's Mods family lists the game's own first, then a heading per installed pack with
+  its achievements. A pack that is no longer installed is listed only for what was earned from it (read from the copy
+  its games embedded), under the pack's name. The pack's Mod Store page lists them with a note that they give no points.
+- The template repo (`quincarter/marvel-champions-mod-template`) needs the same `achievements` example in its sample
+  pack's `pack.json`.
+
 ## Sources
 
 Prices and quotes were read from these pages on 2026-10-30.

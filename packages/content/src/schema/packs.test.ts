@@ -10,6 +10,9 @@ import {
   parsePackCardImagePath,
   resolvePackCardImage,
   isPackCoverPath,
+  packAchievementProblems,
+  parsePackAchievements,
+  PACK_ACHIEVEMENTS_MAX,
   webpSize,
 } from "./packs.js";
 
@@ -117,5 +120,85 @@ describe("per-language pack pictures", () => {
     expect(isLanguageTag("EN")).toBe(false);
     expect(isLanguageTag("e")).toBe(false);
     expect(isLanguageTag("../x")).toBe(false);
+  });
+});
+
+describe("pack achievements", () => {
+  const context = {
+    packId: "demo",
+    heroIds: new Set(["x.demo.01a"]),
+    scenarioIds: new Set(["demo-menace"]),
+    campaignIds: new Set(["demo-saga"]),
+    houseRuleToggle: false,
+  };
+  const one = (when: unknown, over: Record<string, unknown> = {}) => [
+    { id: "a-one", name: "A One", description: "Does a thing.", when, ...over },
+  ];
+  const problems = (list: unknown, ctx = context) => packAchievementProblems(list, ctx).join("\n");
+
+  it("accepts each measure with the filters that name the pack's own content", () => {
+    expect(problems(undefined)).toBe("");
+    expect(problems(one({ win: true, hero: "x.demo.01a", expert: true }))).toBe("");
+    expect(problems(one({ play: true, villain: "demo-menace" }))).toBe("");
+    expect(problems(one({ gamesWon: 5 }))).toBe("");
+    expect(problems(one({ gamesPlayed: 10, hero: "x.demo.01a" }))).toBe("");
+    expect(problems(one({ campaignWon: "demo-saga" }))).toBe("");
+    expect(problems(one({ win: true, houseRule: "demo" }), { ...context, houseRuleToggle: true })).toBe("");
+  });
+
+  it("needs exactly one measure, and refuses unknown conditions", () => {
+    expect(problems(one({}))).toContain("exactly one of");
+    expect(problems(one({ win: true, play: true }))).toContain("exactly one of");
+    expect(problems(one({ expert: true }))).toContain("exactly one of");
+    expect(problems(one({ win: true, code: "alert(1)" }))).toContain("when.code is not a condition");
+    expect(problems(one("win"))).toContain("when must be a condition object");
+    expect(problems(one({ win: true }, { extra: 1 }))).toContain("extra is not an achievement field");
+  });
+
+  it("checks values: flags are true, counts are whole numbers in range, ids are text", () => {
+    expect(problems(one({ win: false }))).toContain("when.win must be true");
+    expect(problems(one({ gamesWon: 0 }))).toContain("when.gamesWon must be a whole number");
+    expect(problems(one({ gamesWon: 2.5 }))).toContain("when.gamesWon must be a whole number");
+    expect(problems(one({ gamesPlayed: 1001 }))).toContain("when.gamesPlayed must be a whole number");
+    expect(problems(one({ win: true, hero: 7 }))).toContain("when.hero must be an id");
+    expect(problems(one({ campaignWon: "demo-saga", expert: true }))).toContain("takes no filters");
+  });
+
+  it("only lets conditions name the pack's own heroes, scenarios, campaigns and house rule", () => {
+    expect(problems(one({ win: true, hero: "x.other.01a" }))).toContain("is not one of this pack's heroes");
+    expect(problems(one({ win: true, hero: "01001a" }))).toContain("is not one of this pack's heroes");
+    expect(problems(one({ win: true, villain: "rhino" }))).toContain("is not one of this pack's scenarios");
+    expect(problems(one({ campaignWon: "other-saga" }))).toContain("is not one of this pack's campaigns");
+    expect(problems(one({ win: true, houseRule: "other" }))).toContain("must be this pack's own id");
+    expect(problems(one({ win: true, houseRule: "demo" }))).toContain("needs a house-rule pack");
+  });
+
+  it("limits ids, text lengths and the count, and wants ids unique in the pack", () => {
+    expect(problems(one({ win: true }, { id: "Bad Id" }))).toContain("id must be lowercase");
+    expect(problems(one({ win: true }, { name: "n".repeat(49) }))).toContain("name is 49 characters");
+    expect(problems(one({ win: true }, { description: "" }))).toContain("description must be non-empty");
+    expect(problems(one({ win: true }, { description: "d".repeat(161) }))).toContain("description is 161 characters");
+    const twice = [...one({ win: true }), ...one({ play: true })];
+    expect(problems(twice)).toContain('id "a-one" is used by two achievements');
+    const many = Array.from({ length: PACK_ACHIEVEMENTS_MAX + 1 }, (_, i) => ({
+      id: `a-${i}`,
+      name: "N",
+      description: "D",
+      when: { win: true },
+    }));
+    expect(problems(many)).toContain("over the 24 limit");
+    expect(problems({ id: "x" })).toContain("must be a list");
+  });
+
+  it("parses untrusted data down to the well-formed entries, once each", () => {
+    const parsed = parsePackAchievements([
+      ...one({ win: true }),
+      ...one({ play: true }),
+      { id: "bad", name: "x", description: "y", when: { hax: 1 } },
+      "nope",
+    ]);
+    expect(parsed).toEqual([{ id: "a-one", name: "A One", description: "Does a thing.", when: { win: true } }]);
+    expect(parsePackAchievements("nope")).toEqual([]);
+    expect(parsePackAchievements(undefined)).toEqual([]);
   });
 });

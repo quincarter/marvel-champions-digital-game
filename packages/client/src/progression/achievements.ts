@@ -24,6 +24,13 @@ import { HERO_QUOTES } from "./hero-quotes.js";
 import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
+import {
+  MOD_ACHIEVEMENT_ROWS,
+  modFactsOf,
+  packAchievementsOf,
+  type ModFacts,
+  type PackAchievementSource,
+} from "./mod-achievements.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId } from "./team-up-trophies.js";
 import {
   DEFAULT_UNLOCK_PREFS,
@@ -48,7 +55,8 @@ export type AchievementFamily =
   | "feats"
   | "decks"
   | "funny"
-  | "teamups";
+  | "teamups"
+  | "mods";
 
 /** The Trophy Room's grouping order. */
 export const ACHIEVEMENT_FAMILIES: readonly { readonly id: AchievementFamily; readonly label: string }[] = [
@@ -63,6 +71,8 @@ export const ACHIEVEMENT_FAMILIES: readonly { readonly id: AchievementFamily; re
   { id: "decks", label: "Deck building" },
   { id: "teamups", label: "Team-up stories" },
   { id: "funny", label: "The funny ones" },
+  // Mods (docs/custom-content-packs.md §11.12): worth no points, so they never move a rank.
+  { id: "mods", label: "Mods" },
 ];
 
 /** The save rows an achievement reads: the same fields `progressOf` and `extrasProgressOf` read. */
@@ -78,6 +88,8 @@ export interface AchievementSave {
     readonly modes?: { readonly expert?: boolean; readonly heroic?: number; readonly skirmish?: unknown };
     readonly players: readonly object[];
     readonly packs?: readonly unknown[];
+    /** The house rules the game switched on (`SessionConfig.houseRules`): pack ids. */
+    readonly houseRules?: readonly string[];
   };
 }
 
@@ -99,6 +111,14 @@ export interface AchievementHistory {
   readonly unlockedEverything?: boolean;
   /** The deck building feats noted so far (`deck-feats.ts`), with a built deck in your decks counting as built. */
   readonly decks?: DeckFeats;
+  /**
+   * What the mod achievements read beyond the saves (§11.12): the mods ever installed (`mod-installs.ts`, pack id to
+   * kind), and the achievements of the packs installed and loaded now (`PackRuntime.achievements`).
+   */
+  readonly mods?: {
+    readonly installed: Readonly<Record<string, string>>;
+    readonly packs?: readonly PackAchievementSource[];
+  };
 }
 
 export const NO_HISTORY: AchievementHistory = { saves: [], campaigns: [] };
@@ -145,6 +165,8 @@ interface Facts {
   readonly seatCountsPlayed: ReadonlySet<number>;
   /** Team-Up cards played over the finished games that recorded a summary. */
   readonly teamUpsPlayed: number;
+  /** The mod facts (`mod-achievements.ts`): read from custom-content games too, and only by the Mods family. */
+  readonly mods: ModFacts;
 }
 
 /** `{ current, target }`, or null when the history can't answer yet. */
@@ -168,6 +190,8 @@ export interface AchievementDef {
   /** Show a progress bar in the Trophy Room (it counts something). */
   readonly showProgress: boolean;
   readonly measure: (facts: Facts) => AchievementProgress | null;
+  /** Set on an achievement a pack defines (`PackManifest.achievements`): the Trophy Room groups it under this pack. */
+  readonly pack?: { readonly id: string; readonly name: string };
 }
 
 const isExpert = (save: AchievementSave): boolean =>
@@ -235,6 +259,7 @@ export function factsOf(history: AchievementHistory): Facts {
     decks: history.decks ?? NO_DECK_FEATS,
     seatCountsPlayed: new Set([...wonSaves, ...lostSaves].map((s) => s.config.players.length)),
     teamUpsPlayed: real.reduce((sum, s) => sum + (s.summary?.teamUpsPlayed ?? 0), 0),
+    mods: modFactsOf(history),
   };
 }
 
@@ -796,6 +821,18 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     rewardPackId: "pack-gamma-ray-overdose",
     measure: (f) => count(f.oneHitPointWinners.has(hulk) ? 1 : 0, 1),
   }),
+
+  // Mods (§11.12): 0 points each, by owner decision (2026-11-13), so mods never move a rank.
+  ...MOD_ACHIEVEMENT_ROWS.map((row) =>
+    def({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      family: "mods",
+      showProgress: row.showProgress,
+      measure: (f) => row.measure(f.mods),
+    }),
+  ),
 ];
 
 export interface AchievementStatus {
@@ -805,10 +842,32 @@ export interface AchievementStatus {
   readonly progress: AchievementProgress | null;
 }
 
-/** Every achievement against the history, in definition order. */
+/**
+ * The achievements packs define (`PackManifest.achievements`, §11.12) as definitions, in pack order: 0 points, family
+ * "mods", the id scoped by the pack. Measured from the saves, so what a pack earned stays earned after it is removed.
+ */
+export function packAchievementDefs(history: AchievementHistory): readonly AchievementStatus[] {
+  return packAchievementsOf({ ...history, packs: history.mods?.packs ?? [] }).map((read) => ({
+    def: {
+      id: read.id,
+      name: read.name,
+      description: read.description,
+      family: "mods",
+      points: 0,
+      tracked: true,
+      showProgress: read.showProgress,
+      measure: () => read.progress,
+      pack: { id: read.packId, name: read.packName },
+    },
+    earned: read.progress.current >= read.progress.target,
+    progress: read.showProgress ? read.progress : null,
+  }));
+}
+
+/** Every achievement against the history, in definition order, then the achievements packs define. */
 export function achievementStatuses(history: AchievementHistory): readonly AchievementStatus[] {
   const facts = factsOf(history);
-  return ACHIEVEMENTS.map((d) => {
+  const base = ACHIEVEMENTS.map((d) => {
     const measured = d.tracked ? d.measure(facts) : null;
     return {
       def: d,
@@ -816,6 +875,7 @@ export function achievementStatuses(history: AchievementHistory): readonly Achie
       progress: measured !== null && d.showProgress ? measured : null,
     };
   });
+  return [...base, ...packAchievementDefs(history)];
 }
 
 /**
@@ -827,6 +887,13 @@ export function isAchievementEarned(id: string, history: AchievementHistory): bo
   if (!d || !d.tracked) return false;
   const measured = d.measure(factsOf(history));
   return measured !== null && measured.current >= measured.target;
+}
+
+/** The definition of an achievement by id: a built-in one, else one a pack defines (read from `history`). */
+export function achievementDefOf(id: string, history: AchievementHistory): AchievementDef | undefined {
+  return (
+    ACHIEVEMENTS.find((a) => a.id === id) ?? packAchievementDefs(history).find((status) => status.def.id === id)?.def
+  );
 }
 
 /** Ids of the achievements the save rows can't answer yet. */

@@ -7,6 +7,7 @@ import {
 } from "@mc/cards";
 import {
   PACK_COVER_MAX_BYTES,
+  packAchievementProblems,
   PACK_HOUSE_RULE_MODES,
   PACK_KINDS,
   PACK_PERMISSION_STATUSES,
@@ -320,6 +321,34 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
       add,
     });
   }
+  checkAchievements(input, cards, packId, add);
+}
+
+/**
+ * The pack's achievements (docs/custom-content-packs.md §11.12): shape, limits, unique ids, and conditions that name only
+ * this pack's own heroes, scenarios, campaigns and (for a house rule) own toggle.
+ */
+function checkAchievements(input: PackInput, cards: readonly Obj[], packId: string, add: Add): void {
+  const { manifest } = input;
+  const idsOf = (list: unknown): Set<string> =>
+    new Set(
+      (Array.isArray(list) ? list : []).flatMap((one) => (isObj(one) && typeof one.id === "string" ? [one.id] : [])),
+    );
+  const rule: unknown = manifest.houseRule;
+  const toggle =
+    manifest.kind === "house-rule" &&
+    isObj(rule) &&
+    Array.isArray(rule.traitAdditions) &&
+    rule.traitAdditions.length > 0 &&
+    rule.enablesMode === undefined;
+  const problems = packAchievementProblems(manifest.achievements, {
+    packId,
+    heroIds: new Set(cards.filter((card) => card.type === "hero_identity").map((card) => String(card.id))),
+    scenarioIds: idsOf(input.scenarios),
+    campaignIds: idsOf(input.campaigns),
+    houseRuleToggle: toggle,
+  });
+  for (const message of problems) add("pack.json achievements", message);
 }
 
 /**

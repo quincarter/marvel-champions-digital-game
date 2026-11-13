@@ -10,6 +10,7 @@ import {
   applyTraitAdditions,
   type AnyCard,
   type EncounterSet,
+  type PackAchievement,
   type PackHouseRule,
   type Scenario,
   type StarterDeck,
@@ -33,6 +34,8 @@ export interface PackRuntime {
   readonly encounterSets?: readonly EncounterSet[];
   /** The pack's campaigns (docs/custom-content-packs.md §11.10); absent in a pack with none. */
   readonly campaigns?: readonly PackCampaign[];
+  /** The pack's own achievements (§11.12); absent when it defines none. Worth no points. */
+  readonly achievements?: readonly PackAchievement[];
   /**
    * A `house-rule` pack's rule (§11.11), with the manifest's name and description for the setup toggle. Absent on every
    * other pack. A game carries a house-rule pack only while its rule is on (`withLoadedPacks`).

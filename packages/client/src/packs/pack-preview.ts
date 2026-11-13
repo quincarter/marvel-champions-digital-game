@@ -8,10 +8,12 @@ import {
   PACK_PREVIEW_MAX_BYTES,
   PACK_PREVIEW_SCHEMA_VERSION,
   customCardPrefix,
+  parsePackAchievements,
   isPackCoverPath,
   parsePackCardImagePath,
   validateCard,
   type AnyCard,
+  type PackAchievement,
   type PackLanguages,
 } from "@mc/content";
 
@@ -25,6 +27,8 @@ export interface ParsedPackPreview {
   readonly images: ReadonlySet<string>;
   readonly languages: PackLanguages | undefined;
   readonly cards: readonly AnyCard[];
+  /** The pack's achievements for the store page's list; empty when it has none. */
+  readonly achievements: readonly PackAchievement[];
   readonly decks: readonly {
     readonly id: string;
     readonly name: string;
@@ -109,6 +113,7 @@ export function parsePackPreview(data: unknown, packId: string): ParsedPackPrevi
     images,
     languages: languagesOf(data.languages),
     cards,
+    achievements: parsePackAchievements(data.achievements),
     decks,
   };
 }
