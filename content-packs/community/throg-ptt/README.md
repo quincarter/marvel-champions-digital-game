@@ -28,9 +28,10 @@ local build run `sh fetch-art.sh` (it fetches the curated source repository at t
 - `abilities/index.ts`: every ability, each commented with the base card it copies.
 - `cards/x.throg-ptt.13.json`: the Power Stone's `attachesTo` is edited to the card's own text: Thanos, and if he is not
   in play, the villain (`ifAble` of a `namedCard` then `villain`; the importer wrote only the Thanos half).
-- `decks/throg-ptt-protection.json`: a suggested deck (not the authors'; the source has no precon list): the 15 Throg
-  cards plus the Core Set Protection and basic cards of the Black Panther (Protection) starter deck, without Black
-  Panther's own 15 (40 cards).
+- `decks/throg-ptt-justice.json`: the curators' Justice starter deck (`decks/throg-justice.json` in the source, commit
+  `d9be74f`; 42 cards: 15 Throg cards, 27 Justice and basic cards, built around player side schemes), converted: their
+  `throg_ptt_NN` codes become `x.throg-ptt.NN`, the rest are official card codes, the MarvelCDB `slots` become `cards`.
+  It replaces the earlier suggested Protection deck of this project, which was not the authors'.
 
 Re-running the importer would overwrite the card JSON: redo the Power Stone edit above.
 
@@ -79,7 +80,7 @@ patrol.
 ## Tests
 
 `packages/mod-sdk/src/throg-ptt.test.ts` plays the abilities on the real engine against the Core Rhino scenario:
-validation, the suggested deck and a 2-game smoke test; Frogjolnir (+1 ATK, Aerial, Asgard) and Frog of Thunder; Worthy
+validation, the Justice starter deck (legal under `validateDeck`) and a 2-game smoke test; Frogjolnir (+1 ATK, Aerial, Asgard) and Frog of Thunder; Worthy
 (once per round); Hammer Throw (4 damage, 4 threat, Frogjolnir back to hand); Frogbolt (X damage, X threat from each side
 scheme); Defender of the Nine Puddles with Toad-ally Unexpected! (5 damage, not revealed, draw 2); Amphibious Agility (3,
 and the whole hit with Aerial); Thanos and An Unexpected Guest finding the Power Stone (on Thanos, on the villain); the
