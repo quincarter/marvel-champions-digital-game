@@ -11,6 +11,7 @@ import {
   createGame,
   playerId,
   traitsOf,
+  validateDeck,
   type CardInstance,
   type Command,
   type EngineDeps,
@@ -65,7 +66,7 @@ afterAll(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
 });
 
-const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "throg-ptt-protection")!;
+const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "throg-ptt-justice")!;
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,
@@ -252,12 +253,22 @@ describe("pack content", () => {
     expect(validatePack(pack)).toEqual([]);
   });
 
-  it("ships a suggested deck: 40 cards, 15 of them Throg's, led by Throg", () => {
-    const cards = precon().cards;
-    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(40);
+  it("ships the curators' Justice starter deck: 42 cards, 15 of them Throg's, led by Throg, legal for a Justice hero", () => {
+    const deck = precon();
+    const cards = deck.cards;
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(42);
     const own = cards.filter((c) => String(c.cardId).startsWith(P)).reduce((n, c) => n + c.quantity, 0);
     expect(own).toBe(15);
-    expect(String(precon().identityCardId)).toBe(`${P}01a`);
+    expect(String(deck.identityCardId)).toBe(`${P}01a`);
+    expect(deck.aspects).toEqual(["justice"]);
+    // Every card exists in the pool (base data plus the pack), and the deck passes the engine's legality check:
+    // 40 to 50 cards, the aspect and basic only, the deck limits.
+    const pool = cardPoolWithPack(PLAYABLE_CARDS, pack);
+    const missing = cards.filter((c) => !pool.some((p) => p.id === c.cardId)).map((c) => String(c.cardId));
+    expect(missing).toEqual([]);
+    expect(validateDeck({ identityCardId: deck.identityCardId, aspects: deck.aspects, cards }, pool)).toEqual({
+      ok: true,
+    });
   });
 
   it("plays the precon through a smoke game", () => {

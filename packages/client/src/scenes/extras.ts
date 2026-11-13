@@ -379,6 +379,7 @@ export class ExtrasScene extends Phaser.Scene {
         const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
         if (index !== null) this.#activate(tiles[index]!);
       },
+      rowPressableAt: (rowIndex, pointer) => extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
     });
     this.#list = list;
     this.#promoTiles =

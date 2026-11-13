@@ -154,7 +154,7 @@ current stage number, alongside the number of players in the game."
 So: stage 1B: 1 per hero cards; 2B: 2 per hero; 3B: 3 per hero ("Hidden Clause - Special: Put N[per_hero] card(s) from
 the top of your deck facedown into Damnation"). Resolved by the Forced Response printed on each B side ("At the end of
 your turn, resolve the "Hidden Clause" ability for each Bargain attachment you control": once per Bargain attachment)
-and by encounter cards that say so (Alter the Deal, Dark Compulsions, Meager Request).
+and by encounter cards that say so (Alter the Deal (with and without a Bargain), Dark Compulsions, Meager Request).
 
 ### Damnation
 
@@ -213,12 +213,35 @@ main schemes."
 
 ## Rules readings and open questions (for the owner / the author)
 
+**Settled by the author (Neptune, 2026-11-13; pack 1.1.1).** He answered our rules notes the same day and will update
+his own files; the card text here stays as printed until he releases them, but the behaviour follows his answers:
+
+- **Devil's Pacts catches every activation against you**, as printed (intended). Built so.
+- **Exposing Intentions' extra card does not retrigger it** (the loop fix). Built so (item 8).
+- **Corruptive Offers: "After your turn begins", no exhaust cost.** Built so (item 6).
+- **Call of the Demoness: a defeated facedown Mystic minion goes to its owner's discard pile.** Built so (tested).
+- **Slothful Endurance: DEF doubled, and an attack that would deal less than that DEF deals no damage** (all prevented).
+  Changed in 1.1.1; before, such damage was raised up to the DEF. Read as a forced interrupt over the amount about to
+  be dealt (before a tough status card), so an attack of 6 or more goes through as it is. The author's reading of the
+  amount "after every modifier" would need an engine rule (a threshold variant of `minDamageTaken`); the interrupt reads
+  the pending amount.
+- **Alter the Deal: "Otherwise" means "if you do not control a Bargain attachment"**, and the card then just shuffles
+  itself back into the encounter deck. Changed in 1.1.1; before, "Otherwise" meant the search found no Bargain.
+- **Hotel Inferno: 6 threat per 6 cards in Damnation**, as printed (a 666 pun). Built so.
+- **Famished Power: the basic power you use plus 1 different basic power of your choice, the values added, for that
+  use only.** Built so (item 11).
+- **Lilin Remaking: "villainous" on your identity is an intended buff.** Built so.
+- **Hell Lord in every mode**, as the card says (his insert is the outdated one). Built so (item 1).
+
+Still open (his interim rulings stand): "look at N cards in Damnation" (Hell Lord and the side schemes) is a blind random
+pick from all of Damnation (item 3), and Pestilent Nature only shuffles player cards into your deck.
+
 Answered by default (the owner's calls for the first build; each can change without touching the card data):
 
 1. **Hell Lord in every mode, as printed.** The insert calls it Mephisto's expert-mode attachment, but Mephisto (II)
    prints "When Revealed: Find and attach the Hell Lord attachment to Mephisto" and II is in both modes' villain decks.
    Built as printed: in standard mode it arrives when II is revealed; in expert mode II is the first stage, so Mephisto
-   starts with it. (Ask the author whether standard mode should skip it.)
+   starts with it. (Settled by the author, 2026-11-13: every mode, as printed.)
 2. **The Hell Lord does not stop thwarts.** The insert says it "prevents ... his main scheme being thwarted by players
    with Bargain attachments", but no card text says so (the card only reduces damage and drives the Damnation
    recovery). Not built.
@@ -287,7 +310,7 @@ machinery uses the engine primitives added for this pack (`engine-only-features.
 - Hidden Clause: `tagged("hiddenClause", ...)` on each B stage, resolved by `resolveTagged` from the turn-end Forced
   Response (once per Bargain attachment) and from Alter the Deal, Dark Compulsions and Meager Request.
 - Bargain Response: `enemyActivates(theVillain, { against: you, boostCards: self })`; the sins' constants:
-  `multiplyStat`/`doubleStat`, `minDamageTaken`, `resourcesGeneratedAsWild`, `gets("handSize")`, `ignores`.
+  `doubleStat`, a forced interrupt on the attack's damage (Slothful Endurance), `resourcesGeneratedAsWild`, `gets("handSize")`, `ignores`.
 - Lilith's and Call of the Demoness's facedown Mystic minions: `putIntoPlayFacedown(..., { from: "discard" })` and
   `gets(..., { setBase: true })` (1 SCH, 1 ATK, 1 hit point), as Ultron's Drones.
 
@@ -304,7 +327,7 @@ machinery uses the engine primitives added for this pack (`engine-only-features.
 a Bargain accepted and refused; Hidden Clause at the end of the turn per Bargain (and 3 per hero on stage 3B); Devil's
 Pacts (heal, or threat when there is nothing to heal); the Damnation loss at 10 per hero (1 and 2 heroes); Gateway's
 set-aside redirect; stage 3B win and loss; Fiendish Investment; Gateway to Hell with its acceleration token; Slothful
-Endurance's floor; Famished Power with and without Shackled Wrath; the facedown Mystic minions (1/1/1, Spawn Magic);
+Endurance's threshold (attacks below the doubled DEF are prevented); Famished Power with and without Shackled Wrath; the facedown Mystic minions (1/1/1, Spawn Magic);
 Hell Lord's damage reduction and recovery; Alter the Deal, Dark Compulsions, Hotel Inferno, Culling the Damned, Exposing
 Intentions; Blackheart's Action and Boost (an attack and a scheme cancelled, and declined); Lilin Remaking; the turn-start Responses; Deathless Persistence; Demon
 Amalgam; Demonized; Lusting Existence; Condemned Soul Portal; and every encounter card revealed in hero and alter-ego

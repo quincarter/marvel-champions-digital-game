@@ -60,9 +60,11 @@ import { drawAspectChips } from "../../ui/aspect-chips.js";
 import { deckRowLayout, deckRowTitleWidth } from "../../view/campaign-deck-row-layout.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { onTap } from "../../ui/tap.js";
-import { setMask } from "../../ui/rex.js";
+import { bakedBadge } from "../board/team-up-badge.js";
+import { ensurePictureLoaded, type Picture } from "../../art/pictures.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
+import { portraitCropRect } from "../../view/badge-crop.js";
 import { formFactorFor } from "../../view/layout.js";
 import { CAMPAIGN_ART, campaignCoverFor } from "../../art/campaign-art.js";
 import { awaitsIssuePick, currentNodeIdOf, issueNumberOfRecord } from "../../view/campaign-issue-pick.js";
@@ -1078,6 +1080,23 @@ export class CampaignBriefingScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * The design's round portrait, with its corners cut away in a baked texture rather than by a circular mask (#692).
+   * A circular mask is a Mask filter, and drawn inside the phone's scrolling body (itself clipped by the scissor test,
+   * `ui/scissor-clip.ts`) it left some Android phones drawing nothing past the top and action bars: the Briefing went
+   * blank while its buttons still took taps. The board's Team-Up rings went the same way for a like reason (#365).
+   * Null until the picture has loaded; the screen redraws then.
+   */
+  #roundPortrait(picture: Picture, rect: Rect): Phaser.GameObjects.Image | null {
+    const key = ensurePictureLoaded(this, picture, () => this.#draw());
+    if (!key) return null;
+    const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
+    const square = portraitCropRect(source, picture.focus, 0.15);
+    // Baked at three times its size, so a phone drawing at its own density still gets a sharp face.
+    const baked = bakedBadge(this, key, source, Math.round(rect.width * 3), true, square);
+    return this.add.image(rect.x, rect.y, baked).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
+  }
+
   /** The round portrait + speech bubble: whoever the story's briefing line speaks as, or the first seat. */
   #drawSpeaker(rect: Rect, record: CampaignRecord, phone: boolean): number {
     const rosterIds = record.seats.map((seat) => seat.identityCardId);
@@ -1104,15 +1123,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
       : speaker.heroIdentityId
         ? (heroPicture(speaker.heroIdentityId) ?? campaignCoverFor(CAMPAIGN_ART, record.campaignId as string))
         : null;
-    const image = picture ? drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 }) : null;
-    if (image) {
-      // The design's round portrait, clipped through `ui/rex.ts` (Phaser 4's own geometry mask does nothing under
-      // WebGL). The mask shape stays off the display list, so it is destroyed with the image.
-      const maskShape = this.make.graphics({}, false);
-      maskShape.fillStyle(0xffffff).fillCircle(centerX, centerY, radius);
-      setMask(image, maskShape, "world");
-      image.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
-    } else if (!speaker.heroIdentityId && speaker.initial) {
+    const image = picture ? this.#roundPortrait(picture, portraitRect) : null;
+    if (!image && !speaker.heroIdentityId && speaker.initial) {
       // A voice with no picture draws its initial rather than somebody else's face.
       this.add
         .text(
