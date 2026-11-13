@@ -176,12 +176,18 @@ test.describe("an upright tablet", () => {
 
     await clickStop(page, "volumes-view", "CampaignSaga");
     await settle(page);
-    expect((await volumeTwo())!.rect.width, "a full-width row").toBeGreaterThan(700);
+    // The switch redraws a frame later on a loaded machine: wait for it rather than read once.
+    await expect
+      .poll(async () => (await volumeTwo())?.rect.width ?? 0, { message: "a full-width row", timeout: 10_000 })
+      .toBeGreaterThan(700);
 
     await page.reload();
     await waitForScene(page, "CampaignSaga");
     await settle(page);
-    expect((await volumeTwo())!.rect.width, "the choice is kept").toBeGreaterThan(700);
+    // The switch redraws a frame later on a loaded machine: wait for it rather than read once.
+    await expect
+      .poll(async () => (await volumeTwo())?.rect.width ?? 0, { message: "the choice is kept", timeout: 10_000 })
+      .toBeGreaterThan(700);
     expect(errors).toEqual([]);
   });
 });
