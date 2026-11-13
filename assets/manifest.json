@@ -380,6 +380,18 @@
       "files": 60
     },
     {
+      "name": "pack-art-punisher-pk",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/punisher-pk"
+    },
+    {
+      "name": "pack-art-yondu-dh",
+      "group": "pack-art",
+      "optional": true,
+      "dir": "content-packs/community/yondu-dh"
+    },
+    {
       "name": "artifacts",
       "group": "artifacts",
       "kind": "archive",
