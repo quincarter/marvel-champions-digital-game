@@ -124,11 +124,11 @@ describe("ReplaySession", () => {
 });
 
 describe("replay file", () => {
-  test("round-trips through its gzip bytes", async () => {
+  test("round-trips through its packed text", async () => {
     const stored = await playedGame(10);
     const file = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE).toFile(5);
     const bytes = await encodeReplay(file);
-    expect([bytes[0], bytes[1]]).toEqual([0x1f, 0x8b]);
+    expect(new TextDecoder().decode(bytes.subarray(0, 10))).toBe("MCREPLAY1\n");
     const parsed = await decodeReplay(bytes);
     expect(parsed).toEqual({ ok: true, file: JSON.parse(JSON.stringify(file)) });
   });

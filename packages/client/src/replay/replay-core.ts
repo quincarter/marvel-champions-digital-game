@@ -42,6 +42,11 @@ export interface ReplayExport {
   readonly name: string;
 }
 
+export interface ReplayLogExport {
+  readonly text: string;
+  readonly name: string;
+}
+
 export class ReplayCore {
   readonly #here: ReplayWriter;
   readonly #storage: Pick<GameStorage, "load"> | null;
@@ -74,6 +79,13 @@ export class ReplayCore {
   async exportFile(): Promise<ReplayExport> {
     const file = this.#require().toFile(this.#now());
     return { bytes: await encodeReplay(file), name: replayFileNameOf(file) };
+  }
+
+  /** The game's log as a text file, named like the replay. */
+  exportLog(): ReplayLogExport {
+    const session = this.#require();
+    const name = replayFileNameOf(session.toFile(this.#now())).replace(/\.mcreplay$/, "-log.txt");
+    return { text: session.logText(), name };
   }
 
   async #resolve(source: ReplayOpenSource): Promise<ReplaySource> {

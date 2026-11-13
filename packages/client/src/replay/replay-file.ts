@@ -10,8 +10,8 @@
  * every `CHECKSUM_EVERY` commands, taken by the build that wrote it (`replay-session.ts`). The viewer checks them as it
  * rebuilds and says where the game first played out differently, instead of quietly showing a game that never was.
  *
- * On disk the JSON is gzip-compressed (`CompressionStream`, in every shell the game runs in): a 200-command game's log
- * is a few hundred KB of JSON and a few tens of KB compressed. Pure apart from `encodeReplay`/`decodeReplay`'s streams.
+ * On disk the JSON is gzip-compressed (`CompressionStream`, in every shell the game runs in) and kept as base64 text
+ * under a header line (`encodeReplay`): a 200-command game's log is a few hundred KB of JSON and a few tens of KB packed. Pure apart from `encodeReplay`/`decodeReplay`'s streams.
  */
 import type { Command, GameOutcome, GameState } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
@@ -158,22 +158,41 @@ export function replayFileNameOf(file: Pick<ReplayFile, "config" | "exportedAt">
 }
 
 const GZIP_MAGIC = [0x1f, 0x8b] as const;
+/** The first line of a replay file; the gzip, in base64, follows on the next. */
+export const REPLAY_HEADER = "MCREPLAY1";
 
-/** The file's bytes: its JSON, gzip-compressed. */
-export async function encodeReplay(file: ReplayFile): Promise<Uint8Array> {
-  const json = new Blob([JSON.stringify(file)]).stream().pipeThrough(new CompressionStream("gzip"));
-  return new Uint8Array(await new Response(json).arrayBuffer());
+const toBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+};
+
+const fromBase64 = (text: string): Uint8Array => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+
+async function gunzip(bytes: Uint8Array): Promise<string> {
+  const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).text();
 }
 
-/** Reads a replay file's bytes: gzip-compressed JSON, or plain JSON (a replay someone unpacked to read). */
+/**
+ * The file's bytes: a header line, then the JSON gzip-compressed and in base64. Text, so every way the game hands a file
+ * out (the desktop and Android save dialogs take text) carries it unchanged, and it survives being pasted.
+ */
+export async function encodeReplay(file: ReplayFile): Promise<Uint8Array> {
+  const gzip = new Blob([JSON.stringify(file)]).stream().pipeThrough(new CompressionStream("gzip"));
+  const packed = toBase64(new Uint8Array(await new Response(gzip).arrayBuffer()));
+  return new TextEncoder().encode(`${REPLAY_HEADER}\n${packed}\n`);
+}
+
+/** Reads a replay file's bytes: as `encodeReplay` writes them, raw gzip, or plain JSON (a replay unpacked to read). */
 export async function decodeReplay(bytes: Uint8Array): Promise<ReplayParse> {
   let text: string;
   try {
     if (bytes[0] === GZIP_MAGIC[0] && bytes[1] === GZIP_MAGIC[1]) {
-      const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
-      text = await new Response(stream).text();
+      text = await gunzip(bytes);
     } else {
-      text = new TextDecoder().decode(bytes);
+      text = new TextDecoder().decode(bytes).trim();
+      if (text.startsWith(REPLAY_HEADER)) text = await gunzip(fromBase64(text.slice(REPLAY_HEADER.length).trim()));
     }
   } catch {
     return { ok: false, error: "damaged" };

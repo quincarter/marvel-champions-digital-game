@@ -101,6 +101,14 @@ describe("ReplayHost", () => {
     await expect(host.start(CONFIG)).rejects.toThrow();
   });
 
+  test("exports the game's log as text", async () => {
+    const host = await openedHost();
+    const { text, name } = await host.exportLog();
+    expect(name.endsWith("-log.txt")).toBe(true);
+    expect(text.startsWith("Marvel Champions: ")).toBe(true);
+    expect(text.split("\n").length).toBeGreaterThan(10);
+  });
+
   test("a saved game that is gone can't be opened", async () => {
     const host = new ReplayHost(new LocalReplayBackend(new ReplayCore(HERE, new MemoryGameStorage())));
     await expect(host.open({ kind: "stored", gameId: "nope" })).rejects.toBeInstanceOf(ReplayOpenError);

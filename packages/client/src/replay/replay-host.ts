@@ -28,6 +28,7 @@ import {
   ReplayCore,
   ReplayOpenError,
   type ReplayExport,
+  type ReplayLogExport,
   type ReplayOpenSource,
   type ReplayOpened,
 } from "./replay-core.js";
@@ -39,6 +40,7 @@ export interface ReplayBackend {
   open(source: ReplayOpenSource): Promise<ReplayOpened>;
   snapshot(n: number, played: boolean): Promise<Snapshot>;
   exportFile(): Promise<ReplayExport>;
+  exportLog(): Promise<ReplayLogExport>;
   dispose(): void;
 }
 
@@ -60,6 +62,10 @@ export class LocalReplayBackend implements ReplayBackend {
 
   exportFile(): Promise<ReplayExport> {
     return this.#core.exportFile();
+  }
+
+  async exportLog(): Promise<ReplayLogExport> {
+    return this.#core.exportLog();
   }
 
   dispose(): void {}
@@ -115,6 +121,12 @@ export class WorkerReplayBackend implements ReplayBackend {
     const response = await this.#request({ kind: "export", id: this.#nextId++ });
     if (response.kind !== "exported") throw new Error(`unexpected reply ${response.kind}`);
     return { bytes: response.bytes, name: response.name };
+  }
+
+  async exportLog(): Promise<ReplayLogExport> {
+    const response = await this.#request({ kind: "exportLog", id: this.#nextId++ });
+    if (response.kind !== "exportedLog") throw new Error(`unexpected reply ${response.kind}`);
+    return { text: response.text, name: response.name };
   }
 
   dispose(): void {
@@ -213,6 +225,12 @@ export class ReplayHost implements EngineHost {
   exportFile(): Promise<ReplayExport> {
     this.#require();
     return this.#backend.exportFile();
+  }
+
+  /** The game's whole log as a text file's contents and name. */
+  exportLog(): Promise<ReplayLogExport> {
+    this.#require();
+    return this.#backend.exportLog();
   }
 
   /** Publishes the replay's opening position (the store's `resume` calls this; the id is not read). */

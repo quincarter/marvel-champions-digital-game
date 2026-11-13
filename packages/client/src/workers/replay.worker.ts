@@ -39,6 +39,9 @@ async function handle(request: ReplayRequest): Promise<void> {
         worker.postMessage({ kind: "exported", id: request.id, bytes, name }, [bytes.buffer]);
         return;
       }
+      case "exportLog":
+        worker.postMessage({ kind: "exportedLog", id: request.id, ...core.exportLog() });
+        return;
     }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

@@ -15,6 +15,11 @@ import { emptyRecord, recordEvents, type GameRecord } from "../engine/game-recor
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
 import { inVillainPhase, sealedEventStates, stripSealedPool, type Snapshot } from "../engine/session-core.js";
 import { sealForTable } from "../view/hidden-reverse.js";
+import { gameLabelOf } from "../view/continue-label.js";
+import { difficultyLabelOf } from "../view/difficulty-label.js";
+import { GAME_LABEL_NAMES } from "../view/game-label-names.js";
+import { gameOverModel } from "../view/game-over-model.js";
+import { fullLogLines, logText } from "../view/log-export.js";
 import { ReplayCursor, type ReplayFailure, type ReplayMoment } from "../view/replay-cursor.js";
 import {
   ChecksumCheck,
@@ -157,6 +162,22 @@ export class ReplaySession {
       return { ...base, events: position.events, ...(states.length > 0 ? { states } : {}) };
     }
     return { ...base, events: [], history: this.#cursor.historyTo(index) };
+  }
+
+  /** The game's whole log as text (`view/log-export.ts`), as far as it replays here. */
+  logText(): string {
+    const { state } = this.#cursor.at(this.info.length);
+    const config = this.info.config;
+    const record = this.#records[this.info.length] ?? emptyRecord();
+    return logText(
+      {
+        game: gameLabelOf(config, GAME_LABEL_NAMES),
+        difficulty: difficultyLabelOf(config),
+        result: state.outcome ? gameOverModel(state, record, config, this.#deps).headline : null,
+        playedAt: this.info.createdAt,
+      },
+      fullLogLines(this.#cursor.historyTo(this.info.length), state, this.#deps),
+    );
   }
 
   /** The printed cards the game was rebuilt with: what the table re-attaches to every snapshot. */
