@@ -5,7 +5,7 @@
 import { PLAYABLE_PACK_KINDS, satisfiesApp } from "./pack-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { packCampaignsOf, readPackInput, validatePack, SUPPORTED_DSL_FEATURES } from "@mc/mod-sdk";
-import type { AnyCard, EncounterSet, PackManifest, Scenario } from "@mc/content";
+import { parsePackAchievements, type AnyCard, type EncounterSet, type PackManifest, type Scenario } from "@mc/content";
 import type { PackRuntime } from "./pack-runtime.js";
 
 export type PackLoadResult =
@@ -67,6 +67,10 @@ export function loadPackRuntime(
         ...((input.scenarios?.length ?? 0) > 0 ? { scenarios: input.scenarios as readonly Scenario[] } : {}),
         ...((input.encounterSets?.length ?? 0) > 0 ? { encounterSets: input.encounterSets } : {}),
         ...(packCampaignsOf(input.campaigns).length > 0 ? { campaigns: packCampaignsOf(input.campaigns) } : {}),
+        ...(parsePackAchievements(manifest.achievements).length > 0
+          ? { achievements: parsePackAchievements(manifest.achievements) }
+          : {}),
+        ...(manifest.houseRule ? { houseRule: { ...manifest.houseRule, description: manifest.description } } : {}),
       },
     };
   } catch (error) {

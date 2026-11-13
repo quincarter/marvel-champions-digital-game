@@ -7,7 +7,11 @@ Mephisto (`mephisto-nep`) is a fan-made scenario pack by **Neptune** (Typhon00).
 - AI disclosure, as printed on the insert: "This creation used AI tools as part of its development to achieve it proof of
   concept status. This primarily consisted of editing the existing artworks to expand imagery and remove text boxes.
   This content is designed as free, generating no profit for myself or Marvel comics."
-- Pictures: en only (base language en). They are converted from the author's PNGs by `convert-art.cjs`. The eight
+- Spanish translation: Francisco Merchán, localized with Panini's Spanish names (Mefisto, Condenación, Hotel Inferno;
+  Blackheart stays in English), curated by BluefireF5ran in
+  https://github.com/bluefireF5ran/mc-digital-custom-packs (commit `a51e50da556ece0b0fe9a75848320416b8794cef`). The
+  Spanish card faces and the Spanish Standard/Expert art come from that repository (`fetch-art.sh`).
+- Pictures: en, es (base language en). The English ones are converted from the author's PNGs by `convert-art.cjs`. The eight
   pictures in `alt-art/` are the author's new art for the base game's Standard (01186-01190) and Expert (01191-01193)
   encounter cards.
 - Source: the author's download "Mephisto" (87 files: scenario pack, Standard and Expert art, four modular sets, the

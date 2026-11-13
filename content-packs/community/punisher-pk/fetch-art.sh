@@ -7,6 +7,13 @@ COMMIT=a0c9f6000293115a9ecd58da347468ec875d52bb
 HERE=$(cd "$(dirname "$0")" && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+# The store cover (pack.json "cover", git-ignored like the pictures), from the commit that added the curated
+# covers: a blob-less fetch, then just that one file.
+COVER_COMMIT=a51e50da556ece0b0fe9a75848320416b8794cef
+git init --quiet "$TMP/cover"
+git -C "$TMP/cover" remote add origin "$REPO"
+git -C "$TMP/cover" fetch --quiet --depth 1 --filter=blob:none origin "$COVER_COMMIT"
+git -C "$TMP/cover" show "FETCH_HEAD:punisher_pk/cover.webp" > "$HERE/cover.webp"
 # A sparse checkout of the one folder: a path-limited checkout of a blob-less clone fails on some Git for Windows installs.
 git clone --quiet --filter=blob:none --no-checkout --sparse "$REPO" "$TMP/src"
 git -C "$TMP/src" sparse-checkout set punisher_pk/images
@@ -21,4 +28,4 @@ for lang in en es; do
     cp "$SRC/$lang/punisher_pk_${pair%%:*}.webp" "$HERE/cards/$lang/x.punisher-pk.${pair##*:}.webp"
   done
 done
-echo "Pictures written to $HERE/cards."
+echo "Pictures written to $HERE/cover.webp, $HERE/cards."

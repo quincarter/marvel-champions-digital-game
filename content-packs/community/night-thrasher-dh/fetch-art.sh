@@ -7,6 +7,13 @@ COMMIT=9ce0a25ec5b1b6f08b3a926838d9295babe69758
 HERE=$(cd "$(dirname "$0")" && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+# The store cover (pack.json "cover", git-ignored like the pictures), from the commit that added the curated
+# covers: a blob-less fetch, then just that one file.
+COVER_COMMIT=a51e50da556ece0b0fe9a75848320416b8794cef
+git init --quiet "$TMP/cover"
+git -C "$TMP/cover" remote add origin "$REPO"
+git -C "$TMP/cover" fetch --quiet --depth 1 --filter=blob:none origin "$COVER_COMMIT"
+git -C "$TMP/cover" show "FETCH_HEAD:night_thrasher_dh/cover.webp" > "$HERE/cover.webp"
 git clone --quiet --filter=blob:none --no-checkout "$REPO" "$TMP/src"
 git -C "$TMP/src" checkout --quiet "$COMMIT" -- night_thrasher_dh/images night_thrasher_dh/alt-art
 SRC="$TMP/src/night_thrasher_dh"
@@ -24,4 +31,4 @@ for lang in en es; do
     cp "$file" "$HERE/alt-art/$lang/x.night-thrasher-dh.${rest%-alt.webp}.webp"
   done
 done
-echo "Pictures written to $HERE/cards and $HERE/alt-art."
+echo "Pictures written to $HERE/cover.webp, $HERE/cards and $HERE/alt-art."

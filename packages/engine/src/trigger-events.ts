@@ -292,6 +292,12 @@ export type TriggerEventBody =
       /** "This attack gains piercing/ranged": keywords this attack has that its attacker need not (`AttackKeyword`). */
       readonly keywords?: readonly ("piercing" | "ranged" | "overkill")[];
       /**
+       * "This attack ignores guard" (`EffectSpec attack.ignores`): this attack is not stopped by guard, so the guard
+       * minions it got past are recorded as ignored (`guardsIgnored`) and "resolve this attack against …" keeps the
+       * waiver. Set on the event an `attack` instruction makes, and on the attack its ability begins with.
+       */
+      readonly ignoresGuard?: true;
+      /**
        * The attack in progress deals its damage with the attacker's ATK (docs/phase7-wave10.md §3.17): written as the
        * event is made for an `attack` instruction marked `usesAtk` and for a friendly character made to attack, and
        * as the attack deals its damage for a basic attack (`attackUsesAtk`, `rules.ts`, which reads a basic attack

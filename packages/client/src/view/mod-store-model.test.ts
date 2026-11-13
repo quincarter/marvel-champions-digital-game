@@ -4,11 +4,14 @@ import { parsePackPreview } from "../packs/pack-preview.js";
 import { PackInstallError } from "../packs/unpack-pack.js";
 import type { InstalledPack } from "../packs/pack-store.js";
 import {
+  achievementsParagraphOf,
   actionsOf,
   emptyTextOf,
   errorTextOf,
   featuredFacesOf,
+  MOD_STORE_TABS,
   modStoreGridOf,
+  modStoreTabRowsOf,
   packPageOf,
   progressOf,
   tileArtOf,
@@ -87,6 +90,25 @@ describe("tilesOf", () => {
     const withdrawn = entry("w", { withdrawn: true });
     expect(tilesOf(index([withdrawn]), context(), "all")).toEqual([]);
     expect(tilesOf(index([withdrawn]), context([installedPack("w")]), "all")[0]!.state).toBe("withdrawn");
+  });
+
+  it("lists house rules on their own tab, labelled as house rules (docs/custom-content-packs.md §11.11)", () => {
+    const withRule = [...packs, entry("lost-traits-bf", { kind: "house-rule", name: "Lost Traits" })];
+    expect(MOD_STORE_TABS.map((tab) => tab.label)).toEqual(["All", "Heroes", "Scenarios", "House rules", "Installed"]);
+    const rules = tilesOf(index(withRule), context(), "house-rules");
+    expect(rules.map((t) => t.id)).toEqual(["lost-traits-bf"]);
+    expect(rules[0]!.kindLabel).toBe("House rule");
+    expect(tilesOf(index(withRule), context(), "heroes").map((t) => t.id)).toEqual(["b-hero"]);
+    expect(tilesOf(index(withRule), context(), "all").map((t) => t.id)).toContain("lost-traits-bf");
+    expect(emptyTextOf("house-rules")).toMatch(/house rules/);
+  });
+
+  it("puts the five tabs in one row, or two on a phone as narrow as the iPhone SE", () => {
+    expect(modStoreTabRowsOf(1392).map((row) => row.length)).toEqual([5]);
+    expect(modStoreTabRowsOf(343).map((row) => row.map((tab) => tab.id))).toEqual([
+      ["all", "heroes", "scenarios"],
+      ["house-rules", "installed"],
+    ]);
   });
 
   it("handles a missing catalog", () => {
@@ -327,6 +349,28 @@ describe("a tile's art", () => {
     expect(featuredFacesOf(undefined, "https://h/")).toEqual([]);
   });
 
+  it("features a house rule's first rebuilt face as the official card it rebuilds", () => {
+    const rule = parsePackPreview(
+      {
+        schema: 1,
+        packId: "lost-traits-bf",
+        version: "1.0.0",
+        featured: { cardId: "14001b", images: ["cards/en/14001b.webp"] },
+        images: ["cards/en/14001b.webp"],
+        languages: { base: "en", available: ["en"] },
+        cards: [],
+        decks: [],
+      },
+      "lost-traits-bf",
+    );
+    const official = new Map(CORE_CARDS.map((card) => [card.id as string, card]));
+    expect(featuredFacesOf(rule, "https://h/")).toEqual([]);
+    official.set("14001b", { ...CORE_CARDS.find((card) => card.type === "hero_identity")!, id: "14001a" } as never);
+    const [face] = featuredFacesOf(rule, "https://h/", "en", official);
+    expect(face?.face).toEqual({ kind: "alterEgo" });
+    expect(face?.pictureUrl).toBe("https://h/cards/en/14001b.webp");
+  });
+
   describe("a pack whose base language is Spanish, shown to an English player", () => {
     const spanishBase = (images: string[]) =>
       parsePackPreview(
@@ -370,5 +414,73 @@ describe("a tile's art", () => {
       });
       expect(tileArtOf(tile, spanishBase(both), "es")).toEqual({ kind: "thumbnail", url: "https://h/thumb.webp" });
     });
+  });
+
+  describe("a pack with a cover", () => {
+    const withCover = (cover: unknown, languages = { base: "es", available: ["en", "es"] }) =>
+      parsePackPreview(
+        {
+          schema: 1,
+          packId: "demo",
+          version: "1.0.0",
+          featured: { cardId: identity.id, images: ["cards/es/x.demo.01a.webp", "cards/es/x.demo.01b.webp"] },
+          cover,
+          images: ["cards/es/x.demo.01a.webp", "cards/es/x.demo.01b.webp", "cards/en/x.demo.01a.webp"],
+          languages,
+          cards: [identity],
+          decks: [],
+        },
+        "demo",
+      )!;
+    const tile = withBase({}, { thumbnail: "https://h/thumb.webp" });
+
+    it("shows the cover (the catalog's thumbnail) in every language, never a localized card picture", () => {
+      const art = { kind: "cover", path: undefined, url: "https://h/thumb.webp" };
+      expect(tileArtOf(tile, withCover("cover.webp"), "es")).toEqual(art);
+      expect(tileArtOf(tile, withCover("cover.webp"), "en")).toEqual(art);
+      expect(tileArtOf(tile, withCover("cover.webp"))).toEqual(art);
+    });
+
+    it("shows an installed copy's own cover file, with no catalog thumbnail or preview (offline)", () => {
+      const installed = installedPack("demo");
+      const manifest = {
+        ...installed.manifest,
+        cover: "cover.webp",
+        files: [{ path: "cover.webp", bytes: 1, sha256: "0".repeat(64) }],
+      };
+      const offline = tileOf(entry("demo"), context([{ ...installed, manifest }]));
+      expect(offline.cover).toBe("cover.webp");
+      expect(tileArtOf(offline, null, "en")).toEqual({ kind: "cover", path: "cover.webp", url: undefined });
+      // An installed copy that names a cover it does not ship has none.
+      const broken = tileOf(entry("demo"), context([{ ...installed, manifest: { ...manifest, files: [] } }]));
+      expect(broken.cover).toBeUndefined();
+    });
+
+    it("takes the catalog's thumbnail as the cover only for the latest version", () => {
+      const older = { ...tile, version: "0.9.0" };
+      expect(tileArtOf(older, withCover("cover.webp"), "en")).not.toMatchObject({ kind: "cover" });
+    });
+
+    it("ignores a preview cover that is not a .webp pack path", () => {
+      expect(withCover("../cover.webp").cover).toBeUndefined();
+      expect(withCover(7).cover).toBeUndefined();
+      expect(tileArtOf(tile, withCover("cover.png"), "en")).toMatchObject({ kind: "picture" });
+    });
+  });
+});
+
+describe("a pack page's achievements", () => {
+  it("lists them, saying they give no points, and shows nothing for a pack with none", () => {
+    const e = entry("p");
+    const tile = tileOf(e, context());
+    const list = [
+      { name: "Suited Up", description: "Finish a game." },
+      { name: "Rising", description: "Win a game." },
+    ];
+    const body = packPageOf(tile, e, undefined, list).body;
+    expect(body).toContain("adds 2 achievements to the Trophy Room (they give no points):");
+    expect(body).toContain("- Suited Up: Finish a game.");
+    expect(achievementsParagraphOf(list.slice(0, 1))).toContain("adds 1 achievement ");
+    expect(packPageOf(tile, e, undefined).body).not.toContain("achievement");
   });
 });

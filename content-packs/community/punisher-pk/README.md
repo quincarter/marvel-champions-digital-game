@@ -6,8 +6,8 @@ Thugs), 3 side schemes and 5 treacheries, played with the recommended modular se
 `hood` set, `sinister_syndicate`). Standard plays The Punisher I and II, expert II and III. See `CREDITS.md` and
 `PERMISSION.md`.
 
-**This pack is a draft** (the `DRAFT` file): the author has not confirmed the curators' fixes and Rachel Cole-Alves is the
-curators' proposal. Remove `DRAFT` when those are settled.
+The author (PermaKarma) accepted all of the curators' changes on 2026-11-13, Rachel Cole-Alves included, and will apply
+them to his own files (curated repository `a51e50d`). Compare his new version when it is out.
 
 ## Source layout
 
@@ -63,7 +63,7 @@ him). Hammerhead names "a friendly character", so his attack does not trigger it
 
 ## Open items
 
-- **The author has not confirmed** the curators' rules and wording fixes (`mod.json` status `waiting_author`).
+- **The author accepted** the curators' rules and wording fixes on 2026-11-13; his own files will follow.
 - **Rachel Cole-Alves** is the curators' proposal (engaged with a player; The Punisher cannot attack her), not the author's
   card, whose version attaches her to The Punisher.
 - **Questions for the author**, none sent: Maggia Capo's search with no Criminal minion left (read: the discarding stops at

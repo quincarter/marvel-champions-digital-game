@@ -31,8 +31,9 @@ const ignoredBy =
 
 /**
  * The guard minions a player's attack on `targetId` ignored: the attack is the attacker's controller's (RRG 1.8
- * "Guard", p. 21), against a villain without guard itself, and a `characterIgnores` rule exempts the attacker, so each
- * guard minion engaged with that controller would otherwise have stopped it (`canAttack`, `select.ts`).
+ * "Guard", p. 21), against a villain without guard itself, and a `characterIgnores` rule exempts the attacker or the
+ * attack itself ignores guard (`ignoreGuard`: `EffectSpec attack.ignores`), so each guard minion engaged with that
+ * controller would otherwise have stopped it (`canAttack`, `select.ts`).
  */
 export function guardsIgnored(
   state: GameState,
@@ -40,10 +41,11 @@ export function guardsIgnored(
   attackerId: InstanceId,
   targetId: InstanceId,
   playerId: PlayerId,
+  ignoreGuard = false,
 ): readonly KeywordIgnored[] {
   const controller = controllerOf(state, attackerId);
   if (controller === null || !isVillain(state, targetId) || hasKeyword(state, targetId, "guard", deps)) return [];
-  if (!characterIgnores(state, deps, attackerId, "guard")) return [];
+  if (!ignoreGuard && !characterIgnores(state, deps, attackerId, "guard")) return [];
   return cardsInPlay(state)
     .filter(
       (id) =>

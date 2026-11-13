@@ -1,0 +1,123 @@
+{
+  "id": "throg-ptt-protection",
+  "name": "Throg (Protection) suggested deck",
+  "packCode": "throg-ptt",
+  "identityCardId": "x.throg-ptt.01a",
+  "aspects": ["protection"],
+  "cards": [
+    {
+      "cardId": "x.throg-ptt.02",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.throg-ptt.03",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.throg-ptt.04",
+      "quantity": 3
+    },
+    {
+      "cardId": "x.throg-ptt.05",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.throg-ptt.06",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.throg-ptt.07",
+      "quantity": 3
+    },
+    {
+      "cardId": "x.throg-ptt.08",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.throg-ptt.09",
+      "quantity": 1
+    },
+    {
+      "cardId": "01075",
+      "quantity": 1
+    },
+    {
+      "cardId": "01076",
+      "quantity": 1
+    },
+    {
+      "cardId": "01077",
+      "quantity": 2
+    },
+    {
+      "cardId": "01078",
+      "quantity": 2
+    },
+    {
+      "cardId": "01079",
+      "quantity": 2
+    },
+    {
+      "cardId": "01080",
+      "quantity": 2
+    },
+    {
+      "cardId": "01081",
+      "quantity": 2
+    },
+    {
+      "cardId": "01082",
+      "quantity": 2
+    },
+    {
+      "cardId": "01083",
+      "quantity": 1
+    },
+    {
+      "cardId": "01084",
+      "quantity": 1
+    },
+    {
+      "cardId": "01085",
+      "quantity": 1
+    },
+    {
+      "cardId": "01086",
+      "quantity": 1
+    },
+    {
+      "cardId": "01087",
+      "quantity": 1
+    },
+    {
+      "cardId": "01088",
+      "quantity": 1
+    },
+    {
+      "cardId": "01089",
+      "quantity": 1
+    },
+    {
+      "cardId": "01090",
+      "quantity": 1
+    },
+    {
+      "cardId": "01091",
+      "quantity": 1
+    },
+    {
+      "cardId": "01092",
+      "quantity": 1
+    },
+    {
+      "cardId": "01093",
+      "quantity": 1
+    }
+  ],
+  "provenance": {
+    "verified": false,
+    "sources": [
+      "A suggested deck assembled for the digital game, not the pack authors' (the source has no precon list): the 15 Throg cards plus the Core Set Protection and basic cards of the Black Panther (Protection) starter deck, without Black Panther's own 15"
+    ]
+  }
+}

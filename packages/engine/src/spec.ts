@@ -2208,6 +2208,17 @@ export type EffectSpec =
        * to an enemy" does not. The DSL's `attack` sets it when the amount reads the attacker's ATK.
        */
       readonly usesAtk?: true;
+      /**
+       * "This attack ignores guard" (Hammer Throw, community pack `throg-ptt`): this one attack is not stopped by a
+       * guard minion engaged with the attacker's controller (RRG 1.8 "Ignore", p. 23; "Guard", p. 21). Unlike a
+       * `characterIgnores` rule it belongs to the attack, not the character, and lasts for the whole of it: the
+       * ability carrying it (`attackIgnoresGuard`, `select.ts`) reads every guard check with the waiver, from the
+       * choice of its enemy (`attackableBy`, `attackTargetAllowed`) and the check whether it can be initiated at all
+       * (`attackNamesNoAttackableEnemy`) to each instance of its damage, and its `attack` event carries it
+       * (`TriggerEvent attack.ignoresGuard`) so "after you ignore guard" answers it. A `cannotAttack` rule is not
+       * guard and still applies (RRG 1.8 "'Cannot'", p. 11).
+       */
+      readonly ignores?: readonly "guard"[];
       readonly moveDamageFrom?: TargetRef;
       readonly bind?: string;
     }

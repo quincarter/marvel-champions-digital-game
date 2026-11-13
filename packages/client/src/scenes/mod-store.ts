@@ -17,7 +17,14 @@
  * Pad and keyboard: Back, the tabs (LB / RB step them), then every tile; on a pack page, Back then its buttons.
  */
 import Phaser from "phaser";
-import { customCardPrefix, type AnyCard, type CardId, type PackIndex } from "@mc/content";
+import {
+  customCardPrefix,
+  officialCardsByPictureCode,
+  parsePackAchievements,
+  parsePackCardImagePath,
+  type AnyCard,
+  type PackIndex,
+} from "@mc/content";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { CAMPAIGN_TOP_BAR, bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -33,6 +40,7 @@ import {
   LOADING_TEXT,
   LOAD_FAILED_TEXT,
   MOD_STORE_TABS,
+  modStoreTabRowsOf,
   OFFLINE_NOTICE,
   actionsOf,
   emptyTextOf,
@@ -41,14 +49,17 @@ import {
   featuredFacesOf,
   packPageOf,
   progressOf,
+  coverOf,
   tileArtOf,
   tilesOf,
   type ModStoreContext,
   type ModStoreTab,
   type ModStoreTile,
   type PackAction,
+  type PackCover,
 } from "../view/mod-store-model.js";
 import { loadCatalog } from "../packs/catalog.js";
+import { refreshUnlocks } from "../progression/progression.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
 import {
   activePackStatuses,
@@ -67,11 +78,11 @@ import {
 } from "../art/art-source.js";
 import { onPreviewArtArrived, previewPictureFor } from "../art/preview-art.js";
 import { drawGeneratedFace, faceModelOf, statLineOf } from "../ui/generated-card-face.js";
-import { currentCardsById } from "../content/pool.js";
+import { currentCardsById, currentPool } from "../content/pool.js";
 import { onPreviewArrived, previewInMemory, requestPreview } from "../packs/preview-client.js";
 import { previewPictureUrl, type ParsedPackPreview } from "../packs/pack-preview.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { packFileArt } from "../art/pack-art.js";
+import { houseRuleFaceFor, packFileArt } from "../art/pack-art.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import {
@@ -147,7 +158,7 @@ export class ModStoreScene extends Phaser.Scene {
   #requirement: string | undefined;
   readonly #scrolls = new Map<ModStoreTab, ListScroll>();
   #buttons: McButton[] = [];
-  #tabs: McTabs | null = null;
+  #tabs: McTabs[] = [];
   #list: McVirtualList | null = null;
   #panel: McScrollPanel | null = null;
   /** The pack page's card gallery (an installed, loaded pack only), its rect and the cards in it, for hover and Inspect. */
@@ -161,6 +172,8 @@ export class ModStoreScene extends Phaser.Scene {
     readonly preview: ParsedPackPreview | null;
     readonly base: string | undefined;
     readonly records: ReadonlyMap<string, AnyCard>;
+    /** A house-rule pack: its gallery tiles are official faces, drawn in the rule's rebuilt pictures. */
+    readonly rule: boolean;
   } | null = null;
   /** The featured faces on the page, for the hover popover. */
   #faceHovers: { rect: Rect; card: AnyCard; face: CardFace; art: ArtSource | undefined }[] = [];
@@ -376,6 +389,8 @@ export class ModStoreScene extends Phaser.Scene {
       });
       if (token !== this.#installToken) return;
       await this.#refreshInstalled();
+      // The install is noted for the "install a mod" achievements (docs/custom-content-packs.md section 11.12).
+      void refreshUnlocks().catch(() => false);
       if (token !== this.#installToken) return;
       this.#install = null;
     } catch (error) {
@@ -426,8 +441,8 @@ export class ModStoreScene extends Phaser.Scene {
   #destroyWidgets(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#tabs?.destroy();
-    this.#tabs = null;
+    for (const tabs of this.#tabs) tabs.destroy();
+    this.#tabs = [];
     this.#list?.destroy();
     this.#list = null;
     this.#panel?.destroy();
@@ -558,13 +573,23 @@ export class ModStoreScene extends Phaser.Scene {
   ): void {
     const { width, height, phone, gutter, top } = frame;
     const captionBottom = this.#drawBetaCaption({ x: gutter, y: top + 12, width: width - gutter * 2 }, phone);
-    const tabRect: Rect = { x: gutter, y: captionBottom + 12, width: width - gutter * 2, height: TAB_HEIGHT };
-    this.#tabs = new McTabs(this, {
-      rect: tabRect,
-      tabs: MOD_STORE_TABS.map((tab) => ({ id: tab.id, label: tab.label })),
-      activeId: this.#tab,
-      onSelect: (id) => this.#select(id as ModStoreTab),
-    });
+    // Five tabs on a narrow phone (the iPhone SE) would cut their labels short: there they take two rows.
+    const tabRows = modStoreTabRowsOf(width - gutter * 2);
+    const tabRect: Rect = {
+      x: gutter,
+      y: captionBottom + 12,
+      width: width - gutter * 2,
+      height: TAB_HEIGHT * tabRows.length,
+    };
+    this.#tabs = tabRows.map(
+      (row, index) =>
+        new McTabs(this, {
+          rect: { ...tabRect, y: tabRect.y + index * TAB_HEIGHT, height: TAB_HEIGHT },
+          tabs: row.map((tab) => ({ id: tab.id, label: tab.label })),
+          activeId: this.#tab,
+          onSelect: (id) => this.#select(id as ModStoreTab),
+        }),
+    );
     this.#hints.custom(
       (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
       16,
@@ -572,13 +597,20 @@ export class ModStoreScene extends Phaser.Scene {
       { avoidObstacles: true },
     );
     this.#obstacles.push(tabRect);
-    const tabWidth = tabRect.width / MOD_STORE_TABS.length;
-    MOD_STORE_TABS.forEach((tab, index) => {
-      stops.set(`tab:${tab.id}`, {
-        rect: { x: tabRect.x + index * tabWidth, y: tabRect.y, width: tabWidth, height: tabRect.height },
-        activate: () => this.#select(tab.id),
+    tabRows.forEach((row, rowIndex) => {
+      const tabWidth = tabRect.width / row.length;
+      row.forEach((tab, index) => {
+        stops.set(`tab:${tab.id}`, {
+          rect: {
+            x: tabRect.x + index * tabWidth,
+            y: tabRect.y + rowIndex * TAB_HEIGHT,
+            width: tabWidth,
+            height: TAB_HEIGHT,
+          },
+          activate: () => this.#select(tab.id),
+        });
+        order.push(`tab:${tab.id}`);
       });
-      order.push(`tab:${tab.id}`);
     });
 
     let listTop = tabRect.y + tabRect.height + 22;
@@ -708,8 +740,21 @@ export class ModStoreScene extends Phaser.Scene {
   }
 
   /**
-   * A tile's left side, a portrait card: the catalog's thumbnail, else the featured card's picture, else its generated
-   * face from the preview's record, else the pack's initial, big and faint, on ink while nothing has loaded.
+   * A pack's cover into `rect`, whole (contain: its title and credit stay in), centered on whatever ground is behind
+   * it: the installed copy's own file first, so it shows offline, else the catalog's thumbnail. Null while it loads.
+   */
+  #drawCover(packId: string, cover: PackCover, rect: Rect): Phaser.GameObjects.Image | null {
+    const source: ArtSource | null =
+      (cover.path !== undefined ? packFileArt(packId, cover.path) : null) ??
+      (cover.url !== undefined ? previewPictureFor(cover.url) : null);
+    const key = source ? cardArt(this).request(this, source) : null;
+    return key ? drawArt(this, key, rect) : null;
+  }
+
+  /**
+   * A tile's left side, a portrait card: the pack's cover, else the catalog's thumbnail, else the featured card's
+   * picture, else its generated face from the preview's record, else the pack's initial, big and faint, on ink while
+   * nothing has loaded.
    */
   #drawThumb(tile: ModStoreTile, rect: Rect): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
@@ -718,7 +763,14 @@ export class ModStoreScene extends Phaser.Scene {
     ground.lineStyle(1, surface.paper.hex, 0.4).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
     objects.push(ground);
     const preview = this.#previewOf(tile);
-    const art = tileArtOf(tile, preview, artLanguageNow());
+    const art = tileArtOf(tile, preview, artLanguageNow(), ruleCardsOf(tile));
+    if (art.kind === "cover") {
+      const image = this.#drawCover(tile.id, art, rect);
+      if (image) {
+        objects.push(image);
+        return objects;
+      }
+    }
     if (art.kind === "thumbnail") {
       const image = drawPicture(
         this,
@@ -732,7 +784,9 @@ export class ModStoreScene extends Phaser.Scene {
         return objects;
       }
     }
-    const first = featuredFacesOf(preview, tile.baseUrl, artLanguageNow())[0];
+    // A pack with a cover shows the initial while the cover loads, not the featured face it would then swap away from.
+    const first =
+      art.kind === "cover" ? undefined : featuredFacesOf(preview, tile.baseUrl, artLanguageNow(), ruleCardsOf(tile))[0];
     if (first) {
       objects.push(
         ...this.#drawCardFace(
@@ -835,7 +889,14 @@ export class ModStoreScene extends Phaser.Scene {
     const { width, height, phone, gutter, top } = frame;
     const entry = this.#index?.packs.find((one) => one.id === tile.id);
     const installed = this.#installed.get(tile.id);
-    const page = packPageOf(tile, entry, installed);
+    const installedAchievements = parsePackAchievements(installed?.manifest.achievements);
+    const achievements =
+      installedAchievements.length > 0
+        ? installedAchievements
+        : (loadedPacks().find((pack) => pack.id === tile.id)?.achievements ??
+          this.#previewOf(tile)?.achievements ??
+          []);
+    const page = packPageOf(tile, entry, installed, achievements);
     const running = this.#install?.id === tile.id ? this.#install : null;
     const busy = (running !== null && running.error === null) || this.#removing;
 
@@ -844,13 +905,19 @@ export class ModStoreScene extends Phaser.Scene {
     const preview = this.#previewOf(tile);
     const packCards = loadedPacks().find((pack) => pack.id === tile.id);
     const source = packCards ?? preview;
+    const rule = tile.kind === "house-rule";
+    const ruleFaces = rule ? ruleFacesOf(installed, preview) : [];
     const { sections, records } = source
-      ? gallerySectionsOf({ cards: source.cards, decks: source.decks, baseCards: currentCardsById() })
-      : { sections: [], records: new Map<string, AnyCard>() };
+      ? gallerySectionsOf({ cards: source.cards, decks: source.decks, baseCards: currentCardsById(), ruleFaces })
+      : rule
+        ? gallerySectionsOf({ cards: [], decks: [], baseCards: currentCardsById(), ruleFaces })
+        : { sections: [], records: new Map<string, AnyCard>() };
     const cardCount = galleryCardCount(sections);
-    const faces = featuredFacesOf(preview, tile.baseUrl, artLanguageNow());
+    const faces = featuredFacesOf(preview, tile.baseUrl, artLanguageNow(), ruleCardsOf(tile));
+    const cover = coverOf(tile, preview);
     const actions = actionsOf({ tile, busy, confirmingRemove: this.#confirmingRemove });
     const layout = packPageLayoutOf({
+      cover: cover !== undefined,
       width,
       height,
       phone,
@@ -860,15 +927,20 @@ export class ModStoreScene extends Phaser.Scene {
       cardCount,
       buttonsHeight: actions.length > 0 ? hit.target : 0,
     });
-    this.#pageContext = { packId: tile.id, preview, base: tile.baseUrl, records };
+    this.#pageContext = { packId: tile.id, preview, base: tile.baseUrl, records, rule };
 
-    // The featured card(s), then the name, byline, meta and the state chip.
+    // The cover and the featured card(s), then the name, byline, meta and the state chip.
+    if (cover && layout.cover) {
+      const rect = layout.cover;
+      this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
+      this.#drawCover(tile.id, cover, rect);
+    }
     if (layout.squareThumb) this.#drawThumb(tile, layout.faces[0]!);
     else {
       layout.faces.forEach((rect, index) => {
         const face = faces[index]!;
         const art = packCards
-          ? ((face.path ? packFileArt(tile.id, face.path) : null) ?? artFor(face.card, face.face))
+          ? ((face.path ? packFileArt(tile.id, face.path) : null) ?? (rule ? null : artFor(face.card, face.face)))
           : face.pictureUrl
             ? previewPictureFor(face.pictureUrl)
             : null;
@@ -899,6 +971,7 @@ export class ModStoreScene extends Phaser.Scene {
     const loadStatus = loadStatusOf(
       installed !== undefined,
       activePackStatuses().find((one) => one.id === tile.id),
+      tile.kind,
     );
     const body = loadStatus ? `${loadStatusText(loadStatus)}\n\n${page.body}` : page.body;
     const textRect = layout.text;
@@ -1041,7 +1114,7 @@ export class ModStoreScene extends Phaser.Scene {
     // The pack's picture where it has one for this card and it has arrived; otherwise the generated face from the
     // record (a missing picture is a supported outcome, never a blank tile).
     const objects: Phaser.GameObjects.GameObject[] = record
-      ? this.#drawCardFace(picture, record, defaultFaceFor(record), this.#artOfTile(record))
+      ? this.#drawCardFace(picture, record, card.face ?? defaultFaceFor(record), this.#artOfTile(record, card))
       : [];
     if (card.quantity > 1) {
       const chip = this.add.graphics();
@@ -1066,10 +1139,23 @@ export class ModStoreScene extends Phaser.Scene {
     return objects;
   }
 
-  /** The art for one gallery card of the page's pack (see `#artOf`). */
-  #artOfTile(record: AnyCard): ArtSource | null {
+  /**
+   * The art for one gallery card of the page's pack (see `#artOf`). A house rule's tile is drawn in the rule's own
+   * picture of the face it rebuilds: the installed pack's file, else the store's copy; null until one arrives.
+   */
+  #artOfTile(record: AnyCard, card?: GalleryCard): ArtSource | null {
     const context = this.#pageContext;
-    return context ? this.#artOf(record, defaultFaceFor(record), context.packId, context.preview, context.base) : null;
+    if (!context) return null;
+    if (context.rule && card) {
+      if (loadedPacks().some((pack) => pack.id === context.packId))
+        return houseRuleFaceFor(context.packId, card.cardId, artLanguageNow());
+      const url =
+        context.preview && context.base !== undefined
+          ? previewPictureUrl(context.preview, context.base, card.cardId, artLanguageNow())
+          : undefined;
+      return url ? previewPictureFor(url) : null;
+    }
+    return this.#artOf(record, defaultFaceFor(record), context.packId, context.preview, context.base);
   }
 
   /**
@@ -1079,18 +1165,19 @@ export class ModStoreScene extends Phaser.Scene {
    */
   #inspectCard(card: GalleryCard): void {
     const record = this.#pageContext?.records.get(card.cardId);
-    if (record && currentCardsById().has(card.cardId)) {
+    // A house rule's tile is keyed by the face code it rebuilds; the record is the official card it belongs to.
+    if (record && currentCardsById().has(record.id as string) && !this.#pageContext?.rule) {
       this.scene.launch(SCENES.inspect, {
-        card: { cardId: card.cardId as CardId, face: defaultFaceFor(record) },
+        card: { cardId: record.id, face: card.face ?? defaultFaceFor(record) },
       } satisfies InspectData);
     } else if (record) {
-      const model = faceModelOf(record, defaultFaceFor(record));
+      const model = faceModelOf(record, card.face ?? defaultFaceFor(record));
       const stats = statLineOf(model.stats);
       this.scene.launch(SCENES.inspect, {
         reference: {
           title: model.name,
           text: [model.typeLine, stats, model.rulesText].filter((part) => part !== "").join("\n\n"),
-          art: this.#artOfTile(record),
+          art: this.#artOfTile(record, card),
         },
       } satisfies InspectData);
     } else return;
@@ -1123,13 +1210,15 @@ export class ModStoreScene extends Phaser.Scene {
         const picture = clipHoverRect({ ...tile, height: galleryPictureHeight(grid) }, view);
         if (!picture) return;
         const record = context.records.get(card.cardId);
-        const inPool = currentCardsById().has(card.cardId);
+        // A house rule's face shows the rule's picture, not the printed one the pool has.
+        const inPool = currentCardsById().has(card.cardId) && !context.rule;
         // A card the pool does not have (a pack not installed yet) carries its own record and picture to the popover.
-        const art = record && !inPool ? this.#artOfTile(record) : null;
+        const art = record && !inPool ? this.#artOfTile(record, card) : null;
         found.set(hoverSlotOf(card.cardId, row.first + column), {
           ...picture,
-          cardId: card.cardId,
+          cardId: record && !inPool ? (record.id as string) : card.cardId,
           ...(record && !inPool ? { card: record } : {}),
+          ...(card.face ? { face: card.face } : {}),
           ...(art ? { art } : {}),
           through: true,
         });
@@ -1179,4 +1268,27 @@ export class ModStoreScene extends Phaser.Scene {
       .setFontSize(12);
     fitText(label, rect.width, 12);
   }
+}
+
+/** The official cards by printed picture code, for a house-rule tile's featured face (null for any other tile). */
+function ruleCardsOf(tile: ModStoreTile): ReadonlyMap<string, AnyCard> | undefined {
+  return tile.kind === "house-rule" ? officialCardsByPictureCode(currentPool()) : undefined;
+}
+
+/**
+ * A house rule's rebuilt faces, by the official picture code each is filed under (`cards/<lang>/<code>.webp`, base
+ * language): from the installed pack's files, else the store's preview. Codes no official card owns are left out.
+ */
+function ruleFacesOf(
+  installed: InstalledPack | undefined,
+  preview: ParsedPackPreview | null,
+): readonly { readonly code: string; readonly card: AnyCard }[] {
+  const base = installed?.manifest.languages?.base ?? preview?.languages?.base;
+  const paths = installed ? installed.manifest.files.map((file) => file.path) : [...(preview?.images ?? [])];
+  const cards = officialCardsByPictureCode(currentPool());
+  return paths.flatMap((path) => {
+    const picture = parsePackCardImagePath(path);
+    const card = picture && picture.lang === base ? cards.get(picture.code) : undefined;
+    return picture && card ? [{ code: picture.code, card }] : [];
+  });
 }

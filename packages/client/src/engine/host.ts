@@ -76,6 +76,12 @@ export interface SessionConfig {
    * Absent for every base-game game and every save written before packs existed.
    */
   readonly packs?: readonly PackRuntime[];
+  /**
+   * The house rules switched on for this game (docs/custom-content-packs.md §11.11): installed `house-rule` pack ids,
+   * chosen in Table setup. `withLoadedPacks` embeds each one in `packs` (so a resume needs it no more than any other
+   * pack) and keeps only those it embedded. Absent: no house rule, and every save written before they existed.
+   */
+  readonly houseRules?: readonly string[];
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

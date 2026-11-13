@@ -4,7 +4,7 @@
  * is installed, so the gallery shows exactly what a game would deal, and from the pack's `preview.json` before that.
  */
 import type { AnyCard } from "@mc/content";
-import { defaultFaceFor } from "../art/art-source.js";
+import { defaultFaceFor, type CardFace } from "../art/art-source.js";
 import type { ActivePackStatus } from "../packs/active-packs.js";
 import type { ExtrasGrid } from "./extras-model.js";
 import type { Rect } from "./layout.js";
@@ -18,6 +18,11 @@ export interface GalleryCard {
   readonly typeLine: string;
   /** Copies the deck (or the set) holds: a tile shows "×2" past one. */
   readonly quantity: number;
+  /**
+   * The face shown when it is not the card's default: a house rule's rebuilt alter-ego (`14001b`). A house rule's tile
+   * is keyed by the official picture code it rebuilds, so `cardId` may be a face code; `records` maps it to the card.
+   */
+  readonly face?: CardFace;
 }
 
 /** The first line of the page's load status, and what it says. A symbol and words, never color alone. */
@@ -27,7 +32,7 @@ export interface LoadStatusLine {
   readonly detail: string;
 }
 
-export type GallerySectionId = "hero" | "villain" | "encounter" | "deck";
+export type GallerySectionId = "hero" | "villain" | "encounter" | "deck" | "rule";
 
 /** A group of the gallery: the hero's own cards, a scenario's villain and schemes, nemesis and obligation, or the deck. */
 export interface GallerySection {
@@ -42,6 +47,11 @@ export interface GalleryInput {
   readonly decks: readonly { readonly cards: readonly { readonly cardId: string; readonly quantity: number }[] }[];
   /** The base game's cards by id: a precon names them, the pack does not carry them. */
   readonly baseCards: ReadonlyMap<string, AnyCard>;
+  /**
+   * A house rule's rebuilt faces, by official picture code (docs/custom-content-packs.md §11.11), each with the
+   * official card it belongs to (`officialCardsByPictureCode`). Shown as their own group, in code order.
+   */
+  readonly ruleFaces?: readonly { readonly code: string; readonly card: AnyCard }[];
 }
 
 const PLAYER_TYPES: ReadonlySet<string> = new Set([
@@ -70,8 +80,16 @@ const SECTION_TITLES: Readonly<Record<GallerySectionId, string>> = {
   villain: "Villain and scheme",
   encounter: "Nemesis and obligation",
   deck: "Aspect and basic cards",
+  rule: "Official cards it rebuilds",
 };
-const SECTION_ORDER: readonly GallerySectionId[] = ["hero", "villain", "encounter", "deck"];
+const SECTION_ORDER: readonly GallerySectionId[] = ["rule", "hero", "villain", "encounter", "deck"];
+
+/** The face a rebuilt picture code shows: a hero identity's `b` code is its alter-ego, any other its default face. */
+export function ruleFaceOf(code: string, card: AnyCard): CardFace {
+  return card.type === "hero_identity" && code !== (card.id as string) && code.endsWith("b")
+    ? { kind: "alterEgo" }
+    : defaultFaceFor(card);
+}
 
 /**
  * The gallery's groups, in table order: the hero (identity first), the villain and its scheme, nemesis and obligation
@@ -107,6 +125,15 @@ export function gallerySectionsOf(input: GalleryInput): {
     .map((id) => input.baseCards.get(id)!)
     .sort((a, b) => a.name.localeCompare(b.name));
   for (const card of base) add(card, "deck", deck.get(card.id as string) ?? 1);
+  for (const { code, card } of [...(input.ruleFaces ?? [])].sort((a, b) => a.code.localeCompare(b.code))) {
+    if (records.has(code)) continue;
+    records.set(code, card);
+    const face = ruleFaceOf(code, card);
+    const model = cardInspectModel(card, face);
+    const list = groups.get("rule") ?? [];
+    list.push({ cardId: code, name: model.name, typeLine: model.typeLine, quantity: 1, face });
+    groups.set("rule", list);
+  }
   const sections = SECTION_ORDER.flatMap((id): GallerySection[] => {
     const cards = groups.get(id);
     const title = id === "encounter" && !hasHero ? "Encounter cards" : SECTION_TITLES[id];
@@ -154,7 +181,11 @@ export function galleryCountText(count: number): string {
  * What the page says about whether an installed pack is working. `status` is `undefined` while the loader has not yet
  * answered for it (just after an install, or at boot). Not installed: no line at all.
  */
-export function loadStatusOf(installed: boolean, status: ActivePackStatus | undefined): LoadStatusLine | null {
+export function loadStatusOf(
+  installed: boolean,
+  status: ActivePackStatus | undefined,
+  kind?: string,
+): LoadStatusLine | null {
   if (!installed) return null;
   if (!status) return { state: "loading", label: "… Loading", detail: "Checking the pack." };
   if (status.loaded) {
@@ -162,7 +193,10 @@ export function loadStatusOf(installed: boolean, status: ActivePackStatus | unde
     return {
       state: "loaded",
       label: "✓ Loaded",
-      detail: `Ready to play: its heroes and cards are in the game.${notes}`,
+      detail:
+        kind === "house-rule"
+          ? `Ready: the game offers it where it applies (Table setup, or a campaign's start).${notes}`
+          : `Ready to play: its heroes and cards are in the game.${notes}`,
     };
   }
   return { state: "skipped", label: "! Not loaded", detail: status.reason ?? "Not loaded" };
@@ -192,6 +226,8 @@ export function galleryPictureHeight(grid: ExtrasGrid): number {
 
 /** The portrait ratio of a card: width over height. */
 const CARD_RATIO = 5 / 7;
+/** A pack cover's ratio, width over height: the 600x984 portrait box art of the curated packs. */
+export const COVER_RATIO = 600 / 984;
 const COUNT_LINE = 22;
 const MIN_TEXT = 84;
 const MIN_GALLERY = 120;
@@ -211,10 +247,17 @@ export interface PackPageLayoutInput {
   readonly cardCount: number;
   /** The height of the button row, 0 for none. */
   readonly buttonsHeight: number;
+  /** Whether the pack has a cover (`PackManifest.cover`) to lead the header with. */
+  readonly cover?: boolean;
 }
 
 export interface PackPageLayout {
-  /** The featured faces, left to right; one square slot (the old thumbnail) when the pack has none. */
+  /** The pack's cover, left of the faces, when it has one. */
+  readonly cover: Rect | null;
+  /**
+   * The featured faces, left to right; one square slot (the old thumbnail) when the pack has neither faces nor a cover.
+   * Beside a cover, only as many as leave the title block room (none on the narrowest phones).
+   */
   readonly faces: readonly Rect[];
   readonly squareThumb: boolean;
   readonly title: { readonly x: number; readonly y: number; readonly width: number };
@@ -234,25 +277,35 @@ export interface PackPageLayout {
  * `MIN_TEXT`, the gallery never below `MIN_GALLERY` (one row of tiles, with its count line).
  */
 export function packPageLayoutOf(input: PackPageLayoutInput): PackPageLayout {
-  const { width, height, phone, gutter, top, faceCount, cardCount, buttonsHeight } = input;
+  const { width, height, phone, gutter, top, faceCount, cardCount, buttonsHeight, cover = false } = input;
   const innerWidth = width - gutter * 2;
   const buttonsY = height - gutter - buttonsHeight;
   const statusH = 30;
   const statusY = buttonsY - (buttonsHeight > 0 ? 10 : 0) - statusH;
   const bodyBottom = statusY - 10;
   const headY = top + 14;
-  const square = faceCount === 0;
+  const square = faceCount === 0 && !cover;
   const faceH = square ? (phone ? 72 : 112) : phone ? 124 : Math.min(200, Math.round((bodyBottom - headY) * 0.45));
   const faceW = square ? faceH : Math.round(faceH * CARD_RATIO);
-  // Two faces only where the title block still has room beside them.
-  const shown = square ? 1 : faceCount >= 2 && innerWidth - 2 * faceW - 8 - 14 >= 150 ? 2 : 1;
+  const coverW = cover ? Math.round(faceH * COVER_RATIO) : 0;
+  const lead = cover ? coverW + 8 : 0;
+  // The faces only where the title block still has room beside them (the cover always shows).
+  const roomFor = (count: number): boolean => innerWidth - lead - count * faceW - (count - 1) * 8 - 14 >= 150;
+  const shown = square
+    ? 1
+    : cover
+      ? [2, 1, 0].find((count) => count <= faceCount && (count === 0 || roomFor(count)))!
+      : faceCount >= 2 && roomFor(2)
+        ? 2
+        : 1;
+  const coverRect = cover ? { x: gutter, y: headY, width: coverW, height: faceH } : null;
   const faces: Rect[] = Array.from({ length: shown }, (_, i) => ({
-    x: gutter + i * (faceW + 8),
+    x: gutter + lead + i * (faceW + 8),
     y: headY,
     width: faceW,
     height: faceH,
   }));
-  const facesWidth = shown * faceW + (shown - 1) * 8;
+  const facesWidth = shown > 0 ? lead + shown * faceW + (shown - 1) * 8 : coverW;
   const titleX = gutter + facesWidth + 14;
   const title = { x: titleX, y: headY, width: width - gutter - titleX };
   const beside = !phone && !square;
@@ -280,6 +333,7 @@ export function packPageLayoutOf(input: PackPageLayoutInput): PackPageLayout {
       }
     : null;
   return {
+    cover: coverRect,
     faces,
     squareThumb: square,
     title,

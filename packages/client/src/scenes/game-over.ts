@@ -154,6 +154,9 @@ export class GameOverScene extends Phaser.Scene {
       const news = newsBetween(before, after);
       this.#news = news.points > 0 || news.unlocked.length > 0 ? news : null;
       void refreshUnlocks().catch(() => false);
+    } else if (game?.outcome?.result === "win") {
+      // A custom-content win earns no base progress but may earn a mod achievement (§11.12): read the saves again.
+      void refreshUnlocks().catch(() => false);
     }
     if (game?.outcome && config) {
       const packCode = gameScenarios().find((s) => s.id === config.scenarioId)?.packCode;

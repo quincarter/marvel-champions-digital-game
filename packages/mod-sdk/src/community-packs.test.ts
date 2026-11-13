@@ -6,7 +6,7 @@ import { CORE_SCENARIOS, type PackManifest } from "@mc/content";
 import { buildPack } from "./build.js";
 import { packModularSetChoices } from "./game.js";
 import { smokeTestPack } from "./smoke.js";
-import { readPackInput, validatePack, type PackInput } from "./validate.js";
+import { publishIssues, readPackInput, validatePack, type PackInput } from "./validate.js";
 
 /**
  * Every community pack in content-packs/community (a folder per pack, the SDK's source layout): build it, validate
@@ -45,12 +45,13 @@ function stage(name: string): { readonly src: string; readonly hasArt: boolean }
   const src = join(root, name);
   cpSync(join(COMMUNITY_DIR, name), src, { recursive: true });
   const hasArt = existsSync(join(src, "alt-art"));
-  if (!hasArt) {
-    const file = join(src, "pack.json");
-    const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    delete manifest.altArt;
-    writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
-  }
+  const file = join(src, "pack.json");
+  const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  // The store cover is git-ignored like the pictures: a checkout without it builds the pack without its cover.
+  const coverMissing = typeof manifest.cover === "string" && !existsSync(join(src, ...manifest.cover.split("/")));
+  if (!hasArt) delete manifest.altArt;
+  if (coverMissing) delete manifest.cover;
+  if (!hasArt || coverMissing) writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
   return { src, hasArt };
 }
 
@@ -89,6 +90,15 @@ describe("community packs", () => {
         expect(pack.manifest.permission, "permission in pack.json").toBeDefined();
       });
 
+      // The publish gate (docs/custom-content-packs.md §11.4): publish-packs.yml runs `mc-pack validate --publish` and
+      // fails on a pack that is neither a DRAFT nor granted. A pending pack says why, for that failure's log.
+      it("records its approval: granted and publishable, or pending with what is missing", () => {
+        const permission = pack.manifest.permission;
+        expect(permission?.status, "permission.status").toMatch(/^(granted|pending)$/);
+        if (permission?.status === "granted") expect(publishIssues(pack.manifest)).toEqual([]);
+        else expect(permission?.note, "permission.note says what is missing").toBeTruthy();
+      });
+
       it("validates as built, every ability scripted", () => {
         expect(validatePack(pack)).toEqual([]);
       });
@@ -104,6 +114,13 @@ describe("community packs", () => {
               expect(pack.files.has(`cards/${lang}/${code}.webp`), `${lang}: ${code}`).toBe(true);
           }
         }
+      });
+
+      it("ships its store cover when the cover file is present", () => {
+        const source = JSON.parse(readFileSync(join(COMMUNITY_DIR, name, "pack.json"), "utf8")) as { cover?: string };
+        if (source.cover === undefined || !existsSync(join(COMMUNITY_DIR, name, source.cover))) return;
+        expect(pack.manifest.cover).toBe(source.cover);
+        expect(pack.files.has(source.cover)).toBe(true);
       });
 
       it("plays 3 seeds of each of its decks and each of its modular sets to an outcome, and replays", () => {

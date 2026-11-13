@@ -606,9 +606,13 @@ export async function importMarvelCdbPack(srcDir: string, options: ImportOptions
   if (version === undefined) notes.push(`version "${mod.version ?? ""}" is not semver: the pack is 0.1.0`);
   const permission: PackPermission | undefined = granted
     ? {
+        // The curated source says granted, but the store approval is the owner's call once the evidence is in hand
+        // (docs/custom-content-packs.md section 11.4): an import is pending until then.
+        status: "pending",
         by: mod.author,
         ...(mod.permission?.date ? { date: mod.permission.date } : {}),
         ...(mod.permission?.scope ? { scope: mod.permission.scope } : {}),
+        note: "imported: record the date, the evidence and the languages covered, then set the status to granted",
       }
     : undefined;
   if (!granted) notes.push(`permission is not granted (status: ${mod.permission?.status ?? "none"})`);

@@ -6,7 +6,15 @@
  */
 import { cardPoolWithPack, gameDepsWithPack } from "@mc/mod-sdk/game";
 import type { PackCampaign } from "@mc/mod-sdk";
-import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "@mc/content";
+import {
+  applyTraitAdditions,
+  type AnyCard,
+  type EncounterSet,
+  type PackAchievement,
+  type PackHouseRule,
+  type Scenario,
+  type StarterDeck,
+} from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 
@@ -26,11 +34,42 @@ export interface PackRuntime {
   readonly encounterSets?: readonly EncounterSet[];
   /** The pack's campaigns (docs/custom-content-packs.md §11.10); absent in a pack with none. */
   readonly campaigns?: readonly PackCampaign[];
+  /** The pack's own achievements (§11.12); absent when it defines none. Worth no points. */
+  readonly achievements?: readonly PackAchievement[];
+  /**
+   * A `house-rule` pack's rule (§11.11), with the manifest's name and description for the setup toggle. Absent on every
+   * other pack. A game carries a house-rule pack only while its rule is on (`withLoadedPacks`).
+   */
+  readonly houseRule?: PackHouseRule & { readonly description: string };
 }
 
-/** `base` with every pack's cards added; throws if a pack card is already in the pool. */
-export function poolWithPacks(base: readonly AnyCard[], packs: readonly PackRuntime[]): readonly AnyCard[] {
-  return packs.reduce((pool, pack) => cardPoolWithPack(pool, pack), base);
+/** Whether a pack is a house rule (changes official cards, adds none). */
+export const isHouseRulePack = (pack: { readonly houseRule?: unknown }): boolean => pack.houseRule !== undefined;
+
+/** The loaded house rules a game's setup can switch on per game: the ones that add traits (not those enabling a mode). */
+export function setupHouseRules(packs: readonly PackRuntime[]): readonly PackRuntime[] {
+  return packs.filter((pack) => (pack.houseRule?.traitAdditions?.length ?? 0) > 0 && !pack.houseRule?.enablesMode);
+}
+
+/** The loaded pack whose house rule enables `mode` (`balanced`: the GMW Fixes pack), if one is installed and loaded. */
+export function packEnablingMode(packs: readonly PackRuntime[], mode: string): PackRuntime | undefined {
+  return packs.find((pack) => pack.houseRule?.enablesMode === mode);
+}
+
+/**
+ * `base` with every pack's cards added, then every house rule's trait additions applied (§11.11: the engine reads an
+ * added trait as a printed one). Throws if a pack card is already in the pool. `houseRules: false` leaves the house
+ * rules out: the app's browsing pool (`currentPool`) shows the cards as printed, and only a game that switched a rule
+ * on carries it.
+ */
+export function poolWithPacks(
+  base: readonly AnyCard[],
+  packs: readonly PackRuntime[],
+  houseRules = true,
+): readonly AnyCard[] {
+  const pool = packs.reduce((all, pack) => cardPoolWithPack(all, pack), base);
+  if (!houseRules) return pool;
+  return packs.reduce((all, pack) => applyTraitAdditions(all, pack.houseRule?.traitAdditions ?? []), pool);
 }
 
 /** `base` with every pack's abilities added; throws if a pack ability shadows one the game already has. */

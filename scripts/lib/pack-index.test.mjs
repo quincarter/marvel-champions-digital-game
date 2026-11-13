@@ -1,5 +1,6 @@
 // node --test scripts/lib/ (pnpm test:scripts). The Mod Store catalog upsert of the publish-packs workflow.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -8,6 +9,7 @@ import { after, describe, it } from "node:test";
 import {
   PACK_INDEX_SCHEMA,
   compareVersions,
+  ownershipConflicts,
   packIndexEntry,
   readStagedPacks,
   upsertPackIndex,
@@ -189,9 +191,100 @@ describe("upsertPackIndex", () => {
     assert.equal(index.packs[0].latest, "1.0.0");
   });
 
+  it("marks this repo's entries source game", () => {
+    const index = upsertPackIndex(undefined, [entry("carnage-nep", "3.0.0")], at);
+    assert.equal(index.packs[0].source, "game");
+  });
+
+  it("publishes over a legacy entry without a source, and marks it game", () => {
+    const { source: _source, ...legacy } = entry("carnage-nep", "3.0.0");
+    const current = { schema: 2, generated: "x", packs: [legacy] };
+    const next = upsertPackIndex(current, [entry("carnage-nep", "3.1.0", "e".repeat(64))], at).packs[0];
+    assert.equal(next.source, "game");
+    assert.deepEqual(Object.keys(next.versions).sort(), ["3.0.0", "3.1.0"]);
+  });
+
+  it("refuses to publish a pack the registry published, before anything changes", () => {
+    const registry = { ...entry("gwenpool-ptt", "1.0.0"), source: "registry" };
+    const current = { schema: 2, generated: "x", packs: [registry] };
+    assert.throws(
+      () => upsertPackIndex(current, [entry("carnage-nep", "3.0.0"), entry("gwenpool-ptt", "1.0.1")], at),
+      /gwenpool-ptt is published by the registry repo .*source "registry"/,
+    );
+    assert.deepEqual(current.packs, [registry], "the catalog it was given is untouched");
+  });
+
+  it("keeps the registry's packs as they are when it publishes its own (registry first, then game)", () => {
+    const registry = { ...entry("gwenpool-ptt", "1.0.0"), source: "registry", withdrawn: true };
+    const current = { schema: 2, generated: "x", packs: [registry] };
+    const index = upsertPackIndex(current, [entry("carnage-nep", "3.0.0")], at);
+    assert.deepEqual(
+      index.packs.find((p) => p.id === "gwenpool-ptt"),
+      registry,
+    );
+    assert.equal(index.packs.find((p) => p.id === "carnage-nep").source, "game");
+  });
+
+  it("refuses to unwithdraw a pack the registry withdrew", () => {
+    const registry = { ...entry("gwenpool-ptt", "1.0.0"), source: "registry", withdrawn: true };
+    const current = { schema: 2, generated: "x", packs: [registry] };
+    assert.throws(() => upsertPackIndex(current, [], { ...at, unwithdraw: ["gwenpool-ptt"] }), /source "registry"/);
+  });
+
+  it("unwithdraws only its own (game or legacy) entries", () => {
+    const { source: _source, ...legacy } = { ...entry("carnage-nep", "3.0.0"), withdrawn: true };
+    const current = { schema: 2, generated: "x", packs: [legacy] };
+    const next = upsertPackIndex(current, [], { ...at, unwithdraw: ["carnage-nep"] });
+    assert.equal(next.packs[0].withdrawn, false);
+  });
+
   it("refuses a catalog of another schema", () => {
     assert.throws(() => upsertPackIndex({ schema: 1, packs: [] }, [], at), /schema 1/);
     assert.throws(() => upsertPackIndex({ schema: 2 }, [], at), /no packs list/);
+  });
+});
+
+describe("ownershipConflicts", () => {
+  const registry = { ...entry("gwenpool-ptt", "1.0.0"), source: "registry" };
+  const game = entry("carnage-nep", "3.0.0");
+  const { source: _source, ...legacy } = entry("yondu-dh", "0.1.0");
+  const current = { schema: 2, generated: "x", packs: [registry, game, legacy] };
+
+  it("names the ids another publisher owns", () => {
+    assert.deepEqual(ownershipConflicts(current, ["gwenpool-ptt", "carnage-nep", "yondu-dh", "new-pack"]), [
+      { id: "gwenpool-ptt", source: "registry" },
+    ]);
+  });
+
+  it("treats an entry without a source as the game repo's (the registry may not take it)", () => {
+    assert.deepEqual(ownershipConflicts(current, ["carnage-nep", "yondu-dh", "gwenpool-ptt"], "registry"), [
+      { id: "carnage-nep", source: "game" },
+      { id: "yondu-dh", source: "game" },
+    ]);
+  });
+
+  it("finds nothing when there is no catalog yet", () => {
+    assert.deepEqual(ownershipConflicts(undefined, ["carnage-nep"]), []);
+  });
+});
+
+describe("check-pack-ownership.mjs", () => {
+  const temps = [];
+  after(() => Promise.all(temps.map((dir) => fs.rm(dir, { recursive: true, force: true }))));
+  const script = path.join(import.meta.dirname, "..", "check-pack-ownership.mjs");
+  const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+
+  it("fails on an id the registry owns, passes otherwise and when there is no index yet", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-owner-"));
+    temps.push(dir);
+    const file = path.join(dir, "index.json");
+    const registry = { ...entry("gwenpool-ptt", "1.0.0"), source: "registry" };
+    await fs.writeFile(file, JSON.stringify({ schema: 2, generated: "x", packs: [registry] }));
+    const refused = run(file, "carnage-nep", "gwenpool-ptt");
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /::error::gwenpool-ptt is published by the registry repo/);
+    assert.equal(run(file, "carnage-nep").status, 0);
+    assert.equal(run(path.join(dir, "missing.json"), "gwenpool-ptt").status, 0);
   });
 });
 

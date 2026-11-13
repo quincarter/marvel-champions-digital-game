@@ -70,7 +70,33 @@ export function mergeUnlocks(a: unknown, b: unknown): string {
   return JSON.stringify(merged);
 }
 
+/** The cap `readModInstalls` keeps (`progression/mod-installs.ts`); a longer merged record would lose entries on read. */
+const MOD_INSTALLS_MAX_ENTRIES = 500;
+
+/**
+ * Merges two stored `mc-mod-installs` values (`{ <pack id>: <pack kind> }`): the install record only grows, so both
+ * devices' packs are kept. A pack on both sides keeps the first kind seen (the first value's, as `noteModInstalls`
+ * keeps a pack's first kind). Non-string kinds are dropped; the result holds at most 500 entries (the reader's cap),
+ * the first value's before the second's. Text that isn't a JSON object loses to text that is; two bad values give the first.
+ */
+export function mergeModInstalls(a: unknown, b: unknown): string {
+  const left = parse(a);
+  const right = parse(b);
+  if (!left && !right) return typeof a === "string" ? a : "{}";
+  if (!right) return a as string;
+  if (!left) return b as string;
+  const out: Record<string, string> = {};
+  for (const record of [left, right]) {
+    for (const [id, kind] of Object.entries(record)) {
+      if (Object.keys(out).length >= MOD_INSTALLS_MAX_ENTRIES) break;
+      if (typeof kind === "string" && !Object.hasOwn(out, id)) out[id] = kind;
+    }
+  }
+  return JSON.stringify(out);
+}
+
 /** Merge functions by logical key, for `SyncEngineDeps.mergers`. */
 export const DEFAULT_MERGERS: Readonly<Record<string, (local: unknown, remote: unknown) => string>> = {
   "ls:mc-unlocks": mergeUnlocks,
+  "ls:mc-mod-installs": mergeModInstalls,
 };

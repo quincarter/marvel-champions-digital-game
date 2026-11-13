@@ -850,13 +850,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // (`attackedInstead`, docs/phase7-wave9.md §3.4): guard is read for it, not for the enemy it was moved off.
       // Once the ability's attack was moved as a whole onto one character, it attacks no other enemy
       // (`skipRetargetedAway`; docs/phase7-wave9.md §4.1 Q4 = A).
+      // "This attack ignores guard" (`attack.ignores`): this instruction's, or its ability's (`attackIgnoresGuard`).
+      const ignoresGuard = effect.ignores?.includes("guard") === true || context.attackIgnoresGuard === true;
       const attackable = skipRetargetedAway(
         ctx,
         attackOf,
         attacker,
         frame.selfInstanceId,
         targets(effect.target),
-      ).filter((id) => canAttack(ctx.state, attacker, begunAttackAgainst(ctx.state, attackOf, attacker, id), ctx.deps));
+      ).filter((id) =>
+        canAttack(
+          ctx.state,
+          attacker,
+          begunAttackAgainst(ctx.state, attackOf, attacker, id),
+          ctx.deps,
+          false,
+          ignoresGuard,
+        ),
+      );
       // Once an attack of that ability was cancelled, the ability's one attack makes no more (owner decision,
       // 2026-10-08, row 65).
       const cancelled = attackOf !== undefined && attackEffectCancelled(ctx.state, ctx.deps, frame);
@@ -896,6 +907,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             overkill: effect.overkill === true,
             ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
             ...(effect.usesAtk ? { usedStat: "atk" as const } : {}),
+            ...(ignoresGuard ? { ignoresGuard: true as const } : {}),
             sourceInstanceId: frame.selfInstanceId,
             ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
           })),
@@ -909,6 +921,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             overkill: effect.overkill === true,
             keywords: effect.keywords ?? [],
             usesAtk: effect.usesAtk === true,
+            ignoresGuard,
           };
           resumeBegunAttack(ctx, attackOf, attacker, begun.target, made, reportTo(effect.bind));
         }
@@ -1413,7 +1426,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             (id) =>
               id !== original.targetInstanceId &&
               inPlay.includes(id) &&
-              canAttack(ctx.state, original.attackerInstanceId, id, ctx.deps),
+              canAttack(ctx.state, original.attackerInstanceId, id, ctx.deps, false, original.ignoresGuard === true),
           )
           .map((id) => ({ ...body, targetInstanceId: id, additionalResolution: true as const })),
       );

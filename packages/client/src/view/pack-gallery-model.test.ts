@@ -141,6 +141,48 @@ describe("the pack page layout", () => {
     },
   );
 
+  it.each(sizes)(
+    "at %s leads with the cover, then as many faces as leave the title room",
+    (_name, width, height, phone) => {
+      const layout = packPageLayoutOf({
+        ...input,
+        width,
+        height,
+        phone,
+        gutter: phone ? 16 : 24,
+        top: phone ? 52 : 60,
+        cover: true,
+      });
+      const cover = layout.cover!;
+      expect(cover.x).toBe(phone ? 16 : 24);
+      expect(cover.width / cover.height).toBeCloseTo(600 / 984, 1);
+      expect(layout.faces.length).toBeGreaterThanOrEqual(1);
+      for (const face of layout.faces) expect(face.x).toBeGreaterThanOrEqual(cover.x + cover.width);
+      expect(layout.squareThumb).toBe(false);
+      expect(layout.title.x).toBeGreaterThan(layout.faces.at(-1)!.x + layout.faces.at(-1)!.width);
+      expect(layout.title.width).toBeGreaterThanOrEqual(140);
+      expect(layout.gallery).not.toBeNull();
+    },
+  );
+
+  it("shows the cover alone, not the square thumbnail, for a pack with a cover and no featured face", () => {
+    const layout = packPageLayoutOf({
+      ...input,
+      width: 375,
+      height: 667,
+      phone: true,
+      gutter: 16,
+      top: 52,
+      faceCount: 0,
+      cover: true,
+    });
+    expect(layout.cover).not.toBeNull();
+    expect(layout.faces).toEqual([]);
+    expect(layout.squareThumb).toBe(false);
+    expect(layout.title.x).toBe(16 + layout.cover!.width + 14);
+    expect(packPageLayoutOf({ ...input, width: 375, height: 667, phone: true, gutter: 16, top: 52 }).cover).toBeNull();
+  });
+
   it("shows one square thumbnail and gives the text the body when the pack has no preview", () => {
     const layout = packPageLayoutOf({
       ...input,

@@ -1,0 +1,32 @@
+{
+  "id": "x.throg-ptt.02",
+  "name": "Frogjolnir",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "2",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "upgrade",
+  "cost": 1,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["ASGARD", "WEAPON"],
+  "keywords": [
+    {
+      "name": "restricted"
+    }
+  ],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Restricted. (Max 2 restricted cards per player.)\nThrog gets +1 ATK and gains the Aerial trait.",
+    "current": "Restricted. (Max 2 restricted cards per player.)\nThrog gets +1 ATK and gains the Aerial trait."
+  },
+  "flavor": "\"Whosoever holds this hammer, if he be worthy, shall possess the power of Thor.\"",
+  "abilities": [
+    {
+      "id": "x.throg-ptt.02.frogjolnir-constant"
+    }
+  ]
+}

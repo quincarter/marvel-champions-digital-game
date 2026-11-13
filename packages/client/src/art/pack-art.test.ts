@@ -2,7 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cardId, type AnyCard, type PackManifest } from "@mc/content";
 import { onArtChange } from "../language-change.js";
 import { artFor } from "./art-source.js";
-import { packArtFor, packArtKey, releasePackArt, resetPackArt, setPackArt, type PackArtStore } from "./pack-art.js";
+import {
+  packArtFor,
+  packArtKey,
+  packFileArt,
+  releasePackArt,
+  resetPackArt,
+  setPackArt,
+  type PackArtStore,
+} from "./pack-art.js";
 
 const manifest = (over: Partial<PackManifest> = {}): PackManifest =>
   ({
@@ -49,6 +57,30 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
   resetPackArt();
   vi.useRealTimers();
+});
+
+describe("an installed pack that is not loaded", () => {
+  it("still shows its own cover file, and no card picture", async () => {
+    const withCover = manifest({
+      cover: "cover.webp",
+      files: [
+        { path: "cover.webp", bytes: 1, sha256: "" },
+        { path: "cards/en/x.demo.01a.webp", bytes: 1, sha256: "" },
+      ],
+    });
+    setPackArt([], fakeStore(), [withCover]);
+    expect(packFileArt("demo", "cover.webp")).toBeNull();
+    await flush();
+    expect(packFileArt("demo", "cover.webp")).toEqual({
+      key: "art:pack:demo@1.2.0/cover.webp",
+      url: "blob:test/demo/cover.webp",
+    });
+    expect(packFileArt("demo", "cards/en/x.demo.01a.webp")).toBeNull();
+    expect(packArtFor("x.demo.01a", "en")).toBeNull();
+    // A pack with no cover shows nothing.
+    setPackArt([], fakeStore(), [manifest()]);
+    expect(packFileArt("demo", "cover.webp")).toBeNull();
+  });
 });
 
 describe("pack card art", () => {

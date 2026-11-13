@@ -13,13 +13,44 @@
 //   - the pack's name, summary, thumbnail and the rest follow its newest version, and `latest` is the newest version
 //     by SemVer precedence;
 //   - `withdrawn` stays as it is: publishing (or re-publishing) a version never lists a withdrawn pack again. Only an
-//     explicit `unwithdraw` (the workflow's manual input) clears it, for any pack in the catalog, built this run or not.
+//     explicit `unwithdraw` (the workflow's manual input) clears it, for any of this repo's packs, built this run or
+//     not;
+//   - one publisher per pack id: every entry carries `source`, "game" (this repo) or "registry"
+//     (quincarter/marvel-champions-mods). This repo writes "game" and refuses to publish or unwithdraw a pack whose
+//     entry has another source. An entry without `source` was written before the field existed, by this repo, so it
+//     counts as "game". The registry's scripts/update-index.mjs is the mirror: it writes "registry", refuses an id
+//     whose entry is "game" or has no source, and only ever drops its own entries.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 export const PACK_INDEX_SCHEMA = 2;
+
+/** The `source` this repo's catalog entries carry (§11.5): the game repo's publish-packs workflow. */
+export const PACK_SOURCE = "game";
+
+/** Who published a catalog entry: its `source`, or "game" for an entry written before the field existed. */
+export const sourceOf = (pack) => pack?.source ?? PACK_SOURCE;
+
+/**
+ * The ids in `ids` that `current` (the index.json on R2, or undefined when there is none) lists under a publisher
+ * other than `source`, as `{ id, source }`. The workflow runs it before anything is uploaded.
+ */
+export function ownershipConflicts(current, ids, source = PACK_SOURCE) {
+  const byId = new Map((current?.packs ?? []).map((pack) => [pack.id, pack]));
+  const conflicts = [];
+  for (const id of new Set(ids)) {
+    const pack = byId.get(id);
+    if (pack && sourceOf(pack) !== source) conflicts.push({ id, source: sourceOf(pack) });
+  }
+  return conflicts;
+}
+
+/** The error line for a pack id another publisher owns. */
+export const ownershipMessage = ({ id, source }) =>
+  `${id} is published by ${source === "registry" ? "the registry repo (quincarter/marvel-champions-mods)" : source} ` +
+  `(source "${source}"): a pack id has one publisher, so rename the pack or publish it from there`;
 
 /** One version's entry. `base` ends with `/`; `hasPreview` says whether `preview.json` was published beside the zip. */
 export function packVersionEntry({ manifest, base, zipBytes, zipSha256, hasPreview = false, zipFallback }) {
@@ -58,6 +89,7 @@ export function packIndexEntry({
     latest: manifest.version,
     versions: { [manifest.version]: packVersionEntry({ manifest, base, zipBytes, zipSha256, hasPreview }) },
     withdrawn: false,
+    source: PACK_SOURCE,
   };
 }
 
@@ -119,7 +151,8 @@ function compareIdentifiers(p, q) {
 /**
  * Returns a new catalog: `current` (the index.json on R2, or undefined when there is none yet) with `built` upserted.
  * `built` is a list of `packIndexEntry` results, one version each. `today` is `YYYY-MM-DD`, `now` an ISO time.
- * `unwithdraw` lists pack ids to list again; an id the catalog doesn't have is an error.
+ * `unwithdraw` lists pack ids to list again; an id the catalog doesn't have is an error. A built or unwithdrawn id
+ * whose entry another publisher owns (`ownershipConflicts`) is an error too, raised before anything is merged.
  */
 export function upsertPackIndex(current, built, { today, now, unwithdraw = [] }) {
   if (current !== undefined && current !== null) {
@@ -128,6 +161,8 @@ export function upsertPackIndex(current, built, { today, now, unwithdraw = [] })
     if (current.schema !== PACK_INDEX_SCHEMA)
       throw new Error(`the current index.json is schema ${current.schema}; this script writes ${PACK_INDEX_SCHEMA}`);
   }
+  const conflicts = ownershipConflicts(current, [...built.map((entry) => entry.id), ...unwithdraw]);
+  if (conflicts.length > 0) throw new Error(conflicts.map(ownershipMessage).join("; "));
   const byId = new Map((current?.packs ?? []).map((pack) => [pack.id, pack]));
   const seen = new Set();
   for (const entry of built) {
@@ -152,6 +187,7 @@ export function upsertPackIndex(current, built, { today, now, unwithdraw = [] })
       latest: newest,
       versions,
       withdrawn: previous?.withdrawn ?? false,
+      source: PACK_SOURCE,
     });
   }
   for (const id of unwithdraw) {

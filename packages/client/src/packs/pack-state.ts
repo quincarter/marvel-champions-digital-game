@@ -104,7 +104,7 @@ export function unmetRequirement(
  * scenario and modular pickers; a campaign pack's campaigns are listed under Custom campaigns on the Saga shelf (so is
  * any scenario pack that ships campaigns).
  */
-export const PLAYABLE_PACK_KINDS: readonly string[] = ["hero", "art", "scenario", "modular", "campaign"];
+export const PLAYABLE_PACK_KINDS: readonly string[] = ["hero", "art", "scenario", "modular", "campaign", "house-rule"];
 
 export function packStateOf(input: PackStateInput): PackStateView {
   const { entry, installed } = input;

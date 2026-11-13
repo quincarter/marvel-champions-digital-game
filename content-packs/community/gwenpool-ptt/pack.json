@@ -1,10 +1,11 @@
 {
   "id": "gwenpool-ptt",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "kind": "hero",
   "name": "Gwenpool",
   "authors": ["Patatasaurio"],
   "description": "Fan-made hero pack by Patatasaurio: Gwenpool / Gwendolyn Poole, 15 hero cards that resolve speech bubbles, the Too Much Pink obligation and a 5-card nemesis set (Evil Gwenpool).",
+  "cover": "cover.webp",
   "license": "Fan-made, non-commercial; see CREDITS.md",
   "requires": {
     "app": ">=0.1.0",
@@ -16,8 +17,13 @@
     "text": "en"
   },
   "permission": {
+    "status": "granted",
     "by": "Patatasaurio",
-    "scope": "inclusion"
+    "date": "2026-11-13",
+    "evidence": "Granted by the author(s) in the Marvel Champions homebrew channel on Discord; confirmed by the project owner (Quin Carter) on 2026-11-13. The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/3a5dff953ec7f2d64473039874fb6568693aa3f6/gwenpool_ptt/mod.json",
+    "scope": "inclusion and translation: the Spanish edition, hand-translated by BluefireF5ran, is covered (owner, 2026-11-13)",
+    "languages": ["en", "es"],
+    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message."
   },
   "templateCredit": "G.Triskelion"
 }

@@ -1,0 +1,36 @@
+{
+  "id": "x.throg-ptt.09",
+  "name": "Thor",
+  "subtitle": "Odinson",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "9",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "ally",
+  "cost": 3,
+  "resourceIcons": {
+    "energy": 1
+  },
+  "atk": 2,
+  "thw": 1,
+  "hp": 3,
+  "consequentialDamage": {
+    "attack": 1,
+    "thwart": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["ASGARD", "AVENGER"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Response: After Thor defeats an enemy, remove 2 threat from a scheme.",
+    "current": "Response: After Thor defeats an enemy, remove 2 threat from a scheme."
+  },
+  "flavor": "\"We are brothers of the hammer. You will never be alone.\"",
+  "abilities": [
+    {
+      "id": "x.throg-ptt.09.thor-response"
+    }
+  ]
+}
