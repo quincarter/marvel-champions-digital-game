@@ -41,7 +41,11 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
   return ids;
 };
 
-/** One row per wave 1 pack (docs/phase7-wave1.md "Wave 1"): whether `ability-scripting-engineer` has scripted its own kit/nemesis/obligation/scenario modules yet. Update only when a pack agent's `<PACK>_ABILITIES` is registered in `./index.ts`. */
+/**
+ * One row per wave 1 pack (docs/phase7-wave1.md "Wave 1"): whether `ability-scripting-engineer` has scripted its own
+ * kit/nemesis/obligation/scenario modules yet. Update only when a pack's `pack.ts` joins `WAVE1_BUILTIN_PACKS` in
+ * `./index.ts`.
+ */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "not started">> = {
   cap: "scripted",
   gob: "scripted",

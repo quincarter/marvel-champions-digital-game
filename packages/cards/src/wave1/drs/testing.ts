@@ -13,12 +13,8 @@ import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
 
 /**
- * Local test deps for the Doctor Strange pack, until the main session registers `DRS_ABILITIES` in `../index.ts`'s
- * `WAVE1_ABILITIES` (docs/phase7-wave1-scripting.md's shared-tree rules: a pack agent builds its own deps rather
- * than editing the shared `wave1/index.ts` / `wave1/testing.ts`). Unlike `hlk`/`bkw` (already merged into
- * `WAVE1_ABILITIES` by the main session by the time this was written), `drs` is still commented out there, so
- * `WAVE1_ABILITIES` alone doesn't know any Doctor Strange ability id yet — merge `DRS_ABILITIES` in on top. This
- * file can be deleted with no other change once the pack is registered upstream.
+ * Test deps for the Doctor Strange (`drs`) pack. The pack is in `../index.ts`'s `WAVE1_BUILTIN_PACKS`, so this is the
+ * same registry as `../testing.ts`'s `WAVE1_DEPS`; the names are kept so the pack's tests read unchanged.
  */
 export const DRS_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 

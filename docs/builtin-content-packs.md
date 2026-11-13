@@ -34,7 +34,8 @@ never `x.` packs, so saves, decks, replays and registry fingerprints are untouch
 
 ### 1.2 One `pack.ts` per product
 
-Each product defines itself in its own `pack.ts`, beside its ability modules:
+Each product defines itself in its own `pack.ts`, beside its ability modules (`kit.ts`, `nemesis.ts`, …), and that
+file is the product's one entry point:
 
 ```ts
 // packages/cards/src/wave2/ant/pack.ts
@@ -44,13 +45,21 @@ export const ANT_BUILTIN_PACK: BuiltinPack = defineBuiltinPack({
   encounterSets: ANT_ENCOUNTER_SETS,
   scenarios: ANT_SCENARIOS,
   decks: ANT_STARTER_DECKS,
-  abilities: mergeRegistries(abilitiesForCards(WAVE2_REPRINT_ABILITIES, ANT_CARDS), ANT_ABILITIES),
+  abilities: mergeRegistries(
+    abilitiesForCards(WAVE2_REPRINT_ABILITIES, ANT_CARDS),
+    ANT_MAN_KIT,
+    ANT_MAN_OBLIGATION_NEMESIS,
+    ANT_PACK_CARDS,
+  ),
 });
 ```
 
-The product's existing `index.ts` (its `<P>_ABILITIES` registry, merged from `kit.ts`, `nemesis.ts`, … ) is not
-touched; `pack.ts` wraps it. The Core Set is the one exception: `core/pack.ts` holds the merge list that used to sit in
-`core/index.ts`, and `CORE_ABILITIES` is now `CORE_BUILTIN_PACK.abilities`.
+`abilities` lists the product's ability modules directly. The product's old `index.ts`, which only merged those
+modules into a `<P>_ABILITIES` registry, is gone (folded into `pack.ts`), and so is that export: code that wants a
+product's scripts reads `<P>_BUILTIN_PACK.abilities` (the reprint aliases included), or `ownScriptsOf(pack, aliases)`
+for its own scripts alone (a coverage test that checks each script is named in the product's tests). The Core Set's
+`core/pack.ts` holds the merge list that used to sit in `core/index.ts`, and `CORE_ABILITIES` is
+`CORE_BUILTIN_PACK.abilities`. Status notes about a product's scripting sit in its `pack.ts` doc comment.
 
 `defineBuiltinPack` refuses, in dev and tests (it skips the walk in a production build, like `defineAbilities`):
 
@@ -74,11 +83,13 @@ export const WAVE2_ABILITIES: AbilityRegistry = mergeRegistries(
 );
 ```
 
-A wave's reprint aliases (a card that reprints an earlier one by name and type, aliased to the earlier script) are a
-wave-level layer: they still merge as one layer ahead of the packs, so **the registry's key order is unchanged**. The
-engine iterates registries in places (`select.ts`), so order is behaviour. Each alias also sits in the pack holding its
-card (`abilitiesForCards`), so the packs together hold every script, and `ownScriptsOf` takes the aliases back out
-when the wave merges.
+A wave's reprint aliases (a card that reprints an earlier one by name and type, aliased to the earlier script) are built
+once, by `reprintAliases` (`builtin-packs/reprints.ts`): each wave's `reprints.ts` only names its later cards, its
+earlier cards and their scripts, and keeps its own pair shape and pinned problems. They are a wave-level layer: they
+still merge as one layer ahead of the packs, so **the registry's key order is unchanged**. The engine iterates
+registries in places (`select.ts`), so order is behaviour. Each alias also sits in the pack holding its card
+(`abilitiesForCards`), so the packs together hold every script, and `ownScriptsOf` takes the aliases back out when the
+wave merges.
 
 `BUILTIN_PACKS` (`builtin-packs/index.ts`) lists every moved product: Core, then each wave's packs.
 
@@ -114,14 +125,18 @@ the ones about `x.` codes, ids and files, plus the cross references:
 ## 2. Moving a wave: the steps
 
 1. Branch from the latest built-in packs branch (stack the PR on it until it merges), and fingerprint the registries.
-2. For each product folder of the wave, write `<product>/pack.ts` as in §1.2: the `@mc/content` exports, the
-   product's `<P>_ABILITIES`, and `abilitiesForCards(<WAVE>_REPRINT_ABILITIES, <P>_CARDS)` if the wave has a reprint
-   layer. Pick `kind` from §1.1.
-3. In the wave's `index.ts`, add `WAVE<N>_BUILTIN_PACKS` in the existing merge order and build the registry from it
+2. For each product folder of the wave, write `<product>/pack.ts` as in §1.2: the `@mc/content` exports, the ability
+   modules its `index.ts` merged (in the same order), and `abilitiesForCards(<WAVE>_REPRINT_ABILITIES, <P>_CARDS)` if
+   the wave has a reprint layer. Move the `index.ts` doc comment's status notes into `pack.ts`, delete `index.ts`, and
+   point its importers at `pack.ts` (`<P>_ABILITIES` becomes `<P>_BUILTIN_PACK.abilities`, or `ownScriptsOf` where a
+   test wants the product's own scripts). Pick `kind` from §1.1.
+3. If the wave has a reprint layer, make its `reprints.ts` call `reprintAliases` instead of its own copy of the
+   builder, keeping its exports and the exact problem strings its `reprints.test.ts` pins.
+4. In the wave's `index.ts`, add `WAVE<N>_BUILTIN_PACKS` in the existing merge order and build the registry from it
    (§1.3). Export it from `packages/cards/src/index.ts` and add it to `BUILTIN_PACKS`.
-4. Extend the tests: the product list, the waves table in `builtin-packs.test.ts`, the newest-wave registry, the
+5. Extend the tests: the product list, the waves table in `builtin-packs.test.ts`, the newest-wave registry, the
    precon list, and one game of the wave in `builtin.test.ts`.
-5. Re-run the fingerprint (must match), the wave's own tests, `builtin-packs/` and `mod-sdk/src/builtin.test.ts`,
+6. Re-run the fingerprint (must match), the wave's own tests, `builtin-packs/` and `mod-sdk/src/builtin.test.ts`,
    then typecheck, lint and format. Update §3 below and `docs/custom-content-packs.md` §11.11.
 
 ## 3. Status

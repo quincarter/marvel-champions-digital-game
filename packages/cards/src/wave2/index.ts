@@ -3,11 +3,11 @@
  * (`trors`: Hawkeye, Spider-Woman, and five scenarios), The Once and Future Kang (`toafk`), and the Ant-Man
  * (`ant`), Wasp (`wsp`), Quicksilver (`qsv`) and Scarlet Witch (`scw`) hero packs, in release order.
  *
- * **Adding a pack is one line here, plus that pack's own new files under `wave2/<pack>/`.** Each pack owns its own
- * folder (`wave2/trors/`, …) with its own kit/obligation/nemesis/scenario modules and its own `index.ts` exporting
- * one `<PACK>_ABILITIES` registry (see `wave2/trors/index.ts` for the shape, itself modeled on
- * `wave1/cap/index.ts`). A pack agent never edits another pack's folder, `reprints.ts`, `names.ts`, or this file's
- * registry list beyond adding their own one line — see `docs/phase7-wave2-scripting.md` for the full brief.
+ * **Adding a pack is one line in `WAVE2_BUILTIN_PACKS`, plus that pack's own new files under `wave2/<pack>/`.** Each
+ * pack owns its own folder (`wave2/trors/`, …) with its own kit/obligation/nemesis/scenario modules and a `pack.ts`,
+ * its one entry point, defining the product as a built-in pack (see `wave2/trors/pack.ts` and
+ * docs/builtin-content-packs.md §1.2). A pack agent never edits another pack's folder, `reprints.ts`, `names.ts`, or
+ * this file's registry list beyond adding their own one line — see `docs/phase7-wave2-scripting.md` for the full brief.
  *
  * Reprints (a wave 2 card that is the identical Core or wave 1 card by name and type) are aliased automatically by
  * `reprints.ts`, merged in ahead of every pack: a pack's own module must never define an ability id `reprints.ts`

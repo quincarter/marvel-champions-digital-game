@@ -5,8 +5,8 @@
  *
  * **Adding a pack is one line in `WAVE1_BUILTIN_PACKS`, plus that pack's own new files under `wave1/<pack>/`.** Each
  * pack owns its own folder (`wave1/cap/`, `wave1/gob/`, …) with its own `kit.ts` / `obligation.ts` / `nemesis.ts` /
- * scenario files, an `index.ts` exporting one `<PACK>_ABILITIES` registry, and a `pack.ts` defining the product as a
- * built-in pack from its `@mc/content` data and those abilities (see `wave1/cap/` for the shape). A pack
+ * scenario files and a `pack.ts`, its one entry point, defining the product as a built-in pack from its `@mc/content`
+ * data and those modules (see `wave1/cap/pack.ts` and docs/builtin-content-packs.md §1.2). A pack
  * agent never edits another pack's folder, `reprints.ts`, `names.ts`, or this file's registry list beyond adding
  * their own one line — see `docs/phase7-wave1-scripting.md` for the full brief every pack agent works from.
  *

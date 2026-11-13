@@ -1,13 +1,13 @@
 import { GOB_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
-import { GOB_ABILITIES } from "./index.js";
+import { GOB_BUILTIN_PACK } from "./pack.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 /**
- * Local coverage check for the Green Goblin (`gob`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5):
- * every `gob` card with ability text resolves, either via `GOB_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing. The main session's `wave1/coverage.test.ts` does the same check across every pack once this one
- * is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
+ * Local coverage check for the Green Goblin (`gob`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
+ * `gob` card with ability text resolves, via `GOB_BUILTIN_PACK.abilities` (its own scripts and the Core reprint aliases
+ * it carries). The main session's `wave1/coverage.test.ts` does the same check across every pack once this one is
+ * registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
  */
 
 const reprintIds = new Set<string>();
@@ -33,7 +33,7 @@ describe("Green Goblin (gob) pack ability coverage", () => {
   const allRefs = GOB_CARDS.flatMap(abilityRefIds);
 
   it("every ability reference resolves, either scripted directly or as a Core reprint alias", () => {
-    const unresolved = allRefs.filter((id) => !(id in GOB_ABILITIES) && !reprintIds.has(id));
+    const unresolved = allRefs.filter((id) => !(id in GOB_BUILTIN_PACK.abilities) && !reprintIds.has(id));
     expect(unresolved, `unresolved gob ability refs:\n${unresolved.join("\n")}`).toEqual([]);
   });
 

@@ -20,92 +20,23 @@
  * A pack agent should never define an ability id for a card that reprints a wave 1/Core one: this module already
  * supplies it, and `mergeRegistries` throws "defined twice" if a pack module also defines it.
  */
-import { WAVE1_CARDS, WAVE2_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
-import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
+import { WAVE1_CARDS, WAVE2_CARDS, type AnyCard } from "@mc/content";
+import type { AbilityRegistry } from "@mc/engine";
+import { reprintAliases } from "../builtin-packs/reprints.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 
-/** Ability refs in print order: both identity faces (plus any extra hero forms), every villain stage, every main scheme side, or the flat list. */
-function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [
-        ...card.hero.abilities,
-        ...card.alterEgo.abilities,
-        ...(card.additionalHeroForms ?? []).flatMap((face) => face.abilities),
-      ];
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities]);
-    default:
-      return "abilities" in card ? card.abilities : [];
-  }
-}
-
-const reprintKey = (card: AnyCard): string => `${card.name} ${card.type}`;
-
-const wave1CardIds = new Set(WAVE1_CARDS.map((c) => c.id as string));
-const wave1ByReprintKey = new Map<string, AnyCard>(WAVE1_CARDS.map((c) => [reprintKey(c), c]));
+const built = reprintAliases(WAVE2_CARDS, WAVE1_CARDS, WAVE1_ABILITIES, { earlierAbilities: "WAVE1_ABILITIES" });
 
 /** Every (wave 2 card, matched wave 1/Core card) pair by (name, type), whether or not it ends up aliased. */
 export function wave2ReprintPairs(): ReadonlyArray<{ readonly wave2: AnyCard; readonly wave1: AnyCard }> {
-  const pairs: { wave2: AnyCard; wave1: AnyCard }[] = [];
-  for (const card of WAVE2_CARDS) {
-    if (wave1CardIds.has(card.id as string)) continue; // Core/wave 1 itself (WAVE2_CARDS includes Core)
-    const match = wave1ByReprintKey.get(reprintKey(card));
-    if (match) pairs.push({ wave2: card, wave1: match });
-  }
-  return pairs;
+  return built.pairs.map(({ card, earlier }) => ({ wave2: card, wave1: earlier }));
 }
-
-function buildReprintAbilities(): { readonly registry: AbilityRegistry; readonly problems: readonly string[] } {
-  const registry: Record<string, AbilityDefinition> = {};
-  const problems: string[] = [];
-  for (const { wave2: card, wave1: match } of wave2ReprintPairs()) {
-    const wRefs = abilityRefsOf(card);
-    const mRefs = abilityRefsOf(match);
-    if (wRefs.length !== mRefs.length) {
-      problems.push(
-        `${card.id} (${card.name}) matches ${match.id} by name/type but has ${wRefs.length} ability ref(s) against ${mRefs.length} — not auto-aliased, script by hand`,
-      );
-      continue;
-    }
-    if (wRefs.length === 0) continue; // nothing to alias either way (e.g. two "Energy" resource cards)
-    let mismatch = false;
-    wRefs.forEach((wRef, i) => {
-      const mRef = mRefs[i]!;
-      const wSlug = wRef.id.slice(wRef.id.indexOf(".") + 1);
-      const mSlug = mRef.id.slice(mRef.id.indexOf(".") + 1);
-      if (wSlug !== mSlug) {
-        problems.push(
-          `${card.id} (${card.name}) matches ${match.id} by name/type but ability #${i} slugs differ (${wRef.id} vs ${mRef.id}) — not auto-aliased, script by hand`,
-        );
-        mismatch = true;
-      }
-    });
-    if (mismatch) continue;
-    wRefs.forEach((wRef, i) => {
-      const mRef = mRefs[i]!;
-      const definition = WAVE1_ABILITIES[mRef.id];
-      if (!definition) {
-        problems.push(
-          `${card.id} (${card.name}) matches ${match.id}, but ${mRef.id} is not in WAVE1_ABILITIES — not auto-aliased, script by hand`,
-        );
-        return;
-      }
-      registry[wRef.id] = definition;
-    });
-  }
-  return { registry, problems };
-}
-
-const built = buildReprintAbilities();
 
 /**
- * Every (wave 2 card, wave 1/Core match) pair `buildReprintAbilities` could not auto-alias — a same-name,
- * same-type card whose ability shape actually differs (the "Hawkeye" ally collision above), so it must be
- * scripted by hand in its own pack module. Pinned by `reprints.test.ts` so a future data change that fixes (or
- * breaks) an alias is caught rather than silently changing which cards need hand scripts.
+ * Every (wave 2 card, wave 1/Core match) pair `reprintAliases` (`../builtin-packs/reprints.ts`) could not auto-alias —
+ * a same-name, same-type card whose ability shape actually differs (the "Hawkeye" ally collision above), so it must be
+ * scripted by hand in its own pack module. Pinned by `reprints.test.ts` so a future data change that fixes (or breaks)
+ * an alias is caught rather than silently changing which cards need hand scripts.
  */
 export const WAVE2_REPRINT_PROBLEMS: readonly string[] = built.problems;
 

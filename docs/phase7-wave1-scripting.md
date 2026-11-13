@@ -1,5 +1,9 @@
 # Phase 7 wave 1: the ability-scripting brief
 
+> **Layout update (2026-11-13):** a product's ability modules are now merged in its `pack.ts` (its built-in pack,
+> `docs/builtin-content-packs.md` §1.2), not in a per-product `index.ts`, and there is no `<PACK>_ABILITIES` export.
+> Where this brief says to add or edit `<pack>/index.ts`, do that in `<pack>/pack.ts`.
+
 This is the brief every per-pack agent follows when scripting a wave 1 pack's card abilities
 (`ability-scripting-engineer`, PLAN.md Phase 7, `docs/phase7-wave1.md`). Read `docs/phase7-wave1.md` first — it is
 the shared spec for schema decisions (§1), per-pack setup needs (§2) and the engine primitives (§3) this brief
