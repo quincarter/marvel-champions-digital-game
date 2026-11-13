@@ -21,6 +21,7 @@ import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
 import { smokeTestPack } from "./smoke.js";
 import { readPackInput, validatePack, type PackInput } from "./validate.js";
+import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
 
 /**
  * Rulings of the Yondu pack (content-packs/community/yondu-dh), staged on the real engine: each test sets up a
@@ -46,6 +47,7 @@ beforeAll(async () => {
   scratch.push(root);
   const src = join(root, "src");
   cpSync(SRC, src, { recursive: true });
+  dropMissingCover(src);
   const out = join(root, "out");
   await buildPack(src, out);
   const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
