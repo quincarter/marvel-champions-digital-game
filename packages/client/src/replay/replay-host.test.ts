@@ -90,6 +90,25 @@ describe("ReplayHost", () => {
     expect(seen).toEqual([...seen].sort((a, b) => a - b));
   });
 
+  test("two quick steps play two commands, each once, and two quick steps back go back two", async () => {
+    const host = await openedHost();
+    await host.seek(5);
+    const played: number[] = [];
+    host.onPosition(({ position }) => played.push(position));
+    played.length = 0;
+    await Promise.all([host.step(), host.step()]);
+    expect(played).toEqual([6, 7]);
+    await Promise.all([host.stepBack(), host.stepBack()]);
+    expect(host.position).toBe(5);
+  });
+
+  test("a move in flight when the replay closes settles quietly", async () => {
+    const host = await openedHost();
+    const moving = host.seek(10);
+    host.dispose();
+    await expect(moving).resolves.toBeUndefined();
+  });
+
   test("stops at either end and refuses every command", async () => {
     const host = await openedHost();
     expect(await host.stepBack()).toBe(false);

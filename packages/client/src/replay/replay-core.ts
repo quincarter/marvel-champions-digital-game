@@ -2,7 +2,7 @@
  * What the replay worker does with each request (`workers/replay.worker.ts` is only the message plumbing around this),
  * and what `LocalReplayBackend` runs in-thread for the tests. One replay at a time: opening another replaces it.
  */
-import type { GameStorage } from "../engine/game-storage.js";
+import type { GameStorage, LastPlayedOn } from "../engine/game-storage.js";
 import type { CardPool } from "../engine/host.js";
 import type { Snapshot } from "../engine/session-core.js";
 import {
@@ -45,6 +45,18 @@ export interface ReplayExport {
 export interface ReplayLogExport {
   readonly text: string;
   readonly name: string;
+}
+
+/** A save's writer stamp as a replay writer, when it has the versions (a save from before the stamp has none). */
+function playedOnOf(stamp: LastPlayedOn | undefined): { readonly playedOn?: ReplayWriter } {
+  if (!stamp?.appVersion || !stamp.contentVersion) return {};
+  return {
+    playedOn: {
+      appVersion: stamp.appVersion,
+      contentVersion: stamp.contentVersion,
+      ...(stamp.build ? { build: stamp.build } : {}),
+    },
+  };
 }
 
 export class ReplayCore {
@@ -110,6 +122,7 @@ export class ReplayCore {
             createdAt: meta.createdAt,
             outcome: meta.outcome,
             round: meta.round,
+            ...playedOnOf(meta.lastPlayedOn),
           },
         };
       }

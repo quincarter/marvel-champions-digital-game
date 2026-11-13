@@ -736,9 +736,8 @@ export class BoardScene extends Phaser.Scene {
       // However the replay was left, the game's own host and store come back and the replay closes.
       if (this.#replay) {
         this.#replay = null;
+        // Puts back the game's own log and villain review too (a bug report after the replay reads them).
         leaveReplay();
-        appSession().gameLog = emptyLog();
-        appSession().villainReview = null;
       }
       this.#guide?.destroy();
       this.#guide = null;

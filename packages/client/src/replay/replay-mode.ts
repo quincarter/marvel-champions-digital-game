@@ -8,7 +8,7 @@
  * host is never disposed or written to while it is set aside.
  */
 import type { EngineHost } from "../engine/host.js";
-import { swapSessionHost } from "../session.js";
+import { appSession, swapSessionHost, type AppSession } from "../session.js";
 import { SessionStore } from "../store/session-store.js";
 import type { ReplayHost } from "./replay-host.js";
 
@@ -17,6 +17,9 @@ interface Watching {
   /** What the session had before: put back on leaving. */
   readonly host: EngineHost;
   readonly store: SessionStore;
+  /** The game's own log and last villain phase, which the replay's board overwrites: a bug report reads them after. */
+  readonly gameLog: AppSession["gameLog"];
+  readonly villainReview: AppSession["villainReview"];
 }
 
 let watching: Watching | null = null;
@@ -33,9 +36,16 @@ export function activeReplay(): ReplayHost | null {
 export async function enterReplay(replay: ReplayHost): Promise<SessionStore> {
   if (watching) leaveReplay();
   const store = new SessionStore(replay);
+  const { gameLog, villainReview } = appSession();
   const previous = swapSessionHost(replay, store);
-  watching = { replay, ...previous };
-  await store.resume("replay");
+  watching = { replay, ...previous, gameLog, villainReview };
+  try {
+    // Not `resume`: that syncs the game first, and a replay is no game of the device's.
+    await store.open();
+  } catch (cause) {
+    leaveReplay();
+    throw cause;
+  }
   return store;
 }
 
@@ -45,6 +55,9 @@ export function leaveReplay(): void {
   if (!current) return;
   watching = null;
   const { store } = swapSessionHost(current.host, current.store);
+  const session = appSession();
+  session.gameLog = current.gameLog;
+  session.villainReview = current.villainReview;
   store.dispose();
   current.replay.dispose();
 }

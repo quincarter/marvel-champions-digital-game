@@ -188,6 +188,14 @@ export class SessionStore {
     return this.#begin(() => this.#host.resume(gameId));
   }
 
+  /**
+   * Shows what the host holds already, without syncing or picking anything up: a replay's first position
+   * (`replay/replay-mode.ts`), where `resume`'s device sync would only cost a round trip for a game nobody is playing.
+   */
+  open(): Promise<void> {
+    return this.#begin(() => this.#host.resume(""));
+  }
+
   /** The saved game to offer as "Continue", or null. A storage failure is treated as "none". */
   async latestSave(): Promise<SaveMeta | null> {
     try {

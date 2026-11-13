@@ -39,6 +39,11 @@ export interface ReplayLog {
   readonly createdAt: number;
   readonly outcome: GameOutcome | null;
   readonly round: number;
+  /**
+   * The build that last wrote the saved game, when its save says (`SaveMeta.lastPlayedOn`): a game played on another
+   * version can replay differently here, which the screen says. Its checksums are still this build's own.
+   */
+  readonly playedOn?: ReplayWriter;
 }
 
 export type ReplaySource =
@@ -123,7 +128,7 @@ export class ReplaySession {
       moments: cursor.moments,
       divergedAt: check?.divergedAt ?? null,
       failure: cursor.failure,
-      otherBuild: writtenElsewhere(writer, here),
+      otherBuild: writtenElsewhere(source.kind === "log" ? (source.log.playedOn ?? here) : writer, here),
       writer,
       config: log.config,
       createdAt: log.createdAt,

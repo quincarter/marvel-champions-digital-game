@@ -164,8 +164,10 @@ export class ReplayHost implements EngineHost {
   #position = 0;
   /** Every update this host publishes gets a newer version, whichever way the replay moved: the store drops older ones. */
   #published = 0;
-  /** The newest seek target asked for while one was in flight; fetched once that one lands. */
-  #queued: number | null = null;
+  /** Moves asked for and not yet shown, in order. */
+  readonly #queue: { readonly n: number; readonly played: boolean }[] = [];
+  /** Where the replay stands once every queued move has landed: what the next step or step back counts from. */
+  #target = 0;
   #busy: Promise<void> | null = null;
   #disposed = false;
 
@@ -179,6 +181,7 @@ export class ReplayHost implements EngineHost {
     this.#cardPool = cardPool;
     this.#info = info;
     this.#position = 0;
+    this.#target = 0;
     return info;
   }
 
@@ -200,24 +203,31 @@ export class ReplayHost implements EngineHost {
   /** Shows the table after `n` commands (clamped), without animating the way there. */
   seek(n: number): Promise<void> {
     const info = this.#require();
-    this.#queued = Math.max(0, Math.min(Math.round(n), info.length));
-    this.#busy ??= this.#drain();
-    return this.#busy;
+    this.#target = Math.max(0, Math.min(Math.round(n), info.length));
+    const last = this.#queue[this.#queue.length - 1];
+    // A seek behind another seek not yet fetched replaces it: dragging the seek bar never queues up a backlog.
+    if (last && !last.played) this.#queue[this.#queue.length - 1] = { n: this.#target, played: false };
+    else this.#queue.push({ n: this.#target, played: false });
+    return this.#run();
   }
 
-  /** Plays the next command as it was played. False at the end, where nothing moves. */
+  /**
+   * Plays the next command as it was played. False at the end, where nothing moves. Moves are queued in order and
+   * counted from where the queued ones leave the replay, so two quick steps play two commands, each once.
+   */
   async step(): Promise<boolean> {
     const info = this.#require();
-    if (this.#busy) await this.#busy;
-    if (this.#position >= info.length) return false;
-    await this.#show(this.#position + 1, true);
+    if (this.#target >= info.length) return false;
+    this.#target += 1;
+    this.#queue.push({ n: this.#target, played: true });
+    await this.#run();
     return true;
   }
 
   /** Goes back one command. False at the start. */
   async stepBack(): Promise<boolean> {
-    if (this.#position <= 0) return false;
-    await this.seek(this.#position - 1);
+    if (this.#target <= 0) return false;
+    await this.seek(this.#target - 1);
     return true;
   }
 
@@ -236,6 +246,7 @@ export class ReplayHost implements EngineHost {
   /** Publishes the replay's opening position (the store's `resume` calls this; the id is not read). */
   async resume(_gameId?: string): Promise<EngineUpdate> {
     this.#require();
+    this.#target = this.#position;
     return this.#show(this.#position, false);
   }
 
@@ -247,9 +258,8 @@ export class ReplayHost implements EngineHost {
     return { ok: false, error: { code: "internal_error", message: REFUSED, command } };
   }
 
-  async rewindTo(commandCount: number): Promise<EngineUpdate> {
-    await this.seek(commandCount);
-    return this.#show(this.#position, false);
+  async rewindTo(_commandCount: number): Promise<EngineUpdate> {
+    throw new Error(REFUSED);
   }
 
   async legalActions(_playerId: PlayerId): Promise<LegalActions> {
@@ -294,13 +304,20 @@ export class ReplayHost implements EngineHost {
     this.#backend.dispose();
   }
 
+  /** Works through the queued moves in order; resolves once none is left. After `dispose` a failed fetch is dropped. */
+  #run(): Promise<void> {
+    this.#busy ??= this.#drain();
+    return this.#busy;
+  }
+
   async #drain(): Promise<void> {
     try {
-      while (this.#queued !== null && !this.#disposed) {
-        const target = this.#queued;
-        this.#queued = null;
-        await this.#show(target, false);
+      for (let next = this.#queue.shift(); next && !this.#disposed; next = this.#queue.shift()) {
+        await this.#show(next.n, next.played);
       }
+    } catch (cause) {
+      this.#queue.length = 0;
+      if (!this.#disposed) throw cause;
     } finally {
       this.#busy = null;
     }
