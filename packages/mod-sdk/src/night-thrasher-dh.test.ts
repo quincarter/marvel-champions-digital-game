@@ -20,6 +20,7 @@ import {
 import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
 import { readPackInput, type PackInput } from "./validate.js";
+import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
 
 const SRC = fileURLToPath(new URL("../../../content-packs/community/night-thrasher-dh", import.meta.url));
 const P = "x.night-thrasher-dh.";
@@ -39,6 +40,7 @@ beforeAll(async () => {
   scratch.push(root);
   const src = join(root, "src");
   cpSync(SRC, src, { recursive: true });
+  dropMissingCover(src);
   if (!existsSync(join(src, "alt-art"))) {
     const file = join(src, "pack.json");
     const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
