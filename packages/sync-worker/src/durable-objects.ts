@@ -88,6 +88,10 @@ export class RateLimiter {
         pathname === "/global-result" ? await this.limiter.takeGlobalResult(now) : this.limiter.takeGlobalRead(now);
       return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
     }
+    if (pathname === "/replay-upload") {
+      const result = await this.limiter.takeReplayUpload(now);
+      return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
+    }
     if (pathname === "/refund") {
       await this.limiter.refund(now, now);
       return Response.json({ ok: true });
