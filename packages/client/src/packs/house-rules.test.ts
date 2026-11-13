@@ -4,7 +4,7 @@
  * rule, and GMW Fixes is what offers the Balanced campaign option without which a Balanced run still plays.
  */
 import "fake-indexeddb/auto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,7 +49,17 @@ const walk = (dir: string): string[] =>
 async function loaded(name: string): Promise<PackRuntime> {
   const out = mkdtempSync(join(tmpdir(), `mc-house-rule-${name}-`));
   dirs.push(out);
-  await buildPack(join(COMMUNITY, name), out);
+  // The cover is git-ignored like the pictures: build a copy without it when a checkout (CI) has none.
+  const src = mkdtempSync(join(tmpdir(), `mc-house-rule-src-${name}-`));
+  dirs.push(src);
+  cpSync(join(COMMUNITY, name), src, { recursive: true });
+  const manifestFile = join(src, "pack.json");
+  const source = JSON.parse(readFileSync(manifestFile, "utf8")) as Record<string, unknown>;
+  if (typeof source.cover === "string" && !existsSync(join(src, ...source.cover.split("/")))) {
+    delete source.cover;
+    writeFileSync(manifestFile, JSON.stringify(source));
+  }
+  await buildPack(src, out);
   const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
   const files = new Map<string, Uint8Array>();
   for (const full of walk(out)) {

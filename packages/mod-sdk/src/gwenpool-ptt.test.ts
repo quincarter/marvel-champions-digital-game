@@ -23,6 +23,7 @@ import {
 import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
 import { readPackInput, type PackInput } from "./validate.js";
+import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
 
 /**
  * Targeted engine tests for Gwenpool (by PatataSaurio): the speech bubbles, the cards that count, filter and resolve
@@ -50,6 +51,7 @@ beforeAll(async () => {
   scratch.push(root);
   const src = join(root, "src");
   cpSync(SRC, src, { recursive: true });
+  dropMissingCover(src);
   if (!existsSync(join(src, "alt-art"))) {
     const file = join(src, "pack.json");
     const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
