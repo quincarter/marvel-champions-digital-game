@@ -1,26 +1,30 @@
 import {
   BUILTIN_PACKS,
   CORE_BUILTIN_PACK,
-  WAVE1_ABILITIES,
   WAVE1_BUILTIN_PACKS,
   WAVE1_DEPS,
+  WAVE2_DEPS,
+  WAVE3_ABILITIES,
+  WAVE3_DEPS,
   wave1Scenario,
+  wave2Scenario,
+  wave3Scenario,
   type BuiltinPack,
 } from "@mc/cards";
 import { playToOutcome } from "@mc/cards/testing";
-import { createGame } from "@mc/engine";
+import { createGame, type EngineDeps } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { builtinGameDeps, validateBuiltinPack } from "./builtin.js";
 import { customContentOfPacks, type PackGameContent } from "./game.js";
 import { splitIssues } from "./validate.js";
 
-/** What each built-in pack is played with: Core under every wave 1 product. */
+/** What each built-in pack is played with: Core under every later product. */
 const requiresOf = (pack: BuiltinPack): readonly BuiltinPack[] =>
   pack === CORE_BUILTIN_PACK ? [] : [CORE_BUILTIN_PACK];
 
 /**
- * The card abilities a built-in pack leaves unscripted, by pack id: none for Core and wave 1. A script dropped from a
- * pack shows up as unscripted and fails the test; a later wave lists its known gaps here.
+ * The card abilities a built-in pack leaves unscripted, by pack id: none for Core and waves 1 to 3. A script dropped
+ * from a pack shows up as unscripted and fails the test; a later wave lists its known gaps here.
  */
 const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {};
 
@@ -33,26 +37,46 @@ describe("built-in packs through the SDK", () => {
     );
   });
 
-  it("carry the whole wave 1 registry between them, reprint aliases included", () => {
+  it("carry the whole wave 3 registry (waves 1 to 3) between them, reprint aliases included", () => {
     const { abilities } = builtinGameDeps(BUILTIN_PACKS);
-    expect(Object.keys(abilities).sort()).toEqual(Object.keys(WAVE1_ABILITIES).sort());
-    for (const [id, definition] of Object.entries(abilities)) expect(WAVE1_ABILITIES[id]).toBe(definition);
+    expect(Object.keys(abilities).sort()).toEqual(Object.keys(WAVE3_ABILITIES).sort());
+    for (const [id, definition] of Object.entries(abilities)) expect(WAVE3_ABILITIES[id]).toBe(definition);
   });
 
-  // A Captain America precon (reprint aliases included: Make the Call is one) against Risky Business, on deps built from
-  // the packs alone, plays the same game as on WAVE1_DEPS.
-  it("play a wave 1 game on deps built from the packs alone, the same as on the wave's registry", () => {
-    const play = (deps: typeof WAVE1_DEPS) => {
-      const config = wave1Scenario("risky-business", { players: [{ starterDeckId: "cap-leadership" }], seed: 7 });
-      const created = createGame(config, deps);
-      if (!created.ok) throw new Error(created.error.message);
-      const run = playToOutcome(created.state, deps, { maxCommands: 4000 });
-      return { outcome: run.outcome, rounds: run.rounds, log: run.session.log };
-    };
-    const fromPacks = play(builtinGameDeps(BUILTIN_PACKS));
-    expect(fromPacks.outcome).not.toBeNull();
-    expect(fromPacks).toEqual(play(WAVE1_DEPS));
-  });
+  // Each wave's game, on deps built from the packs alone, plays the same as on that wave's own registry: Captain
+  // America (Make the Call is a reprint alias) at Risky Business, Hawkeye at Crossbones, and Rocket Raccoon at the
+  // Brotherhood of Badoon.
+  it.each([
+    [
+      "wave 1",
+      () => wave1Scenario("risky-business", { players: [{ starterDeckId: "cap-leadership" }], seed: 7 }),
+      WAVE1_DEPS,
+    ],
+    [
+      "wave 2",
+      () => wave2Scenario("crossbones", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 7 }),
+      WAVE2_DEPS,
+    ],
+    [
+      "wave 3",
+      () =>
+        wave3Scenario("brotherhood-of-badoon", { players: [{ starterDeckId: "rocket-raccoon-aggression" }], seed: 7 }),
+      WAVE3_DEPS,
+    ],
+  ] as const)(
+    "play a %s game on deps built from the packs alone, the same as on the wave's registry",
+    (_, setup, wave) => {
+      const play = (deps: EngineDeps) => {
+        const created = createGame(setup(), deps);
+        if (!created.ok) throw new Error(created.error.message);
+        const run = playToOutcome(created.state, deps, { maxCommands: 4000 });
+        return { outcome: run.outcome, rounds: run.rounds, log: run.session.log };
+      };
+      const fromPacks = play(builtinGameDeps(BUILTIN_PACKS));
+      expect(fromPacks.outcome).not.toBeNull();
+      expect(fromPacks).toEqual(play(wave));
+    },
+  );
 
   it("are content the SDK's aggregation helpers take", () => {
     const asPackContent: readonly PackGameContent[] = BUILTIN_PACKS;

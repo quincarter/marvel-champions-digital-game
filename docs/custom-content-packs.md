@@ -756,36 +756,45 @@ service's `definitionOf`), and builds a node's game with `campaignGameWithPacks(
 
 ### 11.11 Built-in content as packs (2026-11-13)
 
+The pattern, the steps to move a wave, what is left and the gaps found are in
+[`docs/builtin-content-packs.md`](builtin-content-packs.md); this section is the summary.
+
 The base game's products are being defined the way a store pack is, one product at a time, so the SDK proves itself
-on content we already trust and each product's folder is a worked example. The Core Set and wave 1's eight products
-(`cap`, `thor`, `msm`, `hlk`, `bkw`, `drs`, `gob`, `twc`) have moved so far.
+on content we already trust and each product's folder is a worked example. The Core Set and waves 1 to 3 have moved so
+far: wave 1's `cap`, `thor`, `msm`, `hlk`, `bkw`, `drs`, `gob` and `twc`; wave 2's `trors`, `toafk`, `ant`, `wsp`, `qsv`
+and `scw`; and wave 3's `gmw`, `gam`, `stld`, `drax`, `vnm` and `ron`.
 
 - **One product is one built-in pack** (`packages/cards/src/builtin-packs/define.ts`): a manifest (the product's set
   code as its id, its kind and its `@mc/content` product record), its cards, encounter sets, scenarios and precons,
   and the abilities that script its cards. The field names are `PackInput`'s, so the SDK's aggregation
   helpers (`customContentOfPacks`) take a built-in pack as they take an installed one. Each product
-  defines itself in its own `pack.ts` (`core/pack.ts`, `wave1/<product>/pack.ts`) with `defineBuiltinPack`, which
-  refuses another product's card, precon, scenario or set, and a script for a card the product doesn't have.
+  defines itself in its own `pack.ts` (`core/pack.ts`, `wave<N>/<product>/pack.ts`) with `defineBuiltinPack`, which
+  refuses another product's card, precon, scenario or set, and a script for a card the product doesn't have. A
+  script a rule grants (`gainsAbility`) is named by no card record, so it counts as the card its `<card code>.<slug>` id
+  names, the way a store pack's ability ids are checked. A campaign box (`trors`, `gmw`) is kind `campaign`; its
+  campaign definition still lives in `packages/cards/src/campaigns/` and isn't part of the pack yet.
 - **Still compiled into the app.** A built-in pack's data is the generated `@mc/content` modules and its abilities are
   the `@mc/cards` modules, imported at build time as before; nothing is JSON on disk or loaded at runtime, so startup
   doesn't change. Card codes, ability ids and deck ids keep their MarvelCDB form (`01001a`), so saves and replays are
   untouched.
-- **The registries come from the packs.** `CORE_ABILITIES` is the Core pack's abilities. Each wave 1 pack carries the
-  Core reprint aliases its cards use (`wave1ReprintAbilitiesOf`), so the nine packs together hold every script the
-  wave 1 pool needs. `WAVE1_ABILITIES` still merges Core, the reprint aliases as one layer, then each pack's own
-  scripts, in the order they merged before, so every registry is identical to what it was.
+- **The registries come from the packs.** `CORE_ABILITIES` is the Core pack's abilities. Each later pack carries the
+  reprint aliases its cards use (`abilitiesForCards` over the wave's alias layer), so the packs together hold every
+  script of the wave 3 pool, which takes in waves 1 and 2. Each wave's registry still merges its earlier layers, its
+  reprint aliases as one layer, then each pack's own scripts (`ownScriptsOf`), in the order they merged before, so
+  every registry is identical to what it was.
 - **The SDK checks them.** `validateBuiltinPack` (`@mc/mod-sdk`) runs the card, ability, DSL-feature, deck, encounter
   set and scenario checks `validatePack` runs on a store pack, minus the ones about `x.` codes, ids and files, plus
   the cross references: a scenario's sets (`validateScenarioEncounterSets`), villain and main scheme, a card's
   encounter set, an identity's obligation and nemesis set, and a precon's cards. They resolve only against the pack
-  and the built-in packs it `requires` (Core, for a wave 1 product), so a script dropped from a pack is reported as
+  and the built-in packs it `requires` (Core, for every later product), so a script dropped from a pack is reported as
   unscripted. CI runs it on every built-in pack with no defects and no unscripted abilities (`builtin.test.ts`).
-- **Games from the packs.** `builtinGameDeps(BUILTIN_PACKS)` is the engine's deps from the packs alone, and a wave 1
-  game played on it matches one played on `WAVE1_DEPS` move for move. `scenarioWithPacks` stays for installed packs:
-  it treats its packs as custom content and refuses base-game ids, so built-in scenarios are still set up by the
-  wave builders (`wave1Scenario`) until the plan's named setup recipes exist.
-- **Next:** the later waves move the same way and join `BUILTIN_PACKS`; then the client's pool (`POOL_CARDS`,
-  `POOL_DEPS`) can be assembled from `BUILTIN_PACKS` with the merge helpers installed packs use.
+- **Games from the packs.** `builtinGameDeps(BUILTIN_PACKS)` is the engine's deps from the packs alone, and a game of
+  each wave played on it matches one played on that wave's own deps move for move. `scenarioWithPacks` stays for
+  installed packs: it treats its packs as custom content and refuses base-game ids, so built-in scenarios are still set
+  up by the wave builders (`wave1Scenario`, `wave2Scenario`, `wave3Scenario`) until the plan's named setup recipes exist.
+- **Next:** waves 4 to 11 move the same way and join `BUILTIN_PACKS` (status and gaps in
+  `docs/builtin-content-packs.md` §3 and §4); then the client's pool (`POOL_CARDS`, `POOL_DEPS`) can be assembled
+  from `BUILTIN_PACKS` with the merge helpers installed packs use.
 
 ## Sources
 

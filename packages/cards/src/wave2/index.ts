@@ -16,13 +16,27 @@
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { CORE_ABILITIES } from "../core/index.js";
 import { mergeRegistries } from "../dsl/index.js";
-import { TRORS_ABILITIES } from "./trors/index.js";
+import { ownScriptsOf, type BuiltinPack } from "../builtin-packs/define.js";
+import { TRORS_BUILTIN_PACK } from "./trors/pack.js";
 import { WAVE2_REPRINT_ABILITIES } from "./reprints.js";
-import { TOAFK_ABILITIES } from "./toafk/index.js";
-import { ANT_ABILITIES } from "./ant/index.js";
-import { WSP_ABILITIES } from "./wsp/index.js";
-import { QSV_ABILITIES } from "./qsv/index.js";
-import { SCW_ABILITIES } from "./scw/index.js";
+import { TOAFK_BUILTIN_PACK } from "./toafk/pack.js";
+import { ANT_BUILTIN_PACK } from "./ant/pack.js";
+import { WSP_BUILTIN_PACK } from "./wsp/pack.js";
+import { QSV_BUILTIN_PACK } from "./qsv/pack.js";
+import { SCW_BUILTIN_PACK } from "./scw/pack.js";
+
+/**
+ * Wave 2's products as built-in packs (`../builtin-packs/define.ts`), in the order their scripts merge. Each
+ * carries the reprint aliases its cards use, so the packs together hold every script of the wave's own products.
+ */
+export const WAVE2_BUILTIN_PACKS: readonly BuiltinPack[] = [
+  TRORS_BUILTIN_PACK,
+  TOAFK_BUILTIN_PACK,
+  ANT_BUILTIN_PACK,
+  WSP_BUILTIN_PACK,
+  QSV_BUILTIN_PACK,
+  SCW_BUILTIN_PACK,
+];
 
 /**
  * Every scripted ability in the wave 2 pool, keyed by `AbilityReference` id: Core's own scripts (`WAVE2_CARDS`
@@ -32,12 +46,7 @@ import { SCW_ABILITIES } from "./scw/index.js";
 export const WAVE2_ABILITIES: AbilityRegistry = mergeRegistries(
   CORE_ABILITIES,
   WAVE2_REPRINT_ABILITIES,
-  TRORS_ABILITIES,
-  TOAFK_ABILITIES,
-  ANT_ABILITIES,
-  WSP_ABILITIES,
-  QSV_ABILITIES,
-  SCW_ABILITIES,
+  ...WAVE2_BUILTIN_PACKS.map((pack) => ownScriptsOf(pack, WAVE2_REPRINT_ABILITIES)),
 );
 
 /** Engine dependencies for games that use the wave 2 (cycle 1) pool (Core plus every scripted cycle 1 pack). */

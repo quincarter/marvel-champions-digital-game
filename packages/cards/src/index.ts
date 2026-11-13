@@ -1,6 +1,6 @@
 export * from "./dsl/index.js";
 export { obligation } from "./core/obligations.js";
-export { builtinPackProblems, defineBuiltinPack } from "./builtin-packs/define.js";
+export { abilitiesForCards, builtinPackProblems, defineBuiltinPack, ownScriptsOf } from "./builtin-packs/define.js";
 export type { BuiltinPack, BuiltinPackManifest } from "./builtin-packs/define.js";
 export { BUILTIN_PACKS } from "./builtin-packs/index.js";
 export {
@@ -25,6 +25,7 @@ export {
 export type { Wave1ScenarioOptions } from "./wave1/index.js";
 export {
   WAVE2_ABILITIES,
+  WAVE2_BUILTIN_PACKS,
   WAVE2_DEPS,
   WAVE2_REPRINT_ABILITIES,
   wave2ReprintPairs,
@@ -34,6 +35,7 @@ export {
 export type { Wave2ScenarioOptions } from "./wave2/index.js";
 export {
   WAVE3_ABILITIES,
+  WAVE3_BUILTIN_PACKS,
   WAVE3_CARDS,
   WAVE3_DEPS,
   WAVE3_REPRINT_ABILITIES,
