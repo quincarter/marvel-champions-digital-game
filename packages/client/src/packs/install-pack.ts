@@ -66,7 +66,7 @@ async function download(
   let lastError: unknown;
   for (const url of urls) {
     try {
-      const response = await doFetch(url);
+      const response = await doFetch(url, { maxBytes: info.zipBytes });
       if (!response.ok) throw new Error(`Download failed (${response.status})`);
       const bytes = await readBody(response, info.zipBytes, onBytes);
       if (bytes.byteLength !== info.zipBytes) {

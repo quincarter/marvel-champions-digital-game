@@ -15,7 +15,9 @@ export const PACKS_HOST = "https://packs.champions-digital-game.com";
 export const CATALOG_URL = import.meta.env?.DEV ? "/packs/index.json" : `${PACKS_HOST}/index.json`;
 export const CATALOG_CACHE_KEY = "mc-pack-catalog";
 
-export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+/** `maxBytes` refuses a response bigger than that, before or while its body is read (`pack-fetch.ts`). */
+export type FetchInit = RequestInit & { readonly maxBytes?: number };
+export type FetchLike = (url: string, init?: FetchInit) => Promise<Response>;
 
 export interface CatalogDeps {
   readonly fetch?: FetchLike;
