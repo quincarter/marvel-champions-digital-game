@@ -23,7 +23,7 @@ import { defeatWithAttack, driveEvents } from "../../testing/staging.js";
 import { traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario } from "../setup.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
-import { GMW_ABILITIES } from "./index.js";
+import { GMW_BUILTIN_PACK } from "./pack.js";
 
 /** Infiltrate the Museum (docs/phase7-wave3.md §2.2): Collector I–III, The Grand Collection, its own encounter
  * set, and Menagerie Medley (the scenario's own recommended modular, confirmed on 16073a's own "Contents" text). */
@@ -455,8 +455,8 @@ describe("View the Cosmos (16077)", () => {
   });
 
   it("its two data-artifact refs resolve, and carry no behavior of their own (16077.view-the-cosmos-constant, 16077.view-the-cosmos-constant-2)", () => {
-    expect(GMW_ABILITIES["16077.view-the-cosmos-constant" as never]).toBeDefined();
-    expect(GMW_ABILITIES["16077.view-the-cosmos-constant-2" as never]).toBeDefined();
+    expect(GMW_BUILTIN_PACK.abilities["16077.view-the-cosmos-constant" as never]).toBeDefined();
+    expect(GMW_BUILTIN_PACK.abilities["16077.view-the-cosmos-constant-2" as never]).toBeDefined();
   });
 });
 
@@ -504,7 +504,7 @@ describe("Menagerie Medley (16135–16137)", () => {
   });
 
   it("Starshark: its attacks deal indirect damage (16137.starshark-constant)", () => {
-    const definition = GMW_ABILITIES["16137.starshark-constant" as never];
+    const definition = GMW_BUILTIN_PACK.abilities["16137.starshark-constant" as never];
     expect(definition?.trigger).toEqual({
       kind: "constant",
       rules: [{ kind: "attacksDealIndirectDamage", attacker: { self: true } }],

@@ -1,15 +1,15 @@
 import { TWC_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
-import { TWC_ABILITIES } from "./index.js";
+import { TWC_BUILTIN_PACK } from "./pack.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for The Wrecking Crew (`twc`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5):
- * every `twc` card with ability text resolves, either via `TWC_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing, except the documented skips below (also noted beside each ability in
+ * every `twc` card with ability text resolves, via `TWC_BUILTIN_PACK.abilities` (its own scripts and the Core
+ * reprint aliases it carries), except the documented skips below (also noted beside each ability in
  * `breakout.ts`/`wrecker.ts`/`thunderball.ts`/`piledriver.ts`/`bulldozer.ts`). Copied from `wave1/gob/coverage.test.ts`
- * (the pack-local version a pack agent owns; `TWC_ABILITIES` is not merged into the shared `wave1/index.ts` in this
- * pass, so there is no session-wide `wave1/coverage.test.ts` row for `twc` to flip yet).
+ * (the pack-local version a pack agent owns; `twc` is in `WAVE1_BUILTIN_PACKS` and has its row in
+ * `wave1/coverage.test.ts` too).
  */
 
 const reprintIds = new Set<string>();
@@ -40,14 +40,16 @@ describe("The Wrecking Crew (twc) pack ability coverage", () => {
   const allRefs = TWC_CARDS.flatMap(abilityRefIds);
 
   it("every ability reference resolves, is a Core reprint alias, or is a documented skip", () => {
-    const unresolved = allRefs.filter((id) => !(id in TWC_ABILITIES) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id));
+    const unresolved = allRefs.filter(
+      (id) => !(id in TWC_BUILTIN_PACK.abilities) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id),
+    );
     expect(unresolved, `unresolved twc ability refs:\n${unresolved.join("\n")}`).toEqual([]);
   });
 
   it("every documented skip really is unresolved (not stale)", () => {
     for (const id of KNOWN_SKIPPED) {
       expect(allRefs, `${id} is no longer a real twc ability ref — update KNOWN_SKIPPED`).toContain(id);
-      expect(id in TWC_ABILITIES, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
+      expect(id in TWC_BUILTIN_PACK.abilities, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
     }
   });
 

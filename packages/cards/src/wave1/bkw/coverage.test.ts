@@ -1,13 +1,15 @@
 /**
- * Local coverage for the `bkw` pack (docs/phase7-wave1-scripting.md "What to deliver" §5) — never touches the
- * shared `../coverage.test.ts` (its `PACK_STATUS`/registration line are the main session's to update once this
- * pack is merged into `WAVE1_ABILITIES`). Every `bkw` card's ability reference must resolve — through this pack's
- * own `BKW_ABILITIES`, or aliased as a Core reprint by `../reprints.ts` — except the two recorded, cited gaps (see
- * the doc comments on `BKW_NEMESIS` in `./nemesis.ts` and `BKW_OBLIGATION` in `./obligation.ts`).
+ * Local coverage for the `bkw` pack (docs/phase7-wave1-scripting.md "What to deliver" §5) — never touches the shared
+ * `../coverage.test.ts` (its `PACK_STATUS`/registration line are the main session's to update once this pack is merged
+ * into `WAVE1_ABILITIES`). Every `bkw` card's ability reference must resolve — through this pack's own
+ * `BKW_BUILTIN_PACK.abilities`, or aliased as a Core reprint by `../reprints.ts` — except the two recorded, cited gaps
+ * (see the doc comments on `BKW_NEMESIS` in `./nemesis.ts` and `BKW_OBLIGATION` in `./obligation.ts`).
  */
 import { BKW_CARDS } from "@mc/content";
 import { WAVE1_REPRINT_ABILITIES } from "../reprints.js";
-import { BKW_ABILITIES, BKW_NEMESIS_SKIPPED, BKW_OBLIGATION_SKIPPED } from "./index.js";
+import { BKW_BUILTIN_PACK } from "./pack.js";
+import { BKW_NEMESIS_SKIPPED } from "./nemesis.js";
+import { BKW_OBLIGATION_SKIPPED } from "./obligation.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 /** Ability ids intentionally left unscripted (see the doc comments on `BKW_NEMESIS`/`BKW_OBLIGATION` for the full citation). */
@@ -26,7 +28,7 @@ describe("bkw pack ability coverage", () => {
   });
 
   it("every ability reference resolves — scripted directly, aliased as a Core reprint, or a recorded skip", () => {
-    const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...BKW_ABILITIES };
+    const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...BKW_BUILTIN_PACK.abilities };
     const unresolved = allRefs.filter((id) => !(id in registry) && !SKIPPED.has(id));
     expect(
       unresolved,
@@ -35,7 +37,7 @@ describe("bkw pack ability coverage", () => {
   });
 
   it("every recorded skip is real (still absent from the registry) and still printed on a real card", () => {
-    const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...BKW_ABILITIES };
+    const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...BKW_BUILTIN_PACK.abilities };
     for (const id of SKIPPED) {
       expect(registry, id).not.toHaveProperty(id);
       expect(allRefs, id).toContain(id);

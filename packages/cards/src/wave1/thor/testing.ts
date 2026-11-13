@@ -13,8 +13,8 @@ import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
 
 /**
- * Test deps for the Thor pack. `THOR_ABILITIES` is now registered in `../index.ts`'s `WAVE1_ABILITIES`, so this is
- * the same registry as `../testing.ts`'s `WAVE1_DEPS`; the names are kept so the pack's tests read unchanged.
+ * Test deps for the Thor (`thor`) pack. The pack is in `../index.ts`'s `WAVE1_BUILTIN_PACKS`, so this is the same
+ * registry as `../testing.ts`'s `WAVE1_DEPS`; the names are kept so the pack's tests read unchanged.
  */
 export const THOR_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 

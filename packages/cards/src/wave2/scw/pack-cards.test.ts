@@ -24,7 +24,7 @@ import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { SCW_PACK_CARDS } from "./pack-cards.js";
 import { mergeRegistries } from "../../dsl/index.js";
-import { CAP_ABILITIES } from "../../wave1/cap/index.js";
+import { CAP_BUILTIN_PACK } from "../../wave1/cap/pack.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
 const scwVsRhino = () =>
@@ -146,7 +146,7 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
         attachToInstanceId: null,
       },
       // Zemo is Captain America's (wave 1), outside the wave 2 registry.
-      { abilities: mergeRegistries(WAVE2_DEPS.abilities, CAP_ABILITIES) },
+      { abilities: mergeRegistries(WAVE2_DEPS.abilities, CAP_BUILTIN_PACK.abilities) },
     );
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
