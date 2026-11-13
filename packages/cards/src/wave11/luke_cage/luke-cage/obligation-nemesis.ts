@@ -121,6 +121,11 @@ export const LUKE_CAGE_LUKE_CAGE_OBLIGATION_NEMESIS: AbilityRegistry = defineAbi
   "62032.asp-forced-response": forcedResponse(after.enemySchemes("self"), stun(yourIdentity)),
   "62032.boost": boost(stun(yourIdentity)),
 
+  // "When Sidewinder is attacked" names no attacker, so an enemy's attack on him (Moondragon, Headpool) is heard too
+  // (an enemy is a character, RRG 1.8 "Character", p. 12; `enemyAttacksEnemy`, `patternHearsKind`; rules-expert
+  // reading 2026-11-12, no FFG ruling). Such an attack is no player's (docs/phase7-wave3.md §4 Q12): the top card is
+  // still discarded, but there is no "attacking player" to deal him to (`eventPlayer` names nobody), so he stays in
+  // play and takes the attack. Engine reading (authority step 5), no ruling covers it.
   "62033.sidewinder-forced-interrupt": forcedInterrupt(
     { on: "attack", selfIs: "target" },
     discardEncounterCards(1, { bind: "top" }),

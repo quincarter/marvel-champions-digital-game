@@ -23,6 +23,7 @@ import {
   stackEncounterDeck,
   use,
 } from "../../testing/harness.js";
+import { moondragonAttack } from "../../testing/enemy-attacks-enemy.js";
 import { driveEventsPicking, driveStepwise, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
 import { BLACK_CAT, BLACK_PANTHER_CORE, CAPTAIN_MARVEL, SHE_HULK, SPIDER_MAN } from "../../wave9/testing.js";
@@ -580,6 +581,29 @@ describe("Krahllak's Blessing 65019", () => {
     expect(villainAttacks(run.events, run.state)[0]!.targetInstanceId).toBe(staged.id);
     expect(inst(run.state, id).attachedTo).toBeNull();
   });
+
+  // A minion is a character (RRG 1.8 "Character", p. 12), so a minion's attack on the villain (Moondragon, 19013) is
+  // damage from a character: reduced by 3, and the villain attacks that minion. An enemy attacking an enemy is the
+  // engine's `enemyAttacksEnemy`, not an activation against a player: no defense, and no boost card, as an encounter
+  // card's ability has no player to resolve one (`apply-effect.ts`, the `enemyAttack` routing; rules-expert reading
+  // 2026-11-12, authority step 5, no FFG ruling).
+  it("a minion's attack (Moondragon) is reduced by 3, and the villain attacks that minion, not a player", () => {
+    const { state, id } = blessed(SHE_HULK);
+    const villain = state.activeVillainId!;
+    const staged = patchInstance(engageMinion(state, CORE_MINION, "m1", P1), villain, {
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+    });
+    const run = moondragonAttack(DEPS, staged, "m1" as InstanceId, villain);
+    // Hydra Mercenary's 1 ATK, less 3.
+    expect(damageOnVillain(run.state)).toBe(0);
+    const hits = ofType(run.events, "enemyAttackedEnemy").filter((e) => e.attackerInstanceId === villain);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.targetInstanceId).toBe("m1");
+    expect(villainAttacks(run.events, run.state)).toHaveLength(0);
+    expect(inst(run.state, identityOf(run.state)).damage).toBe(0);
+    expect(inst(run.state, id).attachedTo).toBeNull();
+    expect(discardCodes(run.state)).toContain(BLESSING);
+  });
 });
 
 // With a Retaliate hero (RRG 1.8 "Activation", p. 6; owner decision, 2026-10-28, reading A, `resolve/suspend.ts`): each
@@ -858,6 +882,25 @@ describe("Gorgon minion 65021", () => {
     const run = driveEventsPicking(DEPS, staged.state, firstLegal, attackGorgon(staged.state, staged.id));
     expect(inst(run.state, staged.id).statuses.stunned).toBe(1);
     expect(inst(run.state, identityOf(run.state)).statuses.stunned).toBe(0);
+  });
+
+  // An enemy is a character (RRG 1.8 "Character", p. 12), so a minion made to attack him (Moondragon, 19013) is "a
+  // character" that attacks and damages him (`patternHearsKind`, rules-expert reading 2026-11-12; no FFG ruling).
+  const moondragonHits = (s: GameState) =>
+    moondragonAttack(DEPS, engageMinion(s, CORE_MINION, "m1", P1), "m1" as InstanceId, "g1" as InstanceId);
+
+  it("forced response: a minion made to attack and damage him (Moondragon) is the one stunned", () => {
+    const run = moondragonHits(game());
+    expect(inst(run.state, "g1" as InstanceId).damage).toBeGreaterThan(0);
+    expect(inst(run.state, "m1" as InstanceId).statuses.stunned).toBe(1);
+    expect(inst(run.state, identityOf(run.state)).statuses.stunned).toBe(0);
+  });
+
+  it("forced response: a minion's attack a tough status card absorbs damages him not, and nothing is stunned", () => {
+    const tough = patchInstance(game(), "g1" as InstanceId, { statuses: { stunned: 0, confused: 0, tough: 1 } });
+    const run = moondragonHits(tough);
+    expect(inst(run.state, "g1" as InstanceId).damage).toBe(0);
+    expect(inst(run.state, "m1" as InstanceId).statuses.stunned).toBe(0);
   });
 });
 

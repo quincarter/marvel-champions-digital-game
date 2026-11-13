@@ -52,10 +52,12 @@ if (!pawnBoost) throw new Error("reprint source 32058.boost is not scripted");
 
 export const HELLFIRE: AbilityRegistry = defineAbilities({
   // Sebastian Shaw — Toughness. Villainous. (data) Forced Response: After Sebastian Shaw is attacked, give him a
-  // facedown boost card. He cannot be attacked again this phase. (Any player's attack, basic or labeled, damaged or
-  // not: the boost card waits on him and is turned up with the villainous card at his next activation.)
+  // facedown boost card. He cannot be attacked again this phase. (Any attack, basic or labeled, damaged or not: the
+  // boost card waits on him and is turned up with the villainous card at his next activation.) The text names no
+  // attacker, so an enemy's attack on him counts too (an enemy is a character, RRG 1.8 "Character", p. 12; heard as
+  // `enemyAttacksEnemy`, `patternHearsKind`; rules-expert reading 2026-11-12, no FFG ruling).
   "49038.sebastian-shaw-forced-response": forcedResponse(
-    on.attacks(query(["hero", "ally"]), { target: { self: true } }),
+    on.thisIsAttacked(),
     giveBoostCard(self),
     applyRuleUntil({ kind: "cannotAttack", target: query("minion", { name: "Sebastian Shaw" }) }, "endOfPhase"),
   ),

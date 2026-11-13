@@ -3994,6 +3994,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // attacker, goes to the player resolving this ability, as Headpool's does (FFG ruling January 26, 2026 (4)); an
       // encounter card's ability heard from an enemy's attack has no such player, and no boost card is dealt: engine
       // reading (authority step 5), no ruling covers it.
+      // The same routing covers every `enemyAttack` with a `targetCharacter` that turns out to be an enemy, so
+      // Krahllak's Blessing (`shadowland` 65019, "Attached villain attacks that character", after a minion's attack on
+      // the villain: a minion is "a character", RRG 1.8 "Character", p. 12) has the villain attack that minion the same
+      // way: an attack on an enemy, not an activation against a player.
+      // The `enemyAttack`'s own modifiers (`keywords`, `atkBonus`, extra boost cards, `statBonusTiming`) are not carried
+      // over: `enemyAttacksEnemy` has none, and no card that can reach this branch prints one (an `enemyAttack` with
+      // `keywords`, such as Batroc's Leaping Kick 50096 or Energy Channel 56098, only ever aims at a player's character).
+      // A card that needs one here needs the field on `enemyAttacksEnemy` first.
       if (effect.kind === "enemyAttack" && effect.targetCharacter) {
         const inPlayNow = cardsInPlay(ctx.state);
         const [aimed] = targets(effect.targetCharacter).filter(

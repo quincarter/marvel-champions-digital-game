@@ -2760,8 +2760,11 @@ export function hearsEncounterDeckDiscard(pattern: EventPattern): boolean {
 
 /**
  * Whether a pattern hears `kind` among its own `on` kinds, or through the one alias the engine makes: a pattern on
- * `attack` with the card itself the target (`{ on: "attack", selfIs: "target" }`, "When/After [this card] is attacked",
- * "When a character attacks [this card]") also hears an `enemyAttacksEnemy` with this card the attacked enemy.
+ * `attack` whose target is this card or the card it is attached to also hears an `enemyAttacksEnemy` with that card the
+ * attacked enemy, however the pattern names it: `selfIs: "target"` (`on.thisIsAttacked`, "When/After [this card] is
+ * attacked"), `targetIs: { self: true }` ("After a character attacks and damages Gorgon", `shadowland` 65021) or
+ * `targetIs: { hostOfSelf: true }` ("When Kang is attacked" on Temporal Shield, `toafk` 11014). Whether the attacked
+ * card is an enemy is left to the event: an `enemyAttacksEnemy` only ever attacks one.
  *
  * An enemy is a character (RRG 1.8 "Character", p. 12: "Identities, allies, villains and minions are characters"), so an
  * enemy's attack on this card is "a character attacks" it; and the owner's decision on enemy-against-enemy attacks
@@ -2778,7 +2781,8 @@ export function hearsEncounterDeckDiscard(pattern: EventPattern): boolean {
 export function patternHearsKind(pattern: EventPattern, kind: TriggerEventKind): boolean {
   const kinds: readonly TriggerEventKind[] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
   if (kinds.includes(kind)) return true;
-  return kind === "enemyAttacksEnemy" && pattern.selfIs === "target" && kinds.includes("attack");
+  if (kind !== "enemyAttacksEnemy" || !kinds.includes("attack")) return false;
+  return pattern.selfIs === "target" || pattern.targetIs?.self === true || pattern.targetIs?.hostOfSelf === true;
 }
 
 /**

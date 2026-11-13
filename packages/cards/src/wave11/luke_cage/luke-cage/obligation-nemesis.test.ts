@@ -26,6 +26,7 @@ import {
   use,
   type Picker,
 } from "../../../testing/harness.js";
+import { moondragonAttack } from "../../../testing/enemy-attacks-enemy.js";
 import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { engageMinion, stagedInPlay } from "../../../wave9/falcon/testing.js";
 import { WAVE11_CARDS } from "../../cards.js";
@@ -502,5 +503,17 @@ describe(`${SIDEWINDER_I}: when Sidewinder is attacked, discard the top encounte
     const run = attacked(ADVANCE);
     expect(encounterDiscardCodes(run.state)).toEqual([ADVANCE]);
     expect(inst(run.state, run.id).damage).toBe(2);
+  });
+
+  // An enemy's attack on him (Moondragon, 19013; `enemyAttacksEnemy`) is heard, but is no player's: there is no
+  // attacking player to deal him to (engine reading, authority step 5; obligation-nemesis.ts).
+  it("a minion's attack on him (Moondragon) with a Boost card on top: the card is discarded, he stays and takes 2", () => {
+    const wind = engaged(onTop(lukeGame(), "62029"), "62033");
+    const staged = engageMinion(wind.state, SHOCKER, "shocker", P1);
+    const run = moondragonAttack(WAVE11_DEPS, staged, "shocker" as InstanceId, wind.id);
+    expect(encounterDiscardCodes(run.state)).toEqual(["62029"]);
+    expect(playerOf(run.state, P1).playArea).toContain(wind.id);
+    expect(playerOf(run.state, P1).dealtEncounter).not.toContain(wind.id);
+    expect(inst(run.state, wind.id).damage).toBe(2);
   });
 });

@@ -1082,15 +1082,22 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   ) {
     return;
   }
-  if (!definition?.cost || !controller) {
+  if (!definition?.cost) {
     pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId)]);
     return;
   }
+  // A forced ability on an encounter card heard from an event no player is a subject of ("When Kang is attacked,
+  // discard Temporal Shield →", `toafk` 11014, when an enemy attacks Kang: `enemyAttacksEnemy`, `patternHearsKind`) still
+  // pays its cost before its effects resolve (RRG 1.8 "Cost", p. 13). With no player to resolve it, the first player
+  // pays a cost that takes no resources (a self-discard), as the window's other playerless decisions fall to them
+  // (RRG 1.8 "First Player", p. 19); one that takes resources nobody is resolving it to pay, so it is not resolved.
+  // Engine reading (authority step 5), no ruling covers it.
+  const payer = controller ?? ctx.state.firstPlayerId;
   const plan = planCost(
     ctx.state,
     ctx.deps,
     candidate.instanceId,
-    controller,
+    payer,
     definition.cost,
     costChoicesFor(frame, candidate),
     new Set(),
@@ -1105,6 +1112,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   // prompt carries its range, and `resolveChoice` refuses a selection below it (above it, the rest is overpaid).
   const chosenSize = resourcesChoiceOf(plan.cost ?? definition.cost);
   if (needed > 0 || definition.cost.resourcesX !== undefined || chosenSize) {
+    if (!controller) return;
     const payingFor = plan.payingFor ?? candidate.instanceId;
     const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, controller, null, payingFor));
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
@@ -1125,7 +1133,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     return;
   }
   pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, plan.vars)]);
-  payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
+  payCost(ctx, candidate.instanceId, payer, definition.cost, plan);
 }
 
 /** The answer to a `payForAbility` choice: pay and resolve, or decline by under-paying. */

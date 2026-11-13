@@ -34,7 +34,9 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { moondragonAttack } from "../../testing/enemy-attacks-enemy.js";
 import { driveEventsPicking, encounterCardInVillainArea, playFromHand, withForm } from "../../testing/staging.js";
+import { engageMinion } from "../../wave3/drax/support.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import {
   BLACK_CAT,
@@ -67,6 +69,9 @@ vi.setConfig({ testTimeout: 120_000 });
  */
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, BLACK_WIDOW) };
 const BLANK = "01186";
+/** Core Shocker: ATK 2, 3 hit points. */
+const SHOCKER = "01103";
+const NO_STATUS = { stunned: 0, confused: 0, tough: 0 } as const;
 const SEATS = [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-iron-man-aggression" }] as const;
 const GAUNTLET = "50068";
 const HOOK = "50069";
@@ -358,6 +363,23 @@ describe("the Forced Interrupt (50064)", () => {
     const { state } = attack(t);
     expect(state.mainScheme.accelerationTokens).toBe(tokens + 1);
     expect(threat(state, t.main)).toBe(3);
+    expect(damage(state, t.villain)).toBe(2);
+  });
+
+  // "When a character **you control** attacks Black Widow": a minion made to attack her (Moondragon, 19013;
+  // `enemyAttacksEnemy`, which "when this card is attacked" also hears: `patternHearsKind`) is no player's character,
+  // so nothing is removed or discarded and the minion's attack deals its damage.
+  it("a minion's attack on her (Moondragon) is not by a character you control: no threat removed, nothing discarded", () => {
+    const t = stack(game(), GAUNTLET);
+    const staged = engageMinion(patchInstance(t.state, t.villain, { statuses: NO_STATUS }), SHOCKER, "shocker");
+    const before = piles(staged).discard.length;
+    const { state, events } = moondragonAttack(DEPS, staged, "shocker" as InstanceId, t.villain);
+    expect(resolved(events).filter((id) => id.startsWith("5006"))).toEqual([]);
+    expect(threat(state, t.main)).toBe(threat(t.state, t.main));
+    // Moondragon herself is discarded as her cost; no encounter card is.
+    expect(piles(state).discard).toHaveLength(before);
+    expect(piles(state).deck.map((i) => codeOf(state, i))[0]).toBe(GAUNTLET);
+    // Shocker's 2 ATK.
     expect(damage(state, t.villain)).toBe(2);
   });
 });

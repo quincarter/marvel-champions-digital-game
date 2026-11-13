@@ -1987,7 +1987,9 @@ export function statusLimit(state: GameState, deps: EngineDeps, id: InstanceId, 
 /**
  * "X cannot be stunned" (`RuleSpec cannotHaveStatus`). `sourceInstanceId` is the card giving the status card: a rule
  * with `from` ("minions cannot stun him") refuses only a card from a giver matching it, and none when the giver is
- * unknown (null) or no longer exists.
+ * unknown (null) or no longer exists. So a caller that names no giver (a target picker, the AI, a preview asking
+ * whether X could be stunned at all) is told X is stunnable under a `from` rule: the refusal is decided only when a
+ * status card is actually given, by a known card.
  */
 export const cannotHaveStatus = (
   state: GameState,
