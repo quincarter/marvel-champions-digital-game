@@ -128,6 +128,11 @@ export interface BoostInProgress {
    * and its ability does not resolve, neither being canceled. Set when the rule is first seen to cover the card.
    */
   readonly ignored?: true;
+  /**
+   * Only its "Boost" ability is ignored (`RuleSpec ignoreBoost` with `only: "abilities"`): its icons count, its ability
+   * does not resolve and cannot be canceled. Set when such a rule is first seen to cover the card.
+   */
+  readonly abilityIgnored?: true;
   /** The boost icons its `boostCardTurnedFaceup` event announced at the flip, announced again to its responses. */
   readonly turnedIcons?: number;
   /** The event frame of its `boostCardTurnedFaceup` interrupts (`responsesLater`), while they resolve. */

@@ -1583,8 +1583,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         return report(0);
       if (effect.kind === "cancelBoostAbility") {
         // Its ability resolves as soon as the turned-faceup interrupts close, before the responses (RRG 1.8 p. 5);
-        // after that there is nothing to cancel.
-        if (boost.step !== "window" || boost.abilityCancelled) return report(0);
+        // after that there is nothing to cancel. An ability ignored on its own (`ignoreBoost` `only: "abilities"`) is
+        // not present to cancel either (RRG 1.8 "Ignore", p. 23).
+        if (boost.step !== "window" || boost.abilityCancelled || boost.abilityIgnored) return report(0);
         setFrame(ctx, { ...procedure, boost: { ...boost, abilityCancelled: true } });
         return report(1);
       }
@@ -3984,6 +3985,32 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "enemyAttack":
     case "enemyScheme":
     case "enemyActivation": {
+      // "Speed Demon attacks that character" (`hood` 24046) where that character is an enemy (an enemy's attack heard by
+      // "when a character attacks Speed Demon": `patternHearsKind`): an enemy attacking an enemy, so the
+      // `enemyAttacksEnemy` attack (docs/phase7-wave3.md §3.23, §4 Q12: an attack, not an activation, nobody defends),
+      // with its checks ("cannot attack" rules, a stunned attacker, RRG 1.8 "'Cannot'" p. 11 and "Stun" p. 41). It does
+      // not queue behind an activation in progress, as no `enemyAttacksEnemy` does, so it resolves inside the
+      // interrupt that made it ("Resolve Speed Demon's attack first"). Its boost card, for a villain or villainous
+      // attacker, goes to the player resolving this ability, as Headpool's does (FFG ruling January 26, 2026 (4)); an
+      // encounter card's ability heard from an enemy's attack has no such player, and no boost card is dealt: engine
+      // reading (authority step 5), no ruling covers it.
+      if (effect.kind === "enemyAttack" && effect.targetCharacter) {
+        const inPlayNow = cardsInPlay(ctx.state);
+        const [aimed] = targets(effect.targetCharacter).filter(
+          (id) => inPlayNow.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+        );
+        if (aimed && categoriesOf(ctx.state, aimed).includes("enemy")) {
+          const routed: EffectSpec = {
+            kind: "enemyAttacksEnemy",
+            attacker: effect.enemies,
+            target: effect.targetCharacter,
+            ...(effect.boost === false ? {} : { boost: true as const }),
+            ...(effect.bind !== undefined ? { bind: effect.bind } : {}),
+          };
+          applyEffect(ctx, routed, context, frame);
+          return;
+        }
+      }
       // An activation initiated while an enemy activation resolves waits for it, whatever started it: a Boost ability,
       // a response to its damage, or a forced response to an effect of either (RRG 1.8 "Activation", p. 6: "the newly
       // initiated activation resolves after the current activation has finished resolving"; ruling 214, Jun 13, 2024:

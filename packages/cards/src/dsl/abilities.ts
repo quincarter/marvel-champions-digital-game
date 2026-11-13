@@ -1062,6 +1062,65 @@ export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Pre
 export const ignoreBoost = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "ignoreBoost", ...(enemy ? { enemy } : {}), ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Ignore each 'Boost' ability" while the boost icons still count (The Punisher community scenario, on his attacks
+ * against minions) → `constant(ignoreBoostAbilities(self, { while: attackInProgress({ attacker: ..., target:
+ * query("minion") }) }))`: each boost card of a matching enemy's activation, or of its boosted attack on another enemy
+ * (`enemyAttacksEnemy(..., { boost: true })`), is turned faceup, its icons are added as usual, and its "Boost" ability
+ * is not resolved (nor can it be canceled). `ignoreBoost` ignores both. (`RuleSpec ignoreBoost` `only: "abilities"`.)
+ */
+export const ignoreBoostAbilities = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({
+    kind: "ignoreBoost",
+    only: "abilities",
+    ...(enemy ? { enemy } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Each boost icon counts twice during The Punisher's attacks against minions." (Extreme Prejudice, The Punisher
+ * community scenario) → `constant(boostIconsCount(2, THE_PUNISHER, { while: attackInProgress({ attacker: THE_PUNISHER,
+ * target: query("minion") }) }))`: each boost card of a matching enemy's activation (absent = any enemy), or of its
+ * boosted attack on another enemy, adds `factor` times the icons it counts (`RuleSpec boostIconsMultiplied`).
+ */
+export const boostIconsCount = (
+  factor: number,
+  enemy?: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "boostIconsMultiplied",
+    factor,
+    ...(enemy ? { enemy } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "During step 2 of the villain phase, Barracuda activates against you before The Punisher does." (The Punisher
+ * community scenario) → `constant(activatesBeforeVillain())`: the minion (default: this card) activates against its
+ * engaged player before the villain's step-2 activation against that player, not after it (RRG 1.8 "Villain Phase",
+ * p. 47; `RuleSpec activatesBeforeVillain`). Several such minions go in the engaged player's order.
+ */
+export const activatesBeforeVillain = (
+  minion: TargetQuery = { self: true },
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "activatesBeforeVillain", target: minion, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "Ronan the Accuser cannot be stunned." → `constant(cannotHaveStatus(["stunned"]))`; "Minions cannot stun him" (The
+ * Punisher community scenario) → `constant(cannotHaveStatus(["stunned"], { from: query("minion") }))`: no status card of
+ * those types is placed on `target` (default: this card), or, with `from`, none that a card matching `from` gives (the
+ * card whose ability or constant places it). A card already held stays. (`RuleSpec cannotHaveStatus`.)
+ */
+export const cannotHaveStatus = (
+  statuses: readonly ("stunned" | "confused" | "tough")[],
+  opts: { readonly target?: TargetQuery; readonly from?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotHaveStatus",
+    target: opts.target ?? { self: true },
+    statuses,
+    ...(opts.from ? { from: opts.from } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Ignore the Forced Interrupt on the main scheme." (No Longer Worthy, `aoa` 45105b; docs/phase7-wave8.md §3.21) →
  * `constant(ignoreAbilities(query("mainScheme"), ["45103b.the-age-of-apocalypse-forced-interrupt"]))`: while the rule
  * is in effect the named abilities of each matching card in play do not trigger, do not resolve and apply nothing.
@@ -3285,6 +3344,16 @@ export const on = {
   villainAttacks: (opts: EnemyAttackOptions = {}): EventPattern => enemyAttacks({ categories: ["villain"] }, opts),
   /** "When/After [enemy] schemes". */
   enemySchemes: (by: Who): EventPattern => pattern("enemyScheme", asSource(by)),
+  /**
+   * "When/After [this card] is attacked", "When a character attacks [this card]": any attack on this card, a player's
+   * character's (`attack`) or an enemy's (`enemyAttacksEnemy`, which a pattern on `attack` with the card as its target
+   * also hears: `patternHearsKind`, RRG 1.8 "Character", p. 12). `by`: only an attacker matching it, "When The Punisher
+   * attacks Jigsaw" (The Punisher community scenario); "a friendly character" is `{ not: { controller: "encounter" }
+   * }`. `eventSource` is the attacker. An interrupt's `modifyAttack` changes the attack in progress, an enemy's
+   * included: `modifyAttack({ extraBoostCards: 1 })` gives a boosted enemy-against-enemy attack another boost card.
+   */
+  thisIsAttacked: (opts: { readonly by?: TargetQuery } = {}): EventPattern =>
+    pattern("attack", { selfIs: "target" }, opts.by ? { sourceIs: opts.by } : {}),
   /** "After [enemy] schemes or attacks". */
   enemySchemesOrAttacks: (by: Who): EventPattern => pattern(["enemyScheme", "enemyAttack"], asSource(by)),
   /**

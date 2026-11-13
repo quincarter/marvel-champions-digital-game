@@ -8,10 +8,14 @@ import { describe, expect, it } from "vitest";
 import { trait } from "@mc/content";
 import type { AbilityDefinition } from "@mc/engine";
 import {
+  activatesBeforeVillain,
   agile,
+  boostIconsCount,
   cannotBeAttachedUnlessInPlay,
+  cannotHaveStatus,
   constant,
   doubleStat,
+  ignoreBoostAbilities,
   minDamageTaken,
   multiplyStat,
   on,
@@ -261,14 +265,53 @@ describe("engine-only DSL primitives", () => {
     expect(findCard({ name: "Tahlei" }, "hand")).not.toHaveProperty("anywhere");
   });
 
+  it("the Punisher pack's primitives: Boost abilities ignored, icons multiplied, early minions, status from, attacked by an enemy", () => {
+    expect(ignoreBoostAbilities()).toEqual({ rules: [{ kind: "ignoreBoost", only: "abilities" }] });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.ignore-boost-abilities"]).toMatchObject({
+      trigger: {
+        kind: "constant",
+        rules: [{ kind: "ignoreBoost", only: "abilities", enemy: { self: true }, while: { kind: "attackInProgress" } }],
+      },
+    });
+    expect(boostIconsCount(2)).toEqual({ rules: [{ kind: "boostIconsMultiplied", factor: 2 }] });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.boost-icons-multiplied"]).toMatchObject({
+      trigger: { rules: [{ kind: "boostIconsMultiplied", factor: 2, while: { kind: "attackInProgress" } }] },
+    });
+    expect(activatesBeforeVillain()).toEqual({ rules: [{ kind: "activatesBeforeVillain", target: { self: true } }] });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.activates-before-villain"]).toMatchObject({
+      trigger: { rules: [{ kind: "activatesBeforeVillain", target: { self: true } }] },
+    });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.cannot-have-status-from"]).toMatchObject({
+      trigger: { rules: [{ kind: "cannotHaveStatus", statuses: ["stunned"], from: { categories: ["minion"] } }] },
+    });
+    expect(cannotHaveStatus(["stunned"], { from: { categories: ["minion"] } })).toEqual({
+      rules: [
+        { kind: "cannotHaveStatus", target: { self: true }, statuses: ["stunned"], from: { categories: ["minion"] } },
+      ],
+    });
+    expect(on.thisIsAttacked({ by: { categories: ["villain"] } })).toEqual({
+      on: "attack",
+      selfIs: "target",
+      sourceIs: { categories: ["villain"] },
+    });
+    expect(ENGINE_ONLY_DSL_EXAMPLES["engine-only.attacked-by-enemy-extra-boost"]).toMatchObject({
+      trigger: { kind: "interrupt", forced: true, on: { on: "attack", selfIs: "target" } },
+      effects: [{ kind: "modifyAttack", extraBoostCards: { kind: "const", value: 1 } }],
+    });
+  });
+
   it("every example passes the DSL's validator and there is one per primitive", () => {
     expect(engineOnlyDslProblems()).toEqual([]);
     expect(Object.keys(ENGINE_ONLY_DSL_EXAMPLES).sort()).toEqual([
+      "engine-only.activates-before-villain",
       "engine-only.activation-boost-card",
       "engine-only.agile",
       "engine-only.attached-only-in-play",
+      "engine-only.attacked-by-enemy-extra-boost",
       "engine-only.basic-power-boost",
       "engine-only.boost-cancels-activation",
+      "engine-only.boost-icons-multiplied",
+      "engine-only.cannot-have-status-from",
       "engine-only.cannot-leave-host",
       "engine-only.card-unattached",
       "engine-only.double-next-card-spent",
@@ -279,6 +322,7 @@ describe("engine-only DSL primitives", () => {
       "engine-only.facedown-into-area",
       "engine-only.find-anywhere",
       "engine-only.has-tagged",
+      "engine-only.ignore-boost-abilities",
       "engine-only.last-played",
       "engine-only.lasting-flip-lock",
       "engine-only.lose-keyword",

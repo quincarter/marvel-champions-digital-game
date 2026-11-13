@@ -30,9 +30,9 @@ import { readPackInput, validatePack, type PackInput } from "./validate.js";
  * Rulings of The Punisher pack (content-packs/community/punisher-pk), staged on the real engine: each test sets up a
  * situation by state surgery (a card relabeled at the top of the encounter deck, a minion put into play, counters on War
  * on Crime) and then plays the villain phase. The pack is built from its source folder like any pack, so these run on what
- * a client installs. The abilities that wait for engine primitives (ignore Boost abilities, minion stun immunity,
- * activating before the villain, Jigsaw's extra boost card, Extreme Prejudice) are asserted as what they do today, each
- * under a test named "TODO(engine)" so the day the primitive lands the test that fails is the one to rewrite.
+ * a client installs. The engine primitives the pack needed (Boost abilities ignored with their icons counted, minion
+ * stun immunity, activating before the villain, an extra boost card on his attack, boost icons counting twice, and
+ * Sinister Syndicate's "when/after [it] is attacked" hearing his attacks) have their own block at the end.
  */
 const SRC = fileURLToPath(new URL("../../../content-packs/community/punisher-pk", import.meta.url));
 const P = "x.punisher-pk.";
@@ -821,42 +821,73 @@ describe("treacheries", () => {
   });
 });
 
-describe("TODO(engine): the readings that wait for a primitive (each asserts what the engine does today)", () => {
-  it("TODO(engine) ignore Boost abilities: a Boost ability on his attack against a minion still resolves today", () => {
-    // Whirlwind (01130): "[star] Boost: Deal 1 damage to each hero". Intended: ignored on this attack, its icons counted.
-    const thug = conjure(open(), "09", { hp: 9, atk: 0 });
-    const next = toNextRound(deckFor(thug.state, 0, "06", "01130"));
-    expect(damageOf(next.state, identityOf(next.state)), "2 (activation) + 1 (the Boost ability); should be 2").toBe(3);
+describe("the engine primitives the pack needed", () => {
+  it("ignore Boost abilities: on his attack against a minion the Boost ability does not resolve and the icons count", () => {
+    // Boomerang (24044): 1 boost icon, "[star] Boost: Deal 2 damage to an ally you control".
+    const ally = withAlly(open());
+    const thug = conjure(ally.state, "09", { hp: 9, atk: 0 });
+    const next = toNextRound(deckFor(thug.state, 1, "24044"));
+    expect(damageFrom(next.events, villainOf(next.state), thug.id), "2 ATK + 1 icon").toEqual([3]);
+    expect(damageOf(next.state, ally.id), "Boomerang's Boost ability is ignored").toBe(0);
+    expect(next.events.some((e) => e.type === "boostIgnored" && e.abilityOnly === true)).toBe(true);
   });
 
-  it("TODO(engine) activates before the villain: Barracuda activates after The Punisher today", () => {
+  it("ignore Boost abilities only on those attacks: his activation against you resolves one (Whirlwind, 01130)", () => {
+    // Whirlwind (01130): "[star] Boost: Deal 1 damage to each hero", as the activation's boost card.
+    const next = toNextRound(deckFor(open(), 0, "01130"));
+    expect(damageOf(next.state, identityOf(next.state)), "2 ATK + 1 from the Boost ability").toBe(3);
+  });
+
+  it("activates before the villain: Barracuda activates against you before The Punisher does", () => {
     const barracuda = conjure(open(), "10", { hp: 99, atk: 1 });
     const next = toNextRound(deckFor(barracuda.state, 3));
     const order = next.events.flatMap((e) => (e.type === "attackResolved" ? [e.enemyInstanceId] : []));
-    expect(order, "the villain first; should be Barracuda first").toEqual([villainOf(next.state), barracuda.id]);
+    expect(order).toEqual([barracuda.id, villainOf(next.state)]);
   });
 
-  it("TODO(engine) Jigsaw's extra boost card: The Punisher's attack on him takes one boost card today", () => {
-    // Boosts: the activation (filler), the attack on Jigsaw (1 icon). Intended: two, so 2 + 1 + 1 = 4 with a second Thug.
+  it("Jigsaw's Forced Interrupt: The Punisher's attack on him takes an additional boost card", () => {
+    // Boosts: the activation (filler), then the attack on Jigsaw's two (1 icon each): 2 + 1 + 1.
     const jigsaw = conjure(open(), "13", { hp: 99, atk: 0 });
     const next = toNextRound(deckFor(jigsaw.state, 1, "09", "09"));
-    expect(damageFrom(next.events, villainOf(next.state), jigsaw.id), "2 ATK + 1 icon; should be 4").toEqual([3]);
+    expect(damageFrom(next.events, villainOf(next.state), jigsaw.id)).toEqual([4]);
   });
 
-  it("TODO(engine) Extreme Prejudice: boost icons count once on his attack against a minion today", () => {
+  it("Extreme Prejudice: each boost icon counts twice on his attack against a minion", () => {
     const round1 = toNextRound(deckFor(open(), 1, "16", "06"));
     expect(inPlay(round1.state, "16").length, "Extreme Prejudice is in play").toBe(1);
     const thug = conjure(round1.state, "09", { hp: 99, atk: 0 });
     const next = toNextRound(deckFor(thug.state, 0, "06", "09"));
-    expect(damageFrom(next.events, villainOf(next.state), thug.id), "2 ATK + 1 icon; should be 2 + 2").toEqual([3]);
+    expect(damageFrom(next.events, villainOf(next.state), thug.id), "2 ATK + 1 icon counted twice").toEqual([4]);
   });
 
-  it("minions cannot stun him: Shocker's Forced Response does not stun the villain (it does not hear his attack today)", () => {
-    // Intended and kept after the primitive lands: no status card on The Punisher from a minion's ability.
+  it("Extreme Prejudice does not touch his activation against you", () => {
+    const round1 = toNextRound(deckFor(open(), 1, "16", "06"));
+    const before = damageOf(round1.state, identityOf(round1.state));
+    // The activation's boost card is a Maggia Thug (1 icon): 2 + 1, not 2 + 2.
+    const next = toNextRound(deckFor(round1.state, 0, "09"));
+    expect(damageOf(next.state, identityOf(next.state)) - before).toBe(3);
+  });
+
+  it("minions cannot stun him: Shocker hears his attack, and its 'stun the attacking character' gives him nothing", () => {
     const shocker = conjure(open(), "24045", { hp: 99, atk: 0 });
     const next = toNextRound(deckFor(shocker.state, 2));
     expect(damageFrom(next.events, villainOf(next.state), shocker.id), "the attack happened").toEqual([2]);
+    const resolved = next.events.filter(
+      (e) => e.type === "abilityResolved" && String(e.abilityId) === "24045.shocker-forced-response",
+    );
+    expect(resolved.length, "Shocker's Forced Response triggered").toBe(1);
     expect(next.state.instances[villainOf(next.state)]!.statuses.stunned).toBe(0);
+  });
+
+  it("minions cannot attack him: Speed Demon's 'attacks that character' is made against him and refused", () => {
+    const speedDemon = conjure(open(), "24046", { hp: 99, atk: 1 });
+    const next = toNextRound(deckFor(speedDemon.state, 2));
+    const backAtHim = next.events.filter(
+      (e) => e.type === "enemyAttackedEnemy" && e.attackerInstanceId === speedDemon.id,
+    );
+    expect(backAtHim.map((e) => (e.type === "enemyAttackedEnemy" ? e.skipped : null))).toEqual(["cannotAttack"]);
+    expect(damageFrom(next.events, speedDemon.id, villainOf(next.state))).toEqual([]);
+    expect(damageFrom(next.events, villainOf(next.state), speedDemon.id), "his attack still lands").toEqual([2]);
   });
 });
 

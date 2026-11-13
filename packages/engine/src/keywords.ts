@@ -469,9 +469,11 @@ export function statusCapacity(
   id: InstanceId,
   status: StatusName,
   deps: EngineDeps = DEFAULT_DEPS,
+  /** The card giving the status card, for a `cannotHaveStatus` rule's `from` ("minions cannot stun him"). */
+  sourceInstanceId: InstanceId | null = null,
 ): number {
   // "Ronan the Accuser cannot be stunned." (`ron` 90001; `cannotHaveStatus`, docs/phase7-wave3.md §3.7).
-  if (cannotHaveStatus(state, deps, id, status)) return 0;
+  if (cannotHaveStatus(state, deps, id, status, sourceInstanceId)) return 0;
   return heldStatusCapacity(state, id, status, deps);
 }
 
@@ -509,11 +511,13 @@ export function canTakeStatus(
   id: InstanceId,
   status: StatusName,
   deps: EngineDeps = DEFAULT_DEPS,
+  /** The card giving it (`statusCapacity`); null when unknown, so a source-filtered rule does not refuse it. */
+  sourceInstanceId: InstanceId | null = null,
 ): boolean {
   const instance = getInstance(state, id);
   if (instance === undefined || !categoriesOf(state, id).includes("character")) return false;
   if (!cardsInPlay(state).includes(id)) return false;
-  return instance.statuses[status] < statusCapacity(state, id, status, deps);
+  return instance.statuses[status] < statusCapacity(state, id, status, deps, sourceInstanceId);
 }
 
 /** RRG "Steady": a steady character is not stunned/confused until it holds two of that card. */

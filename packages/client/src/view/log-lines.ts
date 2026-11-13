@@ -783,6 +783,22 @@ function describe(
               : `${card(event.instanceId)}'s boost icons are cancelled.`,
         voice: "player",
       };
+    // "Ignore each 'Boost' ability" (`ignoreBoost` `only: "abilities"`, The Punisher community scenario): say why the
+    // card's Boost ability did not resolve though its icons counted. Ignoring the whole card stays silent: its flip line
+    // already shows 0 icons.
+    case "boostIgnored":
+      return event.abilityOnly
+        ? {
+            text: `${card(event.instanceId)}'s Boost ability is ignored; its boost icons still count.`,
+            voice: "villain",
+          }
+        : null;
+    // "Each boost icon counts twice" (`RuleSpec boostIconsMultiplied`): the count the boost card adds, after the flip.
+    case "boostIconsMultiplied":
+      return {
+        text: `${card(event.instanceId)}'s boost icons count ${event.factor === 2 ? "twice" : `${event.factor} times`}: ${event.icons} for ${card(event.enemyInstanceId)} instead of ${event.counted}.`,
+        voice: "villain",
+      };
     case "defenderDeclared":
       // A card ability declared the defender (`byEffect`): no exhaustion or choice is implied, so it is not "defends".
       return {

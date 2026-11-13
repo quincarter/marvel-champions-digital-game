@@ -1984,14 +1984,26 @@ export function statusLimit(state: GameState, deps: EngineDeps, id: InstanceId, 
   return limit;
 }
 
+/**
+ * "X cannot be stunned" (`RuleSpec cannotHaveStatus`). `sourceInstanceId` is the card giving the status card: a rule
+ * with `from` ("minions cannot stun him") refuses only a card from a giver matching it, and none when the giver is
+ * unknown (null) or no longer exists.
+ */
 export const cannotHaveStatus = (
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   status: "stunned" | "confused" | "tough",
+  sourceInstanceId: InstanceId | null = null,
 ): boolean =>
   activeRules(state, deps, "cannotHaveStatus").some(
-    ({ rule, context }) => rule.statuses.includes(status) && matchesQuery(state, id, rule.target, context),
+    ({ rule, context }) =>
+      rule.statuses.includes(status) &&
+      matchesQuery(state, id, rule.target, context) &&
+      (rule.from === undefined ||
+        (sourceInstanceId !== null &&
+          state.instances[sourceInstanceId] !== undefined &&
+          matchesQuery(state, sourceInstanceId, rule.from, context))),
   );
 
 /**
@@ -2177,12 +2189,47 @@ export const boostIgnored = (
   deps: EngineDeps,
   enemyId: InstanceId,
   eventFrameId: FrameId | null,
-): boolean =>
-  activeRules(state, deps, "ignoreBoost").some(({ rule, context, lastingUntil }) => {
-    if (lastingUntil?.kind === "awaitingAttack") return false;
-    if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) return false;
-    return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, context);
-  });
+): boolean => boostIgnoreScope(state, deps, enemyId, eventFrameId) === "all";
+
+/** A minion that activates before the villain in step 2 of the villain phase (`RuleSpec activatesBeforeVillain`). */
+export const activatesBeforeVillain = (state: GameState, deps: EngineDeps, minionId: InstanceId): boolean =>
+  activeRules(state, deps, "activatesBeforeVillain").some(({ rule, context }) =>
+    matchesQuery(state, minionId, rule.target, context),
+  );
+
+/**
+ * The factor each boost card of this activation's count is multiplied by (`RuleSpec boostIconsMultiplied`): the product
+ * of the matching rules' factors, 1 with none. Read at the count, so a `while` on the attack in progress is read then.
+ */
+export function boostIconFactor(state: GameState, deps: EngineDeps, enemyId: InstanceId): number {
+  let factor = 1;
+  for (const { rule, context } of activeRules(state, deps, "boostIconsMultiplied")) {
+    if (rule.enemy !== undefined && !matchesQuery(state, enemyId, rule.enemy, context)) continue;
+    factor *= Math.max(0, rule.factor);
+  }
+  return factor;
+}
+
+/**
+ * What of this activation's boost cards is ignored: `"all"` (icons and "Boost" abilities, `boostIgnored`),
+ * `"abilities"` (only the "Boost" abilities: every matching rule is `only: "abilities"`), or null (nothing).
+ */
+export function boostIgnoreScope(
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  eventFrameId: FrameId | null,
+): "all" | "abilities" | null {
+  let scope: "abilities" | null = null;
+  for (const { rule, context, lastingUntil } of activeRules(state, deps, "ignoreBoost")) {
+    if (lastingUntil?.kind === "awaitingAttack") continue;
+    if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) continue;
+    if (rule.enemy !== undefined && !matchesQuery(state, enemyId, rule.enemy, context)) continue;
+    if (rule.only !== "abilities") return "all";
+    scope = "abilities";
+  }
+  return scope;
+}
 
 /**
  * "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). A rule whose card the

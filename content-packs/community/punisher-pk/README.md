@@ -6,8 +6,8 @@ Thugs), 3 side schemes and 5 treacheries, played with the recommended modular se
 `hood` set, `sinister_syndicate`). Standard plays The Punisher I and II, expert II and III. See `CREDITS.md` and
 `PERMISSION.md`.
 
-**This pack is a draft** (the `DRAFT` file): the author has not confirmed the curators' fixes, Rachel Cole-Alves is the
-curators' proposal, and five lines wait for engine primitives. Remove `DRAFT` when those are settled.
+**This pack is a draft** (the `DRAFT` file): the author has not confirmed the curators' fixes and Rachel Cole-Alves is the
+curators' proposal. Remove `DRAFT` when those are settled.
 
 ## Source layout
 
@@ -38,23 +38,28 @@ Then by hand:
 
 Re-running the importer would overwrite the card JSON: redo the edits above.
 
-## Engine primitives still needed (marked `TODO(engine)` in `abilities/index.ts`, each pinned by a test named so)
+## Engine primitives this pack uses (added with it; `punisher-pk.test.ts`, "the engine primitives the pack needed")
 
-1. **Ignore Boost abilities, icons still count** (The Punisher, all three stages): his attack on a minion deals a boost
-   card whose icons add to the ATK but whose "Boost:" ability does not resolve. `ignoreBoost` ignores both together.
-2. **Cannot be stunned by minions** (The Punisher): a rule filtered on the source of the status card.
-3. **Activates before the villain** (Barracuda, Bullseye, Hammerhead, Jigsaw, The Russian): a per-minion flag read by
-   villain phase step 2.
-4. **Extra boost card on an attack against a minion** (Jigsaw): `extraBoostCards` applies to an activation, not to an
-   `enemyAttacksEnemy`.
-5. **Boost icons count twice** (Extreme Prejudice): a doubling modifier on `boostIconsCounting`, scoped to the Punisher's
-   attacks on minions.
+1. **Ignore Boost abilities, icons still count** (The Punisher, all three stages): `ignoreBoostAbilities` (`RuleSpec
+   ignoreBoost` with `only: "abilities"`), scoped to his attacks on minions with `attackInProgress`. The boost card is
+   dealt and turned faceup, its icons add to his ATK, its "Boost:" ability does not resolve.
+2. **Cannot be stunned by minions** (The Punisher): `cannotHaveStatus(["stunned"], { from: query("minion") })`: a
+   stunned status card a minion's ability gives him is not placed; a player card's still is.
+3. **Activates before the villain** (Barracuda, Bullseye, Hammerhead, Jigsaw, The Russian): `activatesBeforeVillain()`
+   (`RuleSpec activatesBeforeVillain`), read by villain phase step 2: the minion activates against its engaged player
+   before The Punisher's activation against that player; several go in that player's order.
+4. **Extra boost card on his attack against Jigsaw**: a Forced Interrupt on `on.thisIsAttacked({ by: The Punisher })`
+   with `modifyAttack({ extraBoostCards: 1 })`, which the engine applies to an enemy's boosted attack on an enemy as to an
+   activation.
+5. **Boost icons count twice** (Extreme Prejudice): `boostIconsCount(2, The Punisher, { while: his attack on a minion })`
+   (`RuleSpec boostIconsMultiplied`), read at each boost card's count.
 
-Besides these, one engine question: Sinister Syndicate's Shocker and Speed Demon (`hood` 24045, 24046) answer
-`{ on: "attack", selfIs: "target" }`, a player-side attack. The Punisher's attack is an `enemyAttacksEnemy`, so today
-neither hears it, and a villain is a character ("After a character attacks Shocker"). The curators' README expects both
-to react to him (and "Minions cannot attack or stun him" is there to stop it), so those two scripts (or the pattern)
-need to hear `enemyAttacksEnemy` too. `punisher-pk.test.ts` pins what happens today.
+And the engine question this pack raised, settled by the rules expert (2026-11-12; RRG 1.8 "Character", p. 12, and the
+owner's decision on enemy-against-enemy attacks, docs/phase7-wave3.md §4 Q12; no FFG ruling covers it): a "when/after
+[this card] is attacked" ability (`{ on: "attack", selfIs: "target" }`) also hears an enemy's attack on it. So Sinister
+Syndicate's Shocker and Speed Demon (`hood` 24045, 24046) answer his attacks: Shocker's "stun the attacking character"
+gives him nothing (minions cannot stun him), and Speed Demon's attack back is made and refused (minions cannot attack
+him). Hammerhead names "a friendly character", so his attack does not trigger it.
 
 ## Open items
 

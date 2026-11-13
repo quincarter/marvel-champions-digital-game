@@ -18,7 +18,7 @@ import {
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { hasPerPlayerMainSchemes } from "../per-player-main-schemes.js";
-import { cannotActivate, iconsInPlay } from "../rules.js";
+import { activatesBeforeVillain, cannotActivate, iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
@@ -150,6 +150,14 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     return;
   }
   if (!villainActivated) {
+    // "X activates against you before the villain does" (`RuleSpec activatesBeforeVillain`): those minions engaged with
+    // this player come first, in the engaged player's order (step 2b's choice), then the villain (step 2a), then the
+    // rest. Each is marked activated as it begins, so it does not activate again after the villain.
+    const early = current.playArea.filter(
+      (id) =>
+        isMinion(ctx.state, id) && !activatedMinionIds.includes(id) && activatesBeforeVillain(ctx.state, ctx.deps, id),
+    );
+    if (early.length > 0) return activateNextMinion(ctx, step, current.playerId, early);
     // Mark before resolving: the attack suspends on the defend choice and resumes here.
     setStep(ctx, { ...step, villainActivated: true });
     // Only the active villain activates (The Wrecking Crew insert, "The Active Villain"), read at each player's
@@ -186,30 +194,39 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     return;
   }
   const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));
+  if (minions.length > 0) return activateNextMinion(ctx, step, current.playerId, minions);
+  setStep(ctx, { ...step, currentPlayerId: null });
+}
+
+/**
+ * Activates the one minion of `minions` (engaged with `playerId`, not yet activated this step), or asks the engaged
+ * player which goes next when there are several: RRG 1.8 "Villain Phase" (p. 47) step 2b, "Each minion engaged with the
+ * player activates against them, in the order of that player's choice"; "Activation" (p. 6), "followed by minion
+ * activations in the order of your choice".
+ */
+function activateNextMinion(
+  ctx: Ctx,
+  step: Extract<GameStep, { kind: "enemyActivations" }>,
+  playerId: PlayerId,
+  minions: readonly InstanceId[],
+): void {
   const [only] = minions;
   if (minions.length === 1 && only) {
-    setStep(ctx, { ...step, activatedMinionIds: [...activatedMinionIds, only] });
-    activateEnemy(ctx, only, current.playerId);
+    setStep(ctx, { ...step, activatedMinionIds: [...step.activatedMinionIds, only] });
+    activateEnemy(ctx, only, playerId);
     return;
   }
-  if (minions.length > 1) {
-    // The engaged player chooses the order: RRG 1.8 "Villain Phase" (p. 47) step 2b, "Each minion engaged with the
-    // player activates against them, in the order of that player's choice"; "Activation" (p. 6), "followed by minion
-    // activations in the order of your choice".
-    requestChoice(ctx, {
-      playerId: current.playerId,
-      prompt: { kind: "chooseMinionToActivate" },
-      options: minions.map((id) => ({
-        optionId: id,
-        label: displayNameOf(ctx.state, id),
-        ref: { kind: "card", instanceId: id } as const,
-      })),
-      minSelections: 1,
-      maxSelections: 1,
-    });
-    return;
-  }
-  setStep(ctx, { ...step, currentPlayerId: null });
+  requestChoice(ctx, {
+    playerId,
+    prompt: { kind: "chooseMinionToActivate" },
+    options: minions.map((id) => ({
+      optionId: id,
+      label: displayNameOf(ctx.state, id),
+      ref: { kind: "card", instanceId: id } as const,
+    })),
+    minSelections: 1,
+    maxSelections: 1,
+  });
 }
 
 /** Applies the answer to a `chooseMinionToActivate` choice. */

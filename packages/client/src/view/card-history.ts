@@ -145,6 +145,9 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
       return [event.characterInstanceId, event.instanceId];
     case "boostCancelled":
       return [event.instanceId];
+    case "boostIgnored":
+    case "boostIconsMultiplied":
+      return [event.enemyInstanceId, event.instanceId];
     case "boostIconsCounted":
       return [event.cardInstanceId];
     case "defenderDeclared":

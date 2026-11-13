@@ -1061,6 +1061,18 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotActivate"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "During step 2 of the villain phase, Barracuda activates against you before The Punisher does." (The Punisher
+   * community scenario): in the villain phase's step 2 (RRG 1.8 "Villain Phase", p. 47: "2a. The villain activates
+   * against [the player] ... 2b. Each minion engaged with the player activates against them, in the order of that
+   * player's choice"), a matching minion engaged with the player activates against them before the villain's
+   * activation against that player, instead of after it. With several, the engaged player picks their order, as for
+   * the minions after the villain (step 2b). The other minions keep their place after the villain; each minion still
+   * activates once in the step. Read as the player's activations begin (and again after each early minion), so a
+   * minion that comes into play or gains the rule after the villain activated waits for step 2b. Only the villain
+   * phase's step 2: an effect's "the villain activates" is not reordered.
+   */
+  | { readonly kind: "activatesBeforeVillain"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "Ignore each boost icon and each 'Boost' ability for this attack" (Aerial Agility, `angel` 42004;
    * docs/phase7-wave7.md §3.67). RRG 1.8 "Ignore" (p. 23): the ignored icon or ability is treated "as not being in
    * effect or present". Each boost card of a covered activation is still turned faceup and discarded ("Attack (Enemy
@@ -1076,9 +1088,37 @@ export type RuleSpec =
    *
    * As a lasting rule until the end of an attack (`applyRuleUntil` `"endOfAttack"`) it covers that activation alone,
    * not another that begins while it resolves (`boostIgnored`, rules.ts). On a constant ability, or with any other
-   * duration, it covers every attack and scheme activation by an enemy matching `enemy` (absent = any enemy).
+   * duration, it covers every attack and scheme activation by an enemy matching `enemy` (absent = any enemy), and an
+   * enemy's boosted attack on another enemy (`enemyAttacksEnemy.boost`, which deals its boost cards the same way).
+   *
+   * `only: "abilities"`: "ignore each 'Boost' ability" alone (The Punisher community scenario, "when he attacks a
+   * minion ... ignore each 'Boost' ability"): the card's boost icons count as usual (printed, amplify, added), and only
+   * its "Boost" ability is not resolved; logged `boostIgnored` with `abilityOnly`. A rule ignoring both wins over it.
+   * Scope it to one kind of attack with a `while` (`attackInProgress`), read at the flip and again before the ability.
    */
-  | { readonly kind: "ignoreBoost"; readonly enemy?: TargetQuery; readonly while?: Predicate }
+  | {
+      readonly kind: "ignoreBoost";
+      readonly enemy?: TargetQuery;
+      readonly only?: "abilities";
+      readonly while?: Predicate;
+    }
+  /**
+   * "Each boost icon counts twice during The Punisher's attacks against minions." (Extreme Prejudice, The Punisher
+   * community scenario): each boost card of an activation by a matching enemy (absent = any enemy) adds `factor` times
+   * its counted icons, including an enemy's boosted attack on another enemy (`enemyAttacksEnemy.boost`). Read at each
+   * card's count (RRG 1.8 "Boost, Boost Icon", p. 11: the icons are added after the card's Boost ability), after
+   * everything else that sets that count: printed icons, amplify icons, "+N boost icons each", a "for this count"
+   * adjustment, icons a Boost ability gave the card and cards applied "as if it were a boost card", so each of those
+   * icons counts `factor` times too. A cancelled count stays 0 and an ignored card adds 0. Several matching rules
+   * multiply (two "counts twice" make four): engine reading (authority step 5), no official card does this. Scope it to
+   * one kind of attack with a `while` (`attackInProgress`). Logged `boostIconsMultiplied` when it changes a count.
+   */
+  | {
+      readonly kind: "boostIconsMultiplied";
+      readonly factor: number;
+      readonly enemy?: TargetQuery;
+      readonly while?: Predicate;
+    }
   /**
    * "Ignore the Forced Interrupt on the main scheme." (No Longer Worthy, `aoa` 45105b; docs/phase7-wave8.md §3.21.)
    * While the rule is in effect, the abilities named in `abilities` on each card in play matching `on` are not there:
@@ -2452,10 +2492,22 @@ export type RuleSpec =
       readonly player?: PlayerRef;
       readonly while?: Predicate;
     }
+  /**
+   * "Ronan the Accuser cannot be stunned." (`ron` 90001; docs/phase7-wave3.md §3.7): no new status card of these types
+   * is placed on a matching character (`statusCapacity` is 0 for it); one already held stays (FFG ruling Feb 15, 2024,
+   * #145).
+   *
+   * `from`: "Minions cannot ... stun him" (The Punisher community scenario): only a status card that a card matching
+   * `from` gives is refused, the giver being the card whose ability places it (`StatusGiver.sourceInstanceId`). A status
+   * card with no giving card, or from any other card, is placed as usual. RRG 1.8 "'Cannot'" (p. 11): the effect is
+   * stopped, not the ability that tries it, so "after Shocker is attacked, stun the attacking character" still triggers
+   * and gives nothing.
+   */
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;
       readonly statuses: readonly ("stunned" | "confused" | "tough")[];
+      readonly from?: TargetQuery;
       readonly while?: Predicate;
     }
   /**

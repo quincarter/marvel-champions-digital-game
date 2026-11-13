@@ -2759,6 +2759,29 @@ export function hearsEncounterDeckDiscard(pattern: EventPattern): boolean {
 }
 
 /**
+ * Whether a pattern hears `kind` among its own `on` kinds, or through the one alias the engine makes: a pattern on
+ * `attack` with the card itself the target (`{ on: "attack", selfIs: "target" }`, "When/After [this card] is attacked",
+ * "When a character attacks [this card]") also hears an `enemyAttacksEnemy` with this card the attacked enemy.
+ *
+ * An enemy is a character (RRG 1.8 "Character", p. 12: "Identities, allies, villains and minions are characters"), so an
+ * enemy's attack on this card is "a character attacks" it; and the owner's decision on enemy-against-enemy attacks
+ * (docs/phase7-wave3.md §4 Q12, §3.23) already gives the target its tough status, damage reduction and retaliate as for
+ * any attack. No FFG ruling covers an enemy's attack against an enemy with such an ability (Sinister Syndicate's Shocker
+ * 24045, Speed Demon 24046; The Punisher community scenario), so this is the rules-expert's reading of the RRG
+ * (2026-11-12), at authority step 5. A text that names who attacks still has to say so: "a character **you control**
+ * attacks Black Widow" (`aos` 50064) adds a `sourceIs` with a controller. The rest of the pattern reads the
+ * `enemyAttacksEnemy` event as it is: its source is the attacking enemy, it has no player subject (so a `playerIs`
+ * pattern never matches it), and the `attack`-only fields (`attackKind`, `attackHas`, `sourceAbility`) never match it.
+ * A "cannot attack" or "cannot be stunned" rule then stops what the ability does, not the trigger (RRG 1.8 "'Cannot'",
+ * p. 11).
+ */
+export function patternHearsKind(pattern: EventPattern, kind: TriggerEventKind): boolean {
+  const kinds: readonly TriggerEventKind[] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+  if (kinds.includes(kind)) return true;
+  return kind === "enemyAttacksEnemy" && pattern.selfIs === "target" && kinds.includes("attack");
+}
+
+/**
  * The suffix of the slot that keeps, beside a set of cards "discarded this way", the cards a response to their discard
  * took away from it (`settleDeckDiscards`, docs/phase7-wave7.md §4.1 Q32): `<slot>.takenAway`. The discarding ability
  * no longer counts them, and they are still the cards it discarded (`abilityResolved.carried`).

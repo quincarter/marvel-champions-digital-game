@@ -1167,7 +1167,28 @@ export type GameEvent =
    * "Ignore", p. 23): it is turned faceup and discarded as usual, adds 0 and resolves no ability. Not a cancel, so no
    * `boostCancelled` goes with it. Logged once per card, after its `boostCardFlipped` (whose `boostIcons` is then 0).
    */
-  | { readonly type: "boostIgnored"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId }
+  | {
+      readonly type: "boostIgnored";
+      readonly enemyInstanceId: InstanceId;
+      readonly instanceId: InstanceId;
+      /**
+       * Only the card's "Boost" ability is ignored (`RuleSpec ignoreBoost` with `only: "abilities"`): its icons count
+       * as usual, and its `boostCardFlipped` carries them.
+       */
+      readonly abilityOnly?: true;
+    }
+  /**
+   * A boost card's count was multiplied (`RuleSpec boostIconsMultiplied`, "each boost icon counts twice"): `counted` is
+   * what it would have added, `icons` what it adds. Logged at the count, before the card is discarded.
+   */
+  | {
+      readonly type: "boostIconsMultiplied";
+      readonly enemyInstanceId: InstanceId;
+      readonly instanceId: InstanceId;
+      readonly factor: number;
+      readonly counted: number;
+      readonly icons: number;
+    }
   | {
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;

@@ -2,9 +2,12 @@ import type { AbilityRegistry } from "@mc/engine";
 import { trait } from "@mc/content";
 import {
   action,
+  activatesBeforeVillain,
   agile,
   boost,
+  boostIconsCount,
   cannotBeAttachedUnlessInPlay,
+  cannotHaveStatus,
   constant,
   costModifier,
   discardThis,
@@ -13,6 +16,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   heroInterrupt,
+  ignoreBoostAbilities,
   minDamageTaken,
   on,
   resourcesGeneratedAsWild,
@@ -37,6 +41,7 @@ import {
   instead,
   loseKeywordUntil,
   loseTraitUntil,
+  modifyAttack,
   moveCards,
   putIntoPlayFacedown,
   replaceNextVillainPhaseWithPlayerPhase,
@@ -48,6 +53,7 @@ import {
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
+  attackInProgress,
   chosen,
   each,
   eachPlayer,
@@ -185,6 +191,31 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   // "Summon the Tahlei upgrade and add it to your hand": search everywhere in or out of play (`findCard.anywhere`).
   "engine-only.find-anywhere": action(
     findCard(query("upgrade", { name: "Tahlei" }), "hand", { owner: you, anywhere: true }),
+  ),
+  // The Punisher community scenario (`punisher-pk`). "Ignore each 'Boost' ability" during his attacks on minions, the
+  // icons still counting (`RuleSpec ignoreBoost` `only: "abilities"`).
+  "engine-only.ignore-boost-abilities": constant(
+    ignoreBoostAbilities(
+      { self: true },
+      { while: attackInProgress({ attacker: { self: true }, target: query("minion") }) },
+    ),
+  ),
+  // "Each boost icon counts twice during The Punisher's attacks against minions" (`RuleSpec boostIconsMultiplied`).
+  "engine-only.boost-icons-multiplied": constant(
+    boostIconsCount(2, query("villain"), {
+      while: attackInProgress({ attacker: query("villain"), target: query("minion") }),
+    }),
+  ),
+  // "During step 2 of the villain phase, Barracuda activates against you before The Punisher does" (`RuleSpec
+  // activatesBeforeVillain`).
+  "engine-only.activates-before-villain": constant(activatesBeforeVillain()),
+  // "Minions cannot stun him" (`RuleSpec cannotHaveStatus` `from`).
+  "engine-only.cannot-have-status-from": constant(cannotHaveStatus(["stunned"], { from: query("minion") })),
+  // "When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack": an interrupt to an
+  // enemy's attack on this card (`on.thisIsAttacked`, heard on `enemyAttacksEnemy`) that gives it another boost card.
+  "engine-only.attacked-by-enemy-extra-boost": forcedInterrupt(
+    on.thisIsAttacked({ by: query("villain") }),
+    modifyAttack({ extraBoostCards: 1 }),
   ),
 };
 

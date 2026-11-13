@@ -2424,7 +2424,12 @@ export type EffectSpec =
        * prevention. A tough card that absorbs the damage leaves the budget unspent (nothing is taken to prevent).
        */
       readonly preventDamage?: ValueSpec;
-      /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
+      /**
+       * A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist;
+       * §3.11). An enemy's boosted attack on another enemy (`enemyAttacksEnemy.boost`) takes it too, from an interrupt
+       * to that attack: "When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack"
+       * (The Punisher community scenario; the attack's boost cards are dealt from its own event frame).
+       */
       readonly extraBoostCards?: number | ValueSpec;
       /**
        * "Do not give Master Mold a boost card for this activation" (Master Mold I–III, `mut_gen` 32109–32111;

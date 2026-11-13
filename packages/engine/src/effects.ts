@@ -327,7 +327,7 @@ export function giveStatus(
   reason?: "constant",
 ): boolean {
   const instance = mustInstance(ctx.state, id);
-  if (!canTakeStatus(ctx.state, id, status, ctx.deps)) return false;
+  if (!canTakeStatus(ctx.state, id, status, ctx.deps, by.sourceInstanceId)) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
   emit(ctx, { type: "statusGiven", instanceId: id, status, ...(reason ? { reason } : {}) });

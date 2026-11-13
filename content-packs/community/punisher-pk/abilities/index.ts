@@ -11,19 +11,21 @@
  *   shape), which is the "cannot be defended, not made against a player" of the villain's text.
  * - War on Crime defines the war counter (`definedCounterTypes: ["war"]` in its card record); every threshold reads the
  *   counters on it live, so a threshold turns off again when counters leave.
- * - Three pieces still need engine primitives; each is a marked `TODO(engine)` below and listed in the README:
- *   (1) "ignore each Boost ability" with the boost icons still counting, on the Punisher's attacks on minions;
- *   (2) "Minions cannot stun him"; (3) a per-minion "activates before the villain" order; (4) Jigsaw's extra boost card
- *   on an attack against a minion; (5) Extreme Prejudice doubling boost icons. Until they exist those lines do nothing.
+ * - An attack on a minion is heard by that minion's "when/after [it] is attacked" (`on.thisIsAttacked`; the engine's
+ *   `patternHearsKind`, rules-expert reading 2026-11-12 of RRG 1.8 "Character", p. 12): Sinister Syndicate's Shocker and
+ *   Speed Demon (`hood` 24045, 24046) answer his attacks, and "Minions cannot attack or stun him" stops what they do.
  */
 import {
   action,
+  activatesBeforeVillain,
   addCounters,
   after,
   allOf,
   andThen,
   attackInProgress,
   bindTargets,
+  boostIconsCount,
+  cannotHaveStatus,
   chooseTarget,
   chosen,
   constant,
@@ -53,7 +55,9 @@ import {
   giveTough,
   heal,
   ifThen,
+  ignoreBoostAbilities,
   instead,
+  modifyAttack,
   moveCards,
   encounterCards,
   named,
@@ -96,6 +100,8 @@ const THE_PUNISHER = query("villain", { name: "The Punisher" });
 const ALLY_OR_ENEMY = { anyOf: [query("ally"), query("enemy")] };
 /** "An encounter card" as the source of damage: a card with no controller (the villain, a minion, a treachery, ...). */
 const ENCOUNTER_CARD = { controller: "encounter" } as const;
+/** "While The Punisher attacks a minion": his attacks from his own forced response (the only attacks he makes on one). */
+const PUNISHER_ATTACKS_A_MINION = attackInProgress({ attacker: THE_PUNISHER, target: query("minion") });
 
 /** "If the number of war counters here is at least N[per_hero]". */
 const warAtLeast = (n: number) => valueAtLeast(countersOn(self, "war"), perHero(n));
@@ -105,11 +111,8 @@ const punisherStage = (stage: "i" | "ii" | "iii") => ({
   // [star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you.
   // Modeled on Headpool (44014, `enemyAttacksEnemy` with a boost card) and Whirlwind (01130, "also" attacks): one attack
   // per minion engaged with the player he activated against, resolved in an order the first player picks (forEachCard's
-  // default chooser). Rachel Cole-Alves is skipped by her own "cannot attack" rule.
-  // TODO(engine): "ignore each 'Boost' ability" while the boost icons still count. `ignoreBoost` and
-  // `ignoreBoostForThisAttack` ignore icons and abilities together (Aerial Agility 42004). Needed: an abilities-only
-  // variant that applies to this `enemyAttacksEnemy` attack: boost card dealt, icons added to the ATK, no "Boost:" ability
-  // resolved.
+  // default chooser). Rachel Cole-Alves is skipped by her own "cannot attack" rule. "Ignore each 'Boost' ability" is the
+  // constant below (`ignoreBoostAbilities`): the boost card is dealt and its icons add to his ATK.
   [`x.punisher-pk.01.activation-attacks-minions-${stage}`]: forcedResponse(
     on.enemyActivates("self", { againstYou: true }),
     forEachCard(
@@ -126,21 +129,26 @@ const punisherStage = (stage: "i" | "ii" | "iii") => ({
     { ...on.defeated(ALLY_OR_ENEMY), sourceIs: ENCOUNTER_CARD },
     addCounters("war", 1, WAR_ON_CRIME),
   ),
-  // Minions cannot attack or stun him. (Printed in the first ability's box; its own constant here.) Attack: Speed Demon's
-  // attack back and any minion's attack on him are `cannotAttack` with `attacker` the minions (docs/phase7-wave2.md 25).
-  // TODO(engine): "cannot be stunned by" a minion (Sinister Syndicate's Shocker stuns the attacker, 24045): a rule filtered
-  // on the source of the status card, so a minion's effect cannot place a stunned status card on him.
+  // Minions cannot attack or stun him, and his attacks on minions ignore each "Boost" ability. (Printed in the first
+  // ability's box; its own constant here.) Attack: Speed Demon's attack back and any minion's attack on him are
+  // `cannotAttack` with `attacker` the minions (docs/phase7-wave2.md 25). Stun: no stunned status card a minion gives
+  // (Shocker's "stun the attacking character", 24045) is placed on him (`cannotHaveStatus` `from`); a player card's still
+  // is. Both triggers still resolve and do nothing (RRG 1.8 "'Cannot'", p. 11). Boost: during his attack on a minion
+  // each boost card's icons count and its "Boost" ability is ignored (`ignoreBoostAbilities`).
   [`x.punisher-pk.01.minions-cannot-attack-${stage}`]: constant(
     rule({ kind: "cannotAttack", attacker: query("minion"), target: { self: true } }),
+    cannotHaveStatus(["stunned"], { from: query("minion") }),
+    ignoreBoostAbilities({ self: true }, { while: PUNISHER_ATTACKS_A_MINION }),
   ),
 });
 
-/** "During step 2 of the villain phase, X activates against you before The Punisher does." */
-// TODO(engine): a per-minion "activates before the villain" flag. RRG 1.8 villain phase step 2 resolves the villain
-// first, then each minion; `activationOrder` orders villains only (The Sinister Six). Needed: a keyword-like grant on a
-// minion (`activatesBeforeVillain`) read by the step-2 loop, so the minion activates against its engaged player ahead of
-// the villain's activation against that player. Until then it is an empty constant and the minion activates after him.
-const ACTIVATES_BEFORE_THE_VILLAIN = () => constant();
+/**
+ * "During step 2 of the villain phase, X activates against you before The Punisher does." (`activatesBeforeVillain`):
+ * RRG 1.8 "Villain Phase" (p. 47) step 2 has the villain activate against each player (2a) before that player's minions
+ * (2b); this minion goes ahead of 2a for its engaged player. With several, the engaged player picks their order (2b's
+ * choice). The villain here is The Punisher, the only villain of the scenario.
+ */
+const ACTIVATES_BEFORE_THE_VILLAIN = () => constant(activatesBeforeVillain());
 
 export default definePackAbilities({
   ...punisherStage("i"),
@@ -226,13 +234,13 @@ export default definePackAbilities({
   // filter in its check, above), so the card's own ability is text with nothing to resolve (as Breakout, 07001a).
   "x.punisher-pk.09.maggia-thug-constant": constant(),
 
-  // Barracuda — Toughness (data).
+  // Barracuda — Toughness (data); activates before The Punisher (`ACTIVATES_BEFORE_THE_VILLAIN` above).
   "x.punisher-pk.10.barracuda-constant": ACTIVATES_BEFORE_THE_VILLAIN(),
   // When Defeated: If Barracuda was defeated by The Punisher, give The Punisher a tough status card. A When Defeated reads
   // the defeat's source (`eventSource`), as Hydra Soldier's reads the defeating player (core hydra-and-doomsday).
   "x.punisher-pk.10.when-defeated": whenDefeated(ifThen(refMatches(eventSource, THE_PUNISHER), giveTough(theVillain))),
 
-  // Bullseye — activates before The Punisher (TODO above).
+  // Bullseye — activates before The Punisher (`ACTIVATES_BEFORE_THE_VILLAIN` above).
   "x.punisher-pk.11.bullseye-constant": ACTIVATES_BEFORE_THE_VILLAIN(),
   // Forced Response: After Bullseye attacks and damages an ally, discard that ally. Modeled on Sonic Converter (01118:
   // after the villain attacks and damages a character, act on that character).
@@ -245,24 +253,30 @@ export default definePackAbilities({
     ifThen(refMatches(eventSource, THE_PUNISHER), addCounters("war", perHero(1), WAR_ON_CRIME)),
   ),
 
-  // Hammerhead — activates before The Punisher (TODO above).
+  // Hammerhead — activates before The Punisher (`ACTIVATES_BEFORE_THE_VILLAIN` above).
   "x.punisher-pk.12.hammerhead-constant": ACTIVATES_BEFORE_THE_VILLAIN(),
-  // Forced Response: After a friendly character attacks Hammerhead, stun that character. Modeled on Shocker (24045). Only
-  // a friendly character makes an `attack`; the Punisher's attacks are `enemyAttacksEnemy` and are not heard.
-  "x.punisher-pk.12.hammerhead-forced-response": forcedResponse({ on: "attack", selfIs: "target" }, stun(eventSource)),
+  // Forced Response: After a friendly character attacks Hammerhead, stun that character. Modeled on Shocker (24045), with
+  // the attacker a player's character (a card with a controller): The Punisher's attack on him is heard by "is attacked"
+  // patterns too, and he is not a friendly character.
+  "x.punisher-pk.12.hammerhead-forced-response": forcedResponse(
+    on.thisIsAttacked({ by: { not: ENCOUNTER_CARD } }),
+    stun(eventSource),
+  ),
   // When Defeated: If Hammerhead was defeated by The Punisher, place 1[per_hero] threat on the main scheme.
   "x.punisher-pk.12.when-defeated": whenDefeated(
     ifThen(refMatches(eventSource, THE_PUNISHER), placeThreat(perHero(1), theMainScheme)),
   ),
 
-  // Jigsaw — activates before The Punisher (TODO above).
+  // Jigsaw — activates before The Punisher (`ACTIVATES_BEFORE_THE_VILLAIN` above).
   "x.punisher-pk.13.jigsaw-constant": ACTIVATES_BEFORE_THE_VILLAIN(),
-  // Forced Interrupt: When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack.
-  // TODO(engine): `modifyAttack({ extraBoostCards })` and `extraBoostCards` on `enemyActivates` act on an activation; the
-  // Punisher's attack on Jigsaw is an `enemyAttacksEnemy`. Needed: an interrupt to `enemyAttacksEnemy` (pattern: this
-  // card is the target, the attacker a villain) that adds boost cards to that attack (`modifyAttack`-style, read where
-  // the attack's boost cards are dealt, resolve/event.ts enemyAttacksEnemy with `boostPlayerId`). Empty until then.
-  "x.punisher-pk.13.jigsaw-forced-interrupt": constant(),
+  // Forced Interrupt: When The Punisher attacks Jigsaw, give The Punisher an additional boost card for this attack. An
+  // interrupt to his attack on Jigsaw (`on.thisIsAttacked`, heard on his `enemyAttacksEnemy`), whose `modifyAttack` adds
+  // a boost card to that attack as to an activation (Swinging Assault's "1 additional boost card", `sm` 27168). Both
+  // cards' icons count; their "Boost" abilities are ignored (the villain's own text).
+  "x.punisher-pk.13.jigsaw-forced-interrupt": forcedInterrupt(
+    on.thisIsAttacked({ by: THE_PUNISHER }),
+    modifyAttack({ extraBoostCards: 1 }),
+  ),
   // When Defeated: If Jigsaw was defeated by The Punisher, heal 3 damage from The Punisher.
   "x.punisher-pk.13.when-defeated": whenDefeated(ifThen(refMatches(eventSource, THE_PUNISHER), heal(3, theVillain))),
 
@@ -283,7 +297,7 @@ export default definePackAbilities({
     heal(2, theVillain),
   ),
 
-  // The Russian — activates before The Punisher (TODO above).
+  // The Russian — activates before The Punisher (`ACTIVATES_BEFORE_THE_VILLAIN` above).
   "x.punisher-pk.15.the-russian-constant": ACTIVATES_BEFORE_THE_VILLAIN(),
   // Forced Interrupt: When The Russian would be defeated by a friendly character or a player card, discard the top card of
   // the encounter deck. If that card is a minion, reset The Russian's hit points to 1 instead. Modeled on Loki (06028:
@@ -299,12 +313,12 @@ export default definePackAbilities({
     ),
   ),
 
-  // Extreme Prejudice — Each boost icon counts twice during The Punisher's attacks against minions.
-  // TODO(engine): a doubling modifier on the `boostIconsCounting` event (Scarlet Witch's Crest adds +1; this multiplies
-  // the count), scoped to an attack by The Punisher whose target is a minion. Shape: an interrupt or rule on
-  // `boostIconsCounting` with a `factor: 2` (or "count each icon N times"), conditioned on `attackInProgress({ attacker:
-  // The Punisher, target: a minion })`. Empty until then.
-  "x.punisher-pk.16.extreme-prejudice-constant": constant(),
+  // Extreme Prejudice — Each boost icon counts twice during The Punisher's attacks against minions. (`boostIconsCount`:
+  // each of his boost cards adds twice its counted icons while he attacks a minion; his activations against a player are
+  // untouched. Rachel's +2 ATK is ATK, not a boost icon, so it is not doubled.)
+  "x.punisher-pk.16.extreme-prejudice-constant": constant(
+    boostIconsCount(2, THE_PUNISHER, { while: PUNISHER_ATTACKS_A_MINION }),
+  ),
 
   // War on Vigilantes — [star] Hinder 1[per_hero] (data). Forced Interrupt: When the villain phase ends, in player order,
   // each player discards the top card of the encounter deck. Each player who discards a minion this way puts it into play

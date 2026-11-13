@@ -22,7 +22,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "additionalFormChanged",
   "additionalMulligansGranted",
   "boostCardMoved",
-  "boostIgnored",
   "campaignCardRemoved",
   "campaignInstructionResolved",
   "campaignLogRead",
