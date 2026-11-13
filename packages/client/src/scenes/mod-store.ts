@@ -736,8 +736,8 @@ export class ModStoreScene extends Phaser.Scene {
   }
 
   /**
-   * A pack's cover into `rect`, whole (contain: its title and credit stay in), centered on whatever ground is behind it:
-   * the installed copy's own file first, so it shows offline, else the catalog's thumbnail. Null while it loads.
+   * A pack's cover into `rect`, whole (contain: its title and credit stay in), centered on whatever ground is behind
+   * it: the installed copy's own file first, so it shows offline, else the catalog's thumbnail. Null while it loads.
    */
   #drawCover(packId: string, cover: PackCover, rect: Rect): Phaser.GameObjects.Image | null {
     const source: ArtSource | null =
@@ -780,7 +780,9 @@ export class ModStoreScene extends Phaser.Scene {
         return objects;
       }
     }
-    const first = featuredFacesOf(preview, tile.baseUrl, artLanguageNow(), ruleCardsOf(tile))[0];
+    // A pack with a cover shows the initial while the cover loads, not the featured face it would then swap away from.
+    const first =
+      art.kind === "cover" ? undefined : featuredFacesOf(preview, tile.baseUrl, artLanguageNow(), ruleCardsOf(tile))[0];
     if (first) {
       objects.push(
         ...this.#drawCardFace(

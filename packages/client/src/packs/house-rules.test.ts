@@ -241,6 +241,11 @@ describe("Lost Traits: switched on in Table setup", () => {
     const cardOf = resumed.state.instances[identity]!.cardId as string;
     expect(cardOf).toBe("01001a");
     expect(heroTraitsIn(poolViewWithPacks(resumed.config!.packs!).cards, "01001a")).toContain("WEB-WARRIOR");
+    // The engine sees it: built from the resumed config's packs alone (nothing installed), flipped Spider-Man is a
+    // Web-Warrior and a trait-gated card (Spider-Ham) is offered.
+    const afterResume = spiderHamOffered(resumed.config!.packs!);
+    expect(afterResume.identityTraits).toContain("WEB-WARRIOR");
+    expect(afterResume.offered).toBe(true);
   });
 });
 

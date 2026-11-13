@@ -18,6 +18,7 @@ describe("pack covers", () => {
   const webp = (chunk: string, body: number[]): Uint8Array => {
     const out = new Uint8Array(32);
     [..."RIFF"].forEach((c, i) => (out[i] = c.charCodeAt(0)));
+    out[4] = out.length - 8;
     [...`WEBP${chunk}`].forEach((c, i) => (out[8 + i] = c.charCodeAt(0)));
     body.forEach((b, i) => (out[20 + i] = b));
     return out;
@@ -44,6 +45,10 @@ describe("pack covers", () => {
       webpSize(new TextEncoder().encode("\x89PNG\r\n\x1a\n and some more bytes to be long enough")),
     ).toBeUndefined();
     expect(webpSize(new Uint8Array(4))).toBeUndefined();
+    // Truncated: the RIFF header promises more bytes than the file has.
+    const whole = webp("VP8 ", [0, 0, 0, 0x9d, 0x01, 0x2a, 0x58, 0x02, 0xd8, 0x03]);
+    expect(webpSize(whole)).toBeDefined();
+    expect(webpSize(whole.subarray(0, 31))).toBeUndefined();
     expect(webpSize(webp("VP8 ", [0, 0, 0, 1, 2, 3]))).toBeUndefined();
   });
 

@@ -16,6 +16,7 @@
  * `card-art.ts` can import it without pulling the pack code into the board.
  */
 import {
+  houseRuleMayRebuild,
   packIdOfCardCode,
   parsePackCardImagePath,
   resolvePackCardImage,
@@ -73,11 +74,34 @@ function announceSoon(): void {
  * its own install and remove). Announces an art change when a pack is there to show, so a card drawn before the packs
  * finished loading asks again.
  */
-export function setPackArt(manifests: readonly PackManifest[], from: PackArtStore | undefined): void {
+export function setPackArt(
+  manifests: readonly PackManifest[],
+  from: PackArtStore | undefined,
+  unloaded: readonly PackManifest[] = [],
+): void {
   store = from;
   const previousSize = packs.size;
-  packs = new Map(
-    manifests.map((manifest) => [
+  packs = new Map([
+    // An installed pack that is not loaded (its game is too old, a requirement is missing) still shows its own cover in
+    // the Mod Store, offline: only that one file, never a card picture.
+    ...unloaded.flatMap((manifest): [string, PackArtPack][] =>
+      typeof manifest.cover === "string" && manifest.files.some((file) => file.path === manifest.cover)
+        ? [
+            [
+              manifest.id,
+              {
+                id: manifest.id,
+                version: manifest.version,
+                languages: undefined,
+                files: new Set([manifest.cover]),
+                pictures: undefined,
+                houseRule: undefined,
+              },
+            ],
+          ]
+        : [],
+    ),
+    ...manifests.map((manifest): [string, PackArtPack] => [
       manifest.id,
       {
         id: manifest.id,
@@ -88,7 +112,7 @@ export function setPackArt(manifests: readonly PackManifest[], from: PackArtStor
         houseRule: manifest.houseRule,
       },
     ]),
-  );
+  ]);
   for (const key of [...fileOfKey.keys()]) {
     const info = fileOfKey.get(key)!;
     const pack = packs.get(info.id);
@@ -129,9 +153,13 @@ export function packArtFor(code: string, lang: string): ArtSource | null {
  * A house-rule pack's rebuilt face of official face code `code` (`cards/<lang>/<code>.webp`), in `lang` or the pack's
  * base language, or null when the pack is not a loaded house rule, has no such face, or its URL is still being read.
  */
-export function houseRuleFaceFor(packId: string, code: string, lang: string): ArtSource | null {
+export function houseRuleFaceFor(packId: string, code: string, lang: string, version?: string): ArtSource | null {
   const pack = packs.get(packId);
   if (!pack?.houseRule) return null;
+  // Only a face the rule owns (its trait additions, or the Balanced cards) and, for a game carrying the rule, the
+  // version the game was set up with: any other picture or version keeps the printed face.
+  if (version !== undefined && pack.version !== version) return null;
+  if (!houseRuleMayRebuild(pack.houseRule, code)) return null;
   const path = resolvePackCardImage(pack.languages, code, lang, (candidate) => pack.files.has(candidate));
   return path === undefined ? null : sourceOf(pack, path);
 }

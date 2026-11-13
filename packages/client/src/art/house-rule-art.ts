@@ -8,15 +8,26 @@
 export interface HouseRuleArtConfig {
   readonly packs?: readonly {
     readonly id: string;
+    readonly version?: string;
     readonly houseRule?: { readonly traitAdditions?: readonly unknown[] };
   }[];
 }
 
-/** The trait house rules a game carries (`SessionConfig.packs`), by pack id: the rules it was set up with. */
-export function houseRuleFacesOf(config: HouseRuleArtConfig | null | undefined): readonly string[] {
+/** A trait house rule a game was set up with: its pack id and the version embedded in the game. */
+export interface HouseRuleFace {
+  readonly id: string;
+  readonly version: string;
+}
+
+/**
+ * The trait house rules a game carries (`SessionConfig.packs`), by pack id and embedded version: the rules it was set
+ * up with. Only an installed pack at exactly this version shows its faces (`art-source.ts`), since the traits the game
+ * plays with are this version's; another version's picture could print other traits.
+ */
+export function houseRuleFacesOf(config: HouseRuleArtConfig | null | undefined): readonly HouseRuleFace[] {
   return (config?.packs ?? [])
     .filter((pack) => (pack.houseRule?.traitAdditions?.length ?? 0) > 0)
-    .map((pack) => pack.id);
+    .map((pack) => ({ id: pack.id, version: pack.version ?? "" }));
 }
 
 /**
@@ -28,7 +39,7 @@ export class HouseRuleArtGate {
   #config: HouseRuleArtConfig | null = null;
   #key = "";
 
-  constructor(private readonly apply: (packIds: readonly string[]) => void) {}
+  constructor(private readonly apply: (rules: readonly HouseRuleFace[]) => void) {}
 
   /** The current game's config (null with no game): call it on every store update. */
   setConfig(config: HouseRuleArtConfig | null): void {
@@ -47,10 +58,10 @@ export class HouseRuleArtGate {
   }
 
   #refresh(): void {
-    const ids = this.#screens > 0 ? houseRuleFacesOf(this.#config) : [];
-    const key = ids.join(",");
+    const rules = this.#screens > 0 ? houseRuleFacesOf(this.#config) : [];
+    const key = rules.map((rule) => `${rule.id}@${rule.version}`).join(",");
     if (key === this.#key) return;
     this.#key = key;
-    this.apply(ids);
+    this.apply(rules);
   }
 }

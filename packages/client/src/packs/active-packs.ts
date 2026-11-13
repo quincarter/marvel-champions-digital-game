@@ -185,6 +185,7 @@ export async function loadActivePacks(
   setPackArt(
     installed.filter((pack) => loaded.has(pack.id)).map((pack) => pack.manifest),
     store,
+    installed.filter((pack) => !loaded.has(pack.id)).map((pack) => pack.manifest),
   );
   for (const listener of [...listeners]) listener(result);
   return result;

@@ -455,6 +455,11 @@ describe("a tile's art", () => {
       expect(broken.cover).toBeUndefined();
     });
 
+    it("takes the catalog's thumbnail as the cover only for the latest version", () => {
+      const older = { ...tile, version: "0.9.0" };
+      expect(tileArtOf(older, withCover("cover.webp"), "en")).not.toMatchObject({ kind: "cover" });
+    });
+
     it("ignores a preview cover that is not a .webp pack path", () => {
       expect(withCover("../cover.webp").cover).toBeUndefined();
       expect(withCover(7).cover).toBeUndefined();

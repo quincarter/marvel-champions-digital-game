@@ -23,7 +23,12 @@ function source(over: Partial<PackSource["author"]> = {}, extra: Partial<Omit<Pa
       license: "test",
       requires: { app: ">=0.1.0" },
       languages: { base: "en", available: ["en"] },
-      houseRule: { traitAdditions: [{ code: "01001a", traits: ["Web-Warrior"] }] },
+      houseRule: {
+        traitAdditions: [
+          { code: "01001a", traits: ["Web-Warrior"] },
+          { code: "14001b", traits: ["Mutant"] },
+        ],
+      },
       ...over,
     },
     cards: [],
@@ -65,10 +70,42 @@ describe("house-rule packs", () => {
     const pack = assemblePack(
       source(
         { houseRule: { enablesMode: "balanced" } },
-        { assets: new Map([...source().assets, ["cards/en/16107b.webp", bytes("stage 2B")]]) },
+        {
+          assets: new Map([
+            ["CREDITS.md", bytes("credits")],
+            ["PERMISSION.md", bytes("permission")],
+            ["cards/en/16107b.webp", bytes("stage 2B")],
+            ["cards/en/16070.webp", bytes("The Collector")],
+          ]),
+        },
       ),
     );
     expect(issuesOf(pack)).toEqual([]);
+  });
+
+  it("shows no face a rule does not own: a trait rule's other cards, a mode pack's non-Balanced cards", () => {
+    const traits = assemblePack(
+      source({}, { assets: new Map([...source().assets, ["cards/en/01019a.webp", bytes("not listed")]]) }),
+    );
+    expect(issuesOf(traits).join("\n")).toMatch(/"01019a" is not a card of this pack/);
+    const mode = assemblePack(
+      source(
+        { houseRule: { enablesMode: "balanced" } },
+        { assets: new Map([...source().assets, ["cards/en/16070.webp", bytes("Balanced card")]]) },
+      ),
+    );
+    // 01001a and 14001b are official faces, but not Balanced cards.
+    const issues = issuesOf(mode).join("\n");
+    expect(issues).toMatch(/"01001a" is not a card of this pack/);
+    expect(issues).toMatch(/"14001b" is not a card of this pack/);
+    expect(issues).not.toMatch(/"16070"/);
+  });
+
+  it("refuses a pack that is both a mode and trait additions (the traits would never apply)", () => {
+    const both = assemblePack(
+      source({ houseRule: { enablesMode: "balanced", traitAdditions: [{ code: "01001a", traits: ["Mutant"] }] } }),
+    );
+    expect(issuesOf(both).join("\n")).toMatch(/enablesMode and traitAdditions cannot be combined/);
   });
 
   it("refuses a code that is no official face, a code listed twice, and an empty trait list", () => {
@@ -153,6 +190,6 @@ describe("house-rule packs", () => {
   it("carries the rule into the built pack.json", () => {
     const pack = assemblePack(source());
     expect(pack.manifest.kind).toBe("house-rule");
-    expect(pack.manifest.houseRule).toEqual({ traitAdditions: [{ code: "01001a", traits: ["Web-Warrior"] }] });
+    expect(pack.manifest.houseRule).toEqual(source().author.houseRule);
   });
 });

@@ -850,8 +850,17 @@ store. A house rule adds no card and no ability: it changes official cards, as d
   Balanced carries `modes.campaign.balanced` and plays its rules with or without the pack. With the pack, its faces
   replace the old edited scans for the Balanced cards on screen (a toggle's cards only with that toggle on; a second
   version of a scan it does not rebuild keeps its scan); without it, the old scans show.
+- **Which faces show (2026-11-13 review).** A rule shows a rebuilt face only for a card it owns: for `traitAdditions`,
+  a picture whose code is a listed addition (an identity's alter-ego `b` included); for `enablesMode: "balanced"`, only
+  the Balanced campaign's own cards (`BALANCED_FACE_CODES`: the Balanced scans plus the fixed schemes' stage codes
+  16107a/b). `mc-pack validate` refuses any other picture code, and the client ignores one (`houseRuleMayRebuild`). A
+  trait rule's faces show only when the installed pack's version is the one embedded in the game; otherwise the
+  printed face shows. A pack cannot carry both `traitAdditions` and `enablesMode` (the runtime reads a mode pack as a
+  mode only): make two packs.
 - **Progression.** A house-rule pack is not custom content: a game played with one counts like a Balanced campaign does
-  (`isCustomSave` skips house-rule packs).
+  (`isCustomSave` skips house-rule packs). Owner decision (Quin, 2026-11-13): house-rule games count for progression
+  like any game. Follow-up, issue #689: house-rule packs that replace official cards, and GMW Fixes carrying the
+  Balanced rules itself (today the rules are the game's own scripted Balanced option and the pack only offers it).
 - First version limits: trait additions only on a card's front or a hero identity's alter-ego (no flip sides, no
   three-sided identity's inside form); house rules are offered in Table setup, not inside a campaign run.
 

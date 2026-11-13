@@ -1,7 +1,8 @@
 /**
  * `preview.json` and `thumb.webp` (docs/custom-content-packs.md §11.5): what the store shows of a pack before it is
- * installed. `thumb.webp` is the pack's cover when it has one, else the featured card's picture. Written next to the zip by `buildPack`, never inside it, so the zip's bytes do not depend on them. Pure:
- * the same pack gives the same bytes.
+ * installed. `thumb.webp` is the pack's cover when it has one, else the featured card's picture. Written next to the
+ * zip by `buildPack`, never inside it, so the zip's bytes do not depend on them. Pure: the same pack gives the same
+ * bytes.
  */
 import {
   PACK_PREVIEW_SCHEMA_VERSION,

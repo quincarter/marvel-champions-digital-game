@@ -1,6 +1,7 @@
 /**
  * Where "start a new run of this campaign" goes (issue #609): the Roster, except for a campaign with a Balanced
- * version (Galaxy's Most Wanted, with the GMW Fixes mod installed), which asks Play as normal or Rebalance first. A Resume never comes through here.
+ * version (Galaxy's Most Wanted, with the GMW Fixes mod installed), which asks Play as normal or Rebalance first. A
+ * Resume never comes through here.
  */
 import type Phaser from "phaser";
 import { goToScreen } from "../../ui/transitions.js";

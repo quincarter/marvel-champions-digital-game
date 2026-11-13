@@ -73,7 +73,7 @@ describe("buildPack's preview files", () => {
     expect(again.zipSha256).toBe(result.zipSha256);
   });
 
-  it("makes the pack's cover the thumbnail, in place of the featured card's picture, and ships it in the zip", async () => {
+  it("makes the pack's cover the thumbnail, not the featured picture, and ships it in the zip", async () => {
     const src = join(tmp(), "tiny-pack");
     cpSync(TINY_PACK_DIR, src, { recursive: true });
     const cover = fakeWebp(600, 984);

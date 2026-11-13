@@ -48,7 +48,11 @@ export function setPackArtResolver(resolver: (code: string, lang: CardLanguage) 
  * pack's picture of an official face code, and which loaded pack enables a mode (`balanced`: GMW Fixes).
  */
 export interface HouseRuleFaceSource {
-  face(packId: string, code: string, lang: CardLanguage): ArtSource | null;
+  /**
+   * The pack's rebuilt face of `code`, only when the rule may rebuild that code (`houseRuleMayRebuild`) and, when
+   * `version` is given, only when the installed pack is that version.
+   */
+  face(packId: string, code: string, lang: CardLanguage, version?: string): ArtSource | null;
   packEnabling(mode: string): string | undefined;
 }
 
@@ -62,10 +66,10 @@ export function setHouseRuleFaceSource(source: HouseRuleFaceSource): void {
  * The house rules whose rebuilt faces show now: the trait rules the current game carries (`art/house-rule-art.ts` sets
  * it while a game screen is up, and clears it after). Empty otherwise, so every other screen shows the printed cards.
  */
-let shownHouseRules: readonly string[] = [];
+let shownHouseRules: readonly { readonly id: string; readonly version: string }[] = [];
 
-export function setShownHouseRules(packIds: readonly string[]): void {
-  shownHouseRules = packIds;
+export function setShownHouseRules(rules: readonly { readonly id: string; readonly version: string }[]): void {
+  shownHouseRules = rules;
 }
 
 /** The GMW Fixes pack whose faces stand in for the Balanced scans, in a Balanced game with that pack installed. */
@@ -277,8 +281,8 @@ function promoOrFace(refPath: string): ArtSource {
     if (rebuilt) return rebuilt;
   }
   // A trait house rule the game has on (Lost Traits): its rebuilt face, which prints the added trait.
-  for (const id of shownHouseRules) {
-    const rebuilt = houseRuleFaces?.face(id, scan, artLanguage);
+  for (const { id, version } of shownHouseRules) {
+    const rebuilt = houseRuleFaces?.face(id, scan, artLanguage, version);
     if (rebuilt) return rebuilt;
   }
   return shownPromos.get(scan) ?? faceSource(refPath);

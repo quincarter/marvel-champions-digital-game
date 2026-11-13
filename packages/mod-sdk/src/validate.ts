@@ -19,6 +19,7 @@ import {
   isSafePackPath,
   officialFaceOfCode,
   officialCardsByPictureCode,
+  houseRuleMayRebuild,
   packStagedPictureCodes,
   parsePackCardImagePath,
   validateCard,
@@ -244,7 +245,13 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
   // A house rule's pictures are the official faces it rebuilds, by their printed codes (§11.11).
   const officialById = baseCardsById(options.baseCards);
   const officialPictures = officialCardsByPictureCode(options.baseCards ?? PLAYABLE_CARDS);
-  const isRuleFace = (code: string): boolean => manifest.kind === "house-rule" && officialPictures.has(code);
+  // ...and only ones the rule may rebuild (`houseRuleMayRebuild`): its own trait additions, or the Balanced cards.
+  const ruleBlock: unknown = manifest.houseRule;
+  const isRuleFace = (code: string): boolean =>
+    manifest.kind === "house-rule" &&
+    officialPictures.has(code) &&
+    isObj(ruleBlock) &&
+    houseRuleMayRebuild(ruleBlock as Parameters<typeof houseRuleMayRebuild>[0], code);
   checkLanguagesAndArt(
     input,
     (code) => knownCard(code) || isPackFace(code),
@@ -416,6 +423,10 @@ function checkHouseRule(input: PackInput, officialById: ReadonlyMap<string, AnyC
   if (mode !== undefined && !(PACK_HOUSE_RULE_MODES as readonly unknown[]).includes(mode))
     add(at("houseRule.enablesMode"), `must be one of ${PACK_HOUSE_RULE_MODES.join(", ")}`);
   const additions: unknown = rule.traitAdditions;
+  // The runtime reads a mode pack's rule as a mode only (`packEnablingMode`; `setupHouseRules` skips it), so a pack
+  // with both would validate but never apply its traits.
+  if (mode !== undefined && lengthOf(additions) > 0)
+    add(at("houseRule"), "enablesMode and traitAdditions cannot be combined: make two packs");
   if (additions !== undefined && !Array.isArray(additions)) {
     add(at("houseRule.traitAdditions"), "must be a list of { code, traits }");
     return;
@@ -689,7 +700,14 @@ function checkLanguagesAndArt(
     if (!picture) continue;
     if (!available) add(path, 'card pictures need "languages" in pack.json');
     else if (!available.has(picture.lang)) add(path, `language "${picture.lang}" is not in languages.available`);
-    if (!isPackFace(picture.code)) add(path, `"${picture.code}" is not a card of this pack`);
+    if (!isPackFace(picture.code))
+      add(
+        path,
+        `"${picture.code}" is not a card of this pack` +
+          (manifest.kind === "house-rule"
+            ? " (a house rule rebuilds only its trait additions' faces, or the Balanced cards for enablesMode balanced)"
+            : ""),
+      );
   }
   const altArt: unknown = manifest.altArt;
   if (altArt === undefined) return;
@@ -745,8 +763,8 @@ const COVER_ASPECT = { min: 0.5, max: 0.8 } as const;
 const COVER_HEIGHT = { min: 300, max: 4096 } as const;
 
 /**
- * The store cover (`pack.json` `cover`): a listed `.webp` file of the pack, a real WebP under `PACK_COVER_MAX_BYTES`, in
- * portrait (`COVER_ASPECT`) and of a sane size (`COVER_HEIGHT`). It becomes the catalog's thumbnail (`preview.ts`).
+ * The store cover (`pack.json` `cover`): a listed `.webp` file of the pack, a real WebP under `PACK_COVER_MAX_BYTES`,
+ * in portrait (`COVER_ASPECT`) and of a sane size (`COVER_HEIGHT`). It becomes the catalog's thumbnail (`preview.ts`).
  */
 function checkCover(input: PackInput, add: Add): void {
   const cover: unknown = input.manifest.cover;

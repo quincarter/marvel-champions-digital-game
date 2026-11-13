@@ -98,3 +98,35 @@ export function officialCardsByPictureCode(cards: readonly AnyCard[]): ReadonlyM
 export function officialPictureCodes(cards: readonly AnyCard[]): ReadonlySet<string> {
   return new Set(officialCardsByPictureCode(cards).keys());
 }
+
+/**
+ * The picture codes a `balanced` mode pack (GMW Fixes) may rebuild: the Balanced campaign cards, which are the scans of
+ * the client's `art/balanced-scans.ts` (a test there checks the two agree) plus 16107a, the fixed scheme's stage whose
+ * text is unchanged. A mode pack shows no other face.
+ */
+export const BALANCED_FACE_CODES: ReadonlySet<string> = new Set([
+  "16070",
+  "16071",
+  "16072",
+  "16073a",
+  "16073b",
+  "16093",
+  "16106a",
+  "16106b",
+  "16107a",
+  "16107b",
+  "16142",
+]);
+
+/**
+ * Whether a house rule may show a rebuilt face for picture `code`: a trait addition's own face (`code` is a listed
+ * addition, a hero identity's alter-ego `b` included), or, for `enablesMode: "balanced"`, a Balanced campaign card.
+ * Any other official card keeps its printed face.
+ */
+export function houseRuleMayRebuild(
+  rule: { readonly traitAdditions?: readonly { readonly code: string }[]; readonly enablesMode?: string },
+  code: string,
+): boolean {
+  if (rule.traitAdditions?.some((addition) => addition.code === code)) return true;
+  return rule.enablesMode === "balanced" && BALANCED_FACE_CODES.has(code);
+}

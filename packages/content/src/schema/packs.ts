@@ -281,8 +281,8 @@ export interface PackPreviewDeck {
 
 /**
  * What the store shows of a pack before it is installed (`mc-pack build` writes it next to the zip as `preview.json`,
- * with `thumb.webp`: the pack's cover when it has one, else the featured card's picture when it has one). The cards are the pack's own full records; their pictures
- * are `<version base>/<path>` for each path in `images`.
+ * with `thumb.webp`: the pack's cover when it has one, else the featured card's picture when it has one). The cards are
+ * the pack's own full records; their pictures are `<version base>/<path>` for each path in `images`.
  */
 export interface PackPreview {
   readonly schema: typeof PACK_PREVIEW_SCHEMA_VERSION;
@@ -382,6 +382,9 @@ export function isPackCoverPath(path: string): boolean {
 export function webpSize(bytes: Uint8Array): { readonly width: number; readonly height: number } | undefined {
   const ascii = (at: number, length: number): string => String.fromCharCode(...bytes.subarray(at, at + length));
   if (bytes.length < 30 || ascii(0, 4) !== "RIFF" || ascii(8, 4) !== "WEBP") return undefined;
+  // The RIFF size counts every byte after its own 8-byte header: a file shorter than that is truncated.
+  const riffSize = (bytes[4]! | (bytes[5]! << 8) | (bytes[6]! << 16) | (bytes[7]! << 24)) >>> 0;
+  if (riffSize + 8 > bytes.length) return undefined;
   const u16 = (at: number): number => bytes[at]! | (bytes[at + 1]! << 8);
   const u24 = (at: number): number => u16(at) | (bytes[at + 2]! << 16);
   const chunk = ascii(12, 4);
