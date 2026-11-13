@@ -14,6 +14,6 @@ interface WorkerGlobal {
 const worker = self as unknown as WorkerGlobal;
 
 worker.onmessage = (event: MessageEvent<LoadWorkerRequest>) => {
-  const { manifest, files, requiredPackCards } = event.data;
-  worker.postMessage(loadPackRuntime(manifest, files, new Set(requiredPackCards)));
+  const { manifest, files, required } = event.data;
+  worker.postMessage(loadPackRuntime(manifest, files, required));
 };

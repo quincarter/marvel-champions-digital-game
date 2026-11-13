@@ -12,6 +12,7 @@ import { POOL_CARDS, POOL_DEPS, currentCardsById, currentDeps, currentPool } fro
 import { LocalEngineHost } from "../engine/local-host.js";
 import { activePackStatuses, loadActivePacks, refreshActivePacks } from "./active-packs.js";
 import { loadInWorker } from "./load-client.js";
+import { NO_REQUIRED_CONTENT } from "./pack-load.js";
 import { loadedPacks, setLoadedPacks } from "./pack-registry.js";
 import { IdbPackStore } from "./pack-store.js";
 
@@ -66,7 +67,7 @@ describe("active packs", () => {
   });
 
   it("runs the load here when the worker cannot start or fails", async () => {
-    const need = new Set<string>();
+    const need = NO_REQUIRED_CONTENT;
     const none = await loadInWorker(manifest, files, need, () => null);
     expect(none).toMatchObject({ ok: true });
     const broken = {

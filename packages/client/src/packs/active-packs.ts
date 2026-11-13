@@ -10,7 +10,7 @@
 import type { PackManifest } from "@mc/content";
 import { IdbPackStore, type InstalledPack, type PackStorage } from "./pack-store.js";
 import { LOAD_IDLE_MS, loadInWorker, spawnLoadWorker } from "./load-client.js";
-import type { PackLoadResult } from "./pack-load.js";
+import type { PackLoadResult, RequiredPackContent } from "./pack-load.js";
 import { setLoadedPacks } from "./pack-registry.js";
 import type { PackRuntime } from "./pack-runtime.js";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
@@ -31,7 +31,7 @@ export interface ActivePackStatus {
 export type PackLoader = (
   manifest: PackManifest,
   files: ReadonlyMap<string, Uint8Array>,
-  requiredPackCards: ReadonlySet<string>,
+  required: RequiredPackContent,
   /** Reads the pack's files again, for a loader that handed the first set away and then needs them back. */
   reread?: () => Promise<ReadonlyMap<string, Uint8Array> | string>,
 ) => Promise<PackLoadResult>;
@@ -64,9 +64,14 @@ export function onActivePackStatuses(listener: (statuses: readonly ActivePackSta
 async function readFiles(store: PackStorage, pack: InstalledPack): Promise<ReadonlyMap<string, Uint8Array> | string> {
   const files = new Map<string, Uint8Array>();
   for (const entry of pack.manifest.files) {
-    const blob = await store.fileBlob(pack.id, entry.path);
-    if (!blob) return `${entry.path} is missing from the store`;
-    files.set(entry.path, new Uint8Array(await blob.arrayBuffer()));
+    try {
+      const blob = await store.fileBlob(pack.id, entry.path);
+      if (!blob) return `${entry.path} is missing from the store`;
+      files.set(entry.path, new Uint8Array(await blob.arrayBuffer()));
+    } catch (error) {
+      // One pack's unreadable file skips that pack only; the others still load.
+      return `${entry.path} could not be read (${error instanceof Error ? error.message : String(error)})`;
+    }
   }
   return files;
 }
@@ -93,6 +98,10 @@ export async function loadActivePacks(
   const notes = new Map<string, string[]>();
   const baseDeckIds = new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string));
   const deckOwner = new Map<string, string>();
+  // Scenario and encounter set ids are global too: the first pack loaded (install order, a dependent after what it
+  // needs) owns an id and a later pack that reuses it is skipped, so the outcome follows the install order, not luck.
+  const scenarioOwner = new Map<string, string>();
+  const setOwner = new Map<string, string>();
   let pending = installed;
   for (let progress = true; progress && pending.length > 0;) {
     progress = false;
@@ -112,12 +121,32 @@ export async function loadActivePacks(
           : await load(
               pack.manifest,
               files,
-              new Set(needs.flatMap((id) => loaded.get(id)!.cards.map((card) => card.id as string))),
+              {
+                cards: needs.flatMap((id) => loaded.get(id)!.cards),
+                encounterSets: needs.flatMap((id) => loaded.get(id)!.encounterSets ?? []),
+                scenarios: needs.flatMap((id) => loaded.get(id)!.scenarios ?? []),
+              },
               () => readFiles(store, pack),
             );
       const clash = result.ok ? result.runtime.decks.find((deck) => deckOwner.has(deck.id as string)) : undefined;
+      const scenarioClash = result.ok
+        ? result.runtime.scenarios?.find((scenario) => scenarioOwner.has(scenario.id as string))
+        : undefined;
+      const setClash = result.ok
+        ? result.runtime.encounterSets?.find((set) => setOwner.has(set.id as string))
+        : undefined;
       if (result.ok && clash) {
         skipped.set(pack.id, `Deck ${clash.id as string} is already used by ${deckOwner.get(clash.id as string)}`);
+      } else if (scenarioClash) {
+        skipped.set(
+          pack.id,
+          `Scenario ${scenarioClash.id as string} is already used by ${scenarioOwner.get(scenarioClash.id as string)}`,
+        );
+      } else if (setClash) {
+        skipped.set(
+          pack.id,
+          `Encounter set ${setClash.id as string} is already used by ${setOwner.get(setClash.id as string)}`,
+        );
       } else if (result.ok) {
         // A base game precon id is never taken from a pack (base wins): the pack's deck of that id is dropped.
         const shadowing = result.runtime.decks.filter((deck) => baseDeckIds.has(deck.id as string));
@@ -131,6 +160,8 @@ export async function loadActivePacks(
             shadowing.map((deck) => `Deck ${deck.id as string} ignored: that id belongs to a base game deck`),
           );
         for (const deck of runtime.decks) deckOwner.set(deck.id as string, pack.id);
+        for (const scenario of runtime.scenarios ?? []) scenarioOwner.set(scenario.id as string, pack.id);
+        for (const set of runtime.encounterSets ?? []) setOwner.set(set.id as string, pack.id);
         loaded.set(pack.id, runtime);
         skipped.delete(pack.id);
         progress = true;

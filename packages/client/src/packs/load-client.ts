@@ -4,12 +4,12 @@
  * goes silent, the same load runs here, as `unpack-client.ts` does for installs.
  */
 import type { PackManifest } from "@mc/content";
-import { loadPackRuntime, type PackLoadResult } from "./pack-load.js";
+import { loadPackRuntime, type PackLoadResult, type RequiredPackContent } from "./pack-load.js";
 
 export interface LoadWorkerRequest {
   readonly manifest: PackManifest;
   readonly files: ReadonlyMap<string, Uint8Array>;
-  readonly requiredPackCards: readonly string[];
+  readonly required: RequiredPackContent;
 }
 export type LoadWorkerReply = PackLoadResult;
 
@@ -42,13 +42,13 @@ export const LOAD_IDLE_MS = 60_000;
 export function loadInWorker(
   manifest: PackManifest,
   files: ReadonlyMap<string, Uint8Array>,
-  requiredPackCards: ReadonlySet<string>,
+  required: RequiredPackContent,
   factory: LoadWorkerFactory = spawnLoadWorker,
   idleMs: number = LOAD_IDLE_MS,
   /** Reads the files again (from the store) once the first set has gone to the worker, so a stalled worker can still be answered here. */
   reread?: () => Promise<ReadonlyMap<string, Uint8Array> | string>,
 ): Promise<PackLoadResult> {
-  const here = (): PackLoadResult => loadPackRuntime(manifest, files, requiredPackCards);
+  const here = (): PackLoadResult => loadPackRuntime(manifest, files, required);
   const worker = factory();
   if (!worker) return Promise.resolve(here());
   return new Promise<PackLoadResult>((resolve) => {
@@ -75,7 +75,7 @@ export function loadInWorker(
           resolve(
             typeof again === "string"
               ? { ok: false, reason: `Damaged: ${again}` }
-              : loadPackRuntime(manifest, again, requiredPackCards),
+              : loadPackRuntime(manifest, again, required),
           ),
         () => resolve(stopped),
       );
@@ -92,7 +92,7 @@ export function loadInWorker(
       // The file buffers are handed over, not copied. `files` is the caller's own throwaway map (`loadActivePacks`
       // reads a fresh one per load), so it is not read again after this.
       const transfer = [...new Set([...files.values()].map((bytes) => bytes.buffer as ArrayBuffer))];
-      worker.postMessage({ manifest, files, requiredPackCards: [...requiredPackCards] }, transfer);
+      worker.postMessage({ manifest, files, required }, transfer);
       posted = true;
     } catch {
       fallback();

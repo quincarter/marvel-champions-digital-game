@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PackManifest } from "@mc/content";
 import { loadInWorker, type LoadWorkerLike } from "./load-client.js";
+import { NO_REQUIRED_CONTENT } from "./pack-load.js";
 import { setLoadedPacks, loadedPacks, onLoadedPacksChange } from "./pack-registry.js";
 import { poolViewOfPacks } from "../content/pool.js";
 import { gameDeps, setGamePacks } from "../content/game-deps.js";
@@ -31,7 +32,7 @@ describe("a worker that goes silent after the files were handed over", () => {
     const result = await loadInWorker(
       manifest,
       new Map([["a", new Uint8Array(2)]]),
-      new Set(),
+      NO_REQUIRED_CONTENT,
       silentWorker,
       5,
       reread,
@@ -46,7 +47,7 @@ describe("a worker that goes silent after the files were handed over", () => {
     const result = await loadInWorker(
       manifest,
       new Map([["a", new Uint8Array(2)]]),
-      new Set(),
+      NO_REQUIRED_CONTENT,
       silentWorker,
       5,
       async () => {
