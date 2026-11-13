@@ -1,0 +1,36 @@
+{
+  "id": "x.throg-ptt.11",
+  "name": "Thanos",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "11",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 1,
+  "sch": 1,
+  "hp": 4,
+  "hpPerPlayer": true,
+  "encounterSetIds": ["throg-ptt-nemesis"],
+  "boostIcons": 2,
+  "traits": ["BLACK ORDER", "TITAN"],
+  "keywords": [
+    {
+      "name": "steady"
+    },
+    {
+      "name": "villainous"
+    }
+  ],
+  "text": {
+    "printed": "Steady. Villainous.\nWhen Revealed: Find the Power Stone and put it into play.\n(Throg's nemesis minion.)",
+    "current": "Steady. Villainous.\nWhen Revealed: Find the Power Stone and put it into play.\n(Throg's nemesis minion.)"
+  },
+  "flavor": "\"Hello, my dear animal friends.\"",
+  "abilities": [
+    {
+      "id": "x.throg-ptt.11.when-revealed"
+    }
+  ],
+  "nemesisMinion": true
+}

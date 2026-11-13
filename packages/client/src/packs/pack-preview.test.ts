@@ -79,3 +79,19 @@ describe("previewPictureUrl", () => {
     expect(previewPictureUrl({ ...parsed, languages: undefined }, "https://h/", "x.demo.01a", "en")).toBeUndefined();
   });
 });
+
+describe("parsePackPreview achievements", () => {
+  it("keeps the well-formed achievements and drops the rest", () => {
+    const parsed = parsePackPreview(
+      preview({
+        achievements: [
+          { id: "ok", name: "Ok", description: "Win.", when: { win: true } },
+          { id: "bad", name: "Bad", description: "Nope.", when: { win: true, run: "x" } },
+        ],
+      }),
+      "demo",
+    )!;
+    expect(parsed.achievements.map((a) => a.id)).toEqual(["ok"]);
+    expect(parsePackPreview(preview(), "demo")!.achievements).toEqual([]);
+  });
+});

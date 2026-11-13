@@ -6,7 +6,7 @@
   "cycleId": "mephisto-nep",
   "collectorNumber": "MoD3/5",
   "quantityInSet": 1,
-  "unique": true,
+  "unique": false,
   "encounterSetIds": ["mephisto-nep-mother-of-demons"],
   "boostIcons": 3,
   "traits": ["BARGAIN"],

@@ -13,15 +13,28 @@ import type { InstalledPack } from "../packs/pack-store.js";
 import type { InstallProgress } from "../packs/install-pack.js";
 import type { PackInstallErrorCode } from "../packs/unpack-pack.js";
 import type { ExtrasGrid } from "./extras-model.js";
+import { ruleFaceOf } from "./pack-gallery-model.js";
 
-export type ModStoreTab = "all" | "heroes" | "scenarios" | "installed";
+export type ModStoreTab = "all" | "heroes" | "scenarios" | "house-rules" | "installed";
 
+/** The browse tabs. House rules have their own (the owner, 2026-11-13; docs/custom-content-packs.md §11.11). */
 export const MOD_STORE_TABS: readonly { readonly id: ModStoreTab; readonly label: string }[] = [
   { id: "all", label: "All" },
   { id: "heroes", label: "Heroes" },
   { id: "scenarios", label: "Scenarios" },
+  { id: "house-rules", label: "House rules" },
   { id: "installed", label: "Installed" },
 ];
+
+/** The narrowest tab that still fits its label ("SCENARIOS", "INSTALLED") on one line. */
+const MIN_TAB_WIDTH = 84;
+
+/** The tabs laid out in rows for a row `width` wide: one row, or two (3 + 2) where five tabs would cut their labels. */
+export function modStoreTabRowsOf(width: number): readonly (typeof MOD_STORE_TABS)[number][][] {
+  if (width / MOD_STORE_TABS.length >= MIN_TAB_WIDTH) return [[...MOD_STORE_TABS]];
+  const split = Math.ceil(MOD_STORE_TABS.length / 2);
+  return [MOD_STORE_TABS.slice(0, split), MOD_STORE_TABS.slice(split)];
+}
 
 export interface ModStoreContext {
   readonly appVersion: string;
@@ -35,6 +48,7 @@ export const KIND_LABELS: Readonly<Record<PackKind, string>> = {
   modular: "Modular set",
   campaign: "Campaign",
   art: "Art",
+  "house-rule": "House rule",
 };
 
 /** The chip's words. Never color alone: every state has its own label. */
@@ -54,6 +68,7 @@ export function emptyTextOf(tab: ModStoreTab): string {
   if (tab === "installed") return "No custom packs are installed yet.";
   if (tab === "heroes") return "The store has no hero packs yet.";
   if (tab === "scenarios") return "The store has no scenario packs yet.";
+  if (tab === "house-rules") return "The store has no house rules yet.";
   return "The store has no packs yet. Check back soon.";
 }
 
@@ -71,6 +86,10 @@ export interface ModStoreTile {
   readonly size: string;
   readonly installed: boolean;
   readonly thumbnail: string | undefined;
+  /** The catalog's latest version, which `thumbnail` is cut from (`tile.version` may be an older one). */
+  readonly latest: string | undefined;
+  /** The installed copy's cover (`PackManifest.cover`), a path among its own files, when it has one. */
+  readonly cover: string | undefined;
   /** The version's `preview.json` and the folder its files are served from, when the catalog lists them. */
   readonly previewUrl: string | undefined;
   readonly baseUrl: string | undefined;
@@ -78,6 +97,14 @@ export interface ModStoreTile {
   readonly reason: string | undefined;
   /** False for an installed pack the catalog no longer lists. */
   readonly inCatalog: boolean;
+}
+
+/** An installed pack's cover path, read defensively (an install from before covers has none). */
+function installedCoverOf(pack: InstalledPack | undefined): string | undefined {
+  const cover: unknown = pack?.manifest.cover;
+  const files: unknown = pack?.manifest.files;
+  if (typeof cover !== "string" || !Array.isArray(files)) return undefined;
+  return (files as readonly { path?: unknown }[]).some((file) => file?.path === cover) ? cover : undefined;
 }
 
 export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStoreTile {
@@ -101,6 +128,8 @@ export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStor
     size: view.size,
     installed: installed !== undefined,
     thumbnail: entry.thumbnail,
+    latest: entry.latest,
+    cover: installedCoverOf(installed),
     previewUrl: entry.versions[view.version]?.preview,
     baseUrl: entry.versions[view.version]?.base,
     reason: view.reason,
@@ -123,6 +152,8 @@ export function orphanTileOf(pack: InstalledPack): ModStoreTile {
     size: formatBytes(pack.manifest.totalBytes),
     installed: true,
     thumbnail: undefined,
+    latest: undefined,
+    cover: installedCoverOf(pack),
     previewUrl: undefined,
     baseUrl: undefined,
     reason: undefined,
@@ -138,6 +169,8 @@ function inTab(tile: ModStoreTile, tab: ModStoreTab): boolean {
       return tile.kind === "hero";
     case "scenarios":
       return tile.kind === "scenario";
+    case "house-rules":
+      return tile.kind === "house-rule";
     case "installed":
       return tile.installed;
   }
@@ -283,6 +316,17 @@ function requirementOf(tile: ModStoreTile, installed: InstalledPack | undefined)
     : `This pack needs a newer game (${need}), so it cannot be installed yet.`;
 }
 
+/** The page's achievements list: one line each, and the note that a mod's achievements never give points. */
+export function achievementsParagraphOf(
+  achievements: readonly { readonly name: string; readonly description: string }[],
+): string {
+  const noun = achievements.length === 1 ? "achievement" : "achievements";
+  return [
+    `This pack adds ${achievements.length} ${noun} to the Trophy Room (they give no points):`,
+    ...achievements.map((one) => `- ${one.name}: ${one.description}`),
+  ].join("\n");
+}
+
 /**
  * The pack page's words. The catalog does not carry a pack's license or authors list, so credits come from the
  * installed manifest when there is one and from the catalog's creator otherwise.
@@ -291,9 +335,12 @@ export function packPageOf(
   tile: ModStoreTile,
   entry: PackIndexEntry | undefined,
   installed: InstalledPack | undefined,
+  /** The pack's own achievements (docs/custom-content-packs.md section 11.12), when it defines any. */
+  achievements: readonly { readonly name: string; readonly description: string }[] = [],
 ): PackPage {
   const paragraphs: string[] = [];
   paragraphs.push(installed?.manifest.description || tile.summary || "No description.");
+  if (achievements.length > 0) paragraphs.push(achievementsParagraphOf(achievements));
   const authors = installed?.manifest.authors.length ? installed.manifest.authors.join(", ") : tile.creator;
   const license = installed?.manifest.license;
   paragraphs.push(`Credits: made by ${authors}.${license ? ` License: ${license}.` : ""}`);
@@ -326,8 +373,12 @@ export function modStoreGridOf(width: number, phone: boolean): ExtrasGrid {
   return { columns, gap, tileWidth, tileHeight, rowHeight: tileHeight + gap };
 }
 
-/** What a browse tile's left side shows, best first: the catalog's thumbnail, the featured picture, the featured card's generated face, a letter. */
+/**
+ * What a browse tile's left side shows, best first: the pack's cover, the catalog's thumbnail, the featured picture,
+ * the featured card's generated face, a letter.
+ */
 export type TileArt =
+  | ({ readonly kind: "cover" } & PackCover)
   | { readonly kind: "thumbnail"; readonly url: string }
   | { readonly kind: "picture"; readonly url: string }
   | { readonly kind: "face"; readonly card: AnyCard; readonly face: CardFace }
@@ -344,15 +395,25 @@ export interface FeaturedFace {
 
 /**
  * The featured card's faces: a hero's identity shows both (hero and alter-ego), any other card its one face. Empty when
- * the preview names no featured card or its record did not survive validation.
+ * the preview names no featured card or its record did not survive validation. A house rule's featured card is an
+ * official face it rebuilds (docs/custom-content-packs.md §11.11): `ruleCards` (`officialCardsByPictureCode`) finds
+ * its card, and it shows that one face, in the rule's picture.
  */
 export function featuredFacesOf(
   preview: ParsedPackPreview | null | undefined,
   base: string | undefined,
   lang?: string,
+  ruleCards?: ReadonlyMap<string, AnyCard>,
 ): readonly FeaturedFace[] {
   const featured = preview?.featured;
-  const card = featured ? preview?.cards.find((one) => (one.id as string) === featured.cardId) : undefined;
+  const own = featured ? preview?.cards.find((one) => (one.id as string) === featured.cardId) : undefined;
+  const official = !own && featured ? ruleCards?.get(featured.cardId) : undefined;
+  if (preview && featured && official) {
+    const path = localizedPicturePath(preview, featured.images[0], lang);
+    const pictureUrl = path !== undefined && base !== undefined ? `${base}${path}` : undefined;
+    return [{ card: official, face: ruleFaceOf(featured.cardId, official), pictureUrl, path }];
+  }
+  const card = own;
   if (!preview || !featured || !card) return [];
   const faceAt = (face: CardFace, index: number): FeaturedFace => {
     const path = localizedPicturePath(preview, featured.images[index], lang);
@@ -380,10 +441,36 @@ function localizedPicturePath(
   return preview.images.has(localized) ? localized : path;
 }
 
-export function tileArtOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined, lang?: string): TileArt {
-  const first = featuredFacesOf(preview, tile.baseUrl, lang)[0];
-  // The catalog's thumbnail is cut from the base language's picture: a player in another language the pack ships sees
-  // that language's picture instead.
+/**
+ * Where a pack's cover comes from: `path`, the installed copy's own file (no network needed), and `url`, the catalog's
+ * thumbnail when the preview says the pack has a cover (`mc-pack build` then writes the cover as `thumb.webp`). At
+ * least one is set.
+ */
+export interface PackCover {
+  readonly path: string | undefined;
+  readonly url: string | undefined;
+}
+
+/** The pack's cover, or undefined when neither the installed copy nor the store's preview has one. */
+export function coverOf(tile: ModStoreTile, preview: ParsedPackPreview | null | undefined): PackCover | undefined {
+  // The catalog's thumbnail is cut from the latest version: another version's preview does not vouch for it.
+  const url = preview?.cover !== undefined && tile.version === tile.latest ? tile.thumbnail : undefined;
+  if (tile.cover === undefined && url === undefined) return undefined;
+  return { path: tile.cover, url };
+}
+
+export function tileArtOf(
+  tile: ModStoreTile,
+  preview: ParsedPackPreview | null | undefined,
+  lang?: string,
+  ruleCards?: ReadonlyMap<string, AnyCard>,
+): TileArt {
+  // A cover is the pack's box art, the same in every language: it leads wherever the pack has one.
+  const cover = coverOf(tile, preview);
+  if (cover) return { kind: "cover", ...cover };
+  const first = featuredFacesOf(preview, tile.baseUrl, lang, ruleCards)[0];
+  // Without one, the catalog's thumbnail is cut from the base language's picture: a player in another language the pack
+  // ships sees that language's picture instead.
   const localized = first?.pictureUrl !== undefined && first.path !== preview?.featured?.images[0];
   if (tile.thumbnail && !localized) return { kind: "thumbnail", url: tile.thumbnail };
   if (first?.pictureUrl) return { kind: "picture", url: first.pictureUrl };

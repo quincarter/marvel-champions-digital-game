@@ -59,10 +59,13 @@ for (const packId of readdirSync(COMMUNITY).filter(ready)) {
       const [status] = await loadActivePacks(store);
       expect(status).toMatchObject({ id: packId, loaded: true });
       // A hero pack starts its precon alone at the Core Rhino; a scenario pack (no precon) starts each of its own
-      // scenarios with a base precon.
+      // scenarios with a base precon; a house rule (docs/custom-content-packs.md §11.11) starts the Core Rhino with a
+      // base precon, its rule on when it is a per-game toggle.
       const pack = loadedPacks()[0]!;
-      const starts =
-        pack.decks.length > 0
+      const houseRules = (pack.houseRule?.traitAdditions?.length ?? 0) > 0 ? [pack.id] : [];
+      const starts = pack.houseRule
+        ? [{ scenarioId: "rhino", deckId: "core-spider-man-justice" }]
+        : pack.decks.length > 0
           ? pack.decks.map((deck) => ({ scenarioId: "rhino", deckId: deck.id as string }))
           : (pack.scenarios ?? []).map((scenario) => ({
               scenarioId: scenario.id as string,
@@ -84,7 +87,9 @@ for (const packId of readdirSync(COMMUNITY).filter(ready)) {
           difficulty: "standard",
           players: [{ starterDeckId: deckId }],
           seed: 11,
+          ...(houseRules.length > 0 ? { houseRules } : {}),
         });
+        expect(session.state.config?.houseRules ?? []).toEqual(houseRules);
         for (let step = 0; step < 40; step++) {
           const legal = session.state.legal;
           if (!legal || legal.actions.kind !== "choice") break;

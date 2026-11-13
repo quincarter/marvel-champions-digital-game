@@ -1,0 +1,28 @@
+{
+  "id": "x.throg-ptt.05",
+  "name": "Frogbolt",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "5",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 0,
+  "specialCost": "X",
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["ATTACK", "THWART", "SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action (attack/thwart): Deal X damage to the villain and remove X threat from each side scheme. This attack gains piercing if you have the Aerial trait.",
+    "current": "Hero Action (attack/thwart): Deal X damage to the villain and remove X threat from each side scheme. This attack gains piercing if you have the Aerial trait."
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.05.frogbolt-constant"
+    }
+  ]
+}

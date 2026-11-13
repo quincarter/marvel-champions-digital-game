@@ -23,6 +23,11 @@ Read it next to `docs/custom-content-packs.md` (§6 scripting, §11.2 the SDK, �
 `decks/sample-hero-justice.json` is a 40-card precon: the signature cards plus Core Set Justice and basic cards (Spider-Man's starter list, with extra copies up to each card's deck limit) from
 the Core Set. A deck may name base-game card codes.
 
+## Achievements
+
+`pack.json` carries four example `achievements` (docs/custom-content-packs.md section 11.12): data-only conditions on this
+hero, worth no points, shown in the Trophy Room under the pack. Copy the shape; `mc-pack validate` checks the ids.
+
 ## Layout
 
 ```

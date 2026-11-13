@@ -1,0 +1,53 @@
+{
+  "id": "x.throg-ptt.01a",
+  "name": "Throg",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "hero_identity",
+  "hp": 9,
+  "hero": {
+    "faceName": "Throg",
+    "traits": ["GUARDIAN", "PET"],
+    "atk": 1,
+    "thw": 2,
+    "def": 2,
+    "handSize": 5,
+    "keywords": [],
+    "text": {
+      "printed": "While you control Frogjolnir, Throg gains the Asgard trait.\nToad-ally Unexpected! — Response: After a side scheme enters play, draw 2 cards. (Limit once per phase.)",
+      "current": "While you control Frogjolnir, Throg gains the Asgard trait.\nToad-ally Unexpected! — Response: After a side scheme enters play, draw 2 cards. (Limit once per phase.)"
+    },
+    "abilities": [
+      {
+        "id": "x.throg-ptt.01a.throg-constant"
+      },
+      {
+        "id": "x.throg-ptt.01a.toad-ally-unexpected",
+        "label": "Toad-ally Unexpected!"
+      }
+    ]
+  },
+  "alterEgo": {
+    "faceName": "Puddlegulper",
+    "traits": ["FROG", "PET"],
+    "rec": 3,
+    "handSize": 6,
+    "keywords": [],
+    "text": {
+      "printed": "Worthy — Action: Search your deck and discard pile for the Frogjolnir upgrade and add it to your hand. (Shuffle your deck.) (Limit once per round.)",
+      "current": "Worthy — Action: Search your deck and discard pile for the Frogjolnir upgrade and add it to your hand. (Shuffle your deck.) (Limit once per round.)"
+    },
+    "flavor": "\"I'm no hero, just a humble frog with the power to protect his family.\"",
+    "abilities": [
+      {
+        "id": "x.throg-ptt.01b.worthy",
+        "label": "Worthy"
+      }
+    ]
+  },
+  "obligationCardId": "x.throg-ptt.10",
+  "nemesisEncounterSetId": "throg-ptt-nemesis"
+}

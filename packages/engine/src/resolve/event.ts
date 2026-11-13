@@ -2823,7 +2823,14 @@ function applyPlayerAttack(
   recordKeywordsIgnored(
     ctx,
     frameId,
-    guardsIgnored(ctx.state, ctx.deps, event.attackerInstanceId, event.targetInstanceId, event.playerId),
+    guardsIgnored(
+      ctx.state,
+      ctx.deps,
+      event.attackerInstanceId,
+      event.targetInstanceId,
+      event.playerId,
+      event.ignoresGuard === true,
+    ),
   );
   const damage: DamageEvent = {
     kind: "dealDamage",
@@ -2856,7 +2863,9 @@ function applyPlayerAttack(
   // ruling Q47, `attack-ability.ts`): its target is named as attacked once the whole ability has resolved, with every
   // other enemy the ability dealt damage to.
   if (attackFrame?.kind === "event" && attackAwaitsAbility(ctx.state, attackFrame)) {
-    setFrame(ctx, { ...attackFrame, attacked: [...(attackFrame.attacked ?? []), attacked] });
+    // Read from the stack as it is now, not `attackFrame` (read above): the guard minions recorded as ignored since
+    // (`recordKeywordsIgnored`) would otherwise be dropped, and "after you ignore guard" never answer the attack.
+    updateFrame(ctx, frameId, (f) => (f.kind === "event" ? { ...f, attacked: [...(f.attacked ?? []), attacked] } : f));
     pushEvents(ctx, [damage]);
     return;
   }

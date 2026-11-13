@@ -1,6 +1,7 @@
-import { tinyPack } from "./fixtures/load.js";
+import { fakeWebp, tinyPack } from "./fixtures/load.js";
 import { sha256Hex } from "./sha256.js";
-import { isUnscriptedAbilityIssue, splitIssues, validatePack, type PackInput } from "./validate.js";
+import type { PackManifest } from "@mc/content";
+import { isUnscriptedAbilityIssue, publishIssues, splitIssues, validatePack, type PackInput } from "./validate.js";
 
 const text = (s: string): Uint8Array => new TextEncoder().encode(s);
 
@@ -116,6 +117,44 @@ describe("validatePack", () => {
     expect(messages(size)).toMatch(/CREDITS.md: size is/);
     const hash = await broken((p) => p.files.set("CREDITS.md", new Uint8Array(p.files.get("CREDITS.md")!).fill(65)));
     expect(messages(hash)).toMatch(/CREDITS.md: sha256 does not match/);
+  });
+
+  describe("a store cover", () => {
+    /** The fixture with `bytes` added as a listed file at `path` and named as its cover. */
+    const withCover = (bytes: Uint8Array, path = "cover.webp", cover: unknown = path) =>
+      broken((p) => {
+        p.files.set(path, bytes);
+        p.manifest.files.push({ path, bytes: bytes.length, sha256: sha256Hex(bytes) });
+        p.manifest.totalBytes += bytes.length;
+        p.manifest.cover = cover;
+      });
+
+    it("passes a portrait WebP file of the pack", async () => {
+      expect(validatePack(await withCover(fakeWebp(600, 984)))).toEqual([]);
+      expect(validatePack(await withCover(fakeWebp(600, 984), "art/box.webp"))).toEqual([]);
+    });
+
+    it("rejects a cover the pack does not ship", async () => {
+      expect(messages(await broken((p) => (p.manifest.cover = "cover.webp")))).toMatch(
+        /pack.json cover: "cover.webp" is not a file of the pack/,
+      );
+    });
+
+    it("rejects a file that is not a WebP picture, or a path that is not a .webp", async () => {
+      expect(messages(await withCover(text("a PNG, really, not a WebP")))).toMatch(
+        /cover: "cover.webp" is not a WebP picture/,
+      );
+      expect(messages(await withCover(fakeWebp(600, 984), "cover.png"))).toMatch(/cover: must be the path of a .webp/);
+      expect(messages(await withCover(fakeWebp(600, 984), "cover.webp", "../cover.webp"))).toMatch(
+        /cover: must be the path of a .webp/,
+      );
+    });
+
+    it("rejects a landscape, tiny or oversized cover", async () => {
+      expect(messages(await withCover(fakeWebp(984, 600)))).toMatch(/is 984x600: a cover is portrait/);
+      expect(messages(await withCover(fakeWebp(100, 160)))).toMatch(/is 100x160: its height must be 300 to 4096/);
+      expect(messages(await withCover(fakeWebp(600, 984, 1_000_001)))).toMatch(/is 1000001 bytes, more than/);
+    });
   });
 
   it("rejects an unlisted file and a wrong totalBytes", async () => {
@@ -351,6 +390,32 @@ describe("validatePack: languages, per-language pictures and alternate art", () 
     expect(issues).toMatch(/translators.es/);
   });
 
+  it("checks the permission's status, languages and, when granted, its full record", async () => {
+    const issues = messages(
+      await broken((p) => {
+        p.manifest.permission = { by: "Creator", status: "maybe", languages: ["NOT A TAG"], note: "" };
+      }),
+    );
+    expect(issues).toMatch(/permission.status: must be one of granted, pending/);
+    expect(issues).toMatch(/permission.languages: must be a list of language tags/);
+    expect(issues).toMatch(/permission.note: must be text/);
+    const granted = messages(
+      await broken((p) => {
+        p.manifest.permission = { by: "Creator", status: "granted" };
+      }),
+    );
+    for (const field of ["date", "evidence", "scope", "languages"])
+      expect(granted).toMatch(new RegExp(`permission.${field}: is required when the status is granted`));
+    // Pending (or no status) keeps the record as far as it goes.
+    expect(
+      validatePack(
+        await broken((p) => {
+          p.manifest.permission = { by: "Creator", status: "pending", note: "no date on record" };
+        }),
+      ),
+    ).toEqual([]);
+  });
+
   it("never throws on malformed language and art fields", async () => {
     const good = await tinyPack();
     for (const manifest of [
@@ -363,5 +428,104 @@ describe("validatePack: languages, per-language pictures and alternate art", () 
       expect(() => validatePack({ ...good, manifest } as unknown as PackInput)).not.toThrow();
       expect(validatePack({ ...good, manifest } as unknown as PackInput).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("publishIssues", () => {
+  const grant = {
+    by: "Creator",
+    status: "granted",
+    date: "2026-11-05",
+    evidence: "https://example.invalid/dm",
+    scope: "inclusion and translation",
+    languages: ["en", "es"],
+  };
+  const manifest = (extra: object): PackManifest => ({ ...({} as PackManifest), id: "x", ...extra });
+  const issuesOf = (m: PackManifest): string =>
+    publishIssues(m)
+      .map((i) => `${i.path}: ${i.message}`)
+      .join("\n");
+
+  it("passes a granted permission that covers every shipped language", () => {
+    expect(publishIssues(manifest({ permission: grant, languages: { base: "en", available: ["en", "es"] } }))).toEqual(
+      [],
+    );
+    expect(publishIssues(manifest({ permission: grant }))).toEqual([]);
+  });
+
+  it("refuses a pack with no permission, or one not granted, naming what is missing", () => {
+    expect(issuesOf(manifest({}))).toMatch(/permission: is required to publish/);
+    expect(issuesOf(manifest({ permission: { by: "Creator" } }))).toMatch(/permission.status: is missing, not granted/);
+    expect(issuesOf(manifest({ permission: { by: "Creator", status: "pending", note: "no date" } }))).toMatch(
+      /is pending, not granted, so the pack is not published: no date/,
+    );
+  });
+
+  it("refuses a translation the grant does not cover", () => {
+    const m = manifest({
+      permission: { ...grant, languages: ["en"] },
+      languages: { base: "en", available: ["en", "es"] },
+    });
+    expect(issuesOf(m)).toMatch(/permission.languages: does not cover es/);
+  });
+});
+
+describe("validatePack: achievements", () => {
+  const heroId = async () => {
+    const pack = await tinyPack();
+    return pack.cards.find((c) => c.type === "hero_identity")!.id as string;
+  };
+  const withAchievements = async (list: unknown) => broken((pack) => void (pack.manifest.achievements = list));
+  const entry = (when: unknown, over: object = {}) => ({
+    id: "a-one",
+    name: "A One",
+    description: "Does it.",
+    when,
+    ...over,
+  });
+
+  it("accepts a pack with no achievements and one whose conditions name its own hero", async () => {
+    expect(messages(await broken(() => {}))).toBe("");
+    const hero = await heroId();
+    expect(
+      messages(await withAchievements([entry({ win: true, hero }), entry({ gamesWon: 3 }, { id: "b-two" })])),
+    ).toBe("");
+  });
+
+  it("refuses a condition that names another pack's hero, a base hero or a scenario the pack lacks", async () => {
+    expect(messages(await withAchievements([entry({ win: true, hero: "x.other.01a" })]))).toContain(
+      "pack.json achievements: [0] when.hero",
+    );
+    expect(messages(await withAchievements([entry({ win: true, hero: "01001a" })]))).toContain(
+      "is not one of this pack's heroes",
+    );
+    expect(messages(await withAchievements([entry({ win: true, villain: "rhino" })]))).toContain(
+      "is not one of this pack's scenarios",
+    );
+    expect(messages(await withAchievements([entry({ campaignWon: "x-saga" })]))).toContain(
+      "is not one of this pack's campaigns",
+    );
+  });
+
+  it("refuses code-shaped conditions, a missing measure, duplicate ids and an over-long list", async () => {
+    expect(messages(await withAchievements([entry({ win: true, script: "1" })]))).toContain(
+      "when.script is not a condition",
+    );
+    expect(messages(await withAchievements([entry({})]))).toContain("exactly one of");
+    expect(messages(await withAchievements([entry({ win: true }), entry({ play: true })]))).toContain(
+      "used by two achievements",
+    );
+    const many = Array.from({ length: 25 }, (_, i) => entry({ win: true }, { id: `a-${i}` }));
+    expect(messages(await withAchievements(many))).toContain("over the 24 limit");
+    expect(messages(await withAchievements("nope"))).toContain("must be a list");
+  });
+
+  it("refuses over-long text and houseRule on a pack that is not a trait house rule", async () => {
+    expect(messages(await withAchievements([entry({ win: true }, { name: "n".repeat(60) })]))).toContain(
+      "name is 60 characters",
+    );
+    expect(messages(await withAchievements([entry({ win: true, houseRule: "tiny-pack" })]))).toContain(
+      "house-rule pack",
+    );
   });
 });

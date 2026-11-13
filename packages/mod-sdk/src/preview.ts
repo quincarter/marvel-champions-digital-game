@@ -1,7 +1,8 @@
 /**
  * `preview.json` and `thumb.webp` (docs/custom-content-packs.md §11.5): what the store shows of a pack before it is
- * installed. Written next to the zip by `buildPack`, never inside it, so the zip's bytes do not depend on them. Pure:
- * the same pack gives the same bytes.
+ * installed. `thumb.webp` is the pack's cover when it has one, else the featured card's picture. Written next to the
+ * zip by `buildPack`, never inside it, so the zip's bytes do not depend on them. Pure: the same pack gives the same
+ * bytes.
  */
 import {
   PACK_PREVIEW_SCHEMA_VERSION,
@@ -33,6 +34,15 @@ function featuredCardId(pack: PackInput): string | undefined {
   const firstOfType = (type: string): string | undefined =>
     pack.cards.find((card) => card.type === type)?.id as string | undefined;
   if (pack.manifest.kind === "hero") return firstOfType("hero_identity");
+  // A house rule has no card of its own: it leads with the first official face it rebuilds (§11.11).
+  if (pack.manifest.kind === "house-rule") {
+    const base = pack.manifest.languages?.base;
+    const first = [...pack.files.keys()]
+      .sort()
+      .map((path) => parsePackCardImagePath(path))
+      .find((picture) => picture !== undefined && picture.lang === base);
+    return first?.code;
+  }
   if (pack.manifest.kind === "campaign") {
     const scenarioId = firstCampaignScenarioId(pack.campaigns);
     const scenario = ((pack.scenarios ?? []) as readonly { id?: unknown }[]).find((one) => one.id === scenarioId);
@@ -51,6 +61,7 @@ function featuredCardId(pack: PackInput): string | undefined {
 function featuredImages(pack: PackInput, cardId: string, images: ReadonlySet<string>): string[] {
   const base = pack.manifest.languages?.base;
   if (!base) return [];
+  if (pack.manifest.kind === "house-rule") return [packCardImagePath(base, cardId)].filter((path) => images.has(path));
   const type = pack.cards.find((card) => (card.id as string) === cardId)?.type;
   const codes = [cardId];
   if (type === "hero_identity" && cardId.endsWith("a")) codes.push(`${cardId.slice(0, -1)}b`);
@@ -59,7 +70,10 @@ function featuredImages(pack: PackInput, cardId: string, images: ReadonlySet<str
 
 export interface PackPreviewFiles {
   readonly preview: PackPreview;
-  /** The featured card's first picture, to be copied as `thumb.webp`; undefined when the pack ships none for it. */
+  /**
+   * The file to copy as `thumb.webp`: the pack's cover when it has one, else the featured card's first picture;
+   * undefined when the pack ships neither.
+   */
   readonly thumbFrom: string | undefined;
 }
 
@@ -69,14 +83,18 @@ export function buildPreview(pack: PackInput, manifest: PackManifest = pack.mani
   const imageSet = new Set(images);
   const cardId = featuredCardId(pack);
   const featuredPaths = cardId ? featuredImages(pack, cardId, imageSet) : [];
+  // A cover is the pack's own box art, the same in every language: it is the thumbnail when the pack has one.
+  const cover = typeof manifest.cover === "string" && pack.files.has(manifest.cover) ? manifest.cover : undefined;
   const preview: PackPreview = {
     schema: PACK_PREVIEW_SCHEMA_VERSION,
     packId: manifest.id,
     version: manifest.version,
     ...(cardId ? { featured: { cardId, images: featuredPaths } } : {}),
+    ...(cover ? { cover } : {}),
     images,
     ...(manifest.languages ? { languages: manifest.languages } : {}),
     cards: pack.cards,
+    ...((manifest.achievements?.length ?? 0) > 0 ? { achievements: manifest.achievements } : {}),
     decks: [...(pack.decks ?? [])].map((deck) => ({
       id: deck.id as string,
       name: deck.name,
@@ -84,5 +102,5 @@ export function buildPreview(pack: PackInput, manifest: PackManifest = pack.mani
       cards: deck.cards.map((entry) => ({ cardId: entry.cardId as string, quantity: entry.quantity })),
     })),
   };
-  return { preview, thumbFrom: featuredPaths[0] };
+  return { preview, thumbFrom: cover ?? featuredPaths[0] };
 }

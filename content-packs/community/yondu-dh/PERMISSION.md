@@ -12,3 +12,5 @@ distributed through the mod store.
 
 The registry review asks for the evidence (a link or a quoted message) and a date; the DM is the evidence for BlueHG and
 is still to be requested from BluefireF5ran, as is DesignHacker's own message.
+
+**Store approval:** granted (`pack.json` `permission`). The author(s) granted it in the Marvel Champions homebrew channel on Discord; the project owner, Quin Carter, confirmed it on 2026-11-13.

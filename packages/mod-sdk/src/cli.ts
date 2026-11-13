@@ -6,12 +6,12 @@
  * normalizer rejected), 2 a usage error (unknown command, missing argument).
  */
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { PackBuildError, assemblePack, buildPack, loadPackSource } from "./build.js";
 import { formatImportReport, importMarvelCdbPack } from "./import-marvelcdb.js";
 import { packModuleImporter } from "./loader.js";
 import { SMOKE_BASE_DECK, SMOKE_SCENARIOS, smokeTestPack, type SmokeGame } from "./smoke.js";
-import { readPackInput, splitIssues, validatePack, type PackInput, type PackIssue } from "./validate.js";
+import { publishIssues, readPackInput, splitIssues, validatePack, type PackInput, type PackIssue } from "./validate.js";
 
 export const EXIT_OK = 0;
 export const EXIT_PACK_PROBLEM = 1;
@@ -30,9 +30,12 @@ const consoleIo: CliIo = {
 const USAGE = `mc-pack: build, check and test Marvel Champions Digital content packs
 
 Usage:
-  mc-pack validate <dir> [--allow-unscripted]
+  mc-pack validate <dir> [--allow-unscripted] [--publish]
       Check the pack source in <dir>. --allow-unscripted passes a pack whose only problems are abilities
       that are not scripted yet (an imported pack being worked on); build and test never allow them.
+      --publish also checks the pack may be published: pack.json's permission records the creator's grant
+      (status "granted", by, date, evidence, scope, and languages covering every language it ships). A folder
+      with a DRAFT file is never published, so --publish skips that check for it.
   mc-pack build <dir> --out <dir>
       Validate, then write the built pack, pack.json and the deterministic <id>-<version>.zip.
   mc-pack test <dir> [--games <n>] [--scenario <${SMOKE_SCENARIOS.join("|")}>] [--max-commands <n>]
@@ -56,7 +59,7 @@ interface Parsed {
 }
 
 const VALUE_FLAGS = new Set(["out", "games", "scenario", "max-commands", "id", "app"]);
-const BOOLEAN_FLAGS = new Set(["allow-unscripted", "help", "version"]);
+const BOOLEAN_FLAGS = new Set(["allow-unscripted", "publish", "help", "version"]);
 
 function parseArgs(argv: readonly string[]): Parsed {
   const positional: string[] = [];
@@ -135,10 +138,13 @@ export function formatIssues(issues: readonly PackIssue[]): string[] {
 }
 
 async function validateCommand(parsed: Parsed, io: CliIo): Promise<number> {
-  allowOnly(parsed, "validate", ["allow-unscripted"]);
+  allowOnly(parsed, "validate", ["allow-unscripted", "publish"]);
   const dir = packDir(parsed, "validate");
   const pack = await loadBuilt(dir);
-  const issues = validatePack(pack);
+  const publish = parsed.flags.has("publish");
+  const draft = existsSync(join(dir, "DRAFT"));
+  if (publish && draft) io.out(`${pack.manifest.id}: a DRAFT, never published; the publish check is skipped`);
+  const issues = [...validatePack(pack), ...(publish && !draft ? publishIssues(pack.manifest) : [])];
   const { defects, unscripted } = splitIssues(issues);
   const name = `${pack.manifest.id}@${pack.manifest.version}`;
   if (issues.length === 0) {

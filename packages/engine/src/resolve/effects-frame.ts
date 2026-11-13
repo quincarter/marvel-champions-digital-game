@@ -148,6 +148,7 @@ import {
   resolveRef,
   resolveValue,
   selectTargets,
+  attackIgnoringOf,
   reachOf,
 } from "../select.js";
 import type { EffectSpec, PlayerRef, StatusName, ValueSpec } from "../spec.js";
@@ -236,6 +237,7 @@ export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectCont
   bindings: frame.bindings,
   vars: frame.vars,
   ...(frame.abilityId !== undefined ? reachOf(deps.abilities[frame.abilityId]) : {}),
+  ...(frame.abilityId !== undefined ? attackIgnoringOf(deps.abilities[frame.abilityId]) : {}),
   ...(frame.controllerId !== null &&
   frame.abilityId !== undefined &&
   deps.abilities[frame.abilityId]?.label?.includes("thwart")

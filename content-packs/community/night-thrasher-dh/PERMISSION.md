@@ -11,3 +11,5 @@ DesignHacker, the author of Night Thrasher, gave permission for this pack to be 
 
 The registry review asks for the evidence (a link or a quoted message) and a date; the source has neither, so both are
 still to be asked of BluefireF5ran.
+
+**Store approval:** granted (`pack.json` `permission`). The author(s) granted it in the Marvel Champions homebrew channel on Discord; the project owner, Quin Carter, confirmed it on 2026-11-13.

@@ -1,0 +1,28 @@
+{
+  "id": "x.throg-ptt.06",
+  "name": "Telepathic Link",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "6",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "event",
+  "cost": 0,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["SUPERPOWER"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Action: Search your collection for a card with the Pet or Asgard trait from any aspect and add it to your hand. Remove this card from the game.",
+    "current": "Hero Action: Search your collection for a card with the Pet or Asgard trait from any aspect and add it to your hand. Remove this card from the game."
+  },
+  "flavor": "\"Pet Avengers, where are you?\"",
+  "abilities": [
+    {
+      "id": "x.throg-ptt.06.telepathic-link-action"
+    }
+  ]
+}

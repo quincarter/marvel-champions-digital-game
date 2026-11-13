@@ -239,6 +239,9 @@ needs a paid Workers plan to survive another Reddit day.
   },
   "templateCredit": "Hitch",
   "translators": { "es": "Francisco Merchán" },
+  // optional, added 2026-11-13: the store cover, a portrait .webp file of the pack (600x984 box art, the same in every
+  // language). `mc-pack build` makes it the version's thumb.webp (§11.5); a cover is at most 1 MB, width/height 0.5-0.8.
+  "cover": "cover.webp",
   "files": [
     { "path": "cards/x.fan-moon-knight.01a.webp", "bytes": 182044, "sha256": "…" },
     // every file, so a download can be verified and resumed file by file
@@ -557,16 +560,22 @@ tags: [hero, justice]
    `packs/<pack-id>.yaml`. The PR template asks for the permission evidence.
 2. **Check:** the registry's CI checks out the pack at `commit` rather than the tag, because a tag can move. It builds
    the pack with the SDK version the pack pins, runs `validate` and `test`, and compares the result with the release's
-   zip. It then comments the pack's size, the DSL features it uses and the oldest app it needs.
+   zip. **The creator's tagged release must carry the zip `mc-pack build` wrote, byte for byte:** a release without
+   it fails the check, as does one whose zip differs, so what players get is what the creator published. It then
+   comments the pack's size, the DSL features it uses and the oldest app it needs.
 3. **Review:** the owner, or a reviewer the owner names, reads the cards and tries the pack with the store's developer
    toggle. Merging the PR approves the pack.
 4. **Publish:** on merge, the registry's publish workflow:
-   - uploads the built zip and `pack.json` to `mc-packs/<pack-id>/<version>/` in R2;
+   - refuses a pack id that `index.json` lists with `source: "game"` or no `source` (this repo publishes those;
+     §11.5, "One publisher per pack id");
+   - uploads the built zip, `pack.json`, `preview.json`, `thumb.webp` and the card pictures to
+     `mc-packs/<pack-id>/<version>/` in R2;
    - attaches the same zip to a release of the registry repo, as the fallback (§5.2's `zipFallback`);
-   - regenerates `index.json`.
+   - regenerates `index.json`, marking its entries `source: "registry"`.
 5. **Update:** a new version is a PR that changes `tag` and `commit`. Older versions stay in R2, so saves that used
    them still load (§7.4).
-6. **Withdraw:** removing a pack's file drops it from the catalog (a publish never lists a withdrawn pack again,
+6. **Withdraw:** removing a pack's file drops it from the catalog (only a `source: "registry"` entry: the registry
+   never drops one of this repo's packs) (a publish never lists a withdrawn pack again,
    §11.5). The client keeps an installed copy and marks it
    "withdrawn": it's still playable, so saves still load, but the store doesn't offer it.
 
@@ -575,7 +584,35 @@ don't go through the registry. `.github/workflows/publish-packs.yml` in this rep
 publishes them to the same bucket and the same `index.json`, with the same rules: versions are immutable, older ones
 stay, and `approved` keeps its first date (CONTRIBUTING.md, "Publishing packs"). The registry's publish must
 therefore keep the packs it didn't publish when it regenerates `index.json`, and a pack id is published by one of the
-two only.
+two only (§11.5, "One publisher per pack id").
+
+**The approval gate for the repo's own packs (2026-11-13).** A merged registry PR is the approval for a registry pack;
+a pack in `content-packs/community/` has no PR review of its own, so its approval is recorded in its `pack.json`, and
+the publish workflow reads it there:
+
+```jsonc
+"permission": {
+  "status": "granted",            // or "pending": anything missing or second-hand
+  "by": "Neptune",                // who gave it: the creator, or who granted it on their behalf
+  "date": "2026-11-05",           // YYYY-MM-DD
+  "evidence": "https://…",        // where it was given, or where the message is kept
+  "scope": "inclusion and translation",
+  "languages": ["en", "es"],      // the original's language and each translation the grant covers
+  "note": "…"                     // while pending: what is still missing
+}
+```
+
+- `mc-pack validate` checks the fields' shape, and that a `granted` permission has `date`, `evidence`, `scope` and
+  `languages`. `mc-pack validate --publish` also requires `status: "granted"` and `languages` covering every language
+  in `languages.available` (a translation needs the creator's permission too), unless the folder has a `DRAFT` file;
+  the SDK exports the check as `publishIssues`. Imported packs (`mc-pack import-marvelcdb`) start `pending`.
+- `publish-packs.yml` runs `validate --publish` on every community pack without a `DRAFT` file in its build job, and
+  **fails closed**: if any pack is not approved, the run fails before anything is uploaded and the log lists each one
+  with its `note`. The owner then records the missing evidence, or adds a `DRAFT` file to hold the pack back.
+- `PERMISSION.md` stays the human-readable record; the `pack.json` fields mirror it and are what the gate reads.
+- The gate decides what this repo publishes next. **Versions already on R2 are not affected:** a pack that turns
+  `pending` keeps its published versions in the bucket and in `index.json`, so installs and saves keep working. To take
+  it off the store, withdraw it (§11.5); the gate itself never removes anything.
 
 A pack without permission evidence is never merged. Of BluefireF5ran's 30 packs, only Gwenpool has it so far (§10).
 Neptune's packs (issue #661) are free to use by their creator's own statement, and that statement is the evidence.
@@ -601,19 +638,25 @@ The store's catalog is §5.2's, with the extra fields the store screen shows:
       "latest": "1.0.0",
       "versions": {/* as §5.2 */},
       "withdrawn": false,
+      "source": "registry", // or "game": who publishes it (below)
     },
   ],
 }
 ```
 
-Each version may carry `"preview": "<base>preview.json"`. `mc-pack build` writes `preview.json` (and `thumb.webp`, when the
-featured card has a picture) next to the zip, never inside it, so the zip bytes do not depend on it. It holds the
+Each version may carry `"preview": "<base>preview.json"`. `mc-pack build` writes `preview.json` (and `thumb.webp`: the
+pack's `cover` when it has one, else the featured card's picture when it has one) next to the zip, never inside it, so
+the zip bytes do not depend on it. A pack with a cover says so in `preview.json` (`"cover": "cover.webp"`), so the
+store shows the thumbnail as a cover, whole and in every language, where it would otherwise show a non-base-language
+player the featured card's picture in their language; an installed pack shows the cover from its own files, offline.
+Neither publisher changes for it: the cover reaches the catalog as the `thumbnail` it already lists. It holds the
 featured card (a hero pack's identity with both faces, a scenario pack's villain, a campaign pack's first scenario's
 villain), the pack's own full card records, each precon deck as card ids and quantities (base-game ids stay ids) and the
 list of `cards/<lang>/<code>.webp` pictures the pack ships (`PackPreview` in `@mc/content`). The client reads it
 before an install to show the browse tile's card and the pack page's gallery. It is untrusted data: capped at 1 MiB,
-validated, and only the pack's own well-formed cards are kept. Publishing it into the registry's index (the update-index
-step) is not done yet.
+validated, and only the pack's own well-formed cards are kept. Both publishers upload it: the registry's publish puts
+`preview.json`, `thumb.webp` and the unpacked card pictures (`cards/<lang>/<code>.webp`) beside each version's zip and
+sets that version's `preview`, as this repo's `publish-packs.yml` does.
 
 The client fetches the catalog when the store opens, with a short cache. It keeps the last copy, so the store still
 opens offline and shows what's installed.
@@ -641,11 +684,24 @@ The merge rules on both sides:
   workflow's manual `unwithdraw` input lists a pack again. In the registry a deleted `packs/<id>.yaml` drops the
   pack, and adding the file back lists it again; a pack the other publisher withdrew stays withdrawn.
 
+**One publisher per pack id (2026-11-13).** Every entry carries `"source": "game"` (this repo's `publish-packs.yml`)
+or `"source": "registry"` (the registry's `publish.yml`). An entry without `source` was written before the field
+existed, by this repo, so both sides read it as `"game"`.
+
+- A publisher writes its own `source` on every entry it publishes, and refuses to publish (or, here, `unwithdraw`) an
+  id whose entry has the other source. The run fails before it uploads anything: this repo checks the public
+  `index.json` in its build job (`scripts/check-pack-ownership.mjs`, no secret needed), the bucket's copy again in its
+  publish job before the upload, and the merge (`upsertPackIndex`) refuses it as a last line.
+- Withdrawing touches only the writer's own entries: the registry drops only `"registry"` entries whose
+  `packs/<id>.yaml` is gone, and this repo's `unwithdraw` only lists its own packs again.
+- Moving a pack from one publisher to the other is a manual edit of `index.json` (change its `source`), never
+  something either workflow does.
+
 ### 11.6 The store screen
 
 The store screen is **Extras ▸ Mod Store**. Like every other screen, it's drawn in Phaser with the `Mc*` widgets.
 
-- **Browse:** tabs for All, Heroes, Scenarios and Installed. Each pack is a tile with its thumbnail, name, creator,
+- **Browse:** tabs for All, Heroes, Scenarios, House rules (§11.11) and Installed. Each pack is a tile with its thumbnail, name, creator,
   kind, size and state: Install, Installed, Update, Needs app update or Withdrawn.
 - **Pack page:**
   - the pack's cards as a gallery, with the hover popover on desktop;
@@ -703,7 +759,10 @@ CLI's help and the SDK README say so. The workflows are built around it:
 - **This repo's `publish-packs.yml`:** the `build` job runs `mc-pack build` with a read-only token, no secrets and a
   checkout that keeps no credentials, and hands the staged packs on as an artifact. The `publish` job (the `store`
   environment) holds the R2 secrets, installs nothing and runs no pack code: it uploads the staged files and runs
-  this repo's own index scripts, which use Node built-ins only.
+  this repo's own index scripts, which use Node built-ins only. The two publish gates (§11.4's approval gate, §11.5's
+  one publisher per pack id) run before any upload: the approval gate in the `build` job (`mc-pack validate
+  --publish`), the ownership check first in the `build` job, before any dependency is installed or any pack code runs,
+  on the public `index.json`, and again in the `publish` job on the bucket's copy.
 - **This repo's `mod-sdk.yml`:** the `build` job builds the SDK tarball and smoke-tests it on the sample pack with no
   secrets; the `publish` job attaches the tarball to the release and publishes it to npm with `NPM_TOKEN`, and runs
   no pack code.
@@ -713,7 +772,10 @@ CLI's help and the SDK README say so. The workflows are built around it:
 `scripts/check-workflow-secrets.mjs` (in both repos; here run by `pnpm test:scripts`, in the registry by its CI)
 fails if a job that runs pack code (`mc-pack`, `smoke:dist`, `build-entry.sh`) references `secrets.`, runs in a
 deployment environment, has a write permission or keeps its checkout token, or if a job in the same workflow that
-holds secrets installs dependencies.
+holds secrets installs dependencies. It also checks the GitHub token step by step: in a job that runs pack code, no
+step that runs pack code or installs dependencies may have `GH_TOKEN`, `GITHUB_TOKEN` or `github.token`, the job's own
+env may not have one, and no step may use one after pack code ran (a fetch with the token goes first); and every
+checkout in a workflow that runs pack code sets `persist-credentials: false`.
 
 ### 11.10 Campaigns
 
@@ -754,7 +816,113 @@ two nodes, a number and a flag written between games and read by a game's setup)
 campaigns with `packCampaignRecords(packs)`, finds a definition with `packCampaignDefinitionOf(packs, id)` (the campaign
 service's `definitionOf`), and builds a node's game with `campaignGameWithPacks(start, packs)`.
 
-### 11.11 Built-in content as packs (2026-11-13)
+### 11.11 House rules (2026-11-13)
+
+The owner's decisions: a house-rule mod is its own pack kind, `house-rule`, with its own **House rules** tab in the
+store. A house rule adds no card and no ability: it changes official cards, as data, and is switched on per game.
+
+```jsonc
+// pack.json
+"kind": "house-rule",
+"houseRule": {
+  "traitAdditions": [{ "code": "01001a", "traits": ["Web-Warrior"] }, { "code": "14001b", "traits": ["Mutant"] }],
+  // or, instead of (or beside) traitAdditions:
+  "enablesMode": "balanced"
+}
+```
+
+- **Faces.** The rule's rebuilt card faces are its ordinary pictures, `cards/<lang>/<code>.webp`, filed under the
+  official face code they rebuild (`01001a`, an alter-ego's `14001b`, a scheme stage's `16107b`). So the language
+  fallback, `preview.json`, `thumb.webp` (the first face) and the client's pack art work as for any pack. They show
+  only while the rule is on, in that game.
+- **`mc-pack validate`** checks: `houseRule` on a `house-rule` pack only, and required there; no cards, abilities,
+  decks, scenarios, encounter sets, campaigns or `altArt`; each trait addition's code is an official face (a card id,
+  or a hero identity's `b` alter-ego) listed once, with at least one trait; the fields are only `code` and `traits`
+  (additions only, nothing is removed); `enablesMode` is a known mode; the rule does something; every picture's code is
+  an official picture code (`officialCardsByPictureCode`, from the cards' own scans).
+- **Trait additions** (`traitAdditions`): the rule is a toggle in Table setup ("House rule: Lost Traits"). On, the game
+  carries the pack (`SessionConfig.houseRules` lists it, `withLoadedPacks` embeds it in `SessionConfig.packs`), and the
+  game's pool has the traits added (`applyTraitAdditions`) before the engine starts: the engine is unchanged and reads
+  them as printed. The browsing pool (`currentPool`) never applies them. A trait is written as printed and normalized
+  like any other (`trait`); the content has no translated traits yet, so a Spanish name lives only on the Spanish face.
+- **Modes** (`enablesMode: "balanced"`): the rules are the game's own scripted Balanced option (issue #609); the pack is
+  what offers it. Galaxy's Most Wanted asks Normal or Rebalance only with the pack installed and loaded. A run signed
+  Balanced carries `modes.campaign.balanced` and plays its rules with or without the pack. With the pack, its faces
+  replace the old edited scans for the Balanced cards on screen (a toggle's cards only with that toggle on; a second
+  version of a scan it does not rebuild keeps its scan); without it, the old scans show.
+- **Which faces show (2026-11-13 review).** A rule shows a rebuilt face only for a card it owns: for `traitAdditions`,
+  a picture whose code is a listed addition (an identity's alter-ego `b` included); for `enablesMode: "balanced"`, only
+  the Balanced campaign's own cards (`BALANCED_FACE_CODES`: the Balanced scans plus the fixed schemes' stage codes
+  16107a/b). `mc-pack validate` refuses any other picture code, and the client ignores one (`houseRuleMayRebuild`). A
+  trait rule's faces show only when the installed pack's version is the one embedded in the game; otherwise the
+  printed face shows. A pack cannot carry both `traitAdditions` and `enablesMode` (the runtime reads a mode pack as a
+  mode only): make two packs.
+- **Progression.** A house-rule pack is not custom content: a game played with one counts like a Balanced campaign does
+  (`isCustomSave` skips house-rule packs). Owner decision (Quin, 2026-11-13): house-rule games count for progression
+  like any game. Follow-up, issue #689: house-rule packs that replace official cards, and GMW Fixes carrying the
+  Balanced rules itself (today the rules are the game's own scripted Balanced option and the pack only offers it).
+- First version limits: trait additions only on a card's front or a hero identity's alter-ego (no flip sides, no
+  three-sided identity's inside form); house rules are offered in Table setup, not inside a campaign run.
+
+The repo's two: `content-packs/community/lost-traits-bf` (Lost Traits, trait additions) and
+`content-packs/community/gmw-fixes-gg` (GMW Fixes, `enablesMode: "balanced"`).
+
+### 11.12 Mod achievements (2026-11-13)
+
+The owner's decisions: mods get achievements, and **no mod achievement awards points**, built in or pack-defined, so
+mods never move a rank or lifetime points. They live in a Trophy Room family called **Mods**, and earning one shows the
+ordinary achievement toast.
+
+- **Built in** (`progression/mod-achievements.ts`): installing mods (1, 5, 10, one of every kind), playing and winning
+  with a community hero, beating a community scenario's villain, a community campaign, two community heroes in one game,
+  a house rule on (and Lost Traits specifically), an Expert win with community content, and win counts. Each is 0 points.
+- **Read from custom games.** Base progression skips a custom-content game (`isCustomSave`), so base `factsOf` never sees
+  one. The mod facts read the same save rows separately (`modFactsOf`): every finished (won or lost) real game, custom or
+  not, feeding only the Mods family. Base stats, points and rank are unchanged by custom games; a test pins that.
+- **Installs are the one stored fact.** An uninstalled pack leaves nothing in the saves, so each installed pack is noted
+  once (`mc-mod-installs`, `{ <pack id>: <kind> }`, synced with the other progress keys) the first time the pack store
+  lists it. Removing a mod never takes an install achievement back.
+- **Pack-defined**: `pack.json` carries `achievements: [{ id, name, description, when }]`, data only, no code:
+
+  ```jsonc
+  "achievements": [
+    { "id": "sentinel-rising", "name": "Sentinel Rising", "description": "Win a game with Sample Sentinel.",
+      "when": { "win": true, "hero": "x.sample-hero.01a" } }
+  ]
+  ```
+
+  `when` has exactly one **measure** and any **filters**:
+
+  | Measure               | Meaning                                          |
+  | --------------------- | ------------------------------------------------ |
+  | `win: true`           | win one game                                     |
+  | `play: true`          | finish one game, won or lost                     |
+  | `gamesWon: N`         | win N games (1 to 1000)                          |
+  | `gamesPlayed: N`      | finish N games, won or lost (1 to 1000)          |
+  | `campaignWon: "<id>"` | win one of the pack's own campaigns (no filters) |
+
+  | Filter              | Meaning                                                                           |
+  | ------------------- | --------------------------------------------------------------------------------- |
+  | `hero: "<card id>"` | the game seats this hero (a hero identity card of the pack, e.g. `x.my-pack.01a`) |
+  | `villain: "<id>"`   | the game's scenario is this one of the pack's scenarios                           |
+  | `expert: true`      | the game was played on Expert                                                     |
+  | `houseRule: "<id>"` | the game switched the pack's own house rule on (a trait-addition house-rule pack) |
+
+  A game counts only if it carries the pack (`SessionConfig.packs`), so one pack's achievements are never earned by
+  playing another's. Limits: at most 24 per pack; `id` lowercase letters, digits and dashes (48 characters), unique in
+  the pack and scoped by the game as `pack:<pack-id>/<id>`; `name` 48 characters; `description` 160.
+
+- **`mc-pack validate`** checks the list's shape and size, each entry, ids unique, and that every `hero`, `villain`,
+  `campaignWon` and `houseRule` names the pack's OWN content (a hero identity of the pack, one of its scenarios, one of
+  its campaigns, its own id on a house-rule pack with trait additions). `mc-pack build` carries the list into the built
+  `pack.json` and `preview.json`.
+- **Where they show.** The Trophy Room's Mods family lists the game's own first, then a heading per installed pack with
+  its achievements. A pack that is no longer installed is listed only for what was earned from it (read from the copy
+  its games embedded), under the pack's name. The pack's Mod Store page lists them with a note that they give no points.
+- The template repo (`quincarter/marvel-champions-mod-template`) needs the same `achievements` example in its sample
+  pack's `pack.json`.
+
+### 11.13 Built-in content as packs (2026-11-13)
 
 The base game's products are being defined the way a store pack is, one product at a time, so the SDK proves itself
 on content we already trust and each product's folder is a worked example. The Core Set and wave 1's eight products

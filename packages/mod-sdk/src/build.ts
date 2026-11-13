@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import { Zip, ZipDeflate } from "fflate";
 import {
   PACK_SCHEMA_VERSION,
+  isSafePackPath,
   type AnyCard,
   type EncounterSet,
   type PackFile,
@@ -36,9 +37,12 @@ export type PackAuthorManifest = Pick<
   | "pictures"
   | "languages"
   | "altArt"
+  | "houseRule"
   | "permission"
   | "templateCredit"
   | "translators"
+  | "cover"
+  | "achievements"
 > & { readonly requires: { readonly app: string; readonly packs?: readonly string[] } };
 
 /** A pack's source tree, loaded. */
@@ -54,7 +58,7 @@ export interface PackSource {
   readonly campaigns?: readonly unknown[];
   /**
    * Static files to ship, by their path in the pack: `art/**`, the per-language card pictures `cards/<lang>/**`, the
-   * alternate art `alt-art/**`, `CREDITS.md` and `PERMISSION.md`.
+   * alternate art `alt-art/**`, the store cover `pack.json` names (`cover`), `CREDITS.md` and `PERMISSION.md`.
    */
   readonly assets: ReadonlyMap<string, Uint8Array>;
 }
@@ -139,6 +143,12 @@ export async function loadPackSource(srcDir: string, options: LoadOptions = {}):
     const full = join(srcDir, name);
     if (existsSync(full)) assets.set(name, new Uint8Array(readFileSync(full)));
   }
+  // The store cover, at the path pack.json names (a missing or unsafe one is left for validation to report).
+  const cover: unknown = author.cover;
+  if (typeof cover === "string" && isSafePackPath(cover) && !assets.has(cover)) {
+    const full = join(srcDir, ...cover.split("/"));
+    if (existsSync(full) && statSync(full).isFile()) assets.set(cover, new Uint8Array(readFileSync(full)));
+  }
   return { author, cards, abilities, decks, scenarios, encounterSets, campaigns, assets };
 }
 
@@ -186,9 +196,12 @@ export function assemblePack(source: PackSource): PackInput {
     ...(author.pictures ? { pictures: author.pictures } : {}),
     ...(author.languages ? { languages: author.languages } : {}),
     ...(author.altArt ? { altArt: author.altArt } : {}),
+    ...(author.houseRule ? { houseRule: author.houseRule } : {}),
     ...(author.permission ? { permission: author.permission } : {}),
     ...(author.templateCredit ? { templateCredit: author.templateCredit } : {}),
     ...(author.translators ? { translators: author.translators } : {}),
+    ...(author.cover !== undefined ? { cover: author.cover } : {}),
+    ...(author.achievements ? { achievements: author.achievements } : {}),
     files: listed,
     totalBytes: listed.reduce((sum, file) => sum + file.bytes, 0),
     license: author.license,

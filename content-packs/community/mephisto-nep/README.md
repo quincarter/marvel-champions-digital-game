@@ -11,11 +11,13 @@ and is unconfirmed; "Rules readings and open questions" below lists the calls ma
 ## Source layout
 
 `pack.json`, `cards/*.json`, `encounter-sets/`, `scenarios/` and `abilities/index.ts` are in git. The pictures
-(`cards/en/`, `alt-art/en/`) are not: `.gitignore` leaves them out, and they ship in the content repo's release bundles
+(`cards/en/`, `cards/es/`, `alt-art/en/`, `alt-art/es/`) are not: `.gitignore` leaves them out, and they ship in the content repo's release bundles
 (a `pack-art` bundle, to be made). For a local build, unzip the author's download and run
 `sh fetch-art.sh "<path>/Mephisto/Mephisto"` (it calls `convert-art.cjs`: WebP, 900 px on the long side, quality 85,
 landscape cards turned upright). The author distributes the pack in the community Discord; there is no public repository
-to clone. Without the pictures `mc-pack build` fails on `altArt`; `mc-pack validate` does not need them.
+to clone. The Spanish pictures (`cards/es/`, `alt-art/es/`) are Francisco Merchán's, curated by BluefireF5ran: plain
+`sh fetch-art.sh` fetches them from his repository at the pinned commit (the English pictures stay from the author's
+download). Without the pictures `mc-pack build` fails on `altArt`; `mc-pack validate` does not need them.
 
 ### Picture names
 

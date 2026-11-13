@@ -16,8 +16,12 @@ import {
 
 describe("the Balanced prompt's model", () => {
   it("asks only for Galaxy's Most Wanted", () => {
-    expect(hasBalancedPrompt("gmw")).toBe(true);
-    expect(hasBalancedPrompt("trors")).toBe(false);
+    expect(hasBalancedPrompt("gmw", true)).toBe(true);
+    expect(hasBalancedPrompt("trors", true)).toBe(false);
+  });
+
+  it("offers Balanced only with the GMW Fixes mod installed (owner, 2026-11-13)", () => {
+    expect(hasBalancedPrompt("gmw", false)).toBe(false);
   });
 
   it("starts on Play as normal, with every toggle off", () => {

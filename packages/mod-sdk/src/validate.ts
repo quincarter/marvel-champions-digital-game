@@ -6,19 +6,28 @@ import {
   validateDefinition,
 } from "@mc/cards";
 import {
+  PACK_COVER_MAX_BYTES,
+  packAchievementProblems,
+  PACK_HOUSE_RULE_MODES,
   PACK_KINDS,
+  PACK_PERMISSION_STATUSES,
   PACK_SCHEMA_VERSION,
   PLAYABLE_CARDS,
   customCardPrefix,
   isLanguageTag,
+  isPackCoverPath,
   isPackId,
   isSafePackPath,
+  officialFaceOfCode,
+  officialCardsByPictureCode,
+  houseRuleMayRebuild,
   packStagedPictureCodes,
   parsePackCardImagePath,
   validateCard,
   validateEncounterSet,
   validateScenario,
   validateStarterDeck,
+  webpSize,
   type AnyCard,
   type EncounterSet,
   type PackManifest,
@@ -79,6 +88,8 @@ export interface PackInput {
 export interface ValidateOptions {
   readonly baseAbilities?: AbilityRegistry;
   readonly baseCardCodes?: ReadonlySet<string>;
+  /** The base game's card records, which a house rule's codes must name (`officialFaceOfCode`). Default: the pool. */
+  readonly baseCards?: readonly AnyCard[];
   readonly supportedFeatures?: readonly string[];
   /**
    * The card codes of the packs this one lists in `requires.packs`, so its decks and cards may name them. Without
@@ -105,6 +116,11 @@ const SHA256 = /^[0-9a-f]{64}$/;
 
 let defaultBaseCodes: ReadonlySet<string> | undefined;
 const baseCodes = (): ReadonlySet<string> => (defaultBaseCodes ??= new Set(PLAYABLE_CARDS.map((card) => card.id)));
+let defaultBaseCards: ReadonlyMap<string, AnyCard> | undefined;
+const baseCardsById = (cards: readonly AnyCard[] | undefined): ReadonlyMap<string, AnyCard> =>
+  cards
+    ? new Map(cards.map((card) => [card.id as string, card]))
+    : (defaultBaseCards ??= new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card])));
 
 type Add = (path: string, message: string, category?: PackIssueCategory) => void;
 type Obj = Record<string, unknown>;
@@ -221,12 +237,29 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     add("pack.json requires.dslFeatures", `must list exactly the features the abilities use: ${features.join(", ")}`);
 
   checkFiles(input, add);
+  checkCover(input, add);
   // A picture may be of any face of a pack card: `01b` is the back of card `01a`, which shares its number.
   const isPackFace = (code: string): boolean =>
     code.startsWith(prefix) &&
     CARD_NUMBER.test(code.slice(prefix.length)) &&
     cardNumbers.has(digitsOf(code.slice(prefix.length)));
-  checkLanguagesAndArt(input, (code) => knownCard(code) || isPackFace(code), isPackFace, add);
+  // A house rule's pictures are the official faces it rebuilds, by their printed codes (§11.11).
+  const officialById = baseCardsById(options.baseCards);
+  const officialPictures = officialCardsByPictureCode(options.baseCards ?? PLAYABLE_CARDS);
+  // ...and only ones the rule may rebuild (`houseRuleMayRebuild`): its own trait additions, or the Balanced cards.
+  const ruleBlock: unknown = manifest.houseRule;
+  const isRuleFace = (code: string): boolean =>
+    manifest.kind === "house-rule" &&
+    officialPictures.has(code) &&
+    isObj(ruleBlock) &&
+    houseRuleMayRebuild(ruleBlock as Parameters<typeof houseRuleMayRebuild>[0], code);
+  checkLanguagesAndArt(
+    input,
+    (code) => knownCard(code) || isPackFace(code),
+    (code) => isPackFace(code) || isRuleFace(code),
+    add,
+  );
+  checkHouseRule(input, officialById, add);
   checkStagePictures(input, cards, add);
 
   // Decks: unique ids under the pack's id, every card in the pack or the base pool, and the content schema's checks.
@@ -288,6 +321,34 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
       add,
     });
   }
+  checkAchievements(input, cards, packId, add);
+}
+
+/**
+ * The pack's achievements (docs/custom-content-packs.md §11.12): shape, limits, unique ids, and conditions that name only
+ * this pack's own heroes, scenarios, campaigns and (for a house rule) own toggle.
+ */
+function checkAchievements(input: PackInput, cards: readonly Obj[], packId: string, add: Add): void {
+  const { manifest } = input;
+  const idsOf = (list: unknown): Set<string> =>
+    new Set(
+      (Array.isArray(list) ? list : []).flatMap((one) => (isObj(one) && typeof one.id === "string" ? [one.id] : [])),
+    );
+  const rule: unknown = manifest.houseRule;
+  const toggle =
+    manifest.kind === "house-rule" &&
+    isObj(rule) &&
+    Array.isArray(rule.traitAdditions) &&
+    rule.traitAdditions.length > 0 &&
+    rule.enablesMode === undefined;
+  const problems = packAchievementProblems(manifest.achievements, {
+    packId,
+    heroIds: new Set(cards.filter((card) => card.type === "hero_identity").map((card) => String(card.id))),
+    scenarioIds: idsOf(input.scenarios),
+    campaignIds: idsOf(input.campaigns),
+    houseRuleToggle: toggle,
+  });
+  for (const message of problems) add("pack.json achievements", message);
 }
 
 /**
@@ -349,6 +410,81 @@ function checkEncounterSets(
     const nemesis = card.type === "hero_identity" ? card.nemesisEncounterSetId : undefined;
     if (typeof nemesis === "string" && belongsToPack(nemesis) && !ids.has(nemesis))
       add(at, `nemesis set "${nemesis}" has no record in the pack's encounter sets`);
+  }
+}
+
+/**
+ * A `house-rule` pack (docs/custom-content-packs.md §11.11): its `houseRule` block, and nothing a house rule may not
+ * carry. It adds no card, ability, deck, scenario, encounter set or campaign; each trait addition names an official
+ * card face (`officialFaceOfCode`) once and only adds traits; and the rule does something (adds traits or enables a
+ * mode). Any other kind of pack may not carry a `houseRule`.
+ */
+function checkHouseRule(input: PackInput, officialById: ReadonlyMap<string, AnyCard>, add: Add): void {
+  const { manifest } = input;
+  const at = (field: string): string => `pack.json ${field}`;
+  const rule: unknown = manifest.houseRule;
+  if (manifest.kind !== "house-rule") {
+    if (rule !== undefined) add(at("houseRule"), 'only a "house-rule" pack may carry a house rule');
+    return;
+  }
+  if (!isObj(rule)) {
+    add(at("houseRule"), "a house-rule pack needs its houseRule: { traitAdditions?, enablesMode? }");
+    return;
+  }
+  for (const key of Object.keys(rule)) {
+    if (key !== "traitAdditions" && key !== "enablesMode") add(at(`houseRule.${key}`), "is not a house rule field");
+  }
+  const lengthOf = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
+  if (lengthOf(input.cards) > 0) add("data/cards.json", "a house-rule pack adds no cards: it changes official ones");
+  if (Object.keys(isObj(input.abilities) ? input.abilities : {}).length > 0)
+    add("data/abilities.json", "a house-rule pack carries no abilities (its rules are data, or the game's own)");
+  for (const [field, path] of [
+    ["decks", "data/decks.json"],
+    ["scenarios", "data/scenarios.json"],
+    ["encounterSets", "data/encounter-sets.json"],
+    ["campaigns", "data/campaigns.json"],
+  ] as const) {
+    if (lengthOf(input[field]) > 0) add(path, "a house-rule pack carries none");
+  }
+  if (manifest.altArt !== undefined)
+    add(at("altArt"), "a house rule's faces are its cards/<lang>/<code>.webp pictures, not altArt");
+  const mode: unknown = rule.enablesMode;
+  if (mode !== undefined && !(PACK_HOUSE_RULE_MODES as readonly unknown[]).includes(mode))
+    add(at("houseRule.enablesMode"), `must be one of ${PACK_HOUSE_RULE_MODES.join(", ")}`);
+  const additions: unknown = rule.traitAdditions;
+  // The runtime reads a mode pack's rule as a mode only (`packEnablingMode`; `setupHouseRules` skips it), so a pack
+  // with both would validate but never apply its traits.
+  if (mode !== undefined && lengthOf(additions) > 0)
+    add(at("houseRule"), "enablesMode and traitAdditions cannot be combined: make two packs");
+  if (additions !== undefined && !Array.isArray(additions)) {
+    add(at("houseRule.traitAdditions"), "must be a list of { code, traits }");
+    return;
+  }
+  if (mode === undefined && lengthOf(additions) === 0)
+    add(at("houseRule"), "does nothing: give it traitAdditions or enablesMode");
+  const seen = new Set<string>();
+  for (const [index, addition] of (Array.isArray(additions) ? additions : []).entries()) {
+    const where = at(`houseRule.traitAdditions[${index}]`);
+    if (!isObj(addition)) {
+      add(where, "must be { code, traits }");
+      continue;
+    }
+    for (const key of Object.keys(addition)) {
+      if (key !== "code" && key !== "traits")
+        add(`${where}.${key}`, "is not a trait addition field (traits are only added)");
+    }
+    const code = typeof addition.code === "string" ? addition.code : "";
+    if (code === "" || officialFaceOfCode(code, officialById) === undefined)
+      add(where, `code "${code}" is not a face of an official card (a card code, or a hero identity's alter-ego "b")`);
+    if (seen.has(code)) add(where, `code "${code}" is listed twice`);
+    seen.add(code);
+    const traits: unknown = addition.traits;
+    if (
+      !Array.isArray(traits) ||
+      traits.length === 0 ||
+      traits.some((name) => typeof name !== "string" || name.trim() === "" || name.length > 40)
+    )
+      add(where, "traits must list at least one trait name");
   }
 }
 
@@ -483,8 +619,24 @@ function checkCredits(manifest: PackManifest, add: Add): void {
       if (!text(permission.by)) add(at("permission.by"), "must say who gave permission");
       if (permission.date !== undefined && (typeof permission.date !== "string" || !ISO_DATE.test(permission.date)))
         add(at("permission.date"), "must be YYYY-MM-DD");
-      for (const field of ["evidence", "scope"] as const) {
+      for (const field of ["evidence", "scope", "note"] as const) {
         if (permission[field] !== undefined && !text(permission[field])) add(at(`permission.${field}`), "must be text");
+      }
+      const status: unknown = permission.status;
+      if (status !== undefined && !(PACK_PERMISSION_STATUSES as readonly unknown[]).includes(status))
+        add(at("permission.status"), `must be one of ${PACK_PERMISSION_STATUSES.join(", ")}`);
+      const languages: unknown = permission.languages;
+      if (
+        languages !== undefined &&
+        (!Array.isArray(languages) || languages.some((lang) => typeof lang !== "string" || !isLanguageTag(lang)))
+      )
+        add(at("permission.languages"), "must be a list of language tags");
+      // A grant is only a grant with its record: who, when, where it is kept, what it covers.
+      if (status === "granted") {
+        for (const field of ["date", "evidence", "scope"] as const) {
+          if (permission[field] === undefined) add(at(`permission.${field}`), "is required when the status is granted");
+        }
+        if (languages === undefined) add(at("permission.languages"), "is required when the status is granted");
       }
     }
   }
@@ -499,6 +651,41 @@ function checkCredits(manifest: PackManifest, add: Add): void {
       }
     }
   }
+}
+
+/**
+ * The approval gate of a pack this repo publishes (docs/custom-content-packs.md §11.4): what stops it being published,
+ * on top of `validatePack`. Its `pack.json` `permission` must record an explicit grant (`status: "granted"` with who,
+ * when, the evidence and the scope; `checkCredits` checks those fields are there) whose `languages` cover every
+ * language the pack ships. Empty when the pack may be published. A pack with a `DRAFT` file is never published, so
+ * `mc-pack validate --publish` doesn't run this on one.
+ */
+export function publishIssues(manifest: PackManifest): PackIssue[] {
+  const issues: PackIssue[] = [];
+  const add = (path: string, message: string): void => void issues.push({ path: `pack.json ${path}`, message });
+  const permission: unknown = manifest.permission;
+  if (!isObj(permission)) {
+    add(
+      "permission",
+      "is required to publish: record the creator's grant (status, by, date, evidence, scope, languages)",
+    );
+    return issues;
+  }
+  if (permission.status !== "granted") {
+    const status = typeof permission.status === "string" ? permission.status : "missing";
+    const note = typeof permission.note === "string" && permission.note.trim() !== "" ? `: ${permission.note}` : "";
+    add("permission.status", `is ${status}, not granted, so the pack is not published${note}`);
+    return issues;
+  }
+  const covered = new Set(Array.isArray(permission.languages) ? permission.languages : []);
+  const shipped = manifest.languages?.available ?? [];
+  const missing = shipped.filter((lang) => !covered.has(lang));
+  if (missing.length > 0)
+    add(
+      "permission.languages",
+      `does not cover ${missing.join(", ")}: a translation needs the creator's permission too`,
+    );
+  return issues;
 }
 
 /**
@@ -542,7 +729,14 @@ function checkLanguagesAndArt(
     if (!picture) continue;
     if (!available) add(path, 'card pictures need "languages" in pack.json');
     else if (!available.has(picture.lang)) add(path, `language "${picture.lang}" is not in languages.available`);
-    if (!isPackFace(picture.code)) add(path, `"${picture.code}" is not a card of this pack`);
+    if (!isPackFace(picture.code))
+      add(
+        path,
+        `"${picture.code}" is not a card of this pack` +
+          (manifest.kind === "house-rule"
+            ? " (a house rule rebuilds only its trait additions' faces, or the Balanced cards for enablesMode balanced)"
+            : ""),
+      );
   }
   const altArt: unknown = manifest.altArt;
   if (altArt === undefined) return;
@@ -590,6 +784,43 @@ function checkStagePictures(input: PackInput, cards: readonly Obj[], add: Add): 
       if (!shipped.has(code)) add(`cards/${id}`, `stage picture "cards/${base}/${code}.webp" is not a listed file`);
     }
   }
+}
+
+/** The narrowest and widest a cover may be, as width over height: portrait box art (600x984 is 0.61, a card 0.71). */
+const COVER_ASPECT = { min: 0.5, max: 0.8 } as const;
+/** The smallest and largest a cover may be on its long side, in pixels. */
+const COVER_HEIGHT = { min: 300, max: 4096 } as const;
+
+/**
+ * The store cover (`pack.json` `cover`): a listed `.webp` file of the pack, a real WebP under `PACK_COVER_MAX_BYTES`,
+ * in portrait (`COVER_ASPECT`) and of a sane size (`COVER_HEIGHT`). It becomes the catalog's thumbnail (`preview.ts`).
+ */
+function checkCover(input: PackInput, add: Add): void {
+  const cover: unknown = input.manifest.cover;
+  if (cover === undefined) return;
+  const at = "pack.json cover";
+  if (typeof cover !== "string" || !isPackCoverPath(cover)) {
+    add(at, 'must be the path of a .webp file in the pack, such as "cover.webp"');
+    return;
+  }
+  const bytes = input.files instanceof Map ? input.files.get(cover) : undefined;
+  if (!(bytes instanceof Uint8Array)) {
+    add(at, `"${cover}" is not a file of the pack`);
+    return;
+  }
+  if (bytes.length > PACK_COVER_MAX_BYTES)
+    add(at, `"${cover}" is ${bytes.length} bytes, more than a cover's ${PACK_COVER_MAX_BYTES}`);
+  const size = webpSize(bytes);
+  if (!size) {
+    add(at, `"${cover}" is not a WebP picture`);
+    return;
+  }
+  const { width, height } = size;
+  const aspect = width / height;
+  if (aspect < COVER_ASPECT.min || aspect > COVER_ASPECT.max)
+    add(at, `"${cover}" is ${width}x${height}: a cover is portrait, about 600x984 (width/height 0.5 to 0.8)`);
+  if (height < COVER_HEIGHT.min || height > COVER_HEIGHT.max)
+    add(at, `"${cover}" is ${width}x${height}: its height must be ${COVER_HEIGHT.min} to ${COVER_HEIGHT.max} pixels`);
 }
 
 function checkFiles(input: PackInput, add: Add): void {

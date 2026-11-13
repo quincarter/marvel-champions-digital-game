@@ -1,0 +1,27 @@
+{
+  "id": "x.throg-ptt.08",
+  "name": "Amphibious Agility",
+  "setCode": "throg-ptt",
+  "cycleId": "throg-ptt",
+  "collectorNumber": "8",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 0,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.throg-ptt.01a",
+  "traits": ["DEFENSE"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Interrupt (defense): When you would take any amount of damage from an attack, prevent 3 of that damage. (Prevent 5 of that damage instead if you have the Aerial trait.)",
+    "current": "Hero Interrupt (defense): When you would take any amount of damage from an attack, prevent 3 of that damage. (Prevent 5 of that damage instead if you have the Aerial trait.)"
+  },
+  "abilities": [
+    {
+      "id": "x.throg-ptt.08.amphibious-agility-interrupt"
+    }
+  ]
+}

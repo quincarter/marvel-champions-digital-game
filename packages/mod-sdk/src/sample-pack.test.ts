@@ -7,6 +7,7 @@ import { PLAYABLE_CARDS, type PackManifest, type StarterDeck } from "@mc/content
 import { createGame, replay, type GameState } from "@mc/engine";
 import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
+import { buildPreview } from "./preview.js";
 import { readPackInput, validatePack, type PackInput } from "./validate.js";
 // The cards package's headless greedy player, as the precon e2e tests use it.
 import { playToOutcome } from "@mc/cards/testing";
@@ -44,6 +45,13 @@ afterAll(() => rmSync(outDir, { recursive: true, force: true }));
 describe("sample-hero pack", () => {
   it("validates as built", () => {
     expect(validatePack(built)).toEqual([]);
+  });
+
+  it("carries its example achievements into the built pack.json and preview.json, naming only its own hero", () => {
+    const list = built.manifest.achievements ?? [];
+    expect(list.map((a) => a.id)).toEqual(["suited-up", "sentinel-rising", "seasoned-sentinel", "no-sweat"]);
+    expect(list.every((a) => a.when.hero === "x.sample-hero.01a")).toBe(true);
+    expect(buildPreview(built).preview.achievements).toEqual(list);
   });
 
   it("has one of each player card kind, an obligation and a nemesis set under the pack's own codes", () => {
