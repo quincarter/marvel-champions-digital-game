@@ -373,11 +373,11 @@
       "group": "pack-art",
       "optional": true,
       "dir": "content-packs/community/mephisto-nep",
-      "tag": "pack-art-mephisto-nep-10d911e7324b",
+      "tag": "pack-art-mephisto-nep-e872a251ab17",
       "file": "pack-art-mephisto-nep.zip",
-      "size": 6752464,
-      "sha256": "10d911e7324b64b2394787c9f1c1ab8173a0360171d0a1dfe8823e4f50cec619",
-      "files": 60
+      "size": 13542484,
+      "sha256": "e872a251ab17cc21cb092e26aeb155abf95d940273f50b6679f2462fd53f293b",
+      "files": 120
     },
     {
       "name": "pack-art-punisher-pk",
