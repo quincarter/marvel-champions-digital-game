@@ -754,6 +754,31 @@ two nodes, a number and a flag written between games and read by a game's setup)
 campaigns with `packCampaignRecords(packs)`, finds a definition with `packCampaignDefinitionOf(packs, id)` (the campaign
 service's `definitionOf`), and builds a node's game with `campaignGameWithPacks(start, packs)`.
 
+### 11.11 Built-in content as packs (2026-11-13)
+
+The base game's products are being defined the way a store pack is, one product at a time, so the SDK proves itself
+on content we already trust and each product's folder is a worked example. The Core Set and wave 1's eight products
+(`cap`, `thor`, `msm`, `hlk`, `bkw`, `drs`, `gob`, `twc`) have moved so far.
+
+- **One product is one built-in pack** (`packages/cards/src/builtin-packs/define.ts`): a manifest (the product's set
+  code as its id, its kind and its `@mc/content` product record), its cards, encounter sets, scenarios and precons,
+  and the abilities that script its cards. The field names are `PackInput`'s, so the SDK's game helpers
+  (`customContentOfPacks`, `gameDepsWithPacks`) take a built-in pack as they take an installed one. Each product
+  defines itself in its own `pack.ts` (`core/pack.ts`, `wave1/<product>/pack.ts`) with `defineBuiltinPack`, which
+  refuses another product's card, precon, scenario or set, and a script for a card the product doesn't have.
+- **Still compiled into the app.** A built-in pack's data is the generated `@mc/content` modules and its abilities are
+  the `@mc/cards` modules, imported at build time as before; nothing is JSON on disk or loaded at runtime, so startup
+  doesn't change. Card codes, ability ids and deck ids keep their MarvelCDB form (`01001a`), so saves and replays are
+  untouched.
+- **The registries come from the packs.** `CORE_ABILITIES` is the Core pack's abilities, and `WAVE1_ABILITIES` merges
+  Core, the reprint aliases (a wave-level layer: a reprint belongs to no one product) and each wave 1 pack's own, in
+  the order they merged before, so every registry is identical to what it was.
+- **The SDK checks them.** `validateBuiltinPack` (`@mc/mod-sdk`) runs the card, ability, DSL-feature, deck, encounter
+  set and scenario checks `validatePack` runs on a store pack, minus the ones about `x.` codes, ids and files, and CI
+  runs it on every built-in pack (`builtin.test.ts`).
+- **Next:** the later waves move the same way and join `BUILTIN_PACKS`; then the client's pool (`POOL_CARDS`,
+  `POOL_DEPS`) can be assembled from `BUILTIN_PACKS` with the merge helpers installed packs use.
+
 ## Sources
 
 Prices and quotes were read from these pages on 2026-10-30.
