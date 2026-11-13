@@ -16,12 +16,13 @@
     "text": "en"
   },
   "permission": {
-    "status": "pending",
+    "status": "granted",
     "by": "Patatasaurio",
-    "evidence": "BluefireF5ran's curated repository records the grant (mod.json `permission`): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/3a5dff953ec7f2d64473039874fb6568693aa3f6/gwenpool_ptt/mod.json",
-    "scope": "inclusion",
-    "languages": ["es", "en"],
-    "note": "No date and no first-hand evidence (a link or the quoted message) on record; both are still to be asked of BluefireF5ran. The source's status is waiting_author: the author has not confirmed the curator's three rules fixes, posted to him on 2026-11-10."
+    "date": "2026-11-13",
+    "evidence": "Granted by the author(s) in the Marvel Champions homebrew channel on Discord; confirmed by the project owner (Quin Carter) on 2026-11-13. The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/3a5dff953ec7f2d64473039874fb6568693aa3f6/gwenpool_ptt/mod.json",
+    "scope": "inclusion and translation: the Spanish edition, hand-translated by BluefireF5ran, is covered (owner, 2026-11-13)",
+    "languages": ["en", "es"],
+    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message."
   },
   "templateCredit": "G.Triskelion"
 }

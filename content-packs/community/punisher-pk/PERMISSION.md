@@ -13,6 +13,4 @@ and wording fixes in this version (`mod.json` status `waiting_author`), and Rach
 The pack stays a draft (`DRAFT`) until he has. The registry review asks for the evidence (a link or a quoted message) and
 a date; the source has neither, so both are still to be asked of BluefireF5ran.
 
-**Store approval:** pending (`pack.json` `permission.status`; `permission.note` lists what is missing). While the pack
-is a `DRAFT` the publish workflow skips it; once the `DRAFT` file is removed, it needs the status recorded as granted,
-or `mc-pack validate --publish` refuses it and the publish workflow fails rather than publish it.
+**Store approval:** granted (`pack.json` `permission`). The author(s) granted it in the Marvel Champions homebrew channel on Discord; the project owner, Quin Carter, confirmed it on 2026-11-13. The pack is still a `DRAFT` until the author confirms the curators' fixes.

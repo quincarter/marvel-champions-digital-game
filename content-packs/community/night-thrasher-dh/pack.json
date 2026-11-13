@@ -23,12 +23,13 @@
     }
   },
   "permission": {
-    "status": "pending",
+    "status": "granted",
     "by": "DesignHacker",
-    "evidence": "BluefireF5ran's curated repository records the grant (mod.json `permission`): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/9ce0a25ec5b1b6f08b3a926838d9295babe69758/night_thrasher_dh/mod.json",
-    "scope": "inclusion",
-    "languages": ["en"],
-    "note": "No date and no first-hand evidence (a link or the quoted message) on record; both are still to be asked of BluefireF5ran. The recorded scope is inclusion only, so the Spanish translation is not covered."
+    "date": "2026-11-13",
+    "evidence": "Granted by the author(s) in the Marvel Champions homebrew channel on Discord; confirmed by the project owner (Quin Carter) on 2026-11-13. The curated repository's record: https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/9ce0a25ec5b1b6f08b3a926838d9295babe69758/night_thrasher_dh/mod.json",
+    "scope": "inclusion and translation: the Spanish edition, hand-translated by BluefireF5ran, is covered (owner, 2026-11-13)",
+    "languages": ["en", "es"],
+    "note": "2026-11-13 is the date the owner confirmed the grant, not the date of the Discord message."
   },
   "templateCredit": "Hitch",
   "translators": {
