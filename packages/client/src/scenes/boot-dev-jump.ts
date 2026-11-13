@@ -391,6 +391,20 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=gameover`: a fresh Rhino game conceded at once, on Game over (its "Watch replay" action, issue #693).
+  if (screen === "gameover") {
+    const { store } = appSession();
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const game = store.state.game;
+    if (game) await store.dispatch({ type: "concede", playerId: game.firstPlayerId });
+    return { key: SCENES.gameOver, data: {} };
+  }
+
   // `&fixture=drones[&seats=N]`: a two-seat Ultron game at the first turn (up to four with `seats`), each seat with its own
   // facedown Drone, in hero form (the attack target picker's Drone labels, issue #357; `view/targeting-panel.test.ts`
   // plays the same game). Four seats give an attack five targets, one more than a page of the pad's direct picks.

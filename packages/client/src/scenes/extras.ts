@@ -16,7 +16,7 @@
  *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
  */
 import Phaser from "phaser";
-import { accent, hit, ink, surface, typeRole } from "../tokens.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -51,6 +51,9 @@ import type { CampaignOpenerData } from "./campaign/routes.js";
 import type { ExtrasViewerData } from "./extras-viewer.js";
 import type { ExtrasReaderData } from "./extras-reader.js";
 import type { SideStoryReaderData } from "./side-story-reader.js";
+import { t } from "../i18n/translate.js";
+import { openReplay, pickReplayFile, replayErrorKey } from "../replay/replay-files.js";
+import { watchReplay } from "./replay-entry.js";
 
 export interface ExtrasSceneData {
   /** The tab to open on: a story read comes back to Stories. Defaults to the tab open last time. */
@@ -63,6 +66,7 @@ const TAB_HEIGHT = 44;
 export const PROMO_CHANGED = "promo-changed";
 
 export class ExtrasScene extends Phaser.Scene {
+  #openingReplay = false;
   #tab: ExtrasTab = "stories";
   /** One scroll position per tab, kept across visits (Phaser reuses this scene instance). */
   readonly #scrolls = new Map<ExtrasTab, ListScroll>();
@@ -138,6 +142,35 @@ export class ExtrasScene extends Phaser.Scene {
       this.#scrolls.set(tab, scroll);
     }
     return scroll;
+  }
+
+  /** "Open a replay" (issue #693): picks a replay file and watches it on the board; Exit comes back here. */
+  async #openReplayFile(): Promise<void> {
+    if (this.#openingReplay) return;
+    this.#openingReplay = true;
+    try {
+      const picked = await pickReplayFile();
+      if (picked === null || !this.sys.isActive()) return;
+      if (picked === "unreadable") return this.#replayProblem(t("replay.error.damaged"));
+      const host = await openReplay({ kind: "file", bytes: picked });
+      if (!this.sys.isActive()) return host.dispose();
+      this.scale.off("resize", this.#draw, this);
+      await watchReplay(this, host, SCENES.extras);
+    } catch (cause) {
+      if (this.sys.isActive()) this.#replayProblem(t(replayErrorKey(cause)));
+    } finally {
+      this.#openingReplay = false;
+    }
+  }
+
+  /** Says why a replay didn't open, under the doors, for a few seconds. */
+  #replayProblem(text: string): void {
+    const { width } = this.scale.gameSize;
+    const line = this.add
+      .text(width / 2, 4, text, textStyle(typeRole.body, signal.caution.hex))
+      .setOrigin(0.5, 0)
+      .setDepth(1000);
+    this.time.delayedCall(5000, () => line.destroy());
   }
 
   #back(): void {
@@ -235,17 +268,25 @@ export class ExtrasScene extends Phaser.Scene {
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
 
-    // The Trophy Room and Art & Credits doors: beside the tabs on a wide screen, on a row of their own above them on
-    // a phone.
+    // The Trophy Room, Art & Credits and Open a replay doors: beside the tabs on a wide screen, on a row of their own
+    // above them on a phone.
     const doorWidth = 150;
-    const trophyWidth = doorWidth * 2 + 8;
+    // Narrower than the other two on a wide screen, so the tabs keep their room.
+    const replayDoorWidth = 110;
     const rowGap = 8;
-    const trophyRect: Rect = phone
-      ? { x: gutter, y: bar.height + 10, width: (width - gutter * 2 - rowGap) / 2, height: hit.target }
+    const trophyWidth = doorWidth * 2 + replayDoorWidth + rowGap * 2;
+    // A tablet, or any screen too narrow for the tabs and three doors side by side, puts the doors on their own row.
+    const doorsRow = phone || width < 1600;
+    const phoneDoor = (width - gutter * 2 - rowGap * 2) / 3;
+    const trophyRect: Rect = doorsRow
+      ? { x: gutter, y: bar.height + 10, width: phoneDoor, height: hit.target }
       : { x: width - gutter - doorWidth, y: bar.height + 12, width: doorWidth, height: TAB_HEIGHT };
-    const creditsRect: Rect = phone
+    const creditsRect: Rect = doorsRow
       ? { ...trophyRect, x: trophyRect.x + trophyRect.width + rowGap }
       : { ...trophyRect, x: trophyRect.x - doorWidth - rowGap };
+    const replayRect: Rect = doorsRow
+      ? { ...trophyRect, x: creditsRect.x + creditsRect.width + rowGap }
+      : { ...trophyRect, x: creditsRect.x - replayDoorWidth - rowGap, width: replayDoorWidth };
     const openTrophies = (): void => {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.trophyRoom);
@@ -254,10 +295,11 @@ export class ExtrasScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.credits);
     };
+    const openReplayFile = (): void => void this.#openReplayFile();
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
-        label: "Trophy Room ▸",
+        label: phone ? "Trophies ▸" : "Trophy Room ▸",
         type: typeRole.label,
         rect: trophyRect,
         onClick: openTrophies,
@@ -269,12 +311,20 @@ export class ExtrasScene extends Phaser.Scene {
         rect: creditsRect,
         onClick: openCredits,
       }),
+      new McButton(this, {
+        kind: "secondary",
+        label: `${t(phone ? "replay.title" : "title.openReplay")} ▸`,
+        type: typeRole.label,
+        rect: replayRect,
+        onClick: openReplayFile,
+      }),
     );
     stops.set("trophies", { rect: trophyRect, activate: openTrophies });
     stops.set("credits", { rect: creditsRect, activate: openCredits });
+    stops.set("replay", { rect: replayRect, activate: openReplayFile });
 
     const tabs = extrasTabsOf(current);
-    const tabRect: Rect = phone
+    const tabRect: Rect = doorsRow
       ? { x: gutter, y: trophyRect.y + trophyRect.height + 8, width: width - gutter * 2, height: TAB_HEIGHT }
       : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };
     this.#tabs = new McTabs(this, {
@@ -290,7 +340,7 @@ export class ExtrasScene extends Phaser.Scene {
       ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 11 }),
       { avoidObstacles: true },
     );
-    this.#obstacles.push(trophyRect, creditsRect, tabRect);
+    this.#obstacles.push(trophyRect, creditsRect, replayRect, tabRect);
     if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {
@@ -373,6 +423,7 @@ export class ExtrasScene extends Phaser.Scene {
       ...(bar.backRect ? ["back"] : []),
       "trophies",
       "credits",
+      "replay",
       ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
       ...playerStops,
     ];

@@ -4,7 +4,8 @@
  * sheet, or a download), and picking a replay file to watch.
  */
 import { deliverTextFile, pickFile } from "../save-data/file-transfer.js";
-import type { ReplayOpenSource } from "./replay-core.js";
+import type { MessageKey } from "../i18n/translate.js";
+import { ReplayOpenError, type ReplayOpenSource } from "./replay-core.js";
 import { REPLAY_EXTENSION } from "./replay-file.js";
 import { ReplayHost, WorkerReplayBackend, type ReplayBackend } from "./replay-host.js";
 
@@ -43,4 +44,23 @@ export function deliverGameLog(text: string, name: string): Promise<void> {
  */
 export function pickReplayFile(): Promise<Uint8Array | "unreadable" | null> {
   return pickFile(`${REPLAY_EXTENSION},.json,.txt,application/json,text/plain`);
+}
+
+/** The message key that says why a replay couldn't be opened (`replay.error.*`), for any failure `openReplay` gives. */
+export function replayErrorKey(cause: unknown): MessageKey {
+  if (cause instanceof ReplayOpenError) {
+    switch (cause.code) {
+      case "notReplay":
+        return "replay.error.notReplay";
+      case "newerFormat":
+        return "replay.error.newerFormat";
+      case "damaged":
+        return "replay.error.damaged";
+      case "missing":
+        return "replay.error.missing";
+      case "setup":
+        return "replay.error.setup";
+    }
+  }
+  return "replay.error.damaged";
 }
