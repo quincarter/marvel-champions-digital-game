@@ -6,7 +6,7 @@ import { CORE_SCENARIOS, type PackManifest } from "@mc/content";
 import { buildPack } from "./build.js";
 import { packModularSetChoices } from "./game.js";
 import { smokeTestPack } from "./smoke.js";
-import { readPackInput, validatePack, type PackInput } from "./validate.js";
+import { publishIssues, readPackInput, validatePack, type PackInput } from "./validate.js";
 
 /**
  * Every community pack in content-packs/community (a folder per pack, the SDK's source layout): build it, validate
@@ -87,6 +87,15 @@ describe("community packs", () => {
         const source = join(COMMUNITY_DIR, name);
         for (const file of ["CREDITS.md", "PERMISSION.md"]) expect(existsSync(join(source, file)), file).toBe(true);
         expect(pack.manifest.permission, "permission in pack.json").toBeDefined();
+      });
+
+      // The publish gate (docs/custom-content-packs.md §11.4): publish-packs.yml runs `mc-pack validate --publish` and
+      // fails on a pack that is neither a DRAFT nor granted. A pending pack says why, for that failure's log.
+      it("records its approval: granted and publishable, or pending with what is missing", () => {
+        const permission = pack.manifest.permission;
+        expect(permission?.status, "permission.status").toMatch(/^(granted|pending)$/);
+        if (permission?.status === "granted") expect(publishIssues(pack.manifest)).toEqual([]);
+        else expect(permission?.note, "permission.note says what is missing").toBeTruthy();
       });
 
       it("validates as built, every ability scripted", () => {

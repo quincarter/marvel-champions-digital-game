@@ -15,8 +15,12 @@
     "available": ["en", "es"]
   },
   "permission": {
+    "status": "pending",
     "by": "DesignHacker & BlueHG (nemesis set)",
-    "scope": "inclusion"
+    "evidence": "BluefireF5ran's curated repository records the grant (mod.json `permission`): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a0c9f6000293115a9ecd58da347468ec875d52bb/yondu_dh/mod.json",
+    "scope": "inclusion",
+    "languages": ["en"],
+    "note": "No date for DesignHacker's grant and neither message on record (both still to be requested from BluefireF5ran). BlueHG's permission is second-hand: DesignHacker said by DM on 2026-11-11 that BlueHG will be OK with it; BlueHG has not confirmed directly. The recorded scope is inclusion only, so the Spanish translation is not covered."
   },
   "templateCredit": "Hitch",
   "translators": {

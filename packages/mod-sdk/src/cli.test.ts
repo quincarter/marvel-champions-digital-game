@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,6 +65,38 @@ describe("mc-pack", () => {
     const run = await cli("validate", dir, "--allow-unscripted");
     expect(run.code).toBe(EXIT_OK);
     expect(run.out).toMatch(/valid, 1 ability to script/);
+  });
+
+  it("--publish requires a granted permission, unless the folder is a DRAFT", async () => {
+    const dir = tinyPack();
+    const manifestPath = join(dir, "pack.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    expect((await cli("validate", dir)).code).toBe(EXIT_OK);
+    const none = await cli("validate", dir, "--publish");
+    expect(none.code).toBe(EXIT_PACK_PROBLEM);
+    expect(none.err).toMatch(/pack\.json permission: is required to publish/);
+
+    const pending = { by: "Test Author", status: "pending", note: "no date on record" };
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, permission: pending }));
+    expect((await cli("validate", dir)).code).toBe(EXIT_OK);
+    expect((await cli("validate", dir, "--publish")).err).toMatch(/is pending, not granted.*: no date on record/);
+
+    writeFileSync(join(dir, "DRAFT"), "");
+    const draft = await cli("validate", dir, "--publish");
+    expect(draft.code).toBe(EXIT_OK);
+    expect(draft.out).toMatch(/a DRAFT, never published/);
+    rmSync(join(dir, "DRAFT"));
+
+    const granted = {
+      by: "Test Author",
+      status: "granted",
+      date: "2026-11-05",
+      evidence: "https://example.invalid/dm",
+      scope: "inclusion",
+      languages: ["en"],
+    };
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, permission: granted }));
+    expect((await cli("validate", dir, "--publish")).code).toBe(EXIT_OK);
   });
 
   it("reports an abilities module that throws as a pack problem", async () => {

@@ -7,6 +7,7 @@ import {
 } from "@mc/cards";
 import {
   PACK_KINDS,
+  PACK_PERMISSION_STATUSES,
   PACK_SCHEMA_VERSION,
   PLAYABLE_CARDS,
   customCardPrefix,
@@ -483,8 +484,24 @@ function checkCredits(manifest: PackManifest, add: Add): void {
       if (!text(permission.by)) add(at("permission.by"), "must say who gave permission");
       if (permission.date !== undefined && (typeof permission.date !== "string" || !ISO_DATE.test(permission.date)))
         add(at("permission.date"), "must be YYYY-MM-DD");
-      for (const field of ["evidence", "scope"] as const) {
+      for (const field of ["evidence", "scope", "note"] as const) {
         if (permission[field] !== undefined && !text(permission[field])) add(at(`permission.${field}`), "must be text");
+      }
+      const status: unknown = permission.status;
+      if (status !== undefined && !(PACK_PERMISSION_STATUSES as readonly unknown[]).includes(status))
+        add(at("permission.status"), `must be one of ${PACK_PERMISSION_STATUSES.join(", ")}`);
+      const languages: unknown = permission.languages;
+      if (
+        languages !== undefined &&
+        (!Array.isArray(languages) || languages.some((lang) => typeof lang !== "string" || !isLanguageTag(lang)))
+      )
+        add(at("permission.languages"), "must be a list of language tags");
+      // A grant is only a grant with its record: who, when, where it is kept, what it covers.
+      if (status === "granted") {
+        for (const field of ["date", "evidence", "scope"] as const) {
+          if (permission[field] === undefined) add(at(`permission.${field}`), "is required when the status is granted");
+        }
+        if (languages === undefined) add(at("permission.languages"), "is required when the status is granted");
       }
     }
   }
@@ -499,6 +516,41 @@ function checkCredits(manifest: PackManifest, add: Add): void {
       }
     }
   }
+}
+
+/**
+ * The approval gate of a pack this repo publishes (docs/custom-content-packs.md §11.4): what stops it being published,
+ * on top of `validatePack`. Its `pack.json` `permission` must record an explicit grant (`status: "granted"` with who,
+ * when, the evidence and the scope; `checkCredits` checks those fields are there) whose `languages` cover every
+ * language the pack ships. Empty when the pack may be published. A pack with a `DRAFT` file is never published, so
+ * `mc-pack validate --publish` doesn't run this on one.
+ */
+export function publishIssues(manifest: PackManifest): PackIssue[] {
+  const issues: PackIssue[] = [];
+  const add = (path: string, message: string): void => void issues.push({ path: `pack.json ${path}`, message });
+  const permission: unknown = manifest.permission;
+  if (!isObj(permission)) {
+    add(
+      "permission",
+      "is required to publish: record the creator's grant (status, by, date, evidence, scope, languages)",
+    );
+    return issues;
+  }
+  if (permission.status !== "granted") {
+    const status = typeof permission.status === "string" ? permission.status : "missing";
+    const note = typeof permission.note === "string" && permission.note.trim() !== "" ? `: ${permission.note}` : "";
+    add("permission.status", `is ${status}, not granted, so the pack is not published${note}`);
+    return issues;
+  }
+  const covered = new Set(Array.isArray(permission.languages) ? permission.languages : []);
+  const shipped = manifest.languages?.available ?? [];
+  const missing = shipped.filter((lang) => !covered.has(lang));
+  if (missing.length > 0)
+    add(
+      "permission.languages",
+      `does not cover ${missing.join(", ")}: a translation needs the creator's permission too`,
+    );
+  return issues;
 }
 
 /**

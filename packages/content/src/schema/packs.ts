@@ -149,15 +149,35 @@ export interface PackCampaignOf<Definition = unknown> {
 
 /** The permission a pack's content may be distributed under (§11.4), as the store's reviewers check it. */
 export interface PackPermission {
+  /**
+   * The approval gate (§11.4): "granted" once the owner has an explicit grant on record with its date and evidence,
+   * "pending" while any of it is missing or second-hand. Only a "granted" pack is published by this repo's
+   * publish-packs workflow (`mc-pack validate --publish`, `publishIssues`); a pack with a `DRAFT` file may leave the
+   * whole `permission` out. Absent reads as not granted.
+   */
+  readonly status?: PackPermissionStatus;
   /** Who gave permission: the creator, or whoever granted it on their behalf. */
   readonly by: string;
-  /** Where it was given (a link, or a line saying how). */
+  /** Where it was given, or where the message is kept (a link, or a line saying how). Required when granted. */
   readonly evidence?: string;
-  /** `YYYY-MM-DD`. A pack imported from a draft that recorded none leaves it out; the registry review asks for it. */
+  /** `YYYY-MM-DD`. Required when granted; a pack imported from a draft that recorded none leaves it out. */
   readonly date?: string;
-  /** What was agreed: "inclusion", "inclusion and translation". */
+  /** What was agreed: "inclusion", "inclusion and translation". Required when granted. */
   readonly scope?: string;
+  /**
+   * The languages the grant covers: the original's and each translation it allows. Required when granted, and every
+   * language of `PackManifest.languages.available` must be in it (a translation needs its own permission).
+   */
+  readonly languages?: readonly string[];
+  /** What is still missing or second-hand while the status is "pending", for the owner and the publish log. */
+  readonly note?: string;
 }
+
+/** `PackPermission.status`. */
+export type PackPermissionStatus = "granted" | "pending";
+
+/** Every `PackPermissionStatus`. */
+export const PACK_PERMISSION_STATUSES: readonly PackPermissionStatus[] = ["granted", "pending"];
 
 /** A pack's `pack.json` (§5.1). */
 export interface PackManifest {
@@ -259,6 +279,11 @@ export interface PackIndexEntry {
   readonly versions: Readonly<Record<string, PackIndexVersion>>;
   /** Withdrawn packs stay playable where installed, but the store doesn't offer them (§11.4). */
   readonly withdrawn: boolean;
+  /**
+   * Who publishes the pack (§11.5): "game", this repo's publish-packs workflow, or "registry", the registry repo's.
+   * A pack id has one publisher; an entry without it was written by the game repo before the field existed.
+   */
+  readonly source?: "game" | "registry";
 }
 
 /** The store's `index.json` (§11.5). */

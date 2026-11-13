@@ -43,9 +43,12 @@
     }
   },
   "permission": {
+    "status": "granted",
     "by": "Neptune",
     "date": "2026-11-05",
-    "scope": "inclusion and translation"
+    "evidence": "BluefireF5ran's curated repository records the grant (mod.json `permission`): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/9ce0a25ec5b1b6f08b3a926838d9295babe69758/carnage_nep/mod.json. Given by direct message; the message itself is not kept in this repository.",
+    "scope": "inclusion and translation",
+    "languages": ["en", "es"]
   },
   "templateCredit": "Hitch",
   "translators": {

@@ -14,3 +14,7 @@ PatataSaurio, the author of Gwenpool, gave permission for this pack to be distri
 
 The registry review asks for the evidence (a link or a quoted message) and a date; the source has neither, so both are
 still to be asked of BluefireF5ran.
+
+**Store approval:** pending (`pack.json` `permission.status`; `permission.note` lists what is missing). Until the owner
+records it as granted, `mc-pack validate --publish` refuses the pack and the publish workflow fails rather than publish
+it. A version already in the store stays there.

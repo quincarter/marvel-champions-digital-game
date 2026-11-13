@@ -9,6 +9,14 @@
 #     files and runs this repo's own index scripts on them.
 # scripts/workflow-secrets.test.mjs fails the tests if a job that runs pack code gets a secret.
 #
+# Two gates run before anything is uploaded (docs/custom-content-packs.md §11.4, §11.5):
+#   - approval: a pack that is not a DRAFT must record its creator's grant in pack.json (`permission.status`
+#     "granted" with who, date, evidence, scope and languages; `mc-pack validate --publish`). One that doesn't fails
+#     the run (fail-closed), so the gap shows in CI. Versions already on R2 are not touched by it.
+#   - ownership: a pack id has one publisher. index.json entries carry `source` ("game" here, "registry" from the
+#     registry repo); the run fails if one of its ids belongs to the registry. Checked on the public index.json in the
+#     build job and on the bucket's copy in the publish job, and again by the merge itself.
+#
 # Each pack is built with `mc-pack build` (deterministic zip) and uploaded to <id>/<version>/: its zip, pack.json, and
 # preview.json and thumb.webp when the build wrote them. A version is never overwritten: one already in the bucket
 # with the same zip is skipped, one with a different zip fails the run ("bump the version"). Then the built packs are
@@ -74,6 +82,42 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+
+      # One publisher per pack id (docs/custom-content-packs.md §11.5): before anything is installed, built or
+      # uploaded, the published index.json (public, so no secret) must not list one of these ids under the registry
+      # repo. It reads the pack ids from pack.json only (no pack code). The CDN copy can be up to 5 minutes old, so the
+      # publish job checks the bucket's own copy again before it uploads.
+      - name: Check no pack id belongs to the registry
+        shell: bash
+        env:
+          PACKS_BASE_URL: ${{ vars.PACKS_BASE_URL }}
+        run: |
+          set -euo pipefail
+          ids=()
+          for dir in content-packs/community/*/; do
+            dir="${dir%/}"
+            if [ -f "$dir/DRAFT" ] || [ ! -f "$dir/pack.json" ]; then continue; fi
+            ids+=("$(node -p 'require(process.argv[1]).id' "$GITHUB_WORKSPACE/$dir/pack.json")")
+          done
+          if [ -z "$PACKS_BASE_URL" ]; then
+            echo "::notice::No PACKS_BASE_URL, so the published index.json was not read here."
+            exit 0
+          fi
+          current="$RUNNER_TEMP/published-index.json"
+          code=$(curl -sS -L --retry 3 -o "$current" -w '%{http_code}' "${PACKS_BASE_URL%/}/index.json")
+          case "$code" in
+            200) ;;
+            404)
+              rm -f "$current"
+              echo "No index.json published yet."
+              ;;
+            *)
+              echo "::error::Reading ${PACKS_BASE_URL%/}/index.json returned HTTP $code."
+              exit 1
+              ;;
+          esac
+          node scripts/check-pack-ownership.mjs "$current" "${ids[@]}"
+
       - run: pnpm install --frozen-lockfile
 
       - name: Fetch the community packs' pictures
@@ -87,12 +131,22 @@ jobs:
           set -euo pipefail
           mkdir -p "$STAGING"
           built="$RUNNER_TEMP/built"
+          unapproved=()
           # The sample packs (content-packs/sample-*) are SDK examples, kept out of the production store.
           for dir in content-packs/community/*/; do
             # A pack still being scripted carries a DRAFT file and is not published until it is removed.
             if [ -f "$dir/DRAFT" ]; then echo "Skipping $dir (DRAFT)"; continue; fi
             dir="${dir%/}"
             [ -f "$dir/pack.json" ] || continue
+            # The approval gate (docs/custom-content-packs.md §11.4), fail-closed: a pack that is not a DRAFT is
+            # published only when its pack.json permission records the creator's grant (status "granted" with by,
+            # date, evidence, scope and the languages it covers). Every pack is checked, then the run fails if any is
+            # not approved, so nothing is uploaded and the log lists every gap.
+            if ! pnpm --silent --filter @mc/mod-sdk mc-pack validate --publish "$GITHUB_WORKSPACE/$dir"; then
+              echo "::error::$dir is not approved for the store: record the grant in pack.json permission (status granted), or add a DRAFT file."
+              unapproved+=("$dir")
+              continue
+            fi
             out="$built/$(basename "$dir")"
             pnpm --silent --filter @mc/mod-sdk mc-pack build "$GITHUB_WORKSPACE/$dir" --out "$out"
             id=$(node -p 'require(process.argv[1]).id' "$out/pack.json")
@@ -119,6 +173,10 @@ jobs:
             fi
             echo "Staged $id $version: $(ls "$target" | tr '\n' ' ')"
           done
+          if [ "${#unapproved[@]}" -gt 0 ]; then
+            echo "::error::Not published: ${unapproved[*]} lack an approved permission; nothing was uploaded."
+            exit 1
+          fi
           # A list beside the staging folder, so the artifact is never empty (every pack a DRAFT still publishes an
           # unwithdraw).
           {
@@ -184,6 +242,36 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # The bucket's own index.json, read again (the build job read the CDN's copy): no staged or unwithdrawn pack id
+      # may belong to the registry repo (one publisher per pack id, docs/custom-content-packs.md §11.5).
+      - name: Check the pack ids are this repo's
+        if: steps.r2.outputs.ready == 'true'
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          set -euo pipefail
+          current="$RUNNER_TEMP/owner-index.json"
+          if ! aws s3api get-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key index.json "$current" > /dev/null 2> "$RUNNER_TEMP/get.err"; then
+            if ! grep -qE 'NoSuchKey|404|Not Found' "$RUNNER_TEMP/get.err"; then
+              cat "$RUNNER_TEMP/get.err" >&2
+              exit 1
+            fi
+            rm -f "$current"
+          fi
+          ids=()
+          for target in "$STAGING"/*/; do
+            if [ -d "$target" ]; then ids+=("$(basename "$target")"); fi
+          done
+          IFS=',' read -ra extra <<< "$UNWITHDRAW"
+          for id in "${extra[@]}"; do
+            id="${id// /}"
+            if [ -n "$id" ]; then ids+=("$id"); fi
+          done
+          node scripts/check-pack-ownership.mjs "$current" "${ids[@]}"
 
       # Every pack is checked before anything is uploaded, so a refused version leaves the bucket untouched.
       - name: Check what is already published

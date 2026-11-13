@@ -27,10 +27,12 @@
     }
   },
   "permission": {
+    "status": "granted",
     "by": "Neptune (Typhon00)",
     "evidence": "Screenshot of the creator's message, shared by the owner: his content \"is free to play, download, print, what have you\". Given 2026-11-02 by direct message to the community member Dreadheart; confirmed by the owner 2026-11-12.",
     "date": "2026-11-02",
-    "scope": "inclusion in the game and its Mod Store"
+    "scope": "inclusion in the game and its Mod Store",
+    "languages": ["en"]
   },
   "templateCredit": "Hitch"
 }

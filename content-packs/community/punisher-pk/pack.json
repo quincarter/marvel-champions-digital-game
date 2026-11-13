@@ -15,8 +15,11 @@
     "available": ["en", "es"]
   },
   "permission": {
+    "status": "pending",
     "by": "PermaKarma",
-    "scope": "inclusion"
+    "evidence": "BluefireF5ran's curated repository records the grant (mod.json `permission`): https://github.com/bluefireF5ran/mc-digital-custom-packs/blob/a0c9f6000293115a9ecd58da347468ec875d52bb/punisher_pk/mod.json",
+    "scope": "inclusion",
+    "note": "A DRAFT. No date and no first-hand evidence on record (both still to be asked of BluefireF5ran). The author has not confirmed the curators' rules and wording fixes (waiting_author), and Rachel Cole-Alves is the curators' proposal."
   },
   "templateCredit": "Hitch",
   "translators": {

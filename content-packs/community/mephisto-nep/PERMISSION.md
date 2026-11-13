@@ -14,3 +14,6 @@ distributed through its Mod Store.
 
 The pack insert's own credit line reads: "MC Custom Content by: Neptune. ... This content is designed as free,
 generating no profit for myself or Marvel comics."
+
+**Store approval:** granted (`pack.json` `permission.status`), so the publish workflow publishes it. The record there
+(who, date, evidence, scope and the languages the grant covers) mirrors this file.

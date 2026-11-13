@@ -6,7 +6,14 @@ export * from "@mc/cards";
 export { campaignDefinitionsOf, dslFeatures, SUPPORTED_DSL_FEATURES } from "./features.js";
 export { definePackAbilities, PACK_ABILITY_ID } from "./define.js";
 export { sha256Hex } from "./sha256.js";
-export { isUnscriptedAbilityIssue, readPackInput, splitIssues, validatePack, REQUIRED_PACK_FILES } from "./validate.js";
+export {
+  isUnscriptedAbilityIssue,
+  publishIssues,
+  readPackInput,
+  splitIssues,
+  validatePack,
+  REQUIRED_PACK_FILES,
+} from "./validate.js";
 export type { PackInput, PackIssue, PackIssueCategory, ValidateOptions } from "./validate.js";
 export { checkPackCampaigns, isPlainJson, packCampaignsOf } from "./campaigns.js";
 export type { PackCampaign } from "./campaigns.js";

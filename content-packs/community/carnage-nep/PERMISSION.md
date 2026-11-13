@@ -10,3 +10,6 @@ Neptune, the author of Carnage, gave permission for this pack to be distributed 
 
 The permission covers including the pack and translating it (the Spanish pictures are by Francisco Merchan). It was
 given by direct message; the registry review asks for the evidence (a link or a quoted message).
+
+**Store approval:** granted (`pack.json` `permission.status`), so the publish workflow publishes it. The record there
+(who, date, evidence, scope and the languages the grant covers) mirrors this file.

@@ -96,7 +96,12 @@ describe("importMarvelCdbPack on the fixture", () => {
     expect(pack.languages).toEqual({ base: "en", available: ["en", "es"] });
     expect(pack.translators).toEqual({ es: "Test Translator" });
     expect(pack.templateCredit).toBe("Test Template");
-    expect(pack.permission).toEqual({ by: "Test Author", date: "2026-01-02", scope: "inclusion" });
+    expect(pack.permission).toMatchObject({
+      status: "pending",
+      by: "Test Author",
+      date: "2026-01-02",
+      scope: "inclusion",
+    });
     expect(pack.version).toBe("1.2.0");
     expect(pack.kind).toBe("hero");
   });

@@ -1,6 +1,7 @@
 import { tinyPack } from "./fixtures/load.js";
 import { sha256Hex } from "./sha256.js";
-import { isUnscriptedAbilityIssue, splitIssues, validatePack, type PackInput } from "./validate.js";
+import type { PackManifest } from "@mc/content";
+import { isUnscriptedAbilityIssue, publishIssues, splitIssues, validatePack, type PackInput } from "./validate.js";
 
 const text = (s: string): Uint8Array => new TextEncoder().encode(s);
 
@@ -351,6 +352,32 @@ describe("validatePack: languages, per-language pictures and alternate art", () 
     expect(issues).toMatch(/translators.es/);
   });
 
+  it("checks the permission's status, languages and, when granted, its full record", async () => {
+    const issues = messages(
+      await broken((p) => {
+        p.manifest.permission = { by: "Creator", status: "maybe", languages: ["NOT A TAG"], note: "" };
+      }),
+    );
+    expect(issues).toMatch(/permission.status: must be one of granted, pending/);
+    expect(issues).toMatch(/permission.languages: must be a list of language tags/);
+    expect(issues).toMatch(/permission.note: must be text/);
+    const granted = messages(
+      await broken((p) => {
+        p.manifest.permission = { by: "Creator", status: "granted" };
+      }),
+    );
+    for (const field of ["date", "evidence", "scope", "languages"])
+      expect(granted).toMatch(new RegExp(`permission.${field}: is required when the status is granted`));
+    // Pending (or no status) keeps the record as far as it goes.
+    expect(
+      validatePack(
+        await broken((p) => {
+          p.manifest.permission = { by: "Creator", status: "pending", note: "no date on record" };
+        }),
+      ),
+    ).toEqual([]);
+  });
+
   it("never throws on malformed language and art fields", async () => {
     const good = await tinyPack();
     for (const manifest of [
@@ -363,5 +390,44 @@ describe("validatePack: languages, per-language pictures and alternate art", () 
       expect(() => validatePack({ ...good, manifest } as unknown as PackInput)).not.toThrow();
       expect(validatePack({ ...good, manifest } as unknown as PackInput).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("publishIssues", () => {
+  const grant = {
+    by: "Creator",
+    status: "granted",
+    date: "2026-11-05",
+    evidence: "https://example.invalid/dm",
+    scope: "inclusion and translation",
+    languages: ["en", "es"],
+  };
+  const manifest = (extra: object): PackManifest => ({ ...({} as PackManifest), id: "x", ...extra });
+  const issuesOf = (m: PackManifest): string =>
+    publishIssues(m)
+      .map((i) => `${i.path}: ${i.message}`)
+      .join("\n");
+
+  it("passes a granted permission that covers every shipped language", () => {
+    expect(publishIssues(manifest({ permission: grant, languages: { base: "en", available: ["en", "es"] } }))).toEqual(
+      [],
+    );
+    expect(publishIssues(manifest({ permission: grant }))).toEqual([]);
+  });
+
+  it("refuses a pack with no permission, or one not granted, naming what is missing", () => {
+    expect(issuesOf(manifest({}))).toMatch(/permission: is required to publish/);
+    expect(issuesOf(manifest({ permission: { by: "Creator" } }))).toMatch(/permission.status: is missing, not granted/);
+    expect(issuesOf(manifest({ permission: { by: "Creator", status: "pending", note: "no date" } }))).toMatch(
+      /is pending, not granted, so the pack is not published: no date/,
+    );
+  });
+
+  it("refuses a translation the grant does not cover", () => {
+    const m = manifest({
+      permission: { ...grant, languages: ["en"] },
+      languages: { base: "en", available: ["en", "es"] },
+    });
+    expect(issuesOf(m)).toMatch(/permission.languages: does not cover es/);
   });
 });

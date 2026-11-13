@@ -557,16 +557,22 @@ tags: [hero, justice]
    `packs/<pack-id>.yaml`. The PR template asks for the permission evidence.
 2. **Check:** the registry's CI checks out the pack at `commit` rather than the tag, because a tag can move. It builds
    the pack with the SDK version the pack pins, runs `validate` and `test`, and compares the result with the release's
-   zip. It then comments the pack's size, the DSL features it uses and the oldest app it needs.
+   zip. **The creator's tagged release must carry the zip `mc-pack build` wrote, byte for byte:** a release without
+   it fails the check, as does one whose zip differs, so what players get is what the creator published. It then
+   comments the pack's size, the DSL features it uses and the oldest app it needs.
 3. **Review:** the owner, or a reviewer the owner names, reads the cards and tries the pack with the store's developer
    toggle. Merging the PR approves the pack.
 4. **Publish:** on merge, the registry's publish workflow:
-   - uploads the built zip and `pack.json` to `mc-packs/<pack-id>/<version>/` in R2;
+   - refuses a pack id that `index.json` lists with `source: "game"` or no `source` (this repo publishes those;
+     §11.5, "One publisher per pack id");
+   - uploads the built zip, `pack.json`, `preview.json`, `thumb.webp` and the card pictures to
+     `mc-packs/<pack-id>/<version>/` in R2;
    - attaches the same zip to a release of the registry repo, as the fallback (§5.2's `zipFallback`);
-   - regenerates `index.json`.
+   - regenerates `index.json`, marking its entries `source: "registry"`.
 5. **Update:** a new version is a PR that changes `tag` and `commit`. Older versions stay in R2, so saves that used
    them still load (§7.4).
-6. **Withdraw:** removing a pack's file drops it from the catalog (a publish never lists a withdrawn pack again,
+6. **Withdraw:** removing a pack's file drops it from the catalog (only a `source: "registry"` entry: the registry
+   never drops one of this repo's packs) (a publish never lists a withdrawn pack again,
    §11.5). The client keeps an installed copy and marks it
    "withdrawn": it's still playable, so saves still load, but the store doesn't offer it.
 
@@ -575,7 +581,35 @@ don't go through the registry. `.github/workflows/publish-packs.yml` in this rep
 publishes them to the same bucket and the same `index.json`, with the same rules: versions are immutable, older ones
 stay, and `approved` keeps its first date (CONTRIBUTING.md, "Publishing packs"). The registry's publish must
 therefore keep the packs it didn't publish when it regenerates `index.json`, and a pack id is published by one of the
-two only.
+two only (§11.5, "One publisher per pack id").
+
+**The approval gate for the repo's own packs (2026-11-13).** A merged registry PR is the approval for a registry pack;
+a pack in `content-packs/community/` has no PR review of its own, so its approval is recorded in its `pack.json`, and
+the publish workflow reads it there:
+
+```jsonc
+"permission": {
+  "status": "granted",            // or "pending": anything missing or second-hand
+  "by": "Neptune",                // who gave it: the creator, or who granted it on their behalf
+  "date": "2026-11-05",           // YYYY-MM-DD
+  "evidence": "https://…",        // where it was given, or where the message is kept
+  "scope": "inclusion and translation",
+  "languages": ["en", "es"],      // the original's language and each translation the grant covers
+  "note": "…"                     // while pending: what is still missing
+}
+```
+
+- `mc-pack validate` checks the fields' shape, and that a `granted` permission has `date`, `evidence`, `scope` and
+  `languages`. `mc-pack validate --publish` also requires `status: "granted"` and `languages` covering every language
+  in `languages.available` (a translation needs the creator's permission too), unless the folder has a `DRAFT` file;
+  the SDK exports the check as `publishIssues`. Imported packs (`mc-pack import-marvelcdb`) start `pending`.
+- `publish-packs.yml` runs `validate --publish` on every community pack without a `DRAFT` file in its build job, and
+  **fails closed**: if any pack is not approved, the run fails before anything is uploaded and the log lists each one
+  with its `note`. The owner then records the missing evidence, or adds a `DRAFT` file to hold the pack back.
+- `PERMISSION.md` stays the human-readable record; the `pack.json` fields mirror it and are what the gate reads.
+- The gate decides what this repo publishes next. **Versions already on R2 are not affected:** a pack that turns
+  `pending` keeps its published versions in the bucket and in `index.json`, so installs and saves keep working. To take
+  it off the store, withdraw it (§11.5); the gate itself never removes anything.
 
 A pack without permission evidence is never merged. Of BluefireF5ran's 30 packs, only Gwenpool has it so far (§10).
 Neptune's packs (issue #661) are free to use by their creator's own statement, and that statement is the evidence.
@@ -601,6 +635,7 @@ The store's catalog is §5.2's, with the extra fields the store screen shows:
       "latest": "1.0.0",
       "versions": {/* as §5.2 */},
       "withdrawn": false,
+      "source": "registry", // or "game": who publishes it (below)
     },
   ],
 }
@@ -612,8 +647,9 @@ featured card (a hero pack's identity with both faces, a scenario pack's villain
 villain), the pack's own full card records, each precon deck as card ids and quantities (base-game ids stay ids) and the
 list of `cards/<lang>/<code>.webp` pictures the pack ships (`PackPreview` in `@mc/content`). The client reads it
 before an install to show the browse tile's card and the pack page's gallery. It is untrusted data: capped at 1 MiB,
-validated, and only the pack's own well-formed cards are kept. Publishing it into the registry's index (the update-index
-step) is not done yet.
+validated, and only the pack's own well-formed cards are kept. Both publishers upload it: the registry's publish puts
+`preview.json`, `thumb.webp` and the unpacked card pictures (`cards/<lang>/<code>.webp`) beside each version's zip and
+sets that version's `preview`, as this repo's `publish-packs.yml` does.
 
 The client fetches the catalog when the store opens, with a short cache. It keeps the last copy, so the store still
 opens offline and shows what's installed.
@@ -640,6 +676,19 @@ The merge rules on both sides:
 - `withdrawn` is never cleared by a publish, whether of a new version or the same one again. In this repo only the
   workflow's manual `unwithdraw` input lists a pack again. In the registry a deleted `packs/<id>.yaml` drops the
   pack, and adding the file back lists it again; a pack the other publisher withdrew stays withdrawn.
+
+**One publisher per pack id (2026-11-13).** Every entry carries `"source": "game"` (this repo's `publish-packs.yml`)
+or `"source": "registry"` (the registry's `publish.yml`). An entry without `source` was written before the field
+existed, by this repo, so both sides read it as `"game"`.
+
+- A publisher writes its own `source` on every entry it publishes, and refuses to publish (or, here, `unwithdraw`) an
+  id whose entry has the other source. The run fails before it uploads anything: this repo checks the public
+  `index.json` in its build job (`scripts/check-pack-ownership.mjs`, no secret needed), the bucket's copy again in its
+  publish job before the upload, and the merge (`upsertPackIndex`) refuses it as a last line.
+- Withdrawing touches only the writer's own entries: the registry drops only `"registry"` entries whose
+  `packs/<id>.yaml` is gone, and this repo's `unwithdraw` only lists its own packs again.
+- Moving a pack from one publisher to the other is a manual edit of `index.json` (change its `source`), never
+  something either workflow does.
 
 ### 11.6 The store screen
 
@@ -703,7 +752,10 @@ CLI's help and the SDK README say so. The workflows are built around it:
 - **This repo's `publish-packs.yml`:** the `build` job runs `mc-pack build` with a read-only token, no secrets and a
   checkout that keeps no credentials, and hands the staged packs on as an artifact. The `publish` job (the `store`
   environment) holds the R2 secrets, installs nothing and runs no pack code: it uploads the staged files and runs
-  this repo's own index scripts, which use Node built-ins only.
+  this repo's own index scripts, which use Node built-ins only. The two publish gates (§11.4's approval gate, §11.5's
+  one publisher per pack id) run before any upload: the approval gate in the `build` job (`mc-pack validate
+  --publish`), the ownership check first in the `build` job, before any dependency is installed or any pack code runs,
+  on the public `index.json`, and again in the `publish` job on the bucket's copy.
 - **This repo's `mod-sdk.yml`:** the `build` job builds the SDK tarball and smoke-tests it on the sample pack with no
   secrets; the `publish` job attaches the tarball to the release and publishes it to npm with `NPM_TOKEN`, and runs
   no pack code.
@@ -713,7 +765,10 @@ CLI's help and the SDK README say so. The workflows are built around it:
 `scripts/check-workflow-secrets.mjs` (in both repos; here run by `pnpm test:scripts`, in the registry by its CI)
 fails if a job that runs pack code (`mc-pack`, `smoke:dist`, `build-entry.sh`) references `secrets.`, runs in a
 deployment environment, has a write permission or keeps its checkout token, or if a job in the same workflow that
-holds secrets installs dependencies.
+holds secrets installs dependencies. It also checks the GitHub token step by step: in a job that runs pack code, no
+step that runs pack code or installs dependencies may have `GH_TOKEN`, `GITHUB_TOKEN` or `github.token`, the job's own
+env may not have one, and no step may use one after pack code ran (a fetch with the token goes first); and every
+checkout in a workflow that runs pack code sets `persist-credentials: false`.
 
 ### 11.10 Campaigns
 
