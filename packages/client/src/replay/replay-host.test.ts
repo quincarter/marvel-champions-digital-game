@@ -102,6 +102,33 @@ describe("ReplayHost", () => {
     expect(host.position).toBe(5);
   });
 
+  test("a failed move drops the ones behind it, and the next step counts from where the replay is", async () => {
+    const { storage, gameId } = await savedGame();
+    const core = new ReplayCore(HERE, storage);
+    let failNext = false;
+    const host = new ReplayHost({
+      open: (source) => core.open(source),
+      snapshot: async (n, played) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error("worker hiccup");
+        }
+        return core.snapshot(n, played);
+      },
+      exportFile: () => core.exportFile(),
+      exportLog: async () => core.exportLog(),
+      dispose: () => {},
+    });
+    await host.open({ kind: "stored", gameId });
+    await host.seek(5);
+    failNext = true;
+    const both = Promise.all([host.step(), host.step()]);
+    await expect(both).rejects.toThrow("worker hiccup");
+    expect(host.position).toBe(5);
+    expect(await host.step()).toBe(true);
+    expect(host.position).toBe(6);
+  });
+
   test("a move in flight when the replay closes settles quietly", async () => {
     const host = await openedHost();
     const moving = host.seek(10);

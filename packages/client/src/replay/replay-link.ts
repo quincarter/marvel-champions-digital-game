@@ -103,14 +103,22 @@ export function replayLinkOf(
   return `${base}#replay=${id}`;
 }
 
-/** The replay id in a `#replay=` hash, or null. Any `#replay=` hash is removed from the address, so a reload doesn't reopen it. */
+/**
+ * What a `#replay=` hash holds: the id, `"invalid"` for a link that names no replay, or null when there is no such hash.
+ * Any `#replay=` hash is removed from the address, so a reload doesn't reopen it.
+ */
 export function takeReplayLink(
   location: ReceiveLinkLocation = globalThis.location,
   history: ReceiveLinkHistory = globalThis.history,
-): string | null {
+): string | "invalid" | null {
   const match = /^#?replay=(.*)$/.exec(location.hash);
   if (!match) return null;
   history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-  const id = decodeURIComponent(match[1] ?? "");
-  return REPLAY_ID_PATTERN.test(id) ? id : null;
+  let id: string;
+  try {
+    id = decodeURIComponent(match[1] ?? "");
+  } catch {
+    return "invalid";
+  }
+  return REPLAY_ID_PATTERN.test(id) ? id : "invalid";
 }

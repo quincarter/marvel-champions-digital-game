@@ -316,7 +316,9 @@ export class ReplayHost implements EngineHost {
         await this.#show(next.n, next.played);
       }
     } catch (cause) {
+      // The moves behind the one that failed are dropped, so the next one counts from where the replay really is.
       this.#queue.length = 0;
+      this.#target = this.#position;
       if (!this.#disposed) throw cause;
     } finally {
       this.#busy = null;

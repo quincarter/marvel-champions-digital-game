@@ -97,8 +97,9 @@ describe("replay links", () => {
     };
     expect(takeReplayLink({ hash: `#replay=${ID}`, pathname: "/", search: "?x=1" }, history)).toBe(ID);
     expect(replaced).toEqual(["/?x=1"]);
-    expect(takeReplayLink({ hash: "#replay=nope", pathname: "/", search: "" }, history)).toBeNull();
+    expect(takeReplayLink({ hash: "#replay=nope", pathname: "/", search: "" }, history)).toBe("invalid");
+    expect(takeReplayLink({ hash: "#replay=%E0", pathname: "/", search: "" }, history)).toBe("invalid");
     expect(takeReplayLink({ hash: "#receive=AB", pathname: "/", search: "" }, history)).toBeNull();
-    expect(replaced).toHaveLength(2);
+    expect(replaced).toHaveLength(3);
   });
 });
