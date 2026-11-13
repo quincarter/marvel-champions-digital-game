@@ -3,7 +3,7 @@
  * directly (one instance per name, like the real thing). Not part of the Worker bundle.
  */
 
-import { GlobalStats, RateLimiter, SyncSpace, TransferRoom } from "./durable-objects.js";
+import { GlobalStats, RateLimiter, ReplayQuota, SyncSpace, TransferRoom } from "./durable-objects.js";
 import type {
   DurableObjectNamespaceLike,
   Env,
@@ -143,6 +143,7 @@ export interface TestEnv extends Env {
   SYNC_SPACE: FakeNamespace<SyncSpace>;
   GLOBAL_STATS: FakeNamespace<GlobalStats>;
   REPLAYS: MemoryR2;
+  REPLAY_QUOTA: FakeNamespace<ReplayQuota>;
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
@@ -152,6 +153,7 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
     SYNC_SPACE: fakeNamespace((storage) => new SyncSpace({ storage })),
     GLOBAL_STATS: fakeNamespace((storage) => new GlobalStats({ storage })),
     REPLAYS: new MemoryR2(),
+    REPLAY_QUOTA: fakeNamespace((storage) => new ReplayQuota({ storage })),
     TRANSFERS_ENABLED: "true",
     REPLAYS_ENABLED: "true",
     MAX_REPLAY_BYTES: "1000",

@@ -63,6 +63,8 @@ export interface Env {
   GLOBAL_STATS: DurableObjectNamespaceLike;
   /** The R2 bucket replay share links are stored in. */
   REPLAYS: R2BucketLike;
+  /** One instance, "replays": the account-wide daily cap on replay uploads. */
+  REPLAY_QUOTA: DurableObjectNamespaceLike;
   /** Anything other than "true" is the kill switch. */
   TRANSFERS_ENABLED?: string;
   MAX_UPLOAD_BYTES?: string;
@@ -76,6 +78,8 @@ export interface Env {
   REPLAYS_ENABLED?: string;
   /** The largest replay upload in bytes; defaults to DEFAULT_MAX_REPLAY_BYTES. */
   MAX_REPLAY_BYTES?: string;
+  /** Replay uploads the whole account takes per UTC day; defaults to DEFAULT_MAX_REPLAYS_PER_DAY. */
+  MAX_REPLAYS_PER_DAY?: string;
   ALLOWED_ORIGINS?: string;
   /** A secret, not a var. When set, uploads must carry a valid Turnstile token. */
   TURNSTILE_SECRET?: string;

@@ -50,26 +50,32 @@
 // is the kill switch: anything but "true" makes every /global route answer 503.
 //
 // Replay share links (/replay, one R2 bucket, GitHub issue #693). R2's free tier is 10 GB stored, 1 million Class A
-// operations (writes) and 10 million Class B operations (reads) a month, and egress is free. An upload costs one Worker
-// request, one limiter Durable Object request writing at most 2 rows (its state, and its alarm when the window is new),
-// and one R2 write (a second only on an id collision, at 72 random bits never in practice). A view costs one Worker
-// request and one R2 read, and no Durable Object at all; the response is marked immutable, so a browser that has seen a
-// replay does not ask again. Per IP: 30 uploads a day (REPLAY_UPLOADS_PER_IP_PER_DAY), each at most MAX_REPLAY_BYTES
-// (1 MiB; a typical replay is tens of KB). So 10 GB holds at least 10,000 replays at the cap, and 1 million writes a
-// month is about 33,000 uploads a day, far past anything the Worker's 100,000 daily requests would let through with
-// views. Replays are not deleted by the Worker: a lifecycle rule on the bucket removes each 180 days after upload, which
-// keeps storage bounded by about six months of uploads. Past an R2 free limit the account is billed (R2 is the one part
-// of this Worker that is not capped for free, and turning R2 on asks for a payment method), so watch R2 usage on the dashboard and set REPLAYS_ENABLED to anything
-// but "true" (every /replay route then answers 503) if it nears a limit. Create the buckets and their rules once,
-// before the first deploy that carries this binding:
+// operations (writes) and 10 million Class B operations (reads) a month, and egress is free. Unlike the caps above, R2
+// past its free tier is billed (turning R2 on asks for a payment method), so the Worker caps what it writes:
+//   - An upload costs one Worker request, one RateLimiter request (at most 2 rows: its state, and its alarm when the
+//     window is new), one ReplayQuota request (1 row) and one R2 write (a second only on an id collision, at 72 random
+//     bits never in practice). If the R2 write fails, a second ReplayQuota request (1 row) gives the slot back. An
+//     upload refused by either limit costs its Durable Object requests but writes no row and nothing to R2.
+//   - Per IP: 30 uploads a day (REPLAY_UPLOADS_PER_IP_PER_DAY). Whole account: MAX_REPLAYS_PER_DAY (200) a UTC day,
+//     counted by the one ReplayQuota object; past it an upload answers 503 "full" until midnight UTC. Each upload is
+//     at most MAX_REPLAY_BYTES (256 KiB; a typical replay is tens of KB).
+//   - Worst case, a flood from many addresses: 200 writes a day, about 6,200 a month, under 1% of the 1 million.
+//     Storage grows at most 200 x 256 KiB = 52.4 MB a day; a lifecycle rule deletes each replay 180 days after upload
+//     (R2 may take up to a day more), so at most 181 x 52.4 MB = 9.49 GB is held, inside the 10 GB. Keep
+//     MAX_REPLAYS_PER_DAY x MAX_REPLAY_BYTES x 181 under 10 GB when changing either var, or this bound breaks.
+//   - A view costs one Worker request and one R2 read (Class B), no Durable Object; the response is marked immutable,
+//     so a browser that has seen a replay does not ask again. 10 million reads a month is about 330,000 a day, more
+//     than the Worker's 100,000 daily requests allow, so reads cannot pass R2's free tier.
+//   - Watch R2 usage on the dashboard anyway; REPLAYS_ENABLED set to anything but "true" makes every /replay route
+//     answer 503. Create the buckets and their expiry rules once, before the first deploy that carries this binding:
 //   wrangler r2 bucket create mc-replays
 //   wrangler r2 bucket lifecycle add mc-replays expire-replays --expire-days 180 --force
 //   wrangler r2 bucket create mc-replays-staging
 //   wrangler r2 bucket lifecycle add mc-replays-staging expire-replays --expire-days 180 --force
 //
 // Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
-// var, so it is not listed below; when it is set, a transfer upload, a replay upload and a sync space creation must carry
-// a valid CF-Turnstile-Response header.
+// var, so it is not listed below; when it is set, a transfer upload, a replay upload and a sync space creation must
+// carry a valid CF-Turnstile-Response header.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mc-sync",
@@ -82,12 +88,14 @@
       { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
       { "name": "SYNC_SPACE", "class_name": "SyncSpace" },
       { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
+      { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] },
     { "tag": "v2", "new_sqlite_classes": ["SyncSpace"] },
     { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
+    { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
   ],
 
   "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays" }],
@@ -99,7 +107,8 @@
     "GLOBAL_STATS_ENABLED": "true",
     "MAX_SPACE_BYTES": "10485760",
     "REPLAYS_ENABLED": "true",
-    "MAX_REPLAY_BYTES": "1048576",
+    "MAX_REPLAY_BYTES": "262144",
+    "MAX_REPLAYS_PER_DAY": "200",
     // Comma list; a `*` in the host matches a name (or, after a colon, a port). Only these origins get CORS headers.
     // Netlify previews and aliases, local dev servers, and the Capacitor and Tauri webviews.
     "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
@@ -115,12 +124,14 @@
           { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
           { "name": "SYNC_SPACE", "class_name": "SyncSpace" },
           { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
+          { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
         ],
       },
       "migrations": [
         { "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] },
         { "tag": "v2", "new_sqlite_classes": ["SyncSpace"] },
         { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
+        { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
       ],
       "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays-staging" }],
       "vars": {
@@ -130,7 +141,8 @@
         "GLOBAL_STATS_ENABLED": "true",
         "MAX_SPACE_BYTES": "10485760",
         "REPLAYS_ENABLED": "true",
-        "MAX_REPLAY_BYTES": "1048576",
+        "MAX_REPLAY_BYTES": "262144",
+        "MAX_REPLAYS_PER_DAY": "200",
         "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
       },
     },

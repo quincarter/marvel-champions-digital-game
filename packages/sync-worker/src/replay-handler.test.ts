@@ -3,7 +3,8 @@ import { handleRequest, type HandlerDeps } from "./handler.js";
 import { generateReplayId } from "./replay-handler.js";
 import { REPLAY_ID_ALPHABET, REPLAY_ID_PATTERN, type ReplayCreated, type ReplayError } from "./replay-protocol.js";
 import { REPLAY_UPLOADS_PER_IP_PER_DAY } from "./rate-limiter.js";
-import { makeEnv } from "./test-support.js";
+import { DAY_MS as QUOTA_DAY_MS, ReplayQuotaLogic } from "./replay-quota.js";
+import { makeEnv, MemoryStorage } from "./test-support.js";
 
 const ORIGIN = "https://marvel-champions-digital-game.netlify.app";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -105,7 +106,10 @@ describe("replay upload validation", () => {
       "MCREPLAY1\n",
       "MCREPLAY2\nAAAA\n",
       "MCREPLAY1\nnot base64!\n",
-      "MCREPLAY1\nAAAA\nAAAA\n",
+      "MCREPLAY1\nH4sIAAAA\nAAAA\n",
+      // Base64, but not of a gzip stream.
+      "MCREPLAY1\nAAAA\n",
+      "MCREPLAY1\neyJ2IjoxfQ==\n",
       '{"v":1}',
     ];
     for (const body of bodies) {
@@ -119,7 +123,7 @@ describe("replay upload validation", () => {
 
   it("rejects by Content-Length and by the bytes actually read with 413", async () => {
     const { call, env } = setup();
-    const big = `MCREPLAY1\n${"A".repeat(1000)}\n`;
+    const big = `MCREPLAY1\nH4sI${"A".repeat(1000)}\n`;
     const declared = await call(post(big, { "Content-Length": String(big.length) }));
     expect(declared.status).toBe(413);
     expect(((await declared.json()) as ReplayError).reason).toBe("too-large");
@@ -127,7 +131,7 @@ describe("replay upload validation", () => {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(encoder.encode("MCREPLAY1\n"));
+        controller.enqueue(encoder.encode("MCREPLAY1\nH4sI"));
         for (let i = 0; i < 3; i++) controller.enqueue(encoder.encode("A".repeat(400)));
         controller.close();
       },
@@ -144,16 +148,19 @@ describe("replay upload validation", () => {
 
   it("accepts exactly the cap", async () => {
     const { call } = setup();
-    const body = `MCREPLAY1\n${"A".repeat(1000 - 11)}\n`;
+    const body = `MCREPLAY1\nH4sI${"A".repeat(1000 - 15)}\n`;
     expect(new TextEncoder().encode(body).length).toBe(1000);
     expect((await call(post(body))).status).toBe(201);
   });
 
-  it("falls back to 1 MiB when MAX_REPLAY_BYTES is not set", async () => {
+  it("falls back to 256 KiB when MAX_REPLAY_BYTES is not set", async () => {
     const { call, env } = setup();
     delete env.MAX_REPLAY_BYTES;
-    expect((await call(post(`MCREPLAY1\n${"A".repeat(5000)}\n`))).status).toBe(201);
-    expect((await call(post(REPLAY, { "Content-Length": String(1024 * 1024 + 1) }))).status).toBe(413);
+    const atCap = `MCREPLAY1\nH4sI${"A".repeat(256 * 1024 - 15)}\n`;
+    expect(atCap.length).toBe(256 * 1024);
+    expect((await call(post(atCap))).status).toBe(201);
+    expect((await call(post(`${atCap}A`))).status).toBe(413);
+    expect((await call(post(REPLAY, { "Content-Length": String(256 * 1024 + 1) }))).status).toBe(413);
   });
 });
 
@@ -285,5 +292,97 @@ describe("replay origin, kill switch and Turnstile", () => {
       expect(res.status).toBe(404);
       expect(((await res.json()) as ReplayError).reason).toBe("not-found");
     }
+  });
+});
+
+describe("replay daily cap across the account", () => {
+  const ipOf = (i: number) => ({ "CF-Connecting-IP": `198.51.100.${i}` });
+  const quotaCount = (env: ReturnType<typeof setup>["env"]) =>
+    (env.REPLAY_QUOTA.instances.get("replays")?.storage.map.get("day") as { n: number } | undefined)?.n ?? 0;
+
+  it("refuses uploads from any IP past MAX_REPLAYS_PER_DAY with 503 full until the next UTC day", async () => {
+    const { call, env, clock } = setup({ MAX_REPLAYS_PER_DAY: "3" });
+    for (let i = 0; i < 3; i++) expect((await call(post(REPLAY, ipOf(i)))).status).toBe(201);
+    const refused = await call(post(REPLAY, { ...ipOf(9), Origin: ORIGIN }));
+    expect(refused.status).toBe(503);
+    expect(((await refused.json()) as ReplayError).reason).toBe("full");
+    expect(refused.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
+    const nextDay = Math.ceil(clock.now / DAY_MS) * DAY_MS;
+    expect(Number(refused.headers.get("Retry-After"))).toBe(Math.ceil((nextDay - clock.now) / 1000));
+    expect(env.REPLAYS.puts).toBe(3);
+    // Reads are not capped.
+    const [id] = [...env.REPLAYS.objects.keys()];
+    expect((await call(get(id!))).status).toBe(200);
+
+    clock.now = nextDay;
+    expect((await call(post(REPLAY, ipOf(9)))).status).toBe(201);
+    expect(quotaCount(env)).toBe(1);
+  });
+
+  it("is checked after the shape check and the per-IP limit, so neither spends a slot", async () => {
+    const { call, env } = setup({ MAX_REPLAYS_PER_DAY: "100" });
+    expect((await call(post("MCREPLAY1\nAAAA\n"))).status).toBe(400);
+    expect(env.REPLAY_QUOTA.instances.size).toBe(0);
+    const ip = ipOf(1);
+    for (let i = 0; i < REPLAY_UPLOADS_PER_IP_PER_DAY; i++) await call(post(REPLAY, ip));
+    expect((await call(post(REPLAY, ip))).status).toBe(429);
+    expect(quotaCount(env)).toBe(REPLAY_UPLOADS_PER_IP_PER_DAY);
+  });
+
+  it("gives the slot back when the R2 write throws or every id is taken", async () => {
+    const { call, env, deps } = setup({ MAX_REPLAYS_PER_DAY: "1" });
+    const realPut = env.REPLAYS.put.bind(env.REPLAYS);
+    env.REPLAYS.put = async () => {
+      throw new Error("R2 down");
+    };
+    const failed = await call(post(REPLAY, ipOf(1)));
+    expect(failed.status).toBe(500);
+    expect(((await failed.json()) as ReplayError).reason).toBe("server");
+    expect(quotaCount(env)).toBe(0);
+
+    env.REPLAYS.put = realPut;
+    deps.randomBytes = (n) => new Uint8Array(n);
+    expect((await call(post(REPLAY, ipOf(2)))).status).toBe(201);
+    expect(quotaCount(env)).toBe(1);
+    // The cap is 1 and it is taken: the next upload is refused before R2.
+    expect((await call(post(REPLAY, ipOf(3)))).status).toBe(503);
+    expect(env.REPLAYS.puts).toBe(1);
+    env.REPLAY_QUOTA.instances.get("replays")!.storage.map.set("day", { d: Math.floor(deps.now() / DAY_MS), n: 0 });
+    // Every id it draws is taken now: 500, and the slot comes back.
+    expect((await call(post(REPLAY, ipOf(4)))).status).toBe(500);
+    expect(quotaCount(env)).toBe(0);
+  });
+
+  it("fails closed when the quota object errors", async () => {
+    const { call, env } = setup();
+    env.REPLAY_QUOTA.get = () => ({ fetch: async () => new Response("boom", { status: 500 }) });
+    expect((await call(post(REPLAY))).status).toBe(500);
+    expect(env.REPLAYS.puts).toBe(0);
+  });
+
+  it("defaults to 200 a day when MAX_REPLAYS_PER_DAY is not set", async () => {
+    const { call, env, clock } = setup();
+    delete env.MAX_REPLAYS_PER_DAY;
+    expect((await call(post(REPLAY, ipOf(1)))).status).toBe(201);
+    env.REPLAY_QUOTA.instances.get("replays")!.storage.map.set("day", { d: Math.floor(clock.now / DAY_MS), n: 199 });
+    expect((await call(post(REPLAY, ipOf(2)))).status).toBe(201);
+    expect((await call(post(REPLAY, ipOf(3)))).status).toBe(503);
+  });
+
+  it("writes one row per take and refund, none for a refusal, and ignores a refund from an earlier day", async () => {
+    const storage = new MemoryStorage();
+    const quota = new ReplayQuotaLogic(storage);
+    const day = 5 * QUOTA_DAY_MS;
+    expect(await quota.take(day + 10, 1)).toEqual({ ok: true });
+    expect(storage.rowsWritten).toBe(1);
+    expect(await quota.take(day + 20, 1)).toEqual({ ok: false, retryAfterMs: QUOTA_DAY_MS - 20 });
+    expect(storage.rowsWritten).toBe(1);
+    await quota.refund(day - 1, day + 30);
+    expect(await quota.count(day + 30)).toBe(1);
+    await quota.refund(day + 10, day + 40);
+    expect(await quota.count(day + 40)).toBe(0);
+    expect(storage.rowsWritten).toBe(2);
+    await quota.refund(day + 10, day + 50);
+    expect(await quota.count(day + 50)).toBe(0);
   });
 });

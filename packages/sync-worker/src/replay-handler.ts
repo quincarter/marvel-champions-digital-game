@@ -1,7 +1,8 @@
 /**
  * The replay share-link routes (`POST /replay`, `GET /replay/:id`, see `replay-protocol.ts`). A replay is stored in R2
  * as the text the client sent, under a random id. What the Worker guards is abuse: origin, size, shape, the optional
- * Turnstile check and a per-IP daily allowance of uploads. It logs nothing from a request.
+ * Turnstile check, a per-IP daily allowance of uploads and an account-wide daily cap (the ReplayQuota object), so a
+ * flood from many addresses cannot write past R2's free tier either. It logs nothing from a request.
  *
  * A read touches only R2 (one Class B operation), never the limiter, so it writes no Durable Object row; a flood of
  * reads is what REPLAYS_ENABLED is for.
@@ -15,6 +16,7 @@ import { TURNSTILE_HEADER } from "./protocol.js";
 import { readCappedText } from "./read-capped.js";
 import {
   DEFAULT_MAX_REPLAY_BYTES,
+  DEFAULT_MAX_REPLAYS_PER_DAY,
   REPLAY_ID_ALPHABET,
   REPLAY_ID_LENGTH,
   REPLAY_ID_PATTERN,
@@ -39,6 +41,7 @@ const MESSAGES: Record<ReplayErrorReason, string> = {
   "rate-limited": "Too many replays shared from this network. Try again later.",
   turnstile: "The human check failed. Try again.",
   "not-found": "No replay matches that link. It may have expired.",
+  full: "Replay links have taken all the replays they can today. Try again tomorrow.",
   server: "Replay links hit a problem. Try again.",
 };
 
@@ -50,6 +53,7 @@ const STATUS: Record<ReplayErrorReason, number> = {
   "rate-limited": 429,
   turnstile: 403,
   "not-found": 404,
+  full: 503,
   server: 500,
 };
 
@@ -68,6 +72,11 @@ const stubFor = (namespace: DurableObjectNamespaceLike, name: string) => namespa
 function maxReplayBytes(env: Env): number {
   const parsed = Number.parseInt(env.MAX_REPLAY_BYTES ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_REPLAY_BYTES;
+}
+
+function maxReplaysPerDay(env: Env): number {
+  const parsed = Number.parseInt(env.MAX_REPLAYS_PER_DAY ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_REPLAYS_PER_DAY;
 }
 
 /** 64 symbols divide 256, so `byte & 63` is unbiased. */
@@ -125,6 +134,40 @@ async function upload(request: Request, env: Env, deps: HandlerDeps, cors: Recor
   }
   if (!allowance.ok) return fail("server", cors);
 
+  const quota = stubFor(env.REPLAY_QUOTA, "replays");
+  const slot = await quota.fetch(
+    new Request("https://quota/take", {
+      method: "POST",
+      headers: { "X-Now": String(now), "X-Max": String(maxReplaysPerDay(env)) },
+    }),
+  );
+  if (slot.status === 429) {
+    const { retryAfterMs } = (await slot.json()) as { retryAfterMs: number };
+    return fail("full", cors, retryAfterMs);
+  }
+  if (!slot.ok) return fail("server", cors);
+
+  // From here a slot is held: anything but a stored replay gives it back, so the cap counts only what R2 holds.
+  try {
+    const id = await store(env, deps, text, now);
+    if (id !== null) {
+      const created: ReplayCreated = { id };
+      return Response.json(created, { status: 201, headers: { ...cors, "Cache-Control": "no-store" } });
+    }
+  } catch {
+    // Refunded below.
+  }
+  await quota.fetch(
+    new Request("https://quota/refund", {
+      method: "POST",
+      headers: { "X-Now": String(deps.now()), "X-Taken-At": String(now) },
+    }),
+  );
+  return fail("server", cors);
+}
+
+/** Writes the replay under a fresh id; null when every id drawn was taken. */
+async function store(env: Env, deps: HandlerDeps, text: string, now: number): Promise<string | null> {
   const createdAt = new Date(now).toISOString();
   for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt++) {
     const id = generateReplayId(deps.randomBytes);
@@ -134,11 +177,9 @@ async function upload(request: Request, env: Env, deps: HandlerDeps, cors: Recor
       httpMetadata: { contentType: "text/plain; charset=utf-8" },
       customMetadata: { createdAt },
     });
-    if (stored === null) continue;
-    const created: ReplayCreated = { id };
-    return Response.json(created, { status: 201, headers: { ...cors, "Cache-Control": "no-store" } });
+    if (stored !== null) return id;
   }
-  return fail("server", cors);
+  return null;
 }
 
 async function download(env: Env, cors: Record<string, string>, id: string): Promise<Response> {
