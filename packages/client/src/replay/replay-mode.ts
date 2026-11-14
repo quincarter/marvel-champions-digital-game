@@ -46,6 +46,12 @@ export async function enterReplay(replay: ReplayHost): Promise<SessionStore> {
     leaveReplay();
     throw cause;
   }
+  // `open` records a failure on the store rather than throwing: the board must not open on a replay that isn't there.
+  if (store.state.status === "failed") {
+    const error = store.state.error ?? "the replay could not be shown";
+    leaveReplay();
+    throw new Error(error);
+  }
   return store;
 }
 

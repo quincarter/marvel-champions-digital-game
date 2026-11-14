@@ -103,10 +103,10 @@ export interface ReplayFailure {
 
 export interface ReplayBuildOptions {
   /**
-   * Sees the state after every command count 0..length, in order, during the one forward pass at construction: what a
+   * Sees the state after every command count 0..length, and the events that got it there (setup's at 0), in order, during the one forward pass at construction: what a
    * replay file's checksums are taken from and checked against (`replay/replay-session.ts`).
    */
-  readonly observe?: (index: number, state: GameState) => void;
+  readonly observe?: (index: number, state: GameState, events: readonly GameEvent[]) => void;
   /**
    * Stop at the first command that no longer applies instead of throwing: the cursor then covers the log up to that
    * command, and `failure` says where and why. A shared replay from another build can still be watched up to there.
@@ -205,7 +205,7 @@ export class ReplayCursor {
     if (phase === "villain") moments.push({ commandIndex: 0, round, label: "Villain Phase", kind: "villainPhase" });
 
     let state = clonedInitial;
-    options.observe?.(0, state);
+    options.observe?.(0, state, clonedSetupEvents);
     const perCommand: (readonly GameEvent[])[] = [];
     let failure: ReplayFailure | null = null;
     for (let i = 0; i < clonedCommands.length; i++) {
@@ -222,7 +222,7 @@ export class ReplayCursor {
       state = result.state;
       perCommand.push(result.events);
       const index = i + 1;
-      options.observe?.(index, state);
+      options.observe?.(index, state, result.events);
 
       /**
        * Moments are keyed off the *resting* state after the whole command,

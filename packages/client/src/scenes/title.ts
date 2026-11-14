@@ -180,6 +180,18 @@ export class TitleScene extends Phaser.Scene {
     super(SCENES.title);
   }
 
+  /** A game in progress, watched so far as a replay (#693) without resuming it; Exit comes back here. */
+  async #watchSaved(save: SaveMeta): Promise<void> {
+    if (this.#starting) return;
+    try {
+      const host = await openReplay({ kind: "stored", gameId: save.id });
+      if (!this.sys.isActive()) return host.dispose();
+      await watchReplay(this, host, SCENES.title);
+    } catch (cause) {
+      if (this.sys.isActive()) this.#replayProblem(t(replayErrorKey(cause)));
+    }
+  }
+
   /** A `#replay=` link: fetches the shared replay and opens it on the board; Exit comes back here. */
   async #watchSharedReplay(id: string): Promise<void> {
     const loading = this.#replayNote(t("replay.link.loading"), surface.paper.hex);
@@ -399,6 +411,7 @@ export class TitleScene extends Phaser.Scene {
       from: this.scene.key,
       saves: this.#listedGames(),
       onResume: (save) => void this.#resume(save),
+      onWatch: (save) => void this.#watchSaved(save),
       onChanged: () => void this.#refreshSaves(),
     } satisfies GamesListOverlayData);
   }
@@ -932,6 +945,7 @@ export class TitleScene extends Phaser.Scene {
       enabled: !this.#starting && !this.#removeBusy,
       error: this.#removeError,
       onResume: (row) => void this.#resume(row.save),
+      onWatch: (row) => void this.#watchSaved(row.save),
       onAskRemove: (row) => {
         this.#removing = row.id;
         this.#rebuild();

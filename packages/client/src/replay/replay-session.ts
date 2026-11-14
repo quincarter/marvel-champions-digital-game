@@ -80,7 +80,7 @@ export class ReplaySession {
   readonly #cursor: ReplayCursor;
   readonly #source: ReplayLog;
   readonly #writer: ReplayWriter;
-  readonly #checksums: readonly string[];
+  readonly #checksums: { readonly regular: readonly string[]; readonly final: string | undefined };
   readonly #records: readonly GameRecord[];
   readonly #deps: EngineDeps;
   readonly info: ReplayInfo;
@@ -89,7 +89,7 @@ export class ReplaySession {
     cursor: ReplayCursor,
     source: ReplayLog,
     writer: ReplayWriter,
-    checksums: readonly string[],
+    checksums: { readonly regular: readonly string[]; readonly final: string | undefined },
     records: readonly GameRecord[],
     info: ReplayInfo,
     deps: EngineDeps,
@@ -112,25 +112,27 @@ export class ReplaySession {
     // A game with custom packs plays with their cards and scripts, which its config carries (`SessionConfig.packs`).
     const deps = given ?? poolViewOfPacks(log.config.packs).deps;
     const writer = source.kind === "file" ? source.file.writer : here;
-    const check = source.kind === "file" ? new ChecksumCheck(source.file.checksums) : null;
+    const finalChecksum = source.kind === "file" ? source.file.finalChecksum : undefined;
+    const check =
+      source.kind === "file"
+        ? new ChecksumCheck(
+            source.file.checksums,
+            finalChecksum === undefined ? undefined : { at: log.commands.length, checksum: finalChecksum },
+          )
+        : null;
     const written = source.kind === "log" ? new ChecksumWriter() : null;
+    // Each position's record, folded as the cursor's one forward pass reaches it: no state is kept for it.
     const records: GameRecord[] = [];
     let record = emptyRecord();
-    // Every position's state, in order, from the cursor's one forward pass: the records are folded from them after.
-    const pending: { index: number; state: GameState }[] = [];
     const cursor = ReplayCursor.fromStoredGame(log.config, log.initialState, log.commands, deps, {
       lenient: true,
-      observe: (index, state) => {
-        check?.observe(index, state);
-        written?.observe(index, state);
-        pending.push({ index, state });
+      observe: (_index, state, events) => {
+        check?.observe(_index, state);
+        written?.observe(_index, state);
+        record = recordEvents(record, events, state, deps);
+        records.push(record);
       },
     });
-    for (const { index, state } of pending) {
-      const events = index === 0 ? cursor.historyTo(0) : cursor.eventsOf(index - 1);
-      record = recordEvents(record, events, state, deps);
-      records.push(record);
-    }
     const info: ReplayInfo = {
       length: cursor.length,
       total: log.commands.length,
@@ -145,7 +147,8 @@ export class ReplaySession {
       round: log.round,
     };
     const checksums = source.kind === "file" ? source.file.checksums : (written?.values ?? []);
-    return new ReplaySession(cursor, log, writer, checksums, records, info, deps);
+    const final = source.kind === "file" ? finalChecksum : written?.final;
+    return new ReplaySession(cursor, log, writer, { regular: checksums, final }, records, info, deps);
   }
 
   /**
@@ -214,7 +217,8 @@ export class ReplaySession {
       round: log.round,
       initialState: log.initialState,
       commands: log.commands,
-      checksums: this.#checksums,
+      checksums: this.#checksums.regular,
+      ...(this.#checksums.final === undefined ? {} : { finalChecksum: this.#checksums.final }),
     };
   }
 }

@@ -104,7 +104,7 @@ describe("geometry", () => {
     expect(gameRowRects(viewport, 0).height).toBe(0);
   });
 
-  test("a row's text, Resume and Remove sit inside it, apart, at touch size with a clear gap", () => {
+  test("a row's text, Resume, Watch and Remove sit inside it, apart, at touch size with a clear gap", () => {
     for (const width of [300, 340, 480]) {
       const [row] = gameRowRects({ ...viewport, width }, 1).rows;
       const parts = gameRowParts(row!);
@@ -113,9 +113,12 @@ describe("geometry", () => {
       // Resume is the main action: wider and taller than Remove.
       expect(parts.resume.width).toBeGreaterThan(parts.remove.width);
       expect(parts.resume.height).toBeGreaterThan(parts.remove.height);
-      expect(parts.remove.x - (parts.resume.x + parts.resume.width)).toBeGreaterThanOrEqual(12);
+      expect(parts.resume.width).toBeGreaterThan(parts.watch.width);
+      expect(parts.watch.height).toBeGreaterThanOrEqual(hit.target);
+      expect(parts.watch.x - (parts.resume.x + parts.resume.width)).toBeGreaterThanOrEqual(12);
+      expect(parts.remove.x - (parts.watch.x + parts.watch.width)).toBeGreaterThanOrEqual(12);
       expect(parts.text.width).toBeGreaterThan(100);
-      const rects = [parts.text, parts.resume, parts.remove];
+      const rects = [parts.text, parts.resume, parts.watch, parts.remove];
       for (const [i, a] of rects.entries()) {
         for (const b of rects.slice(i + 1)) expect(rectsOverlap(a, b)).toBe(false);
       }

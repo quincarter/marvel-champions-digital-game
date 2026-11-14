@@ -21,6 +21,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "title.releaseNotes": "Novedades ↗",
   "title.openReplay": "Abrir una repetición",
   "gameOver.watchReplay": "Ver repetición",
+  "gamesList.watch": "Ver",
   "replay.title": "Repetición",
   "replay.watching": "Viendo una repetición",
   "replay.play": "Reproducir",

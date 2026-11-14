@@ -20,7 +20,7 @@
  */
 
 import Phaser from "phaser";
-import type { InstanceId } from "@mc/engine";
+import type { GameOutcome, GameState, InstanceId } from "@mc/engine";
 import { gameScenarios } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { artFor } from "../art/art-source.js";
@@ -641,22 +641,30 @@ export class GameOverScene extends Phaser.Scene {
     }));
   }
 
-  /** "Watch replay": the game just played, from its save. A game that wasn't saved has nothing to replay. */
+  /**
+   * "Watch replay": the game just played, from the live host's own log rather than the save, whose last write (the
+   * game-ending command) may not have landed yet.
+   */
   #replayAction(): { label: string; primary: boolean; run: () => void; unavailable: string | undefined } {
-    const gameId = appSession().store.state.gameId;
+    const { config, game } = appSession().store.state;
     return {
       label: t("gameOver.watchReplay"),
       primary: false,
-      run: () => gameId && void this.#watchReplay(gameId),
-      unavailable: gameId ? undefined : t("replay.error.missing"),
+      run: () => config && game && void this.#watchReplay(config, game.outcome ?? null, game.round),
+      unavailable: config && game ? undefined : t("replay.error.missing"),
     };
   }
 
-  async #watchReplay(gameId: string): Promise<void> {
+  async #watchReplay(config: SessionConfig, outcome: GameOutcome | null, round: number): Promise<void> {
     if (this.#busy) return;
     this.#busy = true;
     try {
-      const host = await openReplay({ kind: "stored", gameId });
+      const { initialState, commands } = await appSession().store.save();
+      const { cardPool: _pool, ...baseline } = initialState as GameState;
+      const host = await openReplay({
+        kind: "log",
+        log: { config, initialState: baseline, commands, createdAt: Date.now(), outcome, round },
+      });
       if (!this.sys.isActive()) return host.dispose();
       await watchReplay(this, host, SCENES.gameOver);
     } catch (cause) {

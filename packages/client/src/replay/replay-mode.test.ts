@@ -20,6 +20,10 @@ vi.mock("../session.js", () => ({
   },
 }));
 
+// The fake replay's state is a stub: the store takes it as the table without sealing or reading whose turn it is.
+vi.mock("../view/hidden-reverse.js", () => ({ sealForTable: (state: unknown) => state }));
+vi.mock("../engine/acting-player.js", () => ({ actingPlayer: () => null }));
+
 const { activeReplay, enterReplay, leaveReplay } = await import("./replay-mode.js");
 const { ReplayHost } = await import("./replay-host.js");
 
@@ -44,7 +48,13 @@ function fakeReplay(): { readonly host: InstanceType<typeof ReplayHost>; readonl
       },
     }),
     snapshot: async (n) =>
-      ({ version: n, state: { outcome: null, firstPlayerId: "p1" }, events: [], legal: null, record: {} }) as never,
+      ({
+        version: n,
+        state: { outcome: null, firstPlayerId: "p1", players: [] },
+        events: [],
+        legal: null,
+        record: {},
+      }) as never,
     exportFile: async () => ({ bytes: new Uint8Array(), name: "x" }),
     exportLog: async () => ({ text: "", name: "x" }),
     dispose: () => void (disposed += 1),
@@ -67,7 +77,7 @@ describe("replay mode", () => {
     expect(activeReplay()).toBe(host);
     expect(session.host).toBe(host);
     expect(session.store).toBe(replayStore);
-    expect(replayStore.state.status).not.toBe("idle");
+    expect(replayStore.state.status).toBe("playing");
     session.gameLog = emptyLog();
     session.villainReview = null;
 

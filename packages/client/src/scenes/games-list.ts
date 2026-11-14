@@ -35,6 +35,8 @@ export interface GamesListOverlayData {
   readonly saves: readonly SaveMeta[];
   /** A row was tapped: this has closed, the Title resumes the game. */
   readonly onResume: (save: SaveMeta) => void;
+  /** A row's Watch: this has closed, the Title opens the game so far as a replay (#693). */
+  readonly onWatch: (save: SaveMeta) => void;
   /** The list changed (a game was removed): the Title refreshes what it shows. */
   readonly onChanged: () => void;
 }
@@ -194,6 +196,10 @@ export class GamesListOverlay extends Phaser.Scene {
         error: this.#error,
         hints: this.#hints,
         onResume: (row) => this.#resume(row),
+        onWatch: (row) => {
+          this.scene.stop();
+          this.#data.onWatch(row.save);
+        },
         onAskRemove: (row) => {
           this.#confirming = row.id;
           this.#draw();

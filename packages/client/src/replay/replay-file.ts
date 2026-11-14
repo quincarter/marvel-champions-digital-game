@@ -59,6 +59,8 @@ export interface ReplayFile {
   readonly commands: readonly Command[];
   /** `checksums[k]` is `replayChecksum` of the state after `k * CHECKSUM_EVERY` commands, as the writer had it. */
   readonly checksums: readonly string[];
+  /** The checksum after the last command, when the command count isn't a multiple of `CHECKSUM_EVERY`. */
+  readonly finalChecksum?: string;
 }
 
 /** Why a file could not be read as a replay; the screen words it (`replay.error.*` in the i18n catalog). */
@@ -95,15 +97,22 @@ export const isChecksumPosition = (index: number): boolean => index % CHECKSUM_E
  */
 export class ChecksumCheck {
   readonly #expected: readonly string[];
+  readonly #final: { readonly at: number; readonly checksum: string } | undefined;
   #divergedAt: number | null = null;
 
-  constructor(expected: readonly string[]) {
+  /** `final`: the checksum after the last command, when that is not a multiple of `CHECKSUM_EVERY` in. */
+  constructor(expected: readonly string[], final?: { readonly at: number; readonly checksum: string }) {
     this.#expected = expected;
+    this.#final = final;
   }
 
   observe(index: number, state: GameState): void {
-    if (this.#divergedAt !== null || !isChecksumPosition(index)) return;
-    const expected = this.#expected[index / CHECKSUM_EVERY];
+    if (this.#divergedAt !== null) return;
+    const expected = isChecksumPosition(index)
+      ? this.#expected[index / CHECKSUM_EVERY]
+      : index === this.#final?.at
+        ? this.#final.checksum
+        : undefined;
     if (expected !== undefined && expected !== replayChecksum(state)) this.#divergedAt = index;
   }
 
@@ -115,13 +124,21 @@ export class ChecksumCheck {
 /** Collects the checksums a writer stores (`observe` each position in order). */
 export class ChecksumWriter {
   readonly #values: string[] = [];
+  #last: { readonly index: number; readonly state: GameState } | null = null;
 
   observe(index: number, state: GameState): void {
     if (isChecksumPosition(index)) this.#values.push(replayChecksum(state));
+    this.#last = { index, state };
   }
 
   get values(): readonly string[] {
     return this.#values;
+  }
+
+  /** The last position's checksum when the regular ones miss it: so the game's last commands are checked too. */
+  get final(): string | undefined {
+    const last = this.#last;
+    return last && !isChecksumPosition(last.index) ? replayChecksum(last.state) : undefined;
   }
 }
 

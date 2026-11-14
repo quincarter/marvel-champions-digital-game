@@ -19,6 +19,7 @@ export const en = {
   "title.releaseNotes": "Release notes ↗",
   "title.openReplay": "Open a replay",
   "gameOver.watchReplay": "Watch replay",
+  "gamesList.watch": "Watch",
   "replay.title": "Replay",
   "replay.watching": "Watching a replay",
   "replay.play": "Play",

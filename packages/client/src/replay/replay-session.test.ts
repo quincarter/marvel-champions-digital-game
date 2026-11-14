@@ -119,6 +119,16 @@ describe("ReplaySession", () => {
     expect(session.info.otherBuild).toBe(true);
   });
 
+  test("the last commands are checked too when the count isn't a multiple of the checksum spacing", async () => {
+    const stored = await playedGame(15, LONG_CONFIG);
+    const log = { ...logOf(stored), commands: stored.commands.slice(0, 15) };
+    const file = ReplaySession.open({ kind: "log", log }, HERE).toFile(0);
+    expect(file.finalChecksum).toBeDefined();
+    const tampered = { ...file, finalChecksum: `x${file.finalChecksum}` };
+    expect(ReplaySession.open({ kind: "file", file }, HERE).info.divergedAt).toBeNull();
+    expect(ReplaySession.open({ kind: "file", file: tampered }, HERE).info.divergedAt).toBe(15);
+  });
+
   test("a log whose commands stop applying opens up to the first one that doesn't", async () => {
     const stored = await playedGame(12);
     const broken: Command = { type: "endTurn", playerId: "nobody" as never };
