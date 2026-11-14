@@ -121,6 +121,8 @@ Owner decisions (§4.1, 2026-11-14):
 | 5 | Elektra's basic power ends before her boost cards are turned faceup | **A, provisional**: every unflipped boost card stays facedown on her, including one given for that use, and resolves on a later basic power (RRG 1.8 Boost p. 11; ruling Sep 10, 2026 R3 A). |
 | 6 | Venom's main scheme 1B ("move each facedown boost card from your identity to Venom") and Elektra's own held cards | **B, provisional until FFG rules on it**: every facedown boost card moves, hers included. Provenance decides which cards Elektra can resolve (ruling Sep 10, 2026 R3 C), never which cards Venom moves. |
 | 7 | Moon Knight 63039's [mental] "Discard 1 boost card from the attacker" when the attacker has several facedown boost cards | **A**: Moon Knight's controller picks any one; when nothing is known about the cards it is the first one dealt (RRG 1.8 "Choose" p. 12, nearest rule). |
+| 8 | Redirection Mastery 64018 when the hero defends with The Best Defense… (ATK instead of DEF) | **A**: the ATK used stands in for DEF for the whole attack, including the exactly-defend comparison and the damage dealt (FFG ruling Sep 10, 2026 R4 on exact defense; no direct ruling). |
+| 9 | Colleen Wing 64021: when is the other attacker's Martial Artist trait checked? | **A**: as it was when that character attacked (no direct ruling). |
 
 ## 6. Scripting status
 

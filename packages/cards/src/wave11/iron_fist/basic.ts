@@ -52,7 +52,7 @@ const DEFENDER = trait("DEFENDER");
  * reads the phase's attack record against the enemy she attacked (`attackedThisPhase(attackTarget())`), in play or
  * defeated by her attack: some attack this phase by a Martial Artist character other than her, its traits as they were
  * when it attacked (a Martial Artist ally since defeated still counts). Reading the trait at attack time rather than
- * now: owner question pending, built to A.
+ * now: owner decision 9, docs/phase7-elektra-iron-fist.md §5 (no direct ruling).
  *
  * **64022.luke-cage-constant**: Toughness is data. "If your hero shares a Trait with Luke Cage" reads both sides live
  * (`sharesTraitWith`); an alter-ego identity is not "your hero", so there is no bonus (and no DEF to raise).

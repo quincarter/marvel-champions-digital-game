@@ -78,8 +78,8 @@ import { WAVE10_ABILITIES } from "../../wave10/index.js";
  * modified ATK, boost icons included, with no prevention or reduction (FFG ruling September 10, 2026 (4)); a "(defense)"
  * ability alone is no basic defense (October 12, 2026 (4)). The damage is the hero's DEF for that attack
  * (`defenderDefForAttack`), to the attacking enemy. With The Best Defense (ATK used instead of DEF), the ATK stands in
- * for "your DEF" both in the comparison and in the damage: owner question pending, built to A. Max 1 per player and
- * any-player control are data.
+ * for "your DEF" both in the comparison and in the damage: owner decision 8 (phase7-elektra-iron-fist §5).
+ * Max 1 per player and any-player control are data.
  *
  * **64019.no-time-to-bleed-response**: "After you play a card (including this one)" is `youPlayedCard` for any card
  * (Move in Shadow's shape, fne 60027); the heal is from your identity, so it works in either form. Discount is data;
