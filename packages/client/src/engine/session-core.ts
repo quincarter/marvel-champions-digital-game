@@ -25,7 +25,8 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { cardsOfComposedSets, isNotReadyCard } from "@mc/cards";
+import { cardsOfComposedSets } from "@mc/cards";
+import { notReadySeatIdentity } from "./not-ready-seats.js";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
 import {
@@ -402,13 +403,16 @@ export class EngineSessionCore {
     const config = await this.#withHistoryFacts(given);
     // Backstop for the deck gates (`verdictOf`): a hero from a not-ready pack never starts a new game. Resume and
     // replay (`rebuildBaseline`) are left alone so a game that already exists still loads.
-    const byId = viewOf(config).cardsById;
-    for (const seat of config.players) {
-      const identity =
-        "identityCardId" in seat && seat.identityCardId ? byId.get(seat.identityCardId as string) : undefined;
-      if (identity && isNotReadyCard(identity)) {
-        throw new SetupError({ code: "invalid_setup", command: null, message: `${identity.name} is not ready yet` });
-      }
+    const view = viewOf(config);
+    const notReady = notReadySeatIdentity(
+      config.players,
+      view.packs,
+      POOL_STARTER_DECKS,
+      view.cardsById,
+      BASE_DECK_IDS,
+    );
+    if (notReady) {
+      throw new SetupError({ code: "invalid_setup", command: null, message: `${notReady.name} is not ready yet` });
     }
     const setup = createGame(scenarioFor(config), depsOf(config));
     if (!setup.ok) throw new SetupError({ ...setup.error, message: `setup failed: ${setup.error.message}` });
