@@ -132,14 +132,6 @@ const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {
     "64021.colleen-wing-constant",
     "64032.sensei-constant",
     "64033.the-defenders-constant",
-    "64034.lack-of-chi-forced-interrupt",
-    "64034.obligation",
-    "64034.when-revealed",
-    "64035.davos-forced-interrupt",
-    "64035.when-revealed",
-    "64036.steel-serpent-constant",
-    "64037.boost",
-    "64037.when-defeated",
   ],
 };
 
