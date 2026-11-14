@@ -268,17 +268,17 @@ code	pack	name	saved
 02047	gob	Tombstone	2026-10-28
 02048	gob	All Tied Up	2026-10-28
 02049	gob	Media Coverage	2026-10-28
-03001a	cap	Captain America	2026-10-28
-03001b	cap	Steve Rogers	2026-10-28
-03002	cap	Agent 13	2026-10-28
-03003	cap	Fearless Determination	2026-10-28
-03004	cap	Heroic Strike	2026-10-28
-03005	cap	Shield Block	2026-10-28
-03006	cap	Shield Toss	2026-10-28
-03007	cap	Steve's Apartment	2026-10-28
-03008	cap	Captain America's Helmet	2026-10-28
-03009	cap	Captain America's Shield	2026-10-28
-03010	cap	Super-Soldier Serum	2026-10-28
+03001a	cap	Captain America	2026-11-14
+03001b	cap	Steve Rogers	2026-11-14
+03002	cap	Agent 13	2026-11-14
+03003	cap	Fearless Determination	2026-11-14
+03004	cap	Heroic Strike	2026-11-14
+03005	cap	Shield Block	2026-11-14
+03006	cap	Shield Toss	2026-11-14
+03007	cap	Steve's Apartment	2026-11-14
+03008	cap	Captain America's Helmet	2026-11-14
+03009	cap	Captain America's Shield	2026-11-14
+03010	cap	Super-Soldier Serum	2026-11-14
 03011	cap	Falcon	2026-10-28
 03013	cap	Squirrel Girl	2026-10-28
 03014	cap	Wonder Man	2026-10-28
@@ -287,11 +287,11 @@ code	pack	name	saved
 03019	cap	Quinjet	2026-10-28
 03024	cap	Avengers Tower	2026-10-28
 03025	cap	Honorary Avenger	2026-10-28
-03026	cap	Man Out of Time	2026-10-28
-03027	cap	Hit Squad	2026-10-28
-03028	cap	Baron Zemo	2026-10-28
-03029	cap	Hydra Soldier	2026-10-28
-03030	cap	Hail Hydra!	2026-10-28
+03026	cap	Man Out of Time	2026-11-14
+03027	cap	Hit Squad	2026-11-14
+03028	cap	Baron Zemo	2026-11-14
+03029	cap	Hydra Soldier	2026-11-14
+03030	cap	Hail Hydra!	2026-11-14
 03032	cap	Followed	2026-10-28
 04001a	trors	Hawkeye	2026-10-28
 04001b	trors	Clint Barton	2026-10-28
@@ -449,41 +449,41 @@ code	pack	name	saved
 04164	trors	Medical Emergency	2026-10-28
 04165	trors	Martial Law	2026-10-28
 04166	trors	Anti-Hero Propaganda	2026-10-28
-05001a	msm	Ms. Marvel	2026-10-28
-05001b	msm	Kamala Khan	2026-10-28
-05002	msm	Red Dagger	2026-10-28
-05003	msm	Big Hands	2026-10-28
-05004	msm	Sneak By	2026-10-28
-05005	msm	Wiggle Room	2026-10-28
-05006	msm	Aamir Khan	2026-10-28
-05007	msm	Bruno Carrelli	2026-10-28
-05008	msm	Nakia Bahadir	2026-10-28
-05009	msm	Biokinetic Polymer Suit	2026-10-28
-05010	msm	Embiggen!	2026-10-28
-05011	msm	Shrink	2026-10-28
+05001a	msm	Ms. Marvel	2026-11-14
+05001b	msm	Kamala Khan	2026-11-14
+05002	msm	Red Dagger	2026-11-14
+05003	msm	Big Hands	2026-11-14
+05004	msm	Sneak By	2026-11-14
+05005	msm	Wiggle Room	2026-11-14
+05006	msm	Aamir Khan	2026-11-14
+05007	msm	Bruno Carrelli	2026-11-14
+05008	msm	Nakia Bahadir	2026-11-14
+05009	msm	Biokinetic Polymer Suit	2026-11-14
+05010	msm	Embiggen!	2026-11-14
+05011	msm	Shrink	2026-11-14
 05012	msm	Nova	2026-10-28
 05014	msm	Preemptive Strike	2026-10-28
 05015	msm	Tackle	2026-10-28
 05017	msm	Energy Barrier	2026-10-28
 05018	msm	Lockjaw	2026-10-28
 05023	msm	Endurance	2026-10-28
-05025	msm	Home by Dawn	2026-10-28
-05026	msm	Generation Why?	2026-10-28
-05027	msm	Thomas Edison	2026-10-28
-05028	msm	Edison's Giant Robot	2026-10-28
-05029	msm	Harvest	2026-10-28
+05025	msm	Home by Dawn	2026-11-14
+05026	msm	Generation Why?	2026-11-14
+05027	msm	Thomas Edison	2026-11-14
+05028	msm	Edison's Giant Robot	2026-11-14
+05029	msm	Harvest	2026-11-14
 05032	msm	Morale Boost	2026-10-28
-06001a	thor	Thor	2026-10-28
-06001b	thor	Odinson	2026-10-28
-06002	thor	Lady Sif	2026-10-28
-06003	thor	Defender of the Nine Realms	2026-10-28
-06004	thor	For Asgard!	2026-10-28
-06005	thor	Hammer Throw	2026-10-28
-06006	thor	Lightning Strike	2026-10-28
-06007	thor	Asgard	2026-10-28
-06008	thor	God of Thunder	2026-10-28
-06009	thor	Mjolnir	2026-10-28
-06010	thor	Thor's Helmet	2026-10-28
+06001a	thor	Thor	2026-11-14
+06001b	thor	Odinson	2026-11-14
+06002	thor	Lady Sif	2026-11-14
+06003	thor	Defender of the Nine Realms	2026-11-14
+06004	thor	For Asgard!	2026-11-14
+06005	thor	Hammer Throw	2026-11-14
+06006	thor	Lightning Strike	2026-11-14
+06007	thor	Asgard	2026-11-14
+06008	thor	God of Thunder	2026-11-14
+06009	thor	Mjolnir	2026-11-14
+06010	thor	Thor's Helmet	2026-11-14
 06011	thor	Hercules	2026-10-28
 06012	thor	Valkyrie	2026-10-28
 06014	thor	Get Over Here!	2026-10-28
@@ -493,11 +493,11 @@ code	pack	name	saved
 06019	thor	Jarnbjorn	2026-10-28
 06020	thor	Heimdall	2026-10-28
 06021	thor	Invulnerability	2026-10-28
-06026	thor	Odin's Anger	2026-10-28
-06027	thor	Family Feud	2026-10-28
-06028	thor	Loki	2026-10-28
-06029	thor	Frost Giant	2026-10-28
-06030	thor	Trickster	2026-10-28
+06026	thor	Odin's Anger	2026-11-14
+06027	thor	Family Feud	2026-11-14
+06028	thor	Loki	2026-11-14
+06029	thor	Frost Giant	2026-11-14
+06030	thor	Trickster	2026-11-14
 06031	thor	Under Surveillance	2026-10-28
 06032	thor	Teamwork	2026-10-28
 07001	twc	Breakout	2026-10-28
@@ -560,17 +560,17 @@ code	pack	name	saved
 07057	twc	Get Wrecked!	2026-10-30
 07058	twc	Headbutt	2026-10-28
 07059	twc	Leading the Charge	2026-10-28
-08001a	bkw	Black Widow	2026-10-28
-08001b	bkw	Natasha Romanoff	2026-10-28
-08002	bkw	Winter Soldier	2026-10-28
-08003	bkw	Covert Ops	2026-10-28
-08004	bkw	Dance of Death	2026-10-28
-08005	bkw	Safe House #29	2026-10-28
-08006	bkw	Attacrobatics	2026-10-28
-08007	bkw	Black Widow's Gauntlet	2026-10-28
-08008	bkw	Grappling Hook	2026-10-28
-08009	bkw	Synth-Suit	2026-10-28
-08010	bkw	Widow's Bite	2026-10-28
+08001a	bkw	Black Widow	2026-11-14
+08001b	bkw	Natasha Romanoff	2026-11-14
+08002	bkw	Winter Soldier	2026-11-14
+08003	bkw	Covert Ops	2026-11-14
+08004	bkw	Dance of Death	2026-11-14
+08005	bkw	Safe House #29	2026-11-14
+08006	bkw	Attacrobatics	2026-11-14
+08007	bkw	Black Widow's Gauntlet	2026-11-14
+08008	bkw	Grappling Hook	2026-11-14
+08009	bkw	Synth-Suit	2026-11-14
+08010	bkw	Widow's Bite	2026-11-14
 08011	bkw	Agent Coulson	2026-10-28
 08012	bkw	Quake	2026-10-28
 08013	bkw	Stealth Strike	2026-10-28
@@ -578,11 +578,11 @@ code	pack	name	saved
 08018	bkw	Spycraft	2026-10-28
 08023	bkw	Quincarrier	2026-10-28
 08024	bkw	Target Acquired	2026-10-28
-08025	bkw	Burn Notice	2026-10-28
-08026	bkw	Taskmaster	2026-10-28
-08027	bkw	Killer for Hire	2026-10-28
-08028	bkw	Hydra Mercenary	2026-10-28
-08029	bkw	Deadly Shot	2026-10-28
+08025	bkw	Burn Notice	2026-11-14
+08026	bkw	Taskmaster	2026-11-14
+08027	bkw	Killer for Hire	2026-11-14
+08028	bkw	Hydra Mercenary	2026-11-14
+08029	bkw	Deadly Shot	2026-11-14
 09001a	drs	Doctor Strange	2026-10-28
 09001b	drs	Stephen Strange	2026-10-28
 09002	drs	Wong	2026-10-28
@@ -614,17 +614,17 @@ code	pack	name	saved
 09034	drs	Seven Rings of Raggadorr	2026-10-28
 09035	drs	Vapors of Valtorr	2026-10-28
 09036	drs	Winds of Watoomb	2026-10-28
-10001a	hlk	Hulk	2026-10-28
-10001b	hlk	Bruce Banner	2026-10-28
-10002	hlk	Crushing Blow	2026-10-28
-10003	hlk	Hulk Smash	2026-10-28
-10004	hlk	Sub-Orbital Leap	2026-10-28
-10005	hlk	Thunderclap	2026-10-28
-10006	hlk	Unstoppable Force	2026-10-28
-10007	hlk	Limitless Strength	2026-10-28
-10008	hlk	Banner's Laboratory	2026-10-28
-10009	hlk	Boundless Rage	2026-10-28
-10010	hlk	Immovable Object	2026-10-28
+10001a	hlk	Hulk	2026-11-14
+10001b	hlk	Bruce Banner	2026-11-14
+10002	hlk	Crushing Blow	2026-11-14
+10003	hlk	Hulk Smash	2026-11-14
+10004	hlk	Sub-Orbital Leap	2026-11-14
+10005	hlk	Thunderclap	2026-11-14
+10006	hlk	Unstoppable Force	2026-11-14
+10007	hlk	Limitless Strength	2026-11-14
+10008	hlk	Banner's Laboratory	2026-11-14
+10009	hlk	Boundless Rage	2026-11-14
+10010	hlk	Immovable Object	2026-11-14
 10011	hlk	Brawn	2026-10-28
 10012	hlk	Sentry	2026-10-28
 10013	hlk	She-Hulk	2026-10-28
@@ -633,10 +633,10 @@ code	pack	name	saved
 10016	hlk	"You'll Pay for That!"	2026-10-28
 10018	hlk	Martial Prowess	2026-10-28
 10019	hlk	To the Rescue!	2026-10-28
-10025	hlk	Inner Demons	2026-10-28
-10026	hlk	Abomination	2026-10-28
-10027	hlk	Total Destruction	2026-10-28
-10028	hlk	Clash Of The Titans	2026-10-28
+10025	hlk	Inner Demons	2026-11-14
+10026	hlk	Abomination	2026-11-14
+10027	hlk	Total Destruction	2026-11-14
+10028	hlk	Clash Of The Titans	2026-11-14
 10032	hlk	Resourceful	2026-10-28
 11001	toafk	Kang (The Conqueror)	2026-10-30
 11002	toafk	Kang (Immortus)	2026-10-28
@@ -1422,6 +1422,7 @@ code	pack	name	saved
 26001a	vision	Vision	2026-10-28
 26001b	vision	Vision	2026-10-28
 26002	vision	Intangible	2026-10-28
+26002a	vision	Intangible	2026-11-14
 26002b	vision	Intangible	2026-10-28
 26003	vision	Vivian	2026-10-28
 26004	vision	616 Hickory Branch Lane	2026-10-28
