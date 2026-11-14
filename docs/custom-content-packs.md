@@ -928,9 +928,8 @@ The pattern, the steps to move a wave, what is left and the gaps found are in
 [`docs/builtin-content-packs.md`](builtin-content-packs.md); this section is the summary.
 
 The base game's products are being defined the way a store pack is, one product at a time, so the SDK proves itself
-on content we already trust and each product's folder is a worked example. The Core Set and waves 1 to 3 have moved so
-far: wave 1's `cap`, `thor`, `msm`, `hlk`, `bkw`, `drs`, `gob` and `twc`; wave 2's `trors`, `toafk`, `ant`, `wsp`, `qsv`
-and `scw`; and wave 3's `gmw`, `gam`, `stld`, `drax`, `vnm` and `ron`.
+on content we already trust and each product's folder is a worked example. Every product has moved: the Core Set and
+waves 1 to 11, 64 packs (`BUILTIN_PACKS`).
 
 - **One product is one built-in pack** (`packages/cards/src/builtin-packs/define.ts`): a manifest (the product's set
   code as its id, its kind and its `@mc/content` product record), its cards, encounter sets, scenarios and precons,
@@ -954,15 +953,15 @@ and `scw`; and wave 3's `gmw`, `gam`, `stld`, `drax`, `vnm` and `ron`.
   set and scenario checks `validatePack` runs on a store pack, minus the ones about `x.` codes, ids and files, plus
   the cross references: a scenario's sets (`validateScenarioEncounterSets`), villain and main scheme, a card's
   encounter set, an identity's obligation and nemesis set, and a precon's cards. They resolve only against the pack
-  and the built-in packs it `requires` (Core, for every later product), so a script dropped from a pack is reported as
+  and the built-in packs it `requires` (every other product, in CI), so a script dropped from a pack is reported as
   unscripted. CI runs it on every built-in pack with no defects and no unscripted abilities (`builtin.test.ts`).
 - **Games from the packs.** `builtinGameDeps(BUILTIN_PACKS)` is the engine's deps from the packs alone, and a game of
-  each wave played on it matches one played on that wave's own deps move for move. `scenarioWithPacks` stays for
+  each wave played on it matches one played on that wave's own deps (waves 1 to 3) or the playable pool's (waves 4 to 11) move for move. `scenarioWithPacks` stays for
   installed packs: it treats its packs as custom content and refuses base-game ids, so built-in scenarios are still set
-  up by the wave builders (`wave1Scenario`, `wave2Scenario`, `wave3Scenario`) until the plan's named setup recipes exist.
-- **Next:** waves 4 to 11 move the same way and join `BUILTIN_PACKS` (status and gaps in
-  `docs/builtin-content-packs.md` §3 and §4); then the client's pool (`POOL_CARDS`, `POOL_DEPS`) can be assembled
-  from `BUILTIN_PACKS` with the merge helpers installed packs use.
+  up by the wave builders (`wave1Scenario` … `wave11Scenario`, `playableScenario`) until the plan's named setup
+  recipes exist.
+- **Next:** the client's pool (`POOL_CARDS`, `POOL_DEPS`) can be assembled from `BUILTIN_PACKS` with the merge
+  helpers installed packs use (gaps in `docs/builtin-content-packs.md` §4).
 
 ## Sources
 

@@ -30,7 +30,7 @@ import {
 } from "../../../testing/harness.js";
 import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { encounterCardInVillainArea, stackSetAside } from "../../../testing/staging.js";
-import { BP_ABILITIES } from "../../bp/index.js";
+import { BP_BUILTIN_PACK } from "../../bp/pack.js";
 import { FALCON_DEPS, falconGame, falconHeroGame } from "../testing.js";
 import {
   FALCON_OBLIGATION_NEMESIS as REGISTRY,
@@ -67,7 +67,7 @@ const REFS = [
   "53033.when-revealed",
 ];
 
-const DEPS: EngineDeps = { abilities: mergeRegistries(FALCON_DEPS.abilities, BP_ABILITIES) };
+const DEPS: EngineDeps = { abilities: mergeRegistries(FALCON_DEPS.abilities, BP_BUILTIN_PACK.abilities) };
 const data = (code: string) => FALCON_CARDS.find((c) => (c.id as string) === code)! as any;
 const codeOf = (s: GameState, id: InstanceId): string => inst(s, id).cardId as string;
 const relabel = (s: GameState, id: InstanceId, code: string): GameState =>

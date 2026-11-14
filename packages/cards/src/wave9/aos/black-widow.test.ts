@@ -57,7 +57,7 @@ import {
   DEFENSES_GRANTED_PREPARATION,
   GOGGLES_GRANTED_PREPARATION,
 } from "./black-widow.js";
-import { AOS_ABILITIES } from "./index.js";
+import { AOS_BUILTIN_PACK } from "./pack.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -940,7 +940,7 @@ describe("Attacrobatics prevents only the damage dealt to Black Widow (ruling Ju
   // (`engine/src/resolve/attack-ability.ts` header, `wave9/aos/scenarios-rulings.qa.test.ts`), which pins the opposite.
   const SPRAY_FIRE = "50039";
   const ABDUCTOR = "50080"; // A.I.M. Abductor, a minion in the Black Widow encounter deck
-  const SPRAY_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_ABILITIES) };
+  const SPRAY_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_BUILTIN_PACK.abilities) };
   it.fails("Spray Fire on Black Widow with Attacrobatics on top: she takes nothing, the engaged minion still takes 3", () => {
     const config = wave9Scenario("black-widow", {
       players: [{ starterDeckId: "nick-fury-justice" }],

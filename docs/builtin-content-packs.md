@@ -99,10 +99,12 @@ wave merges.
 the ones about `x.` codes, ids and files, plus the cross references:
 
 - each card's content-schema check, each script's DSL check, and DSL features against the build's;
-- every ability a card names is scripted, resolved against the pack and the built-in packs it `requires` only (Core,
-  for every later product). Nothing else counts, so a script dropped from a pack is reported;
+- every ability a card names is scripted, resolved against the pack and the built-in packs it `requires` only (CI
+  passes every other product: a scenario may name another product's sets, AoS's Thunderbolts the Black Panther pack's).
+  A script id belongs to one card, so a script dropped from a pack is still reported;
 - a scenario's sets (`validateScenarioEncounterSets`), villain and main scheme (id and type), each card's encounter
-  sets, an identity's obligation and nemesis set (and that the set is its nemesis set), a precon's identity and cards;
+  sets, an identity's obligation and nemesis set (a nemesis set of an identity in the same pack: Ironheart's three
+  identity cards share one), a precon's identity and cards;
 - a clash with a required pack is reported, never thrown.
 
 `builtinGameDeps(packs)` gives the engine's deps from built-in packs alone.
@@ -114,13 +116,14 @@ the ones about `x.` codes, ids and files, plus the cross references:
   key order. Run it before and after; every line must match. Delete it before committing. Put the table in the PR.
 - `packages/cards/src/builtin-packs/builtin-packs.test.ts`: every pack holds together; the packs cover the playable
   cards, scenarios and encounter sets of their products (`PLAYABLE_CARDS`, `PLAYABLE_SCENARIO_RECORDS`,
-  `PLAYABLE_ENCOUNTER_SETS` filtered by product, an independent source) and every precon, each once; together they
-  hold every script of the newest moved wave's registry as the same definitions; per wave, each reprint alias lands in
-  exactly one pack and the registry's key order is the earlier layers, the aliases, then each pack's own scripts.
-- `packages/mod-sdk/src/builtin.test.ts`: every pack passes `validateBuiltinPack` with no defects and its pinned
-  unscripted list (`KNOWN_UNSCRIPTED`, empty so far); `builtinGameDeps(BUILTIN_PACKS)` holds the newest wave's
-  registry; and one game per wave, played on `builtinGameDeps(BUILTIN_PACKS)`, matches the same game on that wave's
-  deps (outcome, rounds and the whole log).
+  `PLAYABLE_ENCOUNTER_SETS` and wave 11's content records, an independent source) and every precon, each once;
+  together they hold every script of `WAVE11_ABILITIES` as the same definitions; scripts no card names are pinned;
+  per wave, each reprint alias lands in exactly one pack and the registry's key order is the order the wave merges
+  its layers (the earlier wave, the aliases, then each pack's own scripts, plus wave 5's and 9's Quick Quip shapes).
+- `packages/mod-sdk/src/builtin.test.ts`: every pack passes `validateBuiltinPack` against every other pack with no
+  defects and its pinned unscripted list (`KNOWN_UNSCRIPTED`); `builtinGameDeps(BUILTIN_PACKS)` holds
+  `WAVE11_ABILITIES`; and one game per wave, played on `builtinGameDeps(BUILTIN_PACKS)`, matches the same game on that
+  wave's deps or the playable pool's (outcome, rounds and the whole log).
 
 ## 2. Moving a wave: the steps
 
@@ -141,56 +144,82 @@ the ones about `x.` codes, ids and files, plus the cross references:
 
 ## 3. Status
 
-| Wave | Products                                                                    | Status                       |
-| ---- | --------------------------------------------------------------------------- | ---------------------------- |
-| Core | `core`                                                                      | moved (#687)                 |
-| 1    | `cap`, `thor`, `msm`, `hlk`, `bkw`, `drs`, `gob`, `twc`                     | moved (#687)                 |
-| 2    | `trors`, `toafk`, `ant`, `wsp`, `qsv`, `scw`                                | moved (#690)                 |
-| 3    | `gmw`, `gam`, `stld`, `drax`, `vnm`, `ron`                                  | moved (#690)                 |
-| 4    | `nebu`, `warm`, `vision`, `mts`, `valk`, `hood`                             | to do; has a reprint layer   |
-| 5    | `sm`, `nova`, `ironheart`, `spiderham`, `spdr`                              | to do; see gap 4.1 (Silk)    |
-| 6    | `mut_gen`, `cyclops`, `phoenix`, `wolv`, `storm`, `gambit`, `rogue`, `mojo` | to do                        |
-| 7    | `next_evol`, `psylocke`, `angel`, `x23`, `deadpool`                         | to do                        |
-| 8    | `aoa`, `iceman`, `jubilee`, `ncrawler`, `magneto`                           | to do                        |
-| 9    | `aos`, `bp`, `silk`, `falcon`, `winter`, `tt`                               | to do                        |
-| 10   | `cw`, `wonder_man`, `hercules`, `synthezoid`                                | to do; see gap 4.2 (modules) |
-| 11   | `fne`, `jj`, `luke_cage`, `shadowland`                                      | to do; see gap 4.2 (modules) |
+Every product has moved: the Core Set and waves 1 to 11 are built-in packs (#687, #690), 64 packs in all
+(`BUILTIN_PACKS`).
 
-A pack's `manifest.id` must be the set code its cards carry (`card.setCode`). So far every product folder under
-`packages/cards/src/wave<N>/` is named by its set code (`mut_gen`, `next_evol`, `wonder_man`), and `@mc/content` has
-a folder of the same name; the `fixtures/` folders in waves 7 to 10 are test data, not products.
+| Wave | Products                                                                    | Notes                                    |
+| ---- | --------------------------------------------------------------------------- | ---------------------------------------- |
+| Core | `core`                                                                      | the merge list lives in `core/pack.ts`   |
+| 1    | `cap`, `thor`, `msm`, `hlk`, `bkw`, `drs`, `gob`, `twc`                     | reprint layer                            |
+| 2    | `trors`, `toafk`, `ant`, `wsp`, `qsv`, `scw`                                | reprint layer                            |
+| 3    | `gmw`, `gam`, `stld`, `drax`, `vnm`, `ron`                                  | reprint layer                            |
+| 4    | `nebu`, `warm`, `vision`, `mts`, `valk`, `hood`                             | reprint layer, with its own extra rule   |
+| 5    | `sm`, `nova`, `ironheart`, `spiderham`, `spdr`                              | merges Silk's Quick Quip after its packs |
+| 6    | `mut_gen`, `cyclops`, `phoenix`, `wolv`, `storm`, `gambit`, `rogue`, `mojo` |                                          |
+| 7    | `next_evol`, `psylocke`, `angel`, `x23`, `deadpool`                         |                                          |
+| 8    | `aoa`, `iceman`, `jubilee`, `ncrawler`, `magneto`                           |                                          |
+| 9    | `aos`, `bp`, `silk`, `falcon`, `winter`, `tt`                               | the silk pack holds Quick Quip           |
+| 10   | `cw`, `synthezoid`, `wonder_man`, `hercules`                                | packs built from the module list         |
+| 11   | `shadowland`, `jj`, `luke_cage`, `fne`                                      | packs built from the module list         |
+
+A pack's `manifest.id` is the set code its cards carry (`card.setCode`); every product folder under
+`packages/cards/src/wave<N>/` is named by it (`mut_gen`, `next_evol`, `wonder_man`), and `@mc/content` has a folder of
+the same name. The `fixtures/` folders in waves 7 to 10 are test data, not products. Kinds: `campaign` for a box with a
+campaign (`trors`, `gmw`, `mts`, `sm`, `mut_gen`, `mojo`, `next_evol`, `aoa`, `aos`, `shadowland`, `fne`), `scenario`
+for scenario packs and boxes without one (`gob`, `twc`, `toafk`, `hood`, `tt`, `cw`, `synthezoid`), `modular` for `ron`,
+`hero` for the rest.
+
+### 3.1 Wave-specific shapes
+
+- **Wave 4's reprint rule.** Wave 4's alias layer (`wave4/reprints.ts`) calls `reprintAliases` and then drops the
+  aliases of any pair whose card a wave 4 product scripts itself (Nebula's Gamora ally isn't Core's), as its old
+  builder did. That needs the products' own modules, so it imports them directly, never a `pack.ts` (every wave 4
+  `pack.ts` imports the alias layer).
+- **Silk's Quick Quip** (`silk` 52034, `wave5/silk/quick-quip.ts`) was scripted ahead of the Silk pack and merges at
+  the end of `WAVE5_ABILITIES`, in no wave 5 pack. The wave 9 silk pack holds it too, so the pack holds every script of
+  its cards; `WAVE9_ABILITIES` merges the silk layer as `ownScriptsOf(SILK_BUILTIN_PACK, SILK_QUICK_QUIP)` so the id
+  isn't merged twice, and the key order is unchanged.
+- **Waves 10 and 11** merge per-card-group modules (`WAVE10_MODULES`, `WAVE11_MODULES`). A module belongs to the product
+  its group starts with (`cw/…`, `fne/…`), which is also its cards' set code; `wave10ModulesOf(product)` /
+  `wave11ModulesOf(product)` pick a product's modules in list order, and each `pack.ts` merges them. Each product's
+  modules sit together in the list, so building the registry from the packs keeps its order. The module lists stay:
+  coverage tests read their `skipped` maps. `wave10/builtin-packs.test.ts` and `wave11/builtin-packs.test.ts` pin that
+  the packs reproduce the module merge exactly.
+- **Separated identities** (SP//dr, 31001a): the identity's support and upgrade sides carry refs that `abilityRefIds`
+  leaves out, and the alter-ego card (31002b) has no record of its own. `builtinPackProblems` reads both sides
+  (`scriptRefsOf`) and counts `separatedIdentity.alterEgoCardNumber` as one of the pack's card numbers.
 
 ## 4. Gaps found
 
-These are what the SDK can't express yet, or what a later move has to handle. Each is the same list that limits
-community content, so closing one helps both.
+These are what the SDK can't express yet. Each is the same list that limits community content, so closing one helps
+both.
 
-1. **Scripts that live in another product's folder.** Wave 5 merges `SILK_QUICK_QUIP` (Quick Quip, `silk` 52034) from
-   `wave5/silk/quick-quip.ts`, ahead of the Silk pack in wave 9. `defineBuiltinPack` refuses a script for another
-   product's card, so moving wave 5 needs that script to belong to the `silk` pack, with the wave 5 registry still
-   merging it at the same point (it must keep its key order). Look for more of these with the refusal itself: a pack
-   that won't define names the stray script.
-2. **Module-list waves.** Waves 10 and 11 merge `WAVE10_MODULES` / `WAVE11_MODULES` (one registry per card group under
-   `cw/` and the other product folders), not one registry per product. Their packs are built by grouping the modules
-   by product (each module's cards' `setCode`), keeping the module order for the registry.
-3. **Campaigns aren't in the packs.** `trors` and `gmw` (and later boxes) are `kind: "campaign"`, but their campaign
-   definitions are still in `packages/cards/src/campaigns/`, with code beyond plain data (GMW Balanced's rules,
-   composed sets, expert helpers). `PackInput` has a `campaigns` field; a built-in pack can carry its box's
-   `CampaignDefinition` once the parts that are code become named, registered pieces, like setup recipes (gap 4.4).
-4. **Scenario setup is still code.** Built-in scenarios are set up by the wave builders (`wave1Scenario` …
-   `wave11Scenario`, the Civil War leaders, Fear No Evil's villain options). `scenarioWithPacks` is for installed
-   packs only: it treats its packs as custom content and refuses base-game ids. The retrofit plan's answer is named
-   setup recipes the engine registers and pack data names; until then a built-in pack can't be started through the
-   SDK's scenario path.
-5. **The client's pool isn't built from the packs yet.** `POOL_CARDS` and `POOL_DEPS` (`packages/client/src/content/
-   pool.ts`) still come from the wave exports. Once every wave has moved, assemble them from `BUILTIN_PACKS` with the
-   merge helpers installed packs use (plan phase 3), behind the fingerprint check, and check first-load time on the
-   iPhone SE and the Pixel.
-6. **No `content-packs/builtin/` folders.** The plan's open decision is whether to generate built-in pack folders in
+1. **Campaigns aren't in the packs.** The campaign boxes are `kind: "campaign"`, but their campaign definitions are
+   still in `packages/cards/src/campaigns/`, with code beyond plain data (GMW Balanced's rules, composed sets, expert
+   helpers). `PackInput` has a `campaigns` field; a built-in pack can carry its box's `CampaignDefinition` once the
+   parts that are code become named, registered pieces, like setup recipes (gap 2).
+2. **Scenario setup is still code.** Built-in scenarios are set up by the wave builders (`wave1Scenario` …
+   `wave11Scenario`, `playableScenario`, the Civil War leaders, Fear No Evil's villain options). `scenarioWithPacks` is
+   for installed packs only: it treats its packs as custom content and refuses base-game ids. The retrofit plan's
+   answer is named setup recipes the engine registers and pack data names; until then a built-in pack can't be started
+   through the SDK's scenario path.
+3. **The client's pool isn't built from the packs yet.** `POOL_CARDS` and `POOL_DEPS` (`packages/client/src/content/
+   pool.ts`) still come from the wave exports. Now that every product has moved, assemble them from `BUILTIN_PACKS` with
+   the merge helpers installed packs use (plan phase 3), behind the fingerprint check, and check first-load time on the
+   iPhone SE and the Pixel. `builtinGameDeps(BUILTIN_PACKS)` already holds the same entries as `WAVE11_ABILITIES` (the
+   playable registry), and one game per wave on it matches the same game on the wave's own deps, but not in the same
+   key order: each reprint alias sits in its pack instead of one layer per wave. The engine iterates registries
+   (`select.ts`), so building `POOL_DEPS` from the packs changes the key-order fingerprint and needs its own check.
+4. **No `content-packs/builtin/` folders.** The plan's open decision is whether to generate built-in pack folders in
    the store layout (`pack.json`, `cards/*.json`, …) from today's sources, or keep defining them in place. This work
    keeps them in place; generating them is a later step if Quin picks it.
-7. **Unscripted abilities.** Core and waves 1 to 3 have none (`KNOWN_UNSCRIPTED` is empty). A later wave may still
-   have unscripted refs (`playable/unscripted.ts` gates whole sets, and module scaffolds skip refs); pin each pack's
-   list in `KNOWN_UNSCRIPTED` rather than leaving a pack out.
-8. **Card ids shared across products.** `validateBuiltinPack` reports a card id that a required pack also has. None
-   clash so far; a reprint that kept its original code would, and should stay in the product that printed it first.
+5. **Unscripted abilities.** Only Synthezoid Smackdown's eight competitive leader-card refs are unscripted (competitive
+   mode isn't shipped), pinned in `mod-sdk/src/builtin.test.ts`'s `KNOWN_UNSCRIPTED`. A new gap goes there, not a pack
+   left out.
+6. **Scripts no card names.** A script a rule or another card grants (GMW Balanced's Nebula's Ship guard, AoS's and
+   Falcon's granted abilities, Fear No Evil's granted Boost and When Defeated) passes `defineBuiltinPack` by its
+   `<card code>.<slug>` id, so `builtin-packs.test.ts` pins the full list; a new one is added there on purpose, which
+   also catches a script left behind by a renamed ref.
+7. **Cross-product references.** A scenario may name another product's sets (AoS's Thunderbolts draws modular sets from
+   the Black Panther pack), so the SDK test checks each pack against every other built-in pack. A card id shared across
+   products would be reported; none is.

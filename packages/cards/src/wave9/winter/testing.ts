@@ -14,7 +14,7 @@ import { withForm } from "../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
 import { wave9StarterDeckSetup } from "../setup.js";
-import { WINTER_ABILITIES } from "./index.js";
+import { WINTER_BUILTIN_PACK } from "./pack.js";
 
 /**
  * Shared helpers for the Winter Soldier pack's tests (every module under `winter/`): the printed precon
@@ -22,7 +22,7 @@ import { WINTER_ABILITIES } from "./index.js";
  * are scripted one at a time, so a test that needs a card of a module not yet scripted borrows a Core card instead
  * (`wsSeat`'s `swap`): that deck is not legal for the identity, so the game is created with deck legality unchecked.
  */
-export const WS_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, WINTER_ABILITIES) };
+export const WS_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, WINTER_BUILTIN_PACK.abilities) };
 
 /** The printed precon as a seat, optionally with named cards swapped in for others (the first copy of each; deck stays 40). */
 export function wsSeat(swap: Readonly<Record<string, string>> = {}): PlayerSetup {

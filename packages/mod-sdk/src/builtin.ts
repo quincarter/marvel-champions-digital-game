@@ -100,8 +100,10 @@ export function validateBuiltinPack(pack: BuiltinPack, options: BuiltinValidateO
       const nemesis = sets.find((set) => set.id === card.nemesisEncounterSetId);
       if (!nemesis)
         add(at, `nemesis set "${card.nemesisEncounterSetId}" is in neither this pack nor the packs it requires`);
-      else if (nemesis.nemesisOfIdentityId !== card.id)
-        add(at, `nemesis set "${card.nemesisEncounterSetId}" is not this identity's nemesis set`);
+      // A nemesis set names one identity; a hero with several identity cards (Ironheart's three forms) shares the set
+      // that names one of them, so the set must name an identity of this same pack.
+      else if (!pack.cards.some((own) => own.type === "hero_identity" && own.id === nemesis.nemesisOfIdentityId))
+        add(at, `nemesis set "${card.nemesisEncounterSetId}" is not the nemesis set of an identity in this pack`);
     }
   }
   for (const [id, definition] of Object.entries(pack.abilities)) {

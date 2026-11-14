@@ -130,7 +130,7 @@ export const HOOD = defineAbilities({
 
   // Making Connections (24004a, main scheme stage 1 front) — Setup: choose 1 set-aside modular set at random and
   // shuffle it into the encounter deck ("choose 7 modular encounter sets and set them aside" is the scenario
-  // builder's own setup, docs/phase7-wave4.md §3.18: `HOOD_ABILITIES`'s own scenario builder passes
+  // builder's own setup, docs/phase7-wave4.md §3.18: the Hood scenario builder passes
   // `setAsideModularSets` for the seven chosen sets before this Setup ability ever runs).
   "24004a.setup": setup(shuffleInSetAsideModularSet()),
   // Making Connections (24004b, main scheme stage 1 back) — When Revealed: each player resolves Foul Play in

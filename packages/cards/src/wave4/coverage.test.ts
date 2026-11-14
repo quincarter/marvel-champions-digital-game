@@ -7,12 +7,14 @@ import { HOOD_CARDS, MTS_CARDS, NEBU_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
-import { HOOD_ABILITIES } from "./hood/index.js";
-import { MTS_ABILITIES } from "./mts/index.js";
-import { NEBU_ABILITIES } from "./nebu/index.js";
-import { VALK_ABILITIES } from "./valk/index.js";
-import { VISION_ABILITIES } from "./vision/index.js";
-import { WARM_ABILITIES } from "./warm/index.js";
+import { ownScriptsOf } from "../builtin-packs/define.js";
+import { HOOD_BUILTIN_PACK } from "./hood/pack.js";
+import { MTS_BUILTIN_PACK } from "./mts/pack.js";
+import { NEBU_BUILTIN_PACK } from "./nebu/pack.js";
+import { VALK_BUILTIN_PACK } from "./valk/pack.js";
+import { VISION_BUILTIN_PACK } from "./vision/pack.js";
+import { WARM_BUILTIN_PACK } from "./warm/pack.js";
+import { WAVE4_REPRINT_ABILITIES } from "./reprints.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 4 ability registry", () => {
@@ -46,7 +48,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // warm: no primitive gaps found; every ability ref resolves.
   // mts: nine refs pulled out of this list here (21044, 21045, 21049, 21051, 21056, 21057, 21062, 21063, 21157) —
   // exact reprints of earlier cards (Uppercut, Combat Training, …) that `../reprints.ts` only started auto-aliasing
-  // once its `PACK_OWN_ABILITIES` protection set grew to include `MTS_ABILITIES` (needed regardless, to stop a
+  // once its `PACK_OWN_ABILITIES` protection set grew to include mts's own scripts (needed regardless, to stop a
   // coincidental name/type match — White Tiger, 21013, reprinted from `trors` — from clobbering mts's own script
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
@@ -148,12 +150,12 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
       .join("\n");
 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
-    { code: "nebu", registry: NEBU_ABILITIES },
-    { code: "warm", registry: WARM_ABILITIES },
-    { code: "valk", registry: VALK_ABILITIES },
-    { code: "vision", registry: VISION_ABILITIES },
-    { code: "mts", registry: MTS_ABILITIES },
-    { code: "hood", registry: HOOD_ABILITIES },
+    { code: "nebu", registry: ownScriptsOf(NEBU_BUILTIN_PACK, WAVE4_REPRINT_ABILITIES) },
+    { code: "warm", registry: ownScriptsOf(WARM_BUILTIN_PACK, WAVE4_REPRINT_ABILITIES) },
+    { code: "valk", registry: ownScriptsOf(VALK_BUILTIN_PACK, WAVE4_REPRINT_ABILITIES) },
+    { code: "vision", registry: ownScriptsOf(VISION_BUILTIN_PACK, WAVE4_REPRINT_ABILITIES) },
+    { code: "mts", registry: ownScriptsOf(MTS_BUILTIN_PACK, WAVE4_REPRINT_ABILITIES) },
+    { code: "hood", registry: ownScriptsOf(HOOD_BUILTIN_PACK, WAVE4_REPRINT_ABILITIES) },
   ];
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {
