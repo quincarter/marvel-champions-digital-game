@@ -43,9 +43,11 @@ import {
   encounterDeckOf,
   getInstance,
   getPlayer,
+  isOwnedEncounterCard,
   locateCard,
   mustInstance,
   mustPlayer,
+  playerOrder,
   separateDeckOf,
   villainOf,
 } from "../query.js";
@@ -496,13 +498,42 @@ export function moveCardsTo(
           // §3.14): it keeps its owner but joins the active villain's encounter deck (ruling, Jan 17, 2026 (5)), so it
           // discards to that encounter discard pile (FAQ, RRG 1.8 p. 62: a Cosmic Entity resolved as a boost card "is
           // placed in the encounter deck discard pile") and, controlled by nobody, its "you" is the revealing player.
-          if (owner)
+          //
+          // A card of an identity's separate deck of encounter cards (Elektra's Ninja deck, 63001b; "shuffle the top
+          // card of the Ninja deck into the encounter deck") becomes the scenario's: no owner, its home the encounter
+          // deck, so it discards to the encounter discard pile (ruling October 12, 2026 - Ruling 2: a Ninja card whose
+          // Boost finds no Elektra is "discarded to the encounter deck discard pile"). Owner decision 2A (2026-11-14,
+          // provisional), read against RRG 1.8 "Ownership and Control" (p. 31), whose "the player whose deck contained
+          // the card at the start of setup" would leave it Elektra's player's. `separateDeckShuffle` gives it back.
+          if (owner && isOwnedEncounterCard(ctx.state, id)) {
+            updateInstance(ctx, id, (i) => ({
+              ...i,
+              ownerId: null,
+              controllerId: null,
+              home: { kind: "encounterDeck", deckId },
+            }));
+          } else if (owner)
             updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, home: { kind: "encounterDeck", deckId } }));
           break;
         }
         case "separateDiscard":
         case "separateDeckTop":
         case "separateDeckShuffle": {
+          const back = destination === "separateDeckShuffle" ? separateDeckToReturnTo(ctx.state, id) : null;
+          if (back) {
+            // A card printed for a separate deck that is now the scenario's ("shuffle this card into the Ninja deck",
+            // the Ninja cards 63002–63004): back into that deck of the player who has it, theirs again, no player
+            // controlling it as an encounter card (owner decision 2A, 2026-11-14, provisional).
+            updateInstance(ctx, id, (i) => ({
+              ...i,
+              ownerId: back.playerId,
+              controllerId: null,
+              home: { kind: "separateDeck", name: back.name },
+            }));
+            to = { kind: "separateDeck", playerId: back.playerId, name: back.name };
+            separateDecks.set(`${back.playerId}/${back.name}`, back);
+            break;
+          }
           if (
             instance.home.kind !== "separateDeck" ||
             !owner ||
@@ -607,6 +638,27 @@ export function moveCardsTo(
   // A card put under a deck whose top card is in play, with no card left in it, is its top card and enters play at
   // once (MC50 p. 22; docs/phase7-wave9.md §3.17); so does the next card when this move took the top card out of play.
   settleScenarioDeckTops(ctx);
+}
+
+/**
+ * The separate deck a card that left it goes back into with `separateDeckShuffle` when its own home no longer names it:
+ * the deck its card prints (`separateDeck`, "Ninja"), of its owner when that player has one, else of the first player
+ * in player order who does. Null for a card whose home is still a separate deck (the usual path reads that), a card
+ * printed for no separate deck, or one whose deck no player has.
+ */
+function separateDeckToReturnTo(
+  state: GameState,
+  id: InstanceId,
+): { readonly playerId: PlayerId; readonly name: string } | null {
+  const instance = getInstance(state, id);
+  if (!instance || instance.home.kind === "separateDeck") return null;
+  const card = cardOf(state, id);
+  const name = card && "separateDeck" in card ? card.separateDeck : undefined;
+  if (!name) return null;
+  const owner =
+    instance.ownerId !== null && getPlayer(state, instance.ownerId)?.separateDecks[name] ? instance.ownerId : null;
+  const playerId = owner ?? playerOrder(state).find((p) => p.separateDecks[name] !== undefined)?.playerId;
+  return playerId ? { playerId, name } : null;
 }
 
 /**

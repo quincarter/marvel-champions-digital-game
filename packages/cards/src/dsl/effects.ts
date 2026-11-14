@@ -2351,6 +2351,22 @@ export const separateDeckCards = (name: string, player: PlayerRef = you, top?: A
   ...(top !== undefined ? { top: amount(top) } : {}),
 });
 /**
+ * "Shuffle the top card of the Ninja deck into the encounter deck" (Ninja Training 63001b; Killer Blow, Move Unseen,
+ * Sai Strike, White Tiger): the top card of `player`'s separate deck `name` goes into the active encounter deck, which
+ * is shuffled. A card of a separate deck of encounter cards becomes the scenario's there: no owner, discarded to the
+ * encounter discard pile (owner decision 2A, 2026-11-14, provisional; engine `moveCards` `encounterDeckShuffle`). An
+ * empty deck moves nothing ("do as much as you can", ruling September 10, 2026 - Ruling 1; engine reading).
+ */
+export const shuffleTopOfSeparateDeckIntoEncounterDeck = (name: string, player: PlayerRef = you): EffectSpec =>
+  moveCards(separateDeckCards(name, player, 1), "encounterDeckShuffle");
+/**
+ * "Shuffle this card into the Ninja deck" (the Ninja cards 63002–63004): `card` goes back into the separate deck its
+ * card prints (`separateDeck`) of the player who has it, and that deck is shuffled; it is that player's card again
+ * (engine `moveCards` `separateDeckShuffle`). A card that never left its separate deck's home works as before.
+ */
+export const shuffleIntoSeparateDeck = (card: TargetRef = self): EffectSpec =>
+  moveCards({ kind: "ref", ref: card }, "separateDeckShuffle");
+/**
  * "Reveal the top card of the labor deck" (Hercules 59001b; docs/phase7-wave10-hero-packs.md H3.2): two effects, to be
  * spread into an ability's list. The top card of `player`'s separate deck `name` is bound to `slot`, then revealed by
  * `player` through the whole reveal procedure (RRG 1.8 "Reveal", p. 38: "If a player is instructed by card text to

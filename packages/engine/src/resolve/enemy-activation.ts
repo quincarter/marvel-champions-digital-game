@@ -322,7 +322,9 @@ export function applyBoostCardBeingGiven(ctx: Ctx, event: BoostCardBeingGiven): 
   const zone = locateCard(ctx.state, id)?.kind;
   const givable =
     zone !== undefined &&
-    (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id) || resolvingCharacterBoost(ctx.state, id));
+    (BOOST_SOURCE_ZONES.has(zone) ||
+      beingRevealed(ctx.state, id) ||
+      resolvingBoostCard(ctx.state, id, event.enemyInstanceId));
   if (givable && !inPlay.includes(id)) {
     dealChosenBoostCard(ctx, event.enemyInstanceId, id, event.forBasicPower === true);
   }
@@ -436,16 +438,21 @@ export function beingRevealed(state: GameState, id: InstanceId): boolean {
 }
 
 /**
- * Whether `id` is a friendly character's boost card turned faceup and resolving for one of its basic powers (the card
- * of a `characterBoost` frame): the other card outside `BOOST_SOURCE_ZONES` that `giveBoostCard.card` may give, for a
- * Boost ability that says where its own card goes instead of the discard pile ("Otherwise, give this card to Elektra as
- * a facedown boost card", Ninja Stars 63002). Engine reading (authority step 5): an enemy's resolving boost card is
- * not, since its activation would turn the card up again; no printed card asks for that.
+ * Whether `id` is a boost card turned faceup and resolving that may be given to `holderId` as a facedown boost card:
+ * the other card outside `BOOST_SOURCE_ZONES` that `giveBoostCard.card` may give, for a Boost ability that says where
+ * its own card goes instead of the discard pile ("Otherwise, give this card to Elektra as a facedown boost card", the
+ * Ninja cards 63002–63004). A friendly character's card (a `characterBoost` frame's) may go to anyone, itself included,
+ * since its use turns each card up once (`turned`). An enemy activation's may go only to another card: the activation
+ * would turn it up again on its own enemy (engine reading, authority step 5; no printed card asks for that).
  */
-export function resolvingCharacterBoost(state: GameState, id: InstanceId): boolean {
-  if (locateCard(state, id)?.kind !== "boost" || getInstance(state, id)?.faceup !== true) return false;
+export function resolvingBoostCard(state: GameState, id: InstanceId, holderId: InstanceId): boolean {
+  const zone = locateCard(state, id);
+  if (zone?.kind !== "boost" || getInstance(state, id)?.faceup !== true) return false;
   return state.stack.some(
-    (frame) => frame.kind === "characterBoost" && frame.stage === "resolve" && frame.boost?.instanceId === id,
+    (frame) =>
+      ((frame.kind === "characterBoost" && frame.stage === "resolve") ||
+        ((frame.kind === "enemyAttack" || frame.kind === "enemyScheme") && zone.hostInstanceId !== holderId)) &&
+      frame.boost?.instanceId === id,
   );
 }
 
@@ -690,8 +697,10 @@ function stepFaceupBoostCard(
     });
   }
   if (boost.step === "resolved") {
-    // After the `boostCardResolved` responses (docs/phase7-wave5.md §3.5): discarded unless one moved it.
-    if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
+    // After the `boostCardResolved` responses (docs/phase7-wave5.md §3.5): discarded unless one moved it, to another
+    // card's boost cards included (`resolvingBoostCard`).
+    const at = locateCard(ctx.state, boost.instanceId);
+    if (at?.kind === "boost" && at.hostInstanceId === frame.enemyInstanceId)
       moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
     setFrame(ctx, { ...frame, boost: null });
     return boost.icons ?? 0;
@@ -750,11 +759,15 @@ function stepFaceupBoostCard(
   // Amplify is read again at the count, not carried from the flip: "Each amplify icon is equivalent to the following
   // constant ability: 'Each boost card gains [boost]'" (RRG 1.8 p. 7), and a constant applies while its card is in play
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
-  const counted =
-    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
-    amplifyIconsInPlay(ctx.state, ctx.deps) +
-    boostIconsEachOf(ctx, frame) +
-    (boost.countAdjust ?? 0);
+  // A card its Boost ability gave to a character to hold (`resolvingBoostCard`; a Ninja card's "Otherwise, give this
+  // card to Elektra") is no longer this activation's: it adds no icon, amplify's included.
+  const givenAway = getInstance(ctx.state, boost.instanceId)?.heldForBasicPowers === true;
+  const counted = givenAway
+    ? 0
+    : boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
+      amplifyIconsInPlay(ctx.state, ctx.deps) +
+      boostIconsEachOf(ctx, frame) +
+      (boost.countAdjust ?? 0);
   // Icons a "Boost" ability gave the card (step 3b) come after a step 3a cancel and still count (ruling May 10, 2024
   // #173: the cancel covers printed, amplify and constant icons, not those "given to that card via a 'Boost' effect").
   // Cards applied "as if it were a boost card" (`applyAsBoostCard`) add their own icons unless cancelled in their own
@@ -792,8 +805,10 @@ function stepFaceupBoostCard(
     return "busy";
   }
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
-  // moved it ("Put Goblin Thrall into play engaged with you").
-  if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
+  // moved it ("Put Goblin Thrall into play engaged with you"), to another card's boost cards included
+  // (`resolvingBoostCard`).
+  const at = locateCard(ctx.state, boost.instanceId);
+  if (at?.kind === "boost" && at.hostInstanceId === frame.enemyInstanceId)
     moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
   setFrame(ctx, { ...frame, boost: null });
   return icons;

@@ -113,6 +113,7 @@ import {
   evaluate,
   cannotBeDefeatedAgain,
   focusedMainSchemeId,
+  hasBoostAbility,
   matchesQuery,
   resolvePlayers,
   isPlayerCard as isAPlayersCard,
@@ -122,6 +123,36 @@ import {
 } from "../select.js";
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
+
+/**
+ * The basic power use a "+N to that power for this use" reaches (`EffectSpec modifyBasicPower`): the innermost of
+ * - a `basicPowerUsing` event on the stack (its interrupt window; docs/phase7-wave2.md §17.4);
+ * - a friendly character's boost card resolving for a use (`characterBoost`, `resolve/villainous.ts`): "If Elektra is
+ *   using a basic power, she gets +3 to that power for this use" (Ninja Strike 63003) as her own boost card;
+ * - an enemy attack a hero is making a basic defense against, while its cards resolve (the same card as the villain's
+ *   boost card while Elektra defends: she is using her basic defense, RRG 1.8 "Attack (Enemy Activation)", p. 9).
+ * `activation` is the frame whose end ends the use (`basicPowerUseFrameId`). Null outside every use.
+ */
+function basicPowerBeingUsed(
+  state: GameState,
+): { readonly characterId: InstanceId; readonly stat: StatName; readonly activation: FrameId } | null {
+  for (const f of state.stack) {
+    if (f.kind === "event" && f.event.kind === "basicPowerUsing") {
+      const activation = basicPowerUseFrameId(state.stack, f.event.power, f.event.characterInstanceId);
+      return activation ? { characterId: f.event.characterInstanceId, stat: f.event.stat, activation } : null;
+    }
+    if (f.kind === "characterBoost" && f.stage === "resolve" && f.recordFrameId !== undefined) {
+      const record = state.stack.find((r) => r.frameId === f.recordFrameId);
+      if (record?.kind !== "characterBoost") return null;
+      return { characterId: record.characterInstanceId, stat: record.stat, activation: record.useFrameId };
+    }
+    if (f.kind === "enemyAttack" && f.basicDefense && f.defenderInstanceId !== null && f.eventFrameId !== null) {
+      if (f.stage === "done" || f.stage === "giveBoost" || f.stage === "declareDefender") continue;
+      return { characterId: f.defenderInstanceId, stat: "def", activation: f.eventFrameId };
+    }
+  }
+  return null;
+}
 import {
   basicPowerUseFrameId,
   currentActivationFrameId,
@@ -248,7 +279,7 @@ import { announceStatusDiscarded } from "./status-discarded.js";
 import {
   beingRevealed,
   BOOST_SOURCE_ZONES,
-  resolvingCharacterBoost,
+  resolvingBoostCard,
   boostAwaitingInterrupt,
   boostCardBeingGivenTo,
   dealBoostCardOrAnnounce,
@@ -1454,22 +1485,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!effect.amount) return;
       // "Get +N to that power for this use": which power is read off the `basicPowerUsing` event this effect is
       // resolving inside (docs/phase7-wave2.md §17.4), so one effect serves every basic power a card names at once.
-      const using = ctx.state.stack.find(
-        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "basicPowerUsing",
-      );
-      if (!using || using.event.kind !== "basicPowerUsing") return;
+      const use = basicPowerBeingUsed(ctx.state);
+      if (!use) return;
       // The stat powering this use, not the power's name: a basic thwart made with ATK is raised through ATK (RRG 1.8
       // "Assault", p. 8: "Abilities that increase a character's 'basic power' can be used to increase that character's
       // ATK when that character thwarts a scheme with assault"; docs/phase7-wave8.md §4.1 Q54). A card that prints the
       // stat ("+2 THW for that thwart") names it with `stat`.
-      const stat: StatName = effect.stat ?? using.event.stat;
+      const stat: StatName = effect.stat ?? use.stat;
       // "For this use": the activation the power belongs to (its own `attack`/`thwart` event, or the enemy attack a
       // basic defense answers), which is on the stack beneath this window and ends when that use does. A basic recovery
       // is neither an attack nor an activation: its use is its own `basicRecovery` event (docs/phase7-wave6.md §3.40),
       // which reads REC as it applies, so the bonus is timed to that frame and never to an attack further down.
-      const user = using.event.characterInstanceId;
-      const activation = basicPowerUseFrameId(ctx.state.stack, using.event.power, user);
-      if (!activation) return;
+      const user = use.characterId;
+      const activation = use.activation;
       addLastingEffect(
         ctx,
         {
@@ -1600,6 +1628,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // after that there is nothing to cancel. An ability ignored on its own (`ignoreBoost` `only: "abilities"`) is
         // not present to cancel either (RRG 1.8 "Ignore", p. 23).
         if (boost.step !== "window" || boost.abilityCancelled || boost.abilityIgnored) return report(0);
+        // A card with no "Boost" ability has none to cancel, so a "Then" after the cancel does not happen (RRG 1.8
+        // "'Then'", p. 44; Killer Instinct 63001a gains its card an icon only after cancelling a Boost ability).
+        if (!hasBoostAbility(ctx.state, ctx.deps, boost.instanceId)) return report(0);
         setFrame(ctx, { ...procedure, boost: { ...boost, abilityCancelled: true } });
         return report(1);
       }
@@ -1693,14 +1724,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // event is at `apply` while its interrupt window is open (`executeEventFrame` moves it on before the window);
       // the counts of the same effect still waiting beneath it are at `interrupts`. A villainous ally's or hero's boost
       // card resolving its own Boost ability is a `characterBoost` frame (§S3.7, `resolve/villainous.ts`).
+      // Also a card in its turned-faceup interrupt window ("When a boost card given to Elektra is turned faceup, …
+      // that card gains [boost]", Killer Instinct 63001a): an icon it gains there is its own, counted with its printed
+      // ones (`countAdjust`), so a cancel of its icons reaches it.
       const counting = ctx.state.stack.find(
         (f): f is Frame<"event"> | Frame<"enemyAttack"> | Frame<"enemyScheme"> | Frame<"characterBoost"> =>
           f.kind === "event"
             ? f.event.kind === "boostIconsCounting" && f.event.enemyInstanceId === null && f.stage === "apply"
             : f.kind === "characterBoost"
-              ? f.boost?.step === "ability"
+              ? f.boost?.step === "ability" || f.boost?.step === "window"
               : (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
-                (f.boost?.step === "count" || f.boost?.step === "ability" || f.boost?.step === "responses"),
+                (f.boost?.step === "count" ||
+                  f.boost?.step === "ability" ||
+                  f.boost?.step === "responses" ||
+                  f.boost?.step === "window"),
       );
       // Inside a borrowed Boost ability: the boost cards whose count its gained icons join (often none).
       const borrowedFor = effect.kind === "adjustBoostCount" ? context.bindings[BORROWED_BOOST_ICONS_SLOT] : undefined;
@@ -2627,7 +2664,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // does not discard it (`resolve/reveal.ts`, "finish").
           const given =
             zone !== undefined &&
-            (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id) || resolvingCharacterBoost(ctx.state, id));
+            (BOOST_SOURCE_ZONES.has(zone) ||
+              beingRevealed(ctx.state, id) ||
+              resolvingBoostCard(ctx.state, id, holderId));
           if (!given || inPlay.includes(id)) continue;
           named.push(id);
         }

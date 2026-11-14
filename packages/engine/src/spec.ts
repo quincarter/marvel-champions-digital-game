@@ -1989,6 +1989,14 @@ export type Predicate =
       readonly basic?: boolean;
     }
   /**
+   * "If Elektra is using a basic power" (the Ninja cards 63002–63004): a character matching `character` (any, absent)
+   * is in the middle of one of its basic powers, anywhere on the stack: its basic attack or basic thwart, its basic
+   * recovery, its basic defense of an enemy attack still resolving (RRG 1.8 "Attack (Enemy Activation)", p. 9: it is
+   * using that power while the attack's boost cards are turned faceup; rules verdict Q3), or a use whose boost cards
+   * it is resolving (`characterBoost`, `resolve/villainous.ts`). False outside every such use.
+   */
+  | { readonly kind: "usingBasicPower"; readonly character?: TargetQuery }
+  /**
    * "If you exhausted Wolverine's Claws to play this card, this attack gains overkill" (Lunging Strike 35010;
    * docs/phase7-wave6.md §3.42): the card being resolved was played by an ability of a card matching `card`
    * (`playFromHand.via`), read from the bindings (`PLAYED_VIA_SLOT`) of that card's play, its `playCard` frame on the

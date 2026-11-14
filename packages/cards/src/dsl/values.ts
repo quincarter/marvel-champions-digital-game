@@ -1127,6 +1127,16 @@ export const thwartInProgress = (of: {
   readonly basic?: boolean;
 }): Predicate => ({ kind: "thwartInProgress", ...of });
 /**
+ * "If Elektra is using a basic power" (the Ninja cards 63002–63004): a character matching `character` (any, absent) is
+ * in the middle of a basic power of its own, its basic defense of an enemy attack included (engine `Predicate
+ * usingBasicPower`). `query(["hero"], { name: "Elektra" })` is her hero face only, so the alter-ego Elektra Natchios is
+ * not (ruling October 12, 2026 - Ruling 2).
+ */
+export const usingBasicPower = (character?: TargetQuery): Predicate => ({
+  kind: "usingBasicPower",
+  ...(character ? { character } : {}),
+});
+/**
  * Inside a `modifyStatOf` amount, or a constant modifier's `while` or amount: the card whose stat is being read (the
  * engine's `AFFECTED_SLOT`). "While Wolverine
  * or Jubilee is making a basic attack against that enemy, **they** get +2 ATK" (Jubilee 35003; docs/phase7-wave6.md

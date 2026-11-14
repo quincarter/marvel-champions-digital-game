@@ -3642,6 +3642,21 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         matches(event.thwarterInstanceId, predicate.thwarter) && schemes.some((id) => matches(id, predicate.scheme))
       );
     }
+    case "usingBasicPower": {
+      const matches = (id: InstanceId | null): boolean =>
+        id !== null && (predicate.character === undefined || matchesQuery(state, id, predicate.character, context));
+      return state.stack.some((f) => {
+        if (f.kind === "characterBoost") return matches(f.characterInstanceId);
+        if (f.kind === "enemyAttack") return f.basicDefense && f.stage !== "done" && matches(f.defenderInstanceId);
+        if (f.kind !== "event") return false;
+        const event = f.event;
+        if (event.kind === "attack") return event.basic === true && matches(event.attackerInstanceId);
+        if (event.kind === "thwart") return event.basic === true && matches(event.thwarterInstanceId);
+        if (event.kind === "basicRecovery" || event.kind === "basicPowerUsing")
+          return matches(event.characterInstanceId);
+        return false;
+      });
+    }
     case "revealedFromEncounterDeck": {
       // The stack is innermost-first: the reveal this card's When Revealed belongs to.
       const reveal = state.stack.find((f) => f.kind === "reveal" && f.instanceId === context.selfInstanceId);
@@ -4450,6 +4465,17 @@ export function gainedAbilities(
     perDeps.delete(deps);
     throw error;
   }
+}
+
+/**
+ * Whether a boost card has a "Boost" ability, printed or gained as a boost card (`gainedBoostAbilities`): what "cancel
+ * its 'Boost' ability" needs to find (Killer Instinct 63001a; Target Acquired 08024).
+ */
+export function hasBoostAbility(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const card = cardOf(state, id);
+  if (!card) return false;
+  if (printedAbilityRefs(card).some((ref) => deps.abilities[ref.id]?.trigger.kind === "boost")) return true;
+  return gainedBoostAbilities(state, deps, id).length > 0;
 }
 
 /**
