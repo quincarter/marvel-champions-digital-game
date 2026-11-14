@@ -33,7 +33,7 @@ import {
 } from "../../testing/harness.js";
 import { driveEventsPicking, withForm } from "../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
-import { JUBILEE_ABILITIES } from "./index.js";
+import { JUBILEE_BUILTIN_PACK } from "./pack.js";
 import { JUBILEE_ASPECT_BASIC, JUBILEE_ASPECT_BASIC_SKIPPED } from "./aspect-basic.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -46,7 +46,7 @@ vi.setConfig({ testTimeout: 120_000 });
 const JUBILEE = WAVE8_STARTER_DECKS.find((d) => d.id === "jubilee-justice")!;
 const DECK = JUBILEE.cards.flatMap((c) => Array.from({ length: c.quantity }, () => c.cardId));
 /** Every earlier wave plus this pack; no other wave 8 pack, so another pack's unfinished script cannot reach these tests. */
-const ABILITIES = mergeRegistries(WAVE7_ABILITIES, JUBILEE_ABILITIES);
+const ABILITIES = mergeRegistries(WAVE7_ABILITIES, JUBILEE_BUILTIN_PACK.abilities);
 const DEPS: EngineDeps = { abilities: ABILITIES };
 /** The unregistered drafts added on top, to prove what they do and where they stop. */
 /** Wave 7 (Core and every earlier pack, X-FORCE allies among them) and this pack. */

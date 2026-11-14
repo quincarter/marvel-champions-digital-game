@@ -29,6 +29,12 @@ export interface BuiltinValidateOptions {
   readonly supportedFeatures?: readonly string[];
 }
 
+/** Whether `owner` is `identity` or another identity card of the same hero (same name and obligation). */
+const isFormOf = (owner: AnyCard | undefined, identity: AnyCard): boolean =>
+  owner?.type === "hero_identity" &&
+  identity.type === "hero_identity" &&
+  (owner.id === identity.id || (owner.name === identity.name && owner.obligationCardId === identity.obligationCardId));
+
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /**
@@ -100,8 +106,15 @@ export function validateBuiltinPack(pack: BuiltinPack, options: BuiltinValidateO
       const nemesis = sets.find((set) => set.id === card.nemesisEncounterSetId);
       if (!nemesis)
         add(at, `nemesis set "${card.nemesisEncounterSetId}" is in neither this pack nor the packs it requires`);
-      else if (nemesis.nemesisOfIdentityId !== card.id)
-        add(at, `nemesis set "${card.nemesisEncounterSetId}" is not this identity's nemesis set`);
+      // A nemesis set names one identity. A hero with several identity cards (Ironheart's three forms, one name and
+      // one obligation) shares the set that names one of them; any other hero's set is the wrong nemesis.
+      else if (
+        !isFormOf(
+          pack.cards.find((own) => own.id === nemesis.nemesisOfIdentityId),
+          card,
+        )
+      )
+        add(at, `nemesis set "${card.nemesisEncounterSetId}" is not this hero's nemesis set`);
     }
   }
   for (const [id, definition] of Object.entries(pack.abilities)) {

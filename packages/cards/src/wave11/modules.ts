@@ -287,3 +287,11 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
     skipped: FNE_CAMPAIGN_TYPHOID_MARY_ALLY_SKIPPED,
   },
 ];
+
+/**
+ * The modules of one wave 11 product, in `WAVE11_MODULES` order: those whose group sits under that product's folder,
+ * which is named by the product's set code (`<code>/…`). Each product's built-in pack (`<code>/pack.ts`) merges them.
+ */
+export function wave11ModulesOf(product: string): readonly Wave11Module[] {
+  return WAVE11_MODULES.filter((module) => module.group.split("/")[0] === product);
+}

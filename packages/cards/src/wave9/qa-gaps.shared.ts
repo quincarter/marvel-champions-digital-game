@@ -31,12 +31,14 @@ import { mergeRegistries } from "../dsl/index.js";
 import { playToOutcome } from "../testing/driver.js";
 import { firstLegal, inst, settle, stackEncounterDeck, type Picker } from "../testing/harness.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
-import { AOS_ABILITIES } from "./aos/index.js";
+import { AOS_BUILTIN_PACK } from "./aos/pack.js";
 import { wave9Scenario, type Wave9ScenarioOptions } from "./setup.js";
 import { CAPTAIN_MARVEL, IRON_MAN, SHE_HULK, SPIDER_MAN, codeOf } from "./testing.js";
-import { TT_ABILITIES } from "./tt/index.js";
+import { TT_BUILTIN_PACK } from "./tt/pack.js";
 
-export const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_ABILITIES, TT_ABILITIES) };
+export const DEPS: EngineDeps = {
+  abilities: mergeRegistries(WAVE8_ABILITIES, AOS_BUILTIN_PACK.abilities, TT_BUILTIN_PACK.abilities),
+};
 
 export const SEATS = [SPIDER_MAN, IRON_MAN, CAPTAIN_MARVEL, SHE_HULK] as const;
 export const PLAYER_IDS = ["p1", "p2", "p3", "p4"] as PlayerId[];

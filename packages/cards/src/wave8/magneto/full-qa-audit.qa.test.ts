@@ -34,7 +34,7 @@ import { defeatWithAttack, driveEventsPicking, withForm } from "../../testing/st
 import { engageMinion } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
 import { NIGHTCRAWLER_OBLIGATION_NEMESIS } from "../ncrawler/nightcrawler/obligation-nemesis.js";
-import { MAGNETO_ABILITIES } from "./index.js";
+import { MAGNETO_BUILTIN_PACK } from "./pack.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -51,7 +51,7 @@ vi.setConfig({ testTimeout: 120_000 });
  */
 const POOL: readonly AnyCard[] = [...CORE_CARDS, ...WAVE8_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_ABILITIES) };
+const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_BUILTIN_PACK.abilities) };
 
 const MG_DECK = WAVE8_STARTER_DECKS.find((d) => d.id === "magneto-leadership")!;
 const MG_SEAT = {
@@ -560,7 +560,7 @@ describe("Electromagnetic Blast (49008): 'an attachment' is an encounter attachm
   const SUIT = "01098"; // Armored Rhino Suit, relabeled below
   const SWORD = "48029"; // Azazel's Sword: a Hero Response (scripted with Nightcrawler's nemesis set)
   const deps: EngineDeps = {
-    abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_ABILITIES, NIGHTCRAWLER_OBLIGATION_NEMESIS),
+    abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_BUILTIN_PACK.abilities, NIGHTCRAWLER_OBLIGATION_NEMESIS),
   };
   /** An encounter-deck copy of Armored Rhino Suit relabeled as the Sword, attached to `host` by surgery. */
   function sword(s: GameState, host: InstanceId): { state: GameState; id: InstanceId } {

@@ -34,6 +34,19 @@ export interface BuiltinPack {
   readonly encounterSets: readonly EncounterSet[];
 }
 
+/**
+ * Every ability ref a card carries, as `abilityRefIds` reads them, plus a separated identity's other sides (SP//dr's
+ * support and upgrade faces, docs/phase7-wave5.md), which `abilityRefIds` leaves out.
+ */
+export function scriptRefsOf(card: AnyCard): string[] {
+  const refs = abilityRefIds(card);
+  if (card.type === "hero_identity" && card.separatedIdentity) {
+    const { heroCardOtherSide, alterEgoCardOtherSide } = card.separatedIdentity;
+    refs.push(...[...heroCardOtherSide.abilities, ...alterEgoCardOtherSide.abilities].map((ref) => ref.id));
+  }
+  return refs;
+}
+
 /** A card code without its face letter: `01001a` and `01001b` are one card. */
 const numberOf = (code: string): string => code.replace(/[a-z]$/, "");
 
@@ -44,6 +57,8 @@ export function builtinPackProblems(pack: BuiltinPack): readonly string[] {
   const { id, product } = pack.manifest;
   const problems: string[] = [];
   if (product.code !== id) problems.push(`manifest id ${id} is not its product's code ${product.code}`);
+  if (pack.manifest.name !== product.name)
+    problems.push(`manifest name "${pack.manifest.name}" is not its product's name "${product.name}"`);
   for (const card of pack.cards) {
     if (card.setCode !== id) problems.push(`card ${card.id} is from ${card.setCode}, not ${id}`);
   }
@@ -59,8 +74,13 @@ export function builtinPackProblems(pack: BuiltinPack): readonly string[] {
   // Every script belongs to one of this pack's cards: a script for another product's card goes in that product. A
   // card names most of its scripts; one a rule grants (`gainsAbility`) is named by no card record, so its card is the
   // one its `<card code>.<slug>` id names, as a store pack's ability ids are checked (either face of a card counts).
-  const refs = new Set(pack.cards.flatMap(abilityRefIds));
+  const refs = new Set(pack.cards.flatMap(scriptRefsOf));
   const cardNumbers = new Set(pack.cards.map((card) => numberOf(card.id)));
+  for (const card of pack.cards) {
+    // A separated identity's alter-ego card is its own number (SP//dr's 31002b) with no card record of its own.
+    if (card.type === "hero_identity" && card.separatedIdentity)
+      cardNumbers.add(numberOf(card.separatedIdentity.alterEgoCardNumber));
+  }
   for (const abilityId of Object.keys(pack.abilities)) {
     if (!refs.has(abilityId) && !cardNumbers.has(numberOf(abilityId.split(".")[0]!)))
       problems.push(`ability ${abilityId} is not on any ${id} card`);

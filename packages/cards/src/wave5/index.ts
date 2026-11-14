@@ -1,30 +1,36 @@
 /**
- * Wave 5 (PLAN.md Phase 7 / docs/phase7-wave5.md): cycle 4, starting with the Sinister Motives (`sm`) box, joined
- * by the Nova (`nova`), Ironheart (`ironheart`) and Spider-Ham (`spiderham`) hero packs.
+ * Wave 5 (PLAN.md Phase 7 / docs/phase7-wave5.md): cycle 4, the Sinister Motives products (`sm`, `nova`, `ironheart`,
+ * `spiderham`, `spdr`), each defined as a built-in pack in its own `<product>/pack.ts` (docs/builtin-content-packs.md).
+ * Cycle 4 has no reprint layer, so each pack's abilities are its own scripts.
  *
- * **Adding a pack is one line here, plus that pack's own new files under `wave5/<pack>/`** — mirrors
- * `../wave4/index.ts` exactly.
+ * **Adding a product is its `pack.ts` plus one line in `WAVE5_BUILTIN_PACKS`** — mirrors `../wave4/index.ts`.
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
+import type { BuiltinPack } from "../builtin-packs/define.js";
 import { mergeRegistries } from "../dsl/index.js";
 import { WAVE4_ABILITIES } from "../wave4/index.js";
-import { IRONHEART_ABILITIES } from "./ironheart/index.js";
-import { NOVA_ABILITIES } from "./nova/index.js";
+import { IRONHEART_BUILTIN_PACK } from "./ironheart/pack.js";
+import { NOVA_BUILTIN_PACK } from "./nova/pack.js";
 import { SILK_QUICK_QUIP } from "./silk/quick-quip.js";
-import { SM_ABILITIES } from "./sm/index.js";
-import { SPDR_ABILITIES } from "./spdr/index.js";
-import { SPIDERHAM_ABILITIES } from "./spiderham/index.js";
+import { SM_BUILTIN_PACK } from "./sm/pack.js";
+import { SPDR_BUILTIN_PACK } from "./spdr/pack.js";
+import { SPIDERHAM_BUILTIN_PACK } from "./spiderham/pack.js";
 
-/** Every scripted ability in the wave 5 pool: every earlier wave's own script, then one entry per cycle 4 pack
- * that has been started (`sm`, `nova`, `ironheart`, `spiderham`, `spdr`). */
+/** Every wave 5 product as a built-in pack, in the order their scripts merge into `WAVE5_ABILITIES`. */
+export const WAVE5_BUILTIN_PACKS: readonly BuiltinPack[] = [
+  SM_BUILTIN_PACK,
+  NOVA_BUILTIN_PACK,
+  IRONHEART_BUILTIN_PACK,
+  SPIDERHAM_BUILTIN_PACK,
+  SPDR_BUILTIN_PACK,
+];
+
+/** Every scripted ability in the wave 5 pool: every earlier wave's own script, then each wave 5 pack's scripts. */
 export const WAVE5_ABILITIES: AbilityRegistry = mergeRegistries(
   WAVE4_ABILITIES,
-  SM_ABILITIES,
-  NOVA_ABILITIES,
-  IRONHEART_ABILITIES,
-  SPIDERHAM_ABILITIES,
-  SPDR_ABILITIES,
-  // Quick Quip (`silk` 52034) alone, ahead of its pack: Thwip Thwip!'s shape (`silk/quick-quip.ts`).
+  ...WAVE5_BUILTIN_PACKS.map((pack) => pack.abilities),
+  // Quick Quip (`silk` 52034) alone, ahead of its pack: Thwip Thwip!'s shape (`silk/quick-quip.ts`). It is a wave 9
+  // card, so it is in no wave 5 pack.
   SILK_QUICK_QUIP,
 );
 

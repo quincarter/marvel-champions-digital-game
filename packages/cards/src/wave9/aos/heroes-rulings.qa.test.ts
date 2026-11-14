@@ -40,11 +40,11 @@ import { driveEventsPicking, encounterCardInVillainArea, withForm } from "../../
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
 import { wave9StarterDeckSetup } from "../setup.js";
-import { AOS_ABILITIES } from "./index.js";
+import { AOS_BUILTIN_PACK } from "./pack.js";
 
 vi.setConfig({ testTimeout: 180_000 });
 
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_ABILITIES) };
+const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_BUILTIN_PACK.abilities) };
 
 const HILL_ALLY = "50036";
 const SUPPORT_STAFF = "50008";

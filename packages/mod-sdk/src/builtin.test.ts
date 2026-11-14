@@ -4,29 +4,79 @@ import {
   WAVE1_BUILTIN_PACKS,
   WAVE1_DEPS,
   WAVE2_DEPS,
-  WAVE3_ABILITIES,
   WAVE3_DEPS,
+  WAVE11_ABILITIES,
+  PLAYABLE_DEPS,
+  playableScenario,
   wave1Scenario,
   wave2Scenario,
   wave3Scenario,
   type BuiltinPack,
 } from "@mc/cards";
 import { playToOutcome } from "@mc/cards/testing";
-import { createGame, type EngineDeps } from "@mc/engine";
+import {
+  WAVE4_SCENARIOS,
+  WAVE4_STARTER_DECKS,
+  WAVE5_SCENARIOS,
+  WAVE5_STARTER_DECKS,
+  WAVE6_SCENARIOS,
+  WAVE6_STARTER_DECKS,
+  WAVE7_SCENARIOS,
+  WAVE7_STARTER_DECKS,
+  WAVE8_SCENARIOS,
+  WAVE8_STARTER_DECKS,
+  WAVE9_SCENARIOS,
+  WAVE9_STARTER_DECKS,
+  WAVE10_SCENARIOS,
+  WAVE10_STARTER_DECKS,
+  WAVE11_SCENARIOS,
+  WAVE11_STARTER_DECKS,
+} from "@mc/content";
+import { createGame, type EngineDeps, type GameSetupConfig } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { builtinGameDeps, validateBuiltinPack } from "./builtin.js";
 import { customContentOfPacks, type PackGameContent } from "./game.js";
 import { splitIssues } from "./validate.js";
 
-/** What each built-in pack is played with: Core under every later product. */
+/**
+ * The products a built-in pack really depends on, besides the Core Set every product is played with: what its cards,
+ * sets and scenarios may name. Anything else it names is an undeclared cross-product dependency, which the SDK check
+ * reports. Each entry is needed: the test below drops each and expects a defect.
+ */
+const PRODUCT_REQUIRES: Readonly<Record<string, readonly string[]>> = {
+  // Agents of S.H.I.E.L.D.'s Thunderbolts scenario (50130a) draws its modular sets from the Thunderbolt minions'
+  // sets, one in each of the cycle's hero packs (MC50 p. 15).
+  aos: ["bp", "silk", "falcon", "winter"],
+};
+
+const packById = (id: string): BuiltinPack => {
+  const pack = BUILTIN_PACKS.find((candidate) => candidate.manifest.id === id);
+  if (!pack) throw new Error(`no built-in pack ${id}`);
+  return pack;
+};
+
+/** What a built-in pack is validated with: the Core Set, plus the products `PRODUCT_REQUIRES` declares for it. */
 const requiresOf = (pack: BuiltinPack): readonly BuiltinPack[] =>
-  pack === CORE_BUILTIN_PACK ? [] : [CORE_BUILTIN_PACK];
+  pack === CORE_BUILTIN_PACK ? [] : [CORE_BUILTIN_PACK, ...(PRODUCT_REQUIRES[pack.manifest.id] ?? []).map(packById)];
 
 /**
- * The card abilities a built-in pack leaves unscripted, by pack id: none for Core and waves 1 to 3. A script dropped
- * from a pack shows up as unscripted and fails the test; a later wave lists its known gaps here.
+ * The card abilities a built-in pack leaves unscripted, by pack id. A script dropped from a pack shows up as
+ * unscripted and fails the test; a product with known gaps lists them here.
  */
-const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {};
+const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {
+  // Synthezoid Smackdown's competitive leader cards: competitive mode isn't shipped
+  // (`wave10/synthezoid/competitive/leader-cards.ts`).
+  synthezoid: [
+    "57032.youre-out-of-order-interrupt",
+    "57033.she-hulk-smash-action",
+    "57034.make-me-angry-forced-response",
+    "57035.legal-counsel-response",
+    "57074.calculated-risk-action",
+    "57075.synthezoid-strike-action",
+    "57076.phased-out-action",
+    "57077.android-assistance-interrupt",
+  ],
+};
 
 describe("built-in packs through the SDK", () => {
   it.each(BUILTIN_PACKS.map((pack) => [pack.manifest.id, pack] as const))("%s passes the SDK's checks", (id, pack) => {
@@ -37,10 +87,58 @@ describe("built-in packs through the SDK", () => {
     );
   });
 
-  it("carry the whole wave 3 registry (waves 1 to 3) between them, reprint aliases included", () => {
+  it.each(Object.entries(PRODUCT_REQUIRES).flatMap(([id, deps]) => deps.map((dep) => [id, dep] as const)))(
+    "%s needs %s: without it the check reports what it names",
+    (id, dep) => {
+      const pack = packById(id);
+      const without = requiresOf(pack).filter((other) => other.manifest.id !== dep);
+      expect(splitIssues(validateBuiltinPack(pack, { requires: without })).defects).not.toEqual([]);
+    },
+  );
+
+  it("reports a hero given another hero's nemesis set from the same product, and accepts Ironheart's forms", () => {
+    const [spiderMan, captainMarvel] = CORE_BUILTIN_PACK.cards.filter((card) => card.type === "hero_identity");
+    if (spiderMan?.type !== "hero_identity" || captainMarvel?.type !== "hero_identity")
+      throw new Error("Core has two heroes");
+    const broken: BuiltinPack = {
+      ...CORE_BUILTIN_PACK,
+      cards: CORE_BUILTIN_PACK.cards.map((card) =>
+        card === spiderMan ? { ...card, nemesisEncounterSetId: captainMarvel.nemesisEncounterSetId } : card,
+      ) as BuiltinPack["cards"],
+    };
+    const messages = splitIssues(validateBuiltinPack(broken)).defects.map((issue) => `${issue.path}: ${issue.message}`);
+    expect(messages).toContain(
+      `cards/${spiderMan.id}: nemesis set "${captainMarvel.nemesisEncounterSetId}" is not this hero's nemesis set`,
+    );
+    const ironheart = packById("ironheart");
+    const forms = ironheart.cards.filter((card) => card.type === "hero_identity");
+    expect(forms.length).toBeGreaterThan(1);
+    expect(splitIssues(validateBuiltinPack(ironheart, { requires: requiresOf(ironheart) })).defects).toEqual([]);
+  });
+
+  it("reports a reference to a product the pack doesn't require", () => {
+    // Core's Rhino naming a modular set of the Black Panther pack, which Core doesn't require.
+    const rhino = CORE_BUILTIN_PACK.scenarios[0]!;
+    const bpSet = packById("bp").encounterSets.find((set) => set.nemesisOfIdentityId === undefined)!;
+    const broken: BuiltinPack = {
+      ...CORE_BUILTIN_PACK,
+      scenarios: [{ ...rhino, recommendedModularSetIds: [bpSet.id] }, ...CORE_BUILTIN_PACK.scenarios.slice(1)],
+    };
+    const messages = splitIssues(validateBuiltinPack(broken, { requires: requiresOf(CORE_BUILTIN_PACK) })).defects.map(
+      (issue) => issue.message,
+    );
+    expect(messages).toContain(`scenario ${rhino.id} names encounter set ${bpSet.id}, which is not registered`);
+    // The same reference passes once the Black Panther pack is a declared requirement.
+    const withBp = validateBuiltinPack(broken, { requires: [packById("bp")] });
+    expect(splitIssues(withBp).defects.map((issue) => issue.message)).not.toContain(
+      `scenario ${rhino.id} names encounter set ${bpSet.id}, which is not registered`,
+    );
+  });
+
+  it("carry the whole wave 11 registry (every wave) between them, reprint aliases included", () => {
     const { abilities } = builtinGameDeps(BUILTIN_PACKS);
-    expect(Object.keys(abilities).sort()).toEqual(Object.keys(WAVE3_ABILITIES).sort());
-    for (const [id, definition] of Object.entries(abilities)) expect(WAVE3_ABILITIES[id]).toBe(definition);
+    expect(Object.keys(abilities).sort()).toEqual(Object.keys(WAVE11_ABILITIES).sort());
+    for (const [id, definition] of Object.entries(abilities)) expect(WAVE11_ABILITIES[id]).toBe(definition);
   });
 
   // Each wave's game, on deps built from the packs alone, plays the same as on that wave's own registry: Captain
@@ -75,6 +173,37 @@ describe("built-in packs through the SDK", () => {
       const fromPacks = play(builtinGameDeps(BUILTIN_PACKS));
       expect(fromPacks.outcome).not.toBeNull();
       expect(fromPacks).toEqual(play(wave));
+    },
+  );
+
+  // Waves 4 to 11: the wave's first scenario with its first precon, set up by the playable pool's builder, plays the
+  // same on deps built from the packs alone as on the playable pool's own registry.
+  it.each(
+    (
+      [
+        ["wave 4", WAVE4_SCENARIOS, WAVE4_STARTER_DECKS],
+        ["wave 5", WAVE5_SCENARIOS, WAVE5_STARTER_DECKS],
+        ["wave 6", WAVE6_SCENARIOS, WAVE6_STARTER_DECKS],
+        ["wave 7", WAVE7_SCENARIOS, WAVE7_STARTER_DECKS],
+        ["wave 8", WAVE8_SCENARIOS, WAVE8_STARTER_DECKS],
+        ["wave 9", WAVE9_SCENARIOS, WAVE9_STARTER_DECKS],
+        ["wave 10", WAVE10_SCENARIOS, WAVE10_STARTER_DECKS],
+        ["wave 11", WAVE11_SCENARIOS, WAVE11_STARTER_DECKS],
+      ] as const
+    ).map(([name, scenarios, decks]) => [name, String(scenarios[0]!.id), String(decks[0]!.id)] as const),
+  )(
+    "play a %s game (%s, %s) on deps built from the packs alone, the same as on the playable pool",
+    (_, scenario, deck) => {
+      const setup = (): GameSetupConfig => playableScenario(scenario, { players: [{ starterDeckId: deck }], seed: 7 });
+      const play = (deps: EngineDeps) => {
+        const created = createGame(setup(), deps);
+        if (!created.ok) throw new Error(created.error.message);
+        const run = playToOutcome(created.state, deps, { maxCommands: 4000 });
+        return { outcome: run.outcome, rounds: run.rounds, log: run.session.log };
+      };
+      const fromPacks = play(builtinGameDeps(BUILTIN_PACKS));
+      expect(fromPacks.outcome).not.toBeNull();
+      expect(fromPacks).toEqual(play(PLAYABLE_DEPS));
     },
   );
 
@@ -165,6 +294,21 @@ describe("built-in packs through the SDK", () => {
     const [firstScript] = Object.keys(CORE_BUILTIN_PACK.abilities);
     expect(messages).toContain(`abilities/${firstScript}: is also scripted by a pack this one requires`);
     expect(messages).toContain(`cards/${CORE_BUILTIN_PACK.cards[0]!.id}: is also a card of a pack this one requires`);
+  });
+
+  it("reports an identity whose nemesis set is another hero's", () => {
+    const spiderMan = CORE_BUILTIN_PACK.cards.find((card) => card.type === "hero_identity")!;
+    const otherNemesis = WAVE1_BUILTIN_PACKS[0]!.encounterSets.find((set) => set.nemesisOfIdentityId !== undefined)!;
+    const broken: BuiltinPack = {
+      ...CORE_BUILTIN_PACK,
+      cards: CORE_BUILTIN_PACK.cards.map((card) =>
+        card === spiderMan ? { ...card, nemesisEncounterSetId: otherNemesis.id } : card,
+      ) as BuiltinPack["cards"],
+    };
+    const messages = splitIssues(validateBuiltinPack(broken, { requires: [WAVE1_BUILTIN_PACKS[0]!] })).defects.map(
+      (issue) => issue.message,
+    );
+    expect(messages).toContain(`nemesis set "${otherNemesis.id}" is not this hero's nemesis set`);
   });
 
   it("reports a wave 1 scenario checked without the Core pack it needs", () => {
