@@ -35,8 +35,8 @@ export const BUILTIN_PACKS: readonly BuiltinPack[] = [
  * The set codes of the products the game doesn't offer yet (`BuiltinPackManifest.status`, `"not-ready"`). Their cards
  * are in the pool, but their heroes stay out of hero select, the deck builder's identity list and the precons, and a
  * deck led by one of them can't be seated. A pack leaves this set when its `status` is deleted.
- * Matching a card's `setCode` against a manifest id is safe: `defineBuiltinPack` refuses a pack holding a card of another
- * set code.
+ * Matching a card's `setCode` against a manifest id is safe: `defineBuiltinPack` refuses a pack holding a card of
+ * another set code.
  */
 export const NOT_READY_PACK_CODES: ReadonlySet<string> = new Set(
   BUILTIN_PACKS.filter((pack) => pack.manifest.status === "not-ready").map((pack) => pack.manifest.id),
