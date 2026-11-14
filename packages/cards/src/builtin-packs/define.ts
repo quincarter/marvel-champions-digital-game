@@ -57,6 +57,8 @@ export function builtinPackProblems(pack: BuiltinPack): readonly string[] {
   const { id, product } = pack.manifest;
   const problems: string[] = [];
   if (product.code !== id) problems.push(`manifest id ${id} is not its product's code ${product.code}`);
+  if (pack.manifest.name !== product.name)
+    problems.push(`manifest name "${pack.manifest.name}" is not its product's name "${product.name}"`);
   for (const card of pack.cards) {
     if (card.setCode !== id) problems.push(`card ${card.id} is from ${card.setCode}, not ${id}`);
   }

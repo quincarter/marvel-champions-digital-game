@@ -147,10 +147,12 @@ async function fetchPreview(url: string, packId: string, deps: PreviewDeps): Pro
     if (!response.ok) throw new Error(`Preview request failed (${response.status})`);
     const text = await readText(response);
     const parsed = text === undefined ? undefined : await parse(text, packId);
-    if (text !== undefined && parsed) save(storage, { url, packId, text });
+    // An oversized or malformed 200 counts as a failed fetch: fall back to the last good copy, and never save it.
+    if (text === undefined || !parsed) throw new Error("Preview response is not a valid preview");
+    save(storage, { url, packId, text });
     return parsed;
   } catch {
-    // Offline: the last saved copy, when there is one.
+    // Offline, or the server answered with something that is not a preview: the last saved copy, when there is one.
     const saved = readSaved(storage).find((one) => one.url === url);
     return saved ? await parse(saved.text, packId) : undefined;
   }
