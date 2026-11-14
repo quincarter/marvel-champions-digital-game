@@ -5,7 +5,7 @@
  */
 import {
   downloadsOf,
-  primaryDownload,
+  primaryButtons,
   versionOf,
   type DeviceKind,
   type Download,
@@ -155,28 +155,19 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
   }
 
   const downloads = downloadsOf(release, language);
-  const primary = primaryDownload(downloads, device);
-  // A browser can't tell an Intel Mac from an Apple silicon one, so a Mac gets both installers side by side, each
-  // named for its chip, rather than one button that is wrong for half of them.
-  const intel = device === "mac" ? downloads.find((download) => download.id === "mac-intel") : undefined;
+  // A Mac gets one button per chip (`primaryButtons`), each named from the installer it links to.
+  const buttons = primaryButtons(downloads, device);
+  const primary = buttons[0]?.download;
   if (primary) {
     main.append(
-      element(
-        "a",
-        { class: "btn primary", href: primary.url, rel: "noopener" },
-        element("span", {}, t("dl.forDevice", { device: t(intel ? "device.macArm" : `device.${device}`) })),
-        element("small", {}, t(fileKey(primary.id))),
+      ...buttons.map(({ download, labelKey }, i) =>
+        element(
+          "a",
+          { class: i === 0 ? "btn primary" : "btn", href: download.url, rel: "noopener" },
+          element("span", {}, t("dl.forDevice", { device: t(labelKey) })),
+          element("small", {}, t(fileKey(download.id))),
+        ),
       ),
-      ...(intel
-        ? [
-            element(
-              "a",
-              { class: "btn", href: intel.url, rel: "noopener" },
-              element("span", {}, t("dl.forDevice", { device: t("device.macIntel") })),
-              element("small", {}, t(fileKey(intel.id))),
-            ),
-          ]
-        : []),
       play,
     );
   } else {

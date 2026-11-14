@@ -126,6 +126,33 @@ export function primaryDownload(downloads: readonly Download[], device: DeviceKi
   return downloads.find((download) => download.device === device && !download.id.startsWith("steam-"));
 }
 
+/** A big download button: the installer and the text key that names who it is for. */
+export interface PrimaryButton {
+  readonly download: Download;
+  readonly labelKey: string;
+}
+
+const MAC_CHIPS = [
+  { id: "mac-arm", labelKey: "device.macArm" },
+  { id: "mac-intel", labelKey: "device.macIntel" },
+] as const;
+
+/**
+ * The big buttons for `device`. A browser can't tell an Intel Mac from an Apple silicon one, so a Mac gets one button
+ * per chip the release has, each named for its chip from the installer it links to; a release missing one of the two
+ * shows only the other, never a button named for a chip it doesn't have. Every other device gets its first installer.
+ */
+export function primaryButtons(downloads: readonly Download[], device: DeviceKind): readonly PrimaryButton[] {
+  if (device === "mac") {
+    return MAC_CHIPS.flatMap(({ id, labelKey }) => {
+      const download = downloads.find((candidate) => candidate.id === id);
+      return download ? [{ download, labelKey }] : [];
+    });
+  }
+  const primary = primaryDownload(downloads, device);
+  return primary ? [{ download: primary, labelKey: `device.${device}` }] : [];
+}
+
 /** "v0.44.0" → "0.44.0". */
 export function versionOf(release: LatestRelease): string {
   return release.tag_name.replace(/^v/, "");

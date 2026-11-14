@@ -1,4 +1,11 @@
-import { detectDevice, downloadsOf, primaryDownload, versionOf, type LatestRelease } from "./downloads.js";
+import {
+  detectDevice,
+  downloadsOf,
+  primaryButtons,
+  primaryDownload,
+  versionOf,
+  type LatestRelease,
+} from "./downloads.js";
 
 const asset = (name: string) => ({ name, browser_download_url: `https://example.test/${name}` });
 
@@ -84,6 +91,40 @@ describe("primaryDownload", () => {
   it("is none for iOS, which has no app, or an unknown device", () => {
     expect(primaryDownload(downloads, "ios")).toBeUndefined();
     expect(primaryDownload(downloads, "other")).toBeUndefined();
+  });
+});
+
+describe("primaryButtons", () => {
+  const MAC_ARM = "MarvelChampions-0.44.0-EN-macOS-AppleSilicon-arm64.dmg";
+  const MAC_INTEL = "MarvelChampions-0.44.0-EN-macOS-Intel-x64.dmg";
+  const withAssets = (...names: string[]): LatestRelease => ({ ...RELEASE, assets: names.map(asset) });
+  const buttonsOf = (release: LatestRelease, device: Parameters<typeof primaryButtons>[1]) =>
+    primaryButtons(downloadsOf(release, "en"), device).map(({ download, labelKey }) => [download.fileName, labelKey]);
+
+  it("gives a Mac one button per chip, each named for its own installer", () => {
+    expect(buttonsOf(withAssets(MAC_ARM, MAC_INTEL), "mac")).toEqual([
+      [MAC_ARM, "device.macArm"],
+      [MAC_INTEL, "device.macIntel"],
+    ]);
+  });
+
+  it("names an Intel-only release's one button for Intel, not Apple silicon", () => {
+    expect(buttonsOf(withAssets(MAC_INTEL), "mac")).toEqual([[MAC_INTEL, "device.macIntel"]]);
+  });
+
+  it("names an Apple-silicon-only release's one button for Apple silicon", () => {
+    expect(buttonsOf(withAssets(MAC_ARM), "mac")).toEqual([[MAC_ARM, "device.macArm"]]);
+  });
+
+  it("gives a Mac no button when the release has neither installer", () => {
+    expect(buttonsOf(withAssets("MarvelChampions-macOS-Install-for-Steam.sh"), "mac")).toEqual([]);
+  });
+
+  it("gives any other device its first installer, named for the device", () => {
+    expect(buttonsOf(RELEASE, "windows")).toEqual([
+      ["MarvelChampions-0.44.0-EN-Windows-x64-Setup.exe", "device.windows"],
+    ]);
+    expect(buttonsOf(RELEASE, "ios")).toEqual([]);
   });
 });
 
