@@ -295,7 +295,7 @@ export type StackFrame =
        * event's interrupt window passes its "would" tier (`resolve/window.ts`), or at its apply step when it has no
        * window; cleared as it is pushed (`pushUsingAfterWould`).
        */
-      readonly usingAfterWould?: TriggerEvent;
+      readonly usingAfterWould?: Extract<TriggerEvent, { kind: "basicPowerUsing" }>;
       /**
        * Events whose *response* window was deferred to the end of this activation: RRG 1.8 "Defend, Defense" (p. 16),
        * "Abilities that trigger after a character defends an attack resolve after that attack ends." Only an

@@ -133,6 +133,11 @@ function insertBeneath(ctx: Ctx, below: FrameId, frames: readonly StackFrame[]):
  * and Moondragon 63038, so it initiates before them ("Forced", p. 20); "would" interrupts to the attack or thwart go
  * first, and a "would" cancel gives no card ("'Would'", p. 48). False when there is no such frame still to open its
  * window (a basic defense, a use already under way): the caller pushes the announcement at once.
+ *
+ * A divided basic attack or thwart (Wasp's; one `attack` / `thwart` event per share) holds it on its use frame, the
+ * top share's (`basicPowerUseFrameId`), as the use record reads it: it is announced once, in that share's window, and a
+ * "would" cancel of that share alone leaves the whole power unannounced though the other shares go on. No villainous
+ * character divides a basic power yet; revisit if one does.
  */
 export function deferUsingAfterWould(ctx: Ctx, using: Extract<TriggerEvent, { kind: "basicPowerUsing" }>): boolean {
   if (using.power === "defense") return false;

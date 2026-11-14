@@ -7769,10 +7769,13 @@ export function announceBasicPower(
 }
 
 /**
- * "When you use one of your hero's basic powers" (docs/phase7-wave2.md §17.4): pushed *on top of* the power's own
- * events, so its interrupt window resolves before the power's value is read. Like its "used" twin it goes on the stack
- * only when an ability could react, and a stunned attack or confused thwart never reaches either of them (the cancel
- * returns before both), so a power that is cancelled is not "used" for any timing.
+ * "When you use one of your hero's basic powers" (docs/phase7-wave2.md §17.4), announced before the power's value is
+ * read. Like its "used" twin it goes on the stack only when an ability could react, and a stunned attack or confused
+ * thwart never reaches either of them (the cancel returns before both), so a power that is cancelled is not "used" for
+ * any timing. A basic attack, thwart or recovery holds it on its own event frame (`deferUsingAfterWould`,
+ * `Frame<"event">.usingAfterWould`) until that event's "would" interrupts have resolved: it is pushed as the event's
+ * interrupt window passes its "would" tier, so a "would" cancel leaves the power never announced and Villainous gives
+ * no card (RRG 1.8 "'Would'", p. 48). A basic defense's is pushed on top at once.
  */
 export function announceBasicPowerUsing(
   ctx: Ctx,
@@ -7781,14 +7784,20 @@ export function announceBasicPowerUsing(
   playerId: PlayerId,
   stat: StatName = BASIC_POWER_STAT[power],
 ): void {
-  const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, stat, playerId };
+  const event: Extract<TriggerEvent, { kind: "basicPowerUsing" }> = {
+    kind: "basicPowerUsing",
+    characterInstanceId: characterId,
+    power,
+    stat,
+    playerId,
+  };
   // A villainous ally or hero, or one holding boost cards for its basic powers, gets its use recorded beneath the use's
   // own frame (docs/phase7-wave11-scenarios.md §S3.7). Its cards turn faceup at that frame's apply step, once the
   // power's own interrupts have resolved (`startCharacterBoost`), not beneath this event.
   pushCharacterBoost(ctx, characterId, power, stat, playerId);
   if (!heard(ctx.state, ctx.deps, event)) return;
   // A basic attack, thwart or recovery announces it after its own "would" interrupts (`deferUsingAfterWould`).
-  if (event.kind === "basicPowerUsing" && deferUsingAfterWould(ctx, event)) return;
+  if (deferUsingAfterWould(ctx, event)) return;
   pushEvent(ctx, event);
 }
 
@@ -7819,11 +7828,11 @@ export function setBasicPowerStat(
   const waiting = ctx.state.stack.find(
     (f) =>
       f.kind === "event" &&
-      f.usingAfterWould?.kind === "basicPowerUsing" &&
+      f.usingAfterWould !== undefined &&
       (characterId === null || f.usingAfterWould.characterInstanceId === characterId) &&
       f.usingAfterWould.power === power,
   );
-  if (waiting?.kind === "event" && waiting.usingAfterWould?.kind === "basicPowerUsing")
+  if (waiting?.kind === "event" && waiting.usingAfterWould)
     setFrame(ctx, { ...waiting, usingAfterWould: { ...waiting.usingAfterWould, stat } });
   // A villainous character's boost icons go to the stat actually powering the use (§S3.7, `resolve/villainous.ts`).
   retargetCharacterBoost(ctx, characterId, power, stat);
