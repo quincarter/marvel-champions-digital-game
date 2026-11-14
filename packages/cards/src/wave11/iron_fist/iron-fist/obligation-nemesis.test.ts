@@ -18,7 +18,7 @@ import {
   IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS as REGISTRY,
   IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS_SKIPPED as SKIPPED,
 } from "./obligation-nemesis.js";
-import { IF_DEPS, chiOf, drive, ironFistGame, staged, takeAbility, withChi } from "./testing.js";
+import { IF_DEPS, chiOf, drive, ironFistGame, pickCard, staged, takeAbility, withChi } from "./testing.js";
 
 vi.setConfig({ testTimeout: 180_000 });
 
@@ -42,9 +42,16 @@ const idsOf = (s: GameState, code: string): InstanceId[] =>
   (Object.keys(s.instances) as InstanceId[]).filter((i) => codeOf(s, i) === code);
 const villainOf = (s: GameState): InstanceId => s.activeVillainId!;
 const encounterDeckCodes = (s: GameState): string[] => activeEncounterDeck(s).deck.map((i) => codeOf(s, i));
+const encounterDiscardCodes = (s: GameState): string[] => activeEncounterDeck(s).discard.map((i) => codeOf(s, i));
+/** The Crane Daughters tucked under a card. */
+const tuckedDaughters = (s: GameState, under: InstanceId): InstanceId[] =>
+  inst(s, under).tucked.filter((i) => codeOf(s, i) === "64037");
 const declines: Picker = (s) => (s.pendingChoice!.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s));
 
-/** The given nemesis cards (from P1's set-aside cards, else the encounter deck) on top of it, the next 15 turned into Advance. */
+/**
+ * The given nemesis cards (from P1's set-aside cards, else the encounter deck) on top of it, the next 15 turned into
+ * Advance.
+ */
 function onTop(state: GameState, ...codes: readonly string[]): GameState {
   const deckId = activeEncounterDeckId(state);
   const pile = state.encounterDecks[deckId]!;
@@ -144,6 +151,7 @@ describe(`${REVEALED}: move all chi from your identity to this card`, () => {
     const [lack] = idsOf(run.state, "64034");
     expect(chiOf(run.state)).toBe(0);
     expect(inst(run.state, lack!).counters["chi"]).toBe(3);
+    expect(playerOf(run.state, P1).playArea).toContain(lack);
   });
 });
 
@@ -151,8 +159,28 @@ describe(`${DAVOS_R}: find and tuck the 3 Crane Daughters under Davos`, () => {
   it("tucks all three facedown under him", () => {
     const run = driveEventsPicking(IF_DEPS, stunnedVillain(onTop(ironFistGame(), "64035")), declines, endTurn(P1));
     const [davos] = idsOf(run.state, "64035");
-    expect(inst(run.state, davos!).tucked.map((i) => codeOf(run.state, i))).toEqual(["64037", "64037", "64037"]);
+    expect(tuckedDaughters(run.state, davos!).length).toBe(3);
     expect(encounterDeckCodes(run.state)).not.toContain("64037");
+  });
+  it("finds one in the encounter deck and one in its discard pile too", () => {
+    const base = ironFistGame();
+    const [inDeck, inDiscard] = setAsideOf(base, "64037") as [InstanceId, InstanceId];
+    const deckId = activeEncounterDeckId(base);
+    const pile = base.encounterDecks[deckId]!;
+    const moved: GameState = {
+      ...base,
+      players: base.players.map((p) =>
+        p.playerId === P1 ? { ...p, setAside: p.setAside.filter((i) => i !== inDeck && i !== inDiscard) } : p,
+      ),
+      encounterDecks: {
+        ...base.encounterDecks,
+        [deckId]: { deck: [...pile.deck, inDeck], discard: [...pile.discard, inDiscard] },
+      },
+    };
+    const run = driveEventsPicking(IF_DEPS, stunnedVillain(onTop(moved, "64035")), declines, endTurn(P1));
+    const [davos] = idsOf(run.state, "64035");
+    expect(tuckedDaughters(run.state, davos!).length).toBe(3);
+    expect([...encounterDeckCodes(run.state), ...encounterDiscardCodes(run.state)]).not.toContain("64037");
   });
 });
 
@@ -172,8 +200,16 @@ describe(`${DAVOS_I}: damage to Davos shuffles a tucked Crane Daughter into the 
     const { state, davos } = setup();
     const { state: after } = drive(state, basicAttack(state, davos), declines);
     expect(inst(after, davos).damage).toBe(0);
-    expect(inst(after, davos).tucked.length).toBe(2);
+    expect(tuckedDaughters(after, davos).length).toBe(2);
     expect(encounterDeckCodes(after)).toContain("64037");
+  });
+  it("each instance of damage is replaced: Fists of Fury's three leave none tucked and Davos undamaged", () => {
+    const { state, davos } = setup();
+    const f = staged(state, "64004", 1);
+    const { state: after } = drive(f.state, f.command, pickCard(davos, declines));
+    expect(inst(after, davos).damage).toBe(0);
+    expect(tuckedDaughters(after, davos).length).toBe(0);
+    expect(encounterDeckCodes(after).filter((c) => c === "64037").length).toBe(3);
   });
   it("with none tucked he takes the damage", () => {
     const { state, davos } = setup();
@@ -185,7 +221,7 @@ describe(`${DAVOS_I}: damage to Davos shuffles a tucked Crane Daughter into the 
 
 describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, () => {
   const attackRun = (withScheme: boolean, tucked: boolean) => {
-    let e = engaged(ironFistGame(), "64035");
+    const e = engaged(ironFistGame(), "64035");
     let state = e.state;
     if (tucked) state = tuckUnder(state, e.id, ...setAsideOf(state, "64037").slice(0, 1));
     if (withScheme) state = sideScheme(state, "64036");
@@ -195,7 +231,8 @@ describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, ()
   it("discards a tucked Crane Daughter and hits for 2 + 3", () => {
     const { state, davos } = attackRun(true, true);
     expect(inst(state, identityOf(state)).damage).toBe(5);
-    expect(inst(state, davos).tucked.length).toBe(0);
+    expect(tuckedDaughters(state, davos).length).toBe(0);
+    expect(encounterDiscardCodes(state)).toContain("64037");
   });
   it("control: without the side scheme Davos hits for 2", () => {
     const { state } = attackRun(false, true);
@@ -207,10 +244,19 @@ describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, ()
   });
   it("defeats a Crane Daughter in play instead", () => {
     const e = engaged(ironFistGame(), "64035");
+    const davosId = e.id as string;
     const daughter = engaged(e.state, "64037");
-    const run = driveEventsPicking(IF_DEPS, stunnedVillain(sideScheme(daughter.state, "64036")), declines, endTurn(P1));
+    // The Crane Daughter is stunned so that only Davos's attack deals damage.
+    const calm = patchInstance(daughter.state, daughter.id, { exhausted: true });
+    const stacked = onTop(sideScheme(calm, "64036"));
+    const run = driveEventsPicking(IF_DEPS, stunnedVillain(stacked), declines, endTurn(P1));
     expect(playerOf(run.state, P1).playArea).not.toContain(daughter.id);
-    expect(inst(run.state, identityOf(run.state)).damage).toBeGreaterThanOrEqual(5);
+    // Davos's own attack: 2 + 3 (the villain's second activation is a separate attack).
+    const fromDavos = run.events.filter(
+      (e) => e.type === "damageDealt" && (e as { sourceInstanceId?: string }).sourceInstanceId === davosId,
+    );
+    expect(fromDavos.map((e) => (e as { amount: number }).amount)).toEqual([5]);
+    expect([...encounterDeckCodes(run.state), ...encounterDiscardCodes(run.state)]).toContain("64037");
   });
 });
 
@@ -231,9 +277,14 @@ describe(`${DAUGHTER_D}: shuffled into the encounter deck when defeated`, () => 
 });
 
 describe(`${DAUGHTER_B}: with Davos engaged, put it facedown under him`, () => {
+  it("does nothing when Davos is not engaged with you", () => {
+    const run = driveEventsPicking(IF_DEPS, onTop(ironFistGame(), "64037"), declines, endTurn(P1));
+    const davosCards = idsOf(run.state, "64035");
+    for (const d of davosCards) expect(tuckedDaughters(run.state, d).length).toBe(0);
+  });
   it("is tucked under Davos when it is a boost card", () => {
     const e = engaged(ironFistGame(), "64035");
     const run = driveEventsPicking(IF_DEPS, onTop(e.state, "64037"), declines, endTurn(P1));
-    expect(inst(run.state, e.id).tucked.map((i) => codeOf(run.state, i))).toContain("64037");
+    expect(tuckedDaughters(run.state, e.id).length).toBe(1);
   });
 });

@@ -11,6 +11,8 @@ import {
   defineAbilities,
   each,
   find,
+  andThen,
+  shuffleEncounterDeck,
   eventAmount,
   exists,
   forcedInterrupt,
@@ -41,9 +43,9 @@ const DAVOS = query("minion", { name: "Davos" });
 /**
  * Wave 11 scripting module `iron_fist/iron-fist/obligation-nemesis` (docs/phase7-elektra-iron-fist.md).
  *
- * PROVISIONAL TEXT: Iron Fist's obligation and nemesis set are not published. Their text comes from a gameplay video and
- * an unofficial fan preview (docs/phase7-elektra-iron-fist.md section 3), the codes are placeholders, and Crane
- * Daughter is the least certain card. The scripts follow the text as recorded; revisit when the cards are official.
+ * PROVISIONAL TEXT: Iron Fist's obligation and nemesis set are not published. Their text comes from a gameplay
+ * video and an unofficial fan preview (docs/phase7-elektra-iron-fist.md section 3), the codes are placeholders, and
+ * Crane Daughter is the least certain card. The scripts follow the text as recorded; revisit when the cards are official.
  *
  * Cards (4):
  * - 64034 Lack of Chi (obligation)
@@ -56,15 +58,17 @@ const DAVOS = query("minion", { name: "Davos" });
  * placed here instead (`countersWouldBePlaced` hears only `addCounters`, which is why every chi placement uses
  * `placeChi`); then, at 4 or more chi here, the card is discarded.
  *
- * **64035.when-revealed**: each Crane Daughter is found (RRG 1.8 "Find", p. 19: the set-aside nemesis cards, the encounter deck
- * and its discard pile) and tucked facedown under Davos (the video reads "Find and tuck the 3 Crane Daughter minions
- * under here"). No shuffle: the text names none and a find is not a search.
+ * **64035.when-revealed**: each Crane Daughter is found (RRG 1.8 "Find", p. 19: the set-aside nemesis cards, the
+ * encounter deck and its discard pile) and tucked facedown under Davos (the video reads "Find and tuck the 3 Crane
+ * Daughter minions under here"). The encounter deck is shuffled afterwards: a deck that was searched is shuffled
+ * (RRG 1.8 "Search", p. 39; FFG ruling Aug 10, 2023 #65, docs/rulings/post-rrg-1-5/04-august-2023.md).
  * **64035.davos-forced-interrupt**: when Davos would take any amount of damage and a Crane Daughter is tucked under
  * him, one is shuffled into the encounter deck instead, so all of that damage is replaced (RRG 1.8 "Replacement
  * Effect", p. 37).
  *
  * **64036.steel-serpent-constant**: "When Davos attacks" is a mandatory interrupt of the side scheme: a Crane Daughter
- * is discarded from under him, or one in play is defeated; if one was, the attack gets +3 ATK. With neither available
+ * is discarded from under him, or one in play is defeated; only if that happened (`andThen`, "if you do") the
+ * attack gets +3 ATK. With neither available
  * nothing happens.
  *
  * **64037.when-defeated**: shuffled into the encounter deck. **64037.boost**: with Davos engaged with you, put facedown
@@ -79,7 +83,7 @@ export const IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS: AbilityRegistry = defineAbi
     ifThen(valueAtLeast(countersOn(self, CHI), 4), discard(self)),
   ),
 
-  "64035.when-revealed": whenRevealed(tuckCards(cards(find(CRANE_DAUGHTER)), self, true)),
+  "64035.when-revealed": whenRevealed(tuckCards(cards(find(CRANE_DAUGHTER)), self, true), shuffleEncounterDeck()),
   "64035.davos-forced-interrupt": forcedInterrupt(
     on.damage("self"),
     { while: valueAtLeast(tuckedCount(self), 1) },
@@ -93,14 +97,14 @@ export const IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS: AbilityRegistry = defineAbi
         "Discard a Crane Daughter from under Davos",
         { when: valueAtLeast(tuckedCount(each(DAVOS)), 1) },
         moveCards(cards(tuckedUnderRef(each(DAVOS)), undefined, { random: 1 }), "discard"),
-        modifyAttack({ atkBonus: 3 }),
+        andThen(modifyAttack({ atkBonus: 3 })),
       ),
       option(
         "Defeat a Crane Daughter in play",
         { when: exists(CRANE_DAUGHTER) },
         chooseTarget("daughter", CRANE_DAUGHTER),
         defeat(chosen("daughter")),
-        modifyAttack({ atkBonus: 3 }),
+        andThen(modifyAttack({ atkBonus: 3 })),
       ),
     ),
   ),
