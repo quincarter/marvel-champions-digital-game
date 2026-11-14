@@ -5,8 +5,11 @@
  */
 export const SITE_DOMAIN = "champions-digital-game.com";
 
-/** The game's new home. */
-export const GAME_URL = `https://play.${SITE_DOMAIN}/`;
+/**
+ * The game's new home. `marvel.` names the game, so another game or content line can take its own subdomain later
+ * (the owner, 2026-11-14).
+ */
+export const GAME_URL = `https://marvel.${SITE_DOMAIN}/`;
 
 /** The landing page. */
 export const LANDING_URL = `https://${SITE_DOMAIN}/`;

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
@@ -84,7 +84,8 @@ interface ArtModule {
   readonly exports: string[];
 }
 
-async function landingArt(): Promise<ArtModule> {
+/** The art module: wallpapers for both pages, and (`portraits`) the hero and villain pictures for the landing page. */
+async function siteArt(portraits: boolean): Promise<ArtModule> {
   const roster = JSON.parse(readFileSync(join(CLIENT, "src/site/landing/game-roster.json"), "utf8")) as {
     waves: { heroes: { id: string }[] }[];
     scenarios: { id: string }[];
@@ -99,7 +100,7 @@ async function landingArt(): Promise<ArtModule> {
 
   const heroes: string[] = [];
   const heroDirs = existsSync(join(ART, "heroes")) ? readdirSync(join(ART, "heroes")) : [];
-  for (const { id } of roster.waves.flatMap((wave) => wave.heroes)) {
+  for (const { id } of portraits ? roster.waves.flatMap((wave) => wave.heroes) : []) {
     const dir = heroDirs.find((name) => name.startsWith(`${id}-`));
     const file = dir && pictureIn(join(ART, "heroes", dir), "hero");
     if (!file) continue;
@@ -114,7 +115,7 @@ async function landingArt(): Promise<ArtModule> {
   }
 
   const villains: string[] = [];
-  for (const { id } of roster.scenarios) {
+  for (const { id } of portraits ? roster.scenarios : []) {
     const file = pictureIn(join(ART, "scenarios", id), "villain");
     if (file) villains.push(`${JSON.stringify(id)}: ${asset(await resize(file, 560))}`);
   }
@@ -244,6 +245,41 @@ function siteReleasePlugin(): Plugin {
   };
 }
 
+const WALLPAPER_VIRTUAL = "virtual:site-wallpapers";
+
+/** `virtual:site-wallpapers`: just `WALLPAPERS`, for the moved page. */
+function siteWallpapersPlugin(): Plugin {
+  return {
+    name: "mc-site-wallpapers",
+    resolveId: (id) => (id === WALLPAPER_VIRTUAL ? `\0${WALLPAPER_VIRTUAL}` : undefined),
+    async load(id) {
+      if (id !== `\0${WALLPAPER_VIRTUAL}`) return undefined;
+      const art = await siteArt(false);
+      return [...art.imports, ...art.exports.filter((line) => line.startsWith("export const WALLPAPERS"))].join("\n");
+    },
+  };
+}
+
+/**
+ * The release pages (`public/releases`: the history page, every report and its Spanish copy) and the fonts they load
+ * (`../../fonts/`), copied beside the landing page so they live on the top-level domain too.
+ */
+function releasePagesPlugin(): Plugin {
+  let outDir = "";
+  return {
+    name: "mc-landing-release-pages",
+    apply: "build",
+    configResolved: (config) => {
+      outDir = config.build.outDir;
+    },
+    closeBundle() {
+      for (const folder of ["releases", "fonts"]) {
+        cpSync(join(CLIENT, "public", folder), join(outDir, folder), { recursive: true });
+      }
+    },
+  };
+}
+
 const VIRTUAL = "virtual:landing-data";
 const RESOLVED = `\0${VIRTUAL}`;
 
@@ -286,7 +322,7 @@ function landingDataPlugin(): Plugin {
         }
       }
       const mods = await packCatalog();
-      const art = await landingArt();
+      const art = await siteArt(true);
       return [
         ...imports,
         ...art.imports,
@@ -307,7 +343,10 @@ export default defineConfig(({ mode }) => {
     // The fonts live in the game's `public/`; the pages reach them by path and the build bundles them. A site's own
     // `public/` (the moved page's Netlify `_redirects`) is copied as is.
     publicDir: existsSync(resolve(CLIENT, "site", site, "public")) ? resolve(CLIENT, "site", site, "public") : false,
-    plugins: site === "landing" ? [siteReleasePlugin(), landingDataPlugin()] : [siteReleasePlugin()],
+    plugins:
+      site === "landing"
+        ? [siteReleasePlugin(), landingDataPlugin(), releasePagesPlugin()]
+        : [siteReleasePlugin(), siteWallpapersPlugin()],
     server: { fs: { allow: [CLIENT] } },
     build: {
       target: "es2022",
