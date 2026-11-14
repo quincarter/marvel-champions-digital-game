@@ -26,22 +26,33 @@ The card data is hand-transcribed (`packages/content/scripts/marvelcdb/curation/
 Shadowland way: `scanOnly`, every record an added record with its evidence. Every inferred value carries a
 "Data decision:" correction and every video-only card a "PLACEHOLDER:" correction in the pack's `provenance.ts`.
 
-## 2. Cards with text (from card images)
+## 2. Player cards (from card images)
 
-**Elektra (`elektra`, 63xxx).** 63001a/b Elektra / Elektra Natchios; Ninja deck 63002 Ninja Stars, 63003 Ninja Strike,
-63004 Ninja Vanish (2 each, 6 cards); kit 63005 Daredevil, 63006 Acrobatic Prowess x2, 63007 Killer Blow x2, 63008 Move
-Unseen x2, 63009 Sai Strike, 63012 Elektra's Sai x2, 63013 History with the Hand; Aggression 63015 Shang-Chi, 63016 Black
-Cat, 63017 Combo Move, 63018 Chain Reaction, 63019 Nerve Strike, 63020 Flow of Battle; basic 63023 Hunting Shadows,
-63027 Dance with the Devil.
+The Hall of Heroes pages carry two sets of images: small previews (about 300 px, the same as FFG's articles) and
+full-size spoiler images (about 1400 x 2000) under "Content Creator Spoiler Overviews".
 
-**Iron Fist (`iron_fist`, 64xxx).** 64001a/b Iron Fist / Danny Rand; kit 64002 Deep Breathing x3, 64003 Dragon Punch,
-64004 Fists of Fury x2, 64005 The Way of Things x2, 64006 Lei Kung, 64007 Book of the Iron Fist, Techniques 64008
-Channel the Iron Fist, 64010 Feel the Flow, 64012 Redirect Chi; Protection 64013 Helpful Bystander, 64016 Demoralize,
-64018 Redirection Mastery, 64019 No Time to Bleed, 64020 Tonfa; basic 64022 Luke Cage, 64024 Power Man and Iron Fist.
+**Elektra (`elektra`, 63xxx), 39 player cards seen.** 63001a/b Elektra / Elektra Natchios; Ninja deck 63002 Ninja
+Stars, 63003 Ninja Strike, 63004 Ninja Vanish (2 each, 6 cards); kit 63005 Daredevil, 63006 Acrobatic Prowess x2, 63007
+Killer Blow x2, 63008 Move Unseen x2, 63009 Sai Strike x2, 63010 Resurrection Altar, 63011 White Tiger, 63012 Elektra's
+Sai x2, 63013 History with the Hand, 63014 Stealth Mastery (15 of 15 placed); Aggression 63015 Shang-Chi, 63016 Black
+Cat, 63017 Combo Move, 63018 Chain Reaction, 63019 Nerve Strike, 63020 Flow of Battle, 63021 Shuriken; basic 63022
+Stone, 63023 Hunting Shadows, 63027 Dance with the Devil (reprint of Fear No Evil 60031); Justice 63034 Double-Cross
+(player side scheme) with its Linked treacheries 63035 Backstab, 63036 Misdirect, 63037 Sabotage; Leadership 63038
+Moondragon; Protection 63039 Moon Knight.
 
-Quantities marked xN in the kits are read from the printed set positions (n/15), not from a card list; aspect and basic
-cards are x1 because no source gives their count. The Ninja cards print positions 2, 3 and 5 of 6, which fits 2/2/2
-only loosely.
+**Iron Fist (`iron_fist`, 64xxx), 33 player cards seen.** 64001a/b Iron Fist / Danny Rand; kit 64002 Deep Breathing
+x3, 64003 Dragon Punch, 64004 Fists of Fury x2, 64005 The Way of Things x2, 64006 Lei Kung, 64007 Book of the Iron Fist,
+Techniques 64008 Channel the Iron Fist, 64009 Embody the Dragon, 64010 Feel the Flow, 64011 Keep 'Em Coming, 64012
+Redirect Chi; Protection 64013 Helpful Bystander, 64014 Iron Fist (ally), 64015 Defiance (reprint of 26018), 64016
+Demoralize, 64017 The Night Nurse (reprint of 09019), 64018 Redirection Mastery, 64019 No Time to Bleed, 64020 Tonfa;
+basic 64021 Colleen Wing, 64022 Luke Cage, 64023 Punch, Reverse Punch, 64024 Power Man and Iron Fist (reprint of
+62023), 64025 Thunder Dojo, 64033 The Defenders; Aggression 64030 Death by a Thousand Cuts; Leadership 64031 Zen-Like
+Calm, 64032 Sensei.
+
+Kit quantities come from the printed set positions (each footer prints the first position of the card's copies); the
+Iron Fist footers for Deep Breathing, Fists of Fury and The Way of Things are too small to read the range, so their
+counts are inferred from the gaps. Aspect and basic cards are x1 because no source gives their count. The Ninja cards
+print positions 2, 3 and 5 of 6, which fits 2/2/2 only loosely.
 
 ## 3. Obligations and nemesis sets (placeholder codes, provisional text, no art)
 
@@ -58,30 +69,26 @@ obligation. Every card here is art-unavailable and carries a "PLACEHOLDER:" corr
 
 | Code    | Card                                        | Source                        | Notes                                                                                                                                                                                                            |
 | ------- | ------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 63028   | Conditioned by the Hand (obligation 1/1)    | video 48:13; fan (boost 2)    | video "Forced Response (Hero)" / "Exhaust your identity"; fan "Hero Forced Response" / "Exhaust Elektra Natchios"                                                                                                |
-| 63029   | Aka (nemesis minion 1/5)                    | video 48:11; fan              | video traits Hand. Ninja. (fan: Hand.); SCH 2 ATK 2 HP 4; Quickstrike; boost ability                                                                                                                             |
-| 63030   | The Fist Fits in the Hand (side scheme 2/5) | fan only                      | 3 per player threat, 3 boost icons, a hazard icon                                                                                                                                                                |
-| (63031) | Elektra nemesis 3/5                         | none                          | missing; the fan source skips it, so Hand Blademaster may be 2 copies (3-4/5)                                                                                                                                    |
-| 63032   | Hand Blademaster (minion 4/5)               | fan only                      | SCH 1 ATK 1 HP 3, 1 boost icon                                                                                                                                                                                   |
-| 63033   | Hand Archer (minion 5/5)                    | fan only                      | SCH 1 ATK 1 HP 3, Quickstrike, Ranged, 1 boost icon                                                                                                                                                              |
-| 64028   | Lack of Chi (obligation 1/1)                | video ~1:00, ~45:01; fan      | 2 boost icons; "Then," from the fan text                                                                                                                                                                         |
-| 64029   | Davos (nemesis minion 1/5)                  | video 1:14; fan               | video "Find and tuck the 3 Crane Daughter minions under here" (assembled from two frames); fan "Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos"; SCH 1 ATK 2 HP 5 |
-| 64030   | Steel Serpent (side scheme 2/5)             | fan only                      | 4 per player threat, 2 boost icons, a hazard icon                                                                                                                                                                |
-| 64031   | Crane Daughter x3 (minion 3-5/5)            | fan only; title seen in video | **least certain**: the owner couldn't confirm it. Mystic. SCH 2 ATK 2 HP 3, boost ability                                                                                                                        |
+| 63040   | Conditioned by the Hand (obligation 1/1)    | video 48:13; fan (boost 2)    | video "Forced Response (Hero)" / "Exhaust your identity"; fan "Hero Forced Response" / "Exhaust Elektra Natchios"                                                                                                |
+| 63041   | Aka (nemesis minion 1/5)                    | video 48:11; fan              | video traits Hand. Ninja. (fan: Hand.); SCH 2 ATK 2 HP 4; Quickstrike; boost ability                                                                                                                             |
+| 63042   | The Fist Fits in the Hand (side scheme 2/5) | fan only                      | 3 per player threat, 3 boost icons, a hazard icon                                                                                                                                                                |
+| (63043) | Elektra nemesis 3/5                         | none                          | missing; the fan source skips it, so Hand Blademaster may be 2 copies (3-4/5)                                                                                                                                    |
+| 63044   | Hand Blademaster (minion 4/5)               | fan only                      | SCH 1 ATK 1 HP 3, 1 boost icon                                                                                                                                                                                   |
+| 63045   | Hand Archer (minion 5/5)                    | fan only                      | SCH 1 ATK 1 HP 3, Quickstrike, Ranged, 1 boost icon                                                                                                                                                              |
+| 64034   | Lack of Chi (obligation 1/1)                | video ~1:00, ~45:01; fan      | 2 boost icons; "Then," from the fan text                                                                                                                                                                         |
+| 64035   | Davos (nemesis minion 1/5)                  | video 1:14; fan               | video "Find and tuck the 3 Crane Daughter minions under here" (assembled from two frames); fan "Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos"; SCH 1 ATK 2 HP 5 |
+| 64036   | Steel Serpent (side scheme 2/5)             | fan only                      | 4 per player threat, 2 boost icons, a hazard icon                                                                                                                                                                |
+| 64037   | Crane Daughter x3 (minion 3-5/5)            | fan only; title seen in video | **least certain**: the owner couldn't confirm it. Mystic. SCH 2 ATK 2 HP 3, boost ability                                                                                                                        |
 
 ## 4. Missing
 
 - **Elektra nemesis 3/5** (section 3), and official text for every card in section 3.
-- **Named in previews, no image or text:** Elektra pack: Resurrection Altar, White Tiger, Stealth Mastery, Stone,
-  Double-Cross (a Justice player side scheme) with Backstab, Misdirect and Sabotage, Moondragon, Moon Knight. Iron Fist
-  pack: Embody the Dragon, Keep 'Em Coming (Techniques, probably collector numbers 9 and 11), Defiance, The Night Nurse,
-  Colleen Wing, Punch Reverse Punch, Thunder Dojo, Death by a Thousand Cuts, Zen-Like Calm, Sensei, The Defenders
-  (resource), Iron Fist (ally). Some of these may belong to the other pack; none has a record until its text is known.
-- **Collector numbers not seen:** Elektra 10, 11, 14, 21, 22, 24 to 26 and anything after 27; Iron Fist 9, 11, 14, 15,
-  17, 21, 23, 25 to 27.
+- **Collector numbers not seen:** Elektra 24, 25, 26 and 28 to 33; Iron Fist 26 to 29. The Iron Fist nemesis set is
+  complete (Davos 1/5, Steel Serpent 2/5, Crane Daughter 3-5/5).
 - **Precon decklists** for both packs (Elektra ships an Aggression deck, Iron Fist a Protection deck).
 - **The rules insert** (Ninja deck setup).
-- **Art:** the 38 preview images are small (about 300 px wide, FFG watermark); the video-only cards have none.
+- **Art:** 38 cards have only the small previews (FFG watermark), 23 have full-size spoiler images, and the 10
+  obligation and nemesis cards have none.
 
 ## 5. Rules readings
 
