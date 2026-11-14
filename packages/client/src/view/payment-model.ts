@@ -736,8 +736,9 @@ export function paymentView(
  * each contributing player approves their own contribution before the command is sent).
  *
  * The engine already accepts one command naming every spent card, from any player's hand (`paymentFor`'s own
- * `sources` include another player's hand cards for an alliance card, `packages/engine/src/actions.ts`'s
- * `paymentOptions`) — this module never changes that. What's missing on the client side is consent: a payer could
+ * `sources` include another player's hand cards for an alliance card, and on any payment a card that "can be spent for"
+ * the payer: The Defenders, `iron_fist` 64033, or Everyday Hero, `nova` 28019; `packages/engine/src/actions.ts`'s
+ * `paymentOptions`) — this module never changes that. The same approval covers both kinds of helper. What's missing on the client side is consent: a payer could
  * otherwise spend a teammate's hand card with nothing more than a tap. This is the pure read of "whose cards, and
  * which ones, does the current selection spend" that the approval flow (`scenes/board/controller.ts`'s
  * `#selection.kind === "confirmingAllianceHelp"`) walks through one player at a time before dispatching.
@@ -754,12 +755,6 @@ export interface AllianceHelper {
   readonly instanceIds: readonly InstanceId[];
 }
 
-/**
- * Every other player whose hand card or resource ability the current picks would spend, in seat order (never the
- * payer themselves — they already agreed to their own play by opening it). Empty for an ordinary payment, which is
- * every payment on a card without the alliance keyword, and for an alliance payment that only spends the payer's
- * own cards.
- */
 /** How many resources the player chooses to spend on top of the fixed cost ("spend up to 2", "spend X"), or null. */
 function chosenSpendRange(
   state: GameState,
@@ -786,6 +781,12 @@ export function requiredLabelOf(
   return least === most ? `${most}` : `${least}–${most}`;
 }
 
+/**
+ * Every other player whose hand card or resource ability the current picks would spend, in seat order (never the
+ * payer themselves — they already agreed to their own play by opening it): an alliance card's helpers, and the holder
+ * of a hand card that can be spent for the payer on any payment (The Defenders, Everyday Hero). Empty for a payment
+ * that only spends the payer's own cards.
+ */
 export function allianceHelpersOf(
   state: GameState,
   payerId: PlayerId,

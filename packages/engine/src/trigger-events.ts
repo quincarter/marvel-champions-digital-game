@@ -2118,8 +2118,8 @@ export interface SchemeWouldPlaceThreat {
  * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`). A `removeThreat` that took its scheme
  * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34). An enemy attack that reached its
  * damage step records `totalAtk` (`TOTAL_ATK_RESULT`), and for a hero's basic defense `defenderDef` and
- * `exactlyDefended` (`DEFENDER_DEF_RESULT`, `EXACTLY_DEFENDED_RESULT`). Damage, and the attack it belongs to, records `excessDealt` (the
- * excess of the damage taken) and `excessAsDealt` (of the damage dealt, `EXCESS_AS_DEALT_RESULT`).
+ * `exactlyDefended` (`DEFENDER_DEF_RESULT`, `EXACTLY_DEFENDED_RESULT`). Damage, and the attack it belongs to, records
+ * `excessDealt` (the excess of the damage taken) and `excessAsDealt` (of the damage dealt, `EXCESS_AS_DEALT_RESULT`).
  */
 export type TriggerEvent = TriggerEventBody & {
   readonly results?: Vars;
@@ -2146,8 +2146,9 @@ export const TOTAL_ATK_RESULT = "totalAtk";
  * for a hero's basic defense (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9), every modifier included. Recorded only
  * for a basic defense by a player's identity, the only defense that subtracts DEF; absent (read as 0) for an
  * undefended attack, an ally's defense, a defense made by a "(defense)" ability alone, and an attack that never reached
- * its damage step. Where an effect has the hero use another stat instead (`modifyAttack.defenseUsesAtk`), that stat's
- * value stands in for DEF here (engine reading: no card yet reads both).
+ * its damage step. Where an effect has the hero use another stat instead (`modifyAttack.defenseUsesAtk`, The Best
+ * Defense), that stat's value stands in for DEF here and in `EXACTLY_DEFENDED_RESULT` (with Redirection Mastery: owner
+ * question pending, built to A).
  */
 export const DEFENDER_DEF_RESULT = "defenderDef";
 

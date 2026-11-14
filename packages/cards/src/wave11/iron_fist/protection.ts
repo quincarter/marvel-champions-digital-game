@@ -73,6 +73,14 @@ import { WAVE10_ABILITIES } from "../../wave10/index.js";
  * **64016.demoralize-action**: any enemy, engaged or not, attacks you; then it is confused. Not an attack by you, so
  * no label and no guard.
  *
+ * **64018.redirection-mastery-response**: "you" is the upgrade's controller, whoever's play area it is in, so "you
+ * exactly defend" is that player's hero (`after.exactlyDefends`): a basic defense whose modified DEF equals the attack's
+ * modified ATK, boost icons included, with no prevention or reduction (FFG ruling September 10, 2026 (4)); a "(defense)"
+ * ability alone is no basic defense (October 12, 2026 (4)). The damage is the hero's DEF for that attack
+ * (`defenderDefForAttack`), to the attacking enemy. With The Best Defense (ATK used instead of DEF), the ATK stands in
+ * for "your DEF" both in the comparison and in the damage: owner question pending, built to A. Max 1 per player and
+ * any-player control are data.
+ *
  * **64019.no-time-to-bleed-response**: "After you play a card (including this one)" is `youPlayedCard` for any card
  * (Move in Shadow's shape, fne 60027); the heal is from your identity, so it works in either form. Discount is data;
  * Temporary is the keyword (RRG 1.8 p. 44: discarded when the round ends).

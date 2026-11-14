@@ -51,7 +51,8 @@ const DEFENDER = trait("DEFENDER");
  * **64021.colleen-wing-constant**: a consequential-damage rule on her attack (`takesConsequentialDamage`) whose `if`
  * reads the phase's attack record against the enemy she attacked (`attackedThisPhase(attackTarget())`), in play or
  * defeated by her attack: some attack this phase by a Martial Artist character other than her, its traits as they were
- * when it attacked (a Martial Artist ally since defeated still counts).
+ * when it attacked (a Martial Artist ally since defeated still counts). Reading the trait at attack time rather than
+ * now: owner question pending, built to A.
  *
  * **64022.luke-cage-constant**: Toughness is data. "If your hero shares a Trait with Luke Cage" reads both sides live
  * (`sharesTraitWith`); an alter-ego identity is not "your hero", so there is no bonus (and no DEF to raise).
