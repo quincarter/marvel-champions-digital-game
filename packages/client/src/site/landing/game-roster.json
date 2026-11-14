@@ -1,0 +1,375 @@
+{
+  "heroCount": 67,
+  "scenarioCount": 59,
+  "waves": [
+    {
+      "name": "Core Set",
+      "heroes": [
+        {
+          "name": "Spider-Man",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Captain Marvel",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "She-Hulk",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Iron Man",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Black Panther",
+          "aspects": ["protection"]
+        }
+      ]
+    },
+    {
+      "name": "Wave 1",
+      "heroes": [
+        {
+          "name": "Captain America",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Ms. Marvel",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Thor",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Black Widow",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Doctor Strange",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Hulk",
+          "aspects": ["aggression"]
+        }
+      ]
+    },
+    {
+      "name": "The Rise of Red Skull",
+      "heroes": [
+        {
+          "name": "Hawkeye",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Spider-Woman",
+          "aspects": ["aggression", "justice"]
+        },
+        {
+          "name": "Ant-Man",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Wasp",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Quicksilver",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Scarlet Witch",
+          "aspects": ["justice"]
+        }
+      ]
+    },
+    {
+      "name": "The Galaxy's Most Wanted",
+      "heroes": [
+        {
+          "name": "Groot",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Rocket Raccoon",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Star-Lord",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Gamora",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Drax",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Venom",
+          "aspects": ["justice"]
+        }
+      ]
+    },
+    {
+      "name": "The Mad Titan's Shadow",
+      "heroes": [
+        {
+          "name": "Spectrum",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Adam Warlock",
+          "aspects": ["aggression", "justice", "leadership", "protection"]
+        },
+        {
+          "name": "Nebula",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "War Machine",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Vision",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Valkyrie",
+          "aspects": ["aggression"]
+        }
+      ]
+    },
+    {
+      "name": "Sinister Motives",
+      "heroes": [
+        {
+          "name": "Ghost-Spider",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Nova",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Ironheart",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Spider-Ham",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "SP//dr Suit",
+          "aspects": ["protection"]
+        }
+      ]
+    },
+    {
+      "name": "Mutant Genesis",
+      "heroes": [
+        {
+          "name": "Colossus",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Shadowcat",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Cyclops",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Phoenix",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Wolverine",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Storm",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Gambit",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Rogue",
+          "aspects": ["protection"]
+        }
+      ]
+    },
+    {
+      "name": "NeXt Evolution",
+      "heroes": [
+        {
+          "name": "Cable",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Domino",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Psylocke",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Angel",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "X-23",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Deadpool",
+          "aspects": ["pool"]
+        }
+      ]
+    },
+    {
+      "name": "Age of Apocalypse",
+      "heroes": [
+        {
+          "name": "Bishop",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Magik",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Iceman",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Jubilee",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Nightcrawler",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Magneto",
+          "aspects": ["leadership"]
+        }
+      ]
+    },
+    {
+      "name": "Agents of S.H.I.E.L.D.",
+      "heroes": [
+        {
+          "name": "Maria Hill",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Nick Fury",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Silk",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Falcon",
+          "aspects": ["leadership"]
+        },
+        {
+          "name": "Winter Soldier",
+          "aspects": ["aggression"]
+        }
+      ]
+    },
+    {
+      "name": "Civil War",
+      "heroes": [
+        {
+          "name": "Tigra",
+          "aspects": ["aggression"]
+        },
+        {
+          "name": "Hulkling",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Wonder Man",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Hercules",
+          "aspects": ["leadership"]
+        }
+      ]
+    },
+    {
+      "name": "Fear No Evil",
+      "heroes": [
+        {
+          "name": "Daredevil",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Echo",
+          "aspects": ["protection"]
+        },
+        {
+          "name": "Jessica Jones",
+          "aspects": ["justice"]
+        },
+        {
+          "name": "Luke Cage",
+          "aspects": ["leadership"]
+        }
+      ]
+    }
+  ],
+  "deckAuthors": [
+    "Ademuruiken",
+    "andyr",
+    "AxeUnknown",
+    "BananaBobert",
+    "Brian-V",
+    "CVdantespeak",
+    "Daring Lime",
+    "Doublejefferdy",
+    "dr00",
+    "enzo",
+    "IlEmperatore",
+    "ImpossibleGerman",
+    "jamjams32",
+    "journeyman2",
+    "JRise33",
+    "JuanMC",
+    "Juastin",
+    "KennedyHawk",
+    "KingOfRohan",
+    "L3w15 7",
+    "LeahLorenna",
+    "Mag",
+    "Man-is-Obsolete",
+    "MegiDolaDyne",
+    "MiguelCantillo3",
+    "NelsonAllOver",
+    "NocturnalAnimal",
+    "nungunz",
+    "oxthearsenal",
+    "Raftman",
+    "Remedy",
+    "Saan",
+    "SoloMarvelChampion",
+    "stilonxy",
+    "Thrawn24",
+    "Tzars",
+    "VillainTheory",
+    "Web-Warrior Fanatic",
+    "zachbunn"
+  ]
+}
