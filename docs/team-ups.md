@@ -62,7 +62,7 @@ Team-Up line names both characters exactly as the `teamUp` keyword's `names` car
 | Daredevil and Echo                             | See No Evil, Hear No Evil (60055)   | `fne`             | 11    | `daredevil-echo`                             | in place: splash and badge    |
 | Daredevil and Elektra                          | Dance with the Devil (60031)        | `fne`             | 11    | `daredevil-elektra`                          | none (Elektra not a hero yet) |
 | Jessica Jones and Luke Cage                    | Unbreakable Bond (61027, 62024)     | `jj`, `luke_cage` | 11    | `jessica-jones-luke-cage`                    | none yet                      |
-| Iron Fist and Luke Cage                        | Power Man and Iron Fist (62023)     | `luke_cage`       | 11    | `iron-fist-luke-cage`                        | none (Iron Fist not out yet)  |
+| Iron Fist and Luke Cage                        | Power Man and Iron Fist (62023)     | `luke_cage`       | 11    | `iron-fist-luke-cage`                        | splash (badge cut from it)    |
 
 A pending folder is never read (a leading `_` marks a holding area). When a pair's pictures are moved up they go in the
 folder named in the fifth column, which is computed from the `teamUp` names (`teamUpSlug`), so the two pending folders

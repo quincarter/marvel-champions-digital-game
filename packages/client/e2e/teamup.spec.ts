@@ -380,7 +380,7 @@ test("every art/teamups folder has a splash and a badge that load, and is named 
     expect(row.badge, `${row.folder}/badge loads`).toBeGreaterThan(0);
   }
   // Pairs whose partner is not a playable hero yet have no art to draw (docs/team-ups.md: "none (... not a hero yet)").
-  const AWAITING_PARTNER = new Set(["daredevil-elektra", "iron-fist-luke-cage", "jessica-jones-luke-cage"]);
+  const AWAITING_PARTNER = new Set(["daredevil-elektra", "jessica-jones-luke-cage"]);
   for (const key of AWAITING_PARTNER)
     expect(folders, `"${key}" has no art folder yet; drop it from the list when it does`).not.toContain(key);
   for (const key of result.pairKeys.filter((k) => !AWAITING_PARTNER.has(k))) {
