@@ -2,7 +2,7 @@ export * from "./dsl/index.js";
 export { obligation } from "./core/obligations.js";
 export { abilitiesForCards, builtinPackProblems, defineBuiltinPack, ownScriptsOf } from "./builtin-packs/define.js";
 export type { BuiltinPack, BuiltinPackManifest } from "./builtin-packs/define.js";
-export { BUILTIN_PACKS } from "./builtin-packs/index.js";
+export { BUILTIN_PACKS, NOT_READY_PACK_CODES, isNotReadyCard } from "./builtin-packs/index.js";
 export { WAVE4_BUILTIN_PACKS } from "./wave4/index.js";
 export { WAVE5_BUILTIN_PACKS } from "./wave5/index.js";
 export { WAVE6_BUILTIN_PACKS } from "./wave6/index.js";

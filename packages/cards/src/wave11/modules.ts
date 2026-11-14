@@ -100,6 +100,31 @@ import {
   SHADOWLAND_CREEPING_CORRUPTION_SKIPPED,
 } from "./shadowland/creeping-corruption.js";
 import { SHADOWLAND_BLACK_FLOWER, SHADOWLAND_BLACK_FLOWER_SKIPPED } from "./shadowland/black-flower.js";
+import { ELEKTRA_ELEKTRA_IDENTITY, ELEKTRA_ELEKTRA_IDENTITY_SKIPPED } from "./elektra/elektra/identity.js";
+import { ELEKTRA_ELEKTRA_NINJA_DECK, ELEKTRA_ELEKTRA_NINJA_DECK_SKIPPED } from "./elektra/elektra/ninja-deck.js";
+import { ELEKTRA_ELEKTRA_EVENTS, ELEKTRA_ELEKTRA_EVENTS_SKIPPED } from "./elektra/elektra/events.js";
+import {
+  ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES,
+  ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./elektra/elektra/support-upgrades-allies.js";
+import {
+  ELEKTRA_ELEKTRA_OBLIGATION_NEMESIS,
+  ELEKTRA_ELEKTRA_OBLIGATION_NEMESIS_SKIPPED,
+} from "./elektra/elektra/obligation-nemesis.js";
+import { ELEKTRA_AGGRESSION, ELEKTRA_AGGRESSION_SKIPPED } from "./elektra/aggression.js";
+import { ELEKTRA_BASIC, ELEKTRA_BASIC_SKIPPED } from "./elektra/basic.js";
+import { IRON_FIST_IRON_FIST_IDENTITY, IRON_FIST_IRON_FIST_IDENTITY_SKIPPED } from "./iron_fist/iron-fist/identity.js";
+import { IRON_FIST_IRON_FIST_EVENTS, IRON_FIST_IRON_FIST_EVENTS_SKIPPED } from "./iron_fist/iron-fist/events.js";
+import {
+  IRON_FIST_IRON_FIST_SUPPORT_UPGRADES_ALLIES,
+  IRON_FIST_IRON_FIST_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./iron_fist/iron-fist/support-upgrades-allies.js";
+import {
+  IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS,
+  IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS_SKIPPED,
+} from "./iron_fist/iron-fist/obligation-nemesis.js";
+import { IRON_FIST_PROTECTION, IRON_FIST_PROTECTION_SKIPPED } from "./iron_fist/protection.js";
+import { IRON_FIST_BASIC, IRON_FIST_BASIC_SKIPPED } from "./iron_fist/basic.js";
 
 /** One wave 11 scripting module: its group key in `CARD_GROUPS`, its registry and its skipped refs with reasons. */
 export interface Wave11Module {
@@ -286,6 +311,47 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
     registry: FNE_CAMPAIGN_TYPHOID_MARY_ALLY,
     skipped: FNE_CAMPAIGN_TYPHOID_MARY_ALLY_SKIPPED,
   },
+  { group: "elektra/elektra/identity", registry: ELEKTRA_ELEKTRA_IDENTITY, skipped: ELEKTRA_ELEKTRA_IDENTITY_SKIPPED },
+  {
+    group: "elektra/elektra/ninja-deck",
+    registry: ELEKTRA_ELEKTRA_NINJA_DECK,
+    skipped: ELEKTRA_ELEKTRA_NINJA_DECK_SKIPPED,
+  },
+  { group: "elektra/elektra/events", registry: ELEKTRA_ELEKTRA_EVENTS, skipped: ELEKTRA_ELEKTRA_EVENTS_SKIPPED },
+  {
+    group: "elektra/elektra/support-upgrades-allies",
+    registry: ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES,
+    skipped: ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+  },
+  {
+    group: "elektra/elektra/obligation-nemesis",
+    registry: ELEKTRA_ELEKTRA_OBLIGATION_NEMESIS,
+    skipped: ELEKTRA_ELEKTRA_OBLIGATION_NEMESIS_SKIPPED,
+  },
+  { group: "elektra/aggression", registry: ELEKTRA_AGGRESSION, skipped: ELEKTRA_AGGRESSION_SKIPPED },
+  { group: "elektra/basic", registry: ELEKTRA_BASIC, skipped: ELEKTRA_BASIC_SKIPPED },
+  {
+    group: "iron_fist/iron-fist/identity",
+    registry: IRON_FIST_IRON_FIST_IDENTITY,
+    skipped: IRON_FIST_IRON_FIST_IDENTITY_SKIPPED,
+  },
+  {
+    group: "iron_fist/iron-fist/events",
+    registry: IRON_FIST_IRON_FIST_EVENTS,
+    skipped: IRON_FIST_IRON_FIST_EVENTS_SKIPPED,
+  },
+  {
+    group: "iron_fist/iron-fist/support-upgrades-allies",
+    registry: IRON_FIST_IRON_FIST_SUPPORT_UPGRADES_ALLIES,
+    skipped: IRON_FIST_IRON_FIST_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+  },
+  {
+    group: "iron_fist/iron-fist/obligation-nemesis",
+    registry: IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS,
+    skipped: IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS_SKIPPED,
+  },
+  { group: "iron_fist/protection", registry: IRON_FIST_PROTECTION, skipped: IRON_FIST_PROTECTION_SKIPPED },
+  { group: "iron_fist/basic", registry: IRON_FIST_BASIC, skipped: IRON_FIST_BASIC_SKIPPED },
 ];
 
 /**

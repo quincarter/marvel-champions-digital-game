@@ -7,7 +7,7 @@
  * module
  * agent fills its registry and deletes its own `_SKIPPED` lines; nothing here changes.
  */
-import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS, SHADOWLAND_CARDS } from "@mc/content";
+import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS, SHADOWLAND_CARDS, ELEKTRA_CARDS, IRON_FIST_CARDS } from "@mc/content";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { CARD_GROUPS } from "./card-groups.js";
@@ -15,7 +15,14 @@ import { WAVE11_ABILITIES } from "./index.js";
 import { WAVE11_MODULES } from "./modules.js";
 
 // Fear No Evil: the player half (60001a to 60064) and the encounter half (60065 on).
-const WAVE11_PACK_CARDS = [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS, ...SHADOWLAND_CARDS];
+const WAVE11_PACK_CARDS = [
+  ...JJ_CARDS,
+  ...LUKE_CAGE_CARDS,
+  ...FNE_CARDS,
+  ...SHADOWLAND_CARDS,
+  ...ELEKTRA_CARDS,
+  ...IRON_FIST_CARDS,
+];
 
 describe("wave 11 ability registry", () => {
   it("includes every wave 10 (Core through cycle 10) script, the same definition object", () => {
@@ -37,7 +44,7 @@ describe("wave 11 module ability coverage", () => {
     for (const [id, reason] of Object.entries(m.skipped)) expect(reason.length, `${id} reason`).toBeGreaterThan(20);
   });
 
-  it("every jj, luke_cage, fne and shadowland ability ref resolves, except its documented skips", () => {
+  it("every wave 11 pack ability ref resolves, except its documented skips", () => {
     const refs = WAVE11_PACK_CARDS.flatMap(abilityRefIds);
     const skipped = WAVE11_MODULES.flatMap((m) => Object.keys(m.skipped));
     const missing = refs.filter((id) => !(id in WAVE11_ABILITIES));
@@ -70,6 +77,20 @@ describe("wave 11 ability id coverage", () => {
     ),
     shadowland: joined(
       (import.meta as unknown as ImportMetaGlob).glob("./shadowland/**/*.test.ts", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+      }),
+    ),
+    elektra: joined(
+      (import.meta as unknown as ImportMetaGlob).glob("./elektra/**/*.test.ts", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+      }),
+    ),
+    iron_fist: joined(
+      (import.meta as unknown as ImportMetaGlob).glob("./iron_fist/**/*.test.ts", {
         query: "?raw",
         import: "default",
         eager: true,

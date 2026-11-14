@@ -104,7 +104,7 @@ describe("built-in packs", () => {
       ...["aoa", "iceman", "jubilee", "ncrawler", "magneto"],
       ...["aos", "bp", "silk", "falcon", "winter", "tt"],
       ...["cw", "synthezoid", "wonder_man", "hercules"],
-      ...["shadowland", "jj", "luke_cage", "fne"],
+      ...["shadowland", "jj", "luke_cage", "fne", "elektra", "iron_fist"],
     ]);
   });
 

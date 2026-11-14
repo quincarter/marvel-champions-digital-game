@@ -20,6 +20,8 @@ import type { BuiltinPack } from "../builtin-packs/define.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { FNE_BUILTIN_PACK } from "./fne/pack.js";
 import { JJ_BUILTIN_PACK } from "./jj/pack.js";
+import { ELEKTRA_BUILTIN_PACK } from "./elektra/pack.js";
+import { IRON_FIST_BUILTIN_PACK } from "./iron_fist/pack.js";
 import { LUKE_CAGE_BUILTIN_PACK } from "./luke_cage/pack.js";
 import { SHADOWLAND_BUILTIN_PACK } from "./shadowland/pack.js";
 
@@ -33,6 +35,8 @@ export const WAVE11_BUILTIN_PACKS: readonly BuiltinPack[] = [
   JJ_BUILTIN_PACK,
   LUKE_CAGE_BUILTIN_PACK,
   FNE_BUILTIN_PACK,
+  ELEKTRA_BUILTIN_PACK,
+  IRON_FIST_BUILTIN_PACK,
 ];
 
 /** Every scripted ability in the wave 11 pool: every earlier wave's script, then each wave 11 pack's scripts. */

@@ -21,6 +21,13 @@ export interface BuiltinPackManifest {
   readonly name: string;
   /** The product record from `@mc/content` (cycle, release date). */
   readonly product: Pack;
+  /**
+   * `"not-ready"` for a product whose cards are in the pool but which the game doesn't offer yet: its heroes are kept
+   * out of hero select, the deck builder's identity list and precons, and a deck led by one of them can't be seated
+   * (`NOT_READY_PACK_CODES`). Used while a new pack's cards are still being transcribed or scripted (Elektra and Iron
+   * Fist, docs/phase7-elektra-iron-fist.md). Leave it out for a finished product; deleting it is what releases one.
+   */
+  readonly status?: "not-ready";
 }
 
 /** One built-in product, shaped like the SDK's `PackInput` minus the files a store pack carries. */
