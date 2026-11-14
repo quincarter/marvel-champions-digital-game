@@ -149,6 +149,18 @@ jobs:
           pnpm --filter @mc/client site:build:moved
           echo "dir=packages/client/dist-moved" >> "$GITHUB_OUTPUT"
 
+      # A pull request's preview also carries the two site pages, so they can be checked on a real host before they go
+      # live: the landing page at /_site/landing/ and the moved page at /_site/moved/ (which reads the preview's own
+      # saves). Built with their own base path into the game's dist. Not on main: production gets neither here.
+      - name: Add the site pages to the preview
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          for site in landing moved; do
+            pnpm --filter @mc/client exec vite build --config vite.site.config.ts --mode "$site"               --base "/_site/$site/" --outDir "$GITHUB_WORKSPACE/packages/client/dist/_site/$site" --emptyOutDir
+          done
+
       - name: Deploy
         id: deploy
         # Fork PRs get no secrets, so they build but can't deploy.
@@ -184,7 +196,7 @@ jobs:
           language=""
           if [ "${MC_CARD_LANG:-en}" = "es" ]; then language=", Spanish card art"; fi
           body="$marker
-          **Netlify preview:** $URL (built from ${COMMIT_REF:0:7}${language})"
+          **Netlify preview:** $URL (built from ${COMMIT_REF:0:7}${language}) · site pages: [landing]($URL/_site/landing/), [we have moved]($URL/_site/moved/)"
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
           if [ -n "$id" ]; then
