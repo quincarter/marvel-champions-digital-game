@@ -147,8 +147,9 @@ const STAR_BOOST = boost("star");
 const FIXED_BOOST = boost("fixed", true);
 
 const TWO = stubTreachery({ id: "two", boostIcons: 2 });
-const STAR = stubTreachery({ id: "star", boostIcons: 1, abilities: [STAR_BOOST.ref] });
-const FIXED = stubTreachery({ id: "fixed", boostIcons: 1, abilities: [FIXED_BOOST.ref] });
+// Each prints its Boost (the boost-area star, card data; `printsBoostAbility`).
+const STAR = stubTreachery({ id: "star", boostIcons: 1, starIcon: true, abilities: [STAR_BOOST.ref] });
+const FIXED = stubTreachery({ id: "fixed", boostIcons: 1, starIcon: true, abilities: [FIXED_BOOST.ref] });
 const GOON = stubMinion({ id: "goon", atk: 1, sch: 1, hp: 9, boostIcons: 0, keywords: [{ name: "villainous" }] });
 /** A side scheme with no text and one amplify icon. */
 const VENDETTA: SideSchemeCard = { ...stubSideScheme({ id: "vendetta", startingThreat: 2 }), amplifyIcons: 1 };

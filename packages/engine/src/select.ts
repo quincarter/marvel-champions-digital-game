@@ -4469,12 +4469,12 @@ export function gainedAbilities(
 
 /**
  * Whether a boost card has a "Boost" ability, printed or gained as a boost card (`gainedBoostAbilities`): what "cancel
- * its 'Boost' ability" needs to find (Killer Instinct 63001a; Target Acquired 08024).
+ * its 'Boost' ability" needs to find (Killer Instinct 63001a; Target Acquired 08024; Wraith 22012). The printed one is
+ * read from card data (`printsBoostAbility`: the boost-area star, RRG 1.8 "Boost, Boost Icon", p. 11), never from the
+ * ability registry, so a Boost not scripted yet still counts.
  */
 export function hasBoostAbility(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
-  const card = cardOf(state, id);
-  if (!card) return false;
-  if (printedAbilityRefs(card).some((ref) => deps.abilities[ref.id]?.trigger.kind === "boost")) return true;
+  if (printsBoostAbility(state, id)) return true;
   return gainedBoostAbilities(state, deps, id).length > 0;
 }
 

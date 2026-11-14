@@ -45,17 +45,11 @@ import {
   isMinion,
   maxHitPoints,
   mustInstance,
+  printsBoostAbility,
 } from "./query.js";
 import { defendsWithoutExhausting } from "./rules.js";
 import { heldBoostCardsOf, villainousFriendlyCharacter } from "./resolve/villainous.js";
-import {
-  cardsInPlay,
-  categoriesOf,
-  characterIgnores,
-  controllerOf,
-  gainedBoostAbilities,
-  printedAbilityRefs,
-} from "./select.js";
+import { cardsInPlay, categoriesOf, characterIgnores, controllerOf, gainedBoostAbilities } from "./select.js";
 import type { StackFrame, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
 
@@ -212,9 +206,8 @@ export interface DefendOptionPreview {
 }
 
 const hasBoostAbility = (state: GameState, deps: EngineDeps, id: InstanceId): boolean => {
-  const card = cardOf(state, id);
-  if (!card) return false;
-  if (printedAbilityRefs(card).some((ref) => deps.abilities[ref.id]?.trigger.kind === "boost")) return true;
+  // The printed one from card data, as `select.ts` `hasBoostAbility` reads it (`printsBoostAbility`).
+  if (printsBoostAbility(state, id)) return true;
   // A Boost it would gain as a boost card ("Each boost card from the Purple Man encounter set gains …", §S3.6 of
   // docs/phase7-wave11-scenarios.md), read as if it were one: the pool's cards are in a deck or still facedown.
   return gainedBoostAbilities(state, deps, id, { asBoostCard: true }).length > 0;

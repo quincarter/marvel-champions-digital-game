@@ -181,7 +181,8 @@ test("a wider scope is a looser bound over the same attack, never a tighter one"
  */
 test("a Boost ability in the pool is reported, and never raises the damage bound", () => {
   const boostAbility = stubAbility("star", { trigger: { kind: "boost" }, effects: [] });
-  const STAR = stubTreachery({ id: "star", boostIcons: 0, abilities: [boostAbility.ref] });
+  // A printed Boost: the boost-area star is card data (`printsBoostAbility`).
+  const STAR = stubTreachery({ id: "star", boostIcons: 0, starIcon: true, abilities: [boostAbility.ref] });
   const withStar = atDefense({
     extraCards: [STAR],
     abilities: [boostAbility],
@@ -212,7 +213,11 @@ test("a Boost the pool's cards would gain as boost cards is reported (Purple Man
     effects: [],
   });
   const purple = stubVillain({ id: "villain", stages: [{ hp: flat(200), atk: 4, sch: 1, abilities: [grant.ref] }] });
-  const SET_CARD = stubTreachery({ id: "pm-card", encounterSetIds: ["pm-set"], boostIcons: 1, starIcon: true });
+  // Its star stands for the Boost the villain grants (`boostGrantedBy`), not one of its own.
+  const SET_CARD = {
+    ...stubTreachery({ id: "pm-card", encounterSetIds: ["pm-set"], boostIcons: 1, starIcon: true }),
+    boostGrantedBy: [purple.id],
+  };
   const OUTSIDER = stubTreachery({ id: "outsider", encounterSetIds: ["other-set"], boostIcons: 1 });
   const setDeck = Array.from({ length: 24 }, () => SET_CARD.id);
   const outsiderDeck = Array.from({ length: 24 }, () => OUTSIDER.id);

@@ -13,6 +13,7 @@ import {
   playerOf,
   runWith,
   settle,
+  stackEncounterDeck,
   toHero,
   type Picker,
 } from "../../testing/harness.js";
@@ -181,7 +182,10 @@ describe("Eros (ally, 22011)", () => {
 
 describe("Wraith (ally, 22012)", () => {
   it("22012.wraith-interrupt: exhausts Wraith and deals 1 damage to him to cancel a boost card's Boost effect", () => {
-    const hero = runWith(WAVE4_DEPS, nebulaVsRhino(2), toHero());
+    // Rhino's boost card must have a "Boost" ability to cancel, or the cancel has no target and Wraith is not offered
+    // (RRG 1.8 "Target", p. 42; "Cost", p. 13): Under Attack's Concussive Blast (01154, a printed star) on top.
+    const game = startWave4Game(nebulaScenario("rhino", { seed: 2, modularSetIds: ["under_attack"] }));
+    const hero = runWith(WAVE4_DEPS, stackEncounterDeck(game, "01154"), toHero());
     const { state: withWraith, id: wraith } = playFromHand(hero, "22012", 3);
     // A boost card is drawn for the *villain's own* activation (RRG 1.8 "Boost", p. 11), not for a player's attack
     // against it — so this test needs the villain phase's own attack, not `basicAttack` the other way around.

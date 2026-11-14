@@ -31,6 +31,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { stackSetAside } from "../../testing/staging.js";
 import { engageMinion } from "../../wave3/drax/support.js";
 import { WAVE4_DEPS } from "../index.js";
 import { wave4Scenario } from "../setup.js";
@@ -231,7 +232,9 @@ describe("Nebula justice cards, from Spider-Man (Justice)'s own deck", () => {
     const { state: opened, id: wraith } = openHandFor("22012", SPIDER_MAN);
     const pay = filler(opened, costOf("22012"), [wraith]);
     const inPlay = playCard(pay.state, wraith, pay.ids);
-    const after = villainPhase(inPlay, accepting("22012.wraith-interrupt"));
+    // Rhino's boost card must have a "Boost" ability to cancel, or the cancel has no target and Wraith is not offered
+    // (RRG 1.8 "Target", p. 42; "Cost", p. 13): Vulture's Sweeping Swoop (01168, a printed star), from the nemesis set.
+    const after = villainPhase(stackSetAside(inPlay, "01168"), accepting("22012.wraith-interrupt"), "01168");
     expect(inst(after, wraith).exhausted).toBe(true);
     expect(inst(after, wraith).damage).toBe(1);
     // Control: declining leaves Wraith untouched.
