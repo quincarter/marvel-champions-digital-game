@@ -519,6 +519,8 @@ export {
   TAKEN_AWAY_SUFFIX,
   COUNTED_AWAY_SUFFIX,
   TOTAL_ATK_RESULT,
+  DEFENDER_DEF_RESULT,
+  EXACTLY_DEFENDED_RESULT,
 } from "./trigger-events.js";
 
 export type {

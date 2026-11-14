@@ -2117,7 +2117,8 @@ export interface SchemeWouldPlaceThreat {
  * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
  * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`). A `removeThreat` that took its scheme
  * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34). An enemy attack that reached its
- * damage step records `totalAtk` (`TOTAL_ATK_RESULT`). Damage, and the attack it belongs to, records `excessDealt` (the
+ * damage step records `totalAtk` (`TOTAL_ATK_RESULT`), and for a hero's basic defense `defenderDef` and
+ * `exactlyDefended` (`DEFENDER_DEF_RESULT`, `EXACTLY_DEFENDED_RESULT`). Damage, and the attack it belongs to, records `excessDealt` (the
  * excess of the damage taken) and `excessAsDealt` (of the damage dealt, `EXCESS_AS_DEALT_RESULT`).
  */
 export type TriggerEvent = TriggerEventBody & {
@@ -2138,6 +2139,29 @@ export type TriggerEvent = TriggerEventBody & {
  * cancelled attack. The result `damage` is what the attack then dealt.
  */
 export const TOTAL_ATK_RESULT = "totalAtk";
+
+/**
+ * The result key an enemy attack records its defending hero's DEF for that attack under (Redirection Mastery, `iron_fist`
+ * 64018: "deal damage to the attacker equal to your DEF for that attack"): the stat the attack's damage step subtracted
+ * for a hero's basic defense (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9), every modifier included. Recorded only
+ * for a basic defense by a player's identity, the only defense that subtracts DEF; absent (read as 0) for an
+ * undefended attack, an ally's defense, a defense made by a "(defense)" ability alone, and an attack that never reached
+ * its damage step. Where an effect has the hero use another stat instead (`modifyAttack.defenseUsesAtk`), that stat's
+ * value stands in for DEF here (engine reading: no card yet reads both).
+ */
+export const DEFENDER_DEF_RESULT = "defenderDef";
+
+/**
+ * The result key (1) an enemy attack records when its defender **exactly defended** it: a hero's basic defense whose
+ * DEF for that attack (`DEFENDER_DEF_RESULT`) equals the attack's total ATK (`TOTAL_ATK_RESULT`: modifiers, "+N ATK for
+ * this attack" and boost icons included). FFG ruling September 10, 2026 (4): "the defender's modified DEF must equal
+ * the attacker's modified ATK for that attack; damage prevention/reduction effects cannot be used to meet this
+ * requirement". The comparison is DEF against ATK at the damage step, before any damage exists to prevent or reduce,
+ * so a prevention or reduction can never make it hold. A basic defense is required: an identity made the defender only
+ * by a "(defense)" ability (an event alone) does not exactly defend (FFG ruling October 12, 2026 (4)). Absent (read as
+ * 0) otherwise. Read on the `defended` response, which carries the attack's results (`after.exactlyDefends`).
+ */
+export const EXACTLY_DEFENDED_RESULT = "exactlyDefended";
 
 /**
  * The result key an attack records "the damage dealt by this attack" under: every point of damage it dealt to the

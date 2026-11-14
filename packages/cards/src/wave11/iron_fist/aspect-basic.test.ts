@@ -58,6 +58,7 @@ const BYSTANDER = "64013";
 const DEMORALIZE = "64016";
 const BLEED = "64019";
 const TONFA = "64020";
+const REDIRECTION = "64018";
 const LUKE_CAGE = "64022";
 const PUNCH = "64023";
 const DOJO = "64025";
@@ -71,6 +72,7 @@ const SCRIPTED = {
     "64015.defiance-interrupt",
     "64016.demoralize-action",
     "64017.the-night-nurse-action",
+    "64018.redirection-mastery-response",
     "64019.no-time-to-bleed-response",
     "64020.tonfa-interrupt",
   ],
@@ -159,10 +161,7 @@ describe("registries", () => {
       expect(Object.keys(registry).sort(), name).toEqual([...SCRIPTED[name as keyof typeof SCRIPTED]].sort());
       for (const id of Object.keys(registry)) expect(validateDefinition(registry[id]!), id).toEqual([]);
     }
-    expect(Object.keys(IRON_FIST_PROTECTION_SKIPPED).sort()).toEqual([
-      "64014.iron-fist-response",
-      "64018.redirection-mastery-response",
-    ]);
+    expect(Object.keys(IRON_FIST_PROTECTION_SKIPPED).sort()).toEqual(["64014.iron-fist-response"]);
     expect(Object.keys(IRON_FIST_BASIC_SKIPPED).sort()).toEqual([
       "64021.colleen-wing-constant",
       "64033.the-defenders-constant",
@@ -292,6 +291,41 @@ describe("64020 Tonfa", () => {
     const taken = attacked("Retaliate 1 for this attack");
     expect(inst(taken.state, taken.id).exhausted).toBe(true);
     expect(damageOf(taken.state, taken.villain)).toBe(damageOf(declined.state, declined.villain) + 1);
+  });
+});
+
+describe("64018 Redirection Mastery", () => {
+  const REF = "64018.redirection-mastery-response";
+  /**
+   * Black Panther (DEF 2, retaliate 1) with Redirection Mastery in play; Rhino (ATK 2) attacks with `boost` on top. The
+   * villain's damage is compared with the same attack where the response is declined, so retaliate cancels out.
+   */
+  const attacked = (opts: { boost?: string; defend: boolean }) => {
+    const { state } = coreGame(REDIRECTION, PROTECTION_HERO);
+    const boosted = opts.boost ? stackEncounterDeck(state, opts.boost) : state;
+    const staged = inPlay(boosted, REDIRECTION);
+    const hero = identityOf(staged.state, P1);
+    const villain = villainOf(staged.state);
+    const defender = opts.defend ? [hero as string] : [];
+    const taken = villainPhase(staged.state, taking(...defender, REF));
+    const declined = villainPhase(staged.state, taking(...defender));
+    return { hero, taken, extra: damageOf(taken, villain) - damageOf(declined, villain) };
+  };
+
+  it("after your hero exactly defends (DEF 2 against ATK 2, boost 0), deals 2 damage to the attacker", () => {
+    const { taken, hero, extra } = attacked({ defend: true });
+    expect(damageOf(taken, hero)).toBe(0);
+    expect(extra).toBe(2);
+  });
+
+  it("not when the boost icons make the ATK more than your DEF (Sandman, 2 icons: ATK 4)", () => {
+    const { taken, hero, extra } = attacked({ boost: "01102", defend: true });
+    expect(damageOf(taken, hero)).toBe(2);
+    expect(extra).toBe(0);
+  });
+
+  it("not for an undefended attack", () => {
+    expect(attacked({ defend: false }).extra).toBe(0);
   });
 });
 

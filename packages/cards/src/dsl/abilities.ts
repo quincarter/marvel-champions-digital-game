@@ -41,7 +41,7 @@ import type {
   TypedResource,
   ZoneId,
 } from "@mc/engine";
-import { GRANTED_BY_SLOT, POD_MOMENT } from "@mc/engine";
+import { EXACTLY_DEFENDED_RESULT, GRANTED_BY_SLOT, POD_MOMENT } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
 import { amount, eachPlayer, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
@@ -3475,6 +3475,14 @@ export const on = {
    */
   defends: (defender: TargetQuery, opts: { readonly takingNoDamage?: boolean } = {}): EventPattern =>
     pattern("defended", { targetIs: defender }, opts.takingNoDamage ? { resultsAtMost: { damage: 0 } } : {}),
+  /**
+   * "After you **exactly defend** an attack" (Redirection Mastery, `iron_fist` 64018): `defends`, for a hero's basic
+   * defense whose DEF for that attack equaled the attack's modified ATK (engine `EXACTLY_DEFENDED_RESULT`; FFG rulings
+   * September 10, 2026 (4) and October 12, 2026 (4): no prevention or reduction counts, and a "(defense)" event alone
+   * is no basic defense). "Your DEF for that attack" is `defenderDefForAttack`.
+   */
+  exactlyDefends: (defender: TargetQuery): EventPattern =>
+    pattern("defended", { targetIs: defender, requireResults: { [EXACTLY_DEFENDED_RESULT]: 1 } }),
   /** "After X enters play". */
   entersPlay: (what: Who): EventPattern => pattern("cardEntersPlay", asTarget(what)),
   /** "After you play [this card]" — playing, not merely putting into play. */

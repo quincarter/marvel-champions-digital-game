@@ -6,8 +6,11 @@ import {
   chosen,
   confuse,
   constant,
+  dealDamage,
+  defenderDefForAttack,
   defineAbilities,
   enemyAttack,
+  eventSource,
   exhaustThis,
   forcedInterrupt,
   gainKeywordUntil,
@@ -15,6 +18,7 @@ import {
   heal,
   heroAction,
   heroInterrupt,
+  heroResponse,
   modifyAttack,
   modifyStat,
   on,
@@ -82,6 +86,11 @@ export const IRON_FIST_PROTECTION: AbilityRegistry = defineAbilities({
 
   "64017.the-night-nurse-action": WAVE10_ABILITIES["09019.the-night-nurse-action"]!,
 
+  "64018.redirection-mastery-response": heroResponse(
+    after.exactlyDefends(YOUR_HERO),
+    dealDamage(defenderDefForAttack, eventSource),
+  ),
+
   "64019.no-time-to-bleed-response": response(after.youPlayedCard(query([])), heal(1, yourIdentity)),
 
   "64020.tonfa-interrupt": heroInterrupt(
@@ -101,6 +110,4 @@ export const IRON_FIST_PROTECTION: AbilityRegistry = defineAbilities({
 export const IRON_FIST_PROTECTION_SKIPPED: Readonly<Record<string, string>> = {
   "64014.iron-fist-response":
     "needs engine primitive: 'an enemy who has been attacked by a hero this phase' (no per-enemy record of who attacked it this phase), and an exactly-defeat consequential-damage scope for -2 consequential damage",
-  "64018.redirection-mastery-response":
-    "needs engine primitive: 'exactly defend' (the defender's modified DEF equals the attacker's modified ATK, no prevention or reduction, by a basic defense; rulings Sep 10, 2026 R4 and Oct 12, 2026 R4) and the defender's DEF for that attack as a value",
 };

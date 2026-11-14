@@ -2,6 +2,7 @@ import { cardId, trait, type Trait, type VillainSideLetter } from "@mc/content";
 import {
   ATTACK_DAMAGE_RESULT,
   attackPreventedVars,
+  DEFENDER_DEF_RESULT,
   labeledResolvedVar,
   PAID_CARDS_SLOT,
   PAID_FOR_SLOT,
@@ -880,6 +881,12 @@ export const eventResult = (key: string, of?: TargetRef): ValueSpec =>
  * `enemyAttacks` response; `eventResult("damage")` is what the attack dealt after DEF.
  */
 export const attackTotalAtk: ValueSpec = eventResult(TOTAL_ATK_RESULT);
+/**
+ * "Your DEF for that attack" (Redirection Mastery, `iron_fist` 64018): the defending hero's DEF the enemy attack's
+ * damage step subtracted for a basic defense, every modifier included (engine `DEFENDER_DEF_RESULT`). Read on a
+ * `defends` / `exactlyDefends` response; 0 for an attack no hero basically defended.
+ */
+export const defenderDefForAttack: ValueSpec = eventResult(DEFENDER_DEF_RESULT);
 /**
  * "For each point of excess damage dealt to that enemy by that attack", for a card ruled to count the damage **dealt**.
  * No card reads it now: Prince of Power (`hercules` 59017), which did under February 8, 2026 - Ruling 2 and owner answer

@@ -71,7 +71,13 @@ import {
 } from "../select.js";
 import { type BoostInProgress, defendedActivationFrameId, type Vars } from "../stack.js";
 import type { BoostGiven, GameState, ZoneId } from "../state.js";
-import { type SchemeThreatDivert, TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
+import {
+  DEFENDER_DEF_RESULT,
+  EXACTLY_DEFENDED_RESULT,
+  type SchemeThreatDivert,
+  TOTAL_ATK_RESULT,
+  type TriggerEvent,
+} from "../trigger-events.js";
 import {
   addFrameSlots,
   addFrameVars,
@@ -1779,7 +1785,21 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // "His total ATK for that attack" (docs/phase7-wave8.md §3.81): the enemy's ATK as this attack reads it, "+N ATK
       // for this attack" and the boost icons counted included, before any defense (RRG 1.8 "Attack (Enemy Activation)"
       // step 4, p. 9). The attack event's result `totalAtk`; `damage` is what the attack then dealt.
-      addFrameVars(ctx, frame.eventFrameId, { [TOTAL_ATK_RESULT]: planned.baseAtk + frame.boostIcons });
+      const totalAtk = planned.baseAtk + frame.boostIcons;
+      addFrameVars(ctx, frame.eventFrameId, { [TOTAL_ATK_RESULT]: totalAtk });
+      // "Your DEF for that attack" and "after you exactly defend an attack" (`DEFENDER_DEF_RESULT`,
+      // `EXACTLY_DEFENDED_RESULT`): a hero's basic defense only, the defense whose DEF this step subtracts.
+      const defender = frame.defenderInstanceId;
+      if (
+        frame.basicDefense &&
+        defender !== null &&
+        ctx.state.players.some((p) => p.identity.instanceId === defender)
+      ) {
+        addFrameVars(ctx, frame.eventFrameId, {
+          [DEFENDER_DEF_RESULT]: planned.defenseReduction,
+          ...(planned.defenseReduction === totalAtk ? { [EXACTLY_DEFENDED_RESULT]: 1 } : {}),
+        });
+      }
       const vars = activationVars(ctx, frame.eventFrameId);
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
       // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic
