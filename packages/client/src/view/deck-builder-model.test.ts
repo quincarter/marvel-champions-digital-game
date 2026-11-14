@@ -49,6 +49,14 @@ const SPIDER_MAN_SIGNATURE = [
 ];
 
 describe("identityOptions", () => {
+  test("a hero from a not-ready pack (Elektra, Iron Fist) is never offered", () => {
+    expect(POOL_CARDS.some((c) => (c.id as string) === "63001a")).toBe(true);
+    const ids = identityOptions(POOL_CARDS).map((c) => c.id as string);
+    expect(ids).not.toContain("63001a");
+    expect(ids).not.toContain("64001a");
+    expect(ids).toContain("01001a");
+  });
+
   test("every Core hero identity is present, sorted by name", () => {
     const names = identityOptions(CORE_CARDS).map((c) => c.name);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));

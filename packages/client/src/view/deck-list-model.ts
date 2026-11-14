@@ -11,6 +11,7 @@
  */
 import { deckFromStarterDeck, type AnyCard, type CardId, type Deck, type StarterDeck } from "@mc/content";
 import { unscriptedCards, validateDeck, type CardPool, type DeckProblem, type EngineDeps } from "@mc/engine";
+import { NOT_READY_PACK_CODES } from "@mc/cards";
 import { POOL_VERSION, currentStarterDecks } from "../content/pool.js";
 import { qualifiedHeroName } from "./hero-names.js";
 
@@ -146,6 +147,16 @@ function checkDeck(deck: Deck, pool: CardPool, currentPoolVersion: string, deps:
   return { ...verdictOf(deck, pool, currentPoolVersion, deps), deck };
 }
 
+/** The short verdict for a deck whose hero's pack is not finished. */
+export const NOT_READY_REASON = "Not ready yet";
+
+function leadsNotReadyHero(deck: Deck, pool: CardPool): boolean {
+  const identityCard = Array.isArray(pool)
+    ? pool.find((c) => c.id === deck.identityCardId)
+    : (pool as Record<string, AnyCard>)[deck.identityCardId as string];
+  return identityCard !== undefined && NOT_READY_PACK_CODES.has(identityCard.setCode);
+}
+
 /** Everything `deckOptionOf` reports about a deck except the deck itself (which is the same object the caller already holds). */
 export function verdictOf(deck: Deck, pool: CardPool, currentPoolVersion: string, deps: EngineDeps): DeckVerdict {
   const verdict = validateDeck(deck, pool);
@@ -155,8 +166,14 @@ export function verdictOf(deck: Deck, pool: CardPool, currentPoolVersion: string
   const poolChanged = deck.poolVersion !== currentPoolVersion;
   // Legal is the only thing that blocks a seat now — a missing card script is a warning, not a wall (PLAN.md
   // Phase 7 wave 1 client wiring: "seatable with a visible warning that names the cards").
-  const seatable = legal;
-  const blockedReason = legal ? null : (problems[0]?.message ?? "This deck is not legal.");
+  // A deck led by a hero from a not-ready pack (`NOT_READY_PACK_CODES`) is never seatable, legal or not.
+  const notReady = leadsNotReadyHero(deck, pool);
+  const seatable = legal && !notReady;
+  const blockedReason = notReady
+    ? NOT_READY_REASON
+    : legal
+      ? null
+      : (problems[0]?.message ?? "This deck is not legal.");
   const warning = unscriptedMessage(unscripted, pool);
 
   const identityName = identityNameOf(deck, pool);
