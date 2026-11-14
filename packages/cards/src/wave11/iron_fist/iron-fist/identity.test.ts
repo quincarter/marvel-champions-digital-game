@@ -153,6 +153,18 @@ describe(`${MEDITATION}: search deck and discard for a Technique and put it into
     expect(playerOf(after, P1).discard).not.toContain(id);
   });
 
+  it("offers no choose-none when a Technique exists: the pick is forced to one", () => {
+    const deckState = withTopOfDeck(ironFistGame("alterEgo"), CHANNEL);
+    let offered: { min: number; max: number } | undefined;
+    meditate(deckState, (s) => {
+      const c = s.pendingChoice!;
+      if (c.options.some((o) => o.ref.kind === "card" && codes(s, [o.ref.instanceId])[0] === CHANNEL))
+        offered = { min: c.minSelections, max: c.maxSelections };
+      return firstLegal(s);
+    });
+    expect(offered).toEqual({ min: 1, max: 1 });
+  });
+
   it("is limited to once per phase", () => {
     const base = ironFistGame("alterEgo");
     const given = moveToHand(base, P1, CHANNEL);

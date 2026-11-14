@@ -51,8 +51,8 @@ const YOUR_TECHNIQUES = query([], { controller: "you", trait: TECHNIQUE });
  * round once he has flipped to Iron Fist.
  *
  * **64001b.meditation**: "Search your deck and discard pile for a Technique card. Put that card into play. (Limit
- * once per phase.)" The pick is mandatory when a Technique exists, as the other search-and-put cards (Agent Coulson, Mystical Studies); the deck is shuffled afterwards (RRG 1.8 "Search",
- * p. 39). Put into play, so it is not played and gives no chi.
+ * once per phase.)" The pick is mandatory when a Technique exists, as the other search-and-put cards (Agent Coulson,
+ * Mystical Studies); the deck is shuffled afterwards (RRG 1.8 "Search", p. 39). Put into play, so it is not played and gives no chi.
  */
 export const IRON_FIST_IRON_FIST_IDENTITY: AbilityRegistry = defineAbilities({
   "64001a.martial-arts-master": response(after.youPlayedCard(query([])), placeChi(1)),

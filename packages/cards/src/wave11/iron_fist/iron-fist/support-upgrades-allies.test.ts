@@ -106,6 +106,7 @@ describe(`${BOOK}: put the top discard card into play if it is a Technique`, () 
     const { state, id } = bookGame("64009", "64004");
     const { state: after } = drive(state, use(P1, id, BOOK));
     expect(attached(after, "64009")).toBe(false);
+    expect(inst(after, id).exhausted).toBe(true); // the cost is paid either way
   });
 });
 
@@ -122,13 +123,13 @@ describe(`${CHANNEL}: remove 1 chi when you attack to add 1 damage (2 if basic)`
     expect(chiOf(after)).toBe(2);
     expect(inst(after, villainOf(after)).damage).toBe(4);
   });
-  it("an event attack (Fists of Fury, 1 damage to the villain) deals 1 more", () => {
+  it("an event attack (Fists of Fury) deals 1 more per instance", () => {
     const up = withUpgradeInPlay(withChi(ironFistGame(), 3), "64008");
     const s = staged(up.state, "64004", 1);
     const { state: after } = drive(s.state, s.command, takeAbility(CHANNEL, pickCard(villainOf(s.state))));
     expect(chiOf(after)).toBe(2);
-    // three 1-damage instructions, the first (the attack) increased by 1 in all
-    expect(inst(after, villainOf(after)).damage).toBeGreaterThanOrEqual(4);
+    // Each of the three 1-damage instances of the one attack gets +1 (RRG 1.8 p. 10; owner ruling Q53): 3 x 2.
+    expect(inst(after, villainOf(after)).damage).toBe(6);
   });
   it("is optional", () => {
     const up = withUpgradeInPlay(withChi(ironFistGame(), 3), "64008");
