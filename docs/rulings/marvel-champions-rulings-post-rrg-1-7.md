@@ -1,10 +1,10 @@
 # Marvel Champions LCG: Latest FFG Rulings (Post-RRG 1.7 & 1.8)
 
 > **Source:** [Hall of Heroes](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/)  
-> **Coverage:** Official FFG rulings from December 17, 2025 through October 9, 2026 (post-RRG 1.7 & 1.8), 83 rulings.  
+> **Coverage:** Official FFG rulings from December 17, 2025 through October 12, 2026 (post-RRG 1.7 & 1.8), 88 rulings.  
 > **Rulings Specialist:** Alex Werner, FFG Game Rules Specialist.  
 > **Contact / Submissions:** `hallofheroescontact(at)gmail.com`  
-> **Regenerated:** 2026-10-20, by script from the live page. Each ruling's question and answer text is the page's own, converted to Markdown and not edited; Hall of Heroes is the transcriber, not the authority (CLAUDE.md, rules authority order).  
+> **Regenerated:** 2026-11-14, by script from the live page. Each ruling's question and answer text is the page's own, converted to Markdown and not edited; Hall of Heroes is the transcriber, not the authority (CLAUDE.md, rules authority order).  
 > **Headings:** each ruling is headed by the date on its signature line and numbered in page order within that date (the two February 20, 2026 rulings keep the numbers 3 and 4 that the repo already cites). Cite a ruling by its heading, e.g. "January 17, 2026 - Ruling 3".  
 > **Regenerate:** `uv run scripts/scrape_rulings_markdown.py --target newer` (do not edit by hand).
 
@@ -126,6 +126,11 @@ If you have a verifiable answer from FFG for this page, email us at hallofheroes
   - [September 25, 2026 - Ruling 2](#september-25-2026---ruling-2): Regarding the change in 1.7 on uniqueness and the outcomes when you reveal Shadow of the past. The rule says …
 - [October, 2026](#october-2026)
   - [October 9, 2026 - Ruling 1](#october-9-2026---ruling-1): The Rogue Hero and the Rogue Protection Ally have nearly identical text regarding gaining traits until the …
+  - [October 12, 2026 - Ruling 1](#october-12-2026---ruling-1): In a previous answer you said: “If Elektra defends an enemy attack, she will be given a boost card when she’s …
+  - [October 12, 2026 - Ruling 2](#october-12-2026---ruling-2): In a previous answer you said: “If Elektra has a boost card while in Alter-Ego form and makes a basic …
+  - [October 12, 2026 - Ruling 3](#october-12-2026---ruling-3): If I defeat a minion using “Coup de Grâce”, since no excess damage are dealt, is the minion exactly defeated? …
+  - [October 12, 2026 - Ruling 4](#october-12-2026---ruling-4): I’m wondering if a basic defense required to exactly defend; let’s take an example: “Redirection Mastery” is …
+  - [October 12, 2026 - Ruling 5](#october-12-2026---ruling-5): I have some questions regarding Rules Reference 1.8. 1.Is to a maximum \[game element\] of X only applicable to …
 
 ---
 
@@ -1337,3 +1342,62 @@ The rules for lasting effects state that they update whenever the game state upd
 If a Rogue targeted a character whose traits changed, or THW/ATK changed, the Rogue targeting them would reflect those changes; and if the targeted character left play, the Rogue targeting them would no longer have the gained attributes.
 
 **-Alex – October 9, 2026**
+
+---
+
+### October 12, 2026 - Ruling 1
+
+> In a previous answer you said: “If Elektra defends an enemy attack, she will be given a boost card when she’s declared defender, and then she will turn that boost card faceup during the same step that the villain’s boost cards are turned faceup. (Resolving boost cards this way can be done in any order.)” But the RRG1.8 specifies under “ATTACK (ENEMY ACTIVATION)”: 3. Flip boost cards: Flip and resolve each of the attacking enemy’s boost cards, one at a time and in the order in which they were dealt. So, I don’t get the order of resolution of boost cards: – can I resolve Elektra’s boost cards before the villain boost cards? – can I choose the order of resolution of Elektra’s boost cards? – can I choose the order of resolution of the villain’s boost cards? – can I resolve Elektra’s an d the villain’s boost card in any order?
+
+It’s still the case that the villain’s boost cards are resolved in the order in which they were dealt to the villain. The variable order was meant to apply to whether you resolved all of the villain’s boost cards first, or all of Elektra’s boost cards first; you can choose to resolve either character’s boost cards first, and when you do, resolve all of their boost cards in the order those cards were dealt. Ensure that all boost cards are resolved before moving on to step 4 of the attack.
+
+**-Alex – October 12, 2026**
+
+---
+
+### October 12, 2026 - Ruling 2
+
+> In a previous answer you said: “If Elektra has a boost card while in Alter-Ego form and makes a basic recovery, she resolves that boost card for that activation.” Boost abilities of cards from the Ninja deck refers to Elektra (the hero title) and not to Elektra Natchios (the alter-ego title). I guess the intent is to refer to both Elektra/Elektra Natchios, but maybe I’m wrong and only the hero form is the target. So how is resolved a boost card from the ninja deck when Elektra is in alter-ego form? and if it fizzles, where does the boost card ends?
+
+Since “Elektra” and “Elektra Natchios” are two different card names, the Boost abilities on the Ninja cards would not register “Elektra” as activating or being in play if she were in Alter-Ego form, and they would be discarded to the encounter deck discard pile.
+
+**-Alex – October 12, 2026**
+
+---
+
+### October 12, 2026 - Ruling 3
+
+> If I defeat a minion using “Coup de Grâce”, since no excess damage are dealt, is the minion exactly defeated? (in order to trigger Shakedown for example.)
+
+Yes, defeating an enemy with Coup de Grace counts as “exactly defeating” that enemy.
+
+**-Alex – October 12, 2026**
+
+---
+
+### October 12, 2026 - Ruling 4
+
+> I’m wondering if a basic defense required to exactly defend; let’s take an example: “Redirection Mastery” is in play. The villain attacks and I defend using “Cuts Both Ways” without exhausting my hero for a basic defense. The villain has a modified ATK of 2, and my hero a DEF of 2. Does “Redirection Mastery”‘s response trigger?
+
+Yes, to “exactly defend” a hero must be making a basic defense, whether by exhausting their identity card or being “declared defender” by an ability (e.g. Shieldmaiden). Playing Cuts Both Ways by itself would not meet this requirement.
+
+**-Alex – October 12, 2026**
+
+---
+
+### October 12, 2026 - Ruling 5
+
+> I have some questions regarding Rules Reference 1.8.
+>
+> 1.Is to a maximum [game element] of X only applicable to this ability now? For example, when trigger Plasma Rifle and play Directed Force, can it cause damage to exceed through 4 points?
+>
+> 2.What would happen if I placed the card I wanted to play on the table and found that I couldn’t pay for it? For example, can it be discarded This Card is Fire in this way?
+>
+> 3. Overkill is equivalent to the following ability: “if this attack defeats a minion, deal the damage beyond its hit points to the villain”, confirm defeat after step 7 of the in the order listed under “Damage”. In the previous reply, “when a minion is dealt damage by an attack with overkill, and the excess damage is simultaneously dealt to the villain, both instances of damage resolve effects in the order listed under “Damage” in the rules reference, and each step is resolved simultaneously for both targets” was mentioned. Has there been any change now?
+
+- Yes, a maximum on an ability is specific to that ability’s effect. Plasma Rifle having a maximum of 4 damage is only capping its own effect, Directed Force could further increase this amount by 2.
+- If you were to attempt to initiate the playing of a card but found that it either had no valid target or you couldn’t pay its cost, you’d generally return that card to your hand and would be given the chance to take a different action. Such is the case with This Card Is Fire, if you place it on the table with intent to play it, but find you can’t pay its cost nor have the ability to deal damage to an enemy, you’d return it to your hand without paying costs or initiating its ability.
+  - The main exception to this is if you’re paying a cost using unknown information, such as Defender of the Nine Realms having a cost of engaging a discarded minion; you initiate paying that cost with unknown information, and if you end up discarding no minions from the encounter deck, then Defender’s ability fizzles and it’s discarded.
+- Although the language of Overkill was updated, there was no change in resolving the Damage sequence step by step for both targets simultaneously.
+
+**-Alex – October 12, 2026**
