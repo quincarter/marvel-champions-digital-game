@@ -35,7 +35,7 @@ const en = {
     "This browser has nothing saved under the old address. If you played on another browser or phone, open this page there.",
   "step1.blocked": "This browser won't let the page read its saves (a private window, or storage turned off).",
   "step1.done": "Saved {file}. Keep it until step 3 is done.",
-  "step1.failed": "The download didn't start: {error}",
+  "step1.failed": "The download didn't start: {error}. Try the button again.",
   "step2.eb": "Step 2 · Only if you used sync",
   "step2.title": "Copy your recovery code",
   "step2.on":
@@ -134,7 +134,7 @@ const es: Catalog<MovedKey> = {
   "step1.blocked":
     "Este navegador no deja que la página lea tus partidas (una ventana privada o el almacenamiento desactivado).",
   "step1.done": "Guardado {file}. Consérvalo hasta terminar el paso 3.",
-  "step1.failed": "La descarga no empezó: {error}",
+  "step1.failed": "La descarga no empezó: {error}. Vuelve a pulsar el botón.",
   "step2.eb": "Paso 2 · Solo si usabas la sincronización",
   "step2.title": "Copia tu código de recuperación",
   "step2.on":

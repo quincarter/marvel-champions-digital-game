@@ -127,12 +127,17 @@ async function downloadSaves(): Promise<void> {
   if (saves.kind === "reading" || saves.kind === "blocked" || delivering) return;
   delivering = true;
   drawSaves();
-  // Read again at the moment of the click, so whatever another tab saved since the page opened is in the file.
-  let file = saves.file;
+  // Read again at the moment of the click, so whatever another tab saved since the page opened is in the file. If that
+  // read fails, say so and leave the button to retry: handing over the page-load copy instead could miss the newest
+  // games, and the player imports this file over whatever is at the new address.
+  let file: SaveFile;
   try {
     file = await exportSaveData();
-  } catch {
-    // The first read worked; hand over that one.
+  } catch (error) {
+    saves = { kind: "failed", file: saves.file, error: error instanceof Error ? error.message : String(error) };
+    delivering = false;
+    drawSaves();
+    return;
   }
   try {
     await deliverSaveFile(file);
