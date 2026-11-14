@@ -5,7 +5,7 @@
  * moved — already came from the engine (`validateDeck`/`unscriptedCards`);
  * this only picks the words and the tone, never a rule.
  */
-import type { DeckOption } from "./deck-list-model.js";
+import { NOT_READY_REASON, type DeckOption } from "./deck-list-model.js";
 
 export type DeckStatusTone = "legal" | "illegal" | "unscripted" | "poolChanged";
 
@@ -22,6 +22,7 @@ export interface DeckStatus {
  */
 export function deckStatusOf(option: DeckOption): DeckStatus {
   if (option.checking) return { text: "Checking…", tone: "poolChanged" };
+  if (option.blockedReason === NOT_READY_REASON) return { text: NOT_READY_REASON, tone: "illegal" };
   if (!option.legal) return { text: "Illegal", tone: "illegal" };
   // Every legal deck can be seated and played (`DeckOption.seatable` is `legal` alone). What an unscripted card
   // costs the player is that one card's ability doing nothing — not the deck being unplayable, which is what this
@@ -30,3 +31,7 @@ export function deckStatusOf(option: DeckOption): DeckStatus {
   if (option.poolChanged) return { text: "Pool changed", tone: "poolChanged" };
   return { text: "Legal", tone: "legal" };
 }
+
+/** The short tag a blocked hero tile on Take your seats wears: "NOT READY" for a not-ready hero, else "AT THE TABLE" (a duplicate hero). */
+export const blockedTagOf = (blockedBy: string): string =>
+  blockedBy === NOT_READY_REASON ? "NOT READY" : "AT THE TABLE";

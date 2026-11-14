@@ -78,6 +78,7 @@ import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-h
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { rankShelvesByScore, type SearchDocument } from "../view/deck-search.js";
 import type { HeroDecksSheetData } from "./hero-decks-sheet.js";
+import { blockedTagOf } from "../view/deck-status.js";
 import { seatableDeckOptionsOf, testedCatalog } from "../view/seatable-decks.js";
 import {
   testedDeckLockOf,
@@ -1842,7 +1843,7 @@ export class SeatsScene extends Phaser.Scene {
         : lock
           ? "LOCKED"
           : blockedBy
-            ? "AT THE TABLE"
+            ? blockedTagOf(blockedBy)
             : // A custom hero says so and still says how many decks it has.
               [decks.some((d) => customBadgeOf(d.deck) !== null) ? "CUSTOM" : null, countTag]
                 .filter((part) => part !== null)
