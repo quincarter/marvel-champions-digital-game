@@ -37,8 +37,8 @@ export const TEMPORARY_ABILITY: KeywordAbility = {
  * Interrupt: When this character uses a basic power, give it a boost card.'" The card comes facedown from the top of the
  * encounter deck (`giveBoostCard`). This is the keyword on a character that is not an enemy, an ally or a hero (MC60
  * p. 26 FAQ: "The rules for villainous have been revised to function for allies (and heroes) who have it"; Black Cat
- * 60169 as an ally; docs/phase7-wave11-scenarios.md §S3.7): only those make a basic power the `basicPowerUsing` event
- * hears. An enemy's activation gives its own card (`resolve/enemy-activation.ts` `giveBoostCard`, RRG 1.8 "Attack
+ * 60169 as an ally; docs/phase7-wave11-scenarios.md §S3.7): only those have the use record `ownBasicPowerUse` reads
+ * (and an enemy is no hero, for the defense). An enemy's activation gives its own card (`resolve/enemy-activation.ts` `giveBoostCard`, RRG 1.8 "Attack
  * (Enemy Activation)" step 1, p. 8), and the pattern leaves enemies out. The card is turned faceup and resolved as the
  * power resolves, and discarded after it, by the `characterBoost` frames (`resolve/villainous.ts`).
  */
@@ -49,18 +49,23 @@ export const VILLAINOUS_ABILITY: KeywordAbility = {
     trigger: {
       kind: "interrupt",
       forced: true,
+      // A forced interrupt to the power itself, its attack, thwart or recovery (`ownBasicPowerUse`), not to the
+      // earlier "when you use a basic power" window: "would" interrupts to the attack or thwart resolve first, and one
+      // that cancels or replaces it ends the window, so no card is given ("'Would'" p. 48); then this forced interrupt
+      // ("Villainous" p. 47, "Forced" p. 20); then the optional interrupts ("Interrupt" p. 25). Rules expert verdict,
+      // docs/phase7-elektra-iron-fist.md §5. A basic defense has no event of its own to interrupt: its card is given in
+      // its `basicPowerUsing` window, and turned up in the enemy attack's step 3 (ruling September 10, 2026 - Ruling 3).
       on: {
-        on: "basicPowerUsing",
+        on: ["attack", "thwart", "basicRecovery", "basicPowerUsing"],
         selfIs: "source",
-        // Not an enemy: an enemy's activation gives its own card (RRG 1.8 "Attack (Enemy Activation)" step 1, p. 8).
-        sourceIs: { not: { categories: ["enemy"] } },
-        // An ally's defense is no use of a basic power: "Defense power (DEF) can be used by a character to perform a
-        // basic defense … Generally, only heroes have defense power" (RRG 1.8 "Basic Power", p. 10), and "A hero can
-        // use their basic defense power … An ally can exhaust to defend" (RRG 1.8 "Defend, Defense", p. 15). A
-        // recovery is a basic power (p. 10: "Recovery power (REC) can be used by a character to perform a basic
-        // recovery").
         anyOf: [
-          { on: "basicPowerUsing", eventIs: { power: ["attack", "thwart", "recover"] } },
+          { on: "attack", ownBasicPowerUse: true },
+          { on: "thwart", ownBasicPowerUse: true },
+          { on: "basicRecovery", ownBasicPowerUse: true },
+          // An ally's defense is no use of a basic power: "Defense power (DEF) can be used by a character to perform a
+          // basic defense … Generally, only heroes have defense power" (RRG 1.8 "Basic Power", p. 10), and "A hero can
+          // use their basic defense power … An ally can exhaust to defend" (RRG 1.8 "Defend, Defense", p. 15).
+          // Not an enemy: an enemy's activation gives its own card (RRG 1.8 "Attack (Enemy Activation)" step 1, p. 8).
           { on: "basicPowerUsing", eventIs: { power: "defense" }, sourceIs: { categories: ["hero"] } },
         ],
       },

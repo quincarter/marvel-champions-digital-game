@@ -108,6 +108,17 @@ export interface EventPattern {
   /** "After you make a basic attack" → `basic`; "(attack)" abilities → `ability`. */
   readonly attackKind?: "basic" | "ability";
   /**
+   * The event is this card's own use of a basic power, in that power's own interrupt window: its basic attack or basic
+   * thwart (`attack` / `thwart` with `basic`), or its basic recovery (`basicRecovery`), and the one event that use is
+   * recorded on (`characterBoost`'s `useFrameId`, `resolve/villainous.ts`), so a divided basic attack or thwart is one
+   * use, heard once. Only a character whose basic powers resolve boost cards has that record (villainous, or holding
+   * cards for its basic powers). The Villainous keyword's give (`VILLAINOUS_ABILITY`) reads it, so the give is a forced
+   * interrupt to the attack or thwart itself: "would" interrupts to it resolve first and one that cancels or replaces
+   * the power ends the window, so no card is given (RRG 1.8 "'Would'", p. 48; "Villainous", p. 47; "Forced", p. 20;
+   * "Interrupt", p. 25).
+   */
+  readonly ownBasicPowerUse?: true;
+  /**
    * The attack was made by this ability (or one of these), read from the `attack` event's `sourceAbilityId`: "When you
    * use your 'Optic Blast' ability" (Full Blast, `cyclops` 33008) is `{ on: "attack", sourceAbility:
    * "33001a.cyclops-constant" }`, so an "(attack)" event's attack (Ricochet Beam 33009), made by the same identity, is

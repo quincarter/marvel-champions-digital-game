@@ -7,8 +7,10 @@
  * encounter deck. When resolving that basic power, turn the boost card faceup, resolve any boost ability on that card,
  * and apply its boost icons to the character's stats for this use. Discard the boost card after it is resolved."
  *
- * The give is the keyword's forced interrupt to the power's `basicPowerUsing` event (`VILLAINOUS_ABILITY`,
- * `keyword-abilities.ts`), ordered among the other forced interrupts like any. The rest is two `characterBoost` frames
+ * The give is the keyword's forced interrupt to the power itself (`VILLAINOUS_ABILITY`, `keyword-abilities.ts`): its
+ * basic attack, thwart or recovery event (`EventPattern.ownBasicPowerUse`), after that event's "would" interrupts (one
+ * that cancels or replaces the power leaves no card given, RRG 1.8 "'Would'", p. 48) and ordered among the other forced
+ * interrupts like any; a hero's basic defense, which has no event of its own, in its `basicPowerUsing` window. The rest is two `characterBoost` frames
  * (`stack.ts`): the use's record beneath the use's own frame, and a `resolve` frame pushed above that frame once its own
  * interrupt window has closed, as the power resolves (`startCharacterBoost`).
  *
