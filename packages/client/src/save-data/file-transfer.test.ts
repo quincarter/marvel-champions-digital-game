@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { exportRouteFor } from "./file-transfer.js";
+import { describe, expect, it, test } from "vitest";
+import { exportRouteFor, pickFile } from "./file-transfer.js";
 
 const ANDROID = "Mozilla/5.0 (Linux; Android 15; Pixel 8; wv) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36";
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
@@ -28,5 +28,29 @@ describe("exportRouteFor", () => {
   it("downloads in a browser, even one that can share files", () => {
     expect(exportRouteFor("web", true)).toBe("download");
     expect(exportRouteFor("web", false)).toBe("download");
+  });
+});
+
+describe("pickFile", () => {
+  test("refuses a file over the limit by its size, without reading it", async () => {
+    let read = false;
+    const file = { size: 10, arrayBuffer: () => ((read = true), Promise.resolve(new ArrayBuffer(10))) };
+    const listeners = new Map<string, () => void>();
+    const input = {
+      style: {},
+      files: [file],
+      addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+      click: () => listeners.get("change")?.(),
+      remove: () => {},
+    };
+    const original = globalThis.document;
+    globalThis.document = { createElement: () => input, body: { append: () => {} } } as unknown as Document;
+    try {
+      expect(await pickFile(".mcreplay", 5)).toBe("unreadable");
+      expect(read).toBe(false);
+      expect(await pickFile(".mcreplay", 10)).toBeInstanceOf(Uint8Array);
+    } finally {
+      globalThis.document = original;
+    }
   });
 });

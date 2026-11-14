@@ -7,7 +7,7 @@ import { deliverTextFile, pickFile } from "../save-data/file-transfer.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import type { MessageKey } from "../i18n/translate.js";
 import { ReplayOpenError, type ReplayOpenSource } from "./replay-core.js";
-import { REPLAY_EXTENSION } from "./replay-file.js";
+import { MAX_REPLAY_FILE_BYTES, REPLAY_EXTENSION } from "./replay-file.js";
 import { ReplayHost, WorkerReplayBackend, type ReplayBackend } from "./replay-host.js";
 
 /** Opens a replay in its own worker. On failure the worker is closed and the error (a `ReplayOpenError`) passed on. */
@@ -45,7 +45,7 @@ export function deliverGameLog(text: string, name: string): Promise<void> {
  * with nothing chosen. Whether it is a replay is the replay's open to say (`ReplayOpenError`).
  */
 export function pickReplayFile(): Promise<Uint8Array | "unreadable" | null> {
-  return pickFile(`${REPLAY_EXTENSION},.json,.txt,application/json,text/plain`);
+  return pickFile(`${REPLAY_EXTENSION},.json,.txt,application/json,text/plain`, MAX_REPLAY_FILE_BYTES);
 }
 
 /** The message key that says why a replay couldn't be opened (`replay.error.*`), for any failure `openReplay` gives. */

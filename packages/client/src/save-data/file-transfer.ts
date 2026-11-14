@@ -96,9 +96,9 @@ export async function pickSaveFile(): Promise<ParseResult | null> {
 
 /**
  * Opens the file picker for `accept` and reads the chosen file's bytes: null when the picker closes with nothing
- * chosen, "unreadable" when the file can't be read.
+ * chosen, "unreadable" when the file can't be read or is over `maxBytes`.
  */
-export function pickFile(accept: string): Promise<Uint8Array | "unreadable" | null> {
+export function pickFile(accept: string, maxBytes?: number): Promise<Uint8Array | "unreadable" | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -114,6 +114,8 @@ export function pickFile(accept: string): Promise<Uint8Array | "unreadable" | nu
     input.addEventListener("change", () => {
       const chosen = input.files?.[0];
       if (!chosen) return finish(null);
+      // A file over the caller's limit is refused by its size, before any of it is read into memory.
+      if (maxBytes !== undefined && chosen.size > maxBytes) return finish("unreadable");
       chosen.arrayBuffer().then(
         (buffer) => finish(new Uint8Array(buffer)),
         () => finish("unreadable"),
