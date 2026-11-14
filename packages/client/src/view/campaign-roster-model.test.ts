@@ -4,6 +4,7 @@ import type { CardId, Deck } from "@mc/content";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import { aspectStampOf } from "./aspect-stamp.js";
+import { legalDeckFor } from "./not-ready-fixture.js";
 import { preconDecks } from "./deck-list-model.js";
 import {
   PICKER_RECOMMENDED_LIMIT,
@@ -309,5 +310,18 @@ describe("pickerSearchDocumentsOf", () => {
     const list = pickerEntriesOf(1, options, [], CARDS_BY_ID, "", ranking);
     expect(list.length).toBe(ranked.length);
     expect(list.every((e) => e.kind === "option" && ranking.has(options[e.optionIndex]!.deck.id as string))).toBe(true);
+  });
+});
+
+describe("not-ready heroes in the campaign roster", () => {
+  test("a legal Elektra deck is a blocked picker row and a seat that cannot be signed", () => {
+    const elektra = legalDeckFor("63001a");
+    const row = rosterDeckOptions([null], 1, [elektra], POOL_VERSION).find((o) => o.deck.id === elektra.id)!;
+    expect(row.blocked).toBe(true);
+    expect(row.blockedReason).toBe("Not ready yet");
+    const model = rosterModelOf([elektra], POOL_CARDS);
+    expect(model.seats[0]!.legal).toBe(false);
+    expect(model.canSign).toBe(false);
+    expect(model.blockedReason).toBe("Not ready yet");
   });
 });

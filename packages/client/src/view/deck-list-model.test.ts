@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck, deckId, type Deck } from "@mc/content";
+import {
+  CORE_CARDS,
+  CORE_POOL_VERSION,
+  CORE_STARTER_DECKS,
+  deckFromStarterDeck,
+  deckId,
+  type Deck,
+  type HeroIdentityCard,
+} from "@mc/content";
 import { CORE_DEPS } from "@mc/cards";
+import { legalDeckFor } from "./not-ready-fixture.js";
 import { POOL_CARDS, POOL_DEPS, POOL_STARTER_DECKS } from "../content/pool.js";
 import {
   NOT_READY_REASON,
@@ -100,14 +109,10 @@ describe("deckRowIndexOf", () => {
 });
 
 describe("not-ready packs", () => {
-  test.each(["63001a", "64001a"])("a deck led by %s says Not ready yet and is never seatable", (identity) => {
-    const base = deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION);
-    const deck: Deck = {
-      ...base,
-      id: deckId(`not-ready-${identity}`),
-      identityCardId: identity as Deck["identityCardId"],
-    };
+  test.each(["63001a", "64001a"])("a LEGAL deck led by %s says Not ready yet and is never seatable", (identity) => {
+    const deck = legalDeckFor(identity);
     const option = deckOptionOf(deck, POOL_CARDS, CORE_POOL_VERSION, POOL_DEPS);
+    expect(option.legal).toBe(true);
     expect(option.seatable).toBe(false);
     expect(option.blockedReason).toBe(NOT_READY_REASON);
     expect(NOT_READY_REASON).toBe("Not ready yet");

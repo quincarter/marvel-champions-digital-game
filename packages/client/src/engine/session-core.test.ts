@@ -385,3 +385,18 @@ describe("EngineSessionCore time played (#529)", () => {
     expect((await older.latestActive())!.playedMs).toBeUndefined();
   });
 });
+
+describe("not-ready heroes", () => {
+  test("a new game refuses a seat led by Elektra or Iron Fist", async () => {
+    for (const identityCardId of ["63001a", "64001a"]) {
+      await expect(
+        new EngineSessionCore().start({
+          scenarioId: "rhino",
+          difficulty: "standard",
+          players: [{ identityCardId: cardId(identityCardId), deck: [], aspects: ["aggression"] }],
+          seed: 1,
+        } as SessionConfig),
+      ).rejects.toThrow(/not ready yet/);
+    }
+  });
+});

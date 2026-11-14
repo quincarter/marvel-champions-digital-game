@@ -29,7 +29,7 @@ import {
   type CardPool,
   type DeckValidation,
 } from "@mc/engine";
-import { NOT_READY_PACK_CODES } from "@mc/cards";
+import { isNotReadyCard } from "@mc/cards";
 import { perPlayerCostOf } from "./per-player-cost.js";
 import { matchesClauses, parsePoolQuery, type QueryClause } from "./pool-query.js";
 
@@ -105,7 +105,7 @@ const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? p
 export function identityOptions(pool: CardPool): readonly HeroIdentityCard[] {
   return cardsOf(pool)
     .filter((card): card is HeroIdentityCard => card.type === "hero_identity")
-    .filter((card) => !NOT_READY_PACK_CODES.has(card.setCode))
+    .filter((card) => !isNotReadyCard(card))
     .filter((card) => !card.progressingIdentity || card.progressingIdentity.versions[0] === card.id)
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));

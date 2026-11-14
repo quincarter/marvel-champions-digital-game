@@ -11,7 +11,7 @@
  */
 import { deckFromStarterDeck, type AnyCard, type CardId, type Deck, type StarterDeck } from "@mc/content";
 import { unscriptedCards, validateDeck, type CardPool, type DeckProblem, type EngineDeps } from "@mc/engine";
-import { NOT_READY_PACK_CODES } from "@mc/cards";
+import { isNotReadyCard } from "@mc/cards";
 import { POOL_VERSION, currentStarterDecks } from "../content/pool.js";
 import { qualifiedHeroName } from "./hero-names.js";
 
@@ -150,11 +150,11 @@ function checkDeck(deck: Deck, pool: CardPool, currentPoolVersion: string, deps:
 /** The short verdict for a deck whose hero's pack is not finished. */
 export const NOT_READY_REASON = "Not ready yet";
 
-function leadsNotReadyHero(deck: Deck, pool: CardPool): boolean {
+export function leadsNotReadyHero(deck: Deck, pool: CardPool): boolean {
   const identityCard = Array.isArray(pool)
     ? pool.find((c) => c.id === deck.identityCardId)
     : (pool as Record<string, AnyCard>)[deck.identityCardId as string];
-  return identityCard !== undefined && NOT_READY_PACK_CODES.has(identityCard.setCode);
+  return identityCard !== undefined && isNotReadyCard(identityCard);
 }
 
 /** Everything `deckOptionOf` reports about a deck except the deck itself (which is the same object the caller already holds). */

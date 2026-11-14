@@ -10,7 +10,8 @@
 import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
 import { deckUsesCustomCards } from "./custom-content.js";
-import { preconDecks } from "./deck-list-model.js";
+import { NOT_READY_REASON, leadsNotReadyHero, preconDecks } from "./deck-list-model.js";
+import { POOL_CARDS } from "../content/pool.js";
 
 /** Campaigns are base content only (docs/custom-content-packs.md §7.4): a pack's precon, or a saved deck holding a custom card, is never offered. */
 export const basePreconDecks = (poolVersion: string): readonly Deck[] =>
@@ -105,6 +106,7 @@ export function rosterDeckOptions(
   poolVersion: string,
   /** Why a deck's hero isn't unlocked yet (`Unlocks.deckLock`: precons only), or null. Default: every deck is open. */
   deckLockOf: (deck: Deck) => string | null = () => null,
+  pool: CardPool = POOL_CARDS,
 ): readonly RosterDeckOption[] {
   const usedElsewhere = new Map<string, number>();
   seats.forEach((deck, index) => {
@@ -113,7 +115,7 @@ export function rosterDeckOptions(
   });
   return [...basePreconDecks(poolVersion), ...savedDecks.filter((deck) => !deckUsesCustomCards(deck))].map((deck) => {
     const seat = usedElsewhere.get(deck.identityCardId as string);
-    const lock = deckLockOf(deck);
+    const lock = leadsNotReadyHero(deck, pool) ? NOT_READY_REASON : deckLockOf(deck);
     return {
       deck,
       identityId: deck.identityCardId as string,
@@ -151,15 +153,17 @@ export function rosterModelOf(seats: readonly (Deck | null)[], pool: CardPool): 
       identityName: identityNameOf(deck, pool),
       aspectsLabel: aspectsLabelOf(deck),
       deckName: savedDeckNameOf(deck),
-      legal: validateDeck(deck, pool).ok,
+      legal: validateDeck(deck, pool).ok && !leadsNotReadyHero(deck, pool),
     };
   });
 
   const allLegal = filled.every((seat) => validateDeck(seat.deck, pool).ok);
+  const anyNotReady = filled.some((seat) => leadsNotReadyHero(seat.deck, pool));
 
   let blockedReason: string | null = null;
   if (filled.length === 0) blockedReason = "Seat at least one hero.";
   else if (!uniqueIdentities) blockedReason = "Each seat needs a different hero (MC10 p. 3).";
+  else if (anyNotReady) blockedReason = NOT_READY_REASON;
   else if (!allLegal) blockedReason = "Every signed deck has to be legal first.";
 
   return { seats: seatViews, canSign: blockedReason === null, blockedReason };
