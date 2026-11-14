@@ -647,6 +647,17 @@ describe("64032 Sensei", () => {
     expect(attacking(0).damage).toBe(2);
   });
 
+  it("with the Iron Fist ally's own -2 as well (a hero attacked the enemy first), -2 and -2 on 2 is none, never less", () => {
+    const ally = setup();
+    const hero = identityOf(ally.state, P1);
+    // Captain Marvel (ATK 2) deals 2 to the 4-hit-point Sandman; the ally's 2 exactly defeats it.
+    const engaged = engageMinion(ally.state, SANDMAN, MINION);
+    const first = drive(engaged, taking(), attackWith(hero, MINION));
+    const after = drive(first, taking("64014.iron-fist-response"), attackWith(ally.id, MINION));
+    expect(playerOf(after, P1).playArea).not.toContain(MINION);
+    expect(damageOf(after, ally.id)).toBe(0);
+  });
+
   it("control: without Sensei, an exact defeat takes the full 2", () => {
     expect(attacking(2, false).damage).toBe(2);
   });
