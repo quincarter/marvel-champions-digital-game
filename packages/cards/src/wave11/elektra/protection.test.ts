@@ -51,10 +51,11 @@ function setup(...resources: readonly string[]) {
 }
 
 /** Ends the turn: Moon Knight defends Rhino's attack, takes his interrupt when `use`, and pays with `pay`. */
-function defend(b: ReturnType<typeof setup>, use: boolean, pay: readonly InstanceId[] = b.hand) {
+function defend(b: ReturnType<typeof setup>, use: boolean, pay: readonly InstanceId[] = b.hand, boostPick?: string) {
   const pick: Picker = (s) => {
     const choice = s.pendingChoice!;
     const ids = choice.options.map((o) => o.optionId as string);
+    if (boostPick && ids.includes(boostPick)) return [boostPick];
     if (choice.prompt.kind === "chooseTriggers") {
       const hit = ids.find((i) => i.endsWith(REF));
       return use && hit ? [hit] : firstLegal(s);
@@ -137,14 +138,14 @@ describe("63039 Moon Knight: when he defends, spend up to 3 resources; a line pe
 });
 
 describe("63039 Moon Knight [mental] with two facedown boost cards on the attacker (owner decision 7)", () => {
-  it("the first one dealt is discarded: nothing is known about them, so the controller's pick is the first dealt", () => {
+  /** An Advance (boost 0) already waiting facedown on Rhino before his activation gives him Sandman (surgery). */
+  function twoCards() {
     const b = setup(MENTAL);
-    // Surgery: an Advance (boost 0) already waiting facedown on Rhino before his activation gives him Sandman.
     const deckId = Object.keys(b.state.encounterDecks)[0]!;
     const piles = b.state.encounterDecks[deckId]!;
     const early = piles.deck[1]!;
     const rhinoId = b.state.activeVillainId!;
-    const waiting: GameState = {
+    const state: GameState = {
       ...b.state,
       encounterDecks: {
         ...b.state.encounterDecks,
@@ -156,10 +157,24 @@ describe("63039 Moon Knight [mental] with two facedown boost cards on the attack
         [rhinoId]: { ...inst(b.state, rhinoId), boostCards: [early] },
       },
     };
-    const { state, flipped, discarded } = defend({ ...b, state: waiting }, true);
+    return { b: { ...b, state }, early };
+  }
+
+  it("the controller is asked; the first dealt is the first option, and taking it leaves Sandman to flip", () => {
+    const { b, early } = twoCards();
+    const { state, flipped, discarded } = defend(b, true, b.hand, "boost:1");
     expect(discarded).toEqual([early]);
     expect(flipped).toEqual([b.sandman]);
     // Rhino's 2 + Sandman's 2: the boost-0 card was the one discarded.
     expect(inst(state, b.knight).damage).toBe(4);
+  });
+
+  it("picking the second (Sandman, dealt by the activation) discards it: the Advance flips for 0, he takes 2", () => {
+    const { b, early } = twoCards();
+    const { state, flipped, discarded } = defend(b, true, b.hand, "boost:2");
+    expect(discarded).toEqual([b.sandman]);
+    expect(flipped).toEqual([]);
+    expect(inst(state, early).faceup).toBe(true);
+    expect(inst(state, b.knight).damage).toBe(2);
   });
 });

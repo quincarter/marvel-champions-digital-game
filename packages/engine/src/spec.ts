@@ -5127,15 +5127,19 @@ export type EffectSpec =
    * turned up) is not taken. Logged as `boostCancelled` with `scope: "discarded"`, as Defiance's "discard it instead"
    * is. `bind`: `<bind>.discarded`.
    *
-   * Which cards: owner decision 7 (docs/phase7-elektra-iron-fist.md §5; RRG 1.8 "Choose", p. 12) lets the controller
-   * pick any one, and when nothing is known about the cards it is the first dealt. The first dealt go first here.
-   * KNOWN LIMITATION: the engine keeps no record of which facedown boost cards a player has seen (a `lookAt` is logged,
-   * not kept in state), so the pick is never offered, even after a look.
+   * Which cards: owner decision 7 (docs/phase7-elektra-iron-fist.md §5; RRG 1.8 "Choose", p. 12). With `choose`, when
+   * a card `from` names holds more facedown boost cards than `count`, the ability's controller picks which: the cards
+   * are offered facedown, by the order they were dealt (the first dealt first, the pick to take when nothing is known
+   * about them; the player brings what they know, a card they looked at or saw turned faceup before). Without `choose`,
+   * or with no more cards than `count`, the first dealt go, with no prompt. `cards`: only these of them (the pick, bound
+   * by the engine as it is answered).
    */
   | {
       readonly kind: "discardFacedownBoostCards";
       readonly from: TargetRef;
       readonly count?: ValueSpec;
+      readonly choose?: true;
+      readonly cards?: TargetRef;
       readonly bind?: string;
     }
   /**

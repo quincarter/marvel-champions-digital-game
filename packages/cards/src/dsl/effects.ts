@@ -2706,16 +2706,18 @@ export const moveBoostCards = (from: TargetRef, to: TargetRef): EffectSpec => ({
 /**
  * "Discard 1 boost card from the attacker" (Moon Knight, `elektra` 63039): up to `n` of the facedown boost cards on each
  * card `from` names, discarded unturned, so an activation before its flip step turns up only the rest. Pair it with
- * `attackingEnemy` in an interrupt to the attack or its defense. `bind`: `<bind>.discarded`.
+ * `attackingEnemy` in an interrupt to the attack or its defense. `choose`: with more facedown cards than `n`, the
+ * controller picks which, offered facedown by the order dealt (owner decision 7). `bind`: `<bind>.discarded`.
  */
 export const discardFacedownBoostCards = (
   from: TargetRef,
   n: Amount = 1,
-  opts: { readonly bind?: string } = {},
+  opts: { readonly bind?: string; readonly choose?: boolean } = {},
 ): EffectSpec => ({
   kind: "discardFacedownBoostCards",
   from,
   ...(n === 1 ? {} : { count: amount(n) }),
+  ...(opts.choose ? { choose: true as const } : {}),
   ...(opts.bind ? { bind: opts.bind } : {}),
 });
 /**

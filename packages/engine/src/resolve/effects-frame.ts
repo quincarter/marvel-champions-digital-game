@@ -114,6 +114,7 @@ import {
   heroFacesOf,
   locateCard,
   mustCardOf,
+  mustInstance,
   mustPlayer,
   playerOrder,
   printedCostOf,
@@ -151,7 +152,7 @@ import {
   attackIgnoringOf,
   reachOf,
 } from "../select.js";
-import type { EffectSpec, PlayerRef, StatusName, ValueSpec } from "../spec.js";
+import type { EffectSpec, PlayerRef, StatusName, TargetRef, ValueSpec } from "../spec.js";
 import type { Bindings, ResolvedCountVar, StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executePayAttackCost } from "../attack-cost.js";
@@ -373,6 +374,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   // instruction, whether or not it then deals damage (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-15).
   if (beginLabelAttack(ctx, frame, effect, context)) return;
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
+  // Owner decision 7 (docs/phase7-elektra-iron-fist.md §5): which facedown boost card Moon Knight 63039 discards.
+  if (effect.kind === "discardFacedownBoostCards" && effect.choose && !effect.cards)
+    return executeDiscardBoostChoice(ctx, frame, effect, context);
   // docs/phase7-wave10-hero-packs.md H3.4: a find that chooses among every card that matches.
   if (effect.kind === "findCard" && effect.choose) return executeFindWithChoice(ctx, frame, effect, context);
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
@@ -2094,6 +2098,69 @@ const cardOption =
     ref: { kind: "card", instanceId: id } as const,
   });
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] => ids.map(cardOption(ctx));
+
+const BOOST_PICK = "_discardBoost";
+const BOOST_PICK_OFFERED = `${BOOST_PICK}#offered`;
+
+/**
+ * `EffectSpec discardFacedownBoostCards.choose` (owner decision 7, docs/phase7-elektra-iron-fist.md §5; RRG 1.8
+ * "Choose", p. 12): with more facedown boost cards on the cards `from` names than it discards, the ability's controller
+ * picks which. Each is offered facedown as its place in the order dealt, the first dealt first (the pick when nothing is
+ * known about them); no option names the card or its instance, so nobody learns its face from the prompt. The cards as
+ * offered are kept in the frame (`BOOST_PICK_OFFERED`) so the answer maps back to them; the effect then resolves with
+ * `cards` naming the pick. With no more cards than it discards, or no controller, it resolves with no prompt.
+ */
+function executeDiscardBoostChoice(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "discardFacedownBoostCards" }>,
+  context: EffectContext,
+): void {
+  const resolveWith = (cards: TargetRef | null, bindings: Readonly<Record<string, readonly InstanceId[]>>): void => {
+    const { choose: _asked, ...rest } = effect;
+    const next: EffectSpec = cards ? { ...rest, cards } : rest;
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      bindings,
+      effects: frame.effects.map((each, index) => (index === frame.cursor ? next : each)),
+    });
+  };
+  if (frame.answer !== null) {
+    const offered = frame.bindings[BOOST_PICK_OFFERED] ?? [];
+    const picked = frame.answer.flatMap((optionId) => {
+      const id = offered[Number(optionId.replace("boost:", "")) - 1];
+      return id ? [id] : [];
+    });
+    const { [BOOST_PICK_OFFERED]: _offered, ...bindings } = frame.bindings;
+    emit(ctx, { type: "targetChosen", slot: BOOST_PICK, instanceIds: picked });
+    resolveWith({ kind: "slot", slot: BOOST_PICK }, { ...bindings, [BOOST_PICK]: picked });
+    return;
+  }
+  const inPlay = cardsInPlay(ctx.state);
+  const facedown = resolveRef(ctx.state, effect.from, context)
+    .filter((id) => inPlay.includes(id))
+    .flatMap((id) => mustInstance(ctx.state, id).boostCards.filter((card) => !mustInstance(ctx.state, card).faceup));
+  const count = effect.count ? Math.max(0, resolveValue(ctx.state, effect.count, context)) : 1;
+  const [chooser] = resolvePlayers(ctx.state, { kind: "controller" }, context);
+  if (!chooser || count === 0 || facedown.length <= count) return resolveWith(null, frame.bindings);
+  setFrame(ctx, { ...frame, bindings: { ...frame.bindings, [BOOST_PICK_OFFERED]: facedown } });
+  requestChoice(ctx, {
+    playerId: chooser,
+    prompt: { kind: "chooseOption" },
+    options: facedown.map((_, index) => ({
+      optionId: `boost:${index + 1}`,
+      label:
+        index === 0
+          ? "Facedown boost card 1 (the first dealt)"
+          : `Facedown boost card ${index + 1} (dealt ${index + 1}${index === 1 ? "nd" : index === 2 ? "rd" : "th"})`,
+      ref: { kind: "none" },
+    })),
+    minSelections: count,
+    maxSelections: count,
+    frameId: frame.frameId,
+  });
+}
 
 /**
  * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`), or a search

@@ -24,9 +24,10 @@ import {
  * `ifThen(paidType(type), …)`, docs/phase7-wave8.md §3.62); a wild left a wild matches no line (owner Q33 = B). "Up
  * to 3" needs at least 1 (RRG 1.8 "Cost", p. 14), so "if you spent at least 1" always holds once the cost is paid.
  * [energy] prevents 2 of the attack's damage (`modifyAttack.preventDamage`, as Iron Fist 62012); [mental] discards 1
- * of the attacker's facedown boost cards before step 3 turns them up (`discardFacedownBoostCards`): the first dealt,
- * owner decision 7 when nothing is known about them (the engine does not track a seen facedown card, so the
- * controller's pick is not offered; docs/phase7-elektra-iron-fist.md §5); [physical] deals 2
+ * of the attacker's facedown boost cards before step 3 turns them up (`discardFacedownBoostCards`): with two or more,
+ * Moon Knight's controller picks which, offered facedown by the order dealt, the first dealt being the pick when
+ * nothing is known about them (owner decision 7, docs/phase7-elektra-iron-fist.md §5; RRG 1.8 "Choose", p. 12);
+ * [physical] deals 2
  * damage to the attacker (not an attack).
  */
 export const ELEKTRA_PROTECTION: AbilityRegistry = defineAbilities({
@@ -34,7 +35,7 @@ export const ELEKTRA_PROTECTION: AbilityRegistry = defineAbilities({
     when.defends({ self: true }),
     { cost: spendChosen(3), readsPaidTypes: { types: ["energy", "mental", "physical"] } },
     ifThen(paidType("energy"), modifyAttack({ preventDamage: 2 })),
-    ifThen(paidType("mental"), discardFacedownBoostCards(attackingEnemy, 1)),
+    ifThen(paidType("mental"), discardFacedownBoostCards(attackingEnemy, 1, { choose: true })),
     ifThen(paidType("physical"), dealDamage(2, attackingEnemy)),
   ),
 });
