@@ -17,6 +17,10 @@ const en = {
   "intro.text":
     "<b>The web game now lives at its own address.</b> Nothing about the game changes. Your saves are kept by this browser under the old address, and browsers keep each address's data apart, so <b>they don't move by themselves</b>. The steps below carry them across in a few minutes.",
   "cta.open": "Open the game at its new address",
+  "link.replay": "You opened a shared replay. It plays at the game's new address.",
+  "link.receive": "You opened a save transfer from another device. Receive it at the game's new address.",
+  "link.link": "You opened a device-sync link. Join with it at the game's new address.",
+  "link.open": "Open it there",
   "cta.save": "Download my saves",
   "cta.landing": "News, downloads and community",
 
@@ -115,6 +119,11 @@ const es: Catalog<MovedKey> = {
   "intro.text":
     "<b>El juego web ya tiene su propia dirección.</b> El juego no cambia. Tus partidas las guarda este navegador bajo la dirección antigua, y los navegadores separan los datos de cada dirección, así que <b>no se mudan solas</b>. Los pasos de abajo las llevan en unos minutos.",
   "cta.open": "Abrir el juego en su nueva dirección",
+  "link.replay": "Has abierto una repetición compartida. Se reproduce en la nueva dirección del juego.",
+  "link.receive":
+    "Has abierto una transferencia de partidas desde otro dispositivo. Recíbela en la nueva dirección del juego.",
+  "link.link": "Has abierto un enlace de sincronización. Únete con él en la nueva dirección del juego.",
+  "link.open": "Abrirlo allí",
   "cta.save": "Descargar mis partidas",
   "cta.landing": "Noticias, descargas y comunidad",
 

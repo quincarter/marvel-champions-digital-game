@@ -24,6 +24,7 @@ import {
   SITE_DOMAIN,
 } from "../site-urls.js";
 import { WALLPAPERS } from "virtual:site-wallpapers";
+import { gameLinkOf } from "./game-link.js";
 import { MOVED_TEXT } from "./moved-text.js";
 import { describeSaved, hasSaves } from "./saved-summary.js";
 
@@ -55,6 +56,10 @@ let codeShown = false;
 let delivering = false;
 const device = browserDevice();
 const syncCode = storageRead(SYNC_CODE_STORAGE_KEY);
+// A replay, transfer or device link made for the old address: carried on to the new one, fragment and all. Read once
+// and taken out of the address bar, as the game does, so a transfer key doesn't linger in history.
+const gameLink = gameLinkOf(location.hash, GAME_URL);
+if (gameLink) history.replaceState(null, "", `${location.pathname}${location.search}`);
 
 function textFor(lang: PageLanguage): Translate {
   const base = translator(MOVED_TEXT[lang], SHARED_TEXT[lang]);
@@ -116,7 +121,13 @@ function draw(): void {
   $("ai-note").hidden = t("lang.aiNote") === "";
   labelLanguages(t("lang.label"));
   for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-href]")) {
-    link.href = ADDRESSES[link.dataset.href as keyof typeof ADDRESSES];
+    const key = link.dataset.href as keyof typeof ADDRESSES;
+    link.href = key === "game" && gameLink ? gameLink.url : ADDRESSES[key];
+  }
+  $("game-link").hidden = !gameLink;
+  if (gameLink) {
+    $("game-link-text").textContent = t(`link.${gameLink.kind}`);
+    $<HTMLAnchorElement>("game-link-open").href = gameLink.url;
   }
   drawSaves();
   drawSync();
