@@ -56,7 +56,15 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
   for (const r of ctx.topLevel) {
     const campaignSet = campaignSetCode(r);
     if (campaignSet) campaignSets.add(campaignSet);
-    else if (r.faction_code !== "encounter" || r.type_code === "obligation" || !r.card_set_code) continue;
+    // A hero-kit encounter card (an obligation, or a Linked treachery filed under the hero's own set, Elektra's
+    // Backstab) belongs to no encounter set.
+    else if (
+      r.faction_code !== "encounter" ||
+      r.type_code === "obligation" ||
+      !r.card_set_code ||
+      ctx.heroBySet.has(r.card_set_code)
+    )
+      continue;
     const code = campaignSet ?? r.card_set_code;
     if (!code) continue;
     const prev = setNames.get(code);

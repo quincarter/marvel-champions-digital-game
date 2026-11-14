@@ -859,8 +859,8 @@ import { SHADOWLAND_SCENARIOS } from "./shadowland/scenarios.js";
 import { SHADOWLAND_STARTER_DECKS } from "./shadowland/starterDecks.js";
 
 /**
- * Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`, `jj`, `luke_cage`, `shadowland`, `elektra`, `iron_fist`). A sibling
- * pool that starts from Core, like `WAVE10_CARDS`.
+ * Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`, `jj`, `luke_cage`,
+ * `shadowland`, `elektra`, `iron_fist`). A sibling pool that starts from Core, like `WAVE10_CARDS`.
  */
 export const WAVE11_CARDS: readonly AnyCard[] = [
   ...CORE_CARDS,

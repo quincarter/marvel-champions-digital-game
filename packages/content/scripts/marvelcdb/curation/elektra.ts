@@ -4,11 +4,11 @@
  * (https://hallofheroeslcg.com/elektra-natchios/) and the FFG preview article "Killer Instinct"
  * (https://www.fantasyflightgames.com/en/news/2026/8/13/killer-instinct/), 300 x 419 card images, read 2026-11-14.
  *
- * What exists: the two identity faces, the 3 NINJA deck cards, 7 of the 15 kit cards, 6 aggression cards and 2 basic
- * cards (19 distinct cards seen), plus two cards read from a gameplay video (the obligation and the nemesis minion) and three nemesis cards from an unofficial fan preview (63030, 63032, 63033).
- * Never seen, so not transcribed (the pack's remaining collector numbers): Resurrection Altar, White Tiger, Stealth
- * Mastery, Stone, Double-Cross, Backstab, Misdirect, Sabotage, Moondragon, Moon Knight (named in briefs only);
- * unseen collector numbers 10, 11, 14, 21, 22, 24 to 26 and anything after 27; nemesis card 3 of 5 (63031).
+ * What exists: the two identity faces, the 3 NINJA deck cards, all 10 distinct kit cards, 6 aggression, 2 basic, 1 justice
+ * (Double-Cross and its 3 Linked treacheries), 1 leadership and 1 protection card, from the 300 px previews and the
+ * full-size spoiler images (collector 10, 11, 14, 21, 22, 34 to 39), plus two cards read from a gameplay video (the
+ * obligation and Aka) and three nemesis cards from an unofficial fan preview (63042, 63044, 63045).
+ * Unseen collector numbers: 24, 25, 26 and anything after 39 that is not provisional; nemesis card 3 of 5 (63043).
  *
  * Evidence abbreviations: "HoH" is the Hall of Heroes page above, "FFG" the article above, "video" the gameplay video
  * https://youtu.be/6wR6kfxPmio (Web-Warrior Fanatic, 2026-11-13).
@@ -17,7 +17,7 @@
  *   treacheries, modelled as Hercules's Labor deck is (a `separateDecks` entry with `cardFamily: "encounter"`, no
  *   encounter set, `separateDeck: "Ninja"`); its feeders (Ninja Training, Killer Blow, Move Unseen, Sai Strike) are in
  *   their texts.
- * - PLACEHOLDER codes: 63028 (obligation) and 63029 (nemesis minion) are provisional collector numbers; see the
+ * - PLACEHOLDER codes: 63040 (obligation) and 63041 (nemesis minion) are provisional collector numbers; see the
  *   corrections.
  */
 import type { PackCuration } from "./types.ts";
@@ -28,6 +28,9 @@ const P = packBuilders({ num: "63", packCode: "elektra", packName: "Elektra", pr
 const HOH = "https://hallofheroeslcg.com/elektra-natchios/";
 const FFG = "https://www.fantasyflightgames.com/en/news/2026/8/13/killer-instinct/";
 const VIDEO = "https://youtu.be/6wR6kfxPmio";
+const SHOTS =
+  "full-size Hall of Heroes spoiler image shots-elektra-natchios/marvel-champions_-the-card-game-shadowland-gameplay-";
+const full = (stamp: string) => `HoH ${HOH}, ${SHOTS}${stamp}-screenshot.png (about 1400 x 2000, read 2026-11-14).`;
 const src = (hohImage: string, ffgImage: string) =>
   `HoH ${HOH} image ${hohImage}, FFG ${FFG} image ${ffgImage} (300 x 419 previews, read 2026-11-14).`;
 
@@ -101,6 +104,38 @@ const NINJA = [
 
 const KIT = [
   P.added(
+    P.kit("support", "63010", "Resurrection Altar", 10, {
+      is_unique: true,
+      cost: 1,
+      resource_mental: 1,
+      traits: "Hand. Location.",
+      flavor: `"Arise once again as a mighty servant of the Hand!" —Hand Sorcerer`,
+      illustrator: "Bruno Frenda",
+      text: "<b>Interrupt</b>: When you would be defeated, remove this card from the game → set your hit point dial to 9 instead. Find your obligation and reveal it.",
+    }),
+    full("14-44"),
+  ),
+  P.added(
+    P.kit("support", "63011", "White Tiger", 11, {
+      is_unique: true,
+      cost: 1,
+      resource_mental: 1,
+      traits: "Persona.",
+      text: "<b>Response</b>: After you change to hero form, shuffle the top card of the [[Ninja]] deck into the encounter deck. Otherwise, give Elektra 1 facedown boost card.",
+    }),
+    `${full("15-12")} The Otherwise clause follows an unconditional sentence as printed; transcribed verbatim.`,
+  ),
+  P.added(
+    P.kit("upgrade", "63014", "Stealth Mastery", 15, {
+      cost: 1,
+      resource_energy: 1,
+      traits: "Skill.",
+      flavor: `"I'll teach them to fear every shadow." —Elektra`,
+      text: "<b>Forced Interrupt</b>: When you attack or are attacked, choose to either increase or reduce the damage that attack deals by 3. Put Stealth Mastery on top of your deck.",
+    }),
+    full("15-22"),
+  ),
+  P.added(
     P.kit("ally", "63005", "Daredevil", 1, {
       subname: "Matt Murdock",
       is_unique: true,
@@ -155,6 +190,7 @@ const KIT = [
   ),
   P.added(
     P.kit("event", "63009", "Sai Strike", 8, {
+      quantity: 2,
       cost: 1,
       resource_physical: 1,
       traits: "Attack.",
@@ -178,14 +214,118 @@ const KIT = [
     P.kit("upgrade", "63013", "History with the Hand", 14, {
       cost: 0,
       resource_mental: 1,
+      scheme_amplify: 1,
       traits: "Condition.",
-      text: "Prerequisite <i>(hero form)</i>.\nYou get +1 hand size.\n<b>Forced Response</b>: After you change form, discard this card.\n[amplify]",
+      text: "Prerequisite <i>(hero form)</i>.\nYou get +1 hand size.\n<b>Forced Response</b>: After you change form, discard this card.",
     }),
-    `${src("e13.png", "mc63_history-with-the-hand.png")} The icon centred under the text box (a plus joined to the boost icon) is the amplify icon, named so by the FFG article.`,
+    `${src("e13.png", "mc63_history-with-the-hand.png")} The icon centred under the text box (a plus joined to the boost icon) is the amplify icon, named so by the FFG article; it is scheme_amplify 1 (amplifyIcons), not text, as fne 60031.`,
   ),
 ];
 
 const ASPECT = [
+  P.added(
+    P.aspect("upgrade", "aggression", "63021", "Shuriken", {
+      cost: 2,
+      cost_star: true,
+      resource_energy: 1,
+      traits: "Weapon.",
+      flavor: `"A true ninja is never without a weapon." —Elektra`,
+      text: "[star] Discount 1 ([[Martial Artist]]).\nUses (3 shuriken counters).\n<b>Hero Action</b>: Remove 1 shuriken counter from here → deal 1 damage to an enemy.",
+    }),
+    `${full("15-59")} Cost 2 with a star beside it (the Discount line).`,
+  ),
+  P.added(
+    P.aspect("ally", "basic", "63022", "Stone", {
+      is_unique: true,
+      deck_limit: 1,
+      cost: 3,
+      resource_physical: 1,
+      thwart: 1,
+      thwart_cost: 1,
+      attack: 2,
+      attack_cost: 2,
+      health: 3,
+      traits: "Martial Artist.",
+      flavor: `"Connection, mind, body."`,
+      illustrator: "Afif Khaled",
+      text: "<b>Response</b>: After Stone exactly defeats an enemy or side scheme, heal 2 damage from Stone.",
+    }),
+    `${full("16-32")} No subtitle is printed. The artist reads "Afif Khaled" (the fi may be a ligature).`,
+  ),
+  P.added(
+    P.aspect("player_side_scheme", "justice", "63034", "Double-Cross", {
+      is_unique: true,
+      deck_limit: 1,
+      cost: 0,
+      resource_mental: 1,
+      base_threat: 2,
+      illustrator: "Allie Preswick",
+      text: "Victory 0.\n<b>When Defeated</b>: If there is not already a copy of Double-Cross in the victory display, shuffle the set-aside Backstab, Misdirect, and Sabotage treachery cards into the top 10 cards of the encounter deck <i>(or the whole deck if there are fewer than 10 cards)</i>.",
+    }),
+    `${full("17-27")} Horizontal card. The top-right box prints a zero (cost 0) and the bottom-left box a 2 with the per player icon (threat); no traits line.`,
+  ),
+  P.added(
+    P.linked("63035", "Backstab", {
+      illustrator: "Andrea Di Vito & Laura Villari",
+      boost_star: true,
+      text: `Linked (Double-Cross).\n<b>When Revealed</b>: Deal 4 damage to the villain. This card gains surge.${HR}[star] <b>Boost</b>: If an enemy is activating, deal 2 damage to it. Otherwise, this card gains [boost][boost].`,
+    }),
+    `${full("18-10")} Boost area: the star only.`,
+  ),
+  P.added(
+    P.linked("63036", "Misdirect", {
+      illustrator: "Andrea Di Vito & Laura Villari",
+      boost_star: true,
+      flavor: `"I slipped away just in time. The new recruit is taking the heat...for now." —Sharon Carter`,
+      text: `Linked (Double-Cross).\n<b>When Revealed</b>: Heal 4 damage from an identity. This card gains surge.${HR}[star] <b>Boost</b>: Stun an enemy.`,
+    }),
+    `${full("18-32")} Boost area: the star only.`,
+  ),
+  P.added(
+    P.linked("63037", "Sabotage", {
+      illustrator: "Allie Preswick",
+      boost_star: true,
+      flavor: `"Destroying the control panel now." —Sharon Carter`,
+      text: `Linked (Double-Cross).\n<b>When Revealed</b>: Remove 3 threat from the main scheme. This card gains surge.${HR}[star] <b>Boost</b>: Confuse an enemy.`,
+    }),
+    `${full("18-59")} Boost area: the star only.`,
+  ),
+  P.added(
+    P.aspect("ally", "leadership", "63038", "Moondragon", {
+      subname: "Heather Douglas",
+      is_unique: true,
+      deck_limit: 1,
+      cost: 4,
+      resource_physical: 1,
+      thwart: 1,
+      thwart_star: true,
+      thwart_cost: 1,
+      attack: 1,
+      attack_star: true,
+      attack_cost: 1,
+      health: 5,
+      traits: "Defender. Martial Artist.",
+      text: "[star] <b>Interrupt</b>: When Moondragon uses a basic power, choose a number from 1 to 3. Moondragon gets +X to that power and takes +X consequential damage ([cost]) for this use, where X is equal to the chosen number.",
+    }),
+    `${full("19-15")} The stat stars tie to the starred Interrupt, not to Villainous.`,
+  ),
+  P.added(
+    P.aspect("ally", "protection", "63039", "Moon Knight", {
+      subname: "Marc Spector",
+      is_unique: true,
+      deck_limit: 1,
+      cost: 4,
+      resource_energy: 1,
+      thwart: 2,
+      thwart_cost: 2,
+      attack: 2,
+      attack_cost: 2,
+      health: 5,
+      traits: "Defender. Martial Artist.",
+      text: "<b>Interrupt</b>: When Moon Knight defends, spend up to 3 resources → if you spent at least 1:\n[energy] – Prevent 2 damage from this attack.\n[mental] – Discard 1 boost card from the attacker.\n[physical] – Deal 2 damage to the attacker.",
+    }),
+    `${full("20-13")} Only THW and ATK are printed; the three resource symbols in the text are icons.`,
+  ),
   P.added(
     P.aspect("ally", "aggression", "63015", "Shang-Chi", {
       subname: "Zheng Shang-Chi",
@@ -280,16 +420,18 @@ const ASPECT = [
       deck_limit: 1,
       cost: 0,
       resource_wild: 1,
+      scheme_amplify: 1,
+      duplicate_of_code: "60031",
       traits: "Dance.",
-      text: "Team-Up <i>(Daredevil and Elektra)</i>. Max 1 per deck.\nAttach to an enemy.\n<b>Hero Action</b> <i>(attack)</i>: Discard this card → deal 3 damage to attached enemy.\n[amplify]",
+      text: "Team-Up <i>(Daredevil and Elektra)</i>. Max 1 per deck.\nAttach to an enemy.\n<b>Hero Action</b> <i>(attack)</i>: Discard this card → deal 3 damage to attached enemy.",
     }),
-    `${src("e12-1.png", "mc63_dance-with-the-devil.png")} Amplify icon centred under the text box.`,
+    `${src("e12-1.png", "mc63_dance-with-the-devil.png")} Amplify icon centred under the text box (scheme_amplify 1). A verbatim reprint of fne 60031 (duplicate_of_code; the Hall of Heroes text and the icon agree).`,
   ),
 ];
 
 const VIDEO_NOTE = "from gameplay video, unverified wording";
 const OBLIGATION = P.added(
-  P.encounter("obligation", "63028", "Conditioned by the Hand", {
+  P.encounter("obligation", "63040", "Conditioned by the Hand", {
     card_set_code: "elektra",
     card_set_name: "Elektra",
     card_set_type_name_code: "hero",
@@ -299,7 +441,7 @@ const OBLIGATION = P.added(
   `Gameplay video ${VIDEO} [48:13], ${VIDEO_NOTE} ; the 2 boost icons come from the unofficial fan preview supplied by the owner, 2026-11-14 (footer "ELEKTRA (1/1)"); collector number unknown.`,
 );
 const AKA = P.added(
-  P.encounter("minion", "63029", "Aka", {
+  P.encounter("minion", "63041", "Aka", {
     card_set_code: "elektra_nemesis",
     card_set_name: "Elektra Nemesis",
     card_set_type_name_code: "nemesis",
@@ -318,7 +460,7 @@ const AKA = P.added(
 const FAN_NOTE =
   "unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art)";
 const FIST_FITS = P.added(
-  P.encounter("side_scheme", "63030", "The Fist Fits in the Hand", {
+  P.encounter("side_scheme", "63042", "The Fist Fits in the Hand", {
     card_set_code: "elektra_nemesis",
     card_set_name: "Elektra Nemesis",
     card_set_type_name_code: "nemesis",
@@ -332,7 +474,7 @@ const FIST_FITS = P.added(
   `From the ${FAN_NOTE}: footer "ELEKTRA NEMESIS (2/5)", 3 per hero starting threat, 3 boost icons, one scheme icon read as crisis (red plus; unverified).`,
 );
 const HAND_BLADEMASTER = P.added(
-  P.encounter("minion", "63032", "Hand Blademaster", {
+  P.encounter("minion", "63044", "Hand Blademaster", {
     card_set_code: "elektra_nemesis",
     card_set_name: "Elektra Nemesis",
     card_set_type_name_code: "nemesis",
@@ -347,7 +489,7 @@ const HAND_BLADEMASTER = P.added(
   `From the ${FAN_NOTE}: footer "ELEKTRA NEMESIS (4/5)", SCH 1, ATK 1, HP 3, 1 boost icon.`,
 );
 const HAND_ARCHER = P.added(
-  P.encounter("minion", "63033", "Hand Archer", {
+  P.encounter("minion", "63045", "Hand Archer", {
     card_set_code: "elektra_nemesis",
     card_set_name: "Elektra Nemesis",
     card_set_type_name_code: "nemesis",
@@ -393,6 +535,16 @@ export const ELEKTRA_CURATION: PackCuration = {
       "Images e3-1.png, e4.png, e5.png (set positions 2, 3, 5 of 6; collector numbers 2, 3, 4). Stars printing position 2 rather than 1 does not fit a first-position reading; a 2/2/2 split is the most consistent but unconfirmed.",
     ),
     inferred(
+      "63003",
+      "quantity 2 is inferred: Ninja Strike prints (3/6) and Ninja Vanish (5/6), so Strike holds 3 and 4; the footer shows only a card's first position. With Stars at (2/6), position 1 is not accounted for, so the 2/2/2 split is unconfirmed.",
+      "Images e4.png (3/6) and e5.png (5/6); first-position reading confirmed by the kit's full-size footers.",
+    ),
+    inferred(
+      "63004",
+      "quantity 2 is inferred: Ninja Vanish prints (5/6) and is the last card, so it holds 5 and 6. The deck is six cards; Stars (2/6) and Strike (3/6) leave position 1 unexplained, so the 2/2/2 split is unconfirmed.",
+      "Image e5.png (5/6).",
+    ),
+    inferred(
       "63006",
       "quantity 2 is inferred from set positions: the card prints (2/15) and Killer Blow is (4/15).",
       "Image e11.png; the kit's printed positions are 1, 2, 4, 6, 8, 12, 14 of 15.",
@@ -409,19 +561,15 @@ export const ELEKTRA_CURATION: PackCuration = {
     ),
     inferred(
       "63009",
-      "quantity 1 is the minimum the positions allow: the card prints (8/15) and the next seen card is (12/15); collector numbers 10 and 11 (positions 9 to 11) are unseen, so a second copy at 9 is possible.",
-      "Image e6.png.",
+      "quantity 2 is read from set positions: the card prints (8/15), the footer shows only a card's first position, and Resurrection Altar (63010) is (10/15), so Sai Strike holds positions 8 and 9.",
+      "Images e6.png and the full-size shot of Resurrection Altar (14-44); the kit now fills 15 of 15 (Daredevil 1, Acrobatic Prowess 2-3, Killer Blow 4-5, Move Unseen 6-7, Sai Strike 8-9, Resurrection Altar 10, White Tiger 11, Elektra's Sai 12-13, History 14, Stealth Mastery 15).",
     ),
     inferred(
       "63012",
       "quantity 2 is inferred from set positions: the card prints (12/15) and History with the Hand is (14/15); the FFG article says she has two Sai.",
       "Image e7.png; FFG article text.",
     ),
-    inferred(
-      "63013",
-      "quantity 1 is inferred: the card prints (14/15) and collector number 14 (position 15) is a different card.",
-      "Image e13.png.",
-    ),
+    inferred("63013", "quantity 1: the card prints (14/15) and Stealth Mastery (14) is (15/15).", "Image e13.png."),
     {
       code: "63001a",
       reason:
@@ -429,33 +577,33 @@ export const ELEKTRA_CURATION: PackCuration = {
       evidence: `Image e2-1.png: 0*, 1*, 1*; "Villainous. (When this character uses a basic power, give it a boost card.)"`,
     },
     {
-      code: "63028",
+      code: "63040",
       reason:
-        'PLACEHOLDER: the code 63028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage\'s 62028); the collector number was not read. Text is from a gameplay video, unverified wording; 2 boost icons from the unofficial fan preview. The fan preview prints "Hero Forced Response" and "Exhaust Elektra Natchios -> discard this card" where the video read "Forced Response (Hero)" and "Exhaust your identity": the video wording is kept.',
+        'PLACEHOLDER: the code 63040 is provisional (the obligation is assumed to follow the last player card, as Luke Cage\'s 62028); the collector number was not read. Text is from a gameplay video, unverified wording; 2 boost icons from the unofficial fan preview. The fan preview prints "Hero Forced Response" and "Exhaust Elektra Natchios -> discard this card" where the video read "Forced Response (Hero)" and "Exhaust your identity": the video wording is kept.',
       evidence: `Gameplay video ${VIDEO} [48:13]; ${FAN_NOTE}.`,
     },
     {
-      code: "63029",
+      code: "63041",
       reason:
-        'PLACEHOLDER: the code 63029 is provisional (nemesis 1/5 after the obligation); the collector number was not read. Text and stats are from a gameplay video, unverified wording. The fan preview agrees on stats, boost (star only) and text, except that it prints only the trait "Hand." and "Shuffle Aka into the encounter deck"; the video wording and traits (Hand. Ninja.) are kept.',
+        'PLACEHOLDER: the code 63041 is provisional (nemesis 1/5, numbered after the obligation); the collector number was not read. Text and stats are from a gameplay video, unverified wording. The fan preview agrees on stats, boost (star only) and text, except that it prints only the trait "Hand." and "Shuffle Aka into the encounter deck"; the video wording and traits (Hand. Ninja.) are kept.',
       evidence: `Gameplay video ${VIDEO} [48:11]; ${FAN_NOTE}.`,
     },
     {
-      code: "63030",
+      code: "63042",
       reason:
-        "PLACEHOLDER (unofficial, fan preview only): the code 63030 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63031) is unknown and has no record.",
+        "PLACEHOLDER (unofficial, fan preview only): the code 63042 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63031) is unknown and has no record.",
       evidence: `${FAN_NOTE}.`,
     },
     {
-      code: "63032",
+      code: "63044",
       reason:
-        "PLACEHOLDER (unofficial, fan preview only): the code 63032 is provisional (nemesis 4/5); text and stats are from an unofficial fan preview. Quantity 1 is as printed (4/5), but the fan source skips 3/5, so this may be two copies at 3-4/5.",
+        "PLACEHOLDER (unofficial, fan preview only): the code 63044 is provisional (nemesis 4/5); text and stats are from an unofficial fan preview. Quantity 1 is as printed (4/5), but the fan source skips 3/5, so this may be two copies at 3-4/5.",
       evidence: `${FAN_NOTE}.`,
     },
     {
-      code: "63033",
+      code: "63045",
       reason:
-        "PLACEHOLDER (unofficial, fan preview only): the code 63033 is provisional (nemesis 5/5); text and stats are from an unofficial fan preview.",
+        "PLACEHOLDER (unofficial, fan preview only): the code 63045 is provisional (nemesis 5/5); text and stats are from an unofficial fan preview.",
       evidence: `${FAN_NOTE}.`,
     },
   ],
@@ -482,10 +630,10 @@ export const ELEKTRA_CURATION: PackCuration = {
   ],
   auxiliaryHeroSetCodes: { elektra_ninja_deck: "elektra" },
   artUnavailable: {
-    "63028": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
-    "63029": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
-    "63030": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
-    "63032": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
-    "63033": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "63040": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
+    "63041": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
+    "63042": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "63044": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "63045": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
   },
 };

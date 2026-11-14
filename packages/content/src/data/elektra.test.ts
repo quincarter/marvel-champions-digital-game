@@ -32,16 +32,18 @@ describe("elektra: the pack", () => {
     expect(ELEKTRA_PACK.cycleId as string).toBe("cycle11");
   });
 
-  it("is 24 records, counted by type, with no starter deck and one nemesis set", () => {
-    expect(ELEKTRA_CARDS).toHaveLength(24);
+  it("is 35 records, counted by type, with no starter deck and one nemesis set", () => {
+    expect(ELEKTRA_CARDS).toHaveLength(35);
     const counts: Record<string, number> = {};
     for (const c of ELEKTRA_CARDS) counts[c.type] = (counts[c.type] ?? 0) + 1;
     expect(counts).toEqual({
       hero_identity: 1,
-      treachery: 3,
-      ally: 3,
+      treachery: 6,
+      ally: 6,
       event: 8,
-      upgrade: 4,
+      support: 2,
+      upgrade: 6,
+      player_side_scheme: 1,
       obligation: 1,
       minion: 3,
       side_scheme: 1,
@@ -75,7 +77,7 @@ describe("elektra: the identity and the NINJA deck", () => {
   });
 
   it("links the provisional obligation and nemesis set", () => {
-    expect(identity.obligationCardId as string).toBe("63028");
+    expect(identity.obligationCardId as string).toBe("63040");
     expect(identity.nemesisEncounterSetId as string).toBe("elektra_nemesis");
   });
 
@@ -122,27 +124,89 @@ describe("elektra: keywords and transcription decisions", () => {
     expect(keywords("63013")).toEqual([{ name: "prerequisite", form: "hero" }]);
   });
 
-  it("the amplify icon is kept in the text of History with the Hand and Dance with the Devil", () => {
+  it("History with the Hand and Dance with the Devil carry the amplify icon as an icon, not as text (as fne 60031)", () => {
     for (const id of ["63013", "63027"]) {
-      expect((get(id) as unknown as { text: { printed: string } }).text.printed, id).toContain("[amplify]");
+      const card = get(id) as unknown as {
+        amplifyIcons?: number;
+        text: { printed: string };
+        abilities: { id: string }[];
+      };
+      expect(card.amplifyIcons, id).toBe(1);
+      expect(card.text.printed, id).not.toContain("[amplify]");
+      expect(
+        card.abilities.map((a) => a.id),
+        id,
+      ).not.toContain(`${id}.${id === "63013" ? "history-with-the-hand" : "dance-with-the-devil"}-constant-2`);
+      if (id === "63027") expect(card.abilities.map((a) => a.id)).toEqual(["63027.dance-with-the-devil-action"]);
+    }
+  });
+
+  it("Dance with the Devil (63027) is recorded as a verbatim reprint of fne 60031", () => {
+    const dance = ELEKTRA_PROVENANCE.find((p) => (p.cardId as string) === "63027");
+    expect(dance?.duplicateOfCardId as string | undefined).toBe("60031");
+  });
+
+  it("Aka has Quickstrike; Hand Archer has Quickstrike and Ranged", () => {
+    expect((get("63041") as unknown as { keywords: unknown[] }).keywords).toEqual([{ name: "quickstrike" }]);
+    expect((get("63045") as unknown as { keywords: { name: string }[] }).keywords.map((k) => k.name)).toEqual([
+      "quickstrike",
+      "ranged",
+    ]);
+  });
+
+  it("the signature cards carry the hero:63001a aspect; Team-Up names and Restricted are keywords", () => {
+    for (const id of ["63005", "63006", "63007", "63008", "63009", "63010", "63011", "63012", "63013", "63014"]) {
+      expect((get(id) as unknown as { aspect: string }).aspect, id).toBe("hero:63001a");
+    }
+    expect((get("63027") as unknown as { keywords: unknown[] }).keywords).toEqual([
+      { name: "teamUp", names: ["Daredevil", "Elektra"] },
+    ]);
+    expect((get("63012") as unknown as { keywords: unknown[] }).keywords).toEqual([{ name: "restricted" }]);
+  });
+
+  it("the allies record their printed consequential damage", () => {
+    const cd = (id: string) => (get(id) as unknown as { consequentialDamage: unknown }).consequentialDamage;
+    expect(cd("63005")).toEqual({ attack: 1, thwart: 1 });
+    expect(cd("63022")).toEqual({ attack: 2, thwart: 1 });
+    expect(cd("63039")).toEqual({ attack: 2, thwart: 2 });
+  });
+
+  it("Double-Cross is a justice player side scheme (2 per player) and its three treacheries are Linked to it, in no encounter set", () => {
+    const dc = get("63034") as unknown as { type: string; aspect: string; startingThreat: unknown };
+    expect([dc.type, dc.aspect, dc.startingThreat]).toEqual([
+      "player_side_scheme",
+      "justice",
+      { base: 0, perPlayer: 2 },
+    ]);
+    for (const id of ["63035", "63036", "63037"]) {
+      const card = get(id) as unknown as {
+        type: string;
+        encounterSetIds: string[];
+        keywords: unknown[];
+        starIcon?: boolean;
+      };
+      expect(card.type, id).toBe("treachery");
+      expect(card.encounterSetIds, id).toEqual([]);
+      expect(card.keywords, id).toEqual([{ name: "linked", cardTitle: "Double-Cross" }]);
+      expect(card.starIcon, id).toBe(true);
     }
   });
 
   it("quantities read from set positions are recorded as data decisions", () => {
     const q = (id: string) => (get(id) as unknown as { quantityInSet: number }).quantityInSet;
-    expect([q("63006"), q("63007"), q("63008"), q("63009"), q("63012"), q("63013")]).toEqual([2, 2, 2, 1, 2, 1]);
-    for (const id of ["63006", "63007", "63008", "63009", "63012", "63013"]) {
+    expect([q("63006"), q("63007"), q("63008"), q("63009"), q("63012"), q("63013")]).toEqual([2, 2, 2, 2, 2, 1]);
+    for (const id of ["63003", "63004", "63006", "63007", "63008", "63009", "63012", "63013"]) {
       expect(notes(id), id).toContain("Data decision");
     }
   });
 
   it("the video-only cards are PLACEHOLDER, unverified and have no art", () => {
-    for (const id of ["63028", "63029", "63030", "63032", "63033"]) {
+    for (const id of ["63040", "63041", "63042", "63044", "63045"]) {
       expect(notes(id), id).toContain("PLACEHOLDER");
       expect(notes(id), id).toMatch(/unverified|unofficial/);
       expect((get(id) as unknown as { images?: unknown }).images, id).toBeUndefined();
     }
-    const aka = get("63029") as unknown as { atk: number; sch: number; hp: number; nemesisMinion?: boolean };
+    const aka = get("63041") as unknown as { atk: number; sch: number; hp: number; nemesisMinion?: boolean };
     expect([aka.atk, aka.sch, aka.hp, aka.nemesisMinion]).toEqual([2, 2, 4, true]);
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Shared builders for the hand-transcribed hero packs MarvelCDB does not carry yet (Elektra MC63, Iron Fist MC64:
- * `elektra.ts`, `iron-fist.ts`). The conventions are Shadowland's (`shadowland-encounter/common.ts`): every record is a
+ * `elektra.ts`, `iron_fist.ts`). The conventions are Shadowland's (`shadowland-encounter/common.ts`): every record is a
  * MarvelCDB-shaped raw record, so the ordinary normalizer reads it, and no art is wired (`imagesrc` is filled from the
  * gitignored local scan folder by `withLocalArt`, never stored here).
  *
@@ -37,6 +37,7 @@ const TYPE_NAMES: Readonly<Record<string, string>> = {
   treachery: "Treachery",
   attachment: "Attachment",
   side_scheme: "Side Scheme",
+  player_side_scheme: "Player Side Scheme",
 };
 
 const FACTION_NAMES: Readonly<Record<string, string>> = {
@@ -142,6 +143,20 @@ export function packBuilders(pack: HeroPackInfo) {
   const encounter = (type: string, code: string, name: string, over: Fields): RawCard =>
     face(type, "encounter", code, name, { spoiler: 1, ...over }) as unknown as RawCard;
 
+  /**
+   * An encounter-shaped card a player card brings in by its Linked keyword (Elektra's Backstab, Misdirect and Sabotage,
+   * "Linked (Double-Cross)"): `faction: encounter`, filed under the pack's own hero set, which the normalizer reads as
+   * "belongs to no encounter set" (it is never part of a scenario's deck until its linking card shuffles it in).
+   */
+  const linked = (code: string, name: string, over: Fields): RawCard =>
+    face("treachery", "encounter", code, name, {
+      card_set_code: pack.packCode,
+      card_set_name: pack.packName,
+      card_set_type_name_code: "hero",
+      spoiler: 1,
+      ...over,
+    }) as unknown as RawCard;
+
   /** One `AddedRecord` with the standard reason line. */
   const added = (record: RawCard, evidence: string): AddedRecord => {
     const name = (record as unknown as { name: string }).name;
@@ -151,5 +166,5 @@ export function packBuilders(pack: HeroPackInfo) {
       evidence,
     };
   };
-  return { kit, aspect, identity, encounter, added };
+  return { kit, aspect, identity, encounter, linked, added };
 }

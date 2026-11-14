@@ -4,16 +4,15 @@
  * (https://hallofheroeslcg.com/iron-fist-danny-rand/) and the FFG preview article "Way of the Iron Fist"
  * (https://www.fantasyflightgames.com/en/news/2026/8/27/way-of-the-iron-fist/), card images 300 px wide, read 2026-11-14.
  *
- * What exists: the two identity faces, 10 of the 12 kit cards (Embody the Dragon and Keep 'Em Coming were never
- * shown), 5 protection cards and 2 basic cards, plus two cards read from a gameplay video (the obligation and Davos) and an unofficial fan preview (Steel Serpent, Crane Daughter). Never seen, so not transcribed: Embody the Dragon, Keep 'Em
- * Coming, Defiance, The Night Nurse, Colleen Wing, Punch Reverse Punch, Thunder Dojo, Death by a Thousand Cuts,
- * Zen-Like Calm, Sensei, The Defenders, an Iron Fist ally; unseen collector numbers 9, 11, 14, 15, 17, 21, 23 and
- * anything after 24.
+ * What exists: the two identity faces, all 11 kit cards (collector 2 to 12), the protection, aggression, leadership and
+ * basic cards seen (13 to 25 and 30 to 33), 12 of them from full-size spoiler images, plus two cards read from a gameplay
+ * video (the obligation and Davos) and an unofficial fan preview (Steel Serpent, Crane Daughter). Unseen collector numbers:
+ * 26, 27, 28, 29 (and anything after 33 that is not a provisional card); nemesis 5 of 5.
  *
  * Evidence abbreviations: "HoH" is the Hall of Heroes page above, "FFG" the article above, "video" the gameplay video
  * https://youtu.be/6wR6kfxPmio (Web-Warrior Fanatic, 2026-11-13).
  *
- * - PLACEHOLDER codes: 64028 (obligation), 64029 (Davos), 64030 (Steel Serpent) and 64031 (Crane Daughter) are provisional collector numbers.
+ * - PLACEHOLDER codes: 64034 (obligation), 64035 (Davos), 64036 (Steel Serpent) and 64037 (Crane Daughter) are provisional collector numbers.
  */
 import type { PackCuration } from "./types.ts";
 import { HR, packBuilders } from "./hero-pack-scans.ts";
@@ -23,6 +22,9 @@ const P = packBuilders({ num: "64", packCode: "iron_fist", packName: "Iron Fist"
 const HOH = "https://hallofheroeslcg.com/iron-fist-danny-rand/";
 const FFG = "https://www.fantasyflightgames.com/en/news/2026/8/27/way-of-the-iron-fist/";
 const VIDEO = "https://youtu.be/6wR6kfxPmio";
+const SHOTS =
+  "full-size Hall of Heroes spoiler image shots-iron-fist-danny-rand/marvel-champions_-the-card-game-shadowland-gameplay-";
+const full = (stamp: string) => `HoH ${HOH}, ${SHOTS}${stamp}-screenshot.png (about 1400 x 2000, read 2026-11-14).`;
 const src = (hohImage: string, ffgImage: string) =>
   `HoH ${HOH} image ${hohImage}, FFG ${FFG} image ${ffgImage} (300 px previews, read 2026-11-14).`;
 
@@ -54,6 +56,25 @@ const IDENTITY = P.added(
 );
 
 const KIT = [
+  P.added(
+    P.kit("upgrade", "64009", "Embody the Dragon", 12, {
+      cost: 0,
+      resource_physical: 1,
+      traits: "Technique.",
+      text: "Temporary.\nIron Fist gains retaliate X, where X is equal to the number of chi counters on this card.\n<b>Hero Action</b>: Move 1 chi counter from Iron Fist to this card.",
+    }),
+    full("9-46"),
+  ),
+  P.added(
+    P.kit("upgrade", "64011", "Keep 'Em Coming", 14, {
+      cost: 0,
+      resource_physical: 1,
+      traits: "Technique.",
+      flavor: `"I'm not trying to get out of this fight. I'm just giving you a chance to flee." —Iron Fist`,
+      text: "Temporary.\n<b>Hero Action</b>: Remove 2 chi counters from Iron Fist → ready him.",
+    }),
+    `${full("9-54")} The title prints a curly apostrophe.`,
+  ),
   P.added(
     P.kit("event", "64002", "Deep Breathing", 1, {
       quantity: 3,
@@ -153,15 +174,135 @@ const KIT = [
 
 const ASPECT = [
   P.added(
+    P.aspect("ally", "protection", "64014", "Iron Fist", {
+      subname: "Lin Lie",
+      is_unique: true,
+      deck_limit: 1,
+      cost: 4,
+      resource_physical: 1,
+      thwart: 1,
+      thwart_cost: 1,
+      attack: 2,
+      attack_star: true,
+      attack_cost: 2,
+      health: 3,
+      traits: "Agent of Atlas. Martial Artist.",
+      text: "[star] <b>Response</b>: After Iron Fist (this ally) attacks an enemy who has been attacked by a hero this phase, stun that enemy. If Iron Fist defeated that enemy, he takes -2 consequential damage ([cost]) from this attack.",
+    }),
+    `${full("10-16")} ATK prints 2 with a star tied to the starred Response. Shares the title Iron Fist with the hero identity; the subtitle Lin Lie tells them apart.`,
+  ),
+  P.added(
+    P.aspect("event", "protection", "64015", "Defiance", {
+      cost: 0,
+      resource_energy: 1,
+      duplicate_of_code: "26018",
+      traits: "Defense.",
+      flavor: `"No." —Shang-Chi`,
+      text: "<b>Hero Interrupt</b> <i>(defense)</i>: When a boost card on an enemy attacking you would be turned faceup, discard it instead.",
+    }),
+    `${full("11-8")} A verbatim reprint of vision 26018 (duplicate_of_code: same text, cost, icon, flavor and traits).`,
+  ),
+  P.added(
+    P.aspect("support", "protection", "64017", "The Night Nurse", {
+      is_unique: true,
+      deck_limit: 1,
+      cost: 1,
+      resource_mental: 1,
+      duplicate_of_code: "09019",
+      traits: "Persona.",
+      text: "Uses (3 medical counters).\n<b>Action</b>: Exhaust The Night Nurse and remove 1 medical counter from her → heal 1 damage from a hero and discard 1 status card from it.",
+    }),
+    `${full("11-21")} A verbatim reprint of drs 09019 (duplicate_of_code; cw 56044 is a second reprint of it).`,
+  ),
+  P.added(
+    P.aspect("ally", "basic", "64021", "Colleen Wing", {
+      is_unique: true,
+      deck_limit: 1,
+      cost: 3,
+      resource_physical: 1,
+      thwart: 1,
+      thwart_cost: 1,
+      attack: 2,
+      attack_star: true,
+      attack_cost: 1,
+      health: 3,
+      traits: "Hero for Hire. Martial Artist.",
+      flavor: `"Even I'd admit, she is probably the best samurai sword fighter outside of Japan." —Razor Fist`,
+      text: "[star] Colleen Wing takes -1 consequential damage ([cost]) after she attacks an enemy who has been attacked by another [[Martial Artist]] character this phase.",
+    }),
+    `${full("11-38")} ATK prints 2 with a star tied to the starred constant.`,
+  ),
+  P.added(
+    P.aspect("event", "basic", "64023", "Punch, Reverse Punch", {
+      cost: 1,
+      cost_star: true,
+      resource_physical: 1,
+      traits: "Attack.",
+      flavor: `"It never hurts to practice even the basic forms." —Shang-Chi`,
+      text: "[star] Discount 1 ([[Martial Artist]]).\n<b>Hero Action</b> <i>(attack)</i>: Deal 1 damage to an enemy. Deal 1 damage to an enemy.",
+    }),
+    `${full("12-15")} The title prints a comma; cost 1 with a star beside it (the Discount line).`,
+  ),
+  P.added(
+    P.aspect("support", "basic", "64025", "Thunder Dojo", {
+      is_unique: true,
+      deck_limit: 1,
+      cost: 1,
+      resource_energy: 1,
+      traits: "Location.",
+      flavor: `"I love giving back to the community." —Danny Rand`,
+      text: "Prerequisite ([[Defender]] or [[Martial Artist]]).\n<b>Alter-Ego Action</b>: Exhaust this card → shuffle up to 2 [[Attack]] events from your discard pile into your deck. Any player may trigger this ability.",
+    }),
+    full("12-32"),
+  ),
+  P.added(
+    P.aspect("upgrade", "aggression", "64030", "Death by a Thousand Cuts", {
+      cost: 2,
+      cost_star: true,
+      resource_physical: 1,
+      traits: "Skill.",
+      text: "[star] Discount 1 ([[Martial Artist]] or [[Soldier]]).\nTemporary. Max 1 per player.\n<b>Response</b> <i>(attack)</i>: After you play a card <i>(including this one)</i>, deal 1 damage to an enemy.",
+    }),
+    `${full("12-55")} Cost 2 with a star beside it (the Discount line).`,
+  ),
+  P.added(
+    P.aspect("event", "leadership", "64031", "Zen-Like Calm", {
+      cost: 0,
+      resource_energy: 1,
+      traits: "Tactic.",
+      flavor: `"Matt, adjust your posture. Let your body relax. Bring your attention to your breath." —Iron Fist`,
+      text: "<b>Action</b>: Heal 1 damage from a [[Martial Artist]] character. Then, if that character has no sustained damage, heal 1 damage from another character.",
+    }),
+    full("13-27"),
+  ),
+  P.added(
+    P.aspect("upgrade", "leadership", "64032", "Sensei", {
+      cost: 2,
+      cost_star: true,
+      resource_physical: 1,
+      traits: "Title.",
+      text: "[star] Discount 2 ([[Martial Artist]]).\nMax 1 per player.\nEach [[Martial Artist]] ally you control takes -2 consequential damage ([cost]) after they exactly defeat an enemy or side scheme.",
+    }),
+    `${full("13-51")} Cost 2 with a star beside it (the Discount line).`,
+  ),
+  P.added(
+    P.aspect("resource", "basic", "64033", "The Defenders", {
+      text: "This card generates [physical] for each [[Defender]] character you control (to a maximum of 4) and can be spent for another player whose identity has the [[Defender]] trait.",
+    }),
+    `${full("20-36")} No corner resource icon and no traits line are printed; the icon in the text is the physical fist.`,
+  ),
+  P.added(
     P.aspect("ally", "protection", "64013", "Helpful Bystander", {
       deck_limit: 1,
       cost: 1,
       resource_physical: 1,
+      thwart_cost: 1,
+      attack_cost: 1,
       health: 1,
       traits: "Civilian.",
       text: "Vulnerable. Max 1 per deck.\nYour hero gets +1 hand size.\n<b>Forced Interrupt</b>: When an enemy attacks you, it attacks Helpful Bystander instead. This attack gains overkill.",
     }),
-    `${src("12.png", "MC64_Iron-Fist_Helpful-Bystander.png")} THW and ATK print a dash (no thwart or attack value); a small consequential-damage pip sits under each dash.`,
+    `${src("12.png", "MC64_Iron-Fist_Helpful-Bystander.png")} THW and ATK print a dash (no thwart or attack value); a consequential-damage pip sits under each dash, recorded as 1 and 1 as printed (moot under the dashes).`,
   ),
   P.added(
     P.aspect("event", "protection", "64016", "Demoralize", {
@@ -224,16 +365,17 @@ const ASPECT = [
       deck_limit: 1,
       cost: 0,
       resource_physical: 1,
+      duplicate_of_code: "62023",
       traits: "Attack.",
       text: "Team-Up <i>(Iron Fist and Luke Cage)</i>. Max 1 per deck.\n<b>Hero Action</b> <i>(attack)</i>: Deal 2 damage to an enemy and give a tough status card to a character.",
     }),
-    src("18.png", "MC64_Iron-Fist_IPower-Man-Iron-Fist.png"),
+    `${src("18.png", "MC64_Iron-Fist_IPower-Man-Iron-Fist.png")} A verbatim reprint of luke_cage 62023 (\`duplicate_of_code\`; same text, cost and icon).`,
   ),
 ];
 
 const VIDEO_NOTE = "from gameplay video, unverified wording";
 const OBLIGATION = P.added(
-  P.encounter("obligation", "64028", "Lack of Chi", {
+  P.encounter("obligation", "64034", "Lack of Chi", {
     card_set_code: "iron_fist",
     card_set_name: "Iron Fist",
     card_set_type_name_code: "hero",
@@ -243,7 +385,7 @@ const OBLIGATION = P.added(
   `Gameplay video ${VIDEO} [~1:00, in play ~45:01], ${VIDEO_NOTE}: footer "IRON FIST", 2 boost icons; collector number and quantity unreadable.`,
 );
 const DAVOS = P.added(
-  P.encounter("minion", "64029", "Davos", {
+  P.encounter("minion", "64035", "Davos", {
     card_set_code: "iron_fist_nemesis",
     card_set_name: "Iron Fist Nemesis",
     card_set_type_name_code: "nemesis",
@@ -261,7 +403,7 @@ const DAVOS = P.added(
 const FAN_NOTE =
   "unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art)";
 const STEEL_SERPENT = P.added(
-  P.encounter("side_scheme", "64030", "Steel Serpent", {
+  P.encounter("side_scheme", "64036", "Steel Serpent", {
     card_set_code: "iron_fist_nemesis",
     card_set_name: "Iron Fist Nemesis",
     card_set_type_name_code: "nemesis",
@@ -274,7 +416,7 @@ const STEEL_SERPENT = P.added(
   `From the ${FAN_NOTE}: footer "IRON FIST NEMESIS (2/5)", 4 per hero starting threat, 2 boost icons, one scheme icon read as crisis (red plus; unverified).`,
 );
 const CRANE_DAUGHTER = P.added(
-  P.encounter("minion", "64031", "Crane Daughter", {
+  P.encounter("minion", "64037", "Crane Daughter", {
     card_set_code: "iron_fist_nemesis",
     card_set_name: "Iron Fist Nemesis",
     card_set_type_name_code: "nemesis",
@@ -334,31 +476,31 @@ export const IRON_FIST_CURATION: PackCuration = {
     {
       code: "64013",
       reason:
-        "THW and ATK print a dash: Helpful Bystander has no thwart or attack value (RRG 1.8 Dash (Value), p. 15). The small pip under each dash is not read as a consequential-damage value.",
+        "THW and ATK print a dash: Helpful Bystander has no thwart or attack value (RRG 1.8 Dash (Value), p. 15). The consequential-damage pip printed under each dash is recorded as 1 and 1 as printed (it is moot, since a dashed stat cannot be used).",
       evidence: "Image 12.png (300 px).",
     },
     {
-      code: "64028",
+      code: "64034",
       reason:
-        'PLACEHOLDER: the code 64028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage\'s 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording, with "Then," added before "if there are at least 4 chi counters here" as the unofficial fan preview prints it (the video frame did not show it). The fan preview agrees on the rest and on the 2 boost icons.',
+        'PLACEHOLDER: the code 64034 is provisional (the obligation is assumed to follow the last player card, as Luke Cage\'s 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording, with "Then," added before "if there are at least 4 chi counters here" as the unofficial fan preview prints it (the video frame did not show it). The fan preview agrees on the rest and on the 2 boost icons.',
       evidence: `Gameplay video ${VIDEO} [~1:00]; ${FAN_NOTE}.`,
     },
     {
-      code: "64029",
+      code: "64035",
       reason:
-        'PLACEHOLDER: the code 64029 is provisional (nemesis 1/5 after the obligation). Text and stats are from a gameplay video, unverified wording, and win where the unofficial fan preview differs. The fan preview prints "When Revealed: Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos." and "shuffle a Crane Daughter from under him into the encounter deck instead". It confirms the traits as K\'un-Lun only (the video\'s second trait was hidden), SCH 1, ATK 2, HP 5 and 2 boost icons.',
+        'PLACEHOLDER: the code 64035 is provisional (nemesis 1/5, numbered after the obligation). Text and stats are from a gameplay video, unverified wording, and win where the unofficial fan preview differs. The fan preview prints "When Revealed: Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos." and "shuffle a Crane Daughter from under him into the encounter deck instead". It confirms the traits as K\'un-Lun only (the video\'s second trait was hidden), SCH 1, ATK 2, HP 5 and 2 boost icons.',
       evidence: `Gameplay video ${VIDEO} [1:14]; ${FAN_NOTE}.`,
     },
     {
-      code: "64030",
+      code: "64036",
       reason:
-        "PLACEHOLDER (unofficial, fan preview only): the code 64030 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card.",
+        "PLACEHOLDER (unofficial, fan preview only): the code 64036 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card.",
       evidence: `${FAN_NOTE}.`,
     },
     {
-      code: "64031",
+      code: "64037",
       reason:
-        'PLACEHOLDER (unofficial, fan preview only; the LEAST CERTAIN record: the owner could not confirm it): the code 64031 (nemesis 3-5/5) and the quantity 3 (footer and Davos\'s "the 3 Crane Daughter minions") are provisional; text, stats and the boost are from an unofficial fan preview. Replaces the earlier video-only shell (64030, validator-minimum stats).',
+        'PLACEHOLDER (unofficial, fan preview only; the LEAST CERTAIN record: the owner could not confirm it): the code 64037 (nemesis 3-5/5) and the quantity 3 (footer and Davos\'s "the 3 Crane Daughter minions") are provisional; text, stats and the boost are from an unofficial fan preview. Replaces the earlier video-only shell (64036, validator-minimum stats).',
       evidence: `${FAN_NOTE}; gameplay video ${VIDEO} [1:14] (title only).`,
     },
   ],
@@ -368,7 +510,7 @@ export const IRON_FIST_CURATION: PackCuration = {
   cardNotes: {
     "64013":
       "Helpful Bystander: THW and ATK both print a dash (image 12.png), so it can neither thwart nor attack; HP 1 (Vulnerable). No thwart or attack value is emitted, as Hulk's dash THW (luke_cage 62020).",
-    "64031":
+    "64037":
       "Crane Daughter: fan-preview text and stats only, the owner could not confirm them (least certain record).",
   },
 
@@ -376,9 +518,9 @@ export const IRON_FIST_CURATION: PackCuration = {
   starterDecks: [],
 
   artUnavailable: {
-    "64028": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
-    "64029": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
-    "64030": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
-    "64031": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "64034": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
+    "64035": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
+    "64036": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "64037": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
   },
 };

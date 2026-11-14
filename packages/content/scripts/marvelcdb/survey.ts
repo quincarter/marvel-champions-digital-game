@@ -81,7 +81,7 @@ import { JJ_CURATION } from "./curation/jj.ts";
 import { LUKE_CAGE_CURATION } from "./curation/luke_cage.ts";
 import { SHADOWLAND_CURATION } from "./curation/shadowland.ts";
 import { ELEKTRA_CURATION } from "./curation/elektra.ts";
-import { IRON_FIST_CURATION } from "./curation/iron-fist.ts";
+import { IRON_FIST_CURATION } from "./curation/iron_fist.ts";
 import { GMW_CURATION } from "./curation/gmw.ts";
 import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
 import { CW_CURATION } from "./curation/cw.ts";

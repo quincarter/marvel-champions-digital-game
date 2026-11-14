@@ -101,7 +101,7 @@ import { JJ_CURATION } from "./marvelcdb/curation/jj.ts";
 import { LUKE_CAGE_CURATION } from "./marvelcdb/curation/luke_cage.ts";
 import { SHADOWLAND_CURATION } from "./marvelcdb/curation/shadowland.ts";
 import { ELEKTRA_CURATION } from "./marvelcdb/curation/elektra.ts";
-import { IRON_FIST_CURATION } from "./marvelcdb/curation/iron-fist.ts";
+import { IRON_FIST_CURATION } from "./marvelcdb/curation/iron_fist.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 

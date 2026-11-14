@@ -112,6 +112,9 @@ import {
   ELEKTRA_ELEKTRA_OBLIGATION_NEMESIS_SKIPPED,
 } from "./elektra/elektra/obligation-nemesis.js";
 import { ELEKTRA_AGGRESSION, ELEKTRA_AGGRESSION_SKIPPED } from "./elektra/aggression.js";
+import { ELEKTRA_JUSTICE, ELEKTRA_JUSTICE_SKIPPED } from "./elektra/justice.js";
+import { ELEKTRA_LEADERSHIP, ELEKTRA_LEADERSHIP_SKIPPED } from "./elektra/leadership.js";
+import { ELEKTRA_PROTECTION, ELEKTRA_PROTECTION_SKIPPED } from "./elektra/protection.js";
 import { ELEKTRA_BASIC, ELEKTRA_BASIC_SKIPPED } from "./elektra/basic.js";
 import { IRON_FIST_IRON_FIST_IDENTITY, IRON_FIST_IRON_FIST_IDENTITY_SKIPPED } from "./iron_fist/iron-fist/identity.js";
 import { IRON_FIST_IRON_FIST_EVENTS, IRON_FIST_IRON_FIST_EVENTS_SKIPPED } from "./iron_fist/iron-fist/events.js";
@@ -123,6 +126,8 @@ import {
   IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS,
   IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS_SKIPPED,
 } from "./iron_fist/iron-fist/obligation-nemesis.js";
+import { IRON_FIST_AGGRESSION, IRON_FIST_AGGRESSION_SKIPPED } from "./iron_fist/aggression.js";
+import { IRON_FIST_LEADERSHIP, IRON_FIST_LEADERSHIP_SKIPPED } from "./iron_fist/leadership.js";
 import { IRON_FIST_PROTECTION, IRON_FIST_PROTECTION_SKIPPED } from "./iron_fist/protection.js";
 import { IRON_FIST_BASIC, IRON_FIST_BASIC_SKIPPED } from "./iron_fist/basic.js";
 
@@ -329,6 +334,9 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
     skipped: ELEKTRA_ELEKTRA_OBLIGATION_NEMESIS_SKIPPED,
   },
   { group: "elektra/aggression", registry: ELEKTRA_AGGRESSION, skipped: ELEKTRA_AGGRESSION_SKIPPED },
+  { group: "elektra/justice", registry: ELEKTRA_JUSTICE, skipped: ELEKTRA_JUSTICE_SKIPPED },
+  { group: "elektra/leadership", registry: ELEKTRA_LEADERSHIP, skipped: ELEKTRA_LEADERSHIP_SKIPPED },
+  { group: "elektra/protection", registry: ELEKTRA_PROTECTION, skipped: ELEKTRA_PROTECTION_SKIPPED },
   { group: "elektra/basic", registry: ELEKTRA_BASIC, skipped: ELEKTRA_BASIC_SKIPPED },
   {
     group: "iron_fist/iron-fist/identity",
@@ -350,6 +358,8 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
     registry: IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS,
     skipped: IRON_FIST_IRON_FIST_OBLIGATION_NEMESIS_SKIPPED,
   },
+  { group: "iron_fist/aggression", registry: IRON_FIST_AGGRESSION, skipped: IRON_FIST_AGGRESSION_SKIPPED },
+  { group: "iron_fist/leadership", registry: IRON_FIST_LEADERSHIP, skipped: IRON_FIST_LEADERSHIP_SKIPPED },
   { group: "iron_fist/protection", registry: IRON_FIST_PROTECTION, skipped: IRON_FIST_PROTECTION_SKIPPED },
   { group: "iron_fist/basic", registry: IRON_FIST_BASIC, skipped: IRON_FIST_BASIC_SKIPPED },
 ];

@@ -2,8 +2,8 @@ import type { AbilityRegistry } from "@mc/engine";
 import { defineAbilities } from "../../../dsl/index.js";
 
 /**
- * Wave 11 scripting module `elektra/elektra/events` (docs/phase7-elektra-iron-fist.md). Scaffold: an empty registry with every ref
- * skipped, so scripting it is editing this file and its test.
+ * Wave 11 scripting module `elektra/elektra/events` (docs/phase7-elektra-iron-fist.md). Scaffold: a registry holding only the reprint aliases
+ * (an empty one when there are none) with every other ref skipped, so scripting it is editing this file and its test.
  *
  * Cards (4):
  * - 63006 Acrobatic Prowess (event)

@@ -28,16 +28,17 @@ describe("iron_fist: the pack", () => {
     expect(IRON_FIST_PACK.releaseDate).toBe("2026-11-01");
   });
 
-  it("is 21 records, counted by type, with no starter deck and one nemesis set", () => {
-    expect(IRON_FIST_CARDS).toHaveLength(21);
+  it("is 33 records, counted by type, with no starter deck and one nemesis set", () => {
+    expect(IRON_FIST_CARDS).toHaveLength(33);
     const counts: Record<string, number> = {};
     for (const c of IRON_FIST_CARDS) counts[c.type] = (counts[c.type] ?? 0) + 1;
     expect(counts).toEqual({
       hero_identity: 1,
-      event: 6,
-      support: 1,
-      upgrade: 7,
-      ally: 2,
+      event: 9,
+      support: 3,
+      upgrade: 11,
+      ally: 4,
+      resource: 1,
       obligation: 1,
       minion: 2,
       side_scheme: 1,
@@ -71,7 +72,7 @@ describe("iron_fist: the identity", () => {
   });
 
   it("links the provisional obligation and nemesis set", () => {
-    expect(identity.obligationCardId as string).toBe("64028");
+    expect(identity.obligationCardId as string).toBe("64034");
     expect(identity.nemesisEncounterSetId as string).toBe("iron_fist_nemesis");
   });
 });
@@ -80,7 +81,14 @@ describe("iron_fist: keywords and transcription decisions", () => {
   it("the Techniques are Temporary; Helpful Bystander is Vulnerable with dash THW and ATK", () => {
     for (const id of ["64008", "64010", "64012"]) expect(keywords(id), id).toEqual([{ name: "temporary" }]);
     expect(keywords("64013")).toEqual([{ name: "vulnerable" }]);
-    expect((get("64013") as unknown as { hp: number }).hp).toBe(1);
+    const bystander = get("64013") as unknown as {
+      hp: number;
+      atk: unknown;
+      thw: unknown;
+      consequentialDamage: unknown;
+    };
+    expect([bystander.hp, bystander.atk, bystander.thw]).toEqual([1, null, null]);
+    expect(bystander.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
     expect(notes("64013")).toContain("dash");
   });
 
@@ -103,16 +111,60 @@ describe("iron_fist: keywords and transcription decisions", () => {
   });
 
   it("the video-only cards are PLACEHOLDER and have no art; Davos records only K'un-Lun", () => {
-    for (const id of ["64028", "64029", "64030", "64031"]) {
+    for (const id of ["64034", "64035", "64036", "64037"]) {
       expect(notes(id), id).toContain("PLACEHOLDER");
       expect((get(id) as unknown as { images?: unknown }).images, id).toBeUndefined();
     }
-    expect(notes("64028")).toContain("unverified");
-    expect(notes("64029")).toContain("K'un-Lun");
-    const davos = get("64029") as unknown as { atk: number; sch: number; hp: number; traits: string[] };
+    expect(notes("64034")).toContain("unverified");
+    expect(notes("64035")).toContain("K'un-Lun");
+    const davos = get("64035") as unknown as { atk: number; sch: number; hp: number; traits: string[] };
     expect([davos.atk, davos.sch, davos.hp, davos.traits]).toEqual([2, 1, 5, ["K'UN-LUN"]]);
-    expect((get("64031") as unknown as { quantityInSet: number }).quantityInSet).toBe(3);
-    expect(notes("64031")).toContain("LEAST CERTAIN");
+    expect((get("64037") as unknown as { quantityInSet: number }).quantityInSet).toBe(3);
+    expect(notes("64037")).toContain("LEAST CERTAIN");
+  });
+});
+
+describe("iron_fist: signature aspects, reprints and keywords", () => {
+  it("the signature cards carry the hero:64001a aspect", () => {
+    for (const id of [
+      "64002",
+      "64003",
+      "64004",
+      "64005",
+      "64006",
+      "64007",
+      "64008",
+      "64009",
+      "64010",
+      "64011",
+      "64012",
+    ]) {
+      expect((get(id) as unknown as { aspect: string }).aspect, id).toBe("hero:64001a");
+    }
+  });
+
+  it("Team-Up names on Power Man and Iron Fist (64024) and Restricted on Tonfa (64020)", () => {
+    expect(keywords("64024")).toEqual([{ name: "teamUp", names: ["Iron Fist", "Luke Cage"] }]);
+    expect(keywords("64020")).toEqual([{ name: "restricted" }]);
+  });
+
+  it("verbatim reprints are recorded: 64024 of luke_cage 62023, 64015 of vision 26018, 64017 of drs 09019", () => {
+    const dup = (id: string) =>
+      IRON_FIST_PROVENANCE.find((p) => (p.cardId as string) === id)?.duplicateOfCardId as string | undefined;
+    expect([dup("64024"), dup("64015"), dup("64017")]).toEqual(["62023", "26018", "09019"]);
+  });
+
+  it("the new Techniques are Temporary; Sensei has Discount 2 and Death by a Thousand Cuts Discount 1", () => {
+    for (const id of ["64009", "64011"]) expect(keywords(id), id).toEqual([{ name: "temporary" }]);
+    expect(keywords("64032")[0]).toMatchObject({ name: "discount", value: 2 });
+    expect(keywords("64030")[0]).toMatchObject({ name: "discount", value: 1 });
+  });
+
+  it("the allies record their printed consequential damage", () => {
+    const cd = (id: string) => (get(id) as unknown as { consequentialDamage: unknown }).consequentialDamage;
+    expect(cd("64014")).toEqual({ attack: 2, thwart: 1 });
+    expect(cd("64021")).toEqual({ attack: 1, thwart: 1 });
+    expect(cd("64022")).toEqual({ attack: 1, thwart: 1 });
   });
 });
 
