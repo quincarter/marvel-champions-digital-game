@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>We've moved · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      data-t-content="meta.description"
+      content="The fan-made Marvel Champions digital game has a new home. Bring your saves across in a few minutes."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition has moved" />
+    <meta property="og:description" content="Same game, new address. Bring your saves across in a few minutes." />
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="../shared/site.css" />
+    <link rel="stylesheet" href="./moved.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="ai-note" id="ai-note" lang="es" data-t="lang.aiNote" hidden></div>
+      <header class="top">
+        <div>
+          <div class="kick" data-t="top.kick"></div>
+          <h1 data-t="top.title"></h1>
+        </div>
+        <div class="meta">
+          <div data-t="top.meta"></div>
+          <div class="lang" id="language"></div>
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star" aria-hidden="true">★</div>
+          <div><small data-t="intro.pill.small"></small><span data-t="intro.pill.big"></span></div>
+        </div>
+        <p data-t="intro.text"></p>
+      </section>
+      <div class="ctas">
+        <a class="btn primary" data-href="game"><span data-t="cta.open"></span></a>
+        <button class="btn gold" type="button" id="cta-save"><span data-t="cta.save"></span></button>
+        <a class="btn ghost" data-href="landing"><span data-t="cta.landing"></span></a>
+      </div>
+
+      <!-- ============ STEPS ============ -->
+      <div class="band">
+        <h2 data-t="order.band"></h2>
+        <div class="lab" data-t="order.lab"></div>
+      </div>
+      <p class="lead" data-t="order.lead"></p>
+      <ol class="steps">
+        <li class="paper step" id="step-1">
+          <div class="num" aria-hidden="true">1</div>
+          <div>
+            <div class="eb" data-t="step1.eb"></div>
+            <h3 data-t="step1.title"></h3>
+            <p data-t="step1.text"></p>
+            <button class="btn primary" type="button" id="save-button"><span data-t="step1.button"></span></button>
+            <p class="status" id="save-status" role="status" aria-live="polite"></p>
+          </div>
+        </li>
+        <li class="paper step">
+          <div class="num" aria-hidden="true">2</div>
+          <div>
+            <div class="eb" data-t="step2.eb"></div>
+            <h3 data-t="step2.title"></h3>
+            <p id="sync-text"></p>
+            <div class="sync-tools" id="sync-tools" hidden>
+              <code class="sync-code masked" id="sync-code"></code>
+              <div class="sync-buttons">
+                <button class="btn" type="button" id="sync-show"></button>
+                <button class="btn" type="button" id="sync-copy" data-t="step2.copy"></button>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li class="paper step">
+          <div class="num" aria-hidden="true">3</div>
+          <div>
+            <div class="eb" data-t="step3.eb"></div>
+            <h3 data-t="step3.title"></h3>
+            <p data-t="step3.text"></p>
+          </div>
+        </li>
+        <li class="paper step">
+          <div class="num" aria-hidden="true">4</div>
+          <div>
+            <div class="eb" data-t="step4.eb"></div>
+            <h3 data-t="step4.title"></h3>
+            <p data-t="step4.text"></p>
+          </div>
+        </li>
+        <li class="paper step">
+          <div class="num" aria-hidden="true">5</div>
+          <div>
+            <div class="eb" data-t="step5.eb"></div>
+            <h3 data-t="step5.title"></h3>
+            <p data-t="step5.text"></p>
+          </div>
+        </li>
+        <li class="paper step">
+          <div class="num" aria-hidden="true">6</div>
+          <div>
+            <div class="eb" data-t="step6.eb"></div>
+            <h3 data-t="step6.title"></h3>
+            <p data-t="step6.text"></p>
+          </div>
+        </li>
+      </ol>
+
+      <!-- ============ WHAT CHANGES ============ -->
+      <div class="band gold">
+        <h2 data-t="change.band"></h2>
+        <div class="lab" data-t="change.lab"></div>
+      </div>
+      <div class="cols cols3">
+        <div class="box">
+          <h3 data-t="change.title"></h3>
+          <ul class="ck">
+            <li data-t="change.1"></li>
+            <li data-t="change.2"></li>
+            <li data-t="change.3"></li>
+            <li data-t="change.4"></li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3 data-t="same.title"></h3>
+          <ul class="ck">
+            <li data-t="same.1"></li>
+            <li data-t="same.2"></li>
+            <li data-t="same.3"></li>
+            <li data-t="same.4"></li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3 data-t="why.title"></h3>
+          <p data-t="why.text"></p>
+        </div>
+      </div>
+
+      <!-- ============ DOWNLOADS ============ -->
+      <div class="band">
+        <h2 data-t="dl.band"></h2>
+        <div class="lab" data-t="dl.lab"></div>
+      </div>
+      <p class="lead" data-t="dl.lead"></p>
+      <div class="dl" id="downloads"></div>
+
+      <!-- ============ HELP ============ -->
+      <div class="band gold">
+        <h2 data-t="help.band"></h2>
+      </div>
+      <p class="lead" data-t="help.text"></p>
+
+      <footer class="foot">
+        <span data-t="foot.fan"></span>
+        <nav>
+          <a data-href="game" data-t="foot.game"></a>
+          <a data-href="landing" data-t="foot.landing"></a>
+          <a data-href="repo" data-t="foot.source"></a>
+          <a data-href="issues" data-t="foot.report"></a>
+        </nav>
+      </footer>
+    </div>
+    <script type="module" src="../../src/site/moved/moved.ts"></script>
+  </body>
+</html>

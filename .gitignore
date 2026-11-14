@@ -71,3 +71,7 @@ packages/mod-sdk/*.tgz
 content-packs/community/*/cards/*/
 content-packs/community/*/alt-art/
 content-packs/community/*/cover.webp
+
+# The site pages' builds (vite.site.config.ts)
+packages/client/dist-moved/
+packages/client/dist-landing/

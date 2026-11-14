@@ -1,0 +1,7 @@
+# The old address in production serves only the moved page (vite.site.config.ts, MC_SITE=moved). Netlify reads these
+# before netlify.toml, so links into the old site that have a page of their own at the new address go straight there;
+# every other path falls through to netlify.toml's catch-all and shows the moved page, which has to stay on this origin
+# to read the saves it holds. The MarvelCDB proxy in netlify.toml keeps answering for apps that still call it.
+/releases/*            https://play.champions-digital-game.com/releases/:splat    301
+/sync-info.html        https://play.champions-digital-game.com/sync-info.html     301
+/shadowland-info.html  https://play.champions-digital-game.com/releases/           301

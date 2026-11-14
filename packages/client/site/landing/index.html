@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Marvel Champions: Digital Edition · Play free in your browser</title>
+    <meta
+      name="description"
+      data-t-content="meta.description"
+      content="A fan-made, rules-accurate digital version of the Marvel Champions card game. Free in your browser and on Windows, macOS, Linux, Steam Deck and Android."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition" />
+    <meta
+      property="og:description"
+      content="A fan-made, rules-accurate digital version of the Marvel Champions card game. Free in your browser and as an app."
+    />
+    <link rel="canonical" href="https://champions-digital-game.com/" />
+    <link rel="stylesheet" href="../shared/site.css" />
+    <link rel="stylesheet" href="./landing.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="ai-note" id="ai-note" lang="es" data-t="lang.aiNote" hidden></div>
+      <header class="top">
+        <div>
+          <div class="kick" data-t="top.kick"></div>
+          <h1 data-t="top.title"></h1>
+        </div>
+        <div class="meta">
+          <div data-t="top.meta"></div>
+          <div class="lang" id="language"></div>
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star" aria-hidden="true">★</div>
+          <div><small data-t="intro.pill.small"></small><span data-t="intro.pill.big"></span></div>
+        </div>
+        <p data-t="intro.text"></p>
+      </section>
+      <div class="ctas">
+        <a class="btn primary" data-href="game"><span data-t="cta.play"></span></a>
+        <a class="btn gold" href="#download"><span data-t="cta.download"></span></a>
+        <a class="btn ghost" data-href="discord"><span data-t="cta.discord"></span></a>
+      </div>
+      <section class="grid" id="numbers"></section>
+
+      <!-- ============ WHAT'S NEW ============ -->
+      <div class="band" id="whats-new">
+        <h2 data-t="new.band"></h2>
+        <div class="lab" data-t="new.lab"></div>
+      </div>
+      <div class="news">
+        <div class="paper latest" id="new-latest"></div>
+        <div class="box feed">
+          <h3 data-t="feed.title"></h3>
+          <ol id="feed-list"></ol>
+          <a class="all" data-href="releases"><span data-t="feed.all"></span> ↗</a>
+        </div>
+      </div>
+
+      <!-- ============ SCREENSHOTS ============ -->
+      <div class="band gold">
+        <h2 data-t="shots.band"></h2>
+        <div class="lab" data-t="shots.lab"></div>
+      </div>
+      <div class="gallery" id="shots"></div>
+
+      <!-- ============ HEROES ============ -->
+      <div class="band" id="heroes-band">
+        <h2 data-t="heroes.band"></h2>
+        <div class="lab" data-t="heroes.lab"></div>
+      </div>
+      <p class="lead" data-t="heroes.lead"></p>
+      <div class="waves" id="heroes"></div>
+
+      <!-- ============ MODS ============ -->
+      <div class="band gold">
+        <h2 data-t="mods.band"></h2>
+        <div class="lab" data-t="mods.lab"></div>
+      </div>
+      <p class="lead" data-t="mods.lead"></p>
+      <div class="mods" id="mods"></div>
+
+      <!-- ============ DOWNLOADS ============ -->
+      <div class="band" id="download">
+        <h2 data-t="dl.band"></h2>
+        <div class="lab" data-t="dl.lab"></div>
+      </div>
+      <p class="lead" data-t="dl.lead"></p>
+      <div class="dl" id="downloads"></div>
+
+      <!-- ============ COMMUNITY ============ -->
+      <div class="band gold">
+        <h2 data-t="community.band"></h2>
+        <div class="lab" data-t="community.lab"></div>
+      </div>
+      <div class="cards cards3">
+        <div class="paper">
+          <h3 data-t="discord.game.title"></h3>
+          <p data-t="discord.game.text"></p>
+          <a class="btn primary" data-href="discord"><span data-t="discord.game.button"></span></a>
+        </div>
+        <div class="paper">
+          <h3 data-t="discord.homebrew.title"></h3>
+          <p data-t="discord.homebrew.text"></p>
+          <div class="stack">
+            <a class="btn" id="homebrew-en" data-href="homebrewEn" lang="en"
+              ><span data-t="discord.homebrew.en"></span
+            ></a>
+            <a class="btn" id="homebrew-es" data-href="homebrewEs" lang="es"
+              ><span data-t="discord.homebrew.es"></span
+            ></a>
+          </div>
+        </div>
+        <div class="paper">
+          <h3 data-t="discord.issues.title"></h3>
+          <p data-t="discord.issues.text"></p>
+          <a class="btn" data-href="issues"><span data-t="discord.issues.button"></span></a>
+        </div>
+      </div>
+
+      <!-- ============ PRINT AND PLAY ============ -->
+      <div class="band">
+        <h2 data-t="table.band"></h2>
+        <div class="lab" data-t="table.lab"></div>
+      </div>
+      <p class="lead" data-t="table.lead"></p>
+      <div class="cols links">
+        <a class="box link" data-href="proxyNexus">
+          <h3 data-t="table.proxy.title"></h3>
+          <p data-t="table.proxy.text"></p>
+          <span class="go"><span data-t="table.visit"></span> proxynexus.net ↗</span>
+        </a>
+        <a class="box link" data-href="marvelcdb">
+          <h3 data-t="table.cdb.title"></h3>
+          <p data-t="table.cdb.text"></p>
+          <span class="go"><span data-t="table.visit"></span> marvelcdb.com ↗</span>
+        </a>
+        <a class="box link" data-href="hallOfHeroes">
+          <h3 data-t="table.hoh.title"></h3>
+          <p data-t="table.hoh.text"></p>
+          <span class="go"><span data-t="table.visit"></span> hallofheroeslcg.com ↗</span>
+        </a>
+        <a class="box link" data-href="homebrewEn">
+          <h3 data-t="table.mods.title"></h3>
+          <p data-t="table.mods.text"></p>
+          <span class="go"><span data-t="table.visit"></span> Discord ↗</span>
+        </a>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2 data-t="credits.band"></h2>
+          <p data-t="credits.side"></p>
+        </div>
+        <div class="people">
+          <div class="person">
+            <h3 data-t="credits.mods.title"></h3>
+            <ul class="names" id="credit-mods"></ul>
+          </div>
+          <div class="person">
+            <h3 data-t="credits.community.title"></h3>
+            <p data-t="credits.community.text"></p>
+          </div>
+          <div class="person wide">
+            <h3 data-t="credits.decks.title"></h3>
+            <p data-t="credits.decks.text"></p>
+            <ul class="names" id="credit-decks"></ul>
+          </div>
+        </div>
+      </section>
+      <div class="credits" data-t="credits.assets"></div>
+
+      <footer class="foot">
+        <span data-t="foot.fan"></span>
+        <nav>
+          <a data-href="game" data-t="foot.play"></a>
+          <a data-href="releases" data-t="foot.releases"></a>
+          <a data-href="repo" data-t="foot.source"></a>
+          <a data-href="issues" data-t="foot.report"></a>
+          <span class="built" id="built"></span>
+        </nav>
+      </footer>
+    </div>
+    <script type="module" src="../../src/site/landing/landing.ts"></script>
+  </body>
+</html>

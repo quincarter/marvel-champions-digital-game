@@ -1,0 +1,19 @@
+// The landing page (site/landing, `pnpm --filter @mc/client site:build:landing`) as an assets-only Worker on
+// Cloudflare's free plan: static assets are served free and don't count toward the 100,000 Worker requests a day, and
+// with no script nothing here spends them. CI deploys it on every push to main (netlify-deploy.yml, "Deploy the
+// landing page") once the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets exist.
+//
+// The custom domain is attached in the Cloudflare dashboard (Workers & Pages > mc-landing > Settings > Domains &
+// Routes), not here, so a deploy never changes DNS. See the pull request's Action Items for the exact steps.
+{
+  "name": "mc-landing",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist-landing",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application",
+  },
+  // A workers.dev address to check a deploy before the custom domain points at it.
+  "workers_dev": true,
+  "preview_urls": false,
+}
