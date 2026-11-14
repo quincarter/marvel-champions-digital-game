@@ -76,18 +76,7 @@ const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {
     "57076.phased-out-action",
     "57077.android-assistance-interrupt",
   ],
-  // Elektra and Iron Fist are not-ready packs (docs/phase7-elektra-iron-fist.md): their module scaffolds script nothing yet.
-  elektra: [
-    "63001a.killer-instinct",
-    "63001b.elektra-natchios-constant",
-    "63001b.ninja-training",
-    "63002.boost",
-    "63002.when-revealed",
-    "63003.boost",
-    "63003.when-revealed",
-    "63004.boost",
-    "63004.when-revealed",
-  ],
+  // Iron Fist is a not-ready pack (docs/phase7-elektra-iron-fist.md): these cards wait on engine primitives.
   iron_fist: [
     "64014.iron-fist-response",
     "64018.redirection-mastery-response",
