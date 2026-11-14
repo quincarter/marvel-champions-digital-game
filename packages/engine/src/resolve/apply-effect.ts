@@ -124,36 +124,8 @@ import {
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
 
-/**
- * The basic power use a "+N to that power for this use" reaches (`EffectSpec modifyBasicPower`): the innermost of
- * - a `basicPowerUsing` event on the stack (its interrupt window; docs/phase7-wave2.md §17.4);
- * - a friendly character's boost card resolving for a use (`characterBoost`, `resolve/villainous.ts`): "If Elektra is
- *   using a basic power, she gets +3 to that power for this use" (Ninja Strike 63003) as her own boost card;
- * - an enemy attack a hero is making a basic defense against, while its cards resolve (the same card as the villain's
- *   boost card while Elektra defends: she is using her basic defense, RRG 1.8 "Attack (Enemy Activation)", p. 9).
- * `activation` is the frame whose end ends the use (`basicPowerUseFrameId`). Null outside every use.
- */
-function basicPowerBeingUsed(
-  state: GameState,
-): { readonly characterId: InstanceId; readonly stat: StatName; readonly activation: FrameId } | null {
-  for (const f of state.stack) {
-    if (f.kind === "event" && f.event.kind === "basicPowerUsing") {
-      const activation = basicPowerUseFrameId(state.stack, f.event.power, f.event.characterInstanceId);
-      return activation ? { characterId: f.event.characterInstanceId, stat: f.event.stat, activation } : null;
-    }
-    if (f.kind === "characterBoost" && f.stage === "resolve" && f.recordFrameId !== undefined) {
-      const record = state.stack.find((r) => r.frameId === f.recordFrameId);
-      if (record?.kind !== "characterBoost") return null;
-      return { characterId: record.characterInstanceId, stat: record.stat, activation: record.useFrameId };
-    }
-    if (f.kind === "enemyAttack" && f.basicDefense && f.defenderInstanceId !== null && f.eventFrameId !== null) {
-      if (f.stage === "done" || f.stage === "giveBoost" || f.stage === "declareDefender") continue;
-      return { characterId: f.defenderInstanceId, stat: "def", activation: f.eventFrameId };
-    }
-  }
-  return null;
-}
 import {
+  basicDefenseInProgress,
   basicPowerUseFrameId,
   currentActivationFrameId,
   currentThwartFrameId,
@@ -314,6 +286,35 @@ import {
   revealNewFaceFrame,
   upgradeHostCandidates,
 } from "./reveal.js";
+
+/**
+ * The basic power use a "+N to that power for this use" reaches (`EffectSpec modifyBasicPower`): the innermost of
+ * - a `basicPowerUsing` event on the stack (its interrupt window; docs/phase7-wave2.md §17.4);
+ * - a friendly character's boost card resolving for a use (`characterBoost`, `resolve/villainous.ts`): "If Elektra is
+ *   using a basic power, she gets +3 to that power for this use" (Ninja Strike 63003) as her own boost card;
+ * - an enemy attack a hero is making a basic defense against, while its cards resolve (the same card as the villain's
+ *   boost card while Elektra defends: she is using her basic defense, RRG 1.8 "Attack (Enemy Activation)", p. 9).
+ * `activation` is the frame whose end ends the use (`basicPowerUseFrameId`). Null outside every use.
+ */
+function basicPowerBeingUsed(
+  state: GameState,
+): { readonly characterId: InstanceId; readonly stat: StatName; readonly activation: FrameId } | null {
+  for (const f of state.stack) {
+    if (f.kind === "event" && f.event.kind === "basicPowerUsing") {
+      const activation = basicPowerUseFrameId(state.stack, f.event.power, f.event.characterInstanceId);
+      return activation ? { characterId: f.event.characterInstanceId, stat: f.event.stat, activation } : null;
+    }
+    if (f.kind === "characterBoost" && f.stage === "resolve" && f.recordFrameId !== undefined) {
+      const record = state.stack.find((r) => r.frameId === f.recordFrameId);
+      if (record?.kind !== "characterBoost") return null;
+      return { characterId: record.characterInstanceId, stat: record.stat, activation: record.useFrameId };
+    }
+    const defense = basicDefenseInProgress(f);
+    if (defense && defense.attackEventFrameId !== null)
+      return { characterId: defense.defenderId, stat: "def", activation: defense.attackEventFrameId };
+  }
+  return null;
+}
 
 /**
  * The frame binding holding the host a player chose for an upgrade a `putIntoPlay` is about to put into play

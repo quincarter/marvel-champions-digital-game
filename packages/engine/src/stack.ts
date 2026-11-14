@@ -1360,6 +1360,22 @@ export function basicPowerUseFrameId(
 }
 
 /**
+ * A hero's basic defense of an enemy attack still resolving, read from the attack's `enemyAttack` frame: from the
+ * moment its defender is declared (`basicDefense`) until the attack is done. She is using her basic defense throughout,
+ * the attack's boost cards included (RRG 1.8 "Attack (Enemy Activation)", p. 9; rules verdict Q3 of
+ * docs/phase7-elektra-iron-fist.md). One reading shared by the `usingBasicPower` predicate (`select.ts`) and "+N to
+ * that power for this use" (`basicPowerBeingUsed`, `resolve/apply-effect.ts`), so the two never disagree on a stage.
+ * Null for any other frame, an attack with no basic defense, or one that is done.
+ */
+export function basicDefenseInProgress(
+  frame: StackFrame,
+): { readonly defenderId: InstanceId; readonly attackEventFrameId: FrameId | null } | null {
+  if (frame.kind !== "enemyAttack" || !frame.basicDefense || frame.defenderInstanceId === null) return null;
+  if (frame.stage === "done") return null;
+  return { defenderId: frame.defenderInstanceId, attackEventFrameId: frame.eventFrameId };
+}
+
+/**
  * The innermost thwart on the stack (`EffectSpec atEndOfThwart`, docs/phase7-wave11-hero-packs.md H3.12), or null:
  * "that thwart" for an interrupt or response answering it, the thwart around them for an effect resolving inside it.
  */

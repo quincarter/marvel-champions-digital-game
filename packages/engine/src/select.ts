@@ -138,6 +138,7 @@ import {
 } from "./rules.js";
 import {
   awaitingAbility,
+  basicDefenseInProgress,
   currentActivationFrameId,
   PAID_AS_PREFIX,
   PLAY_NOTE_PREFIX,
@@ -3647,7 +3648,10 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         id !== null && (predicate.character === undefined || matchesQuery(state, id, predicate.character, context));
       return state.stack.some((f) => {
         if (f.kind === "characterBoost") return matches(f.characterInstanceId);
-        if (f.kind === "enemyAttack") return f.basicDefense && f.stage !== "done" && matches(f.defenderInstanceId);
+        if (f.kind === "enemyAttack") {
+          const defense = basicDefenseInProgress(f);
+          return defense !== null && matches(defense.defenderId);
+        }
         if (f.kind !== "event") return false;
         const event = f.event;
         if (event.kind === "attack") return event.basic === true && matches(event.attackerInstanceId);
