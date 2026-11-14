@@ -52,7 +52,11 @@ const PLACE = action("place.action", [{ kind: "giveBoostCard", enemy: YOUR_IDENT
 const SLAY = action("slay.action", [{ kind: "dealDamage", target: EACH_ALLY, amount: { kind: "const", value: 5 } }]);
 /** "Give the villain 1 facedown boost card" (Hired Gun's shape): a second card for its next activation. */
 const GIVE_VILLAIN = action("give-villain.action", [{ kind: "giveBoostCard", enemy: { kind: "villain" } }]);
-const ACTIONS = [GIVE_HELD, GIVE_ALLY, PLACE, SLAY, GIVE_VILLAIN];
+/** "Move each facedown boost card from your identity to the villain" (Venom's main scheme 1B shape, `sm` 27071b). */
+const TO_VILLAIN = action("to-villain.action", [
+  { kind: "moveBoostCards", from: YOUR_IDENTITY, to: { kind: "villain" } },
+]);
+const ACTIONS = [GIVE_HELD, GIVE_ALLY, PLACE, SLAY, GIVE_VILLAIN, TO_VILLAIN];
 const DESK = stubSupport({ id: "desk", cost: 0, abilities: ACTIONS.map((a) => a.ref) });
 /** An optional interrupt to every boost card turned faceup that does nothing to it: a window to look at the state. */
 const PEEK = stubAbility("peek.interrupt", {
@@ -238,6 +242,29 @@ describe("a card an enemy's text places during her own use is not hers (ruling S
     const next = run(readied, [thwart(hero, s.scheme)]);
     expect(characterFlips(next.events).map((e) => e.instanceId)).not.toContain(placed);
     expect(locateCard(next.state, placed!)).toEqual({ kind: "boost", hostInstanceId: hero });
+  });
+});
+
+describe("'Move each facedown boost card from your identity to Venom' (owner decision 6, provisional)", () => {
+  it("her held card moves too, loses its held mark, and resolves as the villain's boost card when it attacks", () => {
+    const s = holding(1, copiesOf(HURTER.id, 20));
+    const hero = identity(s.state);
+    const [held] = heldBoostCardsOf(s.state, hero);
+    const moved = run(s.state, [use(s.desk, TO_VILLAIN)]);
+    const boss = villain(moved.state);
+    expect(mustInstance(moved.state, hero).boostCards).toEqual([]);
+    expect(locateCard(moved.state, held!)).toEqual({ kind: "boost", hostInstanceId: boss });
+    expect(mustInstance(moved.state, held!).heldForBasicPowers).toBeUndefined();
+    expect(moved.events).toContainEqual(
+      expect.objectContaining({ type: "boostCardMoved", instanceId: held, fromInstanceId: hero, toInstanceId: boss }),
+    );
+
+    // The villain attacks: the moved card is flipped as its own (with the card its activation draws), not as hers.
+    const after = run(moved.state, [{ type: "endTurn", playerId: P1 }]);
+    const enemyFlips = after.events.filter((e) => e.type === "boostCardFlipped");
+    expect(enemyFlips.map((e) => (e.type === "boostCardFlipped" ? e.instanceId : null))).toContain(held);
+    expect(characterFlips(after.events)).toHaveLength(0);
+    expect(locateCard(after.state, held!)?.kind).toBe("encounterDiscard");
   });
 });
 

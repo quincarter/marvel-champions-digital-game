@@ -32,7 +32,9 @@ export const LEAVE_US_ALONE = defineAbilities({
   // identity to Venom (docs/phase7-wave5.md §3.6's own worked example, `wave5-primitives.test.ts`). "Activates against
   // you" is his attacks against you and his schemes against you, from the villain phase or a card (Biting Retort)
   // alike (§4.1 Q67). The interrupt is to the activation's initiation, before its boost cards are dealt, so the moved
-  // cards resolve in it (§3.6).
+  // cards resolve in it (§3.6). "Each" facedown boost card includes those Elektra holds from her own kit: owner
+  // decision 6 (docs/phase7-elektra-iron-fist.md §5, provisional until FFG rules on it directly; ruling September 10,
+  // 2026 - Ruling 3 (C) decides only which cards she can resolve).
   "27076b.leave-us-alone-forced-interrupt": forcedInterrupt(
     on.enemyActivates(query("villain"), { againstYou: true }),
     moveBoostCards(identityOf(eventPlayer), eventSource),

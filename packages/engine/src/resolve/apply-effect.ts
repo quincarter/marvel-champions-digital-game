@@ -2704,6 +2704,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Move each facedown boost card from your identity to Venom" (docs/phase7-wave5.md §3.6): in the order they were
       // dealt, onto the first card `to` names in play. There they wait like a boost card dealt outside the enemy's own
       // activation (RRG 1.8 "Boost, Boost Icon", p. 11), so an activation not yet at its flip step resolves them.
+      // Every facedown card moves, those a friendly character holds for its basic powers included (Elektra's kit
+      // cards): owner decision 6 (docs/phase7-elektra-iron-fist.md §5, provisional until FFG rules on it directly).
+      // Provenance decides only which cards Elektra can resolve (ruling September 10, 2026 - Ruling 3 (C)), never which
+      // cards Venom moves. A moved card loses its held mark (`moveCard`) and resolves for Venom as any of his.
       const inPlay = cardsInPlay(ctx.state);
       const [to] = targets(effect.to).filter((id) => inPlay.includes(id));
       if (!to) return;
