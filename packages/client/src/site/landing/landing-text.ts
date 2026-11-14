@@ -35,9 +35,9 @@ const en = {
   "shots.setup": "Setting up the table, step by step as the rulebook says",
   "shots.board": "Your turn against Rhino",
 
-  "story.title": "Every campaign tells a story",
+  "story.title": "Story-rich campaigns",
   "story.text":
-    "Play the campaign boxes chapter by chapter, with comic pages between the fights. Comic art by Joey Vazquez.",
+    "Campaign scenarios that immerse you in the story, chapter by chapter, with comic pages between the fights. Comic art by Joey Vazquez.",
   "story.pick": "Show page {n}",
   "story.mtsTitan": "The Mad Titan's Shadow: Thanos turns his eyes on Earth",
   "story.mtsTitan.alt": "A comic page: Thanos looms over the heroes in The Mad Titan's Shadow",
@@ -143,9 +143,9 @@ const es: Catalog<LandingKey> = {
   "shots.setup": "Preparando la mesa, paso a paso como dice el reglamento",
   "shots.board": "Tu turno contra Rhino",
 
-  "story.title": "Cada campaña cuenta una historia",
+  "story.title": "Campañas llenas de historia",
   "story.text":
-    "Juega las cajas de campaña capítulo a capítulo, con páginas de cómic entre los combates. Arte del cómic de Joey Vazquez.",
+    "Escenarios de campaña que te sumergen en la historia, capítulo a capítulo, con páginas de cómic entre los combates. Arte del cómic de Joey Vazquez.",
   "story.pick": "Mostrar página {n}",
   "story.mtsTitan": "La Sombra del Titán Loco: Thanos pone sus ojos en la Tierra",
   "story.mtsTitan.alt": "Una página de cómic: Thanos se cierne sobre los héroes en La Sombra del Titán Loco",
