@@ -28,7 +28,14 @@ import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubAlly, stubSideScheme, stubSupport, stubTreachery } from "./testing/fixtures.js";
 import { defaultPick } from "./testing/scenario.js";
-import { copiesOf, encounterCardInVillainArea, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
+import {
+  copiesOf,
+  encounterCardInVillainArea,
+  gameAtFirstTurn,
+  onTopOfEncounterDeck,
+  P1,
+  playerCardIntoPlay,
+} from "./testing/wave3.js";
 
 const YOUR_IDENTITY: TargetRef = { kind: "identityOf", player: { kind: "controller" } };
 const EACH_ALLY: TargetRef = { kind: "each", query: { categories: ["ally"] } };
@@ -43,8 +50,32 @@ const GIVE_ALLY = action("give-ally.action", [{ kind: "giveBoostCard", enemy: EA
 const PLACE = action("place.action", [{ kind: "giveBoostCard", enemy: YOUR_IDENTITY }]);
 /** "Deal 5 damage to each ally." */
 const SLAY = action("slay.action", [{ kind: "dealDamage", target: EACH_ALLY, amount: { kind: "const", value: 5 } }]);
-const ACTIONS = [GIVE_HELD, GIVE_ALLY, PLACE, SLAY];
+/** "Give the villain 1 facedown boost card" (Hired Gun's shape): a second card for its next activation. */
+const GIVE_VILLAIN = action("give-villain.action", [{ kind: "giveBoostCard", enemy: { kind: "villain" } }]);
+const ACTIONS = [GIVE_HELD, GIVE_ALLY, PLACE, SLAY, GIVE_VILLAIN];
 const DESK = stubSupport({ id: "desk", cost: 0, abilities: ACTIONS.map((a) => a.ref) });
+/** An optional interrupt to every boost card turned faceup that does nothing to it: a window to look at the state. */
+const PEEK = stubAbility("peek.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: { on: "boostCardTurnedFaceup" } },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "peek",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+});
+const PEEKER = stubSupport({ id: "peeker", cost: 0, abilities: [PEEK.ref] });
+/** "When a character attacks, cancel that attack" (forced). */
+const STOP = stubAbility("stop.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "attack" } },
+  effects: [{ kind: "cancelTriggeringEvent" }],
+});
+const STOPPER = stubSupport({ id: "stopper", cost: 0, abilities: [STOP.ref] });
+/** "[star] Boost: Cancel this activation" (a community card's shape, `cancelBoostedActivation`). No icons. */
+const QUIT = stubAbility("quit.boost", { trigger: { kind: "boost" }, effects: [{ kind: "cancelBoostedActivation" }] });
+const QUITTER = stubTreachery({ id: "quitter", boostIcons: 0, starIcon: true, abilities: [QUIT.ref] });
 
 /** "[star] Boost: Deal 1 damage to you." Two boost icons. */
 const HURT_YOU = stubAbility("hurt.boost", {
@@ -64,15 +95,15 @@ const BOOMERANG = stubTreachery({ id: "boomerang", boostIcons: 2, starIcon: true
 const VENDETTA: SideSchemeCard = { ...stubSideScheme({ id: "vendetta", startingThreat: 2 }), amplifyIcons: 1 };
 const ALLY = stubAlly({ id: "plain-ally", cost: 0, atk: 1, thw: 1, hp: 5 });
 
-const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE);
+const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT);
 
 /** P1's first turn in hero form, 9 threat on the main scheme, the desk in play; the encounter deck is `deck`. */
 function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
   const base = gameAtFirstTurn({
-    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY],
+    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER],
     deps,
     encounter: [VENDETTA.id, ...deck],
-    deck: [DESK.id, ALLY.id],
+    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id],
   });
   const hero: GameState = {
     ...base,
@@ -257,15 +288,55 @@ describe("a held card resolves on the holder's next basic power (ruling Sep 10, 
 });
 
 describe("a Boost ability that sends its own card elsewhere (the Ninja cards' 'Otherwise, give this card to Elektra')", () => {
-  it("the card goes back facedown and held, adds no icons to this use, and is not discarded", () => {
+  it("the card goes back facedown and held and is not discarded; its icons still count for this use", () => {
+    // Ruling January 11, 2024 #134 (a boost card moved by its own Boost still counts); the given-back case is pending
+    // the owner, built to the recommended reading.
     const { state, scheme } = holding(1, copiesOf(BOOMERANG.id, 20));
     const hero = identity(state);
     const [card] = heldBoostCardsOf(state, hero);
     const after = run(state, [thwart(hero, scheme)]);
     expect(characterFlips(after.events).map((e) => e.instanceId)).toEqual([card]);
-    expect(mustInstance(after.state, scheme).threat).toBe(7);
+    // THW 2 + 2.
+    expect(mustInstance(after.state, scheme).threat).toBe(5);
     expect(heldBoostCardsOf(after.state, hero)).toEqual([card]);
     expect(mustInstance(after.state, card!)).toMatchObject({ faceup: false, heldForBasicPowers: true });
+  });
+});
+
+describe("a card the use never reached stays held (pending the owner; recommended reading)", () => {
+  it("a basic defense whose attack the villain's own boost card cancels first: her cards stay, facedown and held", () => {
+    const s = holding(1, [QUITTER.id, ...copiesOf(PLAIN.id, 20)]);
+    const hero = identity(s.state);
+    const [held] = heldBoostCardsOf(s.state, hero);
+    const granted = { ...s.state, lastingEffects: [...s.state.lastingEffects, grantVillainous(hero)] };
+    const staged = onTopOfEncounterDeck(granted, QUITTER.id);
+    const after = run(staged, [{ type: "endTurn", playerId: P1 }], (st) => {
+      const choice = st.pendingChoice;
+      if (choice?.prompt.kind === "declareDefender") return [hero];
+      if (choice?.prompt.kind === "chooseOption" && choice.options.some((o) => o.optionId === "defender"))
+        return ["enemy"];
+      return defaultPick(st);
+    });
+    expect(characterFlips(after.events)).toHaveLength(0);
+    const kept = heldBoostCardsOf(after.state, hero);
+    // The held card, and the card her villainous defense was given.
+    expect(kept).toContain(held);
+    expect(kept).toHaveLength(2);
+    for (const id of kept)
+      expect(mustInstance(after.state, id)).toMatchObject({ faceup: false, heldForBasicPowers: true });
+  });
+
+  it("a basic attack cancelled in its own interrupt window: her cards resolved already, as the use announced", () => {
+    // Engine order today: the use's cards resolve as the `basicPowerUsing` window closes, before the attack's own
+    // interrupt window; so a cancel there finds them resolved and discarded. See the handoff note.
+    const s = holding();
+    const hero = identity(s.state);
+    const stopped = playerCardIntoPlay(s.state, STOPPER.id, P1).state;
+    const after = run(stopped, [
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(stopped) },
+    ]);
+    expect(characterFlips(after.events)).toHaveLength(1);
+    expect(heldBoostCardsOf(after.state, hero)).toEqual([]);
   });
 });
 
@@ -316,6 +387,28 @@ describe("defending: both characters' cards in step 3, whose first chosen (R3 (B
     expect(order(after.events)).toEqual(["defender", "defender", "enemy"]);
     // ATK 2 + 2 against DEF 2 + 4: no damage.
     expect(mustInstance(after.state, hero).damage).toBe(before);
+  });
+
+  it("the enemy's first with two enemy cards: the order is recorded and the answer cleared before the second", () => {
+    const s = holding();
+    const withPeek = playerCardIntoPlay(s.state, PEEKER.id, P1).state;
+    const two = run(withPeek, [use(s.desk, GIVE_VILLAIN)]).state;
+    const hero = identity(two);
+    const seen: { boostOrder?: string | undefined; answer: readonly string[] | null }[] = [];
+    run(two, [{ type: "endTurn", playerId: P1 }], (st) => {
+      const choice = st.pendingChoice;
+      if (choice?.prompt.kind === "declareDefender") return [hero];
+      if (choice?.prompt.kind === "chooseOption" && choice.options.some((o) => o.optionId === "defender"))
+        return ["enemy"];
+      if (choice?.prompt.kind === "chooseTriggers") {
+        const attack = st.stack.find((f) => f.kind === "enemyAttack");
+        if (attack?.kind === "enemyAttack") seen.push({ boostOrder: attack.boostOrder, answer: attack.answer });
+      }
+      return defaultPick(st);
+    });
+    // The windows of the villain's two cards (the hero's own come after them).
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(seen[1]).toEqual({ boostOrder: "enemy", answer: null });
   });
 
   it("nothing is asked when the hero has no card of its own", () => {

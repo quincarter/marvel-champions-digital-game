@@ -203,8 +203,9 @@ export interface DefendOptionPreview {
   /**
    * A villainous hero's basic defense (docs/phase7-wave11-scenarios.md §S3.7): the boost card of its own that this
    * defense will be given and turn up, plus any it holds for its basic powers (ruling September 10, 2026 - Ruling 3
-   * (A)), their icons added to its DEF (RRG 1.8 "Villainous", p. 47). Bounded over the same unseen pool. With it the bands run over the enemy's icons less these, so a band's `boostFrom`/`boostTo` can go
-   * below 0. Absent for any other option.
+   * (A)), their icons added to its DEF (RRG 1.8 "Villainous", p. 47). Bounded over the same unseen pool. With it the
+   * bands run over the enemy's icons less these, so a band's `boostFrom`/`boostTo` can go below 0. Absent for any
+   * other option.
    */
   readonly ownBoost?: BoostBound;
   readonly bands: readonly DefendBand[];

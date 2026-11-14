@@ -567,7 +567,7 @@ function stepBoostCard(
  * boost cards in the order those cards were dealt" (ruling October 12, 2026 - Ruling 1, clarifying September 10, 2026 -
  * Ruling 3 (B)). Asked of the defending player once, before the first card is turned up, and only when both have a
  * card; the enemy's first is the first option. Chosen the defender's, they start now (`startDefenderBoost`); else after
- * the enemy's, as before. True while the procedure waits on the question or on the defender's cards.
+ * the enemy's, as before. True when the procedure should stop this run: it asked, or it recorded the answer.
  */
 function defenderBoostOrder(ctx: Ctx, frame: Frame<"enemyAttack">): boolean {
   if (frame.boostOrder !== undefined || frame.boost) return false;
@@ -579,7 +579,10 @@ function defenderBoostOrder(ctx: Ctx, frame: Frame<"enemyAttack">): boolean {
   if (frame.answer) {
     const defenderFirst = frame.answer[0] === "defender";
     setFrame(ctx, { ...frame, answer: null, boostOrder: defenderFirst ? "defender" : "enemy" });
-    return defenderFirst && startDefenderBoost(ctx, frame.eventFrameId);
+    if (defenderFirst) startDefenderBoost(ctx, frame.eventFrameId);
+    // The procedure carries on at its next run, from the frame as now set (its order recorded, the answer cleared),
+    // never from the caller's copy of it.
+    return true;
   }
   const defender = record.characterInstanceId;
   requestChoice(ctx, {
@@ -759,15 +762,15 @@ function stepFaceupBoostCard(
   // Amplify is read again at the count, not carried from the flip: "Each amplify icon is equivalent to the following
   // constant ability: 'Each boost card gains [boost]'" (RRG 1.8 p. 7), and a constant applies while its card is in play
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
-  // A card its Boost ability gave to a character to hold (`resolvingBoostCard`; a Ninja card's "Otherwise, give this
-  // card to Elektra") is no longer this activation's: it adds no icon, amplify's included.
-  const givenAway = getInstance(ctx.state, boost.instanceId)?.heldForBasicPowers === true;
-  const counted = givenAway
-    ? 0
-    : boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
-      amplifyIconsInPlay(ctx.state, ctx.deps) +
-      boostIconsEachOf(ctx, frame) +
-      (boost.countAdjust ?? 0);
+  // Counted wherever its own Boost ability moved it: "the boost icon(s) on Homo Superior still increases the enemy's
+  // ATK" after its Boost attached it to a minion (ruling January 11, 2024 #134). A card given to a character to hold
+  // that way (a Ninja card's "Otherwise, give this card to Elektra", `resolvingBoostCard`) counts too: an open owner
+  // question, built to the recommended reading.
+  const counted =
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
+    amplifyIconsInPlay(ctx.state, ctx.deps) +
+    boostIconsEachOf(ctx, frame) +
+    (boost.countAdjust ?? 0);
   // Icons a "Boost" ability gave the card (step 3b) come after a step 3a cancel and still count (ruling May 10, 2024
   // #173: the cancel covers printed, amplify and constant icons, not those "given to that card via a 'Boost' effect").
   // Cards applied "as if it were a boost card" (`applyAsBoostCard`) add their own icons unless cancelled in their own

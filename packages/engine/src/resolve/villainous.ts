@@ -37,8 +37,9 @@
  * The card stays faceup on the character until the use has resolved; the record then discards it (RRG 1.8 p. 47,
  * "Discard the boost card after it is resolved"; MC60 p. 3, "after the basic power resolves"), unless its Boost ability
  * sent it elsewhere: shuffled into another deck, or given back facedown for a later use ("Otherwise, give this card to
- * Elektra as a facedown boost card", the Ninja cards 63002–63004), where it stays and adds no icons to this use. A
- * character that leaves play first takes its boost cards with it to their discard piles (`effects.ts`).
+ * Elektra as a facedown boost card", the Ninja cards 63002–63004), where it stays; its icons still count for this use
+ * (ruling January 11, 2024 #134). A card this use never reached stays held (`finishUse`). A character that leaves play
+ * first takes its boost cards with it to their discard piles (`effects.ts`).
  */
 
 import type { EngineDeps } from "../abilities.js";
@@ -124,8 +125,9 @@ function insertBeneath(ctx: Ctx, below: FrameId, frames: readonly StackFrame[]):
 
 /**
  * Records a basic power `characterId` is using, when it is a villainous ally or hero or one holding boost cards for its
- * basic powers: the `use` record beneath the use's frame, and, except for a basic defense, the `resolve` frame on top. Called by the power's announcer just before
- * it pushes the power's `basicPowerUsing` event, so the `resolve` frame sits beneath that event and above the use.
+ * basic powers: the `use` record beneath the use's frame, and, except for a basic defense, the `resolve` frame on top.
+ * Called by the power's announcer just before it pushes the power's `basicPowerUsing` event, so the `resolve` frame
+ * sits beneath that event and above the use.
  *
  * A basic defense's cards are turned faceup in the attack's step 3, with the enemy's: "she will turn that boost card
  * faceup during the same step that the villain's boost cards are turned faceup" (ruling September 10, 2026 - Ruling 3
@@ -402,9 +404,11 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
     (boost.countAdjust ?? 0);
   const icons = Math.max(0, (boost.iconsCancelled ? 0 : counted) + (boost.boostAbilityAdjust ?? 0));
   setFrame(ctx, { ...frame, boost: null });
-  // A card its Boost ability sent away, or gave back facedown for a later use (the Ninja cards), adds nothing here.
-  if (icons <= 0 || locateCard(ctx.state, boost.instanceId)?.kind !== "boost") return;
-  if (getInstance(ctx.state, boost.instanceId)?.faceup !== true) return;
+  // Its icons count for this use wherever its own Boost ability moved it: shuffled into another deck (the Ninja cards)
+  // or attached ("the boost icon(s) on Homo Superior still increases the enemy's ATK", ruling January 11, 2024 #134;
+  // RRG 1.8 "Villainous", p. 47, "apply its boost icons to the character's stats for this use"). One given back
+  // facedown for a later use counts too: an open owner question, built to the recommended reading.
+  if (icons <= 0) return;
   if (!ctx.state.stack.some((f) => f.frameId === record.useFrameId)) return;
   const bonus = addLastingEffect(
     ctx,
@@ -424,11 +428,11 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
 }
 
 /**
- * The use has resolved: each boost card it gave the character is discarded, turned up or not (one the use never
- * reached, its attack ended first, is not left on the character for a later use), and so is each held card it turned
- * up. A card it cannot use stays (`heldBefore`), as does a card held for its basic powers that is facedown now: one
- * this use never reached, or one a Boost ability gave back to it ("Otherwise, give this card to Elektra as a facedown
- * boost card").
+ * The use has resolved: each boost card it turned up is discarded. A card it cannot use stays (`heldBefore`). A card
+ * still facedown stays too, held for the character's next basic power: one this use never reached (its attack ended
+ * first), the card this use's villainous keyword gave included, or one a Boost ability gave back to it ("Otherwise,
+ * give this card to Elektra as a facedown boost card"). Keeping the never-reached card is pending the owner (the
+ * recommended reading; before it, the use's own card was discarded).
  */
 function finishUse(ctx: Ctx, record: Frame<"characterBoost">): void {
   popFrame(ctx);
@@ -436,7 +440,10 @@ function finishUse(ctx: Ctx, record: Frame<"characterBoost">): void {
   for (const id of [...(holder?.boostCards ?? [])]) {
     if (record.heldBefore.includes(id)) continue;
     const card = getInstance(ctx.state, id);
-    if (card?.heldForBasicPowers === true && !card.faceup) continue;
+    if (card && !card.faceup) {
+      if (card.heldForBasicPowers !== true) updateInstance(ctx, id, (i) => ({ ...i, heldForBasicPowers: true }));
+      continue;
+    }
     const zone = locateCard(ctx.state, id);
     if (zone?.kind !== "boost" || zone.hostInstanceId !== record.characterInstanceId) continue;
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
