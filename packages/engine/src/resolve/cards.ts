@@ -52,7 +52,7 @@ import {
   villainOf,
 } from "../query.js";
 import { campaignLogCardIds } from "../campaign-state.js";
-import { nextInt } from "../rng.js";
+import { nextInt, shuffle } from "../rng.js";
 import {
   campaignFieldRead,
   campaignSeatRead,
@@ -335,6 +335,11 @@ export function moveCardsTo(
   asCost = false,
   /** `to: { scenarioArea }` only: the cards go in facedown (`EffectSpec moveCards.facedown`). */
   facedown = false,
+  /**
+   * `to: "encounterDeckShuffle"` only: shuffled into the top this-many cards of the encounter deck, not the whole deck
+   * (`EffectSpec moveCards.encounterTop`).
+   */
+  encounterTop?: number,
 ): void {
   // Empty scenario decks reset once the whole batch has moved (`Ctx.scenarioResetsHeld`), not at its first card.
   ctx.scenarioResetsHeld = (ctx.scenarioResetsHeld ?? 0) + 1;
@@ -623,7 +628,13 @@ export function moveCardsTo(
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
     announceDeckTops(ctx);
   }
-  if (shuffleEncounter) shuffleEncounterDeck(ctx);
+  if (shuffleEncounter && encounterTop !== undefined) {
+    // The moved cards went on top of the deck (`position` "top"), in front of the `encounterTop` cards they are
+    // shuffled in among.
+    const deckId = activeEncounterDeckId(ctx.state);
+    const moved = ids.filter((id) => encounterDeckOf(ctx.state, deckId).deck.includes(id)).length;
+    shuffleEncounterDeckTop(ctx, moved + Math.max(0, encounterTop), deckId);
+  } else if (shuffleEncounter) shuffleEncounterDeck(ctx);
   for (const name of scenarioDecksToShuffle) {
     const piles = ctx.state.scenarioDecks[name];
     if (!piles) continue;
@@ -1295,6 +1306,25 @@ export function leavingWithHostFrames(ctx: Ctx, frame: Frame<"event">): readonly
 }
 
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */
+/**
+ * Shuffles only the top `count` cards of an encounter deck, the rest keeping their order ("shuffle … into the top 10
+ * cards of the encounter deck", Double-Cross 63034; `EffectSpec moveCards.encounterTop`). A deck of `count` cards or
+ * fewer is shuffled whole. Logged as `deckShuffled` with the whole deck's new order, top first.
+ */
+export function shuffleEncounterDeckTop(ctx: Ctx, count: number, deckId: EncounterDeckId): void {
+  const piles = encounterDeckOf(ctx.state, deckId);
+  if (count >= piles.deck.length) return shuffleEncounterDeck(ctx, deckId);
+  const [top, rng] = shuffle(piles.deck.slice(0, count), ctx.state.rng);
+  const order = [...top, ...piles.deck.slice(count)];
+  ctx.state = {
+    ...ctx.state,
+    rng,
+    encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { ...piles, deck: order } },
+  };
+  emit(ctx, { type: "deckShuffled", zone: { kind: "encounterDeck", deckId }, order });
+  announceDeckTops(ctx);
+}
+
 export function shuffleEncounterDeck(ctx: Ctx, deckId: EncounterDeckId = activeEncounterDeckId(ctx.state)): void {
   const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
   ctx.state = {

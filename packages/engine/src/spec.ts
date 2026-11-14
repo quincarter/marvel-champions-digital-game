@@ -3101,6 +3101,14 @@ export type EffectSpec =
        * validator refuses it with any other destination.
        */
       readonly facedown?: true;
+      /**
+       * `to: "encounterDeckShuffle"` only: "shuffle … into the top 10 cards of the encounter deck (or the whole deck if
+       * there are fewer than 10 cards)" (Double-Cross, `elektra` 63034). The cards go on top of the active villain's
+       * encounter deck and only they and the `encounterTop` cards that were on top before them are shuffled; the rest
+       * of the deck keeps its order. With fewer cards in the deck than that, the whole deck is shuffled. The validator
+       * refuses it with any other destination.
+       */
+      readonly encounterTop?: ValueSpec;
     }
   /**
    * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue, `rogue` 38001, 38007;

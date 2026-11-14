@@ -1021,6 +1021,10 @@ function checkFacedownAreaMoves(definition: AbilityDefinition, problems: string[
     if (typeof effect.to !== "object" || !("scenarioArea" in effect.to))
       problems.push("moveCards facedown is only for a { scenarioArea } destination");
   }
+  // `moveCards.encounterTop` ("into the top 10 cards of the encounter deck") is read only by that destination.
+  for (const effect of allEffects(definition.effects))
+    if (effect.kind === "moveCards" && effect.encounterTop !== undefined && effect.to !== "encounterDeckShuffle")
+      problems.push('moveCards encounterTop is only for to: "encounterDeckShuffle"');
 }
 
 /**

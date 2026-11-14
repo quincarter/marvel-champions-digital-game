@@ -1,4 +1,11 @@
-import { activeEncounterDeck, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  locateCard,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
@@ -11,6 +18,9 @@ import {
   identityOf,
   inst,
   patchInstance,
+  moveToHand,
+  play,
+  playerOf,
 } from "../../testing/harness.js";
 import { ELEKTRA_JUSTICE as REGISTRY, ELEKTRA_JUSTICE_SKIPPED as SKIPPED } from "./justice.js";
 import { WAVE11_DEPS as DEPS } from "../index.js";
@@ -20,8 +30,8 @@ import { ADVANCE, SPIDER_MAN_JUSTICE, accepting, drive, elektraAspectGame } from
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Wave 11 `elektra/justice`: the Linked treacheries Backstab 63035, Misdirect 63036 and Sabotage 63037 (Double-Cross
- * 63034 is skipped: it needs an engine primitive). Played against Core's Rhino: the card is a Core treachery retagged
+ * Wave 11 `elektra/justice`: Double-Cross 63034 and its Linked treacheries Backstab 63035, Misdirect 63036 and Sabotage
+ * 63037. Played against Core's Rhino: the card is a Core treachery retagged
  * (surgery) and stacked, once as the card revealed in the villain phase and once as Rhino's boost card.
  */
 const BACKSTAB = "63035";
@@ -63,11 +73,11 @@ function villainPhaseEvents(state: GameState, ...top: readonly string[]): readon
 const deckSize = (s: GameState) => activeEncounterDeck(s).deck.length;
 
 describe("registry", () => {
-  it("registers the three treacheries, skips only Double-Cross, and each validates", () => {
-    expect(Object.keys(SKIPPED)).toEqual(["63034.when-defeated"]);
-    expect(SKIPPED["63034.when-defeated"]).toContain("needs engine primitive");
+  it("registers Double-Cross and the three treacheries, skips nothing, and each validates", () => {
+    expect(SKIPPED).toEqual({});
     expect(Object.keys(REGISTRY).sort()).toEqual(
       [
+        "63034.when-defeated",
         "63035.when-revealed",
         "63035.boost",
         "63036.when-revealed",
@@ -159,5 +169,84 @@ describe("63037 Sabotage", () => {
     expect(events).toContainEqual(
       expect.objectContaining({ type: "statusGiven", instanceId: villainOf(state), status: "confused" }),
     );
+  });
+});
+
+describe("63034 Double-Cross: When Defeated, shuffle the set-aside treacheries into the top 10 encounter cards", () => {
+  const LINKED = [BACKSTAB, MISDIRECT, SABOTAGE];
+  const codeOf = (s: GameState, id: InstanceId) => inst(s, id).cardId as string;
+  const setAsideLinked = (s: GameState) => s.encounterSetAside.filter((id) => LINKED.includes(codeOf(s, id)));
+  /** Spider-Man's deck with Double-Cross, played (2 threat), left with 1 threat; `deck` trims the encounter deck. */
+  function inPlay(deckCards?: number) {
+    const game = elektraAspectGame("63034", SPIDER_MAN_JUSTICE);
+    const given = moveToHand(game, P1, "63034");
+    const played = drive(given.state, accepting(), play(P1, given.ids[0]!, []));
+    const id = given.ids[0]!;
+    let state = patchInstance(played, id, { threat: 1 });
+    if (deckCards !== undefined) {
+      const deckId = activeEncounterDeckId(state);
+      const piles = state.encounterDecks[deckId]!;
+      state = {
+        ...state,
+        encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.slice(0, deckCards) } },
+      };
+    }
+    return { state, id };
+  }
+  const thwart = (s: GameState, scheme: InstanceId) =>
+    drive(s, accepting(), {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: identityOf(s),
+      schemeInstanceId: scheme,
+    } as never);
+
+  it("setup set the three treacheries aside; playing Double-Cross puts it into play", () => {
+    const { state, id } = inPlay();
+    expect(
+      setAsideLinked(state)
+        .map((i) => codeOf(state, i))
+        .sort(),
+    ).toEqual(LINKED);
+    expect(locateCard(state, id)?.kind).toBe("villainArea"); // side schemes are in the villain area
+    expect(inst(state, id).threat).toBe(1);
+  });
+
+  it("defeated: it goes to the victory display and the three are shuffled in among the top 10 (13 on top), the rest in order", () => {
+    const { state, id } = inPlay();
+    const before = activeEncounterDeck(state).deck;
+    const after = thwart(state, id);
+    expect(after.victoryDisplay).toContain(id);
+    expect(setAsideLinked(after)).toEqual([]);
+    const deck = activeEncounterDeck(after).deck;
+    expect(deck.length).toBe(before.length + 3);
+    const top = deck.slice(0, 13);
+    expect(top.filter((i) => LINKED.includes(codeOf(after, i))).length).toBe(3);
+    expect([...top].sort()).toEqual([...before.slice(0, 10), ...setAsideLinked(state)].sort());
+    expect(deck.slice(13)).toEqual(before.slice(10));
+  });
+
+  it("with fewer than 10 encounter cards, they are shuffled into the whole deck", () => {
+    const { state, id } = inPlay(4);
+    const after = thwart(state, id);
+    const deck = activeEncounterDeck(after).deck;
+    expect(deck.length).toBe(7);
+    expect(deck.filter((i) => LINKED.includes(codeOf(after, i))).length).toBe(3);
+  });
+
+  it("with a copy of Double-Cross already in the victory display, nothing is shuffled in", () => {
+    const { state, id } = inPlay();
+    // Surgery: another Double-Cross (a retagged discard-bound card) already in the victory display.
+    const other = playerOf(state, P1).deck[0]!;
+    const withCopy: GameState = {
+      ...patchInstance(state, other, { cardId: "63034" as never }),
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, deck: p.deck.slice(1) } : p)),
+      victoryDisplay: [...state.victoryDisplay, other],
+    };
+    const before = activeEncounterDeck(withCopy).deck;
+    const after = thwart(withCopy, id);
+    expect(after.victoryDisplay).toContain(id);
+    expect(setAsideLinked(after).length).toBe(3);
+    expect(activeEncounterDeck(after).deck).toEqual(before);
   });
 });

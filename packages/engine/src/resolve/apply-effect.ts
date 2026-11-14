@@ -4003,6 +4003,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         { sourceInstanceId: frame.selfInstanceId, ...boundOn },
         false,
         effect.facedown === true,
+        effect.encounterTop !== undefined ? value(effect.encounterTop) : undefined,
       );
       if (effect.shuffleEvenIfEmpty && effect.to === "encounterDeckShuffle" && now.length === 0)
         shuffleEncounterDeck(ctx);

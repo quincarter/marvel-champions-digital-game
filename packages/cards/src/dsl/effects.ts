@@ -1919,6 +1919,11 @@ export const moveCards = (
     readonly shuffleEvenIfEmpty?: true;
     /** `to: { scenarioArea }` only: the cards go in facedown (`EffectSpec moveCards.facedown`). */
     readonly facedown?: true;
+    /**
+     * `to: "encounterDeckShuffle"` only: "shuffle … into the top N cards of the encounter deck (or the whole deck if
+     * there are fewer than N cards)" (Double-Cross 63034; `EffectSpec moveCards.encounterTop`).
+     */
+    readonly encounterTop?: Amount;
   } = {},
 ): EffectSpec => ({
   kind: "moveCards",
@@ -1928,6 +1933,7 @@ export const moveCards = (
   ...(options.takenAwayNotCounted ? { takenAwayNotCounted: true as const } : {}),
   ...(options.shuffleEvenIfEmpty ? { shuffleEvenIfEmpty: true as const } : {}),
   ...(options.facedown ? { facedown: true as const } : {}),
+  ...(options.encounterTop !== undefined ? { encounterTop: amount(options.encounterTop) } : {}),
 });
 /**
  * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): `from` is an
