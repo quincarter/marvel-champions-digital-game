@@ -73,6 +73,10 @@ export class LocalReplayBackend implements ReplayBackend {
 
 type Pending = { readonly resolve: (response: ReplayResponse) => void; readonly reject: (error: Error) => void };
 
+/** How long the worker may take to rebuild a replay, and to answer anything after: far past a real game's needs. */
+export const OPEN_DEADLINE_MS = 60_000;
+export const STEP_DEADLINE_MS = 20_000;
+
 /** The replay worker, started when the replay opens and terminated when it closes. */
 export class WorkerReplayBackend implements ReplayBackend {
   readonly #worker: Worker;
@@ -138,7 +142,27 @@ export class WorkerReplayBackend implements ReplayBackend {
 
   #request(request: ReplayRequest): Promise<ReplayResponse> {
     return new Promise((resolve, reject) => {
-      this.#pending.set(request.id, { resolve, reject });
+      // A replay that keeps the worker busy past its deadline (a file built to make the engine loop) is stopped: the
+      // worker is terminated and the replay can't go on.
+      const deadline = setTimeout(
+        () => {
+          this.#worker.terminate();
+          const error = new ReplayOpenError("damaged", "the replay took too long to rebuild");
+          for (const pending of this.#pending.values()) pending.reject(error);
+          this.#pending.clear();
+        },
+        request.kind === "open" ? OPEN_DEADLINE_MS : STEP_DEADLINE_MS,
+      );
+      this.#pending.set(request.id, {
+        resolve: (response) => {
+          clearTimeout(deadline);
+          resolve(response);
+        },
+        reject: (error) => {
+          clearTimeout(deadline);
+          reject(error);
+        },
+      });
       this.#worker.postMessage(request);
     });
   }

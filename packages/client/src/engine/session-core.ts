@@ -317,6 +317,17 @@ export interface ReplayBaseline {
  * Throws `SetupError` if the scenario itself can no longer be set up (a
  * config referencing content that no longer exists).
  */
+/**
+ * The baseline a setup builds now, without a stored one: what a replay file's game starts from, since a state inside a
+ * file is not trusted (`replay/replay-core.ts`). Setup is deterministic from the config, so it is the game's own.
+ */
+export function freshBaseline(config: SessionConfig): StateWithoutPool {
+  const fresh = createGame(scenarioFor(config), depsOf(config));
+  if (!fresh.ok) throw new SetupError({ ...fresh.error, message: `this game can't be set up: ${fresh.error.message}` });
+  const { cardPool: _pool, ...state } = fresh.state;
+  return state;
+}
+
 export function rebuildBaseline(config: SessionConfig, storedInitialState: StateWithoutPool): ReplayBaseline {
   const fresh = createGame(scenarioFor(config), depsOf(config));
   if (!fresh.ok) {

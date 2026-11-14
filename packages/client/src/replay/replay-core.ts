@@ -3,8 +3,8 @@
  * and what `LocalReplayBackend` runs in-thread for the tests. One replay at a time: opening another replaces it.
  */
 import type { GameStorage, LastPlayedOn } from "../engine/game-storage.js";
-import type { CardPool } from "../engine/host.js";
-import type { Snapshot } from "../engine/session-core.js";
+import type { CardPool, StateWithoutPool } from "../engine/host.js";
+import { freshBaseline, type Snapshot } from "../engine/session-core.js";
 import {
   decodeReplay,
   encodeReplay,
@@ -62,17 +62,51 @@ function playedOnOf(stamp: LastPlayedOn | undefined): { readonly playedOn?: Repl
   };
 }
 
+/** The most commands a replay file may hold: a long four-hero game is a few thousand. */
+export const MAX_REPLAY_COMMANDS = 20_000;
+
 /**
- * A file's game set up with the viewer's own copies of the packs it names, by id and version, and never with pack data
- * the file itself holds: that would run unvalidated content (a precon of a billion cards) in the replay worker.
+ * Whether a file's setup is one the game could have been started with: one to four seats, a custom deck of a deck's
+ * size, a heroic level the picker offers. A file is untrusted, and the engine runs some of these numbers as loop bounds.
  */
-function withInstalledPacks(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
-  const config = withoutPacks(file.config);
+function plausibleSetup(file: ReplayFile): boolean {
+  const { config } = file;
+  const players = Array.isArray(config.players) ? config.players : [];
+  const heroic = config.modes?.heroic;
+  const genePool = config.genePoolThreatPerPlayer;
+  return (
+    players.length >= 1 &&
+    players.length <= 4 &&
+    players.every((seat) => !("deck" in seat) || (Array.isArray(seat.deck) && seat.deck.length <= 200)) &&
+    (heroic === undefined || (Number.isInteger(heroic) && heroic >= 0 && heroic <= 10)) &&
+    (genePool === undefined || (Number.isInteger(genePool) && genePool >= 0 && genePool <= 3)) &&
+    Number.isInteger(config.seed) &&
+    file.commands.length <= MAX_REPLAY_COMMANDS
+  );
+}
+
+/**
+ * A file's game as the viewer runs it. Nothing the file holds beyond its setup and commands is trusted: its starting
+ * state is set up afresh from the config (setup is deterministic, and the file's own first checksum says whether it
+ * matches), and its packs are the viewer's own installed copies, by id and version, never pack data from the file
+ * (a precon of a billion cards).
+ */
+function trustedFile(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
+  if (!plausibleSetup(file)) throw new ReplayOpenError("damaged");
+  let config = withoutPacks(file.config);
   const refs = file.packs ?? [];
-  if (refs.length === 0) return { ...file, config };
-  const packs = refs.map((ref) => installed.find((pack) => pack.id === ref.id && pack.version === ref.version));
-  if (packs.some((pack) => pack === undefined)) throw new ReplayOpenError("missingPacks");
-  return { ...file, config: { ...config, packs: packs as PackRuntime[] } };
+  if (refs.length > 0) {
+    const packs = refs.map((ref) => installed.find((pack) => pack.id === ref.id && pack.version === ref.version));
+    if (packs.some((pack) => pack === undefined)) throw new ReplayOpenError("missingPacks");
+    config = { ...config, packs: packs as PackRuntime[] };
+  }
+  let initialState: StateWithoutPool;
+  try {
+    initialState = freshBaseline(config);
+  } catch (cause) {
+    throw new ReplayOpenError("setup", cause instanceof Error ? cause.message : String(cause));
+  }
+  return { ...file, config, initialState };
 }
 
 export class ReplayCore {
@@ -123,7 +157,7 @@ export class ReplayCore {
       case "file": {
         const parsed = await decodeReplay(source.bytes);
         if (!parsed.ok) throw new ReplayOpenError(parsed.error);
-        return { kind: "file", file: withInstalledPacks(parsed.file, source.packs ?? []) };
+        return { kind: "file", file: trustedFile(parsed.file, source.packs ?? []) };
       }
       case "stored": {
         const stored = this.#storage ? await this.#storage.load(source.gameId) : null;

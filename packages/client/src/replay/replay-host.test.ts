@@ -5,7 +5,7 @@ import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { EngineUpdate, SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
 import { ReplayCore, ReplayOpenError } from "./replay-core.js";
-import { LocalReplayBackend, ReplayHost } from "./replay-host.js";
+import { LocalReplayBackend, OPEN_DEADLINE_MS, ReplayHost, WorkerReplayBackend } from "./replay-host.js";
 import { decodeReplay } from "./replay-file.js";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -176,6 +176,45 @@ describe("ReplayHost", () => {
     await expect(open({ ...parsed.file, packs: [{ id: "gwenpool", version: "0.2.2" }] }, [])).rejects.toMatchObject({
       code: "missingPacks",
     });
+  });
+
+  test("a file's starting state is set up afresh, and an implausible setup is refused", async () => {
+    const host = await openedHost();
+    const { bytes } = await host.exportFile();
+    const parsed = await decodeReplay(bytes);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const reopen = (file: unknown) =>
+      new ReplayHost(new LocalReplayBackend(new ReplayCore(HERE, null))).open({
+        kind: "file",
+        bytes: new TextEncoder().encode(JSON.stringify(file)),
+      });
+    // A tampered baseline is never run: the game starts from its own setup, and the first checksum matches.
+    const tampered = await reopen({ ...parsed.file, initialState: { ...parsed.file.initialState, round: 999 } });
+    expect(tampered.divergedAt).toBeNull();
+    expect(tampered.length).toBe(host.info?.length);
+    await expect(
+      reopen({ ...parsed.file, config: { ...parsed.file.config, modes: { heroic: 1e9 } } }),
+    ).rejects.toMatchObject({ code: "damaged" });
+  });
+
+  test("a worker that takes too long is stopped and the replay fails", async () => {
+    vi.useFakeTimers();
+    try {
+      let terminated = false;
+      const silent = {
+        addEventListener: () => {},
+        postMessage: () => {},
+        terminate: () => void (terminated = true),
+      } as unknown as Worker;
+      const backend = new WorkerReplayBackend(() => silent);
+      const opening = backend.open({ kind: "file", bytes: new Uint8Array() });
+      const settled = expect(opening).rejects.toMatchObject({ code: "damaged" });
+      await vi.advanceTimersByTimeAsync(OPEN_DEADLINE_MS + 1);
+      await settled;
+      expect(terminated).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("a saved game that is gone can't be opened", async () => {
