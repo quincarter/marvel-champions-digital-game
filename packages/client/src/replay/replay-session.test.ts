@@ -3,7 +3,14 @@ import type { Command, LegalActions } from "@mc/engine";
 import { EngineSessionCore } from "../engine/session-core.js";
 import { MemoryGameStorage, type StoredGame } from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
-import { CHECKSUM_EVERY, decodeReplay, encodeReplay, parseReplay, replayFileNameOf } from "./replay-file.js";
+import {
+  CHECKSUM_EVERY,
+  MAX_REPLAY_FILE_BYTES,
+  decodeReplay,
+  encodeReplay,
+  parseReplay,
+  replayFileNameOf,
+} from "./replay-file.js";
 import { ReplaySession, type ReplayLog } from "./replay-session.js";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -138,6 +145,13 @@ describe("replay file", () => {
     expect(await decodeReplay(new TextEncoder().encode("not json"))).toEqual({ ok: false, error: "notReplay" });
     expect(parseReplay({ format: "mc-replay", version: 99 })).toEqual({ ok: false, error: "newerFormat" });
     expect(parseReplay({ format: "mc-replay", version: 1 })).toEqual({ ok: false, error: "damaged" });
+  });
+
+  test("refuses a small file that unpacks past the limit, and a file too large to read", async () => {
+    const bomb = new Blob([" ".repeat(4096)]).stream().pipeThrough(new CompressionStream("gzip"));
+    const packed = new Uint8Array(await new Response(bomb).arrayBuffer());
+    expect(await decodeReplay(packed, 1024)).toEqual({ ok: false, error: "damaged" });
+    expect(await decodeReplay(new Uint8Array(MAX_REPLAY_FILE_BYTES + 1))).toEqual({ ok: false, error: "damaged" });
   });
 
   test("names the file for its scenario and day", () => {

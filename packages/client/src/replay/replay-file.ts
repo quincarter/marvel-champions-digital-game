@@ -169,9 +169,33 @@ const toBase64 = (bytes: Uint8Array): string => {
 
 const fromBase64 = (text: string): Uint8Array => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 
-async function gunzip(bytes: Uint8Array): Promise<string> {
-  const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Response(stream).text();
+/**
+ * The most a replay may hold, packed or unpacked. A long four-hero game's log is a few MB of JSON; these leave room
+ * for that, and stop a small file built to unpack to hundreds of MB (a shared link opens one by itself) from filling
+ * memory before it is read.
+ */
+export const MAX_REPLAY_FILE_BYTES = 8 * 1024 * 1024;
+export const MAX_REPLAY_JSON_BYTES = 24 * 1024 * 1024;
+
+class TooLarge extends Error {}
+
+/** Unpacks gzip, reading it a chunk at a time and giving up past `limit` unpacked bytes. */
+async function gunzip(bytes: Uint8Array, limit: number = MAX_REPLAY_JSON_BYTES): Promise<string> {
+  const reader = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip")).getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      throw new TooLarge();
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
 }
 
 /**
@@ -185,14 +209,17 @@ export async function encodeReplay(file: ReplayFile): Promise<Uint8Array> {
 }
 
 /** Reads a replay file's bytes: as `encodeReplay` writes them, raw gzip, or plain JSON (a replay unpacked to read). */
-export async function decodeReplay(bytes: Uint8Array): Promise<ReplayParse> {
+export async function decodeReplay(bytes: Uint8Array, limit: number = MAX_REPLAY_JSON_BYTES): Promise<ReplayParse> {
+  if (bytes.byteLength > MAX_REPLAY_FILE_BYTES) return { ok: false, error: "damaged" };
   let text: string;
   try {
     if (bytes[0] === GZIP_MAGIC[0] && bytes[1] === GZIP_MAGIC[1]) {
-      text = await gunzip(bytes);
+      text = await gunzip(bytes, limit);
     } else {
       text = new TextDecoder().decode(bytes).trim();
-      if (text.startsWith(REPLAY_HEADER)) text = await gunzip(fromBase64(text.slice(REPLAY_HEADER.length).trim()));
+      if (text.startsWith(REPLAY_HEADER)) {
+        text = await gunzip(fromBase64(text.slice(REPLAY_HEADER.length).trim()), limit);
+      }
     }
   } catch {
     return { ok: false, error: "damaged" };
