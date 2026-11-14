@@ -23,15 +23,17 @@ const MARTIAL_ARTIST = trait("MARTIAL ARTIST");
  * - 64032 Sensei (upgrade)
  *
  * **64031.zen-like-calm-action**: "Heal 1 damage from a Martial Artist character. Then, if that character has no
- * sustained damage, heal 1 damage from another character." The second sentence is a printed "Then" (RRG 1.8 p. 44):
- * it runs only if the heal resolved. The condition is read after the first heal, on the same character. Both choices
- * are any character with the trait / any other character (enemies included; nothing limits them to friendly ones).
- * FLAG: whether healing 0 from an undamaged Martial Artist counts as the first sentence resolving (and so lets the
- * second one run) is not settled by the sources checked; this reads it as resolved, since the heal is not prevented.
+ * sustained damage, heal 1 damage from another character." Settled by the rules expert (2026-11-14): a target is valid
+ * only if the ability can affect it (RRG 1.8 "Target", p. 42), and only the first heal can affect the Martial Artist,
+ * so only a Martial Artist with at least 1 damage can be chosen (none damaged: the card cannot be played). The second
+ * sentence is a printed "Then" (RRG 1.8 "Then", p. 44; "Resolve", p. 37): it happens only if the first heal resolved
+ * and left that character at 0 damage, and the other character is chosen after the first heal. Same reading as the
+ * Peter Porker basic recovery ruling (May 2023, docs/rulings/post-rrg-1-5/01-may-2023.md) and Ionic Physiology
+ * (March 6, 2026, Ruling 3).
  */
 export const IRON_FIST_LEADERSHIP: AbilityRegistry = defineAbilities({
   "64031.zen-like-calm-action": action(
-    chooseTarget("artist", query("character", { trait: MARTIAL_ARTIST })),
+    chooseTarget("artist", query("character", { trait: MARTIAL_ARTIST, damaged: true })),
     heal(1, chosen("artist")),
     andThen(
       ifThen(valueEquals(damageOn(chosen("artist")), 0), [

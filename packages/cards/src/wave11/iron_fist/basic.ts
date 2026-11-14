@@ -44,7 +44,7 @@ const ATTACK = trait("ATTACK");
  *
  * **64023.punch-reverse-punch-action**: the Tooth and Claw shape (tigra 56008): one attack, whose two sentences are
  * independent instances of 1 damage, each choosing its enemy as it resolves, so both may name one enemy (owner's answer
- * 2026-10-11, question 16 = A; provisional). Discount is data.
+ * 2026-10-11, question 16 = A, docs/phase7-wave10.md; provisional). Discount is data.
  *
  * **64025.thunder-dojo-action**: "Any player may trigger this ability" is `triggerableBy: eachPlayer`; the player who
  * triggers it is "you", so it is their discard pile and deck that are used ("your"). Up to 2 Attack events, so

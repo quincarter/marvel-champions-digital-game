@@ -1,11 +1,22 @@
 import { LUKE_CAGE_STARTER_DECKS, PLAYABLE_CARDS, cardId } from "@mc/content";
-import { characterProfile, createGame, handSize, type Command, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  characterProfile,
+  createGame,
+  handSize,
+  legalActions,
+  type Command,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../core/setup.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import { buildCrossHeroDeck } from "../../testing/cross-hero.js";
 import {
   P1,
+  P2,
   endTurn,
   firstLegal,
   identityOf,
@@ -77,9 +88,12 @@ function coreGame(
   code: string,
   hero: string,
   form: "hero" | "alterEgo" = "hero",
+  twoPlayers = false,
 ): { state: GameState; id: InstanceId } {
+  const second = coreScenario("rhino", { players: [{ starterDeckId: BASIC_HERO }], seed: 1 }).players[0]!;
+  const first = buildCrossHeroDeck(PLAYABLE_CARDS, hero, code);
   const config = coreScenario("rhino", {
-    players: [buildCrossHeroDeck(PLAYABLE_CARDS, hero, code)],
+    players: twoPlayers ? [first, second] : [first],
     seed: 1,
     difficulty: "standard",
     modularSetIds: [],
@@ -111,7 +125,15 @@ const taking =
   };
 const drive = (s: GameState, pick: Picker, ...commands: Command[]): GameState =>
   settle(runWith(DEPS, s, ...commands), pick, undefined, DEPS);
-const villainPhase = (s: GameState, pick: Picker): GameState => drive(s, pick, endTurn(P1));
+/** Every player ends their turn, whoever's it is, until the player phase is over. */
+const villainPhase = (s: GameState, pick: Picker): GameState => {
+  let state = s;
+  for (let i = 0; i < s.players.length && state.step.phase === "player"; i++) {
+    const step = state.step as { readonly activePlayerId?: PlayerId };
+    state = drive(state, pick, endTurn(step.activePlayerId ?? P1));
+  }
+  return state;
+};
 const damageOf = (s: GameState, id: InstanceId): number => inst(s, id).damage;
 const villainOf = (s: GameState): InstanceId => s.activeVillainId!;
 /** Surgery: `n` hand cards (not `exclude`) become Core energy resources, each paying exactly one resource; returns the new state and them. */
@@ -182,6 +204,28 @@ describe("64013 Helpful Bystander", () => {
     expect(playerOf(after, P1).discard).toContain(staged.id);
     expect(damageOf(after, hero)).toBe(1);
   });
+
+  it("the redirected attack can still be defended (RRG 1.8 p. 10): your hero defends and the ally lives", () => {
+    const { state } = coreGame(BYSTANDER, PROTECTION_HERO);
+    const staged = inPlay(state, BYSTANDER);
+    const hero = identityOf(staged.state, P1);
+    const after = villainPhase(staged.state, taking(hero as string));
+    expect(playerOf(after, P1).playArea).toContain(staged.id);
+    expect(damageOf(after, staged.id)).toBe(0);
+    expect(inst(after, hero).exhausted).toBe(true);
+  });
+
+  it("does not redirect another player's attack: P2 makes Rhino attack P2, and P1's ally is untouched", () => {
+    const { state } = coreGame(BYSTANDER, PROTECTION_HERO, "hero", true);
+    const staged = inPlay(state, BYSTANDER);
+    const hero2 = identityOf(staged.state, P2);
+    const p2Card = playerOf(staged.state, P2).hand[0]!;
+    const ready = withForm(patchInstance(staged.state, p2Card, { cardId: cardId(DEMORALIZE) }), { heroForm: 0 }, P2);
+    const after = drive(ready, taking(), play(P2, p2Card, []));
+    expect(damageOf(after, hero2)).toBe(2);
+    expect(damageOf(after, staged.id)).toBe(0);
+    expect(playerOf(after, P1).playArea).toContain(staged.id);
+  });
 });
 
 describe("64016 Demoralize", () => {
@@ -189,7 +233,8 @@ describe("64016 Demoralize", () => {
     const { state, id } = coreGame(DEMORALIZE, PROTECTION_HERO);
     const hero = identityOf(state, P1);
     const after = drive(state, taking(), play(P1, id, []));
-    expect(damageOf(after, hero)).toBeGreaterThan(0);
+    // The attack is against the hero: Rhino's 2 ATK (boost 0) undefended.
+    expect(damageOf(after, hero)).toBe(2);
     expect(inst(after, villainOf(after)).statuses.confused).toBe(1);
   });
 });
@@ -210,6 +255,7 @@ describe("64019 No Time to Bleed", () => {
 });
 
 describe("64020 Tonfa", () => {
+  const DECLINED_DAMAGE = 2;
   const setup = () => {
     const { state } = coreGame(TONFA, PROTECTION_HERO);
     // Sandman (2 boost icons) is the boost card, so the attack is big enough for the hero's DEF to matter.
@@ -226,14 +272,16 @@ describe("64020 Tonfa", () => {
   it("declined, the attack deals its full damage and Tonfa stays ready", () => {
     const { state, id, hero } = attacked(null);
     expect(inst(state, id).exhausted).toBe(false);
-    expect(damageOf(state, hero)).toBeGreaterThanOrEqual(0);
+    // Rhino 2 ATK + 2 boost icons, less Black Panther's DEF.
+    expect(damageOf(state, hero)).toBe(DECLINED_DAMAGE);
   });
 
   it("with +1 DEF the hero takes 1 less damage than declined, and Tonfa exhausts", () => {
     const declined = attacked(null);
     const taken = attacked("+1 DEF for this attack");
     expect(inst(taken.state, taken.id).exhausted).toBe(true);
-    expect(damageOf(declined.state, declined.hero) - damageOf(taken.state, taken.hero)).toBe(1);
+    expect(damageOf(declined.state, declined.hero)).toBe(DECLINED_DAMAGE);
+    expect(damageOf(taken.state, taken.hero)).toBe(DECLINED_DAMAGE - 1);
   });
 
   it("with retaliate 1 the attacker takes 1 damage", () => {
@@ -331,6 +379,51 @@ describe("64025 Thunder Dojo", () => {
   });
 });
 
+describe("64025 Thunder Dojo, used by another player", () => {
+  const DOJO_REF = "64025.thunder-dojo-action";
+  /** P1's Dojo in play; P2 has 2 Attack events in their discard pile. P2 (first to act) is in alter-ego form. */
+  const setup = () => {
+    const { state } = coreGame(DOJO, PROTECTION_HERO, "alterEgo", true);
+    const dojo = inPlay(state, DOJO);
+    const events = playerOf(dojo.state, P2).hand.slice(0, 2);
+    const retagged = events.reduce((acc, e) => patchInstance(acc, e, { cardId: cardId(PUNCH) }), dojo.state);
+    const prepared: GameState = {
+      ...retagged,
+      players: retagged.players.map((p) =>
+        p.playerId === P2
+          ? { ...p, hand: p.hand.filter((i) => !events.includes(i)), discard: [...p.discard, ...events] }
+          : p,
+      ),
+    };
+    return { state: prepared, dojo: dojo.id, events };
+  };
+  const bothEvents =
+    (events: readonly InstanceId[]): Picker =>
+    (st) => {
+      const choice = st.pendingChoice!;
+      const ids = choice.options.map((o) => o.optionId as string);
+      const hits = ids.filter((i) => events.some((e) => i === e || i.endsWith(e)));
+      return choice.prompt.kind === "chooseCards" ? hits.slice(0, choice.maxSelections) : firstLegal(st);
+    };
+
+  it("a second player in alter-ego form uses their own discard pile and deck", () => {
+    const { state, dojo, events } = setup();
+    const p1Deck = playerOf(state, P1).deck.length;
+    const p2Deck = playerOf(state, P2).deck.length;
+    const after = drive(state, bothEvents(events), use(P2, dojo, DOJO_REF));
+    expect(inst(after, dojo).exhausted).toBe(true);
+    expect(playerOf(after, P2).deck.length).toBe(p2Deck + 2);
+    expect(playerOf(after, P2).discard).toEqual([]);
+    expect(playerOf(after, P1).deck.length).toBe(p1Deck);
+  });
+
+  it("is refused while that player is in hero form (an Alter-Ego Action)", () => {
+    const { state, dojo } = setup();
+    const hero = withForm(state, { heroForm: 0 }, P2);
+    expect(applyCommand(hero, use(P2, dojo, DOJO_REF), DEPS).ok).toBe(false);
+  });
+});
+
 describe("64030 Death by a Thousand Cuts", () => {
   it("after you play a card, this one included, makes an attack for 1 damage to an enemy", () => {
     const { state, id } = coreGame(CUTS, AGGRESSION_HERO);
@@ -348,23 +441,34 @@ describe("64030 Death by a Thousand Cuts", () => {
 });
 
 describe("64031 Zen-Like Calm", () => {
-  it("heals 1 from a Martial Artist; if that leaves no damage, heals 1 from another character", () => {
+  const setup = (allyDamage: number) => {
     const { state, id } = coreGame(ZEN, LEADERSHIP_HERO);
     const ally = inPlay(state, MARTIAL_ARTIST_ALLY);
     const hero = identityOf(ally.state, P1);
-    const hurt = patchInstance(patchInstance(ally.state, ally.id, { damage: 1 }), hero, { damage: 2 });
-    const after = drive(hurt, taking(ally.id as string, hero as string), play(P1, id, []));
-    expect(damageOf(after, ally.id)).toBe(0);
+    const hurt = patchInstance(patchInstance(ally.state, ally.id, { damage: allyDamage }), hero, { damage: 2 });
+    return { state: hurt, id, ally: ally.id, hero };
+  };
+
+  it("heals 1 from a Martial Artist; if that leaves no damage, heals 1 from another character", () => {
+    const { state, id, ally, hero } = setup(1);
+    const after = drive(state, taking(ally as string, hero as string), play(P1, id, []));
+    expect(damageOf(after, ally)).toBe(0);
     expect(damageOf(after, hero)).toBe(1);
   });
 
   it("with damage left on the Martial Artist, heals nothing else", () => {
-    const { state, id } = coreGame(ZEN, LEADERSHIP_HERO);
-    const ally = inPlay(state, MARTIAL_ARTIST_ALLY);
-    const hero = identityOf(ally.state, P1);
-    const hurt = patchInstance(patchInstance(ally.state, ally.id, { damage: 2 }), hero, { damage: 2 });
-    const after = drive(hurt, taking(ally.id as string, hero as string), play(P1, id, []));
-    expect(damageOf(after, ally.id)).toBe(1);
+    const { state, id, ally, hero } = setup(2);
+    const after = drive(state, taking(ally as string, hero as string), play(P1, id, []));
+    expect(damageOf(after, ally)).toBe(1);
     expect(damageOf(after, hero)).toBe(2);
+  });
+
+  it("an undamaged Martial Artist is not a valid target: with none damaged the card cannot be played", () => {
+    const { state, id } = setup(0);
+    // Captain Marvel and the ally are both hurt or not, but no Martial Artist has damage: only the ally has the trait.
+    const actions = legalActions(state, P1, DEPS);
+    expect(
+      actions.kind === "turn" && actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id),
+    ).toBe(false);
   });
 });

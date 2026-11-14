@@ -51,7 +51,7 @@ import { WAVE10_ABILITIES } from "../../wave10/index.js";
  * **64013.helpful-bystander-forced-interrupt**: Amadeus Cho's shape (hercules 59008) for any enemy. The attack is the
  * same attack redirected (`retargetAttack`): "when it attacks" does not fire again, the ally's controller is the
  * attacked player (wave 7 section 4.1 Q16 A), and the attack gains overkill (RRG 1.8 p. 31). It can still be defended
- * (p. 10); "attacks you" is the attacked player (p. 49).
+ * (p. 10); "attacks you" is the attacked player (RRG 1.8 "Attack", p. 8; "You, Your", p. 49).
  *
  * **64016.demoralize-action**: any enemy, engaged or not, attacks you; then it is confused. Not an attack by you, so
  * no label and no guard.
