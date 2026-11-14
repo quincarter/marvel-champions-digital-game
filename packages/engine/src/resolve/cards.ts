@@ -1305,7 +1305,6 @@ export function leavingWithHostFrames(ctx: Ctx, frame: Frame<"event">): readonly
   return frames;
 }
 
-/** Shuffles an encounter deck: "the encounter deck" is the active villain's. */
 /**
  * Shuffles only the top `count` cards of an encounter deck, the rest keeping their order ("shuffle … into the top 10
  * cards of the encounter deck", Double-Cross 63034; `EffectSpec moveCards.encounterTop`). A deck of `count` cards or
@@ -1325,6 +1324,7 @@ export function shuffleEncounterDeckTop(ctx: Ctx, count: number, deckId: Encount
   announceDeckTops(ctx);
 }
 
+/** Shuffles an encounter deck: "the encounter deck" is the active villain's. */
 export function shuffleEncounterDeck(ctx: Ctx, deckId: EncounterDeckId = activeEncounterDeckId(ctx.state)): void {
   const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
   ctx.state = {
