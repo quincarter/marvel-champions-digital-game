@@ -99,6 +99,8 @@ export const BADGE_FOCUS: Readonly<Record<string, BadgeFocus>> = {
   // Splash only (no closeup supplied): the badge is cut from the upper middle of the full picture, where the faces are.
   "black-panther-shuri-black-panther-t-challa": { source: "splash", x: 0.5, y: 0.3, zoom: 1 },
   "cindy-moon-peter-parker": { source: "splash", x: 0.5, y: 0.3, zoom: 1 },
+  // Splash only: the two faces sit just above the middle, Iron Fist left of Luke Cage, under the silhouettes behind them.
+  "iron-fist-luke-cage": { source: "splash", x: 0.48, y: 0.47, zoom: 1.3 },
 };
 
 /** The full picture standing in for a missing closeup is portrait, so its square looks at the faces (upper middle). */

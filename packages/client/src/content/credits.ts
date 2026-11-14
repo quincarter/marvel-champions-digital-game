@@ -174,7 +174,10 @@ export const CREDITS: readonly CreditEntry[] = [
     group: "hero-villain-art",
     title: "Hero pictures",
     shownIn: "Take your seats (hero select), Extras artwork",
-    credit: `One picture per hero identity. ${ARTIST_NOT_RECORDED}`,
+    credit:
+      `One picture per hero identity. ${ARTIST_NOT_RECORDED} ` +
+      "Elektra's picture is signed \"END '15\" with colors by Skipper, and Iron Fist's is signed Fritz Casas; " +
+      "both names are read from the signatures and not confirmed.",
     notice: FFG_MARVEL,
     folders: ["art/heroes"],
     gap: true,
@@ -194,7 +197,9 @@ export const CREDITS: readonly CreditEntry[] = [
     group: "hero-villain-art",
     title: "Team-Up splash pictures and badges",
     shownIn: "The Board, the first time a Team-Up becomes active",
-    credit: `One splash and one badge per Team-Up pair. ${ARTIST_NOT_RECORDED}`,
+    credit:
+      `One splash and one badge per Team-Up pair. ${ARTIST_NOT_RECORDED} ` +
+      "The Iron Fist and Luke Cage picture carries no signature; its artist is unknown.",
     notice: FFG_MARVEL,
     folders: ["art/teamups"],
     gap: true,
