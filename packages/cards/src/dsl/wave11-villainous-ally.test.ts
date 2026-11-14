@@ -5,7 +5,8 @@
  * (p. 47): when she uses a basic power she is given a facedown boost card from the top of the encounter deck, turned
  * faceup as the power resolves, its icons added to the stat used for this use, then discarded. Amplify adds one icon
  * per amplify icon in play (MC60's updated Amplify text over RRG 1.8 p. 7, owner 2026-11-14, §S4.0; tested in
- * `qa-2026-11-14-amplify-basic-power.test.ts`). The scripts are this test's own, as in `wave11-treat-self-as-ally.test.ts`.
+ * `qa-2026-11-14-amplify-basic-power.test.ts`). The scripts are this test's own, as in
+ * `wave11-treat-self-as-ally.test.ts`.
  */
 
 import { CORE_CARDS, PLAYABLE_CARDS, cardId } from "@mc/content";
