@@ -130,6 +130,9 @@ code {
   color: var(--fg);
   min-height: 36px;
 }
+.lang .code {
+  display: none;
+}
 .lang button[aria-pressed="true"] {
   background: var(--gold);
   color: var(--gold-ink);

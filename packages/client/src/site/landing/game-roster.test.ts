@@ -28,7 +28,7 @@ function rosterNow(): GameRoster {
     if (seen.has(name)) continue;
     seen.add(name);
     const wave = waves.get(shelf.cycleId) ?? { name: shelf.cycleName, order: shelf.cycleOrder, heroes: [] };
-    wave.heroes.push({ name, aspects: [...deck.aspects] });
+    wave.heroes.push({ id: deck.identityCardId as string, name, aspects: [...deck.aspects] });
     waves.set(shelf.cycleId, wave);
   }
   const authors = new Set<string>();
@@ -37,6 +37,7 @@ function rosterNow(): GameRoster {
   return {
     heroCount: seen.size,
     scenarioCount: PLAYABLE_SCENARIO_RECORDS.length,
+    scenarios: PLAYABLE_SCENARIO_RECORDS.map((scenario) => ({ id: scenario.id as string, name: scenario.name })),
     waves: [...waves.values()].sort((a, b) => a.order - b.order).map(({ name, heroes }) => ({ name, heroes })),
     deckAuthors: [...authors].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })),
   };

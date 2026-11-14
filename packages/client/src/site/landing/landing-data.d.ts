@@ -29,4 +29,14 @@ declare module "virtual:landing-data" {
   /** The store's packs at build time, withdrawn ones left out; the page refreshes them live where it can. */
   export const MODS: readonly StoreMod[];
   export const BUILT_AT: string;
+  /** Each hero's portrait by identity card code, with the CSS `object-position` that keeps its subject in frame. */
+  export const HERO_ART: Readonly<Record<string, { readonly src: string; readonly position: string }>>;
+  /** Each villain's artwork by scenario id. */
+  export const VILLAIN_ART: Readonly<Record<string, string>>;
+  /** The title wallpapers: the page's top (wide and tall) and the ones between sections. */
+  export const WALLPAPERS: {
+    readonly wide: string | null;
+    readonly tall: string | null;
+    readonly bands: readonly string[];
+  };
 }

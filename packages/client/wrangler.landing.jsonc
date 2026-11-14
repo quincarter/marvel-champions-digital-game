@@ -10,8 +10,8 @@
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist-landing",
+    // No page of its own answers 404, so a stray path is a real not-found rather than the landing page again.
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "single-page-application",
   },
   // A workers.dev address to check a deploy before the custom domain points at it.
   "workers_dev": true,

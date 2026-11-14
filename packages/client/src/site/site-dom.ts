@@ -54,29 +54,41 @@ export function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-/** The language buttons, one per page language; `onPick` redraws the page. */
+/**
+ * The language buttons, one per page language, made once: a pick only moves `aria-pressed`, so keyboard focus stays on
+ * the button that was pressed while `onPick` redraws the rest of the page. Returns a setter for the group's label.
+ */
 export function mountLanguageToggle(
   container: HTMLElement,
   current: PageLanguage,
-  label: string,
   onPick: (language: PageLanguage) => void,
-): void {
-  container.replaceChildren();
-  container.setAttribute("role", "group");
-  container.setAttribute("aria-label", label);
-  for (const language of PAGE_LANGUAGES) {
-    const button = element("button", { type: "button", lang: language }, LANGUAGE_NAMES[language]);
-    button.setAttribute("aria-pressed", String(language === current));
+): (label: string) => void {
+  let chosen = current;
+  const buttons = PAGE_LANGUAGES.map((language) => {
+    // The code ("ES") stands in for the name where a narrow bar has no room (site.css, `.lang .code`).
+    const button = element(
+      "button",
+      { type: "button", lang: language, "aria-label": LANGUAGE_NAMES[language] },
+      element("span", { class: "name" }, LANGUAGE_NAMES[language]),
+      element("span", { class: "code", "aria-hidden": "true" }, language.toUpperCase()),
+    );
     button.addEventListener("click", () => {
-      if (language === current) return;
+      if (language === chosen) return;
+      chosen = language;
       storageWrite(LANGUAGE_KEY, language);
       const url = new URL(location.href);
       url.searchParams.delete("lang");
       history.replaceState(null, "", url);
+      for (const [i, other] of buttons.entries())
+        other.setAttribute("aria-pressed", String(PAGE_LANGUAGES[i] === chosen));
       onPick(language);
     });
-    container.append(button);
-  }
+    button.setAttribute("aria-pressed", String(language === current));
+    return button;
+  });
+  container.replaceChildren(...buttons);
+  container.setAttribute("role", "group");
+  return (label) => container.setAttribute("aria-label", label);
 }
 
 const DEVICE_ORDER: readonly Download["device"][] = ["windows", "mac", "linux", "android"];
@@ -189,6 +201,8 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
     groups,
     element("a", { class: "all", href: release.html_url, rel: "noopener" }, t("dl.allFiles"), " ↗"),
   );
-  if (!primary) more.open = true;
+  // A redraw (a language switch, GitHub answering) keeps the list open if the visitor opened it.
+  if (!primary || container.querySelector<HTMLDetailsElement>("details.dl-more")?.open) more.open = true;
+  if (device === "mac") notes.push(element("p", { class: "dl-note" }, t("dl.macNote")));
   container.replaceChildren(main, ...notes, more);
 }
