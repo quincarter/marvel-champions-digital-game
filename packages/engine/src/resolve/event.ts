@@ -304,7 +304,11 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // (`engagingAsItEnters`, RRG 1.8 "Engage", p. 18, and "Triggering Condition", p. 45). No frame of its own: its
       // responses are announced after the minion's keywords.
       const engaging = engagingAsItEnters(ctx, frame.event);
+      // A basic power's event holding its `basicPowerUsing` announcement (`usingAfterWould`) always opens its window: the
+      // announcement is made there, after the "would" tier, and its interrupts (Psi-Energy Control turning a Knife into
+      // a Katana) can make this event's own interrupts eligible (Directed Force 41019), read as the next tier opens.
       const interrupts =
+        frame.usingAfterWould !== undefined ||
         engaging !== null ||
         hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt") ||
         companions.some((companion) => hasCandidates(ctx.state, ctx.deps, companion.event, "interrupt"));
