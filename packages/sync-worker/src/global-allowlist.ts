@@ -225,6 +225,7 @@ export const GLOBAL_ALLOWED_MODULARS: readonly string[] = [
   "ebony_maw",
   "echo_nemesis",
   "electro",
+  "elektra_nemesis",
   "en_sabah_nur",
   "enchantress",
   "enchantress_villain",
@@ -279,6 +280,7 @@ export const GLOBAL_ALLOWED_MODULARS: readonly string[] = [
   "infinites",
   "infinity_gauntlet",
   "inheritors",
+  "iron_fist_nemesis",
   "iron_man_leader",
   "iron_man_nemesis",
   "ironheart_nemesis",
@@ -546,4 +548,6 @@ export const GLOBAL_ALLOWED_HEROES: readonly string[] = [
   "60037a",
   "61001a",
   "62001a",
+  "63001a",
+  "64001a",
 ];

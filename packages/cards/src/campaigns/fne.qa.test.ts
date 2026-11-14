@@ -567,9 +567,12 @@ describe("an ally removed from the game at Victory leaves the deck by title (MC6
 
   it("the next game's deck surgery removes every card of that title from both decks, and none is in that game", () => {
     expect(two.composed.removedFromCampaign.some((face) => face.cardId === cardId(DAREDEVIL_ALLY))).toBe(true);
+    // Every card titled Daredevil leaves, including Elektra's Daredevil ally (63005): her pack is not ready, so the
+    // card can't be in a deck yet, but the title rule covers it once the pack is released.
     expect(two.composed.removedFromCampaign.map((face) => face.cardId as string).sort()).toEqual([
       CORE_DAREDEVIL,
       DAREDEVIL_ALLY,
+      "63005",
     ]);
     for (const seat of two.composed.attempt!.input.seats) {
       expect(seat.deck).not.toContain(DAREDEVIL_ALLY);
