@@ -177,7 +177,7 @@ import {
 } from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 import { awaitEnclosingAbility, dropHeldResponses, refreshHeldResponses } from "./initiated-activation.js";
-import { startCharacterBoost } from "./villainous.js";
+import { pushUsingAfterWould, startCharacterBoost } from "./villainous.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
@@ -455,11 +455,13 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (frame.event.kind === "dealDamage") announceStatusDiscarded(ctx, piercedBeforeInterrupts(frame.event));
         return;
       }
-      // A basic power's own event (its attack, thwart or recovery) has had its interrupt window, the "would" tier, the
-      // Villainous give and the other interrupts to it ("'Would'" p. 48, "Forced" p. 20, "Interrupt" p. 25). That
-      // window is not the earlier `basicPowerUsing` one, which closed before this event's opened. Its user's boost
-      // cards flip now, as the power resolves (RRG 1.8 "Villainous", p. 47), and the event waits here, at `apply`,
-      // until they have resolved.
+      // A basic power's own event (its attack, thwart or recovery) with no interrupt window still holds its power's
+      // `basicPowerUsing` announcement (`usingAfterWould`): it is announced now, before the power resolves.
+      if (pushUsingAfterWould(ctx, frame.frameId)) return;
+      // That event has had its interrupt window: its "would" tier, then the `basicPowerUsing` window (the Villainous
+      // give, then "when … uses a basic power" interrupts), then its other tiers ("'Would'" p. 48, "Forced" p. 20,
+      // "Interrupt" p. 25). Its user's boost cards flip now, as the power resolves (RRG 1.8 "Villainous", p. 47), and
+      // the event waits here, at `apply`, until they have resolved.
       if (startCharacterBoost(ctx, frame.frameId)) return;
       setFrame(ctx, { ...frame, stage: "responses" });
       const beforeApply = ctx.state;

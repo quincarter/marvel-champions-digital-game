@@ -1,5 +1,6 @@
 /** Timing windows: ordering, choosing, paying for and resolving triggered abilities. */
 
+import { pushUsingAfterWould } from "./villainous.js";
 import { displayNameOf } from "../visibility.js";
 import {
   announceResourcesSpent,
@@ -563,6 +564,18 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   // ones are each read as they open. One exception, in an interrupt window only, whose event is still to resolve: an
   // interrupt on the face of a card in play that the forced tier turned faceup (`turnedFaceupCandidates`).
   // Several triggering condition groups: the optional responses to a group no forced response answers may go first.
+  // A basic attack, thwart or recovery past its "would" tier, still standing: "when … uses a basic power" (Villainous's
+  // give, Stick 60029, Moondragon 63038) is announced now, and resolves before this window's other tiers
+  // (`Frame<"event">.usingAfterWould`; RRG 1.8 "'Would'", p. 48, "Villainous", p. 47).
+  if (
+    !would &&
+    tierIndex === 0 &&
+    frame.timing === "interrupt" &&
+    frame.eventFrameId !== null &&
+    frame.earlyOptional === undefined &&
+    pushUsingAfterWould(ctx, frame.eventFrameId)
+  )
+    return;
   if (!would && tierIndex === 0 && frame.earlyOptional === undefined && offerEarlyOptional(ctx, frame)) return;
   // Read once as it opens: by the early round, when there was one (`earlyOptional`).
   const atOpen =

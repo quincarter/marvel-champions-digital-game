@@ -7,12 +7,12 @@
  * encounter deck. When resolving that basic power, turn the boost card faceup, resolve any boost ability on that card,
  * and apply its boost icons to the character's stats for this use. Discard the boost card after it is resolved."
  *
- * The give is the keyword's forced interrupt to the power itself (`VILLAINOUS_ABILITY`, `keyword-abilities.ts`): its
- * basic attack, thwart or recovery event (`EventPattern.ownBasicPowerUse`), after that event's "would" interrupts (one
- * that cancels or replaces the power leaves no card given, RRG 1.8 "'Would'", p. 48) and ordered among the other forced
- * interrupts like any; a hero's basic defense, which has no event of its own, in its `basicPowerUsing` window. The rest is two `characterBoost` frames
- * (`stack.ts`): the use's record beneath the use's own frame, and a `resolve` frame pushed above that frame once its own
- * interrupt window has closed, as the power resolves (`startCharacterBoost`).
+ * The give is the keyword's forced interrupt to the power's `basicPowerUsing` event (`VILLAINOUS_ABILITY`,
+ * `keyword-abilities.ts`), ordered among the other forced interrupts like any. For a basic attack, thwart or recovery
+ * that event waits for its power's own "would" interrupts (`deferUsingAfterWould`), so a "would" cancel gives no card
+ * (RRG 1.8 "'Would'", p. 48). The rest is two `characterBoost` frames (`stack.ts`): the use's record beneath the use's
+ * own frame, and a `resolve` frame pushed above that frame once its own interrupt window has closed, as the power
+ * resolves (`startCharacterBoost`).
  *
  * Held boost cards. A card given to the character ahead of time for its basic powers ("Give her 1 facedown boost
  * card", Acrobatic Prowess 63006; `EffectSpec giveBoostCard.forBasicPower`, `CardInstance.heldForBasicPowers`) waits
@@ -64,10 +64,10 @@ import { amplifyIconsInPlay, boostIconsFor } from "../modifiers.js";
 import { discardZoneFor, getInstance, locateCard } from "../query.js";
 import { cardsInPlay, categoriesOf, gainedBoostAbilities } from "../select.js";
 import type { BasicPowerName, StatName } from "../spec.js";
-import { basicPowerUseFrameId, describeFrame, type StackFrame } from "../stack.js";
+import { basicPowerUseFrameId, defendsWithBasicPower, describeFrame, type StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { base, eventFrame, type Frame, gameAbilityFrames } from "./frames.js";
+import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
 /** A character in play that is not an enemy and has villainous, printed or gained, read as every keyword is. */
 export const villainousFriendlyCharacter = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
@@ -127,6 +127,51 @@ function insertBeneath(ctx: Ctx, below: FrameId, frames: readonly StackFrame[]):
 }
 
 /**
+ * Holds a basic attack's, thwart's or recovery's `basicPowerUsing` announcement on the power's own event frame
+ * (`Frame<"event">.usingAfterWould`) until that event's "would" interrupts have resolved. Villainous = Forced Interrupt:
+ * when this character uses a basic power (RRG 1.8 "Villainous", p. 47), the same triggering condition as Stick 60029
+ * and Moondragon 63038, so it initiates before them ("Forced", p. 20); "would" interrupts to the attack or thwart go
+ * first, and a "would" cancel gives no card ("'Would'", p. 48). False when there is no such frame still to open its
+ * window (a basic defense, a use already under way): the caller pushes the announcement at once.
+ */
+export function deferUsingAfterWould(ctx: Ctx, using: Extract<TriggerEvent, { kind: "basicPowerUsing" }>): boolean {
+  if (using.power === "defense") return false;
+  const useFrameId = basicPowerUseFrameId(ctx.state.stack, using.power, using.characterInstanceId);
+  const frame = useFrameId === null ? undefined : findFrame(ctx.state, useFrameId);
+  if (frame?.kind !== "event" || frame.stage !== "interrupts" || frame.usingAfterWould) return false;
+  const event = frame.event;
+  const ofThisUse =
+    (using.power === "attack" &&
+      event.kind === "attack" &&
+      event.basic === true &&
+      event.attackerInstanceId === using.characterInstanceId) ||
+    (using.power === "thwart" &&
+      event.kind === "thwart" &&
+      event.basic === true &&
+      event.thwarterInstanceId === using.characterInstanceId) ||
+    (using.power === "recover" &&
+      event.kind === "basicRecovery" &&
+      event.characterInstanceId === using.characterInstanceId);
+  if (!ofThisUse) return false;
+  setFrame(ctx, { ...frame, usingAfterWould: using });
+  return true;
+}
+
+/**
+ * Pushes the `basicPowerUsing` announcement the event frame `eventFrameId` holds (`deferUsingAfterWould`), clearing it:
+ * called as that event's interrupt window passes its "would" tier, or at its apply step when it opened none. True when
+ * it pushed one, the caller then waiting for it to resolve.
+ */
+export function pushUsingAfterWould(ctx: Ctx, eventFrameId: FrameId): boolean {
+  const frame = findFrame(ctx.state, eventFrameId);
+  if (frame?.kind !== "event" || !frame.usingAfterWould) return false;
+  const { usingAfterWould: using, ...rest } = frame;
+  setFrame(ctx, rest as Frame<"event">);
+  pushEvent(ctx, using);
+  return true;
+}
+
+/**
  * Records a basic power `characterId` is using, when it is a villainous ally or hero or one holding boost cards for its
  * basic powers: the `use` record beneath the use's frame. Called by the power's announcer just before it pushes the
  * power's `basicPowerUsing` event. Its cards are turned faceup later, as the power resolves (`startCharacterBoost`).
@@ -165,7 +210,7 @@ function characterBoostRecord(
   stat: StatName,
   playerId: PlayerId,
 ): Frame<"characterBoost"> | null {
-  if (power === "defense" && !categoriesOf(ctx.state, characterId).includes("hero")) return null;
+  if (power === "defense" && !defendsWithBasicPower(ctx.state, characterId)) return null;
   const useFrameId = basicPowerUseFrameId(ctx.state.stack, power, characterId);
   if (useFrameId === null) return null;
   return {

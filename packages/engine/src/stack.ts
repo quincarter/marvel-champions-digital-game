@@ -287,6 +287,16 @@ export type StackFrame =
        */
       readonly statusReplaces?: true;
       /**
+       * On a basic attack's, thwart's or recovery's own event (`attack` / `thwart` with `basic`, `basicRecovery`): the
+       * power's `basicPowerUsing` announcement, waiting for this event's "would" interrupts. Villainous ("when this
+       * character uses a basic power", RRG 1.8 p. 47) and the other "when … uses a basic power" interrupts (Stick
+       * 60029, Moondragon 63038) answer it, and the "would" interrupts to the attack or thwart go before them: one that
+       * cancels or replaces the power leaves it never announced, so no card is given ("'Would'", p. 48). Pushed as the
+       * event's interrupt window passes its "would" tier (`resolve/window.ts`), or at its apply step when it has no
+       * window; cleared as it is pushed (`pushUsingAfterWould`).
+       */
+      readonly usingAfterWould?: TriggerEvent;
+      /**
        * Events whose *response* window was deferred to the end of this activation: RRG 1.8 "Defend, Defense" (p. 16),
        * "Abilities that trigger after a character defends an attack resolve after that attack ends." Only an
        * activation event frame (`enemyAttack`) carries these; `resolve/event.ts` opens them in its `done` stage.
@@ -1360,6 +1370,15 @@ export function basicPowerUseFrameId(
 }
 
 /**
+ * Whether `defenderId`'s defense is a use of a basic power: only a player's identity's is. Allies "aren't considered to
+ * 'use a basic power' when they defend" (ruling March 16, 2025, Melinda May; RRG 1.8 "Basic Power", p. 10: "Generally,
+ * only heroes have defense power"; "Defend, Defense", p. 15). One reading for `basicDefenseInProgress` and the
+ * villainous use record (`resolve/villainous.ts`).
+ */
+export const defendsWithBasicPower = (state: GameState, defenderId: InstanceId): boolean =>
+  state.players.some((player) => player.identity.instanceId === defenderId);
+
+/**
  * A hero's basic defense of an enemy attack still resolving, read from the attack's `enemyAttack` frame: from the
  * moment its defender is declared (`basicDefense`) until the attack is done. She is using her basic defense throughout,
  * the attack's boost cards included (RRG 1.8 "Attack (Enemy Activation)", p. 9; rules verdict Q3 of
@@ -1376,7 +1395,7 @@ export function basicDefenseInProgress(
   if (frame.kind !== "enemyAttack" || !frame.basicDefense || frame.defenderInstanceId === null) return null;
   if (frame.stage === "done") return null;
   const defenderId = frame.defenderInstanceId;
-  if (!state.players.some((player) => player.identity.instanceId === defenderId)) return null;
+  if (!defendsWithBasicPower(state, defenderId)) return null;
   return { defenderId: frame.defenderInstanceId, attackEventFrameId: frame.eventFrameId };
 }
 

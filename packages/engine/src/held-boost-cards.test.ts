@@ -84,6 +84,19 @@ const WOULD_STOP = stubAbility("would-stop.interrupt", {
   effects: [{ kind: "cancelTriggeringEvent" }],
 });
 const WOULD_STOPPER = stubSupport({ id: "would-stopper", cost: 0, abilities: [WOULD_STOP.ref] });
+/** "Forced Interrupt: When a character would attack, place 1 'would' counter on the main scheme." */
+const WOULD_MARK = stubAbility("would-mark.interrupt", {
+  trigger: { kind: "interrupt", forced: true, would: true, on: { on: "attack" } },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "would",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+});
+const WOULD_MARKER = stubSupport({ id: "would-marker", cost: 0, abilities: [WOULD_MARK.ref] });
 /** "When a character attacks, place 1 'mark' counter on the main scheme" (forced): an interrupt to her attack itself. */
 const MARK = stubAbility("mark.interrupt", {
   trigger: { kind: "interrupt", forced: true, on: { on: "attack" } },
@@ -143,7 +156,20 @@ const BOOMERANG = stubTreachery({ id: "boomerang", boostIcons: 2, starIcon: true
 const VENDETTA: SideSchemeCard = { ...stubSideScheme({ id: "vendetta", startingThreat: 2 }), amplifyIcons: 1 };
 const ALLY = stubAlly({ id: "plain-ally", cost: 0, atk: 1, thw: 1, hp: 5 });
 
-const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, WOULD_STOP, QUIT, AVENGE, MARK, WRAITH_CANCEL, INSTINCT);
+const deps = depsOf(
+  ...ACTIONS,
+  HURT_YOU,
+  REGIVE,
+  PEEK,
+  STOP,
+  WOULD_STOP,
+  WOULD_MARK,
+  QUIT,
+  AVENGE,
+  MARK,
+  WRAITH_CANCEL,
+  INSTINCT,
+);
 
 /** P1's first turn in hero form, 9 threat on the main scheme, the desk in play; the encounter deck is `deck`. */
 function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
@@ -158,6 +184,7 @@ function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
       PEEKER,
       STOPPER,
       WOULD_STOPPER,
+      WOULD_MARKER,
       QUITTER,
       AVENGER,
       MARKER,
@@ -165,7 +192,17 @@ function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
     ],
     deps,
     encounter: [VENDETTA.id, ...deck],
-    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id, WOULD_STOPPER.id, AVENGER.id, MARKER.id, CANCELLERS.id],
+    deck: [
+      DESK.id,
+      ALLY.id,
+      PEEKER.id,
+      STOPPER.id,
+      WOULD_STOPPER.id,
+      WOULD_MARKER.id,
+      AVENGER.id,
+      MARKER.id,
+      CANCELLERS.id,
+    ],
   });
   const hero: GameState = {
     ...base,
@@ -463,39 +500,42 @@ describe("a card the use never reached stays held (owner decision 5, docs/phase7
     expect(mustInstance(after.state, held!)).toMatchObject({ faceup: false, heldForBasicPowers: true });
   });
 
-  it("a forced cancel in the attack's forced tier is ordered with Villainous: given first, both her cards stay held", () => {
-    // Two forced interrupts to the same attack: the player orders them (RRG 1.8 "Priority of Simultaneous Resolution",
-    // p. 34). Villainous first gives its card; the cancel then stops the attack, so nothing is turned up.
+  it("a cancel that is no 'would' interrupt comes after the give: the card is given, and both her cards stay held", () => {
+    // Villainous answers "uses a basic power", announced once the attack's "would" tier is over and before the attack's
+    // other interrupts (`usingAfterWould`): STOP ("when a character attacks", forced, no "would") resolves after it.
     const s = holding();
     const hero = identity(s.state);
     const [held] = heldBoostCardsOf(s.state, hero);
     const stopped = playerCardIntoPlay(s.state, STOPPER.id, P1).state;
     const granted = { ...stopped, lastingEffects: [...stopped.lastingEffects, grantVillainous(hero)] };
-    const attack: Command = {
-      type: "basicAttack",
-      playerId: P1,
-      attackerInstanceId: hero,
-      targetInstanceId: villain(granted),
-    };
-    /** Orders the forced tier with `id` first (the prompt asks for the whole order). */
-    const first = (id: string) => (st: GameState) => {
-      const options = st.pendingChoice?.options ?? [];
-      const hit = options.find((o) => o.ref.kind === "ability" && (o.ref.abilityId as string) === id);
-      if (!hit) return defaultPick(st);
-      const rest = options.filter((o) => o !== hit).map((o) => o.optionId);
-      return [hit.optionId, ...rest].slice(0, st.pendingChoice!.maxSelections);
-    };
-    const givenFirst = run(granted, [attack], first("keyword:villainous"));
-    expect(characterFlips(givenFirst.events)).toHaveLength(0);
-    const kept = heldBoostCardsOf(givenFirst.state, hero);
+    const after = run(granted, [
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(granted) },
+    ]);
+    expect(characterFlips(after.events)).toHaveLength(0);
+    const kept = heldBoostCardsOf(after.state, hero);
     expect(kept).toHaveLength(2);
     expect(kept[0]).toBe(held);
     for (const id of kept)
-      expect(mustInstance(givenFirst.state, id)).toMatchObject({ faceup: false, heldForBasicPowers: true });
-    // The cancel first: the attack is gone before the give, so only the held card is left.
-    const cancelledFirst = run(granted, [attack], first(STOP.ref.id as string));
-    expect(characterFlips(cancelledFirst.events)).toHaveLength(0);
-    expect(heldBoostCardsOf(cancelledFirst.state, hero)).toEqual([held]);
+      expect(mustInstance(after.state, id)).toMatchObject({ faceup: false, heldForBasicPowers: true });
+  });
+
+  it("a 'would attack' interrupt that does not cancel resolves first, then the give, then the attack's other interrupts", () => {
+    const s = holding();
+    const hero = identity(s.state);
+    const both = playerCardIntoPlay(playerCardIntoPlay(s.state, WOULD_MARKER.id, P1).state, MARKER.id, P1).state;
+    const granted = { ...both, lastingEffects: [...both.lastingEffects, grantVillainous(hero)] };
+    const after = run(granted, [
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(granted) },
+    ]);
+    const resolvedAt = (id: string) =>
+      after.events.findIndex((e) => e.type === "abilityResolved" && (e.abilityId as string) === id);
+    const would = resolvedAt(WOULD_MARK.ref.id as string);
+    const dealt = after.events.findIndex((e) => e.type === "boostCardDealt");
+    const mark = resolvedAt(MARK.ref.id as string);
+    expect(would).toBeGreaterThanOrEqual(0);
+    expect(dealt).toBeGreaterThan(would);
+    expect(mark).toBeGreaterThan(dealt);
+    expect(characterFlips(after.events)).toHaveLength(2);
   });
 
   it("with another interrupt to the attack: the card is given in that window, and turned up with the held one", () => {

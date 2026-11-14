@@ -1,8 +1,9 @@
-import { type InstanceId } from "@mc/engine";
+import { type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import { P1, inst, patchInstance, playerOf, type Picker } from "../../testing/harness.js";
-import { encounterCardInVillainArea } from "../../testing/staging.js";
+import { driveEventsPicking, encounterCardInVillainArea } from "../../testing/staging.js";
+import { WAVE11_DEPS } from "../index.js";
 import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
 import { ELEKTRA_LEADERSHIP as REGISTRY, ELEKTRA_LEADERSHIP_SKIPPED as SKIPPED } from "./leadership.js";
 import { CAPTAIN_MARVEL_LEADERSHIP, SANDMAN, basicAttack, drive, elektraAspectGame } from "./aspect-testing.js";
@@ -80,5 +81,69 @@ describe(`${REF}: choose 1 to 3: +X to the power and +X consequential damage for
     const second = drive(ready, answering(false, 0), basicAttack(id, A));
     expect(playerOf(second, P1).playArea).not.toContain(A); // 3 + 1 = its 4 hit points
     expect(inst(second, id).damage).toBe(1);
+  });
+});
+
+describe(`${REF} with villainous: the Villainous give comes first, after the attack's "would" interrupts`, () => {
+  // Villainous = Forced Interrupt: when this character uses a basic power (RRG 1.8 "Villainous", p. 47), Moondragon's
+  // own triggering condition, so it initiates before her optional interrupt ("Forced", p. 20); "would" interrupts to
+  // the attack go first, and a "would" cancel gives no card ("'Would'", p. 48). Rules expert verdict.
+  const villainous = (s: GameState, id: InstanceId): GameState => ({
+    ...s,
+    lastingEffects: [
+      ...s.lastingEffects,
+      {
+        id: "test.villainous",
+        kind: "keywordGrant",
+        keyword: { name: "villainous" },
+        targets: [id],
+        affects: null,
+        scope: { selfInstanceId: null, controllerId: null, vars: {}, bindings: {} },
+        duration: { kind: "endOfRound" },
+      } as never,
+    ],
+  });
+  const taking: Picker = (s) => {
+    const choice = s.pendingChoice!;
+    const ids = choice.options.map((o) => String(o.optionId));
+    if (choice.prompt.kind === "chooseTriggers") return ids.filter((i) => i.endsWith(REF));
+    return ids.slice(0, Math.max(1, choice.minSelections));
+  };
+  const resolvedAt = (events: readonly GameEvent[], ref: string) =>
+    events.findIndex((e) => e.type === "abilityResolved" && (e.abilityId as string) === ref);
+
+  it("her card is given before her interrupt resolves", () => {
+    const { state, id } = setup();
+    const { events } = driveEventsPicking(WAVE11_DEPS, villainous(state, id), taking, basicAttack(id, A));
+    const dealt = events.findIndex((e) => e.type === "boostCardDealt");
+    expect(dealt).toBeGreaterThanOrEqual(0);
+    expect(resolvedAt(events, REF)).toBeGreaterThan(dealt);
+    expect(resolvedAt(events, "keyword:villainous")).toBeLessThan(dealt);
+  });
+
+  it("a 'would attack' cancel: no card is given and her interrupt is never offered", () => {
+    // Test only: Moon Knight's ref made "Forced Interrupt: When a character would attack, cancel that attack".
+    const cancelling = {
+      abilities: {
+        ...WAVE11_DEPS.abilities,
+        "63039.moon-knight-interrupt": {
+          trigger: { kind: "interrupt", forced: true, would: true, on: { on: "attack" } },
+          effects: [{ kind: "cancelTriggeringEvent" }],
+        } as never,
+      },
+    };
+    const { state, id } = setup();
+    const granted = villainous(state, id);
+    const spare = playerOf(granted, P1).deck.at(-1)!;
+    const knight = stagedInPlay(patchInstance(granted, spare, { cardId: "63039" as never }), "63039");
+    const seen: string[] = [];
+    const pick: Picker = (s) => {
+      for (const o of s.pendingChoice!.options) seen.push(String(o.optionId));
+      return taking(s);
+    };
+    const { state: after, events } = driveEventsPicking(cancelling, knight.state, pick, basicAttack(id, A));
+    expect(events.some((e) => e.type === "boostCardDealt")).toBe(false);
+    expect(seen.some((o) => o.endsWith(REF))).toBe(false);
+    expect(inst(after, A).damage).toBe(0);
   });
 });

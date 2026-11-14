@@ -229,7 +229,12 @@ import {
 } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { addFrameSlots, eventFrame } from "./resolve/frames.js";
-import { pushCharacterBoost, resolvesBoostCards, retargetCharacterBoost } from "./resolve/villainous.js";
+import {
+  deferUsingAfterWould,
+  pushCharacterBoost,
+  resolvesBoostCards,
+  retargetCharacterBoost,
+} from "./resolve/villainous.js";
 import {
   addPools,
   combineRequirements,
@@ -7781,7 +7786,10 @@ export function announceBasicPowerUsing(
   // own frame (docs/phase7-wave11-scenarios.md §S3.7). Its cards turn faceup at that frame's apply step, once the
   // power's own interrupts have resolved (`startCharacterBoost`), not beneath this event.
   pushCharacterBoost(ctx, characterId, power, stat, playerId);
-  if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+  if (!heard(ctx.state, ctx.deps, event)) return;
+  // A basic attack, thwart or recovery announces it after its own "would" interrupts (`deferUsingAfterWould`).
+  if (event.kind === "basicPowerUsing" && deferUsingAfterWould(ctx, event)) return;
+  pushEvent(ctx, event);
 }
 
 /**
@@ -7807,6 +7815,16 @@ export function setBasicPowerStat(
     if (frame?.kind !== "event" || frame.event.kind !== kind || frame.event.stat === stat) continue;
     setFrame(ctx, { ...frame, event: { ...frame.event, stat } });
   }
+  // One still waiting on its power's event for the "would" interrupts (`Frame<"event">.usingAfterWould`).
+  const waiting = ctx.state.stack.find(
+    (f) =>
+      f.kind === "event" &&
+      f.usingAfterWould?.kind === "basicPowerUsing" &&
+      (characterId === null || f.usingAfterWould.characterInstanceId === characterId) &&
+      f.usingAfterWould.power === power,
+  );
+  if (waiting?.kind === "event" && waiting.usingAfterWould?.kind === "basicPowerUsing")
+    setFrame(ctx, { ...waiting, usingAfterWould: { ...waiting.usingAfterWould, stat } });
   // A villainous character's boost icons go to the stat actually powering the use (§S3.7, `resolve/villainous.ts`).
   retargetCharacterBoost(ctx, characterId, power, stat);
 }

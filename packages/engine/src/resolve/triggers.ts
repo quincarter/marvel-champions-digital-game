@@ -271,28 +271,6 @@ function spillUnheard(pattern: EventPattern, event: TriggerEvent): boolean {
 }
 
 /** A pattern's own fields, without its `anyOf` alternatives. */
-/**
- * `EventPattern.ownBasicPowerUse`: `event` is `selfId`'s basic attack, basic thwart or basic recovery, and the event its
- * use is recorded on (the `characterBoost` record's `useFrameId`): the first share of a divided one.
- */
-function isOwnBasicPowerUse(state: GameState, event: TriggerEvent, selfId: InstanceId): boolean {
-  const use =
-    (event.kind === "attack" && event.basic === true && event.attackerInstanceId === selfId) ||
-    (event.kind === "thwart" && event.basic === true && event.thwarterInstanceId === selfId) ||
-    (event.kind === "basicRecovery" && event.characterInstanceId === selfId);
-  if (!use) return false;
-  const power = event.kind === "basicRecovery" ? "recover" : event.kind;
-  const record = state.stack.find(
-    (f) => f.kind === "characterBoost" && f.stage === "use" && f.characterInstanceId === selfId && f.power === power,
-  );
-  if (record?.kind !== "characterBoost") return false;
-  const frame = state.stack.find((f) => f.frameId === record.useFrameId);
-  return frame?.kind === "event" && sameEvent(frame.event, event);
-}
-
-/** Plain-data equality of two trigger events (they are serializable state). */
-const sameEvent = (a: TriggerEvent, b: TriggerEvent): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
-
 function matchesOwnFields(
   state: GameState,
   pattern: EventPattern,
@@ -581,7 +559,6 @@ function matchesRest(
     const query = pattern.grantedToIs;
     if (query && !reached.some((id) => matchesQuery(state, id, query, context))) return false;
   }
-  if (pattern.ownBasicPowerUse && !isOwnBasicPowerUse(state, event, selfId)) return false;
   if (pattern.attackKind) {
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
