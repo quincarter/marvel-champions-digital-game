@@ -247,8 +247,20 @@ export interface CardInstance {
   readonly counters: Readonly<Record<string, number>>;
   readonly attachedTo: InstanceId | null;
   readonly attachments: readonly InstanceId[];
-  /** Facedown boost cards given to this enemy for an activation (RRG "Boost"). */
+  /**
+   * Facedown boost cards given to this card (RRG "Boost"): an enemy's for its next activation, or a friendly
+   * character's. Of a friendly character's, those marked `heldForBasicPowers` resolve on its next basic power; the
+   * others stay facedown (`resolve/villainous.ts`).
+   */
   readonly boostCards: readonly InstanceId[];
+  /**
+   * On a facedown boost card a friendly character holds: it was given "to Elektra" for her basic powers ("Give her 1
+   * facedown boost card", Acrobatic Prowess 63006; `EffectSpec giveBoostCard.forBasicPower`), so it is turned faceup
+   * and resolved on that character's next basic power, recovery included (ruling September 10, 2026 - Ruling 3 (A)).
+   * Not on a card placed by an enemy's text ("place 1 facedown boost card on your identity", Venom), which she cannot
+   * use (the same ruling, (C)). Removed by every move (`relocateCard`); absent on every other instance.
+   */
+  readonly heldForBasicPowers?: true;
   /** Cards tucked under this card (RRG "Tuck"; Highway Robbery's facedown cards). Not in play. */
   readonly tucked: readonly InstanceId[];
   /** Set while this card is in play facedown as something else (a facedown Drone minion). */

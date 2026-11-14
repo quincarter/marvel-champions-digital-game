@@ -248,6 +248,7 @@ import { announceStatusDiscarded } from "./status-discarded.js";
 import {
   beingRevealed,
   BOOST_SOURCE_ZONES,
+  resolvingCharacterBoost,
   boostAwaitingInterrupt,
   boostCardBeingGivenTo,
   dealBoostCardOrAnnounce,
@@ -2624,7 +2625,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // "Give this card to that villain as a facedown boost card" on a card being revealed (docs/phase7-wave8.md
           // §3.79): it is given from in front of the player it was dealt to, and its reveal then finds it moved and
           // does not discard it (`resolve/reveal.ts`, "finish").
-          const given = zone !== undefined && (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id));
+          const given =
+            zone !== undefined &&
+            (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id) || resolvingCharacterBoost(ctx.state, id));
           if (!given || inPlay.includes(id)) continue;
           named.push(id);
         }
@@ -2632,26 +2635,29 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // could react to any of them, each card is given by its own event, in order, so the order does not depend on
         // which windows opened. A replaced give leaves no pre-"then" text unresolved (engine reading, authority step 5:
         // unlike `dealAsEncounterCard`, no printed card gives a boost card before a "then").
+        const held = effect.forBasicPower === true;
         const awaited = named.map((id) =>
-          boostAwaitingInterrupt(ctx, holderId, { outsideActivation: true, named: id }),
+          boostAwaitingInterrupt(ctx, holderId, { outsideActivation: true, named: id, forBasicPower: held }),
         );
         if (awaited.some((event) => event !== null)) {
           pushEvents(
             ctx,
             named.map(
-              (id, i) => awaited[i] ?? boostCardBeingGivenTo(ctx, holderId, { outsideActivation: true, named: id }),
+              (id, i) =>
+                awaited[i] ??
+                boostCardBeingGivenTo(ctx, holderId, { outsideActivation: true, named: id, forBasicPower: held }),
             ),
           );
           return;
         }
-        for (const id of named) dealChosenBoostCard(ctx, holderId, id);
+        for (const id of named) dealChosenBoostCard(ctx, holderId, id, held);
         return;
       }
       const holders = targets(effect.enemy).filter((id) => inPlay.includes(id));
       // A give waiting in its "would be given" window pauses the effect until it resolves (E23).
       eachEncounterCard(ctx, frame, holders.length * count, (index) => {
         const holderId = holders[Math.floor(index / count)];
-        if (holderId) return dealBoostCardOrAnnounce(ctx, holderId, true);
+        if (holderId) return dealBoostCardOrAnnounce(ctx, holderId, true, effect.forBasicPower === true);
       });
       return;
     }

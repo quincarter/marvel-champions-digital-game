@@ -47,7 +47,7 @@ import {
   mustInstance,
 } from "./query.js";
 import { defendsWithoutExhausting } from "./rules.js";
-import { villainousFriendlyCharacter } from "./resolve/villainous.js";
+import { heldBoostCardsOf, villainousFriendlyCharacter } from "./resolve/villainous.js";
 import {
   cardsInPlay,
   categoriesOf,
@@ -201,9 +201,9 @@ export interface DefendOptionPreview {
   readonly defenseReduction: number;
   readonly boost: BoostBound;
   /**
-   * A villainous hero's basic defense (docs/phase7-wave11-scenarios.md §S3.7): the one boost card of its own that this
-   * defense will be given and turn up, its icons added to its DEF (RRG 1.8 "Villainous", p. 47). Bounded over the same
-   * unseen pool. With it the bands run over the enemy's icons less these, so a band's `boostFrom`/`boostTo` can go
+   * A villainous hero's basic defense (docs/phase7-wave11-scenarios.md §S3.7): the boost card of its own that this
+   * defense will be given and turn up, plus any it holds for its basic powers (ruling September 10, 2026 - Ruling 3
+   * (A)), their icons added to its DEF (RRG 1.8 "Villainous", p. 47). Bounded over the same unseen pool. With it the bands run over the enemy's icons less these, so a band's `boostFrom`/`boostTo` can go
    * below 0. Absent for any other option.
    */
   readonly ownBoost?: BoostBound;
@@ -279,17 +279,20 @@ function boundOf(
 }
 
 /**
- * The defender's own villainous boost card: one card off the same unseen pool. It gains one icon per amplify icon in
- * play (MC60 p. 4's updated Amplify text over RRG 1.8 p. 7, the owner's decision of 2026-11-14; `resolve/villainous.ts`)
- * but not the enemy activation's "+N boost icons each".
+ * The defender's own boost cards: its villainous card and those it holds for its basic powers (`heldBoostCardsOf`,
+ * ruling September 10, 2026 - Ruling 3 (A)), `count` cards off the same unseen pool, which already holds the held ones
+ * (they are facedown out of the deck). Each gains one icon per amplify icon in play (MC60 p. 4's updated Amplify text
+ * over RRG 1.8 p. 7, the owner's decision of 2026-11-14; `resolve/villainous.ts`) but not the enemy activation's "+N
+ * boost icons each".
  */
 const ownCardBound = (
   state: GameState,
   deps: EngineDeps,
   enemyId: InstanceId,
+  count: number,
   scope: BoostScope,
   youId: PlayerId,
-): BoostBound => boundOf(state, deps, enemyId, 1, scope, amplifyIconsInPlay(state, deps), youId);
+): BoostBound => boundOf(state, deps, enemyId, count, scope, amplifyIconsInPlay(state, deps), youId);
 
 interface Outcome {
   readonly damageDealt: number;
@@ -491,14 +494,16 @@ export function defendPreview(
     const planned = plannedAttackDamage(defended, deps, frame, { boostIcons: 0, defenderInstanceId, basicDefense });
 
     const ranged = rangedAgainst(targetInstanceId);
-    // A villainous hero defending is given a boost card of its own, turned up after the enemy's (`startDefenderBoost`),
-    // whose icons add to its DEF: they come off the enemy's icons here.
+    // A defending hero's own boost cards, resolved in step 3 with the enemy's (`startDefenderBoost`): the one a
+    // villainous hero is given, and those it holds for its basic powers. Their icons add to its DEF, so they come off
+    // the enemy's icons here.
+    const ownCount =
+      defenderInstanceId !== null && categoriesOf(state, defenderInstanceId).includes("hero")
+        ? (villainousFriendlyCharacter(state, deps, defenderInstanceId) ? 1 : 0) +
+          heldBoostCardsOf(state, defenderInstanceId).length
+        : 0;
     const ownBoost =
-      defenderInstanceId !== null &&
-      categoriesOf(state, defenderInstanceId).includes("hero") &&
-      villainousFriendlyCharacter(state, deps, defenderInstanceId)
-        ? ownCardBound(state, deps, frame.enemyInstanceId, scope, targetPlayerId)
-        : null;
+      ownCount > 0 ? ownCardBound(state, deps, frame.enemyInstanceId, ownCount, scope, targetPlayerId) : null;
     const bands: DefendBand[] = [];
     for (let icons = boost.min - (ownBoost?.max ?? 0); icons <= boost.max - (ownBoost?.min ?? 0); icons++) {
       const outcome = outcomeAt(defended, deps, frame, shape, icons, overkill, ranged);

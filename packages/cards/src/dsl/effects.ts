@@ -2651,6 +2651,26 @@ export const giveBoostCard = (
     : { kind: "giveBoostCard", enemy, count: amount(countOrCard) };
 };
 /**
+ * "Give Elektra 1 facedown boost card" (Acrobatic Prowess 63006, White Tiger 63011) and "give this card to Elektra as a
+ * facedown boost card" (the Ninja cards 63002–63004, `{ card: self }`, also from inside the card's own Boost ability):
+ * a boost card held by a friendly character for its basic powers (engine `EffectSpec giveBoostCard.forBasicPower`).
+ * On that character's next basic power (attack, thwart, a hero's defense, recovery, in either form) it is turned
+ * faceup and resolved as a villainous character's card is: its Boost ability with its controller as "you", its icons
+ * (amplify included) added to the stat for that use, then discarded unless its Boost ability sent it elsewhere (ruling
+ * September 10, 2026 - Ruling 3 (A); RRG 1.8 "Villainous", p. 47). Not Venom's "place 1 facedown boost card on your
+ * identity", which stays unused: that is `giveBoostCard(yourIdentity)` (the same ruling, (C)).
+ */
+export const giveHeldBoostCard = (
+  character: TargetRef,
+  countOrCard: Amount | { readonly card: TargetRef } = 1,
+): EffectSpec => {
+  if (typeof countOrCard === "object" && !("kind" in countOrCard))
+    return { kind: "giveBoostCard", enemy: character, card: countOrCard.card, forBasicPower: true };
+  return countOrCard === 1
+    ? { kind: "giveBoostCard", enemy: character, forBasicPower: true }
+    : { kind: "giveBoostCard", enemy: character, count: amount(countOrCard), forBasicPower: true };
+};
+/**
  * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
  * player's progressing identity becomes its next version; dial, counters, statuses, attachments and form stay.
  */

@@ -557,6 +557,8 @@ export type TriggerEventBody =
       readonly playerId: PlayerId | null;
       readonly outsideActivation?: true;
       readonly named?: { readonly instanceId: InstanceId };
+      /** Held for the friendly holder's next basic power (`EffectSpec giveBoostCard.forBasicPower`). */
+      readonly forBasicPower?: true;
     }
   /**
    * A facedown boost card is about to be turned faceup during an enemy's activation: "When a boost card … would be

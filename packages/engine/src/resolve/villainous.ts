@@ -10,8 +10,20 @@
  * The give is the keyword's forced interrupt to the power's `basicPowerUsing` event (`VILLAINOUS_ABILITY`,
  * `keyword-abilities.ts`), ordered among the other forced interrupts like any. The rest is two `characterBoost` frames
  * (`stack.ts`): the use's record beneath the use's own frame, and a `resolve` frame above it, which runs once the
- * `basicPowerUsing` window is over, as the power resolves. For each boost card this use gave (one held from before
- * stays facedown, RRG 1.8 "Boost, Boost Icon", p. 11):
+ * `basicPowerUsing` window is over, as the power resolves.
+ *
+ * Held boost cards. A card given to the character ahead of time for its basic powers ("Give her 1 facedown boost
+ * card", Acrobatic Prowess 63006; `EffectSpec giveBoostCard.forBasicPower`, `CardInstance.heldForBasicPowers`) waits
+ * facedown on it and resolves on its next basic power, the same way, before the card that use gives: "if Elektra has a
+ * boost card while in Alter-Ego form and makes a basic recovery, she resolves that boost card for that activation"
+ * (ruling September 10, 2026 - Ruling 3 (A)). So a character holding one has its use recorded even without the
+ * keyword (Elektra Natchios has none), and the cards belong to the identity, not a face: a form change keeps them. A
+ * boost card an enemy's text placed on the character ("place 1 facedown boost card on your identity", Venom) is not
+ * one: "the boost cards that Venom places on an identity are distinct from the boost cards Elektra is given via cards
+ * in her kit; Elektra cannot use boost cards placed on her by Venom" (the same ruling, (C)). It stays facedown
+ * (`heldBefore`; RRG 1.8 "Boost, Boost Icon", p. 11).
+ *
+ * For each boost card the use resolves, held ones first, then the use's own, in the order given:
  *
  * 1. it is turned faceup (`characterBoostCardFlipped`) and a `boostCardTurnedFaceup` event opens its interrupt window,
  *    as an enemy's boost card does (RRG 1.8 "Attack (Enemy Activation)" step 3a, p. 8; "Boost", p. 11). "A boost card"
@@ -23,8 +35,10 @@
  *    the stat powering this use until the use ends, one more for each amplify icon in play (`characterAmplify`).
  *
  * The card stays faceup on the character until the use has resolved; the record then discards it (RRG 1.8 p. 47,
- * "Discard the boost card after it is resolved"; MC60 p. 3, "after the basic power resolves"). A character that leaves
- * play first takes its boost cards with it to their discard piles (`effects.ts`).
+ * "Discard the boost card after it is resolved"; MC60 p. 3, "after the basic power resolves"), unless its Boost ability
+ * sent it elsewhere: shuffled into another deck, or given back facedown for a later use ("Otherwise, give this card to
+ * Elektra as a facedown boost card", the Ninja cards 63002–63004), where it stays and adds no icons to this use. A
+ * character that leaves play first takes its boost cards with it to their discard piles (`effects.ts`).
  */
 
 import type { EngineDeps } from "../abilities.js";
@@ -72,14 +86,31 @@ export const villainousFriendlyCharacter = (state: GameState, deps: EngineDeps, 
  * activation's boost cards keep theirs (`enemy-activation.ts`). Read live, at the flip and again at the count, as an
  * enemy's card is (the Fearless Determination ruling, January 11, 2026 (1)).
  *
- * Open gap: ruling September 10, 2026 - Ruling 3 (A) has Elektra Natchios (alter-ego, no villainous) resolve a boost
- * card held from earlier (Acrobatic Prowess) on her basic recovery; this resolution only turns up the cards the use
- * itself gave and keeps a held one facedown (`heldBefore`), so that case is not built yet (Elektra kit).
+ * A held boost card (`CardInstance.heldForBasicPowers`) gains it as well, on any basic power of its holder, recovery
+ * included: it is resolved while that character uses the power (ruling September 10, 2026 - Ruling 3 (A)).
  */
 const characterAmplify = (ctx: Ctx): number => amplifyIconsInPlay(ctx.state, ctx.deps);
 
 const facedownBoosts = (state: GameState, id: InstanceId): readonly InstanceId[] =>
   (getInstance(state, id)?.boostCards ?? []).filter((card) => getInstance(state, card)?.faceup === false);
+
+/**
+ * The facedown boost cards `id` holds for its basic powers, in the order given (`CardInstance.heldForBasicPowers`):
+ * what its next basic power resolves besides any card that use gives. For a view, their count is what shows on the
+ * character; the cards themselves are facedown encounter cards.
+ */
+export const heldBoostCardsOf = (state: GameState, id: InstanceId): readonly InstanceId[] =>
+  facedownBoosts(state, id).filter((card) => getInstance(state, card)?.heldForBasicPowers === true);
+
+/**
+ * Whether `id`'s basic powers resolve boost cards: a character in play that is not an enemy, with villainous or holding
+ * a boost card for its basic powers (ruling September 10, 2026 - Ruling 3 (A)).
+ */
+export const resolvesBoostCards = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  villainousFriendlyCharacter(state, deps, id) ||
+  (cardsInPlay(state).includes(id) &&
+    !categoriesOf(state, id).includes("enemy") &&
+    heldBoostCardsOf(state, id).length > 0);
 
 /** Puts `frames` directly beneath the frame `below` on the stack. */
 function insertBeneath(ctx: Ctx, below: FrameId, frames: readonly StackFrame[]): void {
@@ -92,14 +123,16 @@ function insertBeneath(ctx: Ctx, below: FrameId, frames: readonly StackFrame[]):
 }
 
 /**
- * Records a basic power `characterId` is using, when it is a villainous ally or hero: the `use` record beneath the
- * use's frame, and, except for a basic defense, the `resolve` frame on top. Called by the power's announcer just before
+ * Records a basic power `characterId` is using, when it is a villainous ally or hero or one holding boost cards for its
+ * basic powers: the `use` record beneath the use's frame, and, except for a basic defense, the `resolve` frame on top. Called by the power's announcer just before
  * it pushes the power's `basicPowerUsing` event, so the `resolve` frame sits beneath that event and above the use.
  *
- * A basic defense's card is turned faceup after the enemy's own boost cards (`startDefenderBoost`). Engine reading
- * (authority step 5): no card yet makes a hero villainous; the card is turned up after the enemy's boost cards (RRG 1.8
- * p. 9 step 3) because DEF applies at step 4 and p. 47 separates "uses" from "when resolving". Revisit if such a card
- * appears.
+ * A basic defense's cards are turned faceup in the attack's step 3, with the enemy's: "she will turn that boost card
+ * faceup during the same step that the villain's boost cards are turned faceup" (ruling September 10, 2026 - Ruling 3
+ * (B)), all of one character's before the other's, the defending player choosing which (October 12, 2026 - Ruling 1:
+ * "you can choose to resolve either character's boost cards first … Ensure that all boost cards are resolved before
+ * moving on to step 4"). The attack procedure asks (`defenderBoostOrder`, `enemy-activation.ts`) and starts them
+ * (`startDefenderBoost`).
  */
 export function pushCharacterBoost(
   ctx: Ctx,
@@ -108,7 +141,7 @@ export function pushCharacterBoost(
   stat: StatName,
   playerId: PlayerId,
 ): void {
-  if (!villainousFriendlyCharacter(ctx.state, ctx.deps, characterId)) return;
+  if (!resolvesBoostCards(ctx.state, ctx.deps, characterId)) return;
   const record = characterBoostRecord(ctx, characterId, power, stat, playerId);
   if (!record) return;
   insertBeneath(ctx, record.useFrameId, [record]);
@@ -141,7 +174,11 @@ function characterBoostRecord(
     power,
     stat,
     useFrameId,
-    heldBefore: facedownBoosts(ctx.state, characterId),
+    // Only cards it cannot use (an enemy's text placed them); its held ones resolve (ruling September 10, 2026 - Ruling
+    // 3 (A), (C)).
+    heldBefore: facedownBoosts(ctx.state, characterId).filter(
+      (id) => getInstance(ctx.state, id)?.heldForBasicPowers !== true,
+    ),
     turned: [],
     bonuses: [],
     ...(power === "defense" ? {} : { started: true as const }),
@@ -209,22 +246,39 @@ const resolveFrameFor = (ctx: Ctx, record: Frame<"characterBoost">): Frame<"char
   boost: null,
 });
 
+/** The `use` record of the basic defense of the attack `attackEventFrameId`, while its cards are not yet started. */
+export function pendingDefenderBoost(
+  state: GameState,
+  attackEventFrameId: FrameId | null,
+): Frame<"characterBoost"> | null {
+  if (attackEventFrameId === null) return null;
+  return (
+    state.stack.find(
+      (f): f is Frame<"characterBoost"> =>
+        f.kind === "characterBoost" &&
+        f.stage === "use" &&
+        f.power === "defense" &&
+        f.useFrameId === attackEventFrameId &&
+        f.started !== true,
+    ) ?? null
+  );
+}
+
+/** The facedown boost cards a `use` record's character will resolve for that use: all but those it cannot use. */
+export function boostCardsToResolve(state: GameState, record: Frame<"characterBoost">): readonly InstanceId[] {
+  return facedownBoosts(state, record.characterInstanceId).filter(
+    (id) => !record.heldBefore.includes(id) && !record.turned.includes(id),
+  );
+}
+
 /**
- * RRG 1.8 "Attack (Enemy Activation)" (p. 9): a villainous hero's basic defense resolves its boost card once the enemy's
- * boost cards are done (step 3), before the damage step reads DEF (step 4). Called by the attack procedure when its
+ * RRG 1.8 "Attack (Enemy Activation)" (p. 9): a defending hero's own boost cards resolve in step 3, before the damage
+ * step reads DEF (step 4), all of them before or after all of the enemy's (rulings September 10, 2026 - Ruling 3 (B);
+ * October 12, 2026 - Ruling 1). Called by the attack procedure when the defending player chose them first, or when its
  * flip step finds no enemy boost card left; true when it pushed a `resolve` frame, the procedure then waiting on it.
- * The engine reading is `pushCharacterBoost`'s.
  */
 export function startDefenderBoost(ctx: Ctx, attackEventFrameId: FrameId | null): boolean {
-  if (attackEventFrameId === null) return false;
-  const record = ctx.state.stack.find(
-    (f): f is Frame<"characterBoost"> =>
-      f.kind === "characterBoost" &&
-      f.stage === "use" &&
-      f.power === "defense" &&
-      f.useFrameId === attackEventFrameId &&
-      f.started !== true,
-  );
+  const record = pendingDefenderBoost(ctx.state, attackEventFrameId);
   if (!record) return false;
   setFrame(ctx, { ...record, started: true });
   pushFrames(ctx, [resolveFrameFor(ctx, record)]);
@@ -281,9 +335,7 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
     // p. 47, "When resolving that basic power"); the record still discards the card it was given.
     const use = findFrame(ctx.state, record.useFrameId);
     if (!use || (use.kind === "event" && use.cancelled)) return popFrame(ctx);
-    const boostId = facedownBoosts(ctx.state, character).find(
-      (id) => !record.heldBefore.includes(id) && !record.turned.includes(id),
-    );
+    const [boostId] = boostCardsToResolve(ctx.state, record);
     if (!boostId) return popFrame(ctx);
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     updateFrame(ctx, record.frameId, (f) =>
@@ -350,7 +402,9 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
     (boost.countAdjust ?? 0);
   const icons = Math.max(0, (boost.iconsCancelled ? 0 : counted) + (boost.boostAbilityAdjust ?? 0));
   setFrame(ctx, { ...frame, boost: null });
+  // A card its Boost ability sent away, or gave back facedown for a later use (the Ninja cards), adds nothing here.
   if (icons <= 0 || locateCard(ctx.state, boost.instanceId)?.kind !== "boost") return;
+  if (getInstance(ctx.state, boost.instanceId)?.faceup !== true) return;
   if (!ctx.state.stack.some((f) => f.frameId === record.useFrameId)) return;
   const bonus = addLastingEffect(
     ctx,
@@ -371,13 +425,18 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
 
 /**
  * The use has resolved: each boost card it gave the character is discarded, turned up or not (one the use never
- * reached, its attack ended first, is not left on the character for a later use). A card held from before stays.
+ * reached, its attack ended first, is not left on the character for a later use), and so is each held card it turned
+ * up. A card it cannot use stays (`heldBefore`), as does a card held for its basic powers that is facedown now: one
+ * this use never reached, or one a Boost ability gave back to it ("Otherwise, give this card to Elektra as a facedown
+ * boost card").
  */
 function finishUse(ctx: Ctx, record: Frame<"characterBoost">): void {
   popFrame(ctx);
   const holder = getInstance(ctx.state, record.characterInstanceId);
   for (const id of [...(holder?.boostCards ?? [])]) {
     if (record.heldBefore.includes(id)) continue;
+    const card = getInstance(ctx.state, id);
+    if (card?.heldForBasicPowers === true && !card.faceup) continue;
     const zone = locateCard(ctx.state, id);
     if (zone?.kind !== "boost" || zone.hostInstanceId !== record.characterInstanceId) continue;
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");

@@ -1122,6 +1122,8 @@ export type GameEvent =
       readonly enemyInstanceId: InstanceId;
       readonly instanceId: InstanceId;
       readonly outsideActivation?: true;
+      /** Held for the friendly holder's next basic power (`CardInstance.heldForBasicPowers`). */
+      readonly forBasicPower?: true;
     }
   /**
    * An activation's boost cards were withheld by an interrupt to it ("Do not give Master Mold a boost card for this

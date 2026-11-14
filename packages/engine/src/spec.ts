@@ -5052,7 +5052,24 @@ export type EffectSpec =
    * on the enemy by then (RRG 1.8 "Treachery", p. 45, discards a treachery "after resolving"; a card an effect moved
    * stays where it went, docs/phase7-wave4.md §3.45).
    */
-  | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec; readonly card?: TargetRef }
+  | {
+      readonly kind: "giveBoostCard";
+      readonly enemy: TargetRef;
+      readonly count?: ValueSpec;
+      readonly card?: TargetRef;
+      /**
+       * "Give Elektra 1 facedown boost card" (Acrobatic Prowess 63006, White Tiger 63011; "give this card to Elektra as
+       * a facedown boost card", the Ninja cards 63002–63004): the card is held for that friendly character's basic
+       * powers (`CardInstance.heldForBasicPowers`). On its next basic power (attack, thwart, a hero's defense, recovery)
+       * every such card it holds is turned faceup and resolved as a villainous character's card is, its Boost ability
+       * with its controller as "you", its icons (amplify included) added to the stat for that use, then discarded
+       * unless its Boost ability moved it (ruling September 10, 2026 - Ruling 3 (A); RRG 1.8 "Villainous", p. 47;
+       * `resolve/villainous.ts`). The character need not have villainous. Absent, a card given to a friendly character
+       * stays facedown and unused ("place 1 facedown boost card on your identity", Venom; the same ruling, (C)).
+       * Meaningless on an enemy, whose boost cards resolve at its activation either way.
+       */
+      readonly forBasicPower?: true;
+    }
   /**
    * "When Carnage uses a basic power, you may give him a boost card." (Klyntar Bond, a custom-content card; docs/
    * custom-content-packs.md §6): in an interrupt to a `basicPowerUsing` event, give the character using the power a

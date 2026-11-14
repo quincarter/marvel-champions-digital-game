@@ -851,6 +851,12 @@ export type StackFrame =
        * Absent in a game where nothing listens for that event (the step deals the damage on its first run).
        */
       readonly damageStepAnnounced?: true;
+      /**
+       * A defending hero with boost cards of its own to resolve this attack (`resolve/villainous.ts`): whose boost
+       * cards step 3 resolves first, the enemy's or the defender's, as the defending player chose (rulings September
+       * 10, 2026 - Ruling 3 (B); October 12, 2026 - Ruling 1). Set once step 3 has begun; absent otherwise.
+       */
+      readonly boostOrder?: "enemy" | "defender";
     })
   /** RRG "Scheme (Enemy Activation)". */
   | (FrameBase & {

@@ -229,7 +229,7 @@ import {
 } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { addFrameSlots, eventFrame } from "./resolve/frames.js";
-import { pushCharacterBoost, retargetCharacterBoost } from "./resolve/villainous.js";
+import { pushCharacterBoost, resolvesBoostCards, retargetCharacterBoost } from "./resolve/villainous.js";
 import {
   addPools,
   combineRequirements,
@@ -7709,7 +7709,13 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
   const identityId = player.identity.instanceId;
   const recovery: TriggerEvent = { kind: "basicRecovery", characterInstanceId: identityId, playerId: command.playerId };
   const using: TriggerEvent = { ...recovery, kind: "basicPowerUsing", power: "recover", stat: "rec" };
-  if (!heard(ctx.state, ctx.deps, recovery) && !heard(ctx.state, ctx.deps, using)) {
+  // An identity whose recovery resolves boost cards (villainous, or holding some for its basic powers; ruling
+  // September 10, 2026 - Ruling 3 (A)) takes the announced path, where its cards are recorded (`pushCharacterBoost`).
+  if (
+    !heard(ctx.state, ctx.deps, recovery) &&
+    !heard(ctx.state, ctx.deps, using) &&
+    !resolvesBoostCards(ctx.state, ctx.deps, identityId)
+  ) {
     healDamage(ctx, identityId, profile.rec, identityId);
     announceBasicPower(ctx, identityId, "recover", command.playerId);
     return null;

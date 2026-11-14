@@ -398,6 +398,13 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
     instance = rest;
     ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
   }
+  // A boost card held for a character's basic powers is held no longer once it moves, wherever to: a give that keeps
+  // it held marks it again after its move (`CardInstance.heldForBasicPowers`, `dealBoostCard`, `dealChosenBoostCard`).
+  if (instance.heldForBasicPowers) {
+    const { heldForBasicPowers: _heldBoost, ...rest } = instance;
+    instance = rest;
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
+  }
   // "The villain" in an attachment's text stops meaning the host it was sent to once it is off that host
   // (`CardInstance.villainAlias`, docs/phase7-wave9.md §3.49).
   if (instance.villainAlias !== undefined && instance.villainAlias !== attachedTo) {
