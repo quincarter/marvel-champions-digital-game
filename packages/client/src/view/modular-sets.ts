@@ -28,9 +28,10 @@
  * scenario's own cap.
  */
 import type { AnyCard, Campaign, EncounterSet, Scenario } from "@mc/content";
-import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { POOL_ENCOUNTER_SETS, currentEncounterSets, isPackEncounterSet, isPackScenario } from "../content/pool.js";
 import { modularSetCountRangeOf, setAsideModularSetCountFor } from "@mc/content";
 import { modularPickCountProblem } from "@mc/cards";
+import { CUSTOM_BADGE } from "./custom-content.js";
 import {
   ALL_OPEN,
   EXTRAS_GROUP_ID,
@@ -133,7 +134,7 @@ export function requiredEncounterSetsFor(
   scenario: Scenario,
   cardsById: ReadonlyMap<string, AnyCard>,
 ): readonly RequiredEncounterSet[] {
-  const setsById = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
+  const setsById = new Map(currentEncounterSets().map((set) => [set.id as string, set.name]));
   return scenario.encounterSetIds.map((id) => ({
     id: id as string,
     name: setsById.get(id as string) ?? (id as string),
@@ -255,7 +256,7 @@ export function modularSetOptionsFor(
   const scope = context.scope ?? ALL_OPEN;
   const exclusions = context.exclusions ?? MODULAR_SET_EXCLUSIONS;
   const chosen = new Set(effectiveModularSetIds(draft, scenario));
-  const encounterSets = context.encounterSets ?? POOL_ENCOUNTER_SETS;
+  const encounterSets = context.encounterSets ?? currentEncounterSets();
   const setsById = new Map(encounterSets.map((set) => [set.id as string, set.name]));
   const scenarioId = scenario.id as string;
   const candidates = modularCandidatesFor(scenario, scope, encounterSets, context.campaign);
@@ -270,7 +271,10 @@ export function modularSetOptionsFor(
     selected: chosen.has(c.id),
     recommended: c.recommended,
     cardCount: cardCountForSet(c.id, cardsById),
-    descriptor: descriptorForSet(c.id, cardsById),
+    // A pack's set says so in words before its dominant card type.
+    descriptor: isPackEncounterSet(c.id)
+      ? [CUSTOM_BADGE, descriptorForSet(c.id, cardsById)].filter((part) => part !== null).join(" · ")
+      : descriptorForSet(c.id, cardsById),
     groupId: c.groupId,
     // Only the group's first tile carries its label.
     groupLabel: index === 0 || candidates[index - 1]!.groupId !== c.groupId ? c.groupLabel : null,
@@ -302,7 +306,8 @@ export function modularSetOptionsFor(
 
   // An extra modular set (Longshot) can be added to any scenario and never counts toward a required number.
   let firstExtra = true;
-  for (const set of POOL_ENCOUNTER_SETS) {
+  // A pack scenario takes none: its builder refuses `extraModularSetIds` (hidden here rather than offered and thrown).
+  for (const set of isPackScenario(scenarioId) ? [] : POOL_ENCOUNTER_SETS) {
     if (!set.extraModular || !extraSetIsOffered(set, scope)) continue;
     sets.push({
       kind: "extra",

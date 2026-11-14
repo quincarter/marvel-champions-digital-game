@@ -1,0 +1,30 @@
+{
+  "id": "x.yondu-dh.15",
+  "name": "Sav'rkk",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "15",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 2,
+  "sch": 1,
+  "hp": 4,
+  "encounterSetIds": ["yondu-dh-nemesis"],
+  "boostIcons": 2,
+  "traits": ["ELITE", "SCOUNDREL"],
+  "keywords": [],
+  "text": {
+    "printed": "Upgrades cannot be removed from Sav'rkk.\nWhen Revealed: Summon the Sword-Gun-Arm attachment and attach it to Sav'rkk.",
+    "current": "Upgrades cannot be removed from Sav'rkk.\nWhen Revealed: Summon the Sword-Gun-Arm attachment and attach it to Sav'rkk."
+  },
+  "flavor": "\"Live like a dog, die like a dog.\"",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.15.savrkk-constant"
+    },
+    {
+      "id": "x.yondu-dh.15.when-revealed"
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { P1, firstLegal, settle } from "../../testing/harness.js";
+import type { InstanceId } from "@mc/engine";
+import { moondragonAttack } from "../../testing/enemy-attacks-enemy.js";
 import { driveEvents } from "../../testing/staging.js";
+import { engageMinion } from "../../wave3/drax/support.js";
 import { runWave4, WAVE4_DEPS } from "../testing.js";
 import {
   foldModularSetIntoDeck,
@@ -31,6 +34,8 @@ import {
  *  24048.when-revealed-hero      -> "each Criminal enemy attacks you"
  */
 
+/** Core Hydra Mercenary: ATK 1, 3 hit points. */
+const HYDRA_MERCENARY = "01101";
 const withSet = (seed = 1) => foldModularSetIntoDeck(game(seed), "sinister_syndicate");
 const fired = (events: readonly { readonly type: string }[], abilityId: string): boolean =>
   events.some((e) => (e as { abilityId?: string }).abilityId === abilityId);
@@ -97,6 +102,29 @@ describe("Sinister Syndicate (24043-24048)", () => {
       targetInstanceId: staged.id,
     });
     expect(fired(events, "24046.speed-demon-forced-interrupt")).toBe(true);
+  });
+
+  // "When a character attacks Speed Demon" hears a minion's attack (an enemy is a character, RRG 1.8 "Character",
+  // p. 12; Moondragon 19013's `enemyAttacksEnemy`; rules-expert reading 2026-11-12, no FFG ruling), and his attack back
+  // on that minion is an enemy's attack on an enemy too: no activation against a player, nobody defends, resolved first.
+  it("24046.speed-demon-forced-interrupt: a minion made to attack him (Moondragon) is attacked back first", () => {
+    const base = heroified(onStage(withSet(), 0), P1);
+    const staged = minionEngagedWith(base, "24046", P1);
+    const withMerc = engageMinion(staged.state, HYDRA_MERCENARY, "merc");
+    const merc = "merc" as InstanceId;
+    const { state, events } = moondragonAttack(WAVE4_DEPS, withMerc, merc, staged.id);
+    expect(fired(events, "24046.speed-demon-forced-interrupt")).toBe(true);
+    const attacks = events.flatMap((e) =>
+      e.type === "enemyAttackedEnemy" ? [[e.attackerInstanceId, e.targetInstanceId, e.damageDealt]] : [],
+    );
+    // Speed Demon's 2 ATK on the Mercenary (3 hit points) first, then the Mercenary's 1 on him.
+    expect(attacks).toEqual([
+      [staged.id, merc, 2],
+      [merc, staged.id, 1],
+    ]);
+    expect(state.instances[merc]!.damage).toBe(2);
+    expect(state.instances[staged.id]!.damage).toBe(1);
+    expect(events.some((e) => e.type === "attackResolved")).toBe(false);
   });
 
   it("24046.boost: discards the lowest-cost support P1 controls", () => {

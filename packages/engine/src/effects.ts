@@ -327,7 +327,7 @@ export function giveStatus(
   reason?: "constant",
 ): boolean {
   const instance = mustInstance(ctx.state, id);
-  if (!canTakeStatus(ctx.state, id, status, ctx.deps)) return false;
+  if (!canTakeStatus(ctx.state, id, status, ctx.deps, by.sourceInstanceId)) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
   emit(ctx, { type: "statusGiven", instanceId: id, status, ...(reason ? { reason } : {}) });
@@ -1515,7 +1515,7 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId, sourceCardId?: CardId,
  * villain removed or flipped): no "when this leaves play" window of its own before it moves (`leavePlayAtOnce`).
  */
 export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
-  leavePlayAtOnce(ctx, id, discardZoneFor(ctx.state, id), "top", true);
+  leavePlayAtOnce(ctx, id, discardZoneFor(ctx.state, id), "top", true, true);
 }
 
 /**
@@ -1631,7 +1631,7 @@ export function defeatFromPlay(ctx: Ctx, id: InstanceId, placement?: DefeatPlace
   }
   for (const attachment of [...instance.attachments]) {
     if (hasKeyword(ctx.state, attachment, "victory", ctx.deps))
-      leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" });
+      leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" }, "top", false, true);
   }
   if (victory) leavePlay(ctx, id, { kind: "victoryDisplay" }, "top", false, undefined, sourceCardId);
   else if (holder !== null) {
@@ -1697,7 +1697,7 @@ function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
 }
 
 const staysWithoutHost = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true);
+  isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true, true);
 
 /**
  * The attachments on `hostId` that its leaving play will leave in play, unattached (`discardWithLeavingHost`: a player's
@@ -1709,7 +1709,7 @@ function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: Insta
     const attachment = getInstance(state, id);
     if (!attachment || isFacedownAttachment(state, id) || !staysWithoutHost(state, deps, id)) return false;
     const unowned = playerCardOwnerOf(state, id) === null && attachment.controllerId === null;
-    if (unowned) return cannotLeavePlay(state, deps, id, undefined, true);
+    if (unowned) return cannotLeavePlay(state, deps, id, undefined, true, true);
     return permanentRehostFor(state, deps, id, hostId, true) === null && !removedWithoutHost(state, deps, id);
   });
 }
@@ -1730,7 +1730,8 @@ function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: Insta
  */
 function removedWithoutHost(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
   const instance = getInstance(state, id);
-  if (!instance || !isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true)) return false;
+  if (!instance || !isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true, true))
+    return false;
   if (playerCardOwnerOf(state, id) === null && instance.controllerId === null) return false;
   return !staysForOwnText(state, deps, id, instance.attachedTo);
 }
@@ -1762,7 +1763,7 @@ function discardedWithoutHost(ctx: Ctx, id: InstanceId): boolean {
   return (
     playerCardOwnerOf(ctx.state, id) === null &&
     instance.controllerId === null &&
-    !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true)
+    !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true, true)
   );
 }
 
@@ -2215,6 +2216,12 @@ export function applyLeavePatch(ctx: Ctx, id: InstanceId, patch: LeavePatch): vo
  * they do not wait for a window of their own while the host moves: when an interrupt hears them, their interrupts
  * resolved in the host's window, still in play (docs/phase7-wave5.md §4.1 Q32; their `withHost` leavings record the
  * move). Otherwise a listener hears them after the move (`pendingLeftPlay`).
+ *
+ * `withHost`: the card leaves because its host does (an attachment as its host leaves play, is flipped or removed), so
+ * "upgrades cannot be removed from [the host]" (`cannotLeaveHost`) does not hold it (RRG 1.8 "Attach To", p. 8). A
+ * caller moving the card for any other reason leaves it false: a player's elimination taking their upgrade off a
+ * host that rule names is stopped by it, as "cannot" is absolute (RRG 1.8 "Cannot", p. 11), and the upgrade stays
+ * (engine reading, no ruling on elimination against a "cannot").
  */
 export function leavePlayAtOnce(
   ctx: Ctx,
@@ -2222,6 +2229,7 @@ export function leavePlayAtOnce(
   requested: ZoneId,
   position: "top" | "bottom" = "top",
   discarded = false,
+  withHost = false,
 ): void {
   // Leaving with its host is the game's rule, with no source card.
   if (permanentStopsLeaving(ctx.state, ctx.deps, id, undefined)) {
@@ -2230,7 +2238,7 @@ export function leavePlayAtOnce(
   }
   // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
   if (leavingCancelled(ctx.state, id)) return;
-  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded, withHost)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }

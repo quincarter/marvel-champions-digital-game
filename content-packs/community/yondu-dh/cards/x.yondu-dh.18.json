@@ -1,0 +1,24 @@
+{
+  "id": "x.yondu-dh.18",
+  "name": "Savage Destruction",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "18",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["yondu-dh-nemesis"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: If Sav'rkk is in play, he attacks you. Otherwise, summon Sav'rkk and reveal him.",
+    "current": "When Revealed: If Sav'rkk is in play, he attacks you. Otherwise, summon Sav'rkk and reveal him."
+  },
+  "flavor": "\"A toast. To your ruin.\" —Sav'rkk",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.18.when-revealed"
+    }
+  ]
+}

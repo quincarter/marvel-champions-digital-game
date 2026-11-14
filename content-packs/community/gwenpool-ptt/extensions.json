@@ -1,0 +1,142 @@
+{
+  "x.gwenpool-ptt.01a": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Hey, psst, here. Draw 1 card now while they're not looking.",
+        "rules": true
+      },
+      {
+        "color": "pink",
+        "text": "What? Am I in a card game now? And it's fan-made on top of that!",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.01b": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Look, look! It's me!",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.02": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "For the sake of it, remove 2 threat from a scheme.",
+        "rules": true
+      }
+    ]
+  },
+  "x.gwenpool-ptt.03": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Critical, 999 damage! Haha!",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.04": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "I am fighting versus Rhino? Because this seems like a tutorial.",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.05": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Oops, spoiler!",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.06": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "If they ask, it's not cheating, it's strategy.",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.07": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Okay, let's do this one last time, yeah? My name is Gwendolyne Poole...",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.08": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Oops, I drop a [wild] resource! Well, let's not waste it.",
+        "rules": true
+      }
+    ]
+  },
+  "x.gwenpool-ptt.09": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Lift the top card of the villain deck, I want to see if my katanas are there.",
+        "rules": true
+      }
+    ]
+  },
+  "x.gwenpool-ptt.10": {
+    "x_bubbles": [
+      {
+        "color": "pink",
+        "text": "Look out I drop my katanas! Sorry to deal you 2 damage hehe.",
+        "rules": true
+      }
+    ]
+  },
+  "x.gwenpool-ptt.12": {
+    "x_bubbles": [
+      {
+        "color": "purple",
+        "text": "Discard 1 card at random from your hand.",
+        "rules": true
+      }
+    ]
+  },
+  "x.gwenpool-ptt.13": {
+    "x_bubbles": [
+      {
+        "color": "purple",
+        "text": "Deal 2 damage to Gwen.",
+        "rules": true
+      }
+    ]
+  },
+  "x.gwenpool-ptt.14": {
+    "x_bubbles": [
+      {
+        "color": "purple",
+        "text": "You can't hide Gwen.",
+        "rules": false
+      }
+    ]
+  },
+  "x.gwenpool-ptt.15": {
+    "x_bubbles": [
+      {
+        "color": "purple",
+        "text": "Sometimes I get confused with Ronan.",
+        "rules": false
+      }
+    ]
+  }
+}

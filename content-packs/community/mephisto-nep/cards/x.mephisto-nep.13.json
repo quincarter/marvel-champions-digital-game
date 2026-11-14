@@ -1,0 +1,33 @@
+{
+  "id": "x.mephisto-nep.13",
+  "type": "side_scheme",
+  "name": "Culling the Damned",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "17/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "traits": [],
+  "keywords": [],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 3
+  },
+  "icons": [],
+  "amplifyIcons": 1,
+  "boostIcons": 2,
+  "text": {
+    "printed": "Forced Interrupt: After a Mystic minion is defeated, place one scorned counter here.\nWhen Defeated: The player who defeated this side scheme looks at X cards in Damnation, where X is equal to the number of scorned counters here. Shuffle each card looked at this way back into its owner's deck.",
+    "current": "Forced Interrupt: After a Mystic minion is defeated, place one scorned counter here.\nWhen Defeated: The player who defeated this side scheme looks at X cards in Damnation, where X is equal to the number of scorned counters here. Shuffle each card looked at this way back into its owner's deck."
+  },
+  "flavor": "Mephisto would use anyone toward his machinations, be they friend, family, or foe.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.13.forced-interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.13.when-defeated"
+    }
+  ]
+}

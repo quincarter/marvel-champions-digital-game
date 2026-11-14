@@ -1,0 +1,36 @@
+{
+  "id": "x.carnage-nep.15",
+  "name": "Torment",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "15",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 1,
+  "sch": 2,
+  "hp": 6,
+  "encounterSetIds": ["carnage-nep-nemesis"],
+  "boostIcons": 3,
+  "traits": ["CRIMINAL", "ELITE", "KILLER"],
+  "keywords": [
+    {
+      "name": "quickstrike"
+    },
+    {
+      "name": "villainous"
+    }
+  ],
+  "text": {
+    "printed": "Quickstrike. Villainous.\nWhen Revealed: Search the encounter deck, discard pile, and set-aside area for Death Spiral and reveal it.\n[star] Forced Interrupt: When Torment attacks a friendly character, if you control or have in your hand an ally or Persona support with the same classification as that character (identity-specific, aspect, or basic), cancel that attack, then discard that card instead.",
+    "current": "Quickstrike. Villainous.\nWhen Revealed: Search the encounter deck, discard pile, and set-aside area for Death Spiral and reveal it.\n[star] Forced Interrupt: When Torment attacks a friendly character, if you control or have in your hand an ally or Persona support with the same classification as that character (identity-specific, aspect, or basic), cancel that attack, then discard that card instead."
+  },
+  "abilities": [
+    {
+      "id": "x.carnage-nep.15.when-revealed"
+    },
+    {
+      "id": "x.carnage-nep.15.torment-forced-interrupt"
+    }
+  ]
+}

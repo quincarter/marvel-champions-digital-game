@@ -2,6 +2,7 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { LastingEffect } from "./lasting.js";
 import {
   RESOURCE_TYPES,
   type PaidTypesRead,
@@ -127,6 +128,11 @@ export interface BoostInProgress {
    * and its ability does not resolve, neither being canceled. Set when the rule is first seen to cover the card.
    */
   readonly ignored?: true;
+  /**
+   * Only its "Boost" ability is ignored (`RuleSpec ignoreBoost` with `only: "abilities"`): its icons count, its ability
+   * does not resolve and cannot be canceled. Set when such a rule is first seen to cover the card.
+   */
+  readonly abilityIgnored?: true;
   /** The boost icons its `boostCardTurnedFaceup` event announced at the flip, announced again to its responses. */
   readonly turnedIcons?: number;
   /** The event frame of its `boostCardTurnedFaceup` interrupts (`responsesLater`), while they resolve. */
@@ -243,6 +249,12 @@ export type StackFrame =
       readonly event: TriggerEvent;
       readonly stage: "interrupts" | "apply" | "responses" | "done";
       readonly cancelled: boolean;
+      /**
+       * On a villain phase's beginning (`phaseBeginning`): the "until the next villain phase begins" effects its
+       * `villainPhaseBegins` step ended just before it was answered, put back if the beginning is cancelled (a player
+       * phase played instead, `EffectSpec replaceNextVillainPhaseWithPlayerPhase`). Absent when none ended.
+       */
+      readonly restoreIfCancelled?: readonly LastingEffect[];
       /** Results accumulated while the event resolves (see `TriggerEvent.results`). */
       readonly vars: Vars;
       /** Cards the event's results name (`damaged`, `target`), reported as slots like `vars`. */
@@ -814,6 +826,8 @@ export type StackFrame =
       readonly eventFrameId: FrameId | null;
       /** No boost card for this attack (`TriggerEvent.noBoost`). */
       readonly noBoost?: boolean;
+      /** Cards given as this activation's boost cards at its give-boost step (`EffectSpec enemyActivation.boostCards`). */
+      readonly appliedBoostCards?: readonly InstanceId[];
       /**
        * An enemy attacking another enemy with a boost card (`enemyAttacksEnemy.boost`; Headpool, FFG ruling January 26,
        * 2026 (4)). `eventFrameId` is its `enemyAttacksEnemy` event frame, `attackedPlayerId` and `targetPlayerId` the
@@ -827,6 +841,11 @@ export type StackFrame =
        */
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
+      /**
+       * A "Boost" ability of this boost card cancelled the activation (`EffectSpec cancelBoostedActivation`): once that
+       * ability has resolved, the procedure ends (`endedByBoostCancel`). Absent otherwise.
+       */
+      readonly cancelledByBoost?: InstanceId;
       /**
        * The damage step has announced `TriggerEvent enemyAttackDamageStep`, so on its next run it deals the damage.
        * Absent in a game where nothing listens for that event (the step deals the damage on its first run).
@@ -842,9 +861,13 @@ export type StackFrame =
       readonly stage: "giveBoost" | "flipBoosts" | "placeThreat" | "done";
       readonly eventFrameId: FrameId | null;
       readonly noBoost?: boolean;
+      /** As `Frame<"enemyAttack">.appliedBoostCards`. */
+      readonly appliedBoostCards?: readonly InstanceId[];
       /** As `Frame<"enemyAttack">.boostsGiven`. */
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
+      /** As `Frame<"enemyAttack">.cancelledByBoost`. */
+      readonly cancelledByBoost?: InstanceId;
     })
   /**
    * RRG 1.8 "Villainous" (p. 47) on a character that is not an enemy (an ally or a hero: MC60 p. 26 FAQ, "The rules for

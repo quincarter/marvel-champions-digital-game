@@ -1,0 +1,28 @@
+{
+  "id": "x.yondu-dh.11",
+  "name": "Tahlei",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "11",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 0,
+  "resourceIcons": {
+    "mental": 2
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["TECH"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Action: Exhaust Tahlei → if the Yaka Arrow upgrade is in play, attach it to an enemy, to your identity, or add it to your hand.",
+    "current": "Hero Action: Exhaust Tahlei → if the Yaka Arrow upgrade is in play, attach it to an enemy, to your identity, or add it to your hand."
+  },
+  "flavor": "\"I'm about to be a twirlin' and whirlin'. I'm about to be a d'ast darn dandy.\" —Yondu",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.11.tahlei-action"
+    }
+  ]
+}

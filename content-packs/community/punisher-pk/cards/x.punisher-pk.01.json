@@ -1,0 +1,97 @@
+{
+  "id": "x.punisher-pk.01",
+  "name": "The Punisher",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "1/2/3",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "villain",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "sides": [
+    {
+      "side": "A",
+      "name": "The Punisher",
+      "stages": [
+        {
+          "stageNumber": 1,
+          "hp": {
+            "base": 0,
+            "perPlayer": 15
+          },
+          "atk": 2,
+          "sch": 1,
+          "text": {
+            "printed": "[star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you. Those attacks cannot be defended, are not made against a player and ignore each \"Boost\" ability. Minions cannot attack or stun him.\nForced Response: After an ally or enemy is defeated by The Punisher or by an encounter card, place 1 war counter on War on Crime.",
+            "current": "[star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you. Those attacks cannot be defended, are not made against a player and ignore each \"Boost\" ability. Minions cannot attack or stun him.\nForced Response: After an ally or enemy is defeated by The Punisher or by an encounter card, place 1 war counter on War on Crime."
+          },
+          "traits": ["VIGILANTE"],
+          "keywords": [],
+          "abilities": [
+            {
+              "id": "x.punisher-pk.01.activation-attacks-minions-i"
+            },
+            {
+              "id": "x.punisher-pk.01.war-counter-i"
+            },
+            {
+              "id": "x.punisher-pk.01.minions-cannot-attack-i"
+            }
+          ]
+        },
+        {
+          "stageNumber": 2,
+          "hp": {
+            "base": 0,
+            "perPlayer": 18
+          },
+          "atk": 2,
+          "sch": 2,
+          "text": {
+            "printed": "[star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you. Those attacks cannot be defended, are not made against a player and ignore each \"Boost\" ability. Minions cannot attack or stun him.\nForced Response: After an ally or enemy is defeated by The Punisher or by an encounter card, place 1 war counter on War on Crime.",
+            "current": "[star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you. Those attacks cannot be defended, are not made against a player and ignore each \"Boost\" ability. Minions cannot attack or stun him.\nForced Response: After an ally or enemy is defeated by The Punisher or by an encounter card, place 1 war counter on War on Crime."
+          },
+          "traits": ["VIGILANTE"],
+          "keywords": [],
+          "abilities": [
+            {
+              "id": "x.punisher-pk.01.activation-attacks-minions-ii"
+            },
+            {
+              "id": "x.punisher-pk.01.war-counter-ii"
+            },
+            {
+              "id": "x.punisher-pk.01.minions-cannot-attack-ii"
+            }
+          ]
+        },
+        {
+          "stageNumber": 3,
+          "hp": {
+            "base": 0,
+            "perPlayer": 21
+          },
+          "atk": 3,
+          "sch": 2,
+          "text": {
+            "printed": "[star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you. Those attacks cannot be defended, are not made against a player and ignore each \"Boost\" ability. Minions cannot attack or stun him.\nForced Response: After an ally or enemy is defeated by The Punisher or by an encounter card, place 1 war counter on War on Crime.",
+            "current": "[star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you. Those attacks cannot be defended, are not made against a player and ignore each \"Boost\" ability. Minions cannot attack or stun him.\nForced Response: After an ally or enemy is defeated by The Punisher or by an encounter card, place 1 war counter on War on Crime."
+          },
+          "traits": ["VIGILANTE"],
+          "keywords": [],
+          "abilities": [
+            {
+              "id": "x.punisher-pk.01.activation-attacks-minions-iii"
+            },
+            {
+              "id": "x.punisher-pk.01.war-counter-iii"
+            },
+            {
+              "id": "x.punisher-pk.01.minions-cannot-attack-iii"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "x.yondu-dh.07",
+  "name": "Jackpot!",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "7",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "resource",
+  "producesIcons": {
+    "wild": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": [],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Response: After you spend this card, treat the next card you spend as if it has double the resources.",
+    "current": "Response: After you spend this card, treat the next card you spend as if it has double the resources."
+  },
+  "flavor": "\"Got enough to buy my way out of this life!\"",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.07.jackpot-response"
+    }
+  ]
+}

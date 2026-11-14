@@ -122,7 +122,12 @@ export function syncSetupAnswerOutcome(answer: SyncSetupAnswer): {
  * chrome write bookkeeping on any first launch (`mc-rank-seen`, `mc-achievements-seen`, guide preferences), and that
  * must never make a brand-new player look like an existing one.
  */
-const PROGRESS_KEYS: ReadonlySet<string> = new Set(["mc-unlocks", "mc-unlocked-everything", "mc-deck-feats"]);
+const PROGRESS_KEYS: ReadonlySet<string> = new Set([
+  "mc-unlocks",
+  "mc-unlocked-everything",
+  "mc-deck-feats",
+  "mc-mod-installs",
+]);
 const PROGRESS_KEY_PREFIXES: readonly string[] = ["mc-deck-freeze-optin:"];
 
 /** Whether any of these `localStorage` keys is real progress (see `PROGRESS_KEYS`). */

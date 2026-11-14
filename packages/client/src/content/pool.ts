@@ -196,6 +196,16 @@ import {
 import type { EngineDeps } from "@mc/engine";
 import { POOL_CARDS } from "./pool-cards.js";
 import type { ShelfPack } from "../view/roster-shelves.js";
+import { packEncounterSetRecords, packScenarioRecords, scenarioWithPacks } from "@mc/mod-sdk/game";
+import { loadedPacks } from "../packs/pack-registry.js";
+import {
+  depsWithPacks,
+  isHouseRulePack,
+  packsOwningContent,
+  poolWithPacks,
+  seatsWithPackDecks,
+  type PackRuntime,
+} from "../packs/pack-runtime.js";
 
 // Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
 export { POOL_CARDS };
@@ -243,6 +253,185 @@ export const CORE_MODULAR_SET_IDS: readonly string[] = [
 
 /** Every ability script for `POOL_CARDS` (Core's own scripts included — every wave's registry starts from `CORE_ABILITIES`). */
 export const POOL_DEPS: EngineDeps = PLAYABLE_DEPS;
+
+export interface PoolView {
+  readonly packs: readonly PackRuntime[];
+  readonly cards: readonly AnyCard[];
+  readonly cardsById: ReadonlyMap<string, AnyCard>;
+  readonly deps: EngineDeps;
+}
+
+const BASE_VIEW: PoolView = { packs: [], cards: POOL_CARDS, cardsById: CARDS_BY_ID, deps: POOL_DEPS };
+let view: PoolView = BASE_VIEW;
+
+/**
+ * The pool and deps with `packs` added (the base ones, untouched, for none). Throws if a pack shadows a base card or
+ * ability. A game's view (`poolViewOfPacks`) applies its house rules' trait additions; the app's browsing view
+ * (`currentPool`) passes `houseRules: false`, so installing a house rule never changes a card outside a game that has it on.
+ */
+export function poolViewWithPacks(packs: readonly PackRuntime[], houseRules = true): PoolView {
+  if (packs.length === 0) return BASE_VIEW;
+  const cards = poolWithPacks(POOL_CARDS, packs, houseRules);
+  return {
+    packs,
+    cards,
+    cardsById: new Map(cards.map((card) => [card.id as string, card])),
+    deps: depsWithPacks(POOL_DEPS, packs),
+  };
+}
+
+const VIEWS = new WeakMap<object, PoolView>();
+
+/**
+ * `poolViewWithPacks` cached per `packs` array, so the engine worker and the main thread's game scenes build a game's merged
+ * pool and deps once, not per command or per frame. The one derivation both sides use for an existing game.
+ */
+export function poolViewOfPacks(packs: readonly PackRuntime[] | undefined): PoolView {
+  if (!packs || packs.length === 0) return BASE_VIEW;
+  let view = VIEWS.get(packs);
+  if (!view) {
+    view = poolViewWithPacks(packs);
+    VIEWS.set(packs, view);
+  }
+  return view;
+}
+
+/**
+ * The pool the app runs right now: `POOL_CARDS` plus the cards of every installed pack that loaded
+ * (`packs/active-packs.ts`), or `POOL_CARDS` itself when none did. The deck builder, pickers and anything that names a
+ * card read this, not `POOL_CARDS`, wherever a pack's card could appear. Cached until the loaded packs change.
+ */
+export function currentPool(): readonly AnyCard[] {
+  return currentPoolView().cards;
+}
+
+/** `currentPool()` by card id. */
+export function currentCardsById(): ReadonlyMap<string, AnyCard> {
+  return currentPoolView().cardsById;
+}
+
+/** The engine deps for `currentPool()`, with every loaded pack's abilities merged in. */
+export function currentDeps(): EngineDeps {
+  return currentPoolView().deps;
+}
+
+/** `POOL_VERSION`, plus every loaded pack's id and version: what a cache of anything derived from `currentPool()` is keyed by. */
+export function currentPoolKey(): string {
+  const packs = loadedPacks();
+  return packs.length === 0
+    ? POOL_VERSION
+    : `${POOL_VERSION}+${packs.map((pack) => `${pack.id}@${pack.version}`).join(",")}`;
+}
+
+const STARTER_VIEWS = new WeakMap<object, readonly StarterDeck[]>();
+
+/**
+ * Every precon the app offers right now: `POOL_STARTER_DECKS` plus the precons of every loaded pack (a pack deck never
+ * takes a base deck's id, `active-packs.ts`), or `POOL_STARTER_DECKS` itself when no pack is loaded. The same array until
+ * the loaded packs change, so what is cached against it stays valid.
+ */
+export function currentStarterDecks(): readonly StarterDeck[] {
+  const packs = loadedPacks();
+  if (packs.length === 0) return POOL_STARTER_DECKS;
+  let decks = STARTER_VIEWS.get(packs);
+  if (!decks) {
+    decks = [...POOL_STARTER_DECKS, ...packs.flatMap((pack) => pack.decks)];
+    STARTER_VIEWS.set(packs, decks);
+  }
+  return decks;
+}
+
+const SHELF_VIEWS = new WeakMap<object, readonly ShelfPack[]>();
+
+/** The shelf every installed custom pack's heroes share, after every release wave. */
+export const CUSTOM_SHELF_ID = "custom-packs";
+
+/**
+ * `POOL_HERO_SHELF_PACKS` plus one entry per loaded pack, all on one "Custom packs" shelf after the last wave, so a pack
+ * hero's precon lands on a shelf instead of being dropped as a pack the roster does not know.
+ */
+export function currentHeroShelfPacks(): readonly ShelfPack[] {
+  const packs = loadedPacks();
+  if (packs.length === 0) return POOL_HERO_SHELF_PACKS;
+  let shelf = SHELF_VIEWS.get(packs);
+  if (!shelf) {
+    const order = Math.max(0, ...POOL_HERO_SHELF_PACKS.map((pack) => pack.cycleOrder)) + 1;
+    shelf = [
+      ...POOL_HERO_SHELF_PACKS,
+      // A house rule brings no hero of its own: it has no shelf entry.
+      ...packs
+        .filter((pack) => !isHouseRulePack(pack))
+        .flatMap((pack) =>
+          [...new Set([pack.id, ...pack.decks.map((deck) => deck.packCode as string)])].map((code): ShelfPack => ({
+            code,
+            cycleId: CUSTOM_SHELF_ID,
+            cycleName: "Custom packs",
+            cycleOrder: order,
+          })),
+        ),
+    ];
+    SHELF_VIEWS.set(packs, shelf);
+  }
+  return shelf;
+}
+
+const SCENARIO_VIEWS = new WeakMap<object, readonly Scenario[]>();
+const SET_VIEWS = new WeakMap<object, readonly EncounterSet[]>();
+
+/**
+ * `POOL_SCENARIOS` plus the scenarios of every loaded pack (`packScenarioRecords`), or `POOL_SCENARIOS` itself when no pack
+ * brings one. The same array until the loaded packs change. The scenario picker reads this (a game in progress reads
+ * `game-deps.ts`'s `gameScenarios()`, from its own packs); the base game's own tables (achievements, unlocks, stats) keep `POOL_SCENARIOS`.
+ */
+export function currentScenarios(): readonly Scenario[] {
+  const packs = loadedPacks();
+  const own = packScenarioRecords(packs);
+  if (own.length === 0) return POOL_SCENARIOS;
+  let scenarios = SCENARIO_VIEWS.get(packs);
+  if (!scenarios) {
+    scenarios = [...POOL_SCENARIOS, ...own];
+    SCENARIO_VIEWS.set(packs, scenarios);
+  }
+  return scenarios;
+}
+
+/** `POOL_ENCOUNTER_SETS` plus every loaded pack's encounter sets (names for its sets, and the pack's modular picks). */
+export function currentEncounterSets(): readonly EncounterSet[] {
+  const packs = loadedPacks();
+  const own = packEncounterSetRecords(packs);
+  if (own.length === 0) return POOL_ENCOUNTER_SETS;
+  let sets = SET_VIEWS.get(packs);
+  if (!sets) {
+    sets = [...POOL_ENCOUNTER_SETS, ...own];
+    SET_VIEWS.set(packs, sets);
+  }
+  return sets;
+}
+
+/** Whether `scenarioId` is one a loaded pack brings (not a base game scenario). */
+export function isPackScenario(scenarioId: string): boolean {
+  return packScenarioRecords(loadedPacks()).some((scenario) => (scenario.id as string) === scenarioId);
+}
+
+/** Whether `setId` is an encounter set a loaded pack brings. */
+export function isPackEncounterSet(setId: string): boolean {
+  return packEncounterSetRecords(loadedPacks()).some((set) => (set.id as string) === setId);
+}
+
+function currentPoolView(): PoolView {
+  const packs = loadedPacks();
+  if (view.packs !== packs && !(packs.length === 0 && view === BASE_VIEW)) {
+    try {
+      view = poolViewWithPacks(packs, false);
+    } catch {
+      // A pack that now collides with the base game (a newer app added the same code) must not break the app: base pool only.
+      view = BASE_VIEW;
+    }
+    // Remember which array this answered for, so a failure is not retried on every read.
+    view = { ...view, packs };
+  }
+  return view;
+}
 
 /** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang), then cycle 2 (The Galaxy's Most Wanted's five), then cycle 3 (The Mad Titan's Shadow's five, and The Hood). */
 export const POOL_SCENARIOS: readonly Scenario[] = [
@@ -375,7 +564,12 @@ export const POOL_PACKS: readonly Pack[] = [
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
 export function packNameOf(code: string): string {
-  return POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
+  return (
+    POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ??
+    // An installed custom pack's cards and precons carry its id as their set and pack code.
+    loadedPacks().find((pack) => pack.id === code)?.name ??
+    code
+  );
 }
 
 /**
@@ -466,5 +660,32 @@ export const POOL_HERO_SHELF_PACKS: readonly ShelfPack[] = POOL_PACK_CYCLES.map(
 
 /** The app's one scenario builder: Core, wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 scenarios alike. */
 export const buildScenario = playableScenario;
+
+/**
+ * `buildScenario` for a game the loaded packs touch: a pack's own scenario, or a pack's modular set picked at any
+ * scenario, is built by the SDK's `scenarioWithPacks`; anything else is `buildScenario` exactly as before. For the setup
+ * screen's preview; a started game builds the same way in `engine/session-core.ts` from the packs its config carries.
+ */
+export function buildScenarioWithLoadedPacks(scenarioId: string, rawOptions: PlayableScenarioOptions) {
+  const packs = loadedPacks();
+  // A seat with a pack's precon is turned into the deck it names first, as the engine session does (`scenarioFor`):
+  // the scenario builders know only the base game's starter decks and throw "no playable starter deck" for a pack's,
+  // which left the setup screen's Play button with a blank screen.
+  const options: PlayableScenarioOptions =
+    packs.length > 0 && rawOptions.players
+      ? {
+          ...rawOptions,
+          players: seatsWithPackDecks(
+            rawOptions.players,
+            packs,
+            new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string)),
+          ),
+        }
+      : rawOptions;
+  const modular = [...(options.modularSetIds ?? []), ...(options.extraModularSetIds ?? [])];
+  return packsOwningContent(scenarioId, modular, packs).length > 0
+    ? scenarioWithPacks(scenarioId, options, packs)
+    : playableScenario(scenarioId, options);
+}
 
 export type { PlayableScenarioOptions };

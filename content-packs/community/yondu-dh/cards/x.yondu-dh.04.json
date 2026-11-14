@@ -1,0 +1,29 @@
+{
+  "id": "x.yondu-dh.04",
+  "name": "Whistle While You Work",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "4",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 1,
+  "resourceIcons": {
+    "mental": 1,
+    "wild": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["TACTIC"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action: If the Yaka Arrow upgrade is in play, attach it to Yondu and ready Yondu and the Tahlei upgrade. Otherwise, summon it and add it to your hand.",
+    "current": "Hero Action: If the Yaka Arrow upgrade is in play, attach it to Yondu and ready Yondu and the Tahlei upgrade. Otherwise, summon it and add it to your hand."
+  },
+  "flavor": "\"I do what I want, when I want, how I want.\" —Yondu",
+  "abilities": [
+    {
+      "id": "x.yondu-dh.04.whistle-while-you-work-action"
+    }
+  ]
+}

@@ -174,7 +174,7 @@ function findFirst(
  */
 export function findCandidates(ctx: Ctx, effect: FindCard, context: EffectContext): readonly FoundCard[] {
   const owners = effect.owner ? new Set(resolvePlayers(ctx.state, effect.owner, context)) : null;
-  const all = findCards(ctx.state, effect.query, context, owners);
+  const all = findCards(ctx.state, effect.query, context, owners, effect.anywhere === true);
   if (!effect.outOfPlay) return all;
   const inPlay = new Set(cardsInPlay(ctx.state));
   return all.filter((found) => !inPlay.has(found.id));
@@ -242,7 +242,12 @@ function findCardNow(
           ? { kind: "putIntoPlay", card, controller: finder }
           : typeof effect.to === "object" && "attachTo" in effect.to
             ? { kind: "attach", card, to: effect.to.attachTo }
-            : { kind: "moveCards", cards: { kind: "ref", ref: card }, to: effect.to };
+            : {
+                kind: "moveCards",
+                // "Search everywhere" (`anywhere`) brings back a card removed from the game too.
+                cards: { kind: "ref", ref: card, ...(effect.anywhere ? { includeRemoved: true as const } : {}) },
+                to: effect.to,
+              };
     apply(ctx, move, { ...context, bindings: { ...context.bindings, [FOUND_SLOT]: [id] } }, frame);
   }
   shuffleSearchedDecks(ctx, searched);

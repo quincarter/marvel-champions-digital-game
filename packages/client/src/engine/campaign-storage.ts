@@ -26,6 +26,7 @@
 
 import type { CampaignId, PlayModes } from "@mc/content";
 import type { CampaignLog, CampaignPosition, CampaignStatus, TableRules } from "@mc/engine";
+import type { PackRuntime } from "../packs/pack-runtime.js";
 
 /** Bumped when the stored record shape changes, so an old campaign is recognized instead of misread. */
 export const CAMPAIGN_STORAGE_SCHEMA = 1;
@@ -71,6 +72,35 @@ export interface CampaignRecord extends CampaignLog {
    * Optional: absent is standard mode, and so is every older record.
    */
   readonly issueModes?: IssueModes;
+  /**
+   * For a run of a pack's campaign (docs/custom-content-packs.md §11.10): the pack content the run needs, copied in once
+   * at creation, the way `SessionConfig.packs` carries a game's. `CampaignService` reads the definition, the node
+   * launches, the card pool and the story from it, never from an installed pack, so updating or removing the pack
+   * never changes or breaks a run in progress. Absent for a base-game box and for every record written before pack
+   * campaigns existed.
+   */
+  readonly pack?: PackCampaignRef;
+}
+
+/**
+ * Which pack a run's campaign came from (`id`, `version` and the store `name`), and every pack runtime the run needs as
+ * of the day it was signed: the owning pack, the packs owning its nodes' scenarios and sets, and what those require.
+ */
+export interface PackCampaignRef {
+  readonly id: string;
+  readonly version: string;
+  readonly name: string;
+  readonly packs: readonly PackRuntime[];
+}
+
+/** What a stored run lists of its pack (`CampaignSummary.pack`): enough for the shelf, never the content itself. */
+export interface PackCampaignSummary {
+  readonly id: string;
+  readonly version: string;
+  readonly name: string;
+  readonly nodeCount: number;
+  /** The campaign's node ids in order, so the shelf can draw the run's progress without the pack. */
+  readonly nodeIds: readonly string[];
 }
 
 /** The modes one issue is played under, beside the campaign's own. Absent is standard mode. */
@@ -91,6 +121,21 @@ export interface CampaignSummary {
   readonly seats: readonly { readonly seatNumber: number; readonly identityCardId: string }[];
   readonly createdAt: number;
   readonly updatedAt: number;
+  /** For a pack campaign's run: which pack and how many issues, so the shelf lists it without the pack. */
+  readonly pack?: PackCampaignSummary;
+}
+
+function packSummaryOf(pack: PackCampaignRef, campaignId: string): PackCampaignSummary {
+  const nodes =
+    pack.packs.flatMap((runtime) => runtime.campaigns ?? []).find((campaign) => campaign.id === campaignId)?.definition
+      .graph.nodes ?? [];
+  return {
+    id: pack.id,
+    version: pack.version,
+    name: pack.name,
+    nodeCount: nodes.length,
+    nodeIds: nodes.map((node) => node.id as string),
+  };
 }
 
 /** Shared so both storages project a `CampaignRecord` down to a `CampaignSummary` identically. */
@@ -109,6 +154,7 @@ export function summaryOf(record: CampaignRecord): CampaignSummary {
     seats: record.seats.map((seat) => ({ seatNumber: seat.seatNumber, identityCardId: seat.identityCardId })),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    ...(record.pack ? { pack: packSummaryOf(record.pack, record.campaignId as string) } : {}),
   };
 }
 

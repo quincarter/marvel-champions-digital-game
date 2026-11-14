@@ -1,0 +1,56 @@
+{
+  "id": "x.yondu-dh.01a",
+  "name": "Yondu",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "hero_identity",
+  "hp": 10,
+  "hero": {
+    "faceName": "Yondu",
+    "traits": ["GUARDIAN", "RAVAGER"],
+    "atk": 2,
+    "thw": 2,
+    "def": 2,
+    "handSize": 5,
+    "keywords": [],
+    "text": {
+      "printed": "D'ast Whistlin' — Response: After the Yaka Arrow upgrade is attached to or removed from an enemy, deal 1 damage to that enemy.\nResponse: After the Yaka Arrow upgrade is attached to your identity, heal 1 damage from Yondu.",
+      "current": "D'ast Whistlin' — Response: After the Yaka Arrow upgrade is attached to or removed from an enemy, deal 1 damage to that enemy.\nResponse: After the Yaka Arrow upgrade is attached to your identity, heal 1 damage from Yondu."
+    },
+    "abilities": [
+      {
+        "id": "x.yondu-dh.01a.dast-whistlin",
+        "label": "D'ast Whistlin'"
+      },
+      {
+        "id": "x.yondu-dh.01a.yondu-response"
+      }
+    ]
+  },
+  "alterEgo": {
+    "faceName": "Yondu Udonta",
+    "traits": ["OUTLAW"],
+    "rec": 3,
+    "handSize": 6,
+    "keywords": [],
+    "text": {
+      "printed": "Crew Cut — Action: Summon the Tahlei upgrade and add it to your hand. (Limit once per round.)\nWhistlin' — Action: Exhaust Yondu Udonta → summon the Yaka Arrow upgrade and add it to your hand.",
+      "current": "Crew Cut — Action: Summon the Tahlei upgrade and add it to your hand. (Limit once per round.)\nWhistlin' — Action: Exhaust Yondu Udonta → summon the Yaka Arrow upgrade and add it to your hand."
+    },
+    "abilities": [
+      {
+        "id": "x.yondu-dh.01b.crew-cut",
+        "label": "Crew Cut"
+      },
+      {
+        "id": "x.yondu-dh.01b.whistlin",
+        "label": "Whistlin'"
+      }
+    ]
+  },
+  "obligationCardId": "x.yondu-dh.13",
+  "nemesisEncounterSetId": "yondu-dh-nemesis"
+}

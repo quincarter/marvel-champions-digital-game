@@ -1,0 +1,27 @@
+{
+  "id": "x.night-thrasher-dh.03",
+  "name": "Disaster",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "3",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["ATTACK", "SKILL", "THWART"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Action (attack/thwart): Flip the Battle Board upgrade. Then, if it has the:\n• VEHICLE trait, remove 3 threat from a scheme.\n• WEAPON trait, deal 4 damage to an enemy.",
+    "current": "Hero Action (attack/thwart): Flip the Battle Board upgrade. Then, if it has the:\n• VEHICLE trait, remove 3 threat from a scheme.\n• WEAPON trait, deal 4 damage to an enemy."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.03.disaster-constant"
+    }
+  ]
+}

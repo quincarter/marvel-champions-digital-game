@@ -1,0 +1,32 @@
+{
+  "id": "x.punisher-pk.12",
+  "name": "Hammerhead",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "12",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 2,
+  "sch": 1,
+  "hp": 6,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 2,
+  "traits": ["CRIMINAL", "ELITE", "MAGGIA"],
+  "keywords": [],
+  "text": {
+    "printed": "During step 2 of the villain phase, Hammerhead activates against you before The Punisher does.\nForced Response: After a friendly character attacks Hammerhead, stun that character.\nWhen Defeated: If Hammerhead was defeated by The Punisher, place 1[per_hero] threat on the main scheme.",
+    "current": "During step 2 of the villain phase, Hammerhead activates against you before The Punisher does.\nForced Response: After a friendly character attacks Hammerhead, stun that character.\nWhen Defeated: If Hammerhead was defeated by The Punisher, place 1[per_hero] threat on the main scheme."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.12.hammerhead-constant"
+    },
+    {
+      "id": "x.punisher-pk.12.hammerhead-forced-response"
+    },
+    {
+      "id": "x.punisher-pk.12.when-defeated"
+    }
+  ]
+}

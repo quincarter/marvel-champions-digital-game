@@ -1,0 +1,35 @@
+{
+  "id": "x.gwenpool-ptt.12",
+  "name": "Game Rules",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "12",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["gwenpool-ptt-nemesis"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": [],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "This card cannot leave play while Evil Gwenpool is in play.\nTreat Gwenpool's printed text box as if it were blank (except for TRAITS).",
+    "current": "This card cannot leave play while Evil Gwenpool is in play.\nTreat Gwenpool's printed text box as if it were blank (except for TRAITS)."
+  },
+  "flavor": "The are things Gwen must not do. She has exceeded her grasp on reality and must face the consequences of it.",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.12.game-rules-constant"
+    },
+    {
+      "id": "x.gwenpool-ptt.12.game-rules-constant-2"
+    },
+    {
+      "id": "x.gwenpool-ptt.12.purple-bubble"
+    }
+  ]
+}

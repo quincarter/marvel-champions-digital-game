@@ -28,6 +28,7 @@ import {
   activeFormType,
   canTakeStatus,
   hasGrantedPermanent,
+  hasLostPermanent,
   hasKeyword,
   isPermanent,
   printedFormTypes,
@@ -258,6 +259,12 @@ export interface EffectContext {
    */
   readonly attackLabeled?: boolean;
   /**
+   * The ability's attack ignores guard (`EffectSpec attack.ignores`, `attackIgnoringOf`): every guard check read in
+   * this context waives guard (`canAttack`'s `ignoreGuard`), so its enemy may be chosen past a guard minion. Set by
+   * `contextOf` and by `abilityLacksValidTarget`.
+   */
+  readonly attackIgnoresGuard?: true;
+  /**
    * What this context may match inside a closed in-play scenario area (`closedScenarioPlayArea`,
    * docs/phase7-wave8.md §3.33): the area its ability declares (`AbilityDefinition.reaches`, `reachOf`), or `"all"`
    * for a read. A condition, a count and an event pattern are reads (§4.1 Q18 = A: "counting or watching them does
@@ -303,6 +310,35 @@ export const reachOf = (
   definition: AbilityDefinition | undefined,
 ): { readonly reaches?: { readonly scenarioPlayArea: string } } =>
   definition?.reaches ? { reaches: definition.reaches } : {};
+
+const IGNORES_GUARD = new WeakMap<AbilityDefinition, boolean>();
+
+/** Whether `value` holds an `attack` instruction marked "this attack ignores guard", anywhere inside it. */
+function holdsGuardIgnoringAttack(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(holdsGuardIgnoringAttack);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "attack" && Array.isArray(record.ignores) && record.ignores.includes("guard")) return true;
+  return Object.values(record).some(holdsGuardIgnoringAttack);
+}
+
+/**
+ * "This attack ignores guard" (`EffectSpec attack.ignores`) as a context field: spread into the context an ability's
+ * queries are read in, so the waiver covers the whole attack, from the choice of its enemy on (RRG 1.8 "Ignore", p. 23;
+ * "Guard", p. 21). It is the ability's: an "(attack)" ability is one attack (RRG 1.8 "Attack (Player Ability Type)",
+ * p. 10), so its other damage instructions are that attack and ignore guard with it. An unlabeled ability with an
+ * `attack` instruction marked so reads every attack it makes with the waiver too (interpretation: no card mixes an
+ * attack that ignores guard with one that does not in the same ability).
+ */
+export const attackIgnoringOf = (definition: AbilityDefinition | undefined): { readonly attackIgnoresGuard?: true } => {
+  if (definition === undefined) return {};
+  let ignores = IGNORES_GUARD.get(definition);
+  if (ignores === undefined) {
+    ignores = holdsGuardIgnoringAttack(definition.effects);
+    IGNORES_GUARD.set(definition, ignores);
+  }
+  return ignores ? { attackIgnoresGuard: true } : {};
+};
 
 /**
  * MC45 p. 5: "Cards in the mission area are in play but under no player's control. They cannot be affected by card
@@ -736,8 +772,15 @@ function traitsOfGuarded(
   reading: ReadonlySet<InstanceId>,
 ): readonly Trait[] {
   const traits = [...printedTraitsOf(state, id)];
+  // "Ignore one trait on one card until the end of the round" (`grantTraitUntil.loses`): RRG 1.8 "'Loses'" (p. 27), the
+  // card functions as if it does not have it, and no grant gives it back while that lasts.
+  let lost: Set<Trait> | null = null;
   for (const effect of state.lastingEffects) {
     if (effect.kind !== "traitGrant" || !lastingReaches(state, effect, id, deps)) continue;
+    if (effect.loses) {
+      (lost ??= new Set()).add(effect.trait);
+      continue;
+    }
     if (effect.trait !== undefined) {
       traits.push(effect.trait);
       continue;
@@ -775,7 +818,7 @@ function traitsOfGuarded(
       }
     }
   }
-  return traits;
+  return lost === null ? traits : traits.filter((trait) => !lost.has(trait));
 }
 
 /** The context a card's constant trait grants are read in (`traitsOfGuarded`, `traitGrantReach`). */
@@ -1112,6 +1155,8 @@ export function findCards(
   query: TargetQuery,
   context: EffectContext,
   owners: ReadonlySet<PlayerId> | null,
+  /** `EffectSpec findCard.anywhere`: also the areas a find does not reach, looked at last. */
+  anywhere = false,
 ): readonly FoundCard[] {
   const found: FoundCard[] = [];
   const seen = new Set<InstanceId>();
@@ -1145,6 +1190,17 @@ export function findCards(
   for (const deckId of state.encounterDeckOrder) look(state.encounterDecks[deckId]?.discard ?? []);
   for (const piles of Object.values(state.scenarioDecks)) look(piles.discard);
   for (const { zone, ids } of findDecks(state, context)) look(ids, zone);
+  if (anywhere) {
+    // "Search everywhere in or out of play" (`findCard.anywhere`; community pack `yondu-dh`'s Summon): what Find leaves
+    // out (RRG 1.8 "Find", p. 19, facedown encounter cards), and the areas outside the game's reach.
+    look(inPlay);
+    look(inPlay.flatMap((id) => getInstance(state, id)?.tucked ?? []));
+    look(inPlay.flatMap((id) => getInstance(state, id)?.attachments ?? []));
+    look(inPlay.flatMap((id) => getInstance(state, id)?.boostCards ?? []));
+    for (const player of players) look(player.dealtEncounter);
+    look(state.victoryDisplay);
+    look(state.removedFromGame);
+  }
   return found;
 }
 
@@ -1496,6 +1552,11 @@ export function explainQuery(
       });
     if (!prints) return "noSuchAbility";
   }
+  // "Cards with a PINK BUBBLE" (`hasTaggedAbility`): live abilities, as `abilityTiming` reads them.
+  if (query.hasTaggedAbility !== undefined) {
+    if (taggedAbilityCount(state, id, query.hasTaggedAbility, context.deps ?? DEFAULT_DEPS) === 0)
+      return "noSuchAbility";
+  }
   // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
@@ -1579,7 +1640,7 @@ export function explainQuery(
       if (formOnlyFault(state, id, forPlayer) !== null) return "cannotEnterPlay";
     }
   }
-  if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
+  if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id, context.controllerId)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
     if (printedResourcesOf(state, id, context.deps)[query.printedResource] <= 0) return "missingPrintedResource";
@@ -1674,7 +1735,8 @@ export function explainQuery(
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
-    if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
+    if (!attacker || !canAttack(state, attacker, id, context.deps, false, context.attackIgnoresGuard === true))
+      return "cannotBeAttacked";
   }
   if (query.canTakeAttackInProgress === "player") {
     const attack = playerAttackInProgress(state.stack);
@@ -2027,6 +2089,12 @@ export interface ActiveRule<K extends RuleSpec["kind"]> {
   readonly speakerId: PlayerId | null;
   /** A `ruleGrant` lasting effect's duration; absent for a constant ability's rule and a scenario's. */
   readonly lastingUntil?: LastingDuration;
+  /**
+   * The players who treat the rule's card as blank (`textBoxBlankedFor`, `EffectSpec blankTextBox.forPlayers`): the
+   * rule does not bind them. Only a constant ability's rule has it (a lasting rule outlives the card's text box, RRG
+   * 1.8 "Lasting Effects", p. 26); absent when nobody does. `rulePlayers` leaves them out; `ruleBindsPlayer` asks it.
+   */
+  readonly blankedFor?: readonly PlayerId[];
 }
 
 /**
@@ -2042,22 +2110,36 @@ export function activeRules<K extends RuleSpec["kind"]>(
   state: GameState,
   deps: EngineDeps,
   kind: K,
+  /**
+   * Read before a rule's `while`: a rule it refuses is skipped without evaluating its condition. A stat reader passes
+   * "this rule is about the stat being read", so a `while` that reads another stat does not recurse into this one.
+   */
+  only?: (rule: Extract<RuleSpec, { kind: K }>) => boolean,
 ): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
-  const record = (rule: RuleSpec, context: EffectContext, lastingUntil?: LastingDuration) => {
+  const record = (
+    rule: RuleSpec,
+    context: EffectContext,
+    lastingUntil?: LastingDuration,
+    blankedFor?: readonly PlayerId[],
+  ) => {
     found.push({
       rule: rule as Extract<RuleSpec, { kind: K }>,
       context,
       speakerId: context.controllerId,
       ...(lastingUntil ? { lastingUntil } : {}),
+      ...(blankedFor && blankedFor.length > 0 ? { blankedFor } : {}),
     });
   };
+  const perPlayerBlanks = anyPerPlayerBlank(state);
   for (const sourceId of constantSources(state, deps)) {
+    const blankedFor = perPlayerBlanks ? textBoxBlankedFor(state, sourceId, deps) : undefined;
     for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant") continue;
       for (const rule of definition.trigger.rules ?? []) {
         if (rule.kind !== kind) continue;
+        if (only && !only(rule as Extract<RuleSpec, { kind: K }>)) continue;
         // "You" is the card's speaker for the rule's `while` ("while you are in alter-ego form" on an obligation,
         // docs/phase7-wave6.md §3.58) and for every query and player ref its readers match.
         const context: EffectContext = {
@@ -2069,12 +2151,13 @@ export function activeRules<K extends RuleSpec["kind"]>(
           ...reachOf(definition),
         };
         if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
-        record(rule, context);
+        record(rule, context, undefined, blankedFor);
       }
     }
   }
   for (const effect of state.lastingEffects) {
     if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
+    if (only && !only(effect.rule as Extract<RuleSpec, { kind: K }>)) continue;
     const context = lastingContext(effect.scope, deps);
     if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
     record(effect.rule, context, effect.duration);
@@ -2082,6 +2165,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
   // Rules the scenario imposes without a card (`ScenarioRules.rules`, docs/phase7-wave4.md §3.40).
   for (const rule of state.scenarioRules.rules ?? []) {
     if (rule.kind !== kind) continue;
+    if (only && !only(rule as Extract<RuleSpec, { kind: K }>)) continue;
     const context: EffectContext = { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps };
     if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
     record(rule, context);
@@ -2281,12 +2365,19 @@ export function shownEncounterTop(state: GameState, deps: EngineDeps): InstanceI
   return encounterTopFaceup(state, deps) ? top : null;
 }
 
-/** The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`). */
+/**
+ * The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`), less any who
+ * treat the rule's card as blank (`ActiveRule.blankedFor`, a per-player blank).
+ */
 export const rulePlayers = (
   state: GameState,
   rule: { readonly player: PlayerRef },
-  active: Pick<ActiveRule<RuleSpec["kind"]>, "context">,
-): readonly PlayerId[] => resolvePlayers(state, rule.player, active.context);
+  active: Pick<ActiveRule<RuleSpec["kind"]>, "context" | "blankedFor">,
+): readonly PlayerId[] => {
+  const players = resolvePlayers(state, rule.player, active.context);
+  const blanked = active.blankedFor;
+  return blanked && blanked.length > 0 ? players.filter((playerId) => !blanked.includes(playerId)) : players;
+};
 
 const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps): boolean =>
   cardsInPlay(state).some(
@@ -2374,6 +2465,8 @@ export function canAttack(
   deps: EngineDeps = DEFAULT_DEPS,
   /** The attack is the attacker's basic attack, so a `cannotAttack` rule with `basicOnly` binds it (§3.72). */
   basic = false,
+  /** "This attack ignores guard" (`EffectSpec attack.ignores`): guard does not stop it; everything else still does. */
+  ignoreGuard = false,
 ): boolean {
   const controller = controllerOf(state, attackerId);
   // An attack by an enemy is nobody's attack: neither guard nor a player-scoped `cannotAttack` (an `attacker`-scoped
@@ -2384,7 +2477,7 @@ export function canAttack(
   // the attacker's controller cannot pay for is one they cannot attack (RRG 1.8 "Cost", p. 14).
   if (attackCostBars(state, deps, attackerId, targetId)) return false;
   if (!isVillain(state, targetId)) return true;
-  if (hasKeyword(state, targetId, "guard", deps)) return true;
+  if (ignoreGuard || hasKeyword(state, targetId, "guard", deps)) return true;
   if (characterIgnores(state, deps, attackerId, "guard")) return true;
   return !guardEngagedWith(state, controller, deps);
 }
@@ -2443,6 +2536,8 @@ function bindsAttacker(
   // "You cannot make basic attacks" (`basicOnly`, docs/phase7-wave9.md §3.72): only a basic attack is asked.
   if (active.rule.basicOnly === true && !basic) return false;
   if (attacker && !matchesQuery(state, attackerId, attacker, active.context)) return false;
+  // A player who treats the rule's card as blank is not bound by it (a per-player blank, `ActiveRule.blankedFor`).
+  if (!ruleBindsPlayer(active, attackerPlayerId)) return false;
   if (player && (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId))) {
     return false;
   }
@@ -3118,6 +3213,12 @@ export function resolveValue(
           total + (icon === "amplify" ? amplifyIconsInPlay(state, deps) : iconsInPlay(state, deps, icon)),
         0,
       );
+    case "taggedAbilities":
+      // "X equals the PINK BUBBLES you control": each tagged ability on each card in play the query matches.
+      return selectTargets(state, value.cards ?? {}, { ...context, deps }).reduce(
+        (total, id) => total + taggedAbilityCount(state, id, value.tag, deps),
+        0,
+      );
     case "mainSchemeStageNumber":
       return mainSchemeStage(state).stageNumber;
     case "boostIcons": {
@@ -3647,6 +3748,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
           : (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0);
       return played <= predicate.atMost;
     }
+    case "lastPlayedThisRound": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      if (playerId === undefined) return false;
+      const last = state.playedInOrderThisRound?.[playerId]?.at(-1);
+      return last !== undefined && matchesQuery(state, last, predicate.cards, context);
+    }
     case "compare": {
       const left = resolveValue(state, predicate.left, context);
       const right = resolveValue(state, predicate.right, context);
@@ -3773,6 +3880,35 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
  *    first `WeakMap` hit, so nothing that exists today pays anything at all.
  */
 const NO_BLANKED: ReadonlySet<InstanceId> = new Set<InstanceId>();
+
+/** The rule kinds the constant abilities of this registry carry. Memoized per registry object. */
+const REGISTRY_RULE_KINDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+
+function registryRuleKinds(deps: EngineDeps): ReadonlySet<string> {
+  const cached = REGISTRY_RULE_KINDS.get(deps);
+  if (cached) return cached;
+  const kinds = new Set<string>();
+  for (const definition of Object.values(deps.abilities)) {
+    if (definition.trigger.kind !== "constant") continue;
+    for (const rule of definition.trigger.rules ?? []) kinds.add(rule.kind);
+  }
+  REGISTRY_RULE_KINDS.set(deps, kinds);
+  return kinds;
+}
+
+/**
+ * Whether a rule of `kind` can be in force at all: a constant ability of the registry carries one, a `ruleGrant`
+ * lasting effect grants one, or the scenario imposes one. False lets a hot reader (every stat read, every resource
+ * generated) skip `activeRules`' scan of every card in play; a game whose cards never name the kind pays one set
+ * lookup and two short list walks.
+ */
+export function ruleKindMayApply(state: GameState, deps: EngineDeps, kind: RuleSpec["kind"]): boolean {
+  return (
+    registryRuleKinds(deps).has(kind) ||
+    state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && effect.rule.kind === kind) ||
+    (state.scenarioRules.rules ?? []).some((rule) => rule.kind === kind)
+  );
+}
 
 /** Ability ids in this registry that carry a constant `blankTextBox` rule. Memoized per registry object. */
 const BLANK_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
@@ -4091,6 +4227,8 @@ export function permanentProtectsFrom(
     const own = new Set(permanentSetKeys(state, card));
     if (permanentSetKeys(state, source).some((key) => own.has(key))) return false;
   }
+  // A lost Permanent protects nothing (RRG 1.8 "'Loses'", p. 27).
+  if (hasLostPermanent(state, id, deps)) return false;
   return (
     unblankedPrintedKeywordsOf(state, id).some((keyword) => keyword.name === "permanent") ||
     hasGrantedPermanent(state, id, deps)
@@ -4112,6 +4250,42 @@ export function refsLiveUnderLastingBlank(
 }
 
 /**
+ * The players who treat this card's printed text box as blank though the game does not (`EffectSpec blankTextBox
+ * .forPlayers`, Cemented's "each player who discarded a card this way may treat this card's printed text box as if it
+ * were blank"): each player a per-player blank on it names, unless the card cannot be blanked (§3.31 of wave 5) or its
+ * Permanent keyword stops that blank (§4.1 Q31), as for everyone's blank. Empty in every game with no such blank.
+ */
+export function textBoxBlankedFor(state: GameState, id: InstanceId, deps: EngineDeps): readonly PlayerId[] {
+  const players = new Set<PlayerId>();
+  for (const effect of state.lastingEffects) {
+    if (effect.kind !== "blankTextBox" || effect.forPlayers === undefined || !effect.targets.includes(id)) continue;
+    if (permanentProtectsFrom(state, id, effect.sourceCardId, deps)) continue;
+    for (const playerId of effect.forPlayers) players.add(playerId);
+  }
+  if (players.size === 0 || textBoxCannotBeBlanked(state, id, deps)) return [];
+  return [...players];
+}
+
+/** Whether this player treats this card's printed text box as blank: everyone's blank, or one for them alone. */
+export const textBoxBlankToPlayer = (state: GameState, id: InstanceId, playerId: PlayerId, deps: EngineDeps): boolean =>
+  textBoxBlankedFor(state, id, deps).includes(playerId) || textBoxBlankFor(state, id, deps);
+
+/** Whether any per-player blank is in force: the cheap guard the hot readers (`activeRules`) check first. */
+const anyPerPlayerBlank = (state: GameState): boolean =>
+  state.lastingEffects.some((effect) => effect.kind === "blankTextBox" && effect.forPlayers !== undefined);
+
+/**
+ * Whether a rule binds this player, as far as a per-player blank goes (`ActiveRule.blankedFor`): false when the player
+ * treats the rule's card as blank. The readers of rules that bind players with no `player` scope ask it ("Players
+ * cannot make basic attacks", `cannotAttack` with no `player`; `cannotFlip`; `cannotThwart`); a scoped rule's players
+ * already leave them out (`rulePlayers`).
+ */
+export const ruleBindsPlayer = (
+  active: Pick<ActiveRule<RuleSpec["kind"]>, "blankedFor">,
+  playerId: PlayerId | null,
+): boolean => playerId === null || !(active.blankedFor ?? []).includes(playerId);
+
+/**
  * Whether a lasting blank reaches this card right now: one targets it, the card does not print "cannot be treated as if
  * it were blank" (§3.31 of wave 5), and at least one such blank is from a card its Permanent keyword lets through.
  */
@@ -4120,6 +4294,7 @@ function lastingBlankReaches(state: GameState, id: InstanceId, deps: EngineDeps)
   return state.lastingEffects.some(
     (effect) =>
       effect.kind === "blankTextBox" &&
+      effect.forPlayers === undefined &&
       effect.targets.includes(id) &&
       !permanentProtectsFrom(state, id, effect.sourceCardId, deps),
   );
@@ -4162,6 +4337,19 @@ export function activeAbilityRefs(
       gained.findIndex((other) => other.abilityId === grant.abilityId) === index,
   );
   return extra.length === 0 ? printed : [...printed, ...extra.map((grant) => ({ id: grant.abilityId }))];
+}
+
+/**
+ * How many of the card's live abilities are tagged `tag` (`AbilityTriggerSpec special.tag`; custom content's "speech
+ * bubbles"), read as `activeAbilityRefs` reads them: `TargetQuery hasTaggedAbility`, `ValueSpec taggedAbilities`.
+ */
+export function taggedAbilityCount(state: GameState, id: InstanceId, tag: string, deps: EngineDeps): number {
+  let count = 0;
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    if (trigger?.kind === "special" && trigger.tag === tag) count++;
+  }
+  return count;
 }
 
 /** `activeAbilityRefs` less the abilities the card gains from rules: its live printed abilities. */
@@ -4491,6 +4679,20 @@ export function countsTowardHandSize(state: GameState, id: InstanceId, deps: Eng
   return !printedAbilityRefs(card).some((ref) => {
     const trigger = deps.abilities[ref.id]?.trigger;
     return trigger?.kind === "constant" && trigger.notCountedTowardHandSize === true;
+  });
+}
+
+/**
+ * "[This card] cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`; community pack `yondu-dh`,
+ * Yaka Arrow): whether the card prints it, read from the card wherever it is. The restriction binds only while the card is
+ * out of play: in play, effects attach and move it as any card (`canAttachTo`).
+ */
+export function attachedOnlyWhileInPlay(state: GameState, id: InstanceId, deps: EngineDeps): boolean {
+  const card = cardOf(state, id);
+  if (!card) return false;
+  return printedAbilityRefs(card).some((ref) => {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    return trigger?.kind === "constant" && trigger.attachedOnlyWhileInPlay === true;
   });
 }
 

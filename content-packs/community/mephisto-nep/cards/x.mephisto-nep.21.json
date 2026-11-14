@@ -1,0 +1,27 @@
+{
+  "id": "x.mephisto-nep.21",
+  "type": "treachery",
+  "name": "Rewrite History",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "28/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 3,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: Choose:\n• Discard your hand, shuffle your discard pile into your deck, draw up to your hand size, and ready your identity. Search the encounter deck and discard pile for a Bargain attachment. Attach it to your identity.\n• Mephisto schemes against you. Give him 2 additional boost cards for this activation.",
+    "current": "Peril.\nWhen Revealed: Choose:\n• Discard your hand, shuffle your discard pile into your deck, draw up to your hand size, and ready your identity. Search the encounter deck and discard pile for a Bargain attachment. Attach it to your identity.\n• Mephisto schemes against you. Give him 2 additional boost cards for this activation."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.21.when-revealed"
+    }
+  ]
+}

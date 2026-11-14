@@ -48,7 +48,8 @@
  */
 
 import { applyCommand, type Command, type EngineDeps, type GameEvent, type GameState } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
+import { poolViewOfPacks } from "../content/pool.js";
+import { gameDeps } from "../content/game-deps.js";
 import { rebuildBaseline } from "../engine/session-core.js";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
 
@@ -157,7 +158,7 @@ export class ReplayCursor {
     config: SessionConfig,
     storedInitialState: StateWithoutPool,
     commands: readonly Command[],
-    deps: EngineDeps = POOL_DEPS,
+    deps: EngineDeps = poolViewOfPacks(config.packs).deps,
     options: ReplayBuildOptions = {},
   ): ReplayCursor {
     const baseline = rebuildBaseline(config, storedInitialState);
@@ -173,7 +174,7 @@ export class ReplayCursor {
   static fromLog(
     initialState: GameState,
     commands: readonly Command[],
-    deps: EngineDeps = POOL_DEPS,
+    deps: EngineDeps = gameDeps(),
     options: ReplayBuildOptions = {},
   ): ReplayCursor {
     return ReplayCursor.#build(initialState, [], commands, deps, options);

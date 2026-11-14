@@ -1,0 +1,35 @@
+{
+  "name": "@mc/mod-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The mod SDK for custom content packs: the pack schema, the ability DSL, and the mc-pack validate, build, test and import-marvelcdb tools (docs/custom-content-packs.md §11.2).",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./build": "./src/build.ts",
+    "./game": "./src/game.ts",
+    "./import": "./src/import-marvelcdb.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.npm.json --noEmit",
+    "mc-pack": "jiti src/bin.ts",
+    "build:dist": "node scripts/build-npm.mjs",
+    "smoke:dist": "node scripts/smoke-npm.mjs"
+  },
+  "dependencies": {
+    "@mc/cards": "workspace:*",
+    "@mc/content": "workspace:*",
+    "@mc/engine": "workspace:*",
+    "fflate": "^0.8.3",
+    "jiti": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2"
+  }
+}

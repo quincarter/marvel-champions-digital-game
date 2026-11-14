@@ -47,13 +47,13 @@ async function defendWithPad(page: Page): Promise<void> {
  * One move of the phase for a player with a pad: A on whatever control the panel is waiting on (START, ANSWER, Next card,
  * Flip, an interrupt's Use), the defend panel by D-pad, and the mouse for a choice sheet this spec is not about.
  */
-async function stepPhase(page: Page): Promise<void> {
+async function stepPhase(page: Page, skip: readonly string[] = []): Promise<void> {
   if (await villainDebugRect(page, "confirmRect")) {
     await defendWithPad(page);
     return;
   }
   for (const name of ["startRect", "answerRect", "nextRect", "flipRect", "resolveRect"]) {
-    if (await villainDebugRect(page, name)) {
+    if (!skip.includes(name) && (await villainDebugRect(page, name))) {
       await pressA(page);
       return;
     }
@@ -220,7 +220,6 @@ test("Flip Encounter Card and Next card each wear A, and A presses them", async 
   while (Date.now() < deadline) {
     if (await continueRect(page)) break;
     const flip = await villainDebugRect(page, "flipRect");
-    const next = await villainDebugRect(page, "nextRect");
     if (flip) {
       sawFlip = true;
       // The mouse or the keys answered a sheet on the way here: a pad press says a pad is in use again.
@@ -231,7 +230,12 @@ test("Flip Encounter Card and Next card each wear A, and A presses them", async 
         flipShot = true;
         await page.screenshot({ path: "../../artifacts/qa/vp-flip-pad.png" });
       }
-    } else if (next) {
+    }
+    // Read Next card after the flip branch: on a loaded machine the flip press lands late, and the card is held on
+    // Next card by the time that branch settles. Pressing A without looking again would press Next card unseen
+    // (stepPhase tries nextRect first) and the spec would never see the hold it is about.
+    const next = await villainDebugRect(page, "nextRect");
+    if (next) {
       sawNext = true;
       await padWake(page);
       await settle(page, { quietMs: 300, maxMs: 1500 });
@@ -241,7 +245,8 @@ test("Flip Encounter Card and Next card each wear A, and A presses them", async 
         await page.screenshot({ path: "../../artifacts/qa/vp-next-pad.png" });
       }
     }
-    await stepPhase(page);
+    if (flip || next) await pressA(page);
+    else await stepPhase(page, ["nextRect", "flipRect"]);
   }
   expect(sawFlip, "the reveal stopped on a facedown card").toBe(true);
   expect(sawNext, "the reveal held on a card").toBe(true);

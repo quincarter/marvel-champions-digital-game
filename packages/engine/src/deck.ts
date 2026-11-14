@@ -29,6 +29,7 @@ import type {
   AbilityReference,
   AnyCard,
   CardId,
+  CardType,
   CoreAspect,
   DeckCardEntry,
   DeckContents,
@@ -499,16 +500,25 @@ const matchesOffAspectPackage = (card: PlayerCard, p: { readonly cardType: strin
  * "Printed", p. 35).
  */
 const matchesOffAspectAllowance = (card: PlayerCard, allowance: OffAspectAllowance): boolean =>
-  card.type === allowance.cardType &&
+  (allowance.cardType === undefined ||
+    (typeof allowance.cardType === "string"
+      ? card.type === allowance.cardType
+      : allowance.cardType.includes(card.type as CardType))) &&
   (allowance.anyTrait === undefined || allowance.anyTrait.some((wanted) => card.traits.includes(wanted))) &&
   (allowance.printedResource === undefined || printedResources(card)[allowance.printedResource] > 0);
+
+/** "event", "event or upgrade", or "player" for an allowance with no card type (any type). */
+const allowanceTypes = (allowance: OffAspectAllowance): string => {
+  const types = allowance.cardType === undefined ? [] : [allowance.cardType].flat();
+  return types.length === 0 ? "player" : types.map((type) => type.replace(/_/g, " ")).join(" or ");
+};
 
 /**
  * The cards an allowance names, as a problem message says them: "ATTACK and/or THWART event cards", "event cards with
  * a printed energy resource".
  */
 const allowanceKind = (allowance: OffAspectAllowance): string =>
-  `${allowance.anyTrait ? `${allowance.anyTrait.join(" and/or ")} ` : ""}${allowance.cardType.replace(/_/g, " ")} cards${
+  `${allowance.anyTrait ? `${allowance.anyTrait.join(" and/or ")} ` : ""}${allowanceTypes(allowance)} cards${
     allowance.printedResource ? ` with a printed ${allowance.printedResource} resource` : ""
   }`;
 

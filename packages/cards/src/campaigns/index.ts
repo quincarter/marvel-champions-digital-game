@@ -27,6 +27,8 @@ export {
   AOA_PROTECT_THE_PROFESSOR,
 } from "./aoa.js";
 export { AOS_CAMPAIGN_DEFINITION } from "./aos.js";
+export { campaignDefinitionProblems, campaignInstructionsOf, cardIdsIn, fieldsIn, opsOfKind } from "./structure.js";
+export type { CampaignCheckContext } from "./structure.js";
 export { cardsOfComposedSets } from "./composed-sets.js";
 export { campaignModularPickProblem } from "./modular-picks.js";
 export { FNE_CAMPAIGN_DEFINITION } from "./fne.js";

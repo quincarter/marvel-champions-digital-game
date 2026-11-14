@@ -271,22 +271,49 @@ export class ExtrasScene extends Phaser.Scene {
     // The Trophy Room, Art & Credits and Open a replay doors: beside the tabs on a wide screen, on a row of their own
     // above them on a phone.
     const doorWidth = 150;
-    // Narrower than the other two on a wide screen, so the tabs keep their room.
+    // The replay door is narrower than the other three beside the tabs, so the tabs keep their room.
     const replayDoorWidth = 110;
+    const trophyWidth = doorWidth * 3 + replayDoorWidth + 24;
     const rowGap = 8;
-    const trophyWidth = doorWidth * 2 + replayDoorWidth + rowGap * 2;
-    // A tablet, or any screen too narrow for the tabs and three doors side by side, puts the doors on their own row.
-    const doorsRow = phone || width < 1600;
-    const phoneDoor = (width - gutter * 2 - rowGap * 2) / 3;
-    const trophyRect: Rect = doorsRow
-      ? { x: gutter, y: bar.height + 10, width: phoneDoor, height: hit.target }
+    // Four doors beside the tab strip leave it too narrow to print every tab's label whole at some widths (measured, not
+    // guessed): then the doors take rows of their own above it, four across, or two by two on a phone.
+    const tabs = extrasTabsOf(current);
+    const widestTab = Math.max(
+      ...tabs.map((tab) => {
+        const probe = this.add.text(
+          0,
+          0,
+          (phone ? tab.name : tab.label).toUpperCase(),
+          textStyle(typeRole.label, surface.ink.hex),
+        );
+        const w = probe.width;
+        probe.destroy();
+        return w;
+      }),
+    );
+    const besideTabsWidth = width - gutter * 2 - trophyWidth - 12;
+    const stackDoors = phone || besideTabsWidth / tabs.length < widestTab + 24;
+    const perRow = phone ? 2 : 4;
+    const doorW = stackDoors ? (width - gutter * 2 - rowGap * (perRow - 1)) / perRow : doorWidth;
+    const stacked = (index: number): Rect => ({
+      x: gutter + (index % perRow) * (doorW + rowGap),
+      y: bar.height + 10 + Math.floor(index / perRow) * (hit.target + rowGap),
+      width: doorW,
+      height: hit.target,
+    });
+    const trophyRect: Rect = stackDoors
+      ? stacked(0)
       : { x: width - gutter - doorWidth, y: bar.height + 12, width: doorWidth, height: TAB_HEIGHT };
-    const creditsRect: Rect = doorsRow
-      ? { ...trophyRect, x: trophyRect.x + trophyRect.width + rowGap }
-      : { ...trophyRect, x: trophyRect.x - doorWidth - rowGap };
-    const replayRect: Rect = doorsRow
-      ? { ...trophyRect, x: creditsRect.x + creditsRect.width + rowGap }
-      : { ...trophyRect, x: creditsRect.x - replayDoorWidth - rowGap, width: replayDoorWidth };
+    const creditsRect: Rect = stackDoors ? stacked(1) : { ...trophyRect, x: trophyRect.x - doorWidth - rowGap };
+    const storeRect: Rect = stackDoors ? stacked(2) : { ...trophyRect, x: creditsRect.x - doorWidth - rowGap };
+    const replayRect: Rect = stackDoors
+      ? stacked(3)
+      : { ...trophyRect, x: storeRect.x - replayDoorWidth - rowGap, width: replayDoorWidth };
+    const doorsBottom = Math.max(trophyRect.y + trophyRect.height, replayRect.y + replayRect.height);
+    const openStore = (): void => {
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.modStore);
+    };
     const openTrophies = (): void => {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.trophyRoom);
@@ -313,6 +340,13 @@ export class ExtrasScene extends Phaser.Scene {
       }),
       new McButton(this, {
         kind: "secondary",
+        label: phone ? "Mods (Beta) ▸" : "Mod Store (Beta) ▸",
+        type: typeRole.label,
+        rect: storeRect,
+        onClick: openStore,
+      }),
+      new McButton(this, {
+        kind: "secondary",
         label: `${t(phone ? "replay.title" : "title.openReplay")} ▸`,
         type: typeRole.label,
         rect: replayRect,
@@ -321,11 +355,11 @@ export class ExtrasScene extends Phaser.Scene {
     );
     stops.set("trophies", { rect: trophyRect, activate: openTrophies });
     stops.set("credits", { rect: creditsRect, activate: openCredits });
+    stops.set("modStore", { rect: storeRect, activate: openStore });
     stops.set("replay", { rect: replayRect, activate: openReplayFile });
 
-    const tabs = extrasTabsOf(current);
-    const tabRect: Rect = doorsRow
-      ? { x: gutter, y: trophyRect.y + trophyRect.height + 8, width: width - gutter * 2, height: TAB_HEIGHT }
+    const tabRect: Rect = stackDoors
+      ? { x: gutter, y: doorsBottom + 8, width: width - gutter * 2, height: TAB_HEIGHT }
       : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };
     this.#tabs = new McTabs(this, {
       rect: tabRect,
@@ -340,7 +374,7 @@ export class ExtrasScene extends Phaser.Scene {
       ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 11 }),
       { avoidObstacles: true },
     );
-    this.#obstacles.push(trophyRect, creditsRect, replayRect, tabRect);
+    this.#obstacles.push(trophyRect, creditsRect, storeRect, replayRect, tabRect);
     if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {
@@ -396,6 +430,7 @@ export class ExtrasScene extends Phaser.Scene {
         const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
         if (index !== null) this.#activate(tiles[index]!);
       },
+      rowPressableAt: (rowIndex, pointer) => extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
     });
     this.#list = list;
     this.#promoTiles =
@@ -423,6 +458,7 @@ export class ExtrasScene extends Phaser.Scene {
       ...(bar.backRect ? ["back"] : []),
       "trophies",
       "credits",
+      "modStore",
       "replay",
       ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
       ...playerStops,

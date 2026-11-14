@@ -1,0 +1,29 @@
+{
+  "id": "x.punisher-pk.06",
+  "name": "David \"Micro\" Lieberman",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "6",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "attachment",
+  "attachesTo": {
+    "kind": "villain"
+  },
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 0,
+  "traits": ["PERSONA"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to the villain.\nForced Response: After a minion is defeated by The Punisher, place 1 threat on the main scheme and 1 war counter on War on Crime.\nAction: Spend [energy][mental][physical] resources → discard this card.",
+    "current": "Attach to the villain.\nForced Response: After a minion is defeated by The Punisher, place 1 threat on the main scheme and 1 war counter on War on Crime.\nAction: Spend [energy][mental][physical] resources → discard this card."
+  },
+  "abilities": [
+    {
+      "id": "x.punisher-pk.06.david-micro-lieberman-forced-response"
+    },
+    {
+      "id": "x.punisher-pk.06.david-micro-lieberman-action"
+    }
+  ]
+}

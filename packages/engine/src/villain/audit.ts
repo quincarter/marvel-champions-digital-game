@@ -215,6 +215,8 @@ class PhaseTracker {
   private villainAttacksAndSchemes = 0;
   private villainBoosts = 0;
   private readonly unflippedBoosts = new Set<InstanceId>();
+  /** Enemies whose activation a boost card's "Boost" ability just cancelled (`activationCancelled`), until its line. */
+  private readonly cancelledByBoost = new Set<InstanceId>();
   private dealAtStep: { readonly players: readonly PlayerId[]; readonly hazards: number } | null = null;
   /** Between `villainStepStarting`'s initiation and its end: step three has not begun to deal. */
   private beforeStepDeal = false;
@@ -284,7 +286,11 @@ class PhaseTracker {
           // "That attack does not get a boost card".
           trigger.noBoost !== true;
         // An attack or scheme canceled at its interrupt window never happened, so it deals no boost card.
-        if (event.phase === "cancelled" && villainActs) this.villainAttacksAndSchemes--;
+        const byBoost =
+          event.phase === "cancelled" &&
+          (trigger.kind === "enemyAttack" || trigger.kind === "enemyScheme") &&
+          this.cancelledByBoost.delete(trigger.enemyInstanceId);
+        if (event.phase === "cancelled" && villainActs && !byBoost) this.villainAttacksAndSchemes--;
         // "At the start of step three" (docs/phase7-wave6.md §3.61): what its interrupts deal is not the step's deal, and
         // the step deals for the players and hazard icons there are once they have resolved.
         if (trigger.kind === "villainStepStarting") {
@@ -367,6 +373,18 @@ class PhaseTracker {
         // Moved by card text from a card that holds it to an enemy (docs/phase7-wave5.md §3.6): it now waits there.
         const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);
         if (record) record.enemyInstanceId = event.toInstanceId;
+        return;
+      }
+      case "activationCancelled": {
+        // Cancelled by its own boost card's "Boost" ability (`cancelBoostedActivation`): unlike one cancelled in its
+        // interrupt window it was dealt its boost cards, so its coming "cancelled" line must not take it off the count.
+        this.cancelledByBoost.add(event.enemyInstanceId);
+        // Its boost cards still facedown were discarded unturned: settled, adding 0.
+        for (const id of event.discardedBoostCards) {
+          if (!this.unflippedBoosts.delete(id)) continue;
+          const record = this.boostCards.find((b) => b.instanceId === id && b.boostIcons === null);
+          if (record) record.boostIcons = 0;
+        }
         return;
       }
       case "boostCancelled": {

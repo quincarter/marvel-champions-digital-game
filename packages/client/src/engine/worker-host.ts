@@ -7,6 +7,7 @@
  * The main thread stays free, so tweens keep running while a command is applied.
  */
 
+import { withLoadedPacks } from "../packs/game-packs.js";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import type { SaveMeta } from "./game-storage.js";
 import type {
@@ -51,7 +52,7 @@ export class WorkerEngineHost implements EngineHost {
   }
 
   start(config: SessionConfig): Promise<EngineUpdate> {
-    return this.#begin({ kind: "start", id: this.#id(), config });
+    return this.#begin({ kind: "start", id: this.#id(), config: withLoadedPacks(config) });
   }
 
   resume(gameId: string): Promise<EngineUpdate> {

@@ -43,11 +43,11 @@
  *
  * Pure: no storage, no Phaser. `progression.ts` owns the cache and the saved preferences.
  */
-import type { Scenario } from "@mc/content";
+import { isCustomCardCode, type Scenario } from "@mc/content";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
-import { isLessonSave } from "../engine/game-storage.js";
+import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
 
 /** What a win is worth, and what opening something by hand costs. */
 export const POINTS = {
@@ -336,16 +336,19 @@ export function progressOf(
       readonly scenarioId: string;
       readonly difficulty?: string;
       readonly modes?: { readonly skirmish?: unknown };
+      readonly packs?: readonly unknown[];
     };
   }[],
   campaigns: readonly {
     readonly status: string;
     readonly campaignId: string;
+    /** Set for a run of a pack's campaign: custom content earns nothing here. */
+    readonly pack?: unknown;
     readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean } };
   }[],
 ): UnlockProgress {
-  const wonSaves = saves.filter((s) => s.status === "won" && !isLessonSave(s));
-  const wonCampaigns = campaigns.filter((c) => c.status === "won");
+  const wonSaves = saves.filter((s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s));
+  const wonCampaigns = campaigns.filter((c) => c.status === "won" && c.pack === undefined);
   return {
     wonScenarioIds: unique(wonSaves.map((s) => s.config.scenarioId)),
     // A Skirmish game is shorter: a win, but not an Expert win.
@@ -594,6 +597,8 @@ export class Unlocks {
 
   /** Null when the hero may sit at a table; otherwise what opens it. */
   heroLock(identityCardId: string): string | null {
+    // An installed custom pack's hero is not on the unlock path: it seats whenever the pack is installed.
+    if (isCustomCardCode(identityCardId)) return null;
     if (this.heroEarned(identityCardId) || this.heroManual(identityCardId)) return null;
     const waveLock = this.waveLock(heroCycleOf(identityCardId));
     if (waveLock) return waveLock;

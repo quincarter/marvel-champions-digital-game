@@ -1,0 +1,34 @@
+{
+  "id": "x.night-thrasher-dh.16",
+  "name": "Cosmic Ax",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "16",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "attachment",
+  "attachesTo": {
+    "kind": "namedCard",
+    "name": "Terrax the Tamer"
+  },
+  "statModifiers": {
+    "atk": 2
+  },
+  "encounterSetIds": ["night-thrasher-dh-nemesis"],
+  "boostIcons": 2,
+  "starIcon": true,
+  "traits": ["WEAPON"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to Terrax the Tamer. If you cannot, discard the top 8 cards of the encounter deck. If Terrax the Tamer was discarded this way, reveal him and attach Cosmic Ax to him.\n[star] Boost: If Terrax the Tamer is in play, reveal this card.",
+    "current": "Attach to Terrax the Tamer. If you cannot, discard the top 8 cards of the encounter deck. If Terrax the Tamer was discarded this way, reveal him and attach Cosmic Ax to him.\n[star] Boost: If Terrax the Tamer is in play, reveal this card."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.16.cosmic-ax-constant"
+    },
+    {
+      "id": "x.night-thrasher-dh.16.boost"
+    }
+  ]
+}

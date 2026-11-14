@@ -40,6 +40,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.campaignFrozenDeck]: () => import("./campaign/frozen-deck.js").then((m) => m.CampaignFrozenDeckScene),
   [SCENES.extras]: () => import("./extras.js").then((m) => m.ExtrasScene),
   [SCENES.credits]: () => import("./credits.js").then((m) => m.CreditsScene),
+  [SCENES.modStore]: () => import("./mod-store.js").then((m) => m.ModStoreScene),
   [SCENES.trophyRoom]: () => import("./trophy-room.js").then((m) => m.TrophyRoomScene),
   [SCENES.playerStats]: () => import("./player-stats.js").then((m) => m.PlayerStatsScene),
   [SCENES.extrasReader]: () => import("./extras-reader.js").then((m) => m.ExtrasReaderScene),
@@ -76,6 +77,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.syncPrompt]: () => import("./sync-prompt.js").then((m) => m.SyncPromptScene),
   [SCENES.gamesList]: () => import("./games-list.js").then((m) => m.GamesListOverlay),
   [SCENES.endTurnConfirm]: () => import("./end-turn-confirm.js").then((m) => m.EndTurnConfirmOverlay),
+  [SCENES.modNotice]: () => import("./mod-notice.js").then((m) => m.ModNoticeOverlay),
   [SCENES.optionNotice]: () => import("./option-notice.js").then((m) => m.OptionNoticeOverlay),
   [SCENES.tutorialResumeConfirm]: () =>
     import("./tutorial-resume-confirm.js").then((m) => m.TutorialResumeConfirmOverlay),

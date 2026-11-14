@@ -1,0 +1,32 @@
+{
+  "id": "x.mephisto-nep.14",
+  "type": "side_scheme",
+  "name": "Exposing Intentions",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "18/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "traits": [],
+  "keywords": [],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 3
+  },
+  "icons": [],
+  "boostIcons": 3,
+  "text": {
+    "printed": "Forced Interrupt: When a card is put into Damnation from a player's deck, put 1 additional card into Damnation from that player's deck.\nWhen Defeated: Each player looks at each card in Damnation, then shuffles 1[per_hero] card looked at this way back into their owner's deck. Shuffle the Damnation area.",
+    "current": "Forced Interrupt: When a card is put into Damnation from a player's deck, put 1 additional card into Damnation from that player's deck.\nWhen Defeated: Each player looks at each card in Damnation, then shuffles 1[per_hero] card looked at this way back into their owner's deck. Shuffle the Damnation area."
+  },
+  "flavor": "Mephisto always has something to gain, even when a deal seems mutually one-sided.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.14.forced-interrupt"
+    },
+    {
+      "id": "x.mephisto-nep.14.when-defeated"
+    }
+  ]
+}

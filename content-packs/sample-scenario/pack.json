@@ -1,0 +1,10 @@
+{
+  "id": "sample-scenario",
+  "version": "1.0.0",
+  "kind": "scenario",
+  "name": "The Clockmaker",
+  "authors": ["Marvel Champions Digital contributors"],
+  "description": "A small original scenario pack: a two-stage villain, a two-stage main scheme, its own encounter set and a modular set, using only existing engine primitives.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": { "app": ">=0.1.0", "packs": [] }
+}

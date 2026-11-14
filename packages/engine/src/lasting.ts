@@ -198,12 +198,22 @@ export type LastingEffectBody =
    * revises wave 6 Q28), whatever happens to Touched; a `copiedFrom` card that has left play gives nothing and the
    * effect ends (`targetLeftPlay`). `LastingEffect.whileAttached` remains as a generic, optional extra bound.
    */
-  | (LastingReach & { readonly kind: "traitGrant"; readonly scope: LastingScope } & (
-        | { readonly trait: Trait; readonly copiedFrom?: undefined }
-        | { readonly trait?: undefined; readonly copiedFrom: readonly InstanceId[] }
+  | (LastingReach & { readonly kind: "traitGrant"; readonly scope: LastingScope } &
+      /** `loses`: the trait is lost instead (`EffectSpec grantTraitUntil.loses`). */
+      (
+        | { readonly trait: Trait; readonly copiedFrom?: undefined; readonly loses?: true }
+        | { readonly trait?: undefined; readonly copiedFrom: readonly InstanceId[]; readonly loses?: undefined }
       ))
-  /** "She gains retaliate 1 until the end of the phase" (docs/phase7-wave4.md §3.39). */
-  | (LastingReach & { readonly kind: "keywordGrant"; readonly keyword: KeywordInstance; readonly scope: LastingScope })
+  /**
+   * "She gains retaliate 1 until the end of the phase" (docs/phase7-wave4.md §3.39). `loses`: the keyword is lost
+   * instead (`EffectSpec grantKeywordUntil.loses`).
+   */
+  | (LastingReach & {
+      readonly kind: "keywordGrant";
+      readonly keyword: KeywordInstance;
+      readonly scope: LastingScope;
+      readonly loses?: true;
+    })
   /**
    * "Treat this card's printed text box as if it were blank" (`textBoxBlank`). `sourceCardId` is the card whose effect
    * made the blank (the resolving ability's own card), which the Permanent keyword's protection compares sets with
@@ -215,6 +225,11 @@ export type LastingEffectBody =
       readonly kind: "blankTextBox";
       readonly targets: readonly InstanceId[];
       readonly sourceCardId?: CardId;
+      /**
+       * A blank for these players only (`EffectSpec blankTextBox.forPlayers`): the card is not blank to the game, only
+       * to them (`textBoxBlankFor`). Absent: everyone's blank (`textBoxBlank`).
+       */
+      readonly forPlayers?: readonly PlayerId[];
       /** As `LastingReach.leftPlay`. */
       readonly leftPlay?: readonly InstanceId[];
     }

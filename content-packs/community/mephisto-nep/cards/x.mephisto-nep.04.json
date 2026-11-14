@@ -1,0 +1,30 @@
+{
+  "id": "x.mephisto-nep.04",
+  "type": "attachment",
+  "name": "Hell Lord",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "8/28",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "attachesTo": {
+    "kind": "namedVillain",
+    "name": "Mephisto"
+  },
+  "boostIcons": 0,
+  "traits": ["TITLE"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to Mephisto.\nReduce the amount of damage Mephisto takes from identities by 1 for each Bargain attachment they control.\nForced Response: After an identity with a Bargain attachment attacks Mephisto, for each Bargain attachment they control, look at 1 card in Damnation → shuffle each card looked at this way back into its owner's deck.",
+    "current": "Attach to Mephisto.\nReduce the amount of damage Mephisto takes from identities by 1 for each Bargain attachment they control.\nForced Response: After an identity with a Bargain attachment attacks Mephisto, for each Bargain attachment they control, look at 1 card in Damnation → shuffle each card looked at this way back into its owner's deck."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.04.hell-lord-constant"
+    },
+    {
+      "id": "x.mephisto-nep.04.forced-response"
+    }
+  ]
+}

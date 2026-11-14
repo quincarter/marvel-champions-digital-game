@@ -10,7 +10,7 @@
  * stops, for the screen to say so.
  */
 import { applyCommand, type Command, type EngineDeps, type GameOutcome, type GameState } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
+import { poolViewOfPacks } from "../content/pool.js";
 import { emptyRecord, recordEvents, type GameRecord } from "../engine/game-record.js";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
 import { inVillainPhase, sealedEventStates, stripSealedPool, type Snapshot } from "../engine/session-core.js";
@@ -100,8 +100,10 @@ export class ReplaySession {
    * Rebuilds the game. Throws (a `SetupError`) only when its scenario can no longer be set up at all; a log whose
    * commands stop applying part way is opened up to there.
    */
-  static open(source: ReplaySource, here: ReplayWriter, deps: EngineDeps = POOL_DEPS): ReplaySession {
+  static open(source: ReplaySource, here: ReplayWriter, given?: EngineDeps): ReplaySession {
     const log: ReplayLog = source.kind === "file" ? source.file : source.log;
+    // A game with custom packs plays with their cards and scripts, which its config carries (`SessionConfig.packs`).
+    const deps = given ?? poolViewOfPacks(log.config.packs).deps;
     const writer = source.kind === "file" ? source.file.writer : here;
     const check = source.kind === "file" ? new ChecksumCheck(source.file.checksums) : null;
     const written = source.kind === "log" ? new ChecksumWriter() : null;

@@ -1,0 +1,30 @@
+{
+  "id": "x.night-thrasher-dh.08",
+  "name": "The Mancave",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "support",
+  "cost": 2,
+  "resourceIcons": {
+    "wild": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["LOCATION"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Alter-Ego Response: After you change form, heal 1 damage from your identity.\nHero Response: After you change form, reduce the resource cost of the next SKILL card you play this turn by 1.",
+    "current": "Alter-Ego Response: After you change form, heal 1 damage from your identity.\nHero Response: After you change form, reduce the resource cost of the next SKILL card you play this turn by 1."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.08.the-mancave-response"
+    },
+    {
+      "id": "x.night-thrasher-dh.08.the-mancave-hero-response"
+    }
+  ]
+}

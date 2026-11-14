@@ -1,0 +1,27 @@
+{
+  "id": "x.yondu-dh.08",
+  "name": "Ravager Redshirts",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "support",
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": [],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Interrupt: When you would take any amount of damage from an enemy with the Yaka Arrow upgrade attached, exhaust Ravager Redshirts → prevent up to 2 of that damage.",
+    "current": "Hero Interrupt: When you would take any amount of damage from an enemy with the Yaka Arrow upgrade attached, exhaust Ravager Redshirts → prevent up to 2 of that damage."
+  },
+  "abilities": [
+    {
+      "id": "x.yondu-dh.08.ravager-redshirts-interrupt"
+    }
+  ]
+}

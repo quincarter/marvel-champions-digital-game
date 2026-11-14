@@ -185,6 +185,50 @@ describe("an allowance with no trait list (card type only)", () => {
 });
 
 /**
+ * A card type list, or no card type at all (a community hero's "up to 4 Skill cards of other aspects"): the allowance
+ * reads the traits alone, whatever the type.
+ */
+describe("an allowance with a card type list or no card type", () => {
+  const offAspect = (type: PlayerCard["type"], withTrait: boolean): PlayerCard => {
+    const found = CORE_CARDS.find(
+      (card): card is PlayerCard =>
+        isPlayer(card) &&
+        card.type === type &&
+        card.aspect === "aggression" &&
+        card.traits.includes(ATTACK) === withTrait,
+    );
+    if (!found) throw new Error(`no Core Aggression ${type}`);
+    return found;
+  };
+  const ANY_ATTACK: IdentityDeckbuilding = { offAspectAllowance: { anyTrait: [ATTACK], maxCards: 4 } };
+
+  it("with no card type, an off-aspect card of any type with the trait is legal and the rest are refused", () => {
+    const attackEvent = offAspect("event", true);
+    const deck = withCards(starter(), [{ cardId: attackEvent.id, quantity: 1 }]);
+    expect(problemsOf(deck, spiderManWith(ANY_ATTACK))).toEqual([]);
+    const plain = offAspect("event", false);
+    const refused = problemsOf(withCards(starter(), [{ cardId: plain.id, quantity: 1 }]), spiderManWith(ANY_ATTACK));
+    expect(refused.some((p) => p.code === "aspect_restriction")).toBe(true);
+  });
+
+  it("a list of card types lets in each of them and no other", () => {
+    const listed: IdentityDeckbuilding = { offAspectAllowance: { cardType: ["support", "event"] } };
+    const support = CORE_CARDS.find(
+      (card): card is PlayerCard => isPlayer(card) && card.type === "support" && card.aspect === "aggression",
+    );
+    const upgrade = CORE_CARDS.find(
+      (card): card is PlayerCard => isPlayer(card) && card.type === "upgrade" && card.aspect === "aggression",
+    );
+    if (!support || !upgrade) throw new Error("Core lacks an Aggression support or upgrade");
+    const event = offAspect("event", true);
+    for (const legal of [support, event])
+      expect(problemsOf(withCards(starter(), [{ cardId: legal.id, quantity: 1 }]), spiderManWith(listed))).toEqual([]);
+    const refused = problemsOf(withCards(starter(), [{ cardId: upgrade.id, quantity: 1 }]), spiderManWith(listed));
+    expect(refused.some((p) => p.code === "aspect_restriction")).toBe(true);
+  });
+});
+
+/**
  * docs/phase7-wave10-hero-packs.md §H3.15: `OffAspectAllowance.printedResource`. Simon Williams (`wonder_man` 58001b),
  * Ionic Energy Being: "You may include events with a printed [energy] resource icon from any aspect in your deck."
  * Spider-Man and Core's Aggression cards stand in; the real identity is tested in `@mc/cards`

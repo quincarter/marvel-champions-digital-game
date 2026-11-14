@@ -1,0 +1,28 @@
+{
+  "id": "x.carnage-nep.18",
+  "name": "Closing the Loops",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "18",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["carnage-nep-nemesis"],
+  "boostIcons": 1,
+  "starIcon": true,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Torment attacks you (even in alter-ego form). If no attack was made this way, this card gains surge.\n[star] Boost: This card gets +1 boost icon ([boost]) if you have more than 2 classifications in play (identity-specific, aspect, or basic).",
+    "current": "When Revealed: Torment attacks you (even in alter-ego form). If no attack was made this way, this card gains surge.\n[star] Boost: This card gets +1 boost icon ([boost]) if you have more than 2 classifications in play (identity-specific, aspect, or basic)."
+  },
+  "flavor": "\"I could finish you off now, but the spirals aren't tight enough.\" —Torment",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.18.when-revealed"
+    },
+    {
+      "id": "x.carnage-nep.18.boost"
+    }
+  ]
+}

@@ -29,7 +29,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { gameEncounterSetName } from "../content/game-deps.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { facedownRoleName, facedownUntilLater } from "./facedown-history.js";
 import { foeWord } from "./foe-words.js";
@@ -591,6 +591,15 @@ function describe(
         text: `No boost card is dealt for ${card(event.enemyInstanceId)}'s ${event.activation}.`,
         voice: "villain",
       };
+    // A boost card's "Boost: … cancel this activation" (mephisto-nep Blackheart): say why no damage or threat followed.
+    case "activationCancelled": {
+      const others = event.discardedBoostCards.filter((id) => id !== event.byInstanceId).length;
+      const rest = others === 0 ? "" : ` ${others} other boost card${others === 1 ? " is" : "s are"} discarded.`;
+      return {
+        text: `${card(event.byInstanceId)} cancels ${card(event.enemyInstanceId)}'s ${event.activation}.${rest}`,
+        voice: "villain",
+      };
+    }
     // §3.34: the activation never began.
     case "activationBlocked":
       return {
@@ -773,6 +782,22 @@ function describe(
               ? `${card(event.instanceId)} is discarded instead of being turned faceup.`
               : `${card(event.instanceId)}'s boost icons are cancelled.`,
         voice: "player",
+      };
+    // "Ignore each 'Boost' ability" (`ignoreBoost` `only: "abilities"`, The Punisher community scenario): say why the
+    // card's Boost ability did not resolve though its icons counted. Ignoring the whole card stays silent: its flip line
+    // already shows 0 icons.
+    case "boostIgnored":
+      return event.abilityOnly
+        ? {
+            text: `${card(event.instanceId)}'s Boost ability is ignored; its boost icons still count.`,
+            voice: "villain",
+          }
+        : null;
+    // "Each boost icon counts twice" (`RuleSpec boostIconsMultiplied`): the count the boost card adds, after the flip.
+    case "boostIconsMultiplied":
+      return {
+        text: `${card(event.instanceId)}'s boost icons count ${event.factor === 2 ? "twice" : `${event.factor} times`}: ${event.icons} for ${card(event.enemyInstanceId)} instead of ${event.counted}.`,
+        voice: "villain",
       };
     case "defenderDeclared":
       // A card ability declared the defender (`byEffect`): no exhaustion or choice is implied, so it is not "defends".
@@ -1007,6 +1032,9 @@ function describe(
       };
     // Run Them to Ground (`jj` 61020): the round ends with no villain phase (hero-pack spec H3.7).
     case "villainPhaseSkipped":
+      // A player phase played in its place, within the same round (custom content: Out of the Game).
+      if (event.playerPhaseInstead)
+        return { text: "Another player phase is played before the villain phase.", voice: "villain" };
       return { text: `The villain phase is skipped this round.`, voice: "villain" };
     case "accelerationTokenAdded":
       return {
@@ -1051,6 +1079,12 @@ function describe(
       };
     case "cardDiscardedFromPlay":
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
+    // "Treat the next card you spend as if it has double the resources" (yondu-dh Jackpot!): why it counted for more.
+    case "spentCardDoubled":
+      return {
+        text: `${card(event.instanceId)} counts ${event.factor === 2 ? "double" : `${event.factor} times`} its resources (the next card ${who(event.playerId)} spent).`,
+        voice: "player",
+      };
     case "playerSideSchemeLimitDiscard":
       return {
         text: `${who(event.chosenBy)} discarded ${card(event.instanceId)} for the player side scheme limit.`,
@@ -1115,8 +1149,13 @@ function describe(
       }
       if (!short) return null;
       // A Special that blanked a text box (Blizzard) names whose, from the lasting effect it just added.
+      // A per-player blank (`forPlayers`) is blank to those players only, and the line says whose.
       const blanked = blankedBy(burst, state, event.instanceId);
-      const blankedNote = blanked.length > 0 ? `: ${blanked.map(card).join(", ")} has a blank text box` : "";
+      const forWhom = blanked.forPlayers
+        ? ` for ${blanked.forPlayers.map((id) => playerName(state, id)).join(" and ")} only`
+        : "";
+      const blankedNote =
+        blanked.targets.length > 0 ? `: ${blanked.targets.map(card).join(", ")} has a blank text box${forWhom}` : "";
       return { text: `${card(event.instanceId)} — ${short}${blankedNote}.`, voice: "player" };
     }
 
@@ -1741,18 +1780,26 @@ function onlyOptionBefore(burst: Burst | undefined): InstanceId | null | undefin
   return target?.type === "targetChosen" && target.instanceIds.length === 1 ? target.instanceIds[0]! : null;
 }
 
-/** The cards a blanking lasting effect from `source`'s card was just placed on, in this command. */
-function blankedBy(burst: Burst | undefined, state: GameState, source: InstanceId): readonly InstanceId[] {
-  if (!burst) return [];
+/**
+ * The cards a blanking lasting effect from `source`'s card was just placed on, in this command, and the players it is
+ * blank to when it is a per-player blank (`forPlayers`; absent: everyone).
+ */
+function blankedBy(
+  burst: Burst | undefined,
+  state: GameState,
+  source: InstanceId,
+): { readonly targets: readonly InstanceId[]; readonly forPlayers?: readonly PlayerId[] } {
+  if (!burst) return { targets: [] };
   const cardId = state.instances[source]?.cardId;
   for (let i = burst.at; i >= 0; i--) {
     const earlier = burst.events[i]!;
     if (earlier.type !== "lastingEffectAdded" || earlier.effect.kind !== "blankTextBox") continue;
     if (earlier.effect.sourceCardId === undefined || earlier.effect.sourceCardId === cardId) {
-      return earlier.effect.targets;
+      const { targets, forPlayers } = earlier.effect;
+      return forPlayers ? { targets, forPlayers } : { targets };
     }
   }
-  return [];
+  return { targets: [] };
 }
 
 const swapRefusedReason = (
@@ -1792,7 +1839,7 @@ const cardIdName = (state: GameState, cardId: Parameters<typeof getCard>[1]): st
 const pileLabel = (pile: string): string => (pile === "aim" ? "A.I.M." : pile === "shield" ? "S.H.I.E.L.D." : pile);
 
 /** An encounter set's display name, or its id when the pool doesn't know it. */
-const setLabel = (id: string): string => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name ?? id;
+const setLabel = (id: string): string => gameEncounterSetName(id) ?? id;
 
 const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedStat"): string => {
   switch (skipped) {

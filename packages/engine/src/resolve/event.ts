@@ -53,6 +53,7 @@ import {
   damageTakenAllowance,
   damageTakenBreakdown,
   perAttackDamageCap,
+  perAttackDamageFloor,
   damageSourceCard,
   type DamageAttackInfo,
   type DamageSourceInfo,
@@ -1457,7 +1458,16 @@ function damageAttackInfo(ctx: Ctx, event: DamageEvent): DamageAttackInfo | unde
             (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps))) &&
             !attackLost(ctx, event, name),
         );
-  return { attackerInstanceId: source, cardInstanceId: event.viaInstanceId ?? null, keywords };
+  // The enemy attack's `undefended` result on the activation frame this damage belongs to (step 5 marks an attack
+  // whose defender left play; a late defender withdraws it), for `reduceDamageTaken.onlyUndefended`.
+  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
+  const undefended = parent?.kind === "event" && (parent.vars.undefended ?? 0) > 0;
+  return {
+    attackerInstanceId: source,
+    cardInstanceId: event.viaInstanceId ?? null,
+    keywords,
+    ...(undefended ? { undefended: true } : {}),
+  };
 }
 
 /** Whether a "cannot take damage" rule stops this damage, read with its sources and its attack (`cannotTakeDamage`). */
@@ -1698,7 +1708,13 @@ function spendAttackPreventBudget(
   if (parent?.kind !== "event") return 0;
   const left = (parent.vars.preventDamage ?? 0) - (parent.vars.preventDamageUsed ?? 0);
   if (left <= 0) return 0;
-  const prevented = Math.min(left, taken);
+  // A floor (`minDamageTakenPerAttack`, the Slothful Endurance comment in `applyDamage`) holds over a partial
+  // prevention as it does over a prevent interrupt: the budget prevents only down to the floor (never past `taken`,
+  // which already had the floor and the cap applied), and is spent only by what it prevented. Prevention of the whole
+  // amount, down to 0, escapes the floor.
+  const floor = left < taken ? perAttackDamageFloor(ctx.state, ctx.deps, event.targetInstanceId, true) : null;
+  const prevented = floor === null ? Math.min(left, taken) : Math.min(left, taken - Math.min(floor, taken));
+  if (prevented <= 0) return 0;
   addFrameVars(ctx, parent.frameId, { preventDamageUsed: prevented });
   emit(ctx, { type: "damagePrevented", targetInstanceId: event.targetInstanceId, amount: prevented, reason: "effect" });
   announceDamagePrevented(ctx, {
@@ -1980,9 +1996,18 @@ export function applyDamage(
   // Already applied as the damage reached its "would take" interrupts (`damageConstantsBeforeWouldTake`): only the
   // per-attack cap is read again (the sustained and per-phase ones are below), over what an interrupt changed since.
   // The constants are frozen at step 3 (FFG ruling June 6, 2024, Ruling 205); only the caps are re-read at take time.
+  // Slothful Endurance floor (RRG v1.8 "Cannot" p.11 + "Prevent" p.35): any positive damage taken from an attack is
+  // raised to current DEF, also after partial prevention ("cannot" beats the prevent interrupt); damage defended to 0
+  // (Attack step 4 p.8, General FAQ p.57) or fully prevented / tough (Prevent p.35, Tough p.44) is not taken and is not
+  // raised. Constant-before-interrupt ordering per ruling #205 (Jun 2024) is for caps; a floor can't be undercut.
+  // Derived from RRG, no FFG ruling on damage floors.
+  // Re-read here with the cap, before it, over what a "prevent N of that damage" interrupt left (`minDamageTakenPerAttack`).
   const reapplyCap = (amount: number): number => {
+    const floor =
+      amount > 0 ? perAttackDamageFloor(ctx.state, ctx.deps, event.targetInstanceId, event.fromAttack) : null;
+    const floored = floor === null ? amount : Math.max(amount, floor);
     const cap = perAttackDamageCap(ctx.state, ctx.deps, event.targetInstanceId, event.fromAttack);
-    return cap === null ? amount : Math.min(amount, cap);
+    return cap === null ? floored : Math.min(floored, cap);
   };
   const breakdown = event.constantsApplied
     ? { taken: reapplyCap(event.amount), beforeDoubling: event.amount, doubledBy: [] }
@@ -2798,7 +2823,14 @@ function applyPlayerAttack(
   recordKeywordsIgnored(
     ctx,
     frameId,
-    guardsIgnored(ctx.state, ctx.deps, event.attackerInstanceId, event.targetInstanceId, event.playerId),
+    guardsIgnored(
+      ctx.state,
+      ctx.deps,
+      event.attackerInstanceId,
+      event.targetInstanceId,
+      event.playerId,
+      event.ignoresGuard === true,
+    ),
   );
   const damage: DamageEvent = {
     kind: "dealDamage",
@@ -2831,7 +2863,9 @@ function applyPlayerAttack(
   // ruling Q47, `attack-ability.ts`): its target is named as attacked once the whole ability has resolved, with every
   // other enemy the ability dealt damage to.
   if (attackFrame?.kind === "event" && attackAwaitsAbility(ctx.state, attackFrame)) {
-    setFrame(ctx, { ...attackFrame, attacked: [...(attackFrame.attacked ?? []), attacked] });
+    // Read from the stack as it is now, not `attackFrame` (read above): the guard minions recorded as ignored since
+    // (`recordKeywordsIgnored`) would otherwise be dropped, and "after you ignore guard" never answer the attack.
+    updateFrame(ctx, frameId, (f) => (f.kind === "event" ? { ...f, attacked: [...(f.attacked ?? []), attacked] } : f));
     pushEvents(ctx, [damage]);
     return;
   }
@@ -2960,7 +2994,7 @@ function readyAndAnnounce(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId
 function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
   const event = frame.event;
   if (event.kind !== "thwart") return false;
-  const cost = thwartCostFor(ctx.state, ctx.deps, event.schemeInstanceId);
+  const cost = thwartCostFor(ctx.state, ctx.deps, event.schemeInstanceId, event.playerId);
   if (!cost) return false;
   setFrame(ctx, { ...frame, thwartCostAsked: true });
   // docs/phase7-wave5.md §4.1 Q30 (RRG 1.8 "Cost", p. 13: a "take damage" cost "is not considered paid unless all of

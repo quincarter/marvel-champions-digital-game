@@ -1,0 +1,37 @@
+{
+  "id": "sample-hero",
+  "version": "1.0.0",
+  "kind": "hero",
+  "name": "Sample Sentinel",
+  "authors": ["Marvel Champions Digital contributors"],
+  "description": "A small original test hero that shows each kind of player card done once, using only existing engine primitives.",
+  "license": "Fan-made, non-commercial; see CREDITS.md",
+  "requires": { "app": ">=0.1.0", "packs": [] },
+  "pictures": { "hero": { "x.sample-hero.01a": "art/hero.svg" } },
+  "achievements": [
+    {
+      "id": "suited-up",
+      "name": "Suited Up",
+      "description": "Finish a game with Sample Sentinel seated.",
+      "when": { "play": true, "hero": "x.sample-hero.01a" }
+    },
+    {
+      "id": "sentinel-rising",
+      "name": "Sentinel Rising",
+      "description": "Win a game with Sample Sentinel.",
+      "when": { "win": true, "hero": "x.sample-hero.01a" }
+    },
+    {
+      "id": "seasoned-sentinel",
+      "name": "Seasoned Sentinel",
+      "description": "Win 5 games with Sample Sentinel.",
+      "when": { "gamesWon": 5, "hero": "x.sample-hero.01a" }
+    },
+    {
+      "id": "no-sweat",
+      "name": "No Sweat",
+      "description": "Win a game with Sample Sentinel on Expert.",
+      "when": { "win": true, "hero": "x.sample-hero.01a", "expert": true }
+    }
+  ]
+}

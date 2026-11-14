@@ -1,0 +1,127 @@
+{
+  "id": "gwenpool-ptt-pool",
+  "name": "Gwenpool ('Pool) suggested deck",
+  "packCode": "gwenpool-ptt",
+  "identityCardId": "x.gwenpool-ptt.01a",
+  "aspects": ["pool"],
+  "cards": [
+    {
+      "cardId": "x.gwenpool-ptt.02",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.gwenpool-ptt.03",
+      "quantity": 3
+    },
+    {
+      "cardId": "x.gwenpool-ptt.04",
+      "quantity": 3
+    },
+    {
+      "cardId": "x.gwenpool-ptt.05",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.gwenpool-ptt.06",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.gwenpool-ptt.07",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.gwenpool-ptt.08",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.gwenpool-ptt.09",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.gwenpool-ptt.10",
+      "quantity": 1
+    },
+    {
+      "cardId": "44013",
+      "quantity": 1
+    },
+    {
+      "cardId": "44014",
+      "quantity": 1
+    },
+    {
+      "cardId": "44015",
+      "quantity": 1
+    },
+    {
+      "cardId": "44016",
+      "quantity": 1
+    },
+    {
+      "cardId": "44017",
+      "quantity": 3
+    },
+    {
+      "cardId": "44018",
+      "quantity": 1
+    },
+    {
+      "cardId": "44019",
+      "quantity": 1
+    },
+    {
+      "cardId": "44020",
+      "quantity": 1
+    },
+    {
+      "cardId": "44021",
+      "quantity": 3
+    },
+    {
+      "cardId": "44022",
+      "quantity": 1
+    },
+    {
+      "cardId": "44023",
+      "quantity": 1
+    },
+    {
+      "cardId": "44024",
+      "quantity": 1
+    },
+    {
+      "cardId": "44025",
+      "quantity": 1
+    },
+    {
+      "cardId": "44026",
+      "quantity": 1
+    },
+    {
+      "cardId": "44027",
+      "quantity": 1
+    },
+    {
+      "cardId": "44028",
+      "quantity": 1
+    },
+    {
+      "cardId": "44029",
+      "quantity": 3
+    },
+    {
+      "cardId": "44030",
+      "quantity": 1
+    },
+    {
+      "cardId": "01087",
+      "quantity": 1
+    }
+  ],
+  "provenance": {
+    "verified": false,
+    "sources": [
+      "A suggested deck assembled for the digital game, not the pack author's (the source has no precon list): the 15 Gwenpool cards plus the 24 'Pool aspect cards (44013-44030) of the Deadpool Hero Pack starter deck (deadpool-pool, packages/content/src/data/deadpool/starterDecks.ts), same quantities, plus 1 Core Set basic card (Haymaker 01087) in place of its Frenemies, a Cable/Deadpool-only Team-Up card"
+    ]
+  }
+}

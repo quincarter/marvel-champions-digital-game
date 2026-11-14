@@ -176,12 +176,8 @@ for (const volume of OPEN_VOLUMES) {
     await assertNoRawText(page, `${volume.name} cover`);
     await clickStop(page, "cta", "CampaignCover");
 
-    // Galaxy's Most Wanted asks Play as normal or Rebalance first (issue #609); Continue keeps the default, Normal.
-    if (volume.id === "gmw") {
-      await waitForScene(page, "CampaignBalanced");
-      await settle(page);
-      await clickStop(page, "cta", "CampaignBalanced");
-    }
+    // Galaxy's Most Wanted asks Play as normal or Rebalance first only with the GMW Fixes pack installed (issue #609,
+    // docs/custom-content-packs.md §11.11); this suite installs none, so every campaign goes straight to the Roster.
 
     // Roster: the default cast is pre-filled, so signing is one click.
     await waitForScene(page, "CampaignRoster");

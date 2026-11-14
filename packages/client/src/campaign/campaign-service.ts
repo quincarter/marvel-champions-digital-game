@@ -38,8 +38,10 @@ import {
   type CampaignRecord,
   type CampaignStorage,
   type IssueModes,
+  type PackCampaignRef,
 } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
+import { embeddedDefinitionOf, rememberRunPack } from "./pack-campaigns.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
 import { BALANCED_CAMPAIGN_ID } from "../view/campaign-balanced-model.js";
@@ -83,15 +85,26 @@ export type CampaignStepResult =
 
 export interface CampaignServiceOptions {
   readonly storage: CampaignStorage;
-  /** Card pool every `campaignSet`/`collection`/`ownDeck` choice draws from. */
-  readonly campaignDeps: CampaignDeps;
+  /** Card pool every `campaignSet`/`collection`/`ownDeck` choice draws from; a function when it follows the loaded packs. */
+  readonly campaignDeps: CampaignDeps | (() => CampaignDeps);
   /** The engine deps a finished game is replayed and read with. */
-  readonly engineDeps: EngineDeps;
+  /** The deps a finished game replays with; a function when they depend on the game on the table. */
+  readonly engineDeps: EngineDeps | (() => EngineDeps);
   /** Epoch ms. Injected so tests are deterministic; the engine itself never reads a clock. */
   readonly now?: () => number;
   /** A fresh id for a new campaign. */
   readonly newId?: () => string;
   readonly definitionOf?: (campaignId: string) => CampaignDefinition | undefined;
+  /**
+   * The content record of a campaign the base game does not ship (a loaded pack's campaign, docs/custom-content-packs.md
+   * §11.10): its name for the shelf. The base game's boxes are always looked up in `CAMPAIGN_RECORDS` first.
+   */
+  readonly contentOf?: (campaignId: string) => Campaign | undefined;
+  /**
+   * The pack a new run of this campaign belongs to, with the definition to keep (`CampaignRecord.pack`): set for a pack
+   * campaign, undefined for a base box. The run keeps it, so updating or removing the pack never changes it.
+   */
+  readonly packOf?: (campaignId: string) => PackCampaignRef | undefined;
   /**
    * Where the run's games are kept, through the engine that owns them (`SessionStore.listSaves` / `retireSave`). When
    * given, starting a run over also retires that run's in-progress game, so it doesn't linger in the title's
@@ -107,8 +120,10 @@ export interface CampaignGames {
 
 export class CampaignService {
   readonly storage: CampaignStorage;
-  readonly #campaignDeps: CampaignDeps;
-  readonly #engineDeps: EngineDeps;
+  readonly #campaignDeps: () => CampaignDeps;
+  readonly #contentOf: (campaignId: string) => Campaign | undefined;
+  readonly #packOf: (campaignId: string) => PackCampaignRef | undefined;
+  readonly #engineDeps: () => EngineDeps;
   readonly #now: () => number;
   readonly #newId: () => string;
   readonly #definitionOf: (campaignId: string) => CampaignDefinition | undefined;
@@ -122,8 +137,12 @@ export class CampaignService {
 
   constructor(options: CampaignServiceOptions) {
     this.storage = options.storage;
-    this.#campaignDeps = options.campaignDeps;
-    this.#engineDeps = options.engineDeps;
+    const campaignDeps = options.campaignDeps;
+    this.#campaignDeps = typeof campaignDeps === "function" ? campaignDeps : () => campaignDeps;
+    this.#contentOf = (campaignId) => CAMPAIGN_RECORDS[campaignId] ?? options.contentOf?.(campaignId);
+    this.#packOf = options.packOf ?? (() => undefined);
+    const deps = options.engineDeps;
+    this.#engineDeps = typeof deps === "function" ? deps : () => deps;
     this.#now = options.now ?? Date.now;
     this.#newId =
       options.newId ?? (() => `campaign-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -142,16 +161,23 @@ export class CampaignService {
     }
   }
 
-  definitionFor(record: Pick<CampaignLog, "campaignId">): CampaignDefinition {
-    const definition = this.#definitionOf(record.campaignId as string);
+  /**
+   * The definition a run plays by: the one in the pack content a pack campaign's run carries (`CampaignRecord.pack`)
+   * before anything installed, so updating or removing the pack never changes a run in progress; otherwise the build's own.
+   */
+  definitionFor(record: Pick<CampaignLog, "campaignId"> & { readonly pack?: PackCampaignRef }): CampaignDefinition {
+    const definition =
+      (record.pack ? embeddedDefinitionOf(record.pack, record.campaignId as string) : undefined) ??
+      this.#definitionOf(record.campaignId as string);
     if (!definition) throw new Error(`this build has no campaign definition for "${record.campaignId as string}"`);
     return definition;
   }
 
   /** Signs the roster: a fresh log positioned on the first issue, stored. Nothing is composed yet. */
   async start(input: StartCampaignInput): Promise<CampaignRecord> {
-    const content = CAMPAIGN_RECORDS[input.campaignId];
+    const content = this.#contentOf(input.campaignId);
     const definition = this.#definitionOf(input.campaignId);
+    const pack = CAMPAIGN_RECORDS[input.campaignId] ? undefined : this.#packOf(input.campaignId);
     if (!content || !definition) throw new Error(`campaign "${input.campaignId}" is not playable in this build`);
     // One choice for both halves: the mode gates between-game steps, the seeded fields the rules in a game.
     const balanced = input.campaignId === BALANCED_CAMPAIGN_ID ? input.balanced : undefined;
@@ -186,8 +212,10 @@ export class CampaignService {
       createdAt: at,
       updatedAt: at,
       ...(input.tableRules ? { tableRules: input.tableRules } : {}),
+      ...(pack ? { pack } : {}),
     };
     await this.storage.create(record);
+    if (pack) rememberRunPack(pack, input.campaignId);
     return record;
   }
 
@@ -198,7 +226,21 @@ export class CampaignService {
    */
   async load(id: string): Promise<CampaignRecord | null> {
     const record = await this.storage.load(id);
+    if (record?.pack) rememberRunPack(record.pack, record.campaignId as string);
     return record ? withRemovedCardsOutOfDecks(record) : null;
+  }
+
+  /**
+   * The card pool a run's choices draw from: the build's, plus the cards of the pack content the run carries that the
+   * pool does not already hold (a removed pack's cards are still there for a run that needs them).
+   */
+  #depsFor(record: Pick<CampaignRecord, "pack">): CampaignDeps {
+    const base = this.#campaignDeps();
+    if (!record.pack) return base;
+    const pool = Array.isArray(base.pool) ? base.pool : Object.values(base.pool);
+    const have = new Set(pool.map((card) => card.id as string));
+    const added = record.pack.packs.flatMap((pack) => pack.cards).filter((card) => !have.has(card.id as string));
+    return added.length === 0 ? base : { ...base, pool: [...pool, ...added] };
   }
 
   /**
@@ -210,7 +252,7 @@ export class CampaignService {
     if (record.attempt) return { kind: "done", record };
     const definition = this.definitionFor(record);
     const modes = { ...record.modes, ...record.issueModes };
-    const result = resolveBetweenGames(definition, record, this.#campaignDeps, modes, answers);
+    const result = resolveBetweenGames(definition, record, this.#depsFor(record), modes, answers);
     if (result.kind === "pending") return result;
     return { kind: "done", record: await this.#put(record, result.value) };
   }
@@ -260,7 +302,9 @@ export class CampaignService {
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
   launchConfig(record: CampaignRecord): SessionConfig {
     const config = withEasierStart(campaignLaunchConfig(this.definitionFor(record), record), record);
-    return record.tableRules ? { ...config, tableRules: record.tableRules } : config;
+    // A pack campaign's game carries the run's own pack content, never what is installed now (`withLoadedPacks` keeps it).
+    const withPacks = record.pack ? { ...config, packs: record.pack.packs } : config;
+    return record.tableRules ? { ...withPacks, tableRules: record.tableRules } : withPacks;
   }
 
   /**
@@ -312,7 +356,7 @@ export class CampaignService {
   ): Promise<CampaignStepResult> {
     let replayed = this.#replays.get(saved);
     if (!replayed) {
-      const result = applyCommands(saved.initialState, saved.commands, this.#engineDeps);
+      const result = applyCommands(saved.initialState, saved.commands, this.#engineDeps());
       if (!result.ok) throw new Error(`the finished game no longer replays: ${result.error.message}`);
       replayed = { state: result.state, events: result.events };
       this.#replays.set(saved, replayed);
@@ -335,8 +379,8 @@ export class CampaignService {
       finalState,
       events,
       { at: this.#now(), gameId },
-      this.#campaignDeps,
-      this.#engineDeps,
+      this.#depsFor(record),
+      this.#engineDeps(),
       answers,
     );
     if (result.kind === "pending") return result;
@@ -485,6 +529,7 @@ export class CampaignService {
       updatedAt: this.#now(),
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
+      ...(previous.pack ? { pack: previous.pack } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
       ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
     };

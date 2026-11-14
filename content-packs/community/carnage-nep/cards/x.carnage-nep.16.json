@@ -1,0 +1,29 @@
+{
+  "id": "x.carnage-nep.16",
+  "name": "Meticulous Targeting",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "16",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["carnage-nep-nemesis"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["acceleration"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Find Torment and reveal him. (If he is already in play, he engages you.) Torment activates against you. If no enemy activated this way, this card gains surge.",
+    "current": "When Revealed: Find Torment and reveal him. (If he is already in play, he engages you.) Torment activates against you. If no enemy activated this way, this card gains surge."
+  },
+  "flavor": "Torment picks a victim, then kills his way to them by starting with their distant relatives.",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.16.when-revealed"
+    }
+  ]
+}

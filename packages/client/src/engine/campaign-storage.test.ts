@@ -82,6 +82,24 @@ describe.each<[string, () => CampaignStorage]>([
     expect(await storage.load("c1")).toEqual(advanced);
   });
 
+  test("a pack campaign's embedded pack reference round-trips, and a base record has none", async () => {
+    const storage = make();
+    const pack = { id: "some-pack", version: "1", name: "Some Pack", packs: [] };
+    await storage.create(record({ id: "p1", pack }));
+    await storage.create(record({ id: "b1" }));
+    expect((await storage.load("p1"))?.pack).toEqual(pack);
+    // The shelf's row names the pack and its issues, never carrying the content.
+    expect((await storage.list()).find((row) => row.id === "p1")?.pack).toEqual({
+      id: "some-pack",
+      version: "1",
+      name: "Some Pack",
+      nodeCount: 0,
+      nodeIds: [],
+    });
+    expect(await storage.load("b1")).not.toHaveProperty("pack");
+    expect(await storage.list()).toHaveLength(2);
+  });
+
   test("an unknown campaign loads as null", async () => {
     expect(await make().load("nope")).toBeNull();
   });

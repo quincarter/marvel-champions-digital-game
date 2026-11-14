@@ -41,7 +41,8 @@ import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
 import type { CardSize } from "../settings.js";
 import { playableScenarioOffer } from "@mc/cards";
-import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
+import { gameEncounterSets, gameScenarios } from "../content/game-deps.js";
+import { gameDeps } from "../content/game-deps.js";
 import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { applyTextResolution, drawnDensity } from "../platform/screen-settings.js";
@@ -291,8 +292,8 @@ export class PauseOverlay extends Phaser.Scene {
         open: () => this.#openRules({ initialTab: "glossary", initialQuery: query }),
       });
     }
-    const glossaryCount = game ? rulesGlossaryOf(game, POOL_DEPS).length : 0;
-    const cardListSetCount = game ? scenarioCardListOf(game, POOL_ENCOUNTER_SETS).length : 0;
+    const glossaryCount = game ? rulesGlossaryOf(game, gameDeps()).length : 0;
+    const cardListSetCount = game ? scenarioCardListOf(game, gameEncounterSets()).length : 0;
     rows.push(
       {
         id: "villainPhase",
@@ -381,7 +382,7 @@ export class PauseOverlay extends Phaser.Scene {
     const quickReferenceExpanded = this.#quickExpanded || this.#query.trim().length > 0;
     const quickReferenceRows = quickReferenceExpanded ? allQuickRows : allQuickRows.filter((row) => row.compact);
     const tableRows = settingsRowInfoOf(settings);
-    const keywordEntries = game ? rulesGlossaryOf(game, POOL_DEPS) : [];
+    const keywordEntries = game ? rulesGlossaryOf(game, gameDeps()) : [];
     const guideRows = guideRowInfoOf(guidePrefs());
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const guidedRunActive = this.#guidedRunActive();
@@ -988,8 +989,8 @@ export class PauseOverlay extends Phaser.Scene {
     } catch {
       offer = null;
     }
-    const setNames = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
-    const status = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS, blindSheetNamesOf(offer, setNames));
+    const setNames = new Map(gameEncounterSets().map((set) => [set.id as string, set.name]));
+    const status = pauseStatusOf(game, perspectiveId, config, gameScenarios(), blindSheetNamesOf(offer, setNames));
     return status.blindSheet ?? status.buildSheet ?? [];
   }
 
@@ -1013,7 +1014,7 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): string {
-    const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
+    const s = pauseStatusOf(game, perspectiveId, config, gameScenarios());
     return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}`;
   }
 
@@ -1029,7 +1030,7 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): string {
-    const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
+    const s = pauseStatusOf(game, perspectiveId, config, gameScenarios());
     // The seed before the seat: the seat name is the part that gives way when the column is too narrow for both.
     return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }

@@ -146,6 +146,12 @@ export interface SetupDraft {
    * scenario. `setScenario` and `initialSetupDraft` fill it for a scenario whose offer has main scheme stages.
    */
   readonly civilWar: CivilWarDraft | null;
+  /**
+   * The installed house rules switched on for this game (docs/custom-content-packs.md §11.11), by pack id: the "House
+   * rules" option cards (`setupOptionRowsOf`). Absent or empty is none. Offered for every scenario, so switching
+   * scenario keeps it; `toSessionConfig` sends it and the host embeds each rule still installed (`withLoadedPacks`).
+   */
+  readonly houseRules?: readonly string[];
 }
 
 /** The picks only a Civil War scenario has. The modular sets are the draft's own `modularSetIds` (`null` is the four recommended). */
@@ -640,6 +646,7 @@ export function toSessionConfig(
     ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
     ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
+    ...(draft.houseRules && draft.houseRules.length > 0 ? { houseRules: draft.houseRules } : {}),
     ...(tableRules ? { tableRules } : {}),
   };
 }

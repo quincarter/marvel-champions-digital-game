@@ -154,7 +154,12 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
  * game's card pool is widened to `PLAYABLE_CARDS` so a seat from another wave is a known card. Starter-deck seats
  * are resolved here first, because a wave's own builder only knows its own starter decks.
  */
-export function playableScenario(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
+export function playableScenario(
+  scenarioId: string,
+  options: PlayableScenarioOptions,
+  /** How many of the modular picks are a custom pack's (`./custom.ts`): counted toward the scenario's count, never built here. */
+  customModularPicks = 0,
+): GameSetupConfig {
   // The picks are checked against the scenario's required count here, where the app's table setup builds a game; each
   // builder checks what a pick may be (`chosenModularSetIds`).
   // A wave 11 record is checked the same way before the wave is joined to the playable records.
@@ -166,7 +171,7 @@ export function playableScenario(scenarioId: string, options: PlayableScenarioOp
   if (options.mainSchemeStageIds !== undefined && !isWave10Scenario(scenarioId))
     throw new Error(`${scenarioId}: the main scheme's stages are not a setup choice at this scenario`);
   if (scenario) {
-    checkModularPickCount(scenario, options.modularSetIds);
+    checkModularPickCount(scenario, options.modularSetIds, customModularPicks);
     // One rule for every wave's builder: which Standard or Expert set may stand in for the printed one (Q10 = A).
     checkPlayableDifficultySets(scenario, options.difficultySets);
   }

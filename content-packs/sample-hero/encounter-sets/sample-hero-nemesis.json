@@ -1,0 +1,6 @@
+{
+  "id": "sample-hero-nemesis",
+  "name": "Sample Sentinel Nemesis",
+  "packCodes": ["sample-hero"],
+  "nemesisOfIdentityId": "x.sample-hero.01a"
+}

@@ -340,6 +340,7 @@ import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf } from "../keywords.js";
 import { attackExtraDamageAgainst, lostAttackKeywords } from "../rules.js";
 import {
+  attackIgnoringOf,
   canAttack,
   cardsInPlay,
   categoriesOf,
@@ -413,6 +414,8 @@ export interface AbilityAttack {
   readonly cancelled: boolean;
   /** The effects frame whose instruction is resolving (a branch's own frame), marked when its damage is cancelled. */
   readonly frameId: FrameId;
+  /** "This attack ignores guard" (`EffectSpec attack.ignores`, `attackIgnoringOf`): guard does not stop it. */
+  readonly ignoresGuard: boolean;
 }
 
 /** Whether an attack of the "(attack)" ability `frame` belongs to was cancelled (`cancelAbilityAttack`). */
@@ -664,6 +667,9 @@ export function abilityAttackOf(
     waiting,
     cancelled,
     frameId: frame.frameId,
+    ignoresGuard:
+      attackIgnoringOf(frame.abilityId === undefined ? undefined : deps.abilities[frame.abilityId])
+        .attackIgnoresGuard === true,
   };
 }
 
@@ -730,7 +736,8 @@ export const mayAttackWith = (
   attack: AbilityAttack,
   targetId: InstanceId,
 ): boolean =>
-  !isAttackTarget(state, targetId, deps) || (!attack.cancelled && canAttack(state, attack.attackerId, targetId, deps));
+  !isAttackTarget(state, targetId, deps) ||
+  (!attack.cancelled && canAttack(state, attack.attackerId, targetId, deps, false, attack.ignoresGuard));
 
 /**
  * The targets of a damage instruction that names its enemies, less the enemies the attack may not attack as it
@@ -757,7 +764,7 @@ export function skipUnattackable(
         recordKeywordsIgnored(
           ctx,
           attack.waiting.frameId,
-          guardsIgnored(ctx.state, ctx.deps, attack.attackerId, against, attack.playerId),
+          guardsIgnored(ctx.state, ctx.deps, attack.attackerId, against, attack.playerId, attack.ignoresGuard),
         );
       }
       return true;
@@ -854,7 +861,11 @@ function attackAhead(
         const chosenLater =
           instruction.target.kind === "slot" && context.bindings[instruction.target.slot] === undefined;
         const makesNoEvent =
-          (!chosenLater && !named.some((id) => isEnemy(id) && canAttack(state, identity, id, context.deps))) ||
+          (!chosenLater &&
+            !named.some(
+              (id) =>
+                isEnemy(id) && canAttack(state, identity, id, context.deps, false, context.attackIgnoresGuard === true),
+            )) ||
           (instruction.moveDamageFrom !== undefined &&
             (moveFrom === undefined || (state.instances[moveFrom]?.damage ?? 0) <= 0));
         found({
@@ -1008,7 +1019,9 @@ export function beginLabelAttack(
   const [first] = ahead.makers;
   const inPlay = cardsInPlay(ctx.state);
   const mayAttack = (id: InstanceId): boolean =>
-    inPlay.includes(id) && isAttackTarget(ctx.state, id, ctx.deps) && canAttack(ctx.state, identity, id, ctx.deps);
+    inPlay.includes(id) &&
+    isAttackTarget(ctx.state, id, ctx.deps) &&
+    canAttack(ctx.state, identity, id, ctx.deps, false, context.attackIgnoresGuard === true);
   // Nothing resolves before the ability's own `attack` instruction: it makes its event now, as it always has, when it
   // can (an enemy it may attack, damage to move). One that would make none (no minion for "each minion", every enemy
   // guarded, no damage to move) begins the attack here instead, so the ability is still an attack, on nobody.
@@ -1164,6 +1177,8 @@ export function resumeBegunAttack(
     readonly keywords: AttackKeywords;
     /** `attack.usesAtk` of the instruction taking the attack over (docs/phase7-wave10.md §3.17). */
     readonly usesAtk?: boolean;
+    /** "This attack ignores guard" (`attack.ignores`) of the instruction taking the attack over. */
+    readonly ignoresGuard?: boolean;
   },
   reportTo: ReportTarget | null,
 ): void {
@@ -1182,6 +1197,7 @@ export function resumeBegunAttack(
       overkill: made.overkill,
       ...(made.keywords.length > 0 ? { keywords: made.keywords } : {}),
       ...(made.usesAtk ? { usedStat: "atk" as const } : {}),
+      ...(made.ignoresGuard ? { ignoresGuard: true as const } : {}),
     },
   };
   ctx.state = {

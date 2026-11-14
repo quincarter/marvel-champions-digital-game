@@ -557,8 +557,17 @@ export type AbilityTriggerSpec =
    * unattached, it is discarded as it would have been.
    */
   | { readonly kind: "cannotAttach" }
-  /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
-  | { readonly kind: "special" }
+  /**
+   * RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!).
+   *
+   * `tag`: a tagged ability with no trigger of its own, resolved only by an effect that names the tag (custom content:
+   * a pack's "speech bubbles", `tag: "pinkBubble"`; the tag is a free string the pack chooses). A tagged ability is not
+   * one of the card's Specials: `resolveSpecials` without that `tag` (Wakanda Forever!, a `resolveAbility` cost) never
+   * resolves it. It still counts as the card's (`ValueSpec taggedAbilities`, `TargetQuery hasTaggedAbility`) when its
+   * effects are empty (text with nothing to resolve). Read live like any ability: a blank text box, a facedown card or
+   * the other face hides it.
+   */
+  | { readonly kind: "special"; readonly tag?: string }
   /**
    * "Preparation:" (MC50 rulebook p. 9, "Preparation Abilities"): printed "in place of 'Boost' abilities" on the
    * encounter cards of one villain's set. "These abilities are **not** resolved when the cards are turned faceup as
@@ -641,6 +650,14 @@ export type AbilityTriggerSpec =
        * still a card in hand for everything else. The plan's `RuleSpec` would not be read from a hand.
        */
       readonly notCountedTowardHandSize?: true;
+      /**
+       * "[This card] cannot be attached to cards unless it is in play." (community pack `yondu-dh`, Yaka Arrow): read
+       * from the card wherever it is, like `notCountedTowardHandSize`. Out of play no effect may attach it (`attach`,
+       * a `findCard` that attaches, an attach cost: `canAttachTo`), and an upgrade with it that is played or put into
+       * play enters play unattached in its controller's play area instead of on a host (`resolve/play-card.ts`,
+       * `putIntoPlay`). Once in play, effects may attach it and move it between hosts as usual.
+       */
+      readonly attachedOnlyWhileInPlay?: true;
       /**
        * "You may play Lockjaw from your discard pile during your turn." A permission read from the card itself (RRG 1.8
        * "Play Restrictions and Permissions", p. 33: "a permission might allow an ally card to be played from a player's
@@ -1044,6 +1061,18 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotActivate"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "During step 2 of the villain phase, Barracuda activates against you before The Punisher does." (The Punisher
+   * community scenario): in the villain phase's step 2 (RRG 1.8 "Villain Phase", p. 47: "2a. The villain activates
+   * against [the player] ... 2b. Each minion engaged with the player activates against them, in the order of that
+   * player's choice"), a matching minion engaged with the player activates against them before the villain's
+   * activation against that player, instead of after it. With several, the engaged player picks their order, as for
+   * the minions after the villain (step 2b). The other minions keep their place after the villain; each minion still
+   * activates once in the step. Read as the player's activations begin (and again after each early minion), so a
+   * minion that comes into play or gains the rule after the villain activated waits for step 2b. Only the villain
+   * phase's step 2: an effect's "the villain activates" is not reordered.
+   */
+  | { readonly kind: "activatesBeforeVillain"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "Ignore each boost icon and each 'Boost' ability for this attack" (Aerial Agility, `angel` 42004;
    * docs/phase7-wave7.md §3.67). RRG 1.8 "Ignore" (p. 23): the ignored icon or ability is treated "as not being in
    * effect or present". Each boost card of a covered activation is still turned faceup and discarded ("Attack (Enemy
@@ -1059,9 +1088,37 @@ export type RuleSpec =
    *
    * As a lasting rule until the end of an attack (`applyRuleUntil` `"endOfAttack"`) it covers that activation alone,
    * not another that begins while it resolves (`boostIgnored`, rules.ts). On a constant ability, or with any other
-   * duration, it covers every attack and scheme activation by an enemy matching `enemy` (absent = any enemy).
+   * duration, it covers every attack and scheme activation by an enemy matching `enemy` (absent = any enemy), and an
+   * enemy's boosted attack on another enemy (`enemyAttacksEnemy.boost`, which deals its boost cards the same way).
+   *
+   * `only: "abilities"`: "ignore each 'Boost' ability" alone (The Punisher community scenario, "when he attacks a
+   * minion ... ignore each 'Boost' ability"): the card's boost icons count as usual (printed, amplify, added), and only
+   * its "Boost" ability is not resolved; logged `boostIgnored` with `abilityOnly`. A rule ignoring both wins over it.
+   * Scope it to one kind of attack with a `while` (`attackInProgress`), read at the flip and again before the ability.
    */
-  | { readonly kind: "ignoreBoost"; readonly enemy?: TargetQuery; readonly while?: Predicate }
+  | {
+      readonly kind: "ignoreBoost";
+      readonly enemy?: TargetQuery;
+      readonly only?: "abilities";
+      readonly while?: Predicate;
+    }
+  /**
+   * "Each boost icon counts twice during The Punisher's attacks against minions." (Extreme Prejudice, The Punisher
+   * community scenario): each boost card of an activation by a matching enemy (absent = any enemy) adds `factor` times
+   * its counted icons, including an enemy's boosted attack on another enemy (`enemyAttacksEnemy.boost`). Read at each
+   * card's count (RRG 1.8 "Boost, Boost Icon", p. 11: the icons are added after the card's Boost ability), after
+   * everything else that sets that count: printed icons, amplify icons, "+N boost icons each", a "for this count"
+   * adjustment, icons a Boost ability gave the card and cards applied "as if it were a boost card", so each of those
+   * icons counts `factor` times too. A cancelled count stays 0 and an ignored card adds 0. Several matching rules
+   * multiply (two "counts twice" make four): engine reading (authority step 5), no official card does this. Scope it to
+   * one kind of attack with a `while` (`attackInProgress`). Logged `boostIconsMultiplied` when it changes a count.
+   */
+  | {
+      readonly kind: "boostIconsMultiplied";
+      readonly factor: number;
+      readonly enemy?: TargetQuery;
+      readonly while?: Predicate;
+    }
   /**
    * "Ignore the Forced Interrupt on the main scheme." (No Longer Worthy, `aoa` 45105b; docs/phase7-wave8.md §3.21.)
    * While the rule is in effect, the abilities named in `abilities` on each card in play matching `on` are not there:
@@ -1995,6 +2052,19 @@ export type RuleSpec =
        */
       readonly exceptAttackCard?: TargetQuery;
       readonly exceptAttackKeyword?: AttackKeyword;
+      /**
+       * The positive filters, the mirror of the exceptions: the reduction applies only to an attack's damage whose
+       * attacking character matches `onlyAttacker`, and with `onlyUndefended`, only to an enemy attack nobody defends
+       * when its damage is dealt (`DamageAttackInfo.undefended`: the attack's `undefended` result, RRG 1.8 "Attack
+       * (Enemy Activation)" step 2, "Undefended", p. 46). Damage with no attacker is never reduced by either.
+       *
+       * Agile X, a custom-content keyword defined by its reminder text, "reduce damage taken from undefended villain
+       * and villainous attacks by X" (docs/custom-content-packs.md §6; the DSL's `agile`), is `fromAttack`,
+       * `onlyUndefended` and `onlyAttacker: anyOf(villain, withKeyword villainous)`. A player's attack is never
+       * undefended, so `onlyUndefended` reaches enemy attacks only.
+       */
+      readonly onlyAttacker?: TargetQuery;
+      readonly onlyUndefended?: boolean;
       /** Only an ally's consequential damage: "Cannonball takes -1 consequential damage after …" (§3.31). */
       readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;
@@ -2300,6 +2370,23 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotBeUnattached"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Upgrades cannot be removed from [this card]." (community pack `yondu-dh`, Sav'rkk): while this applies, no effect may
+   * take a matching card off the host it is attached to: not attach it to another card (as `cannotBeUnattached`), not
+   * return it to a hand, discard it or otherwise move it out of play (read with `cannotLeavePlay`). It does not stop the
+   * card going with its host when the host leaves play (RRG 1.8 "Attach To", p. 8: that is the game's rule, and a
+   * constant ability stops applying as its card leaves play), nor any move the host's own leaving makes. `target`
+   * names the attached cards (`query("upgrade", { host: self })`).
+   */
+  | { readonly kind: "cannotLeaveHost"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Treat the next card you spend as if it has double the resources." (community pack `yondu-dh`, Jackpot!): granted as
+   * a lasting rule (`applyRuleUntil`), its "you" the granting ability's controller. The first card from hand that player
+   * spends in a later payment generates double (every type, after its own multipliers), and the grant ends as
+   * `consumed` with that payment (`spentCardDoubled`). Read from lasting grants only (`doubleNextSpentGrants`): printed
+   * in a constant ability's `rules` it does nothing.
+   */
+  | { readonly kind: "doubleNextCardSpent" }
+  /**
    * "Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from play, put it faceup into
    * The Collection instead." (Collector I–III, Infiltrate the Museum, `gmw` 16070–16072). A matching card leaving play for
    * a discard pile goes, faceup, to the scenario area `area` instead (`leavePlay`), and `discardRedirected` is announced
@@ -2323,6 +2410,76 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "When a card is set aside from a player's deck, put it facedown into Damnation instead." (Gateway to Corruption /
+   * Hell, community pack `mephisto-nep` 03a): a card an effect sets aside (`CardDestination "setAside"`, the owner's
+   * set-aside area) while it is in one of `from` of any player (default `["deck"]`) goes to the scenario out-of-play
+   * area `area` instead, facedown with `facedown` (faceup otherwise), and keeps its owner. Logged as
+   * `setAsideRedirected`. A card set aside from play, or from a zone `from` does not name, is set aside as normal. The
+   * set-aside counterpart of `discardFromPlayDestination`: a replacement read as the card moves, so no window opens.
+   * The first matching rule wins (no printed card pairs two).
+   */
+  | {
+      readonly kind: "setAsideDestination";
+      readonly area: string;
+      readonly facedown?: true;
+      readonly from?: readonly ("deck" | "hand" | "discard")[];
+      readonly while?: Predicate;
+    }
+  /**
+   * "Double the THW value of your identity." (Prideful Ambitions, community pack `mephisto-nep` 08): each matching
+   * character's `stat` is multiplied by `factor` (2 for "double"; 0.5 for "halve"). RRG 1.8 "Modifiers" (p. 29): "all
+   * additive and subtractive modifiers are calculated before doubling and/or halving modifiers", and "fractional values
+   * are rounded up after all modifiers have been applied", so the factor applies to the base (or "has a base … of"
+   * value) plus every additive modifier, the result is rounded up, then floored at 0. Several rules multiply together.
+   * A dash stays an unmodifiable 0 (p. 15). Read live like every modifier (`characterProfile`), and through
+   * `applyRuleUntil` for a lasting "double … until …". An alter-ego's missing ATK/THW/DEF is not doubled (it has none).
+   */
+  | {
+      readonly kind: "multiplyStat";
+      readonly stat: StatName | "hp";
+      readonly factor: number;
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Your identity cannot take damage less than its DEF from each attack." (Slothful Endurance, community pack
+   * `mephisto-nep` 10): a floor on the damage a matching character takes from one attack's damage event, the mirror of
+   * `maxDamageTakenPerAttack`. `amount` is read live in the rule's context with the damaged character bound to
+   * `affected` (`theAffectedCard`), so "its DEF" is `statOf({ kind: "slot", slot: "affected" }, "def")`.
+   *
+   * Applied after every increase, reduction and doubling, so the floor is the DEF (or other amount) as it stands with
+   * every modifier, and only to damage "from each attack" (`fromAttack`): a treachery's or indirect damage that is no
+   * attack's has none. An alter-ego has no DEF, so a floor of its DEF is 0.
+   *
+   * Prevention (rules-expert verdict, tier 1, from RRG 1.8 "Cannot", p. 11, and "Prevent", p. 35; no FFG ruling on
+   * damage floors): any positive damage taken from an attack is raised to the floor, also after a partial prevention,
+   * since "cannot" beats the prevent effect. A "prevent N of that damage" interrupt (`EffectSpec preventDamage`) and a
+   * "prevent N damage from this attack" budget (`modifyAttack.preventDamage`) both prevent only down to the floor (and
+   * log only what they prevented). Damage defended to 0 (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 8; General FAQ,
+   * p. 57), prevented in full, or replaced by a tough status card (p. 44) is not taken and is not raised.
+   *
+   * Engine interpretations (authority step 5), not stated by the RRG: a damage event of 0 is not raised (as
+   * `increaseDamageTaken` leaves 0 alone; RRG 1.8 "Damage", p. 14, does not say so of floors), and the floor is applied
+   * before the per-attack cap, so a "cannot take more than" cap keeps the last word where the two conflict (RRG 1.8
+   * "Cannot", p. 11, makes both absolute and does not order them; no printed card pairs them). Re-read at take time with
+   * the cap, over what an interrupt changed since.
+   */
+  | {
+      readonly kind: "minDamageTakenPerAttack";
+      readonly target: TargetQuery;
+      readonly amount: number | ValueSpec;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Each resource you generate is considered a wild ([wild]) resource instead of its current resource." (Unquenchable
+   * Envy, community pack `mephisto-nep` 11): every resource `player` generates (a hand card's, a resource ability's,
+   * after every "double"/"additional" multiplier) is that many wild resources. Only generation changes: a card's printed
+   * resource icons, read outside a payment ("discard a card with a [mental] resource"), are untouched (RRG 1.8 "Wild
+   * Resource", p. 48; "Resources", p. 37). The player generating is the one paying with the source (a hand card's owner,
+   * a resource ability's spender).
+   */
+  | { readonly kind: "resourcesGeneratedAsWild"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
    * "You can control 1 additional upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm` 20001a/b);
    * "You can control 1 additional [Weapon] upgrade that has the restricted keyword." (Side Holster, 20021). RRG 1.8
    * "Restricted" (p. 38) fixes the limit at two; each rule raises it by `amount` for `player` (absent: the rule's speaker,
@@ -2335,10 +2492,22 @@ export type RuleSpec =
       readonly player?: PlayerRef;
       readonly while?: Predicate;
     }
+  /**
+   * "Ronan the Accuser cannot be stunned." (`ron` 90001; docs/phase7-wave3.md §3.7): no new status card of these types
+   * is placed on a matching character (`statusCapacity` is 0 for it); one already held stays (FFG ruling Feb 15, 2024,
+   * #145).
+   *
+   * `from`: "Minions cannot ... stun him" (The Punisher community scenario): only a status card that a card matching
+   * `from` gives is refused, the giver being the card whose ability places it (`StatusGiver.sourceInstanceId`). A status
+   * card with no giving card, or from any other card, is placed as usual. RRG 1.8 "'Cannot'" (p. 11): the effect is
+   * stopped, not the ability that tries it, so "after Shocker is attacked, stun the attacking character" still triggers
+   * and gives nothing.
+   */
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;
       readonly statuses: readonly ("stunned" | "confused" | "tough")[];
+      readonly from?: TargetQuery;
       readonly while?: Predicate;
     }
   /**
@@ -3529,13 +3698,21 @@ export const BORROWED_BOOST_ICONS_SLOT = "_borrowedBoostIcons";
 export const labeledResolvedVar = (label: GrantableAbilityLabel): string => `labeledResolved.${label}`;
 
 /**
- * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a
- * "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt` trigger that is
- * forced; the others are named by their own trigger kind. A card's attach instruction is not one of its When Revealed
- * abilities (docs/phase7-wave7.md §3.35).
+ * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` and `tag` (`EffectSpec
+ * resolveSpecials`): a "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt`
+ * trigger that is forced; the others are named by their own trigger kind. A card's attach instruction is not one of its
+ * When Revealed abilities (docs/phase7-wave7.md §3.35).
  */
-export function resolvableAs(definition: AbilityDefinition | undefined, trigger: ResolvableAbilityKind): boolean {
+export function resolvableAs(
+  definition: AbilityDefinition | undefined,
+  trigger: ResolvableAbilityKind,
+  tag?: string,
+): boolean {
   if (!definition || definition.attachInstruction) return false;
+  // A tagged ability (`AbilityTriggerSpec special.tag`) is resolved only by an instruction naming its tag, and a tag
+  // names nothing but tagged abilities.
+  if (trigger === "special" && definition.trigger.kind === "special") return definition.trigger.tag === tag;
+  if (tag !== undefined) return false;
   if (trigger === "forcedResponse") return definition.trigger.kind === "response" && definition.trigger.forced;
   if (trigger === "forcedInterrupt") return definition.trigger.kind === "interrupt" && definition.trigger.forced;
   return definition.trigger.kind === trigger;
@@ -3879,6 +4056,12 @@ export type ResourceGeneration =
 
 export interface AbilityDefinition {
   readonly trigger: AbilityTriggerSpec;
+  /**
+   * Authoring metadata, ignored by the engine: this ability has an `attack` effect and no "(attack)" label on purpose,
+   * and `citation` names the card text or ruling that says so (Dance of Death, FAQ "Dance of Death (#4)", RRG 1.8
+   * p. 59). Only `dsl/validate.ts` reads it, to waive its "an attack effect belongs to an (attack)-labeled ability" check.
+   */
+  readonly unlabeledAttack?: { readonly citation: string };
   /**
    * This interrupt or response is the card's own printed answer to the card it is attached to leaving play, which needs
    * the card to stay in play, unattached, rather than be removed from the game as RRG 1.8 "Permanent" (p. 32) has a

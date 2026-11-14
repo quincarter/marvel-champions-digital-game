@@ -1,0 +1,30 @@
+{
+  "id": "x.night-thrasher-dh.05",
+  "name": "Kickflip",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "5",
+  "quantityInSet": 4,
+  "unique": false,
+  "type": "event",
+  "cost": 1,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["ATTACK", "SKILL"],
+  "keywords": [],
+  "deckLimit": 4,
+  "text": {
+    "printed": "If the last card you played this round was a Night Thrasher event, reduce the cost to play this card by 1.\nHero Action (attack): Flip the Battle Board upgrade and deal 1 damage to an enemy. Draw 1 card.",
+    "current": "If the last card you played this round was a Night Thrasher event, reduce the cost to play this card by 1.\nHero Action (attack): Flip the Battle Board upgrade and deal 1 damage to an enemy. Draw 1 card."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.05.kickflip-constant"
+    },
+    {
+      "id": "x.night-thrasher-dh.05.kickflip-action"
+    }
+  ]
+}

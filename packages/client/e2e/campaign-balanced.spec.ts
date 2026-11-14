@@ -15,7 +15,9 @@ import { quietGuide } from "./wave6-helpers-b.js";
 
 /**
  * Issue #609: starting a Galaxy's Most Wanted campaign asks "Play as normal" or "Rebalance the campaign" before the
- * Roster. Normal is the default; Rebalance shows the toggles (all off); Continue carries the choice to the Roster.
+ * Roster, once the GMW Fixes house-rule pack is installed (the owner, 2026-11-13; docs/custom-content-packs.md §11.11).
+ * The suite installs no pack, so the Cover goes straight to the Roster and the prompt is opened by its dev jump.
+ * Normal is the default; Rebalance shows the toggles (all off); Continue carries the choice to the Roster.
  * On a phone, a swipe that lifts over a toggle or the credit must press nothing (the no-tap-on-finger-lift rule).
  */
 
@@ -69,7 +71,9 @@ async function revealAndPress(page: Page, key: string): Promise<void> {
   await clickStop(page, key, "CampaignBalanced");
 }
 
-test("issue #609: Normal is the default; Rebalance and a toggle carry to the Roster", async ({ page }) => {
+test("issue #609: without the GMW Fixes mod, the Cover signs a Normal run; the prompt's choices carry to the Roster", async ({
+  page,
+}) => {
   test.setTimeout(180_000);
   const errors = trackErrors(page);
   await installWave6Helpers(page);
@@ -90,8 +94,17 @@ test("issue #609: Normal is the default; Rebalance and a toggle carry to the Ros
   await waitForScene(page, "CampaignCover");
   await settle(page);
   await clickStop(page, "cta", "CampaignCover");
+  // No GMW Fixes pack installed: no prompt, the Roster of a Normal run.
+  await waitForScene(page, "CampaignRoster");
+  await settle(page);
+  const plain = (await visibleTexts(page)).filter((t) => t.scene === "CampaignRoster").map((t) => t.text);
+  expect(
+    plain.some((t) => /BALANCED/i.test(t)),
+    "a run started without the mod is Normal",
+  ).toBe(false);
 
-  // The prompt: Play as normal chosen, no toggles to see until Rebalance is picked.
+  // The prompt (as the mod offers it): Play as normal chosen, no toggles to see until Rebalance is picked.
+  await page.goto("/?unlock=all&screen=campaign-balanced");
   await waitForScene(page, "CampaignBalanced");
   await settle(page);
   const normal = await texts(page);

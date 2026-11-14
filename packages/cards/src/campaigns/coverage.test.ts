@@ -8,7 +8,10 @@ import { TRORS_CAMPAIGN as TRORS_CAMPAIGN_RECORD, TRORS_CARDS, TRORS_SCENARIOS }
 import type { CampaignInstruction } from "@mc/engine";
 import { action } from "../dsl/abilities.js";
 import { validateDefinition } from "../dsl/validate.js";
+import { PLAYABLE_CARDS } from "@mc/content";
+import { isBaseScenarioId } from "../playable/custom.js";
 import { CAMPAIGNS, TRORS_CAMPAIGN_DEFINITION } from "./index.js";
+import { campaignDefinitionProblems, cardIdsIn, fieldsIn, opsOfKind } from "./structure.js";
 
 /** `CAMPAIGNS` must cover exactly the campaigns this build ships a definition for — a new box can't be silently unchecked. */
 const CAMPAIGN_STATUS: Readonly<Record<string, "scripted">> = {
@@ -37,60 +40,20 @@ describe("CAMPAIGNS registry", () => {
   });
 });
 
+describe("campaignDefinitionProblems (the generic checks a pack campaign gets)", () => {
+  it.each(Object.entries(CAMPAIGNS))("finds nothing wrong with %s", (_id, definition) => {
+    const cards = new Set(PLAYABLE_CARDS.map((card) => card.id as string));
+    expect(
+      campaignDefinitionProblems(definition, { isCardId: (id) => cards.has(id), isScenarioId: isBaseScenarioId }),
+    ).toEqual([]);
+  });
+});
+
 /** Every setup/victory/defeat instruction of every node, flattened, for the structural checks below. */
 function allInstructions(): readonly CampaignInstruction[] {
   const graph = TRORS_CAMPAIGN_DEFINITION.graph;
   if (graph.kind !== "linear") throw new Error("expected trors's graph to be linear");
   return graph.nodes.flatMap((node) => [...node.setup, ...node.victory, ...(node.defeat ?? [])]);
-}
-
-/** Every `field: string` an instruction's step reads or writes, found structurally so no shape has to be enumerated. */
-function fieldsIn(value: unknown, found: Set<string> = new Set()): ReadonlySet<string> {
-  if (Array.isArray(value)) {
-    for (const item of value) fieldsIn(item, found);
-    return found;
-  }
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (typeof record.field === "string") found.add(record.field);
-    for (const v of Object.values(record)) fieldsIn(v, found);
-  }
-  return found;
-}
-
-/** Every literal card id an instruction's step names ("cardId" / "cardIds" keys), found the same structural way. */
-function cardIdsIn(value: unknown, found: Set<string> = new Set()): ReadonlySet<string> {
-  if (Array.isArray(value)) {
-    for (const item of value) cardIdsIn(item, found);
-    return found;
-  }
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    for (const [key, v] of Object.entries(record)) {
-      if (key === "cardId" && typeof v === "string") found.add(v);
-      if (key === "cardIds" && Array.isArray(v)) for (const id of v) if (typeof id === "string") found.add(id);
-      cardIdsIn(v, found);
-    }
-  }
-  return found;
-}
-
-/** Every object with this `kind` anywhere in a step, found structurally (the same walk `fieldsIn` does). */
-function opsOfKind(
-  value: unknown,
-  kind: string,
-  found: Record<string, unknown>[] = [],
-): readonly Record<string, unknown>[] {
-  if (Array.isArray(value)) {
-    for (const item of value) opsOfKind(item, kind, found);
-    return found;
-  }
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (record.kind === kind) found.push(record);
-    for (const v of Object.values(record)) opsOfKind(v, kind, found);
-  }
-  return found;
 }
 
 const stepsOfEveryInstruction = (): readonly unknown[] => allInstructions().map((instruction) => instruction.step);

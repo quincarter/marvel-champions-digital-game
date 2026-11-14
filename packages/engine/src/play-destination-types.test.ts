@@ -53,6 +53,15 @@ const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
 const BADGE = stubUpgrade({ id: "badge", cost: 0 });
 /** "Attach to an ally." */
 const HARNESS = { ...stubUpgrade({ id: "harness", cost: 0 }), attachesTo: { kind: "ally" as const } };
+/** "Attach to an ally. Tether cannot be attached to cards unless it is in play." (`attachedOnlyWhileInPlay`) */
+const TETHER_CONSTANT = stubAbility("tether.constant", {
+  trigger: { kind: "constant", attachedOnlyWhileInPlay: true },
+  effects: [],
+});
+const TETHER = {
+  ...stubUpgrade({ id: "tether", cost: 0, abilities: [TETHER_CONSTANT.ref] }),
+  attachesTo: { kind: "ally" as const },
+};
 const playerSideScheme = (id: string, threat: number): PlayerSideSchemeCard => ({
   ...stubSupport({ id, cost: 0 }),
   type: "player_side_scheme",
@@ -67,7 +76,7 @@ const SCHEME = stubMainScheme({
 });
 const TYRANT = stubVillain({ id: "tyrant", stages: [{ hp: flat(40), atk: 0, sch: 0 }] });
 const NOISE = stubTreachery({ id: "noise", boostIcons: 0 });
-const deps: EngineDeps = depsOf(OPEN_ACTION, FLARE_ACTION);
+const deps: EngineDeps = depsOf(OPEN_ACTION, FLARE_ACTION, TETHER_CONSTANT);
 
 /** A rule naming every card asked about here, the event and the resource card (by name) included. */
 const EVERYTHING: readonly RuleSpec[] = [
@@ -91,12 +100,12 @@ const playCommand = (id: InstanceId, opts: { into?: boolean; host?: InstanceId }
 /** P1 in hero form at their turn with the area open, under `rules`. */
 function start(rules: readonly RuleSpec[] = EVERYTHING): GameState {
   const base = gameAtFirstTurn({
-    cards: [OPEN, FLARE, GUARD, BADGE, HARNESS, SURVEY, SWEEP, NOISE],
+    cards: [OPEN, FLARE, GUARD, BADGE, HARNESS, TETHER, SURVEY, SWEEP, NOISE],
     deps,
     villain: TYRANT,
     mainScheme: SCHEME,
     encounter: copiesOf(NOISE.id, 14),
-    deck: [OPEN.id, FLARE.id, GUARD.id, GUARD.id, BADGE.id, HARNESS.id, HARNESS.id, SURVEY.id, SWEEP.id],
+    deck: [OPEN.id, FLARE.id, GUARD.id, GUARD.id, BADGE.id, HARNESS.id, HARNESS.id, TETHER.id, SURVEY.id, SWEEP.id],
     scenarioRuleSpecs: rules,
   });
   const given = giveCard(base, P1, OPEN.id);
@@ -191,6 +200,24 @@ describe("playCard.into: an upgrade", () => {
     expect(mustInstance(mustPlay(mine.state, HARNESS.id, { host: mine.id }).state, mine.id).attachments).toHaveLength(
       1,
     );
+  });
+});
+
+describe("playCard.into: an upgrade that cannot be attached unless it is in play (attachedOnlyWhileInPlay)", () => {
+  it("played into the area on a card there, it is in the area attached to nothing; played as usual, in its player's area", () => {
+    const state = start();
+    const there = mustPlay(state, GUARD.id, { into: true });
+    const tether = mustPlay(there.state, TETHER.id, { into: true, host: there.id });
+    expect(locateCard(tether.state, tether.id)).toEqual(IN_AREA);
+    expect(mustInstance(tether.state, tether.id)).toMatchObject({ attachedTo: null, controllerId: null });
+    expect(mustInstance(tether.state, there.id).attachments).toEqual([]);
+    expect(cardsInPlay(tether.state)).toContain(tether.id);
+
+    const mine = mustPlay(there.state, GUARD.id);
+    const own = mustPlay(mine.state, TETHER.id, { host: mine.id });
+    expect(locateCard(own.state, own.id)).toEqual({ kind: "playArea", playerId: P1 });
+    expect(mustInstance(own.state, own.id)).toMatchObject({ attachedTo: null, controllerId: P1 });
+    expect(mustInstance(own.state, mine.id).attachments).toEqual([]);
   });
 });
 

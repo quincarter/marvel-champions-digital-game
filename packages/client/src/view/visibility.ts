@@ -20,7 +20,7 @@ import {
   type TableContext,
   type ViewerContext,
 } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
+import { gameDeps } from "../content/game-deps.js";
 
 /**
  * The engine's `faceVisible`, answering for the table when the caller names no viewer: a rule that shows a card to
@@ -28,4 +28,4 @@ import { POOL_DEPS } from "../content/pool.js";
  * prompt about that card never says "a facedown card" for a card the whole table is looking at.
  */
 export const faceVisible = (state: GameState, id: InstanceId, view?: ViewerContext | TableContext): boolean =>
-  engineFaceVisible(state, id, view ?? { deps: POOL_DEPS });
+  engineFaceVisible(state, id, view ?? { deps: gameDeps() });

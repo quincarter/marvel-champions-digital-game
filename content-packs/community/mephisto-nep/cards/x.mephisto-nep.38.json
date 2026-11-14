@@ -1,0 +1,29 @@
+{
+  "id": "x.mephisto-nep.38",
+  "type": "side_scheme",
+  "name": "Dark Lord's Tactics",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D10/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "traits": [],
+  "keywords": [],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["acceleration"],
+  "boostIcons": 2,
+  "text": {
+    "printed": "Each Mystic minion gains guard and patrol.",
+    "current": "Each Mystic minion gains guard and patrol."
+  },
+  "flavor": "Under the command of a Hell Lord, Hell's forces can mobilize unopposed with their overwhelming numbers.",
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.38.dark-lords-tactics-constant"
+    }
+  ]
+}

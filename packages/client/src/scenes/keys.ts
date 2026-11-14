@@ -49,6 +49,8 @@ export const SCENES = {
   playerStats: "PlayerStats",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
+  /** The Mod Store (`scenes/mod-store.ts`): browse, install, update and remove community packs, reached from Extras. */
+  modStore: "ModStore",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
   extrasReader: "ExtrasReader",
   sideStoryReader: "SideStoryReader",
@@ -132,6 +134,8 @@ export const SCENES = {
   optionNotice: "OptionNoticeOverlay",
   /** The replay transport (`scenes/replay-transport.ts`, #693): play, step, seek and exit, over the Board while a replay is watched. */
   replayTransport: "ReplayTransportOverlay",
+  /** The Mod Store's heads-up (`scenes/mod-notice.ts`): Deadpool and Spider-Man on mod risk, over the store. */
+  modNotice: "ModNoticeOverlay",
   /** "In-progress games" full screen (`scenes/games-list.ts`): the phone's version of the Title's list, over Title. */
   gamesList: "GamesListOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */

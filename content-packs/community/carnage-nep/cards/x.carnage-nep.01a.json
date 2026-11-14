@@ -1,0 +1,71 @@
+{
+  "id": "x.carnage-nep.01a",
+  "name": "Carnage",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "1A/1B",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "hero_identity",
+  "hp": 12,
+  "hero": {
+    "faceName": "Carnage",
+    "traits": ["AVENGER", "SYMBIOTE"],
+    "atk": 2,
+    "thw": 1,
+    "def": 2,
+    "handSize": 5,
+    "keywords": [],
+    "text": {
+      "printed": "Death-Dealer — Response: After you attack and defeat an enemy, heal 1 damage from Carnage for each point of excess damage dealt by that attack.\nNeed to Kill — Forced Response: At the end of the round, if you did not defeat an enemy this round, take damage equal to your ATK.",
+      "current": "Death-Dealer — Response: After you attack and defeat an enemy, heal 1 damage from Carnage for each point of excess damage dealt by that attack.\nNeed to Kill — Forced Response: At the end of the round, if you did not defeat an enemy this round, take damage equal to your ATK."
+    },
+    "flavor": "\"I told you, if you don't kill, I kill you.\"",
+    "abilities": [
+      {
+        "id": "x.carnage-nep.01a.death-dealer",
+        "label": "Death-Dealer"
+      },
+      {
+        "id": "x.carnage-nep.01a.need-to-kill",
+        "label": "Need to Kill"
+      },
+      {
+        "id": "x.carnage-nep.01a.need-to-kill-tracker"
+      }
+    ]
+  },
+  "alterEgo": {
+    "faceName": "Eddie Brock",
+    "traits": ["CIVILIAN"],
+    "rec": 4,
+    "handSize": 6,
+    "keywords": [],
+    "text": {
+      "printed": "You may include up to 5 Attack events in your deck from aspects other than your chosen aspect.\nDark Urges — Action: Discard cards from the encounter deck until you discard a minion. Put that minion into play engaged with you. (Limit once per round.)",
+      "current": "You may include up to 5 Attack events in your deck from aspects other than your chosen aspect.\nDark Urges — Action: Discard cards from the encounter deck until you discard a minion. Put that minion into play engaged with you. (Limit once per round.)"
+    },
+    "flavor": "\"I kill someone every so often, and it leaves me alone.\"",
+    "abilities": [
+      {
+        "id": "x.carnage-nep.01b.eddie-brock-constant"
+      },
+      {
+        "id": "x.carnage-nep.01b.dark-urges",
+        "label": "Dark Urges"
+      },
+      {
+        "id": "x.carnage-nep.01b.need-to-kill-reset"
+      }
+    ]
+  },
+  "obligationCardId": "x.carnage-nep.14",
+  "nemesisEncounterSetId": "carnage-nep-nemesis",
+  "deckbuilding": {
+    "offAspectAllowance": {
+      "cardType": "event",
+      "anyTrait": ["ATTACK"],
+      "maxCards": 5
+    }
+  }
+}

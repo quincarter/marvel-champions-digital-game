@@ -65,7 +65,7 @@ import {
   type PendingChoice,
   type PlayerId,
 } from "@mc/engine";
-import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
+import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import { unavailableOptionReasons } from "../view/ability-refusal.js";
 import { choiceRowsOf } from "../view/choice-option-rows.js";
 import { optionArtInstance, optionArtOf } from "../view/choice-option-art.js";
@@ -673,12 +673,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const asCards =
       (choice.options.length > 0 &&
         choice.options.every((option) => refInstanceId(option.ref) !== null || isFacedownRef(option.ref))) ||
-      collectionRows(choice, (cardId) => CARDS_BY_ID.get(cardId)) !== null;
+      collectionRows(choice, (cardId) => gameCardsById().get(cardId)) !== null;
 
     // The card (and, where it can be pinned down, the ability and cost) this choice is actually about, ready to
     // *show* rather than only name — the reported gap this panel exists to close (`view/choice-source-panel.ts`'s
     // own doc comment). Null exactly when there is no single source to show (a mulligan, discard to hand size).
-    const sourcePanel = choiceSourcePanelOf(state.game, choice, state.perspectiveId ?? choice.playerId, POOL_DEPS);
+    const sourcePanel = choiceSourcePanelOf(state.game, choice, state.perspectiveId ?? choice.playerId, gameDeps());
     // No source *card* doesn't always mean nothing to show: a campaign/scenario setup instruction with no card of
     // its own (MC27 p. 22's reputation node 9) still names itself on the frame it pushed (`choiceInstructionOf`),
     // so the panel slot shows that instruction's own text/citation instead of going blank.
@@ -707,8 +707,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       const question = choiceHeaderOf(
         state.game,
         choice,
-        POOL_DEPS,
-        promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game),
+        gameDeps(),
+        promptTitleOf(choice.prompt, gameDeps(), choice, state.game),
       ).title;
       this.#drawPeekBanner(state.game, question, width, height, formFactor);
       return;
@@ -757,7 +757,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       state.game,
       choice,
       state.perspectiveId ?? choice.playerId,
-      POOL_DEPS,
+      gameDeps(),
     );
     const contextHeight = triggerContext
       ? this.#drawTriggerContext(triggerContext, 0, 0, sheetWidth - 24, true) + 10
@@ -809,14 +809,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     const decider = state.game.players.find((player) => player.playerId === choice.playerId);
     const seat =
       state.game.players.length > 1 && decider
-        ? characterPanel(state.game, decider.identity.instanceId, POOL_DEPS)
+        ? characterPanel(state.game, decider.identity.instanceId, gameDeps())
         : null;
     // A card pick out of a deck says what is being done in the title and who asks in a line beneath (`choiceHeaderOf`).
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game);
-    const header = choiceHeaderOf(state.game, choice, POOL_DEPS, genericTitle);
+        : promptTitleOf(choice.prompt, gameDeps(), choice, state.game);
+    const header = choiceHeaderOf(state.game, choice, gameDeps(), genericTitle);
     const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : header.subtitle ? 52 : 38 };
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
@@ -1193,7 +1193,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const rows = choiceRowsOf(
       choice,
       choice.prompt.kind === "chooseOption" && choice.prompt.unavailable && state.game
-        ? unavailableOptionReasons(state.game, choice.prompt.unavailable, POOL_DEPS)
+        ? unavailableOptionReasons(state.game, choice.prompt.unavailable, gameDeps())
         : [],
     );
     const texts = rows.map((row) =>
@@ -1619,7 +1619,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     stripHeight: number,
     guideStrip: GuideStripContent | null,
   ): void {
-    const view = defendChoiceViewOf(game, choice, POOL_DEPS, appSession().store.state.perspectiveId, this.#selected);
+    const view = defendChoiceViewOf(game, choice, gameDeps(), appSession().store.state.perspectiveId, this.#selected);
     if (!view) return;
 
     this.#route = choiceFocusOrder(
@@ -1942,7 +1942,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     stripHeight: number,
     guideStrip: GuideStripContent | null,
   ): void {
-    const lookup = (id: string): ReturnType<typeof CARDS_BY_ID.get> => CARDS_BY_ID.get(id);
+    const lookup = (id: string): ReturnType<ReturnType<typeof gameCardsById>["get"]> => gameCardsById().get(id);
     const view = accuseSheetOf(choice, this.#selected, lookup);
     if (!view) return;
     const inspectCard = (cardId: string): void => {
@@ -2088,7 +2088,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     y += SUMMARY + 8;
 
     const commit: Rect = { x: sheet.x + pad, y, width: innerWidth, height: COMMIT };
-    const accusedName = view.selected ? (CARDS_BY_ID.get(view.selected.boardMember)?.name ?? "") : "";
+    const accusedName = view.selected ? (gameCardsById().get(view.selected.boardMember)?.name ?? "") : "";
     const accuse = new McButton(this, {
       kind: "primary",
       label: view.selected ? `Accuse ${accusedName}` : "Accuse",
@@ -2312,13 +2312,13 @@ export class ChoiceOverlay extends Phaser.Scene {
    * one fully visible, so the card you just chose is always the readable one.
    */
   #drawCardChoice(area: Rect, choice: PendingChoice): void {
-    const collection = collectionRows(choice, (cardId) => CARDS_BY_ID.get(cardId));
+    const collection = collectionRows(choice, (cardId) => gameCardsById().get(cardId));
     if (collection) return this.#drawCollectionGrid(area, choice, collection);
     const barState = appSession().store.state.game;
-    this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, POOL_DEPS) : new Map();
+    this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, gameDeps()) : new Map();
     this.#tileCounters = barState ? optionCounterNotesOf(barState, choice) : new Map();
     this.#tileCaptions = barState?.pendingChoice
-      ? spendCaptionsOf(barState, barState.pendingChoice, choice, POOL_DEPS)
+      ? spendCaptionsOf(barState, barState.pendingChoice, choice, gameDeps())
       : new Map();
     const byId = new Map(choice.options.map((option) => [option.optionId, option] as const));
     // Pick order, not list order: the last thing you touched is the last drawn,
@@ -2577,7 +2577,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const game = appSession().store.state.game;
     const pending = game?.pendingChoice;
     if (!game || !pending) return null;
-    return paymentSheetView(game, pending, spendAnswerOf(pending, this.#selected), POOL_DEPS);
+    return paymentSheetView(game, pending, spendAnswerOf(pending, this.#selected), gameDeps());
   }
 
   /** True when Confirm can be pressed with the current picks (a payment asks the engine; the rest count). */
@@ -2866,7 +2866,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       width: slot.width - 6,
       height: slot.height - COLLECTION_CAPTION - 4,
     };
-    const card = CARDS_BY_ID.get(row.cardId);
+    const card = gameCardsById().get(row.cardId);
     const key = cardArt(this).request(this, artFor(card, row.face));
     if (!drawArt(this, key, scan, { fit: "contain" })) {
       this.add
@@ -3119,7 +3119,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       const captionText =
         spendCaption ??
         (option.ref.kind === "ability"
-          ? `${triggerCaption(state, instanceId, abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS))}${this.#twinOrdinal(state, option)}`
+          ? `${triggerCaption(state, instanceId, abilityShortLabelOf(state, instanceId, option.ref.abilityId, gameDeps()))}${this.#twinOrdinal(state, option)}`
           : "");
       const caption = this.add
         .text(0, 0, captionText, {
@@ -3466,7 +3466,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (choice.prompt.kind === "accuse" && row?.ref.kind === "cardDefinition")
       return this.#inspectCardId(row.ref.cardId);
     const option = choice.options.find((candidate) => candidate.optionId === optionId);
-    const collected = collectionRows(choice, (cardId) => CARDS_BY_ID.get(cardId))?.find((r) => r.optionId === optionId);
+    const collected = collectionRows(choice, (cardId) => gameCardsById().get(cardId))?.find(
+      (r) => r.optionId === optionId,
+    );
     if (collected) return this.#inspectCollection(collected, this.#selected.includes(optionId));
     const instanceId = option ? refInstanceId(option.ref) : null;
     if (!instanceId) return;
@@ -3646,7 +3648,7 @@ function isFacedownRef(ref: ChoiceRef): boolean {
 function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: PlayerId | null): string {
   const seat = game.players.find((player) => player.playerId === playerId);
   if (!seat) return playerId;
-  const panel = characterPanel(game, seat.identity.instanceId, POOL_DEPS);
+  const panel = characterPanel(game, seat.identity.instanceId, gameDeps());
   return [
     seatIdentityName(game, playerId),
     seat.identity.form === "hero" ? "Hero" : "Alter-ego",

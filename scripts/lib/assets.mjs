@@ -7,6 +7,8 @@
 //     starts with one of its `prefixes` (card scans are named by card code, and a code's first two digits are its
 //     pack). Files that aren't media (README, SOURCE.md, focus.json, the TSV manifests, .gitkeep) stay in git.
 //   - `kind: "archive"` bundles (artifacts/: QA and design screenshots) hold every file and are fetched only by name.
+//   - `optional: true` media bundles (pack-art: the community content packs' pictures, which only the pack publish
+//     workflow needs) are fetched only when their name or group is given, never by a plain `assets:fetch` or `all`.
 //   - a release tag is the bundle's name plus the first 12 hex digits of the zip's sha256, so a release never changes
 //     once uploaded and an old commit's manifest still downloads what it built with. Old releases are never deleted.
 //
@@ -66,6 +68,7 @@ export function parseManifest(json) {
     if (typeof b.dir !== "string" || !isSafeRelative(b.dir)) fail(`${at}: dir must be a relative path inside the repo`);
     const kind = b.kind ?? "media";
     if (kind !== "media" && kind !== "archive") fail(`${at}: kind must be "media" or "archive"`);
+    if (b.optional !== undefined && typeof b.optional !== "boolean") fail(`${at}: optional must be true or false`);
     if (b.prefixes !== undefined) {
       if (!Array.isArray(b.prefixes) || b.prefixes.length === 0 || b.prefixes.some((p) => typeof p !== "string" || !p))
         fail(`${at}: prefixes must be a non-empty list of strings`);
@@ -100,22 +103,28 @@ export async function readManifest(root) {
 }
 
 /**
- * The bundles a selector names. `all` (or nothing) is every media bundle; `none` is nothing; otherwise a
- * comma- or space-separated list of group and bundle names (an archive bundle is fetched only when listed).
+ * The bundles a selector names. `all` (or nothing) is every media bundle not marked `optional`; `none` is nothing;
+ * otherwise a comma- or space-separated list of group and bundle names. An archive bundle is fetched only when listed
+ * by name, an optional one when listed by name or group (also next to `all`).
  */
 export function selectBundles(manifest, selector) {
   const words = String(selector ?? "")
     .split(/[\s,]+/)
     .filter(Boolean);
+  const named = (b, list) => list.includes(b.name) || (b.kind === "media" && list.includes(b.group));
   if (words.length === 0 || words.includes("all")) {
-    const media = manifest.bundles.filter((b) => b.kind === "media");
     const extra = words.filter((w) => w !== "all");
-    return [...media, ...manifest.bundles.filter((b) => b.kind === "archive" && extra.includes(b.name))];
+    return manifest.bundles.filter((b) => isDefaultBundle(b) || named(b, extra));
   }
   if (words.includes("none")) return [];
   const unknown = words.filter((w) => !manifest.bundles.some((b) => b.name === w || b.group === w));
   if (unknown.length > 0) throw new Error(`no bundle or group named ${unknown.join(", ")} in ${MANIFEST_PATH}`);
-  return manifest.bundles.filter((b) => words.includes(b.name) || (b.kind === "media" && words.includes(b.group)));
+  return manifest.bundles.filter((b) => named(b, words));
+}
+
+/** Whether a plain `assets:fetch` (and `assets:pack --all`) takes the bundle: a media bundle not marked optional. */
+export function isDefaultBundle(bundle) {
+  return bundle.kind === "media" && bundle.optional !== true;
 }
 
 /** Whether a file (its path relative to the bundle's `dir`, with forward slashes) belongs to the bundle. */

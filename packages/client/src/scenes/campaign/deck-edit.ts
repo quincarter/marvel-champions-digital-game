@@ -24,7 +24,7 @@ import { typeRole } from "../../tokens.js";
 import { drawTopBar } from "../../ui/campaign-chrome.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
-import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
+import { campaignRecordOf } from "../../campaign/pack-campaigns.js";
 import { campaignService } from "../../session.js";
 import {
   campaignDeckContextOf,
@@ -104,7 +104,7 @@ export class CampaignDeckEditScene extends Phaser.Scene {
       this.#drawStatus(`This campaign has no seat ${data.seatNumber}.`);
       return;
     }
-    const content = CAMPAIGN_RECORDS[current.campaignId as string];
+    const content = campaignRecordOf(current.campaignId as string, current);
     if (!content) {
       this.#drawStatus(`This build cannot edit a deck for "${current.campaignId as string}".`);
       return;

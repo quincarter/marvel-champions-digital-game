@@ -1,0 +1,31 @@
+{
+  "id": "x.carnage-nep.09",
+  "name": "Klyntar Bond",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "9",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "upgrade",
+  "cost": 3,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.carnage-nep.01a",
+  "traits": ["CONDITION", "SYMBIOTE"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Interrupt: When Carnage uses a basic power, you may give him a boost card.\nResource: Exhaust this card → generate a [physical] resource.",
+    "current": "Hero Interrupt: When Carnage uses a basic power, you may give him a boost card.\nResource: Exhaust this card → generate a [physical] resource."
+  },
+  "flavor": "\"And being with a symbiote...to call it a rush doesn't do it justice.\" —Eddie Brock",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.09.klyntar-bond-interrupt"
+    },
+    {
+      "id": "x.carnage-nep.09.klyntar-bond-resource"
+    }
+  ]
+}

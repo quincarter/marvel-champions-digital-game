@@ -1,0 +1,16 @@
+{
+  "id": "mephisto-nep-mephisto",
+  "name": "Mephisto",
+  "packCode": "mephisto-nep",
+  "villainCardId": "x.mephisto-nep.01",
+  "mainSchemeCardId": "x.mephisto-nep.02a",
+  "encounterSetIds": ["mephisto-nep-mephisto", "mephisto-nep-blackheart", "mephisto-nep-damned"],
+  "recommendedModularSetIds": ["mephisto-nep-mother-of-demons", "mephisto-nep-corruptive-offers"],
+  "standardEncounterSetIds": ["standard"],
+  "expertEncounterSetIds": ["expert"],
+  "villainStages": {
+    "standard": [1, 2],
+    "expert": [2, 3]
+  },
+  "setAsideCardIds": ["x.mephisto-nep.04"]
+}

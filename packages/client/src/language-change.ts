@@ -23,3 +23,20 @@ export function onLanguageChange(listener: () => void): () => void {
 export function announceLanguageChange(): void {
   for (const listener of [...listeners]) listener();
 }
+
+/**
+ * Something a card's picture depends on changed without the language changing (an installed pack's pictures became
+ * available, `art/pack-art.ts`): only the art caches redraw and ask again. Deliberately not the language channel, which
+ * makes the session store republish its state.
+ */
+export function announceArtChange(): void {
+  for (const listener of [...artListeners]) listener();
+}
+
+const artListeners = new Set<() => void>();
+
+/** Called when a card picture became available without a language change (`announceArtChange`); returns an unsubscribe. */
+export function onArtChange(listener: () => void): () => void {
+  artListeners.add(listener);
+  return () => artListeners.delete(listener);
+}

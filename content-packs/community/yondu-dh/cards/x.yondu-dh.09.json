@@ -1,0 +1,27 @@
+{
+  "id": "x.yondu-dh.09",
+  "name": "Invest",
+  "setCode": "yondu-dh",
+  "cycleId": "yondu-dh",
+  "collectorNumber": "9",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 2,
+  "resourceIcons": {
+    "physical": 1
+  },
+  "aspect": "hero:x.yondu-dh.01a",
+  "traits": ["ITEM", "TACTIC"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Hero Action: Exhaust Invest and spend 2 or more resources from your hand → if the number of resources spent this way was:\n• 2 — Attach the Yaka Arrow upgrade to an enemy or to your identity.\n• 3 — Ready Yondu and the Tahlei upgrade.\n• 4 or more — Draw 5 cards.",
+    "current": "Hero Action: Exhaust Invest and spend 2 or more resources from your hand → if the number of resources spent this way was:\n• 2 — Attach the Yaka Arrow upgrade to an enemy or to your identity.\n• 3 — Ready Yondu and the Tahlei upgrade.\n• 4 or more — Draw 5 cards."
+  },
+  "abilities": [
+    {
+      "id": "x.yondu-dh.09.invest-action"
+    }
+  ]
+}

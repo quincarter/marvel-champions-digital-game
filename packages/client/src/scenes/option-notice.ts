@@ -33,7 +33,7 @@ const BENEATH = [SCENES.board, SCENES.choice] as const;
  * again: Start would open Pause, A would press what the Board has focused. Waiting for the release makes that press
  * the notice's alone. A click, or a key, has nothing held and gives the input back at once.
  */
-function giveBack(scenes: readonly Phaser.Scene[]): void {
+export function giveBack(scenes: readonly Phaser.Scene[]): void {
   const first = scenes[0];
   if (!first) return;
   const enable = (): void => {

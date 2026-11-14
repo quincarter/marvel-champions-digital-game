@@ -1,0 +1,27 @@
+{
+  "id": "x.sample-hero.09",
+  "type": "treachery",
+  "name": "Shock Wave",
+  "setCode": "sample-hero",
+  "cycleId": "sample-hero",
+  "collectorNumber": "9",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["sample-hero-nemesis"],
+  "boostIcons": 0,
+  "starIcon": true,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: Stun your hero. If Rust Warden is in play, this card gains surge.\n[star] Boost: If this activation deals damage to a friendly character, stun that character.",
+    "current": "When Revealed: Stun your hero. If Rust Warden is in play, this card gains surge.\n[star] Boost: If this activation deals damage to a friendly character, stun that character."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-hero.09.when-revealed"
+    },
+    {
+      "id": "x.sample-hero.09.boost"
+    }
+  ]
+}

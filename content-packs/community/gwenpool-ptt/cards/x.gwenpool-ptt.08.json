@@ -1,0 +1,31 @@
+{
+  "id": "x.gwenpool-ptt.08",
+  "name": "Marvel Champions Handbook",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "upgrade",
+  "cost": 2,
+  "resourceIcons": {
+    "wild": 1
+  },
+  "aspect": "hero:x.gwenpool-ptt.01a",
+  "traits": ["ITEM"],
+  "keywords": [],
+  "deckLimit": 1,
+  "text": {
+    "printed": "Action: Exhaust Marvel Champions Handbook → ignore one keyword, trait, or status card of your choice until the end of the round.",
+    "current": "Action: Exhaust Marvel Champions Handbook → ignore one keyword, trait, or status card of your choice until the end of the round."
+  },
+  "flavor": "\"Wow, this handbook is so cool!\"",
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.08.marvel-champions-handbook-action"
+    },
+    {
+      "id": "x.gwenpool-ptt.08.pink-bubble"
+    }
+  ]
+}

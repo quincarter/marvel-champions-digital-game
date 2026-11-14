@@ -1,0 +1,32 @@
+{
+  "id": "x.carnage-nep.21",
+  "name": "Recognizing Evil",
+  "setCode": "carnage-nep",
+  "cycleId": "carnage-nep",
+  "collectorNumber": "21",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "side_scheme",
+  "encounterSetIds": ["carnage-nep-twisted-killers"],
+  "startingThreat": {
+    "base": 0,
+    "perPlayer": 2
+  },
+  "icons": ["acceleration"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "Excess damage dealt by Killer minions is placed as threat here.\nWhen Revealed: Find a copy of Murderous Nature and reveal it.",
+    "current": "Excess damage dealt by Killer minions is placed as threat here.\nWhen Revealed: Find a copy of Murderous Nature and reveal it."
+  },
+  "flavor": "There are killers and monsters in this world. Rarely do those titles not overlap.",
+  "abilities": [
+    {
+      "id": "x.carnage-nep.21.recognizing-evil-constant"
+    },
+    {
+      "id": "x.carnage-nep.21.when-revealed"
+    }
+  ]
+}

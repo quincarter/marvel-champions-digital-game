@@ -1,0 +1,28 @@
+{
+  "id": "x.mephisto-nep.20",
+  "type": "treachery",
+  "name": "Meager Request",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "26/28, 27/28",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 0,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: You may ready your identity, draw 1 card, and heal 4 damage from your identity. If you do, resolve the \"Hidden Clause\" ability on the main scheme. Otherwise, this card gains surge.\n[star] Boost: After this activation, discard cards from the top of the encounter deck until a Bargain attachment is discarded. Reveal that card.",
+    "current": "When Revealed: You may ready your identity, draw 1 card, and heal 4 damage from your identity. If you do, resolve the \"Hidden Clause\" ability on the main scheme. Otherwise, this card gains surge.\n[star] Boost: After this activation, discard cards from the top of the encounter deck until a Bargain attachment is discarded. Reveal that card."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.20.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.20.boost"
+    }
+  ],
+  "starIcon": true,
+  "flavor": "\"I'm more than a soul peddler looking for a new score. Because I like being unpredictable.\" —Mephisto"
+}

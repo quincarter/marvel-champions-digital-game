@@ -50,6 +50,7 @@
  * introducing a new one under time pressure.
  */
 
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
@@ -62,15 +63,22 @@ import {
 } from "@mc/engine";
 import type { CardId } from "@mc/content";
 import {
-  CARDS_BY_ID,
-  POOL_CARDS,
+  CUSTOM_SHELF_ID,
   POOL_HERO_SHELF_PACKS,
+  POOL_CARDS,
   POOL_PACKS,
-  POOL_STARTER_DECKS,
   POOL_VERSION,
+  currentCardsById,
+  currentPool,
+  currentPoolKey,
+  currentStarterDecks,
 } from "../content/pool.js";
+import { loadedPacks } from "../packs/pack-registry.js";
+import { isHouseRulePack } from "../packs/pack-runtime.js";
 import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor } from "../art/art-source.js";
+import { packPictureFor } from "../art/pack-art.js";
+import { customCardBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb, renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
@@ -274,8 +282,19 @@ const GRID_CONTROLS_HEIGHT = hit.target + 8;
 const CARD_TEXT_LINES = 3;
 /** Room left at the narrow region's right edge for its scrollbar (`ui/scroll-region.ts`), so no control sits under it. */
 const NARROW_SCROLLBAR_GUTTER = 10;
-const POOL: readonly AnyCard[] = POOL_CARDS;
-const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
+/**
+ * The pool this screen builds against: the base pool plus every loaded custom pack's cards (`currentPool()`). Each
+ * derived list below is kept until the loaded packs change, so a pack installed or removed shows on the next visit
+ * and nothing is rebuilt per frame.
+ */
+const poolNow = (): readonly AnyCard[] => currentPool();
+let identitiesOf: { readonly pool: readonly AnyCard[]; readonly list: readonly HeroIdentityCard[] } | null = null;
+const identities = (): readonly HeroIdentityCard[] => {
+  const now = poolNow();
+  if (identitiesOf?.pool !== now) identitiesOf = { pool: now, list: identityOptions(now) };
+  return identitiesOf.list;
+};
+const cardById = (): ReadonlyMap<string, AnyCard> => currentCardsById();
 
 /**
  * `filter` plus the search's `field:value` terms (`pool-query.ts`) as clauses this side applies; the search worker
@@ -290,32 +309,64 @@ function withSearchClauses(filter: PoolFilter, search: string): PoolFilter {
 const freeTextOf = (text: string): string => parsePoolQuery(text).text.trim();
 
 /** Built on first search and kept: the documents the search worker ranks (every card; every hero). */
-let poolSearchDocuments: readonly SearchDocument[] | null = null;
-const POOL_SEARCH_DOCUMENTS = (): readonly SearchDocument[] =>
-  (poolSearchDocuments ??= POOL.map((card) =>
-    cardSearchDocumentOf(card, PACK_INFOS.find((pack) => pack.code === (card.setCode as string))?.name),
-  ));
+let poolSearchDocuments: { readonly pool: readonly AnyCard[]; readonly docs: readonly SearchDocument[] } | null = null;
+const POOL_SEARCH_DOCUMENTS = (): readonly SearchDocument[] => {
+  const now = poolNow();
+  if (poolSearchDocuments?.pool !== now) {
+    const infos = packInfos();
+    poolSearchDocuments = {
+      pool: now,
+      docs: now.map((card) =>
+        cardSearchDocumentOf(card, infos.find((pack) => pack.code === (card.setCode as string))?.name),
+      ),
+    };
+  }
+  return poolSearchDocuments.docs;
+};
 /** Every villain's name in the pool (what the Worker keys its villains by), for Everyone's Against stepper. */
 let poolVillains: readonly string[] | null = null;
 const poolVillainNames = (): readonly string[] =>
   (poolVillains ??= [
-    ...new Set([...CARDS_BY_ID.values()].filter((card) => card.type === "villain").map((c) => c.name)),
+    ...new Set([...currentCardsById().values()].filter((card) => card.type === "villain").map((c) => c.name)),
   ]);
-let heroSearchDocuments: readonly SearchDocument[] | null = null;
-const HERO_SEARCH_DOCUMENTS = (): readonly SearchDocument[] =>
-  (heroSearchDocuments ??= IDENTITIES.map((identity) => ({
-    id: identity.id as string,
-    primary: [qualifiedHeroName(identity), identity.name, identity.alterEgo.faceName],
-    secondary: [...identity.hero.traits, ...identity.alterEgo.traits],
-  })));
+let heroSearchDocuments: {
+  readonly list: readonly HeroIdentityCard[];
+  readonly docs: readonly SearchDocument[];
+} | null = null;
+const HERO_SEARCH_DOCUMENTS = (): readonly SearchDocument[] => {
+  const list = identities();
+  if (heroSearchDocuments?.list !== list) {
+    heroSearchDocuments = {
+      list,
+      docs: list.map((identity) => ({
+        id: identity.id as string,
+        primary: [qualifiedHeroName(identity), identity.name, identity.alterEgo.faceName],
+        secondary: [...identity.hero.traits, ...identity.alterEgo.traits],
+      })),
+    };
+  }
+  return heroSearchDocuments.docs;
+};
 
-/** Every pack the pool knows, in release order, with its cycle — what the Pack/Cycle filter and the "pack" sort read. */
-const PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
+/** Every base pack, in release order, with its cycle — what the Pack/Cycle filter and the "pack" sort read. */
+const BASE_PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
   code: pack.code as string,
   name: pack.name,
   cycleId: POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string))?.cycleId ?? (pack.cycleId as string),
   cycleName: POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string))?.cycleName ?? (pack.cycleId as string),
 }));
+/** The base packs, then one per loaded custom pack (all in the "Custom packs" cycle), so the Pack filter can name them. */
+const packInfos = (): readonly PackInfo[] => {
+  const packs = loadedPacks();
+  if (packs.length === 0) return BASE_PACK_INFOS;
+  return [
+    ...BASE_PACK_INFOS,
+    // A house rule has no cards of its own to filter by.
+    ...packs
+      .filter((pack) => !isHouseRulePack(pack))
+      .map((pack) => ({ code: pack.id, name: pack.name, cycleId: CUSTOM_SHELF_ID, cycleName: "Custom packs" })),
+  ];
+};
 
 /** The Sort button's cycle (the primary key); the Then button cycles "None" and the rest but `match` and the primary. */
 const SORT_CYCLE: readonly { readonly sort: PoolSortKey; readonly label: string }[] = [
@@ -390,7 +441,6 @@ const FOLD_FILTERS_BELOW_HEIGHT = 700;
 const SEARCH_ROW_MIN_WIDTH = 92 + hit.target * 2 + CHIP_GAP * 3 + 160;
 /** The wide left rail's Cost curve / Odds tabs: shorter than a touch target, as only a mouse reaches them there. */
 const CHART_TAB_HEIGHT = 30;
-const CARD_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL.map((card) => [card.id as string, card]));
 
 /** From this column width the quick filters fit one row: ten chips, then a trait stepper `QUICK_TRAIT_WIDTH` wide. */
 const QUICK_ONE_ROW_MIN = 720;
@@ -525,6 +575,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   create(data: DeckBuilderSceneData = {}): void {
+    rebuildOnPackChange(this, () => this.#rebuild());
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#rows = deckBuilderRowSizes(cardSizeFactor(appSession().settings.cardSize));
     this.#campaign = data.campaign ?? null;
@@ -541,7 +592,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#heroRanking = null;
     this.#poolSearch = new DeckSearchClient();
     this.#heroSearch = new DeckSearchClient();
-    this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
+    this.#identity = this.#deck ? (identities().find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
     // The sort, kept filters and card/list view the player last left (issue #531).
     const view = deckBuilderView();
     this.#filter = { ...view.filter };
@@ -808,7 +859,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#identityInput = null;
     const deck = this.#deck!;
     this.#campaignModel = this.#campaign
-      ? campaignDeckEditModel(deck, POOL, this.#campaign.context, this.#campaign.grants)
+      ? campaignDeckEditModel(deck, this.#pool(), this.#campaign.context, this.#campaign.grants)
       : null;
     this.#campaignRows = new Map(this.#campaignModel?.rows.map((row) => [row.cardId as string, row]));
     label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
@@ -897,7 +948,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#refusals = {
         deck,
         rules: rules.signature + rules.copyLimits,
-        refusal: deckRuleRefusals(deck, this.#identity, POOL, rules),
+        refusal: deckRuleRefusals(deck, this.#identity, this.#pool(), rules),
       };
     return this.#refusals!.refusal(cardId, step);
   }
@@ -913,6 +964,11 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
+  /** The cards this screen builds against: the base pool in a campaign (base content only, docs/custom-content-packs.md §7.4), else everything installed. */
+  #pool(): readonly AnyCard[] {
+    return this.#campaign ? POOL_CARDS : poolNow();
+  }
+
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
     return this.#campaignRows.get(cardId) ?? null;
   }
@@ -924,12 +980,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
     const ranking = freeTextOf(this.#filterText) ? this.#poolRanking : null;
     const listed = browsablePool(
-      POOL,
+      this.#pool(),
       this.#identity!,
       deck.aspects,
       withSearchClauses(this.#filter, this.#filterText),
       this.#sort,
-      PACK_INFOS,
+      packInfos(),
       held,
       ranking ?? undefined,
     );
@@ -941,7 +997,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const hidden =
       this.#rules().signature === "hidden"
         ? new Set(
-            requiredIdentitySet(this.#identity!, POOL)
+            requiredIdentitySet(this.#identity!, this.#pool())
               .filter((line) => (deck.cards.find((c) => c.cardId === line.cardId)?.quantity ?? 0) >= line.quantity)
               .map((line) => line.cardId as string),
           )
@@ -1100,7 +1156,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #drawTabRow(left: number, top: number, column: number, tabs: readonly DeckBuilderTab[], deck: Deck): number {
     const counted = this.#campaignModel
       ? campaignDeckSizeSplit(this.#campaignModel).counted
-      : deckStatsOf(deck, POOL).countedCards;
+      : deckStatsOf(deck, this.#pool()).countedCards;
     const labels = tabs.map((tab) => deckBuilderTabLabel(tab, counted, DECK_MIN_CARDS));
     const rects = deckBuilderTabRects(labels, { x: left, y: top, width: column, height: hit.target }, 6);
     const current = tabs.indexOf(this.#tab);
@@ -1508,11 +1564,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     const stepperLeft = left + column - stepperWidth;
 
     const traits = traitFilterChoices(
-      POOL,
+      this.#pool(),
       this.#identity!,
       deck.aspects,
       withSearchClauses(this.#filter, this.#filterText),
-      PACK_INFOS,
+      packInfos(),
     );
     const arrow = hit.target;
     // A kept trait no card shows under the other filters still names itself, so an empty pool says why.
@@ -1543,11 +1599,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     y += 16;
     const ground = this.add.graphics();
     const choices = packFilterChoices(
-      POOL,
+      this.#pool(),
       this.#identity!,
       deck.aspects,
       withSearchClauses(this.#filter, this.#filterText),
-      PACK_INFOS,
+      packInfos(),
     );
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
@@ -1556,7 +1612,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#rebuild();
     };
     const arrow = hit.target;
-    const packName = PACK_INFOS.find((p) => p.code === this.#filter.packCode)?.name ?? "All packs";
+    const packName = packInfos().find((p) => p.code === this.#filter.packCode)?.name ?? "All packs";
     const stepPack = (dir: 1 | -1) => (): void =>
       apply({ ...this.#filter, packCode: stepChoice(choices.packs, this.#filter.packCode, dir) });
     const prevRect: Rect = { x: left, y, width: arrow, height: hit.target };
@@ -1591,7 +1647,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       "pack:cycle",
       { x: left, y, width: column, height: hit.target },
       cycleName,
-      () => apply(withCycle(this.#filter, stepChoice(choices.cycles, this.#filter.cycleId, 1), PACK_INFOS)),
+      () => apply(withCycle(this.#filter, stepChoice(choices.cycles, this.#filter.cycleId, 1), packInfos())),
       this.#filter.cycleId != null,
     );
     y += hit.target + CHIP_GAP;
@@ -1672,7 +1728,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top + 18;
     const buttonWidth = Math.min(132, Math.floor(column * 0.4));
     rewards.forEach((reward, at) => {
-      const card = POOL.find((candidate) => candidate.id === reward.cardId);
+      const card = this.#pool().find((candidate) => candidate.id === reward.cardId);
       const textWidth = column - buttonWidth - 8;
       const name = this.add
         .text(left, y, card ? cardDisplayName(card) : (reward.cardId as string), textStyle(typeRole.rowTitle, ground))
@@ -1753,7 +1809,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #drawLegalityLine(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
-    const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, POOL);
+    const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, this.#pool());
     // Campaign mode's own count (the Briefing's "N cards + M pinned", MC10 p. 3): granted lines don't count toward
     // deck size, so the legal-count line says so rather than reading a plain total that includes them.
     const cardCountText = this.#campaignModel
@@ -1761,7 +1817,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           // A reward is counted apart too (MC45 p. 24): "40 cards + 1 reward".
           return campaignDeckSizeLabel(campaignDeckSizeSplit(this.#campaignModel!));
         })()
-      : deckCountText(deckStatsOf(deck, POOL));
+      : deckCountText(deckStatsOf(deck, this.#pool()));
     const legalityText = verdict.ok
       ? `Legal — ${cardCountText}.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
@@ -1824,7 +1880,7 @@ export class DeckBuilderScene extends Phaser.Scene {
    */
   #drawOdds(left: number, top: number, column: number, deck: Deck, rowHeight: number): number {
     let y = top;
-    const copies = deckCopiesOf(deck, (id) => CARD_BY_ID.get(id));
+    const copies = deckCopiesOf(deck, (id) => cardById().get(id));
     const groups = oddsGroupsOf(copies);
     const add = (id: string, rect: Rect, text: string, onClick: () => void, enabled = true): void => {
       this.#buttons.push(
@@ -1887,7 +1943,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
-    const stats = deckStatsOf(deck, POOL);
+    const stats = deckStatsOf(deck, this.#pool());
     // On a phone each bar carries its count above it (the cost is on the axis), so the chart reads as numbers, not
     // buttons. The desktop rail (`onDark`) has no room for it.
     const chartHeight = onDark ? 74 : 90;
@@ -2037,7 +2093,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > limit) return;
-        const card = CARDS_BY_ID.get(entry.cardId);
+        const card = currentCardsById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         const frame = this.add.graphics();
         frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
@@ -2321,7 +2377,7 @@ ${entry.detail}`,
       onDark ? ink.secondary : ink.label,
     );
     const listTop = this.#drawDeckListControls(left, top + 16, column, onDark);
-    const groups = deckListGroupsOf(deck, POOL, this.#deckSort);
+    const groups = deckListGroupsOf(deck, this.#pool(), this.#deckSort);
     const noteOf = this.#campaign
       ? (entry: DeckListEntry): string | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
@@ -2338,7 +2394,7 @@ ${entry.detail}`,
       ? (entry: DeckListEntry): (() => void) | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
           if (!row?.locked) return null;
-          const card = POOL.find((candidate) => candidate.id === entry.cardId);
+          const card = this.#pool().find((candidate) => candidate.id === entry.cardId);
           return card ? () => this.#inspect(card, row.face ?? null) : null;
         }
       : undefined;
@@ -2514,9 +2570,9 @@ ${entry.detail}`,
         );
         this.#stops.set("delete", { rect: deleteRect, activate: doDelete });
       }
-      const precon = resetToPrecon(deck, this.#identity!, POOL_STARTER_DECKS);
+      const precon = resetToPrecon(deck, this.#identity!, currentStarterDecks());
       const doPrecon = (): void => {
-        const fresh = resetToPrecon(this.#deck!, this.#identity!, POOL_STARTER_DECKS);
+        const fresh = resetToPrecon(this.#deck!, this.#identity!, currentStarterDecks());
         if (fresh) this.#setDeck(fresh);
       };
       this.#buttons.push(
@@ -2531,7 +2587,7 @@ ${entry.detail}`,
         }),
       );
       this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
-      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, POOL));
+      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, this.#pool()));
       this.#buttons.push(
         new McButton(this, {
           kind: onDark ? "onInk" : "secondary",
@@ -3006,10 +3062,10 @@ ${entry.detail}`,
     y += hit.target + 12;
     const heroRanking = this.#identitySearch.trim() ? this.#heroRanking : null;
     const shown = heroRanking
-      ? IDENTITIES.filter((identity) => heroRanking.has(identity.id as string)).sort(
-          (a, b) => heroRanking.get(b.id as string)! - heroRanking.get(a.id as string)!,
-        )
-      : IDENTITIES;
+      ? identities()
+          .filter((identity) => heroRanking.has(identity.id as string))
+          .sort((a, b) => heroRanking.get(b.id as string)! - heroRanking.get(a.id as string)!)
+      : identities();
     if (shown.length === 0) {
       this.add
         .text(
@@ -3045,7 +3101,7 @@ ${entry.detail}`,
     const chooseAt = (index: number): void => {
       const identity = shown[index]!;
       // A hero with a published precon gets the "Start from" step; one without starts from its own cards.
-      if (preconsFor(identity, POOL_STARTER_DECKS).length > 0) {
+      if (preconsFor(identity, currentStarterDecks()).length > 0) {
         this.#startFor = identity;
         this.#rebuild();
       } else this.#startWith(identity, null);
@@ -3153,7 +3209,7 @@ ${entry.detail}`,
       this.#rebuild();
       return;
     }
-    search.setDocuments(POOL_SEARCH_DOCUMENTS(), POOL_VERSION);
+    search.setDocuments(POOL_SEARCH_DOCUMENTS(), currentPoolKey());
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
@@ -3173,7 +3229,7 @@ ${entry.detail}`,
       this.#rebuild();
       return;
     }
-    search.setDocuments(HERO_SEARCH_DOCUMENTS(), POOL_VERSION);
+    search.setDocuments(HERO_SEARCH_DOCUMENTS(), currentPoolKey());
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#heroRanking = new Map(ranked.map((r) => [r.id, r.score]));
@@ -3189,7 +3245,7 @@ ${entry.detail}`,
     this.#deck = startingDeckOf(
       identity,
       starter,
-      POOL_CARDS,
+      currentPool(),
       `deck-${crypto.randomUUID()}`,
       POOL_VERSION,
       new Date().toISOString(),
@@ -3252,7 +3308,7 @@ ${entry.detail}`,
       y += hit.primary + 10;
     };
     add("start:empty", "Empty deck: hero cards only", () => this.#startWith(identity, null));
-    for (const starter of preconsFor(identity, POOL_STARTER_DECKS)) {
+    for (const starter of preconsFor(identity, currentStarterDecks())) {
       const aspects = starter.aspects.map((aspect) => aspectStampOf(aspect).label).join(" + ");
       const stamp = starter.aspects[0] ? aspectStampOf(starter.aspects[0]) : null;
       add(
@@ -3282,9 +3338,13 @@ ${entry.detail}`,
 
   #identityArtOf(identity: HeroIdentityCard): { url: string | null; focus?: PictureFocus } {
     const id = identity.id as string;
+    // An installed pack hero's picture arrives after the first draw, so it is not remembered here.
+    if (isCustomCard(id)) {
+      return { url: packPictureFor("hero", id)?.url ?? artFor(identity, { kind: "hero" })?.url ?? null };
+    }
     let art = this.#identityArt.get(id);
     if (!art) {
-      const picture = heroArtForIdentity(HERO_ART, id, POOL_CARDS);
+      const picture = heroArtForIdentity(HERO_ART, id, currentPool());
       art = picture
         ? { url: picture.url, ...(picture.focus ? { focus: picture.focus } : {}) }
         : { url: artFor(identity, { kind: "hero" })?.url ?? null };
@@ -3318,7 +3378,10 @@ ${entry.detail}`,
     fitText(name, textWidth);
     objects.push(name);
     const subtitleCut = subtitleCutFrom(card, name.text);
-    const typeText = subtitleCut ? `${subtitleCut} · ${poolTypeLine(card)}` : poolTypeLine(card);
+    const typeBase = subtitleCut ? `${subtitleCut} · ${poolTypeLine(card)}` : poolTypeLine(card);
+    // A card from an installed custom pack says so in words.
+    const customBadge = customCardBadgeOf(card.id as string);
+    const typeText = customBadge ? `${typeBase} · ${customBadge}` : typeBase;
     // Why a card is listed when the chosen aspect would not allow it, or why it is refused (held, but not allowed).
     const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
     // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so

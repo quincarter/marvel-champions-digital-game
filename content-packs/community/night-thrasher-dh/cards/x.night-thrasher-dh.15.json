@@ -1,0 +1,24 @@
+{
+  "id": "x.night-thrasher-dh.15",
+  "name": "Cosmic Connection",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "15",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "treachery",
+  "encounterSetIds": ["night-thrasher-dh-nemesis"],
+  "boostIcons": 0,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed: If the Cosmic Ax attachment is in play and your hero has a WEAPON card in play, take 3 indirect damage. If no damage was taken this way, this card gains surge.",
+    "current": "When Revealed: If the Cosmic Ax attachment is in play and your hero has a WEAPON card in play, take 3 indirect damage. If no damage was taken this way, this card gains surge."
+  },
+  "flavor": "\"The Ax is part of me. I need not hold it to command it. Your weapon is inferior.\" —Terrax the Tamer",
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.15.when-revealed"
+    }
+  ]
+}

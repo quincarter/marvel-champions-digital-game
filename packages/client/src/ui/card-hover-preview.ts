@@ -11,14 +11,17 @@
  */
 
 import Phaser from "phaser";
+import type { AnyCard } from "@mc/content";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
 import { CARD_BACKS, defaultFaceFor, isStandInArt, type ArtSource, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
+import { gameDeps, gameCardsById } from "../content/game-deps.js";
+import { currentCardsById } from "../content/pool.js";
 import type { FacedownHover } from "../scenes/board/context.js";
 import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
+import { drawGeneratedFace, faceModelOf } from "./generated-card-face.js";
 import { textStyle } from "./theme.js";
 import { McHpPlate, fieldsOf, paintThreatMeter } from "./widgets.js";
 import { schemePanel } from "../view/board-model.js";
@@ -381,7 +384,7 @@ export class HoverPreview {
     const slot = hoverCardIdAt(x, y, plain, topmost);
     const cardId = slot === null ? undefined : plain.get(slot)?.cardId;
     if (slot === null || cardId === undefined) return null;
-    const type = CARDS_BY_ID.get(cardId)?.type;
+    const type = (plain.get(slot)?.card ?? hoverCardOf(cardId))?.type;
     if (type === "hero_identity" && !settings.hoverHeroCard) return null;
     if (type === "villain" && !settings.hoverVillainCard) return null;
     return hoverKeyOfCardId(slot);
@@ -454,7 +457,7 @@ export class HoverPreview {
     const built = !rect
       ? null
       : plain
-        ? this.#buildPlain(plain.cardId, plain.face, rect, area, plain.art)
+        ? this.#buildPlain(plain.cardId, plain.face, rect, area, plain.art, plain.card)
         : this.#build(id as InstanceId, rect, area, this.#candidateHp);
     if (!built) {
       this.#clear();
@@ -509,7 +512,7 @@ export class HoverPreview {
     const state = appSession().store.state;
     const game = tableGame(state.game);
     if (!game || state.perspectiveId === null) return null;
-    const model = inspectModel(game, id, null, state.perspectiveId, POOL_DEPS);
+    const model = inspectModel(game, id, null, state.perspectiveId, gameDeps());
     // A facedown card or pile shows nothing the table doesn't: no popover. A Drone drawn with its earned Drone art
     // (#291) is the exception: the popover shows that picture, which is all the table sees of it too.
     if (model.hidden && !isStandInArt(model.art)) return null;
@@ -518,7 +521,7 @@ export class HoverPreview {
     // as words in the strip.
     const card0 = cardOf(game, id);
     const isScheme = card0?.type === "main_scheme" || card0?.type === "side_scheme";
-    const scheme = isScheme ? schemePanel(game, id, POOL_DEPS, card0?.type === "main_scheme") : null;
+    const scheme = isScheme ? schemePanel(game, id, gameDeps(), card0?.type === "main_scheme") : null;
     const lines = instance
       ? hoverStateLines({
           exhausted: instance.exhausted,
@@ -672,12 +675,15 @@ export class HoverPreview {
     onScreen: Rect,
     area: Rect,
     art?: ArtSource,
+    record?: AnyCard,
   ): {
     readonly container: Phaser.GameObjects.Container;
     readonly size: Size;
     readonly waitingFor: string | null;
   } | null {
-    const card = CARDS_BY_ID.get(cardId);
+    // A card named by id outside a game (the Mod Store gallery) is looked up in what is installed now, unless the
+    // caller carries the record itself (a pack not installed yet).
+    const card = record ?? hoverCardOf(cardId);
     if (!card) return null;
     const faceModel = cardInspectModel(card, face ?? defaultFaceFor(card));
     const model = art ? { ...faceModel, art } : faceModel;
@@ -691,7 +697,15 @@ export class HoverPreview {
     shadow.fillStyle(surface.ink.hex, 0.35).fillRect(5, 6, size.width, size.height);
     container.add(shadow);
     const image = drawArt(this.scene, key, rect);
-    container.add(image ?? this.#plainFrame(rect, model));
+    // No picture (yet): the generated face from the record, so a card of a pack that ships none is still readable.
+    container.add(
+      image ??
+        this.scene.add.container(
+          0,
+          0,
+          drawGeneratedFace(this.scene, rect, faceModelOf(card, face ?? defaultFaceFor(card))),
+        ),
+    );
     return { container, size, waitingFor: image ? null : (model.art?.key ?? null) };
   }
 
@@ -720,6 +734,17 @@ export class HoverPreview {
     frame.add([name, type, rules]);
     return frame;
   }
+}
+
+/**
+ * A card named by id: the game on the table's own pool while a game is on, else what is installed now (the Mod Store's
+ * gallery, the hero select), with the other as the fallback.
+ */
+function hoverCardOf(cardId: string): AnyCard | undefined {
+  const inGame = tableGame(appSession().store.state.game) !== null;
+  return inGame
+    ? (gameCardsById().get(cardId) ?? currentCardsById().get(cardId))
+    : (currentCardsById().get(cardId) ?? gameCardsById().get(cardId));
 }
 
 const EMPTY_RECTS: ReadonlyMap<InstanceId, Rect> = new Map();

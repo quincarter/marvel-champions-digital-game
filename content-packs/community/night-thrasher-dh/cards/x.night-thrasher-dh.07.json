@@ -1,0 +1,27 @@
+{
+  "id": "x.night-thrasher-dh.07",
+  "name": "Tailblock",
+  "setCode": "night-thrasher-dh",
+  "cycleId": "night-thrasher-dh",
+  "collectorNumber": "7",
+  "quantityInSet": 2,
+  "unique": false,
+  "type": "event",
+  "cost": 1,
+  "resourceIcons": {
+    "mental": 1
+  },
+  "aspect": "hero:x.night-thrasher-dh.01a",
+  "traits": ["DEFENSE", "SKILL"],
+  "keywords": [],
+  "deckLimit": 2,
+  "text": {
+    "printed": "Hero Interrupt (defense): When you would take any amount of damage, if the Battle Board upgrade has the:\n• VEHICLE trait, prevent 1 of that damage and draw 2 cards.\n• WEAPON trait, prevent 3 of that damage.",
+    "current": "Hero Interrupt (defense): When you would take any amount of damage, if the Battle Board upgrade has the:\n• VEHICLE trait, prevent 1 of that damage and draw 2 cards.\n• WEAPON trait, prevent 3 of that damage."
+  },
+  "abilities": [
+    {
+      "id": "x.night-thrasher-dh.07.tailblock-interrupt"
+    }
+  ]
+}

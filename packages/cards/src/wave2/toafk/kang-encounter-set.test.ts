@@ -19,7 +19,9 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { moondragonAttack } from "../../testing/enemy-attacks-enemy.js";
 import { driveEvents } from "../../testing/staging.js";
+import { engageMinion } from "../../wave3/drax/support.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
@@ -465,6 +467,18 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
       expect(inst(after, kang).damage).toBe(0);
       expect(inst(after, kang).statuses.tough).toBe(1);
       expect(inst(after, identity).damage).toBe(inst(state, identity).damage + 1);
+      expect(inst(after, shield).attachedTo).toBeNull();
+    });
+
+    // "When Kang is attacked" names no attacker, and an enemy is a character (RRG 1.8 "Character", p. 12): a minion
+    // made to attack him (Moondragon, 19013; `enemyAttacksEnemy`) is "the attacker" (rules-expert reading 2026-11-12,
+    // no FFG ruling).
+    it("a minion's attack on Kang (Moondragon): no damage to Kang, the minion takes 1 and the shield is discarded", () => {
+      const { state, kang, shield } = shielded(false);
+      const staged = engageMinion(state, "01101", "merc");
+      const { state: after } = moondragonAttack(WAVE2_DEPS, staged, "merc" as InstanceId, kang);
+      expect(inst(after, kang).damage).toBe(0);
+      expect(inst(after, "merc" as InstanceId).damage).toBe(1);
       expect(inst(after, shield).attachedTo).toBeNull();
     });
   });

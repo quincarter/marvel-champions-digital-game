@@ -205,7 +205,7 @@ function defenderExclusions(
   const existing = frame.defenderInstanceId;
   const forcedAlly =
     existing === null &&
-    mustDefendWithAlly(state, deps, frame.enemyInstanceId) &&
+    mustDefendWithAlly(state, deps, frame.enemyInstanceId, frame.attackedPlayerId) &&
     [...eligible].some(
       (id) => isAlly(state, id as InstanceId) && controllerOf(state, id as InstanceId) === frame.attackedPlayerId,
     );

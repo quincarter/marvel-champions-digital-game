@@ -77,8 +77,16 @@ export const GOGGLES_GRANTED_PREPARATION = "50070.night-vision-goggles-granted-p
 /** The id of the ability Automated Defenses gives other cards: in the registry, listed on no card (section 3.3). */
 export const DEFENSES_GRANTED_PREPARATION = "50074.automated-defenses-granted-preparation";
 
-/** "When a character you control attacks Black Widow" (hero or ally, basic or labeled): the attack event's target is her. */
-const ATTACKS_BLACK_WIDOW: EventPattern = { on: "attack", selfIs: "target" };
+/**
+ * "When a character you control attacks Black Widow" (hero or ally, basic or labeled): the attack event's target is her.
+ * The attacker must be a player's: an enemy's attack on her (`enemyAttacksEnemy`, which "when this card is attacked"
+ * also hears: `patternHearsKind`) is by no player's character.
+ */
+const ATTACKS_BLACK_WIDOW: EventPattern = {
+  on: "attack",
+  selfIs: "target",
+  sourceIs: { not: { controller: "encounter" } },
+};
 
 /**
  * "Remove 1 threat from the main scheme → discard the top card of the encounter deck and resolve each 'Preparation'

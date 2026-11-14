@@ -59,7 +59,8 @@ const BAR_GAP = 6;
 /** An achievement's stop, by its id: the same achievement keeps it however the list folds or sorts. */
 const keyOfAchievement = (id: string): string => `row:${id}`;
 
-const keyOfRow = (row: TrophyRow): string => (row.kind === "section" ? `sec:${row.id}` : keyOfAchievement(row.id));
+const keyOfRow = (row: TrophyRow): string =>
+  row.kind === "section" ? `sec:${row.id}` : row.kind === "group" ? `grp:${row.id}` : keyOfAchievement(row.id);
 
 export class TrophyRoomScene extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -156,7 +157,12 @@ export class TrophyRoomScene extends Phaser.Scene {
    */
   #setExpanded(expanded: ReadonlySet<AchievementFamily>): void {
     const focused = this.#route?.focused ?? null;
-    const family = focused === null ? undefined : ACHIEVEMENTS.find((a) => keyOfAchievement(a.id) === focused)?.family;
+    // A pack's own achievement (`pack:<id>/<name>`) is not in ACHIEVEMENTS: it always sits in Mods.
+    const family: AchievementFamily | undefined =
+      focused === null
+        ? undefined
+        : (ACHIEVEMENTS.find((a) => keyOfAchievement(a.id) === focused)?.family ??
+          (focused.startsWith(keyOfAchievement("pack:")) ? "mods" : undefined));
     this.#setView({ ...this.#view, expanded });
     if (family !== undefined && !expanded.has(family)) this.#route?.focusKey(`sec:${family}`);
   }
@@ -307,7 +313,10 @@ export class TrophyRoomScene extends Phaser.Scene {
     const list = new McVirtualList(this, {
       rect: listRect,
       rowHeight: heights.achievement,
-      rowHeightOf: (index) => (rows[index]!.kind === "section" ? heights.section : heights.achievement),
+      rowHeightOf: (index) => {
+        const kind = rows[index]!.kind;
+        return kind === "section" ? heights.section : kind === "group" ? heights.group : heights.achievement;
+      },
       count: rows.length,
       scroll: this.#scroll,
       background: false,
@@ -316,7 +325,7 @@ export class TrophyRoomScene extends Phaser.Scene {
         if (this.#open !== null) return;
         const row = rows[index];
         if (row?.kind === "section") this.#toggleFamily(row.id);
-        else if (row) this.#openSheet(row.id);
+        else if (row?.kind === "achievement") this.#openSheet(row.id);
       },
     });
     this.#list = list;
@@ -324,6 +333,8 @@ export class TrophyRoomScene extends Phaser.Scene {
 
     const order: string[] = [...(bar.backRect ? ["back"] : []), "stats", ...filterOrder];
     rows.forEach((row, index) => {
+      // A pack's heading is a label: nothing to press, so the focus ring walks past it.
+      if (row.kind === "group") return;
       const key = keyOfRow(row);
       order.push(key);
       stops.set(key, {
@@ -428,6 +439,7 @@ export class TrophyRoomScene extends Phaser.Scene {
     const earned = row.state === "earned";
     const facts = [`${earned ? "✓ " : ""}${row.stateLabel}`];
     if (row.reward) facts.push(row.reward);
+    if (row.packName) facts.push(`From ${row.packName}`);
     if (row.progress) facts.push(`Progress ${row.progressLabel}`);
     const name = this.add
       .text(0, 0, row.name, textStyle(bangers(phone ? 24 : 28), surface.ink.hex))
@@ -571,6 +583,33 @@ export class TrophyRoomScene extends Phaser.Scene {
         )
         .setOrigin(1, 1)
         .setFontSize(13);
+      objects.push(g, title, count);
+      return { objects };
+    }
+
+    if (row.kind === "group") {
+      // A pack's heading inside Mods: its name and how many it has earned, under a thin rule. Not pressable.
+      const g = this.add.graphics();
+      g.fillStyle(surface.ink.hex, 0.5).fillRect(rect.x, rect.y + rect.height - 3, innerWidth, 1);
+      const title = this.add
+        .text(
+          rect.x + 4,
+          rect.y + rect.height - 8,
+          `FROM ${row.title.toUpperCase()}`,
+          textStyle(typeRole.rowTitle, surface.ink.hex),
+        )
+        .setOrigin(0, 1)
+        .setFontSize(13);
+      fitText(title, innerWidth - 90, 13);
+      const count = this.add
+        .text(
+          rect.x + innerWidth,
+          rect.y + rect.height - 8,
+          row.count,
+          textStyle(typeRole.rowTitle, surface.ink.hex, ink.secondary),
+        )
+        .setOrigin(1, 1)
+        .setFontSize(12);
       objects.push(g, title, count);
       return { objects };
     }

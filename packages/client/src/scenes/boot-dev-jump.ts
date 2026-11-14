@@ -306,6 +306,12 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };
+  // `?screen=mod-store&catalog=/packs/fixture.json&pack=fan-x`: the Mod Store, optionally on another catalog and open on a pack.
+  if (screen === "mod-store") {
+    const catalogUrl = params.get("catalog");
+    const packId = params.get("pack");
+    return { key: SCENES.modStore, data: { ...(catalogUrl ? { catalogUrl } : {}), ...(packId ? { packId } : {}) } };
+  }
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.
   if (screen === "extras-reader")
     return { key: SCENES.extrasReader, data: { bookId: params.get("book") ?? "book:rrg" } };
@@ -913,6 +919,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // Briefing. Dev builds only.
   if (screen === "campaign-briefing" && import.meta.env.DEV) {
     const fixtures = await import("../campaign/dev-fixtures.js");
+    // A pack's campaign (`<pack-id>-<name>`) needs its installed pack loaded before a run can be signed.
+    await (await import("../packs/active-packs.js")).refreshActivePacks();
     const record = await fixtures.seedFreshRun(campaignService(), params.get("campaign") ?? "trors");
     return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }

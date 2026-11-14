@@ -1,0 +1,26 @@
+{
+  "id": "x.sample-scenario.07",
+  "type": "attachment",
+  "name": "Escapement Plating",
+  "setCode": "sample-scenario",
+  "cycleId": "sample-scenario",
+  "collectorNumber": "7",
+  "quantityInSet": 1,
+  "unique": false,
+  "attachesTo": {
+    "kind": "villain"
+  },
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "boostIcons": 0,
+  "traits": ["ARMOR"],
+  "keywords": [],
+  "text": {
+    "printed": "Attach to The Clockmaker.\nForced Interrupt: When any amount of damage would be dealt to The Clockmaker, place it here instead. Then, if there is at least 4 damage here, discard Escapement Plating.",
+    "current": "Attach to The Clockmaker.\nForced Interrupt: When any amount of damage would be dealt to The Clockmaker, place it here instead. Then, if there is at least 4 damage here, discard Escapement Plating."
+  },
+  "abilities": [
+    {
+      "id": "x.sample-scenario.07.escapement-plating-forced-interrupt"
+    }
+  ]
+}

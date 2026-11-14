@@ -129,6 +129,8 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "enemyActivated":
     case "activationSkipped":
       return [event.enemyInstanceId];
+    case "activationCancelled":
+      return [event.enemyInstanceId, event.byInstanceId];
     case "boostWithheld":
     case "activationBlocked":
       return [event.enemyInstanceId];
@@ -143,6 +145,9 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
       return [event.characterInstanceId, event.instanceId];
     case "boostCancelled":
       return [event.instanceId];
+    case "boostIgnored":
+    case "boostIconsMultiplied":
+      return [event.enemyInstanceId, event.instanceId];
     case "boostIconsCounted":
       return [event.cardInstanceId];
     case "defenderDeclared":
@@ -168,6 +173,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "putIntoPlayRefused":
       return [event.instanceId];
     case "resourcesGenerated":
+    case "spentCardDoubled":
       return [event.instanceId];
     case "counterAdded":
     case "counterRemoved":

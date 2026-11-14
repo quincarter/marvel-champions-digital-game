@@ -64,11 +64,15 @@ describe("the achievement list", () => {
     }
   });
 
-  it("gives the funny ones no points and a reward pack, and every other one points", () => {
+  it("gives the funny ones no points and a reward pack, the mod ones no points at all, and every other one points", () => {
     for (const a of ACHIEVEMENTS) {
       if (a.family === "funny") {
         expect(a.points, a.id).toBe(0);
         expect(a.rewardPackId, a.id).toBeTruthy();
+      } else if (a.family === "mods") {
+        // Owner decision (2026-11-13): mods never move a rank, so no mod achievement is worth a point or a pack.
+        expect(a.points, a.id).toBe(0);
+        expect(a.rewardPackId, a.id).toBeUndefined();
       } else {
         expect(a.points, a.id).toBeGreaterThan(0);
         expect(a.rewardPackId, a.id).toBeUndefined();

@@ -34,6 +34,7 @@ import {
   encounterCardInVillainArea,
   withForm,
 } from "../../../testing/staging.js";
+import { moondragonAttack } from "../../../testing/enemy-attacks-enemy.js";
 import { engageMinion, stagedInPlay } from "../../../wave9/falcon/testing.js";
 import { WAVE11_CARDS } from "../../cards.js";
 import { WAVE11_DEPS } from "../../index.js";
@@ -59,6 +60,7 @@ const REVELATION = "60085";
 const ADVANCE = "01186";
 const ASSAULT = "01187";
 const BLACK_CAT = "01002";
+const MERC = "01101"; // Hydra Mercenary: ATK 1, 3 hit points
 const REFS = [
   "60076.when-revealed",
   "60076.electro-forced-response",
@@ -510,6 +512,31 @@ describe("Whiplash 60081", () => {
     expect(charges(run.state)).toBe(0);
     expect(encounterDiscard(run.state)).not.toContain(CHARGING_UP);
     expect(damageOf(run.state)).toBe(0);
+  });
+
+  // "When Whiplash is attacked" names no attacker, and an enemy is a character (RRG 1.8 "Character", p. 12): a minion
+  // made to attack him (Moondragon, 19013; `enemyAttacksEnemy`) is "the attacker" (rules-expert reading 2026-11-12, no
+  // FFG ruling). Nobody resolves the ability, so the first player pays its cost (`resolve/window.ts`, engine reading).
+  const minionAttacksWhip = (state: GameState) => {
+    const staged = engageMinion(engageMinion(stackEncounterDeck(state, CHARGING_UP), WHIPLASH, "whip"), MERC, "merc");
+    return moondragonAttack(WAVE11_DEPS, staged, "merc" as InstanceId, "whip" as InstanceId);
+  };
+
+  it("60081.whiplash-forced-interrupt: a minion's attack on him (Moondragon): a charge counter off, 3 damage to the minion", () => {
+    const s = newGame(1);
+    const run = minionAttacksWhip(s);
+    expect(charges(run.state)).toBe(charges(s) - 1);
+    expect(encounterDiscard(run.state)).toContain(CHARGING_UP);
+    // Hydra Mercenary has 3 hit points: Charging Up's 3 boost icons defeat him.
+    expect(encounterDiscard(run.state)).toContain(MERC);
+    expect(damageOf(run.state)).toBe(0);
+  });
+
+  it("60081.whiplash-forced-interrupt: a minion's attack with no charge counter to remove: nothing happens", () => {
+    const s = withCharges(newGame(1), 0);
+    const run = minionAttacksWhip(s);
+    expect(encounterDiscard(run.state)).not.toContain(CHARGING_UP);
+    expect(inst(run.state, "merc" as InstanceId).damage).toBe(0);
   });
 });
 

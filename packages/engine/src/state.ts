@@ -497,6 +497,18 @@ export interface EnteredHand {
 }
 
 /**
+ * A card that stopped being attached to a host, waiting to be announced between frames (`TriggerEvent cardUnattached`;
+ * community pack `yondu-dh`). `hostInstanceId`: the host it left; `playerId`: its controller before the move; `to`: the
+ * kind of zone it went to.
+ */
+export interface Unattached {
+  readonly instanceId: InstanceId;
+  readonly hostInstanceId: InstanceId;
+  readonly playerId: PlayerId | null;
+  readonly to: ZoneId["kind"];
+}
+
+/**
  * An encounter card that left a player's deck, drawn or discarded, waiting to be announced between frames (`TriggerEvent
  * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5).
  */
@@ -1042,6 +1054,12 @@ export interface GameState {
    * round ends with no villain phase (`flow.ts` `finishPlayerPhase`). Absent is 0.
    */
   readonly villainPhasesToSkip?: number;
+  /**
+   * "Start another player phase" in place of the villain phase (`EffectSpec replaceNextVillainPhaseWithPlayerPhase`):
+   * how many of the villain phases to come are each replaced by a player phase within the same round. Read where the
+   * villain phase would begin (`flow.ts`), ahead of `villainPhasesToSkip`. Absent is 0, and it is removed again at 0.
+   */
+  readonly villainPhasesReplacedByPlayerPhase?: number;
   readonly firstPlayerId: PlayerId;
   /**
    * The number of players who started the scenario, the one count every per player value reads (RRG 1.8 "Per Player
@@ -1159,6 +1177,12 @@ export interface GameState {
    * `cardLeavesPlay` went on the stack before it moved (§4.1 Q17).
    */
   readonly pendingLeftPlay?: readonly LeftPlay[];
+  /**
+   * Cards that came off a host since the flow last looked, oldest first, recorded by `relocateCard` only when some
+   * ability in the registry triggers on it: the flow announces each as `cardUnattached` between frames and empties the
+   * list. Absent until one first comes off. Community pack `yondu-dh` (D'ast Whistlin').
+   */
+  readonly pendingUnattached?: readonly Unattached[];
   /**
    * Status cards placed since the flow last looked, oldest first, recorded by `giveStatus` only when some ability in
    * the registry triggers on it: the flow announces each as `statusPlaced` between frames and empties the list. Absent
@@ -1333,6 +1357,15 @@ export interface GameState {
    * Absent until a phase's first play, so an older save reads as nothing played.
    */
   readonly playedByPlayerThisPhase?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
+   * The cards each player has played **this round**, in play order: "If the last card you played this round was a
+   * [title] event, reduce the cost to play this card by 1" (`Predicate lastPlayedThisRound`; a custom-content card,
+   * docs/custom-content-packs.md §6). `playedThisRound` and `playedByPlayerThisRound` count by title and by type and
+   * so lose the order. Written when a play commits (with the other play records, so a card that is canceled later still
+   * counts as played, RRG 1.8 "Max, Maximum", p. 28); removed when the round ends, where `playedThisRound` is emptied.
+   * Absent until a round's first play, so an older save reads as nothing played.
+   */
+  readonly playedInOrderThisRound?: Readonly<Record<string, readonly InstanceId[]>>;
   /**
    * The scenario's own out-of-play game areas by name (`ZoneId scenarioArea`; The Collection, docs/phase7-wave3.md
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.

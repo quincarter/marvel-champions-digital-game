@@ -69,12 +69,14 @@ export function thwartCostTotal(
   state: GameState,
   deps: EngineDeps,
   schemeIds: readonly InstanceId[],
+  /** The thwarting player (a per-player blank frees them of a rule; `thwartCostFor`). */
+  byPlayer: PlayerId | null = null,
 ): ThwartCost | null {
   let any = false;
   let resources: ResolvedRequirement | null = null;
   let indirectDamage = 0;
   for (const schemeId of schemeIds) {
-    const cost = thwartCostFor(state, deps, schemeId);
+    const cost = thwartCostFor(state, deps, schemeId, byPlayer);
     if (!cost) continue;
     any = true;
     if (cost.resources !== null) resources = combineRequirements(resources ?? 0, cost.resources);
@@ -140,7 +142,7 @@ export function thwartCostsPayable(
   schemeIds: readonly InstanceId[],
   excludeInstanceId: InstanceId | null = null,
 ): boolean {
-  const cost = thwartCostTotal(state, deps, schemeIds);
+  const cost = thwartCostTotal(state, deps, schemeIds, playerId);
   if (!cost) return true;
   if (cost.indirectDamage > 0 && !canTakeIndirect(state, deps, playerId, schemeIds[0] ?? null, cost.indirectDamage))
     return false;
@@ -181,7 +183,7 @@ export function askBasicThwartCost(
   /** That effect's `BasicPowerTerms`, kept for the thwart made once the cost is paid (§H3.14). */
   terms: BasicPowerTerms | undefined = undefined,
 ): void {
-  const costly = schemeIds.filter((id) => thwartCostFor(ctx.state, ctx.deps, id) !== null);
+  const costly = schemeIds.filter((id) => thwartCostFor(ctx.state, ctx.deps, id, command.playerId) !== null);
   for (const schemeInstanceId of costly)
     emit(ctx, { type: "thwartCostAsked", schemeInstanceId, playerId: command.playerId });
   const damage: EffectSpec[] =

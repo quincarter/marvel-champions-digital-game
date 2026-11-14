@@ -1,0 +1,27 @@
+{
+  "id": "x.mephisto-nep.19",
+  "type": "treachery",
+  "name": "Infernal Temper",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "24/28, 25/28",
+  "quantityInSet": 2,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 1,
+  "traits": [],
+  "keywords": [],
+  "text": {
+    "printed": "When Revealed (Alter-Ego): Mephisto schemes with +X SCH, where X is equal to the number of Bargain attachments in play.\nWhen Revealed (Hero): Mephisto attacks you with +X ATK, where X is equal to the number of Bargain attachments in play.",
+    "current": "When Revealed (Alter-Ego): Mephisto schemes with +X SCH, where X is equal to the number of Bargain attachments in play.\nWhen Revealed (Hero): Mephisto attacks you with +X ATK, where X is equal to the number of Bargain attachments in play."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.19.when-revealed-alter-ego"
+    },
+    {
+      "id": "x.mephisto-nep.19.when-revealed-hero"
+    }
+  ],
+  "flavor": "\"The time for gamesmanship is past!\" —Mephisto"
+}

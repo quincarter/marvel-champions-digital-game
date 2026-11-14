@@ -1,0 +1,28 @@
+{
+  "id": "x.mephisto-nep.18",
+  "type": "treachery",
+  "name": "Demonic Fury",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "23/28",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "boostIcons": 2,
+  "traits": [],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: Choose:\n• Search the encounter deck and discard pile for a Bargain attachment. Attach it to your identity.\n• Mephisto attacks you. Give him an additional boost card for this activation. This attack gains overkill and piercing.",
+    "current": "Peril.\nWhen Revealed: Choose:\n• Search the encounter deck and discard pile for a Bargain attachment. Attach it to your identity.\n• Mephisto attacks you. Give him an additional boost card for this activation. This attack gains overkill and piercing."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.18.when-revealed"
+    }
+  ],
+  "flavor": "\"I am beyond existence. I cannot be destroyed.\" —Mephisto"
+}

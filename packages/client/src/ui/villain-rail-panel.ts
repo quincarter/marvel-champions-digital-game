@@ -12,7 +12,7 @@ import { artFor, CARD_BACKS, isHiddenArt, type ArtSource, type CardFace } from "
 import { cardArt, drawArt } from "../art/card-art.js";
 import { flipLabel } from "../view/villain-phase-reveal.js";
 import { drawFlipCard } from "./flip-card.js";
-import { POOL_DEPS } from "../content/pool.js";
+import { gameDeps } from "../content/game-deps.js";
 import type { FocusStop } from "../scenes/focus-route.js";
 import type { VillainAutoAdvance } from "../settings.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
@@ -544,7 +544,7 @@ function drawReveal(
   stops: Map<string, FocusStop>,
 ): void {
   if (layout.body.height <= 0) return;
-  const model = inspectModel(args.game, body.instanceId, null, args.viewerId, POOL_DEPS);
+  const model = inspectModel(args.game, body.instanceId, null, args.viewerId, gameDeps());
   if (body.flip) {
     // Facedown: the back, and no hover or inspect until it is turned (they would show the face).
     drawFlipCard(
@@ -698,7 +698,7 @@ function drawHappening(
     const enemy = body.enemyInstanceId!;
     const art = body.enemyFace
       ? artFor(undefined, body.enemyFace)
-      : inspectModel(args.game, enemy, null, args.viewerId, POOL_DEPS).art;
+      : inspectModel(args.game, enemy, null, args.viewerId, gameDeps()).art;
     drawCard(scene, layout.bodyArt, args.game, enemy, args.onInspect, `happening:${enemy}`, art);
   }
   const x = hasArt ? layout.bodyText.x : layout.body.x;
@@ -752,7 +752,7 @@ function drawHappening(
     let textMid = cursor + 17;
     if (thumbs) {
       for (const { instanceId, rect } of thumbs.cards) {
-        const art = inspectModel(args.game, instanceId, null, args.viewerId, POOL_DEPS).art;
+        const art = inspectModel(args.game, instanceId, null, args.viewerId, gameDeps()).art;
         drawCard(scene, rect, args.game, instanceId, args.onInspect, `boost:${instanceId}`, art);
         if (instanceId === body.countedBoostId) {
           scene.add
@@ -863,7 +863,7 @@ function drawInterrupt(
   }
 
   // Name, tags and the ability on offer, beside the card.
-  const model = inspectModel(game, first.instanceId, null, viewerId, POOL_DEPS, { face });
+  const model = inspectModel(game, first.instanceId, null, viewerId, gameDeps(), { face });
   const { x, y, width, height } = layout.text;
   const from = offeredFrom(game, first.instanceId);
   const inHand = from === "hand";
@@ -901,7 +901,7 @@ function drawInterrupt(
   }
   tag(scene, tx, cursor, fromTag, false, surface.paper.hex);
   cursor += 30;
-  const trigger = first.abilityId ? POOL_DEPS.abilities[first.abilityId]?.trigger : undefined;
+  const trigger = first.abilityId ? gameDeps().abilities[first.abilityId]?.trigger : undefined;
   const rulesText = trigger ? abilityFirst(model.rulesText, triggerLabel(trigger)) : model.rulesText;
   const toggleHeight = multi ? 40 : 0;
   const rules = scene.add
@@ -1061,7 +1061,7 @@ function drawGate(
       cardId,
       args.onInspect,
       `gate:${cardId}`,
-      inspectModel(args.game, cardId, null, args.viewerId, POOL_DEPS).art,
+      inspectModel(args.game, cardId, null, args.viewerId, gameDeps()).art,
     );
   }
   const textRect = cardId

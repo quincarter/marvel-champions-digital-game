@@ -31,7 +31,8 @@
 import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
-import { onLanguageChange } from "../language-change.js";
+import { onArtChange, onLanguageChange } from "../language-change.js";
+import { releasePackArt } from "./pack-art.js";
 
 /**
  * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
@@ -83,6 +84,8 @@ export function cardArt(scene: Phaser.Scene): CardArt {
   caches.set(scene.game, created);
   // A new card language (`Settings.cardLanguage`) gives every face a new texture key: redraw, and the screens ask anew.
   onLanguageChange(() => created.redrawAll());
+  // An installed pack's pictures arriving redraws the screens showing art, nothing more.
+  onArtChange(() => created.redrawAll());
   return created;
 }
 
@@ -305,6 +308,8 @@ export class CardArt {
       this.#lastUsed.delete(key);
       this.#requested.delete(key);
       if (scene.textures.exists(key)) scene.textures.remove(key);
+      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again).
+      releasePackArt(key);
     }
   }
 

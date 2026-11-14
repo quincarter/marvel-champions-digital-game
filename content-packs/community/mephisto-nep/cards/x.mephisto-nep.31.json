@@ -1,0 +1,40 @@
+{
+  "id": "x.mephisto-nep.31",
+  "type": "minion",
+  "name": "Demon Amalgam",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "D1/12",
+  "quantityInSet": 1,
+  "unique": false,
+  "encounterSetIds": ["mephisto-nep-damned"],
+  "atk": 3,
+  "sch": 0,
+  "hp": 1,
+  "boostIcons": 2,
+  "traits": ["MYSTIC"],
+  "keywords": [
+    {
+      "name": "teamwork",
+      "sharedTrait": "MYSTIC"
+    },
+    {
+      "name": "toughness"
+    },
+    {
+      "name": "vulnerable"
+    }
+  ],
+  "text": {
+    "printed": "Teamwork (Mystic). Toughness. Vulnerable.\n[star] Demon Amalgam gets +1 hit point for each damned counter on it.\nWhen Revealed: Place X damned counters on Demon Amalgam, where X is equal to the number of Mystic minions in the encounter discard pile.",
+    "current": "Teamwork (Mystic). Toughness. Vulnerable.\n[star] Demon Amalgam gets +1 hit point for each damned counter on it.\nWhen Revealed: Place X damned counters on Demon Amalgam, where X is equal to the number of Mystic minions in the encounter discard pile."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.31.demon-amalgam-constant"
+    },
+    {
+      "id": "x.mephisto-nep.31.when-revealed"
+    }
+  ]
+}

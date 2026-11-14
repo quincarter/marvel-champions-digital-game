@@ -1,0 +1,15 @@
+{
+  "id": "sample-scenario-clockwork",
+  "name": "The Clockmaker",
+  "packCode": "sample-scenario",
+  "villainCardId": "x.sample-scenario.01",
+  "mainSchemeCardId": "x.sample-scenario.02a",
+  "encounterSetIds": ["sample-scenario-clockwork"],
+  "recommendedModularSetIds": ["sample-scenario-gears"],
+  "standardEncounterSetIds": ["standard"],
+  "expertEncounterSetIds": ["expert"],
+  "villainStages": {
+    "standard": [1, 2],
+    "expert": [2, 2]
+  }
+}

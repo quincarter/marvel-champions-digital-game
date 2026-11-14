@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Mod Store publishing: one publisher per pack id (source in index.json); the game repo refuses ids the registry owns'
+time: 2026-11-13T09:17:13.1379701-05:00

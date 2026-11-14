@@ -5,8 +5,7 @@
  * All status/unlock/pips/labels come from `view/campaign-cover-model.ts`; this scene lays it out and wires taps.
  */
 import Phaser from "phaser";
-import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
-import { campaignDefinitionOf } from "@mc/cards";
+import { campaignDefinitionIn, campaignRecordOf } from "../../campaign/pack-campaigns.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { ink, surface, typeRole } from "../../tokens.js";
@@ -84,8 +83,8 @@ export class CampaignCoverScene extends Phaser.Scene {
     ]);
     if (!this.sys.isActive()) return;
     if (record && (await routeUnfoldedGame(this, record))) return;
-    const content = CAMPAIGN_RECORDS[this.#campaignId];
-    const definition = campaignDefinitionOf(this.#campaignId);
+    const content = campaignRecordOf(this.#campaignId, record ?? undefined);
+    const definition = campaignDefinitionIn(this.#campaignId, record ?? undefined);
     this.#model = coverModelOf({
       campaignId: this.#campaignId,
       boxCode: content?.boxCode ?? "",

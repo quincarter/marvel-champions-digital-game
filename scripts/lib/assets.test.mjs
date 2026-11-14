@@ -11,6 +11,7 @@ import {
   extractZip,
   installBundle,
   isCurrent,
+  isDefaultBundle,
   mapIncoming,
   parseManifest,
   placeIncoming,
@@ -94,6 +95,50 @@ describe("parseManifest", () => {
     assert.throws(() => parseManifest({ bundles: [{ ...b, sha256: "abc" }] }), /64 hex/);
     assert.throws(() => parseManifest({ bundles: [{ ...b, size: 3 * 1024 ** 3 }] }), /bad size/);
     assert.throws(() => parseManifest({ bundles: [{ ...b, file: "a.tar" }] }), /\.zip/);
+  });
+
+  it("takes optional only as a boolean", () => {
+    const b = { name: "pack-art-x", group: "pack-art", dir: "content-packs/community/x", optional: true };
+    assert.equal(parseManifest({ bundles: [b] }).bundles[0].optional, true);
+    assert.throws(() => parseManifest({ bundles: [{ ...b, optional: "yes" }] }), /optional must be true or false/);
+  });
+});
+
+describe("optional bundles (pack-art)", () => {
+  const packs = parseManifest({
+    bundles: [
+      { name: "music-title", group: "music", dir: "music/title" },
+      { name: "pack-art-a", group: "pack-art", dir: "content-packs/community/a", optional: true },
+      { name: "pack-art-b", group: "pack-art", dir: "content-packs/community/b", optional: true },
+      { name: "artifacts", group: "artifacts", kind: "archive", dir: "artifacts" },
+    ],
+  });
+  const names = (selector) => selectBundles(packs, selector).map((b) => b.name);
+
+  it("are left out of a plain fetch and of all", () => {
+    assert.deepEqual(names(undefined), ["music-title"]);
+    assert.deepEqual(names("all"), ["music-title"]);
+    assert.deepEqual(
+      packs.bundles.filter(isDefaultBundle).map((b) => b.name),
+      ["music-title"],
+    );
+  });
+
+  it("are fetched by group or name, also next to all", () => {
+    assert.deepEqual(names("pack-art"), ["pack-art-a", "pack-art-b"]);
+    assert.deepEqual(names("pack-art-b"), ["pack-art-b"]);
+    assert.deepEqual(names("all pack-art"), ["music-title", "pack-art-a", "pack-art-b"]);
+  });
+
+  it("own only the pictures in a pack folder, not its tracked JSON, scripts or docs", () => {
+    const a = packs.bundles[1];
+    assert.ok(bundleOwns(a, "cards/en/x.a.01a.webp"));
+    assert.ok(bundleOwns(a, "alt-art/es/01088.webp"));
+    assert.ok(!bundleOwns(a, "cards/x.a.01a.json"));
+    assert.ok(!bundleOwns(a, "pack.json"));
+    assert.ok(!bundleOwns(a, "abilities/index.ts"));
+    assert.ok(!bundleOwns(a, "fetch-art.sh"));
+    assert.ok(!bundleOwns(a, "CREDITS.md"));
   });
 });
 

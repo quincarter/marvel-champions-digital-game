@@ -1,0 +1,32 @@
+{
+  "id": "x.punisher-pk.08",
+  "name": "Maggia Enforcer",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "8",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "minion",
+  "atk": 2,
+  "sch": 1,
+  "hp": 4,
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "boostIcons": 1,
+  "traits": ["CRIMINAL", "MAGGIA"],
+  "keywords": [
+    {
+      "name": "incite",
+      "value": 1
+    }
+  ],
+  "text": {
+    "printed": "Incite 1.\n[star] Maggia Enforcer gets +1 ATK for each other minion engaged with you.",
+    "current": "Incite 1.\n[star] Maggia Enforcer gets +1 ATK for each other minion engaged with you."
+  },
+  "flavor": "\"Make Castle DEAD! I don't care what it takes, what it costs!\" — Howard Saint",
+  "abilities": [
+    {
+      "id": "x.punisher-pk.08.maggia-enforcer-constant"
+    }
+  ]
+}

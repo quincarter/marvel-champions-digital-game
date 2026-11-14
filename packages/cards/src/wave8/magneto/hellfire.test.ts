@@ -26,7 +26,9 @@ import {
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { moondragonAttack } from "../../testing/enemy-attacks-enemy.js";
 import { driveEvents, playFromHand, withForm } from "../../testing/staging.js";
+import { engageMinion } from "../../wave3/drax/support.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./hellfire.js";
 
@@ -245,6 +247,22 @@ describe("Sebastian Shaw (49038)", () => {
     const hit = attack(stackEncounterDeck(s1, BOOST_1), shaw, first);
     expect(inst(hit, shaw).boostCards).toHaveLength(1);
     expect(accepted(hit, attackCommand(hit, shaw, other))).toBe(false);
+  });
+
+  // "After Sebastian Shaw is attacked" names no attacker, and an enemy is a character (RRG 1.8 "Character", p. 12): a
+  // minion made to attack him (Moondragon, 19013; `enemyAttacksEnemy`) triggers it too (rules-expert reading
+  // 2026-11-12, no FFG ruling).
+  it("SHAW_RESPONSE: a minion's attack on him (Moondragon) gives him a facedown boost card, and players cannot attack him", () => {
+    const s0 = round(setupGame(), [BOOST_1, SHAW]);
+    const shaw = minionsOf(s0, SHAW)[0]!;
+    const s1 = stackEncounterDeck(engageMinion(heroForm(s0), BOOST_2, "merc"), BOOST_1);
+    const top = topOfDeck(s1);
+    const { state: s } = moondragonAttack(DEPS, s1, "merc" as InstanceId, shaw);
+    // Hydra Mercenary's 1 ATK took his tough status card.
+    expect(inst(s, shaw).statuses.tough ?? 0).toBe(0);
+    expect(inst(s, shaw).boostCards).toEqual([top]);
+    const again = readyIdentity(s);
+    expect(accepted(again, attackCommand(again, shaw))).toBe(false);
   });
 
   it("SHAW_RESPONSE: the next phase he can be attacked again (a new attack, a new boost card)", () => {

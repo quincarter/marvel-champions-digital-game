@@ -89,14 +89,30 @@ export function pushCharacterBoost(
   playerId: PlayerId,
 ): void {
   if (!villainousFriendlyCharacter(ctx.state, ctx.deps, characterId)) return;
-  // An ally's defense gets no boost card (`VILLAINOUS_ABILITY`'s pattern: RRG 1.8 pp. 10, 15), so nothing to resolve.
-  if (power === "defense" && !categoriesOf(ctx.state, characterId).includes("hero")) return;
-  // A divided basic power (Wasp's, one `attack` / `thwart` event per share) is read as its top share's frame: the icons
-  // apply to that share and the use ends with it, the limit "+N to that power for this use" (`modifyBasicPower`)
-  // already has. No villainous character divides a basic power yet.
+  const record = characterBoostRecord(ctx, characterId, power, stat, playerId);
+  if (!record) return;
+  insertBeneath(ctx, record.useFrameId, [record]);
+  if (power !== "defense") pushFrames(ctx, [resolveFrameFor(ctx, record)]);
+}
+
+/**
+ * The `use` record for a basic power `characterId` is using, or null when the use gets no boost card or is not on the
+ * stack. An ally's defense gets none (`VILLAINOUS_ABILITY`'s pattern: RRG 1.8 pp. 10, 15: it is no use of a basic
+ * power). A divided basic power (Wasp's, one `attack` / `thwart` event per share) is read as its top share's frame: the
+ * icons apply to that share and the use ends with it, the limit "+N to that power for this use" (`modifyBasicPower`)
+ * already has. No villainous character divides a basic power yet.
+ */
+function characterBoostRecord(
+  ctx: Ctx,
+  characterId: InstanceId,
+  power: BasicPowerName,
+  stat: StatName,
+  playerId: PlayerId,
+): Frame<"characterBoost"> | null {
+  if (power === "defense" && !categoriesOf(ctx.state, characterId).includes("hero")) return null;
   const useFrameId = basicPowerUseFrameId(ctx.state.stack, power, characterId);
-  if (useFrameId === null) return;
-  const record: Frame<"characterBoost"> = {
+  if (useFrameId === null) return null;
+  return {
     ...base(ctx),
     kind: "characterBoost",
     stage: "use",
@@ -110,8 +126,56 @@ export function pushCharacterBoost(
     bonuses: [],
     ...(power === "defense" ? {} : { started: true as const }),
   };
-  insertBeneath(ctx, useFrameId, [record]);
-  if (power !== "defense") pushFrames(ctx, [resolveFrameFor(ctx, record)]);
+}
+
+/**
+ * "When Carnage uses a basic power, you may give him a boost card" (Klyntar Bond, a custom-content card; the pack's
+ * text is the authority, docs/custom-content-packs.md §6, and its author expects the card to resolve as villainous's
+ * does): from an interrupt to the power's `basicPowerUsing` event, makes this use resolve a boost card the way the
+ * villainous keyword's does (RRG 1.8 "Villainous", p. 47; MC60 p. 26 FAQ), for a character that need not have the
+ * keyword. Registers the `characterBoost` frames `pushCharacterBoost` would have pushed as the power was announced: the
+ * `use` record beneath the use's frame and, except for a basic defense (resolved after the enemy's boost cards,
+ * `startDefenderBoost`), the `resolve` frame directly beneath the `basicPowerUsing` event, so it runs once that window
+ * is over. A use that already has a record (a villainous character) keeps it: its `resolve` frame turns up every card
+ * the use was given, this one too. The caller then gives the card (`giveBoostCard`). False when the use gets no boost
+ * card (an ally's defense, a use no longer on the stack): nothing is registered and nothing should be given.
+ */
+export function registerCharacterBoost(ctx: Ctx, event: Extract<TriggerEvent, { kind: "basicPowerUsing" }>): boolean {
+  const { characterInstanceId: characterId, power, stat, playerId } = event;
+  if (!cardsInPlay(ctx.state).includes(characterId)) return false;
+  const record = characterBoostRecord(ctx, characterId, power, stat, playerId);
+  if (!record) return false;
+  const existing = ctx.state.stack.some(
+    (f) =>
+      f.kind === "characterBoost" &&
+      f.stage === "use" &&
+      f.useFrameId === record.useFrameId &&
+      f.characterInstanceId === characterId,
+  );
+  if (existing) return true;
+  insertBeneath(ctx, record.useFrameId, [record]);
+  if (power === "defense") return true;
+  const using = ctx.state.stack.find(
+    (f) =>
+      f.kind === "event" &&
+      f.event.kind === "basicPowerUsing" &&
+      f.event.characterInstanceId === characterId &&
+      f.event.power === power,
+  );
+  // Beneath the `basicPowerUsing` event when it is on the stack, else directly above the use itself.
+  const resolve = resolveFrameFor(ctx, record);
+  if (using) insertBeneath(ctx, using.frameId, [resolve]);
+  else {
+    const at = ctx.state.stack.findIndex((f) => f.frameId === record.useFrameId);
+    ctx.state = { ...ctx.state, stack: [...ctx.state.stack.slice(0, at), resolve, ...ctx.state.stack.slice(at)] };
+    emit(ctx, {
+      type: "framePushed",
+      frameId: resolve.frameId,
+      frame: resolve.kind,
+      description: describeFrame(resolve),
+    });
+  }
+  return true;
 }
 
 const resolveFrameFor = (ctx: Ctx, record: Frame<"characterBoost">): Frame<"characterBoost"> => ({

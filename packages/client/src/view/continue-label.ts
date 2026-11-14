@@ -24,7 +24,12 @@ export function continueLabelOf(
 
 /** "Rhino · Spider-Man": what a game is, without its round — the name a sync conflict prompt shows. */
 export function gameLabelOf(config: SessionConfig, names: ContinueLabelNames): string {
-  const scenario = describeCivilWar(config) ?? names.scenarioName(config.scenarioId) ?? config.scenarioId;
+  const scenario =
+    describeCivilWar(config) ??
+    // A pack's scenario is named by the packs the save carries, installed or not.
+    config.packs?.flatMap((pack) => pack.scenarios ?? []).find((s) => (s.id as string) === config.scenarioId)?.name ??
+    names.scenarioName(config.scenarioId) ??
+    config.scenarioId;
   const heroes = config.players
     .map((player) => {
       if (!("starterDeckId" in player)) {

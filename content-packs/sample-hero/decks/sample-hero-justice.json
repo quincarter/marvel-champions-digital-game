@@ -1,0 +1,38 @@
+{
+  "id": "sample-hero-justice",
+  "name": "Sample Sentinel (Justice) starter deck",
+  "packCode": "sample-hero",
+  "identityCardId": "x.sample-hero.01a",
+  "aspects": ["justice"],
+  "cards": [
+    { "cardId": "x.sample-hero.02", "quantity": 1 },
+    { "cardId": "x.sample-hero.03", "quantity": 3 },
+    { "cardId": "x.sample-hero.04", "quantity": 1 },
+    { "cardId": "x.sample-hero.05", "quantity": 2 },
+    { "cardId": "01058", "quantity": 1 },
+    { "cardId": "01059", "quantity": 1 },
+    { "cardId": "01060", "quantity": 3 },
+    { "cardId": "01061", "quantity": 3 },
+    { "cardId": "01062", "quantity": 2 },
+    { "cardId": "01063", "quantity": 3 },
+    { "cardId": "01064", "quantity": 3 },
+    { "cardId": "01065", "quantity": 3 },
+    { "cardId": "01083", "quantity": 1 },
+    { "cardId": "01084", "quantity": 1 },
+    { "cardId": "01085", "quantity": 3 },
+    { "cardId": "01086", "quantity": 1 },
+    { "cardId": "01087", "quantity": 2 },
+    { "cardId": "01088", "quantity": 1 },
+    { "cardId": "01089", "quantity": 1 },
+    { "cardId": "01090", "quantity": 1 },
+    { "cardId": "01091", "quantity": 1 },
+    { "cardId": "01092", "quantity": 1 },
+    { "cardId": "01093", "quantity": 1 }
+  ],
+  "provenance": {
+    "verified": false,
+    "sources": [
+      "Sample pack; the aspect and basic cards are Spider-Man's Core starter deck list, with extra copies up to each card's deck limit"
+    ]
+  }
+}

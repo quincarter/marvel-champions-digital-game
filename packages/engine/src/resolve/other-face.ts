@@ -81,7 +81,7 @@ export function flipToOtherFace(
   if (typeChanged) {
     for (const attachment of before.attachments) {
       if (ctx.state.instances[attachment])
-        leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+        leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true, true);
     }
     for (const card of before.tucked) {
       if (!ctx.state.instances[card]) continue;

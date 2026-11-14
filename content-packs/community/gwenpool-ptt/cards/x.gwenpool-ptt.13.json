@@ -1,0 +1,33 @@
+{
+  "id": "x.gwenpool-ptt.13",
+  "name": "Evil Gwenpool",
+  "setCode": "gwenpool-ptt",
+  "cycleId": "gwenpool-ptt",
+  "collectorNumber": "13",
+  "quantityInSet": 1,
+  "unique": true,
+  "type": "minion",
+  "atk": 0,
+  "sch": 2,
+  "hp": 3,
+  "encounterSetIds": ["gwenpool-ptt-nemesis"],
+  "boostIcons": 2,
+  "traits": ["VARIANT"],
+  "keywords": [],
+  "text": {
+    "printed": "Evil Gwenpool gets +X hit points, where X is equal to the number of PURPLE BUBBLES in play.\n[star] Forced Response: After Evil Gwenpool attacks you, resolve whatever is written in all the PURPLE BUBBLES in play.\n(Gwenpool's nemesis minion.)",
+    "current": "Evil Gwenpool gets +X hit points, where X is equal to the number of PURPLE BUBBLES in play.\n[star] Forced Response: After Evil Gwenpool attacks you, resolve whatever is written in all the PURPLE BUBBLES in play.\n(Gwenpool's nemesis minion.)"
+  },
+  "abilities": [
+    {
+      "id": "x.gwenpool-ptt.13.evil-gwenpool-constant"
+    },
+    {
+      "id": "x.gwenpool-ptt.13.evil-gwenpool-forced-response"
+    },
+    {
+      "id": "x.gwenpool-ptt.13.purple-bubble"
+    }
+  ],
+  "nemesisMinion": true
+}

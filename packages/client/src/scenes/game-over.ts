@@ -21,7 +21,8 @@
 
 import Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
-import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
+import { gameScenarios } from "../content/game-deps.js";
+import { gameDeps } from "../content/game-deps.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
@@ -51,7 +52,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
 import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../progression/extras.js";
-import { isLessonSave } from "../engine/game-storage.js";
+import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { t } from "../i18n/translate.js";
@@ -123,7 +124,9 @@ export class GameOverScene extends Phaser.Scene {
       const heroIds = seated;
       // A lesson counts for nothing in the saves (`isLessonSave`), so it opens nothing here either.
       const { guidedRun, guidedRunKind } = appSession();
-      const lesson = guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: guidedRunKind });
+      const lesson =
+        (guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: guidedRunKind })) ||
+        isCustomSave({ config });
       const after = new Extras(
         lesson
           ? before.progress
@@ -141,7 +144,7 @@ export class GameOverScene extends Phaser.Scene {
       (this.scene.get(SCENES.musicButton) as MusicButtonScene | null)?.extrasOpened(after);
       if (game.outcome.result !== "win") void refreshUnlocks().catch(() => false);
     }
-    if (game?.outcome?.result === "win" && config) {
+    if (game?.outcome?.result === "win" && config && !isCustomSave({ config })) {
       // Worked out from this result rather than read back from storage, which may not have the save's final
       // status yet; the cache itself catches up on the refresh below.
       const before = unlocks();
@@ -154,9 +157,12 @@ export class GameOverScene extends Phaser.Scene {
       const news = newsBetween(before, after);
       this.#news = news.points > 0 || news.unlocked.length > 0 ? news : null;
       void refreshUnlocks().catch(() => false);
+    } else if (game?.outcome?.result === "win") {
+      // A custom-content win earns no base progress but may earn a mod achievement (§11.12): read the saves again.
+      void refreshUnlocks().catch(() => false);
     }
     if (game?.outcome && config) {
-      const packCode = POOL_SCENARIOS.find((s) => s.id === config.scenarioId)?.packCode;
+      const packCode = gameScenarios().find((s) => s.id === config.scenarioId)?.packCode;
       appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
     }
     this.#draw();
@@ -186,7 +192,7 @@ export class GameOverScene extends Phaser.Scene {
         () => goToScreen(this, SCENES.title),
       );
     } else {
-      const model = gameOverModel(game, record, config, POOL_DEPS);
+      const model = gameOverModel(game, record, config, gameDeps());
       const formFactor = formFactorFor(width, height);
       const tall = formFactor === "phone" || formFactor === "tabletPortrait";
       if (tall) {

@@ -1,4 +1,5 @@
 export * from "./dsl/index.js";
+export { obligation } from "./core/obligations.js";
 export {
   CORE_ABILITIES,
   CORE_DEPS,
@@ -123,6 +124,18 @@ export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDec
 export { randomCivilWarScenario } from "./playable/random-civil-war.js";
 export type { RandomCivilWarOptions, RandomCivilWarScenario } from "./playable/random-civil-war.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
+// Custom packs' scenarios and modular sets in a game (docs/custom-content-packs.md §5, §11.9).
+export {
+  CUSTOM_SCENARIO_FIELDS,
+  customContentProblems,
+  customModularPickProblem,
+  customModularSetChoices,
+  customScenarioProblems,
+  isBaseEncounterSetId,
+  isBaseScenarioId,
+  playableScenarioWithCustom,
+} from "./playable/custom.js";
+export type { CustomContent } from "./playable/custom.js";
 // Community decks: the saved, tested public MarvelCDB decklists, as a catalog a client can recommend from.
 export {
   COMMUNITY_DECK_AUTHORS,
@@ -141,7 +154,12 @@ export {
   AOS_CAMPAIGN_DEFINITION,
   CAMPAIGNS,
   campaignDefinitionOf,
+  campaignDefinitionProblems,
+  campaignInstructionsOf,
   campaignModularPickProblem,
+  cardIdsIn,
+  fieldsIn,
+  opsOfKind,
   cardsOfComposedSets,
   GMW_BALANCED_FIELD,
   GMW_BALANCED_TOGGLES,
@@ -156,7 +174,7 @@ export {
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
-export type { GmwBalancedToggle, GmwBalancedToggleId } from "./campaigns/index.js";
+export type { CampaignCheckContext, GmwBalancedToggle, GmwBalancedToggleId } from "./campaigns/index.js";
 export {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,

@@ -1,0 +1,33 @@
+{
+  "id": "x.mephisto-nep.29",
+  "type": "attachment",
+  "name": "Warring Rage",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "CO4/6",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-corruptive-offers"],
+  "boostIcons": 3,
+  "traits": ["BARGAIN"],
+  "keywords": [
+    {
+      "name": "peril"
+    }
+  ],
+  "text": {
+    "printed": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nHero Response: After you attack and defeat an enemy, place 1 corrupt counter here → ready your hero, heal 1 damage, and draw 1 card.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here.",
+    "current": "Peril.\nWhen Revealed: You may attach this card to your identity. If you do not, discard this card and the villain activates against you.\nHero Response: After you attack and defeat an enemy, place 1 corrupt counter here → ready your hero, heal 1 damage, and draw 1 card.\nResponse: Discard this card → set-aside X[per_hero] cards from the top of your deck facedown, where X is equal to the number of corrupt counters here."
+  },
+  "abilities": [
+    {
+      "id": "x.mephisto-nep.29.when-revealed"
+    },
+    {
+      "id": "x.mephisto-nep.29.hero-response"
+    },
+    {
+      "id": "x.mephisto-nep.29.response"
+    }
+  ]
+}

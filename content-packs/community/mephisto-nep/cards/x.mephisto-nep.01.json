@@ -1,0 +1,94 @@
+{
+  "id": "x.mephisto-nep.01",
+  "type": "villain",
+  "name": "Mephisto",
+  "setCode": "mephisto-nep",
+  "cycleId": "mephisto-nep",
+  "collectorNumber": "1/28, 2/28, 3/28",
+  "quantityInSet": 1,
+  "unique": true,
+  "encounterSetIds": ["mephisto-nep-mephisto"],
+  "sides": [
+    {
+      "side": "A",
+      "name": "Mephisto",
+      "stages": [
+        {
+          "stageNumber": 1,
+          "hp": {
+            "base": 0,
+            "perPlayer": 14
+          },
+          "atk": 1,
+          "sch": 2,
+          "text": {
+            "printed": "Steady.\n[star] Devil's Pacts — Forced Interrupt: When Mephisto would activate against you, if you control a Bargain attachment, Mephisto does not activate and heals 1[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each Bargain attachment in play.",
+            "current": "Steady.\n[star] Devil's Pacts — Forced Interrupt: When Mephisto would activate against you, if you control a Bargain attachment, Mephisto does not activate and heals 1[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each Bargain attachment in play."
+          },
+          "traits": ["COSMIC ENTITY", "MYSTIC"],
+          "keywords": [
+            {
+              "name": "steady"
+            }
+          ],
+          "abilities": [
+            {
+              "id": "x.mephisto-nep.01.devils-pacts-i"
+            }
+          ]
+        },
+        {
+          "stageNumber": 2,
+          "hp": {
+            "base": 0,
+            "perPlayer": 18
+          },
+          "atk": 2,
+          "sch": 2,
+          "text": {
+            "printed": "Steady.\n[star] Devil's Pacts — Forced Interrupt: When Mephisto would activate against you, if you control a Bargain attachment, Mephisto does not activate and heals 2[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each Bargain attachment in play.\nWhen Revealed: Find and attach the Hell Lord attachment to Mephisto.",
+            "current": "Steady.\n[star] Devil's Pacts — Forced Interrupt: When Mephisto would activate against you, if you control a Bargain attachment, Mephisto does not activate and heals 2[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each Bargain attachment in play.\nWhen Revealed: Find and attach the Hell Lord attachment to Mephisto."
+          },
+          "traits": ["COSMIC ENTITY", "MYSTIC"],
+          "keywords": [
+            {
+              "name": "steady"
+            }
+          ],
+          "abilities": [
+            {
+              "id": "x.mephisto-nep.01.devils-pacts-ii"
+            },
+            {
+              "id": "x.mephisto-nep.01.when-revealed-ii"
+            }
+          ]
+        },
+        {
+          "stageNumber": 3,
+          "hp": {
+            "base": 0,
+            "perPlayer": 22
+          },
+          "atk": 2,
+          "sch": 3,
+          "text": {
+            "printed": "Stalwart.\n[star] Devil's Pacts — Forced Interrupt: When Mephisto would activate against you, if you control a Bargain attachment, Mephisto does not activate and heals 3[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each Bargain attachment in play.",
+            "current": "Stalwart.\n[star] Devil's Pacts — Forced Interrupt: When Mephisto would activate against you, if you control a Bargain attachment, Mephisto does not activate and heals 3[per_hero] damage instead. If no damage was healed this way, place 1 threat on the main scheme for each Bargain attachment in play."
+          },
+          "traits": ["COSMIC ENTITY", "MYSTIC"],
+          "keywords": [
+            {
+              "name": "stalwart"
+            }
+          ],
+          "abilities": [
+            {
+              "id": "x.mephisto-nep.01.devils-pacts-iii"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

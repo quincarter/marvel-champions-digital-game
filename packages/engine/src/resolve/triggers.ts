@@ -55,7 +55,13 @@ import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
-import { carriedByEvent, eventSubjects, hearsEncounterDeckDiscard, type TriggerEvent } from "../trigger-events.js";
+import {
+  carriedByEvent,
+  eventSubjects,
+  hearsEncounterDeckDiscard,
+  patternHearsKind,
+  type TriggerEvent,
+} from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import { removalBlockedOf } from "./event.js";
 import { resourcesChoiceOf, type AbilityCost, type AbilityDefinition } from "../abilities.js";
@@ -105,7 +111,13 @@ function boostAbilityCancelGone(state: GameState, definition: AbilityDefinition,
     procedure?.kind === "enemyAttack" || procedure?.kind === "enemyScheme" || procedure?.kind === "characterBoost"
       ? procedure.boost
       : null;
-  return !boost || boost.step !== "window" || boost.abilityCancelled || boost.ignored === true;
+  return (
+    !boost ||
+    boost.step !== "window" ||
+    boost.abilityCancelled ||
+    boost.ignored === true ||
+    boost.abilityIgnored === true
+  );
 }
 
 /**
@@ -252,8 +264,8 @@ function matchesOwnFields(
   deps: EngineDeps,
   controllerOverride?: PlayerId,
 ): boolean {
-  const kinds: readonly TriggerEvent["kind"][] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
-  if (!kinds.includes(event.kind)) return false;
+  // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`).
+  if (!patternHearsKind(pattern, event.kind)) return false;
   // A card discarded from an encounter deck is heard only by a pattern that asks for one (docs/phase7-wave9.md §3.43
   // (b)), so "after you discard a card from the top of your deck" stays a player deck's.
   if (event.kind === "cardDiscardedFromDeck" && event.deck === "encounter" && !hearsEncounterDeckDiscard(pattern))
@@ -910,9 +922,8 @@ function keywordCandidates(
   for (const ability of KEYWORD_ABILITIES) {
     const trigger = ability.definition.trigger;
     if (trigger.kind !== timing || trigger.forced !== forced) continue;
-    const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
     // Cheap before the scan of every card in play: most events are of no keyword's kind.
-    if (!kinds.includes(event.kind)) continue;
+    if (!patternHearsKind(trigger.on, event.kind)) continue;
     for (const id of cardsInPlay(state)) {
       // Nor does its keyword, for the same reason (`gatherCandidates`).
       if (timing === "response" && enteredPlaySince(event, id)) continue;
@@ -1303,8 +1314,7 @@ export function hearersOf(
   const listens = (definition: AbilityDefinition | undefined): boolean => {
     const trigger = definition?.trigger;
     if (!trigger || trigger.kind !== timing || trigger.forced) return false;
-    const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
-    return kinds.includes(event.kind);
+    return patternHearsKind(trigger.on, event.kind);
   };
   const found: string[] = [];
   for (const id of cardsInPlay(state)) {

@@ -10,13 +10,19 @@
 import Phaser from "phaser";
 import type { CardId, Scenario } from "@mc/content";
 import {
-  CARDS_BY_ID,
-  POOL_ENCOUNTER_SETS,
+  CUSTOM_SHELF_ID,
   POOL_PACKS,
-  POOL_SCENARIOS,
-  POOL_VERSION,
+  currentCardsById,
+  currentEncounterSets,
+  currentPoolKey,
+  currentScenarios,
+  isPackScenario,
   packNameOf,
 } from "../content/pool.js";
+import { packPictureFor } from "../art/pack-art.js";
+import { CUSTOM_BADGE } from "../view/custom-content.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
 import type { Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
@@ -81,6 +87,7 @@ import {
 import { McChipRail } from "../ui/chip-rail.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { onTap } from "../ui/tap.js";
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { createHints, forwardHint } from "./campaign/pad-hints.js";
 import type { GlyphHints } from "../ui/glyph-hints.js";
@@ -128,6 +135,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
   readonly #search = new DeckSearchClient();
   #ranking: ReadonlyMap<string, number> | null = null;
   #roster: McShelfRoster<RosterEntry> | null = null;
+  /** The desktop hover popover over the scenario tiles (`ui/card-hover-preview.ts`). */
+  #hover: HoverPreview | null = null;
+  #hoverViewport: Rect | null = null;
   /** Whether "Choose heroes" can be pressed now, for the route's primary stop (Start). */
   #canContinue = false;
   /** A screen change is under way (Back, Choose heroes): later presses do nothing. */
@@ -202,7 +212,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
           })),
       };
     }
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCards(),
+      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#searchInput?.focused ?? false }),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
       this.scale.off("resize", this.#rebuild, this);
       artOff();
       this.#search.destroy();
@@ -262,10 +278,20 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
     });
-    this.#search.setDocuments(
-      POOL_SCENARIOS.map((s) => scenarioSearchDocumentOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS, packNameOf)),
-      POOL_VERSION + ":scenarios",
-    );
+    const setSearchDocuments = (): void => {
+      this.#search.setDocuments(
+        currentScenarios().map((s) =>
+          scenarioSearchDocumentOf(s, currentCardsById(), currentEncounterSets(), packNameOf),
+        ),
+        currentPoolKey() + ":scenarios",
+      );
+    };
+    setSearchDocuments();
+    // Packs load a moment after boot and change in the Mod Store: their scenarios appear (or go) under this screen.
+    rebuildOnPackChange(this, () => {
+      setSearchDocuments();
+      this.#rebuild();
+    });
     this.#rebuild();
     // Arriving by pad, focus is on the picked villain (coming back from Seats) or else the topmost one; a mouse or
     // touch player gets no ring, which would read as a preselection.
@@ -344,11 +370,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
         .filter((entry): entry is Scenario => !isBuilderTile(entry))
         .map((entry) => entry.id as string),
     );
-    const scenario = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === selection.selectedId);
+    const scenario = currentScenarios().find((candidate) => (candidate.id as string) === selection.selectedId);
     // Nothing is picked until the player picks one: the draft is left alone (its scenarioId is only a placeholder).
     if (selection.selectedId !== null) this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
 
-    const chipDefs = scenarioProductsOf(POOL_SCENARIOS).map((code) => ({
+    const chipDefs = scenarioProductsOf(currentScenarios()).map((code) => ({
       id: `product:${code}`,
       text: packNameOf(code),
       selected: this.#draft.scenarioFilter.product === code,
@@ -363,7 +389,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     // "Customize this scenario": only on a ready-made Civil War scenario (inert until one is in the pool).
     const customize = customizeEntryOf(scenario);
-    const detail = scenario ? scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS) : null;
+    const detail = scenario ? scenarioDetailOf(scenario, currentCardsById(), currentEncounterSets()) : null;
     // The real wrapped line count against the panel's own text width, not a raw string count — a fixed
     // per-string budget clipped a long line against a ~300px side panel.
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
@@ -632,6 +658,34 @@ export class ScenarioSelectScene extends Phaser.Scene {
       shelfIndex: () => this.#rowOfKey.get(this.#route?.focused ?? "")?.shelfIndex ?? null,
     });
     this.#route?.set(order, this.#stops);
+    this.#hoverViewport = layout.shelves;
+    this.#hover?.onDraw();
+  }
+
+  /** The scenario tiles on screen, for the hover popover: each shows its villain's stage I (or the main scheme when the villain is drawn at random). */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const viewport = this.#hoverViewport;
+    if (!viewport) return found;
+    const scenarios = new Map(currentScenarios().map((s) => [s.id as string, s] as const));
+    for (const [key, stop] of this.#stops) {
+      if (!key.startsWith("scenario:")) continue;
+      const scenario = scenarios.get(key.slice("scenario:".length));
+      if (!scenario) continue;
+      const unknown = hasRandomChosenVillain(scenario);
+      const cardId = (unknown ? scenario.mainSchemeCardId : scenario.villainCardId) as string;
+      const card = currentCardsById().get(cardId);
+      if (!card) continue;
+      const rect = clipHoverRect(typeof stop.rect === "function" ? stop.rect() : stop.rect, viewport);
+      if (!rect) continue;
+      const face = unknown
+        ? ({ kind: "mainSchemeStage", stageIndex: 0, side: "A" } as const)
+        : card.type === "villain"
+          ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
+          : ({ kind: "hero" } as const);
+      found.set(hoverSlotOf(cardId, key), { ...rect, cardId, face, through: true });
+    }
+    return found;
   }
 
   /**
@@ -809,13 +863,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // The villain's scene art, or — with none yet (Klaw, Risky Business, Mutagen Formula today) — its own stage-I
     // card scan, cover-cropped, rather than an empty parchment box (second-pass item 7). Only the URL: the card-face
     // worker fetches and decodes it, downscaled to the card, and the roster redraws when the face arrives.
-    const picture = this.#villainArtFor(s);
-    const villainCard = picture || hasRandomChosenVillain(s) ? undefined : CARDS_BY_ID.get(s.villainCardId as string);
+    const custom = isPackScenario(s.id as string);
+    // A pack scenario's villain picture comes from its pack (`pictures.villain`), else its card scan below.
+    const picture = custom ? packPictureFor("villain", s.villainCardId as string) : this.#villainArtFor(s);
+    const villainCard =
+      picture || hasRandomChosenVillain(s) ? undefined : currentCardsById().get(s.villainCardId as string);
     const artUrl =
       picture?.url ??
       (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
       null;
-    const cardDetail = scenarioDetailOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const cardDetail = scenarioDetailOf(s, currentCardsById(), currentEncounterSets());
     const subtitle = shelfSubtitleOf(cardDetail);
     const selected = this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string);
     // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
@@ -829,7 +886,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
       blockedBy: lock,
       warning: lock ? lockCaptionOf(lock, unlockCostOf({ kind: "scenario", scenarioId: s.id as string })) : null,
       subtitleLines: 2,
-      tag: lock ? "LOCKED" : selected ? "SELECTED" : null,
+      // A pack's scenario says so in words, beside SELECTED when both apply.
+      tag: lock
+        ? "LOCKED"
+        : [custom ? CUSTOM_BADGE : null, selected ? "SELECTED" : null].filter(Boolean).join(" · ") || null,
       selected,
     });
     if (import.meta.env.DEV) {
@@ -1101,7 +1161,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #onInspectChoose(rowId: string): void {
-    const s = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === rowId);
+    const s = currentScenarios().find((candidate) => (candidate.id as string) === rowId);
     if (s) {
       this.#draft = setScenario(this.#draft, s, s.id as string);
       this.#rebuild();
@@ -1111,7 +1171,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #shelves(): readonly Shelf<RosterEntry>[] {
     const ranking = this.#ranking;
     const candidates: ShelfCandidate<Scenario>[] = withSelectionPinned(
-      POOL_SCENARIOS,
+      currentScenarios(),
       () => true,
       (s) => this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string),
     ).map((s) => {
@@ -1120,15 +1180,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
         (ranking === null || ranking.has(s.id as string));
       return {
         item: s,
-        packCode: s.packCode as string,
+        // Every installed pack's scenarios share one "Custom packs" shelf after the last release wave.
+        packCode: isPackScenario(s.id as string) ? CUSTOM_SHELF_ID : (s.packCode as string),
         searchHaystacks: [],
         passesChips,
       };
     });
     const shelves = shelvesOf(
       candidates,
-      POOL_PACKS.map((p) => p.code as string),
-      packNameOf,
+      [...POOL_PACKS.map((p) => p.code as string), CUSTOM_SHELF_ID],
+      (code) => (code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code)),
       "",
     );
     // A search puts the best match first, within each shelf and among the shelves.
@@ -1140,7 +1201,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** A roster entry's tap: a scenario becomes the draft's pick; the "Build your own" tile opens the builder. */
   #activateEntry(entry: RosterEntry): void {
     if (isBuilderTile(entry)) {
-      const first = POOL_SCENARIOS.find((s) => isCivilWarScenario(s));
+      const first = currentScenarios().find((s) => isCivilWarScenario(s));
       if (first) this.#openBuilder("build", first.id as string);
       return;
     }
@@ -1160,7 +1221,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     if (!isBuilderTile(entry)) return this.#renderScenarioCard(entry, rect);
     // The box cover: Captain America against Iron Man over the flag, which says "pick a side" better than either
     // leader's own picture or a split of the four (those read as four ready-made scenarios, not a builder).
-    const civilWar = POOL_SCENARIOS.find((s) => isCivilWarScenario(s));
+    const civilWar = currentScenarios().find((s) => isCivilWarScenario(s));
     const cover = civilWar ? this.#packCoverFor(civilWar.packCode as string) : null;
     return renderShelfCard(this, rect, {
       artUrl: cover?.url ?? null,
@@ -1184,7 +1245,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // A villain drawn at random (Shadows in the Night) is not known yet, so the sheet shows the main scheme instead.
     const unknown = hasRandomChosenVillain(s);
     const shownId = unknown ? s.mainSchemeCardId : s.villainCardId;
-    const card = CARDS_BY_ID.get(shownId as string);
+    const card = currentCardsById().get(shownId as string);
     const face = unknown
       ? ({ kind: "mainSchemeStage", stageIndex: 0, side: "A" } as const)
       : card?.type === "villain"
@@ -1196,7 +1257,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         optionId: s.id as string,
         label: s.multipleVillains
           ? "Play this scenario"
-          : `Play this ${foeWord(s, { cardsById: CARDS_BY_ID, lower: true })}`,
+          : `Play this ${foeWord(s, { cardsById: currentCardsById(), lower: true })}`,
       },
     });
   }

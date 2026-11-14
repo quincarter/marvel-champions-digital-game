@@ -1,0 +1,48 @@
+{
+  "id": "x.punisher-pk.04a",
+  "name": "Frank's War",
+  "setCode": "punisher-pk",
+  "cycleId": "punisher-pk",
+  "collectorNumber": "4A/4B",
+  "quantityInSet": 1,
+  "unique": false,
+  "type": "main_scheme",
+  "encounterSetIds": ["punisher-pk-punisher-pk"],
+  "stages": [
+    {
+      "stageNumber": 1,
+      "startingThreat": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "targetThreat": {
+        "base": 0,
+        "perPlayer": 12
+      },
+      "acceleration": {
+        "base": 0,
+        "perPlayer": 1
+      },
+      "icons": [],
+      "text": {
+        "printed": "Forced Interrupt: When the player phase begins, each player who is not engaged with a minion discards the top card of the encounter deck. If that card is a minion, that player puts it into play engaged with them.\nIf this stage is completed, the players lose the game.",
+        "current": "Forced Interrupt: When the player phase begins, each player who is not engaged with a minion discards the top card of the encounter deck. If that card is a minion, that player puts it into play engaged with them.\nIf this stage is completed, the players lose the game."
+      },
+      "traits": [],
+      "keywords": [],
+      "abilities": [
+        {
+          "id": "x.punisher-pk.04b.franks-war-forced-interrupt"
+        }
+      ],
+      "completionLoses": true,
+      "aSide": {
+        "text": {
+          "printed": "Contents: The Punisher (I) and The Punisher (II). (The Punisher (II) and The Punisher (III) instead for expert mode.) The Punisher and Standard encounter sets. One modular encounter set (Sinister Syndicate).",
+          "current": "Contents: The Punisher (I) and The Punisher (II). (The Punisher (II) and The Punisher (III) instead for expert mode.) The Punisher and Standard encounter sets. One modular encounter set (Sinister Syndicate)."
+        },
+        "abilities": []
+      }
+    }
+  ]
+}
