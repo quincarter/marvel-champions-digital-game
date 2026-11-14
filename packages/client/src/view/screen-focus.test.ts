@@ -588,13 +588,15 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("the Title lists each in-progress game's row then its Remove right after Continue; the question replaces them", () => {
+  test("the Title lists each in-progress game's row then its Watch and Remove right after Continue; the question replaces them", () => {
     const withGames = titleMenuFocusOrder({ continuable: true, gameIds: ["a", "b"] });
-    expect(withGames.slice(0, 6)).toEqual([
+    expect(withGames.slice(0, 8)).toEqual([
       "continue",
       "game:a",
+      "game-watch:a",
       "game-remove:a",
       "game:b",
+      "game-watch:b",
       "game-remove:b",
       "new-game",
     ]);

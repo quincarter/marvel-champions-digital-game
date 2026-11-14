@@ -167,7 +167,7 @@ const stripPool = (state: GameState): StateWithoutPool => {
 };
 
 /** The same for the sealed state a snapshot carries. */
-const stripSealedPool = (state: SealedGameState): SealedStateWithoutPool => {
+export const stripSealedPool = (state: SealedGameState): SealedStateWithoutPool => {
   const { cardPool: _cardPool, ...rest } = state;
   return rest;
 };
@@ -176,13 +176,13 @@ const stripSealedPool = (state: SealedGameState): SealedStateWithoutPool => {
  * The events whose state the villain phase's replay may draw the table from (issue #386): every event of the phase,
  * from the step that opens it (its `stepChanged` is emitted with the new step already set).
  */
-const inVillainPhase = (_event: GameEvent, state: GameState): boolean => state.step.phase === "villain";
+export const inVillainPhase = (_event: GameEvent, state: GameState): boolean => state.step.phase === "villain";
 
 /**
  * The recorded states as the table may read them: sealed like the snapshot's own state, without the pool, and only
  * where the state changed since the last one kept (an event that moved nothing adds nothing to send).
  */
-function sealedEventStates(states: readonly EventState[]): readonly SealedEventState[] {
+export function sealedEventStates(states: readonly EventState[]): readonly SealedEventState[] {
   const kept: SealedEventState[] = [];
   let last: GameState | null = null;
   for (const { at, state } of states) {
@@ -317,6 +317,17 @@ export interface ReplayBaseline {
  * Throws `SetupError` if the scenario itself can no longer be set up (a
  * config referencing content that no longer exists).
  */
+/**
+ * The baseline a setup builds now, without a stored one: what a replay file's game starts from, since a state inside a
+ * file is not trusted (`replay/replay-core.ts`). Setup is deterministic from the config, so it is the game's own.
+ */
+export function freshBaseline(config: SessionConfig): StateWithoutPool {
+  const fresh = createGame(scenarioFor(config), depsOf(config));
+  if (!fresh.ok) throw new SetupError({ ...fresh.error, message: `this game can't be set up: ${fresh.error.message}` });
+  const { cardPool: _pool, ...state } = fresh.state;
+  return state;
+}
+
 export function rebuildBaseline(config: SessionConfig, storedInitialState: StateWithoutPool): ReplayBaseline {
   const fresh = createGame(scenarioFor(config), depsOf(config));
   if (!fresh.ok) {

@@ -215,6 +215,7 @@ import {
 } from "../view/villain-walkthrough.js";
 import { villainDefendFocusOrder, villainPhaseFocusOrder, villainRailFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
+import { activeReplay } from "../replay/replay-mode.js";
 import type { SessionState } from "../store/session-store.js";
 import { openPauseOverBoard } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -312,6 +313,13 @@ const DOCK_GROW_GRACE_MS = 600;
 
 /** Below this height the inline interrupt panel lays out sideways (`#drawInterrupt`). */
 const INTERRUPT_SHORT_PANEL = 300;
+
+/** The same state with no open decision, for a walkthrough that is only watching. */
+function withoutDecision(state: SessionState): SessionState {
+  const game = state.game;
+  if (!game?.pendingChoice) return state;
+  return { ...state, game: { ...game, pendingChoice: null } };
+}
 
 export class VillainPhaseOverlay extends Phaser.Scene {
   #walkthrough: Walkthrough = emptyWalkthrough(1);
@@ -498,7 +506,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const { store } = appSession();
     // Before the subscribe, which runs the first draw (or closes at once, drawing nothing): the last run's cards go.
     resetHoverCards(this);
-    this.#unsubscribe = store.subscribe((state) => this.#onState(state));
+    // A replay answers no decision: the walkthrough narrates the phase straight through, and the table behind it
+    // shows the choice that was pending (the replay's next command is its answer).
+    this.#unsubscribe = store.subscribe((state) => this.#onState(activeReplay() ? withoutDecision(state) : state));
     const onResize = (): void => this.#draw();
     // A boost card's scan is requested lazily and may not have arrived on the
     // first draw; without this the panel stays blank until something else
@@ -531,6 +541,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         const overlays = Object.values(SCENES).filter(
           (key) =>
             key !== SCENES.board &&
+            key !== SCENES.replayTransport &&
             key !== SCENES.music &&
             !CHROME_SCENES.has(key) &&
             key !== SCENES.villainPhase &&
@@ -601,6 +612,26 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         delete (window as unknown as { __mcVillainHoverDebug?: unknown }).__mcVillainHoverDebug;
       }
     });
+  }
+
+  /**
+   * What happens when the phase has been shown: the player's setting, except in a replay, which plays on by itself
+   * ("on": the last beat gets one beat interval and the screen closes), so autoplay never waits for a Start player phase.
+   */
+  #autoAdvance(): "off" | "afterPause" | "on" {
+    return activeReplay() ? "on" : appSession().settings.villainAutoAdvance;
+  }
+
+  /**
+   * Whether autoplay of a replay must wait: the beats are still being shown, or the phase is shown and about to close
+   * itself. A phase paused on a decision with every beat so far shown does not hold it: the replay's next command is the
+   * answer. Under reduced motion nothing closes on a timer, so a finished phase does not hold it either.
+   */
+  replayHolds(): boolean {
+    if (this.#motion.leaving) return true;
+    if (this.#review) return false;
+    if (this.#revealed < totalBeatsOf(this.#walkthrough)) return true;
+    return this.#walkthrough.complete && !appSession().settings.reducedMotion;
   }
 
   /** A reopened, finished phase (the Board's drawer handle), as opposed to the live replay. */
@@ -1023,7 +1054,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #gateEligible(): boolean {
     if (this.#review) return false;
     const settings = appSession().settings;
-    if (settings.villainAutoAdvance !== "off") return false;
+    if (this.#autoAdvance() !== "off") return false;
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
     // A lesson narrates the sheet's own options (its GUIDE PICK stamp and spotlight), so it keeps the sheet on top.
@@ -1258,7 +1289,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      * would give the player who asked for less motion the *least* time to read it. The only ways out are the ones
      * the player drives: Start player phase, Hide (Skip), or Esc.
      */
-    const mode = appSession().settings.villainAutoAdvance;
+    const mode = this.#autoAdvance();
     const delay =
       mode === "on"
         ? villainBeatIntervalMs(appSession().settings.villainBeatSpeed)
@@ -1281,7 +1312,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    */
   #heldCard(revealed = this.#revealed): string | null {
     const settings = appSession().settings;
-    if (!settings.holdEncounterCards || this.#shownPause()) return null;
+    if (!settings.holdEncounterCards || this.#shownPause() || activeReplay()) return null;
     if (this.#flipGate(revealed) !== null || this.#flipTurning() !== null) return null;
     // The first catch-up of a phase runs before its first draw, while `#presentation` is still create's "full".
     const shape = this.#shaped ? this.#presentation : this.#dockedShape();
@@ -1314,7 +1345,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    */
   #flipGate(revealed = this.#revealed): string | null {
     const settings = appSession().settings;
-    if (!settings.flipEncounterCards || this.#review) return null;
+    if (!settings.flipEncounterCards || this.#review || activeReplay()) return null;
     if (this.#shownPause() || this.#waitingToStart()) return null;
     const total = totalBeatsOf(this.#walkthrough);
     if (this.#walkthrough.complete && revealed >= total) return null;
@@ -1398,7 +1429,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (this.#latest?.game?.outcome) return false;
     if (!(this.#walkthrough.complete && reveal.caughtUp)) return false;
     // "on" skips the recap, except under reduced motion where nothing may close on a timer.
-    return appSession().settings.villainAutoAdvance !== "on" || appSession().settings.reducedMotion;
+    return this.#autoAdvance() !== "on" || appSession().settings.reducedMotion;
   }
 
   /** The recap's AUTO-ADVANCE toggle: OFF to "afterPause", anything else back to "off". Saved like any setting. */
@@ -2152,7 +2183,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       formFactor,
       recap,
       game: shownGame,
-      autoAdvance: appSession().settings.villainAutoAdvance,
+      autoAdvance: this.#autoAdvance(),
       scrolls: this.#recapScrolls,
       buttons: this.#buttons,
       onHide: () => this.#skip(),
@@ -2191,7 +2222,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       formFactor,
       recap,
       game,
-      autoAdvance: appSession().settings.villainAutoAdvance,
+      autoAdvance: this.#autoAdvance(),
       scrolls: this.#recapScrolls,
       buttons: this.#buttons,
       onHide: () => this.#skip(),
@@ -3158,7 +3189,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       log,
       onNext: this.#heldCard() !== null ? () => this.#nextCard() : null,
       onFlip: this.#flipGate() !== null ? () => this.#pressFlip() : null,
-      autoAdvance: appSession().settings.villainAutoAdvance,
+      autoAdvance: this.#autoAdvance(),
       buttons: this.#buttons,
       hint: (button, ids, ground, primary, enabled) =>
         this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),

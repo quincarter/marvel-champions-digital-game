@@ -128,6 +128,23 @@ describe("newIssueUrl", () => {
   test("short enough for GitHub to accept", () => {
     expect(newIssueUrl(environment).length).toBeLessThan(4000);
   });
+
+  test("the game's replay link goes into Game details when there is one", () => {
+    const link = "https://example.app/#replay=AbCdEf123_-x";
+    const details = new URL(newIssueUrl(environment, link)).searchParams.get("game-details") ?? "";
+    expect(details.split("\n").at(-1)).toBe(`Replay: ${link}`);
+    expect(new URL(newIssueUrl(environment)).searchParams.get("game-details")).not.toContain("Replay:");
+  });
+});
+
+describe("the report's replay link", () => {
+  test("heads the Game section of the log when the game was shared", () => {
+    const game = { seed: 1, round: 1, step: null, lines: [], config: {}, commands: [] };
+    const link = "https://example.app/#replay=AbCdEf123_-x";
+    const text = issueReportText({ environment, game, snapshot: {}, replayLink: link });
+    expect(text).toContain(`== Game ==\nReplay: ${link}\nSeed: 1`);
+    expect(issueReportText({ environment, game, snapshot: {} })).not.toContain("Replay: ");
+  });
 });
 
 test.each([

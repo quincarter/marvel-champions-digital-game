@@ -192,7 +192,18 @@ export interface BoardLayout {
   readonly compactPlayerRow?: boolean;
 }
 
+/** The replay bar's own height (two rows of the phone's controls), and the room its one- or two-line banner takes. */
+export const REPLAY_BAR_HEIGHT = hit.target + hit.primary;
+export const REPLAY_BANNER_HEIGHT = 42;
+/** What a phone's replay bar takes under the title bar when it is on top: the bar and its banner. */
+export const REPLAY_BAR_TOP_RESERVE = REPLAY_BAR_HEIGHT + REPLAY_BANNER_HEIGHT;
+
 export interface LayoutOptions {
+  /**
+   * A phone's replay bar is on top (`REPLAY_BAR_TOP_RESERVE`): the tab rail and everything under it start below it, and
+   * the action bar zone, which a replay has no use for, gives its height back to the table.
+   */
+  readonly replayBar?: number;
   /** Seats in the game. A solo game has no team strip. */
   readonly playerCount: number;
   /**
@@ -452,7 +463,8 @@ function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect =
   const gutter = GUTTER[formFactor];
   const chromeHeight = CHROME_HEIGHT[formFactor];
   const tabsHeight = hit.target;
-  const barHeight = actionBarHeight(formFactor);
+  const replayTop = options.replayBar ?? 0;
+  const barHeight = replayTop > 0 ? 0 : actionBarHeight(formFactor);
   // Enough for one row of fanned cards plus its "HAND 5 · Deck 28" caption.
   const baseHandHeight = Math.min(230, Math.max(120, Math.round(viewport.height * 0.2)));
   const scale = scaleOf(options);
@@ -460,7 +472,12 @@ function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect =
   const activeTab: PhoneTab = options.activeTab ?? "me";
 
   const chrome: Rect = { x: fullViewport.x, y: fullViewport.y, width: fullViewport.width, height: chromeHeight };
-  const tabs: Rect = { x: viewport.x, y: chrome.y + chrome.height, width: viewport.width, height: tabsHeight };
+  const tabs: Rect = {
+    x: viewport.x,
+    y: chrome.y + chrome.height + replayTop,
+    width: viewport.width,
+    height: tabsHeight,
+  };
   const actionBar: Rect = {
     x: viewport.x,
     y: viewport.y + viewport.height - barHeight,

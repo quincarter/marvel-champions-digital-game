@@ -495,12 +495,12 @@ export function titleMenuFocusOrder(input: {
 }
 
 /**
- * The in-progress games list's stops (the Title's panel and the phone overlay): each game's row, then its Remove
- * button, top to bottom; or just the question's "Keep it" and "Remove" while it is asked.
+ * The in-progress games list's stops (the Title's panel and the phone overlay): each game's row, then its Watch and
+ * Remove buttons, top to bottom; or just the question's "Keep it" and "Remove" while it is asked.
  */
 export function gamesListFocusOrder(gameIds: readonly string[], removeConfirm: boolean): readonly string[] {
   if (removeConfirm) return ["remove-keep", "remove-confirm"];
-  return gameIds.flatMap((id) => [`game:${id}`, `game-remove:${id}`]);
+  return gameIds.flatMap((id) => [`game:${id}`, `game-watch:${id}`, `game-remove:${id}`]);
 }
 
 export interface ScenarioSelectFocusInput {

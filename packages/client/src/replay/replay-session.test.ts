@@ -1,0 +1,190 @@
+import { describe, expect, test, vi } from "vitest";
+import type { Command, LegalActions } from "@mc/engine";
+import { EngineSessionCore } from "../engine/session-core.js";
+import { MemoryGameStorage, type StoredGame } from "../engine/game-storage.js";
+import type { SessionConfig } from "../engine/host.js";
+import {
+  CHECKSUM_EVERY,
+  MAX_REPLAY_FILE_BYTES,
+  decodeReplay,
+  encodeReplay,
+  parseReplay,
+  replayFileNameOf,
+} from "./replay-file.js";
+import { RECORD_EVERY, ReplaySession, type ReplayLog } from "./replay-session.js";
+import type { GameRecord } from "../engine/game-record.js";
+
+vi.setConfig({ testTimeout: 30_000 });
+
+const CONFIG: SessionConfig = {
+  scenarioId: "rhino",
+  difficulty: "standard",
+  players: [{ starterDeckId: "core-spider-man-justice" }],
+  seed: 2026,
+};
+/** Four seats ending every turn: a game long enough for several checksums. */
+const LONG_CONFIG: SessionConfig = {
+  scenarioId: "ultron",
+  difficulty: "standard",
+  players: [
+    { starterDeckId: "core-captain-marvel-leadership" },
+    { starterDeckId: "core-iron-man-aggression" },
+    { starterDeckId: "core-black-panther-protection" },
+    { starterDeckId: "core-spider-man-justice" },
+  ],
+  seed: 1138,
+};
+const HERE = { appVersion: "1.0.0", contentVersion: "pool-a", build: "abc1234" };
+
+function anyLegalCommand(legal: LegalActions): Command {
+  if (legal.kind === "choice") {
+    return {
+      type: "resolveChoice",
+      playerId: legal.choice.playerId,
+      choiceId: legal.choice.choiceId,
+      selectedOptionIds: legal.choice.options.slice(0, legal.choice.minSelections).map((option) => option.optionId),
+    };
+  }
+  if (legal.kind !== "turn") throw new Error(`nothing legal (${legal.kind})`);
+  const action = legal.legal.find((a) => a.action.kind === "endTurn") ?? legal.legal[0];
+  if (!action) throw new Error("no legal actions");
+  return action.example;
+}
+
+/** A real stored game, played by always taking the first legal option. */
+/** Each position's record as the live game had it, by command count, from the last `playedGame`. */
+let liveRecords: GameRecord[] = [];
+
+async function playedGame(commands: number, config: SessionConfig = CONFIG): Promise<StoredGame> {
+  const storage = new MemoryGameStorage();
+  const core = new EngineSessionCore({ storage });
+  const started = await core.start(config);
+  liveRecords = [started.snapshot.record];
+  let toAct = started.snapshot.legal?.playerId ?? null;
+  for (let i = 0; i < commands && toAct; i++) {
+    const dispatched = core.dispatch(anyLegalCommand(core.legalActions(toAct)));
+    if (!dispatched.ok) throw new Error(dispatched.error.message);
+    liveRecords.push(dispatched.snapshot.record);
+    toAct = dispatched.snapshot.legal?.playerId ?? null;
+    if (dispatched.snapshot.state.outcome) break;
+  }
+  await core.flushed();
+  const [meta] = await storage.list();
+  const stored = meta ? await storage.load(meta.id) : null;
+  if (!stored) throw new Error("the game did not save");
+  return stored;
+}
+
+const logOf = (stored: StoredGame): ReplayLog => ({
+  config: stored.meta.config,
+  initialState: stored.initialState,
+  commands: stored.commands,
+  createdAt: stored.meta.createdAt,
+  outcome: stored.meta.outcome,
+  round: stored.meta.round,
+});
+
+describe("ReplaySession", () => {
+  test("a log opens to every position, and a file made from it opens the same, with no divergence", async () => {
+    const stored = await playedGame(25, LONG_CONFIG);
+    const session = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE);
+    expect(session.info.length).toBe(stored.commands.length);
+    expect(session.info.failure).toBeNull();
+    expect(session.info.divergedAt).toBeNull();
+    expect(session.info.otherBuild).toBe(false);
+
+    const file = session.toFile(Date.UTC(2026, 10, 13));
+    expect(file.checksums).toHaveLength(Math.floor(stored.commands.length / CHECKSUM_EVERY) + 1);
+    const reopened = ReplaySession.open({ kind: "file", file }, HERE);
+    expect(reopened.info.divergedAt).toBeNull();
+    for (const n of [0, 1, 7, stored.commands.length]) {
+      expect(reopened.snapshotAt(n, false).state).toEqual(session.snapshotAt(n, false).state);
+    }
+  });
+
+  test("a seek carries the history up to there and no events; a step carries that command's events", async () => {
+    const stored = await playedGame(12);
+    const session = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE);
+    const seek = session.snapshotAt(5, false);
+    expect(seek.version).toBe(5);
+    expect(seek.events).toEqual([]);
+    expect(seek.legal).toBeNull();
+    const step = session.snapshotAt(5, true);
+    expect(step.history).toBeUndefined();
+    expect(seek.history?.slice(-step.events.length)).toEqual(step.events);
+    expect(session.snapshotAt(999, false).version).toBe(stored.commands.length);
+  });
+
+  test("a file whose game plays out differently here says where it first differs", async () => {
+    const stored = await playedGame(25, LONG_CONFIG);
+    const file = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE).toFile(0);
+    expect(file.commands.length).toBeGreaterThanOrEqual(CHECKSUM_EVERY);
+    const tampered = { ...file, checksums: file.checksums.map((sum, k) => (k >= 1 ? `x${sum}` : sum)) };
+    const session = ReplaySession.open({ kind: "file", file: tampered }, { ...HERE, contentVersion: "pool-b" });
+    expect(session.info.divergedAt).toBe(CHECKSUM_EVERY);
+    expect(session.info.otherBuild).toBe(true);
+  });
+
+  test("the last commands are checked too when the count isn't a multiple of the checksum spacing", async () => {
+    const stored = await playedGame(15, LONG_CONFIG);
+    const log = { ...logOf(stored), commands: stored.commands.slice(0, 15) };
+    const file = ReplaySession.open({ kind: "log", log }, HERE).toFile(0);
+    expect(file.finalChecksum).toBeDefined();
+    const tampered = { ...file, finalChecksum: `x${file.finalChecksum}` };
+    expect(ReplaySession.open({ kind: "file", file }, HERE).info.divergedAt).toBeNull();
+    expect(ReplaySession.open({ kind: "file", file: tampered }, HERE).info.divergedAt).toBe(15);
+  });
+
+  test("keeps a record only every RECORD_EVERY commands, and a seek between them folds to the same record", async () => {
+    const stored = await playedGame(120, LONG_CONFIG);
+    const session = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE);
+    const length = session.info.length;
+    expect(length).toBeGreaterThan(2 * RECORD_EVERY);
+    expect(session.keptRecords).toBeLessThanOrEqual(Math.floor(length / RECORD_EVERY) + 2);
+    // Whether a position's record is kept or folded on from the nearest kept one, it is the live game's.
+    for (const n of [0, RECORD_EVERY, RECORD_EVERY + 7, length - 1, length]) {
+      expect(session.snapshotAt(n, false).record).toEqual(liveRecords[n]);
+    }
+  });
+
+  test("a log whose commands stop applying opens up to the first one that doesn't", async () => {
+    const stored = await playedGame(12);
+    const broken: Command = { type: "endTurn", playerId: "nobody" as never };
+    const commands = [...stored.commands.slice(0, 4), broken, ...stored.commands.slice(4)];
+    const session = ReplaySession.open({ kind: "log", log: { ...logOf(stored), commands } }, HERE);
+    expect(session.info.length).toBe(4);
+    expect(session.info.total).toBe(commands.length);
+    expect(session.info.failure?.commandIndex).toBe(4);
+  });
+});
+
+describe("replay file", () => {
+  test("round-trips through its packed text", async () => {
+    const stored = await playedGame(10);
+    const file = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE).toFile(5);
+    const bytes = await encodeReplay(file);
+    expect(new TextDecoder().decode(bytes.subarray(0, 10))).toBe("MCREPLAY1\n");
+    const parsed = await decodeReplay(bytes);
+    expect(parsed).toEqual({ ok: true, file: JSON.parse(JSON.stringify(file)) });
+  });
+
+  test("reads plain JSON too, and refuses what is not a replay", async () => {
+    expect(await decodeReplay(new TextEncoder().encode("{}"))).toEqual({ ok: false, error: "notReplay" });
+    expect(await decodeReplay(new TextEncoder().encode("not json"))).toEqual({ ok: false, error: "notReplay" });
+    expect(parseReplay({ format: "mc-replay", version: 99 })).toEqual({ ok: false, error: "newerFormat" });
+    expect(parseReplay({ format: "mc-replay", version: 1 })).toEqual({ ok: false, error: "damaged" });
+  });
+
+  test("refuses a small file that unpacks past the limit, and a file too large to read", async () => {
+    const bomb = new Blob([" ".repeat(4096)]).stream().pipeThrough(new CompressionStream("gzip"));
+    const packed = new Uint8Array(await new Response(bomb).arrayBuffer());
+    expect(await decodeReplay(packed, 1024)).toEqual({ ok: false, error: "damaged" });
+    expect(await decodeReplay(new Uint8Array(MAX_REPLAY_FILE_BYTES + 1))).toEqual({ ok: false, error: "damaged" });
+  });
+
+  test("names the file for its scenario and day", () => {
+    expect(replayFileNameOf({ config: CONFIG, exportedAt: Date.UTC(2026, 10, 13, 12) })).toBe(
+      "rhino-2026-11-13.mcreplay",
+    );
+  });
+});

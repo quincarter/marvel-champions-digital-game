@@ -91,6 +91,7 @@ export const GAME_ROW_HEIGHT = 124;
 export const GAME_ROW_GAP = 8;
 const ROW_PAD = 12;
 const REMOVE_WIDTH = 96;
+const NARROW_BUTTON_WIDTH = 76;
 /** Between Resume and Remove: wide enough that a thumb aimed at one cannot land on the other. */
 export const GAME_BUTTON_GAP = 12;
 
@@ -103,22 +104,27 @@ export interface GameRowParts {
   readonly resume: Rect;
   /** Remove: the secondary, smaller control after Resume, touch-sized. */
   readonly remove: Rect;
+  /** Watch: the game so far as a replay (#693), between Resume and Remove, the same size as Remove. */
+  readonly watch: Rect;
 }
 
 /** Where the parts of the row at `row` sit. */
 export function gameRowParts(row: Rect): GameRowParts {
   const bottom = row.y + row.height - 8;
+  // A narrow row (a phone) gives its two small buttons less, so Resume stays the widest.
+  const small = row.width < 420 ? NARROW_BUTTON_WIDTH : REMOVE_WIDTH;
   const remove: Rect = {
-    x: row.x + row.width - ROW_PAD - REMOVE_WIDTH,
+    x: row.x + row.width - ROW_PAD - small,
     // Centred on Resume's line.
     y: bottom - hit.primary + (hit.primary - hit.target) / 2,
-    width: REMOVE_WIDTH,
+    width: small,
     height: hit.target,
   };
+  const watch: Rect = { ...remove, x: remove.x - GAME_BUTTON_GAP - small };
   const resume: Rect = {
     x: row.x + ROW_PAD,
     y: bottom - hit.primary,
-    width: remove.x - GAME_BUTTON_GAP - (row.x + ROW_PAD),
+    width: watch.x - GAME_BUTTON_GAP - (row.x + ROW_PAD),
     height: hit.primary,
   };
   const iconInset = ROW_PAD + 28 + 10;
@@ -132,6 +138,7 @@ export function gameRowParts(row: Rect): GameRowParts {
     },
     resume,
     remove,
+    watch,
   };
 }
 

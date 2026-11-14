@@ -487,7 +487,12 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
           continue;
         }
         // A row whose top sits above the list's is clipped, and a click on it lands on the player or the tab bar.
-        await scrollStopIntoView(page, stop.key, "Extras", listTop);
+        // The wheel turns over the list itself: under a phone's two rows of Extras doors the player reaches past the middle.
+        const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
+        await scrollStopIntoView(page, stop.key, "Extras", listTop, undefined, {
+          x: viewport.width / 2,
+          y: (listTop + viewport.height - 90) / 2,
+        });
         const listed = (await visibleTexts(page)).some((t) => t.scene === "Extras" && t.text.trim() === title);
         if (!listed) missing.push(`${title}: title not drawn`);
         await clickStop(page, stop.key, "Extras");

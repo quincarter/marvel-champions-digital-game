@@ -21,14 +21,19 @@ pub async fn save_text_file(
   window: tauri::WebviewWindow,
   file_name: String,
   contents: String,
+  title: Option<String>,
+  filter_name: Option<String>,
+  extension: Option<String>,
 ) -> Result<Option<String>, String> {
+  // The save data's own wording and extension unless the caller names others (a replay, a game log).
+  let extension = extension.unwrap_or_else(|| "json".to_string());
   let mut dialog = window
     .dialog()
     .file()
     .set_parent(&window)
-    .set_title("Export save data")
+    .set_title(title.as_deref().unwrap_or("Export save data"))
     .set_file_name(&file_name)
-    .add_filter("Save data", &["json"]);
+    .add_filter(filter_name.as_deref().unwrap_or("Save data"), &[extension.as_str()]);
   if let Ok(downloads) = window.path().download_dir() {
     dialog = dialog.set_directory(downloads);
   }
@@ -36,9 +41,9 @@ pub async fn save_text_file(
     return Ok(None);
   };
   let mut path = chosen.into_path().map_err(|e| e.to_string())?;
-  // Windows adds it through the filter; macOS and Linux may not, and Import only offers .json files.
+  // Windows adds it through the filter; macOS and Linux may not, and Import only offers files of that extension.
   if path.extension().is_none() {
-    path.set_extension("json");
+    path.set_extension(&extension);
   }
   std::fs::write(&path, contents).map_err(|e| e.to_string())?;
   Ok(Some(path.to_string_lossy().into_owned()))

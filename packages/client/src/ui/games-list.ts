@@ -18,6 +18,7 @@ import type { GlyphHints } from "./glyph-hints.js";
 import { McScrollRegion } from "./scroll-region.js";
 import { textStyle } from "./theme.js";
 import { McButton, addRowTapZone, fitText } from "./widgets.js";
+import { t } from "../i18n/translate.js";
 import type { FocusStop } from "../scenes/focus-route.js";
 import {
   GAME_NEEDS_UPDATE_TEXT,
@@ -42,6 +43,8 @@ export interface GamesListOptions {
   /** False while something is already starting (a resume in flight): the rows and buttons are drawn unavailable. */
   readonly enabled: boolean;
   readonly onResume: (row: GameRow) => void;
+  /** Watch the game so far as a replay (#693). */
+  readonly onWatch: (row: GameRow) => void;
   readonly onAskRemove: (row: GameRow) => void;
   readonly onKeep: () => void;
   readonly onRemove: (row: GameRow) => void;
@@ -138,7 +141,18 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
         }),
       );
     }
+    const watch = (): void => options.onWatch(row);
     buttons.push(
+      new McButton(scene, {
+        kind: "onInk",
+        label: t("gamesList.watch"),
+        type: { ...typeRole.rowTitle, size: 13 },
+        rect: parts.watch,
+        enabled: options.enabled && !row.needsUpdate,
+        onClick: watch,
+        clip: inRegion,
+        suppressClick: suppress,
+      }),
       new McButton(scene, {
         kind: "onInk",
         label: "Remove",
@@ -161,6 +175,9 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
       else if (over > 0) region.scrollByPx(over);
     };
     stops.set(`game:${row.id}`, { rect: offsetBy(parts.resume), activate: go, ensureVisible: bringIntoView });
+    if (!row.needsUpdate) {
+      stops.set(`game-watch:${row.id}`, { rect: offsetBy(parts.watch), activate: watch, ensureVisible: bringIntoView });
+    }
     stops.set(`game-remove:${row.id}`, { rect: offsetBy(parts.remove), activate: ask, ensureVisible: bringIntoView });
   });
 

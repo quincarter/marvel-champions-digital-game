@@ -118,6 +118,18 @@ export interface AppSession {
 
 let session: AppSession | null = null;
 
+/** The store the game screens' art follows; replaced when a replay swaps the session's store (`swapSessionHost`). */
+let unfollowArt: (() => void) | null = null;
+
+/** Balanced and house-rule scans follow `store`'s game config (issue #609), whichever store the session holds. */
+function followArtOf(store: SessionStore): void {
+  unfollowArt?.();
+  unfollowArt = store.subscribe((state) => {
+    balancedArt.setConfig(state.config);
+    houseRuleArt.setConfig(state.config);
+  });
+}
+
 /** Which Balanced scans show, and when (`art/balanced-art.ts`): while a game screen is up, for that game's config. */
 const balancedArt = new BalancedArtGate(setShownBalancedScans);
 /** Which house rules' rebuilt faces show (`art/house-rule-art.ts`): the same lifetime, for the game's own rules. */
@@ -181,10 +193,7 @@ export function appSession(): AppSession {
     const current = session;
     onLanguageChange(() => current.store.republish());
     // A Balanced Galaxy's Most Wanted game's edited scans (issue #609) follow the game screens' lifetime, below.
-    current.store.subscribe((state) => {
-      balancedArt.setConfig(state.config);
-      houseRuleArt.setConfig(state.config);
-    });
+    followArtOf(current.store);
   }
   return session;
 }
@@ -197,6 +206,23 @@ export function useDevHost(host: EngineHost): void {
   const current = appSession();
   (current as { host: EngineHost }).host = host;
   (current as { store: SessionStore }).store = new SessionStore(host);
+}
+
+/**
+ * Watching a replay (`replay/replay-mode.ts`, issue #693): puts the replay's host and store on the session and hands
+ * back what was there, which the same call puts back on leaving. Only the replay mode calls this.
+ */
+export function swapSessionHost(
+  host: EngineHost,
+  store: SessionStore,
+): { readonly host: EngineHost; readonly store: SessionStore } {
+  const current = appSession();
+  const previous = { host: current.host, store: current.store };
+  (current as { host: EngineHost }).host = host;
+  (current as { store: SessionStore }).store = store;
+  // A replay of a Balanced game shows its edited scans, and leaving puts the game's own back.
+  followArtOf(store);
+  return previous;
 }
 
 /**

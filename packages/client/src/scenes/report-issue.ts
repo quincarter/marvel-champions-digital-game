@@ -22,6 +22,7 @@ import { debugSnapshot } from "../ui/debug-dump.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { appVersionText, buildCommit } from "../view/app-version.js";
+import { reportReplayLink, withinTime } from "../replay/report-replay.js";
 import { knownSteamInstall } from "../platform/steam-install.js";
 import {
   DECK_REQUEST_URL,
@@ -69,6 +70,9 @@ export class ReportIssueOverlay extends Phaser.Scene {
   #feedback = "";
   /** A Download log save is under way; another press waits for it. */
   #saving = false;
+  /** The game shared as a replay (#693), asked for as the panel opens; the link once it has come back, else null. */
+  #replayLink: Promise<string | null> = Promise.resolve(null);
+  #replayLinkNow: string | null = null;
   #hideTimer: Phaser.Time.TimerEvent | null = null;
   /** Brings the panel back while it is hidden for a screenshot (a tap does it; so does any pad button or key). */
   #restore: (() => void) | null = null;
@@ -82,6 +86,12 @@ export class ReportIssueOverlay extends Phaser.Scene {
 
   create(): void {
     this.#feedback = "";
+    // Shared now, while the player reads the panel, so Copy, Download and Report a bug carry it without waiting.
+    this.#replayLinkNow = null;
+    this.#replayLink = reportReplayLink(appSession().store);
+    void this.#replayLink.then((link) => {
+      this.#replayLinkNow = link;
+    });
     const inherited = pendingRestore?.entries ?? [];
     pendingRestore?.cancel();
     pendingRestore = null;
@@ -187,14 +197,23 @@ export class ReportIssueOverlay extends Phaser.Scene {
               commands: state.commandTrail.map((entry) => ({ playerId: entry.playerId, command: entry.command })),
             },
       snapshot: debugSnapshot(this.game),
+      replayLink: this.#replayLinkNow,
     };
   }
 
+  /** The report once its replay link is in, or after `REPORT_LINK_WAIT_MS` without it. */
+  async #reportWithLink(): Promise<ReportInput> {
+    this.#replayLinkNow = await withinTime(this.#replayLink);
+    return this.#report();
+  }
+
   #copy(): void {
-    void copyText(issueReportText(this.#report())).then((copied) => {
-      if (!this.sys.isActive()) return;
-      this.#say(copied ? "Log copied. Paste it into the issue." : "This device would not copy. Use Download log.");
-    });
+    void this.#reportWithLink()
+      .then((report) => copyText(issueReportText(report)))
+      .then((copied) => {
+        if (!this.sys.isActive()) return;
+        this.#say(copied ? "Log copied. Paste it into the issue." : "This device would not copy. Use Download log.");
+      });
   }
 
   #download(): void {
@@ -202,7 +221,8 @@ export class ReportIssueOverlay extends Phaser.Scene {
     // One save at a time: Android's Save dialog takes a moment to cover the panel.
     if (this.#saving) return;
     this.#saving = true;
-    void downloadText(issueReportText(this.#report()), fileName)
+    void this.#reportWithLink()
+      .then((report) => downloadText(issueReportText(report), fileName))
       .then(
         (saved) => {
           if (saved && this.sys.isActive()) this.#say(`Saved ${fileName}. Attach it to the issue.`);
@@ -217,7 +237,8 @@ export class ReportIssueOverlay extends Phaser.Scene {
   }
 
   #openIssue(): void {
-    openExternal(newIssueUrl(this.#environment()));
+    // Opened at once (a popup must follow the press), with the replay link when it has already come back.
+    openExternal(newIssueUrl(this.#environment(), this.#replayLinkNow));
   }
 
   /** Hides the panel (and the Report button) so a screenshot shows the screen underneath; back after `HIDE_MS` or a tap. */
@@ -325,7 +346,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       },
       {
         title: "2 · Save the log",
-        body: "The log has this game's moves and your device details, so we can replay what you saw.",
+        body: "The log has this game's moves, your device details and a link to watch the game back, so we can see what you saw.",
         rows: [
           [
             { id: "copy", label: "Copy log", kind: "secondary", run: () => this.#copy() },
@@ -335,7 +356,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       },
       {
         title: "3 · Tell us about it",
-        body: "Report a bug opens GitHub's bug form with your device details filled in: add your screenshot and the log there. Bugs and ideas go to GitHub; Discord is for chat and questions.",
+        body: "Report a bug opens GitHub's bug form with your device details and the game's replay link filled in: add your screenshot and the log there. Bugs and ideas go to GitHub; Discord is for chat and questions.",
         rows: [
           [{ id: "github", label: "Report a bug ↗", kind: "primary", run: () => this.#openIssue() }],
           [

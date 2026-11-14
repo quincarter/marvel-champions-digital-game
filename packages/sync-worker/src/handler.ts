@@ -1,6 +1,7 @@
 /**
  * The Worker's HTTP surface: `POST /transfer` and `GET /transfer/:room`, plus the device-sync routes under `/sync`
- * (`sync-handler.ts`). The Worker never sees a save in the clear (the client encrypts it), so what it guards is abuse:
+ * (`sync-handler.ts`), the global win rate routes under `/global` (`global-handler.ts`) and replay share links under
+ * `/replay` (`replay-handler.ts`). The Worker never sees a save in the clear (the client encrypts it), so what it guards is abuse:
  * origin, size, rate and guessing. It logs nothing from a request; bodies and proofs never reach a log line.
  *
  * Clock, random bytes and `fetch` (for Turnstile) are injected so tests control them.
@@ -21,6 +22,7 @@ import {
   type TransferErrorReason,
 } from "./protocol.js";
 import { GLOBAL_PATH, handleGlobal } from "./global-handler.js";
+import { handleReplay, REPLAY_PATH } from "./replay-handler.js";
 import { handleSync, SYNC_PATH } from "./sync-handler.js";
 import { turnstileOk } from "./turnstile.js";
 import { defaultRandomBytes, generateRoomCode, type RandomBytes } from "./room-code.js";
@@ -131,6 +133,9 @@ export async function handleRequest(request: Request, env: Env, deps: HandlerDep
 
   const globalMatch = GLOBAL_PATH.exec(url.pathname);
   if (globalMatch) return handleGlobal(request, env, deps, cors, origin, globalMatch);
+
+  const replayMatch = REPLAY_PATH.exec(url.pathname);
+  if (replayMatch) return handleReplay(request, env, deps, cors, origin, replayMatch);
 
   const roomMatch = /^\/transfer\/([^/]+)$/.exec(url.pathname);
   const isUpload = url.pathname === "/transfer";

@@ -1,5 +1,5 @@
 /**
- * The three Durable Object classes, as thin wrappers: they turn an internal request from the Worker into a call on the
+ * The Durable Object classes, as thin wrappers: they turn an internal request from the Worker into a call on the
  * logic classes. They use the legacy `constructor(state, env)` + `fetch()` shape and do not import
  * `cloudflare:workers`, so tests construct them directly. The Worker passes its clock in an `X-Now` header so a test
  * clock reaches the object; a missing header falls back to the real time.
@@ -10,6 +10,7 @@ import { parseGlobalResult } from "./global-protocol.js";
 import { GlobalStatsLogic } from "./global-stats.js";
 import { PROOF_HEADER } from "./protocol.js";
 import { RateLimiterLogic } from "./rate-limiter.js";
+import { ReplayQuotaLogic } from "./replay-quota.js";
 import { RoomLogic } from "./room.js";
 import { DEFAULT_MAX_SPACE_BYTES } from "./sync-protocol.js";
 import { SyncSpaceLogic, type SyncOutcome } from "./sync-space.js";
@@ -86,6 +87,10 @@ export class RateLimiter {
     if (pathname === "/global-result" || pathname === "/global-read") {
       const result =
         pathname === "/global-result" ? await this.limiter.takeGlobalResult(now) : this.limiter.takeGlobalRead(now);
+      return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
+    }
+    if (pathname === "/replay-upload") {
+      const result = await this.limiter.takeReplayUpload(now);
       return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
     }
     if (pathname === "/refund") {
@@ -184,5 +189,32 @@ export class GlobalStats {
 
   async alarm(): Promise<void> {
     await this.stats.expire(Date.now());
+  }
+}
+
+/**
+ * The daily cap on replay uploads across the whole account: one instance, named "replays". `/take` carries the cap in
+ * `X-Max`; `/refund` carries in `X-Taken-At` the clock value the slot was taken with.
+ */
+export class ReplayQuota {
+  private readonly quota: ReplayQuotaLogic;
+
+  constructor(state: DurableObjectStateLike, _env?: unknown) {
+    this.quota = new ReplayQuotaLogic(state.storage);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    const now = nowOf(request);
+    if (pathname === "/take") {
+      const max = Number(request.headers.get("X-Max"));
+      const result = await this.quota.take(now, Number.isFinite(max) ? max : 0);
+      return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
+    }
+    if (pathname === "/refund") {
+      await this.quota.refund(Number(request.headers.get("X-Taken-At")), now);
+      return Response.json({ ok: true });
+    }
+    return new Response(null, { status: 404 });
   }
 }

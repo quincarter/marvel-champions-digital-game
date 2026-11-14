@@ -109,6 +109,7 @@ export class PileViewOverlay extends Phaser.Scene {
         const overlays = Object.values(SCENES).filter(
           (key) =>
             key !== SCENES.board &&
+            key !== SCENES.replayTransport &&
             key !== SCENES.music &&
             !CHROME_SCENES.has(key) &&
             key !== SCENES.pileView &&

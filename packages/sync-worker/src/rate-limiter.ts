@@ -40,6 +40,9 @@ const HOUR_MS = 60 * 60 * 1000;
 export const GLOBAL_RESULTS_PER_IP_PER_DAY = 60;
 export const GLOBAL_READS_PER_IP_PER_HOUR = 120;
 
+/** Replay share-link uploads one IP may make per 24 hours (a fixed window in the state row). */
+export const REPLAY_UPLOADS_PER_IP_PER_DAY = 30;
+
 interface LimiterState {
   uploads: number[];
   failures: number[];
@@ -55,6 +58,8 @@ interface LimiterState {
   syncRows: { h: number; n: number }[];
   /** Global win rate counters: a window start and the count in it; absent when no window is open. */
   globalResults?: { s: number; n: number };
+  /** Replay upload counter, the same shape as `globalResults`. */
+  replayUploads?: { s: number; n: number };
 }
 
 export class RateLimiterLogic {
@@ -74,6 +79,7 @@ export class RateLimiterLogic {
       syncCreates: (saved?.syncCreates ?? []).filter((t) => t > now - DAY_MS),
       syncRows: (saved?.syncRows ?? []).filter((b) => b.h > now - DAY_MS),
       ...(saved?.globalResults && saved.globalResults.s > now - DAY_MS ? { globalResults: saved.globalResults } : {}),
+      ...(saved?.replayUploads && saved.replayUploads.s > now - DAY_MS ? { replayUploads: saved.replayUploads } : {}),
     };
   }
 
@@ -89,6 +95,7 @@ export class RateLimiterLogic {
       ...state.syncCreates.map((t) => t + DAY_MS),
       ...state.syncRows.map((b) => b.h + DAY_MS),
       ...(state.globalResults ? [state.globalResults.s + DAY_MS] : []),
+      ...(state.replayUploads ? [state.replayUploads.s + DAY_MS] : []),
     ].filter((t) => t > 0);
     if (ends.length === 0) {
       await this.storage.deleteAll();
@@ -219,7 +226,7 @@ export class RateLimiterLogic {
 
   private async takeGlobal(
     now: number,
-    field: "globalResults",
+    field: "globalResults" | "replayUploads",
     limit: number,
     windowMs: number,
   ): Promise<{ ok: true } | { ok: false; retryAfterMs: number }> {
@@ -234,6 +241,11 @@ export class RateLimiterLogic {
   /** Takes one of the IP's GLOBAL_RESULTS_PER_IP_PER_DAY result slots; a refusal writes nothing. */
   takeGlobalResult(now: number) {
     return this.takeGlobal(now, "globalResults", GLOBAL_RESULTS_PER_IP_PER_DAY, DAY_MS);
+  }
+
+  /** Takes one of the IP's REPLAY_UPLOADS_PER_IP_PER_DAY replay uploads; a refusal writes nothing. */
+  takeReplayUpload(now: number) {
+    return this.takeGlobal(now, "replayUploads", REPLAY_UPLOADS_PER_IP_PER_DAY, DAY_MS);
   }
 
   /**

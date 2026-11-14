@@ -261,3 +261,9 @@ export function pickMoreGlyphSpecs(state: InputModeState, settings: GlyphSetting
   const set = glyphSetOf(state, settings.inputGlyphs, settings.glyphSource ?? "auto");
   return set === "keyboard" ? glyphsForShortcut("zoneNext", state, settings) : null;
 }
+
+/** The glyph of one standard-layout pad button, as the player's pad prints it (for a screen with its own button map). */
+export function padButtonGlyph(index: number, state: InputModeState, settings: GlyphSettings): PadGlyphSpec | null {
+  const { family, swap } = padLook(state, settings);
+  return padGlyphSpec(index, family, swap);
+}
