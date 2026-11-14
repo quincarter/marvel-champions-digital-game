@@ -2,12 +2,14 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   aScheme,
   anAttackableEnemy,
+  attack,
   attackAnEnemy,
   cards,
   chooseOne,
   chosen,
   countersOn,
   dealDamage,
+  sum,
   defineAbilities,
   discardDeckUntil,
   heroAction,
@@ -42,8 +44,7 @@ import { CHI, YOUR_IDENTITY_QUERY } from "./chi.js";
  *
  * **64003.dragon-punch-action**: "(attack): Deal 2 damage to an enemy. You may remove up to 5 chi counters from your
  * identity to deal 2 additional damage for each chi counter removed this way. If you removed at least 3 counters,
- * also stun that enemy." One attack; the extra damage is additional damage of the same enemy (owner ruling Q53,
- * docs/phase7-wave8.md). "From your identity" works in either form (RRG 1.8 p. 23).
+ * also stun that enemy." One attack of one damage instance (2 + 2 per chi removed), as Repulsor Blast. "From your identity" works in either form (RRG 1.8 p. 23).
  *
  * **64004.fists-of-fury-action**: "(attack): Deal 1 damage to an enemy" three times. One attack ability, each
  * instruction choosing its own enemy (the same one may be chosen again); guard is checked for each enemy attacked
@@ -60,17 +61,19 @@ export const IRON_FIST_IRON_FIST_EVENTS: AbilityRegistry = defineAbilities({
 
   "64003.dragon-punch-action": heroAction(
     { label: "attack" },
-    attackAnEnemy(2),
+    anAttackableEnemy("enemy"),
     chooseOne(
       option(
         "Remove up to 5 chi counters from your identity",
         { when: valueAtLeast(countersOn(yourIdentity, CHI), 1) },
         removeCountersAmong(CHI, 5, YOUR_IDENTITY_QUERY, { upTo: true, bind: "removed" }),
-        dealDamage(scaled(varOf("removed.amount"), { times: 2 }), chosen("enemy"), { additional: true }),
-        ifThen(valueAtLeast(varOf("removed.amount"), 3), stun(chosen("enemy"))),
       ),
       option("Do not"),
     ),
+    // One instance of 2 + 2 per chi removed: "additional" damage resolves together with the damage it adds to (RRG 1.8
+    // "Additional"; FAQ Repulsor Blast #31), so a tough card stops all of it. An unbound "removed.amount" reads 0.
+    attack(sum(2, scaled(varOf("removed.amount"), { times: 2 })), chosen("enemy")),
+    ifThen(valueAtLeast(varOf("removed.amount"), 3), stun(chosen("enemy"))),
   ),
 
   "64004.fists-of-fury-action": heroAction(

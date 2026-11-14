@@ -15,3 +15,9 @@ export const YOUR_IDENTITY_QUERY = query("identity", { controller: "you" });
  * one `addCounters` effect, so a "would place counters" interrupt (Lack of Chi, 64034) sees them all.
  */
 export const placeChi = (n = 1, target: TargetRef = self) => addCounters(CHI, n, target);
+
+/*
+ * Lack of Chi (64034) redirects chi through a "would place counters" interrupt, which hears only `addCounters` effects.
+ * A counter placed as a cost (`placeCountersCost`) or moved (`moveCounters`) is not heard, so no chi placement may be
+ * written either way: always `placeChi`.
+ */

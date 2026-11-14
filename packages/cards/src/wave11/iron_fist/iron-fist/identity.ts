@@ -51,7 +51,7 @@ const YOUR_TECHNIQUES = query([], { controller: "you", trait: TECHNIQUE });
  * round once he has flipped to Iron Fist.
  *
  * **64001b.meditation**: "Search your deck and discard pile for a Technique card. Put that card into play. (Limit
- * once per phase.)" Optional pick (a search may find nothing); the deck is shuffled afterwards (RRG 1.8 "Search",
+ * once per phase.)" The pick is mandatory when a Technique exists, as the other search-and-put cards (Agent Coulson, Mystical Studies); the deck is shuffled afterwards (RRG 1.8 "Search",
  * p. 39). Put into play, so it is not played and gives no chi.
  */
 export const IRON_FIST_IRON_FIST_IDENTITY: AbilityRegistry = defineAbilities({
@@ -72,7 +72,7 @@ export const IRON_FIST_IRON_FIST_IDENTITY: AbilityRegistry = defineAbilities({
   "64001b.meditation": alterEgoAction(
     { limit: oncePerPhase },
     chooseCards("found", zone(["deck", "discard"], undefined, { filter: query([], { trait: TECHNIQUE }) }), {
-      min: 0,
+      min: 1,
       max: 1,
     }),
     putIntoPlay(chosen("found")),

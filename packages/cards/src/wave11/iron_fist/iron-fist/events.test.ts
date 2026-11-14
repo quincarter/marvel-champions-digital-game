@@ -1,7 +1,8 @@
 import type { GameState, InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
-import { P1, inst, mainThreat, patchInstance, playerOf } from "../../../testing/harness.js";
+import { engageMinion } from "../../../wave9/falcon/testing.js";
+import { P1, inst, mainThreat, patchInstance, playerOf, type Picker } from "../../../testing/harness.js";
 import { IRON_FIST_IRON_FIST_EVENTS as REGISTRY, IRON_FIST_IRON_FIST_EVENTS_SKIPPED as SKIPPED } from "./events.js";
 import {
   byLabel,
@@ -101,11 +102,56 @@ describe(`${DRAGON_PUNCH}: 2 damage, optionally spend chi for more and a stun`, 
   });
 });
 
+describe(`${DRAGON_PUNCH}: one damage instance`, () => {
+  it("a tough enemy takes none of it: 3 chi removed, the tough card is discarded, the enemy is stunned", () => {
+    const base = withChi(ironFistGame(), 3);
+    const v = villainOf(base);
+    const toughened = patchInstance(base, v, { statuses: { ...inst(base, v).statuses, tough: 1 } });
+    const { state, command } = staged(toughened, "64003", 2);
+    const { state: after } = drive(state, command, byLabel("Remove up to", pickCard(v, takeCounters(3))));
+    expect(chiOf(after)).toBe(0);
+    expect(inst(after, v).damage).toBe(0);
+    expect(inst(after, v).statuses.tough).toBe(0);
+    expect(inst(after, v).statuses.stunned).toBe(1);
+  });
+});
+
 describe(`${FISTS_OF_FURY}: three separate 1-damage instructions`, () => {
+  const MERCENARY = "01101"; // Core minion with guard, 3 hit points
+  /** Picks `want` when offered, recording which enemies each prompt offered. */
+  const recording =
+    (want: InstanceId, offers: InstanceId[][]): Picker =>
+    (state) => {
+      const choice = state.pendingChoice;
+      const ids = (choice?.options ?? []).flatMap((o) => (o.ref.kind === "card" ? [o.ref.instanceId] : []));
+      if (choice?.prompt.kind === "chooseTarget") offers.push(ids);
+      return pickCard(want)(state);
+    };
+
   it("deals 3 damage in all when one enemy is chosen each time", () => {
     const { state, command } = staged(ironFistGame(), "64004", 1);
     const { state: after } = drive(state, command, pickCard(villainOf(state)));
     expect(inst(after, villainOf(after)).damage).toBe(3);
+  });
+
+  it("while a guard minion survives, the villain is never offered", () => {
+    const { state, command } = staged(engageMinion(ironFistGame(), MERCENARY, "merc"), "64004", 1);
+    const offers: InstanceId[][] = [];
+    const { state: after } = drive(state, command, recording("merc" as InstanceId, offers));
+    expect(offers.length).toBeGreaterThanOrEqual(2);
+    expect(offers[0]).not.toContain(villainOf(state));
+    expect(offers[1]).not.toContain(villainOf(state));
+    expect(inst(after, villainOf(after)).damage).toBe(0);
+  });
+
+  it("a guard minion the first instance defeats frees the villain for the next (Q49)", () => {
+    const base = patchInstance(engageMinion(ironFistGame(), MERCENARY, "merc"), "merc" as InstanceId, { damage: 2 });
+    const { state, command } = staged(base, "64004", 1);
+    const offers: InstanceId[][] = [];
+    const { state: after } = drive(state, command, recording("merc" as InstanceId, offers));
+    expect(offers[0]).not.toContain(villainOf(state));
+    expect(offers[1]).toContain(villainOf(state));
+    expect(playerOf(after, P1).playArea).not.toContain("merc");
   });
 });
 
