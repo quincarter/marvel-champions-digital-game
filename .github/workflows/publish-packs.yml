@@ -17,12 +17,15 @@
 #     registry repo); the run fails if one of its ids belongs to the registry. Checked on the public index.json in the
 #     build job and on the bucket's copy in the publish job, and again by the merge itself.
 #
-# Each pack is built with `mc-pack build` (deterministic zip) and uploaded to <id>/<version>/: its zip, pack.json, and
-# preview.json and thumb.webp when the build wrote them. A version is never overwritten: one already in the bucket
-# with the same zip is skipped, one with a different zip fails the run ("bump the version"). Then the built packs are
-# upserted into index.json (scripts/lib/pack-index.mjs: other packs and older versions stay, `approved` keeps its
-# first date, `withdrawn` is never cleared by a publish) with a conditional write (scripts/r2-conditional-update.mjs:
-# If-Match on the ETag read, re-read and re-merge on 412), because the registry's publish writes the same object.
+# Each pack is built with `mc-pack build` (deterministic zip) and uploaded to <id>/<version>/: pack.json, preview.json
+# and thumb.webp when the build wrote them, the card pictures, and the zip last (scripts/upload-staged-packs.mjs).
+# A version is never overwritten: every object is checked first, a version already there with the same files is
+# skipped, one with any file there with other bytes fails the run ("bump the version") before anything is uploaded,
+# and every put is conditional (If-None-Match: *), so a race with the registry's publisher never mixes the two
+# builds' files. Then the built packs are upserted into index.json (scripts/lib/pack-index.mjs: other packs and older
+# versions stay, `approved` keeps its first date, `withdrawn` is never cleared by a publish) with a conditional write
+# (scripts/r2-conditional-update.mjs: If-Match on the ETag read, re-read and re-merge on 412), because the registry's
+# publish writes the same object.
 #
 # The community packs' pictures are not in git: they are the optional `pack-art` media bundles on the content repo's
 # releases (assets/manifest.json), which `pnpm assets:fetch` skips unless asked.
@@ -273,76 +276,26 @@ jobs:
           done
           node scripts/check-pack-ownership.mjs "$current" "${ids[@]}"
 
-      # Every pack is checked before anything is uploaded, so a refused version leaves the bucket untouched.
+      # Every object of every pack is checked before anything is uploaded (scripts/upload-staged-packs.mjs --check),
+      # so a refused version leaves the bucket untouched. A dry run stops here.
       - name: Check what is already published
         if: steps.r2.outputs.ready == 'true'
-        shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-        run: |
-          set -euo pipefail
-          : > "$RUNNER_TEMP/skip.txt"
-          failed=0
-          for target in "$STAGING"/*/*/; do
-            [ -d "$target" ] || continue
-            target="${target%/}"
-            version=$(basename "$target")
-            id=$(basename "$(dirname "$target")")
-            key="$id/$version/$id-$version.zip"
-            if ! aws s3api head-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key "$key" > /dev/null 2> "$RUNNER_TEMP/head.err"; then
-              if grep -qE '404|Not Found|NoSuchKey' "$RUNNER_TEMP/head.err"; then
-                echo "$id $version: new"
-                continue
-              fi
-              cat "$RUNNER_TEMP/head.err" >&2
-              exit 1
-            fi
-            aws s3 cp --only-show-errors --endpoint-url "$ENDPOINT" "s3://$BUCKET/$key" "$RUNNER_TEMP/published.zip"
-            published=$(sha256sum "$RUNNER_TEMP/published.zip" | cut -d' ' -f1)
-            local_sha=$(sha256sum "$target/$id-$version.zip" | cut -d' ' -f1)
-            if [ "$published" = "$local_sha" ]; then
-              echo "::notice::$id $version is already published with the same zip; skipped."
-              echo "$id/$version" >> "$RUNNER_TEMP/skip.txt"
-            else
-              echo "::error::$id $version is already published with a different zip ($published, built $local_sha): bump the version in its pack.json."
-              failed=1
-            fi
-          done
-          exit "$failed"
+        run: node scripts/upload-staged-packs.mjs --check "$STAGING"
 
+      # Versions are immutable (docs/custom-content-packs.md §11.5): only objects not in the bucket yet are put, each
+      # with If-None-Match: * and its sha256 as metadata, the zip last. The registry repo's publisher writes the same
+      # bucket; a put that loses a race to it goes on only when the object there is the same bytes.
       - name: Upload the packs
         if: steps.r2.outputs.ready == 'true' && env.DRY_RUN != 'true'
-        shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-        run: |
-          set -euo pipefail
-          immutable="public, max-age=31536000, immutable"
-          put() {
-            aws s3 cp --only-show-errors --endpoint-url "$ENDPOINT" "$1" "s3://$BUCKET/$2" \
-              --content-type "$3" --cache-control "$immutable"
-          }
-          for target in "$STAGING"/*/*/; do
-            [ -d "$target" ] || continue
-            target="${target%/}"
-            version=$(basename "$target")
-            id=$(basename "$(dirname "$target")")
-            if grep -qxF "$id/$version" "$RUNNER_TEMP/skip.txt"; then continue; fi
-            # The zip goes last: its presence is what marks a version published.
-            put "$target/pack.json" "$id/$version/pack.json" application/json
-            if [ -f "$target/preview.json" ]; then put "$target/preview.json" "$id/$version/preview.json" application/json; fi
-            if [ -f "$target/thumb.webp" ]; then put "$target/thumb.webp" "$id/$version/thumb.webp" image/webp; fi
-            if [ -d "$target/cards" ]; then
-              aws s3 cp --only-show-errors --recursive --endpoint-url "$ENDPOINT" "$target/cards" \
-                "s3://$BUCKET/$id/$version/cards" --content-type image/webp --cache-control "$immutable"
-            fi
-            put "$target/$id-$version.zip" "$id/$version/$id-$version.zip" application/zip
-            echo "Published $id $version."
-          done
+        run: node scripts/upload-staged-packs.mjs "$STAGING"
 
       # A conditional write (scripts/r2-conditional-update.mjs): the registry repo's publish writes the same object,
       # so the put carries If-Match on the ETag read (If-None-Match when there is no index yet), and a 412 or 409

@@ -76,12 +76,15 @@ export function withoutPacks(config: SessionConfig): SessionConfig {
   return rest;
 }
 
+/** How many commands apart a replay keeps the game's record (what Game over reports) for seeking. */
+export const RECORD_EVERY = 20;
+
 export class ReplaySession {
   readonly #cursor: ReplayCursor;
   readonly #source: ReplayLog;
   readonly #writer: ReplayWriter;
   readonly #checksums: { readonly regular: readonly string[]; readonly final: string | undefined };
-  readonly #records: readonly GameRecord[];
+  readonly #records: ReadonlyMap<number, GameRecord>;
   readonly #deps: EngineDeps;
   readonly info: ReplayInfo;
 
@@ -90,7 +93,7 @@ export class ReplaySession {
     source: ReplayLog,
     writer: ReplayWriter,
     checksums: { readonly regular: readonly string[]; readonly final: string | undefined },
-    records: readonly GameRecord[],
+    records: ReadonlyMap<number, GameRecord>,
     info: ReplayInfo,
     deps: EngineDeps,
   ) {
@@ -121,18 +124,22 @@ export class ReplaySession {
           )
         : null;
     const written = source.kind === "log" ? new ChecksumWriter() : null;
-    // Each position's record, folded as the cursor's one forward pass reaches it: no state is kept for it.
-    const records: GameRecord[] = [];
+    // The record folded as the cursor's one forward pass goes, kept only every RECORD_EVERY positions and at the end: a
+    // seek folds the few commands after the nearest one (`#recordAt`), so a long game holds a bounded number of records.
+    const records = new Map<number, GameRecord>();
     let record = emptyRecord();
+    let last = 0;
     const cursor = ReplayCursor.fromStoredGame(log.config, log.initialState, log.commands, deps, {
       lenient: true,
       observe: (_index, state, events) => {
         check?.observe(_index, state);
         written?.observe(_index, state);
         record = recordEvents(record, events, state, deps);
-        records.push(record);
+        if (_index % RECORD_EVERY === 0) records.set(_index, record);
+        last = _index;
       },
     });
+    records.set(last, record);
     const info: ReplayInfo = {
       length: cursor.length,
       total: log.commands.length,
@@ -166,7 +173,7 @@ export class ReplaySession {
       version: index,
       state: sealed,
       legal: null,
-      record: this.#records[index] ?? emptyRecord(),
+      record: this.#recordAt(index),
       config: this.info.config,
       saveError: null,
       gameId: null,
@@ -185,7 +192,7 @@ export class ReplaySession {
   logText(): string {
     const { state } = this.#cursor.at(this.info.length);
     const config = this.info.config;
-    const record = this.#records[this.info.length] ?? emptyRecord();
+    const record = this.#recordAt(this.info.length);
     return logText(
       {
         game: gameLabelOf(config, GAME_LABEL_NAMES),
@@ -195,6 +202,23 @@ export class ReplaySession {
       },
       fullLogLines(this.#cursor.historyTo(this.info.length), state, this.#deps),
     );
+  }
+
+  /** The record after `n` commands: the nearest kept one at or before it, with the commands between folded on. */
+  #recordAt(n: number): GameRecord {
+    const kept = this.#records.get(n);
+    if (kept) return kept;
+    const from = Math.floor(n / RECORD_EVERY) * RECORD_EVERY;
+    let record = this.#records.get(from) ?? emptyRecord();
+    for (let i = from + 1; i <= n; i++) {
+      record = recordEvents(record, this.#cursor.eventsOf(i - 1), this.#cursor.at(i).state, this.#deps);
+    }
+    return record;
+  }
+
+  /** The number of records kept, for the tests: bounded by the game's length over `RECORD_EVERY`. */
+  get keptRecords(): number {
+    return this.#records.size;
   }
 
   /** The printed cards the game was rebuilt with: what the table re-attaches to every snapshot. */

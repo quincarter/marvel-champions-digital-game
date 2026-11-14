@@ -11,7 +11,8 @@ import {
   parseReplay,
   replayFileNameOf,
 } from "./replay-file.js";
-import { ReplaySession, type ReplayLog } from "./replay-session.js";
+import { RECORD_EVERY, ReplaySession, type ReplayLog } from "./replay-session.js";
+import type { GameRecord } from "../engine/game-record.js";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -51,14 +52,19 @@ function anyLegalCommand(legal: LegalActions): Command {
 }
 
 /** A real stored game, played by always taking the first legal option. */
+/** Each position's record as the live game had it, by command count, from the last `playedGame`. */
+let liveRecords: GameRecord[] = [];
+
 async function playedGame(commands: number, config: SessionConfig = CONFIG): Promise<StoredGame> {
   const storage = new MemoryGameStorage();
   const core = new EngineSessionCore({ storage });
   const started = await core.start(config);
+  liveRecords = [started.snapshot.record];
   let toAct = started.snapshot.legal?.playerId ?? null;
   for (let i = 0; i < commands && toAct; i++) {
     const dispatched = core.dispatch(anyLegalCommand(core.legalActions(toAct)));
     if (!dispatched.ok) throw new Error(dispatched.error.message);
+    liveRecords.push(dispatched.snapshot.record);
     toAct = dispatched.snapshot.legal?.playerId ?? null;
     if (dispatched.snapshot.state.outcome) break;
   }
@@ -127,6 +133,18 @@ describe("ReplaySession", () => {
     const tampered = { ...file, finalChecksum: `x${file.finalChecksum}` };
     expect(ReplaySession.open({ kind: "file", file }, HERE).info.divergedAt).toBeNull();
     expect(ReplaySession.open({ kind: "file", file: tampered }, HERE).info.divergedAt).toBe(15);
+  });
+
+  test("keeps a record only every RECORD_EVERY commands, and a seek between them folds to the same record", async () => {
+    const stored = await playedGame(120, LONG_CONFIG);
+    const session = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE);
+    const length = session.info.length;
+    expect(length).toBeGreaterThan(2 * RECORD_EVERY);
+    expect(session.keptRecords).toBeLessThanOrEqual(Math.floor(length / RECORD_EVERY) + 2);
+    // Whether a position's record is kept or folded on from the nearest kept one, it is the live game's.
+    for (const n of [0, RECORD_EVERY, RECORD_EVERY + 7, length - 1, length]) {
+      expect(session.snapshotAt(n, false).record).toEqual(liveRecords[n]);
+    }
   });
 
   test("a log whose commands stop applying opens up to the first one that doesn't", async () => {
