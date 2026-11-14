@@ -452,9 +452,11 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (frame.event.kind === "dealDamage") announceStatusDiscarded(ctx, piercedBeforeInterrupts(frame.event));
         return;
       }
-      // Boost cards flip as the basic power resolves (RRG 1.8 "Villainous" p.47), after all interrupts to it: "would"
-      // interrupts first ("Would" p.48), then the Villainous forced interrupt, then non-forced interrupts ("Forced"
-      // p.20, "Interrupt" p.25). The event waits here, at `apply`, until its user's cards have resolved.
+      // A basic power's own event (its attack, thwart or recovery) has had its interrupt window, the "would" tier, the
+      // Villainous give and the other interrupts to it ("'Would'" p. 48, "Forced" p. 20, "Interrupt" p. 25). That
+      // window is not the earlier `basicPowerUsing` one, which closed before this event's opened. Its user's boost
+      // cards flip now, as the power resolves (RRG 1.8 "Villainous", p. 47), and the event waits here, at `apply`,
+      // until they have resolved.
       if (startCharacterBoost(ctx, frame.frameId)) return;
       setFrame(ctx, { ...frame, stage: "responses" });
       const beforeApply = ctx.state;

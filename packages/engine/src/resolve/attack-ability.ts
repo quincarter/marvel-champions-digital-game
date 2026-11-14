@@ -1357,9 +1357,10 @@ export function abilityAttackDamage(
     // instance of the attack's damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling Q53): the attack's
     // own damage (`applyPlayerAttack`) and each later instruction's, through here. The caller leaves it off an
     // instruction that is itself additional damage (`dealDamage.additional`). "Attacks against attached minion deal 2
-    // additional damage" (`attacksDealExtraDamage`, docs/phase7-wave11-hero-packs.md §H3.15) is added the same way. A
-    // negative one ("reduce the damage by 3", Stealth Mastery 63014) reduces each instance the same way (RRG 1.8 p. 10,
-    // "each instance … is increased", read for a reduction too); each instance's caller floors its amount at 0.
+    // additional damage" (`attacksDealExtraDamage`, docs/phase7-wave11-hero-packs.md §H3.15) is added the same way.
+    // RRG v1.8 Event p.18-19: a modifier to an event's damage modifies each instance; single (attack) ability = one
+    // attack (Attack (Player Ability Type) p.10), so a -N/+N hits every instance; each floored at 0 (Modifiers
+    // p.28-29). Non-event attack abilities: owner Q53 (phase7-wave8 §4.1).
     extra: (attack.vars.extraDamage ?? 0) + attackExtraDamageAgainst(state, deps, event.attackerInstanceId, targetId),
     damage: {
       sourceInstanceId: event.attackerInstanceId,

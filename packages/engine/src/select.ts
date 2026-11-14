@@ -3649,7 +3649,7 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return state.stack.some((f) => {
         if (f.kind === "characterBoost") return matches(f.characterInstanceId);
         if (f.kind === "enemyAttack") {
-          const defense = basicDefenseInProgress(f);
+          const defense = basicDefenseInProgress(state, f);
           return defense !== null && matches(defense.defenderId);
         }
         if (f.kind !== "event") return false;

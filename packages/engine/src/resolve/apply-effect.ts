@@ -309,7 +309,7 @@ function basicPowerBeingUsed(
       if (record?.kind !== "characterBoost") return null;
       return { characterId: record.characterInstanceId, stat: record.stat, activation: record.useFrameId };
     }
-    const defense = basicDefenseInProgress(f);
+    const defense = basicDefenseInProgress(state, f);
     if (defense && defense.attackEventFrameId !== null)
       return { characterId: defense.defenderId, stat: "def", activation: defense.attackEventFrameId };
   }

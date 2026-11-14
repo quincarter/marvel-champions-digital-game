@@ -13,7 +13,7 @@ import {
 } from "./resources.js";
 import type { BasicPowerName, EffectSpec, StatName } from "./spec.js";
 import type { PlayedFrom, TriggerEvent } from "./trigger-events.js";
-import type { ZoneId } from "./state.js";
+import type { GameState, ZoneId } from "./state.js";
 
 /**
  * The resolution stack. `state.stack[0]` is what is resolving right now;
@@ -1365,13 +1365,18 @@ export function basicPowerUseFrameId(
  * the attack's boost cards included (RRG 1.8 "Attack (Enemy Activation)", p. 9; rules verdict Q3 of
  * docs/phase7-elektra-iron-fist.md). One reading shared by the `usingBasicPower` predicate (`select.ts`) and "+N to
  * that power for this use" (`basicPowerBeingUsed`, `resolve/apply-effect.ts`), so the two never disagree on a stage.
- * Null for any other frame, an attack with no basic defense, or one that is done.
+ * Null for any other frame, an attack with no basic defense, or one that is done, and for an ally's defense: allies
+ * "aren't considered to 'use a basic power' when they defend" (ruling March 16, 2025, Melinda May; RRG 1.8 "Basic
+ * Power", p. 10: "Generally, only heroes have defense power"), so only a player's identity defends with one.
  */
 export function basicDefenseInProgress(
+  state: GameState,
   frame: StackFrame,
 ): { readonly defenderId: InstanceId; readonly attackEventFrameId: FrameId | null } | null {
   if (frame.kind !== "enemyAttack" || !frame.basicDefense || frame.defenderInstanceId === null) return null;
   if (frame.stage === "done") return null;
+  const defenderId = frame.defenderInstanceId;
+  if (!state.players.some((player) => player.identity.instanceId === defenderId)) return null;
   return { defenderId: frame.defenderInstanceId, attackEventFrameId: frame.eventFrameId };
 }
 

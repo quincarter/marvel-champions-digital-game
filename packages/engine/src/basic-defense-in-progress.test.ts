@@ -13,10 +13,15 @@ import { evaluate } from "./select.js";
 import { basicDefenseInProgress, type StackFrame } from "./stack.js";
 import type { GameState } from "./state.js";
 import { depsOf } from "./testing/abilities.js";
-import { gameAtFirstTurn, P1 } from "./testing/wave3.js";
+import { stubAlly } from "./testing/fixtures.js";
+import { gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const deps = depsOf();
-const base = gameAtFirstTurn({ cards: [], deps });
+const ALLY = stubAlly({ id: "defending-ally", cost: 0, atk: 1, thw: 1, hp: 3 });
+const game = gameAtFirstTurn({ cards: [ALLY], deps, deck: [ALLY.id] });
+const withAlly = playerCardIntoPlay(game, ALLY.id, P1);
+const base = withAlly.state;
+const ally = withAlly.id;
 const hero = mustPlayer(base, P1).identity.instanceId;
 const boss = base.villains[0]!.instanceId;
 
@@ -42,16 +47,21 @@ const using = (state: GameState): boolean =>
 describe("basicDefenseInProgress", () => {
   it("from the declared defense through the damage step: the defender and the attack's event frame", () => {
     for (const stage of ["declareDefender", "flipBoosts", "dealDamage"] as const)
-      expect(basicDefenseInProgress(attack(stage))).toEqual({
+      expect(basicDefenseInProgress(base, attack(stage))).toEqual({
         defenderId: hero,
         attackEventFrameId: frameId("attack-event"),
       });
   });
 
   it("not once the attack is done, not without a basic defense, not for a defender-less attack", () => {
-    expect(basicDefenseInProgress(attack("done"))).toBeNull();
-    expect(basicDefenseInProgress(attack("dealDamage", false))).toBeNull();
-    expect(basicDefenseInProgress(attack("dealDamage", true, null))).toBeNull();
+    expect(basicDefenseInProgress(base, attack("done"))).toBeNull();
+    expect(basicDefenseInProgress(base, attack("dealDamage", false))).toBeNull();
+    expect(basicDefenseInProgress(base, attack("dealDamage", true, null))).toBeNull();
+  });
+
+  it("not for an ally's defense: allies do not use a basic power when they defend (ruling March 16, 2025)", () => {
+    for (const stage of ["declareDefender", "flipBoosts", "dealDamage"] as const)
+      expect(basicDefenseInProgress(base, attack(stage, true, ally))).toBeNull();
   });
 });
 
@@ -65,5 +75,9 @@ describe("the usingBasicPower predicate agrees with it at every stage", () => {
     expect(using(withStack(attack("done")))).toBe(false);
     expect(using(withStack(attack("flipBoosts", false, null)))).toBe(false);
     expect(using(base)).toBe(false);
+  });
+
+  it("false while an ally defends (Melinda May ruling, March 16, 2025)", () => {
+    expect(using(withStack(attack("dealDamage", true, ally)))).toBe(false);
   });
 });

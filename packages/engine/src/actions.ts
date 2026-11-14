@@ -7756,7 +7756,9 @@ export function announceBasicPowerUsing(
   stat: StatName = BASIC_POWER_STAT[power],
 ): void {
   const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, stat, playerId };
-  // A villainous ally or hero resolves its boost card beneath this event (docs/phase7-wave11-scenarios.md §S3.7).
+  // A villainous ally or hero, or one holding boost cards for its basic powers, gets its use recorded beneath the use's
+  // own frame (docs/phase7-wave11-scenarios.md §S3.7). Its cards turn faceup at that frame's apply step, once the
+  // power's own interrupts have resolved (`startCharacterBoost`), not beneath this event.
   pushCharacterBoost(ctx, characterId, power, stat, playerId);
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
