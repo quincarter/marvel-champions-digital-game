@@ -148,20 +148,19 @@ function drawHeroDownload(): void {
   const ctas = $("hero-ctas");
   ctas.querySelector(".dl-cta")?.remove();
   const known = release !== "loading" && release !== null ? release : null;
-  const primary = known ? primaryDownload(downloadsOf(known, language), device) : undefined;
+  // A Mac can't be told Intel from Apple silicon, so it goes to the download section, which offers both by name.
+  const primary = known && device !== "mac" ? primaryDownload(downloadsOf(known, language), device) : undefined;
+  const toSection = (label: string) =>
+    element("a", { class: "btn gold big dl-cta", href: "#download" }, element("span", {}, label));
   ctas.append(
     primary && known
       ? element(
           "a",
           { class: "btn gold big dl-cta", href: primary.url, rel: "noopener" },
-          element(
-            "span",
-            {},
-            t("dl.forDevice", { device: t(device === "mac" ? "device.macArm" : `device.${device}`) }),
-          ),
+          element("span", {}, t("dl.forDevice", { device: t(`device.${device}`) })),
           element("small", {}, `${t(fileKey(primary.id))} · v${versionOf(known)}`),
         )
-      : element("a", { class: "btn gold big dl-cta", href: "#download" }, element("span", {}, t("bar.download"))),
+      : toSection(device === "mac" ? t("dl.forDevice", { device: t("device.mac") }) : t("bar.download")),
   );
 }
 
