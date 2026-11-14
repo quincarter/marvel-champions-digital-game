@@ -114,6 +114,10 @@ Owner decisions (§4.1, 2026-11-14):
 | 2   | Ninja deck setup (no insert yet)                       | **A, provisional**: at setup the 6 Ninja cards are shuffled into a separate facedown Ninja deck outside the encounter deck; none enter the encounter deck until Elektra's abilities put them there. Revisit when the insert is published.                                                                                                                                               |
 | 3   | Amplify on boost cards a character resolves            | **B**: the Fear No Evil rulebook's updated Amplify text wins over RRG 1.8 p. 7 as a shared correction (wave 11 scenarios §S4.0 reversed): "When a character resolves a boost card while using a basic power, add one additional boost icon to that card for each amplify icon in play." Elektra's basic attack, thwart and defense and Black Cat's basic attack and thwart get amplify. |
 
+| 4 | A boost card's own Boost ability gives it back to Elektra facedown: do its icons count for this use? | **A**: yes, the printed icons and amplify count for the current resolution; the card counts again when turned faceup on a later use (FFG ruling Jan 11, 2024, Homo Superior: a boost card's icons count even when its Boost moves it). |
+| 5 | Elektra's basic power ends before her boost cards are turned faceup | **A, provisional**: every unflipped boost card stays facedown on her, including one given for that use, and resolves on a later basic power (RRG 1.8 Boost p. 11; ruling Sep 10, 2026 R3 A). |
+| 6 | Venom's main scheme 1B ("move each facedown boost card from your identity to Venom") and Elektra's own held cards | **B, provisional until FFG rules on it**: every facedown boost card moves, hers included. Provenance decides which cards Elektra can resolve (ruling Sep 10, 2026 R3 C), never which cards Venom moves. |
+
 ## 6. Scripting status
 
 See each module's `_SKIPPED` map under `packages/cards/src/wave11/elektra/` and `packages/cards/src/wave11/iron_fist/`
