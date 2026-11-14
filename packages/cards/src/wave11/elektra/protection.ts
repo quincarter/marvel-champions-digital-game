@@ -1,5 +1,16 @@
 import type { AbilityRegistry } from "@mc/engine";
-import { defineAbilities } from "../../dsl/index.js";
+import {
+  attackingEnemy,
+  dealDamage,
+  defineAbilities,
+  discardFacedownBoostCards,
+  ifThen,
+  interrupt,
+  modifyAttack,
+  paidType,
+  spendChosen,
+  when,
+} from "../../dsl/index.js";
 
 /**
  * Wave 11 scripting module `elektra/protection` (docs/phase7-elektra-iron-fist.md).
@@ -7,19 +18,24 @@ import { defineAbilities } from "../../dsl/index.js";
  * Cards (1):
  * - 63039 Moon Knight (ally)
  *
- * **63039 Moon Knight** is not scripted yet. Ruling (rules-expert): each line applies once if at least one resource of
- * that type was spent, every qualifying line resolves (not per resource, not a choice), as Husk 47012 reads
- * `spendChosen(3)` + `ifThen(paidType(type), …)` (docs/phase7-wave8.md §3.62); a wild left a wild matches no line
- * (owner Q33 = B). The energy line (`modifyAttack({ preventDamage: 2 })`) and the physical line
- * (`dealDamage(2, attackingEnemy)`) compose from existing vocabulary, but the mental line needs an engine primitive:
- * nothing selects or discards the facedown boost cards on an enemy that has not yet flipped them (`discardBoostCard`
- * is only the card being turned up now, and no `CardSelector` reads a boost area). A script without that line would
- * be a wrong Moon Knight, so none is registered.
+ * **63039.moon-knight-interrupt**: "When Moon Knight defends, spend up to 3 resources → if you spent at least 1: …".
+ * Settled by the rules expert: each line resolves once if at least one resource of its type was spent, and every
+ * qualifying line resolves (not once per resource, not a choice), as Husk 47012 reads (`spendChosen(3)` +
+ * `ifThen(paidType(type), …)`, docs/phase7-wave8.md §3.62); a wild left a wild matches no line (owner Q33 = B). "Up
+ * to 3" needs at least 1 (RRG 1.8 "Cost", p. 14), so "if you spent at least 1" always holds once the cost is paid.
+ * [energy] prevents 2 of the attack's damage (`modifyAttack.preventDamage`, as Iron Fist 62012); [mental] discards 1
+ * of the attacker's facedown boost cards before step 3 turns them up (`discardFacedownBoostCards`); [physical] deals 2
+ * damage to the attacker (not an attack).
  */
-export const ELEKTRA_PROTECTION: AbilityRegistry = defineAbilities({});
+export const ELEKTRA_PROTECTION: AbilityRegistry = defineAbilities({
+  "63039.moon-knight-interrupt": interrupt(
+    when.defends({ self: true }),
+    { cost: spendChosen(3), readsPaidTypes: { types: ["energy", "mental", "physical"] } },
+    ifThen(paidType("energy"), modifyAttack({ preventDamage: 2 })),
+    ifThen(paidType("mental"), discardFacedownBoostCards(attackingEnemy, 1)),
+    ifThen(paidType("physical"), dealDamage(2, attackingEnemy)),
+  ),
+});
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const ELEKTRA_PROTECTION_SKIPPED: Readonly<Record<string, string>> = {
-  "63039.moon-knight-interrupt":
-    "needs engine primitive: discard 1 facedown boost card from the attacking enemy (an effect or a CardSelector over an enemy's boost area, usable in the defend interrupt); the energy and physical lines already compose",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const ELEKTRA_PROTECTION_SKIPPED: Readonly<Record<string, string>> = {};

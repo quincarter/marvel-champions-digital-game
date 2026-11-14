@@ -2698,6 +2698,21 @@ export const swapIdentity = (player: PlayerRef = you): EffectSpec => ({ kind: "s
  */
 export const moveBoostCards = (from: TargetRef, to: TargetRef): EffectSpec => ({ kind: "moveBoostCards", from, to });
 /**
+ * "Discard 1 boost card from the attacker" (Moon Knight, `elektra` 63039): up to `n` of the facedown boost cards on each
+ * card `from` names, discarded unturned, so an activation before its flip step turns up only the rest. Pair it with
+ * `attackingEnemy` in an interrupt to the attack or its defense. `bind`: `<bind>.discarded`.
+ */
+export const discardFacedownBoostCards = (
+  from: TargetRef,
+  n: Amount = 1,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
+  kind: "discardFacedownBoostCards",
+  from,
+  ...(n === 1 ? {} : { count: amount(n) }),
+  ...(opts.bind ? { bind: opts.bind } : {}),
+});
+/**
  * "Place 1 acceleration token here" (The Master of Time 2B) / "place one acceleration token on one of the main
  * schemes" (MC21 p. 13's campaign instructions, a multi-main-scheme scenario). `target` absent is the central main
  * scheme (`EffectSpec addAccelerationToken.target`, RRG 1.8 "Acceleration Token", p. 5). `count` is how many to

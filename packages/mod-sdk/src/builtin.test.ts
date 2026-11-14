@@ -88,7 +88,6 @@ const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {
     "63004.boost",
     "63004.when-revealed",
     "63034.when-defeated",
-    "63039.moon-knight-interrupt",
   ],
   iron_fist: [
     "64014.iron-fist-response",

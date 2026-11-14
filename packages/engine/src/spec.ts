@@ -5097,6 +5097,20 @@ export type EffectSpec =
    */
   | { readonly kind: "moveBoostCards"; readonly from: TargetRef; readonly to: TargetRef }
   /**
+   * "Discard 1 boost card from the attacker" (Moon Knight, `elektra` 63039): up to `count` (default 1) of the facedown
+   * boost cards on each card in play `from` names, discarded unturned to their encounter discard pile, so they are
+   * never turned faceup and add nothing (RRG 1.8 "Boost, Boost Icon", p. 11). Used by an interrupt to an enemy's attack
+   * or defense before its flip step, the activation turns up only the cards left. Facedown cards carry no information
+   * to choose between, so the first dealt go first. A faceup boost card (one already turned up) is not taken. Logged as
+   * `boostCancelled` with `scope: "discarded"`, as Defiance's "discard it instead" is. `bind`: `<bind>.discarded`.
+   */
+  | {
+      readonly kind: "discardFacedownBoostCards";
+      readonly from: TargetRef;
+      readonly count?: ValueSpec;
+      readonly bind?: string;
+    }
+  /**
    * "Place 1 acceleration token here" (The Master of Time 2B). `target` names the main scheme stage it goes on;
    * absent is the central one, which is where the encounter-deck reset puts it (RRG 1.8 "Acceleration Token", p. 5).
    * A constant `accelerationTokenDestination` rule may redirect it before it lands (docs/phase7-wave2.md §10.3).

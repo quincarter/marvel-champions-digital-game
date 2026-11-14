@@ -2722,6 +2722,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       return;
     }
+    case "discardFacedownBoostCards": {
+      // Moon Knight 63039's "discard 1 boost card from the attacker" (docs/phase7-elektra-iron-fist.md §5): taken off
+      // the enemy unturned, so the activation's flip step (which turns up the first card still facedown) never sees it.
+      const count = effect.count ? Math.max(0, value(effect.count)) : 1;
+      const inPlay = cardsInPlay(ctx.state);
+      let discarded = 0;
+      for (const from of targets(effect.from).filter((id) => inPlay.includes(id))) {
+        const facedown = mustInstance(ctx.state, from).boostCards.filter((id) => !mustInstance(ctx.state, id).faceup);
+        for (const id of facedown.slice(0, count)) {
+          moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+          emit(ctx, { type: "boostCancelled", instanceId: id, scope: "discarded" });
+          discarded++;
+        }
+      }
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.discarded`]: discarded });
+      return;
+    }
     case "addAccelerationToken": {
       const count = effect.count ? Math.max(0, value(effect.count)) : 1;
       // "Place 1 acceleration token here for each side scheme in play": `target` absent is the central main scheme.
