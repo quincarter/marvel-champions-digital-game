@@ -6,6 +6,7 @@ import type { EngineUpdate, SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
 import { ReplayCore, ReplayOpenError } from "./replay-core.js";
 import { LocalReplayBackend, ReplayHost } from "./replay-host.js";
+import { decodeReplay } from "./replay-file.js";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -153,6 +154,28 @@ describe("ReplayHost", () => {
     expect(name.endsWith("-log.txt")).toBe(true);
     expect(text.startsWith("Marvel Champions: ")).toBe(true);
     expect(text.split("\n").length).toBeGreaterThan(10);
+  });
+
+  test("a file's own pack data is never run, and a pack it names must be installed here", async () => {
+    const host = await openedHost();
+    const { bytes } = await host.exportFile();
+    const parsed = await decodeReplay(bytes);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const hostile = {
+      ...parsed.file,
+      config: { ...parsed.file.config, packs: [{ id: "evil", version: "1", decks: [{ quantity: 1e9 }] }] },
+    };
+    const open = (file: unknown, packs?: never[]) =>
+      new ReplayHost(new LocalReplayBackend(new ReplayCore(HERE, null))).open({
+        kind: "file",
+        bytes: new TextEncoder().encode(JSON.stringify(file)),
+        ...(packs ? { packs } : {}),
+      });
+    const info = await open(hostile);
+    expect(info.config.packs).toBeUndefined();
+    await expect(open({ ...parsed.file, packs: [{ id: "gwenpool", version: "0.2.2" }] }, [])).rejects.toMatchObject({
+      code: "missingPacks",
+    });
   });
 
   test("a saved game that is gone can't be opened", async () => {

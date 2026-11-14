@@ -69,6 +69,13 @@ export interface ReplayInfo {
   readonly round: number;
 }
 
+/** A setup without its packs' data, which a replay file never carries (`ReplayFile.config`). */
+export function withoutPacks(config: SessionConfig): SessionConfig {
+  if (config.packs === undefined) return config;
+  const { packs: _packs, ...rest } = config;
+  return rest;
+}
+
 export class ReplaySession {
   readonly #cursor: ReplayCursor;
   readonly #source: ReplayLog;
@@ -200,7 +207,8 @@ export class ReplaySession {
       version: REPLAY_VERSION,
       exportedAt,
       writer: this.#writer,
-      config: log.config,
+      config: withoutPacks(log.config),
+      ...(log.config.packs?.length ? { packs: log.config.packs.map(({ id, version }) => ({ id, version })) } : {}),
       createdAt: log.createdAt,
       outcome: log.outcome,
       round: log.round,

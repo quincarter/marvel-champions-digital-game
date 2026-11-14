@@ -4,6 +4,7 @@
  * sheet, or a download), and picking a replay file to watch.
  */
 import { deliverTextFile, pickFile } from "../save-data/file-transfer.js";
+import { loadedPacks } from "../packs/pack-registry.js";
 import type { MessageKey } from "../i18n/translate.js";
 import { ReplayOpenError, type ReplayOpenSource } from "./replay-core.js";
 import { REPLAY_EXTENSION } from "./replay-file.js";
@@ -16,7 +17,8 @@ export async function openReplay(
 ): Promise<ReplayHost> {
   const host = new ReplayHost(backend());
   try {
-    await host.open(source);
+    // A file's game plays with this device's installed packs, never with pack data from the file.
+    await host.open(source.kind === "file" && !source.packs ? { ...source, packs: loadedPacks() } : source);
     return host;
   } catch (cause) {
     host.dispose();
@@ -60,6 +62,8 @@ export function replayErrorKey(cause: unknown): MessageKey {
         return "replay.error.missing";
       case "setup":
         return "replay.error.setup";
+      case "missingPacks":
+        return "replay.error.missingPacks";
     }
   }
   return "replay.error.damaged";

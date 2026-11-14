@@ -9,19 +9,22 @@ import {
   decodeReplay,
   encodeReplay,
   replayFileNameOf,
+  type ReplayFile,
   type ReplayParseError,
   type ReplayWriter,
 } from "./replay-file.js";
-import { ReplaySession, type ReplayInfo, type ReplayLog, type ReplaySource } from "./replay-session.js";
+import { ReplaySession, withoutPacks, type ReplayInfo, type ReplayLog, type ReplaySource } from "./replay-session.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
 
 /** Where a replay comes from: a file's bytes, a game saved on this device, or a log in hand. */
 export type ReplayOpenSource =
-  | { readonly kind: "file"; readonly bytes: Uint8Array }
+  /** `packs`: the viewer's installed packs, which a file's game is played with when it names them. */
+  | { readonly kind: "file"; readonly bytes: Uint8Array; readonly packs?: readonly PackRuntime[] }
   | { readonly kind: "stored"; readonly gameId: string }
   | { readonly kind: "log"; readonly log: ReplayLog };
 
 /** Why a replay could not be opened: the file's own reasons, a saved game that is gone, or a scenario that can't be set up. */
-export type ReplayOpenErrorCode = ReplayParseError | "missing" | "setup";
+export type ReplayOpenErrorCode = ReplayParseError | "missing" | "setup" | "missingPacks";
 
 export class ReplayOpenError extends Error {
   readonly code: ReplayOpenErrorCode;
@@ -57,6 +60,19 @@ function playedOnOf(stamp: LastPlayedOn | undefined): { readonly playedOn?: Repl
       ...(stamp.build ? { build: stamp.build } : {}),
     },
   };
+}
+
+/**
+ * A file's game set up with the viewer's own copies of the packs it names, by id and version, and never with pack data
+ * the file itself holds: that would run unvalidated content (a precon of a billion cards) in the replay worker.
+ */
+function withInstalledPacks(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
+  const config = withoutPacks(file.config);
+  const refs = file.packs ?? [];
+  if (refs.length === 0) return { ...file, config };
+  const packs = refs.map((ref) => installed.find((pack) => pack.id === ref.id && pack.version === ref.version));
+  if (packs.some((pack) => pack === undefined)) throw new ReplayOpenError("missingPacks");
+  return { ...file, config: { ...config, packs: packs as PackRuntime[] } };
 }
 
 export class ReplayCore {
@@ -107,7 +123,7 @@ export class ReplayCore {
       case "file": {
         const parsed = await decodeReplay(source.bytes);
         if (!parsed.ok) throw new ReplayOpenError(parsed.error);
-        return { kind: "file", file: parsed.file };
+        return { kind: "file", file: withInstalledPacks(parsed.file, source.packs ?? []) };
       }
       case "stored": {
         const stored = this.#storage ? await this.#storage.load(source.gameId) : null;

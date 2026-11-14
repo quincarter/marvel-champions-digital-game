@@ -31,14 +31,26 @@ export interface ReplayWriter {
   readonly build?: string;
 }
 
+/** A custom pack a replay's game used, by id and version: the viewer plays it with their own installed copy. */
+export interface ReplayPackRef {
+  readonly id: string;
+  readonly version: string;
+}
+
 export interface ReplayFile {
   readonly format: typeof REPLAY_FORMAT;
   readonly version: number;
   /** Milliseconds since the epoch. */
   readonly exportedAt: number;
   readonly writer: ReplayWriter;
-  /** The setup the game came from: rebuilds the card pool for the baseline, and names the game in a list. */
+  /**
+   * The setup the game came from: rebuilds the card pool for the baseline, and names the game in a list. Never carries
+   * `packs`: a pack's data from a file would be run untrusted, so the file names them (`packs`) and the viewer's own
+   * installed, validated copies are used (`replay-core.ts`).
+   */
   readonly config: SessionConfig;
+  /** The custom packs the game used; absent for a base-game game. */
+  readonly packs?: readonly ReplayPackRef[];
   /** When the game was created and how it stood when exported, for the viewer's header. */
   readonly createdAt: number;
   readonly outcome: GameOutcome | null;

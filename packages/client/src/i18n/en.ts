@@ -46,6 +46,8 @@ export const en = {
   "replay.error.damaged": "That replay is damaged and can't be opened.",
   "replay.error.missing": "That game is no longer saved on this device.",
   "replay.error.setup": "This version can't set up that game.",
+  "replay.error.missingPacks":
+    "That replay uses custom packs this device doesn't have installed, or has in another version.",
   "replay.keyName": "{key} key",
   "replay.moveBarTop": "Move the bar to the top",
   "replay.moveBarBottom": "Move the bar to the bottom",

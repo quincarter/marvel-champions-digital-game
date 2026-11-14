@@ -48,6 +48,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "replay.error.damaged": "Esa repetición está dañada y no se puede abrir.",
   "replay.error.missing": "Esa partida ya no está guardada en este dispositivo.",
   "replay.error.setup": "Esta versión no puede preparar esa partida.",
+  "replay.error.missingPacks":
+    "Esa repetición usa paquetes personalizados que este dispositivo no tiene instalados, o tiene en otra versión.",
   "replay.keyName": "tecla {key}",
   "replay.moveBarTop": "Mover la barra arriba",
   "replay.moveBarBottom": "Mover la barra abajo",
