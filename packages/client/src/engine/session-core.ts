@@ -25,7 +25,7 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { cardsOfComposedSets } from "@mc/cards";
+import { cardsOfComposedSets, playableStarterDeckSetup } from "@mc/cards";
 import { notReadySeatIdentity } from "./not-ready-seats.js";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
@@ -193,6 +193,19 @@ export function sealedEventStates(states: readonly EventState[]): readonly Seale
   }
   return kept;
 }
+
+/**
+ * The hero a base precon id seats, resolved the way the scenario builder resolves it (`playableStarterDeckSetup`, which
+ * knows every playable precon, a not-ready pack's included, not only the ones the app offers); undefined for an id it
+ * doesn't know, which `createGame` then reports.
+ */
+const identityOfStarterDeck = (starterDeckId: string): string | undefined => {
+  try {
+    return playableStarterDeckSetup(starterDeckId).identityCardId as string;
+  } catch {
+    return undefined;
+  }
+};
 
 /** Base-game precon ids: a pack deck may never take one (`seatsWithPackDecks`). */
 const BASE_DECK_IDS: ReadonlySet<string> = new Set(POOL_STARTER_DECKS.map((deck) => deck.id as string));
@@ -407,7 +420,7 @@ export class EngineSessionCore {
     const notReady = notReadySeatIdentity(
       config.players,
       view.packs,
-      POOL_STARTER_DECKS,
+      identityOfStarterDeck,
       view.cardsById,
       BASE_DECK_IDS,
     );
