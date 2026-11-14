@@ -953,8 +953,9 @@ waves 1 to 11, 64 packs (`BUILTIN_PACKS`).
   set and scenario checks `validatePack` runs on a store pack, minus the ones about `x.` codes, ids and files, plus
   the cross references: a scenario's sets (`validateScenarioEncounterSets`), villain and main scheme, a card's
   encounter set, an identity's obligation and nemesis set, and a precon's cards. They resolve only against the pack
-  and the built-in packs it `requires` (every other product, in CI), so a script dropped from a pack is reported as
-  unscripted. CI runs it on every built-in pack with no defects and no unscripted abilities (`builtin.test.ts`).
+  and the built-in packs it `requires` (Core plus its declared dependencies, in CI), so a script dropped from a pack
+  is reported as unscripted. CI runs it on every built-in pack with no defects and no unscripted abilities
+  (`builtin.test.ts`).
 - **Games from the packs.** `builtinGameDeps(BUILTIN_PACKS)` is the engine's deps from the packs alone, and a game of
   each wave played on it matches one played on that wave's own deps (waves 1 to 3) or the playable pool's (waves 4 to 11) move for move. `scenarioWithPacks` stays for
   installed packs: it treats its packs as custom content and refuses base-game ids, so built-in scenarios are still set

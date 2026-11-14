@@ -39,10 +39,25 @@ import { customContentOfPacks, type PackGameContent } from "./game.js";
 import { splitIssues } from "./validate.js";
 
 /**
- * What each built-in pack is played with: every other product, whose cards, sets and scripts it may name (Core's
- * Standard set; AoS's Thunderbolts scenario draws modular sets from the Black Panther pack).
+ * The products a built-in pack really depends on, besides the Core Set every product is played with: what its cards,
+ * sets and scenarios may name. Anything else it names is an undeclared cross-product dependency, which the SDK check
+ * reports. Each entry is needed: the test below drops each and expects a defect.
  */
-const requiresOf = (pack: BuiltinPack): readonly BuiltinPack[] => BUILTIN_PACKS.filter((other) => other !== pack);
+const PRODUCT_REQUIRES: Readonly<Record<string, readonly string[]>> = {
+  // Agents of S.H.I.E.L.D.'s Thunderbolts scenario (50130a) draws its modular sets from the Thunderbolt minions'
+  // sets, one in each of the cycle's hero packs (MC50 p. 15).
+  aos: ["bp", "silk", "falcon", "winter"],
+};
+
+const packById = (id: string): BuiltinPack => {
+  const pack = BUILTIN_PACKS.find((candidate) => candidate.manifest.id === id);
+  if (!pack) throw new Error(`no built-in pack ${id}`);
+  return pack;
+};
+
+/** What a built-in pack is validated with: the Core Set, plus the products `PRODUCT_REQUIRES` declares for it. */
+const requiresOf = (pack: BuiltinPack): readonly BuiltinPack[] =>
+  pack === CORE_BUILTIN_PACK ? [] : [CORE_BUILTIN_PACK, ...(PRODUCT_REQUIRES[pack.manifest.id] ?? []).map(packById)];
 
 /**
  * The card abilities a built-in pack leaves unscripted, by pack id. A script dropped from a pack shows up as
@@ -69,6 +84,34 @@ describe("built-in packs through the SDK", () => {
     expect(defects).toEqual([]);
     expect(unscripted.map((issue) => issue.message.replace(/^ability "(.*)" is not scripted$/, "$1")).sort()).toEqual(
       KNOWN_UNSCRIPTED[id] ?? [],
+    );
+  });
+
+  it.each(Object.entries(PRODUCT_REQUIRES).flatMap(([id, deps]) => deps.map((dep) => [id, dep] as const)))(
+    "%s needs %s: without it the check reports what it names",
+    (id, dep) => {
+      const pack = packById(id);
+      const without = requiresOf(pack).filter((other) => other.manifest.id !== dep);
+      expect(splitIssues(validateBuiltinPack(pack, { requires: without })).defects).not.toEqual([]);
+    },
+  );
+
+  it("reports a reference to a product the pack doesn't require", () => {
+    // Core's Rhino naming a modular set of the Black Panther pack, which Core doesn't require.
+    const rhino = CORE_BUILTIN_PACK.scenarios[0]!;
+    const bpSet = packById("bp").encounterSets.find((set) => set.nemesisOfIdentityId === undefined)!;
+    const broken: BuiltinPack = {
+      ...CORE_BUILTIN_PACK,
+      scenarios: [{ ...rhino, recommendedModularSetIds: [bpSet.id] }, ...CORE_BUILTIN_PACK.scenarios.slice(1)],
+    };
+    const messages = splitIssues(validateBuiltinPack(broken, { requires: requiresOf(CORE_BUILTIN_PACK) })).defects.map(
+      (issue) => issue.message,
+    );
+    expect(messages).toContain(`scenario ${rhino.id} names encounter set ${bpSet.id}, which is not registered`);
+    // The same reference passes once the Black Panther pack is a declared requirement.
+    const withBp = validateBuiltinPack(broken, { requires: [packById("bp")] });
+    expect(splitIssues(withBp).defects.map((issue) => issue.message)).not.toContain(
+      `scenario ${rhino.id} names encounter set ${bpSet.id}, which is not registered`,
     );
   });
 
@@ -242,7 +285,7 @@ describe("built-in packs through the SDK", () => {
         card === spiderMan ? { ...card, nemesisEncounterSetId: otherNemesis.id } : card,
       ) as BuiltinPack["cards"],
     };
-    const messages = splitIssues(validateBuiltinPack(broken, { requires: requiresOf(CORE_BUILTIN_PACK) })).defects.map(
+    const messages = splitIssues(validateBuiltinPack(broken, { requires: [WAVE1_BUILTIN_PACKS[0]!] })).defects.map(
       (issue) => issue.message,
     );
     expect(messages).toContain(`nemesis set "${otherNemesis.id}" is not the nemesis set of an identity in this pack`);

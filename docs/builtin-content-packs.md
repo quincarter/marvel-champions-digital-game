@@ -100,8 +100,8 @@ the ones about `x.` codes, ids and files, plus the cross references:
 
 - each card's content-schema check, each script's DSL check, and DSL features against the build's;
 - every ability a card names is scripted, resolved against the pack and the built-in packs it `requires` only (CI
-  passes every other product: a scenario may name another product's sets, AoS's Thunderbolts the Black Panther pack's).
-  A script id belongs to one card, so a script dropped from a pack is still reported;
+  passes the Core Set plus the products the pack really depends on, `PRODUCT_REQUIRES` in `builtin.test.ts`), so a
+  script dropped from a pack, or a reference to a product the pack doesn't declare, is reported;
 - a scenario's sets (`validateScenarioEncounterSets`), villain and main scheme (id and type), each card's encounter
   sets, an identity's obligation and nemesis set (a nemesis set of an identity in the same pack: Ironheart's three
   identity cards share one), a precon's identity and cards;
@@ -120,10 +120,10 @@ the ones about `x.` codes, ids and files, plus the cross references:
   together they hold every script of `WAVE11_ABILITIES` as the same definitions; scripts no card names are pinned;
   per wave, each reprint alias lands in exactly one pack and the registry's key order is the order the wave merges
   its layers (the earlier wave, the aliases, then each pack's own scripts, plus wave 5's and 9's Quick Quip shapes).
-- `packages/mod-sdk/src/builtin.test.ts`: every pack passes `validateBuiltinPack` against every other pack with no
-  defects and its pinned unscripted list (`KNOWN_UNSCRIPTED`); `builtinGameDeps(BUILTIN_PACKS)` holds
-  `WAVE11_ABILITIES`; and one game per wave, played on `builtinGameDeps(BUILTIN_PACKS)`, matches the same game on that
-  wave's deps or the playable pool's (outcome, rounds and the whole log).
+- `packages/mod-sdk/src/builtin.test.ts`: every pack passes `validateBuiltinPack` against Core and its declared
+  dependencies with no defects and its pinned unscripted list (`KNOWN_UNSCRIPTED`); `builtinGameDeps(BUILTIN_PACKS)`
+  holds `WAVE11_ABILITIES`; and one game per wave, played on `builtinGameDeps(BUILTIN_PACKS)`, matches the same game on
+  that wave's deps or the playable pool's (outcome, rounds and the whole log).
 
 ## 2. Moving a wave: the steps
 
@@ -220,6 +220,9 @@ both.
    Falcon's granted abilities, Fear No Evil's granted Boost and When Defeated) passes `defineBuiltinPack` by its
    `<card code>.<slug>` id, so `builtin-packs.test.ts` pins the full list; a new one is added there on purpose, which
    also catches a script left behind by a renamed ref.
-7. **Cross-product references.** A scenario may name another product's sets (AoS's Thunderbolts draws modular sets from
-   the Black Panther pack), so the SDK test checks each pack against every other built-in pack. A card id shared across
-   products would be reported; none is.
+7. **Cross-product dependencies are declared.** Every product depends on Core; the only other dependency is AoS's
+   Thunderbolts scenario, which draws its modular sets from the Black Panther, Silk, Falcon and Winter Soldier packs.
+   `PRODUCT_REQUIRES` (`mod-sdk/src/builtin.test.ts`) lists it, a test drops each declared dependency and expects a
+   defect (so the list stays minimal), and a pack naming a product it doesn't declare fails. A card id shared across
+   products would be reported; none is. A store pack's `requires.packs` is the same idea; a built-in pack's
+   dependencies could move into its manifest the same way.
