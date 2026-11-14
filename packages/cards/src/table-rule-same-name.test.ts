@@ -167,6 +167,7 @@ describe("matrix over the whole card pool: every identity against every unique c
     expect(flipped).toMatchInlineSnapshot(`
       [
         "Daredevil (Matt Murdock) [hero 60001a] x Daredevil [ally 31014]",
+        "Elektra (Elektra Natchios) [hero 63001a] x Elektra [ally 04100]",
         "Ironheart (Riri Williams) [hero 29001a] x Ironheart [ally 13018]",
         "Ironheart (Riri Williams) [hero 29002a] x Ironheart [ally 13018]",
         "Ironheart (Riri Williams) [hero 29003a] x Ironheart [ally 13018]",
@@ -195,10 +196,12 @@ describe("matrix over the whole card pool: every identity against every unique c
         "Captain Marvel (Carol Danvers) [hero 01010a] x Captain Marvel [villain 56092]: no match",
         "Daredevil (Matt Murdock) [hero 60001a] x Daredevil [minion 56189]: no match",
         "Daredevil (Matt Murdock) [hero 60001a] x Daredevil [villain 65013a]: no match",
+        "Elektra (Elektra Natchios) [hero 63001a] x Elektra [villain 65014a]: no match",
         "Falcon (Sam Wilson) [hero 53001a] x Falcon [minion 56150]: no match",
         "Gamora (Gamora) [hero 18001a] x Gamora [minion 22028]: match (RRG)",
         "Hawkeye (Clint Barton) [hero 04001a] x Hawkeye [minion 57056]: no match",
         "Hercules (Hercules) [hero 59001a] x Hercules [minion 56151]: match (RRG)",
+        "Iron Fist (Danny Rand) [hero 64001a] x Iron Fist [minion 56190]: no match",
         "Iron Man (Tony Stark) [hero 01029a] x Iron Man [villain 56059]: no match",
         "Jessica Jones (Jessica Jones) [hero 61001a] x Jessica Jones [minion 56185]: match (RRG)",
         "Luke Cage (Luke Cage) [hero 62001a] x Luke Cage [minion 56184]: match (RRG)",

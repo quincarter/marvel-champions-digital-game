@@ -30,6 +30,7 @@ import {
 } from "@mc/content";
 import { requiredIdentitySet, unscriptedCards, validateDeck } from "@mc/engine";
 import { describe, expect, it } from "vitest";
+import { NOT_READY_PACK_CODES } from "./builtin-packs/index.js";
 import { PLAYABLE_DEPS } from "./playable/index.js";
 
 const PRECONS: readonly StarterDeck[] = [
@@ -110,7 +111,10 @@ describe("every playable precon, against the whole playable pool", () => {
     const identities = (PLAYABLE_CARDS.filter((card) => card.type === "hero_identity") as HeroIdentityCard[]).filter(
       (card) =>
         (card.progressingIdentity === undefined || card.progressingIdentity.versions[0] === card.id) &&
-        !UNSCRIPTED_PACKS.has(card.setCode as string),
+        !UNSCRIPTED_PACKS.has(card.setCode as string) &&
+        // A not-ready pack (Elektra, Iron Fist) has no precon until its card list is known; releasing the pack
+        // (deleting its manifest `status`) turns this check back on for its hero.
+        !NOT_READY_PACK_CODES.has(card.setCode as string),
     );
     const withoutPrecon = identities.filter((card) => !PRECONS.some((deck) => deck.identityCardId === card.id));
     expect(withoutPrecon.map((card) => `${card.id} ${card.name}`)).toEqual([]);
