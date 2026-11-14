@@ -24,7 +24,7 @@ import {
 } from "../../../testing/harness.js";
 import { driveEventsPicking } from "../../../testing/staging.js";
 import { ELEKTRA_ELEKTRA_EVENTS } from "./events.js";
-import { enemyAttack, find, heroAction, theVillain, you } from "../../../dsl/index.js";
+import { attack, dealDamage, enemyAttack, find, heroAction, theVillain, you } from "../../../dsl/index.js";
 import { stagedInPlay } from "../../../wave9/falcon/testing.js";
 import {
   ADVANCE,
@@ -321,6 +321,22 @@ describe("63014 Stealth Mastery: when you attack or are attacked, +3 or -3 damag
     const { state, strike, energy } = withStrike(staged().state);
     const after = drive(state, taking([SM], "Increase the damage by 3"), play(P1, strike, [energy]));
     expect(inst(after, after.activeVillainId!).damage).toBe(6);
+  });
+
+  it("an attack ability, reduce: the reduction reaches its later instruction too, each instance floored at 0", () => {
+    // Test only: Sai Strike made "(attack): Deal 5 damage to the villain. Deal 4 damage to the villain." (RRG 1.8 p. 10).
+    const twice = {
+      abilities: {
+        ...DEPS.abilities,
+        "63009.sai-strike-action": heroAction({ label: "attack" }, attack(5, theVillain), dealDamage(4, theVillain)),
+      },
+    };
+    const { state, strike, energy } = withStrike(staged().state);
+    const run = (label: string) =>
+      driveEventsPicking(twice, state, taking([SM], label), play(P1, strike, [energy])).state;
+    const dealt = (s: GameState) => inst(s, s.activeVillainId!).damage;
+    // 5 - 3 and 4 - 3: without the reach to the later instruction it would be 2 + 4.
+    expect(dealt(run("Reduce the damage by 3"))).toBe(2 + 1);
   });
 
   it('an attack on your ally does not trigger it: "you" is your identity', () => {

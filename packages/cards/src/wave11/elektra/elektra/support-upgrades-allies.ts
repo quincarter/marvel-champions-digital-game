@@ -95,9 +95,8 @@ const ATTACK = trait("ATTACK");
  * (`on.either`; "you" is the identity, RRG 1.8 p. 49, so an attack on your ally does not trigger it): the player chooses to increase or reduce the damage by 3, then it goes on top of your deck. Your own
  * attack (any trigger that is not an enemy attack) is `modifyAttack({ extraDamage: +-3 })`; an enemy attack
  * against you is `modifyAttack({ atkBonus: +-3 })` (the Herc's Helm reading of "the damage this attack deals").
- * LIMIT: `extraDamage` reduces the damage of a basic attack or of an attack event's first damage; the engine reads a
- * negative extra as 0 for later instructions of the same "(attack)" ability (`attack-ability.ts`), so a reduction does
- * not reach them.
+ * A reduction reaches every instance of an "(attack)" ability's damage that does not say "additional", each floored
+ * at 0 (RRG 1.8 "Attack (Player Ability Type)", p. 10, read for a reduction as for an increase; `attack-ability.ts`).
  */
 export const ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "63005.daredevil-response": response(
