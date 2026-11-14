@@ -40,7 +40,20 @@ export function ironFistGame(form: "hero" | "alterEgo" = "hero"): GameState {
     modularSetIds: [],
     cardPool: WAVE11_CARDS,
   } as never);
-  const deck = ["64002", "64003", "64004", "64005", "64008", ...Array(40).fill(FILLER)].slice(0, 40);
+  const deck = [
+    "64002",
+    "64003",
+    "64004",
+    "64005",
+    "64006",
+    "64007",
+    "64008",
+    "64009",
+    "64010",
+    "64011",
+    "64012",
+    ...Array(40).fill(FILLER),
+  ].slice(0, 40);
   const created = createGame(
     {
       ...base,
@@ -126,4 +139,21 @@ export const takeCounters =
 /** Puts these cards on top of the deck (after the opening hand has been drawn), in order. */
 export function withTopOfDeck(state: GameState, ...codes: readonly string[]): GameState {
   return putOnTopOfDeck(state, P1, ...codes).state;
+}
+
+/** Takes the offered trigger or ability option with this ability id; anything else as `fallback`. */
+export const takeAbility =
+  (abilityId: string, fallback: Picker = firstLegal): Picker =>
+  (state) => {
+    const hit = state.pendingChoice?.options.find(
+      (o) => o.ref.kind === "ability" && o.ref.abilityId === (abilityId as never),
+    );
+    return hit ? [hit.optionId] : fallback(state);
+  };
+
+/** Plays a free upgrade (a Technique) from the hand onto the identity; returns its instance id. */
+export function withUpgradeInPlay(state: GameState, code: string) {
+  const s = staged(state, code, 0);
+  const { state: after } = drive(s.state, s.command);
+  return { state: after, id: s.id };
 }
