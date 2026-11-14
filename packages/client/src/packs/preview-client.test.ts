@@ -44,4 +44,18 @@ describe("requestPreview", () => {
     const missing = async (): Promise<Response> => new Response("", { status: 404 });
     expect(await requestPreview("https://h/404.json", "demo", { fetch: missing, storage: null })).toBeUndefined();
   });
+
+  it("falls back to the saved copy when a 200 response is malformed or oversized, and never saves it", async () => {
+    const saved = JSON.stringify([{ url: "https://h/p.json", packId: "demo", text: body }]);
+    for (const bad of [
+      async (): Promise<Response> => new Response("{ truncated"),
+      async (): Promise<Response> => new Response("x", { headers: { "content-length": "99999999" } }),
+    ]) {
+      resetPreviews();
+      const storage = memoryStorage();
+      storage.setItem(PREVIEW_CACHE_KEY, saved);
+      expect((await requestPreview("https://h/p.json", "demo", { fetch: bad, storage }))?.cards).toHaveLength(1);
+      expect(storage.data.get(PREVIEW_CACHE_KEY)).toBe(saved);
+    }
+  });
 });
