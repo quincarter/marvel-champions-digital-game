@@ -96,6 +96,26 @@ describe("built-in packs through the SDK", () => {
     },
   );
 
+  it("reports a hero given another hero's nemesis set from the same product, and accepts Ironheart's forms", () => {
+    const [spiderMan, captainMarvel] = CORE_BUILTIN_PACK.cards.filter((card) => card.type === "hero_identity");
+    if (spiderMan?.type !== "hero_identity" || captainMarvel?.type !== "hero_identity")
+      throw new Error("Core has two heroes");
+    const broken: BuiltinPack = {
+      ...CORE_BUILTIN_PACK,
+      cards: CORE_BUILTIN_PACK.cards.map((card) =>
+        card === spiderMan ? { ...card, nemesisEncounterSetId: captainMarvel.nemesisEncounterSetId } : card,
+      ) as BuiltinPack["cards"],
+    };
+    const messages = splitIssues(validateBuiltinPack(broken)).defects.map((issue) => `${issue.path}: ${issue.message}`);
+    expect(messages).toContain(
+      `cards/${spiderMan.id}: nemesis set "${captainMarvel.nemesisEncounterSetId}" is not this hero's nemesis set`,
+    );
+    const ironheart = packById("ironheart");
+    const forms = ironheart.cards.filter((card) => card.type === "hero_identity");
+    expect(forms.length).toBeGreaterThan(1);
+    expect(splitIssues(validateBuiltinPack(ironheart, { requires: requiresOf(ironheart) })).defects).toEqual([]);
+  });
+
   it("reports a reference to a product the pack doesn't require", () => {
     // Core's Rhino naming a modular set of the Black Panther pack, which Core doesn't require.
     const rhino = CORE_BUILTIN_PACK.scenarios[0]!;
@@ -288,7 +308,7 @@ describe("built-in packs through the SDK", () => {
     const messages = splitIssues(validateBuiltinPack(broken, { requires: [WAVE1_BUILTIN_PACKS[0]!] })).defects.map(
       (issue) => issue.message,
     );
-    expect(messages).toContain(`nemesis set "${otherNemesis.id}" is not the nemesis set of an identity in this pack`);
+    expect(messages).toContain(`nemesis set "${otherNemesis.id}" is not this hero's nemesis set`);
   });
 
   it("reports a wave 1 scenario checked without the Core pack it needs", () => {

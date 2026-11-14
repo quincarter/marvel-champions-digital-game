@@ -103,8 +103,8 @@ the ones about `x.` codes, ids and files, plus the cross references:
   passes the Core Set plus the products the pack really depends on, `PRODUCT_REQUIRES` in `builtin.test.ts`), so a
   script dropped from a pack, or a reference to a product the pack doesn't declare, is reported;
 - a scenario's sets (`validateScenarioEncounterSets`), villain and main scheme (id and type), each card's encounter
-  sets, an identity's obligation and nemesis set (a nemesis set of an identity in the same pack: Ironheart's three
-  identity cards share one), a precon's identity and cards;
+  sets, an identity's obligation and nemesis set (the hero's own: Ironheart's three identity cards, one name and
+  one obligation, share one), a precon's identity and cards;
 - a clash with a required pack is reported, never thrown.
 
 `builtinGameDeps(packs)` gives the engine's deps from built-in packs alone.
