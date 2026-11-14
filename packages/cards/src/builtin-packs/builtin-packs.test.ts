@@ -84,15 +84,18 @@ describe("defineBuiltinPack", () => {
   const capCard = WAVE1_BUILTIN_PACKS[0]!.cards[0]!;
   const coreScript = Object.entries(CORE_ABILITIES)[0]!;
 
-  it("refuses another product's card, a script for no card of the pack, and a manifest that isn't its product", () => {
+  it("refuses another product's card, a script for no card of the pack, and a manifest id or name that isn't its product's", () => {
     const broken: BuiltinPack = {
       ...CORE_BUILTIN_PACK,
-      manifest: { ...CORE_BUILTIN_PACK.manifest, id: "kore" },
+      manifest: { ...CORE_BUILTIN_PACK.manifest, id: "kore", name: "Kore Set" },
       cards: [...CORE_CARDS, capCard],
       abilities: { "99999.nobody": coreScript[1] },
     };
     const problems = builtinPackProblems(broken);
     expect(problems).toContain("manifest id kore is not its product's code core");
+    expect(problems).toContain(
+      `manifest name "Kore Set" is not its product's name "${CORE_BUILTIN_PACK.manifest.product.name}"`,
+    );
     expect(problems).toContain(`card ${capCard.id} is from cap, not kore`);
     expect(problems).toContain("ability 99999.nobody is not on any kore card");
     expect(() => defineBuiltinPack(broken)).toThrow(/built-in pack kore:/);
