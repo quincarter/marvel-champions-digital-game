@@ -5,7 +5,6 @@ import {
   anEnemy,
   anyOfCards,
   atMost,
-  attackInProgress,
   cards,
   chooseCards,
   chooseOne,
@@ -14,6 +13,7 @@ import {
   dealDamage,
   defineAbilities,
   discard,
+  eventKindIs,
   encounterCards,
   encounterSetAside,
   exhaustThis,
@@ -32,7 +32,6 @@ import {
   option,
   query,
   reduceNextCardCost,
-  removedFromGameCards,
   reorderCards,
   response,
   revealCard,
@@ -72,13 +71,15 @@ const ATTACK = trait("ATTACK");
  * identity, RRG 1.8 p. 49), an optional interrupt. "Remove this card from the game" is a cost, written as the first
  * replacement effect (the Ionic Physiology / Doctor Strange obligation precedent: there is no removal cost
  * part), then the hit point dial is set to 9 (`setRemainingHitPoints`, capped at her maximum, as Captain America's
- * Helmet sets 1), then her obligation is found and revealed from the same pool Loose Ends searches (the encounter deck
- * and discard pile, both set-aside areas and the removed-from-game area; RRG 1.8 "Obligation", p. 30), the encounter
- * deck shuffled after the search (p. 39).
+ * Helmet sets 1), then her obligation is found and revealed from the same pool Loose Ends searches, minus the
+ * removed-from-game area: the encounter deck and discard pile and both set-aside areas (RRG 1.8 "Obligation", p. 30),
+ * the encounter deck shuffled after the search (p. 39). "Find" excludes removed-from-game cards (RRG 1.8 "Find", p. 19;
+ * "Removed from the Game" cards cannot re-enter); Loose Ends reaches that area only because it prints it (ruling
+ * December 17, 2025 (4)). Her own obligation is never there unless this card's removal put it so, which it cannot.
  *
- * **63011.white-tiger-response**: "After you change to hero form" (identity change, yours). FLAG: the printed
- * "Otherwise" has no condition in front of it. Read as the only thing it can refer to: the Ninja deck gave a card
- * (`selectCards` bound, `ninja.count`), else (empty Ninja deck, nothing to shuffle in) Elektra is given 1 facedown boost
+ * **63011.white-tiger-response**: "After you change to hero form" (identity change, yours). The printed "Otherwise" refers to the
+ * preceding sentence and resolves when that sentence cannot at least partially resolve (RRG 1.8 "'Otherwise'", p. 31):
+ * the Ninja deck gave a card (`selectCards` bound, `ninja.count`), else (empty Ninja deck, nothing to shuffle in) Elektra is given 1 facedown boost
  * card for her basic powers (`giveHeldBoostCard`, ruling September 10, 2026 - Ruling 3). "Elektra" is the hero face
  * only (ruling October 12, 2026 - Ruling 2): the change just made leaves her hero face up, so her identity is
  * her.
@@ -91,8 +92,8 @@ const ATTACK = trait("ATTACK");
  * identity; the forced response discards it after any form change you make.
  *
  * **63014.stealth-mastery-forced-interrupt**: "When you attack or are attacked", one ability for both timings
- * (`on.either`): the player chooses to increase or reduce the damage by 3, then it goes on top of your deck. Your own
- * attack (`attackInProgress` with your identity as attacker) is `modifyAttack({ extraDamage: +-3 })`; an enemy attack
+ * (`on.either`; "you" is the identity, RRG 1.8 p. 49, so an attack on your ally does not trigger it): the player chooses to increase or reduce the damage by 3, then it goes on top of your deck. Your own
+ * attack (any trigger that is not an enemy attack) is `modifyAttack({ extraDamage: +-3 })`; an enemy attack
  * against you is `modifyAttack({ atkBonus: +-3 })` (the Herc's Helm reading of "the damage this attack deals").
  * LIMIT: `extraDamage` reduces the damage of a basic attack or of an attack event's first damage; the engine reads a
  * negative extra as 0 for later instructions of the same "(attack)" ability (`attack-ability.ts`), so a reduction does
@@ -119,7 +120,6 @@ export const ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAb
             encounterCards(["deck", "discard"], { obligationOf: you }),
             setAside(you, { obligationOf: you }),
             encounterSetAside({ obligationOf: you }),
-            removedFromGameCards({ obligationOf: you }),
           ),
         ),
       ),
@@ -146,23 +146,18 @@ export const ELEKTRA_ELEKTRA_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAb
   "63013.history-with-the-hand-forced-response": forcedResponse(on.youChangeForm(), discard(self)),
 
   "63014.stealth-mastery-forced-interrupt": forcedInterrupt(
-    on.either(when.attacks(YOUR_IDENTITY), when.enemyAttacks(query("enemy"), { againstYou: true })),
+    on.either(when.attacks(YOUR_IDENTITY), {
+      ...when.enemyAttacks(query("enemy"), { againstYou: true }),
+      youAreIdentity: true,
+    }),
     chooseOne(
       option(
         "Increase the damage by 3",
-        ifThen(
-          attackInProgress({ attacker: YOUR_IDENTITY }),
-          modifyAttack({ extraDamage: 3 }),
-          modifyAttack({ atkBonus: 3 }),
-        ),
+        ifThen(eventKindIs("enemyAttack"), modifyAttack({ atkBonus: 3 }), modifyAttack({ extraDamage: 3 })),
       ),
       option(
         "Reduce the damage by 3",
-        ifThen(
-          attackInProgress({ attacker: YOUR_IDENTITY }),
-          modifyAttack({ extraDamage: -3 }),
-          modifyAttack({ atkBonus: -3 }),
-        ),
+        ifThen(eventKindIs("enemyAttack"), modifyAttack({ atkBonus: -3 }), modifyAttack({ extraDamage: -3 })),
       ),
     ),
     moveCards(cards(self), "deckTop"),

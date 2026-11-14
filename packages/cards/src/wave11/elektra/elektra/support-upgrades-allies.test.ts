@@ -23,6 +23,8 @@ import {
   use,
 } from "../../../testing/harness.js";
 import { driveEventsPicking } from "../../../testing/staging.js";
+import { ELEKTRA_ELEKTRA_EVENTS } from "./events.js";
+import { enemyAttack, find, heroAction, theVillain, you } from "../../../dsl/index.js";
 import { stagedInPlay } from "../../../wave9/falcon/testing.js";
 import {
   ADVANCE,
@@ -44,7 +46,17 @@ vi.setConfig({ testTimeout: 120_000 });
  * Elektra's signature supports, upgrades and ally (63005, 63010 to 63014) against Core's Rhino, seated beside her
  * identity and Ninja deck scripts. "Elektra" is the hero face only (ruling October 12, 2026 - Ruling 2).
  */
-const DEPS = { abilities: { ...BASE_DEPS.abilities, ...REGISTRY } };
+const DEPS = { abilities: { ...BASE_DEPS.abilities, ...ELEKTRA_ELEKTRA_EVENTS, ...REGISTRY } };
+/** Test only: Sai Strike's ref made "the villain attacks your ally", to attack a character that is not your identity. */
+const ATTACK_ALLY = "63009.sai-strike-action";
+const ALLY_DEPS = {
+  abilities: {
+    ...DEPS.abilities,
+    [ATTACK_ALLY]: heroAction(
+      enemyAttack(theVillain, { against: you, targetCharacter: find({ categories: ["ally"] }) }),
+    ),
+  },
+};
 const REFS = [
   "63005.daredevil-response",
   "63010.resurrection-altar-interrupt",
@@ -116,30 +128,57 @@ describe("63005 Daredevil: after he uses a basic power, put a card from the enco
 
 describe("63010 Resurrection Altar: when you would be defeated, remove it: set the dial to 9, find your obligation and reveal it", () => {
   const ALTAR = "63010.resurrection-altar-interrupt";
-  it("taken at 0 hit points: the card leaves the game, the dial is 9 and the obligation is revealed", () => {
+  const OBLIGATION = "63040";
+  const obligationOf = (s: GameState) => Object.values(s.instances).find((i) => (i.cardId as string) === OBLIGATION)!;
+  /** Her hero face at 1 hit point remaining with Rhino about to attack. */
+  const doomed = () => {
     const altar = stage(elektraHeroGame(), "63010");
     const hero = identityOf(altar.state);
     const max = characterProfile(altar.state, hero, DEPS)!.maxHp;
-    const doomed = patchInstance(altar.state, hero, { damage: max - 1 });
-    const after = drive(doomed, taking([ALTAR]), endTurn(P1));
+    return { altar: altar.id, hero, max, state: patchInstance(altar.state, hero, { damage: max - 1 }) };
+  };
+  /** Surgery: her obligation moved from wherever it waits to the encounter discard pile. */
+  const obligationInDiscard = (s: GameState): GameState => {
+    const id = obligationOf(s).instanceId;
+    const deckId = activeEncounterDeckId(s);
+    const piles = activeEncounterDeck(s);
+    return {
+      ...patchInstance(s, id, { home: { kind: "encounterDiscard", deckId } as never }),
+      encounterDecks: {
+        ...s.encounterDecks,
+        [deckId]: { deck: piles.deck.filter((i) => i !== id), discard: [...piles.discard.filter((i) => i !== id), id] },
+      },
+    };
+  };
+
+  it("taken at 0 hit points: the card leaves the game, the dial is 9, and the obligation is revealed into her play area", () => {
+    const { altar, hero, state } = doomed();
+    const after = drive(state, taking([ALTAR]), endTurn(P1));
     expect(after.outcome ?? null).toBeNull();
-    expect(locateCard(after, altar.id)?.kind).toBe("removedFromGame");
-    const obligation = Object.values(after.instances).find((i) => (i.cardId as string) === "63040");
-    expect(locateCard(after, obligation!.instanceId)?.kind).not.toBe("encounterDeck");
-    expect(max - inst(after, hero).damage).toBeLessThanOrEqual(9);
+    expect(locateCard(after, altar)?.kind).toBe("removedFromGame");
+    const remaining = characterProfile(after, hero, DEPS)!.maxHp - inst(after, hero).damage;
+    expect(remaining).toBe(9);
+    expect(playerOf(after, P1).playArea).toContain(obligationOf(after).instanceId);
   });
 
-  it("declined: it stays in play and she is defeated as usual", () => {
-    const altar = stage(elektraHeroGame(), "63010");
-    const hero = identityOf(altar.state);
-    const max = characterProfile(altar.state, hero, DEPS)!.maxHp;
-    const doomed = patchInstance(altar.state, hero, { damage: max - 1 });
+  it("finds the obligation in the encounter discard pile too", () => {
+    const { altar, state } = doomed();
+    const staged = obligationInDiscard(state);
+    expect(locateCard(staged, obligationOf(staged).instanceId)?.kind).toBe("encounterDiscard");
+    const after = drive(staged, taking([ALTAR]), endTurn(P1));
+    expect(locateCard(after, altar)?.kind).toBe("removedFromGame");
+    expect(playerOf(after, P1).playArea).toContain(obligationOf(after).instanceId);
+  });
+
+  it("declined: it stays in play and she is defeated (a solo loss)", () => {
+    const { altar, state } = doomed();
     const after = drive(
-      doomed,
+      state,
       picking(() => undefined),
       endTurn(P1),
     );
-    expect(locateCard(after, altar.id)?.kind).not.toBe("removedFromGame");
+    expect(locateCard(after, altar)?.kind).not.toBe("removedFromGame");
+    expect(after.outcome).not.toBeNull();
   });
 });
 
@@ -195,6 +234,30 @@ describe("63012 Elektra's Sai: exhaust: 1 damage to an enemy; the next Acrobatic
   });
 });
 
+describe("63012 Elektra's Sai, a card that is not an Acrobatic or Attack event", () => {
+  it("does not use up the reduction: the Attack event played after it is still cheaper", () => {
+    const sai = stage(elektraHeroGame(), "63012", true);
+    const used = drive(sai.state, taking([]), use(P1, sai.id, "63012.elektras-sai-action"));
+    const getReady = CORE_CARDS.find((c) => (c.id as string) === "01069")!;
+    const attackEvent = CORE_CARDS.find(
+      (c) => c.type === "event" && c.cost === 1 && c.traits.some((t) => (t as string) === "ATTACK"),
+    )!;
+    const spare = (s: GameState) => playerOf(s, P1).deck.filter((i) => (inst(s, i).cardId as string) !== "63012");
+    const hand1 = moveToHand(patchInstance(used, spare(used)[0]!, { cardId: getReady.id }), P1, getReady.id as string);
+    const hand2 = moveToHand(
+      patchInstance(hand1.state, spare(hand1.state).at(-1)!, { cardId: attackEvent.id }),
+      P1,
+      attackEvent.id as string,
+    );
+    // Get Ready (cost 0, not an Attack or Acrobatic event) is played first, then the Attack event for free.
+    const withAlly = stage(hand2.state, "63005");
+    const first = drive(withAlly.state, taking([]), play(P1, hand1.ids[0]!, []));
+    expect(playerOf(first, P1).discard).toContain(hand1.ids[0]!);
+    const second = drive(first, taking([]), play(P1, hand2.ids[0]!, []));
+    expect(playerOf(second, P1).discard).toContain(hand2.ids[0]!);
+  });
+});
+
 describe("63013 History with the Hand: +1 hand size; discarded after you change form", () => {
   it("gives +1 hand size, and is discarded by the form change", () => {
     const base = elektraHeroGame();
@@ -241,5 +304,37 @@ describe("63014 Stealth Mastery: when you attack or are attacked, +3 or -3 damag
     const sm = staged();
     const after = drive(sm.state, taking([SM], "Reduce the damage by 3"), attackRhino(sm.state));
     expect(inst(after, after.activeVillainId!).damage).toBe(0);
+  });
+
+  /** Sai Strike and an energy resource in hand (retagged deck cards); returns the state, the event and the payment. */
+  const withStrike = (s: GameState) => {
+    const spare = playerOf(s, P1).deck.filter((i) => (inst(s, i).cardId as string) !== "63014");
+    const tagged = patchInstance(patchInstance(s, spare[0]!, { cardId: cardId("01088") }), spare.at(-1)!, {
+      cardId: cardId("63009"),
+    });
+    const given = moveToHand(moveToHand(tagged, P1, "01088").state, P1, "63009");
+    const energy = playerOf(given.state, P1).hand.find((i) => (inst(given.state, i).cardId as string) === "01088")!;
+    return { state: given.state, strike: given.ids[0]!, energy };
+  };
+
+  it("an attack event: Sai Strike (3) deals 3 more, 6", () => {
+    const { state, strike, energy } = withStrike(staged().state);
+    const after = drive(state, taking([SM], "Increase the damage by 3"), play(P1, strike, [energy]));
+    expect(inst(after, after.activeVillainId!).damage).toBe(6);
+  });
+
+  it('an attack on your ally does not trigger it: "you" is your identity', () => {
+    const sm = staged();
+    const ally = stage(sm.state, "63005");
+    const { state, strike, energy } = withStrike(ally.state);
+    const after = driveEventsPicking(
+      ALLY_DEPS,
+      state,
+      taking([SM], "Increase the damage by 3"),
+      play(P1, strike, [energy]),
+    ).state;
+    expect(inst(after, sm.id).attachedTo).toBe(identityOf(after));
+    expect(playerOf(after, P1).deck[0]).not.toBe(sm.id);
+    expect(inst(after, ally.id).damage).toBeGreaterThan(0);
   });
 });
