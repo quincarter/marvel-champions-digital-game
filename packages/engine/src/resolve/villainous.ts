@@ -38,8 +38,9 @@
  * "Discard the boost card after it is resolved"; MC60 p. 3, "after the basic power resolves"), unless its Boost ability
  * sent it elsewhere: shuffled into another deck, or given back facedown for a later use ("Otherwise, give this card to
  * Elektra as a facedown boost card", the Ninja cards 63002–63004), where it stays; its icons still count for this use
- * (ruling January 11, 2024 #134). A card this use never reached stays held (`finishUse`). A character that leaves play
- * first takes its boost cards with it to their discard piles (`effects.ts`).
+ * (ruling January 11, 2024 #134; owner decision 4, docs/phase7-elektra-iron-fist.md §5). A card this use never reached
+ * stays facedown and held for a later use (owner decision 5, the same section; `finishUse`). A character that leaves
+ * play first takes its boost cards with it to their discard piles (`effects.ts`).
  */
 
 import type { EngineDeps } from "../abilities.js";
@@ -339,7 +340,8 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
 
   if (!boost) {
     // A use cancelled in its interrupt window is not resolved, so nothing is turned up or resolved for it (RRG 1.8
-    // p. 47, "When resolving that basic power"); the record still discards the card it was given.
+    // p. 47, "When resolving that basic power"); its cards, the one it was given included, stay facedown and held for
+    // the character's next basic power (owner decision 5, docs/phase7-elektra-iron-fist.md §5; `finishUse`).
     const use = findFrame(ctx.state, record.useFrameId);
     if (!use || (use.kind === "event" && use.cancelled)) return popFrame(ctx);
     const [boostId] = boostCardsToResolve(ctx.state, record);
@@ -412,7 +414,8 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
   // Its icons count for this use wherever its own Boost ability moved it: shuffled into another deck (the Ninja cards)
   // or attached ("the boost icon(s) on Homo Superior still increases the enemy's ATK", ruling January 11, 2024 #134;
   // RRG 1.8 "Villainous", p. 47, "apply its boost icons to the character's stats for this use"). One given back
-  // facedown for a later use counts too: an open owner question, built to the recommended reading.
+  // facedown for a later use counts too, and again when it is turned faceup on that later use: owner decision 4
+  // (docs/phase7-elektra-iron-fist.md §5), on ruling January 11, 2024 #134.
   if (icons <= 0) return;
   if (!ctx.state.stack.some((f) => f.frameId === record.useFrameId)) return;
   const bonus = addLastingEffect(

@@ -764,8 +764,8 @@ function stepFaceupBoostCard(
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
   // Counted wherever its own Boost ability moved it: "the boost icon(s) on Homo Superior still increases the enemy's
   // ATK" after its Boost attached it to a minion (ruling January 11, 2024 #134). A card given to a character to hold
-  // that way (a Ninja card's "Otherwise, give this card to Elektra", `resolvingBoostCard`) counts too: an open owner
-  // question, built to the recommended reading.
+  // that way (a Ninja card's "Otherwise, give this card to Elektra", `resolvingBoostCard`) counts too, and again on the
+  // later use that turns it faceup: owner decision 4 (docs/phase7-elektra-iron-fist.md §5), on the same ruling.
   const counted =
     boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
     amplifyIconsInPlay(ctx.state, ctx.deps) +

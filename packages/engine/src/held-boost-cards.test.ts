@@ -328,8 +328,8 @@ describe("a held card resolves on the holder's next basic power (ruling Sep 10, 
 
 describe("a Boost ability that sends its own card elsewhere (the Ninja cards' 'Otherwise, give this card to Elektra')", () => {
   it("the card goes back facedown and held and is not discarded; its icons still count for this use", () => {
-    // Ruling January 11, 2024 #134 (a boost card moved by its own Boost still counts); the given-back case is pending
-    // the owner, built to the recommended reading.
+    // Ruling January 11, 2024 #134 (a boost card moved by its own Boost still counts); the given-back case is owner
+    // decision 4 (docs/phase7-elektra-iron-fist.md §5).
     const { state, scheme } = holding(1, copiesOf(BOOMERANG.id, 20));
     const hero = identity(state);
     const [card] = heldBoostCardsOf(state, hero);
@@ -342,7 +342,7 @@ describe("a Boost ability that sends its own card elsewhere (the Ninja cards' 'O
   });
 });
 
-describe("a card the use never reached stays held (pending the owner; recommended reading)", () => {
+describe("a card the use never reached stays held (owner decision 5, docs/phase7-elektra-iron-fist.md §5)", () => {
   it("a basic defense whose attack the villain's own boost card cancels first: her cards stay, facedown and held", () => {
     const s = holding(1, [QUITTER.id, ...copiesOf(PLAIN.id, 20)]);
     const hero = identity(s.state);
