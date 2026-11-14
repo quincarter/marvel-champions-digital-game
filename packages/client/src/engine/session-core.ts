@@ -407,7 +407,7 @@ export class EngineSessionCore {
       const identity =
         "identityCardId" in seat && seat.identityCardId ? byId.get(seat.identityCardId as string) : undefined;
       if (identity && isNotReadyCard(identity)) {
-        throw new SetupError({ code: "invalid_setup", message: `${identity.name} is not ready yet` });
+        throw new SetupError({ code: "invalid_setup", command: null, message: `${identity.name} is not ready yet` });
       }
     }
     const setup = createGame(scenarioFor(config), depsOf(config));
