@@ -1,9 +1,20 @@
 import { activeEncounterDeck, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
-import { P1, applyOk, endTurn, identityOf, inst, patchInstance } from "../../testing/harness.js";
+import {
+  P1,
+  applyOk,
+  firstLegal,
+  settle,
+  type Picker,
+  endTurn,
+  identityOf,
+  inst,
+  patchInstance,
+} from "../../testing/harness.js";
 import { ELEKTRA_JUSTICE as REGISTRY, ELEKTRA_JUSTICE_SKIPPED as SKIPPED } from "./justice.js";
 import { WAVE11_DEPS as DEPS } from "../index.js";
+import { elektraHeroGame } from "./elektra/elektra.testing.js";
 import { ADVANCE, SPIDER_MAN_JUSTICE, accepting, drive, elektraAspectGame } from "./aspect-testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -85,10 +96,29 @@ describe("63035 Backstab", () => {
     expect(inst(after, villainOf(after)).damage - inst(plain, villainOf(plain)).damage).toBe(2);
   });
 
-  it("Boost: with no enemy activating it gains two boost icons instead (the ability reads the activation)", () => {
-    const text = JSON.stringify(REGISTRY["63035.boost"]);
-    expect(text).toContain("adjustBoostCount");
-    expect(text).toContain("activatingEnemy");
+  it("Boost, as villainous Elektra's boost card on her own basic attack: no enemy is activating, so it adds 2 boost icons", () => {
+    const attackWith = (top: string): number => {
+      const state = elektraHeroGame();
+      const deck = activeEncounterDeck(state).deck;
+      const staged = [top, ADVANCE, ADVANCE].reduce(
+        (st, code, i) => patchInstance(st, deck[i]!, { cardId: code as never }),
+        state,
+      );
+      const villain = villainOf(staged);
+      const decline: Picker = (s) => (s.pendingChoice!.prompt.kind === "chooseTriggers" ? [] : firstLegal(s));
+      const after = settle(
+        applyOk(
+          staged,
+          { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(staged), targetInstanceId: villain },
+          DEPS,
+        ).state,
+        decline,
+        undefined,
+        DEPS,
+      );
+      return inst(after, villain).damage;
+    };
+    expect(attackWith(BACKSTAB) - attackWith(ADVANCE)).toBe(2);
   });
 });
 
@@ -100,6 +130,8 @@ describe("63036 Misdirect", () => {
     const plain = villainPhase(hurt, ADVANCE, ADVANCE, ADVANCE);
     const after = villainPhase(hurt, ADVANCE, MISDIRECT, ADVANCE);
     expect(inst(plain, hero).damage - inst(after, hero).damage).toBe(4);
+    const deckSizeDrop = deckSize(plain) - deckSize(after);
+    expect(deckSizeDrop).toBe(1); // surge: one more card revealed
   });
 
   it("Boost: stuns an enemy", () => {

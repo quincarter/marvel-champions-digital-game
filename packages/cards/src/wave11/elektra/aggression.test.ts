@@ -1,4 +1,11 @@
-import { characterProfile, legalActions, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  characterProfile,
+  legalActions,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
@@ -15,6 +22,7 @@ import {
 import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
 import { WAVE11_DEPS as DEPS } from "../index.js";
 import { ELEKTRA_AGGRESSION as REGISTRY, ELEKTRA_AGGRESSION_SKIPPED as SKIPPED } from "./aggression.js";
+import { elektraHeroGame } from "./elektra/elektra.testing.js";
 import { SANDMAN, SHE_HULK_AGGRESSION, accepting, basicAttack, drive, elektraAspectGame } from "./aspect-testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -146,10 +154,14 @@ describe("63017 Combo Move", () => {
     expect(playerOf(after, P1).discard).toContain(id);
   });
 
-  it("deals 3 instead when your identity has the Martial Artist trait (the branch reads that trait)", () => {
-    const text = JSON.stringify(REGISTRY["63017.combo-move-action"]);
-    expect(text).toContain("MARTIAL ARTIST");
-    expect(text).toContain('"value":3');
+  it("deals 3 instead when your identity has the Martial Artist trait (Elektra)", () => {
+    const base = elektraHeroGame();
+    const spare = playerOf(base, P1).deck[playerOf(base, P1).deck.length - 1]!;
+    const retagged = patchInstance(base, spare, { cardId: "63017" as never });
+    const given = moveToHand(withEnemies(retagged, [0, 0]), P1, COMBO_MOVE);
+    const id = given.ids[0]!;
+    const after = drive(given.state, choosing([A, B]), play(P1, id, pay(given.state, id, 1)));
+    expect(inst(after, A).damage + inst(after, B).damage).toBe(3);
   });
 });
 
@@ -160,6 +172,32 @@ describe("63018 Chain Reaction", () => {
     return drive(given.state, pick, play(P1, id, pay(given.state, id, 2)));
   };
   const gone = (s: GameState, id: InstanceId) => !playerOf(s, P1).playArea.includes(id);
+
+  it("is one attack with three damage instances: one attack event, and all three enemies damaged", () => {
+    const given = moveToHand(withEnemies(game(CHAIN_REACTION), [2, 2, 0]), P1, CHAIN_REACTION);
+    const id = given.ids[0]!;
+    const pick = choosing([A, B, C]);
+    let result = applyCommand(given.state, play(P1, id, pay(given.state, id, 2)), DEPS);
+    if (!result.ok) throw new Error(result.error.message);
+    const events: GameEvent[] = [...result.events];
+    while (result.state.pendingChoice) {
+      const c = result.state.pendingChoice;
+      const next = applyCommand(
+        result.state,
+        { type: "resolveChoice", playerId: c.playerId, choiceId: c.choiceId, selectedOptionIds: pick(result.state) },
+        DEPS,
+      );
+      if (!next.ok) throw new Error(next.error.message);
+      result = next;
+      events.push(...next.events);
+    }
+    // The attack event is heard twice (its "when" and "after" windows); three separate attacks would be heard six times.
+    const kinds = events
+      .filter((e) => e.type === "triggerEvent")
+      .map((e) => (e as unknown as { event: { kind: string } }).event.kind);
+    expect(kinds.filter((k) => k === "attack")).toHaveLength(2);
+    expect(inst(result.state, C).damage).toBe(3);
+  });
 
   it("a first target that survives ends the chain", () => {
     const after = cast([0, 0, 0], choosing([A]));
@@ -202,6 +240,29 @@ describe("63019 Nerve Strike", () => {
     expect(inst(after, A).damage).toBe(2);
     expect(inst(after, A).statuses.confused).toBe(1);
     expect(inst(after, A).statuses.stunned).toBe(0);
+  });
+});
+
+describe("63019 Nerve Strike on an enemy it defeats", () => {
+  it("deals 2 damage, defeats a Sandman with 2 left, and the stun or confuse is harmless", () => {
+    const given = moveToHand(withEnemies(game(NERVE_STRIKE), [2]), P1, NERVE_STRIKE);
+    const id = given.ids[0]!;
+    const after = drive(given.state, choosing([A], 1), play(P1, id, pay(given.state, id, 3)));
+    expect(playerOf(after, P1).playArea).not.toContain(A);
+    expect(playerOf(after, P1).discard).toContain(id);
+  });
+});
+
+describe("63021 Shuriken played from hand", () => {
+  it("enters attached to her hero with 3 shuriken counters, and is discarded after the third is used", () => {
+    const given = moveToHand(withEnemies(game(SHURIKEN), [0]), P1, SHURIKEN);
+    const id = given.ids[0]!;
+    let s = drive(given.state, choosing([A]), play(P1, id, pay(given.state, id, 2)));
+    expect(inst(s, id).counters.shuriken).toBe(3);
+    expect(inst(s, id).attachedTo).toBe(hero(s));
+    for (let i = 0; i < 3; i++) s = drive(s, choosing([A]), use(P1, id, "63021.shuriken-action"));
+    expect(inst(s, A).damage).toBe(3);
+    expect(playerOf(s, P1).discard).toContain(id);
   });
 });
 

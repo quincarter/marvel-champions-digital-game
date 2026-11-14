@@ -105,13 +105,16 @@ describe("63023 Hunting Shadows", () => {
     const id = given.ids[0]!;
     const top8 = activeEncounterDeck(given.state).deck.slice(0, 8);
     const wanted = top8[5]!;
+    let offered: readonly string[] = [];
     const pick: Picker = (s) => {
       const choice = s.pendingChoice!;
       const ids = choice.options.map((o) => String(o.optionId));
+      if (choice.prompt.kind === "chooseCards") offered = ids;
       if (choice.prompt.kind === "chooseTriggers") return ids;
       return ids.includes(wanted) ? [wanted] : ids.slice(0, choice.minSelections);
     };
     const after = drive(given.state, pick, play(P1, id));
+    expect(offered).toEqual(top8);
     const deck = activeEncounterDeck(after).deck;
     expect(deck[0]).toBe(wanted);
     expect(deck).toHaveLength(activeEncounterDeck(given.state).deck.length);

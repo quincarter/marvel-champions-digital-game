@@ -38,6 +38,8 @@ import {
  */
 export const ELEKTRA_JUSTICE: AbilityRegistry = defineAbilities({
   "63035.when-revealed": whenRevealed(dealDamage(4, theVillain), surge()),
+  // "An enemy" = villain or minion (RRG 1.8 "Enemy" p. 18); a hero/ally basic power is not an enemy activation (p. 6).
+  // Elektra's defend-time flip is during the villain's activation (ruling Sep 10, 2026 - Ruling 3).
   "63035.boost": boost(
     ifThen(refMatches(activatingEnemy, query("enemy")), dealDamage(2, activatingEnemy), adjustBoostCount(2)),
   ),

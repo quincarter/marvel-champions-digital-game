@@ -21,8 +21,10 @@ import {
   heroAction,
   heroResponse,
   ifThen,
+  not,
   option,
   query,
+  refMatches,
   removeCounter,
   stun,
   valueAtMost,
@@ -56,10 +58,9 @@ const anotherAttackableEnemy = (slot: string, ...others: string[]) =>
  * **63017 Combo Move**: "deal 2 damage among enemies in play" is the divided damage of Wasp Sting (13006); the player
  * divides it as they choose.
  *
- * **63018 Chain Reaction**: each hit is its own attack by your identity (guard, retaliate and "after you attack" apply
- * to each), and "if that enemy is defeated" is the attack's `<bind>.defeated`, so a target that survives ends the chain.
- * The second and third targets are different enemies. Not ruled whether the chained damage is one attack or three;
- * read as three, so guard is respected for each target.
+ * **63018 Chain Reaction**: one attack with up to three damage instances (RRG 1.8 "Attack (Player Ability Type)", p. 10;
+ * owner Q47/Q48/Q49/Q53, docs/phase7-wave8.md §4.1): guard is checked per enemy as it is attacked, retaliate once per
+ * attacked enemy still in play afterwards, "after you attack" once. The second and third targets are different enemies.
  *
  * **63020 Flow of Battle**: "you" is your identity's own attack (an ally's is not, RRG 1.8 "You, Your", p. 49); "exactly
  * defeat" is no excess damage dealt (ruling August 3, 2026 - Ruling 6), the Shakedown (61035) shape.
@@ -77,16 +78,21 @@ export const ELEKTRA_AGGRESSION: AbilityRegistry = defineAbilities({
     ifThen(youHaveTrait(MARTIAL_ARTIST), divide("damage", 3, query("enemy")), divide("damage", 2, query("enemy"))),
   ),
 
+  // One attack, several instances: RRG 1.8 "Attack (Player Ability Type)" p. 10; owner Q47/Q49/Q53 (docs/phase7-wave8.md §4.1).
+  // The first instance is the `attack`; the later ones are plain `dealDamage`, which the engine makes the same attack's
+  // (one retaliate per enemy still in play after it, "after you attack" once). Each later target is chosen when its
+  // instance happens and must be attackable then (guard is checked per enemy as it is attacked).
   "63018.chain-reaction-action": heroAction(
     { label: "attack" },
     anAttackableEnemy("first"),
     attack(2, chosen("first"), { bind: "hit1" }),
     ifThen(varAtLeast("hit1.defeated"), [
       anotherAttackableEnemy("second", "first"),
-      attack(2, chosen("second"), { bind: "hit2" }),
-      ifThen(varAtLeast("hit2.defeated"), [
+      dealDamage(2, chosen("second")),
+      // "That enemy is defeated": it has left play (a dealDamage does not bind `.defeated`).
+      ifThen(not(refMatches(chosen("second"), query("enemy"))), [
         anotherAttackableEnemy("third", "first", "second"),
-        attack(3, chosen("third")),
+        dealDamage(3, chosen("third")),
       ]),
     ]),
   ),
