@@ -1,27 +1,270 @@
 {
   "heroCount": 67,
   "scenarioCount": 59,
+  "scenarios": [
+    {
+      "id": "rhino",
+      "name": "Rhino"
+    },
+    {
+      "id": "klaw",
+      "name": "Klaw"
+    },
+    {
+      "id": "ultron",
+      "name": "Ultron"
+    },
+    {
+      "id": "risky-business",
+      "name": "Risky Business"
+    },
+    {
+      "id": "mutagen-formula",
+      "name": "Mutagen Formula"
+    },
+    {
+      "id": "breakout",
+      "name": "Breakout"
+    },
+    {
+      "id": "crossbones",
+      "name": "Crossbones"
+    },
+    {
+      "id": "absorbing-man",
+      "name": "Absorbing Man"
+    },
+    {
+      "id": "taskmaster",
+      "name": "Taskmaster"
+    },
+    {
+      "id": "zola",
+      "name": "Zola"
+    },
+    {
+      "id": "red-skull",
+      "name": "Red Skull"
+    },
+    {
+      "id": "kang",
+      "name": "Kang"
+    },
+    {
+      "id": "brotherhood-of-badoon",
+      "name": "Brotherhood of Badoon"
+    },
+    {
+      "id": "infiltrate-the-museum",
+      "name": "Infiltrate the Museum"
+    },
+    {
+      "id": "escape-the-museum",
+      "name": "Escape the Museum"
+    },
+    {
+      "id": "nebula",
+      "name": "Nebula"
+    },
+    {
+      "id": "ronan-the-accuser",
+      "name": "Ronan the Accuser"
+    },
+    {
+      "id": "ebony-maw",
+      "name": "Ebony Maw"
+    },
+    {
+      "id": "tower-defense",
+      "name": "Tower Defense"
+    },
+    {
+      "id": "thanos",
+      "name": "Thanos"
+    },
+    {
+      "id": "hela",
+      "name": "Hela"
+    },
+    {
+      "id": "loki",
+      "name": "Loki"
+    },
+    {
+      "id": "the-hood",
+      "name": "The Hood"
+    },
+    {
+      "id": "sandman",
+      "name": "Sandman"
+    },
+    {
+      "id": "venom",
+      "name": "Venom"
+    },
+    {
+      "id": "mysterio",
+      "name": "Mysterio"
+    },
+    {
+      "id": "sinister-six",
+      "name": "The Sinister Six"
+    },
+    {
+      "id": "venom-goblin",
+      "name": "Venom Goblin"
+    },
+    {
+      "id": "sabretooth",
+      "name": "Sabretooth"
+    },
+    {
+      "id": "project-wideawake",
+      "name": "Project Wideawake"
+    },
+    {
+      "id": "master-mold",
+      "name": "Master Mold"
+    },
+    {
+      "id": "mansion-attack",
+      "name": "Mansion Attack"
+    },
+    {
+      "id": "magneto",
+      "name": "Magneto"
+    },
+    {
+      "id": "magog",
+      "name": "MaGog"
+    },
+    {
+      "id": "spiral",
+      "name": "Spiral"
+    },
+    {
+      "id": "mojo",
+      "name": "Mojo"
+    },
+    {
+      "id": "morlock-siege",
+      "name": "Morlock Siege"
+    },
+    {
+      "id": "on-the-run",
+      "name": "On the Run"
+    },
+    {
+      "id": "juggernaut",
+      "name": "Juggernaut"
+    },
+    {
+      "id": "mister-sinister",
+      "name": "Mister Sinister"
+    },
+    {
+      "id": "stryfe",
+      "name": "Stryfe"
+    },
+    {
+      "id": "unus",
+      "name": "Unus"
+    },
+    {
+      "id": "four-horsemen",
+      "name": "Four Horsemen"
+    },
+    {
+      "id": "apocalypse",
+      "name": "Apocalypse"
+    },
+    {
+      "id": "dark-beast",
+      "name": "Dark Beast"
+    },
+    {
+      "id": "en-sabah-nur",
+      "name": "En Sabah Nur"
+    },
+    {
+      "id": "black-widow",
+      "name": "Black Widow"
+    },
+    {
+      "id": "batroc",
+      "name": "Batroc"
+    },
+    {
+      "id": "modok",
+      "name": "M.O.D.O.K."
+    },
+    {
+      "id": "thunderbolts",
+      "name": "Thunderbolts"
+    },
+    {
+      "id": "baron-zemo",
+      "name": "Baron Zemo"
+    },
+    {
+      "id": "enchantress",
+      "name": "Enchantress"
+    },
+    {
+      "id": "god-of-lies",
+      "name": "God of Lies"
+    },
+    {
+      "id": "registration-iron-man",
+      "name": "Registration: Iron Man"
+    },
+    {
+      "id": "registration-captain-marvel",
+      "name": "Registration: Captain Marvel"
+    },
+    {
+      "id": "resistance-captain-america",
+      "name": "Resistance: Captain America"
+    },
+    {
+      "id": "resistance-spider-woman",
+      "name": "Resistance: Spider-Woman"
+    },
+    {
+      "id": "registration-she-hulk",
+      "name": "Registration: She-Hulk"
+    },
+    {
+      "id": "resistance-vision",
+      "name": "Resistance: Vision"
+    }
+  ],
   "waves": [
     {
       "name": "Core Set",
       "heroes": [
         {
+          "id": "01001a",
           "name": "Spider-Man",
           "aspects": ["justice"]
         },
         {
+          "id": "01010a",
           "name": "Captain Marvel",
           "aspects": ["leadership"]
         },
         {
+          "id": "01019a",
           "name": "She-Hulk",
           "aspects": ["aggression"]
         },
         {
+          "id": "01029a",
           "name": "Iron Man",
           "aspects": ["aggression"]
         },
         {
+          "id": "01040a",
           "name": "Black Panther",
           "aspects": ["protection"]
         }
@@ -31,26 +274,32 @@
       "name": "Wave 1",
       "heroes": [
         {
+          "id": "03001a",
           "name": "Captain America",
           "aspects": ["leadership"]
         },
         {
+          "id": "05001a",
           "name": "Ms. Marvel",
           "aspects": ["protection"]
         },
         {
+          "id": "06001a",
           "name": "Thor",
           "aspects": ["aggression"]
         },
         {
+          "id": "08001a",
           "name": "Black Widow",
           "aspects": ["justice"]
         },
         {
+          "id": "09001a",
           "name": "Doctor Strange",
           "aspects": ["protection"]
         },
         {
+          "id": "10001a",
           "name": "Hulk",
           "aspects": ["aggression"]
         }
@@ -60,26 +309,32 @@
       "name": "The Rise of Red Skull",
       "heroes": [
         {
+          "id": "04001a",
           "name": "Hawkeye",
           "aspects": ["leadership"]
         },
         {
+          "id": "04031a",
           "name": "Spider-Woman",
           "aspects": ["aggression", "justice"]
         },
         {
+          "id": "12001a",
           "name": "Ant-Man",
           "aspects": ["leadership"]
         },
         {
+          "id": "13001a",
           "name": "Wasp",
           "aspects": ["aggression"]
         },
         {
+          "id": "14001a",
           "name": "Quicksilver",
           "aspects": ["protection"]
         },
         {
+          "id": "15001a",
           "name": "Scarlet Witch",
           "aspects": ["justice"]
         }
@@ -89,26 +344,32 @@
       "name": "The Galaxy's Most Wanted",
       "heroes": [
         {
+          "id": "16001a",
           "name": "Groot",
           "aspects": ["protection"]
         },
         {
+          "id": "16029a",
           "name": "Rocket Raccoon",
           "aspects": ["aggression"]
         },
         {
+          "id": "17001a",
           "name": "Star-Lord",
           "aspects": ["leadership"]
         },
         {
+          "id": "18001a",
           "name": "Gamora",
           "aspects": ["aggression"]
         },
         {
+          "id": "19001a",
           "name": "Drax",
           "aspects": ["protection"]
         },
         {
+          "id": "20001a",
           "name": "Venom",
           "aspects": ["justice"]
         }
@@ -118,26 +379,32 @@
       "name": "The Mad Titan's Shadow",
       "heroes": [
         {
+          "id": "21001a",
           "name": "Spectrum",
           "aspects": ["leadership"]
         },
         {
+          "id": "21031a",
           "name": "Adam Warlock",
           "aspects": ["aggression", "justice", "leadership", "protection"]
         },
         {
+          "id": "22001a",
           "name": "Nebula",
           "aspects": ["justice"]
         },
         {
+          "id": "23001a",
           "name": "War Machine",
           "aspects": ["leadership"]
         },
         {
+          "id": "26001a",
           "name": "Vision",
           "aspects": ["protection"]
         },
         {
+          "id": "25001a",
           "name": "Valkyrie",
           "aspects": ["aggression"]
         }
@@ -147,22 +414,27 @@
       "name": "Sinister Motives",
       "heroes": [
         {
+          "id": "27001a",
           "name": "Ghost-Spider",
           "aspects": ["protection"]
         },
         {
+          "id": "28001a",
           "name": "Nova",
           "aspects": ["aggression"]
         },
         {
+          "id": "29001a",
           "name": "Ironheart",
           "aspects": ["leadership"]
         },
         {
+          "id": "30001a",
           "name": "Spider-Ham",
           "aspects": ["justice"]
         },
         {
+          "id": "31001a",
           "name": "SP//dr Suit",
           "aspects": ["protection"]
         }
@@ -172,34 +444,42 @@
       "name": "Mutant Genesis",
       "heroes": [
         {
+          "id": "32001a",
           "name": "Colossus",
           "aspects": ["protection"]
         },
         {
+          "id": "32030a",
           "name": "Shadowcat",
           "aspects": ["aggression"]
         },
         {
+          "id": "33001a",
           "name": "Cyclops",
           "aspects": ["leadership"]
         },
         {
+          "id": "34001a",
           "name": "Phoenix",
           "aspects": ["justice"]
         },
         {
+          "id": "35001a",
           "name": "Wolverine",
           "aspects": ["aggression"]
         },
         {
+          "id": "36001a",
           "name": "Storm",
           "aspects": ["leadership"]
         },
         {
+          "id": "37001a",
           "name": "Gambit",
           "aspects": ["justice"]
         },
         {
+          "id": "38001a",
           "name": "Rogue",
           "aspects": ["protection"]
         }
@@ -209,26 +489,32 @@
       "name": "NeXt Evolution",
       "heroes": [
         {
+          "id": "40001a",
           "name": "Cable",
           "aspects": ["leadership"]
         },
         {
+          "id": "40037a",
           "name": "Domino",
           "aspects": ["justice"]
         },
         {
+          "id": "41001a",
           "name": "Psylocke",
           "aspects": ["justice"]
         },
         {
+          "id": "42001a",
           "name": "Angel",
           "aspects": ["protection"]
         },
         {
+          "id": "43001a",
           "name": "X-23",
           "aspects": ["aggression"]
         },
         {
+          "id": "44001a",
           "name": "Deadpool",
           "aspects": ["pool"]
         }
@@ -238,26 +524,32 @@
       "name": "Age of Apocalypse",
       "heroes": [
         {
+          "id": "45001a",
           "name": "Bishop",
           "aspects": ["leadership"]
         },
         {
+          "id": "45030a",
           "name": "Magik",
           "aspects": ["aggression"]
         },
         {
+          "id": "46001a",
           "name": "Iceman",
           "aspects": ["aggression"]
         },
         {
+          "id": "47001a",
           "name": "Jubilee",
           "aspects": ["justice"]
         },
         {
+          "id": "48001a",
           "name": "Nightcrawler",
           "aspects": ["protection"]
         },
         {
+          "id": "49001a",
           "name": "Magneto",
           "aspects": ["leadership"]
         }
@@ -267,22 +559,27 @@
       "name": "Agents of S.H.I.E.L.D.",
       "heroes": [
         {
+          "id": "50001a",
           "name": "Maria Hill",
           "aspects": ["leadership"]
         },
         {
+          "id": "50034a",
           "name": "Nick Fury",
           "aspects": ["justice"]
         },
         {
+          "id": "52001a",
           "name": "Silk",
           "aspects": ["protection"]
         },
         {
+          "id": "53001a",
           "name": "Falcon",
           "aspects": ["leadership"]
         },
         {
+          "id": "54001a",
           "name": "Winter Soldier",
           "aspects": ["aggression"]
         }
@@ -292,18 +589,22 @@
       "name": "Civil War",
       "heroes": [
         {
+          "id": "56001a",
           "name": "Tigra",
           "aspects": ["aggression"]
         },
         {
+          "id": "56029a",
           "name": "Hulkling",
           "aspects": ["protection"]
         },
         {
+          "id": "58001a",
           "name": "Wonder Man",
           "aspects": ["justice"]
         },
         {
+          "id": "59001a",
           "name": "Hercules",
           "aspects": ["leadership"]
         }
@@ -313,18 +614,22 @@
       "name": "Fear No Evil",
       "heroes": [
         {
+          "id": "60001a",
           "name": "Daredevil",
           "aspects": ["justice"]
         },
         {
+          "id": "60037a",
           "name": "Echo",
           "aspects": ["protection"]
         },
         {
+          "id": "61001a",
           "name": "Jessica Jones",
           "aspects": ["justice"]
         },
         {
+          "id": "62001a",
           "name": "Luke Cage",
           "aspects": ["leadership"]
         }

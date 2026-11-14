@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
@@ -25,6 +25,116 @@ const PACK_CATALOG_URL = "https://packs.champions-digital-game.com/index.json";
 const FEED_LENGTH = 8;
 const GALLERY_REPORTS = 3;
 const GALLERY_LENGTH = 9;
+
+/**
+ * The game's own art (`art/`, fetched with `pnpm assets:fetch art`): the title wallpapers behind the page's top and
+ * between its sections, every hero's portrait and the villains' artwork. Each is shrunk to the width it shows at, as
+ * WebP, into a cache that survives rebuilds. Without `sharp` the originals ship as they are; without `art/` the page
+ * draws name tiles instead.
+ */
+const ART = resolve(CLIENT, "../../art");
+const ART_CACHE = resolve(CLIENT, "../../node_modules/.cache/mc-landing-art");
+const PICTURE = /\.(png|jpe?g|webp|avif)$/i;
+/** The wallpaper behind the top of the page, a tall one for phones, and the ones between sections, in order. */
+const HERO_WALLPAPER = "wallpaper-1";
+const PORTRAIT_WALLPAPER = "wallpaper-portrait";
+const BAND_WALLPAPERS = ["wallpaper-2", "back-to-basics-back-cover", "spider-verse-team", "mutant-genesis-x-men"];
+
+type Resize = (source: string, width: number) => Promise<string>;
+
+async function resizer(): Promise<Resize> {
+  let sharp:
+    | ((input: string) => {
+        resize: (o: object) => { webp: (o: object) => { toFile: (f: string) => Promise<unknown> } };
+      })
+    | null = null;
+  try {
+    sharp = ((await import("sharp")) as { default: typeof sharp }).default;
+  } catch {
+    console.warn("[landing] sharp isn't installed; the art ships at full size.");
+  }
+  mkdirSync(ART_CACHE, { recursive: true });
+  return async (source, width) => {
+    const stamp = Math.round(statSync(source).mtimeMs);
+    const base = join(
+      ART_CACHE,
+      `${source
+        .slice(ART.length + 1)
+        .replace(/[\\/]/g, "_")
+        .replace(PICTURE, "")}-${width}-${stamp}`,
+    );
+    // A copy already in the cache wins, whichever tool made it.
+    const cached = [".webp", ".jpg"].map((ext) => base + ext).find((file) => existsSync(file));
+    if (cached) return cached;
+    if (!sharp) return source;
+    await sharp(source).resize({ width, withoutEnlargement: true }).webp({ quality: 72 }).toFile(`${base}.webp`);
+    return `${base}.webp`;
+  };
+}
+
+/** The first picture in `dir` whose name (no extension) is `base`, if any. */
+function pictureIn(dir: string, base: string): string | undefined {
+  if (!existsSync(dir)) return undefined;
+  const file = readdirSync(dir).find((name) => PICTURE.test(name) && name.replace(PICTURE, "") === base);
+  return file === undefined ? undefined : join(dir, file);
+}
+
+interface ArtModule {
+  readonly imports: string[];
+  readonly exports: string[];
+}
+
+async function landingArt(): Promise<ArtModule> {
+  const roster = JSON.parse(readFileSync(join(CLIENT, "src/site/landing/game-roster.json"), "utf8")) as {
+    waves: { heroes: { id: string }[] }[];
+    scenarios: { id: string }[];
+  };
+  const resize = await resizer();
+  const imports: string[] = [];
+  const asset = (file: string): string => {
+    const name = `art${imports.length}`;
+    imports.push(`import ${name} from ${JSON.stringify(file.replaceAll("\\", "/"))};`);
+    return name;
+  };
+
+  const heroes: string[] = [];
+  const heroDirs = existsSync(join(ART, "heroes")) ? readdirSync(join(ART, "heroes")) : [];
+  for (const { id } of roster.waves.flatMap((wave) => wave.heroes)) {
+    const dir = heroDirs.find((name) => name.startsWith(`${id}-`));
+    const file = dir && pictureIn(join(ART, "heroes", dir), "hero");
+    if (!file) continue;
+    const focusFile = join(ART, "heroes", dir, "focus.json");
+    const focus = existsSync(focusFile)
+      ? (JSON.parse(readFileSync(focusFile, "utf8")) as { x?: number; y?: number })
+      : {};
+    const position = `${Math.round((focus.x ?? 0.5) * 100)}% ${Math.round((focus.y ?? 0.2) * 100)}%`;
+    heroes.push(
+      `${JSON.stringify(id)}: { src: ${asset(await resize(file, 420))}, position: ${JSON.stringify(position)} }`,
+    );
+  }
+
+  const villains: string[] = [];
+  for (const { id } of roster.scenarios) {
+    const file = pictureIn(join(ART, "scenarios", id), "villain");
+    if (file) villains.push(`${JSON.stringify(id)}: ${asset(await resize(file, 560))}`);
+  }
+
+  const title = join(ART, "title");
+  const wallpaper = async (base: string, width: number): Promise<string> => {
+    const file = pictureIn(title, base);
+    return file ? asset(await resize(file, width)) : "null";
+  };
+  const bands: string[] = [];
+  for (const base of BAND_WALLPAPERS) bands.push(await wallpaper(base, 1920));
+  return {
+    imports,
+    exports: [
+      `export const HERO_ART = { ${heroes.join(",\n")} };`,
+      `export const VILLAIN_ART = { ${villains.join(",\n")} };`,
+      `export const WALLPAPERS = { wide: ${await wallpaper(HERO_WALLPAPER, 2400)}, tall: ${await wallpaper(PORTRAIT_WALLPAPER, 900)}, bands: [${bands.join(", ")}].filter(Boolean) };`,
+    ],
+  };
+}
 
 function siteOf(mode: string): Site {
   if (!(SITES as readonly string[]).includes(mode)) throw new Error(`--mode must be one of ${SITES.join(", ")}`);
@@ -176,8 +286,11 @@ function landingDataPlugin(): Plugin {
         }
       }
       const mods = await packCatalog();
+      const art = await landingArt();
       return [
         ...imports,
+        ...art.imports,
+        ...art.exports,
         `export const RELEASES = ${JSON.stringify(releases)};`,
         `export const SCREENSHOTS = [${shots.join(",\n")}];`,
         `export const MODS = ${JSON.stringify(mods)};`,

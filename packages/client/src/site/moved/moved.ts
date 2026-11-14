@@ -51,6 +51,7 @@ let saves: SaveState = { kind: "reading" };
 // The build's copy until GitHub answers, so the buttons show at once and survive GitHub's rate limit.
 let release: LatestRelease | null | "loading" = BUILT_RELEASE ?? "loading";
 let codeShown = false;
+let delivering = false;
 const device = browserDevice();
 const syncCode = storageRead(SYNC_CODE_STORAGE_KEY);
 
@@ -61,8 +62,8 @@ function textFor(lang: PageLanguage): Translate {
 
 function drawSaves(): void {
   const status = $("save-status");
-  const button = $<HTMLButtonElement>("save-button");
-  button.disabled = saves.kind === "reading" || saves.kind === "blocked";
+  const unavailable = saves.kind === "reading" || saves.kind === "blocked" || delivering;
+  for (const id of ["save-button", "cta-save"]) $<HTMLButtonElement>(id).disabled = unavailable;
   status.classList.toggle("ok", saves.kind === "done");
   switch (saves.kind) {
     case "reading":
@@ -93,19 +94,26 @@ function drawSync(): void {
   const code = $("sync-code");
   code.textContent = codeShown ? syncCode : "•".repeat(syncCode.length);
   code.classList.toggle("masked", !codeShown);
-  $("sync-show").textContent = t(codeShown ? "step2.hide" : "step2.show");
+  // A screen reader would read the mask out bullet by bullet.
+  if (codeShown) code.removeAttribute("aria-label");
+  else code.setAttribute("aria-label", t("step2.hidden"));
+  const show = $("sync-show");
+  show.textContent = t(codeShown ? "step2.hide" : "step2.show");
+  show.setAttribute("aria-pressed", String(codeShown));
 }
+
+const labelLanguages = mountLanguageToggle($("language"), language, (next) => {
+  language = next;
+  t = textFor(next);
+  draw();
+});
 
 function draw(): void {
   document.documentElement.lang = language;
   document.title = t("meta.title");
   applyText(document, t);
   $("ai-note").hidden = t("lang.aiNote") === "";
-  mountLanguageToggle($("language"), language, t("lang.label"), (next) => {
-    language = next;
-    t = textFor(next);
-    draw();
-  });
+  labelLanguages(t("lang.label"));
   for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-href]")) {
     link.href = ADDRESSES[link.dataset.href as keyof typeof ADDRESSES];
   }
@@ -115,7 +123,9 @@ function draw(): void {
 }
 
 async function downloadSaves(): Promise<void> {
-  if (saves.kind === "reading" || saves.kind === "blocked") return;
+  if (saves.kind === "reading" || saves.kind === "blocked" || delivering) return;
+  delivering = true;
+  drawSaves();
   // Read again at the moment of the click, so whatever another tab saved since the page opened is in the file.
   let file = saves.file;
   try {
@@ -127,8 +137,11 @@ async function downloadSaves(): Promise<void> {
     await deliverSaveFile(file);
     saves = { kind: "done", file, name: saveFileNameOf(file.exportedAt) };
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return;
-    saves = { kind: "failed", file, error: error instanceof Error ? error.message : String(error) };
+    if (!(error instanceof DOMException && error.name === "AbortError")) {
+      saves = { kind: "failed", file, error: error instanceof Error ? error.message : String(error) };
+    }
+  } finally {
+    delivering = false;
   }
   drawSaves();
 }
@@ -167,6 +180,9 @@ exportSaveData()
   .finally(drawSaves);
 
 void fetchLatestRelease(LATEST_RELEASE_API).then((latest) => {
-  release = latest ?? BUILT_RELEASE;
+  const next = latest ?? BUILT_RELEASE;
+  // The build's copy already shows that release: leave the panel (and the focus in it) alone.
+  if (next === null ? release === null : release !== "loading" && release?.tag_name === next.tag_name) return;
+  release = next;
   renderDownloads($("downloads"), { release, device, language, gameUrl: GAME_URL }, t);
 });
