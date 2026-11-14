@@ -544,9 +544,24 @@ body {
 }
 .mod img,
 .mod .blank {
-  aspect-ratio: 1;
+  /* The store's covers are box-art shaped, about 5:8, so the whole cover shows. */
+  aspect-ratio: 5 / 8;
   height: auto;
+  object-position: top;
   border-bottom: 3px solid #000;
+}
+.batch-art {
+  display: block;
+  margin: 0 0 28px;
+  border: 4px solid var(--gold);
+  box-shadow: 12px 12px 0 var(--red);
+  background: #000;
+}
+.batch-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
 }
 .mod-plate {
   padding: 12px 14px 14px;

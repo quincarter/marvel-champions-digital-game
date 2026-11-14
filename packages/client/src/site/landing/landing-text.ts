@@ -59,6 +59,8 @@ const en = {
   "mods.kind.campaign": "Campaign",
   "mods.kind.art": "Art",
   "mods.empty": "Open the game to browse the store.",
+  "mods.batchAlt":
+    "Custom content, batch 1: nine fan-made packs for the game, 201 new cards and 24 rebuilt official cards, in English and Spanish. Hero packs Gwenpool, Throg, Carnage, Night Thrasher and Yondu; scenarios The Punisher and Mephisto; house rules Lost Traits and GMW Fixes.",
 
   "news.title": "What's new",
   "news.released": "{version} · {date}",
@@ -148,6 +150,8 @@ const es: Catalog<LandingKey> = {
   "mods.kind.campaign": "Campaña",
   "mods.kind.art": "Arte",
   "mods.empty": "Abre el juego para ver la tienda.",
+  "mods.batchAlt":
+    "Contenido personalizado, lote 1: nueve packs hechos por fans para el juego, 201 cartas nuevas y 24 cartas oficiales rehechas, en inglés y español. Packs de héroe Gwenpool, Throg, Carnage, Night Thrasher y Yondu; escenarios The Punisher y Mephisto; reglas caseras Lost Traits y GMW Fixes.",
 
   "news.title": "Novedades",
   "news.released": "{version} · {date}",

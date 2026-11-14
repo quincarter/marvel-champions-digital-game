@@ -49,6 +49,7 @@ import boardShot from "../../../site/landing/showcase/board-play.jpg";
 import scenarioShot from "../../../site/landing/showcase/scenario-select.jpg";
 import seatsShot from "../../../site/landing/showcase/seats.jpg";
 import setupShot from "../../../site/landing/showcase/setup-deal.jpg";
+import batchArt from "../../../site/landing/showcase/custom-content-batch-1.jpg";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -338,6 +339,12 @@ function coverOf(mod: StoreMod): HTMLElement {
 }
 
 function drawMods(): void {
+  // The store's first batch, as the owner's poster of it; opens full size.
+  const batch = $<HTMLAnchorElement>("batch-art");
+  batch.href = batchArt;
+  const poster = $<HTMLImageElement>("batch-img");
+  poster.src = batchArt;
+  poster.alt = t("mods.batchAlt");
   const list = $("mod-list");
   if (mods.length === 0) {
     list.replaceChildren(element("li", { class: "empty" }, t("mods.empty")));
