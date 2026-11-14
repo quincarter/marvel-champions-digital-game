@@ -13,9 +13,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
 import { SHADOWLAND_CURATION } from "./marvelcdb/curation/shadowland.ts";
+import { ELEKTRA_CURATION } from "./marvelcdb/curation/elektra.ts";
+import { IRON_FIST_CURATION } from "./marvelcdb/curation/iron-fist.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
-const CURATIONS: readonly PackCuration[] = [FNE_CURATION, SHADOWLAND_CURATION];
+const CURATIONS: readonly PackCuration[] = [FNE_CURATION, SHADOWLAND_CURATION, ELEKTRA_CURATION, IRON_FIST_CURATION];
 
 const outDir = join(dirname(fileURLToPath(import.meta.url)), "..", "raw", "hallofheroes");
 const only = process.argv.slice(2).filter((a) => a !== "--");

@@ -828,6 +828,8 @@ export * from "./fne/index.js";
 export * from "./jj/index.js";
 export * from "./luke_cage/index.js";
 export * from "./shadowland/index.js";
+export * from "./elektra/index.js";
+export * from "./iron_fist/index.js";
 
 import { FNE_CAMPAIGN } from "./fne/campaign.js";
 import { FNE_CARDS } from "./fne/cards.js";
@@ -842,6 +844,14 @@ import { LUKE_CAGE_CARDS } from "./luke_cage/cards.js";
 import { LUKE_CAGE_ENCOUNTER_SETS } from "./luke_cage/encounterSets.js";
 import { LUKE_CAGE_SCENARIOS } from "./luke_cage/scenarios.js";
 import { LUKE_CAGE_STARTER_DECKS } from "./luke_cage/starterDecks.js";
+import { ELEKTRA_CARDS } from "./elektra/cards.js";
+import { ELEKTRA_ENCOUNTER_SETS } from "./elektra/encounterSets.js";
+import { ELEKTRA_SCENARIOS } from "./elektra/scenarios.js";
+import { ELEKTRA_STARTER_DECKS } from "./elektra/starterDecks.js";
+import { IRON_FIST_CARDS } from "./iron_fist/cards.js";
+import { IRON_FIST_ENCOUNTER_SETS } from "./iron_fist/encounterSets.js";
+import { IRON_FIST_SCENARIOS } from "./iron_fist/scenarios.js";
+import { IRON_FIST_STARTER_DECKS } from "./iron_fist/starterDecks.js";
 import { SHADOWLAND_CAMPAIGN } from "./shadowland/campaign.js";
 import { SHADOWLAND_CARDS } from "./shadowland/cards.js";
 import { SHADOWLAND_ENCOUNTER_SETS } from "./shadowland/encounterSets.js";
@@ -849,7 +859,7 @@ import { SHADOWLAND_SCENARIOS } from "./shadowland/scenarios.js";
 import { SHADOWLAND_STARTER_DECKS } from "./shadowland/starterDecks.js";
 
 /**
- * Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`, `jj`, `luke_cage`). A sibling
+ * Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`, `jj`, `luke_cage`, `shadowland`, `elektra`, `iron_fist`). A sibling
  * pool that starts from Core, like `WAVE10_CARDS`.
  */
 export const WAVE11_CARDS: readonly AnyCard[] = [
@@ -858,6 +868,8 @@ export const WAVE11_CARDS: readonly AnyCard[] = [
   ...JJ_CARDS,
   ...LUKE_CAGE_CARDS,
   ...SHADOWLAND_CARDS,
+  ...ELEKTRA_CARDS,
+  ...IRON_FIST_CARDS,
 ];
 
 /** Every wave 11 encounter set (Core's own villain sets are not included). */
@@ -866,6 +878,8 @@ export const WAVE11_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...JJ_ENCOUNTER_SETS,
   ...LUKE_CAGE_ENCOUNTER_SETS,
   ...SHADOWLAND_ENCOUNTER_SETS,
+  ...ELEKTRA_ENCOUNTER_SETS,
+  ...IRON_FIST_ENCOUNTER_SETS,
 ];
 
 /** Every wave 11 scenario: none yet (the box's six scenarios are a later task). */
@@ -874,6 +888,8 @@ export const WAVE11_SCENARIOS: readonly Scenario[] = [
   ...JJ_SCENARIOS,
   ...LUKE_CAGE_SCENARIOS,
   ...SHADOWLAND_SCENARIOS,
+  ...ELEKTRA_SCENARIOS,
+  ...IRON_FIST_SCENARIOS,
 ];
 
 /**
@@ -885,6 +901,8 @@ export const WAVE11_STARTER_DECKS: readonly StarterDeck[] = [
   ...JJ_STARTER_DECKS,
   ...LUKE_CAGE_STARTER_DECKS,
   ...SHADOWLAND_STARTER_DECKS,
+  ...ELEKTRA_STARTER_DECKS,
+  ...IRON_FIST_STARTER_DECKS,
 ];
 
 /**

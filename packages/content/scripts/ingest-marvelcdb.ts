@@ -100,6 +100,8 @@ import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
 import { JJ_CURATION } from "./marvelcdb/curation/jj.ts";
 import { LUKE_CAGE_CURATION } from "./marvelcdb/curation/luke_cage.ts";
 import { SHADOWLAND_CURATION } from "./marvelcdb/curation/shadowland.ts";
+import { ELEKTRA_CURATION } from "./marvelcdb/curation/elektra.ts";
+import { IRON_FIST_CURATION } from "./marvelcdb/curation/iron-fist.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -172,6 +174,8 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   jj: JJ_CURATION,
   luke_cage: LUKE_CAGE_CURATION,
   shadowland: SHADOWLAND_CURATION,
+  elektra: ELEKTRA_CURATION,
+  iron_fist: IRON_FIST_CURATION,
 };
 
 interface RawCache {

@@ -1,0 +1,91 @@
+// GENERATED FILE — do not edit by hand.
+// Source: Hall of Heroes preview scans, hand-transcribed as addedRecords (no MarvelCDB pack "iron_fist": every record is an addedRecord transcribed from scans (curation/iron_fist.ts); export: packages/content/raw/hallofheroes/iron_fist.json).
+// Hand corrections / curated data: packages/content/scripts/marvelcdb/curation/iron_fist.ts
+// Regenerate: pnpm --filter @mc/content ingest -- --pack iron_fist [--offline]
+
+import { cardId } from "../../schema/index.js";
+import type { CardProvenance, DroppedSourceRecord } from "../types.js";
+
+export const IRON_FIST_PROVENANCE: readonly CardProvenance[] = [
+  {
+    cardId: cardId("64001a"),
+    cardSetCode: "iron_fist",
+    marvelcdbCodes: ["64001a", "64001b"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("64002"),
+    cardSetCode: "iron_fist",
+    marvelcdbCodes: ["64002"],
+    corrections: [
+      "64002: Data decision: quantity 3 is inferred from set positions: the card prints (1/15) at this resolution and Dragon Punch is (4/15). [evidence: Image 7.png; the kit's seen positions are 1, 4, 5, 7, 9, 10, 11, 13, 15 of 15. Re-check against a larger scan.]",
+    ],
+  },
+  { cardId: cardId("64003"), cardSetCode: "iron_fist", marvelcdbCodes: ["64003"], corrections: [] },
+  {
+    cardId: cardId("64004"),
+    cardSetCode: "iron_fist",
+    marvelcdbCodes: ["64004"],
+    corrections: [
+      "64004: Data decision: quantity 2 is inferred from set positions: the card prints (5/15) and The Way of Things is (7/15). [evidence: Image 8.png.]",
+    ],
+  },
+  {
+    cardId: cardId("64005"),
+    cardSetCode: "iron_fist",
+    marvelcdbCodes: ["64005"],
+    corrections: [
+      "64005: Data decision: quantity 2 is inferred from set positions: the card prints (7/15) and Lei Kung is (9/15). [evidence: Image 10.png.]",
+    ],
+  },
+  { cardId: cardId("64006"), cardSetCode: "iron_fist", marvelcdbCodes: ["64006"], corrections: [] },
+  { cardId: cardId("64007"), cardSetCode: "iron_fist", marvelcdbCodes: ["64007"], corrections: [] },
+  { cardId: cardId("64008"), cardSetCode: "iron_fist", marvelcdbCodes: ["64008"], corrections: [] },
+  { cardId: cardId("64010"), cardSetCode: "iron_fist", marvelcdbCodes: ["64010"], corrections: [] },
+  { cardId: cardId("64012"), cardSetCode: "iron_fist", marvelcdbCodes: ["64012"], corrections: [] },
+  {
+    cardId: cardId("64013"),
+    cardSetCode: "protection",
+    marvelcdbCodes: ["64013"],
+    corrections: [
+      "64013: THW and ATK print a dash: Helpful Bystander has no thwart or attack value (RRG 1.8 Dash (Value), p. 15). The small pip under each dash is not read as a consequential-damage value. [evidence: Image 12.png (300 px).]",
+      "data decision: Helpful Bystander: THW and ATK both print a dash (image 12.png), so it can neither thwart nor attack; HP 1 (Vulnerable). No thwart or attack value is emitted, as Hulk's dash THW (luke_cage 62020).",
+    ],
+  },
+  { cardId: cardId("64016"), cardSetCode: "protection", marvelcdbCodes: ["64016"], corrections: [] },
+  { cardId: cardId("64018"), cardSetCode: "protection", marvelcdbCodes: ["64018"], corrections: [] },
+  { cardId: cardId("64019"), cardSetCode: "protection", marvelcdbCodes: ["64019"], corrections: [] },
+  { cardId: cardId("64020"), cardSetCode: "protection", marvelcdbCodes: ["64020"], corrections: [] },
+  { cardId: cardId("64022"), cardSetCode: "basic", marvelcdbCodes: ["64022"], corrections: [] },
+  { cardId: cardId("64024"), cardSetCode: "basic", marvelcdbCodes: ["64024"], corrections: [] },
+  {
+    cardId: cardId("64028"),
+    cardSetCode: "iron_fist",
+    marvelcdbCodes: ["64028"],
+    corrections: [
+      "64028: PLACEHOLDER: the code 64028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [~1:00].]",
+    ],
+  },
+  {
+    cardId: cardId("64029"),
+    cardSetCode: "iron_fist_nemesis",
+    marvelcdbCodes: ["64029"],
+    corrections: [
+      "64029: PLACEHOLDER: the code 64029 is provisional (nemesis 1/5 after the obligation). Text and stats are from a gameplay video, unverified wording. The card prints a second trait that was partly hidden (likely Martial Artist, unconfirmed), so only K'un-Lun is recorded. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [1:14].]",
+    ],
+  },
+  {
+    cardId: cardId("64030"),
+    cardSetCode: "iron_fist_nemesis",
+    marvelcdbCodes: ["64030"],
+    corrections: [
+      "64030: PLACEHOLDER: the code 64030, the quantity 3 (inferred from Davos's 'the 3 Crane Daughter minions') and the whole record are provisional. Text is empty (unread) and ATK 0, SCH 0, HP 1 are the minimum the validator needs, not printed values. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [1:14]: only the title \"Crane Da...\" was seen.]",
+      "data decision: Placeholder minion: stats and text are unknown, ATK 0 / SCH 0 / HP 1 only satisfy the validator.",
+    ],
+  },
+];
+
+/** MarvelCDB records deliberately not ingested, with the reason. */
+export const IRON_FIST_DROPPED_SOURCE_RECORDS: readonly DroppedSourceRecord[] = [
+
+];
