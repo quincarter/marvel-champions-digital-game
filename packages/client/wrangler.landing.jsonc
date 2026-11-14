@@ -10,8 +10,10 @@
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist-landing",
-    // No page of its own answers 404, so a stray path is a real not-found rather than the landing page again.
     "html_handling": "auto-trailing-slash",
+    // A stray path is a real 404, served by the build's 404.html, which sends an old /releases/<version> link to its
+    // release in the history and anything else to the top of the site (vite.site.config.ts).
+    "not_found_handling": "404-page",
   },
   // A workers.dev address to check a deploy before the custom domain points at it.
   "workers_dev": true,

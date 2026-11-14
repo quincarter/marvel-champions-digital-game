@@ -292,6 +292,16 @@ function releasePagesPlugin(): Plugin {
       for (const folder of ["releases", "fonts"]) {
         cpSync(join(CLIENT, "public", folder), join(outDir, folder), { recursive: true });
       }
+      // The Worker's not-found page (wrangler.landing.jsonc, `404-page`). A release with no report of its own is a page
+      // of the history, opened by its fragment: the old site sent `/releases/<version>` there (netlify.toml), so an old
+      // link still lands on its release. Anything else goes to the top of the site.
+      writeFileSync(
+        join(outDir, "404.html"),
+        `<!doctype html><meta charset="utf-8"><title>Marvel Champions: Digital Edition</title><meta name="robots" content="noindex">` +
+          `<script>const m=location.pathname.match(/^\\/releases\\/(v\\d+\\.\\d+\\.\\d+)\\/?$/);` +
+          `location.replace(m?"/releases/#"+m[1]:"/");</script>` +
+          `<p><a href="/">Marvel Champions: Digital Edition</a></p>`,
+      );
     },
   };
 }

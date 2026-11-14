@@ -116,6 +116,10 @@
   content: "✔ ";
   color: #1f7a3b;
 }
+.mods-note {
+  border-left: 4px solid var(--red);
+  padding-left: 12px;
+}
 .sync-tools {
   display: grid;
   gap: 12px;

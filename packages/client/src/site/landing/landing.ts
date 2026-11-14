@@ -154,7 +154,11 @@ function drawHeroDownload(): void {
       ? element(
           "a",
           { class: "btn gold big dl-cta", href: primary.url, rel: "noopener" },
-          element("span", {}, t("dl.forDevice", { device: t(`device.${device}`) })),
+          element(
+            "span",
+            {},
+            t("dl.forDevice", { device: t(device === "mac" ? "device.macArm" : `device.${device}`) }),
+          ),
           element("small", {}, `${t(fileKey(primary.id))} · v${versionOf(known)}`),
         )
       : element("a", { class: "btn gold big dl-cta", href: "#download" }, element("span", {}, t("bar.download"))),

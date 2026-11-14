@@ -40,6 +40,10 @@ const en = {
   "step1.blocked": "This browser won't let the page read its saves (a private window, or storage turned off).",
   "step1.done": "Saved {file}. Keep it until step 3 is done.",
   "step1.failed": "The download didn't start: {error}. Try the button again.",
+  "step1.mods":
+    "<b>Mods you installed don't travel in this file:</b> {names}. Reinstall them at the new address from <b>Extras ▸ Mod Store</b>.",
+  "step1.modsGone":
+    "<b>{names} has left the Mod Store</b>, so it can't be reinstalled at the new address. Ask its creator in the Homebrew Discord for its files.",
   "step2.eb": "Step 2 · Only if you used sync",
   "step2.title": "Copy your recovery code",
   "step2.on":
@@ -50,6 +54,7 @@ const en = {
   "step2.hidden": "Recovery code, hidden",
   "step2.copy": "Copy code",
   "step2.copied": "Copied",
+  "step2.copyFailed": "Couldn't copy it here. The code is shown above: select it and copy it by hand.",
   "step3.eb": "Step 3 · At the new address",
   "step3.title": "Import the file",
   "step3.text":
@@ -144,6 +149,10 @@ const es: Catalog<MovedKey> = {
     "Este navegador no deja que la página lea tus partidas (una ventana privada o el almacenamiento desactivado).",
   "step1.done": "Guardado {file}. Consérvalo hasta terminar el paso 3.",
   "step1.failed": "La descarga no empezó: {error}. Vuelve a pulsar el botón.",
+  "step1.mods":
+    "<b>Los mods que instalaste no viajan en este archivo:</b> {names}. Vuelve a instalarlos en la nueva dirección desde <b>Extras ▸ Mod Store</b>.",
+  "step1.modsGone":
+    "<b>{names} ya no está en la Tienda de Mods</b>, así que no se puede reinstalar en la nueva dirección. Pide sus archivos a su creador en el Discord Homebrew.",
   "step2.eb": "Paso 2 · Solo si usabas la sincronización",
   "step2.title": "Copia tu código de recuperación",
   "step2.on":
@@ -155,6 +164,7 @@ const es: Catalog<MovedKey> = {
   "step2.hidden": "Código de recuperación, oculto",
   "step2.copy": "Copiar código",
   "step2.copied": "Copiado",
+  "step2.copyFailed": "No se pudo copiar aquí. El código se muestra arriba: selecciónalo y cópialo a mano.",
   "step3.eb": "Paso 3 · En la nueva dirección",
   "step3.title": "Importa el archivo",
   "step3.text":

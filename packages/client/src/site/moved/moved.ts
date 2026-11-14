@@ -24,6 +24,7 @@ import {
   SITE_DOMAIN,
 } from "../site-urls.js";
 import { WALLPAPERS } from "virtual:site-wallpapers";
+import { IdbPackStore, type InstalledPack } from "../../packs/pack-store.js";
 import { gameLinkOf } from "./game-link.js";
 import { MOVED_TEXT } from "./moved-text.js";
 import { describeSaved, hasSaves } from "./saved-summary.js";
@@ -131,6 +132,7 @@ function draw(): void {
   }
   drawSaves();
   drawSync();
+  drawMods();
   renderDownloads($("downloads"), { release, device, language, gameUrl: GAME_URL }, t);
 }
 
@@ -176,11 +178,23 @@ function wire(): void {
   });
   $("sync-copy").addEventListener("click", () => {
     if (!syncCode) return;
-    void navigator.clipboard?.writeText(syncCode).then(() => {
-      const button = $("sync-copy");
+    const button = $("sync-copy");
+    const copied = () => {
       button.textContent = t("step2.copied");
       setTimeout(() => (button.textContent = t("step2.copy")), 2000);
-    });
+    };
+    // No clipboard here (an older browser, a blocked permission): show the code, select it, and say to copy by hand.
+    const byHand = () => {
+      codeShown = true;
+      drawSync();
+      getSelection()?.selectAllChildren($("sync-code"));
+      $("sync-copy-failed").hidden = false;
+    };
+    if (!navigator.clipboard?.writeText) {
+      byHand();
+      return;
+    }
+    navigator.clipboard.writeText(syncCode).then(copied, byHand);
   });
 }
 
@@ -197,9 +211,40 @@ function drawArt(): void {
   else $("band-0").hidden = true;
 }
 
+/** The mods installed here: they live in their own database, outside the save file, so the page names them. */
+let installedMods: readonly InstalledPack[] = [];
+
+const escapeHtml = (text: string): string =>
+  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
+function drawMods(): void {
+  const note = $("mods-note");
+  note.hidden = installedMods.length === 0;
+  if (installedMods.length === 0) return;
+  const names = (packs: readonly InstalledPack[]) => escapeHtml(packs.map((pack) => pack.manifest.name).join(", "));
+  const gone = installedMods.filter((pack) => pack.withdrawn);
+  const listed = installedMods.filter((pack) => !pack.withdrawn);
+  note.innerHTML = [
+    listed.length > 0 ? t("step1.mods", { names: names(listed) }) : "",
+    gone.length > 0 ? t("step1.modsGone", { names: names(gone) }) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 wire();
 drawArt();
 draw();
+
+new IdbPackStore()
+  .list()
+  .then((packs) => {
+    installedMods = packs;
+    drawMods();
+  })
+  .catch(() => {
+    // No pack database here, or storage is blocked: nothing to name.
+  });
 
 exportSaveData()
   .then((file) => {

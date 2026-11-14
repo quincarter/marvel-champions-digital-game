@@ -156,14 +156,27 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
 
   const downloads = downloadsOf(release, language);
   const primary = primaryDownload(downloads, device);
+  // A browser can't tell an Intel Mac from an Apple silicon one, so a Mac gets both installers side by side, each
+  // named for its chip, rather than one button that is wrong for half of them.
+  const intel = device === "mac" ? downloads.find((download) => download.id === "mac-intel") : undefined;
   if (primary) {
     main.append(
       element(
         "a",
         { class: "btn primary", href: primary.url, rel: "noopener" },
-        element("span", {}, t("dl.forDevice", { device: t(`device.${device}`) })),
+        element("span", {}, t("dl.forDevice", { device: t(intel ? "device.macArm" : `device.${device}`) })),
         element("small", {}, t(fileKey(primary.id))),
       ),
+      ...(intel
+        ? [
+            element(
+              "a",
+              { class: "btn", href: intel.url, rel: "noopener" },
+              element("span", {}, t("dl.forDevice", { device: t("device.macIntel") })),
+              element("small", {}, t(fileKey(intel.id))),
+            ),
+          ]
+        : []),
       play,
     );
   } else {
@@ -203,6 +216,5 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
   );
   // A redraw (a language switch, GitHub answering) keeps the list open if the visitor opened it.
   if (!primary || container.querySelector<HTMLDetailsElement>("details.dl-more")?.open) more.open = true;
-  if (device === "mac") notes.push(element("p", { class: "dl-note" }, t("dl.macNote")));
   container.replaceChildren(main, ...notes, more);
 }
