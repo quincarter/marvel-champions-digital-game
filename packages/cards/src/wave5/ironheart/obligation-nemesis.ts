@@ -90,8 +90,7 @@ import { discardThisObligation } from "../../core/obligations.js";
  * (`wave1/gob/goblin-gimmicks.ts` 02033: `whenRevealed(ifThen(not(isAttached(self)), surge()))`) reused verbatim —
  * despite the data-generated ability id's own `-constant` suffix (the parser's default label for any plain sentence
  * with no formal trigger header, `packages/content/scripts/marvelcdb/parse-text.ts`'s own doc comment; the Nova
- * "Worried Father"/"-constant"-is-really-a-`whenRevealed` precedent this pack's own `index.ts` docblock already
- * flags), this clause is a `whenRevealed`, read only once, at this card's own reveal — not a standing rule. "Attached
+ * "Worried Father"/"-constant"-is-really-a-`whenRevealed` precedent), this clause is a `whenRevealed`, read only once, at this card's own reveal — not a standing rule. "Attached
  * minion gets +3 hit points and gains retaliate 1" is the genuine standing `constant`, `{ hostOfSelf: true }`'s
  * plain shape (`wave2/wsp/obligation-nemesis.ts` 13029 Beetle Armor MK IV: `gets("hp", 4, query("enemy", {
  * hostOfSelf: true }))`; `wave2/trors/zola.ts` 04119: `gainsKeyword({ name: "retaliate", value: 1 }, query("minion",

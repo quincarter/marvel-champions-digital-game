@@ -23,7 +23,7 @@ import { withForm } from "../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
 import { wave9StarterDeckSetup } from "../setup.js";
-import { FALCON_ABILITIES } from "./index.js";
+import { FALCON_BUILTIN_PACK } from "./pack.js";
 
 /**
  * Shared helpers for the Falcon pack's tests (every module under `falcon/`): the printed precon
@@ -31,7 +31,7 @@ import { FALCON_ABILITIES } from "./index.js";
  * are scripted one at a time, so a test that needs a card of a module not yet scripted borrows a Core card instead
  * (`falconSeat`'s `swap`): that deck is not legal for the identity, so the game is created with deck legality unchecked.
  */
-export const FALCON_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, FALCON_ABILITIES) };
+export const FALCON_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, FALCON_BUILTIN_PACK.abilities) };
 
 /** The printed precon as a seat, optionally with named cards swapped in for others (the first copy of each; deck stays 40). */
 export function falconSeat(swap: Readonly<Record<string, string>> = {}): PlayerSetup {

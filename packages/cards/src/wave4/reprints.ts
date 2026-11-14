@@ -40,9 +40,12 @@
  * **A (name, type) match can be a coincidence, not a reprint** — e.g. Nebula's own Gamora ally (`nebu` 22002,
  * Technique-themed) and `drax`'s own Gamora ally card both happen to print exactly one `-response` ability, which
  * satisfies the "same ref count and slug" check below despite being unrelated cards with unrelated effects. A pack
- * whose own module already defines a ref wins outright: list that pack's `*_ABILITIES` registry in
- * `PACK_OWN_ABILITIES` below (one line per pack, the same "additive" convention as `../index.ts`) and its refs are
- * never overwritten by a false-positive alias, no matter what `wave4ReprintPairs` finds.
+ * whose own module already defines a ref wins outright: `PACK_OWN_ABILITIES` below holds every product's own ability
+ * modules, and their refs are never overwritten by a false-positive alias, no matter what `wave4ReprintPairs` finds.
+ *
+ * The pairs, aliases and problems are built by `reprintAliases` (`../builtin-packs/reprints.ts`); this module adds
+ * that pack-own guard on top. `PACK_OWN_ABILITIES` imports each product's ability modules directly, never its
+ * `pack.ts`: every `pack.ts` imports `WAVE4_REPRINT_ABILITIES` from here, so that would be an import cycle.
  */
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import {
@@ -53,28 +56,98 @@ import {
   type AbilityReference,
   type AnyCard,
 } from "@mc/content";
-import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
-import { HOOD_ABILITIES } from "./hood/index.js";
-import { MTS_ABILITIES } from "./mts/index.js";
-import { NEBU_ABILITIES } from "./nebu/index.js";
-import { VALK_ABILITIES } from "./valk/index.js";
-import { VISION_ABILITIES } from "./vision/index.js";
-import { WARM_ABILITIES } from "./warm/index.js";
+import type { AbilityRegistry } from "@mc/engine";
+import { reprintAliases } from "../builtin-packs/reprints.js";
+import { BEASTY_BOYS } from "./hood/beasty-boys.js";
+import { BROTHERS_GRIMM } from "./hood/brothers-grimm.js";
+import { CROSSFIRE_CREW } from "./hood/crossfire-crew.js";
+import { HOOD } from "./hood/hood.js";
+import { MISTER_HYDE_SET } from "./hood/mister-hyde.js";
+import { RANSACKED_ARMORY } from "./hood/ransacked-armory.js";
+import { SINISTER_SYNDICATE } from "./hood/sinister-syndicate.js";
+import { STANDARD_EXPERT_II } from "./hood/standard-expert-ii.js";
+import { STATE_OF_EMERGENCY } from "./hood/state-of-emergency.js";
+import { STREETS_OF_MAYHEM } from "./hood/streets-of-mayhem.js";
+import { WRECKING_CREW } from "./hood/wrecking-crew.js";
+import { ADAM_WARLOCK_KIT } from "./mts/adam-warlock-kit.js";
+import { ADAM_WARLOCK_OBLIGATION_NEMESIS } from "./mts/adam-warlock-obligation-nemesis.js";
+import { ADAM_WARLOCK_PACK_CARDS } from "./mts/adam-warlock-pack-cards.js";
+import { CHILDREN_OF_THANOS } from "./mts/children-of-thanos.js";
+import { EBONY_MAW } from "./mts/ebony-maw.js";
+import { ENCHANTRESS } from "./mts/enchantress.js";
+import { FROST_GIANTS } from "./mts/frost-giants.js";
+import { HELA } from "./mts/hela.js";
+import { INFINITY_GAUNTLET } from "./mts/infinity-gauntlet.js";
+import { LEGIONS_OF_HEL } from "./mts/legions-of-hel.js";
+import { LOKI } from "./mts/loki.js";
+import { MTS_CAMPAIGN_CARDS } from "./mts/mts-campaign-cards.js";
+import { SPECTRUM_KIT } from "./mts/spectrum-kit.js";
+import { SPECTRUM_OBLIGATION_NEMESIS } from "./mts/spectrum-obligation-nemesis.js";
+import { SPECTRUM_PACK_CARDS } from "./mts/spectrum-pack-cards.js";
+import { THANOS } from "./mts/thanos.js";
+import { TOWER_DEFENSE } from "./mts/tower-defense.js";
+import { NEBULA_KIT } from "./nebu/nebula-kit.js";
+import { NEBULA_OBLIGATION_NEMESIS } from "./nebu/nebula-obligation-nemesis.js";
+import { NEBULA_PACK_CARDS } from "./nebu/nebula-pack-cards.js";
+import { VALKYRIE_KIT } from "./valk/valkyrie-kit.js";
+import { VALKYRIE_OBLIGATION_NEMESIS } from "./valk/valkyrie-obligation-nemesis.js";
+import { VALKYRIE_PACK_CARDS } from "./valk/valkyrie-pack-cards.js";
+import { VISION_KIT } from "./vision/vision-kit.js";
+import { VISION_OBLIGATION_NEMESIS } from "./vision/vision-obligation-nemesis.js";
+import { VISION_PACK_CARDS } from "./vision/vision-pack-cards.js";
+import { WAR_MACHINE_KIT } from "./warm/war-machine-kit.js";
+import { WAR_MACHINE_OBLIGATION_NEMESIS } from "./warm/war-machine-obligation-nemesis.js";
+import { WAR_MACHINE_PACK_CARDS } from "./warm/war-machine-pack-cards.js";
 
 /**
- * Every wave 4 pack's own hand-authored registry — checked before any auto-alias below is allowed to claim a ref.
- * Add this wave's next pack's `*_ABILITIES` here (one line); nothing else in this file needs to change.
+ * Every wave 4 pack's own hand-authored scripts — each product's ability modules, as its `pack.ts` lists them —
+ * checked before any auto-alias below is allowed to claim a ref. Add the modules of this wave's next product here.
  */
 const PACK_OWN_ABILITIES: AbilityRegistry = {
-  ...NEBU_ABILITIES,
-  ...WARM_ABILITIES,
-  ...VISION_ABILITIES,
-  ...MTS_ABILITIES,
-  ...VALK_ABILITIES,
-  ...HOOD_ABILITIES,
+  ...NEBULA_KIT,
+  ...NEBULA_OBLIGATION_NEMESIS,
+  ...NEBULA_PACK_CARDS,
+  ...WAR_MACHINE_KIT,
+  ...WAR_MACHINE_OBLIGATION_NEMESIS,
+  ...WAR_MACHINE_PACK_CARDS,
+  ...VISION_KIT,
+  ...VISION_OBLIGATION_NEMESIS,
+  ...VISION_PACK_CARDS,
+  ...SPECTRUM_KIT,
+  ...SPECTRUM_PACK_CARDS,
+  ...SPECTRUM_OBLIGATION_NEMESIS,
+  ...ADAM_WARLOCK_KIT,
+  ...ADAM_WARLOCK_PACK_CARDS,
+  ...ADAM_WARLOCK_OBLIGATION_NEMESIS,
+  ...EBONY_MAW,
+  ...TOWER_DEFENSE,
+  ...THANOS,
+  ...INFINITY_GAUNTLET,
+  ...CHILDREN_OF_THANOS,
+  ...HELA,
+  ...LEGIONS_OF_HEL,
+  ...FROST_GIANTS,
+  ...ENCHANTRESS,
+  ...LOKI,
+  ...MTS_CAMPAIGN_CARDS,
+  ...VALKYRIE_KIT,
+  ...VALKYRIE_OBLIGATION_NEMESIS,
+  ...VALKYRIE_PACK_CARDS,
+  ...HOOD,
+  ...BEASTY_BOYS,
+  ...BROTHERS_GRIMM,
+  ...CROSSFIRE_CREW,
+  ...MISTER_HYDE_SET,
+  ...STATE_OF_EMERGENCY,
+  ...STREETS_OF_MAYHEM,
+  ...RANSACKED_ARMORY,
+  ...SINISTER_SYNDICATE,
+  ...WRECKING_CREW,
+  ...STANDARD_EXPERT_II,
 };
 
-/** Ability refs in print order: both identity faces (plus any extra hero forms), every villain stage, every main scheme side, or the flat list. */
+/** Ability refs in print order, as `reprintAliases` reads them: every identity face, every villain stage, every main
+ * scheme side, or the flat list (a flip side's refs are not part of the match). */
 function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
   switch (card.type) {
     case "hero_identity":
@@ -92,8 +165,6 @@ function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
   }
 }
 
-const reprintKey = (card: AnyCard): string => `${card.name} ${card.type}`;
-
 /** Every card printed before cycle 3: `WAVE1_CARDS` ∪ `WAVE2_CARDS` ∪ `WAVE3_CARDS`, deduped by id (all three
  * already include Core). */
 const EARLIER_CARDS: readonly AnyCard[] = (() => {
@@ -102,75 +173,43 @@ const EARLIER_CARDS: readonly AnyCard[] = (() => {
   return [...byId.values()];
 })();
 
-const earlierCardIds = new Set(EARLIER_CARDS.map((c) => c.id as string));
-const earlierByReprintKey = new Map<string, AnyCard>(EARLIER_CARDS.map((c) => [reprintKey(c), c]));
+const NOT_IN_EARLIER = "is not in the wave 3 pool's abilities";
+
+const built = reprintAliases(CONTENT_WAVE4_CARDS, EARLIER_CARDS, WAVE3_ABILITIES, {
+  earlierAbilities: "the wave 3 pool's abilities",
+});
+
+/**
+ * The cards a pack's own module already scripts (module docblock's "coincidence, not a reprint" note). A pack's own
+ * ref always wins over an auto-alias, for the whole pair: none of the card's refs is aliased, rather than aliasing
+ * some and leaving its own definitions in place for others, which would silently mix a real reprint's script with a
+ * look-alike's. Its count and slug problems still stand; a missing earlier script is no problem for it, since that
+ * check only decides an alias.
+ */
+const packOwnedCards: ReadonlyMap<string, readonly string[]> = new Map(
+  built.pairs
+    .map(({ card }) => [card.id as string, abilityRefsOf(card).map((ref) => ref.id)] as const)
+    .filter(([, refs]) => refs.some((id) => id in PACK_OWN_ABILITIES)),
+);
+const packOwnedRefs = new Set([...packOwnedCards.values()].flat());
 
 /** Every (wave 4 card, matched earlier card) pair by (name, type), whether or not it ends up aliased. */
 export function wave4ReprintPairs(): ReadonlyArray<{ readonly wave4: AnyCard; readonly earlier: AnyCard }> {
-  const pairs: { wave4: AnyCard; earlier: AnyCard }[] = [];
-  for (const card of CONTENT_WAVE4_CARDS) {
-    if (earlierCardIds.has(card.id as string)) continue; // Core through cycle 2 itself (CONTENT_WAVE4_CARDS includes them)
-    const match = earlierByReprintKey.get(reprintKey(card));
-    if (match) pairs.push({ wave4: card, earlier: match });
-  }
-  return pairs;
+  return built.pairs.map(({ card, earlier }) => ({ wave4: card, earlier }));
 }
-
-function buildReprintAbilities(): { readonly registry: AbilityRegistry; readonly problems: readonly string[] } {
-  const registry: Record<string, AbilityDefinition> = {};
-  const problems: string[] = [];
-  for (const { wave4: card, earlier: match } of wave4ReprintPairs()) {
-    const wRefs = abilityRefsOf(card);
-    const mRefs = abilityRefsOf(match);
-    if (wRefs.length !== mRefs.length) {
-      problems.push(
-        `${card.id} (${card.name}) matches ${match.id} by name/type but has ${wRefs.length} ability ref(s) against ${mRefs.length} — not auto-aliased, script by hand`,
-      );
-      continue;
-    }
-    if (wRefs.length === 0) continue;
-    let mismatch = false;
-    wRefs.forEach((wRef, i) => {
-      const mRef = mRefs[i]!;
-      const wSlug = wRef.id.slice(wRef.id.indexOf(".") + 1);
-      const mSlug = mRef.id.slice(mRef.id.indexOf(".") + 1);
-      if (wSlug !== mSlug) {
-        problems.push(
-          `${card.id} (${card.name}) matches ${match.id} by name/type but ability #${i} slugs differ (${wRef.id} vs ${mRef.id}) — not auto-aliased, script by hand`,
-        );
-        mismatch = true;
-      }
-    });
-    if (mismatch) continue;
-    // A pack's own hand-authored ref always wins over an auto-alias (module docblock's "coincidence, not a
-    // reprint" note) — skip the whole pair rather than aliasing some refs and leaving its own definitions in place
-    // for others, which would silently mix a real reprint's script with a look-alike's.
-    if (wRefs.some((wRef) => wRef.id in PACK_OWN_ABILITIES)) continue;
-    wRefs.forEach((wRef, i) => {
-      const mRef = mRefs[i]!;
-      const definition = WAVE3_ABILITIES[mRef.id];
-      if (!definition) {
-        problems.push(
-          `${card.id} (${card.name}) matches ${match.id}, but ${mRef.id} is not in the wave 3 pool's abilities — not auto-aliased, script by hand`,
-        );
-        return;
-      }
-      registry[wRef.id] = definition;
-    });
-  }
-  return { registry, problems };
-}
-
-const built = buildReprintAbilities();
 
 /**
- * Every (wave 4 card, earlier match) pair `buildReprintAbilities` could not auto-alias — must be scripted by hand in
- * its own pack module. Pinned by `reprints.test.ts`.
+ * Every (wave 4 card, earlier match) pair `reprintAliases` (`../builtin-packs/reprints.ts`) could not auto-alias —
+ * must be scripted by hand in its own pack module. Pinned by `reprints.test.ts`.
  */
-export const WAVE4_REPRINT_PROBLEMS: readonly string[] = built.problems;
+export const WAVE4_REPRINT_PROBLEMS: readonly string[] = built.problems.filter(
+  (problem) => !(problem.includes(NOT_IN_EARLIER) && packOwnedCards.has(problem.slice(0, problem.indexOf(" ")))),
+);
 
 /**
  * Every wave 4 ability id that reprints an earlier ability, aliased to that ability's own `AbilityDefinition`
  * object. Merged into `WAVE4_ABILITIES` ahead of every pack's own registry (`./index.ts`).
  */
-export const WAVE4_REPRINT_ABILITIES: AbilityRegistry = built.registry;
+export const WAVE4_REPRINT_ABILITIES: AbilityRegistry = Object.fromEntries(
+  Object.entries(built.registry).filter(([id]) => !packOwnedRefs.has(id)),
+);

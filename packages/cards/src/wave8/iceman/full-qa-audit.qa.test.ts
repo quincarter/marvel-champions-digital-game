@@ -32,7 +32,7 @@ import {
 } from "../../testing/harness.js";
 import { driveEventsPicking, withDamage, withForm } from "../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
-import { ICEMAN_ABILITIES } from "./index.js";
+import { ICEMAN_BUILTIN_PACK } from "./pack.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -42,7 +42,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * several activations in a multiplayer game, Frozen Solid on a stunned enemy and in a multiplayer game, and the
  * "identity has the X-Men trait" gate of Glob and Shadowcat on the alter-ego face (Bobby Drake is only a MUTANT).
  */
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_ABILITIES) };
+const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_BUILTIN_PACK.abilities) };
 const FROSTBITE = "46002";
 const FREEZE = "46001a.freeze";
 const ICEMAN = WAVE8_STARTER_DECKS.find((d) => d.id === "iceman-aggression")!;

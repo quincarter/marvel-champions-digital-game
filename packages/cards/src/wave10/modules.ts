@@ -306,3 +306,11 @@ export const WAVE10_MODULES: readonly Wave10Module[] = [
   { group: "hercules/basic", registry: HERCULES_BASIC, skipped: HERCULES_BASIC_SKIPPED },
   { group: "hercules/all-versus-all", registry: HERCULES_ALL_VERSUS_ALL, skipped: HERCULES_ALL_VERSUS_ALL_SKIPPED },
 ];
+
+/**
+ * The modules of one wave 10 product, in `WAVE10_MODULES` order: those whose group sits under that product's folder,
+ * which is named by the product's set code (`<code>/…`). Each product's built-in pack (`<code>/pack.ts`) merges them.
+ */
+export function wave10ModulesOf(product: string): readonly Wave10Module[] {
+  return WAVE10_MODULES.filter((module) => module.group.split("/")[0] === product);
+}

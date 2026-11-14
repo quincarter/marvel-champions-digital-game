@@ -6,7 +6,7 @@ import { firstLegal, identityOf, moveToHand, P1, settle } from "../../testing/ha
 import { withForm } from "../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
-import { BP_ABILITIES } from "./index.js";
+import { BP_BUILTIN_PACK } from "./pack.js";
 import { wave9StarterDeckSetup } from "../setup.js";
 
 /**
@@ -15,7 +15,7 @@ import { wave9StarterDeckSetup } from "../setup.js";
  * card of another module borrows a Core card instead (`bpSeat`'s `swap`): that deck is not legal for the identity, so
  * the game is created with deck legality unchecked.
  */
-export const BP_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, BP_ABILITIES) };
+export const BP_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, BP_BUILTIN_PACK.abilities) };
 
 /** The printed precon as a seat, optionally with named cards swapped in for others (deck stays 40). */
 export function bpSeat(swap: Readonly<Record<string, string>> = {}): PlayerSetup {

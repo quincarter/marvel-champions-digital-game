@@ -37,14 +37,14 @@ import { PRELATES, PRELATES_SKIPPED } from "./aoa/prelates.js";
 import { SAVAGE_LAND } from "./aoa/savage-land.js";
 import { STANDARD_III, STANDARD_III_SKIPPED } from "./aoa/standard-iii.js";
 import { UNUS, UNUS_SKIPPED } from "./aoa/unus.js";
-import { AOA_ABILITIES } from "./aoa/index.js";
+import { AOA_BUILTIN_PACK } from "./aoa/pack.js";
 import { AOA_ASPECT_BASIC, AOA_ASPECT_BASIC_SKIPPED } from "./aoa/aspect-basic.js";
 import { AGE_OF_APOCALYPSE, AGE_OF_APOCALYPSE_SKIPPED } from "./aoa/campaign/age-of-apocalypse.js";
 import { AOA_BASIC_CAMPAIGN, AOA_BASIC_CAMPAIGN_SKIPPED } from "./aoa/campaign/aoa-basic-campaign.js";
 import { AOA_CAMPAIGN, AOA_CAMPAIGN_SKIPPED } from "./aoa/campaign/aoa-campaign.js";
 import { AOA_MISSION, AOA_MISSION_SKIPPED } from "./aoa/campaign/aoa-mission.js";
 import { OVERSEER, OVERSEER_SKIPPED } from "./aoa/campaign/overseer.js";
-import { ICEMAN_ABILITIES } from "./iceman/index.js";
+import { ICEMAN_BUILTIN_PACK } from "./iceman/pack.js";
 import { ICEMAN_ASPECT_BASIC, ICEMAN_ASPECT_BASIC_SKIPPED } from "./iceman/aspect-basic.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
@@ -56,7 +56,7 @@ import {
 } from "./iceman/iceman/support-upgrades-allies.js";
 import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ASPECT_BASIC, JUBILEE_ASPECT_BASIC_SKIPPED } from "./jubilee/aspect-basic.js";
-import { JUBILEE_ABILITIES } from "./jubilee/index.js";
+import { JUBILEE_BUILTIN_PACK } from "./jubilee/pack.js";
 import { JUBILEE_EVENTS, JUBILEE_EVENTS_SKIPPED } from "./jubilee/jubilee/events.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
 import {
@@ -66,7 +66,7 @@ import {
 import { JUBILEE_SUPPORT_UPGRADES_ALLIES } from "./jubilee/jubilee/support-upgrades-allies.js";
 import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
-import { MAGNETO_ABILITIES } from "./magneto/index.js";
+import { MAGNETO_BUILTIN_PACK } from "./magneto/pack.js";
 import { MAGNETO_EVENTS, MAGNETO_EVENTS_SKIPPED } from "./magneto/magneto/events.js";
 import { MAGNETO_IDENTITY, MAGNETO_IDENTITY_SKIPPED } from "./magneto/magneto/identity.js";
 import {
@@ -77,7 +77,7 @@ import {
   MAGNETO_SUPPORT_UPGRADES_ALLIES,
   MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./magneto/magneto/support-upgrades-allies.js";
-import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
+import { NCRAWLER_BUILTIN_PACK } from "./ncrawler/pack.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
 import { CRAZY_GANG } from "./ncrawler/crazy-gang.js";
 import { NIGHTCRAWLER_EVENTS, NIGHTCRAWLER_EVENTS_SKIPPED } from "./ncrawler/nightcrawler/events.js";
@@ -564,11 +564,11 @@ const PACKS: ReadonlyArray<{
   readonly cards: readonly AnyCard[];
   readonly registry: AbilityRegistry;
 }> = [
-  { code: "aoa", cards: AOA_CARDS, registry: AOA_ABILITIES },
-  { code: "iceman", cards: ICEMAN_CARDS, registry: ICEMAN_ABILITIES },
-  { code: "jubilee", cards: JUBILEE_CARDS, registry: JUBILEE_ABILITIES },
-  { code: "ncrawler", cards: NCRAWLER_CARDS, registry: NCRAWLER_ABILITIES },
-  { code: "magneto", cards: MAGNETO_CARDS, registry: MAGNETO_ABILITIES },
+  { code: "aoa", cards: AOA_CARDS, registry: AOA_BUILTIN_PACK.abilities },
+  { code: "iceman", cards: ICEMAN_CARDS, registry: ICEMAN_BUILTIN_PACK.abilities },
+  { code: "jubilee", cards: JUBILEE_CARDS, registry: JUBILEE_BUILTIN_PACK.abilities },
+  { code: "ncrawler", cards: NCRAWLER_CARDS, registry: NCRAWLER_BUILTIN_PACK.abilities },
+  { code: "magneto", cards: MAGNETO_CARDS, registry: MAGNETO_BUILTIN_PACK.abilities },
 ];
 
 describe("wave 8 pack ability coverage", () => {

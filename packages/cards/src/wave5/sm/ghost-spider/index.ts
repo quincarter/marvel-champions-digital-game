@@ -9,7 +9,7 @@ import { GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.
 /**
  * Every Ghost-Spider (`sm` 27001a–27029) ability scripted directly (docs/phase7-wave5.md). Only her identity
  * (27001a/b) is scripted so far. **Adding the rest is one import + one spread line here**, mirroring
- * `../../wave4/vision/index.ts`'s shape:
+ * `../../wave4/vision/pack.ts`'s merge list:
  *
  * ```ts
  * import { GHOST_SPIDER_EVENTS } from "./events.js";

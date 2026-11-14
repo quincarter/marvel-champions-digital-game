@@ -14,15 +14,19 @@ import { withForm } from "../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
 import { wave9StarterDeckSetup } from "../setup.js";
-import { SILK_ABILITIES } from "./index.js";
+import { ownScriptsOf } from "../../builtin-packs/define.js";
+import { SILK_QUICK_QUIP } from "../../wave5/silk/quick-quip.js";
+import { SILK_BUILTIN_PACK } from "./pack.js";
 
 /**
  * Shared helpers for the Silk pack's tests: the precon (`silk-protection`, 40 cards) against Core's Rhino, with every
- * earlier script plus this pack's own. The pack's modules are scripted one at a time, so a test that needs a card of
- * another module borrows a Core card instead (`silkSeat`'s `swap`): that deck is not legal for the identity, so the
- * game is created with deck legality unchecked.
+ * earlier script plus this pack's own (less Quick Quip 52034, which wave 5 already merges). The pack's modules are
+ * scripted one at a time, so a test that needs a card of another module borrows a Core card instead (`silkSeat`'s
+ * `swap`): that deck is not legal for the identity, so the game is created with deck legality unchecked.
  */
-export const SILK_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, SILK_ABILITIES) };
+export const SILK_DEPS: EngineDeps = {
+  abilities: mergeRegistries(WAVE8_ABILITIES, ownScriptsOf(SILK_BUILTIN_PACK, SILK_QUICK_QUIP)),
+};
 
 /** The printed precon as a seat, optionally with named cards swapped in for others (deck stays 40). */
 export function silkSeat(swap: Readonly<Record<string, string>> = {}): PlayerSetup {

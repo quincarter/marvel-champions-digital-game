@@ -17,14 +17,14 @@ import {
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { WAVE6_ABILITIES } from "./index.js";
-import { CYCLOPS_ABILITIES } from "./cyclops/index.js";
-import { GAMBIT_ABILITIES } from "./gambit/index.js";
-import { ROGUE_ABILITIES } from "./rogue/index.js";
-import { MOJO_ABILITIES } from "./mojo/index.js";
-import { MUT_GEN_ABILITIES } from "./mut_gen/index.js";
-import { PHOENIX_ABILITIES } from "./phoenix/index.js";
-import { STORM_ABILITIES } from "./storm/index.js";
-import { WOLV_ABILITIES } from "./wolv/index.js";
+import { CYCLOPS_BUILTIN_PACK } from "./cyclops/pack.js";
+import { GAMBIT_BUILTIN_PACK } from "./gambit/pack.js";
+import { ROGUE_BUILTIN_PACK } from "./rogue/pack.js";
+import { MOJO_BUILTIN_PACK } from "./mojo/pack.js";
+import { MUT_GEN_BUILTIN_PACK } from "./mut_gen/pack.js";
+import { PHOENIX_BUILTIN_PACK } from "./phoenix/pack.js";
+import { STORM_BUILTIN_PACK } from "./storm/pack.js";
+import { WOLV_BUILTIN_PACK } from "./wolv/pack.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 6 ability registry", () => {
@@ -377,14 +377,14 @@ describe("wave 6 pack ability id coverage", () => {
       .join("\n");
 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
-    { code: "mut_gen", registry: MUT_GEN_ABILITIES },
-    { code: "cyclops", registry: CYCLOPS_ABILITIES },
-    { code: "phoenix", registry: PHOENIX_ABILITIES },
-    { code: "wolv", registry: WOLV_ABILITIES },
-    { code: "storm", registry: STORM_ABILITIES },
-    { code: "gambit", registry: GAMBIT_ABILITIES },
-    { code: "rogue", registry: ROGUE_ABILITIES },
-    { code: "mojo", registry: MOJO_ABILITIES },
+    { code: "mut_gen", registry: MUT_GEN_BUILTIN_PACK.abilities },
+    { code: "cyclops", registry: CYCLOPS_BUILTIN_PACK.abilities },
+    { code: "phoenix", registry: PHOENIX_BUILTIN_PACK.abilities },
+    { code: "wolv", registry: WOLV_BUILTIN_PACK.abilities },
+    { code: "storm", registry: STORM_BUILTIN_PACK.abilities },
+    { code: "gambit", registry: GAMBIT_BUILTIN_PACK.abilities },
+    { code: "rogue", registry: ROGUE_BUILTIN_PACK.abilities },
+    { code: "mojo", registry: MOJO_BUILTIN_PACK.abilities },
   ];
 
   it("checks every pack PACK_STATUS marks started", () => {
