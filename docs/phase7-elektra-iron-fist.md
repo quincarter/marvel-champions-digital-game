@@ -4,6 +4,8 @@ Tracking issue: #699. Both packs are in the card pool as built-in packs (`packag
 `packages/cards/src/wave11/iron_fist/pack.ts`) with `status: "not-ready"` in their manifests, which puts their set codes
 in `NOT_READY_PACK_CODES` (`packages/cards/src/builtin-packs/index.ts`). A not-ready pack's hero is left out of hero
 select, the deck builder's identity list and the precons, and a deck it leads shows "Not ready yet" and can't be seated.
+Every other card of a not-ready pack is also kept out of the deck builder's pool and deck import (owner, 2026-11-14;
+`packages/client/src/view/not-ready-cards.ts`).
 **To release a pack, delete `status` from its manifest** once every card has text and the scripts are done.
 
 This file lists what we have for each card, where it came from, and what is still missing. Update it as cards arrive.
