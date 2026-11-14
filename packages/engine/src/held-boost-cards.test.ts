@@ -22,6 +22,7 @@ import type { InstanceId } from "./ids.js";
 import type { LastingEffect } from "./lasting.js";
 import { locateCard, mustInstance, mustPlayer } from "./query.js";
 import { heldBoostCardsOf } from "./resolve/villainous.js";
+import { evaluate } from "./select.js";
 import type { TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
@@ -90,6 +91,21 @@ const MARK = stubAbility("mark.interrupt", {
   ],
 });
 const MARKER = stubSupport({ id: "marker", cost: 0, abilities: [MARK.ref] });
+const onFlip = { on: "boostCardTurnedFaceup" } as const;
+/** Wraith's shape (22012): "When a boost card is turned faceup, … cancel that card's 'Boost' effect." */
+const WRAITH_CANCEL = stubAbility("wraith-shape.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: onFlip },
+  effects: [{ kind: "cancelBoostAbility" }],
+});
+/** Killer Instinct's shape (63001a): "… cancel its 'Boost' ability. Then, that card gains [boost]." */
+const INSTINCT = stubAbility("instinct-shape.interrupt", {
+  trigger: { kind: "interrupt", forced: false, on: onFlip },
+  effects: [
+    { kind: "cancelBoostAbility" },
+    { kind: "then", effects: [{ kind: "adjustBoostCount", delta: { kind: "const", value: 1 } }] },
+  ],
+});
+const CANCELLERS = stubSupport({ id: "cancellers", cost: 0, abilities: [WRAITH_CANCEL.ref, INSTINCT.ref] });
 /**
  * "Forced Response: After you attack, place 1 facedown boost card on your identity" (Vengeance's shape on Venom, `sm`
  * 27073): an enemy's text placing a card while her attack, and so her use, is still on the stack.
@@ -121,15 +137,15 @@ const BOOMERANG = stubTreachery({ id: "boomerang", boostIcons: 2, starIcon: true
 const VENDETTA: SideSchemeCard = { ...stubSideScheme({ id: "vendetta", startingThreat: 2 }), amplifyIcons: 1 };
 const ALLY = stubAlly({ id: "plain-ally", cost: 0, atk: 1, thw: 1, hp: 5 });
 
-const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT, AVENGE, MARK);
+const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT, AVENGE, MARK, WRAITH_CANCEL, INSTINCT);
 
 /** P1's first turn in hero form, 9 threat on the main scheme, the desk in play; the encounter deck is `deck`. */
 function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
   const base = gameAtFirstTurn({
-    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER, AVENGER, MARKER],
+    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER, AVENGER, MARKER, CANCELLERS],
     deps,
     encounter: [VENDETTA.id, ...deck],
-    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id, AVENGER.id, MARKER.id],
+    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id, AVENGER.id, MARKER.id, CANCELLERS.id],
   });
   const hero: GameState = {
     ...base,
@@ -445,6 +461,111 @@ describe("a card the use never reached stays held (owner decision 5, docs/phase7
     // ATK 2 + 2.
     expect(mustInstance(after.state, villain(after.state)).damage).toBe(before + 4);
     expect(locateCard(after.state, held!)?.kind).toBe("encounterDiscard");
+  });
+});
+
+describe("a 'cancel, then gains [boost]' after another cancel already took the Boost (RRG 1.8 \"'Then'\", p. 44)", () => {
+  const option = (st: GameState, id: string) =>
+    st.pendingChoice?.prompt.kind === "chooseTriggers"
+      ? st.pendingChoice.options.find((o) => o.ref.kind === "ability" && (o.ref.abilityId as string) === id)
+      : undefined;
+
+  it("Wraith's cancel first: Killer Instinct's shape is no longer offered, and the card gains no icon", () => {
+    const s = holding(1, copiesOf(HURTER.id, 20));
+    const hero = identity(s.state);
+    const withCancellers = playerCardIntoPlay(s.state, CANCELLERS.id, P1).state;
+    let wraithTaken = false;
+    let instinctAfter = 0;
+    const before = mustInstance(withCancellers, hero).damage;
+    const after = run(withCancellers, [thwart(hero, s.scheme)], (st) => {
+      const wraith = option(st, WRAITH_CANCEL.ref.id);
+      const instinct = option(st, INSTINCT.ref.id);
+      if (wraithTaken && instinct) instinctAfter++;
+      if (wraith && !wraithTaken) {
+        wraithTaken = true;
+        return [wraith.optionId];
+      }
+      if (instinct) return [instinct.optionId];
+      return defaultPick(st);
+    });
+    expect(wraithTaken).toBe(true);
+    expect(instinctAfter).toBe(0);
+    expect(after.events.filter((e) => e.type === "boostCancelled")).toHaveLength(1);
+    // Its Boost (1 damage to her) was cancelled; THW 2 + its 2 icons, no gained icon.
+    expect(mustInstance(after.state, hero).damage).toBe(before);
+    expect(mustInstance(after.state, s.scheme).threat).toBe(5);
+  });
+
+  it("taken alone, it cancels and the card gains the icon", () => {
+    const s = holding(1, copiesOf(HURTER.id, 20));
+    const hero = identity(s.state);
+    const withCancellers = playerCardIntoPlay(s.state, CANCELLERS.id, P1).state;
+    const after = run(withCancellers, [thwart(hero, s.scheme)], (st) => {
+      const instinct = option(st, INSTINCT.ref.id);
+      return instinct ? [instinct.optionId] : defaultPick(st);
+    });
+    // THW 2 + 2 icons + 1 gained.
+    expect(mustInstance(after.state, s.scheme).threat).toBe(4);
+  });
+});
+
+describe('the usingBasicPower predicate in a real use ("If Elektra is using a basic power")', () => {
+  const usingNow = (st: GameState): boolean =>
+    evaluate(st, { kind: "usingBasicPower" }, { selfInstanceId: null, controllerId: P1, event: null, bindings: {} });
+
+  it("true while her held card resolves for her thwart; false before and after", () => {
+    const s = holding();
+    const hero = identity(s.state);
+    const peeking = playerCardIntoPlay(s.state, PEEKER.id, P1).state;
+    expect(usingNow(peeking)).toBe(false);
+    const seen: boolean[] = [];
+    const after = run(peeking, [thwart(hero, s.scheme)], (st) => {
+      if (st.pendingChoice?.prompt.kind === "chooseTriggers") seen.push(usingNow(st));
+      return defaultPick(st);
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every(Boolean)).toBe(true);
+    expect(usingNow(after.state)).toBe(false);
+  });
+
+  it("false while the villain's card turns up in an attack she does not defend; true when she defends", () => {
+    const s = start();
+    const peeking = playerCardIntoPlay(s.state, PEEKER.id, P1).state;
+    const watch = (defend: boolean) => {
+      const seen: boolean[] = [];
+      run(peeking, [{ type: "endTurn", playerId: P1 }], (st) => {
+        const choice = st.pendingChoice;
+        if (choice?.prompt.kind === "declareDefender") return defend ? [identity(st)] : ["decline"];
+        if (choice?.prompt.kind === "chooseTriggers" && st.stack.some((f) => f.kind === "enemyAttack"))
+          seen.push(usingNow(st));
+        return defaultPick(st);
+      });
+      return seen;
+    };
+    const undefended = watch(false);
+    expect(undefended.length).toBeGreaterThan(0);
+    expect(undefended.some(Boolean)).toBe(false);
+    const defended = watch(true);
+    expect(defended.length).toBeGreaterThan(0);
+    expect(defended.every(Boolean)).toBe(true);
+  });
+});
+
+describe("a villain's own boost card whose Boost gives it to a hero (`resolvingBoostCard`, its enemy branch)", () => {
+  it("it leaves the villain for the hero, facedown and held, and its icons still count for the villain's attack", () => {
+    // "[star] Boost: Give this card to your hero as a facedown boost card" as Rhino-shaped ATK 2's boost card; she
+    // does not defend. Ruling January 11, 2024 #134: a boost card moved by its own Boost still counts.
+    const s = start(copiesOf(BOOMERANG.id, 20));
+    const hero = identity(s.state);
+    const before = mustInstance(s.state, hero).damage;
+    const after = run(s.state, [{ type: "endTurn", playerId: P1 }]);
+    const flipped = after.events.find((e) => e.type === "boostCardFlipped");
+    const card = flipped?.type === "boostCardFlipped" ? flipped.instanceId : undefined;
+    expect(card).toBeDefined();
+    expect(locateCard(after.state, card!)).toEqual({ kind: "boost", hostInstanceId: hero });
+    expect(mustInstance(after.state, card!)).toMatchObject({ faceup: false, heldForBasicPowers: true });
+    // ATK 2 + its 2 icons, undefended.
+    expect(mustInstance(after.state, hero).damage).toBe(before + 4);
   });
 });
 

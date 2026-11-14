@@ -3,7 +3,7 @@
  * hand-built Aggression deck (the pack has no starter decklist yet), optionally beside Core Spider-Man, and staging
  * helpers. State surgery here only stages a situation, never the behavior under test.
  */
-import { CORE_CARDS, ELEKTRA_CARDS, cardId, type AnyCard, type HeroIdentityCard } from "@mc/content";
+import { CORE_CARDS, ELEKTRA_CARDS, PLAYABLE_CARDS, cardId, type AnyCard, type HeroIdentityCard } from "@mc/content";
 import {
   DECK_MIN_CARDS,
   activeEncounterDeck,
@@ -23,7 +23,7 @@ import {
 import { CORE_ABILITIES } from "../../../core/index.js";
 import { coreScenario } from "../../../core/setup.js";
 import { P1, firstLegal, identityOf, patchInstance, settle, type Picker } from "../../../testing/harness.js";
-import { withForm } from "../../../testing/staging.js";
+import { encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
 import { ELEKTRA_ELEKTRA_IDENTITY } from "./identity.js";
 import { ELEKTRA_ELEKTRA_NINJA_DECK } from "./ninja-deck.js";
 
@@ -148,6 +148,20 @@ export function holdingNinja(s: GameState, code: string): { state: GameState; id
       instances: { ...moved.instances, [elektra]: { ...host, boostCards: [...host.boostCards, staged.id] } },
     },
   };
+}
+
+/** Age of Apocalypse's Ruler of Limbo (45055), a side scheme printing one amplify icon. */
+const RULER_OF_LIMBO = "45055";
+
+/**
+ * One amplify icon in play: Ruler of Limbo in the villain area with 2 threat (a Core side scheme's instance re-carded,
+ * as `qa-2026-11-14-amplify-basic-power.test.ts` stages it, and the card added to the game's pool).
+ */
+export function withAmplifyIcon(s: GameState): GameState {
+  const placed = encounterCardInVillainArea(s, "01107", 2);
+  const ruler = PLAYABLE_CARDS.find((c) => c.id === cardId(RULER_OF_LIMBO))!;
+  const state = patchInstance(placed.state, placed.id, { cardId: cardId(RULER_OF_LIMBO) });
+  return { ...state, cardPool: { ...state.cardPool, [ruler.id]: ruler } };
 }
 
 /** A picker that takes `firstLegal` except where `decide` answers. */

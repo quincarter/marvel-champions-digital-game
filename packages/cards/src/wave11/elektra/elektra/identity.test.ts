@@ -16,8 +16,10 @@ import {
   elektraHeroGame,
   holdingNinja,
   ninjaDeck,
+  ninjaIntoEncounterDeck,
   picking,
   triggerOption,
+  withAmplifyIcon,
 } from "./elektra.testing.js";
 import { ELEKTRA_ELEKTRA_IDENTITY, ELEKTRA_ELEKTRA_IDENTITY_SKIPPED } from "./identity.js";
 
@@ -142,6 +144,40 @@ describe("Killer Instinct: cancel a boost card's Boost ability, then it gains [b
     expect(playerOf(after.state, P1).hand.length).toBe(hand + 2);
     expect(ninjaDeck(after.state)).toContain(ninja);
     expect(after.state.instances[ninja]).toMatchObject({ ownerId: P1, home: { kind: "separateDeck", name: "Ninja" } });
+  });
+
+  it("with an amplify icon in play: the gained icon counts with the card's own and amplify (MC60 p. 4, owner)", () => {
+    const { state, ninja } = staged();
+    const amplified = withAmplifyIcon(state);
+    const threat = amplified.instances[amplified.mainScheme.instanceId]!.threat;
+    const after = driveEventsPicking(
+      ELEKTRA_DEPS,
+      amplified,
+      picking((s) => triggerOption(s, KILLER_INSTINCT)),
+      thwart(amplified),
+    );
+    expect(after.events).toContainEqual(expect.objectContaining({ type: "boostCancelled", scope: "ability" }));
+    expect(locateCard(after.state, ninja)?.kind).toBe("encounterDiscard");
+    // THW 0 + Ninja Stars (0 printed + 1 gained + 1 amplify) + Advance (0 printed + 1 amplify).
+    expect(after.state.instances[after.state.mainScheme.instanceId]!.threat).toBe(threat - 3);
+  });
+
+  it("is not offered for another character's boost card: the villain's, while she is not defending", () => {
+    // Ninja Stars (a Boost ability) as Rhino's boost card; she declines to defend, so its Boost gives it to her.
+    const staged = ninjaIntoEncounterDeck(stackEncounterDeck(elektraHeroGame(), ADVANCE), NINJA_STARS, 0);
+    let offered = 0;
+    const after = driveEventsPicking(
+      ELEKTRA_DEPS,
+      staged.state,
+      picking((st) => {
+        if (st.pendingChoice?.prompt.kind === "declareDefender") return ["decline"];
+        if (triggerOption(st, KILLER_INSTINCT)) offered++;
+        return undefined;
+      }),
+      { type: "endTurn", playerId: P1 },
+    );
+    expect(after.events).toContainEqual(expect.objectContaining({ type: "boostCardFlipped", instanceId: staged.id }));
+    expect(offered).toBe(0);
   });
 
   it("is not offered for a card with no Boost ability (her villainous Advance)", () => {

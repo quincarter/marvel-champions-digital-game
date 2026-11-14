@@ -158,6 +158,26 @@ describe("Boost, as the villain's boost card while Elektra defends (rules verdic
     expect(playerOf(after.state, P1).hand.length).toBe(playerOf(plain.state, P1).hand.length + 2);
   });
 
+  it("Ninja Strike: she is using her basic defense, so she gets +3 DEF for it (ATK 2 against DEF 1 + 3: no damage)", () => {
+    const defend = (s: GameState) =>
+      driveEventsPicking(
+        ELEKTRA_DEPS,
+        s,
+        (st) => (st.pendingChoice?.prompt.kind === "declareDefender" ? [elektra(st)] : firstLegal(st)),
+        endTurn(),
+      );
+    const staged = ninjaIntoEncounterDeck(stackEncounterDeck(elektraHeroGame(), ADVANCE, ADVANCE), NINJA_STRIKE, 0);
+    const before = staged.state.instances[elektra(staged.state)]!.damage;
+    const after = defend(staged.state);
+    expect(after.events).toContainEqual(expect.objectContaining({ type: "boostCardFlipped", instanceId: staged.id }));
+    expect(after.state.instances[elektra(after.state)]!.damage).toBe(before);
+    expect(ninjaDeck(after.state)).toContain(staged.id);
+    // Control: Advance (0 icons, no Boost) as the villain's card, ATK 2 against DEF 1: 1 damage.
+    const plain = stackEncounterDeck(elektraHeroGame(), ADVANCE, ADVANCE);
+    const control = defend(plain);
+    expect(control.state.instances[elektra(control.state)]!.damage).toBe(plain.instances[elektra(plain)]!.damage + 1);
+  });
+
   it("not defending: its Boost gives it to Elektra to hold instead", () => {
     const staged = ninjaIntoEncounterDeck(stackEncounterDeck(elektraHeroGame(), ADVANCE, ADVANCE), NINJA_STARS, 0);
     const after = run(staged.state, endTurn());
