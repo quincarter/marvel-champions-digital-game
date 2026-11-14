@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Marvel Champions: Digital Edition · Play free in your browser</title>
+    <meta
+      name="description"
+      data-t-content="meta.description"
+      content="A fan-made, rules-accurate digital version of the Marvel Champions card game. Free in your browser and on Windows, macOS, Linux, Steam Deck and Android."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition" />
+    <meta
+      property="og:description"
+      content="A fan-made, rules-accurate digital version of the Marvel Champions card game. Free in your browser and as an app."
+    />
+    <link rel="canonical" href="https://champions-digital-game.com/" />
+    <link rel="stylesheet" href="../shared/site.css" />
+    <link rel="stylesheet" href="./landing.css" />
+  </head>
+  <body>
+    <!-- ============ PINNED BAR ============ -->
+    <header class="bar">
+      <a class="brand" href="#top"><b>Champions</b><span data-t="bar.brand"></span></a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#heroes" data-t="nav.heroes"></a>
+        <a href="#villains" data-t="nav.villains"></a>
+        <a href="#mods" data-t="nav.mods"></a>
+        <a href="#news" data-t="nav.news"></a>
+      </nav>
+      <div class="lang" id="language"></div>
+      <a class="btn gold small" href="#download"><span data-t="bar.download"></span></a>
+      <a class="btn primary small" data-href="game"><span data-t="bar.play"></span></a>
+    </header>
+
+    <!-- ============ HERO ============ -->
+    <section class="hero" id="top">
+      <picture class="hero-art" id="hero-art"></picture>
+      <div class="hero-shade"></div>
+      <div class="hero-in">
+        <div class="ai-note" id="ai-note" lang="es" data-t="lang.aiNote" hidden></div>
+        <div class="kick" data-t="hero.kick"></div>
+        <h1 data-t="hero.title"></h1>
+        <p class="hero-text" data-t="hero.text"></p>
+        <div class="ctas" id="hero-ctas">
+          <a class="btn primary big" data-href="game"><span data-t="hero.play"></span></a>
+        </div>
+        <div class="platforms" data-t="hero.platforms"></div>
+        <ul class="stats" id="stats"></ul>
+      </div>
+    </section>
+
+    <!-- ============ SCREENSHOTS: pinned while the page scrolls through them ============ -->
+    <section class="scrolly" id="scrolly-sec">
+      <div class="scrolly-pin">
+        <div class="scrolly-in">
+          <div class="scrolly-copy">
+            <h2 class="title" data-t="shots.title"></h2>
+            <ol class="scrolly-steps" id="scrolly-steps"></ol>
+            <p class="scrolly-caption" id="scrolly-caption" aria-live="polite"></p>
+            <div class="scrolly-bar" aria-hidden="true"><i id="scrolly-bar"></i></div>
+          </div>
+          <div class="scrolly-frame" id="scrolly-frame"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CAMPAIGN STORY: comic pages, pinned, each panning as it scrolls ============ -->
+    <section class="scrolly comic" id="story-sec">
+      <div class="scrolly-pin">
+        <div class="scrolly-in">
+          <div class="scrolly-copy">
+            <h2 class="title" data-t="story.title"></h2>
+            <p class="sub" data-t="story.text"></p>
+            <ol class="scrolly-steps" id="story-steps"></ol>
+            <p class="scrolly-caption" id="story-caption" aria-live="polite"></p>
+            <div class="scrolly-bar" aria-hidden="true"><i id="story-bar"></i></div>
+          </div>
+          <div class="scrolly-frame" id="story-frame"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="art-band" id="band-0"></div>
+
+    <!-- ============ HEROES ============ -->
+    <section class="sec" id="heroes">
+      <div class="wrap">
+        <div class="head">
+          <div>
+            <h2 class="title" id="heroes-title"></h2>
+            <p class="sub" data-t="heroes.text"></p>
+          </div>
+          <div class="chips" id="aspect-chips" role="group"></div>
+        </div>
+        <ul class="portraits" id="portraits"></ul>
+      </div>
+    </section>
+
+    <div class="art-band" id="band-1"></div>
+
+    <!-- ============ VILLAINS ============ -->
+    <section class="sec dark" id="villains">
+      <div class="wrap">
+        <div class="head">
+          <div>
+            <h2 class="title" id="villains-title"></h2>
+            <p class="sub" data-t="villains.text"></p>
+          </div>
+        </div>
+        <ul class="villains" id="villain-list"></ul>
+        <button class="btn ghost more" type="button" id="villains-more"></button>
+      </div>
+    </section>
+
+    <!-- ============ MODS ============ -->
+    <section class="sec" id="mods">
+      <div class="wrap">
+        <div class="head">
+          <div>
+            <h2 class="title" data-t="mods.title"></h2>
+            <p class="sub" data-t="mods.text"></p>
+          </div>
+        </div>
+        <a class="batch-art reveal" id="batch-art" target="_blank" rel="noopener"><img id="batch-img" alt="" /></a>
+        <ul class="mods" id="mod-list"></ul>
+      </div>
+    </section>
+
+    <!-- ============ NEWS ============ -->
+    <section class="sec dark" id="news">
+      <div class="wrap">
+        <h2 class="title" data-t="news.title"></h2>
+        <div class="news">
+          <article class="latest reveal" id="news-latest"></article>
+          <ol class="feed" id="news-feed"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DOWNLOAD ============ -->
+    <section class="sec over-art" id="download">
+      <div class="band-bg" id="band-2"></div>
+      <div class="wrap">
+        <h2 class="title" data-t="dl.title"></h2>
+        <div class="dl" id="downloads"></div>
+      </div>
+    </section>
+
+    <!-- ============ COMMUNITY ============ -->
+    <section class="sec" id="community">
+      <div class="wrap">
+        <h2 class="title" data-t="community.title"></h2>
+        <div class="discords" id="discords">
+          <a class="discord main reveal" data-href="discord">
+            <b data-t="community.game"></b>
+            <span data-t="community.game.text"></span>
+            <em><span data-t="community.join"></span> ↗</em>
+          </a>
+          <a class="discord reveal" id="homebrew-en" data-href="homebrewEn" lang="en">
+            <b data-t="community.homebrew"></b>
+            <span data-t="community.homebrew.en"></span>
+            <em>English ↗</em>
+          </a>
+          <a class="discord reveal" id="homebrew-es" data-href="homebrewEs" lang="es">
+            <b data-t="community.homebrew"></b>
+            <span data-t="community.homebrew.es"></span>
+            <em>Español ↗</em>
+          </a>
+        </div>
+        <h3 class="minor" data-t="table.title"></h3>
+        <div class="links">
+          <a data-href="proxyNexus"><b>Proxy Nexus</b><span data-t="table.proxy"></span></a>
+          <a data-href="marvelcdb"><b>MarvelCDB</b><span data-t="table.cdb"></span></a>
+          <a data-href="hallOfHeroes"><b>Hall of Heroes</b><span data-t="table.hoh"></span></a>
+          <a data-href="homebrewEn"><b>Homebrew Discord</b><span data-t="table.mods"></span></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ THANKS ============ -->
+    <section class="sec dark thanks-sec">
+      <div class="wrap">
+        <h2 class="title" data-t="credits.title"></h2>
+        <div class="thanks">
+          <div>
+            <h3 class="minor" data-t="credits.mods"></h3>
+            <ul class="names" id="credit-mods"></ul>
+          </div>
+          <div>
+            <h3 class="minor" data-t="credits.decks"></h3>
+            <ul class="names" id="credit-decks"></ul>
+          </div>
+        </div>
+        <p class="fine" data-t="credits.reporters"></p>
+        <p class="fine" data-t="credits.assets"></p>
+        <footer class="foot">
+          <span data-t="foot.fan"></span>
+          <nav>
+            <a data-href="game" data-t="foot.play"></a>
+            <a data-href="releases" data-t="foot.releases"></a>
+            <a data-href="repo" data-t="foot.source"></a>
+            <a data-href="issues" data-t="foot.report"></a>
+          </nav>
+        </footer>
+      </div>
+    </section>
+    <script type="module" src="../../src/site/landing/landing.ts"></script>
+  </body>
+</html>

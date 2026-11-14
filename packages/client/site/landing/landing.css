@@ -1,0 +1,908 @@
+/* The landing page: the game's art leads. A pinned bar keeps Play now and Download in reach; a title wallpaper fills
+   the first screen; wallpaper bands sit between sections; heroes, villains and mods are picture walls. The release
+   reports' ink, red and gold, comic type and hard shadows carry over from shared/site.css. */
+html {
+  scroll-padding-top: 72px;
+}
+body {
+  overflow-x: clip;
+}
+
+/* ---- Pinned bar ---- */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px));
+  background: rgb(21 17 14 / 0.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 2px solid var(--red);
+}
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-decoration: none;
+  margin-right: auto;
+  white-space: nowrap;
+}
+.brand b {
+  font: 400 30px/1 var(--d);
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+.brand span {
+  font: 700 11px var(--b);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.nav {
+  display: flex;
+  gap: 18px;
+}
+.nav a {
+  font: 700 14px var(--b);
+  text-decoration: none;
+  color: var(--muted);
+}
+.nav a:hover {
+  color: var(--fg);
+}
+.btn.small {
+  min-height: 40px;
+  padding: 6px 16px;
+  font-size: 15px;
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.btn.small.primary {
+  box-shadow: 4px 4px 0 var(--gold);
+}
+.btn.small.gold {
+  box-shadow: 4px 4px 0 var(--red);
+}
+.bar .lang button {
+  min-height: 32px;
+  padding: 4px 10px;
+}
+
+/* ---- Hero ---- */
+.hero {
+  position: relative;
+  min-height: min(92svh, 980px);
+  display: grid;
+  align-items: end;
+  isolation: isolate;
+  overflow: hidden;
+}
+.hero-art,
+.hero-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  z-index: -2;
+}
+.hero-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(
+      to top,
+      var(--bg) 0%,
+      rgb(21 17 14 / 0.88) 28%,
+      rgb(21 17 14 / 0.15) 62%,
+      rgb(21 17 14 / 0.35) 100%
+    ),
+    linear-gradient(to right, rgb(21 17 14 / 0.7), transparent 60%);
+}
+.hero-in {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 120px max(16px, env(safe-area-inset-left, 0px)) 40px;
+}
+.hero h1 {
+  font-size: clamp(64px, 11vw, 150px);
+  line-height: 0.88;
+  text-shadow: 4px 4px 0 #000;
+  margin-top: 10px;
+}
+.hero .kick {
+  color: var(--gold);
+  text-shadow: 0 1px 2px #000;
+}
+.hero-text {
+  font: 600 clamp(18px, 2vw, 22px) / 1.45 var(--b);
+  max-width: 34ch;
+  margin: 18px 0 24px;
+  text-shadow: 0 1px 3px #000;
+}
+.btn.big {
+  min-height: 62px;
+  padding: 14px 28px;
+  font-size: 20px;
+}
+.platforms {
+  font: 700 12px var(--b);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 18px;
+}
+.stats {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 34px;
+  padding: 18px 0 0;
+  margin: 22px 0 0;
+  border-top: 2px solid rgb(242 237 225 / 0.25);
+}
+.stats li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.stats b {
+  font: 400 44px/1 var(--d);
+  color: var(--gold);
+}
+.stats span {
+  font: 700 13px var(--b);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.stats .langs {
+  align-self: center;
+}
+.stats .langs span {
+  color: var(--muted);
+}
+.hero .ai-note {
+  max-width: 520px;
+  background: rgb(21 17 14 / 0.8);
+}
+
+/* ---- Sections ---- */
+.sec {
+  padding: clamp(48px, 7vw, 96px) 0;
+  position: relative;
+}
+.sec.dark {
+  background: #0d0a08;
+}
+.wrap {
+  padding-block: 0;
+}
+.title {
+  font: 400 clamp(48px, 7vw, 88px)/0.92 var(--d);
+  margin: 0 0 8px;
+  letter-spacing: 0.01em;
+}
+.sub {
+  color: var(--muted);
+  font-size: 18px;
+  margin: 0;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 30px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.minor {
+  font: 400 32px/1 var(--d);
+  color: var(--gold);
+  margin: 40px 0 14px;
+}
+.art-band {
+  height: clamp(180px, 34vw, 420px);
+  background: #000 center 30% / cover no-repeat;
+  border-block: 4px solid #000;
+  box-shadow: inset 0 0 0 1px rgb(242 237 225 / 0.08);
+}
+
+/* ---- Screenshots, pinned while the page scrolls through them ---- */
+.scrolly {
+  position: relative;
+  height: calc(var(--steps, 6) * 70svh + 100svh);
+}
+.scrolly-pin {
+  position: sticky;
+  top: 58px;
+  height: calc(100svh - 58px);
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+}
+.scrolly-in {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 max(16px, env(safe-area-inset-left, 0px));
+  display: grid;
+  grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+.scrolly-steps {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+  display: grid;
+  gap: 4px;
+}
+.scrolly-steps button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 3px solid var(--line);
+  background: none;
+  color: var(--muted);
+  font: 600 16px/1.35 var(--b);
+  text-align: left;
+  transition:
+    color 0.3s,
+    border-color 0.3s,
+    background 0.3s;
+}
+.scrolly-steps b {
+  font: 400 24px/1 var(--d);
+  color: var(--line);
+  transition: color 0.3s;
+}
+.scrolly-steps li.on button {
+  color: var(--fg);
+  border-left-color: var(--gold);
+  background: rgb(240 180 42 / 0.08);
+}
+.scrolly-steps li.on b {
+  color: var(--gold);
+}
+.scrolly-caption {
+  display: none;
+  min-height: 3em;
+  margin: 12px 0 0;
+  color: var(--fg);
+  font: 600 16px/1.4 var(--b);
+}
+.scrolly-bar {
+  height: 4px;
+  margin-top: 18px;
+  background: var(--line);
+}
+.scrolly-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--red);
+}
+.scrolly-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+.layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(calc(var(--o, 1) * 22%)) scale(calc(1 - var(--o, 1) * var(--o, 1) * 0.08))
+    rotate(calc(var(--o, 1) * -2.5deg));
+  transition:
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.45s ease;
+}
+.layer.on {
+  opacity: 1;
+  transform: none;
+  z-index: 2;
+}
+.layer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  border: 4px solid var(--gold);
+  box-shadow: 14px 14px 0 var(--red);
+  background: #000;
+}
+.layer figcaption {
+  display: none;
+}
+/* The campaign story: comic pages in a white comic-book frame, panned from first panel to last. */
+.scrolly.comic {
+  background: radial-gradient(ellipse at 70% 50%, rgb(200 16 46 / 0.18), transparent 60%), #0d0a08;
+}
+.scrolly.comic .layer img {
+  object-position: var(--pan, 0%) var(--pan, 0%);
+  border: 6px solid #fff;
+  box-shadow: 14px 14px 0 var(--gold);
+  transition: object-position 0.25s linear;
+}
+.scrolly.comic .title {
+  font-size: clamp(40px, 4.6vw, 66px);
+}
+.scrolly.comic .sub {
+  margin-top: 10px;
+}
+/* Reduced motion: an ordinary column of pictures, each with its caption. */
+.scrolly.static {
+  height: auto;
+  padding: clamp(48px, 7vw, 96px) 0;
+}
+.scrolly.static .scrolly-pin {
+  position: static;
+  height: auto;
+  overflow: visible;
+}
+.scrolly.static .scrolly-in {
+  grid-template-columns: minmax(0, 1fr);
+}
+.scrolly.static .scrolly-steps,
+.scrolly.static .scrolly-bar {
+  display: none;
+}
+.scrolly.static .scrolly-frame {
+  aspect-ratio: auto;
+  display: grid;
+  gap: 26px;
+}
+.scrolly.static .layer {
+  position: static;
+  opacity: 1;
+  transform: none;
+}
+.scrolly.static .layer img {
+  height: auto;
+  aspect-ratio: 16 / 10;
+}
+.scrolly.comic.static .layer img {
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+.scrolly.static .layer figcaption {
+  display: block;
+}
+
+/* ---- Pieces that rise into place as they scroll into view ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px) scale(0.96);
+  transition:
+    opacity 0.6s ease,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(var(--i, 0) * 55ms);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+/* ---- Heroes ---- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  font: 700 13px var(--b);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 2px solid var(--line);
+  background: var(--bg2);
+  color: var(--fg);
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--fg);
+  background: var(--fg);
+  color: var(--bg);
+}
+.chip.a-aggression[aria-pressed="true"] {
+  background: #b3141e;
+  border-color: #b3141e;
+  color: #fff;
+}
+.chip.a-justice[aria-pressed="true"] {
+  background: #d9a400;
+  border-color: #d9a400;
+  color: #15110e;
+}
+.chip.a-leadership[aria-pressed="true"] {
+  background: #1e5fa8;
+  border-color: #1e5fa8;
+  color: #fff;
+}
+.chip.a-protection[aria-pressed="true"] {
+  background: #2c7d32;
+  border-color: #2c7d32;
+  color: #fff;
+}
+.chip.a-pool[aria-pressed="true"] {
+  background: #c2297c;
+  border-color: #c2297c;
+  color: #fff;
+}
+.portraits,
+.villains,
+.mods {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.portraits {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.portrait {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--bg2);
+  border: 3px solid #000;
+}
+.portrait img,
+.portrait .blank,
+.villain img,
+.mod img,
+.mod .blank {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s ease;
+}
+.portrait .blank,
+.mod .blank {
+  background:
+    radial-gradient(circle at 50% 35%, rgb(240 180 42 / 0.25), transparent 60%),
+    repeating-linear-gradient(45deg, #211b17 0 6px, #1a1512 6px 12px);
+}
+.portrait:hover img,
+.villain:hover img,
+.mod:hover img {
+  transform: scale(1.06);
+}
+.plate {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 26px 10px 8px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.92), transparent);
+}
+.plate b {
+  display: block;
+  font: 400 24px/1 var(--d);
+  letter-spacing: 0.02em;
+  text-shadow: 2px 2px 0 #000;
+}
+.bars {
+  display: flex;
+  gap: 3px;
+  margin-top: 6px;
+}
+.bars i {
+  height: 5px;
+  flex: 1;
+  max-width: 34px;
+}
+.a-aggression {
+  background: #b3141e;
+}
+.a-justice {
+  background: #d9a400;
+}
+.a-leadership {
+  background: #1e5fa8;
+}
+.a-protection {
+  background: #2c7d32;
+}
+.a-pool {
+  background: #c2297c;
+}
+.chip.a-aggression,
+.chip.a-justice,
+.chip.a-leadership,
+.chip.a-protection,
+.chip.a-pool {
+  background: var(--bg2);
+}
+
+/* ---- Villains ---- */
+.villains {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.villain {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 3px solid #000;
+  box-shadow: 6px 6px 0 var(--red);
+  background: #000;
+}
+.villain img {
+  object-position: 50% 25%;
+}
+.villain b {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 26px 12px 8px;
+  font: 400 26px/1 var(--d);
+  background: linear-gradient(to top, rgb(0 0 0 / 0.9), transparent);
+  text-shadow: 2px 2px 0 #000;
+}
+.more {
+  margin-top: 26px;
+}
+
+/* ---- Mods ---- */
+.mods {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px;
+}
+.mod {
+  background: var(--panel);
+  color: var(--panel-fg);
+  border: 3px solid #000;
+  box-shadow: 8px 8px 0 var(--gold);
+  overflow: hidden;
+}
+.mod img,
+.mod .blank {
+  /* The store's covers are box-art shaped, about 5:8, so the whole cover shows. */
+  aspect-ratio: 5 / 8;
+  height: auto;
+  object-position: top;
+  border-bottom: 3px solid #000;
+}
+.batch-art {
+  display: block;
+  margin: 0 0 28px;
+  border: 4px solid var(--gold);
+  box-shadow: 12px 12px 0 var(--red);
+  background: #000;
+}
+.batch-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+.mod-plate {
+  padding: 12px 14px 14px;
+}
+.mod .kind {
+  font: 700 11px var(--b);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #c8102e;
+}
+.mod b {
+  display: block;
+  font: 400 30px/1 var(--d);
+  margin: 4px 0;
+}
+.mod .by {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--panel-muted);
+}
+.mods .empty {
+  color: var(--muted);
+}
+
+/* ---- News ---- */
+.news {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 28px;
+  margin-top: 26px;
+  align-items: start;
+}
+.latest {
+  background: var(--panel);
+  color: var(--panel-fg);
+  border: 3px solid #000;
+  box-shadow: 10px 10px 0 var(--red);
+  padding: 26px 28px;
+}
+.latest .eb {
+  font: 700 12px var(--m);
+  color: #c8102e;
+}
+.latest h3 {
+  font: 400 clamp(36px, 4vw, 52px)/1 var(--d);
+  margin: 8px 0 10px;
+}
+.latest p {
+  color: var(--panel-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.latest p a {
+  color: #8e0a20;
+}
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.feed a {
+  display: grid;
+  gap: 2px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+}
+.feed .v {
+  font: 13px var(--m);
+  color: var(--gold);
+}
+.feed .tt {
+  font-weight: 700;
+}
+.feed a:hover .tt {
+  text-decoration: underline;
+}
+.feed .all a {
+  color: var(--muted);
+  border: 0;
+}
+
+/* ---- Download over art ---- */
+.over-art {
+  isolation: isolate;
+  overflow: hidden;
+}
+.band-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #000 center 35% / cover no-repeat;
+  opacity: 0.35;
+}
+.over-art .dl {
+  margin-top: 24px;
+  background: rgb(21 17 14 / 0.88);
+}
+
+/* ---- Community ---- */
+.discords {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 18px;
+  margin-top: 26px;
+}
+.discord {
+  display: grid;
+  gap: 6px;
+  align-content: end;
+  min-height: 170px;
+  padding: 22px 24px;
+  text-decoration: none;
+  background: #4752c4;
+  color: #fff;
+  border: 3px solid #000;
+  box-shadow: 8px 8px 0 #000;
+  transition: transform 0.1s;
+}
+.discord.main {
+  background: var(--red);
+  box-shadow: 8px 8px 0 var(--gold);
+}
+.discord:hover {
+  transform: translate(-2px, -2px);
+}
+.discord b {
+  font: 400 32px/1 var(--d);
+}
+.discord span {
+  opacity: 0.9;
+}
+.discord em {
+  font: 800 14px var(--b);
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.links {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.links a {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 2px solid var(--line);
+  background: var(--bg2);
+  text-decoration: none;
+}
+.links a:hover {
+  border-color: var(--gold);
+}
+.links b {
+  color: var(--gold);
+}
+.links span {
+  color: var(--muted);
+  font-size: 14.5px;
+}
+
+/* ---- Thanks ---- */
+.thanks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 10px 40px;
+}
+.thanks .minor {
+  margin-top: 20px;
+}
+.names {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.names li {
+  border: 1px solid var(--line);
+  padding: 2px 9px;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.fine {
+  color: var(--muted);
+  font-size: 14.5px;
+  max-width: 90ch;
+  margin: 22px 0 0;
+}
+
+/* ---- Narrow ---- */
+@media (max-width: 1000px) {
+  .nav {
+    display: none;
+  }
+  .scrolly-in {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .scrolly-steps {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    margin-top: 12px;
+  }
+  .scrolly-steps button {
+    grid-template-columns: minmax(0, 1fr);
+    border-left: 0;
+    border-top: 3px solid var(--line);
+    padding: 8px 4px 0;
+    min-height: 44px;
+  }
+  .scrolly-steps button span {
+    display: none;
+  }
+  .scrolly-steps li.on button {
+    border-top-color: var(--gold);
+    background: none;
+  }
+  .scrolly-copy .title {
+    font-size: clamp(40px, 9vw, 64px);
+  }
+  .scrolly-caption {
+    display: block;
+  }
+  .discords {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .discord.main {
+    grid-column: 1/-1;
+  }
+  .links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .news,
+  .thanks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .bar {
+    gap: 8px;
+    padding-block: 8px;
+  }
+  .brand span,
+  .bar .gold,
+  .bar .lang .name {
+    display: none;
+  }
+  .bar .lang .code {
+    display: inline;
+  }
+  .brand b {
+    font-size: 24px;
+  }
+  .bar .btn.small {
+    white-space: nowrap;
+  }
+  .bar .btn.small {
+    width: auto;
+  }
+  .hero {
+    min-height: 88svh;
+  }
+  .hero-in {
+    padding-top: 80px;
+  }
+  .stats {
+    gap: 8px 22px;
+  }
+  .stats b {
+    font-size: 36px;
+  }
+  .portraits {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .plate b {
+    font-size: 17px;
+  }
+  .villains {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .villain b {
+    font-size: 19px;
+  }
+  .mods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .mod b {
+    font-size: 22px;
+  }
+  .discords,
+  .links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .discord {
+    min-height: 120px;
+  }
+  .ctas .btn {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .portrait img,
+  .villain img,
+  .mod img,
+  .discord,
+  .pick {
+    transition: none;
+  }
+}

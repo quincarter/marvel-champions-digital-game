@@ -136,6 +136,30 @@ jobs:
           fi
       - id: build
         run: pnpm --filter @mc/client build
+      # Once the game lives on Cloudflare, the old Netlify address serves the "we have moved" page in production instead
+      # of the game (site/moved, vite.site.config.ts): a page on this origin is the only thing that can still read the
+      # saves web players left here. Set the repository variable SITE_MOVED to "true" to switch; PR previews keep
+      # deploying the game either way.
+      - name: Build the moved page
+        id: moved
+        if: github.event_name == 'push' && vars.SITE_MOVED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pnpm --filter @mc/client site:build:moved
+          echo "dir=packages/client/dist-moved" >> "$GITHUB_OUTPUT"
+
+      # A pull request's preview also carries the two site pages, so they can be checked on a real host before they go
+      # live: the landing page at /_site/landing/ and the moved page at /_site/moved/ (which reads the preview's own
+      # saves). Built with their own base path into the game's dist. Not on main: production gets neither here.
+      - name: Add the site pages to the preview
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          for site in landing moved; do
+            pnpm --filter @mc/client exec vite build --config vite.site.config.ts --mode "$site"               --base "/_site/$site/" --outDir "$GITHUB_WORKSPACE/packages/client/dist/_site/$site" --emptyOutDir
+          done
 
       - name: Deploy
         id: deploy
@@ -154,7 +178,8 @@ jobs:
             message="PR #${{ github.event.pull_request.number }}@${COMMIT_REF:0:7}"
           fi
           # The CLI sees the pnpm workspace and needs the app named; --dir still resolves from the repo root.
-          npx --yes netlify-cli@27.10.0 deploy --no-build --filter @mc/client --dir packages/client/dist "${target[@]}" \
+          dir="${{ steps.moved.outputs.dir || 'packages/client/dist' }}"
+          npx --yes netlify-cli@27.10.0 deploy --no-build --filter @mc/client --dir "$dir" "${target[@]}" \
             --message "$message" --json > deploy.json
           url=$(jq -r 'if .url and (env.GITHUB_EVENT_NAME == "push") then .url else .deploy_url end' deploy.json)
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -171,7 +196,7 @@ jobs:
           language=""
           if [ "${MC_CARD_LANG:-en}" = "es" ]; then language=", Spanish card art"; fi
           body="$marker
-          **Netlify preview:** $URL (built from ${COMMIT_REF:0:7}${language})"
+          **Netlify preview:** $URL (built from ${COMMIT_REF:0:7}${language}) · site pages: [landing]($URL/_site/landing/), [we have moved]($URL/_site/moved/)"
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
           if [ -n "$id" ]; then
@@ -435,11 +460,65 @@ jobs:
             pnpm exec wrangler deploy --env staging
           fi
 
+  # The site pages (site/, vite.site.config.ts): the moved page the old Netlify address serves once SITE_MOVED is set,
+  # and the landing page at the new domain's top level, an assets-only Worker on Cloudflare's free plan
+  # (wrangler.landing.jsonc). Every run builds both, and the gate requires those builds, so a change that breaks either
+  # page fails its pull request rather than the deploy that needs it. A push to main deploys the landing page; like the
+  # sync Worker that skips with a notice until the Cloudflare secrets exist, and the deploy itself isn't required.
+  deploy-landing:
+    name: Build the site pages and deploy the landing page
+    runs-on: ubuntu-latest
+    needs: tests
+    outputs:
+      build: ${{ steps.build.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The landing page shows the title wallpapers and the hero and villain art; its screenshots come from the release
+      # reports, which are in git.
+      - name: Fetch the art
+        uses: ./.github/actions/assets
+        with:
+          bundles: art
+      - name: Build
+        id: build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pnpm --filter @mc/client site:build:moved
+          pnpm --filter @mc/client site:build:landing
+      - name: Check for Cloudflare secrets
+        id: secrets
+        if: github.event_name == 'push'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::No Cloudflare secrets yet; skipping the landing page deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: packages/client
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # The sync Worker's pinned wrangler, so the repo carries one version of it.
+        run: pnpm --filter @mc/sync-worker exec wrangler deploy --config "$PWD/wrangler.landing.jsonc"
+
   # A needed job's result covers every job inside it, so `tests` stands for the whole of tests.yml, matrix shards
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, yaml, changelog, tests, deploy, android-preview, linux-preview, deploy-sync]
+    needs: [lint, yaml, changelog, tests, deploy, android-preview, linux-preview, deploy-sync, deploy-landing]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -461,12 +540,12 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The deploy job's own result counts only through its build step; the Android and Linux previews and the sync
+          # The two deploy jobs count only through their build steps; the Android and Linux previews and the sync
           # Worker deploy don't count; a skipped job passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
             | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync")
-            | select(if .key == "deploy" then .value.outputs.build != "success"
+            | select(if .key == "deploy" or .key == "deploy-landing" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)
             | .key')
           if [ -n "$bad" ]; then

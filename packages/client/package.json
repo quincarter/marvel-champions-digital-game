@@ -9,6 +9,10 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
+    "site:build:moved": "vite build --config vite.site.config.ts --mode moved",
+    "site:build:landing": "vite build --config vite.site.config.ts --mode landing",
+    "site:dev:moved": "vite --config vite.site.config.ts --mode moved",
+    "site:dev:landing": "vite --config vite.site.config.ts --mode landing",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -51,6 +55,7 @@
     "@tauri-apps/cli": "^2.12.2",
     "@types/node": "^24.19.2",
     "fake-indexeddb": "^6.2.5",
+    "sharp": "0.35.5",
     "vite": "^8.3.4"
   }
 }
