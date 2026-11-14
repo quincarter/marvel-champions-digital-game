@@ -183,8 +183,14 @@ export class TitleScene extends Phaser.Scene {
   /** A `#replay=` link: fetches the shared replay and opens it on the board; Exit comes back here. */
   async #watchSharedReplay(id: string): Promise<void> {
     const loading = this.#replayNote(t("replay.link.loading"), surface.paper.hex);
-    const fetched = await fetchReplay(id);
-    loading.destroy();
+    let fetched: Awaited<ReturnType<typeof fetchReplay>>;
+    try {
+      fetched = await fetchReplay(id);
+    } catch {
+      fetched = { ok: false, failure: "unavailable" };
+    } finally {
+      loading.destroy();
+    }
     if (!this.sys.isActive()) return;
     if (!fetched.ok)
       return this.#replayProblem(t(fetched.failure === "not-found" ? "replay.link.gone" : "replay.link.offline"));

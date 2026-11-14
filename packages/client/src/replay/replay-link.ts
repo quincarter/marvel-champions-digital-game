@@ -89,7 +89,12 @@ export async function fetchReplay(
   const response = await call(deps, `/replay/${id}`, { method: "GET" });
   if (!response) return { ok: false, failure: "unavailable" };
   if (!response.ok) return { ok: false, failure: await failureOf(response) };
-  return { ok: true, value: new Uint8Array(await response.arrayBuffer()) };
+  try {
+    return { ok: true, value: new Uint8Array(await response.arrayBuffer()) };
+  } catch {
+    // The connection dropped, or the timeout ran out, while the body was still coming.
+    return { ok: false, failure: "unavailable" };
+  }
 }
 
 /**

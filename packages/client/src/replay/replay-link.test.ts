@@ -83,6 +83,17 @@ describe("replay links", () => {
     });
   });
 
+  test("a body that fails part way reads as the service being unreachable", async () => {
+    const broken = new ReadableStream({
+      start: (controller) => controller.error(new Error("connection reset")),
+    });
+    const result = await fetchReplay(
+      ID,
+      deps(() => new Response(broken, { status: 200 })),
+    );
+    expect(result).toEqual({ ok: false, failure: "unavailable" });
+  });
+
   test("links to this page on the web, and to the web version from the apps", () => {
     const here = { origin: "https://preview--site.netlify.app", pathname: "/" };
     expect(replayLinkOf(ID, false, here)).toBe(`https://preview--site.netlify.app/#replay=${ID}`);
