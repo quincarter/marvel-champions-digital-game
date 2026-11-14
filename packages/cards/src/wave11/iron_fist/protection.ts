@@ -1,10 +1,37 @@
 import type { AbilityRegistry } from "@mc/engine";
-import { defineAbilities } from "../../dsl/index.js";
+import {
+  after,
+  anEnemy,
+  chooseOne,
+  chosen,
+  confuse,
+  constant,
+  defineAbilities,
+  enemyAttack,
+  exhaustThis,
+  forcedInterrupt,
+  gainKeywordUntil,
+  gets,
+  heal,
+  heroAction,
+  heroInterrupt,
+  modifyAttack,
+  modifyStat,
+  on,
+  option,
+  query,
+  response,
+  retargetAttack,
+  self,
+  when,
+  you,
+  YOUR_HERO,
+  yourIdentity,
+} from "../../dsl/index.js";
 import { WAVE10_ABILITIES } from "../../wave10/index.js";
 
 /**
- * Wave 11 scripting module `iron_fist/protection` (docs/phase7-elektra-iron-fist.md). Scaffold: a registry holding only the reprint aliases
- * (an empty one when there are none) with every other ref skipped, so scripting it is editing this file and its test.
+ * Wave 11 scripting module `iron_fist/protection` (docs/phase7-elektra-iron-fist.md).
  *
  * Cards (8):
  * - 64013 Helpful Bystander (ally)
@@ -17,19 +44,63 @@ import { WAVE10_ABILITIES } from "../../wave10/index.js";
  * - 64020 Tonfa (upgrade)
  *
  * Reprints, aliased to the original card's script: 64015, 64017.
+ *
+ * **64013.helpful-bystander-constant**: "Your hero gets +1 hand size" (hero form only). Vulnerable is data (the engine's
+ * keyword rule, RRG 1.8 p. 48).
+ *
+ * **64013.helpful-bystander-forced-interrupt**: Amadeus Cho's shape (hercules 59008) for any enemy. The attack is the
+ * same attack redirected (`retargetAttack`): "when it attacks" does not fire again, the ally's controller is the
+ * attacked player (wave 7 section 4.1 Q16 A), and the attack gains overkill (RRG 1.8 p. 31). It can still be defended
+ * (p. 10); "attacks you" is the attacked player (p. 49).
+ *
+ * **64016.demoralize-action**: any enemy, engaged or not, attacks you; then it is confused. Not an attack by you, so
+ * no label and no guard.
+ *
+ * **64019.no-time-to-bleed-response**: "After you play a card (including this one)" is `youPlayedCard` for any card
+ * (Move in Shadow's shape, fne 60027); the heal is from your identity, so it works in either form. Discount is data;
+ * Temporary is the keyword (RRG 1.8 p. 44: discarded when the round ends).
+ *
+ * **64020.tonfa-interrupt**: "When calculating damage during an attack against you" is the attack's damage step
+ * (`enemyAttacks({ atDamage: true })`). The player picks one: +1 DEF or retaliate 1, each until the attack ends. A
+ * hero in alter-ego form has no Hero Interrupt to trigger.
  */
 export const IRON_FIST_PROTECTION: AbilityRegistry = defineAbilities({
+  "64013.helpful-bystander-constant": constant(gets("handSize", 1, YOUR_HERO)),
+  "64013.helpful-bystander-forced-interrupt": forcedInterrupt(
+    on.enemyAttacks(query("enemy"), { againstYou: true }),
+    retargetAttack(self),
+    modifyAttack({ overkill: true }),
+  ),
+
   "64015.defiance-interrupt": WAVE10_ABILITIES["26018.defiance-interrupt"]!,
+
+  "64016.demoralize-action": heroAction(
+    anEnemy("enemy"),
+    enemyAttack(chosen("enemy"), { against: you }),
+    confuse(chosen("enemy")),
+  ),
+
   "64017.the-night-nurse-action": WAVE10_ABILITIES["09019.the-night-nurse-action"]!,
+
+  "64019.no-time-to-bleed-response": response(after.youPlayedCard(query([])), heal(1, yourIdentity)),
+
+  "64020.tonfa-interrupt": heroInterrupt(
+    when.enemyAttacks(query("enemy"), { againstYou: true, atDamage: true }),
+    { cost: exhaustThis },
+    chooseOne(
+      option("+1 DEF for this attack", modifyStat("def", 1, yourIdentity, "endOfAttack")),
+      option(
+        "Retaliate 1 for this attack",
+        gainKeywordUntil({ name: "retaliate", value: 1 }, yourIdentity, "endOfAttack"),
+      ),
+    ),
+  ),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
 export const IRON_FIST_PROTECTION_SKIPPED: Readonly<Record<string, string>> = {
-  "64013.helpful-bystander-constant": "not scripted yet: Helpful Bystander constant",
-  "64013.helpful-bystander-forced-interrupt": "not scripted yet: Helpful Bystander forced interrupt",
-  "64014.iron-fist-response": "not scripted yet: Iron Fist response",
-  "64016.demoralize-action": "not scripted yet: Demoralize action",
-  "64018.redirection-mastery-response": "not scripted yet: Redirection Mastery response",
-  "64019.no-time-to-bleed-response": "not scripted yet: No Time to Bleed response",
-  "64020.tonfa-interrupt": "not scripted yet: Tonfa interrupt",
+  "64014.iron-fist-response":
+    "needs engine primitive: 'an enemy who has been attacked by a hero this phase' (no per-enemy record of who attacked it this phase), and an exactly-defeat consequential-damage scope for -2 consequential damage",
+  "64018.redirection-mastery-response":
+    "needs engine primitive: 'exactly defend' (the defender's modified DEF equals the attacker's modified ATK, no prevention or reduction, by a basic defense; rulings Sep 10, 2026 R4 and Oct 12, 2026 R4) and the defender's DEF for that attack as a value",
 };

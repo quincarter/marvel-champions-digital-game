@@ -1,10 +1,33 @@
+import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
-import { defineAbilities } from "../../dsl/index.js";
+import {
+  alterEgoAction,
+  anAttackableEnemy,
+  attackAnEnemy,
+  chooseCards,
+  chosen,
+  constant,
+  cards,
+  dealDamage,
+  defineAbilities,
+  eachPlayer,
+  exhaustThis,
+  exists,
+  gets,
+  heroAction,
+  moveCards,
+  query,
+  self,
+  YOUR_HERO,
+  zone,
+  you,
+} from "../../dsl/index.js";
 import { LUKE_CAGE_OTHER_ASPECTS_BASIC } from "../luke_cage/other-aspects-basic.js";
 
+const ATTACK = trait("ATTACK");
+
 /**
- * Wave 11 scripting module `iron_fist/basic` (docs/phase7-elektra-iron-fist.md). Scaffold: a registry holding only the reprint aliases
- * (an empty one when there are none) with every other ref skipped, so scripting it is editing this file and its test.
+ * Wave 11 scripting module `iron_fist/basic` (docs/phase7-elektra-iron-fist.md).
  *
  * Cards (6):
  * - 64021 Colleen Wing (ally)
@@ -15,16 +38,43 @@ import { LUKE_CAGE_OTHER_ASPECTS_BASIC } from "../luke_cage/other-aspects-basic.
  * - 64033 The Defenders (resource)
  *
  * Reprints, aliased to the original card's script: 64024.
+ *
+ * **64022.luke-cage-constant**: Toughness is data. "If your hero shares a Trait with Luke Cage" reads both sides live
+ * (`sharesTraitWith`); an alter-ego identity is not "your hero", so there is no bonus (and no DEF to raise).
+ *
+ * **64023.punch-reverse-punch-action**: the Tooth and Claw shape (tigra 56008): one attack, whose two sentences are
+ * independent instances of 1 damage, each choosing its enemy as it resolves, so both may name one enemy (owner's answer
+ * 2026-10-11, question 16 = A; provisional). Discount is data.
+ *
+ * **64025.thunder-dojo-action**: "Any player may trigger this ability" is `triggerableBy: eachPlayer`; the player who
+ * triggers it is "you", so it is their discard pile and deck that are used ("your"). Up to 2 Attack events, so
+ * choosing none is allowed. Prerequisite is data.
  */
 export const IRON_FIST_BASIC: AbilityRegistry = defineAbilities({
+  "64022.luke-cage-constant": constant(
+    gets("def", 1, YOUR_HERO, { while: exists({ ...YOUR_HERO, sharesTraitWith: self }) }),
+  ),
+
+  "64023.punch-reverse-punch-action": heroAction(
+    { label: "attack" },
+    attackAnEnemy(1, { slot: "first" }),
+    anAttackableEnemy("second"),
+    dealDamage(1, chosen("second")),
+  ),
+
   "64024.power-man-and-iron-fist-action": LUKE_CAGE_OTHER_ASPECTS_BASIC["62023.power-man-and-iron-fist-action"]!,
+
+  "64025.thunder-dojo-action": alterEgoAction(
+    { cost: exhaustThis, triggerableBy: eachPlayer },
+    chooseCards("card", zone("discard", you, { filter: query("event", { trait: ATTACK }) }), { min: 0, max: 2 }),
+    moveCards(cards(chosen("card")), "deckShuffle"),
+  ),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
 export const IRON_FIST_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "64021.colleen-wing-constant": "not scripted yet: Colleen Wing constant",
-  "64022.luke-cage-constant": "not scripted yet: Luke Cage ally toughness and constant",
-  "64023.punch-reverse-punch-action": "not scripted yet: Punch, Reverse Punch action",
-  "64025.thunder-dojo-action": "not scripted yet: Thunder Dojo action",
-  "64033.the-defenders-constant": "not scripted yet: The Defenders constant",
+  "64021.colleen-wing-constant":
+    "needs engine primitive: 'an enemy who has been attacked by another Martial Artist character this phase' (no per-enemy record of who attacked it this phase) as a condition of her -1 consequential damage",
+  "64033.the-defenders-constant":
+    "needs engine primitive: a resource's 'can be spent for another player whose identity has the Defender trait' (spendableForAnyPlayer's condition is read for the card's owner, not the spending player); the generation half is handGenerates: generatesPerCard('physical', Defender characters you control, 4)",
 };
