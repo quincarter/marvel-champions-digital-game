@@ -673,7 +673,26 @@ inside one repo, so each write is conditional (`scripts/r2-conditional-update.mj
 
 R2 evaluates `If-Match` and `If-None-Match` on PutObject atomically, and the aws cli has the two options on
 `s3api put-object` from 2.22 (ubuntu-latest has 2.39). A run that gives up leaves the packs uploaded and the old
-catalog in place; re-running it lists them, since a re-published version with the same zip is skipped.
+catalog in place; re-running it lists them, since a re-published version with the same files is skipped.
+
+**Published versions are immutable (2026-11-14).** The two publishers write the same `<id>/<version>/` prefixes too,
+so each version's objects (`pack.json`, `preview.json`, `thumb.webp`, the card pictures and the zip) go up the same
+way on both sides: `scripts/upload-staged-packs.mjs` here, `scripts/upload-staged.mjs` in the registry.
+
+1. **Plan every object of every staged pack first.** Each object's sha256 comes from its `sha256` object metadata, or,
+   for an object put without it (as this repo's workflow did before), by downloading and hashing it.
+2. A version whose objects are all there with the same sha256 (a retry after the upload went through) is skipped. If
+   any object of any pack is there with other bytes, the run fails before anything is put ("bump the version").
+3. Otherwise only the missing objects are put, the zip last (its presence marks the version complete), each with
+   `s3api put-object --if-none-match '*'` and `--metadata sha256=<hex>`, so no put ever overwrites an object.
+4. A put answered `412 PreconditionFailed` or `409 ConditionalRequestConflict` means the other publisher wrote that
+   object after the plan: the object there is hashed, and the run goes on only when it is the same bytes, failing
+   otherwise.
+
+So two publishers racing on one new version never leave one's zip beside the other's `pack.json`, preview or pictures:
+the one whose files differ stops at the first object the other wrote. (It may leave an object the winner's pack does
+not name, such as a card picture only it staged.) In this workflow the check (`--check`) runs in a dry run too, and
+uploads nothing.
 
 The merge rules on both sides:
 
