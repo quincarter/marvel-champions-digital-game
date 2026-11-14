@@ -20,8 +20,7 @@
  * 2. its printed and gained Boost abilities resolve with the character's controller as "you" (an ability naming "the
  *    villain" still means the villain, p. 47), unless cancelled; then the event's responses;
  * 3. its icons, unless cancelled, are counted (its own `adjustBoostCount` / `replaceBoostCount` included) and added to
- *    the stat powering this use until the use ends. Amplify adds nothing (RRG 1.8 "Amplify Icon", p. 7: "during an
- *    enemy activation"; §S4.0).
+ *    the stat powering this use until the use ends, one more for each amplify icon in play (`characterAmplify`).
  *
  * The card stays faceup on the character until the use has resolved; the record then discards it (RRG 1.8 p. 47,
  * "Discard the boost card after it is resolved"; MC60 p. 3, "after the basic power resolves"). A character that leaves
@@ -43,7 +42,7 @@ import {
 import { addLastingEffect } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
-import { boostIconsFor } from "../modifiers.js";
+import { amplifyIconsInPlay, boostIconsFor } from "../modifiers.js";
 import { discardZoneFor, getInstance, locateCard } from "../query.js";
 import { cardsInPlay, categoriesOf, gainedBoostAbilities } from "../select.js";
 import type { BasicPowerName, StatName } from "../spec.js";
@@ -57,6 +56,22 @@ export const villainousFriendlyCharacter = (state: GameState, deps: EngineDeps, 
   cardsInPlay(state).includes(id) &&
   !categoriesOf(state, id).includes("enemy") &&
   hasKeyword(state, id, "villainous", deps);
+
+/**
+ * The amplify icons a character's boost card gains as it resolves during a basic power: one per amplify icon in play.
+ *
+ * Conflict between sources, settled by the owner on 2026-11-14 (docs/phase7-wave11-scenarios.md §S4.0, "Amplify"):
+ * RRG 1.8 "Amplify Icon" (p. 7) adds the icon only "when a boost card is turned faceup during an enemy activation",
+ * which would leave a villainous hero's or ally's card without it. The Fear No Evil rulebook's updated text (MC60 p. 4,
+ * "Amplify Icon (Updated)") reads "When a character resolves a boost card while using a basic power, add one additional
+ * boost icon to that card for each amplify icon in play". The owner follows the newer product text over RRG 1.8 p. 7
+ * for every character, not as an Elektra exception: a villainous hero's basic attack, thwart, defense and recovery
+ * (Elektra 63001a; ruling September 10, 2026 - Ruling 3 (A): a basic recovery resolves a boost card too), and a
+ * villainous ally's basic attack and thwart (Black Cat 60169 / 63016; an ally's defense is no basic power, so it gets
+ * no card). An enemy activation's boost cards keep theirs (`enemy-activation.ts`). Read live, at the flip and again at
+ * the count, as an enemy's card is (the Fearless Determination ruling, January 11, 2026 (1)).
+ */
+const characterAmplify = (ctx: Ctx): number => amplifyIconsInPlay(ctx.state, ctx.deps);
 
 const facedownBoosts = (state: GameState, id: InstanceId): readonly InstanceId[] =>
   (getInstance(state, id)?.boostCards ?? []).filter((card) => getInstance(state, card)?.faceup === false);
@@ -269,7 +284,7 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
     updateFrame(ctx, record.frameId, (f) =>
       f.kind === "characterBoost" ? { ...f, turned: [...f.turned, boostId] } : f,
     );
-    const icons = boostIconsFor(ctx.state, ctx.deps, boostId, frame.playerId);
+    const icons = boostIconsFor(ctx.state, ctx.deps, boostId, frame.playerId) + characterAmplify(ctx);
     emit(ctx, {
       type: "characterBoostCardFlipped",
       characterInstanceId: character,
@@ -325,7 +340,9 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
   // The count: no window opens for it (no character's boost card is an enemy activation's to count). A cancel of the
   // card's icons does not reach those its "Boost" ability gave it (ruling May 10, 2024 #173), as in `enemy-activation.ts`.
   const counted =
-    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, frame.playerId) + (boost.countAdjust ?? 0);
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, frame.playerId) +
+    characterAmplify(ctx) +
+    (boost.countAdjust ?? 0);
   const icons = Math.max(0, (boost.iconsCancelled ? 0 : counted) + (boost.boostAbilityAdjust ?? 0));
   setFrame(ctx, { ...frame, boost: null });
   if (icons <= 0 || locateCard(ctx.state, boost.instanceId)?.kind !== "boost") return;

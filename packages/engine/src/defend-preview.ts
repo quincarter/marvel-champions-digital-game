@@ -33,7 +33,7 @@
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, FrameId, PlayerId } from "./ids.js";
 import { attackKeywordsOf, keywordTotal } from "./keywords.js";
-import { boostIconsFor } from "./modifiers.js";
+import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import {
   activeVillain,
   cardOf,
@@ -278,14 +278,18 @@ function boundOf(
   };
 }
 
-/** The defender's own villainous boost card: one card off the same unseen pool, no per-card bonus. */
+/**
+ * The defender's own villainous boost card: one card off the same unseen pool. It gains one icon per amplify icon in
+ * play (MC60 p. 4's updated Amplify text over RRG 1.8 p. 7, the owner's decision of 2026-11-14; `resolve/villainous.ts`)
+ * but not the enemy activation's "+N boost icons each".
+ */
 const ownCardBound = (
   state: GameState,
   deps: EngineDeps,
   enemyId: InstanceId,
   scope: BoostScope,
   youId: PlayerId,
-): BoostBound => boundOf(state, deps, enemyId, 1, scope, 0, youId);
+): BoostBound => boundOf(state, deps, enemyId, 1, scope, amplifyIconsInPlay(state, deps), youId);
 
 interface Outcome {
   readonly damageDealt: number;
@@ -445,8 +449,9 @@ export function defendPreview(
     (id) => getInstance(state, id)?.faceup !== true,
   ).length;
   // "Each boost card turned faceup during that activation gets +N boost icons" (§4.1 Q66) is known now, so it is
-  // folded into every card of the pool.
-  const perCard = activationVarsOf(state, frame.eventFrameId).boostIconsEach ?? 0;
+  // folded into every card of the pool, as is one icon per amplify icon in play (RRG 1.8 "Amplify Icon", p. 7), which
+  // the activation's flip adds to each of its cards (`enemy-activation.ts` `flipBoostCard`).
+  const perCard = (activationVarsOf(state, frame.eventFrameId).boostIconsEach ?? 0) + amplifyIconsInPlay(state, deps);
   // A boost card's "you", and a constant's while the attack resolves, is the defending player (RRG 1.8 "Defend,
   // Defense", p. 16), so both are read per option, as they will be once that option's defender is declared.
   const boostBounds = new Map<PlayerId, BoostBound>();

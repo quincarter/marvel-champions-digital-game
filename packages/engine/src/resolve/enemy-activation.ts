@@ -521,7 +521,9 @@ function flipBoostCard(
 ): "busy" {
   updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
   // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
-  // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
+  // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6). MC60 p. 4's updated text
+  // ("when a character resolves a boost card while using a basic power") agrees for an enemy's activation; a
+  // villainous hero's or ally's card gets amplify as well (`resolve/villainous.ts`, owner 2026-11-14).
   // An ignored card has no boost icon to count, printed or gained (an amplify icon's "Each boost card gains
   // [boost]" gives it a boost icon like any other), so the windows that follow see 0.
   const scope = boostIgnoreScope(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId);

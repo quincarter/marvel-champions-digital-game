@@ -4,8 +4,9 @@
  * from the top of the encounter deck. When resolving that basic power, turn the boost card faceup, resolve any boost
  * ability on that card, and apply its boost icons to the character's stats for this use. Discard the boost card after
  * it is resolved." MC60 p. 26 FAQ (Black Cat 60169): "The rules for villainous have been revised to function for allies
- * (and heroes) who have it." Amplify adds nothing to it (RRG 1.8 "Amplify Icon", p. 7; §S4.0). Synthetic cards: an ally
- * printed with villainous, and a hero granted it.
+ * (and heroes) who have it." Amplify adds to it as to an enemy's card (MC60 p. 4's updated Amplify text over RRG 1.8
+ * p. 7, owner 2026-11-14, §S4.0; `amplify-basic-power.test.ts`). Synthetic cards: an ally printed with villainous, and a
+ * hero granted it.
  */
 
 import { describe, expect, it } from "vitest";

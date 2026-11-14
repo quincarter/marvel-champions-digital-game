@@ -1198,7 +1198,8 @@ export type GameEvent =
   /**
    * A villainous character that is not an enemy (an ally or a hero) turned its boost card faceup as one of its basic
    * powers resolved (RRG 1.8 "Villainous", p. 47; MC60 p. 26 FAQ; docs/phase7-wave11-scenarios.md §S3.7). `boostIcons`
-   * is the card's count at the flip (no amplify: RRG 1.8 "Amplify Icon", p. 7, adds only "during an enemy activation");
+   * is the card's count at the flip, amplify icons included (MC60 p. 4's updated Amplify text over RRG 1.8 p. 7, the
+   * owner's decision of 2026-11-14; `resolve/villainous.ts`);
    * the icons go to `stat` for this use, and the card is discarded once its Boost ability has resolved. Not an enemy's
    * boost card, so never a `boostCardFlipped`.
    */
