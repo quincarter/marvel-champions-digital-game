@@ -82,8 +82,10 @@ const SANDMAN = "01102"; // Core minion: SCH 2
 const ONE_ENERGY = MOVE_IN_SHADOW; // an upgrade whose only resource icon is one [energy], to pay exact amounts
 const BREAKIN = "01107"; // Core side scheme (Rhino): 2 threat at setup, hazard
 const MINION = "m-shocker" as InstanceId;
+const LANDING_PAD = "21180a"; // Secure the Landing Pad (MTS campaign side scheme): When Defeated, flips to Cosmo
+const COSMO = "21180b";
 
-function coreGame(code: string): GameState {
+function coreGame(code: string, extraEncounterCards: readonly string[] = []): GameState {
   const config = coreScenario("rhino", {
     players: [{ starterDeckId: "core-spider-man-justice" }],
     seed: 1,
@@ -92,7 +94,11 @@ function coreGame(code: string): GameState {
     cardPool: PLAYABLE_CARDS,
   } as never);
   const created = createGame(
-    { ...config, players: [buildCrossHeroDeck(PLAYABLE_CARDS, "core-spider-man-justice", code)] },
+    {
+      ...config,
+      encounterDeck: [...config.encounterDeck, ...extraEncounterCards.map((c) => cardId(c))],
+      players: [buildCrossHeroDeck(PLAYABLE_CARDS, "core-spider-man-justice", code)],
+    },
     DEPS,
   );
   if (!created.ok) throw new Error(`${code}: ${created.error.code}: ${created.error.message}`);
@@ -480,6 +486,17 @@ describe("wave 11 fne/aspect-basic/justice", () => {
         expect(inst(after, first.scheme).threat, `threat ${threat}`).toBe(0);
         expect(stunnedOf(after, MINION), `threat ${threat}`).toBe(stunned);
       }
+    });
+
+    it("answers a side scheme whose When Defeated turns it over to an ally (Secure the Landing Pad, issue #700)", () => {
+      const training = stagedInPlay(coreGame(STEALTH_TRAINING, [LANDING_PAD]), STEALTH_TRAINING, { attach: true });
+      const scheme = encounterCardInVillainArea(training.state, LANDING_PAD, 1);
+      const state = engageMinion(scheme.state, SHOCKER, MINION);
+      const after = drive(state, basicThwart(identityOf(state), scheme.id), choosing(MINION));
+      // Its When Defeated turned it over: Cosmo, an ally, by the time Stealth Training's response window opens.
+      expect(codeOf(after, scheme.id)).toBe(COSMO);
+      expect(stunnedOf(after, MINION)).toBe(1);
+      expect(inst(after, training.id).exhausted).toBe(true);
     });
 
     it("an ally's thwart is not 'you thwart': no response, even when exact", () => {

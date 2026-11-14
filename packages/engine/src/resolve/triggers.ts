@@ -378,11 +378,15 @@ function matchesRest(
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
       if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
-    } else if (event.kind === "characterDefeated" && event.asDefeated !== undefined) {
+    } else if (
+      (event.kind === "characterDefeated" || event.kind === "schemeDefeated") &&
+      event.asDefeated !== undefined
+    ) {
       // "After a Controlled minion is defeated": what the character was as its defeat was initiated (`DefeatedSnapshot`,
       // docs/phase7-wave9.md §3.32). A player card in play facedown as a minion is itself again once it has left play,
       // so its categories, its traits and whether it was facedown are read from the snapshot; the rest of the query,
-      // and a clause inside `anyOf`/`not`, read the card as it now is.
+      // and a clause inside `anyOf`/`not`, read the card as it now is. "After you defeat a side scheme" reads the scheme
+      // the same way: its When Defeated may have turned it over to an ally (Secure the Landing Pad, issue #700).
       const was = event.asDefeated;
       const { categories, trait, withoutTrait, anyTrait, facedown, ...rest } = query;
       if (categories && !categories.some((category) => was.categories.includes(category))) return false;

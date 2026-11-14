@@ -138,6 +138,13 @@ export function defeatedSnapshotOf(ctx: Ctx, id: InstanceId): DefeatedSnapshot |
  * no longer shows.
  */
 function withDefeatSnapshot(ctx: Ctx, event: TriggerEvent): TriggerEvent {
+  // A side scheme's defeat carries what it was too: its When Defeated may turn it over to another card before the
+  // response window (Secure the Landing Pad into Cosmo, issue #700).
+  if (event.kind === "schemeDefeated") {
+    if (event.asDefeated !== undefined) return event;
+    const asDefeated = defeatedSnapshotOf(ctx, event.instanceId);
+    return asDefeated === undefined ? event : { ...event, asDefeated };
+  }
   if (event.kind !== "characterDefeated") return event;
   const numbered =
     event.villainStageNumber === undefined && villainOf(ctx.state, event.instanceId)

@@ -102,6 +102,30 @@ describe("wave 9 log lines", () => {
     ).toMatch(/^1 all purpose counter moves from .+ and becomes threat\.$/);
   });
 
+  test("a card that turns over later in the command is named by the face it had (issue #700)", () => {
+    // Secure the Landing Pad's last threat comes off, it is defeated, and its When Defeated turns it over to Cosmo, all
+    // in one command: the state after it holds the new face, but the threat and the defeat were the side scheme's.
+    // Stand-ins: card `b`'s face plays the side scheme, card `a`'s (now on the instance) the ally it turns into.
+    const flip: GameEvent = {
+      type: "cardFlippedToOtherFace",
+      instanceId: a,
+      from: cardId(b),
+      to: cardId(a),
+      typeChanged: true,
+    };
+    const events: GameEvent[] = [
+      { type: "threatRemoved", schemeInstanceId: a, amount: 1, sourceInstanceId: null },
+      { type: "schemeDefeated", instanceId: a, cardId: cardId(b) },
+      flip,
+    ];
+    const was = state.cardPool[cardId(b)]!.name;
+    const now = state.cardPool[cardId(a)]!.name;
+    const at = (i: number) => logLine(events[i]!, state, me, POOL_DEPS, false, undefined, { events, at: i })?.text;
+    expect(at(0)).toBe(`1 threat removed from ${was}.`);
+    expect(at(1)).toBe(`${was} was cleared.`);
+    expect(at(2)).toBe(`${was} turns over to ${now}.`);
+  });
+
   test("the encounter deck's shown top card, a held minion, a rearrangement", () => {
     expect(text({ type: "encounterTopShown", deckId: "d" as never, instanceId: a, cardId: cardId(a) })).toMatch(
       /^The encounter deck's top card is faceup: /,

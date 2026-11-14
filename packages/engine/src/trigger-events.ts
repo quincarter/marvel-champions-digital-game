@@ -981,6 +981,14 @@ export type TriggerEventBody =
        * H3.12). Absent for any other defeat.
        */
       readonly thwartFrameId?: FrameId;
+      /**
+       * What the scheme was as its defeat was initiated (`DefeatedSnapshot`), the `characterDefeated` field of the same
+       * name. A side scheme whose When Defeated turns it over to another card (Secure the Landing Pad into the ally
+       * Cosmo, `mts` 21180) is no side scheme by the response window, yet "After you thwart and exactly defeat a side
+       * scheme" (Stealth Training 60028) answers it: a response reads the game as its triggering condition happened
+       * (RRG 1.8 "Response", p. 38; issue #700). Absent on an event stamped before the field existed.
+       */
+      readonly asDefeated?: DefeatedSnapshot;
     }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */

@@ -227,6 +227,11 @@ function swappedOutName(state: GameState, id: InstanceId, event: GameEvent, burs
     if (later.type === "villainReplaced" && later.instanceId === id && later.reason === "swap") {
       return getCard(state, later.fromCardId)?.name ?? null;
     }
+    // A card turned over to another card later in the command (Secure the Landing Pad's When Defeated turns it into
+    // Cosmo): the threat came off, and the defeat was, the side scheme, not the ally (issue #700).
+    if (later.type === "cardFlippedToOtherFace" && later.instanceId === id) {
+      return getCard(state, later.from)?.name ?? null;
+    }
   }
   return null;
 }
@@ -1588,8 +1593,13 @@ function describe(
     case "cardFlippedToOtherFace": {
       const kept = Object.entries(event.keptCounters ?? {}).filter(([, n]) => n > 0);
       const keeps = kept.map(([type, n]) => `${n} ${type} counter${n === 1 ? "" : "s"}`).join(", ");
+      // Named by the face it left and the face it turned to ("Secure the Landing Pad turns over to Cosmo"), since the
+      // card is the new face by now and "Cosmo turns over" hides what it was (issue #700).
+      const from = getCard(state, event.from)?.name;
+      const to = getCard(state, event.to)?.name;
+      const named = from !== undefined && to !== undefined && from !== to ? `${from} turns over to ${to}` : null;
       return {
-        text: `${card(event.instanceId)} turns over${keeps ? ` and keeps ${keeps}` : ""}.`,
+        text: `${named ?? `${card(event.instanceId)} turns over`}${keeps ? ` and keeps ${keeps}` : ""}.`,
         voice: "scenario",
       };
     }
