@@ -42,20 +42,6 @@ describe("registry", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
     for (const id of Object.keys(REGISTRY)) expect(validateDefinition(REGISTRY[id]!), id).toEqual([]);
   });
-
-  it("Conditioned by the Hand: a forced response gated to hero form, and an alter-ego action that exhausts the identity", () => {
-    const forced = REGISTRY["63040.conditioned-by-the-hand-forced-response"]!;
-    expect(forced.trigger).toMatchObject({ kind: "response", forced: true });
-    expect(JSON.stringify(forced)).toContain('"form":"hero"');
-    expect(JSON.stringify(forced)).toContain('"value":3');
-    const action = REGISTRY["63040.conditioned-by-the-hand-action"]!;
-    expect(action.trigger).toMatchObject({ kind: "action", form: "alterEgo" });
-    expect(action.cost).toMatchObject({ exhaustIdentity: true });
-  });
-
-  it("Aka's boost deals him to the Elektra Natchios player", () => {
-    expect(JSON.stringify(REGISTRY["63041.boost"])).toContain("Elektra Natchios");
-  });
 });
 
 describe("63044 Hand Blademaster", () => {

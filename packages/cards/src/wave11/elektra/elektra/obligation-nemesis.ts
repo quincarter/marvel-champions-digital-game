@@ -31,9 +31,18 @@ import {
 } from "../../../dsl/index.js";
 
 const HAND = trait("HAND");
-/** "The Elektra Natchios player": the player whose identity is Elektra Natchios in either face. */
+/**
+ * "The Elektra Natchios player": the player whose identity is Elektra in either face (the hero face is titled Elektra,
+ * the alter-ego Elektra Natchios; RRG 1.8 "Obligation", p. 30). `query("identity", { name })` reads the face that is
+ * up, so both names are matched (the Magik shape, wave8/aoa/magik/obligation-nemesis.ts).
+ */
 const ELEKTRA_PLAYER = playersWhere(
-  refMatches(identityOf(thatPlayer), query("identity", { name: "Elektra Natchios" })),
+  refMatches(
+    identityOf(thatPlayer),
+    query("identity", {
+      anyOf: [query("identity", { name: "Elektra" }), query("identity", { name: "Elektra Natchios" })],
+    }),
+  ),
 );
 
 /**
@@ -52,7 +61,7 @@ const ELEKTRA_PLAYER = playersWhere(
  *
  * **63040**: "Give to the Elektra Natchios player" is engine data. The Forced Response is hero form only, and its
  * damage goes to a character other than her own identity (an ally of hers or another player's identity or ally),
- * chosen by the player the card was given to (the card's "you"). Not ruled who chooses; read as the controller.
+ * chosen by the player the card was given to (RRG 1.8 "Obligation", p. 30: "That player must decide how to resolve the obligation").
  * The alter-ego action exhausts her identity to discard it (the card stays in play otherwise, like Internal Injury).
  *
  * **63041 Aka**: Quickstrike is data. When Defeated shuffles him into the encounter deck. Boost: dealt to the Elektra
