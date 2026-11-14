@@ -31,8 +31,8 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { withForm } from "../../testing/staging.js";
-import { stagedInPlay } from "../../wave9/falcon/testing.js";
+import { encounterCardInVillainArea, withForm } from "../../testing/staging.js";
+import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
 import { WAVE11_DEPS as DEPS } from "../index.js";
 import { IRON_FIST_AGGRESSION, IRON_FIST_AGGRESSION_SKIPPED } from "./aggression.js";
 import { IRON_FIST_BASIC, IRON_FIST_BASIC_SKIPPED } from "./basic.js";
@@ -64,6 +64,9 @@ const PUNCH = "64023";
 const DOJO = "64025";
 const CUTS = "64030";
 const ZEN = "64031";
+const SENSEI = "64032";
+const SANDMAN = "01102"; // Core minion, 4 hit points
+const BREAKIN = "01107"; // Core side scheme
 
 const SCRIPTED = {
   protection: [
@@ -83,7 +86,7 @@ const SCRIPTED = {
     "64025.thunder-dojo-action",
   ],
   aggression: ["64030.death-by-a-thousand-cuts-response"],
-  leadership: ["64031.zen-like-calm-action"],
+  leadership: ["64031.zen-like-calm-action", "64032.sensei-constant"],
 } as const;
 
 function coreGame(
@@ -167,7 +170,7 @@ describe("registries", () => {
       "64033.the-defenders-constant",
     ]);
     expect(IRON_FIST_AGGRESSION_SKIPPED).toEqual({});
-    expect(Object.keys(IRON_FIST_LEADERSHIP_SKIPPED)).toEqual(["64032.sensei-constant"]);
+    expect(IRON_FIST_LEADERSHIP_SKIPPED).toEqual({});
   });
 
   it("types each trigger as printed", () => {
@@ -508,5 +511,68 @@ describe("64031 Zen-Like Calm", () => {
     expect(
       actions.kind === "turn" && actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id),
     ).toBe(false);
+  });
+});
+
+describe("64032 Sensei", () => {
+  const MINION = "m-sandman-a" as InstanceId;
+  /** Sensei and the Iron Fist ally (Martial Artist: ATK 2, THW 1; consequential 2 / 1; 3 hit points) in play. */
+  const setup = (withSensei = true) => {
+    const { state } = coreGame(SENSEI, LEADERSHIP_HERO);
+    const sensei = withSensei ? inPlay(state, SENSEI).state : state;
+    return inPlay(sensei, MARTIAL_ARTIST_ALLY);
+  };
+  const attackWith = (attacker: InstanceId, target: InstanceId): Command => ({
+    type: "basicAttack",
+    playerId: P1,
+    attackerInstanceId: attacker,
+    targetInstanceId: target,
+  });
+  const thwartWith = (thwarter: InstanceId, scheme: InstanceId): Command => ({
+    type: "basicThwart",
+    playerId: P1,
+    thwarterInstanceId: thwarter,
+    schemeInstanceId: scheme,
+  });
+  /** The ally attacks a Sandman carrying `damage` (4 hit points); returns the ally's damage after. */
+  const attacking = (damage: number, withSensei = true) => {
+    const ally = setup(withSensei);
+    const engaged = patchInstance(engageMinion(ally.state, SANDMAN, MINION), MINION, { damage });
+    const after = drive(engaged, taking(), attackWith(ally.id, MINION));
+    return { after, damage: damageOf(after, ally.id) };
+  };
+
+  it("an ally that exactly defeats an enemy (2 left, ATK 2) takes -2 consequential damage: none", () => {
+    const { after, damage } = attacking(2);
+    expect(playerOf(after, P1).playArea).not.toContain(MINION);
+    expect(damage).toBe(0);
+  });
+
+  it("not when the attack deals excess damage (1 left, ATK 2): the full 2", () => {
+    expect(attacking(3).damage).toBe(2);
+  });
+
+  it("not when the enemy survives: the full 2", () => {
+    expect(attacking(0).damage).toBe(2);
+  });
+
+  it("control: without Sensei, an exact defeat takes the full 2", () => {
+    expect(attacking(2, false).damage).toBe(2);
+  });
+
+  it("an ally whose thwart exactly defeats a side scheme (1 threat, THW 1) takes none of its 1", () => {
+    const ally = setup();
+    const scheme = encounterCardInVillainArea(ally.state, BREAKIN, 1);
+    const after = drive(scheme.state, taking(), thwartWith(ally.id, scheme.id));
+    expect(after.villainArea).not.toContain(scheme.id);
+    expect(damageOf(after, ally.id)).toBe(0);
+  });
+
+  it("not when the thwart leaves threat on the side scheme: the full 1", () => {
+    const ally = setup();
+    const scheme = encounterCardInVillainArea(ally.state, BREAKIN, 2);
+    const after = drive(scheme.state, taking(), thwartWith(ally.id, scheme.id));
+    expect(inst(after, scheme.id).threat).toBe(1);
+    expect(damageOf(after, ally.id)).toBe(1);
   });
 });

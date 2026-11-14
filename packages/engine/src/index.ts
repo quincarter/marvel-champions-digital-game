@@ -521,6 +521,7 @@ export {
   TOTAL_ATK_RESULT,
   DEFENDER_DEF_RESULT,
   EXACTLY_DEFENDED_RESULT,
+  EXACTLY_DEFEATED_RESULT,
 } from "./trigger-events.js";
 
 export type {

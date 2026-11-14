@@ -8,6 +8,7 @@ import {
   PAID_FOR_SLOT,
   TOGETHER_TARGETS_SLOT,
   EXCESS_AS_DEALT_RESULT,
+  EXACTLY_DEFEATED_RESULT,
   TOTAL_ATK_RESULT,
   UNRESOLVED_VAR,
 } from "@mc/engine";
@@ -1161,6 +1162,31 @@ export const playedVia = (card: TargetQuery): Predicate => ({ kind: "playedVia",
  * it had (MC60 p. 4). Schemes only: a character's exact defeat reads `attackExcessAsDealt` (hero-pack spec H3.19).
  */
 export const exactlyDefeated: Predicate = { kind: "exactlyDefeated" };
+/**
+ * "After they exactly defeat an enemy or side scheme" (Sensei, `iron_fist` 64032), read in an ally's consequential-
+ * damage scope (`takesConsequentialDamage(…, { if })`), where the power it follows reported its results: its attack
+ * defeated an enemy and dealt no excess damage (`attack.defeated`, no `attack.excessAsDealt`: FFG ruling August 3, 2026
+ * (6), dealt rather than taken), or its thwart exactly defeated a side scheme (`thwart.exactlyDefeated`, engine
+ * `EXACTLY_DEFEATED_RESULT`: no more threat attempted than the scheme had, MC60 p. 4).
+ */
+export const exactlyDefeatedByPower: Predicate = {
+  kind: "or",
+  of: [
+    {
+      kind: "and",
+      of: [
+        { kind: "varAtLeast", name: "attack.defeated", amount: 1 },
+        {
+          kind: "compare",
+          left: { kind: "var", name: `attack.${EXCESS_AS_DEALT_RESULT}` },
+          op: "atMost",
+          right: { kind: "const", value: 0 },
+        },
+      ],
+    },
+    { kind: "varAtLeast", name: `thwart.${EXACTLY_DEFEATED_RESULT}`, amount: 1 },
+  ],
+};
 /**
  * "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, …"
  * (Charged Card 37006; docs/phase7-wave6.md §3.52): the play of the card resolving carries the note `name`

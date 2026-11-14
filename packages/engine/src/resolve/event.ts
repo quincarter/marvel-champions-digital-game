@@ -116,6 +116,7 @@ import {
   damageTakenKey,
   eventSubjects,
   EXCESS_AS_DEALT_RESULT,
+  EXACTLY_DEFEATED_RESULT,
   spillDefeatedKey,
 } from "../trigger-events.js";
 import type { AttackKeyword, DefeatFollowUp, DefeatPlacement, EffectSpec, Predicate } from "../spec.js";
@@ -2685,7 +2686,16 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
   // "If that thwart defeats attached scheme" (docs/phase7-wave11-hero-packs.md H3.12): the thwart's `defeated` result,
   // read by an `atEndOfThwart` effect or the thwart's responses. Recorded here, past the defeat's interrupt window, so
   // a defeat an interrupt cancelled (or a scheme it removed first) is not one.
-  if (event.thwartFrameId) addFrameVars(ctx, event.thwartFrameId, { defeated: 1 });
+  // …and `exactlyDefeated` when that thwart attempted no more threat than the scheme had (MC60 p. 4; FFG ruling
+  // August 3, 2026 (6) for the enemy half). Recorded on the thwart itself, so an ally's consequential damage, which the
+  // thwart reports into (`pushConsequentialDamage`, prefix `thwart.`), reads it: "Each Martial Artist ally you control
+  // takes -2 consequential damage after they exactly defeat an enemy or side scheme" (Sensei, `iron_fist` 64032).
+  if (event.thwartFrameId) {
+    addFrameVars(ctx, event.thwartFrameId, {
+      defeated: 1,
+      ...(event.excessThreat === 0 ? { [EXACTLY_DEFEATED_RESULT]: 1 } : {}),
+    });
+  }
   // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
   // the general `defeatDestination`, docs/phase7-wave3.md §3.45).
   const effectsFrame = leaveAfterWhenDefeated(

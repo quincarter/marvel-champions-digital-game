@@ -77,12 +77,7 @@ const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {
     "57077.android-assistance-interrupt",
   ],
   // Iron Fist is a not-ready pack (docs/phase7-elektra-iron-fist.md): these cards wait on engine primitives.
-  iron_fist: [
-    "64014.iron-fist-response",
-    "64021.colleen-wing-constant",
-    "64032.sensei-constant",
-    "64033.the-defenders-constant",
-  ],
+  iron_fist: ["64014.iron-fist-response", "64021.colleen-wing-constant", "64033.the-defenders-constant"],
 };
 
 describe("built-in packs through the SDK", () => {

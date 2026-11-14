@@ -2164,6 +2164,16 @@ export const DEFENDER_DEF_RESULT = "defenderDef";
 export const EXACTLY_DEFENDED_RESULT = "exactlyDefended";
 
 /**
+ * The result key (1) a thwart records when its removal **exactly defeated** a side scheme: the scheme's defeat got past
+ * its interrupt window and the removal attempted no more threat than the scheme had (`schemeDefeated.excessThreat` 0;
+ * MC60 p. 4: "defeated by a thwart that did not attempt to remove more threat than was necessary"). Beside the thwart's
+ * `defeated`. It reaches an ally's consequential damage as `thwart.exactlyDefeated`. An attack's exact defeat of an
+ * enemy is its `defeated` with no `excessAsDealt` (FFG ruling August 3, 2026 (6): no excess damage **dealt**), which
+ * the cards DSL composes (`exactlyDefeatedByPower`).
+ */
+export const EXACTLY_DEFEATED_RESULT = "exactlyDefeated";
+
+/**
  * The result key an attack records "the damage dealt by this attack" under: every point of damage it dealt to the
  * attacked characters plus every point its overkill spilled onto another character (RRG 1.8 "Overkill", p. 31: the
  * spill "is considered damage from an attack"). Beside `damage`, which counts the attacked characters' damage taken

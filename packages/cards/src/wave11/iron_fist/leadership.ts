@@ -5,11 +5,15 @@ import {
   andThen,
   chooseTarget,
   chosen,
+  constant,
   damageOn,
   defineAbilities,
+  exactlyDefeatedByPower,
   heal,
   ifThen,
   query,
+  rule,
+  takesConsequentialDamage,
   valueEquals,
 } from "../../dsl/index.js";
 
@@ -30,6 +34,12 @@ const MARTIAL_ARTIST = trait("MARTIAL ARTIST");
  * and left that character at 0 damage, and the other character is chosen after the first heal. Same reading as the
  * Peter Porker basic recovery ruling (May 2023, docs/rulings/post-rrg-1-5/01-may-2023.md) and Ionic Physiology
  * (March 6, 2026, Ruling 3).
+ *
+ * **64032.sensei-constant**: an ally consequential-damage rule (`takesConsequentialDamage`) whose `if` reads the results
+ * the ally's power reported into its consequential damage (`exactlyDefeatedByPower`): an attack that defeated an enemy
+ * dealing no excess damage (dealt, not taken: FFG ruling August 3, 2026 (6)), or a thwart that defeated a side scheme
+ * attempting no more threat than it had (MC60 p. 4). "Martial Artist ally" is read as the damage is dealt. Discount 2
+ * (Martial Artist) and Max 1 per player are data.
  */
 export const IRON_FIST_LEADERSHIP: AbilityRegistry = defineAbilities({
   "64031.zen-like-calm-action": action(
@@ -42,10 +52,15 @@ export const IRON_FIST_LEADERSHIP: AbilityRegistry = defineAbilities({
       ]),
     ),
   ),
+
+  "64032.sensei-constant": constant(
+    rule(
+      takesConsequentialDamage(query("ally", { trait: MARTIAL_ARTIST, controller: "you" }), -2, {
+        if: exactlyDefeatedByPower,
+      }),
+    ),
+  ),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const IRON_FIST_LEADERSHIP_SKIPPED: Readonly<Record<string, string>> = {
-  "64032.sensei-constant":
-    "needs engine primitive: 'exactly defeat a side scheme' readable in an ally's consequential-damage scope (a thwart's excess-threat result is not reported to the thwart's bind, only to the schemeDefeated event); the enemy half is attack.defeated with attack.excessAsDealt 0",
-};
+export const IRON_FIST_LEADERSHIP_SKIPPED: Readonly<Record<string, string>> = {};
