@@ -261,3 +261,25 @@ describe("MARVELCDB_FIELD_PLACEHOLDER", () => {
     expect(MARVELCDB_FIELD_PLACEHOLDER.length * 7.2).toBeLessThanOrEqual(280);
   });
 });
+
+describe("not-ready cards in an import", () => {
+  const poolEnv: ImportEnv = { ...env, pool: PLAYABLE_CARDS };
+  const deckText = (extra: string) => `Hero: Spider-Man (01001a)
+Aspect: Justice
+${extra}`;
+
+  test("a pasted deck holding a not-ready card (Killer Blow, 63007) is refused as an unknown card", () => {
+    const out = importFromPasteText(deckText("1x Killer Blow"), poolEnv);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.problems.map((p) => p.code)).toContain("unknown_card");
+  });
+
+  test("Shang-Chi (63015) is never imported as the not-ready printing (a same-named card elsewhere still is)", () => {
+    const out = importFromPasteText(deckText("1x Shang-Chi (63015)"), poolEnv);
+    if (out.ok) expect(out.deck.cards.some((c) => (c.cardId as string) === "63015")).toBe(false);
+  });
+
+  test("the same deck without it still imports", () => {
+    expect(importFromPasteText(deckText("1x Backflip"), poolEnv).ok).toBe(true);
+  });
+});

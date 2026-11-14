@@ -30,6 +30,7 @@ import {
   type DeckValidation,
 } from "@mc/engine";
 import { isNotReadyCard } from "@mc/cards";
+import { hiddenNotReadyCard } from "./not-ready-cards.js";
 import { perPlayerCostOf } from "./per-player-cost.js";
 import { matchesClauses, parsePoolQuery, type QueryClause } from "./pool-query.js";
 
@@ -260,7 +261,11 @@ export function browsablePool(
   // `held` is the ids the deck already contains: they stay listed even when the deck's rules now refuse them, so each
   // can still be removed from the list (the legality line says why it is refused).
   const filtered = cardsOf(pool)
-    .filter((card) => held.has(card.id as string) || cardOfferedToDeck(card, identity, chosenAspects).offered)
+    .filter(
+      (card) =>
+        held.has(card.id as string) ||
+        (!hiddenNotReadyCard(card) && cardOfferedToDeck(card, identity, chosenAspects).offered),
+    )
     .filter((card) => matchesFilter(card, filter, packs));
 
   // Wave 1 reprints the same basic/aspect card (by title) across several packs

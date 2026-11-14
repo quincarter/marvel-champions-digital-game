@@ -17,6 +17,7 @@ import {
   type Deck,
   type ImportProblem,
 } from "@mc/content";
+import { hiddenNotReadyCard } from "./not-ready-cards.js";
 import type { CardPool } from "@mc/engine";
 
 /**
@@ -37,6 +38,9 @@ export interface ImportEnv {
   /** The names of the decks already stored, so an imported name that collides gets a numeric suffix. */
   readonly existingNames?: readonly string[];
 }
+
+/** The pool an importer reads titles and codes from: a not-ready pack's cards are left out, so they are reported as unknown cards. */
+const importablePool = (env: ImportEnv): readonly AnyCard[] => env.pool.filter((card) => !hiddenNotReadyCard(card));
 
 /** `name`, or `name (2)`, `name (3)` … the first one not already taken (case-insensitive). */
 export function uniqueDeckName(name: string, existing: readonly string[] = []): string {
@@ -70,7 +74,7 @@ const warningsOf = (result: { readonly notes?: readonly { readonly code: string;
 
 /** Import-by-paste: works with no network, per PLAN.md Phase 9's "build it first; it is also the easiest to test". */
 export function importFromPasteText(text: string, env: ImportEnv): ImportOutcome {
-  const result = parseDecklistText(text, env.pool);
+  const result = parseDecklistText(text, importablePool(env));
   if (!result.ok) return { ok: false, problems: result.problems };
   const now = env.now();
   return {
@@ -101,7 +105,7 @@ export function importFromMarvelCdbResponseText(
   sourceUrl: string | null,
   env: ImportEnv,
 ): ImportOutcome {
-  const result = parseMarvelCdbDeckJsonText(responseText, env.pool);
+  const result = parseMarvelCdbDeckJsonText(responseText, importablePool(env));
   if (!result.ok) return { ok: false, problems: result.problems };
   const now = env.now();
   return {
