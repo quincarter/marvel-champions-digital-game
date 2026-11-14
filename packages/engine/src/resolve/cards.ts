@@ -501,10 +501,12 @@ export function moveCardsTo(
           //
           // A card of an identity's separate deck of encounter cards (Elektra's Ninja deck, 63001b; "shuffle the top
           // card of the Ninja deck into the encounter deck") becomes the scenario's: no owner, its home the encounter
-          // deck, so it discards to the encounter discard pile (ruling October 12, 2026 - Ruling 2: a Ninja card whose
-          // Boost finds no Elektra is "discarded to the encounter deck discard pile"). Owner decision 2A (2026-11-14,
-          // provisional), read against RRG 1.8 "Ownership and Control" (p. 31), whose "the player whose deck contained
-          // the card at the start of setup" would leave it Elektra's player's. `separateDeckShuffle` gives it back.
+          // deck. The Ninja cards are treacheries, encounter cards, and "the scenario owns the encounter deck and each
+          // encounter card" (RRG 1.8 "Ownership and Control", p. 31, second sentence), so in the encounter deck it is
+          // the scenario's and discards to the encounter discard pile (RRG 1.8 "Discard", p. 16; ruling October 12,
+          // 2026 - Ruling 2: a Ninja card whose Boost finds no Elektra is "discarded to the encounter deck discard
+          // pile"). No conflict with p. 31. The Ninja deck itself is owner decision 2A (2026-11-14, provisional, no
+          // insert yet). `separateDeckShuffle` gives it back to that deck.
           if (owner && isOwnedEncounterCard(ctx.state, id)) {
             updateInstance(ctx, id, (i) => ({
               ...i,
