@@ -1,5 +1,5 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, extname, join, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
 
@@ -321,15 +321,43 @@ function landingDataPlugin(): Plugin {
           );
         }
       }
-      const mods = await packCatalog();
+      const mods = (await packCatalog()) as { id: string; latest: string; thumbnail?: string }[];
+      // Each pack's cover, saved at build time so it ships with the page (and shows where the pack host's images
+      // can't load); a cover that won't download keeps its URL on the pack host.
+      const coverImports: string[] = [];
+      const modCode: string[] = [];
+      for (const mod of mods) {
+        let cover = mod.thumbnail ? JSON.stringify(mod.thumbnail) : "undefined";
+        if (mod.thumbnail) {
+          const file = join(
+            ART_CACHE,
+            "mods",
+            `${mod.id}-${mod.latest}${extname(new URL(mod.thumbnail).pathname) || ".webp"}`,
+          );
+          try {
+            if (!existsSync(file)) {
+              const response = await fetch(mod.thumbnail, { signal: AbortSignal.timeout(10_000) });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              mkdirSync(dirname(file), { recursive: true });
+              writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+            }
+            cover = `cover${coverImports.length}`;
+            coverImports.push(`import ${cover} from ${JSON.stringify(file.replaceAll("\\", "/"))};`);
+          } catch (error) {
+            console.warn(`[landing] ${mod.id}'s cover didn't download (${String(error)}); linking it instead.`);
+          }
+        }
+        modCode.push(`{ ...${JSON.stringify(mod)}, thumbnail: ${cover} }`);
+      }
       const art = await siteArt(true);
       return [
         ...imports,
         ...art.imports,
+        ...coverImports,
         ...art.exports,
         `export const RELEASES = ${JSON.stringify(releases)};`,
         `export const SCREENSHOTS = [${shots.join(",\n")}];`,
-        `export const MODS = ${JSON.stringify(mods)};`,
+        `export const MODS = [${modCode.join(",\n")}];`,
         `export const BUILT_AT = ${JSON.stringify(new Date().toISOString())};`,
       ].join("\n");
     },
