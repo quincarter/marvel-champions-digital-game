@@ -115,6 +115,12 @@ export function paymentSheetView(
     };
   }
   if (prompt.kind !== "payForCard" && prompt.kind !== "payForAbility") return null;
+  // Another player's hand card spent for this one (an alliance helper's, The Defenders, Everyday Hero) is priced as its
+  // holder's, as the engine prices and pays it ("each Defender character you control" is that player's).
+  const holderOf = (id: InstanceId) => {
+    const at = locateCard(state, id);
+    return at?.kind === "hand" ? at.playerId : choice.playerId;
+  };
   let paid = 0;
   for (const optionId of selected) {
     const option = choice.options.find((candidate) => candidate.optionId === optionId);
@@ -127,7 +133,9 @@ export function paymentSheetView(
     paid += spent
       ? poolTotal(spent)
       : option.ref.kind === "card"
-        ? poolTotal(handCardResources(state, deps, option.ref.instanceId, choice.playerId, prompt.instanceId))
+        ? poolTotal(
+            handCardResources(state, deps, option.ref.instanceId, holderOf(option.ref.instanceId), prompt.instanceId),
+          )
         : 1;
   }
   const canConfirm = selected.length > 0 && pays(state, choice, selected, deps);
