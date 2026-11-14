@@ -3,8 +3,9 @@
  * in Core's Rhino scenario. MC60 p. 26 FAQ: "Does Black Cat retain the villainous keyword while she is an ally? Yes.
  * The rules for villainous have been revised to function for allies (and heroes) who have it." RRG 1.8 "Villainous"
  * (p. 47): when she uses a basic power she is given a facedown boost card from the top of the encounter deck, turned
- * faceup as the power resolves, its icons added to the stat used for this use, then discarded. Amplify adds nothing
- * (RRG 1.8 "Amplify Icon", p. 7; §S4.0). The scripts are this test's own, as in `wave11-treat-self-as-ally.test.ts`.
+ * faceup as the power resolves, its icons added to the stat used for this use, then discarded. Amplify adds one icon
+ * per amplify icon in play (MC60's updated Amplify text over RRG 1.8 p. 7, owner 2026-11-14, §S4.0; tested in
+ * `qa-2026-11-14-amplify-basic-power.test.ts`). The scripts are this test's own, as in `wave11-treat-self-as-ally.test.ts`.
  */
 
 import { CORE_CARDS, PLAYABLE_CARDS, cardId } from "@mc/content";
