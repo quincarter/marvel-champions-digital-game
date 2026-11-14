@@ -9,8 +9,8 @@
  *
  * The give is the keyword's forced interrupt to the power's `basicPowerUsing` event (`VILLAINOUS_ABILITY`,
  * `keyword-abilities.ts`), ordered among the other forced interrupts like any. The rest is two `characterBoost` frames
- * (`stack.ts`): the use's record beneath the use's own frame, and a `resolve` frame above it, which runs once the
- * `basicPowerUsing` window is over, as the power resolves.
+ * (`stack.ts`): the use's record beneath the use's own frame, and a `resolve` frame pushed above that frame once its own
+ * interrupt window has closed, as the power resolves (`startCharacterBoost`).
  *
  * Held boost cards. A card given to the character ahead of time for its basic powers ("Give her 1 facedown boost
  * card", Acrobatic Prowess 63006; `EffectSpec giveBoostCard.forBasicPower`, `CardInstance.heldForBasicPowers`) waits
@@ -126,9 +126,8 @@ function insertBeneath(ctx: Ctx, below: FrameId, frames: readonly StackFrame[]):
 
 /**
  * Records a basic power `characterId` is using, when it is a villainous ally or hero or one holding boost cards for its
- * basic powers: the `use` record beneath the use's frame, and, except for a basic defense, the `resolve` frame on top.
- * Called by the power's announcer just before it pushes the power's `basicPowerUsing` event, so the `resolve` frame
- * sits beneath that event and above the use.
+ * basic powers: the `use` record beneath the use's frame. Called by the power's announcer just before it pushes the
+ * power's `basicPowerUsing` event. Its cards are turned faceup later, as the power resolves (`startCharacterBoost`).
  *
  * A basic defense's cards are turned faceup in the attack's step 3, with the enemy's: "she will turn that boost card
  * faceup during the same step that the villain's boost cards are turned faceup" (ruling September 10, 2026 - Ruling 3
@@ -148,7 +147,6 @@ export function pushCharacterBoost(
   const record = characterBoostRecord(ctx, characterId, power, stat, playerId);
   if (!record) return;
   insertBeneath(ctx, record.useFrameId, [record]);
-  if (power !== "defense") pushFrames(ctx, [resolveFrameFor(ctx, record)]);
 }
 
 /**
@@ -184,7 +182,6 @@ function characterBoostRecord(
     ),
     turned: [],
     bonuses: [],
-    ...(power === "defense" ? {} : { started: true as const }),
   };
 }
 
@@ -193,12 +190,11 @@ function characterBoostRecord(
  * text is the authority, docs/custom-content-packs.md §6, and its author expects the card to resolve as villainous's
  * does): from an interrupt to the power's `basicPowerUsing` event, makes this use resolve a boost card the way the
  * villainous keyword's does (RRG 1.8 "Villainous", p. 47; MC60 p. 26 FAQ), for a character that need not have the
- * keyword. Registers the `characterBoost` frames `pushCharacterBoost` would have pushed as the power was announced: the
- * `use` record beneath the use's frame and, except for a basic defense (resolved after the enemy's boost cards,
- * `startDefenderBoost`), the `resolve` frame directly beneath the `basicPowerUsing` event, so it runs once that window
- * is over. A use that already has a record (a villainous character) keeps it: its `resolve` frame turns up every card
- * the use was given, this one too. The caller then gives the card (`giveBoostCard`). False when the use gets no boost
- * card (an ally's defense, a use no longer on the stack): nothing is registered and nothing should be given.
+ * keyword. Registers the `use` record `pushCharacterBoost` would have pushed as the power was announced, beneath the
+ * use's frame; its cards are turned faceup as the power resolves (`startCharacterBoost`, `startDefenderBoost`). A use
+ * that already has a record (a villainous character) keeps it: it turns up every card the use was given, this one too.
+ * The caller then gives the card (`giveBoostCard`, held for the use). False when the use gets no boost card (an ally's
+ * defense, a use no longer on the stack): nothing is registered and nothing should be given.
  */
 export function registerCharacterBoost(ctx: Ctx, event: Extract<TriggerEvent, { kind: "basicPowerUsing" }>): boolean {
   const { characterInstanceId: characterId, power, stat, playerId } = event;
@@ -214,27 +210,6 @@ export function registerCharacterBoost(ctx: Ctx, event: Extract<TriggerEvent, { 
   );
   if (existing) return true;
   insertBeneath(ctx, record.useFrameId, [record]);
-  if (power === "defense") return true;
-  const using = ctx.state.stack.find(
-    (f) =>
-      f.kind === "event" &&
-      f.event.kind === "basicPowerUsing" &&
-      f.event.characterInstanceId === characterId &&
-      f.event.power === power,
-  );
-  // Beneath the `basicPowerUsing` event when it is on the stack, else directly above the use itself.
-  const resolve = resolveFrameFor(ctx, record);
-  if (using) insertBeneath(ctx, using.frameId, [resolve]);
-  else {
-    const at = ctx.state.stack.findIndex((f) => f.frameId === record.useFrameId);
-    ctx.state = { ...ctx.state, stack: [...ctx.state.stack.slice(0, at), resolve, ...ctx.state.stack.slice(at)] };
-    emit(ctx, {
-      type: "framePushed",
-      frameId: resolve.frameId,
-      frame: resolve.kind,
-      description: describeFrame(resolve),
-    });
-  }
   return true;
 }
 
@@ -277,6 +252,32 @@ export function boostCardsToResolve(state: GameState, record: Frame<"characterBo
   return heldBoostCardsOf(state, record.characterInstanceId).filter(
     (id) => !record.heldBefore.includes(id) && !record.turned.includes(id),
   );
+}
+
+/**
+ * Called by the event frame `useFrameId` (an attack, a thwart, a basic recovery) as it resolves, after its interrupt
+ * window and only when it was not cancelled: turns up the boost cards of the basic power it is, if any (a basic
+ * defense's are turned up in the enemy attack's step 3 instead, `startDefenderBoost`). True when it pushed the
+ * `resolve` frame, the event then waiting on it.
+ *
+ * Boost cards flip as the basic power resolves (RRG 1.8 "Villainous" p.47), after all interrupts to it: "would"
+ * interrupts first ("Would" p.48), then the Villainous forced interrupt, then non-forced interrupts ("Forced" p.20,
+ * "Interrupt" p.25). So a cancel in the power's own interrupt window ("when she attacks") leaves every card facedown and
+ * held for her next basic power (owner decision 5, docs/phase7-elektra-iron-fist.md §5; `finishUse`).
+ */
+export function startCharacterBoost(ctx: Ctx, useFrameId: FrameId): boolean {
+  const record = ctx.state.stack.find(
+    (f): f is Frame<"characterBoost"> =>
+      f.kind === "characterBoost" &&
+      f.stage === "use" &&
+      f.power !== "defense" &&
+      f.useFrameId === useFrameId &&
+      f.started !== true,
+  );
+  if (!record) return false;
+  setFrame(ctx, { ...record, started: true });
+  pushFrames(ctx, [resolveFrameFor(ctx, record)]);
+  return true;
 }
 
 /**

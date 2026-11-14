@@ -911,7 +911,10 @@ export type StackFrame =
       readonly turned: readonly InstanceId[];
       /** `use`: the lasting stat modifiers carrying their icons (`LastingEffect.id`). */
       readonly bonuses: readonly string[];
-      /** `use`: its `resolve` frame has been pushed (a basic defense's waits for the enemy's boost cards). */
+      /**
+       * `use`: its `resolve` frame has been pushed: as the use's own event resolves, after its interrupt window
+       * (`startCharacterBoost`), or for a basic defense in the enemy attack's step 3 (`startDefenderBoost`).
+       */
       readonly started?: true;
       /** `resolve`: its `use` record. */
       readonly recordFrameId?: FrameId;

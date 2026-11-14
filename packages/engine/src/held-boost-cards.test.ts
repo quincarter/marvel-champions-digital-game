@@ -73,6 +73,19 @@ const STOP = stubAbility("stop.interrupt", {
   effects: [{ kind: "cancelTriggeringEvent" }],
 });
 const STOPPER = stubSupport({ id: "stopper", cost: 0, abilities: [STOP.ref] });
+/** "When a character attacks, place 1 'mark' counter on the main scheme" (forced): an interrupt to her attack itself. */
+const MARK = stubAbility("mark.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "attack" } },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "mark",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+});
+const MARKER = stubSupport({ id: "marker", cost: 0, abilities: [MARK.ref] });
 /**
  * "Forced Response: After you attack, place 1 facedown boost card on your identity" (Vengeance's shape on Venom, `sm`
  * 27073): an enemy's text placing a card while her attack, and so her use, is still on the stack.
@@ -104,15 +117,15 @@ const BOOMERANG = stubTreachery({ id: "boomerang", boostIcons: 2, starIcon: true
 const VENDETTA: SideSchemeCard = { ...stubSideScheme({ id: "vendetta", startingThreat: 2 }), amplifyIcons: 1 };
 const ALLY = stubAlly({ id: "plain-ally", cost: 0, atk: 1, thw: 1, hp: 5 });
 
-const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT, AVENGE);
+const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT, AVENGE, MARK);
 
 /** P1's first turn in hero form, 9 threat on the main scheme, the desk in play; the encounter deck is `deck`. */
 function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
   const base = gameAtFirstTurn({
-    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER, AVENGER],
+    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER, AVENGER, MARKER],
     deps,
     encounter: [VENDETTA.id, ...deck],
-    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id, AVENGER.id],
+    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id, AVENGER.id, MARKER.id],
   });
   const hero: GameState = {
     ...base,
@@ -365,17 +378,46 @@ describe("a card the use never reached stays held (owner decision 5, docs/phase7
       expect(mustInstance(after.state, id)).toMatchObject({ faceup: false, heldForBasicPowers: true });
   });
 
-  it("a basic attack cancelled in its own interrupt window: her cards resolved already, as the use announced", () => {
-    // Engine order today: the use's cards resolve as the `basicPowerUsing` window closes, before the attack's own
-    // interrupt window; so a cancel there finds them resolved and discarded. See the handoff note.
+  it("a basic attack cancelled in its own interrupt window: her cards are never turned up and stay held", () => {
+    // Boost cards flip as the basic power resolves (RRG 1.8 "Villainous" p. 47), after all interrupts to it ("Forced"
+    // p. 20, "Interrupt" p. 25): the cancel comes first, so nothing is turned faceup.
     const s = holding();
     const hero = identity(s.state);
+    const [held] = heldBoostCardsOf(s.state, hero);
     const stopped = playerCardIntoPlay(s.state, STOPPER.id, P1).state;
-    const after = run(stopped, [
-      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(stopped) },
+    const granted = { ...stopped, lastingEffects: [...stopped.lastingEffects, grantVillainous(hero)] };
+    const before = mustInstance(granted, villain(granted)).damage;
+    const after = run(granted, [
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(granted) },
     ]);
-    expect(characterFlips(after.events)).toHaveLength(1);
-    expect(heldBoostCardsOf(after.state, hero)).toEqual([]);
+    expect(characterFlips(after.events)).toHaveLength(0);
+    expect(mustInstance(after.state, villain(after.state)).damage).toBe(before);
+    // The held card and the card her villainous attack was given, both facedown and held.
+    const kept = heldBoostCardsOf(after.state, hero);
+    expect(kept).toHaveLength(2);
+    expect(kept[0]).toBe(held);
+    for (const id of kept)
+      expect(mustInstance(after.state, id)).toMatchObject({ faceup: false, heldForBasicPowers: true });
+  });
+
+  it("her cards turn up after the attack's own interrupts have resolved, then add to ATK", () => {
+    const s = holding();
+    const hero = identity(s.state);
+    const [held] = heldBoostCardsOf(s.state, hero);
+    const marked = playerCardIntoPlay(s.state, MARKER.id, P1).state;
+    const before = mustInstance(marked, villain(marked)).damage;
+    const after = run(marked, [
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(marked) },
+    ]);
+    const resolved = after.events.findIndex(
+      (e) => e.type === "abilityResolved" && (e.abilityId as string) === MARK.ref.id,
+    );
+    const flipped = after.events.findIndex((e) => e.type === "characterBoostCardFlipped");
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    expect(flipped).toBeGreaterThan(resolved);
+    // ATK 2 + 2.
+    expect(mustInstance(after.state, villain(after.state)).damage).toBe(before + 4);
+    expect(locateCard(after.state, held!)?.kind).toBe("encounterDiscard");
   });
 });
 

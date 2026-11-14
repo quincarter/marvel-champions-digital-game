@@ -174,6 +174,7 @@ import {
 } from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 import { awaitEnclosingAbility, dropHeldResponses, refreshHeldResponses } from "./initiated-activation.js";
+import { startCharacterBoost } from "./villainous.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
@@ -451,6 +452,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (frame.event.kind === "dealDamage") announceStatusDiscarded(ctx, piercedBeforeInterrupts(frame.event));
         return;
       }
+      // Boost cards flip as the basic power resolves (RRG 1.8 "Villainous" p.47), after all interrupts to it: "would"
+      // interrupts first ("Would" p.48), then the Villainous forced interrupt, then non-forced interrupts ("Forced"
+      // p.20, "Interrupt" p.25). The event waits here, at `apply`, until its user's cards have resolved.
+      if (startCharacterBoost(ctx, frame.frameId)) return;
       setFrame(ctx, { ...frame, stage: "responses" });
       const beforeApply = ctx.state;
       const happened = applyEvent(ctx, frame) !== false;
