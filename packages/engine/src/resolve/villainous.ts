@@ -266,9 +266,14 @@ export function pendingDefenderBoost(
   );
 }
 
-/** The facedown boost cards a `use` record's character will resolve for that use: all but those it cannot use. */
+/**
+ * The facedown boost cards a `use` record's character will resolve for that use: those held for its basic powers (its
+ * kit's and the one this use's villainous keyword gave, both marked `heldForBasicPowers` as they are given) that it has
+ * not turned up yet. A card an enemy's text placed on it is never one, whenever it arrived (ruling September 10, 2026 -
+ * Ruling 3 (C)).
+ */
 export function boostCardsToResolve(state: GameState, record: Frame<"characterBoost">): readonly InstanceId[] {
-  return facedownBoosts(state, record.characterInstanceId).filter(
+  return heldBoostCardsOf(state, record.characterInstanceId).filter(
     (id) => !record.heldBefore.includes(id) && !record.turned.includes(id),
   );
 }
@@ -428,11 +433,15 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
 }
 
 /**
- * The use has resolved: each boost card it turned up is discarded. A card it cannot use stays (`heldBefore`). A card
- * still facedown stays too, held for the character's next basic power: one this use never reached (its attack ended
- * first), the card this use's villainous keyword gave included, or one a Boost ability gave back to it ("Otherwise,
- * give this card to Elektra as a facedown boost card"). Keeping the never-reached card is pending the owner (the
- * recommended reading; before it, the use's own card was discarded).
+ * The use has resolved: each boost card it turned up is discarded. Every card still facedown stays as it is. One held
+ * for the character's basic powers stays held for its next one: a card this use never reached (the power was cancelled
+ * or its attack ended first), the card this use's villainous keyword gave included, or one a Boost ability gave back to
+ * it ("Otherwise, give this card to Elektra as a facedown boost card"). Owner decision 5 (docs/phase7-elektra-iron-
+ * fist.md §5, provisional; RRG 1.8 "Boost, Boost Icon", p. 11; ruling September 10, 2026 - Ruling 3 (A)), for every
+ * character that resolves boost cards, not only Elektra. A card it cannot use (an enemy's text placed it, before the
+ * use or during it, "Elektra cannot use boost cards placed on her by Venom", the same ruling, (C)) is not marked: the
+ * held mark comes only with the give (`giveBoostCard.forBasicPower`, and the villainous keyword's own give), never from
+ * the use ending.
  */
 function finishUse(ctx: Ctx, record: Frame<"characterBoost">): void {
   popFrame(ctx);
@@ -440,10 +449,7 @@ function finishUse(ctx: Ctx, record: Frame<"characterBoost">): void {
   for (const id of [...(holder?.boostCards ?? [])]) {
     if (record.heldBefore.includes(id)) continue;
     const card = getInstance(ctx.state, id);
-    if (card && !card.faceup) {
-      if (card.heldForBasicPowers !== true) updateInstance(ctx, id, (i) => ({ ...i, heldForBasicPowers: true }));
-      continue;
-    }
+    if (card && !card.faceup) continue;
     const zone = locateCard(ctx.state, id);
     if (zone?.kind !== "boost" || zone.hostInstanceId !== record.characterInstanceId) continue;
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");

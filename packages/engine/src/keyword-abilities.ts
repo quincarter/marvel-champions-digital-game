@@ -65,7 +65,10 @@ export const VILLAINOUS_ABILITY: KeywordAbility = {
         ],
       },
     },
-    effects: [{ kind: "giveBoostCard", enemy: { kind: "self" } }],
+    // Held for its basic powers (`CardInstance.heldForBasicPowers`), as the card is given: that mark is what the use
+    // resolves, so a card an enemy's text places on the character mid-use is never resolved or kept as its own (ruling
+    // September 10, 2026 - Ruling 3 (C); `resolve/villainous.ts`).
+    effects: [{ kind: "giveBoostCard", enemy: { kind: "self" }, forBasicPower: true }],
   },
 };
 

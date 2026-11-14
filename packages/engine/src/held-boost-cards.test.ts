@@ -73,6 +73,15 @@ const STOP = stubAbility("stop.interrupt", {
   effects: [{ kind: "cancelTriggeringEvent" }],
 });
 const STOPPER = stubSupport({ id: "stopper", cost: 0, abilities: [STOP.ref] });
+/**
+ * "Forced Response: After you attack, place 1 facedown boost card on your identity" (Vengeance's shape on Venom, `sm`
+ * 27073): an enemy's text placing a card while her attack, and so her use, is still on the stack.
+ */
+const AVENGE = stubAbility("avenge.response", {
+  trigger: { kind: "response", forced: true, on: { on: "attack", playerIs: "controller" } },
+  effects: [{ kind: "giveBoostCard", enemy: YOUR_IDENTITY }],
+});
+const AVENGER = stubSupport({ id: "avenger", cost: 0, abilities: [AVENGE.ref] });
 /** "[star] Boost: Cancel this activation" (a community card's shape, `cancelBoostedActivation`). No icons. */
 const QUIT = stubAbility("quit.boost", { trigger: { kind: "boost" }, effects: [{ kind: "cancelBoostedActivation" }] });
 const QUITTER = stubTreachery({ id: "quitter", boostIcons: 0, starIcon: true, abilities: [QUIT.ref] });
@@ -95,15 +104,15 @@ const BOOMERANG = stubTreachery({ id: "boomerang", boostIcons: 2, starIcon: true
 const VENDETTA: SideSchemeCard = { ...stubSideScheme({ id: "vendetta", startingThreat: 2 }), amplifyIcons: 1 };
 const ALLY = stubAlly({ id: "plain-ally", cost: 0, atk: 1, thw: 1, hp: 5 });
 
-const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT);
+const deps = depsOf(...ACTIONS, HURT_YOU, REGIVE, PEEK, STOP, QUIT, AVENGE);
 
 /** P1's first turn in hero form, 9 threat on the main scheme, the desk in play; the encounter deck is `deck`. */
 function start(deck: readonly CardId[] = copiesOf(PLAIN.id, 20)) {
   const base = gameAtFirstTurn({
-    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER],
+    cards: [DESK, HURTER, PLAIN, BOOMERANG, VENDETTA, ALLY, PEEKER, STOPPER, QUITTER, AVENGER],
     deps,
     encounter: [VENDETTA.id, ...deck],
-    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id],
+    deck: [DESK.id, ALLY.id, PEEKER.id, STOPPER.id, AVENGER.id],
   });
   const hero: GameState = {
     ...base,
@@ -186,6 +195,36 @@ describe("giving a held boost card (EffectSpec giveBoostCard.forBasicPower)", ()
     expect(characterFlips(after.events)).toHaveLength(0);
     expect(mustInstance(after.state, card!).faceup).toBe(false);
     expect(mustInstance(after.state, s.scheme).threat).toBe(7);
+  });
+});
+
+describe("a card an enemy's text places during her own use is not hers (ruling Sep 10, 2026 R3 (C))", () => {
+  it("placed by a forced response to her villainous attack: left facedown, not held, not discarded", () => {
+    const s = start();
+    const placing = playerCardIntoPlay(s.state, AVENGER.id, P1).state;
+    const hero = identity(placing);
+    const granted = { ...placing, lastingEffects: [...placing.lastingEffects, grantVillainous(hero)] };
+    const before = mustInstance(granted, villain(granted)).damage;
+    const after = run(granted, [
+      { type: "basicAttack", playerId: P1, attackerInstanceId: hero, targetInstanceId: villain(granted) },
+    ]);
+    // Her villainous card resolved (ATK 2 + 2) and was discarded; the placed card is the only one left on her.
+    expect(characterFlips(after.events)).toHaveLength(1);
+    expect(mustInstance(after.state, villain(after.state)).damage).toBe(before + 4);
+    const [placed] = mustInstance(after.state, hero).boostCards;
+    expect(mustInstance(after.state, hero).boostCards).toHaveLength(1);
+    expect(mustInstance(after.state, placed!).faceup).toBe(false);
+    expect(mustInstance(after.state, placed!).heldForBasicPowers).toBeUndefined();
+    expect(heldBoostCardsOf(after.state, hero)).toEqual([]);
+
+    // Her next basic power leaves it there.
+    const readied = {
+      ...after.state,
+      instances: { ...after.state.instances, [hero]: { ...mustInstance(after.state, hero), exhausted: false } },
+    };
+    const next = run(readied, [thwart(hero, s.scheme)]);
+    expect(characterFlips(next.events).map((e) => e.instanceId)).not.toContain(placed);
+    expect(locateCard(next.state, placed!)).toEqual({ kind: "boost", hostInstanceId: hero });
   });
 });
 

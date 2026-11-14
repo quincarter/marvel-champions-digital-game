@@ -2640,7 +2640,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // The use resolves the card as villainous's does (`registerCharacterBoost`), then the card is given as any is.
       const event = context.event;
       if (event?.kind !== "basicPowerUsing" || !registerCharacterBoost(ctx, event)) return;
-      applyEffect(ctx, { kind: "giveBoostCard", enemy: { kind: "eventSource" } }, context, frame);
+      applyEffect(ctx, { kind: "giveBoostCard", enemy: { kind: "eventSource" }, forBasicPower: true }, context, frame);
       return;
     }
     case "giveBoostCard": {

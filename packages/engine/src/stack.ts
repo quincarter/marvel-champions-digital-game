@@ -902,8 +902,9 @@ export type StackFrame =
       /** The frame the use is (`basicPowerUseFrameId`); its end ends the icons' modifiers. */
       readonly useFrameId: FrameId;
       /**
-       * `use`: the facedown boost cards the character held before this use. They stay facedown: only the card this use
-       * gave is resolved (RRG 1.8 "Boost, Boost Icon", p. 11).
+       * `use`: the facedown boost cards on the character as this use began that it cannot use (not held for its basic
+       * powers: an enemy's text placed them). They stay facedown (RRG 1.8 "Boost, Boost Icon", p. 11; ruling September
+       * 10, 2026 - Ruling 3 (C)), as does any such card placed during the use (`boostCardsToResolve` reads the mark).
        */
       readonly heldBefore: readonly InstanceId[];
       /** `use`: the cards turned faceup for this use, in order. */
