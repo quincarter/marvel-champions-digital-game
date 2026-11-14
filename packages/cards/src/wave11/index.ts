@@ -9,16 +9,36 @@
  * scaffold with an empty registry (reprints aliased to their originals) and every other ref in its `_SKIPPED` map, so
  * scripting a module is editing that file and its test, nothing else. Unscripted cards stay out of play through
  * `unscriptedCards` (`@mc/engine`), exactly as in earlier waves.
+ *
+ * Each product is a built-in pack (`<code>/pack.ts`, docs/builtin-content-packs.md §3.1) holding its modules'
+ * registries; the wave's registry merges the packs in `WAVE11_BUILTIN_PACKS` order, which is the module list's order
+ * (Shadowland's modules come first there).
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";
+import type { BuiltinPack } from "../builtin-packs/define.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
-import { WAVE11_MODULES } from "./modules.js";
+import { FNE_BUILTIN_PACK } from "./fne/pack.js";
+import { JJ_BUILTIN_PACK } from "./jj/pack.js";
+import { LUKE_CAGE_BUILTIN_PACK } from "./luke_cage/pack.js";
+import { SHADOWLAND_BUILTIN_PACK } from "./shadowland/pack.js";
 
-/** Every scripted ability in the wave 11 pool: every earlier wave's script, then each wave 11 module's registry. */
+/**
+ * Wave 11's products as built-in packs (`../builtin-packs/define.ts`), in the order their modules merge
+ * (`WAVE11_MODULES` lists each product's modules together, in this order). Wave 11 has no reprint layer, so each
+ * pack's abilities are its own scripts.
+ */
+export const WAVE11_BUILTIN_PACKS: readonly BuiltinPack[] = [
+  SHADOWLAND_BUILTIN_PACK,
+  JJ_BUILTIN_PACK,
+  LUKE_CAGE_BUILTIN_PACK,
+  FNE_BUILTIN_PACK,
+];
+
+/** Every scripted ability in the wave 11 pool: every earlier wave's script, then each wave 11 pack's scripts. */
 export const WAVE11_ABILITIES: AbilityRegistry = mergeRegistries(
   WAVE10_ABILITIES,
-  ...WAVE11_MODULES.map((module) => module.registry),
+  ...WAVE11_BUILTIN_PACKS.map((pack) => pack.abilities),
 );
 
 /** Engine dependencies for games that use the wave 11 (cycle 11) pool. */
@@ -26,5 +46,5 @@ export const WAVE11_DEPS: EngineDeps = { abilities: WAVE11_ABILITIES };
 
 export { WAVE11_CARDS } from "./cards.js";
 export { CARD_GROUPS, isFnePlayerHalfId } from "./card-groups.js";
-export { WAVE11_MODULES } from "./modules.js";
+export { WAVE11_MODULES, wave11ModulesOf } from "./modules.js";
 export type { Wave11Module } from "./modules.js";

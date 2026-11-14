@@ -11,7 +11,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { WAVE9_ABILITIES } from "./index.js";
-import { AOS_ABILITIES } from "./aos/index.js";
+import { AOS_BUILTIN_PACK } from "./aos/pack.js";
 import { AIM_ABDUCTION, AIM_ABDUCTION_SKIPPED } from "./aos/aim-abduction.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
@@ -68,14 +68,14 @@ import {
   BLACK_PANTHER_OBLIGATION_NEMESIS_SKIPPED,
 } from "./bp/black-panther/obligation-nemesis.js";
 import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
-import { BP_ABILITIES } from "./bp/index.js";
+import { BP_BUILTIN_PACK } from "./bp/pack.js";
 import {
   FALCON_ASPECT_BASIC,
   FALCON_ASPECT_BASIC_SKIPPED,
   FLIGHT_SQUADRON_GRANTED_RESPONSE,
   SPECTRUM_GRANTED_RESPONSE,
 } from "./falcon/aspect-basic.js";
-import { FALCON_ABILITIES } from "./falcon/index.js";
+import { FALCON_BUILTIN_PACK } from "./falcon/pack.js";
 import { FALCON_EVENTS, FALCON_EVENTS_SKIPPED } from "./falcon/falcon/events.js";
 import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./falcon/falcon/identity.js";
 import { FALCON_OBLIGATION_NEMESIS, FALCON_OBLIGATION_NEMESIS_SKIPPED } from "./falcon/falcon/obligation-nemesis.js";
@@ -86,7 +86,7 @@ import {
 import { TECHNO, TECHNO_SKIPPED } from "./falcon/techno.js";
 import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
 import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js";
-import { SILK_ABILITIES } from "./silk/index.js";
+import { SILK_BUILTIN_PACK } from "./silk/pack.js";
 import { SILK_EVENTS, SILK_EVENTS_SKIPPED } from "./silk/silk/events.js";
 import { SILK_IDENTITY, SILK_IDENTITY_SKIPPED } from "./silk/silk/identity.js";
 import { SILK_OBLIGATION_NEMESIS, SILK_OBLIGATION_NEMESIS_SKIPPED } from "./silk/silk/obligation-nemesis.js";
@@ -98,9 +98,9 @@ import { TT_ASPECT_BASIC, TT_ASPECT_BASIC_SKIPPED } from "./tt/aspect-basic.js";
 import { ENCHANTRESS, ENCHANTRESS_SKIPPED } from "./tt/enchantress.js";
 import { GOD_OF_LIES, GOD_OF_LIES_SKIPPED } from "./tt/god-of-lies.js";
 import { TRICKSTER_MAGIC, TRICKSTER_MAGIC_SKIPPED } from "./tt/trickster-magic.js";
-import { TT_ABILITIES } from "./tt/index.js";
+import { TT_BUILTIN_PACK } from "./tt/pack.js";
 import { WINTER_ASPECT_BASIC, WINTER_ASPECT_BASIC_SKIPPED } from "./winter/aspect-basic.js";
-import { WINTER_ABILITIES } from "./winter/index.js";
+import { WINTER_BUILTIN_PACK } from "./winter/pack.js";
 import { WHITEOUT, WHITEOUT_SKIPPED } from "./winter/whiteout.js";
 import { WINTER_SOLDIER_EVENTS, WINTER_SOLDIER_EVENTS_SKIPPED } from "./winter/winter-soldier/events.js";
 import { WINTER_SOLDIER_IDENTITY, WINTER_SOLDIER_IDENTITY_SKIPPED } from "./winter/winter-soldier/identity.js";
@@ -647,12 +647,12 @@ const PACKS: ReadonlyArray<{
   readonly cards: readonly AnyCard[];
   readonly registry: AbilityRegistry;
 }> = [
-  { code: "aos", cards: AOS_CARDS, registry: AOS_ABILITIES },
-  { code: "bp", cards: BP_CARDS, registry: BP_ABILITIES },
-  { code: "silk", cards: SILK_CARDS, registry: SILK_ABILITIES },
-  { code: "falcon", cards: FALCON_CARDS, registry: FALCON_ABILITIES },
-  { code: "winter", cards: WINTER_CARDS, registry: WINTER_ABILITIES },
-  { code: "tt", cards: TT_CARDS, registry: TT_ABILITIES },
+  { code: "aos", cards: AOS_CARDS, registry: AOS_BUILTIN_PACK.abilities },
+  { code: "bp", cards: BP_CARDS, registry: BP_BUILTIN_PACK.abilities },
+  { code: "silk", cards: SILK_CARDS, registry: SILK_BUILTIN_PACK.abilities },
+  { code: "falcon", cards: FALCON_CARDS, registry: FALCON_BUILTIN_PACK.abilities },
+  { code: "winter", cards: WINTER_CARDS, registry: WINTER_BUILTIN_PACK.abilities },
+  { code: "tt", cards: TT_CARDS, registry: TT_BUILTIN_PACK.abilities },
 ];
 
 describe("wave 9 pack ability coverage", () => {

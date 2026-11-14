@@ -3,6 +3,14 @@ export { obligation } from "./core/obligations.js";
 export { abilitiesForCards, builtinPackProblems, defineBuiltinPack, ownScriptsOf } from "./builtin-packs/define.js";
 export type { BuiltinPack, BuiltinPackManifest } from "./builtin-packs/define.js";
 export { BUILTIN_PACKS } from "./builtin-packs/index.js";
+export { WAVE4_BUILTIN_PACKS } from "./wave4/index.js";
+export { WAVE5_BUILTIN_PACKS } from "./wave5/index.js";
+export { WAVE6_BUILTIN_PACKS } from "./wave6/index.js";
+export { WAVE7_BUILTIN_PACKS } from "./wave7/index.js";
+export { WAVE8_BUILTIN_PACKS } from "./wave8/index.js";
+export { WAVE9_BUILTIN_PACKS } from "./wave9/index.js";
+export { WAVE10_BUILTIN_PACKS } from "./wave10/index.js";
+export { WAVE11_BUILTIN_PACKS } from "./wave11/index.js";
 export {
   CORE_ABILITIES,
   CORE_BUILTIN_PACK,

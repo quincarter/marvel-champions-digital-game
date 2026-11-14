@@ -49,11 +49,11 @@ import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
 import { wave9Scenario, wave9StarterDeckSetup } from "../setup.js";
 import { codeOf, inPlayCard, piles, revealedCodes, stunWith, types } from "../testing.js";
-import { AOS_ABILITIES } from "./index.js";
+import { AOS_BUILTIN_PACK } from "./pack.js";
 
 vi.setConfig({ testTimeout: 180_000 });
 
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_ABILITIES) };
+const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_BUILTIN_PACK.abilities) };
 
 // Core cards
 const BLANK = "01186"; // treachery, boost 0, When Revealed: the villain schemes

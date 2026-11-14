@@ -9,20 +9,20 @@ import { ANGEL_CARDS, DEADPOOL_CARDS, NEXT_EVOL_CARDS, PSYLOCKE_CARDS, X23_CARDS
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE6_ABILITIES } from "../wave6/index.js";
 import { WAVE7_ABILITIES } from "./index.js";
-import { ANGEL_ABILITIES } from "./angel/index.js";
+import { ANGEL_BUILTIN_PACK } from "./angel/pack.js";
 import { ANGEL_EVENTS } from "./angel/events.js";
 import { ANGEL_IDENTITY } from "./angel/identity.js";
 import { ANGEL_OBLIGATION_NEMESIS } from "./angel/obligation-nemesis.js";
 import { ANGEL_PACK_CARDS } from "./angel/pack-cards.js";
 import { ANGEL_SUPPORT_UPGRADES_ALLIES } from "./angel/support-upgrades-allies.js";
-import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
+import { DEADPOOL_BUILTIN_PACK } from "./deadpool/pack.js";
 import { DEADPOOL_IDENTITY } from "./deadpool/identity.js";
 import { DREADPOOL } from "./deadpool/dreadpool.js";
 import { DEADPOOL_EVENTS } from "./deadpool/events.js";
 import { DEADPOOL_PACK_CARDS } from "./deadpool/pack-cards.js";
 import { DEADPOOL_SUPPORT_UPGRADES_ALLIES } from "./deadpool/support-upgrades-allies.js";
 import { DEADPOOL_OBLIGATION_NEMESIS } from "./deadpool/obligation-nemesis.js";
-import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
+import { NEXT_EVOL_BUILTIN_PACK } from "./next_evol/pack.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
 import { DOMINO_EVENTS } from "./next_evol/domino/events.js";
@@ -50,13 +50,13 @@ import { ON_THE_RUN } from "./next_evol/on-the-run.js";
 import { STRYFE } from "./next_evol/stryfe.js";
 import { SUPER_STRENGTH } from "./next_evol/super-strength.js";
 import { TELEPATHY } from "./next_evol/telepathy.js";
-import { PSYLOCKE_ABILITIES } from "./psylocke/index.js";
+import { PSYLOCKE_BUILTIN_PACK } from "./psylocke/pack.js";
 import { PSYLOCKE_EVENTS } from "./psylocke/events.js";
 import { PSYLOCKE_IDENTITY } from "./psylocke/identity.js";
 import { PSYLOCKE_PACK_CARDS } from "./psylocke/pack-cards.js";
 import { PSYLOCKE_OBLIGATION_NEMESIS } from "./psylocke/obligation-nemesis.js";
 import { PSYLOCKE_SUPPORT_UPGRADES_ALLIES } from "./psylocke/support-upgrades-allies.js";
-import { X23_ABILITIES } from "./x23/index.js";
+import { X23_BUILTIN_PACK } from "./x23/pack.js";
 import { X23_IDENTITY } from "./x23/identity.js";
 import { X23_SUPPORT_UPGRADES_ALLIES } from "./x23/support-upgrades-allies.js";
 import { X23_EVENTS } from "./x23/events.js";
@@ -527,11 +527,11 @@ const PACKS: ReadonlyArray<{
   readonly cards: readonly AnyCard[];
   readonly registry: AbilityRegistry;
 }> = [
-  { code: "next_evol", cards: NEXT_EVOL_CARDS, registry: NEXT_EVOL_ABILITIES },
-  { code: "psylocke", cards: PSYLOCKE_CARDS, registry: PSYLOCKE_ABILITIES },
-  { code: "angel", cards: ANGEL_CARDS, registry: ANGEL_ABILITIES },
-  { code: "x23", cards: X23_CARDS, registry: X23_ABILITIES },
-  { code: "deadpool", cards: DEADPOOL_CARDS, registry: DEADPOOL_ABILITIES },
+  { code: "next_evol", cards: NEXT_EVOL_CARDS, registry: NEXT_EVOL_BUILTIN_PACK.abilities },
+  { code: "psylocke", cards: PSYLOCKE_CARDS, registry: PSYLOCKE_BUILTIN_PACK.abilities },
+  { code: "angel", cards: ANGEL_CARDS, registry: ANGEL_BUILTIN_PACK.abilities },
+  { code: "x23", cards: X23_CARDS, registry: X23_BUILTIN_PACK.abilities },
+  { code: "deadpool", cards: DEADPOOL_CARDS, registry: DEADPOOL_BUILTIN_PACK.abilities },
 ];
 
 describe("wave 7 pack ability coverage", () => {
