@@ -2,6 +2,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   after,
   anEnemy,
+  attackedThisPhase,
   chooseOne,
   chosen,
   confuse,
@@ -10,7 +11,9 @@ import {
   defenderDefForAttack,
   defineAbilities,
   enemyAttack,
+  eventDealt,
   eventSource,
+  eventTarget,
   exhaustThis,
   forcedInterrupt,
   gainKeywordUntil,
@@ -19,7 +22,9 @@ import {
   heroAction,
   heroInterrupt,
   heroResponse,
+  ifThen,
   modifyAttack,
+  modifyConsequentialDamage,
   modifyStat,
   on,
   option,
@@ -27,6 +32,7 @@ import {
   response,
   retargetAttack,
   self,
+  stun,
   when,
   you,
   YOUR_HERO,
@@ -57,6 +63,13 @@ import { WAVE10_ABILITIES } from "../../wave10/index.js";
  * attacked player (wave 7 section 4.1 Q16 A), and the attack gains overkill (RRG 1.8 p. 31). It can still be defended
  * (p. 10); "attacks you" is the attacked player (RRG 1.8 "Attack", p. 8; "You, Your", p. 49).
  *
+ * **64014.iron-fist-response**: "an enemy who has been attacked by a hero this phase" reads the phase's attack record
+ * (`attackedThisPhase`), the attacker as it was when it attacked, so a hero who has since changed form still counts; his
+ * own attack is an ally's, not a hero's. Optional, so both sentences come with the response. "If Iron Fist defeated that
+ * enemy" is the attack's `defeated` (a plain defeat, not "exactly"); "-2 consequential damage from this attack" changes
+ * the pending consequential damage of this attack (`modifyConsequentialDamage`), which resolves after the attack's
+ * responses (RRG 1.8 "Consequential Damage", p. 13). Stunning a defeated enemy does nothing.
+ *
  * **64016.demoralize-action**: any enemy, engaged or not, attacks you; then it is confused. Not an attack by you, so
  * no label and no guard.
  *
@@ -74,6 +87,13 @@ export const IRON_FIST_PROTECTION: AbilityRegistry = defineAbilities({
     on.enemyAttacks(query("enemy"), { againstYou: true }),
     retargetAttack(self),
     modifyAttack({ overkill: true }),
+  ),
+
+  "64014.iron-fist-response": response(
+    after.attacks("self", { target: query("enemy") }),
+    { while: attackedThisPhase(eventTarget, { category: "hero" }) },
+    stun(eventTarget),
+    ifThen(eventDealt("defeated"), modifyConsequentialDamage(-2, self)),
   ),
 
   "64015.defiance-interrupt": WAVE10_ABILITIES["26018.defiance-interrupt"]!,
@@ -107,7 +127,4 @@ export const IRON_FIST_PROTECTION: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const IRON_FIST_PROTECTION_SKIPPED: Readonly<Record<string, string>> = {
-  "64014.iron-fist-response":
-    "needs engine primitive: 'an enemy who has been attacked by a hero this phase' (no per-enemy record of who attacked it this phase), and an exactly-defeat consequential-damage scope for -2 consequential damage",
-};
+export const IRON_FIST_PROTECTION_SKIPPED: Readonly<Record<string, string>> = {};

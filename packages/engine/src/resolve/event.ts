@@ -82,12 +82,14 @@ import {
   actingCharacterOf,
   cannotBeDefeatedAgain,
   cardsInPlay,
+  categoriesOf,
   characterIgnores,
   controllerOf,
   isProtectedMainScheme,
   resolveValue,
   sourcePlayerOf,
   thwartAmount,
+  traitsOf,
 } from "../select.js";
 import {
   applyLeavingPlay,
@@ -101,7 +103,7 @@ import {
 import { defendedActivationFrameId, playFrameOf, type StackFrame, type Vars } from "../stack.js";
 import { releaseWaitingAbilities, resumeSuspended } from "./suspend.js";
 import { forgetEnteredWhileApplying } from "../entered-since.js";
-import { STATUS_NAMES, type GameState } from "../state.js";
+import { type AttackThisPhase, STATUS_NAMES, type GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 import {
@@ -1069,6 +1071,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "characterAttacked":
       recordAttackThisTurn(ctx, event.attackerInstanceId, event.targetInstanceId);
       recordActThisPhase(ctx, event.attackerInstanceId, "attack");
+      recordAttackThisPhase(ctx, event.attackerInstanceId, event.targetInstanceId);
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
@@ -2345,6 +2348,28 @@ function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: Instan
   if (already.some((r) => r.attackerInstanceId === attackerId && r.attackerTitle === attackerTitle)) return;
   const record = { attackerInstanceId: attackerId, attackerTitle };
   ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, record] } };
+}
+
+/**
+ * Remembers that `attackerId` attacked `targetId` this phase, with the attacker's categories and traits as they are now
+ * (`GameState.attacksThisPhase`, which says why). A set: the same attacker attacking the same target again as the same
+ * thing changes nothing, and a replay builds the same array.
+ */
+function recordAttackThisPhase(ctx: Ctx, attackerId: InstanceId, targetId: InstanceId): void {
+  const record: AttackThisPhase = {
+    attackerInstanceId: attackerId,
+    targetInstanceId: targetId,
+    attackerCategories: categoriesOf(ctx.state, attackerId),
+    attackerTraits: traitsOf(ctx.state, attackerId, ctx.deps),
+  };
+  const attacks = ctx.state.attacksThisPhase ?? [];
+  const same = (a: AttackThisPhase) =>
+    a.attackerInstanceId === record.attackerInstanceId &&
+    a.targetInstanceId === record.targetInstanceId &&
+    a.attackerCategories.join() === record.attackerCategories.join() &&
+    a.attackerTraits.join() === record.attackerTraits.join();
+  if (attacks.some(same)) return;
+  ctx.state = { ...ctx.state, attacksThisPhase: [...attacks, record] };
 }
 
 /**

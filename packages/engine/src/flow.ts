@@ -423,9 +423,15 @@ export function beginPlayerPhase(ctx: Ctx): void {
  * the player phase is one phase (RRG 1.8 "Player Phase", p. 34).
  */
 function clearCharacterActsThisPhase(ctx: Ctx): void {
-  if (ctx.state.characterActsThisPhase === undefined) return;
-  const { characterActsThisPhase: _acts, ...rest } = ctx.state;
-  ctx.state = rest;
+  if (ctx.state.characterActsThisPhase !== undefined) {
+    const { characterActsThisPhase: _acts, ...rest } = ctx.state;
+    ctx.state = rest;
+  }
+  // "…attacked by a hero this phase" (`GameState.attacksThisPhase`): the same phase's record, emptied with it.
+  if (ctx.state.attacksThisPhase !== undefined) {
+    const { attacksThisPhase: _attacks, ...rest } = ctx.state;
+    ctx.state = rest;
+  }
 }
 
 /**

@@ -4,6 +4,8 @@ import {
   alterEgoAction,
   anAttackableEnemy,
   attackAnEnemy,
+  attackedThisPhase,
+  attackTarget,
   chooseCards,
   chosen,
   constant,
@@ -17,7 +19,9 @@ import {
   heroAction,
   moveCards,
   query,
+  rule,
   self,
+  takesConsequentialDamage,
   YOUR_HERO,
   zone,
   you,
@@ -25,6 +29,7 @@ import {
 import { LUKE_CAGE_OTHER_ASPECTS_BASIC } from "../luke_cage/other-aspects-basic.js";
 
 const ATTACK = trait("ATTACK");
+const MARTIAL_ARTIST = trait("MARTIAL ARTIST");
 
 /**
  * Wave 11 scripting module `iron_fist/basic` (docs/phase7-elektra-iron-fist.md).
@@ -39,6 +44,11 @@ const ATTACK = trait("ATTACK");
  *
  * Reprints, aliased to the original card's script: 64024.
  *
+ * **64021.colleen-wing-constant**: a consequential-damage rule on her attack (`takesConsequentialDamage`) whose `if`
+ * reads the phase's attack record against the enemy she attacked (`attackedThisPhase(attackTarget())`), in play or
+ * defeated by her attack: some attack this phase by a Martial Artist character other than her, its traits as they were
+ * when it attacked (a Martial Artist ally since defeated still counts).
+ *
  * **64022.luke-cage-constant**: Toughness is data. "If your hero shares a Trait with Luke Cage" reads both sides live
  * (`sharesTraitWith`); an alter-ego identity is not "your hero", so there is no bonus (and no DEF to raise).
  *
@@ -51,6 +61,15 @@ const ATTACK = trait("ATTACK");
  * choosing none is allowed. Prerequisite is data.
  */
 export const IRON_FIST_BASIC: AbilityRegistry = defineAbilities({
+  "64021.colleen-wing-constant": constant(
+    rule(
+      takesConsequentialDamage({ self: true }, -1, {
+        from: "attack",
+        if: attackedThisPhase(attackTarget(), { trait: MARTIAL_ARTIST, except: self }),
+      }),
+    ),
+  ),
+
   "64022.luke-cage-constant": constant(
     gets("def", 1, YOUR_HERO, { while: exists({ ...YOUR_HERO, sharesTraitWith: self }) }),
   ),
@@ -73,8 +92,6 @@ export const IRON_FIST_BASIC: AbilityRegistry = defineAbilities({
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
 export const IRON_FIST_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "64021.colleen-wing-constant":
-    "needs engine primitive: 'an enemy who has been attacked by another Martial Artist character this phase' (no per-enemy record of who attacked it this phase) as a condition of her -1 consequential damage",
   "64033.the-defenders-constant":
     "needs engine primitive: a resource's 'can be spent for another player whose identity has the Defender trait' (spendableForAnyPlayer's condition is read for the card's owner, not the spending player); the generation half is handGenerates: generatesPerCard('physical', Defender characters you control, 4)",
 };

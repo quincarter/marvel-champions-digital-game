@@ -3832,6 +3832,18 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       );
       return matching.length === 1;
     }
+    case "attackedThisPhase": {
+      const targets = resolveRef(state, predicate.target, context);
+      const excluded = predicate.exceptBy ? resolveRef(state, predicate.exceptBy, context) : [];
+      const { byCategory, byTrait } = predicate;
+      return (state.attacksThisPhase ?? []).some(
+        (attack) =>
+          targets.includes(attack.targetInstanceId) &&
+          !excluded.includes(attack.attackerInstanceId) &&
+          (byCategory === undefined || attack.attackerCategories.includes(byCategory)) &&
+          (byTrait === undefined || attack.attackerTraits.includes(byTrait)),
+      );
+    }
     case "characterDidThisPhase":
       return (state.characterActsThisPhase ?? []).some(
         (act) =>

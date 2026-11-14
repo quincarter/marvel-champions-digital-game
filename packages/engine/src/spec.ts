@@ -1899,6 +1899,21 @@ export type Predicate =
    */
   | { readonly kind: "characterDidThisPhase"; readonly character: TargetQuery; readonly did: "attack" | "thwart" }
   /**
+   * "An enemy who has been attacked by a hero this phase" (Iron Fist, `iron_fist` 64014), "by another Martial Artist
+   * character" (Colleen Wing 64021): some attack this phase (`GameState.attacksThisPhase`) against a card `target`
+   * names, by an attacker that **was** of category `byCategory` and had trait `byTrait` when it attacked (each absent
+   * matching any), and is not a card `exceptBy` names ("another": `self`). The target is matched by instance id, in play
+   * or not, so a minion the attack defeated still counts; read it on `eventTarget` in a response to the attack, or
+   * `attackTarget()` in an ally's consequential-damage scope.
+   */
+  | {
+      readonly kind: "attackedThisPhase";
+      readonly target: TargetRef;
+      readonly byCategory?: TargetCategory;
+      readonly byTrait?: Trait;
+      readonly exceptBy?: TargetRef;
+    }
+  /**
    * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
    * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
    */

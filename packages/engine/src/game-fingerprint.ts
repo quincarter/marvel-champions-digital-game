@@ -76,6 +76,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   attackedThisTurn: "game",
   attacksThisTurn: "game",
   characterActsThisPhase: "game",
+  attacksThisPhase: "game",
   revealedThisRound: "game",
   playedThisTurn: "game",
   playedByPlayerThisPhase: "game",

@@ -1742,6 +1742,24 @@ export const characterDidThisPhase = (character: TargetQuery, did: "attack" | "t
   did,
 });
 /**
+ * "An enemy who has been attacked by a hero this phase" (Iron Fist, `iron_fist` 64014) is `attackedThisPhase(eventTarget,
+ * { category: "hero" })`; "an enemy who has been attacked by another Martial Artist character this phase" (Colleen Wing
+ * 64021) is `attackedThisPhase(attackTarget(), { trait: MARTIAL_ARTIST, except: self })` in her consequential-damage
+ * scope. Some attack this phase against that card by an attacker that was of `category` and had `trait` when it
+ * attacked (engine `GameState.attacksThisPhase`); `except` names attackers that do not count ("another"). The target is
+ * matched in play or not, so an enemy the attack defeated still counts.
+ */
+export const attackedThisPhase = (
+  target: TargetRef,
+  by: { readonly category?: TargetCategory; readonly trait?: Trait; readonly except?: TargetRef } = {},
+): Predicate => ({
+  kind: "attackedThisPhase",
+  target,
+  ...(by.category ? { byCategory: by.category } : {}),
+  ...(by.trait ? { byTrait: by.trait } : {}),
+  ...(by.except ? { exceptBy: by.except } : {}),
+});
+/**
  * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */

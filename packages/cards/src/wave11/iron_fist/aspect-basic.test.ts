@@ -60,6 +60,7 @@ const BLEED = "64019";
 const TONFA = "64020";
 const REDIRECTION = "64018";
 const LUKE_CAGE = "64022";
+const COLLEEN = "64021";
 const PUNCH = "64023";
 const DOJO = "64025";
 const CUTS = "64030";
@@ -72,6 +73,7 @@ const SCRIPTED = {
   protection: [
     "64013.helpful-bystander-constant",
     "64013.helpful-bystander-forced-interrupt",
+    "64014.iron-fist-response",
     "64015.defiance-interrupt",
     "64016.demoralize-action",
     "64017.the-night-nurse-action",
@@ -80,6 +82,7 @@ const SCRIPTED = {
     "64020.tonfa-interrupt",
   ],
   basic: [
+    "64021.colleen-wing-constant",
     "64022.luke-cage-constant",
     "64023.punch-reverse-punch-action",
     "64024.power-man-and-iron-fist-action",
@@ -142,6 +145,12 @@ const villainPhase = (s: GameState, pick: Picker): GameState => {
   return state;
 };
 const damageOf = (s: GameState, id: InstanceId): number => inst(s, id).damage;
+const attackWith = (attacker: InstanceId, target: InstanceId): Command => ({
+  type: "basicAttack",
+  playerId: P1,
+  attackerInstanceId: attacker,
+  targetInstanceId: target,
+});
 const villainOf = (s: GameState): InstanceId => s.activeVillainId!;
 /** Surgery: `n` hand cards (not `exclude`) become Core energy resources, each paying exactly one resource; returns the new state and them. */
 const withEnergy = (s: GameState, n: number, ...exclude: InstanceId[]) => {
@@ -164,11 +173,8 @@ describe("registries", () => {
       expect(Object.keys(registry).sort(), name).toEqual([...SCRIPTED[name as keyof typeof SCRIPTED]].sort());
       for (const id of Object.keys(registry)) expect(validateDefinition(registry[id]!), id).toEqual([]);
     }
-    expect(Object.keys(IRON_FIST_PROTECTION_SKIPPED).sort()).toEqual(["64014.iron-fist-response"]);
-    expect(Object.keys(IRON_FIST_BASIC_SKIPPED).sort()).toEqual([
-      "64021.colleen-wing-constant",
-      "64033.the-defenders-constant",
-    ]);
+    expect(IRON_FIST_PROTECTION_SKIPPED).toEqual({});
+    expect(Object.keys(IRON_FIST_BASIC_SKIPPED).sort()).toEqual(["64033.the-defenders-constant"]);
     expect(IRON_FIST_AGGRESSION_SKIPPED).toEqual({});
     expect(IRON_FIST_LEADERSHIP_SKIPPED).toEqual({});
   });
@@ -229,6 +235,47 @@ describe("64013 Helpful Bystander", () => {
     expect(damageOf(after, hero2)).toBe(2);
     expect(damageOf(after, staged.id)).toBe(0);
     expect(playerOf(after, P1).playArea).toContain(staged.id);
+  });
+});
+
+describe("64014 Iron Fist (ally)", () => {
+  const REF = "64014.iron-fist-response";
+  const MINION = "m-sandman-a" as InstanceId;
+  /** Black Panther (ATK 2) and the Iron Fist ally (ATK 2, consequential 2, 3 hit points); a Sandman (4 hit points) engaged. */
+  const setup = () => {
+    const { state } = coreGame(MARTIAL_ARTIST_ALLY, PROTECTION_HERO);
+    const ally = inPlay(engageMinion(state, SANDMAN, MINION), MARTIAL_ARTIST_ALLY);
+    return { state: ally.state, ally: ally.id, hero: identityOf(ally.state, P1), villain: villainOf(ally.state) };
+  };
+
+  it("after he attacks an enemy a hero attacked this phase, stuns it (it survives: full consequential damage)", () => {
+    const { state, ally, hero, villain } = setup();
+    const after = drive(drive(state, taking(), attackWith(hero, villain)), taking(REF), attackWith(ally, villain));
+    expect(inst(after, villain).statuses.stunned).toBe(1);
+    expect(damageOf(after, ally)).toBe(2);
+  });
+
+  it("if his attack defeated that enemy, he takes -2 consequential damage from it: none", () => {
+    const { state, ally, hero } = setup();
+    // Black Panther deals 2, Iron Fist's 2 defeats the 4-hit-point Sandman.
+    const after = drive(drive(state, taking(), attackWith(hero, MINION)), taking(REF), attackWith(ally, MINION));
+    expect(playerOf(after, P1).playArea).not.toContain(MINION);
+    expect(damageOf(after, ally)).toBe(0);
+  });
+
+  it("not for an enemy no hero attacked this phase (the hero attacked another one)", () => {
+    const { state, ally, hero, villain } = setup();
+    const after = drive(drive(state, taking(), attackWith(hero, villain)), taking(REF), attackWith(ally, MINION));
+    expect(inst(after, MINION).statuses.stunned).toBe(0);
+    expect(damageOf(after, ally)).toBe(2);
+  });
+
+  it("an ally's attack is not a hero's: his own earlier attack does not count", () => {
+    const { state, ally, villain } = setup();
+    const first = drive(state, taking(), attackWith(ally, villain));
+    const readied = patchInstance(first, ally, { exhausted: false });
+    const after = drive(readied, taking(REF), attackWith(ally, villain));
+    expect(inst(after, villain).statuses.stunned).toBe(0);
   });
 });
 
@@ -329,6 +376,52 @@ describe("64018 Redirection Mastery", () => {
 
   it("not for an undefended attack", () => {
     expect(attacked({ defend: false }).extra).toBe(0);
+  });
+});
+
+describe("64021 Colleen Wing", () => {
+  /** Spider-Man (no Martial Artist), Colleen Wing (ATK 2, consequential 1) and the Iron Fist ally (Martial Artist). */
+  const setup = () => {
+    const { state } = coreGame(COLLEEN, BASIC_HERO);
+    const colleen = inPlay(state, COLLEEN);
+    const ally = inPlay(colleen.state, MARTIAL_ARTIST_ALLY);
+    return {
+      state: ally.state,
+      colleen: colleen.id,
+      ally: ally.id,
+      hero: identityOf(ally.state, P1),
+      villain: villainOf(ally.state),
+    };
+  };
+
+  it("takes -1 consequential damage after attacking an enemy another Martial Artist attacked this phase", () => {
+    const { state, colleen, ally, villain } = setup();
+    const after = drive(drive(state, taking(), attackWith(ally, villain)), taking(), attackWith(colleen, villain));
+    expect(damageOf(after, colleen)).toBe(0);
+  });
+
+  it("still counts that Martial Artist after its own consequential damage defeated it", () => {
+    const { state, colleen, ally, villain } = setup();
+    // The Iron Fist ally carries 1 damage, so his 2 consequential damage defeats him (3 hit points).
+    const hurt = patchInstance(state, ally, { damage: 1 });
+    const first = drive(hurt, taking(), attackWith(ally, villain));
+    expect(playerOf(first, P1).playArea).not.toContain(ally);
+    const after = drive(first, taking(), attackWith(colleen, villain));
+    expect(damageOf(after, colleen)).toBe(0);
+  });
+
+  it("not after a hero with no Martial Artist trait attacked it", () => {
+    const { state, colleen, hero, villain } = setup();
+    const after = drive(drive(state, taking(), attackWith(hero, villain)), taking(), attackWith(colleen, villain));
+    expect(damageOf(after, colleen)).toBe(1);
+  });
+
+  it("her own earlier attack is not another Martial Artist's", () => {
+    const { state, colleen, villain } = setup();
+    const first = drive(state, taking(), attackWith(colleen, villain));
+    const readied = patchInstance(first, colleen, { exhausted: false });
+    const after = drive(readied, taking(), attackWith(colleen, villain));
+    expect(damageOf(after, colleen)).toBe(2);
   });
 });
 
@@ -522,12 +615,6 @@ describe("64032 Sensei", () => {
     const sensei = withSensei ? inPlay(state, SENSEI).state : state;
     return inPlay(sensei, MARTIAL_ARTIST_ALLY);
   };
-  const attackWith = (attacker: InstanceId, target: InstanceId): Command => ({
-    type: "basicAttack",
-    playerId: P1,
-    attackerInstanceId: attacker,
-    targetInstanceId: target,
-  });
   const thwartWith = (thwarter: InstanceId, scheme: InstanceId): Command => ({
     type: "basicThwart",
     playerId: P1,
