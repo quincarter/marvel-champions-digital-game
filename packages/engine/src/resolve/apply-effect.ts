@@ -757,7 +757,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           return {
             kind: "dealDamage",
             targetInstanceId: id,
-            amount: base + bonus + (increased ? (ofAttack?.extra ?? 0) : 0),
+            // A reduction of the attack's damage (a negative `extra`) leaves no instance below 0.
+            amount: increased ? Math.max(0, base + bonus + (ofAttack?.extra ?? 0)) : base + bonus,
             sourceInstanceId:
               (effect.sourceFromEvent && context.event?.kind === "dealDamage"
                 ? context.event.sourceInstanceId

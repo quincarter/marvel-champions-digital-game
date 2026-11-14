@@ -1136,7 +1136,8 @@ function executeDivide(
       return {
         kind: "dealDamage",
         targetInstanceId: dealtTo,
-        amount: (shares.get(named) ?? 0) + bonus + (ofAttack?.extra ?? 0),
+        // A reduction of the attack's damage (a negative `extra`) leaves no share below 0.
+        amount: Math.max(0, (shares.get(named) ?? 0) + bonus + (ofAttack?.extra ?? 0)),
         sourceInstanceId: frame.selfInstanceId,
         fromAttack: false,
         ...ofAttack?.damage,

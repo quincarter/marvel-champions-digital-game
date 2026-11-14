@@ -60,6 +60,10 @@ const VOLLEY = attackEvent("volley", [hit(2, villain), hit(1, villain), hit(2, v
 const PAIR = attackEvent("pair", [strike(2, villain), strike(2, minions), hit(1, minions)]);
 /** "(attack): Deal 3 damage to the villain. Deal 1 damage to each minion (not from this attack). Take 1 damage." */
 const ASIDE = attackEvent("aside", [strike(3, villain), hit(1, minions, { fromAttack: false }), hit(1, you)]);
+/** "(attack): Deal 5 damage to the villain. Deal 4 damage to the villain." */
+const HEAVY = attackEvent("heavy", [strike(5, villain), hit(4, villain)]);
+/** The same, label-only: "(attack): Deal 5 damage to the villain. Deal 2 damage to the villain." */
+const HEAVY_LABEL = attackEvent("heavy-label", [hit(5, villain), hit(2, villain)]);
 
 /** "Forced Interrupt: When your hero attacks, that attack deals 2 additional damage. (Limit once per phase.)" */
 const EDGE_INTERRUPT = stubAbility("edge.interrupt", {
@@ -72,26 +76,37 @@ const EDGE_INTERRUPT = stubAbility("edge.interrupt", {
   effects: [{ kind: "modifyAttack", extraDamage: c(2) }],
 });
 const EDGE = stubSupport({ id: "edge", cost: 0, abilities: [EDGE_INTERRUPT.ref] });
+/** "Forced Interrupt: When your hero attacks, reduce the damage of that attack by 3" (Stealth Mastery 63014's choice). */
+const BLUNT_INTERRUPT = stubAbility("blunt.interrupt", {
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "attack", sourceIs: { categories: ["identity"], controller: "you" } },
+  },
+  limit: { count: 1, period: "phase" },
+  effects: [{ kind: "modifyAttack", extraDamage: c(-3) }],
+});
+const BLUNT = stubSupport({ id: "blunt", cost: 0, abilities: [BLUNT_INTERRUPT.ref] });
 const THUG = stubMinion({ id: "thug", atk: 0, sch: 0, hp: 9, boostIcons: 0 });
 
-const EVENTS = [SWEEP, DOUBLE, RIDER, VOLLEY, PAIR, ASIDE];
-const deps = depsOf(...abilities, EDGE_INTERRUPT);
+const EVENTS = [SWEEP, DOUBLE, RIDER, VOLLEY, PAIR, ASIDE, HEAVY, HEAVY_LABEL];
+const deps = depsOf(...abilities, EDGE_INTERRUPT, BLUNT_INTERRUPT);
 
-/** Hero form with a thug engaged; `edge` puts the "+2 to that attack" support in play. */
-function table(edge: boolean) {
+/** Hero form with a thug engaged; `edge` puts the "+2 to that attack" support in play, `"blunt"` the "-3" one. */
+function table(edge: boolean | "blunt") {
   let state = gameAtFirstTurn({
-    cards: [...EVENTS, EDGE, THUG],
+    cards: [...EVENTS, EDGE, BLUNT, THUG],
     deps,
-    deck: [...EVENTS.map((card) => card.id), EDGE.id],
+    deck: [...EVENTS.map((card) => card.id), EDGE.id, BLUNT.id],
     encounter: [THUG.id],
   });
   state = { ...state, players: state.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })) };
-  if (edge) state = playerCardIntoPlay(state, EDGE.id).state;
+  if (edge) state = playerCardIntoPlay(state, edge === "blunt" ? BLUNT.id : EDGE.id).state;
   const thug = minionEngagedWith(state, THUG.id);
   return { state: thug.state, thug: thug.id };
 }
 /** Every instance of damage dealt to `target` while `card` resolves, in order, and the damage the hero took. */
-function play(card: (typeof EVENTS)[number], edge: boolean) {
+function play(card: (typeof EVENTS)[number], edge: boolean | "blunt") {
   const t = table(edge);
   const run = playFree(t.state, deps, card.id);
   const replayed = replay(run.session.log, deps);
@@ -132,6 +147,14 @@ describe("Q53: 'that attack deals N additional damage' increases each instance o
     // The limited interrupt answered the first attack (the villain's); the second attack and the damage after it,
     // which is that second attack's, are as printed.
     expect(play(PAIR, true)).toMatchObject({ villain: [4], thug: [2, 1] });
+  });
+
+  it("a reduction (a negative extra, Stealth Mastery's 'reduce by 3') reduces each instance, none below 0", () => {
+    expect(play(HEAVY, false).villain).toEqual([5, 4]);
+    expect(play(HEAVY, "blunt").villain).toEqual([2, 1]);
+    expect(play(HEAVY_LABEL, "blunt").villain).toEqual([2]);
+    // 3 - 3 and 1 - 3: nothing is dealt to either.
+    expect(play(SWEEP, "blunt")).toMatchObject({ villain: [], thug: [] });
   });
 
   it("damage that is not the attack's gets nothing: `fromAttack: false`, and damage to the ability's own player", () => {
