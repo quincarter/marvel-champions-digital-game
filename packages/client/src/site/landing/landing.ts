@@ -298,6 +298,8 @@ function drawHeroes(): void {
       chip.addEventListener("click", () => {
         aspect = key;
         drawHeroes();
+        // The filter replaced every tile: watch the new ones, or those below the screen never rise into view.
+        reveal();
         chips.querySelectorAll("button")[i]?.focus();
       });
       return chip;
@@ -476,6 +478,8 @@ function draw(): void {
   // A redraw replaces the walls' tiles; ones already scrolled past show at once rather than rising again.
   for (const tile of document.querySelectorAll(".reveal"))
     if (tile.getBoundingClientRect().top < innerHeight) tile.classList.add("in");
+  // And every new tile is watched, so the ones below the screen rise in as they arrive (a language switch redraws).
+  reveal();
 }
 
 const reveal = revealOnScroll(document);
@@ -487,7 +491,6 @@ $("villains-more").addEventListener("click", () => {
 });
 
 draw();
-reveal();
 onScrollFrame(() => {
   shotsSection.move();
   storySection.move();
