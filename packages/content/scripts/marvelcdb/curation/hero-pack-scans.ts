@@ -147,6 +147,15 @@ export function packBuilders(pack: HeroPackInfo) {
    * An encounter-shaped card a player card brings in by its Linked keyword (Elektra's Backstab, Misdirect and Sabotage,
    * "Linked (Double-Cross)"): `faction: encounter`, filed under the pack's own hero set, which the normalizer reads as
    * "belongs to no encounter set" (it is never part of a scenario's deck until its linking card shuffles it in).
+   *
+   * Why the hero set and not a null `card_set_code`: the footers print JUSTICE (Backstab and Sabotage; the aspect of
+   * their linking card Double-Cross), and MarvelCDB's precedent for a Linked player-side card is a null set code
+   * (Magneto 49033, Black Panther 51036), but those are player-faction upgrades. These three are encounter-backed
+   * treacheries, and `normalizeEncounterCard` derives an encounter card's set from its `card_set_code`; a null code
+   * would make an empty set id. Filing them under the hero set reuses the hero-kit branch (as an obligation), gated on
+   * the Linked keyword so no other encounter card under a hero set is dropped from its set. The engine's Linked setup
+   * (`engine/src/setup.ts`, `linkedCardGroups`) reads the Linked keyword from the card pool and never a set code, so
+   * either filing finds them.
    */
   const linked = (code: string, name: string, over: Fields): RawCard =>
     face("treachery", "encounter", code, name, {

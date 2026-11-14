@@ -134,7 +134,7 @@ export const ELEKTRA_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "elektra_nemesis",
     marvelcdbCodes: ["63042"],
     corrections: [
-      "63042: PLACEHOLDER (unofficial, fan preview only): the code 63042 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63031) is unknown and has no record. [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
+      "63042: PLACEHOLDER (unofficial, fan preview only): the code 63042 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63043) is unknown and has no record. [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
     ],
   },
   {

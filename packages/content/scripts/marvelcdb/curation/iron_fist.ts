@@ -287,7 +287,7 @@ const ASPECT = [
   ),
   P.added(
     P.aspect("resource", "basic", "64033", "The Defenders", {
-      text: "This card generates [physical] for each [[Defender]] character you control (to a maximum of 4) and can be spent for another player whose identity has the [[Defender]] trait.",
+      text: "This card generates a [physical] resource for each [[Defender]] character you control (to a maximum of 4) and can be spent for another player whose identity has the [[Defender]] trait.",
     }),
     `${full("20-36")} No corner resource icon and no traits line are printed; the icon in the text is the physical fist.`,
   ),

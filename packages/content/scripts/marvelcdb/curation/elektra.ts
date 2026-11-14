@@ -591,7 +591,7 @@ export const ELEKTRA_CURATION: PackCuration = {
     {
       code: "63042",
       reason:
-        "PLACEHOLDER (unofficial, fan preview only): the code 63042 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63031) is unknown and has no record.",
+        "PLACEHOLDER (unofficial, fan preview only): the code 63042 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63043) is unknown and has no record.",
       evidence: `${FAN_NOTE}.`,
     },
     {

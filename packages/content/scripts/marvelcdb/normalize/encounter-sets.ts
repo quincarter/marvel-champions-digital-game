@@ -47,6 +47,13 @@ export function backFaceSet(r: RawCard): { readonly code: string; readonly name:
   return { code: b.card_set_code, name: b.card_set_name ?? b.card_set_code };
 }
 
+/**
+ * Whether a record's text opens a line with the Linked keyword ("Linked (Double-Cross)."): an encounter card a player
+ * card brings in (RRG 1.8 "Linked (Card Title)", p. 27), which belongs to no encounter set when it is filed under a
+ * hero's own set.
+ */
+export const hasLinkedKeyword = (r: { readonly text?: string | null }): boolean => /(^|\n)Linked \(/.test(r.text ?? "");
+
 export function normalizeEncounterSets(ctx: NormalizeContext): {
   encounterSets: EncounterSet[];
   setNames: Map<string, string>;
@@ -56,13 +63,13 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
   for (const r of ctx.topLevel) {
     const campaignSet = campaignSetCode(r);
     if (campaignSet) campaignSets.add(campaignSet);
-    // A hero-kit encounter card (an obligation, or a Linked treachery filed under the hero's own set, Elektra's
-    // Backstab) belongs to no encounter set.
+    // A hero-kit obligation, or a Linked encounter card filed under the hero's own set (Elektra's Backstab), belongs to
+    // no encounter set. Only those two: any other encounter card under a hero set is still a member of its set.
     else if (
       r.faction_code !== "encounter" ||
       r.type_code === "obligation" ||
       !r.card_set_code ||
-      ctx.heroBySet.has(r.card_set_code)
+      (ctx.heroBySet.has(r.card_set_code) && hasLinkedKeyword(r))
     )
       continue;
     const code = campaignSet ?? r.card_set_code;

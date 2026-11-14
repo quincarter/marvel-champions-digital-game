@@ -10,8 +10,8 @@ import { PLAYABLE_CARDS } from "./index.js";
 
 /**
  * Iron Fist (`iron_fist`, cycle 11, MC64): a scan-only pack hand-transcribed from the Hall of Heroes page and the FFG
- * article "Way of the Iron Fist" (scripts/marvelcdb/curation/iron-fist.ts). The obligation 64028, Davos 64029 and the
- * Steel Serpent 64030 and Crane Daughter 64031 (the least certain) come from a gameplay video or an unofficial fan preview and carry PLACEHOLDER provenance.
+ * article "Way of the Iron Fist" (scripts/marvelcdb/curation/iron_fist.ts). The obligation 64034 and Davos 64035 come from a gameplay video;
+ * Steel Serpent 64036 and Crane Daughter 64037 (the least certain) come from an unofficial fan preview. All carry PLACEHOLDER provenance.
  */
 const byId = new Map(IRON_FIST_CARDS.map((c) => [c.id as string, c]));
 const get = <T extends AnyCard>(id: string): T => {

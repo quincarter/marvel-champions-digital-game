@@ -14,7 +14,7 @@ import { CORE_CARDS, FNE_CARDS, PLAYABLE_CARDS, WAVE11_CARDS } from "./index.js"
 
 /**
  * Elektra (`elektra`, cycle 11, MC63): a scan-only pack hand-transcribed from the Hall of Heroes page and the FFG
- * article "Killer Instinct" (scripts/marvelcdb/curation/elektra.ts). The obligation 63028 and nemesis minion Aka 63029
+ * article "Killer Instinct" (scripts/marvelcdb/curation/elektra.ts). The obligation 63040 and nemesis minion Aka 63041
  * come from a gameplay video and carry PLACEHOLDER provenance.
  */
 const byId = new Map(ELEKTRA_CARDS.map((c) => [c.id as string, c]));

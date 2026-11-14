@@ -4,6 +4,7 @@ import type { RawCard } from "./raw-types.ts";
 import { bareCuration } from "./curation/empty.ts";
 import type { AddedRecord, Correction, LinkOverride, PackCuration } from "./curation/types.ts";
 import { AOA_CURATION } from "./curation/aoa.ts";
+import { packBuilders } from "./curation/hero-pack-scans.ts";
 import { TT_CURATION } from "./curation/tt.ts";
 import { MTS_CURATION } from "./curation/mts.ts";
 import { normalizePack } from "./normalize.ts";
@@ -1228,5 +1229,66 @@ describe("The Mad Titan's Shadow (`mts`), normalized from the real raw pack: Hel
       if (c?.type !== "villain") throw new Error(`${id} is not a villain card`);
       expect(c.sides.map((side) => side.stages.map((st) => st.stageNumber))).toEqual([[1], [2]]);
     }
+  });
+});
+
+describe("an encounter card filed under a hero's own set (Elektra's Backstab, `Linked (Double-Cross)`)", () => {
+  const P = packBuilders({ num: "99", packCode: "testhero", packName: "Test Hero", productCode: "Test Hero (MC99)" });
+  const art = { imagesrc: "/bundles/cards/x.png" };
+  const set = { card_set_code: "testhero", card_set_name: "Test Hero", card_set_type_name_code: "hero" };
+  const raw: RawCard[] = [
+    P.identity(
+      {
+        name: "Test Hero",
+        hand_size: 5,
+        health: 10,
+        thwart: 1,
+        attack: 1,
+        defense: 1,
+        traits: "Hero.",
+        text: "Hero text.",
+        ...art,
+      },
+      { name: "Test Alter", hand_size: 6, health: 10, recover: 3, traits: "Civilian.", text: "Ego text.", ...art },
+    ),
+    P.encounter("obligation", "99002", "Test Obligation", {
+      ...set,
+      text: "<b><i>Give to the Test Hero player.</i></b>\n<b>Forced Response</b>: After the player phase ends, take 1 damage.",
+      ...art,
+    }),
+    P.encounter("minion", "99003", "Test Nemesis", {
+      card_set_code: "testhero_nemesis",
+      card_set_name: "Test Hero Nemesis",
+      card_set_type_name_code: "nemesis",
+      scheme: 1,
+      attack: 1,
+      health: 2,
+      text: "<i>(Test Hero's nemesis minion.)</i>",
+      ...art,
+    }),
+    P.linked("99004", "Test Linked", { text: "Linked (Test Card).\n<b>When Revealed</b>: Take 1 damage.", ...art }),
+    P.encounter("minion", "99005", "Test Hero-Set Minion", {
+      ...set,
+      scheme: 1,
+      attack: 1,
+      health: 2,
+      text: "Toughness.",
+      ...art,
+    }),
+  ];
+  const out = normalizePack(raw, bareCuration("testhero", raw[0]));
+  const card = (id: string) => out.cards.find((c) => c.id === id) as unknown as { encounterSetIds: string[] };
+
+  it("belongs to no encounter set when it has the Linked keyword", () => {
+    expect(card("99004").encounterSetIds).toEqual([]);
+  });
+
+  it("an ordinary encounter card under the hero's set keeps its set, and the set is still emitted", () => {
+    expect(card("99005").encounterSetIds).toEqual(["testhero"]);
+    expect(out.encounterSets.map((s) => s.id as string).sort()).toEqual(["testhero", "testhero_nemesis"]);
+  });
+
+  it("the hero's obligation still belongs to no set", () => {
+    expect(card("99002").encounterSetIds).toEqual([]);
   });
 });

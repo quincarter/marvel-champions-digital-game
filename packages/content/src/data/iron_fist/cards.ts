@@ -715,8 +715,8 @@ export const IRON_FIST_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 3,
     text: {
-      printed: "This card generates [physical] for each Defender character you control (to a maximum of 4) and can be spent for another player whose identity has the Defender trait.",
-      current: "This card generates [physical] for each Defender character you control (to a maximum of 4) and can be spent for another player whose identity has the Defender trait.",
+      printed: "This card generates a [physical] resource for each Defender character you control (to a maximum of 4) and can be spent for another player whose identity has the Defender trait.",
+      current: "This card generates a [physical] resource for each Defender character you control (to a maximum of 4) and can be spent for another player whose identity has the Defender trait.",
     },
     abilities: [{ id: abilityId("64033.the-defenders-constant") }],
   },

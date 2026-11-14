@@ -9,6 +9,7 @@ import type {
   SideSchemeCard,
 } from "../../../src/schema/index.ts";
 import { brand } from "./brand.ts";
+import { hasLinkedKeyword } from "./encounter-sets.ts";
 import {
   checkNoSchemeFields,
   expectNoAttach,
@@ -55,12 +56,17 @@ export function normalizeEncounterCard(
     // A hero-kit obligation belongs to a hero kit, not an encounter set; it reaches the encounter deck through
     // HeroIdentityCard.obligationCardId. A campaign-specific obligation has no hero kit and belongs to its own
     // (campaign-specific) encounter set instead, like any other encounter card.
-    // Elektra (docs/phase7-elektra-iron-fist.md): the same holds for a Linked treachery filed under the hero's own set
-    // (Backstab, Misdirect and Sabotage, "Linked (Double-Cross)"), which only its linking card shuffles in.
+    // Elektra (docs/phase7-elektra-iron-fist.md): the same holds for a Linked card filed under the hero's own set
+    // (Backstab, Misdirect and Sabotage, "Linked (Double-Cross)"), which only its linking card shuffles in; any other
+    // encounter card under a hero set stays in its set.
     // Wave 6 fix: only a hero-kit obligation (its set code is some hero's identity set) is empty. A scenario or
     // modular set's own obligation (Project Wideawake's Warn the Others 32099, Mojo Mania's sitcom set) is an
     // ordinary member of its encounter set, so the encounter deck builder can shuffle it in.
-    encounterSetIds: separateDeck || (!isCampaignCard && ctx.heroBySet.has(set)) ? [] : [brand("encounterSet", set)],
+    encounterSetIds:
+      separateDeck ||
+      (!isCampaignCard && ctx.heroBySet.has(set) && (r.type_code === "obligation" || hasLinkedKeyword(r)))
+        ? []
+        : [brand("encounterSet", set)],
     ...(separateDeck ? { separateDeck: separateDeck.deckName } : {}),
     boostIcons: p.boost,
     // RRG 1.8 "Boost, Boost Icon" (p. 11): the star in the boost area marks "the card has a 'Boost' ability", so the
