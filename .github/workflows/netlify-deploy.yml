@@ -390,6 +390,9 @@ jobs:
   # the staging Worker (`--env staging`, what previews talk to) on a pull request. Its tests run in the tests stage.
   # Skips with a notice until the owner adds the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets
   # (CONTRIBUTING.md, "The save-transfer Worker"). Not required: the gate ignores its result.
+  # A pull request deploys to staging only when it changes packages/sync-worker: every PR shares the one staging
+  # Worker, so a PR without the Worker's newest Durable Object migrations (one lower in a stack) would otherwise try to
+  # deploy an older config over them, which Cloudflare refuses (code 10074).
   deploy-sync:
     name: Deploy the sync Worker
     runs-on: ubuntu-latest
@@ -410,19 +413,33 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-      - if: steps.secrets.outputs.ready == 'true'
+      - name: Check whether this pull request changes the sync Worker
+        id: changed
+        if: steps.secrets.outputs.ready == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
+          if grep -q '^packages/sync-worker/' <<< "$files"; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::This pull request doesn't change packages/sync-worker; skipping the staging deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.secrets.outputs.ready == 'true' && steps.changed.outputs.deploy != 'false'
         uses: actions/checkout@v4
-      - if: steps.secrets.outputs.ready == 'true'
+      - if: steps.secrets.outputs.ready == 'true' && steps.changed.outputs.deploy != 'false'
         uses: pnpm/action-setup@v4
-      - if: steps.secrets.outputs.ready == 'true'
+      - if: steps.secrets.outputs.ready == 'true' && steps.changed.outputs.deploy != 'false'
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-      - if: steps.secrets.outputs.ready == 'true'
+      - if: steps.secrets.outputs.ready == 'true' && steps.changed.outputs.deploy != 'false'
         run: pnpm install --frozen-lockfile
       - name: Deploy
-        if: steps.secrets.outputs.ready == 'true'
+        if: steps.secrets.outputs.ready == 'true' && steps.changed.outputs.deploy != 'false'
         working-directory: packages/sync-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
