@@ -61,6 +61,10 @@ function bothWays(state: GameState, command: (s: GameState) => Command) {
   const [withIcon] = flips(amplified.events);
   expect(without).toBeDefined();
   expect(withIcon?.instanceId).toBe(without?.instanceId);
+  // The outcome, not only the reported count: one more threat removed from the main scheme or damage on the villain.
+  const progress = (s: GameState) =>
+    s.instances[s.villains[0]!.instanceId]!.damage - s.instances[s.mainScheme!.instanceId]!.threat;
+  expect(progress(amplified.state)).toBe(progress(plain.state) + 1);
   return { without: without!, withIcon: withIcon! };
 }
 

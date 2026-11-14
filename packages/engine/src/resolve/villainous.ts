@@ -65,11 +65,16 @@ export const villainousFriendlyCharacter = (state: GameState, deps: EngineDeps, 
  * which would leave a villainous hero's or ally's card without it. The Fear No Evil rulebook's updated text (MC60 p. 4,
  * "Amplify Icon (Updated)") reads "When a character resolves a boost card while using a basic power, add one additional
  * boost icon to that card for each amplify icon in play". The owner follows the newer product text over RRG 1.8 p. 7
- * for every character, not as an Elektra exception: a villainous hero's basic attack, thwart, defense and recovery
- * (Elektra 63001a; ruling September 10, 2026 - Ruling 3 (A): a basic recovery resolves a boost card too), and a
- * villainous ally's basic attack and thwart (Black Cat 60169 / 63016; an ally's defense is no basic power, so it gets
- * no card). An enemy activation's boost cards keep theirs (`enemy-activation.ts`). Read live, at the flip and again at
- * the count, as an enemy's card is (the Fearless Determination ruling, January 11, 2026 (1)).
+ * for every character, not as an Elektra exception: a villainous hero's basic attack, thwart and defense (Elektra
+ * 63001a), a basic recovery by an identity that has villainous, and a villainous ally's basic attack and thwart (Black
+ * Cat 60169 / 63016; an ally's defense is no basic power, so it gets no card). A character given its card by
+ * `registerCharacterBoost` (the custom Carnage card's Klyntar Bond) gains it too: MC60 says "a character". An enemy
+ * activation's boost cards keep theirs (`enemy-activation.ts`). Read live, at the flip and again at the count, as an
+ * enemy's card is (the Fearless Determination ruling, January 11, 2026 (1)).
+ *
+ * Open gap: ruling September 10, 2026 - Ruling 3 (A) has Elektra Natchios (alter-ego, no villainous) resolve a boost
+ * card held from earlier (Acrobatic Prowess) on her basic recovery; this resolution only turns up the cards the use
+ * itself gave and keeps a held one facedown (`heldBefore`), so that case is not built yet (Elektra kit).
  */
 const characterAmplify = (ctx: Ctx): number => amplifyIconsInPlay(ctx.state, ctx.deps);
 

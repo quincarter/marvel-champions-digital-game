@@ -151,9 +151,10 @@ describe("an enemy activation keeps its amplify (RRG 1.8 p. 7; MC60 p. 4)", () =
 });
 
 describe("a villainous hero's basic powers gain amplify (owner, 2026-11-14: MC60 p. 4 over RRG 1.8 p. 7)", () => {
-  it("a basic attack: ATK 1… + 2 printed + 1 per amplify icon", () => {
+  it("a basic attack: ATK 2 + 2 printed + 1 per amplify icon", () => {
     const { state } = start();
     const hero = identity(state);
+    const before = mustInstance(state, villain(state)).damage;
     const without = run(villainousHero(state), [attack(state, hero)]);
     const withOne = run(villainousHero(withAmplify(state, 1)), [attack(state, hero)]);
     const withThree = run(villainousHero(withAmplify(state, 3)), [attack(state, hero)]);
@@ -161,6 +162,7 @@ describe("a villainous hero's basic powers gain amplify (owner, 2026-11-14: MC60
     expect(characterFlips(withOne.events)[0]).toMatchObject({ power: "attack", stat: "atk", boostIcons: 3 });
     expect(characterFlips(withThree.events)[0]).toMatchObject({ power: "attack", stat: "atk", boostIcons: 5 });
     const dealt = (r: { state: GameState }) => mustInstance(r.state, villain(r.state)).damage;
+    expect(dealt(without)).toBe(before + 4);
     expect(dealt(withOne)).toBe(dealt(without) + 1);
     expect(dealt(withThree)).toBe(dealt(without) + 3);
   });
@@ -208,7 +210,10 @@ describe("a villainous hero's basic powers gain amplify (owner, 2026-11-14: MC60
     expect(option?.bands).toEqual([expect.objectContaining({ boostFrom: 0, boostTo: 0, damageDealt: 0 })]);
   });
 
-  it("a basic recovery (ruling September 10, 2026 - Ruling 3 (A)): REC 3 + 2 + 1 heals 6", () => {
+  // A recovery by an identity that has villainous itself, so the use is given its card. Not ruling September 10, 2026
+  // - Ruling 3 (A), Elektra Natchios (no villainous) resolving a boost card held from earlier: the engine keeps a held
+  // card facedown (`heldBefore`), an open gap for the Elektra kit.
+  it("a basic recovery by a villainous identity: REC 3 + 2 + 1 heals 6", () => {
     const { state } = start();
     const id = identity(state);
     const alterEgo: GameState = {
