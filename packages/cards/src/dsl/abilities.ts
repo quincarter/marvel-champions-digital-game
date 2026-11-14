@@ -501,7 +501,7 @@ export interface ConstantPart {
   /** "Spend this card only in hero form." (Limitless Strength). */
   readonly spendableIn?: Form;
   /** "This card can be spent for any player" (Everyday Hero, `nova` 28019; docs/phase7-wave5.md §3.17). */
-  readonly spendableForAnyPlayer?: { readonly while?: Predicate };
+  readonly spendableForAnyPlayer?: { readonly while?: Predicate; readonly forPlayer?: Predicate };
   /** "[This card] does not count toward your hand size." (Connection to the Worldmind; docs/phase7-wave5.md §3.18). */
   readonly notCountedTowardHandSize?: true;
   readonly attachedOnlyWhileInPlay?: true;
@@ -660,6 +660,15 @@ export const playOnlyIf = (condition: Predicate): ConstantPart => ({ playOnlyIf:
  */
 export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
   spendableForAnyPlayer: when ? { while: when } : {},
+});
+/**
+ * "This card … can be spent for another player whose identity has the Defender trait" (The Defenders, `iron_fist`
+ * 64033): `constant(spendableForPlayersWhere(youHaveTrait(DEFENDER)))`. Like `spendableForAnyPlayer`, but the condition
+ * is read with "you" the player the card is spent for, not its owner (engine `spendableForAnyPlayer.forPlayer`). The
+ * owner spending it for themselves needs no permission.
+ */
+export const spendableForPlayersWhere = (forPlayer: Predicate): ConstantPart => ({
+  spendableForAnyPlayer: { forPlayer },
 });
 /**
  * "Connection to the Worldmind does not count toward your hand size." (`nova` 28007; docs/phase7-wave5.md §3.18):

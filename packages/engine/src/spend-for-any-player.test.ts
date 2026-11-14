@@ -9,6 +9,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
+import { paymentOptions } from "./actions.js";
+import { createCtx } from "./ctx.js";
 import { applyCommand, replay, startSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -39,13 +41,30 @@ const EVERYDAY_RESPONSE_DEFINITION: AbilityDefinition = {
 const EVERYDAY_RESPONSE = stubAbility("everyday.response", EVERYDAY_RESPONSE_DEFINITION);
 const EVERYDAY = stubResource({ id: "everyday", icons: 1, abilities: [EVERYDAY_CONSTANT.ref, EVERYDAY_RESPONSE.ref] });
 
+/**
+ * The Defenders' shape (`iron_fist` 64033: "can be spent for another player whose identity has the Defender trait"),
+ * with the trait stood in for by the form of the player it is spent for: "you" in `forPlayer` is that player.
+ */
+const spenderInHero: Predicate = { kind: "form", player: { kind: "controller" }, form: "hero" };
+const DEFENDERS_CONSTANT = stubAbility("defenders.constant", {
+  trigger: { kind: "constant", spendableForAnyPlayer: { forPlayer: spenderInHero } },
+  effects: [],
+});
+const DEFENDERS = stubResource({ id: "defenders", icons: 1, abilities: [DEFENDERS_CONSTANT.ref] });
+const PLAIN = stubResource({ id: "plain", icons: 1 });
+
 const NOTHING = stubAbility("nothing.action", { trigger: { kind: "action" }, effects: [] });
 const PRICEY = stubEvent({ id: "pricey", cost: 1, abilities: [NOTHING.ref] });
 
-const deps: EngineDeps = depsOf(EVERYDAY_CONSTANT, EVERYDAY_RESPONSE, NOTHING);
+const deps: EngineDeps = depsOf(EVERYDAY_CONSTANT, EVERYDAY_RESPONSE, DEFENDERS_CONSTANT, NOTHING);
 
 function start(): GameState {
-  return gameAtFirstTurn({ cards: [EVERYDAY, PRICEY], deps, players: 2, deck: [EVERYDAY.id, PRICEY.id] });
+  return gameAtFirstTurn({
+    cards: [EVERYDAY, PRICEY, DEFENDERS, PLAIN],
+    deps,
+    players: 2,
+    deck: [EVERYDAY.id, PRICEY.id, DEFENDERS.id, PLAIN.id],
+  });
 }
 
 const play = (state: GameState, event: InstanceId, payWith: InstanceId) =>
@@ -85,5 +104,39 @@ describe("§3.17 'this card can be spent for any player'", () => {
     };
     const result = applyCommand(heroP2, play(heroP2, pricey.id, everyday.id), deps);
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("'can be spent for another player whose identity has [a trait]': read for the player it is spent for", () => {
+  const withForms = (state: GameState, p1: "hero" | "alterEgo", p2: "hero" | "alterEgo"): GameState => ({
+    ...state,
+    players: state.players.map((p) => ({ ...p, identity: { ...p.identity, form: p.playerId === P1 ? p1 : p2 } })),
+  });
+  const table = (p1: "hero" | "alterEgo", p2: "hero" | "alterEgo") => {
+    const pricey = giveCard(start(), P1, PRICEY.id);
+    const defenders = giveCard(pricey.state, P2, DEFENDERS.id);
+    const plain = giveCard(defenders.state, P2, PLAIN.id);
+    return { state: withForms(plain.state, p1, p2), pricey: pricey.id, defenders: defenders.id, plain: plain.id };
+  };
+  const offered = (state: GameState, pricey: InstanceId): readonly string[] =>
+    paymentOptions(createCtx(state, deps), P1, pricey).map((option) => option.optionId);
+
+  it("P1 (the player it is spent for) qualifies: P2 spends it toward P1's card, whatever P2's own form", () => {
+    const t = table("hero", "alterEgo");
+    expect(offered(t.state, t.pricey)).toContain(`hand:${t.defenders}`);
+    const result = applyCommand(t.state, play(t.state, t.pricey, t.defenders), deps);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(mustPlayer(result.state, P2).discard).toContain(t.defenders);
+  });
+
+  it("P1 does not qualify: refused, and not offered, though P2 (its owner) would", () => {
+    const t = table("alterEgo", "hero");
+    expect(offered(t.state, t.pricey)).not.toContain(`hand:${t.defenders}`);
+    expect(applyCommand(t.state, play(t.state, t.pricey, t.defenders), deps).ok).toBe(false);
+  });
+
+  it("another player's card with no such text is never offered", () => {
+    const t = table("hero", "hero");
+    expect(offered(t.state, t.pricey)).not.toContain(`hand:${t.plain}`);
   });
 });

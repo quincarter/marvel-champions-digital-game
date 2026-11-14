@@ -15,14 +15,17 @@ import {
   eachPlayer,
   exhaustThis,
   exists,
+  generatesPerCard,
   gets,
   heroAction,
   moveCards,
   query,
   rule,
   self,
+  spendableForPlayersWhere,
   takesConsequentialDamage,
   YOUR_HERO,
+  youHaveTrait,
   zone,
   you,
 } from "../../dsl/index.js";
@@ -30,6 +33,7 @@ import { LUKE_CAGE_OTHER_ASPECTS_BASIC } from "../luke_cage/other-aspects-basic.
 
 const ATTACK = trait("ATTACK");
 const MARTIAL_ARTIST = trait("MARTIAL ARTIST");
+const DEFENDER = trait("DEFENDER");
 
 /**
  * Wave 11 scripting module `iron_fist/basic` (docs/phase7-elektra-iron-fist.md).
@@ -59,6 +63,11 @@ const MARTIAL_ARTIST = trait("MARTIAL ARTIST");
  * **64025.thunder-dojo-action**: "Any player may trigger this ability" is `triggerableBy: eachPlayer`; the player who
  * triggers it is "you", so it is their discard pile and deck that are used ("your"). Up to 2 Attack events, so
  * choosing none is allowed. Prerequisite is data.
+ *
+ * **64033.the-defenders-constant**: what it generates is read from its owner's hand, "you" its owner whoever it is spent
+ * for (`handGenerates`: one [physical] per Defender character the owner controls, identity included, to 4). "Can be
+ * spent for another player whose identity has the Defender trait" is read for the player it is spent for, their
+ * identity's face showing (`spendableForPlayersWhere`).
  */
 export const IRON_FIST_BASIC: AbilityRegistry = defineAbilities({
   "64021.colleen-wing-constant": constant(
@@ -68,6 +77,11 @@ export const IRON_FIST_BASIC: AbilityRegistry = defineAbilities({
         if: attackedThisPhase(attackTarget(), { trait: MARTIAL_ARTIST, except: self }),
       }),
     ),
+  ),
+
+  "64033.the-defenders-constant": constant(
+    { handGenerates: generatesPerCard("physical", query("character", { trait: DEFENDER, controller: "you" }), 4) },
+    spendableForPlayersWhere(youHaveTrait(DEFENDER)),
   ),
 
   "64022.luke-cage-constant": constant(
@@ -91,7 +105,4 @@ export const IRON_FIST_BASIC: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const IRON_FIST_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "64033.the-defenders-constant":
-    "needs engine primitive: a resource's 'can be spent for another player whose identity has the Defender trait' (spendableForAnyPlayer's condition is read for the card's owner, not the spending player); the generation half is handGenerates: generatesPerCard('physical', Defender characters you control, 4)",
-};
+export const IRON_FIST_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

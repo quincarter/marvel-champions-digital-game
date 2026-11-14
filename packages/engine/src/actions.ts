@@ -1935,14 +1935,31 @@ export function mostFromEachHandCard(
  * pile" is the pile as it stood before the payment — never a card this same
  * payment is spending (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
  */
-/** "This card can be spent for any player" (`spendableForAnyPlayer`, docs/phase7-wave5.md §3.17), read in its owner's hand. */
-function spendableForAnyPlayer(state: GameState, deps: EngineDeps, id: InstanceId, ownerId: PlayerId): boolean {
-  const context: EffectContext = { selfInstanceId: id, controllerId: ownerId, event: null, bindings: {}, deps };
-  return printedConstants(state, deps, id).some(
-    (trigger) =>
-      trigger.spendableForAnyPlayer !== undefined &&
-      (!trigger.spendableForAnyPlayer.while || evaluate(state, trigger.spendableForAnyPlayer.while, context)),
-  );
+/**
+ * "This card can be spent for any player" (`spendableForAnyPlayer`, docs/phase7-wave5.md §3.17), read in its owner's
+ * hand toward `forPlayerId`'s payment: its `while` with "you" the owner, its `forPlayer` ("another player whose identity
+ * has the Defender trait", The Defenders 64033) with "you" the player it is spent for.
+ */
+export function spendableForAnyPlayer(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  ownerId: PlayerId,
+  forPlayerId: PlayerId,
+): boolean {
+  const context = (playerId: PlayerId): EffectContext => ({
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+  });
+  return printedConstants(state, deps, id).some((trigger) => {
+    const permission = trigger.spendableForAnyPlayer;
+    if (permission === undefined) return false;
+    if (permission.while && !evaluate(state, permission.while, context(ownerId))) return false;
+    return !permission.forPlayer || evaluate(state, permission.forPlayer, context(forPlayerId));
+  });
 }
 
 /**
@@ -2202,7 +2219,7 @@ export function priceOf(
         (!tucked &&
           ownerId !== playerId &&
           !group &&
-          !spendableForAnyPlayer(ctx.state, ctx.deps, entry.fromHand, ownerId))
+          !spendableForAnyPlayer(ctx.state, ctx.deps, entry.fromHand, ownerId, playerId))
       ) {
         return { code: "card_not_in_zone", message: `payment card ${entry.fromHand} is not in hand` };
       }
@@ -2355,14 +2372,16 @@ export function paymentOptions(
   const options: ChoiceOption[] = [];
   // An alliance card: every player's hand, the paying player's first (docs/phase7-wave4.md §3.17).
   const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
-  const payers = group
-    ? [playerId, ...playerOrder(ctx.state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
-    : [playerId];
+  // Without one, another player's hand still offers a card that "can be spent for" this player (`spendableForAnyPlayer`,
+  // docs/phase7-wave5.md §3.17; The Defenders 64033), plainly spent, after the paying player's own.
+  const payers = [playerId, ...playerOrder(ctx.state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))];
   const discardedAsCost = asIfInHandSpentSource(ctx.state, ctx.deps, playerId, excludeInstanceId ?? payingFor);
   for (const payerId of payers) {
     const payer = mustPlayer(ctx.state, payerId);
+    const helping = payerId !== playerId && !group;
     for (const id of payer.hand) {
       if (id === excludeInstanceId || id === discardedAsCost) continue;
+      if (helping && !spendableForAnyPlayer(ctx.state, ctx.deps, id, payerId, playerId)) continue;
       const spendableIn = printedConstants(ctx.state, ctx.deps, id).find((trigger) => trigger.spendableIn)?.spendableIn;
       if (spendableIn && spendableIn !== payer.identity.form) continue;
       options.push({
@@ -2370,6 +2389,7 @@ export function paymentOptions(
         label: displayNameOf(ctx.state, id),
         ref: { kind: "card", instanceId: id },
       });
+      if (helping) continue;
       // The same card spent with its own "When you spend this card" ability (`whenSpent`): one more option per legal
       // pick of the ability's cost, after the plain spending, each showing what it generates. One of them at most
       // joins a payment (`isWhenSpentUse`).
@@ -2408,6 +2428,7 @@ export function paymentOptions(
     // "Any player may spend the resource card tucked here as if it were in their hand" (`RuleSpec
     // spendableFromTucked`, docs/phase7-wave9.md §3.46 (c)): after that player's hand, named as a hand card is. The
     // label says where it is. A group payment lists it once, under the first payer who may spend it.
+    if (helping) continue;
     for (const { instanceId: id, hostInstanceId } of tuckedSpendSources(ctx.state, ctx.deps, payerId)) {
       if (id === excludeInstanceId || options.some((option) => option.optionId === `hand:${id}`)) continue;
       const spendableIn = printedConstants(ctx.state, ctx.deps, id).find((trigger) => trigger.spendableIn)?.spendableIn;

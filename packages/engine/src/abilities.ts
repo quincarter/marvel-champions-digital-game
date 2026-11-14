@@ -653,8 +653,13 @@ export type AbilityTriggerSpec =
        * as for an alliance card (RRG 1.8 "Alliance", p. 6). Read from the hand card, `while` with "you" its owner. The
        * spend is announced as the owner's `resourcesSpent` with `forPlayerId` the paying player ("After you spend this
        * card for a player").
+       *
+       * `forPlayer`: "can be spent for another player whose identity has the Defender trait" (The Defenders, `iron_fist`
+       * 64033): only toward the payment of a player it holds for, read with "you" that player (the one the card is spent
+       * for), not the owner. Both conditions must hold when both are given. Neither is read when the owner spends the
+       * card for themselves, which needs no permission.
        */
-      readonly spendableForAnyPlayer?: { readonly while?: Predicate };
+      readonly spendableForAnyPlayer?: { readonly while?: Predicate; readonly forPlayer?: Predicate };
       /**
        * "Connection to the Worldmind does not count toward your hand size." (`nova` 28007; docs/phase7-wave5.md §3.18):
        * read from the card in hand by every "cards in hand against hand size" reader (`handCountTowardHandSize`). It is

@@ -3,6 +3,7 @@ import {
   applyCommand,
   characterProfile,
   createGame,
+  handCardResources,
   handSize,
   legalActions,
   type Command,
@@ -61,6 +62,8 @@ const TONFA = "64020";
 const REDIRECTION = "64018";
 const LUKE_CAGE = "64022";
 const COLLEEN = "64021";
+const DEFENDERS = "64033";
+const INTERROGATION_ROOM = "01063"; // Core support, cost 1
 const PUNCH = "64023";
 const DOJO = "64025";
 const CUTS = "64030";
@@ -87,6 +90,7 @@ const SCRIPTED = {
     "64023.punch-reverse-punch-action",
     "64024.power-man-and-iron-fist-action",
     "64025.thunder-dojo-action",
+    "64033.the-defenders-constant",
   ],
   aggression: ["64030.death-by-a-thousand-cuts-response"],
   leadership: ["64031.zen-like-calm-action", "64032.sensei-constant"],
@@ -174,7 +178,7 @@ describe("registries", () => {
       for (const id of Object.keys(registry)) expect(validateDefinition(registry[id]!), id).toEqual([]);
     }
     expect(IRON_FIST_PROTECTION_SKIPPED).toEqual({});
-    expect(Object.keys(IRON_FIST_BASIC_SKIPPED).sort()).toEqual(["64033.the-defenders-constant"]);
+    expect(IRON_FIST_BASIC_SKIPPED).toEqual({});
     expect(IRON_FIST_AGGRESSION_SKIPPED).toEqual({});
     expect(IRON_FIST_LEADERSHIP_SKIPPED).toEqual({});
   });
@@ -661,5 +665,90 @@ describe("64032 Sensei", () => {
     const after = drive(scheme.state, taking(), thwartWith(ally.id, scheme.id));
     expect(inst(after, scheme.id).threat).toBe(1);
     expect(damageOf(after, ally.id)).toBe(1);
+  });
+});
+
+describe("64033 The Defenders", () => {
+  /** P1 is Luke Cage (a Defender hero; Carl Lucas, his alter-ego, is a Civilian), P2 is Spider-Man. */
+  function defendersGame(): GameState {
+    const deck = LUKE_CAGE_STARTER_DECKS.find((d) => d.id === "luke-cage-leadership")!;
+    const codes = deck.cards.flatMap(({ cardId: id, quantity }) => Array.from({ length: quantity }, () => id));
+    const config = coreScenario("rhino", {
+      players: [{ starterDeckId: BASIC_HERO }],
+      seed: 1,
+      difficulty: "standard",
+      modularSetIds: [],
+      cardPool: PLAYABLE_CARDS,
+    } as never);
+    const seat = { identityCardId: deck.identityCardId, aspects: deck.aspects, deck: codes };
+    const created = createGame({ ...config, players: [seat, config.players[0]!] }, DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    return settle(created.state, firstLegal, (s) => s.step.phase === "player", DEPS);
+  }
+  /** Surgery: a deck card of `player`'s retagged `code`, into their hand or play area, faceup and ready. */
+  const give = (s: GameState, player: PlayerId, code: string, where: "hand" | "playArea") => {
+    const id = playerOf(s, player).deck.at(-1)!;
+    const moved: GameState = {
+      ...s,
+      players: s.players.map((p) =>
+        p.playerId === player ? { ...p, deck: p.deck.filter((i) => i !== id), [where]: [...p[where], id] } : p,
+      ),
+    };
+    return {
+      state: patchInstance(moved, id, { cardId: cardId(code), faceup: true, exhausted: false, controllerId: player }),
+      id,
+    };
+  };
+  const generated = (s: GameState, id: InstanceId, owner: PlayerId) =>
+    handCardResources(s, DEPS, id, owner, null).physical ?? 0;
+
+  it("generates a [physical] for each Defender character its owner controls, identity included, to a maximum of 4", () => {
+    const hero = withForm(defendersGame(), { heroForm: 0 });
+    const card = give(hero, P1, DEFENDERS, "hand");
+    expect(generated(card.state, card.id, P1)).toBe(1); // Luke Cage himself
+    const one = give(card.state, P1, LUKE_CAGE, "playArea");
+    expect(generated(one.state, card.id, P1)).toBe(2);
+    let crowded = one.state;
+    for (let i = 0; i < 4; i++) crowded = give(crowded, P1, LUKE_CAGE, "playArea").state;
+    expect(generated(crowded, card.id, P1)).toBe(4);
+    // Carl Lucas (Civilian) is no Defender: the ally alone.
+    expect(generated(withForm(one.state, "alterEgo"), card.id, P1)).toBe(1);
+  });
+
+  /** P2 holds The Defenders and controls a Defender ally (1 [physical]); P1 has a 1-cost support to play. */
+  const helping = (p1Form: "hero" | "alterEgo") => {
+    const base = defendersGame();
+    const formed = withForm(base, p1Form === "hero" ? { heroForm: 0 } : "alterEgo");
+    const card = give(formed, P2, DEFENDERS, "hand");
+    const ally = give(card.state, P2, LUKE_CAGE, "playArea");
+    const room = give(ally.state, P1, INTERROGATION_ROOM, "hand");
+    return { state: room.state, defenders: card.id, room: room.id };
+  };
+
+  it("can be spent for another player whose identity has the Defender trait", () => {
+    const { state, defenders, room } = helping("hero");
+    expect(generated(state, defenders, P2)).toBe(1);
+    const after = drive(state, taking(), play(P1, room, [defenders]));
+    expect(playerOf(after, P1).playArea).toContain(room);
+    expect(playerOf(after, P2).discard).toContain(defenders);
+  });
+
+  it("not for a player whose identity lacks the trait (Carl Lucas, a Civilian)", () => {
+    const { state, defenders, room } = helping("alterEgo");
+    const result = applyCommand(state, play(P1, room, [defenders]), DEPS);
+    expect(result.ok ? null : result.error.code).toBe("card_not_in_zone");
+    // P2's own card, in P1's own hand, would pay: the refusal is the trait.
+    const plain = give(state, P1, ENERGY, "hand");
+    expect(applyCommand(plain.state, play(P1, room, [plain.id]), DEPS).ok).toBe(true);
+  });
+
+  it("not for a player whose identity lacks the trait: P1's own card spent for Spider-Man on his turn", () => {
+    const hero = withForm(withForm(defendersGame(), { heroForm: 0 }), { heroForm: 0 }, P2);
+    const card = give(hero, P1, DEFENDERS, "hand");
+    const room = give(card.state, P2, INTERROGATION_ROOM, "hand");
+    const p2Turn = drive(room.state, taking(), endTurn(P1));
+    expect((p2Turn.step as { activePlayerId?: PlayerId }).activePlayerId).toBe(P2);
+    const result = applyCommand(p2Turn, play(P2, room.id, [card.id]), DEPS);
+    expect(result.ok ? null : result.error.code).toBe("card_not_in_zone");
   });
 });

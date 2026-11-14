@@ -2153,7 +2153,10 @@ export function paymentFor(
         if (payable.reserved.has(option.ref.instanceId)) return [];
         // A card spent "as if it were in their hand" from under its host (`RuleSpec spendableFromTucked`).
         const at = locateCard(state, option.ref.instanceId);
-        const pool = handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor);
+        // Priced as its owner's: "you" on another player's card spent for this one ("each Defender character you
+        // control", The Defenders 64033) is the player whose hand it is in, as the payment itself reads it.
+        const holder = at?.kind === "hand" ? at.playerId : playerId;
+        const pool = handCardResources(state, deps, option.ref.instanceId, holder, payable.payingFor);
         return [
           {
             optionId: option.optionId,
