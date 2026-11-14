@@ -173,6 +173,8 @@ export interface BoardDrawContext {
   readonly teamUpRoles?: ReadonlyMap<InstanceId, TeamUpRole> | undefined;
   /** A villain phase is replaying: the action bar has no End turn or Undo to offer until it closes. */
   readonly actionsHeld?: boolean;
+  /** A replay is being watched (#693): no action bar, the transport sits over its zone. */
+  readonly replay?: boolean;
   /** While the villain phase is up: when each hand card can answer it (`view/villain-hand-tags.ts`), set by that scene. */
   readonly villainHandTags?: ReadonlyMap<InstanceId, VillainHandTag> | null | undefined;
   /**

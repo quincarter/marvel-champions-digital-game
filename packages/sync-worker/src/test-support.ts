@@ -3,8 +3,15 @@
  * directly (one instance per name, like the real thing). Not part of the Worker bundle.
  */
 
-import { GlobalStats, RateLimiter, SyncSpace, TransferRoom } from "./durable-objects.js";
-import type { DurableObjectNamespaceLike, Env, KeyValueStorage } from "./env.js";
+import { GlobalStats, RateLimiter, ReplayQuota, SyncSpace, TransferRoom } from "./durable-objects.js";
+import type {
+  DurableObjectNamespaceLike,
+  Env,
+  KeyValueStorage,
+  R2BucketLike,
+  R2ObjectBodyLike,
+  R2PutOptionsLike,
+} from "./env.js";
 
 export class MemoryStorage implements KeyValueStorage {
   readonly map = new Map<string, unknown>();
@@ -73,6 +80,27 @@ export class MemoryStorage implements KeyValueStorage {
   }
 }
 
+/** An in-memory R2 bucket: honors `onlyIf: { etagDoesNotMatch: "*" }` the way R2 does (null when the key is taken). */
+export class MemoryR2 implements R2BucketLike {
+  readonly objects = new Map<string, { text: string; options: R2PutOptionsLike }>();
+  puts = 0;
+  gets = 0;
+
+  async get(key: string): Promise<R2ObjectBodyLike | null> {
+    this.gets += 1;
+    const object = this.objects.get(key);
+    if (!object) return null;
+    return { body: new Response(object.text).body!, text: async () => object.text };
+  }
+
+  async put(key: string, value: string, options: R2PutOptionsLike = {}): Promise<object | null> {
+    this.puts += 1;
+    if (options.onlyIf?.etagDoesNotMatch === "*" && this.objects.has(key)) return null;
+    this.objects.set(key, { text: value, options });
+    return { key };
+  }
+}
+
 export interface FakeNamespace<T> extends DurableObjectNamespaceLike {
   readonly instances: Map<string, { object: T; storage: MemoryStorage }>;
 }
@@ -114,6 +142,8 @@ export interface TestEnv extends Env {
   RATE_LIMITER: FakeNamespace<RateLimiter>;
   SYNC_SPACE: FakeNamespace<SyncSpace>;
   GLOBAL_STATS: FakeNamespace<GlobalStats>;
+  REPLAYS: MemoryR2;
+  REPLAY_QUOTA: FakeNamespace<ReplayQuota>;
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
@@ -122,7 +152,11 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
     RATE_LIMITER: fakeNamespace((storage) => new RateLimiter({ storage })),
     SYNC_SPACE: fakeNamespace((storage) => new SyncSpace({ storage })),
     GLOBAL_STATS: fakeNamespace((storage) => new GlobalStats({ storage })),
+    REPLAYS: new MemoryR2(),
+    REPLAY_QUOTA: fakeNamespace((storage) => new ReplayQuota({ storage })),
     TRANSFERS_ENABLED: "true",
+    REPLAYS_ENABLED: "true",
+    MAX_REPLAY_BYTES: "1000",
     SYNC_ENABLED: "true",
     GLOBAL_STATS_ENABLED: "true",
     MAX_UPLOAD_BYTES: "1000",

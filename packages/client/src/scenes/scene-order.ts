@@ -56,6 +56,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.newInBox,
   SCENES.civilWarBuilder,
   SCENES.aspectLesson,
+  SCENES.replayTransport,
   SCENES.choice,
   SCENES.setCards,
   SCENES.inspect,

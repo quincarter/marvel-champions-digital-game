@@ -20,7 +20,7 @@
  */
 
 import Phaser from "phaser";
-import type { InstanceId } from "@mc/engine";
+import type { GameOutcome, GameState, InstanceId } from "@mc/engine";
 import { gameScenarios } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { artFor } from "../art/art-source.js";
@@ -55,6 +55,9 @@ import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../pro
 import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { setGuideRunLevelOverride } from "../guide/guide-store.js";
+import { t } from "../i18n/translate.js";
+import { openReplay, replayErrorKey } from "../replay/replay-files.js";
+import { watchReplay } from "./replay-entry.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -603,14 +606,19 @@ export class GameOverScene extends Phaser.Scene {
 
   /**
    * The rematch actions. "Run it back" keeps the scenario and seats with a fresh
-   * shuffle; "Same seed" replays the identical deal. There is no replay button until a replay viewer exists: a
-   * dashed one with no visible reason read as a dead control.
+   * shuffle; "Same seed" replays the identical deal. "Watch replay" (issue #693) follows them, for every game.
    *
    * A **campaign** game (`config.campaign` set) replaces all of this: there is no rematch — the scenario belongs
    * to a campaign log that has to fold this result first — so the only action is "Continue the campaign ▸", which
    * finds the run this game came from and hands off to Aftermath. A standalone game's actions are unchanged.
    */
   #actions(
+    config: SessionConfig | null,
+  ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
+    return [...this.#playActions(config), this.#replayAction()];
+  }
+
+  #playActions(
     config: SessionConfig | null,
   ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
     if (config?.campaign) {
@@ -631,6 +639,39 @@ export class GameOverScene extends Phaser.Scene {
       run: () => config && void this.#rematch(rematchConfigOf(config, action.kind, rollSeed(), cardsRandomizer)),
       unavailable: missing,
     }));
+  }
+
+  /**
+   * "Watch replay": the game just played, from the live host's own log rather than the save, whose last write (the
+   * game-ending command) may not have landed yet.
+   */
+  #replayAction(): { label: string; primary: boolean; run: () => void; unavailable: string | undefined } {
+    const { config, game } = appSession().store.state;
+    return {
+      label: t("gameOver.watchReplay"),
+      primary: false,
+      run: () => config && game && void this.#watchReplay(config, game.outcome ?? null, game.round),
+      unavailable: config && game ? undefined : t("replay.error.missing"),
+    };
+  }
+
+  async #watchReplay(config: SessionConfig, outcome: GameOutcome | null, round: number): Promise<void> {
+    if (this.#busy) return;
+    this.#busy = true;
+    try {
+      const { initialState, commands } = await appSession().store.save();
+      const { cardPool: _pool, ...baseline } = initialState as GameState;
+      const host = await openReplay({
+        kind: "log",
+        log: { config, initialState: baseline, commands, createdAt: Date.now(), outcome, round },
+      });
+      if (!this.sys.isActive()) return host.dispose();
+      await watchReplay(this, host, SCENES.gameOver);
+    } catch (cause) {
+      this.#status?.setText(t(replayErrorKey(cause)));
+    } finally {
+      this.#busy = false;
+    }
   }
 
   /**

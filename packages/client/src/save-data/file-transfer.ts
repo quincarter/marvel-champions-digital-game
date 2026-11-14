@@ -24,23 +24,45 @@ export function exportRouteFor(platform: Platform, canShareFiles: boolean, userA
 /** Closing the Save dialog reads as closing the share sheet: an AbortError, which the overlay shows no status for. */
 const cancelled = (): Error => new DOMException("The save dialog was closed.", "AbortError");
 
-export async function deliverSaveFile(file: SaveFile): Promise<void> {
-  const name = saveFileNameOf(file.exportedAt);
-  const json = JSON.stringify(file);
-  const blob = new Blob([json], { type: "application/json" });
-  const shared = new File([blob], name, { type: "application/json" });
+export function deliverSaveFile(file: SaveFile): Promise<void> {
+  return deliverTextFile(saveFileNameOf(file.exportedAt), JSON.stringify(file), "application/json");
+}
+
+/** The desktop Save dialog's title, file-type name and extension (no dot); the save data's own when absent. */
+export interface SaveDialogWording {
+  readonly title: string;
+  readonly filterName: string;
+  readonly extension: string;
+}
+
+/**
+ * Hands a text file out by this shell's route (above): the save data, a replay (`replay/replay-files.ts`) or a game's
+ * log. Rejects with an AbortError when the player closes the dialog or sheet.
+ */
+export async function deliverTextFile(
+  name: string,
+  text: string,
+  type: string,
+  dialog?: SaveDialogWording,
+): Promise<void> {
+  const blob = new Blob([text], { type });
+  const shared = new File([blob], name, { type });
   const nav = globalThis.navigator;
   const canShareFiles = typeof nav?.share === "function" && nav.canShare?.({ files: [shared] }) === true;
 
   switch (exportRouteFor(detectPlatform(), canShareFiles, nav?.userAgent ?? "")) {
     case "save-dialog": {
       const { invoke } = await import("@tauri-apps/api/core");
-      const saved = await invoke<string | null>("save_text_file", { fileName: name, contents: json });
+      const saved = await invoke<string | null>("save_text_file", {
+        fileName: name,
+        contents: text,
+        ...(dialog ? { title: dialog.title, filterName: dialog.filterName, extension: dialog.extension } : {}),
+      });
       if (saved === null) throw cancelled();
       return;
     }
     case "android-save":
-      if (!(await saveTextOnAndroid(name, json, "application/json"))) throw cancelled();
+      if (!(await saveTextOnAndroid(name, text, type))) throw cancelled();
       return;
     case "share":
       await nav.share({ files: [shared], title: name });
@@ -65,14 +87,25 @@ export async function deliverSaveFile(file: SaveFile): Promise<void> {
  * Opens the file picker and parses what comes back. Resolves `null` when the player closes the picker without
  * choosing, so the caller can tell that apart from a bad file.
  */
-export function pickSaveFile(): Promise<ParseResult | null> {
+export async function pickSaveFile(): Promise<ParseResult | null> {
+  const picked = await pickFile("application/json,.json");
+  if (picked === null) return null;
+  if (picked === "unreadable") return { ok: false, error: "That file couldn't be read." };
+  return parseSaveFile(new TextDecoder().decode(picked));
+}
+
+/**
+ * Opens the file picker for `accept` and reads the chosen file's bytes: null when the picker closes with nothing
+ * chosen, "unreadable" when the file can't be read or is over `maxBytes`.
+ */
+export function pickFile(accept: string, maxBytes?: number): Promise<Uint8Array | "unreadable" | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "application/json,.json";
+    input.accept = accept;
     input.style.display = "none";
     let settled = false;
-    const finish = (result: ParseResult | null): void => {
+    const finish = (result: Uint8Array | "unreadable" | null): void => {
       if (settled) return;
       settled = true;
       input.remove();
@@ -81,9 +114,11 @@ export function pickSaveFile(): Promise<ParseResult | null> {
     input.addEventListener("change", () => {
       const chosen = input.files?.[0];
       if (!chosen) return finish(null);
-      chosen.text().then(
-        (text) => finish(parseSaveFile(text)),
-        () => finish({ ok: false, error: "That file couldn't be read." }),
+      // A file over the caller's limit is refused by its size, before any of it is read into memory.
+      if (maxBytes !== undefined && chosen.size > maxBytes) return finish("unreadable");
+      chosen.arrayBuffer().then(
+        (buffer) => finish(new Uint8Array(buffer)),
+        () => finish("unreadable"),
       );
     });
     input.addEventListener("cancel", () => finish(null));
