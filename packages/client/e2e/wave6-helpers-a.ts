@@ -437,6 +437,8 @@ export async function scrollStopIntoView(
   top = 70,
   // The x a control's centre must stay left of: a tile row clipped by a side panel (Scenario select) needs less than the viewport.
   right?: number,
+  // Where the wheel turns, when the screen's middle is not over the list (the Jukebox player can cover it on a phone).
+  wheelAt?: { readonly x: number; readonly y: number },
 ): Promise<void> {
   const size = page.viewportSize() ?? { width: 1440, height: 900 };
   for (let step = 0; step < 60; step++) {
@@ -446,9 +448,7 @@ export async function scrollStopIntoView(
     const inY = y >= top && y + height / 2 <= size.height - 90;
     const inX = x >= 0 && x + width / 2 <= (right ?? size.width - 10);
     if (inY && inX) return;
-    // The wheel goes over the middle of the band the control must reach, not the screen's: a fixed panel above a list
-    // (the Jukebox player under a phone's two rows of Extras doors) can reach past the screen's middle.
-    await page.mouse.move(size.width / 2, (top + size.height - 90) / 2);
+    await page.mouse.move(wheelAt?.x ?? size.width / 2, wheelAt?.y ?? size.height / 2);
     if (!inY) await page.mouse.wheel(0, y < top ? -250 : 250);
     else await page.mouse.wheel(x < 0 ? -250 : 250, 0);
     await settle(page);
