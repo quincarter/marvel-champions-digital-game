@@ -135,3 +135,31 @@ describe("63039 Moon Knight: when he defends, spend up to 3 resources; a line pe
     expect(inst(state, b.knight).damage).toBe(2);
   });
 });
+
+describe("63039 Moon Knight [mental] with two facedown boost cards on the attacker (owner decision 7)", () => {
+  it("the first one dealt is discarded: nothing is known about them, so the controller's pick is the first dealt", () => {
+    const b = setup(MENTAL);
+    // Surgery: an Advance (boost 0) already waiting facedown on Rhino before his activation gives him Sandman.
+    const deckId = Object.keys(b.state.encounterDecks)[0]!;
+    const piles = b.state.encounterDecks[deckId]!;
+    const early = piles.deck[1]!;
+    const rhinoId = b.state.activeVillainId!;
+    const waiting: GameState = {
+      ...b.state,
+      encounterDecks: {
+        ...b.state.encounterDecks,
+        [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== early) },
+      },
+      instances: {
+        ...b.state.instances,
+        [early]: { ...inst(b.state, early), faceup: false },
+        [rhinoId]: { ...inst(b.state, rhinoId), boostCards: [early] },
+      },
+    };
+    const { state, flipped, discarded } = defend({ ...b, state: waiting }, true);
+    expect(discarded).toEqual([early]);
+    expect(flipped).toEqual([b.sandman]);
+    // Rhino's 2 + Sandman's 2: the boost-0 card was the one discarded.
+    expect(inst(state, b.knight).damage).toBe(4);
+  });
+});
