@@ -51,7 +51,7 @@
     </section>
 
     <!-- ============ SCREENSHOTS: pinned while the page scrolls through them ============ -->
-    <section class="scrolly" id="shots-sec">
+    <section class="scrolly" id="scrolly-sec">
       <div class="scrolly-pin">
         <div class="scrolly-in">
           <div class="scrolly-copy">
@@ -61,6 +61,22 @@
             <div class="scrolly-bar" aria-hidden="true"><i id="scrolly-bar"></i></div>
           </div>
           <div class="scrolly-frame" id="scrolly-frame"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CAMPAIGN STORY: comic pages, pinned, each panning as it scrolls ============ -->
+    <section class="scrolly comic" id="story-sec">
+      <div class="scrolly-pin">
+        <div class="scrolly-in">
+          <div class="scrolly-copy">
+            <h2 class="title" data-t="story.title"></h2>
+            <p class="sub" data-t="story.text"></p>
+            <ol class="scrolly-steps" id="story-steps"></ol>
+            <p class="scrolly-caption" id="story-caption" aria-live="polite"></p>
+            <div class="scrolly-bar" aria-hidden="true"><i id="story-bar"></i></div>
+          </div>
+          <div class="scrolly-frame" id="story-frame"></div>
         </div>
       </div>
     </section>

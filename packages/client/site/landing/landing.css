@@ -322,6 +322,22 @@ body {
 .layer figcaption {
   display: none;
 }
+/* The campaign story: comic pages in a white comic-book frame, panned from first panel to last. */
+.scrolly.comic {
+  background: radial-gradient(ellipse at 70% 50%, rgb(200 16 46 / 0.18), transparent 60%), #0d0a08;
+}
+.scrolly.comic .layer img {
+  object-position: var(--pan, 0%) var(--pan, 0%);
+  border: 6px solid #fff;
+  box-shadow: 14px 14px 0 var(--gold);
+  transition: object-position 0.25s linear;
+}
+.scrolly.comic .title {
+  font-size: clamp(40px, 4.6vw, 66px);
+}
+.scrolly.comic .sub {
+  margin-top: 10px;
+}
 /* Reduced motion: an ordinary column of pictures, each with its caption. */
 .scrolly.static {
   height: auto;
@@ -352,6 +368,10 @@ body {
 .scrolly.static .layer img {
   height: auto;
   aspect-ratio: 16 / 10;
+}
+.scrolly.comic.static .layer img {
+  aspect-ratio: auto;
+  object-fit: contain;
 }
 .scrolly.static .layer figcaption {
   display: block;

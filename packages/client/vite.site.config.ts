@@ -39,6 +39,15 @@ const PICTURE = /\.(png|jpe?g|webp|avif)$/i;
 const HERO_WALLPAPER = "wallpaper-1";
 const PORTRAIT_WALLPAPER = "wallpaper-portrait";
 const BAND_WALLPAPERS = ["wallpaper-2", "back-to-basics-back-cover", "spider-verse-team", "mutant-genesis-x-men"];
+/** The campaign comic pages the story section steps through, in order: `key` names their text in `landing-text.ts`. */
+const COMIC_PAGES = [
+  { key: "mtsTitan", file: "campaigns/mts/pages/01-p1-titan" },
+  { key: "mtsBattle", file: "campaigns/mts/pages/03-p3-battle" },
+  { key: "mtsAsgard", file: "campaigns/mts/pages/05-p5-asgard" },
+  { key: "smSwing", file: "campaigns/sm/pages/01-p1-swing" },
+  { key: "smSix", file: "campaigns/sm/pages/05-p5-six" },
+  { key: "smGoblin", file: "campaigns/sm/pages/06-p6-goblin" },
+];
 
 type Resize = (source: string, width: number) => Promise<string>;
 
@@ -127,11 +136,18 @@ async function siteArt(portraits: boolean): Promise<ArtModule> {
   };
   const bands: string[] = [];
   for (const base of BAND_WALLPAPERS) bands.push(await wallpaper(base, 1920));
+  const comics: string[] = [];
+  for (const { key, file } of portraits ? COMIC_PAGES : []) {
+    const dir = join(ART, dirname(file));
+    const picture = pictureIn(dir, file.split("/").at(-1)!);
+    if (picture) comics.push(`{ key: ${JSON.stringify(key)}, src: ${asset(await resize(picture, 1600))} }`);
+  }
   return {
     imports,
     exports: [
       `export const HERO_ART = { ${heroes.join(",\n")} };`,
       `export const VILLAIN_ART = { ${villains.join(",\n")} };`,
+      `export const COMIC_PAGES = [${comics.join(",\n")}];`,
       `export const WALLPAPERS = { wide: ${await wallpaper(HERO_WALLPAPER, 2400)}, tall: ${await wallpaper(PORTRAIT_WALLPAPER, 900)}, bands: [${bands.join(", ")}].filter(Boolean) };`,
     ],
   };

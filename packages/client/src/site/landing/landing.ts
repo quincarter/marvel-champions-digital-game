@@ -7,6 +7,7 @@
  */
 import type { PackIndexEntry } from "@mc/content";
 import {
+  COMIC_PAGES,
   HERO_ART,
   MODS,
   RELEASES,
@@ -80,7 +81,6 @@ let release: LatestRelease | null | "loading" = BUILT_RELEASE ?? "loading";
 let mods: readonly StoreMod[] = MODS;
 let aspect: AspectFilter = "all";
 let villainsOpen = false;
-let shot = 0;
 const device = browserDevice();
 interface StageShot {
   readonly src: string;
@@ -173,77 +173,107 @@ function drawStats(): void {
   );
 }
 
+/** One step of a pinned section: a picture and its caption. */
+interface PinnedStep {
+  readonly src: string;
+  readonly alt: string;
+  readonly caption: string;
+}
+
 /**
- * The screenshot section. With motion on it is several screens tall and its frame is pinned (`.scrolly-pin`, sticky):
- * scrolling through it steps the frame from one shot to the next, the step's caption lighting up beside it. Each
- * shot is a layer in the frame; `moveShots` sets which one is in front from the scroll position. A caption is a
- * button that scrolls to its own step.
+ * A section that pins while the page scrolls through it (`.scrolly`): several screens tall, its frame sticky, each
+ * step a layer in the frame, with numbered captions beside it that jump to their step. `ids` names its parts in the
+ * page (`<prefix>-sec`, `-frame`, `-steps`, `-caption`, `-bar`). With `pan`, the picture in front also travels
+ * across its own width or height as its step scrolls by, so a comic page reads panel by panel.
  */
-function drawShots(): void {
-  if (shots.length === 0) {
-    $("shots-sec").hidden = true;
-    return;
-  }
-  const section = $("shots-sec");
-  section.classList.toggle("static", reducedMotion());
-  section.style.setProperty("--steps", String(shots.length));
-  $("scrolly-frame").replaceChildren(
-    ...shots.map((s, i) =>
-      element(
-        "figure",
-        { class: "layer" },
-        element("img", {
-          src: s.src,
-          alt: s.alt?.[language] ?? captionOf(s),
-          decoding: "async",
-          ...(i > 0 ? { loading: "lazy" } : {}),
-        }),
-        element("figcaption", {}, captionOf(s)),
+function pinnedSection(prefix: string, pan: boolean) {
+  const part = (name: string) => $(`${prefix}-${name}`);
+  let steps: readonly PinnedStep[] = [];
+
+  function draw(next: readonly PinnedStep[], pickLabel: (n: number) => string): void {
+    steps = next;
+    const section = part("sec");
+    section.hidden = steps.length === 0;
+    if (steps.length === 0) return;
+    section.classList.toggle("static", reducedMotion());
+    section.style.setProperty("--steps", String(steps.length));
+    part("frame").replaceChildren(
+      ...steps.map((s, i) =>
+        element(
+          "figure",
+          { class: "layer" },
+          element("img", { src: s.src, alt: s.alt, decoding: "async", ...(i > 0 ? { loading: "lazy" } : {}) }),
+          element("figcaption", {}, s.caption),
+        ),
       ),
-    ),
-  );
-  $("scrolly-steps").replaceChildren(
-    ...shots.map((s, i) => {
-      const button = element(
-        "button",
-        { type: "button", "aria-label": t("shots.pick", { n: i + 1 }) },
-        element("b", {}, String(i + 1).padStart(2, "0")),
-        element("span", {}, captionOf(s)),
-      );
-      button.addEventListener("click", () => {
-        if (section.classList.contains("static")) return;
-        const rect = section.getBoundingClientRect();
-        const y = scrollTopForStep(rect.top + scrollY, rect.height, innerHeight, shots.length, i);
-        scrollTo({ top: y, behavior: "smooth" });
-      });
-      return element("li", {}, button);
-    }),
-  );
-  moveShots();
-}
-
-/** Puts the scroll position's shot in front: the one before slides up and away, the next waits below. */
-function moveShots(): void {
-  const section = $("shots-sec");
-  if (section.hidden || section.classList.contains("static")) return;
-  const rect = section.getBoundingClientRect();
-  const { index, within, progress } = scrollSteps(rect.top, rect.height, innerHeight, shots.length);
-  if (index !== shot) shot = index;
-  for (const [i, layer] of [...$("scrolly-frame").children].entries()) {
-    const offset = i - index;
-    const el = layer as HTMLElement;
-    el.classList.toggle("on", offset === 0);
-    // In front: settles in over the first third of its step. Before it: lifted away. After it: waiting below.
-    el.style.setProperty("--o", offset === 0 ? "0" : offset < 0 ? "-1" : "1");
-    el.style.setProperty("--w", offset === 0 ? String(Math.min(1, within * 3)) : "1");
+    );
+    part("steps").replaceChildren(
+      ...steps.map((s, i) => {
+        const button = element(
+          "button",
+          { type: "button", "aria-label": pickLabel(i + 1) },
+          element("b", {}, String(i + 1).padStart(2, "0")),
+          element("span", {}, s.caption),
+        );
+        button.addEventListener("click", () => {
+          if (section.classList.contains("static")) return;
+          const rect = section.getBoundingClientRect();
+          scrollTo({
+            top: scrollTopForStep(rect.top + scrollY, rect.height, innerHeight, steps.length, i),
+            behavior: "smooth",
+          });
+        });
+        return element("li", {}, button);
+      }),
+    );
+    move();
   }
-  for (const [i, li] of [...$("scrolly-steps").children].entries()) li.classList.toggle("on", i === index);
-  $("scrolly-bar").style.width = `${Math.round(progress * 100)}%`;
-  const caption = $("scrolly-caption");
-  const text = shots[index] ? captionOf(shots[index]) : "";
-  if (caption.textContent !== text) caption.textContent = text;
+
+  /** Puts the scroll position's step in front: the one before slides up and away, the next waits below. */
+  function move(): void {
+    const section = part("sec");
+    if (section.hidden || section.classList.contains("static") || steps.length === 0) return;
+    const rect = section.getBoundingClientRect();
+    const { index, within, progress } = scrollSteps(rect.top, rect.height, innerHeight, steps.length);
+    for (const [i, layer] of [...part("frame").children].entries()) {
+      const el = layer as HTMLElement;
+      const offset = i - index;
+      el.classList.toggle("on", offset === 0);
+      el.style.setProperty("--o", offset === 0 ? "0" : offset < 0 ? "-1" : "1");
+      // A comic page in front pans from its first panels to its last; the ones behind rest where they ended.
+      if (pan) el.style.setProperty("--pan", `${Math.round((offset === 0 ? within : offset < 0 ? 1 : 0) * 100)}%`);
+    }
+    for (const [i, li] of [...part("steps").children].entries()) li.classList.toggle("on", i === index);
+    part("bar").style.width = `${Math.round(progress * 100)}%`;
+    const caption = part("caption");
+    const text = steps[index]?.caption ?? "";
+    if (caption.textContent !== text) caption.textContent = text;
+  }
+
+  return { draw, move };
 }
 
+const shotsSection = pinnedSection("scrolly", false);
+const storySection = pinnedSection("story", true);
+
+function drawShots(): void {
+  shotsSection.draw(
+    shots.map((s) => ({ src: s.src, alt: s.alt?.[language] ?? captionOf(s), caption: captionOf(s) })),
+    (n) => t("shots.pick", { n }),
+  );
+}
+
+/** The campaigns' comic pages, in story order, each with the beat it tells. */
+function drawStory(): void {
+  storySection.draw(
+    COMIC_PAGES.map((page) => ({
+      src: page.src,
+      alt: t(`story.${page.key}.alt`),
+      caption: t(`story.${page.key}`),
+    })),
+    (n) => t("story.pick", { n }),
+  );
+}
 /** Wallpaper bands drift slower than the page, so they read as a window onto the art behind it. */
 function moveBands(): void {
   if (reducedMotion()) return;
@@ -435,6 +465,7 @@ function draw(): void {
   drawArt();
   drawStats();
   drawShots();
+  drawStory();
   drawHeroes();
   drawVillains();
   drawMods();
@@ -458,7 +489,8 @@ $("villains-more").addEventListener("click", () => {
 draw();
 reveal();
 onScrollFrame(() => {
-  moveShots();
+  shotsSection.move();
+  storySection.move();
   moveBands();
 });
 
