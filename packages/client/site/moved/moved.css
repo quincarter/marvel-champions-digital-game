@@ -1,3 +1,70 @@
+/* The moved page's top: the title, the new address and the three buttons over a title wallpaper, darkened towards
+   the text, then a wallpaper band between the steps and what changes. */
+.mhero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: min(86svh, 900px);
+  display: grid;
+  align-items: end;
+}
+.mhero-art,
+.mhero-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  z-index: -2;
+}
+.mhero-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(to top, var(--bg) 0%, rgb(21 17 14 / 0.9) 35%, rgb(21 17 14 / 0.35) 70%, rgb(21 17 14 / 0.55) 100%),
+    linear-gradient(to right, rgb(21 17 14 / 0.75), transparent 65%);
+}
+.mhero-in {
+  width: 100%;
+  padding-bottom: 24px;
+}
+.mhero .top {
+  border-bottom-color: rgb(242 237 225 / 0.5);
+}
+.mhero h1 {
+  text-shadow: 4px 4px 0 #000;
+}
+.mhero .intro p,
+.mhero .meta {
+  text-shadow: 0 1px 3px #000;
+}
+.mhero .intro p {
+  color: var(--fg);
+}
+.mhero .pill {
+  background: rgb(33 27 23 / 0.85);
+}
+.art-band {
+  height: clamp(160px, 30vw, 380px);
+  margin-top: 64px;
+  background: #000 center 30% / cover no-repeat;
+  border-block: 4px solid #000;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mhero-art img {
+    animation: drift 24s ease-in-out infinite alternate;
+  }
+}
+@keyframes drift {
+  from {
+    transform: scale(1.04) translateX(-1%);
+  }
+  to {
+    transform: scale(1.1) translateX(1%);
+  }
+}
 /* The moved page's numbered steps: paper panels in order, each with a big comic number. */
 .steps {
   list-style: none;

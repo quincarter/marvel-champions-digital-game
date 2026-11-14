@@ -211,49 +211,165 @@ body {
   box-shadow: inset 0 0 0 1px rgb(242 237 225 / 0.08);
 }
 
-/* ---- Screenshot stage ---- */
-.stage {
-  display: grid;
-  gap: 18px;
-  margin-top: 26px;
+/* ---- Screenshots, pinned while the page scrolls through them ---- */
+.scrolly {
+  position: relative;
+  height: calc(var(--steps, 6) * 70svh + 100svh);
 }
-.stage-main img {
+.scrolly-pin {
+  position: sticky;
+  top: 58px;
+  height: calc(100svh - 58px);
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+}
+.scrolly-in {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 max(16px, env(safe-area-inset-left, 0px));
+  display: grid;
+  grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+.scrolly-steps {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+  display: grid;
+  gap: 4px;
+}
+.scrolly-steps button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 3px solid var(--line);
+  background: none;
+  color: var(--muted);
+  font: 600 16px/1.35 var(--b);
+  text-align: left;
+  transition:
+    color 0.3s,
+    border-color 0.3s,
+    background 0.3s;
+}
+.scrolly-steps b {
+  font: 400 24px/1 var(--d);
+  color: var(--line);
+  transition: color 0.3s;
+}
+.scrolly-steps li.on button {
+  color: var(--fg);
+  border-left-color: var(--gold);
+  background: rgb(240 180 42 / 0.08);
+}
+.scrolly-steps li.on b {
+  color: var(--gold);
+}
+.scrolly-caption {
+  display: none;
+  min-height: 3em;
+  margin: 12px 0 0;
+  color: var(--fg);
+  font: 600 16px/1.4 var(--b);
+}
+.scrolly-bar {
+  height: 4px;
+  margin-top: 18px;
+  background: var(--line);
+}
+.scrolly-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--red);
+}
+.scrolly-frame {
+  position: relative;
   aspect-ratio: 16 / 10;
+}
+.layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(calc(var(--o, 1) * 22%)) scale(calc(1 - var(--o, 1) * var(--o, 1) * 0.08))
+    rotate(calc(var(--o, 1) * -2.5deg));
+  transition:
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.45s ease;
+}
+.layer.on {
+  opacity: 1;
+  transform: none;
+  z-index: 2;
+}
+.layer img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   object-position: top;
   border: 4px solid var(--gold);
-  box-shadow: 12px 12px 0 var(--red);
-}
-.stage-main figcaption {
-  margin-top: 18px;
-}
-.stage-picks {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-.pick {
-  padding: 0;
-  border: 3px solid var(--line);
+  box-shadow: 14px 14px 0 var(--red);
   background: #000;
-  opacity: 0.65;
-  transition:
-    opacity 0.15s,
-    border-color 0.15s;
 }
-.pick img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  object-position: top;
+.layer figcaption {
+  display: none;
 }
-.pick:hover,
-.pick[aria-pressed="true"] {
+/* Reduced motion: an ordinary column of pictures, each with its caption. */
+.scrolly.static {
+  height: auto;
+  padding: clamp(48px, 7vw, 96px) 0;
+}
+.scrolly.static .scrolly-pin {
+  position: static;
+  height: auto;
+  overflow: visible;
+}
+.scrolly.static .scrolly-in {
+  grid-template-columns: minmax(0, 1fr);
+}
+.scrolly.static .scrolly-steps,
+.scrolly.static .scrolly-bar {
+  display: none;
+}
+.scrolly.static .scrolly-frame {
+  aspect-ratio: auto;
+  display: grid;
+  gap: 26px;
+}
+.scrolly.static .layer {
+  position: static;
   opacity: 1;
-  border-color: var(--gold);
+  transform: none;
+}
+.scrolly.static .layer img {
+  height: auto;
+  aspect-ratio: 16 / 10;
+}
+.scrolly.static .layer figcaption {
+  display: block;
 }
 
+/* ---- Pieces that rise into place as they scroll into view ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px) scale(0.96);
+  transition:
+    opacity 0.6s ease,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(var(--i, 0) * 55ms);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
 /* ---- Heroes ---- */
 .chips {
   display: flex;
@@ -630,8 +746,34 @@ body {
   .nav {
     display: none;
   }
-  .stage-picks {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .scrolly-in {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .scrolly-steps {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    margin-top: 12px;
+  }
+  .scrolly-steps button {
+    grid-template-columns: minmax(0, 1fr);
+    border-left: 0;
+    border-top: 3px solid var(--line);
+    padding: 8px 4px 0;
+    min-height: 44px;
+  }
+  .scrolly-steps button span {
+    display: none;
+  }
+  .scrolly-steps li.on button {
+    border-top-color: var(--gold);
+    background: none;
+  }
+  .scrolly-copy .title {
+    font-size: clamp(40px, 9vw, 64px);
+  }
+  .scrolly-caption {
+    display: block;
   }
   .discords {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -716,6 +858,11 @@ body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
   .portrait img,
   .villain img,
   .mod img,

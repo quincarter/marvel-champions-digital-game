@@ -12,7 +12,7 @@ import { SYNC_CODE_STORAGE_KEY } from "../../sync/sync-credentials.js";
 import { BUILT_RELEASE } from "virtual:site-release";
 import { browserDevice, fetchLatestRelease, type LatestRelease } from "../downloads.js";
 import { browserLanguage, storageRead, type PageLanguage } from "../page-language.js";
-import { applyText, mountLanguageToggle, renderDownloads, translator, type Translate } from "../site-dom.js";
+import { applyText, element, mountLanguageToggle, renderDownloads, translator, type Translate } from "../site-dom.js";
 import { SHARED_TEXT } from "../site-text.js";
 import {
   GAME_DISCORD_URL,
@@ -23,6 +23,7 @@ import {
   REPO_URL,
   SITE_DOMAIN,
 } from "../site-urls.js";
+import { WALLPAPERS } from "virtual:site-wallpapers";
 import { MOVED_TEXT } from "./moved-text.js";
 import { describeSaved, hasSaves } from "./saved-summary.js";
 
@@ -167,7 +168,21 @@ function wire(): void {
   });
 }
 
+/** The title wallpaper behind the top (a tall one on phones) and the band between sections. */
+function drawArt(): void {
+  if (WALLPAPERS.wide) {
+    const sources = WALLPAPERS.tall
+      ? [element("source", { media: "(max-aspect-ratio: 3/4)", srcset: WALLPAPERS.tall })]
+      : [];
+    $("hero-art").replaceChildren(...sources, element("img", { src: WALLPAPERS.wide, alt: "", fetchpriority: "high" }));
+  }
+  const band = WALLPAPERS.bands[0];
+  if (band) $("band-0").style.backgroundImage = `url("${band}")`;
+  else $("band-0").hidden = true;
+}
+
 wire();
+drawArt();
 draw();
 
 exportSaveData()

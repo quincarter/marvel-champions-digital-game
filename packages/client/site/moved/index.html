@@ -16,32 +16,39 @@
     <link rel="stylesheet" href="./moved.css" />
   </head>
   <body>
-    <div class="wrap">
-      <div class="ai-note" id="ai-note" lang="es" data-t="lang.aiNote" hidden></div>
-      <header class="top">
-        <div>
-          <div class="kick" data-t="top.kick"></div>
-          <h1 data-t="top.title"></h1>
-        </div>
-        <div class="meta">
-          <div data-t="top.meta"></div>
-          <div class="lang" id="language"></div>
-        </div>
-      </header>
+    <!-- The top of the page over one of the game's title wallpapers, like the landing page's. -->
+    <section class="mhero">
+      <picture class="mhero-art" id="hero-art"></picture>
+      <div class="mhero-shade"></div>
+      <div class="wrap mhero-in">
+        <div class="ai-note" id="ai-note" lang="es" data-t="lang.aiNote" hidden></div>
+        <header class="top">
+          <div>
+            <div class="kick" data-t="top.kick"></div>
+            <h1 data-t="top.title"></h1>
+          </div>
+          <div class="meta">
+            <div data-t="top.meta"></div>
+            <div class="lang" id="language"></div>
+          </div>
+        </header>
 
-      <section class="intro">
-        <div class="pill">
-          <div class="star" aria-hidden="true">★</div>
-          <div><small data-t="intro.pill.small"></small><span data-t="intro.pill.big"></span></div>
+        <section class="intro">
+          <div class="pill">
+            <div class="star" aria-hidden="true">★</div>
+            <div><small data-t="intro.pill.small"></small><span data-t="intro.pill.big"></span></div>
+          </div>
+          <p data-t="intro.text"></p>
+        </section>
+        <div class="ctas">
+          <a class="btn primary" data-href="game"><span data-t="cta.open"></span></a>
+          <button class="btn gold" type="button" id="cta-save"><span data-t="cta.save"></span></button>
+          <a class="btn ghost" data-href="landing"><span data-t="cta.landing"></span></a>
         </div>
-        <p data-t="intro.text"></p>
-      </section>
-      <div class="ctas">
-        <a class="btn primary" data-href="game"><span data-t="cta.open"></span></a>
-        <button class="btn gold" type="button" id="cta-save"><span data-t="cta.save"></span></button>
-        <a class="btn ghost" data-href="landing"><span data-t="cta.landing"></span></a>
       </div>
+    </section>
 
+    <div class="wrap">
       <!-- ============ STEPS ============ -->
       <div class="band">
         <h2 data-t="order.band"></h2>
@@ -107,7 +114,9 @@
           </div>
         </li>
       </ol>
-
+    </div>
+    <div class="art-band" id="band-0"></div>
+    <div class="wrap">
       <!-- ============ WHAT CHANGES ============ -->
       <div class="band gold">
         <h2 data-t="change.band"></h2>

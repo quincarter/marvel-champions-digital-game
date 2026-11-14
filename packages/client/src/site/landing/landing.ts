@@ -41,8 +41,10 @@ import {
   PROXY_NEXUS_URL,
   REPO_URL,
 } from "../site-urls.js";
+import { creatorsOf } from "./creators.js";
 import { GAME_ROSTER } from "./game-roster.js";
 import { LANDING_TEXT } from "./landing-text.js";
+import { onScrollFrame, reducedMotion, revealOnScroll, scrollSteps, scrollTopForStep } from "./scroll-motion.js";
 import boardShot from "../../../site/landing/showcase/board-play.jpg";
 import scenarioShot from "../../../site/landing/showcase/scenario-select.jpg";
 import seatsShot from "../../../site/landing/showcase/seats.jpg";
@@ -52,7 +54,8 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getEl
 
 const ADDRESSES: Readonly<Record<string, string>> = {
   game: GAME_URL,
-  releases: `${GAME_URL}releases/`,
+  // The release pages ship with this page (vite.site.config.ts copies public/releases), so they live on this domain.
+  releases: "releases/",
   discord: GAME_DISCORD_URL,
   homebrewEn: HOMEBREW_DISCORD_EN_URL,
   homebrewEs: HOMEBREW_DISCORD_ES_URL,
@@ -120,9 +123,7 @@ function formatDate(date: string): string {
 }
 
 function releaseUrl(entry: FeedRelease): string {
-  return entry.report
-    ? `${GAME_URL}releases/${entry.version}/${entry.reportFile}`
-    : `${GAME_URL}releases/?lang=${language}#${entry.version}`;
+  return entry.report ? `releases/${entry.version}/${entry.reportFile}` : `releases/?lang=${language}#${entry.version}`;
 }
 
 function feed(): readonly FeedRelease[] {
@@ -171,34 +172,87 @@ function drawStats(): void {
   );
 }
 
+/**
+ * The screenshot section. With motion on it is several screens tall and its frame is pinned (`.scrolly-pin`, sticky):
+ * scrolling through it steps the frame from one shot to the next, the step's caption lighting up beside it. Each
+ * shot is a layer in the frame; `moveShots` sets which one is in front from the scroll position. A caption is a
+ * button that scrolls to its own step.
+ */
 function drawShots(): void {
-  const current = shots[shot];
-  if (!current) {
+  if (shots.length === 0) {
     $("shots-sec").hidden = true;
     return;
   }
-  $("stage-main").replaceChildren(
-    element("img", { src: current.src, alt: current.alt?.[language] ?? captionOf(current), decoding: "async" }),
-    element("figcaption", {}, captionOf(current)),
+  const section = $("shots-sec");
+  section.classList.toggle("static", reducedMotion());
+  section.style.setProperty("--steps", String(shots.length));
+  $("scrolly-frame").replaceChildren(
+    ...shots.map((s, i) =>
+      element(
+        "figure",
+        { class: "layer" },
+        element("img", {
+          src: s.src,
+          alt: s.alt?.[language] ?? captionOf(s),
+          decoding: "async",
+          ...(i > 0 ? { loading: "lazy" } : {}),
+        }),
+        element("figcaption", {}, captionOf(s)),
+      ),
+    ),
   );
-  $("stage-picks").replaceChildren(
+  $("scrolly-steps").replaceChildren(
     ...shots.map((s, i) => {
       const button = element(
         "button",
-        { type: "button", class: "pick", "aria-label": t("shots.pick", { n: i + 1 }) },
-        element("img", { src: s.src, alt: "", loading: "lazy", decoding: "async" }),
+        { type: "button", "aria-label": t("shots.pick", { n: i + 1 }) },
+        element("b", {}, String(i + 1).padStart(2, "0")),
+        element("span", {}, captionOf(s)),
       );
-      button.setAttribute("aria-pressed", String(i === shot));
       button.addEventListener("click", () => {
-        shot = i;
-        drawShots();
-        $("stage-picks").querySelectorAll("button")[i]?.focus();
+        if (section.classList.contains("static")) return;
+        const rect = section.getBoundingClientRect();
+        const y = scrollTopForStep(rect.top + scrollY, rect.height, innerHeight, shots.length, i);
+        scrollTo({ top: y, behavior: "smooth" });
       });
-      return button;
+      return element("li", {}, button);
     }),
   );
+  moveShots();
 }
 
+/** Puts the scroll position's shot in front: the one before slides up and away, the next waits below. */
+function moveShots(): void {
+  const section = $("shots-sec");
+  if (section.hidden || section.classList.contains("static")) return;
+  const rect = section.getBoundingClientRect();
+  const { index, within, progress } = scrollSteps(rect.top, rect.height, innerHeight, shots.length);
+  if (index !== shot) shot = index;
+  for (const [i, layer] of [...$("scrolly-frame").children].entries()) {
+    const offset = i - index;
+    const el = layer as HTMLElement;
+    el.classList.toggle("on", offset === 0);
+    // In front: settles in over the first third of its step. Before it: lifted away. After it: waiting below.
+    el.style.setProperty("--o", offset === 0 ? "0" : offset < 0 ? "-1" : "1");
+    el.style.setProperty("--w", offset === 0 ? String(Math.min(1, within * 3)) : "1");
+  }
+  for (const [i, li] of [...$("scrolly-steps").children].entries()) li.classList.toggle("on", i === index);
+  $("scrolly-bar").style.width = `${Math.round(progress * 100)}%`;
+  const caption = $("scrolly-caption");
+  const text = shots[index] ? captionOf(shots[index]) : "";
+  if (caption.textContent !== text) caption.textContent = text;
+}
+
+/** Wallpaper bands drift slower than the page, so they read as a window onto the art behind it. */
+function moveBands(): void {
+  if (reducedMotion()) return;
+  for (const band of document.querySelectorAll<HTMLElement>(".art-band, .band-bg")) {
+    const rect = band.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > innerHeight) continue;
+    const t = (rect.top + rect.height / 2 - innerHeight / 2) / innerHeight;
+    band.style.backgroundPositionY = `${50 + t * 30}%`;
+  }
+}
 function drawHeroes(): void {
   $("heroes-title").textContent = t("heroes.title", { n: GAME_ROSTER.heroCount });
   const chips = $("aspect-chips");
@@ -222,11 +276,15 @@ function drawHeroes(): void {
   $("portraits").replaceChildren(
     ...heroes
       .filter((hero) => aspect === "all" || hero.aspects.includes(aspect))
-      .map((hero) => {
+      .map((hero, i) => {
         const art = HERO_ART[hero.id];
         return element(
           "li",
-          { class: `portrait${art ? "" : " no-art"}`, title: `${hero.name} · ${hero.wave}` },
+          {
+            class: `portrait reveal${art ? "" : " no-art"}`,
+            title: `${hero.name} · ${hero.wave}`,
+            style: `--i: ${i % 8}`,
+          },
           art
             ? element("img", {
                 src: art.src,
@@ -256,10 +314,10 @@ function drawVillains(): void {
   $("villains-title").textContent = t("villains.title", { n: GAME_ROSTER.scenarioCount });
   const shown = villainsOpen ? all : all.slice(0, VILLAINS_SHOWN);
   $("villain-list").replaceChildren(
-    ...shown.map((scenario) =>
+    ...shown.map((scenario, i) =>
       element(
         "li",
-        { class: "villain" },
+        { class: "villain reveal", style: `--i: ${i % 4}` },
         element("img", { src: VILLAIN_ART[scenario.id]!, alt: "", loading: "lazy", decoding: "async" }),
         element("b", {}, scenario.name),
       ),
@@ -286,10 +344,10 @@ function drawMods(): void {
   } else {
     const sorted = [...mods].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
     list.replaceChildren(
-      ...sorted.map((mod) =>
+      ...sorted.map((mod, i) =>
         element(
           "li",
-          { class: "mod", title: mod.summary },
+          { class: "mod reveal", title: mod.summary, style: `--i: ${i % 4}` },
           coverOf(mod),
           element(
             "div",
@@ -302,7 +360,7 @@ function drawMods(): void {
       ),
     );
   }
-  const creators = [...new Set(mods.map((mod) => mod.creator))].sort((a, b) => a.localeCompare(b));
+  const creators = creatorsOf(mods.map((mod) => mod.creator));
   $("credit-mods").replaceChildren(...creators.map((name) => element("li", {}, name)));
 }
 
@@ -377,14 +435,25 @@ function draw(): void {
   drawDownloads();
   drawHomebrew();
   $("credit-decks").replaceChildren(...GAME_ROSTER.deckAuthors.map((name) => element("li", {}, name)));
+  // A redraw replaces the walls' tiles; ones already scrolled past show at once rather than rising again.
+  for (const tile of document.querySelectorAll(".reveal"))
+    if (tile.getBoundingClientRect().top < innerHeight) tile.classList.add("in");
 }
+
+const reveal = revealOnScroll(document);
 
 $("villains-more").addEventListener("click", () => {
   villainsOpen = !villainsOpen;
   drawVillains();
+  reveal();
 });
 
 draw();
+reveal();
+onScrollFrame(() => {
+  moveShots();
+  moveBands();
+});
 
 void fetchLatestRelease(LATEST_RELEASE_API).then((latest) => {
   const next = latest ?? BUILT_RELEASE;
@@ -405,6 +474,7 @@ void fetch(PACK_CATALOG_URL, { signal: AbortSignal.timeout(6000) })
     mods = live;
     drawMods();
     drawStats();
+    reveal();
   })
   .catch(() => {
     // Out of reach or not allowed: the build's list stands.

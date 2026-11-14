@@ -50,13 +50,17 @@
       </div>
     </section>
 
-    <!-- ============ SCREENSHOTS ============ -->
-    <section class="sec" id="shots-sec">
-      <div class="wrap">
-        <h2 class="title" data-t="shots.title"></h2>
-        <div class="stage">
-          <figure class="stage-main" id="stage-main"></figure>
-          <div class="stage-picks" id="stage-picks"></div>
+    <!-- ============ SCREENSHOTS: pinned while the page scrolls through them ============ -->
+    <section class="scrolly" id="shots-sec">
+      <div class="scrolly-pin">
+        <div class="scrolly-in">
+          <div class="scrolly-copy">
+            <h2 class="title" data-t="shots.title"></h2>
+            <ol class="scrolly-steps" id="scrolly-steps"></ol>
+            <p class="scrolly-caption" id="scrolly-caption" aria-live="polite"></p>
+            <div class="scrolly-bar" aria-hidden="true"><i id="scrolly-bar"></i></div>
+          </div>
+          <div class="scrolly-frame" id="scrolly-frame"></div>
         </div>
       </div>
     </section>
@@ -111,7 +115,7 @@
       <div class="wrap">
         <h2 class="title" data-t="news.title"></h2>
         <div class="news">
-          <article class="latest" id="news-latest"></article>
+          <article class="latest reveal" id="news-latest"></article>
           <ol class="feed" id="news-feed"></ol>
         </div>
       </div>
@@ -131,17 +135,17 @@
       <div class="wrap">
         <h2 class="title" data-t="community.title"></h2>
         <div class="discords" id="discords">
-          <a class="discord main" data-href="discord">
+          <a class="discord main reveal" data-href="discord">
             <b data-t="community.game"></b>
             <span data-t="community.game.text"></span>
             <em><span data-t="community.join"></span> ↗</em>
           </a>
-          <a class="discord" id="homebrew-en" data-href="homebrewEn" lang="en">
+          <a class="discord reveal" id="homebrew-en" data-href="homebrewEn" lang="en">
             <b data-t="community.homebrew"></b>
             <span data-t="community.homebrew.en"></span>
             <em>English ↗</em>
           </a>
-          <a class="discord" id="homebrew-es" data-href="homebrewEs" lang="es">
+          <a class="discord reveal" id="homebrew-es" data-href="homebrewEs" lang="es">
             <b data-t="community.homebrew"></b>
             <span data-t="community.homebrew.es"></span>
             <em>Español ↗</em>
