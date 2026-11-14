@@ -42,8 +42,11 @@ const chiFromIdentity = (n: number) => removeCounter(CHI, n, { fromIdentity: tru
  * Cards (7):
  * - 64006 Lei Kung (support)
  * - 64007 Book of the Iron Fist (upgrade)
- * - 64008 Channel the Iron Fist, 64009 Embody the Dragon, 64010 Feel the Flow, 64011 Keep 'Em Coming,
- *   64012 Redirect Chi (Technique upgrades, temporary)
+ * - 64008 Channel the Iron Fist (upgrade, Technique, temporary)
+ * - 64009 Embody the Dragon (upgrade, Technique, temporary)
+ * - 64010 Feel the Flow (upgrade, Technique, temporary)
+ * - 64011 Keep 'Em Coming (upgrade, Technique, temporary)
+ * - 64012 Redirect Chi (upgrade, Technique, temporary)
  *
  * Costs that name "Iron Fist" are hero-face abilities (heroAction / heroInterrupt / heroResource), so the face-up
  * hero form is implied (RRG 1.8 p. 23); Lei Kung's "your identity" works in either form. Temporary (RRG 1.8 p. 44) is
