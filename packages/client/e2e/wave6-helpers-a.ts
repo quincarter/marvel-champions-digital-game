@@ -446,7 +446,9 @@ export async function scrollStopIntoView(
     const inY = y >= top && y + height / 2 <= size.height - 90;
     const inX = x >= 0 && x + width / 2 <= (right ?? size.width - 10);
     if (inY && inX) return;
-    await page.mouse.move(size.width / 2, size.height / 2);
+    // The wheel goes over the middle of the band the control must reach, not the screen's: a fixed panel above a list
+    // (the Jukebox player under a phone's two rows of Extras doors) can reach past the screen's middle.
+    await page.mouse.move(size.width / 2, (top + size.height - 90) / 2);
     if (!inY) await page.mouse.wheel(0, y < top ? -250 : 250);
     else await page.mouse.wheel(x < 0 ? -250 : 250, 0);
     await settle(page);
