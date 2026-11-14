@@ -64,6 +64,8 @@ export interface ReportInput {
   /** Null when no game is running (Title, Decks, a campaign screen). */
   readonly game: ReportGame | null;
   readonly snapshot: unknown;
+  /** The game shared as a replay (#693), to watch what the reporter saw; null when it could not be shared. */
+  readonly replayLink?: string | null;
 }
 
 /** `Español (es)`: the name a player knows the language by, and the code the build and asset names use. */
@@ -97,6 +99,7 @@ export function issueReportText(input: ReportInput): string {
     sections.push(
       "",
       "== Game ==",
+      ...(input.replayLink ? [`Replay: ${input.replayLink}`] : []),
       `Seed: ${game.seed ?? "unknown"}`,
       `Round: ${game.round ?? "unknown"}`,
       `Step: ${game.step == null ? "unknown" : JSON.stringify(game.step)}`,
@@ -152,7 +155,7 @@ export function issuePlatformOf(environment: ReportEnvironment): string {
  * into is left empty, because GitHub can put a prefilled field back to its link value when the form redraws, which
  * undid the player's edits and dropped their screenshot uploads (#273).
  */
-export function newIssueUrl(environment: ReportEnvironment): string {
+export function newIssueUrl(environment: ReportEnvironment, replayLink: string | null = null): string {
   const { viewport } = environment;
   const query = new URLSearchParams({
     template: "bug_report.yml",
@@ -164,6 +167,7 @@ export function newIssueUrl(environment: ReportEnvironment): string {
       `Browser: ${environment.userAgent}`,
       `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
       `Reported: ${environment.at}`,
+      ...(replayLink ? [`Replay: ${replayLink}`] : []),
     ].join("\n"),
   });
   return `https://github.com/${ISSUE_REPO}/issues/new?${query.toString()}`;
