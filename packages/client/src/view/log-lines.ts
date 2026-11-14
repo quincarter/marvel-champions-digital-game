@@ -36,6 +36,7 @@ import { foeWord } from "./foe-words.js";
 import { unavailableOptionLines, unofferedReason } from "./ability-refusal.js";
 import { heroFaceNameAt } from "./hero-names.js";
 import { cardName, faceUpName, formWords, optionLabelOf, playerName, seatName } from "./names.js";
+import { faceVisible } from "./visibility.js";
 
 /** A line that opens with a card named only as far as the table may see it ("a facedown card") starts with a capital. */
 const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
@@ -230,7 +231,7 @@ function swappedOutName(state: GameState, id: InstanceId, event: GameEvent, burs
     // A card turned over to another card later in the command (Secure the Landing Pad's When Defeated turns it into
     // Cosmo): the threat came off, and the defeat was, the side scheme, not the ally (issue #700).
     if (later.type === "cardFlippedToOtherFace" && later.instanceId === id) {
-      return getCard(state, later.from)?.name ?? null;
+      return faceVisible(state, id) ? (getCard(state, later.from)?.name ?? null) : null;
     }
   }
   return null;
@@ -1597,7 +1598,11 @@ function describe(
       // card is the new face by now and "Cosmo turns over" hides what it was (issue #700).
       const from = getCard(state, event.from)?.name;
       const to = getCard(state, event.to)?.name;
-      const named = from !== undefined && to !== undefined && from !== to ? `${from} turns over to ${to}` : null;
+      // A face the viewer cannot see keeps `card`'s hidden name ("a facedown card turns over").
+      const named =
+        faceVisible(state, event.instanceId) && from !== undefined && to !== undefined && from !== to
+          ? `${from} turns over to ${to}`
+          : null;
       return {
         text: `${named ?? `${card(event.instanceId)} turns over`}${keeps ? ` and keeps ${keeps}` : ""}.`,
         voice: "scenario",
