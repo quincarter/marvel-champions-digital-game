@@ -32,8 +32,8 @@ describe("elektra: the pack", () => {
     expect(ELEKTRA_PACK.cycleId as string).toBe("cycle11");
   });
 
-  it("is 21 records, counted by type, with no starter deck and one nemesis set", () => {
-    expect(ELEKTRA_CARDS).toHaveLength(21);
+  it("is 24 records, counted by type, with no starter deck and one nemesis set", () => {
+    expect(ELEKTRA_CARDS).toHaveLength(24);
     const counts: Record<string, number> = {};
     for (const c of ELEKTRA_CARDS) counts[c.type] = (counts[c.type] ?? 0) + 1;
     expect(counts).toEqual({
@@ -43,7 +43,8 @@ describe("elektra: the pack", () => {
       event: 8,
       upgrade: 4,
       obligation: 1,
-      minion: 1,
+      minion: 3,
+      side_scheme: 1,
     });
     expect(ELEKTRA_ENCOUNTER_SETS.map((s) => s.id as string)).toEqual(["elektra_nemesis"]);
     expect(ELEKTRA_STARTER_DECKS).toEqual([]);
@@ -136,9 +137,9 @@ describe("elektra: keywords and transcription decisions", () => {
   });
 
   it("the video-only cards are PLACEHOLDER, unverified and have no art", () => {
-    for (const id of ["63028", "63029"]) {
+    for (const id of ["63028", "63029", "63030", "63032", "63033"]) {
       expect(notes(id), id).toContain("PLACEHOLDER");
-      expect(notes(id), id).toContain("unverified");
+      expect(notes(id), id).toMatch(/unverified|unofficial/);
       expect((get(id) as unknown as { images?: unknown }).images, id).toBeUndefined();
     }
     const aka = get("63029") as unknown as { atk: number; sch: number; hp: number; nemesisMinion?: boolean };

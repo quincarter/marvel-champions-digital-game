@@ -11,7 +11,7 @@ import { PLAYABLE_CARDS } from "./index.js";
 /**
  * Iron Fist (`iron_fist`, cycle 11, MC64): a scan-only pack hand-transcribed from the Hall of Heroes page and the FFG
  * article "Way of the Iron Fist" (scripts/marvelcdb/curation/iron-fist.ts). The obligation 64028, Davos 64029 and the
- * Crane Daughter shell 64030 come from a gameplay video and carry PLACEHOLDER provenance.
+ * Steel Serpent 64030 and Crane Daughter 64031 (the least certain) come from a gameplay video or an unofficial fan preview and carry PLACEHOLDER provenance.
  */
 const byId = new Map(IRON_FIST_CARDS.map((c) => [c.id as string, c]));
 const get = <T extends AnyCard>(id: string): T => {
@@ -28,8 +28,8 @@ describe("iron_fist: the pack", () => {
     expect(IRON_FIST_PACK.releaseDate).toBe("2026-11-01");
   });
 
-  it("is 20 records, counted by type, with no starter deck and one nemesis set", () => {
-    expect(IRON_FIST_CARDS).toHaveLength(20);
+  it("is 21 records, counted by type, with no starter deck and one nemesis set", () => {
+    expect(IRON_FIST_CARDS).toHaveLength(21);
     const counts: Record<string, number> = {};
     for (const c of IRON_FIST_CARDS) counts[c.type] = (counts[c.type] ?? 0) + 1;
     expect(counts).toEqual({
@@ -40,6 +40,7 @@ describe("iron_fist: the pack", () => {
       ally: 2,
       obligation: 1,
       minion: 2,
+      side_scheme: 1,
     });
     expect(IRON_FIST_ENCOUNTER_SETS.map((s) => s.id as string)).toEqual(["iron_fist_nemesis"]);
     expect(IRON_FIST_STARTER_DECKS).toEqual([]);
@@ -102,7 +103,7 @@ describe("iron_fist: keywords and transcription decisions", () => {
   });
 
   it("the video-only cards are PLACEHOLDER and have no art; Davos records only K'un-Lun", () => {
-    for (const id of ["64028", "64029", "64030"]) {
+    for (const id of ["64028", "64029", "64030", "64031"]) {
       expect(notes(id), id).toContain("PLACEHOLDER");
       expect((get(id) as unknown as { images?: unknown }).images, id).toBeUndefined();
     }
@@ -110,7 +111,8 @@ describe("iron_fist: keywords and transcription decisions", () => {
     expect(notes("64029")).toContain("K'un-Lun");
     const davos = get("64029") as unknown as { atk: number; sch: number; hp: number; traits: string[] };
     expect([davos.atk, davos.sch, davos.hp, davos.traits]).toEqual([2, 1, 5, ["K'UN-LUN"]]);
-    expect((get("64030") as unknown as { quantityInSet: number }).quantityInSet).toBe(3);
+    expect((get("64031") as unknown as { quantityInSet: number }).quantityInSet).toBe(3);
+    expect(notes("64031")).toContain("LEAST CERTAIN");
   });
 });
 

@@ -97,7 +97,7 @@ export const ELEKTRA_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "elektra",
     marvelcdbCodes: ["63028"],
     corrections: [
-      "63028: PLACEHOLDER: the code 63028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number was not read. Text is from a gameplay video, unverified wording; boost icons unreadable. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [48:13].]",
+      "63028: PLACEHOLDER: the code 63028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number was not read. Text is from a gameplay video, unverified wording; 2 boost icons from the unofficial fan preview. The fan preview prints \"Hero Forced Response\" and \"Exhaust Elektra Natchios -> discard this card\" where the video read \"Forced Response (Hero)\" and \"Exhaust your identity\": the video wording is kept. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [48:13]; unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
     ],
   },
   {
@@ -105,7 +105,31 @@ export const ELEKTRA_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "elektra_nemesis",
     marvelcdbCodes: ["63029"],
     corrections: [
-      "63029: PLACEHOLDER: the code 63029 is provisional (nemesis 1/5 after the obligation); the collector number was not read. Text and stats are from a gameplay video, unverified wording. Nemesis cards 2 to 5 of 5 were never shown. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [48:11].]",
+      "63029: PLACEHOLDER: the code 63029 is provisional (nemesis 1/5 after the obligation); the collector number was not read. Text and stats are from a gameplay video, unverified wording. The fan preview agrees on stats, boost (star only) and text, except that it prints only the trait \"Hand.\" and \"Shuffle Aka into the encounter deck\"; the video wording and traits (Hand. Ninja.) are kept. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [48:11]; unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
+    ],
+  },
+  {
+    cardId: cardId("63030"),
+    cardSetCode: "elektra_nemesis",
+    marvelcdbCodes: ["63030"],
+    corrections: [
+      "63030: PLACEHOLDER (unofficial, fan preview only): the code 63030 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63031) is unknown and has no record. [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
+    ],
+  },
+  {
+    cardId: cardId("63032"),
+    cardSetCode: "elektra_nemesis",
+    marvelcdbCodes: ["63032"],
+    corrections: [
+      "63032: PLACEHOLDER (unofficial, fan preview only): the code 63032 is provisional (nemesis 4/5); text and stats are from an unofficial fan preview. Quantity 1 is as printed (4/5), but the fan source skips 3/5, so this may be two copies at 3-4/5. [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
+    ],
+  },
+  {
+    cardId: cardId("63033"),
+    cardSetCode: "elektra_nemesis",
+    marvelcdbCodes: ["63033"],
+    corrections: [
+      "63033: PLACEHOLDER (unofficial, fan preview only): the code 63033 is provisional (nemesis 5/5); text and stats are from an unofficial fan preview. [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
     ],
   },
 ];

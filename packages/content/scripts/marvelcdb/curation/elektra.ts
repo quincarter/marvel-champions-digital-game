@@ -5,10 +5,10 @@
  * (https://www.fantasyflightgames.com/en/news/2026/8/13/killer-instinct/), 300 x 419 card images, read 2026-11-14.
  *
  * What exists: the two identity faces, the 3 NINJA deck cards, 7 of the 15 kit cards, 6 aggression cards and 2 basic
- * cards (19 distinct cards seen), plus two cards read from a gameplay video (the obligation and the nemesis minion).
+ * cards (19 distinct cards seen), plus two cards read from a gameplay video (the obligation and the nemesis minion) and three nemesis cards from an unofficial fan preview (63030, 63032, 63033).
  * Never seen, so not transcribed (the pack's remaining collector numbers): Resurrection Altar, White Tiger, Stealth
  * Mastery, Stone, Double-Cross, Backstab, Misdirect, Sabotage, Moondragon, Moon Knight (named in briefs only);
- * unseen collector numbers 10, 11, 14, 21, 22, 24 to 26 and anything after 27; nemesis cards 2 to 5 of 5.
+ * unseen collector numbers 10, 11, 14, 21, 22, 24 to 26 and anything after 27; nemesis card 3 of 5 (63031).
  *
  * Evidence abbreviations: "HoH" is the Hall of Heroes page above, "FFG" the article above, "video" the gameplay video
  * https://youtu.be/6wR6kfxPmio (Web-Warrior Fanatic, 2026-11-13).
@@ -293,9 +293,10 @@ const OBLIGATION = P.added(
     card_set_code: "elektra",
     card_set_name: "Elektra",
     card_set_type_name_code: "hero",
+    boost: 2,
     text: "<b><i>Give to the Elektra Natchios player.</i></b>\n<b>Forced Response</b> <i>(Hero)</i>: After the player phase ends, deal 3 damage to another identity or ally in play.\n<b>Alter-Ego Action</b>: Exhaust your identity → discard this card.",
   }),
-  `Gameplay video ${VIDEO} [48:13], ${VIDEO_NOTE} (boost icons unreadable, so none recorded; collector number unknown).`,
+  `Gameplay video ${VIDEO} [48:13], ${VIDEO_NOTE} ; the 2 boost icons come from the unofficial fan preview supplied by the owner, 2026-11-14 (footer "ELEKTRA (1/1)"); collector number unknown.`,
 );
 const AKA = P.added(
   P.encounter("minion", "63029", "Aka", {
@@ -314,7 +315,54 @@ const AKA = P.added(
   `Gameplay video ${VIDEO} [48:11], ${VIDEO_NOTE}: footer "ELEKTRA NEMESIS (1/5)", SCH 2, ATK 2, HP 4, traits Hand. Ninja. Boost icons: the star only.`,
 );
 
-const ALL_CARDS = [IDENTITY, ...NINJA, ...KIT, ...ASPECT, OBLIGATION, AKA];
+const FAN_NOTE =
+  "unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art)";
+const FIST_FITS = P.added(
+  P.encounter("side_scheme", "63030", "The Fist Fits in the Hand", {
+    card_set_code: "elektra_nemesis",
+    card_set_name: "Elektra Nemesis",
+    card_set_type_name_code: "nemesis",
+    set_position: 2,
+    base_threat: 3,
+    scheme_crisis: 1,
+    boost: 3,
+    flavor: `"You think you're alone, Elektra, but you'll never be alone. I'll always be there with you in the shadows."`,
+    text: "Each [[Hand]] minion gets +1 SCH and +1 ATK.",
+  }),
+  `From the ${FAN_NOTE}: footer "ELEKTRA NEMESIS (2/5)", 3 per hero starting threat, 3 boost icons, one scheme icon read as crisis (red plus; unverified).`,
+);
+const HAND_BLADEMASTER = P.added(
+  P.encounter("minion", "63032", "Hand Blademaster", {
+    card_set_code: "elektra_nemesis",
+    card_set_name: "Elektra Nemesis",
+    card_set_type_name_code: "nemesis",
+    set_position: 4,
+    scheme: 1,
+    attack: 1,
+    health: 3,
+    boost: 1,
+    traits: "Hand.",
+    text: "Hand Blademaster gets +1 SCH and +1 ATK for each other [[Hand]] minion in play.\n<b>When Defeated</b>: Shuffle this card into the encounter deck.",
+  }),
+  `From the ${FAN_NOTE}: footer "ELEKTRA NEMESIS (4/5)", SCH 1, ATK 1, HP 3, 1 boost icon.`,
+);
+const HAND_ARCHER = P.added(
+  P.encounter("minion", "63033", "Hand Archer", {
+    card_set_code: "elektra_nemesis",
+    card_set_name: "Elektra Nemesis",
+    card_set_type_name_code: "nemesis",
+    set_position: 5,
+    scheme: 1,
+    attack: 1,
+    health: 3,
+    boost: 1,
+    traits: "Hand.",
+    text: "Quickstrike. Ranged.\n<b>When Defeated</b>: Shuffle this card into the encounter deck.",
+  }),
+  `From the ${FAN_NOTE}: footer "ELEKTRA NEMESIS (5/5)", SCH 1, ATK 1, HP 3, 1 boost icon.`,
+);
+
+const ALL_CARDS = [IDENTITY, ...NINJA, ...KIT, ...ASPECT, OBLIGATION, AKA, FIST_FITS, HAND_BLADEMASTER, HAND_ARCHER];
 
 const inferred = (code: string, what: string, evidence: string) => ({
   code,
@@ -383,14 +431,32 @@ export const ELEKTRA_CURATION: PackCuration = {
     {
       code: "63028",
       reason:
-        "PLACEHOLDER: the code 63028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number was not read. Text is from a gameplay video, unverified wording; boost icons unreadable.",
-      evidence: `Gameplay video ${VIDEO} [48:13].`,
+        'PLACEHOLDER: the code 63028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage\'s 62028); the collector number was not read. Text is from a gameplay video, unverified wording; 2 boost icons from the unofficial fan preview. The fan preview prints "Hero Forced Response" and "Exhaust Elektra Natchios -> discard this card" where the video read "Forced Response (Hero)" and "Exhaust your identity": the video wording is kept.',
+      evidence: `Gameplay video ${VIDEO} [48:13]; ${FAN_NOTE}.`,
     },
     {
       code: "63029",
       reason:
-        "PLACEHOLDER: the code 63029 is provisional (nemesis 1/5 after the obligation); the collector number was not read. Text and stats are from a gameplay video, unverified wording. Nemesis cards 2 to 5 of 5 were never shown.",
-      evidence: `Gameplay video ${VIDEO} [48:11].`,
+        'PLACEHOLDER: the code 63029 is provisional (nemesis 1/5 after the obligation); the collector number was not read. Text and stats are from a gameplay video, unverified wording. The fan preview agrees on stats, boost (star only) and text, except that it prints only the trait "Hand." and "Shuffle Aka into the encounter deck"; the video wording and traits (Hand. Ninja.) are kept.',
+      evidence: `Gameplay video ${VIDEO} [48:11]; ${FAN_NOTE}.`,
+    },
+    {
+      code: "63030",
+      reason:
+        "PLACEHOLDER (unofficial, fan preview only): the code 63030 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. Nemesis 3/5 (63031) is unknown and has no record.",
+      evidence: `${FAN_NOTE}.`,
+    },
+    {
+      code: "63032",
+      reason:
+        "PLACEHOLDER (unofficial, fan preview only): the code 63032 is provisional (nemesis 4/5); text and stats are from an unofficial fan preview. Quantity 1 is as printed (4/5), but the fan source skips 3/5, so this may be two copies at 3-4/5.",
+      evidence: `${FAN_NOTE}.`,
+    },
+    {
+      code: "63033",
+      reason:
+        "PLACEHOLDER (unofficial, fan preview only): the code 63033 is provisional (nemesis 5/5); text and stats are from an unofficial fan preview.",
+      evidence: `${FAN_NOTE}.`,
     },
   ],
   errata: [],
@@ -418,5 +484,8 @@ export const ELEKTRA_CURATION: PackCuration = {
   artUnavailable: {
     "63028": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
     "63029": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
+    "63030": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "63032": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "63033": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
   },
 };

@@ -5,19 +5,18 @@
  * (https://www.fantasyflightgames.com/en/news/2026/8/27/way-of-the-iron-fist/), card images 300 px wide, read 2026-11-14.
  *
  * What exists: the two identity faces, 10 of the 12 kit cards (Embody the Dragon and Keep 'Em Coming were never
- * shown), 5 protection cards and 2 basic cards, plus three cards read from a gameplay video (the obligation, the
- * nemesis minion Davos and a Crane Daughter shell). Never seen, so not transcribed: Embody the Dragon, Keep 'Em
+ * shown), 5 protection cards and 2 basic cards, plus two cards read from a gameplay video (the obligation and Davos) and an unofficial fan preview (Steel Serpent, Crane Daughter). Never seen, so not transcribed: Embody the Dragon, Keep 'Em
  * Coming, Defiance, The Night Nurse, Colleen Wing, Punch Reverse Punch, Thunder Dojo, Death by a Thousand Cuts,
  * Zen-Like Calm, Sensei, The Defenders, an Iron Fist ally; unseen collector numbers 9, 11, 14, 15, 17, 21, 23 and
- * anything after 24; nemesis 5 of 5.
+ * anything after 24.
  *
  * Evidence abbreviations: "HoH" is the Hall of Heroes page above, "FFG" the article above, "video" the gameplay video
  * https://youtu.be/6wR6kfxPmio (Web-Warrior Fanatic, 2026-11-13).
  *
- * - PLACEHOLDER codes: 64028 (obligation), 64029 (Davos) and 64030 (Crane Daughter) are provisional collector numbers.
+ * - PLACEHOLDER codes: 64028 (obligation), 64029 (Davos), 64030 (Steel Serpent) and 64031 (Crane Daughter) are provisional collector numbers.
  */
 import type { PackCuration } from "./types.ts";
-import { packBuilders } from "./hero-pack-scans.ts";
+import { HR, packBuilders } from "./hero-pack-scans.ts";
 
 const P = packBuilders({ num: "64", packCode: "iron_fist", packName: "Iron Fist", productCode: "Iron Fist (MC64)" });
 
@@ -239,7 +238,7 @@ const OBLIGATION = P.added(
     card_set_name: "Iron Fist",
     card_set_type_name_code: "hero",
     boost: 2,
-    text: "<b><i>Give to the Danny Rand player.</i></b>\n<b>When Revealed</b>: Move all chi counters from your identity to this card.\n<b>Forced Interrupt</b>: When you would place a chi counter on Iron Fist, place it here instead. If there are at least 4 chi counters here, discard this card.",
+    text: "<b><i>Give to the Danny Rand player.</i></b>\n<b>When Revealed</b>: Move all chi counters from your identity to this card.\n<b>Forced Interrupt</b>: When you would place a chi counter on Iron Fist, place it here instead. Then, if there are at least 4 chi counters here, discard this card.",
   }),
   `Gameplay video ${VIDEO} [~1:00, in play ~45:01], ${VIDEO_NOTE}: footer "IRON FIST", 2 boost icons; collector number and quantity unreadable.`,
 );
@@ -259,22 +258,40 @@ const DAVOS = P.added(
   }),
   `Gameplay video ${VIDEO} [1:14], ${VIDEO_NOTE}: footer "IRON FIST NEMESIS (1/5)", SCH 1, ATK 2, HP 5, 2 boost icons. "Find and tuck the 3" was assembled from two frames; the minion may be titled "Crane Daughters".`,
 );
-const CRANE_DAUGHTER = P.added(
-  P.encounter("minion", "64030", "Crane Daughter", {
+const FAN_NOTE =
+  "unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art)";
+const STEEL_SERPENT = P.added(
+  P.encounter("side_scheme", "64030", "Steel Serpent", {
     card_set_code: "iron_fist_nemesis",
     card_set_name: "Iron Fist Nemesis",
     card_set_type_name_code: "nemesis",
     set_position: 2,
-    quantity: 3,
-    scheme: 0,
-    attack: 0,
-    health: 1,
-    text: "",
+    base_threat: 4,
+    scheme_crisis: 1,
+    boost: 2,
+    text: "When Davos attacks, discard a Crane Daughter from under him or defeat a Crane Daughter in play. If you do, he gets +3 ATK for this attack.",
   }),
-  `Gameplay video ${VIDEO} [1:14], ${VIDEO_NOTE}: only the title "Crane Da..." in the nemesis stack was seen; text and stats are unread (shell).`,
+  `From the ${FAN_NOTE}: footer "IRON FIST NEMESIS (2/5)", 4 per hero starting threat, 2 boost icons, one scheme icon read as crisis (red plus; unverified).`,
+);
+const CRANE_DAUGHTER = P.added(
+  P.encounter("minion", "64031", "Crane Daughter", {
+    card_set_code: "iron_fist_nemesis",
+    card_set_name: "Iron Fist Nemesis",
+    card_set_type_name_code: "nemesis",
+    set_position: 3,
+    quantity: 3,
+    scheme: 2,
+    attack: 2,
+    health: 3,
+    boost: 2,
+    boost_star: true,
+    traits: "Mystic.",
+    text: `<b>When Defeated</b>: Shuffle this card into the encounter deck.${HR}[star] <b>Boost</b>: If Davos is engaged with you, put this card facedown under him.`,
+  }),
+  `From the ${FAN_NOTE}: footer "IRON FIST NEMESIS (3-5/5)" (three copies), SCH 2, ATK 2, HP 3, 2 boost icons and the boost star. The video showed only the title "Crane Da...".`,
 );
 
-const ALL_CARDS = [IDENTITY, ...KIT, ...ASPECT, OBLIGATION, DAVOS, CRANE_DAUGHTER];
+const ALL_CARDS = [IDENTITY, ...KIT, ...ASPECT, OBLIGATION, DAVOS, STEEL_SERPENT, CRANE_DAUGHTER];
 
 const inferred = (code: string, what: string, evidence: string) => ({
   code,
@@ -323,20 +340,26 @@ export const IRON_FIST_CURATION: PackCuration = {
     {
       code: "64028",
       reason:
-        "PLACEHOLDER: the code 64028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording.",
-      evidence: `Gameplay video ${VIDEO} [~1:00].`,
+        'PLACEHOLDER: the code 64028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage\'s 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording, with "Then," added before "if there are at least 4 chi counters here" as the unofficial fan preview prints it (the video frame did not show it). The fan preview agrees on the rest and on the 2 boost icons.',
+      evidence: `Gameplay video ${VIDEO} [~1:00]; ${FAN_NOTE}.`,
     },
     {
       code: "64029",
       reason:
-        "PLACEHOLDER: the code 64029 is provisional (nemesis 1/5 after the obligation). Text and stats are from a gameplay video, unverified wording. The card prints a second trait that was partly hidden (likely Martial Artist, unconfirmed), so only K'un-Lun is recorded.",
-      evidence: `Gameplay video ${VIDEO} [1:14].`,
+        'PLACEHOLDER: the code 64029 is provisional (nemesis 1/5 after the obligation). Text and stats are from a gameplay video, unverified wording, and win where the unofficial fan preview differs. The fan preview prints "When Revealed: Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos." and "shuffle a Crane Daughter from under him into the encounter deck instead". It confirms the traits as K\'un-Lun only (the video\'s second trait was hidden), SCH 1, ATK 2, HP 5 and 2 boost icons.',
+      evidence: `Gameplay video ${VIDEO} [1:14]; ${FAN_NOTE}.`,
     },
     {
       code: "64030",
       reason:
-        "PLACEHOLDER: the code 64030, the quantity 3 (inferred from Davos's 'the 3 Crane Daughter minions') and the whole record are provisional. Text is empty (unread) and ATK 0, SCH 0, HP 1 are the minimum the validator needs, not printed values.",
-      evidence: `Gameplay video ${VIDEO} [1:14]: only the title "Crane Da..." was seen.`,
+        "PLACEHOLDER (unofficial, fan preview only): the code 64030 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card.",
+      evidence: `${FAN_NOTE}.`,
+    },
+    {
+      code: "64031",
+      reason:
+        'PLACEHOLDER (unofficial, fan preview only; the LEAST CERTAIN record: the owner could not confirm it): the code 64031 (nemesis 3-5/5) and the quantity 3 (footer and Davos\'s "the 3 Crane Daughter minions") are provisional; text, stats and the boost are from an unofficial fan preview. Replaces the earlier video-only shell (64030, validator-minimum stats).',
+      evidence: `${FAN_NOTE}; gameplay video ${VIDEO} [1:14] (title only).`,
     },
   ],
   errata: [],
@@ -345,7 +368,8 @@ export const IRON_FIST_CURATION: PackCuration = {
   cardNotes: {
     "64013":
       "Helpful Bystander: THW and ATK both print a dash (image 12.png), so it can neither thwart nor attack; HP 1 (Vulnerable). No thwart or attack value is emitted, as Hulk's dash THW (luke_cage 62020).",
-    "64030": "Placeholder minion: stats and text are unknown, ATK 0 / SCH 0 / HP 1 only satisfy the validator.",
+    "64031":
+      "Crane Daughter: fan-preview text and stats only, the owner could not confirm them (least certain record).",
   },
 
   scenarios: [],
@@ -354,6 +378,7 @@ export const IRON_FIST_CURATION: PackCuration = {
   artUnavailable: {
     "64028": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
     "64029": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
-    "64030": "Seen only in a gameplay video (no card image); placeholder pending a scan.",
+    "64030": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
+    "64031": "Seen only in an unofficial fan preview (not an official card); placeholder pending a scan.",
   },
 };

@@ -63,7 +63,7 @@ export const IRON_FIST_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "iron_fist",
     marvelcdbCodes: ["64028"],
     corrections: [
-      "64028: PLACEHOLDER: the code 64028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [~1:00].]",
+      "64028: PLACEHOLDER: the code 64028 is provisional (the obligation is assumed to follow the last player card, as Luke Cage's 62028); the collector number and quantity were not read. Text is from a gameplay video, unverified wording, with \"Then,\" added before \"if there are at least 4 chi counters here\" as the unofficial fan preview prints it (the video frame did not show it). The fan preview agrees on the rest and on the 2 boost icons. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [~1:00]; unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
     ],
   },
   {
@@ -71,7 +71,7 @@ export const IRON_FIST_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "iron_fist_nemesis",
     marvelcdbCodes: ["64029"],
     corrections: [
-      "64029: PLACEHOLDER: the code 64029 is provisional (nemesis 1/5 after the obligation). Text and stats are from a gameplay video, unverified wording. The card prints a second trait that was partly hidden (likely Martial Artist, unconfirmed), so only K'un-Lun is recorded. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [1:14].]",
+      "64029: PLACEHOLDER: the code 64029 is provisional (nemesis 1/5 after the obligation). Text and stats are from a gameplay video, unverified wording, and win where the unofficial fan preview differs. The fan preview prints \"When Revealed: Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos.\" and \"shuffle a Crane Daughter from under him into the encounter deck instead\". It confirms the traits as K'un-Lun only (the video's second trait was hidden), SCH 1, ATK 2, HP 5 and 2 boost icons. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [1:14]; unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
     ],
   },
   {
@@ -79,8 +79,16 @@ export const IRON_FIST_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "iron_fist_nemesis",
     marvelcdbCodes: ["64030"],
     corrections: [
-      "64030: PLACEHOLDER: the code 64030, the quantity 3 (inferred from Davos's 'the 3 Crane Daughter minions') and the whole record are provisional. Text is empty (unread) and ATK 0, SCH 0, HP 1 are the minimum the validator needs, not printed values. [evidence: Gameplay video https://youtu.be/6wR6kfxPmio [1:14]: only the title \"Crane Da...\" was seen.]",
-      "data decision: Placeholder minion: stats and text are unknown, ATK 0 / SCH 0 / HP 1 only satisfy the validator.",
+      "64030: PLACEHOLDER (unofficial, fan preview only): the code 64030 is provisional (nemesis 2/5, numbered after the obligation); text, stats and the crisis icon reading are from an unofficial fan preview, not an official card. [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art).]",
+    ],
+  },
+  {
+    cardId: cardId("64031"),
+    cardSetCode: "iron_fist_nemesis",
+    marvelcdbCodes: ["64031"],
+    corrections: [
+      "64031: PLACEHOLDER (unofficial, fan preview only; the LEAST CERTAIN record: the owner could not confirm it): the code 64031 (nemesis 3-5/5) and the quantity 3 (footer and Davos's \"the 3 Crane Daughter minions\") are provisional; text, stats and the boost are from an unofficial fan preview. Replaces the earlier video-only shell (64030, validator-minimum stats). [evidence: unofficial fan preview supplied by the owner, 2026-11-14 (every image reads UNOFFICIAL PREVIEW - NOT AN OFFICIAL CARD; text read, never the art); gameplay video https://youtu.be/6wR6kfxPmio [1:14] (title only).]",
+      "data decision: Crane Daughter: fan-preview text and stats only, the owner could not confirm them (least certain record).",
     ],
   },
 ];
