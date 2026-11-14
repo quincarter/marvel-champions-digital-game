@@ -1,13 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  CORE_CARDS,
-  CORE_POOL_VERSION,
-  CORE_STARTER_DECKS,
-  deckFromStarterDeck,
-  deckId,
-  type Deck,
-  type HeroIdentityCard,
-} from "@mc/content";
+import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck, deckId, type Deck } from "@mc/content";
 import { CORE_DEPS } from "@mc/cards";
 import { legalDeckFor } from "./not-ready-fixture.js";
 import { POOL_CARDS, POOL_DEPS, POOL_STARTER_DECKS } from "../content/pool.js";
