@@ -1,12 +1,12 @@
 import { THOR_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
-import { THOR_ABILITIES } from "./index.js";
+import { THOR_BUILTIN_PACK } from "./pack.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for the Thor (`thor`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
- * `thor` card with ability text resolves, either via `THOR_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing, except the one documented skip (`index.ts`'s docblock, and the comment beside it in
+ * `thor` card with ability text resolves, via `THOR_BUILTIN_PACK.abilities` (its own scripts and the Core
+ * reprint aliases it carries), except the one documented skip (`pack.ts`'s docblock, and the comment beside it in
  * `pack-cards.ts`). The main session's `wave1/coverage.test.ts` does the same check across every pack once this
  * one is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
  */
@@ -29,14 +29,16 @@ describe("Thor (thor) pack ability coverage", () => {
   const allRefs = THOR_CARDS.flatMap(abilityRefIds);
 
   it("every ability reference resolves, is a Core reprint alias, or is a documented skip", () => {
-    const unresolved = allRefs.filter((id) => !(id in THOR_ABILITIES) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id));
+    const unresolved = allRefs.filter(
+      (id) => !(id in THOR_BUILTIN_PACK.abilities) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id),
+    );
     expect(unresolved, `unresolved thor ability refs:\n${unresolved.join("\n")}`).toEqual([]);
   });
 
   it("every documented skip really is unresolved (not stale)", () => {
     for (const id of KNOWN_SKIPPED) {
       expect(allRefs, `${id} is no longer a real thor ability ref — update KNOWN_SKIPPED`).toContain(id);
-      expect(id in THOR_ABILITIES, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
+      expect(id in THOR_BUILTIN_PACK.abilities, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
     }
   });
 

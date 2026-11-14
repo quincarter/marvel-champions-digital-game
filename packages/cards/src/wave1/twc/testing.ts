@@ -13,10 +13,8 @@ import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
 
 /**
- * Test deps for The Wrecking Crew (`twc`) pack. `TWC_ABILITIES` is NOT registered in `../index.ts`'s
- * `WAVE1_ABILITIES` (that file is shared and out of scope for this pass — the task brief), so this merges the two
- * explicitly with `mergeRegistries` (never an object spread — a spread silently hides a duplicate id, the exact
- * failure mode that broke `gob`'s suite once).
+ * Test deps for The Wrecking Crew (`twc`) pack. The pack is in `../index.ts`'s `WAVE1_BUILTIN_PACKS`, so this is the
+ * same registry as `../testing.ts`'s `WAVE1_DEPS`; the names are kept so the pack's tests read unchanged.
  */
 export const TWC_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 

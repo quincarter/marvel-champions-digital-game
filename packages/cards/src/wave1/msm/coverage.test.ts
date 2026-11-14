@@ -1,15 +1,15 @@
 /**
- * Local coverage for the `msm` pack (docs/phase7-wave1-scripting.md "What to deliver" §5) — never touches the
- * shared `../coverage.test.ts` (its `PACK_STATUS`/registration line are the main session's to update once this
- * pack is merged into `WAVE1_ABILITIES`). Every `msm` card's ability reference must resolve — through this pack's
- * own `MSM_ABILITIES`, or aliased as a Core reprint by `../reprints.ts`. Morphogenetics (05001a), Embiggen!
+ * Local coverage for the `msm` pack (docs/phase7-wave1-scripting.md "What to deliver" §5) — never touches the shared
+ * `../coverage.test.ts` (its `PACK_STATUS`/registration line are the main session's to update once this pack is merged
+ * into `WAVE1_ABILITIES`). Every `msm` card's ability reference must resolve — through this pack's own
+ * `MSM_BUILTIN_PACK.abilities`, or aliased as a Core reprint by `../reprints.ts`. Morphogenetics (05001a), Embiggen!
  * (05010) and Generation Why? (05026) were skips here too until `TargetQuery.anyTrait`, the `attack` effect's
- * `cardEffectBonus` fix, and `ValueSpec` `sum` landed (2026-09-15). Teen Spirit (05001b) was the pack's last skip
- * until `discardDeckUntil` landed (2026-09-17) — see the doc comment on `MSM_KIT` in `./kit.ts`.
+ * `cardEffectBonus` fix, and `ValueSpec` `sum` landed (2026-09-15). Teen Spirit (05001b) was the pack's last skip until
+ * `discardDeckUntil` landed (2026-09-17) — see the doc comment on `MSM_KIT` in `./kit.ts`.
  */
 import { MSM_CARDS } from "@mc/content";
 import { WAVE1_REPRINT_ABILITIES } from "../reprints.js";
-import { MSM_ABILITIES } from "./index.js";
+import { MSM_BUILTIN_PACK } from "./pack.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 describe("msm pack ability coverage", () => {
@@ -22,7 +22,7 @@ describe("msm pack ability coverage", () => {
   });
 
   it("every ability reference resolves — scripted directly, or aliased as a Core reprint", () => {
-    const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...MSM_ABILITIES };
+    const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...MSM_BUILTIN_PACK.abilities };
     const unresolved = allRefs.filter((id) => !(id in registry));
     expect(
       unresolved,

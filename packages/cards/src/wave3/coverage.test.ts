@@ -9,13 +9,14 @@ import type { AbilityRegistry } from "@mc/engine";
 import { coveredByEngineRule } from "../dsl/index.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
-import { WAVE3_ABILITIES, wave3ReprintPairs } from "./index.js";
-import { DRAX_ABILITIES } from "./drax/index.js";
-import { GAM_ABILITIES } from "./gam/index.js";
-import { GMW_ABILITIES } from "./gmw/index.js";
-import { RON_ABILITIES } from "./ron/index.js";
-import { STLD_ABILITIES } from "./stld/index.js";
-import { VNM_ABILITIES } from "./vnm/index.js";
+import { ownScriptsOf } from "../builtin-packs/define.js";
+import { WAVE3_ABILITIES, WAVE3_REPRINT_ABILITIES, wave3ReprintPairs } from "./index.js";
+import { DRAX_BUILTIN_PACK } from "./drax/pack.js";
+import { GAM_BUILTIN_PACK } from "./gam/pack.js";
+import { GMW_BUILTIN_PACK } from "./gmw/pack.js";
+import { RON_BUILTIN_PACK } from "./ron/pack.js";
+import { STLD_BUILTIN_PACK } from "./stld/pack.js";
+import { VNM_BUILTIN_PACK } from "./vnm/pack.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 3 ability registry", () => {
@@ -167,7 +168,7 @@ describe("wave 3 pack ability coverage", () => {
  * check the test that names it actually drives the ability through a real command and asserts on the result, not
  * merely mentions the string in a comment. This only catches the "nobody even claims to test this" case.
  *
- * A pack is added here as one entry once it exists (`wave3/<pack>/index.ts` exporting its own registry) — see
+ * A pack is added here as one entry once it exists (its `wave3/<pack>/pack.ts` built-in pack) — see
  * `../wave2/coverage.test.ts`'s own precedent for the analogous per-pack table shape.
  */
 describe("wave 3 pack ability id coverage (every registered ability id is named in that pack's own tests)", () => {
@@ -195,12 +196,12 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
       .join("\n");
 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
-    { code: "gmw", registry: GMW_ABILITIES },
-    { code: "stld", registry: STLD_ABILITIES },
-    { code: "gam", registry: GAM_ABILITIES },
-    { code: "drax", registry: DRAX_ABILITIES },
-    { code: "vnm", registry: VNM_ABILITIES },
-    { code: "ron", registry: RON_ABILITIES },
+    { code: "gmw", registry: ownScriptsOf(GMW_BUILTIN_PACK, WAVE3_REPRINT_ABILITIES) },
+    { code: "stld", registry: ownScriptsOf(STLD_BUILTIN_PACK, WAVE3_REPRINT_ABILITIES) },
+    { code: "gam", registry: ownScriptsOf(GAM_BUILTIN_PACK, WAVE3_REPRINT_ABILITIES) },
+    { code: "drax", registry: ownScriptsOf(DRAX_BUILTIN_PACK, WAVE3_REPRINT_ABILITIES) },
+    { code: "vnm", registry: ownScriptsOf(VNM_BUILTIN_PACK, WAVE3_REPRINT_ABILITIES) },
+    { code: "ron", registry: ownScriptsOf(RON_BUILTIN_PACK, WAVE3_REPRINT_ABILITIES) },
   ];
 
   /**

@@ -1,5 +1,5 @@
 import { NEBULAS_SHIP_GUARD_ABILITY } from "../../campaigns/gmw-balanced.js";
-import { GMW_ABILITIES } from "./index.js";
+import { GMW_BUILTIN_PACK } from "./pack.js";
 
 /**
  * Balanced house rule, issue #609, Gideon's Gaming. The behavior is driven through a real campaign game in
@@ -9,7 +9,7 @@ import { GMW_ABILITIES } from "./index.js";
 describe("16093.balanced-evasion-guard (registry-only, granted to Nebula's Ship by a scenario rule)", () => {
   it("is registered as a Forced Response limited to once per round, only while the ship has a counter", () => {
     expect(NEBULAS_SHIP_GUARD_ABILITY).toBe("16093.balanced-evasion-guard");
-    const definition = GMW_ABILITIES[NEBULAS_SHIP_GUARD_ABILITY];
+    const definition = GMW_BUILTIN_PACK.abilities[NEBULAS_SHIP_GUARD_ABILITY];
     expect(definition).toBeDefined();
     expect(definition?.trigger).toMatchObject({
       kind: "response",

@@ -1,15 +1,15 @@
 import { HLK_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
-import { HLK_ABILITIES } from "./index.js";
+import { HLK_BUILTIN_PACK } from "./pack.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 /**
- * Local coverage check for the Hulk (`hlk`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
- * `hlk` card with ability text resolves, either via `HLK_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing. The main session's `wave1/coverage.test.ts` does the same check across every pack once this
- * one is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
- * Hulk Smash (10003) and Beat Cop's second action (10029) were both skips (missing engine primitives) until
- * 2026-09-15's fixes landed — see `kit.ts` and `pack-cards.ts`.
+ * Local coverage check for the Hulk (`hlk`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every `hlk`
+ * card with ability text resolves, via `HLK_BUILTIN_PACK.abilities` (its own scripts and the Core reprint aliases it
+ * carries). The main session's `wave1/coverage.test.ts` does the same check across every pack once this one is
+ * registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime. Hulk Smash
+ * (10003) and Beat Cop's second action (10029) were both skips (missing engine primitives) until 2026-09-15's fixes
+ * landed — see `kit.ts` and `pack-cards.ts`.
  */
 
 const reprintIds = new Set<string>();
@@ -28,14 +28,16 @@ describe("Hulk (hlk) pack ability coverage", () => {
   const allRefs = HLK_CARDS.flatMap(abilityRefIds);
 
   it("every ability reference resolves, is a Core reprint alias, or is a documented skip", () => {
-    const unresolved = allRefs.filter((id) => !(id in HLK_ABILITIES) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id));
+    const unresolved = allRefs.filter(
+      (id) => !(id in HLK_BUILTIN_PACK.abilities) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id),
+    );
     expect(unresolved, `unresolved hlk ability refs:\n${unresolved.join("\n")}`).toEqual([]);
   });
 
   it("every documented skip really is unresolved (not stale)", () => {
     for (const id of KNOWN_SKIPPED) {
       expect(allRefs, `${id} is no longer a real hlk ability ref — update KNOWN_SKIPPED`).toContain(id);
-      expect(id in HLK_ABILITIES, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
+      expect(id in HLK_BUILTIN_PACK.abilities, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
     }
   });
 

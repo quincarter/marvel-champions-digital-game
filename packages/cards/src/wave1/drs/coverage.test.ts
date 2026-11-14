@@ -1,12 +1,12 @@
 import { DRS_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
-import { DRS_ABILITIES } from "./index.js";
+import { DRS_BUILTIN_PACK } from "./pack.js";
 import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for the Doctor Strange (`drs`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5):
- * every `drs` card with ability text resolves, either via `DRS_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing, except the four documented skips (`index.ts`'s docblock, and the comments beside each in
+ * every `drs` card with ability text resolves, via `DRS_BUILTIN_PACK.abilities` (its own scripts and the Core
+ * reprint aliases it carries), except the four documented skips (`pack.ts`'s docblock, and the comments beside each in
  * `kit.ts` / `obligation.ts` / `nemesis.ts` / `pack-cards.ts`). The main session's `wave1/coverage.test.ts` does the
  * same check across every pack once this one is registered in `WAVE1_ABILITIES` — this file is the pack-local
  * version a pack agent owns in the meantime. Desperate Defense (09015) was a fifth skip until the 2026-09-15
@@ -37,14 +37,16 @@ describe("Doctor Strange (drs) pack ability coverage", () => {
   const allRefs = DRS_CARDS.flatMap(abilityRefIds);
 
   it("every ability reference resolves, is a Core reprint alias, or is a documented skip", () => {
-    const unresolved = allRefs.filter((id) => !(id in DRS_ABILITIES) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id));
+    const unresolved = allRefs.filter(
+      (id) => !(id in DRS_BUILTIN_PACK.abilities) && !reprintIds.has(id) && !KNOWN_SKIPPED.has(id),
+    );
     expect(unresolved, `unresolved drs ability refs:\n${unresolved.join("\n")}`).toEqual([]);
   });
 
   it("every documented skip really is unresolved (not stale)", () => {
     for (const id of KNOWN_SKIPPED) {
       expect(allRefs, `${id} is no longer a real drs ability ref — update KNOWN_SKIPPED`).toContain(id);
-      expect(id in DRS_ABILITIES, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
+      expect(id in DRS_BUILTIN_PACK.abilities, `${id} is scripted now — remove it from KNOWN_SKIPPED`).toBe(false);
     }
   });
 

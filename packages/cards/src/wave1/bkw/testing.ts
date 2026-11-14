@@ -13,11 +13,8 @@ import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
 
 /**
- * Local test deps for the Black Widow pack, until the main session registers `BKW_ABILITIES` in `../index.ts`'s
- * `WAVE1_ABILITIES` (docs/phase7-wave1-scripting.md's shared-tree rules: a pack agent builds its own deps rather
- * than editing the shared `wave1/index.ts` / `wave1/testing.ts`). Mirrors `../thor/testing.ts`'s `THOR_DEPS` /
- * `runThor` / `startThorGame` shape exactly, so this file can be deleted with no other change once the pack is
- * registered upstream.
+ * Test deps for the Black Widow (`bkw`) pack. The pack is in `../index.ts`'s `WAVE1_BUILTIN_PACKS`, so this is the same
+ * registry as `../testing.ts`'s `WAVE1_DEPS`; the names are kept so the pack's tests read unchanged.
  */
 export const BKW_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 

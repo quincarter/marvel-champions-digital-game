@@ -13,12 +13,13 @@ import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { mergeRegistries } from "../dsl/index.js";
-import { DRAX_ABILITIES } from "./drax/index.js";
-import { GAM_ABILITIES } from "./gam/index.js";
-import { GMW_ABILITIES } from "./gmw/index.js";
-import { RON_ABILITIES } from "./ron/index.js";
-import { STLD_ABILITIES } from "./stld/index.js";
-import { VNM_ABILITIES } from "./vnm/index.js";
+import { ownScriptsOf, type BuiltinPack } from "../builtin-packs/define.js";
+import { DRAX_BUILTIN_PACK } from "./drax/pack.js";
+import { GAM_BUILTIN_PACK } from "./gam/pack.js";
+import { GMW_BUILTIN_PACK } from "./gmw/pack.js";
+import { RON_BUILTIN_PACK } from "./ron/pack.js";
+import { STLD_BUILTIN_PACK } from "./stld/pack.js";
+import { VNM_BUILTIN_PACK } from "./vnm/pack.js";
 import { WAVE3_REPRINT_ABILITIES } from "./reprints.js";
 
 /**
@@ -30,18 +31,26 @@ import { WAVE3_REPRINT_ABILITIES } from "./reprints.js";
 const EARLIER_ABILITIES: AbilityRegistry = { ...WAVE1_ABILITIES, ...WAVE2_ABILITIES };
 
 /**
+ * Wave 3's products as built-in packs (`../builtin-packs/define.ts`), in the order their scripts merge. Each
+ * carries the reprint aliases its cards use, so the packs together hold every script of the wave's own products.
+ */
+export const WAVE3_BUILTIN_PACKS: readonly BuiltinPack[] = [
+  GMW_BUILTIN_PACK,
+  GAM_BUILTIN_PACK,
+  STLD_BUILTIN_PACK,
+  DRAX_BUILTIN_PACK,
+  VNM_BUILTIN_PACK,
+  RON_BUILTIN_PACK,
+];
+
+/**
  * Every scripted ability in the wave 3 pool: every earlier (Core/wave 1/cycle 1) script, wave 3's own reprint
- * aliases, then one entry per cycle 2 pack that has been started (`gmw`, `gam`, `stld`).
+ * aliases, then each wave 3 pack's own scripts (`WAVE3_BUILTIN_PACKS`).
  */
 export const WAVE3_ABILITIES: AbilityRegistry = mergeRegistries(
   EARLIER_ABILITIES,
   WAVE3_REPRINT_ABILITIES,
-  GMW_ABILITIES,
-  GAM_ABILITIES,
-  STLD_ABILITIES,
-  DRAX_ABILITIES,
-  VNM_ABILITIES,
-  RON_ABILITIES,
+  ...WAVE3_BUILTIN_PACKS.map((pack) => ownScriptsOf(pack, WAVE3_REPRINT_ABILITIES)),
 );
 
 /** Engine dependencies for games that use the wave 3 (cycle 2) pool. */

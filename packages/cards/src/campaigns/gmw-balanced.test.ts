@@ -1,6 +1,6 @@
 /**
- * The Galaxy's Most Wanted, Balanced (issue #609, Balanced house rule, Gideon's Gaming): every change driven through the
- * real campaign runner and a real game built from the composed log, the way the client builds one, with the hidden
+ * The Galaxy's Most Wanted, Balanced (issue #609, Balanced house rule, Gideon's Gaming): every change driven through
+ * the real campaign runner and a real game built from the composed log, the way the client builds one, with the hidden
  * flags seeded at campaign start. Every assertion has a Normal-run twin that shows the printed behavior unchanged.
  */
 import { describe, expect, it } from "vitest";
@@ -27,7 +27,7 @@ import {
   GMW_BALANCED_TOGGLES,
   gmwBalancedHiddenFields,
 } from "./gmw-balanced.js";
-import { GMW_ABILITIES } from "../wave3/gmw/index.js";
+import { GMW_BUILTIN_PACK } from "../wave3/gmw/pack.js";
 import { buildGame, logAt, modesOf, seats, type BuiltGame, type RunChoice } from "./gmw-balanced-testing.js";
 
 const NORMAL: RunChoice = { balanced: false };
@@ -244,7 +244,9 @@ describe("1b. Collector's Balanced redirect also catches player side schemes, as
       ["16071", undefined],
       ["16072", 1],
     ] as const) {
-      const trigger = GMW_ABILITIES[`${id}.collector-forced-interrupt`]!.trigger as { rules?: readonly any[] };
+      const trigger = GMW_BUILTIN_PACK.abilities[`${id}.collector-forced-interrupt`]!.trigger as {
+        rules?: readonly any[];
+      };
       const rules = trigger.rules ?? [];
       const side = rules.find((r: any) => r.kind === "discardFromPlayDestination" && r.cards.playerSideScheme === true);
       expect(side, id).toMatchObject({

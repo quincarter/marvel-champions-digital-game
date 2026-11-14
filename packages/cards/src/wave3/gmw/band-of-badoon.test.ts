@@ -3,7 +3,7 @@ import { firstLegal, inst, instancesOf, P1, runWith, settle, stackEncounterDeck 
 import { driveEvents } from "../../testing/staging.js";
 import { traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario } from "../setup.js";
-import { GMW_ABILITIES } from "./index.js";
+import { GMW_BUILTIN_PACK } from "./pack.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 
 /** Band of Badoon (16117–16121), recommended by Brotherhood of Badoon's own 1A "Contents". */
@@ -37,7 +37,7 @@ describe("Badoon Assassin (16117)", () => {
     // Structurally pinned like Badoon Warlord's own constant just above: a live overkill/piercing spillover test
     // needs a second target and full damage-assignment scaffolding this pass doesn't build (that file's own
     // comment). What *is* live here is that the ability genuinely fires when it's drawn as an attack's boost card.
-    const definition = GMW_ABILITIES["16117.boost" as never];
+    const definition = GMW_BUILTIN_PACK.abilities["16117.boost" as never];
     expect(definition?.effects).toEqual([
       {
         kind: "if",
@@ -113,7 +113,7 @@ describe("Badoon Warlord (16121)", () => {
     // own boost uses via `modifyAttack`, and which several wave1/wave2 cards already exercise end-to-end) is
     // pinned structurally: the compiled ability grants exactly "overkill" to Badoon Warlord's own attacks, not
     // some other keyword or scope.
-    const definition = GMW_ABILITIES["16121.badoon-warlord-constant" as never];
+    const definition = GMW_BUILTIN_PACK.abilities["16121.badoon-warlord-constant" as never];
     expect(definition?.trigger).toEqual({
       kind: "constant",
       rules: [{ kind: "attackKeywords", keywords: ["overkill"], attacker: { self: true } }],
