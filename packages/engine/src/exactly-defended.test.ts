@@ -84,7 +84,8 @@ function villainPhase(opts: {
     encounter: copiesOf(boost.id, 30),
     deck: [GUARD.id],
   });
-  if (opts.guard) state = playerCardIntoPlay(state, GUARD.id, P1).state;
+  const guard = opts.guard ? playerCardIntoPlay(state, GUARD.id, P1) : null;
+  if (guard) state = guard.state;
   const villain = state.villains[0]!.instanceId;
   const hero = mustPlayer(state, P1).identity.instanceId;
   state = {
@@ -97,7 +98,7 @@ function villainPhase(opts: {
   return {
     def: mustInstance(after, villain).counters["def"] ?? 0,
     damage: mustInstance(after, hero).damage,
-    exhausted: mustInstance(after, hero).exhausted,
+    ...(guard ? { guardUsed: mustInstance(after, guard.id).counters["used"] ?? 0 } : {}),
   };
 }
 
@@ -130,7 +131,7 @@ describe("exactly defending an enemy attack (hero DEF 2)", () => {
   it("ruling Oct 12, 2026 (4): a hero made the defender only by a '(defense)' ability makes no basic defense", () => {
     // ATK 2 and DEF 2, but DEF is never subtracted: the hero takes the 2 and has not exactly defended.
     const run = villainPhase({ atk: 2, defend: false, guard: true });
-    expect(run).toMatchObject({ def: 0, damage: 2 });
+    expect(run).toMatchObject({ guardUsed: 1, def: 0, damage: 2 });
   });
 
   it("ruling Oct 12, 2026 (4): a hero declared the defender by an effect makes a basic defense, and can exactly defend", () => {
