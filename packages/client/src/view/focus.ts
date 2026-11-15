@@ -39,6 +39,8 @@ export type FocusTarget =
   | { readonly kind: "discard" }
   /** The victory display's pile in the encounter column: Enter opens the pile view, as a click on it does. */
   | { readonly kind: "victoryDisplay" }
+  /** The top bar's dark mode button (#735): Enter flips the theme. Just before the music note on the idle route. */
+  | { readonly kind: "theme" }
   /** The top bar's music note: Enter opens the music player. The last stop on the idle route. */
   | { readonly kind: "music" };
 
@@ -50,6 +52,8 @@ export type FocusMode =
       readonly teamUps?: readonly string[];
       /** True while the top bar's music note is drawn: the route's last stop. */
       readonly music?: true;
+      /** True while the top bar's dark mode button is drawn: the stop before the note. */
+      readonly theme?: true;
       /** True while the discard pile has a card to open: a stop just after the hand, where the table draws it. */
       readonly discard?: true;
       /** True while the victory display has a pile on the table: a stop after the table's cards. */
@@ -130,6 +134,7 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
     ...(mode.victoryDisplay ? [{ kind: "victoryDisplay" as const }] : []),
     ...basics,
     ...teamUps,
+    ...(mode.theme ? [{ kind: "theme" as const }] : []),
     ...(mode.music ? [{ kind: "music" as const }] : []),
   ];
 }

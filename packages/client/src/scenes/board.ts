@@ -35,6 +35,14 @@ import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from 
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession, holdGameArt } from "../session.js";
 import { activeReplay, leaveReplay } from "../replay/replay-mode.js";
+import {
+  REPLAY_READING_KEYS,
+  onReplayInspectChange,
+  replayInspectChangedIn,
+  replayInspectRoute,
+  replayInspecting,
+  setReplayInspecting,
+} from "../replay/replay-inspect.js";
 import type { ReplayHost } from "../replay/replay-host.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -93,6 +101,10 @@ import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 import { musicSlots, shownMusicButton } from "../ui/music-slot.js";
 import type { MusicButtonScene } from "./music-button.js";
+import type { ThemeButtonScene } from "./theme-button.js";
+import { themeSlotBeside } from "../view/theme-button.js";
+import { shownThemeButton } from "../ui/theme-slot.js";
+import { languageSlotBeside } from "../view/language-button.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
@@ -319,6 +331,7 @@ export class BoardScene extends Phaser.Scene {
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
+  #inspectUnsubscribe: (() => void) | null = null;
   /** The targeting panel's own hovered tile (docs/phase4-screen-gaps.md §3 "W5") — separate from `#focus`, since a mouse player hovers without ever taking keyboard focus. */
   #targetingHoverId: InstanceId | null = null;
   /**
@@ -361,6 +374,8 @@ export class BoardScene extends Phaser.Scene {
     barStops: () => ({ count: this.#frame.barStops.length, cancel: this.#frame.focusRects.has("cancel") }),
     hasMusicStop: () => this.#frame.focusRects.has(focusKey({ kind: "music" })),
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
+    hasThemeStop: () => this.#frame.focusRects.has(focusKey({ kind: "theme" })),
+    toggleTheme: () => (this.scene.manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle(),
     hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
     openDiscard: () => this.#openMyDiscard(),
     hasVictoryDisplayStop: () => this.#frame.focusRects.has(focusKey({ kind: "victoryDisplay" })),
@@ -462,6 +477,20 @@ export class BoardScene extends Phaser.Scene {
       };
     }
     return zones.actionBar;
+  }
+
+  /**
+   * The replay is paused to look around the table (#735), and the press that started it has been taken: the transport
+   * set it this frame, so a press the Board sees in the same frame is the transport's.
+   */
+  #lookingAround(): boolean {
+    return replayInspecting() && !replayInspectChangedIn(this.game.loop.frame);
+  }
+
+  /** Back to the replay bar: the table gives the keyboard and the pad back to the transport. */
+  #stopLookingAround(): void {
+    // The change clears the ring and the zoom (`onReplayInspectChange` in `create`).
+    setReplayInspecting(false, this.game.loop.frame);
   }
 
   /** A phone's replay bar is on top: the tab rail and the table under it start below the bar and its banner. */
@@ -641,14 +670,21 @@ export class BoardScene extends Phaser.Scene {
     // A scan arrives after the frame that asked for it, so the board redraws
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
+    // However looking around a replay ends (B here, or the bar's "Back to replay"), no ring or zoom stays on the table.
+    this.#inspectUnsubscribe = onReplayInspectChange((on) => {
+      if (on) return;
+      this.#setZoom(false);
+      if (this.#focus !== null) this.#setFocus(null);
+    });
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
       // whatever Pause itself launched) owns the keyboard and the pad while it
       // is up — the walkthrough used to leave arrows walking the board unseen
       // underneath it, and Pause's own Escape must not also reopen itself.
       blocked: () =>
-        // A replay's transport owns the keyboard and the pad (Space, arrows, Escape, A, B ...).
-        this.#replay !== null ||
+        // A replay's transport owns the keyboard and the pad (Space, arrows, Escape, A, B ...), unless the replay is
+        // paused to look around the table (#735): then they are the table's, read-only.
+        (this.#replay !== null && !this.#lookingAround()) ||
         this.#choiceOpen ||
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.villainPhase) ||
@@ -677,12 +713,16 @@ export class BoardScene extends Phaser.Scene {
         (this.scene.get(SCENES.achievementToast) as AchievementToastScene | null)?.listOpen === true,
       onIntent: (intent) => this.#actOnIntent(intent),
       onScroll: (dx, dy) => this.#scrollFocused(dx, dy),
-      onLayer: (layer) => this.#setPadLayer(layer),
+      // A replay has no actions or abilities to use: its triggers raise no layer.
+      onLayer: (layer) => this.#setPadLayer(this.#replay ? null : layer),
       onViewTap: () => this.#actOnIntent("recap"),
       onInspectZoom: (zooming) => this.#setZoom(zooming),
       // Card hover size "off" turns the zoom off with the mouse popover: a hold is then a tap.
       zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
-      onLayerPress: (layer, index) => this.#pressLayer(layer, index),
+      // Under a held trigger a replay's face buttons do nothing (no layer to press, and not their own meaning either).
+      onLayerPress: (layer, index) => {
+        if (!this.#replay) this.#pressLayer(layer, index);
+      },
       // While a direct pick is open LB / RB are modifiers too, and a quick tap of one keeps its zone jump on release.
       // The team rail's View buttons make LB one as well: LB + a face button views that seat (`view/seat-peek.ts`).
       pickModifiers: (bumper) =>
@@ -730,6 +770,8 @@ export class BoardScene extends Phaser.Scene {
       this.#unsubscribe = null;
       this.#artUnsubscribe?.();
       this.#artUnsubscribe = null;
+      this.#inspectUnsubscribe?.();
+      this.#inspectUnsubscribe = null;
       this.game.events.off("mc-play-card", this.#onInspectPlay, this);
       this.game.events.off("mc-use-ability", this.#onInspectUseAbility, this);
       this.input.off("wheel", this.#hand.onWheel, this.#hand);
@@ -1623,8 +1665,14 @@ export class BoardScene extends Phaser.Scene {
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
       // The top bar's music note is a stop at the end of the focus route, so a pad can open the player (Pause has Music too).
       // Where the note is drawn now; on the board's first draw it has not been placed yet, so its slot stands in.
-      const music = shownMusicButton() ?? musicSlots().get(this.scene.key);
+      // A replay's bar hides the row (`view/report-button.ts`), so there only a drawn note is a stop.
+      const music = shownMusicButton() ?? (this.#replay ? undefined : musicSlots().get(this.scene.key));
       if (music) this.#frame.focusRects.set(focusKey({ kind: "music" }), music);
+      // The dark mode button (#735), two slots left of the note past the language button, where
+      // `scenes/theme-button.ts` draws it: a stop only while it is drawn there.
+      const theme = shownThemeButton();
+      if (music && theme)
+        this.#frame.focusRects.set(focusKey({ kind: "theme" }), themeSlotBeside(languageSlotBeside(music)));
     };
     // Scrolled content runs under the chrome and the tab row, so on a scrolling table they are drawn after it, over a
     // ground; at Standard the order is what it always was.
@@ -1911,6 +1959,20 @@ export class BoardScene extends Phaser.Scene {
 
   /** What one `GamepadIntent` does, shared by the keyboard and gamepad bindings. */
   #actOnIntent(intent: GamepadIntent): void {
+    if (this.#replay) {
+      // Looking around a paused replay (#735): moving and reading pass, acting is dropped, and backing out returns to
+      // the bar, once nothing on the table (the log) is still open to back out of first.
+      const route = replayInspectRoute(intent);
+      if (route === "drop") return;
+      if (route === "leave") {
+        if (intent === "cancel" && (this.#logFocused || this.#logOpen)) {
+          this.toggleLog();
+          return;
+        }
+        this.#stopLookingAround();
+        return;
+      }
+    }
     switch (intent) {
       case "next":
         if (this.#focusRegion === "guide") this.#moveGuideFocus(1);
@@ -2177,6 +2239,11 @@ export class BoardScene extends Phaser.Scene {
       if (!firstDelivery(event)) return;
       if (binding.blocked() || conflictPromptOwnsInput(this) || typingInTextField(event)) return;
       const hand = currentKeyboardHand();
+      // A replay answers nothing and plays nothing: only the keys that read the table work while looking around it.
+      if (this.#replay) {
+        const reading = boardKeyActionOf(event, hand);
+        if (!reading || !REPLAY_READING_KEYS.has(reading.kind)) return;
+      }
       const slot = choiceSlotOf(event, hand);
       if (slot !== null && this.#answerChoiceBar(slot)) {
         event.preventDefault();

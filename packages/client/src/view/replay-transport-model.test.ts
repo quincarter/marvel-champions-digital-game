@@ -110,6 +110,8 @@ describe("replay transport model", () => {
     ] as const) {
       const layout = transportLayout(bar);
       expect(layout.kind).toBe(kind);
+      // Inspect table (#735) is on every bar.
+      expect(layout.controls.has("inspect")).toBe(true);
       for (const [id, rect] of layout.controls) {
         expect(rect.x, id).toBeGreaterThanOrEqual(bar.x);
         expect(rect.x + rect.width, id).toBeLessThanOrEqual(bar.x + bar.width);
@@ -154,7 +156,17 @@ describe("replay transport model, phone and autoplay at the end", () => {
         // Left of the menu button (40 wide, 8 from the edge).
         expect(rect.x + rect.width).toBeLessThanOrEqual(375 - 56);
       }
-      for (const id of ["prevMoment", "nextMoment", "speed", "move", "share", "exportLog", "export", "exit"] as const) {
+      for (const id of [
+        "prevMoment",
+        "nextMoment",
+        "speed",
+        "move",
+        "share",
+        "exportLog",
+        "export",
+        "exit",
+        "inspect",
+      ] as const) {
         const rect = layout.controls.get(id)!;
         expect(rect, id).toBeDefined();
         expect(rect.x).toBeGreaterThanOrEqual(0);

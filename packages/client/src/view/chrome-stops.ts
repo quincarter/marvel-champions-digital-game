@@ -1,7 +1,7 @@
 /**
- * Which of the top bar's chrome buttons a screen's focus route takes as stops (`scenes/focus-route.ts`): the music note
- * and the bug on every screen, and the language and theme buttons beside them on a screen that asks for the whole row
- * (Title). Pure, so the rule is tested without a scene.
+ * Which of the top bar's chrome buttons a screen's focus route takes as stops (`scenes/focus-route.ts`): the music note,
+ * the bug and the dark mode button on every screen, and the language button beside them on a screen that asks for the
+ * whole row (Title). Pure, so the rule is tested without a scene.
  *
  * A button is a stop only while it is drawn, only for the screen on top (so a screen under an overlay never answers
  * for a button it is not showing), and only when none of the screen's own stops already sits over it.
@@ -17,7 +17,7 @@ export interface ChromeStopInput {
   /** Where each button is drawn now, or null while hidden. */
   readonly music: Rect | null;
   readonly report: Rect | null;
-  /** Left out by a route that takes only the note and the bug. */
+  /** Left out by a route that takes only the note, the bug and the theme button. */
   readonly language?: Rect | null;
   readonly theme?: Rect | null;
   /** The rects of the screen's own stops. */
@@ -43,8 +43,9 @@ export function chromeStopsOf(input: ChromeStopInput): ChromeStops {
   return {
     music: free(input.music),
     report: free(input.report),
-    // Only beside the note: while the row is hidden the theme button floats on its own at the top centre.
+    // Only beside the note: the language button is drawn only in the row.
     language: input.music ? free(input.language) : null,
-    theme: input.music ? free(input.theme) : null,
+    // Wherever it is drawn: in the row, or floating on its own in the top bar's centre on every other screen.
+    theme: free(input.theme),
   };
 }

@@ -36,6 +36,8 @@ let controller: BoardController;
 let playable = new Set<string>();
 let bar = { count: 2, cancel: true };
 let music = true;
+let theme = false;
+const toggleTheme = vi.fn();
 const pressed: number[] = [];
 const openMusic = vi.fn();
 const inspect = vi.fn();
@@ -47,6 +49,8 @@ const host = (): BoardControllerHost => ({
   pressBarStop: (index) => void pressed.push(index),
   hasMusicStop: () => music,
   openMusic,
+  hasThemeStop: () => theme,
+  toggleTheme,
   tabbed: (): boolean => false,
   redraw: (): void => {},
   inspect,
@@ -81,6 +85,8 @@ beforeEach(async () => {
   controller = new BoardController(host());
   bar = { count: 2, cancel: true };
   music = true;
+  theme = false;
+  toggleTheme.mockClear();
   pressed.length = 0;
   openMusic.mockClear();
   inspect.mockClear();
@@ -95,6 +101,15 @@ describe("the pad route through a mode bar", () => {
     expect(openMusic).toHaveBeenCalledTimes(1);
     music = false;
     expect(controller.focusOrder().some((target) => target.kind === "music")).toBe(false);
+  });
+
+  test("the dark mode button is the stop before the note, and Enter on it flips the theme on a read-only table too (#735)", () => {
+    expect(controller.focusOrder().some((target) => target.kind === "theme")).toBe(false);
+    theme = true;
+    expect(controller.focusOrder().slice(-2)).toEqual([{ kind: "theme" }, { kind: "music" }]);
+    controller.setReadOnly(true);
+    controller.activate({ kind: "theme" });
+    expect(toggleTheme).toHaveBeenCalledTimes(1);
   });
 
   test("a payment's route is the sources, then the bar's buttons, then Cancel once", async () => {

@@ -264,6 +264,11 @@ describe("a decision's bar on the route", () => {
     expect(route.at(-1)).toEqual({ kind: "music" });
     expect(focusOrder({ kind: "idle", hand: [id("a")] }, marksWith([])).some((t) => t.kind === "music")).toBe(false);
   });
+  test("the dark mode button sits just before the note (#735)", () => {
+    const route = focusOrder({ kind: "idle", hand: [id("a")], music: true, theme: true }, marksWith([]));
+    expect(route.slice(-2)).toEqual([{ kind: "theme" }, { kind: "music" }]);
+    expect(focusOrder({ kind: "idle", hand: [id("a")] }, marksWith([])).some((t) => t.kind === "theme")).toBe(false);
+  });
 
   test("Start presses the forward button when it is ready, and falls back to Pause when it is not", () => {
     const stops = [

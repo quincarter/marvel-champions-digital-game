@@ -11,6 +11,7 @@ import type { EngineHost } from "../engine/host.js";
 import { appSession, swapSessionHost, type AppSession } from "../session.js";
 import { SessionStore } from "../store/session-store.js";
 import type { ReplayHost } from "./replay-host.js";
+import { resetReplayInspect } from "./replay-inspect.js";
 
 interface Watching {
   readonly replay: ReplayHost;
@@ -35,6 +36,7 @@ export function activeReplay(): ReplayHost | null {
  */
 export async function enterReplay(replay: ReplayHost): Promise<SessionStore> {
   if (watching) leaveReplay();
+  resetReplayInspect();
   const store = new SessionStore(replay);
   const { gameLog, villainReview } = appSession();
   const previous = swapSessionHost(replay, store);
@@ -60,6 +62,7 @@ export function leaveReplay(): void {
   const current = watching;
   if (!current) return;
   watching = null;
+  resetReplayInspect();
   const { store } = swapSessionHost(current.host, current.store);
   const session = appSession();
   session.gameLog = current.gameLog;

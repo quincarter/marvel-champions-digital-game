@@ -32,8 +32,15 @@ describe("chromeStopsOf", () => {
   test("a route that asks for the whole row gets the language and theme buttons too", () => {
     expect(chromeStopsOf({ ...base, language, theme })).toEqual({ music, report, language, theme });
   });
-  test("the language and theme buttons are no stops while the row is hidden (the theme button floats alone then)", () => {
-    expect(chromeStopsOf({ ...base, music: null, report: null, language: null, theme })).toEqual(none);
+  test("the theme button floating alone at the top centre is still a stop (#735); the language button is not", () => {
+    const floating = { x: 621, y: 6, width: 38, height: 30 };
+    expect(chromeStopsOf({ ...base, music: null, report: null, language, theme: floating })).toEqual({
+      ...none,
+      theme: floating,
+    });
+  });
+  test("a screen under an overlay takes no floating theme stop either", () => {
+    expect(chromeStopsOf({ ...base, isTop: false, music: null, report: null, theme })).toEqual(none);
   });
   test("a screen's own stop over the language or theme button keeps the screen's stop", () => {
     const own = [{ x: 1030, y: 93, width: 56, height: 44 }];

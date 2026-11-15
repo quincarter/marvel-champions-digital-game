@@ -167,7 +167,9 @@ export type TransportControl =
   | "exportLog"
   | "share"
   | "exit"
-  | "move";
+  | "move"
+  /** Pause and hand the keyboard and the pad to the table, to look around it read-only (#735). */
+  | "inspect";
 
 export interface TransportLayout {
   readonly kind: "row" | "stacked" | "phone";
@@ -229,10 +231,12 @@ export function transportLayout(bar: Rect, options: TransportLayoutOptions = {})
       x += size + GAP;
     }
     controls.set("speed", { x, y: top, width: 52, height: rowHeight });
+    const inspectX = bar.x + bar.width - PAD - size;
+    controls.set("inspect", { x: inspectX, y: top, width: size, height: rowHeight });
     const label: Rect = {
       x: x + 52 + 6,
       y: top,
-      width: Math.max(0, bar.x + bar.width - PAD - (x + 52 + 6)),
+      width: Math.max(0, inspectX - 6 - (x + 52 + 6)),
       height: rowHeight,
     };
     const exitWidth = 60;
@@ -278,7 +282,8 @@ export function transportLayout(bar: Rect, options: TransportLayoutOptions = {})
       : compact
         ? (["prevMoment", "back", "play", "forward", "nextMoment"] as const)
         : (["start", "prevMoment", "back", "play", "forward", "nextMoment", "end"] as const);
-  for (const id of left) {
+  // Inspect table ends the group: the steps and it are what a pad's d-pad reaches (left, right and down).
+  for (const id of [...left, "inspect"] as const) {
     controls.set(id, { x, y, width: BUTTON, height: BUTTON });
     x += BUTTON + GAP;
   }
@@ -287,7 +292,8 @@ export function transportLayout(bar: Rect, options: TransportLayoutOptions = {})
   const logWidth = compact ? 64 : 96;
   const shareWidth = compact ? 64 : 104;
   const speedWidth = 52;
-  const labelWidth = compact ? 96 : 156;
+  // A phone on its side keeps the seek bar usable beside Inspect table: the short position fits in less.
+  const labelWidth = bar.width < 800 ? 72 : compact ? 96 : 156;
   let rx = bar.x + bar.width - PAD;
   rx -= exitWidth;
   controls.set("exit", { x: rx, y, width: exitWidth, height: BUTTON });
@@ -353,7 +359,9 @@ function phoneLayout(bar: Rect, titleBar: Rect, banner: Rect): TransportLayout {
   controls.set("exit", { x: right - 60, y: bottom, width: 60, height: rowHeight });
   controls.set("export", { x: right - 60 - GAP - 74, y: bottom, width: 74, height: rowHeight });
   controls.set("exportLog", { x: right - 60 - 2 * GAP - 74 - 66, y: bottom, width: 66, height: rowHeight });
-  const seekRight = right - 60 - 2 * GAP - 74 - 66 - 8;
+  const inspectX = right - 60 - 3 * GAP - 74 - 66 - 44;
+  controls.set("inspect", { x: inspectX, y: bottom, width: 44, height: rowHeight });
+  const seekRight = inspectX - 8;
   const seek: Rect = { x: left, y: bottom, width: Math.max(40, seekRight - left), height: rowHeight };
   return { kind: "phone", controls, seek, track: trackOf(seek), label, shortLabel: true, banner, titleCover };
 }

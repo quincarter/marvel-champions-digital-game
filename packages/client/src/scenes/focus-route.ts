@@ -38,8 +38,9 @@ import type { ThemeButtonScene } from "./theme-button.js";
 /** The focus keys of the two top-bar chrome buttons, added to every route while they are on screen. */
 export const CHROME_MUSIC_STOP = "chrome:music";
 export const CHROME_REPORT_STOP = "chrome:report";
-/** The other two in the row, on a route with `topRow`. */
+/** The language button, on a route with `topRow`. */
 export const CHROME_LANGUAGE_STOP = "chrome:language";
+/** The dark mode button, on every route while it is drawn: in the row, or floating at the top centre. */
 export const CHROME_THEME_STOP = "chrome:theme";
 
 const CHROME_STOPS: ReadonlySet<string> = new Set([
@@ -173,9 +174,8 @@ export interface FocusRouteOptions {
   /** False while the zoom is switched off (Card hover size "off"): a hold is then a tap. */
   readonly zoomEnabled?: () => boolean;
   /**
-   * The language and theme buttons join the note and the bug as stops, for a screen with the whole top row beside its
-   * own controls (Title). Not for every screen: the theme button floats at the top centre of most of them, and a stop
-   * there pulled the d-pad off their own controls (`scenes/theme-button.ts`).
+   * The language button joins the note, the bug and the dark mode button as a stop, for a screen with the whole top row
+   * beside its own controls (Title). The dark mode button is a stop on every screen (#735).
    */
   readonly topRow?: boolean;
 }
@@ -244,8 +244,15 @@ export class FocusRoute {
       // A chrome button can leave the route (the pad toast covers the bar for a moment), or move a frame after a
       // redraw (its scene follows the slot in its own update): the ring is drawn again for either.
       if (CHROME_STOPS.has(this.#focus)) {
-        // The theme button stays drawn while the row is hidden (it floats alone), so the note answers for all but the bug.
-        const hidden = (this.#focus === CHROME_REPORT_STOP ? shownReportButton() : shownMusicButton()) === null;
+        // The theme button stays drawn while the row is hidden (it floats alone): it answers for itself, the bug for
+        // itself, and the note for the rest of the row.
+        const shown =
+          this.#focus === CHROME_REPORT_STOP
+            ? shownReportButton()
+            : this.#focus === CHROME_THEME_STOP
+              ? shownThemeButton()
+              : shownMusicButton();
+        const hidden = shown === null;
         // No rect with the row shown: an overlay is on top for now, and focus waits here for it to close.
         const rect = this.#chrome().get(this.#focus)?.rect as Rect | undefined;
         const ring = this.#ringRect;
@@ -390,9 +397,9 @@ export class FocusRoute {
   }
 
   /**
-   * The music note and the bug in the top bar (and the language and theme buttons, with `topRow`), as focus stops, while
-   * they are drawn and this is the screen on top: pressing up or right from the top row reaches them on every screen. A
-   * screen that already has a stop over one of them keeps its own.
+   * The music note, the bug and the dark mode button in the top bar (and the language button, with `topRow`), as focus
+   * stops, while they are drawn and this is the screen on top: pressing up or right from the top row reaches them on
+   * every screen. A screen that already has a stop over one of them keeps its own.
    */
   #chrome(): ReadonlyMap<string, FocusStop> {
     // One answer per frame: a pad step asks for every stop's rect, and nothing here changes within a frame.
@@ -409,7 +416,8 @@ export class FocusRoute {
       excluded: key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton,
       music: shownMusicButton(),
       report: shownReportButton(),
-      ...(this.#topRow ? { language: shownLanguageButton(), theme: shownThemeButton() } : {}),
+      theme: shownThemeButton(),
+      ...(this.#topRow ? { language: shownLanguageButton() } : {}),
       own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
     });
     // Left to right as drawn, so Tab walks the row in order.
