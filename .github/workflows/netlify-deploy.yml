@@ -480,10 +480,10 @@ jobs:
   # The site pages (site/, vite.site.config.ts): the moved page the old Netlify address serves once SITE_MOVED is set,
   # and the landing page at the new domain's top level, an assets-only Worker on Cloudflare's free plan
   # (wrangler.landing.jsonc). Every run builds both, and the gate requires those builds, so a change that breaks either
-  # page fails its pull request rather than the deploy that needs it. A push to main deploys the landing page; like the
-  # sync Worker that skips with a notice until the Cloudflare secrets exist, and the deploy itself isn't required.
+  # page fails its pull request rather than the deploy that needs it. A push to main then deploys the landing page
+  # through landing-deploy.yml (deploy-landing-main, below).
   deploy-landing:
-    name: Build the site pages and deploy the landing page
+    name: Build the site pages
     runs-on: ubuntu-latest
     needs: tests
     outputs:
@@ -509,33 +509,36 @@ jobs:
         run: |
           pnpm --filter @mc/client site:build:moved
           pnpm --filter @mc/client site:build:landing
-      - name: Check for Cloudflare secrets
-        id: secrets
-        if: github.event_name == 'push'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::notice::No Cloudflare secrets yet; skipping the landing page deploy."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Deploy
-        if: steps.secrets.outputs.ready == 'true'
-        working-directory: packages/client
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # The sync Worker's pinned wrangler, so the repo carries one version of it.
-        run: pnpm --filter @mc/sync-worker exec wrangler deploy --config "$PWD/wrangler.landing.jsonc"
+
+  # The deploy itself, on a push to main: landing-deploy.yml builds again inside its one concurrency group, shared with
+  # the deploy release-on-merge.yml runs once a release is published, so two deploys of mc-landing never overlap and a
+  # build for an older commit is never deployed over a newer one. It isn't required.
+  deploy-landing-main:
+    name: Landing page
+    needs: deploy-landing
+    if: github.event_name == 'push' && needs.deploy-landing.outputs.build == 'success'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/landing-deploy.yml
+    secrets: inherit
 
   # A needed job's result covers every job inside it, so `tests` stands for the whole of tests.yml, matrix shards
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, yaml, changelog, tests, deploy, android-preview, linux-preview, deploy-sync, deploy-landing]
+    needs:
+      [
+        lint,
+        yaml,
+        changelog,
+        tests,
+        deploy,
+        android-preview,
+        linux-preview,
+        deploy-sync,
+        deploy-landing,
+        deploy-landing-main,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -557,11 +560,12 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The two deploy jobs count only through their build steps; the Android and Linux previews and the sync
-          # Worker deploy don't count; a skipped job passes.
+          # The two deploy jobs count only through their build steps; the Android and Linux previews, the sync
+          # Worker deploy and the landing page's deploy don't count; a skipped job passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
-            | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync")
+            | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync"
+                     and .key != "deploy-landing-main")
             | select(if .key == "deploy" or .key == "deploy-landing" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)
             | .key')
