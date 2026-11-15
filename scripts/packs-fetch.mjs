@@ -6,7 +6,7 @@
  * per-pack tests, the client's pack and house-rule tests, the Mod Store e2e specs' local catalog).
  *
  * Usage: pnpm packs:fetch [--from <registry checkout>] [--force]
- *   --from <dir>   copy from a local checkout of the registry instead of fetching the pinned commit
+ *   --from <dir>   copy from a local checkout of the registry instead of fetching the pinned commit (every time)
  *   --force        fetch again even when the pinned commit is already in place
  *
  * Environment: MC_ASSETS_CACHE (the shared cache folder, as pnpm assets:fetch uses), MC_PACKS=none (skip).
@@ -21,7 +21,10 @@ import { cacheDir } from "./lib/assets.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const PIN = path.join(root, "content-packs", "community.json");
-const DEST = path.join(root, "content-packs", "community");
+// MC_PACKS_DEST moves the destination (scripts/packs-fetch.test.mjs).
+const DEST = process.env.MC_PACKS_DEST
+  ? path.resolve(process.env.MC_PACKS_DEST)
+  : path.join(root, "content-packs", "community");
 const STATE = path.join(DEST, ".fetched.json");
 
 const args = process.argv.slice(2);
@@ -45,7 +48,13 @@ const readState = () => {
 };
 const state = readState();
 const source = from ? `local:${from}` : pin.commit;
-if (!force && state.source === source && state.ids.every((id) => fs.existsSync(path.join(DEST, id, "pack.json")))) {
+// A pinned commit never changes, so it is fetched once; a local checkout can, so --from always copies.
+if (
+  !force &&
+  !from &&
+  state.source === source &&
+  state.ids.every((id) => fs.existsSync(path.join(DEST, id, "pack.json")))
+) {
   console.log(`[packs] ${state.ids.length} packs already at ${source.slice(0, 12)}`);
   process.exit(0);
 }
