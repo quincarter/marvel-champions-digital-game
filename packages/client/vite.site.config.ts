@@ -2,6 +2,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, wri
 import { dirname, extname, join, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
+import { pointRootLinksAt } from "./src/site/release-links.js";
+import { GAME_URL } from "./src/site/site-urls.js";
 
 /**
  * The two small sites beside the game (`site/`), built on their own and picked by Vite's mode: `--mode moved` (the "we
@@ -291,6 +293,13 @@ function releasePagesPlugin(): Plugin {
     closeBundle() {
       for (const folder of ["releases", "fonts"]) {
         cpSync(join(CLIENT, "public", folder), join(outDir, folder), { recursive: true });
+      }
+      // Their Play links climb to the site's root, which here is the landing page: point them at the game.
+      const releases = join(outDir, "releases");
+      for (const file of readdirSync(releases, { recursive: true, encoding: "utf8" })) {
+        if (!file.endsWith(".html")) continue;
+        const path = join(releases, file);
+        writeFileSync(path, pointRootLinksAt(readFileSync(path, "utf8"), GAME_URL));
       }
       // The Worker's not-found page (wrangler.landing.jsonc, `404-page`). A release with no report of its own is a page
       // of the history, opened by its fragment: the old site sent `/releases/<version>` there (netlify.toml), so an old
