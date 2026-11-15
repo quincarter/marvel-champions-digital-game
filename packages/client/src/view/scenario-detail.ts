@@ -19,6 +19,8 @@
  */
 import type { AnyCard, CardId, EncounterSet, ScalingValue, Scenario, VillainStage } from "@mc/content";
 import { pooledModularShortSummary, pooledModularSummary } from "./modular-summary.js";
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 import { foeWord } from "./foe-words.js";
 import { hasRandomVillain, randomVillainLabel } from "./random-villain.js";
 import { formatScaling } from "./scaling-text.js";
@@ -106,6 +108,8 @@ export function scenarioDetailOf(
   scenario: Scenario,
   cardsById: ReadonlyMap<string, AnyCard>,
   encounterSets: readonly EncounterSet[],
+  /** The language of the words it builds in (the Villain/Leader word, a random villain's label). English unless the screen is translated. */
+  lang: CardLanguage = "en",
 ): ScenarioDetail {
   const sets = new Map(encounterSets.map((set) => [set.id as string, set]));
   const villain = cardsById.get(scenario.villainCardId as string);
@@ -131,7 +135,7 @@ export function scenarioDetailOf(
     .map((id) => cardsById.get(id as string)?.name ?? (id as string));
 
   const setNames = new Map(encounterSets.map((set) => [set.id as string, set.name]));
-  const randomLabel = randomVillainLabel(scenario, cardsById, setNames);
+  const randomLabel = randomVillainLabel(scenario, cardsById, setNames, lang);
   const villainIsRandom = hasRandomVillain(scenario);
   const villainName = randomLabel ?? side.name;
   const displayName = villainIsRandom
@@ -153,7 +157,7 @@ export function scenarioDetailOf(
     scenarioName: scenario.name,
     packCode: scenario.packCode as string,
     villainName,
-    foeWord: foeWord(scenario, { cardsById }),
+    foeWord: foeWord(scenario, { cardsById, lang }),
     villainIsRandom,
     displayName,
     tileTitle: titledByScenario ? scenario.name : displayName,
@@ -226,7 +230,7 @@ export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
 /** Scenario select's "Encounter sets" stat cell: the villain's set and the modular sets, short enough for one line. */
 export function encounterSetsCellText(detail: ScenarioDetail): string {
   const modular = detail.modularShortSummary ?? detail.modularSummary ?? detail.recommendedModularSetNames[0] ?? "";
-  return `${detail.villainChoices.length > 0 ? "Your villain's set" : detail.displayName} · ${modular}`.toUpperCase();
+  return `${detail.villainChoices.length > 0 ? t("scenario.yourVillainsSet") : detail.displayName} · ${modular}`.toUpperCase();
 }
 
 const SHELF_ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
@@ -240,26 +244,23 @@ const shelfRoman = (n: number): string => SHELF_ROMAN[n] ?? String(n);
 export function shelfSubtitleOf(detail: ScenarioDetail): string {
   const first = detail.stages[0]?.stageNumber ?? 1;
   const last = detail.stages[detail.stages.length - 1]?.stageNumber ?? first;
-  const stages = last > first ? `Stages ${shelfRoman(first)}–${shelfRoman(last)}` : `Stage ${shelfRoman(first)}`;
+  const stages =
+    last > first
+      ? t("scenario.stagesRange", { first: shelfRoman(first), last: shelfRoman(last) })
+      : t("scenario.stageOne", { first: shelfRoman(first) });
   const setName = detail.modularSummary
     ? (detail.fixedEncounterSetNames[0] ?? "")
     : (detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "");
   const line = setName ? `${stages} · ${setName}` : stages;
-  if (detail.villainIsRandom) return `${detail.villainName} · random`;
-  if (detail.villainChoices.length > 0) return `Choice of ${detail.villainChoices.length} villains · ${line}`;
+  if (detail.villainIsRandom) return t("scenario.villainRandom", { villain: detail.villainName });
+  if (detail.villainChoices.length > 0) return t("scenario.choiceOf", { count: detail.villainChoices.length, line });
   return detail.titledByScenario ? `${detail.villainName} · ${line}` : line;
 }
 
 /**
- * A locked scenario tile's caption: the gate in few words, then the champion-point way in. "Complete the Age of
- * Apocalypse campaign to unlock Agents of S.H.I.E.L.D." (the footer's full sentence) becomes "Finish Age of Apocalypse
- * · or 100 pts"; it wraps on the tile, never cut.
+ * A locked scenario tile's caption: the gate in few words (`Unlocks.scenarioLockShort`: "Finish Age of Apocalypse"),
+ * then the champion-point way in: "Finish Age of Apocalypse · or 100 pts". It wraps on the tile, never cut.
  */
-export function lockCaptionOf(lock: string, cost: number): string {
-  const gate = lock.split(" to unlock ")[0] ?? lock;
-  const short = gate
-    .replace(/^Complete (?:the |The )?/, "Finish ")
-    .replace(/ campaign$/, "")
-    .replace(/^Finish The /, "Finish ");
-  return `${short} · or ${cost} pts`;
+export function lockCaptionOf(short: string, cost: number): string {
+  return t("unlock.captionOrPts", { short, cost });
 }

@@ -12,9 +12,12 @@
  * `formatScaling({ base: 12, perPlayer: 0 })` → `"12"`.
  */
 import type { ScalingValue } from "@mc/content";
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 
-export function formatScaling(value: ScalingValue): string {
+/** In English unless a translated screen asks for its language (issue #390). */
+export function formatScaling(value: ScalingValue, lang: CardLanguage = "en"): string {
   if (value.perPlayer === 0) return `${value.base}`;
-  if (value.base === 0) return `${value.perPlayer} per player`;
-  return `${value.base} (+${value.perPlayer} per player)`;
+  if (value.base === 0) return t("scaling.perPlayer", { count: value.perPlayer }, lang);
+  return t("scaling.basePlusPerPlayer", { base: value.base, count: value.perPlayer }, lang);
 }

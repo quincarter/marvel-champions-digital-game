@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import {
   DEFAULT_UNLOCK_PREFS,
   NO_PROGRESS,
@@ -6,6 +7,7 @@ import {
   UNLOCK_HEROES,
   UNLOCK_WAVES,
   Unlocks,
+  gateHintOf,
   unlockByHand,
   type UnlockPrefs,
 } from "../progression/unlocks.js";
@@ -44,7 +46,7 @@ describe("campaign row hints", () => {
       const wave = UNLOCK_WAVES.find((w) => w.cycleId === campaign.cycleId)!;
       const gate = wave.gate!;
       expect(row.detail.endsWith(wave.campaignId === campaign.campaignId ? wave.name : campaign.name)).toBe(true);
-      expect(row.detail.startsWith(gate.hint)).toBe(true);
+      expect(row.detail.startsWith(gateHintOf(gate))).toBe(true);
       expect(row.title).toBe(`Vol. ${campaign.volume} · ${campaign.name}`);
     }
     const mojo = rows.find((row) => row.id === "campaign:mojo");
@@ -120,6 +122,31 @@ describe("taps", () => {
     );
     const campaign = confirmOf(rich(), { kind: "campaign", campaignId: "gmw" });
     expect(campaign.body).toContain("Its cast (Groot and Rocket Raccoon) comes with it.");
+  });
+
+  describe("in Spanish", () => {
+    afterEach(useEnglish);
+
+    it("keeps Settings ▸ Unlocks' wave rows in English until that screen is translated", () => {
+      useSpanish();
+      const rows = unlockListRowsOf(make());
+      expect(rows.find((r) => r.id === "wave:wave1")).toMatchObject({ status: "Beat Rhino to unlock Wave 1" });
+      expect(rowOf(rows, "campaign:trors")).toMatchObject({ detail: "Beat Rhino to unlock The Rise of Red Skull" });
+      expect(rowOf(rows, "scenario:red-skull")).toMatchObject({ detail: "Beat Rhino to unlock The Rise of Red Skull" });
+    });
+
+    it("words a confirm from the same parts", () => {
+      useSpanish();
+      const hero = confirmOf(rich(), { kind: "hero", identityCardId: thor });
+      expect(hero.title).toBe("¿Desbloquear Thor con puntos?");
+      expect(hero.confirmLabel).toBe("Gastar 150");
+      expect(hero.body).toBe(
+        "Cuesta 150 de tus 750 puntos de campeón; te quedarán 600. Si lo desactivas más tarde, no se te devolverán. " +
+          "O vence a Ultron para desbloquear a Thor gratis y ganar puntos por la victoria. " +
+          "Esto es para el mazo preconstruido de Thor: si importas o creas un mazo de Thor, ya puedes jugarlo.",
+      );
+      expect(confirmOf(rich(), { kind: "everything" }).confirmLabel).toBe("Desbloquear todo");
+    });
   });
 
   it("won't let a player spend points they haven't earned", () => {

@@ -6,7 +6,7 @@
  * `UNLOCK_WAVES` the progression itself runs on, so the numbers on screen can't drift from the code. The repo copy,
  * docs/progression.md, is checked against the same values by `progression-guide.test.ts`.
  */
-import { POINTS, UNLOCK_WAVES, villainLabelOf, UNLOCK_HEROES } from "../progression/unlocks.js";
+import { POINTS, UNLOCK_WAVES, gateHintOf, villainLabelOf, UNLOCK_HEROES } from "../progression/unlocks.js";
 
 export interface GuideSection {
   readonly heading: string;
@@ -28,7 +28,9 @@ export function waveGuideLines(): string[] {
     const rewards = wave.heroRewards
       .map((r) => `${heroName(r.identityCardId)} for ${villainLabelOf(r.scenarioId)}`)
       .join("; ");
-    const opens = `${wave.gate.hint.charAt(0).toLowerCase()}${wave.gate.hint.slice(1)}`;
+    // English: the guide is not translated, and its search index is built in a worker.
+    const hint = gateHintOf(wave.gate, "en");
+    const opens = `${hint.charAt(0).toLowerCase()}${hint.slice(1)}`;
     return `${wave.name}: ${opens}.${cast}${rewards ? ` Then, a villain each: ${rewards}.` : ""}`;
   });
 }

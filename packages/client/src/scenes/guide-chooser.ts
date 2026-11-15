@@ -18,6 +18,8 @@
 import Phaser from "phaser";
 import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { t } from "../i18n/translate.js";
+import { onLanguageChange } from "../language-change.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { onTap } from "../ui/tap.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
@@ -64,9 +66,14 @@ export class GuideChooserScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
+    // A language switch (#390): the screen reads again in the new language.
+    const unsubscribeLanguage = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
     this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
+      unsubscribeLanguage();
       this.#hints.dispose();
     });
     this.#selected = "full";
@@ -111,14 +118,9 @@ export class GuideChooserScene extends Phaser.Scene {
     this.#drawBanner(layout);
 
     this.add
-      .text(
-        layout.subtitle.x,
-        layout.subtitle.y,
-        "Pick how much help you want. You can change this any time from the menu.",
-        {
-          ...textStyle(BODY_TYPE, surface.ink.hex),
-        },
-      )
+      .text(layout.subtitle.x, layout.subtitle.y, t("guide.subtitle"), {
+        ...textStyle(BODY_TYPE, surface.ink.hex),
+      })
       .setWordWrapWidth(layout.subtitle.width);
 
     const stops = new Map<string, FocusStop>();
@@ -140,7 +142,7 @@ export class GuideChooserScene extends Phaser.Scene {
     if (layout.back.width > 0) {
       const back = new McButton(this, {
         kind: "secondary",
-        label: "Back",
+        label: t("guide.back"),
         type: typeRole.menuButton,
         rect: layout.back,
         onClick: () => this.#decline(),
@@ -153,7 +155,7 @@ export class GuideChooserScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Suit up",
+        label: t("guide.suitUp"),
         type: typeRole.barTitle,
         rect: layout.suitUp,
         onClick: () => this.#chooseGuide(),
@@ -181,12 +183,10 @@ export class GuideChooserScene extends Phaser.Scene {
       layout.banner.height,
     );
     this.add
-      .text(
-        layout.banner.x + layout.banner.width / 2,
-        layout.banner.y + layout.banner.height / 2,
-        "NEW TO THE FIGHT?",
-        { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "22px" },
-      )
+      .text(layout.banner.x + layout.banner.width / 2, layout.banner.y + layout.banner.height / 2, t("guide.title"), {
+        ...textStyle(typeRole.barTitle, surface.ink.hex),
+        fontSize: "22px",
+      })
       .setOrigin(0.5, 0.5)
       .setDepth(BANNER_DEPTH);
   }
@@ -215,9 +215,12 @@ export class GuideChooserScene extends Phaser.Scene {
     if (selected) g.fillStyle(accent.heroRed.hex, 1).fillCircle(radioCx, radioCy, RADIO_RADIUS - 4);
 
     const textLeft = radioCx + RADIO_RADIUS + 12;
-    this.add.text(textLeft, rect.y + 14, option.label, { ...textStyle(TITLE_TYPE, surface.ink.hex), fontSize: "16px" });
+    this.add.text(textLeft, rect.y + 14, t(option.labelKey), {
+      ...textStyle(TITLE_TYPE, surface.ink.hex),
+      fontSize: "16px",
+    });
     this.add
-      .text(textLeft, rect.y + 36, option.body, textStyle(BODY_TYPE, surface.ink.hex))
+      .text(textLeft, rect.y + 36, t(option.bodyKey), textStyle(BODY_TYPE, surface.ink.hex))
       .setWordWrapWidth(rect.width - (textLeft - rect.x) - padX - (option.recommended ? 90 : 0));
 
     if (option.recommended) {
@@ -226,7 +229,7 @@ export class GuideChooserScene extends Phaser.Scene {
       const stampPad = 10;
       const stampHeight = 20;
       const stampLabel = this.add
-        .text(0, 0, "RECOMMENDED", textStyle({ ...typeRole.label, size: 9 }, surface.paper.hex))
+        .text(0, 0, t("guide.recommended"), textStyle({ ...typeRole.label, size: 9 }, surface.paper.hex))
         .setVisible(false);
       const stampWidth = stampLabel.width + stampPad * 2;
       const sx = rect.x + rect.width - stampWidth - 10;

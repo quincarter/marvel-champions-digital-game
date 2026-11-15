@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { introCtaLabelOf } from "./comic-reader-model.js";
 import { storyFor } from "../campaign/story.js";
 import {
   comicReaderViewOf,
@@ -161,5 +162,14 @@ describe("a page's credit", () => {
     const aftermath = resolveComicBeats(story.pages!, issue.aftermathBeats!);
     expect(comicReaderViewOf(opener, 0, []).step.credit).toBeNull();
     expect(comicReaderViewOf(aftermath, 0, []).step.credit).toMatch(/Shadowland.*2010/);
+  });
+});
+
+describe("the new-game intro's main button (#390)", () => {
+  test("is English by default and Spanish when asked, on a middle page and on the last", () => {
+    expect(introCtaLabelOf(false)).toBe("NEXT ▸");
+    expect(introCtaLabelOf(true)).toBe("SUIT UP ▸");
+    expect(introCtaLabelOf(false, "es")).toBe("SIGUIENTE ▸");
+    expect(introCtaLabelOf(true, "es")).toBe("¡A LA ACCIÓN! ▸");
   });
 });

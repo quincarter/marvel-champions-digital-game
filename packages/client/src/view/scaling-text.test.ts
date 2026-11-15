@@ -17,4 +17,10 @@ describe("formatScaling", () => {
   test("zero is still a flat value, not a per-player one", () => {
     expect(formatScaling({ base: 0, perPlayer: 0 })).toBe("0");
   });
+
+  test("words the per-player part in the language asked for, English by default (#390)", () => {
+    expect(formatScaling({ base: 0, perPlayer: 3 }, "es")).toBe("3 por jugador");
+    expect(formatScaling({ base: 10, perPlayer: 1 }, "es")).toBe("10 (+1 por jugador)");
+    expect(formatScaling({ base: 12, perPlayer: 0 }, "es")).toBe("12");
+  });
 });

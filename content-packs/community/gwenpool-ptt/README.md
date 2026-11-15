@@ -105,8 +105,8 @@ all 16 bubbles.
   from an Action or an Interrupt, never in the middle of a payment, so it resolves into nothing and only counts as a
   bubble. A resource that a bubble gives to a payment already in progress needs a tagged ability that can generate
   resources (no such primitive).
-- **Permission.** The curated source records "granted, inclusion" with no date, and says nothing about the Spanish
-  version beyond the author having made both languages. Ask BluefireF5ran for the date and evidence.
+- **Permission.** PatataSaurio's OK is on record (Discord, 2026-10-28; see `PERMISSION.md`). Both languages are the
+  author's own.
 - **Two Spanish-only basics** are not included (no English card).
 
 ## Rules readings made (the pack's own text is the authority; flagged for the author)

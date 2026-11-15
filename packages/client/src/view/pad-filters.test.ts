@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import type { InputEvent } from "./input-mode.js";
 import { PadModeTracker, padModeFor } from "./pad-filters.js";
 import { FILTERS_BREAKPOINT, filtersBehindButton, filtersLabel } from "./filters-layout.js";
@@ -61,5 +62,15 @@ describe("where the filter chips sit", () => {
     expect(filtersLabel(0, false)).toBe("Filters ▸");
     expect(filtersLabel(2, false)).toBe("Filters (2) ▸");
     expect(filtersLabel(1, true)).toBe("Filters (1) ▾");
+  });
+
+  describe("in Spanish (#390)", () => {
+    afterEach(useEnglish);
+
+    test("stays English unless the screen asks, so Take your seats (not translated yet) keeps Filters", () => {
+      useSpanish();
+      expect(filtersLabel(0, false)).toBe("Filters ▸");
+      expect(filtersLabel(2, true, "es")).toBe("Filtros (2) ▾");
+    });
   });
 });

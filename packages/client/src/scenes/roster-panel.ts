@@ -13,6 +13,7 @@
  * take the scene's own tracking arrays/maps and push into them rather than
  * returning something the caller has to remember to merge in.
  */
+import { t } from "../i18n/translate.js";
 import type Phaser from "phaser";
 import type { CardId } from "@mc/content";
 import { drawArt } from "../art/card-art.js";
@@ -110,7 +111,10 @@ export function drawSearchField(
   stops: Map<string, FocusStop>,
 ): McTextInput {
   const input = existing ?? new McTextInput(scene, { rect, value, placeholder, onChange });
-  if (existing) existing.layout(rect);
+  if (existing) {
+    existing.layout(rect);
+    existing.setPlaceholder(placeholder);
+  }
   stops.set(stopId, { rect, activate: () => input.focus() });
   return input;
 }
@@ -223,7 +227,15 @@ export function renderRosterRow(scene: Phaser.Scene, rect: Rect, row: RosterRow)
     const tag = scene.add.graphics();
     tag.fillStyle(accent.heroRed.hex, 1).fillRect(inner.x, inner.y, tagWidth, 16);
     objects.push(tag);
-    const tagText = label(scene, inner.x + 4, inner.y + 2, "SELECTED", typeRole.label, surface.paper.hex, 1);
+    const tagText = label(
+      scene,
+      inner.x + 4,
+      inner.y + 2,
+      t("scenario.selected"),
+      typeRole.label,
+      surface.paper.hex,
+      1,
+    );
     objects.push(tagText);
   }
   return { objects };
@@ -242,10 +254,21 @@ export function drawRosterList(
   inspect: (row: RosterRow) => void,
 ): McVirtualList {
   if (rows.length === 0) {
-    scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+    scene.add.text(
+      rect.x + 10,
+      rect.y + 10,
+      t("scenario.noMatches"),
+      textStyle(typeRole.body, surface.ink.hex, ink.meta),
+    );
     const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
     buttons.push(
-      new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }),
+      new McButton(scene, {
+        kind: "quiet",
+        label: t("scenario.clear"),
+        type: typeRole.label,
+        rect: clearRect,
+        onClick: onClear,
+      }),
     );
     stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
   }
@@ -576,10 +599,21 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     rowOfKey,
   } = options;
   if (shelves.length === 0) {
-    scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+    scene.add.text(
+      rect.x + 10,
+      rect.y + 10,
+      t("scenario.noMatches"),
+      textStyle(typeRole.body, surface.ink.hex, ink.meta),
+    );
     const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
     buttons.push(
-      new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }),
+      new McButton(scene, {
+        kind: "quiet",
+        label: t("scenario.clear"),
+        type: typeRole.label,
+        rect: clearRect,
+        onClick: onClear,
+      }),
     );
     stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
     return null;
@@ -664,10 +698,21 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
     stops,
   } = options;
   if (items.length === 0) {
-    scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+    scene.add.text(
+      rect.x + 10,
+      rect.y + 10,
+      t("scenario.noMatches"),
+      textStyle(typeRole.body, surface.ink.hex, ink.meta),
+    );
     const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
     buttons.push(
-      new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }),
+      new McButton(scene, {
+        kind: "quiet",
+        label: t("scenario.clear"),
+        type: typeRole.label,
+        rect: clearRect,
+        onClick: onClear,
+      }),
     );
     stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
     return null;

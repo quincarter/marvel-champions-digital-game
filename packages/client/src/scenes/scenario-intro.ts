@@ -8,9 +8,12 @@
  */
 import Phaser from "phaser";
 import { CAMPAIGN_ART, campaignRulebookPageFor } from "../art/campaign-art.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { introArtFor, ART_CATALOG } from "../art/scenario-art.js";
 import type { ComicBeat } from "../campaign/story.js";
 import { scenarioIntroFor, type ScenarioIntro } from "../campaign/scenario-intros.js";
+import { t } from "../i18n/translate.js";
+import { onLanguageChange } from "../language-change.js";
 import { appSession } from "../session.js";
 import { ink, surface, typeRole } from "../tokens.js";
 import { campaignFrame } from "../ui/campaign-chrome.js";
@@ -23,6 +26,7 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McButton, fitText, label } from "../ui/widgets.js";
 import {
   comicReaderViewOf,
+  introCtaLabelOf,
   nextComicBeat,
   prevComicBeat,
   resolveComicBeats,
@@ -104,7 +108,12 @@ export class ScenarioIntroScene extends Phaser.Scene {
         },
       },
     });
+    // A language switch (#390): SKIP, ONE-SHOT and BACK read again in the new language.
+    const unsubscribeLanguage = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#draw();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      unsubscribeLanguage();
       this.scale.off("resize", this.#draw, this);
       this.input.keyboard?.off("keydown", onArrow);
       this.#panTween?.stop();
@@ -202,7 +211,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
     const skipRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
     const skip = new McButton(this, {
       kind: "onInk",
-      label: "SKIP ▸▸",
+      label: t("scenario.skip"),
       type: typeRole.label,
       rect: skipRect,
       onClick: () => this.#leave(),
@@ -210,7 +219,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
     this.#buttons.push(skip);
     this.#hints?.button(skip, ["pause"], "ink");
     stops.set("skip", { rect: skipRect, activate: () => this.#leave() });
-    label(this, headerPad, 14, "ONE-SHOT", typeRole.label, surface.paper.hex, ink.label);
+    label(this, headerPad, 14, t("scenario.oneShot"), typeRole.label, surface.paper.hex, ink.label);
     const title = this.add
       .text(
         headerPad,
@@ -262,7 +271,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: view.ctaLabel,
+        label: introCtaLabelOf(view.isLast, artLanguageNow()),
         type: typeRole.barTitle,
         rect: ctaRect,
         onClick: () => this.#advance(),
@@ -274,7 +283,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "onInk",
-          label: "◂ BACK",
+          label: t("scenario.backCaps"),
           type: typeRole.label,
           rect: backRect,
           onClick: () => this.#back(),

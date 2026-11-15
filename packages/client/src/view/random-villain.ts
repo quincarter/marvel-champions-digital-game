@@ -6,6 +6,8 @@
  * read this one helper.
  */
 import type { AnyCard, Scenario } from "@mc/content";
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 
 /** The family a `bySetup` villain is drawn from: the shared trait of the villain and its set-aside siblings ("AVATAR OF LOKI" -> "Avatar of Loki"). */
 export function bySetupVillainLabel(scenario: Scenario, cardsById: ReadonlyMap<string, AnyCard>): string | undefined {
@@ -52,11 +54,12 @@ export function randomVillainLabel(
   scenario: Scenario,
   cardsById: ReadonlyMap<string, AnyCard>,
   setNames?: ReadonlyMap<string, string>,
+  lang: CardLanguage = "en",
 ): string | undefined {
   if (scenario.randomVillainName !== undefined) return scenario.randomVillainName;
   if (hasRandomChosenVillain(scenario)) {
     const setId = scenario.villainOptions?.defaultSetId as string | undefined;
-    return (setId ? setNames?.get(setId) : undefined) ?? "Random villain";
+    return (setId ? setNames?.get(setId) : undefined) ?? t("scenario.randomVillain", undefined, lang);
   }
   return scenario.startingVillain === "bySetup" ? bySetupVillainLabel(scenario, cardsById) : undefined;
 }

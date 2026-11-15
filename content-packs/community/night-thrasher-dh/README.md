@@ -39,9 +39,8 @@ From engine commit b51277136 (`packages/cards/src/dsl/engine-only-features.ts`):
   `hp`) and is what the game uses; only the English alternate picture is wrong. Ask the author for a corrected file.
 - **Errata not yet submitted.** The source notes the Cemented and Practice errata have not yet been submitted by the
   author to the community, so those two may change; the Battle Board's was cleared for the game.
-- **Permission.** The curated source records "granted, inclusion" with no date. The Spanish pictures are Francisco
-  Merchan's work on the author's art; the scope does not name translation (Carnage's permission does). Ask
-  BluefireF5ran for the date and evidence, and whether inclusion covers the Spanish version.
+- **Permission.** DesignHacker's OK is on record (Discord DM, 2026-11-04; see `PERMISSION.md`). The message does not
+  mention translation; the owner confirmed on 2026-11-13 that the grant covers the Spanish version.
 - Questions for the author, none sent: the readings below.
 
 ## Rules readings made (the pack's own text is the authority; flagged for the author)

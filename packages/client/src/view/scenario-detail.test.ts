@@ -1,10 +1,13 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { artLanguageNow } from "../art/art-source.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { scenarioDetailLines, scenarioDetailOf, shelfSubtitleOf, lockCaptionOf } from "./scenario-detail.js";
 import type { AnyCard, Scenario } from "@mc/content";
 import { randomVillainLabel } from "./random-villain.js";
 import { requiredCardLabel } from "./modular-sets.js";
 import { SHADOWLAND_SCENARIOS } from "@mc/content";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
+import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 
 const rhino = POOL_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
 const breakout = POOL_SCENARIOS.find((s) => (s.id as string) === "breakout")!;
@@ -189,14 +192,54 @@ describe("a scenario that opens against a random villain", () => {
 });
 
 describe("lockCaptionOf", () => {
-  test("shortens a campaign gate and a scenario gate, keeping the points way in", () => {
-    expect(lockCaptionOf("Complete the Age of Apocalypse campaign to unlock Agents of S.H.I.E.L.D.", 100)).toBe(
-      "Finish Age of Apocalypse · or 100 pts",
+  afterEach(useEnglish);
+
+  test("puts the gate in few words in front of the points way in", () => {
+    expect(lockCaptionOf("Finish Age of Apocalypse", 100)).toBe("Finish Age of Apocalypse · or 100 pts");
+    expect(lockCaptionOf("Beat Rhino", 30)).toBe("Beat Rhino · or 30 pts");
+  });
+
+  test("a locked scenario's caption is built from the gate's parts, in English and in Spanish", () => {
+    const unlocks = new Unlocks({ progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS });
+    const risky = POOL_SCENARIOS.find((s) => (s.id as string) === "risky-business")!;
+    expect(unlocks.scenarioLockShort(risky)).toBe("Beat Rhino");
+    useSpanish();
+    expect(lockCaptionOf(unlocks.scenarioLockShort(risky)!, 150)).toBe("Vence a Rhino · o 150 pts");
+    expect(unlocks.scenarioLock(risky)).toBe("Vence a Rhino para desbloquear Wave 1");
+  });
+});
+
+describe("shelfSubtitleOf in Spanish", () => {
+  afterEach(useEnglish);
+
+  const spanishDetail = (id: string) => {
+    useSpanish();
+    return scenarioDetailOf(
+      POOL_SCENARIOS.find((s) => (s.id as string) === id)!,
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+      artLanguageNow(),
     );
-    expect(lockCaptionOf("Complete The Rise of Red Skull campaign to unlock The Galaxy's Most Wanted", 50)).toBe(
-      "Finish Rise of Red Skull · or 50 pts",
-    );
-    expect(lockCaptionOf("Beat Rhino to unlock The Rise of Red Skull", 30)).toBe("Beat Rhino · or 30 pts");
+  };
+
+  test("words a single villain's stage line in Spanish", () => {
+    useSpanish();
+    expect(shelfSubtitleOf(scenarioDetailOf(rhino, CARDS_BY_ID, POOL_ENCOUNTER_SETS))).toMatch(/^Etapas? /);
+  });
+
+  test("words the choice of villains in Spanish", () => {
+    expect(shelfSubtitleOf(spanishDetail("art-museum-heist"))).toMatch(/^A elegir entre 5 Villanos · Etapas I–II/);
+  });
+
+  test("words a random villain in Spanish", () => {
+    expect(shelfSubtitleOf(spanishDetail("morlock-siege"))).toBe("The Marauders · aleatorio");
+  });
+
+  test("the English words stay English unless the screen asks for the current language", () => {
+    useSpanish();
+    const marauders = POOL_SCENARIOS.find((s) => (s.id as string) === "morlock-siege")!;
+    expect(scenarioDetailOf(marauders, CARDS_BY_ID, POOL_ENCOUNTER_SETS).foeWord).toBe("Villain");
+    expect(scenarioDetailOf(marauders, CARDS_BY_ID, POOL_ENCOUNTER_SETS, "es").foeWord).toBe("Villano");
   });
 });
 

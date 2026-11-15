@@ -176,7 +176,8 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#rows = campaignSagaRows(summaries, {
       customVolumes: customSagaVolumes(loadedPacks(), summaries),
       identityNameOf,
-      waveLockOf: (campaignId) => unlocked.campaignLock(campaignId),
+      // The Saga is not translated yet: its lock text sits in English sentences.
+      waveLockOf: (campaignId) => unlocked.campaignLock(campaignId, "en"),
       openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
     });
     this.#featured = defaultFeaturedVolume(this.#rows);

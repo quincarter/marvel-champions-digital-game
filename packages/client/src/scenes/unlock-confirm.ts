@@ -9,6 +9,7 @@
  * preferences, then calls `onUnlocked` so the caller can redraw (and, in Seats, seat the hero just unlocked).
  */
 import Phaser from "phaser";
+import { t } from "../i18n/translate.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
@@ -111,7 +112,7 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: confirm.affordable ? "secondary" : "primary",
-        label: "Keep playing",
+        label: t("unlock.keepPlaying"),
         type: buttonType,
         rect: cancelRect,
         onClick: () => this.#answer(false),

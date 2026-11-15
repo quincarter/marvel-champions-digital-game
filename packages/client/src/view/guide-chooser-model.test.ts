@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CATALOGS, t } from "../i18n/translate.js";
 import { rectsOverlap } from "./layout.js";
 import {
   GUIDE_CHOOSER_OPTIONS,
@@ -14,6 +15,17 @@ describe("guideChooserLessonChips", () => {
     expect(chips).toHaveLength(5);
     expect(chips[0]).toBe("1 · HOW TO WIN");
     expect(chips.every((c, i) => c.startsWith(`${i + 1} · `))).toBe(true);
+  });
+});
+
+describe("GUIDE_CHOOSER_OPTIONS text", () => {
+  it("reads in English, and every option has its Spanish title and body", () => {
+    expect(t(GUIDE_CHOOSER_OPTIONS[0]!.labelKey, undefined, "en")).toBe("Learn as you play");
+    for (const option of GUIDE_CHOOSER_OPTIONS) {
+      expect(CATALOGS.es[option.labelKey]).toBeDefined();
+      expect(CATALOGS.es[option.bodyKey]).toBeDefined();
+    }
+    expect(t("guide.suitUp", undefined, "es")).toBe("¡A la acción!");
   });
 });
 

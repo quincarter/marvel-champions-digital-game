@@ -94,4 +94,5 @@ facedown encounter cards (dealt cards, boost cards, facedown cards in play), as 
   as no (his rule holds while he is in play); a question for the authors.
 - DesignHacker has not answered the suggested errata (above).
 - Ravager Redshirts is listed at cost 3 on MC4DB; the card prints 2 and the JSON follows the card.
-- Permission evidence for BlueHG (DM through DesignHacker, 2026-11-11), see `PERMISSION.md`.
+- **BlueHG's permission is still secondhand.** The only word is DesignHacker's "Oh, he'll be OK with it" (Discord DM,
+  2026-11-11); nothing from BlueHG directly yet. See `PERMISSION.md`.

@@ -1238,6 +1238,8 @@ export const fieldsOf = (scene: Phaser.Scene): readonly McTextInput[] => [...(FI
 
 export class McTextInput {
   readonly #input: RexInputText;
+  /** What the field says while empty and unfocused (restored on blur). */
+  #placeholder = "";
   readonly #ring: McSelectionRing;
   #rect: Rect;
   #onChange: ((value: string) => void) | undefined;
@@ -1318,13 +1320,13 @@ export class McTextInput {
     // A controller can't type. Under Steam (the Steam Deck) Steam + X opens Steam's own on-screen keyboard, so an empty
     // field focused from the pad says so in its placeholder (`docs/controller-support.md`, owner decision 7).
     const node = this.#input.node as HTMLInputElement;
-    const placeholder = options.placeholder ?? "";
+    this.#placeholder = options.placeholder ?? "";
     node.addEventListener("focus", () => {
       const device = inputDevice();
       if (device.mode === "pad" && device.pad?.steam === true) node.placeholder = STEAM_KEYBOARD_HINT;
     });
     node.addEventListener("blur", () => {
-      node.placeholder = placeholder;
+      node.placeholder = this.#placeholder;
     });
 
     /**
@@ -1424,6 +1426,14 @@ export class McTextInput {
   }
 
   /** Repositions and resizes in place, for a scene that redraws on every state change. */
+  /** Rewords the placeholder (a language switch); a focused field on a Steam pad keeps its keyboard hint until blur. */
+  setPlaceholder(placeholder: string): void {
+    if (placeholder === this.#placeholder) return;
+    this.#placeholder = placeholder;
+    const node = this.#input.node as HTMLInputElement;
+    if (node.placeholder !== STEAM_KEYBOARD_HINT) node.placeholder = placeholder;
+  }
+
   layout(rect: Rect): void {
     this.#rect = rect;
     this.#input.setPosition(rect.x, rect.y);

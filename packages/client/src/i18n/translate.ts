@@ -48,6 +48,44 @@ export function t(key: MessageKey, params?: Params, lang: CardLanguage = artLang
   return fill(message(key, lang), params);
 }
 
+/** A key pair `<base>_one` / `<base>_other` in the catalog: the `<base>` a plural message is asked for by. */
+export type PluralBase =
+  Extract<MessageKey, `${string}_one`> extends `${infer Base}_one`
+    ? Base extends string
+      ? `${Base}_other` extends MessageKey
+        ? Base
+        : never
+      : never
+    : never;
+
+/**
+ * A message that depends on a count: the `<base>_one` / `<base>_other` entry the language's plural rule
+ * (`Intl.PluralRules`) picks for `count`, else its `_other`, else English's. `{count}` is filled from `count`.
+ * Other forms a language has (`few`, `many`) are not catalogued yet; they use `_other`.
+ */
+export function tPlural(
+  base: PluralBase,
+  count: number,
+  params?: Params,
+  lang: CardLanguage = artLanguageNow(),
+): string {
+  return pluralFrom(CATALOGS[lang], lang, base, count, params);
+}
+
+/** `tPlural` over one catalog: the form `lang`'s rule picks, else the catalog's `_other`, else English in English's own form. */
+export function pluralFrom(
+  catalog: PartialCatalog,
+  lang: string,
+  base: PluralBase,
+  count: number,
+  params?: Params,
+): string {
+  const form = new Intl.PluralRules(lang).select(count) === "one" ? "one" : "other";
+  const englishForm = new Intl.PluralRules("en").select(count) === "one" ? "one" : "other";
+  const text = catalog[`${base}_${form}`] ?? catalog[`${base}_other`] ?? en[`${base}_${englishForm}`];
+  return fill(text, { ...params, count });
+}
+
 /** The `{name}` placeholders a message uses, sorted (the catalog test checks a translation keeps English's). */
 export function placeholdersOf(text: string): string[] {
   return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort();

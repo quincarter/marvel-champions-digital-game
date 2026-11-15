@@ -10,14 +10,16 @@
  * could drift from what the tutorial actually teaches.
  */
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import type { MessageKey } from "../i18n/translate.js";
 import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export type GuideChooserValue = "full" | "hints" | "off";
 
 export interface GuideChooserOptionInfo {
   readonly value: GuideChooserValue;
-  readonly label: string;
-  readonly body: string;
+  /** The card's title and body, as app-text keys (`i18n/en.ts`), read through `t()` when drawn. */
+  readonly labelKey: MessageKey;
+  readonly bodyKey: MessageKey;
   readonly recommended: boolean;
 }
 
@@ -25,20 +27,20 @@ export interface GuideChooserOptionInfo {
 export const GUIDE_CHOOSER_OPTIONS: readonly GuideChooserOptionInfo[] = [
   {
     value: "full",
-    label: "Learn as you play",
-    body: "A real first game against Rhino. The guide explains each step as it happens.",
+    labelKey: "guide.full.label",
+    bodyKey: "guide.full.body",
     recommended: true,
   },
   {
     value: "hints",
-    label: "Hints only",
-    body: "Play any scenario. The guide stays quiet unless you're about to make a costly mistake.",
+    labelKey: "guide.hints.label",
+    bodyKey: "guide.hints.body",
     recommended: false,
   },
   {
     value: "off",
-    label: "No guide",
-    body: "I know the rules.",
+    labelKey: "guide.off.label",
+    bodyKey: "guide.off.body",
     recommended: false,
   },
 ] as const;

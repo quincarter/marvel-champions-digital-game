@@ -149,6 +149,7 @@ export {
   basicPowerCost,
   basicPowerDivisionTotal,
   costAsDetermined,
+  handDiscardCandidates,
   inPlayCostCandidates,
   minimumChosenX,
   playCostOf,

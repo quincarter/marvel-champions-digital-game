@@ -5,6 +5,8 @@
  * here.
  */
 import type { AnyCard, Scenario } from "@mc/content";
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 import { hasRandomVillain } from "./random-villain.js";
 
 export interface FoeWordOptions {
@@ -12,6 +14,8 @@ export interface FoeWordOptions {
   readonly cardsById?: ReadonlyMap<string, AnyCard>;
   /** "villains" / "leaders". Default: plural for a scenario fought against several villains at once, else singular. */
   readonly plural?: boolean;
+  /** The language to word it in. English unless a translated screen asks for its own: the log and the board's English text mustn't pick up another language's word. */
+  readonly lang?: CardLanguage;
   /** "villain" / "leader" instead of "Villain" / "Leader". */
   readonly lower?: boolean;
 }
@@ -35,6 +39,14 @@ export function foeWord(subject: AnyCard | Scenario | undefined, options: FoeWor
   } else {
     leader = isLeaderCard(subject);
   }
-  const word = `${leader ? "Leader" : "Villain"}${plural ? "s" : ""}`;
-  return options.lower ? word.toLowerCase() : word;
+  const lang = options.lang ?? "en";
+  // Each language has its own lower-case forms: Spanish game terms stay capitalized ("Jugar este Villano").
+  if (options.lower) {
+    return leader
+      ? t(plural ? "foe.leadersLower" : "foe.leaderLower", undefined, lang)
+      : t(plural ? "foe.villainsLower" : "foe.villainLower", undefined, lang);
+  }
+  return leader
+    ? t(plural ? "foe.leaders" : "foe.leader", undefined, lang)
+    : t(plural ? "foe.villains" : "foe.villain", undefined, lang);
 }

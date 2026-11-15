@@ -8,6 +8,7 @@ import {
   UNLOCK_CAMPAIGNS,
   UNLOCK_HEROES,
   UNLOCK_WAVES,
+  gateHintOf,
   relock,
   scenarioCycleOf,
   scenarioNameOf,
@@ -19,6 +20,8 @@ import {
   type Unlocks,
 } from "../progression/unlocks.js";
 import { POOL_SCENARIOS } from "../content/pool.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { t } from "../i18n/translate.js";
 
 const formatPoints = (points: number): string => points.toLocaleString("en-US");
 
@@ -116,7 +119,7 @@ export function unlockListRowsOf(
     const state = switchStateOf(unlocks, unlocks.campaignEarned(campaign.campaignId), (u) =>
       u.prefs.campaignIds.includes(campaign.campaignId),
     );
-    const lock = unlocks.campaignHint(campaign.campaignId);
+    const lock = unlocks.campaignHint(campaign.campaignId, "en");
     rows.push({
       kind: "campaign",
       id: `campaign:${campaign.campaignId}`,
@@ -151,7 +154,7 @@ export function unlockListRowsOf(
             ? "Unlocked"
             : status.unlocked
               ? "Unlocked by setting"
-              : (status.lockReason ?? "Locked"),
+              : (status.lockReasonIn("en") ?? "Locked"),
       open: status.unlocked,
     });
     for (const scenario of POOL_SCENARIOS.filter((sc) => scenarioCycleOf(sc) === status.wave.cycleId)) {
@@ -171,7 +174,7 @@ export function unlockListRowsOf(
             : state === "earned"
               ? "Earned"
               : state === "off"
-                ? (unlocks.scenarioLock(scenario) ?? "Locked")
+                ? (unlocks.scenarioLock(scenario, "en") ?? "Locked")
                 : state === "on"
                   ? "Unlocked by hand"
                   : "Unlocked by Unlock everything",
@@ -271,13 +274,13 @@ function subjectOf(
 ): { name: string; title: string; free: string | null; note: string } {
   switch (target.kind) {
     case "hero": {
-      const name = UNLOCK_HEROES.find((h) => h.identityCardId === target.identityCardId)?.name ?? "this hero";
-      const hint = unlocks.heroHint(target.identityCardId);
+      const name = UNLOCK_HEROES.find((h) => h.identityCardId === target.identityCardId)?.name ?? t("unlock.thisHero");
+      const hint = unlocks.heroHint(target.identityCardId, artLanguageNow());
       return {
         name,
-        title: `Unlock ${name} by hand?`,
-        free: hint ? `${lowerFirst(hint)} to unlock ${name} for free, and earn points for the win` : null,
-        note: ` This is for ${name}'s precon: a ${name} deck you import or build plays already.`,
+        title: t("unlock.unlockByHand", { name }),
+        free: hint ? t("unlock.freeHero", { hint: lowerFirst(hint), name }) : null,
+        note: ` ${t("unlock.noteHero", { name })}`,
       };
     }
     case "campaign": {
@@ -289,12 +292,12 @@ function subjectOf(
         wave && wave.campaignId === target.campaignId && wave.starterHeroIds !== "all"
           ? wave.starterHeroIds.map((id) => UNLOCK_HEROES.find((h) => h.identityCardId === id)?.name ?? id)
           : [];
-      const name = campaign?.name ?? "this campaign";
+      const name = campaign?.name ?? t("unlock.thisCampaign");
       return {
         name,
-        title: `Open ${name} by hand?`,
-        free: wave?.gate ? `${lowerFirst(wave.gate.hint)} to open it for free` : null,
-        note: cast.length > 0 ? ` Its cast (${cast.join(" and ")}) comes with it.` : "",
+        title: t("unlock.openByHand", { name }),
+        free: wave?.gate ? t("unlock.freeCampaign", { hint: lowerFirst(gateHintOf(wave.gate)) }) : null,
+        note: cast.length > 0 ? ` ${t("unlock.noteCast", { cast: cast.join(t("unlock.castJoin")) })}` : "",
       };
     }
     case "scenario": {
@@ -305,9 +308,9 @@ function subjectOf(
       const wave = UNLOCK_WAVES.find((w) => w.cycleId === cycleId);
       return {
         name,
-        title: `Unlock ${name} by hand?`,
-        free: lock ? `${lowerFirst(lock)}, for free` : null,
-        note: ` This opens ${name} on its own, not the rest of ${wave?.name ?? "its wave"}.`,
+        title: t("unlock.unlockByHand", { name }),
+        free: lock ? t("unlock.freeScenario", { lock: lowerFirst(lock) }) : null,
+        note: ` ${t("unlock.noteScenario", { name, wave: wave?.name ?? t("unlock.itsWave") })}`,
       };
     }
   }
@@ -317,27 +320,23 @@ export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm
   if (target.kind === "everything") {
     return {
       target,
-      title: "Unlock everything for free?",
-      body:
-        "Every wave, hero, scenario and campaign opens, and nothing is charged. Champion points switch off " +
-        "while it's on. Switch it off in Settings ▸ Unlocks to go back to earning and spending them; what you've " +
-        "earned stays earned.",
+      title: t("unlock.everythingTitle"),
+      body: t("unlock.everythingBody"),
       affordable: true,
-      confirmLabel: "Unlock everything",
+      confirmLabel: t("unlock.everything"),
     };
   }
   const cost = unlocks.chargesFor(target).reduce((sum, c) => sum + c.points, 0);
   const have = unlocks.points().total;
   const subject = subjectOf(unlocks, target);
-  const free = subject.free ? ` Or ${subject.free}.` : "";
+  const free = subject.free ? ` ${t("unlock.orFree", { free: subject.free })}` : "";
   if (cost > have) {
     return {
       target,
-      title: "Not enough champion points",
+      title: t("unlock.notEnough"),
       body:
-        `Unlocking ${subject.name} costs ${formatPoints(cost)} points, and you have ${formatPoints(have)}. ` +
-        `Win games to earn more.${free} Or turn on Unlock everything in Settings ▸ Unlocks to open everything ` +
-        "for free, with points off.",
+        `${t("unlock.notEnoughCost", { name: subject.name, cost: formatPoints(cost), have: formatPoints(have) })} ` +
+        `${t("unlock.winMore", { free })} ${t("unlock.orEverything")}`,
       affordable: false,
       confirmLabel: "",
     };
@@ -346,10 +345,10 @@ export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm
     target,
     title: subject.title,
     body:
-      `This costs ${formatPoints(cost)} of your ${formatPoints(have)} champion points, leaving ` +
-      `${formatPoints(have - cost)}. Switching it off later won't refund them.${free}${subject.note}`,
+      `${t("unlock.costs", { cost: formatPoints(cost), have: formatPoints(have), left: formatPoints(have - cost) })} ` +
+      t("unlock.noRefund", { free, note: subject.note }),
     affordable: true,
-    confirmLabel: `Spend ${formatPoints(cost)}`,
+    confirmLabel: t("unlock.spend", { cost: formatPoints(cost) }),
   };
 }
 
@@ -365,5 +364,5 @@ export function unlocksSummaryOf(unlocks: Unlocks): string {
     unlocks.prefs.campaignIds.filter((id) => !unlocks.campaignEarned(id)).length;
   const parts = [points, `${open} of ${waves.length} waves open`];
   if (byHand > 0) parts.push(`${byHand} unlocked by hand`);
-  return `${parts.join(" · ")}.${next?.lockReason ? ` Next: ${next.lockReason}.` : ""}`;
+  return `${parts.join(" · ")}.${next?.lockReasonIn("en") ? ` Next: ${next.lockReasonIn("en")}.` : ""}`;
 }

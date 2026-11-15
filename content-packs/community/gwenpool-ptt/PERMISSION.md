@@ -12,7 +12,9 @@ PatataSaurio, the author of Gwenpool, gave permission for this pack to be distri
   posted them to the author on 2026-11-10; the author has not confirmed them yet. The pack follows the curator's version
   until he does.
 
-The registry review asks for the evidence (a link or a quoted message) and a date; the source has neither, so both are
-still to be asked of BluefireF5ran.
+**Evidence:** PatataSaurio's reply on Discord, 2026-10-28: "Claro, por mi no tengo problema ¡también son mis favoritos!"
+("Sure, no problem on my side, they're my favorites too!"). The screenshot shows only the reply, not the request it
+answers. The screenshots, shared by the project owner on 2026-11-15, are not kept in the repository; the registry review
+can ask the owner for them.
 
 **Store approval:** granted (`pack.json` `permission`). The author(s) granted it in the Marvel Champions homebrew channel on Discord; the project owner, Quin Carter, confirmed it on 2026-11-13.

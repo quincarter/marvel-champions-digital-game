@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import type { AnyCard, Scenario } from "@mc/content";
 import { foeWord, isLeaderCard } from "./foe-words.js";
 import { CARDS_BY_ID, POOL_SCENARIOS } from "../content/pool.js";
@@ -48,5 +49,18 @@ describe("foeWord", () => {
     expect(foeWord(ironMan, { plural: true })).toBe("Leaders");
     expect(foeWord(rhino, { plural: true, lower: true })).toBe("villains");
     expect(foeWord(rhinoScenario, { plural: false })).toBe("Villain");
+  });
+});
+
+describe("foeWord in Spanish", () => {
+  afterEach(useEnglish);
+
+  test("keeps the game term capitalized, even where English lowers it", () => {
+    useSpanish();
+    expect(foeWord(rhino, { lang: "es" })).toBe("Villano");
+    expect(foeWord(rhino, { lang: "es", lower: true })).toBe("Villano");
+    expect(foeWord(ironMan, { lang: "es", plural: true })).toBe("Líderes");
+    // Asked for no language, it stays English, so the log and the board don't pick up Spanish words.
+    expect(foeWord(rhino, { lower: true })).toBe("villain");
   });
 });

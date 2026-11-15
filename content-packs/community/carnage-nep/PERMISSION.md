@@ -11,5 +11,9 @@ Neptune, the author of Carnage, gave permission for this pack to be distributed 
 The permission covers including the pack and translating it (the Spanish pictures are by Francisco Merchan). It was
 given by direct message; the registry review asks for the evidence (a link or a quoted message).
 
+**Further evidence:** Neptune's reply on Discord, 2026-11-05, to a request to use his content: "I would have no issue
+with it by any means". The screenshot shows only the reply, so it does not name the pack. The screenshots, shared by the
+project owner on 2026-11-15, are not kept in the repository; the registry review can ask the owner for them.
+
 **Store approval:** granted (`pack.json` `permission.status`), so the publish workflow publishes it. The record there
 (who, date, evidence, scope and the languages the grant covers) mirrors this file.

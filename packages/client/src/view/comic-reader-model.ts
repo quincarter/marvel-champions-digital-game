@@ -4,6 +4,8 @@
  * scene; the issue opener (`scenes/campaign/opener.ts`) and any later screen that reads comic pages (The Run, the
  * in-game stage beat, Rewind, the Aftermath, the Finale) share this model over their own `ComicBeatRef` list.
  */
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 import { lineForRoster } from "../campaign/story.js";
 import type { BubblePlacement, ComicBeat, ComicPage, ComicBeatRef, StorySpeaker } from "../campaign/story.js";
 
@@ -132,4 +134,12 @@ export function nextComicBeat(current: number, total: number): number {
 /** Steps back one beat, clamped at the first. */
 export function prevComicBeat(current: number): number {
   return Math.max(current - 1, 0);
+}
+
+/**
+ * The new-game scenario intro's main button in `lang` (issue #390): "NEXT ▸" until the last page, then "SUIT UP ▸".
+ * `ctaLabel` above stays English for the campaign readers not translated yet.
+ */
+export function introCtaLabelOf(isLast: boolean, lang: CardLanguage = "en"): string {
+  return t(isLast ? "scenario.introSuitUp" : "scenario.introNext", undefined, lang);
 }

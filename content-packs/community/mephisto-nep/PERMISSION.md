@@ -17,5 +17,9 @@ distributed through its Mod Store.
 The pack insert's own credit line reads: "MC Custom Content by: Neptune. ... This content is designed as free,
 generating no profit for myself or Marvel comics."
 
+**Further evidence:** Neptune's reply on Discord, 2026-11-05, to a request to use his content: "I would have no issue
+with it by any means". The screenshot shows only the reply, so it does not name the pack. The screenshots, shared by the
+project owner on 2026-11-15, are not kept in the repository; the registry review can ask the owner for them.
+
 **Store approval:** granted (`pack.json` `permission.status`), so the publish workflow publishes it. The record there
 (who, date, evidence, scope and the languages the grant covers) mirrors this file.

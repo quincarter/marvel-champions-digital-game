@@ -29,6 +29,7 @@ import {
   cardOf,
   costAsDetermined,
   getPlayer,
+  handDiscardCandidates,
   type AbilityCost,
   type Command,
   type EngineDeps,
@@ -111,9 +112,32 @@ export function discardCostOf(
   return { min: cost.min, max: cost.max ?? null };
 }
 
-/** Every hand card that could pay this cost: the whole hand but the ability's own source card. */
+/**
+ * The whole hand but the ability's own source card. Not every one of these can pay a cost that names which cards may
+ * ("Discard a [mental] resource"): the picker offers `ownPayableCandidates` instead.
+ */
 export function discardCandidates(state: GameState, playerId: PlayerId, sourceId: InstanceId): readonly InstanceId[] {
   return (getPlayer(state, playerId)?.hand ?? []).filter((id) => id !== sourceId);
+}
+
+/**
+ * The user's own hand cards the engine accepts for this cost: `handDiscardCandidates`, the set `planCost` judges each
+ * pick against (the cost's `filter`, "cannot be chosen to be discarded", the source card), kept to the user's hand.
+ * Offering the whole hand let a player pick a card the cost refuses and then left Confirm disabled with no way forward
+ * (Black Panther's Wakanda Forever!, a printed wild, picked for Stolen Memories' "Discard a [mental] resource"): a wild
+ * is not a [mental] resource when it is discarded rather than spent (FFG ruling 186, September 2024, on Stolen
+ * Memories; RRG 1.8 "Wild Resource", p. 48).
+ */
+function ownPayableCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: LegalAction["action"],
+  sourceId: InstanceId,
+): readonly InstanceId[] {
+  const hand = new Set(getPlayer(state, playerId)?.hand ?? []);
+  const cost = actionAbilityCost(state, deps, playerId, action);
+  return handDiscardCandidates(state, deps, sourceId, playerId, cost).filter((id) => hand.has(id));
 }
 
 /**
@@ -131,7 +155,7 @@ export function helperDiscardCandidates(
 ): readonly InstanceId[] {
   const base = action.example;
   if (base.type !== "useAbility" || state.players.length < 2) return [];
-  const own = discardCandidates(state, playerId, base.cardInstanceId);
+  const own = ownPayableCandidates(state, deps, playerId, action.action, base.cardInstanceId);
   const offered: InstanceId[] = [];
   for (const player of state.players) {
     if (player.playerId === playerId) continue;
@@ -176,7 +200,7 @@ export function beginDiscardChoice(
   if (kind !== "playCard" && kind !== "useAbility" && kind !== "basicAttack" && kind !== "basicThwart") return null;
   const cost = discardCostOf(state, deps, playerId, action.action);
   if (!cost) return null;
-  const own = discardCandidates(state, playerId, action.action.instanceId);
+  const own = ownPayableCandidates(state, deps, playerId, action.action, action.action.instanceId);
   const helpers = helperDiscardCandidates(state, deps, playerId, action, cost.min);
   const candidates = [...own, ...helpers];
   if (candidates.length <= cost.min) return null;

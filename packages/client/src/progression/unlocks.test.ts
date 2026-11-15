@@ -151,7 +151,7 @@ describe("the unlock path", () => {
     expect(wave.gate).toEqual({
       kind: "campaignWin",
       campaignId: "aos",
-      hint: "Complete the Agents of S.H.I.E.L.D. campaign",
+      campaign: "Agents of S.H.I.E.L.D.",
     });
     expect(wave.campaignId).toBeUndefined();
     expect(wave.heroRewards).toEqual([
