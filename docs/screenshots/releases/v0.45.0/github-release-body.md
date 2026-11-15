@@ -1,6 +1,6 @@
 ## The Mod Store Is Open
 
-Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported the blank Briefing on Android (#692) and Stealth Training (#700), Funguykawhi reported Kang's obligations on Discord (#717), and @bluefireF5ran fixed which cards Build Support, Call for Backup and Lock and Load offer and how a search with nothing to find resolves (#714, #715). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
+Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported the blank Briefing on Android (#692) and Stealth Training (#700), Funguykawhi reported Kang's obligations on Discord (#717), and @bluefireF5ran fixed which cards Build Support, Call for Backup and Lock and Load offer and how a search with nothing to find resolves (#714, #715) and put the first New game screens into Spanish (#719). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
 
 **[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the fixes from your reports and the thank-you wall.
 
@@ -16,9 +16,9 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 
 ![You asked, we fixed: the Briefing on Android and Stealth Training, reported by @AlecHolland1582, Kang's obligations, reported by Funguykawhi, and two search fixes by @bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e8ca4905f5c2b9e138e8f83b77814d31fc2a9ffd/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
 
-![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, every product built the way a mod is, and smoother screen changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e8ca4905f5c2b9e138e8f83b77814d31fc2a9ffd/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
+![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, every product built the way a mod is, more of the game in Spanish, and smoother screen changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e8ca4905f5c2b9e138e8f83b77814d31fc2a9ffd/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
 
-![Thank you to bluefireF5ran, the pack creators, Kravenprime and AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e8ca4905f5c2b9e138e8f83b77814d31fc2a9ffd/docs/screenshots/releases/v0.45.0/v0-45-0-release-07-thank-you.jpg)
+![Thank you to bluefireF5ran, the pack creators, Kravenprime, AlecHolland1582 and Funguykawhi](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e8ca4905f5c2b9e138e8f83b77814d31fc2a9ffd/docs/screenshots/releases/v0.45.0/v0-45-0-release-07-thank-you.jpg)
 
 ![Code shipped since v0.44.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e8ca4905f5c2b9e138e8f83b77814d31fc2a9ffd/docs/screenshots/releases/v0.45.0/v0-45-0-release-08-code-shipped.jpg)
 
@@ -39,6 +39,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - A hero pack can be marked not ready: its hero can't be picked or seated (decks show "Not ready yet"), and its cards stay out of deck building and import
 - Elektra and Iron Fist hero pictures and an Iron Fist and Luke Cage team-up picture
 - The v0.45.0 release report has its own page on the site, at /releases/v0.45.0/
+- The first New game screens (guide chooser, scenario select, unlock confirm) read in Spanish when the language is Spanish, with plural messages in the translation layer (#390)
 - Past games: every finished game, listed from the Title with its villain, heroes and how it went, to watch again, share as a link or export (#706)
 
 ### Changed
@@ -120,6 +121,6 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 ### Special thanks
 
 - @AlecHolland1582 reported #692 and #700.
-- @bluefireF5ran wrote #714 and #715.
+- @bluefireF5ran wrote #714, #715 and #719.
 - @Kravenprime reported #661.
 - Funguykawhi reported #717 on Discord.
