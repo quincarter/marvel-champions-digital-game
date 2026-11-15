@@ -62,11 +62,15 @@ export const X23_PACK_CARDS: AbilityRegistry = defineAbilities({
   "43021.when-defeated": whenDefeated(
     forEachPlayerInChosenOrder(eachPlayer, [
       ifThen(not(exists(query("upgrade", { trait: SPECIALIZATION, controlledBy: thatPlayer }))), [
-        chooseCards("taken", encounterSetAside({ ...SPECIALIST, ...canEnterPlay(thatPlayer) }), {
-          min: 1,
-          max: 1,
-          chooser: thatPlayer,
-        }),
+        chooseCards(
+          "taken",
+          encounterSetAside({ ...SPECIALIST, ...canEnterPlay(thatPlayer, { controllerStated: true }) }),
+          {
+            min: 1,
+            max: 1,
+            chooser: thatPlayer,
+          },
+        ),
         putIntoPlay({ kind: "slot", slot: "taken" }, thatPlayer, { controllerStated: true }),
       ]),
     ]),

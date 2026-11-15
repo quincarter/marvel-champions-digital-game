@@ -1894,6 +1894,14 @@ export type GameEvent =
       readonly choice: "chooseTarget" | "chooseCards";
     }
   /**
+   * An optional search (`isOptionalSearch`: a `chooseCards` with `min` 0 among a deck's cards, "may search your deck
+   * and discard pile for X") found no card `playerId` could take, so there was nothing to choose and the search passed.
+   * Logged so the player is told rather than the step passing silently (owner decision 2026-11-08). Nothing about the
+   * deck's contents beyond "no valid card" is carried. A required search that finds nothing logs
+   * `preThenUnresolved { cause: "searchFoundNothing" }` instead.
+   */
+  | { readonly type: "searchFoundNothing"; readonly playerId: PlayerId; readonly slot: string }
+  /**
    * The text before a "then" did not fully resolve for a reason other than a required choice finding nothing
    * (`PreThenFailure`; `resolve/then.ts`). `thenSkipped` follows for each "then" it gates. `instanceId`: the card the
    * failed part was about, where there is one (the enemy that did not attack, the card whose reveal was cancelled).

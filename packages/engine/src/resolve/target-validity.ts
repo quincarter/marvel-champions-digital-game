@@ -703,6 +703,43 @@ export function isRequiredSearch(effect: EffectSpec): boolean {
   return effect.kind === "chooseCards" && effect.min >= 1 && choosesAmongDeck(effect.from);
 }
 
+/**
+ * A search a player may come up empty from without anything failing: a `chooseCards` with a minimum of 0 among a
+ * deck's cards ("may search your deck for X", "search the top 5 cards of your deck for X"). When it finds no card it can
+ * take, the engine says so (`searchFoundNothing`) rather than passing silently. Not a look at a deck's top cards
+ * (`looksAtTopCards`: "look at the top 2 cards of your deck"), which names cards by their place and searches nothing,
+ * unless the effect says it is a search (`chooseCards.search`: "searches the top X cards of their deck for a card").
+ */
+export function isOptionalSearch(effect: EffectSpec): boolean {
+  if (effect.kind !== "chooseCards" || effect.min !== 0) return false;
+  if (effect.search !== true && looksAtTopCards(effect.from)) return false;
+  return readsDeck(effect.from) || listsDeckZone(effect.from);
+}
+
+/**
+ * Whether a selector names a deck's top cards with nothing to look for among them: a `top` and no `filter` ("look at
+ * the top N cards", "the top card of your deck"). Card text writes a search of the top N with what it is for ("search
+ * the top 5 cards of your deck for an Arrow event", a `filter`), so the bare top N is a look. A list of selectors
+ * (`anyOf`) is a look when each one is.
+ */
+function looksAtTopCards(selector: CardSelector): boolean {
+  if (selector.kind === "anyOf") return selector.of.length > 0 && selector.of.every(looksAtTopCards);
+  return "top" in selector && selector.top !== undefined && !("filter" in selector && selector.filter !== undefined);
+}
+
+/**
+ * Whether a selector reads a deck among a list of zones (`zone: ["deck", "discard"]`, "your deck and discard pile"),
+ * which `readsDeck` does not look at. Kept to `isOptionalSearch` so the required-choice / required-search split that
+ * `readsDeck` drives is unchanged.
+ */
+function listsDeckZone(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(listsDeckZone);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (Array.isArray(record.zone) && record.zone.includes("deck")) return true;
+  return Object.values(record).some(listsDeckZone);
+}
+
 /** Whether a choice reads a value or a card the ability's cost binds (`var`, `slot`, `inSlot`, `excludeSlots`). */
 function readsBindings(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(readsBindings);

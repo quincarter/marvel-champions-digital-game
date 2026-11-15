@@ -186,10 +186,12 @@ export const PSYLOCKE_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities
     // Choosing the player is part of the cost's wording: with nobody whose identity has MUTANT it cannot be used.
     { cost: exhaustThis, while: exists(query("identity", { trait: MUTANT })) },
     choosePlayer("player", you, { among: playersWhere(hasTrait(identityOf(thatPlayer), MUTANT)) }),
+    // "searches the top X cards … for a card": a search, though nothing narrows it (`chooseCards.search`).
     chooseCards("found", zone("deck", chosenPlayer("player"), { top: victoryDisplayCount(query("sideScheme")) }), {
       min: 0,
       max: 1,
       chooser: chosenPlayer("player"),
+      search: true,
     }),
     moveCards(cards(chosen("found")), "hand"),
     shuffleDeck(chosenPlayer("player")),

@@ -1980,6 +1980,11 @@ export const chooseCards = (
     readonly maxTotalPrintedCost?: number;
     /** Another player's hand cards are offered facedown (`EffectSpec chooseCards.hiddenHands`; owner answer 211). */
     readonly hiddenHands?: boolean;
+    /**
+     * "Search the top X cards … for a card": a search, though `from` is an unfiltered top N, which otherwise reads as
+     * "look at the top N" (`EffectSpec chooseCards.search`).
+     */
+    readonly search?: boolean;
   },
 ): EffectSpec => ({
   kind: "chooseCards",
@@ -1993,6 +1998,7 @@ export const chooseCards = (
     ? { maxTotal: { of: "printedCost" as const, atMost: opts.maxTotalPrintedCost } }
     : {}),
   ...(opts.hiddenHands ? { hiddenHands: true as const } : {}),
+  ...(opts.search ? { search: true as const } : {}),
 });
 /**
  * "Discard the [superlative] card in your hand" on an encounter card, among `from` (the tied cards): the first player

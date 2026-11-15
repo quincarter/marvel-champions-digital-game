@@ -139,6 +139,13 @@ describe("wave 3 log lines", () => {
     expect(theirs!.text).toContain("deck is shuffled");
   });
 
+  test("searchFoundNothing tells the searcher, in your words or theirs", () => {
+    const mine = logLine({ type: "searchFoundNothing", playerId: me, slot: "found" }, state, me, POOL_DEPS);
+    const theirs = logLine({ type: "searchFoundNothing", playerId: opponent, slot: "found" }, state, me, POOL_DEPS);
+    expect(mine!.text).toBe("You found no card to take in your search.");
+    expect(theirs!.text).toMatch(/^(?!You ).+ found no card to take in their search\.$/);
+  });
+
   test("enemyAttackedEnemy names both enemies, and says why when skipped", () => {
     const villain = activeVillain(state).instanceId;
     const hit = logLine(
