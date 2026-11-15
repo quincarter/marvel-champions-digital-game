@@ -98,7 +98,7 @@ async function capacitorGet(url: string, as: NativeBody, maxBytes: number): Prom
   // Checked before decoding, so an oversized body is not also copied; the bridge has already held it (see nativeGet).
   const tooLarge =
     Number(header("content-length")) > maxBytes ||
-    (typeof response.data === "string" && (response.data.length * 3) / 4 - 3 > maxBytes) ||
+    (typeof response.data === "string" && as === "bytes" && base64DecodedLength(response.data) > maxBytes) ||
     (response.data instanceof ArrayBuffer && response.data.byteLength > maxBytes);
   if (tooLarge) throw new NativeTooLargeError(maxBytes);
   return {
@@ -106,6 +106,23 @@ async function capacitorGet(url: string, as: NativeBody, maxBytes: number): Prom
     contentType: header("content-type").toLowerCase(),
     body: capacitorBody(response.data, as),
   };
+}
+
+/**
+ * How many bytes a base64 string decodes to. Android's CapacitorHttp encodes with `Base64.DEFAULT`, which breaks the
+ * text with a newline every 76 characters: counted as data, those made every pack about 1% larger than its catalog
+ * size, and every Mod Store install on Android was refused as oversized. Whitespace is skipped, as `atob` does.
+ */
+export function base64DecodedLength(data: string): number {
+  let chars = 0;
+  let padding = 0;
+  for (let i = 0; i < data.length; i++) {
+    const code = data.charCodeAt(i);
+    if (code === 0x0a || code === 0x0d || code === 0x20 || code === 0x09 || code === 0x0c) continue;
+    chars++;
+    padding = code === 0x3d ? padding + 1 : 0;
+  }
+  return Math.floor((chars * 3) / 4) - Math.min(padding, 2);
 }
 
 /**
