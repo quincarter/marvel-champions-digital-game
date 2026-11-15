@@ -50,7 +50,6 @@ import {
   pastGameRowParts,
   pastGameRowsOf,
   pastGamesLayout,
-  partialLogStop,
   playedMinutesOf,
   seatFatesOf,
   type PastGameAction,
@@ -70,7 +69,7 @@ import {
   replayErrorKey,
 } from "../replay/replay-files.js";
 import { ReplayOpenError } from "../replay/replay-core.js";
-import type { ReplayHost } from "../replay/replay-host.js";
+import { exportPastGame, sharePastGame, type PastGameActionDeps } from "../replay/past-game-actions.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
 import { appSession } from "../session.js";
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
@@ -351,26 +350,25 @@ export class PastGamesScene extends Phaser.Scene {
   }
 
   /** Writes a game's replay file (or its log) and hands it out through the shell's own route. */
+  /** The actions' steps (`replay/past-game-actions.ts`), each standing down once `visit` is no longer this one. */
+  #actionDeps(visit: number): PastGameActionDeps {
+    return {
+      open: (gameId) => openReplay({ kind: "stored", gameId }),
+      current: () => this.#current(visit),
+      deliverFile: deliverReplayFile,
+      deliverLog: deliverGameLog,
+      shareLink: (bytes) => shareLinkOf(bytes, detectPlatform() !== "web"),
+    };
+  }
+
+  /** Writes a game's replay file (or its log) and hands it out through the shell's own route. */
   async #export(row: PastGameRow, kind: "export" | "log"): Promise<void> {
     const visit = this.#visit;
     this.#setBusy({ id: row.id, action: kind }, visit);
-    let host: ReplayHost | null = null;
     try {
-      host = await openReplay({ kind: "stored", gameId: row.id });
-      if (kind === "export") {
-        const { bytes, name } = await host.exportFile();
-        host.dispose();
-        host = null;
-        await deliverReplayFile(bytes, name);
-      } else {
-        const { text, name } = await host.exportLog();
-        // A game this build can't play to its end writes a log that stops where it does: say so, never hand it out
-        // looking complete.
-        const stopsAt = partialLogStop(host.info);
-        host.dispose();
-        host = null;
-        await deliverGameLog(text, name);
-        if (stopsAt !== null) this.#sayIn(visit, t("pastGames.partialLog", { n: stopsAt }), 8000);
+      const outcome = await exportPastGame(row.id, kind, this.#actionDeps(visit));
+      if (outcome.kind === "delivered" && outcome.stopsAt !== null) {
+        this.#sayIn(visit, t("pastGames.partialLog", { n: outcome.stopsAt }), 8000);
       }
     } catch (cause) {
       if (!isAbort(cause)) {
@@ -379,7 +377,6 @@ export class PastGamesScene extends Phaser.Scene {
         this.#sayIn(visit, t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.exportFailed"));
       }
     } finally {
-      host?.dispose();
       this.#setBusy(null, visit);
     }
   }
@@ -393,13 +390,9 @@ export class PastGamesScene extends Phaser.Scene {
     const visit = this.#visit;
     this.#setBusy({ id: row.id, action: "share" }, visit);
     let url: string | null = null;
-    let host: ReplayHost | null = null;
     try {
-      host = await openReplay({ kind: "stored", gameId: row.id });
-      const { bytes } = await host.exportFile();
-      host.dispose();
-      host = null;
-      const shared = await shareLinkOf(bytes, detectPlatform() !== "web");
+      const shared = await sharePastGame(row.id, this.#actionDeps(visit));
+      if (shared.ok === "stale") return;
       if (!shared.ok) {
         this.#sayIn(visit, t(shareFailureKey(shared.failure)));
         return;
@@ -413,7 +406,6 @@ export class PastGamesScene extends Phaser.Scene {
       }
       return;
     } finally {
-      host?.dispose();
       this.#setBusy(null, visit);
     }
     if (url && this.#current(visit)) await this.#deliverLink(url);
