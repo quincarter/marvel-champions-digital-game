@@ -54,6 +54,7 @@ if (
   !force &&
   !from &&
   state.source === source &&
+  state.complete === true &&
   state.ids.every((id) => fs.existsSync(path.join(DEST, id, "pack.json")))
 ) {
   console.log(`[packs] ${state.ids.length} packs already at ${source.slice(0, 12)}`);
@@ -116,6 +117,14 @@ if (unowned.length > 0 && !force) {
   process.exit(1);
 }
 fs.mkdirSync(DEST, { recursive: true });
+// Marked incomplete before anything changes (keeping every id it owns, old and new, for a retry), and complete only once
+// every pack is in place: an interrupted run is redone by the next one, never taken as done.
+const writeState = (complete, owned) => {
+  const tmp = `${STATE}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify({ source, ids: owned, complete }, null, 2)}\n`);
+  fs.renameSync(tmp, STATE);
+};
+writeState(false, [...new Set([...state.ids, ...ids])].sort());
 for (const id of state.ids) {
   if (!ids.includes(id)) fs.rmSync(path.join(DEST, id), { recursive: true, force: true });
 }
@@ -124,5 +133,5 @@ for (const id of ids) {
   fs.cpSync(path.join(packs, id), path.join(DEST, id), { recursive: true });
 }
 if (!from) fs.rmSync(path.dirname(packs), { recursive: true, force: true });
-fs.writeFileSync(STATE, `${JSON.stringify({ source, ids }, null, 2)}\n`);
+writeState(true, ids);
 console.log(`[packs] ${ids.length} packs from ${source.slice(0, 12)} → content-packs/community: ${ids.join(", ")}`);
