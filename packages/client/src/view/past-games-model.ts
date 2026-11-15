@@ -124,6 +124,7 @@ export function isPastGame(save: SaveMeta, appVersion: string = CLIENT_VERSION):
 
 function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] {
   const named = (identityCardId: string): string => names.identityName(identityCardId) ?? identityCardId;
+  const unfinished = resultOf(save) === "unfinished";
   const summarized = save.summary?.seats;
   if (summarized && summarized.length > 0) {
     return summarized
@@ -131,7 +132,8 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
       .map((seat) => ({
         identityCardId: seat.identityCardId,
         name: named(seat.identityCardId),
-        fell: seat.defeated,
+        // A game left before its end: a hero still up when it was left did not stand to the end of anything.
+        fell: seat.defeated ? true : unfinished ? null : false,
         damage: seat.damage,
         thwart: seat.thwart,
       }));

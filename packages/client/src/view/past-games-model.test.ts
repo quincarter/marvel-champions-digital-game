@@ -126,6 +126,20 @@ describe("pastGameRowsOf", () => {
     ]);
   });
 
+  test("a game left unfinished says who fell, but nobody 'stood' to an end it never reached", () => {
+    const [row] = pastGameRowsOf(
+      [
+        save("u", 1, {
+          status: "abandoned",
+          outcome: null,
+          summary: { lossReason: "other", seats: [seat("she-hulk", true), seat("black-panther", false)] } as never,
+        }),
+      ],
+      NAMES,
+    );
+    expect(row!.seats.map((s) => s.fell)).toEqual([true, null]);
+  });
+
   test("a loss to every hero falling is a wipe even without a summary; a precon seat is its hero", () => {
     const [row] = pastGameRowsOf(
       [
