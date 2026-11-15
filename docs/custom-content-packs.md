@@ -80,9 +80,9 @@ content-packs/
     *.test.ts                     the pack's own tests (a smoke game at least)
 ```
 
-A pack's source images are a bundle in `assets/manifest.json`, in the optional `pack-art` group: `pnpm assets:pack
-pack-art-<id>` uploads them like any other bundle, and a plain `pnpm assets:fetch` skips the group, so the app build
-and a fresh checkout never download them (`pnpm assets:fetch pack-art` does).
+Since 2026-11-15 the community packs live in the Mod Store registry repo (`packs/<id>/`, pictures included) and are
+published from there; this repo fetches them as test fixtures only (`pnpm packs:fetch`, at the registry commit
+`content-packs/community.json` pins; CONTRIBUTING.md, "Community packs").
 
 Nothing in `packages/` imports from `content-packs/`. A guard test (like `campaign-art.test.ts`'s) fails if one
 does, and `bundled-art.ts` never sees these cards because they are not in `POOL_CARDS`.
@@ -669,6 +669,14 @@ sets that version's `preview`, as this repo's `publish-packs.yml` does.
 The client fetches the catalog when the store opens, with a short cache. It keeps the last copy, so the store still
 opens offline and shows what's installed.
 
+**One publisher since 2026-11-15.** The community packs moved to the registry repo, and this repo's
+`publish-packs.yml` (with `scripts/publish-pack-index.mjs`, `scripts/check-pack-ownership.mjs` and
+`scripts/upload-staged-packs.mjs`) is gone. The registry took the ids over with `adopt: game` on each pack's entry:
+its publish keeps every version this repo published exactly as listed (it rebuilds and checks one, but doesn't upload
+it again, since a rebuild with the npm SDK doesn't always give the same bytes) and makes the entry
+`"source": "registry"`. The rest of this section describes the two-publisher design both repos ran until then;
+`scripts/lib/pack-index.mjs` stays, since the e2e specs build their local catalog with it.
+
 **Two publishers, one `index.json` (2026-11-13).** This repo's `publish-packs.yml` and the registry's `publish.yml`
 both read `index.json`, upsert their own packs and write it back. A workflow `concurrency` group only serializes runs
 inside one repo, so each write is conditional (`scripts/r2-conditional-update.mjs`, a copy in each repo):
@@ -721,8 +729,8 @@ existed, by this repo, so both sides read it as `"game"`.
   publish job before the upload, and the merge (`upsertPackIndex`) refuses it as a last line.
 - Withdrawing touches only the writer's own entries: the registry drops only `"registry"` entries whose
   `packs/<id>.yaml` is gone, and this repo's `unwithdraw` only lists its own packs again.
-- Moving a pack from one publisher to the other is a manual edit of `index.json` (change its `source`), never
-  something either workflow does.
+- Moving a pack from this repo to the registry is the registry's `adopt: game` (above); nothing else changes a
+  `source`.
 
 ### 11.6 The store screen
 

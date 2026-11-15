@@ -1,0 +1,5 @@
+{
+  "$comment": "The community content packs live in the Mod Store registry (packs/<id>/) and are published from there. pnpm packs:fetch (scripts/packs-fetch.mjs) puts them in content-packs/community/ at this commit, for the tests and the e2e specs that use them. Bump the commit to test against newer packs.",
+  "repo": "https://github.com/quincarter/marvel-champions-mods",
+  "commit": "1b9ee3b5059f43c4a203d8373a4bd8fa8937ad1c"
+}

@@ -1,0 +1,3 @@
+kind: Changed
+body: The community content packs (Carnage, Gwenpool, Mephisto, Night Thrasher, The Punisher, Yondu, Lost Traits, GMW Fixes and the Throg draft) moved to the Mod Store registry repo, which publishes them now; the game repo fetches them for its tests with pnpm packs:fetch.
+time: 2026-11-15T15:35:06.7541107-05:00
