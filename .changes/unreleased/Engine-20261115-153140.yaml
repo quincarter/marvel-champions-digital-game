@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A permanent encounter attachment whose host leaves play (Flight) now resolves its "attach to" again: with no villain in play it waits and attaches to the next villain that enters play (Morlock Siege, Mansion Attack), and with no valid target it is removed from the game instead of discarded (#525 item 8).'
-time: 2026-11-15T15:31:40.5147945+01:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A "prevent all damage from this attack" on an attack with several targets prevents only the damage to the character it protects: Attacrobatics and Night Vision Goggles against Spray Fire still let the engaged minions take theirs, and Attacrobatics'' expert clause deals the damage prevented on Black Widow. The protected character is the one the attack was against when the prevention resolved: an attack moved afterwards deals its damage to its new target'
-time: 2026-11-15T15:43:27.686415+01:00

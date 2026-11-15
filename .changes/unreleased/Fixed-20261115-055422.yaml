@@ -1,3 +1,0 @@
-kind: Fixed
-body: Discarding a resource to get rid of Kang's Temporal obligations offers only cards with the named printed resource, so picking a wild card no longer leaves Confirm stuck (#717, reported by Funguykawhi).
-time: 2026-11-15T05:54:22.4551616-05:00

@@ -1,3 +1,0 @@
-kind: Added
-body: The first New game screens (guide chooser, scenario select, unlock confirm) read in Spanish when the language is Spanish, with plural messages in the translation layer (#390)
-time: 2026-11-15T02:53:20.2342003+01:00

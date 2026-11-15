@@ -1,3 +1,0 @@
-kind: Fixed
-body: A guard minion that engages while an attack is resolving (Swift Retribution and a Goblin Thrall boost) no longer stops that attack's damage; guard is checked when the attack is initiated, after its cost is paid, and each attack of Dance of Death is checked on its own
-time: 2026-11-15T14:12:26.1987694+01:00

@@ -1,3 +1,0 @@
-kind: Changed
-body: The landing page holds back a release's news and report screenshots until GitHub publishes it, and redeploys when a release is published so its downloads and news are current
-time: 2026-11-14T20:41:41.1613758-05:00
