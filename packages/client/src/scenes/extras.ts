@@ -592,6 +592,8 @@ export class ExtrasScene extends Phaser.Scene {
       focusY: portrait ? 0.2 : 0.4,
       // Locked: a gray ghost of the picture on the ink ground, so the shelf shows what there is to earn.
       ...(tile.open ? {} : { grayscale: true, alpha: 0.3 }),
+      // A shelf of tiles, each a large picture drawn small (issue #722).
+      scaleToSlot: true,
     };
     const image = drawPicture(this, tile.thumb, art, this.#pictureArrived, pictureOptions);
     if (image) {
@@ -608,7 +610,7 @@ export class ExtrasScene extends Phaser.Scene {
       objects.push(slot);
       // Only a picture whose load was started is waited for (an empty slot starts none).
       if (tile.thumb && art.width > 0 && art.height > 0) {
-        const key = drawnPictureKey(tile.thumb, art, !tile.open);
+        const key = drawnPictureKey(tile.thumb, art, !tile.open, true);
         if (key) this.#pictures.expect(key);
         waiting.push(() => {
           if (!slot.active || slot.list[0] !== initial) return;

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type Phaser from "phaser";
 import {
+  ensureBakedPictureLoaded,
   ensurePictureLoaded,
   isPictureSettled,
   onPictureLoadFailed,
@@ -288,5 +289,53 @@ describe("a picture that fails after an earlier batch was told (#713 review)", (
     FakeImage.all.find((i) => i.src === "/y.png")!.onerror?.();
     await settled();
     expect(heard).toEqual(["x"]);
+  });
+});
+
+describe("ensureBakedPictureLoaded reuses a copy already in (#713)", () => {
+  test("a copy baked for a larger slot draws a smaller one at once, with nothing loaded", () => {
+    const textures = new FakeTextures();
+    textures.shared.add("cover#@512x256");
+    const scene = new FakeScene(textures);
+    let told = 0;
+    expect(
+      ensureBakedPictureLoaded(
+        scene.asScene,
+        { key: "cover", url: "/cover.png" },
+        { width: 256, height: 128 },
+        false,
+        () => told++,
+      ),
+    ).toBe("cover#@512x256");
+    expect(FakeImage.all).toEqual([]);
+    expect(told).toBe(0);
+  });
+
+  test("the full picture covers any color slot, but not a gray one", () => {
+    const textures = new FakeTextures();
+    textures.shared.add("cover");
+    const scene = new FakeScene(textures);
+    const picture: Picture = { key: "cover", url: "/cover.png" };
+    expect(ensureBakedPictureLoaded(scene.asScene, picture, { width: 1024, height: 512 }, false, () => undefined)).toBe(
+      "cover",
+    );
+    expect(
+      ensureBakedPictureLoaded(scene.asScene, picture, { width: 256, height: 128 }, true, () => undefined),
+    ).toBeNull();
+  });
+
+  test("a smaller copy doesn't cover a larger slot", () => {
+    const textures = new FakeTextures();
+    textures.shared.add("cover#@256x128");
+    const scene = new FakeScene(textures);
+    expect(
+      ensureBakedPictureLoaded(
+        scene.asScene,
+        { key: "cover", url: "/cover.png" },
+        { width: 512, height: 256 },
+        false,
+        () => undefined,
+      ),
+    ).toBeNull();
   });
 });

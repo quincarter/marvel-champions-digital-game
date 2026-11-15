@@ -10,7 +10,7 @@
 import Phaser from "phaser";
 import { CAMPAIGN_ART, campaignArtboardFor, campaignCoverFor, campaignPageFor } from "../art/campaign-art.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
-import { bakedKeyOf, coverFit, ensureBakedPictureLoaded, type Picture } from "../art/pictures.js";
+import { bakedKeyOf, coverFit, ensureBakedPictureLoaded, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { graySlotOf } from "../art/grayscale.js";
 import { currentRenderScale } from "./render-scale.js";
 import { ART_CATALOG } from "../art/scenario-art.js";
@@ -468,19 +468,19 @@ export function drawPicture(
     readonly focusX?: number;
     readonly focusY?: number;
     readonly grayscale?: boolean;
+    /**
+     * Draw a copy scaled to this slot (issue #722) rather than the full picture: for a shelf of many small tiles, where
+     * uploading each 2400 x 3600 picture whole cost frames. A screen showing the same picture at other sizes (the Saga's
+     * tiles and its featured cover) leaves it off, so the full picture loaded once serves every size at once.
+     */
+    readonly scaleToSlot?: boolean;
     readonly alpha?: number;
   } = {},
 ): Phaser.GameObjects.Image | null {
   if (!picture || rect.width <= 0 || rect.height <= 0) return null;
-  // Baked for the slot (issue #722): scaled to the size it is drawn at, so the upload is small, and gray in its own
-  // texture when asked (issue #716), since a grayscale filter re-renders its picture through a framebuffer every frame.
-  const key = ensureBakedPictureLoaded(
-    scene,
-    picture,
-    graySlotOf(rect, currentRenderScale()),
-    options.grayscale ?? false,
-    onReady,
-  );
+  // Gray is baked into its own texture (issue #716), since a grayscale filter re-renders its picture through a
+  // framebuffer every frame; a slot that asks for it gets a copy scaled to the size it is drawn at (issue #722).
+  const key = loadDrawn(scene, picture, rect, onReady, options.grayscale ?? false, options.scaleToSlot ?? false);
   if (!key) return null;
   const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
   // A picture's own focus point (a hero's `focus.json`) wins over the caller's per-screen default on the axis it names.
@@ -504,9 +504,28 @@ export function drawPicture(
  * The texture key `drawPicture` draws `picture` from in `rect`: what a screen waiting for its pictures expects
  * (`ui/picture-wait.ts`), or null when nothing would be drawn.
  */
-export function drawnPictureKey(picture: Picture | null, rect: Rect, grayscale = false): string | null {
+export function drawnPictureKey(
+  picture: Picture | null,
+  rect: Rect,
+  grayscale = false,
+  scaleToSlot = false,
+): string | null {
   if (!picture || rect.width <= 0 || rect.height <= 0) return null;
+  if (!grayscale && !scaleToSlot) return picture.key;
   return bakedKeyOf(picture, graySlotOf(rect, currentRenderScale()), grayscale);
+}
+
+/** What `drawPicture` loads: the full picture, or a copy baked for the slot when gray or asked to scale. */
+function loadDrawn(
+  scene: Phaser.Scene,
+  picture: Picture,
+  rect: Rect,
+  onReady: () => void,
+  grayscale: boolean,
+  scaleToSlot: boolean,
+): string | null {
+  if (!grayscale && !scaleToSlot) return ensurePictureLoaded(scene, picture, onReady);
+  return ensureBakedPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), grayscale, onReady);
 }
 
 /**
@@ -519,9 +538,10 @@ export function preloadDrawnPicture(
   rect: Rect,
   onReady: () => void,
   grayscale = false,
+  scaleToSlot = false,
 ): string | null {
   if (rect.width <= 0 || rect.height <= 0) return null;
-  return ensureBakedPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), grayscale, onReady);
+  return loadDrawn(scene, picture, rect, onReady, grayscale, scaleToSlot);
 }
 
 /** Finished issues read as back issues: grayscale (C07). Uses Phaser 4's color-matrix filter when available. */

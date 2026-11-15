@@ -18,7 +18,7 @@
 import type Phaser from "phaser";
 import { canvasOf } from "./bitmap-canvas.js";
 import { decodedBakedPicture } from "./picture-bake-client.js";
-import { grayKeyOf, scaledKeyOf, type Size } from "./grayscale.js";
+import { GRAY_BUCKETS, grayKeyOf, scaledKeyOf, type Size } from "./grayscale.js";
 import { focusedOffset, type PictureFocus } from "./focus.js";
 
 export { focusedOffset, type PictureFocus };
@@ -115,12 +115,29 @@ export function ensureBakedPictureLoaded(
   gray: boolean,
   onReady: () => void,
 ): string | null {
-  return ensureTextureLoaded(
-    scene,
-    bakedKeyOf(picture, slot, gray),
-    () => decodedBakedPicture(picture.url, slot, gray),
-    onReady,
-  );
+  const exact = bakedKeyOf(picture, slot, gray);
+  if (!scene.textures.exists(exact)) {
+    // A copy already in that covers this slot (baked for a larger one, or the full picture) draws now, with nothing to
+    // wait for: the Saga's featured cover, the same picture as a tile already on screen, used to start a bake and
+    // redraw the whole screen when it landed, under the player's next tap.
+    const loaded = loadedCopyCovering(scene, picture, slot, gray);
+    if (loaded) return loaded;
+  }
+  return ensureTextureLoaded(scene, exact, () => decodedBakedPicture(picture.url, slot, gray), onReady);
+}
+
+/** The key of a copy of `picture` already loaded that covers `slot`: a larger bucket's, or (in color) the original. */
+function loadedCopyCovering(scene: Phaser.Scene, picture: Picture, slot: Size, gray: boolean): string | null {
+  const textures = scene.textures;
+  for (const width of GRAY_BUCKETS) {
+    if (width < slot.width) continue;
+    for (const height of GRAY_BUCKETS) {
+      if (height < slot.height) continue;
+      const key = bakedKeyOf(picture, { width, height }, gray);
+      if (textures.exists(key)) return key;
+    }
+  }
+  return !gray && textures.exists(picture.key) ? picture.key : null;
 }
 
 /** The texture key of `picture`'s copy baked for `slot` (gray or not): what `ensureBakedPictureLoaded` loads. */
