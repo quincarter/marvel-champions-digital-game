@@ -98,6 +98,7 @@
   "The FFG rulings transcript now runs to October 12, 2026.": "La transcripción de resoluciones de FFG ahora llega hasta el 12 de octubre de 2026.",
   "Smoother, and up to date": "Más fluido, y al día",
   "<b>Moving between screens is smooth (#712).</b> Title, Extras and the Mod Store fade in already fully drawn, instead of filling in and blinking, and the Extras tabs switch without a hitch.": "<b>Pasar de una pantalla a otra es fluido (#712).</b> Title, Extras y la Mod Store aparecen ya dibujadas del todo, en vez de irse rellenando y parpadear, y las pestañas de Extras cambian sin tirones.",
+  "<b>Less work on the main thread (#716, #722):</b> progress and pictures are prepared in workers, so screen changes hitch far less.": "<b>Menos trabajo en el hilo principal (#716, #722):</b> el progreso y las imágenes se preparan en workers, así que los cambios de pantalla dan muchos menos tirones.",
   "Every dependency is on its latest compatible version.": "Cada dependencia está en su última versión compatible.",
   "The project's current status and architecture pages are up to date, including how the content, mod template and Mod Store registry repositories feed the game.": "Las páginas de estado actual y de arquitectura del proyecto están al día, incluido cómo los repositorios de contenido, de la plantilla de mods y del registro de la Mod Store alimentan el juego.",
   "Thank you!": "¡Gracias!",
