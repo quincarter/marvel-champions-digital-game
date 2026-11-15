@@ -64,6 +64,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - Stealth Training now responds when you exactly defeat Secure the Landing Pad, and the log names the side scheme instead of Cosmo for the threat removed and the defeat (#700)
 - Moving between Title, Extras and the Mod Store is smooth: each screen fades in once it is fully drawn instead of filling in and blinking as its text, saves and pictures arrive, and the Extras tabs switch without a hitch
 - A minion's target line no longer repeats its hit points when the attack preview already shows them
+- Extras arrives with its tile pictures in place and fades in without stepping (a locked tile's gray picture is baked once, off the main thread, instead of filtered every frame), and the Mod Store's first-visit notice opens with its portraits and words (#716)
 
 ### Engine
 
