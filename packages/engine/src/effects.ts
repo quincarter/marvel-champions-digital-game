@@ -1816,9 +1816,7 @@ const requestCauseSide = (state: GameState, request: LeaveRequest): LeaveCauseSi
  * tuck`, docs/phase7-wave9.md §3.20) or to a separate deck (`LeaveRequest separateDeck`, docs/phase7-wave11.md §3.3)
  * the move that was replaced, whose source card and cost are still the cause.
  */
-export const leaveMadeBy = (
-  request: LeaveRequest,
-): Exclude<LeaveRequest, { readonly kind: "tuck" | "separateDeck" }> =>
+export const leaveMadeBy = (request: LeaveRequest): Exclude<LeaveRequest, { readonly kind: "tuck" | "separateDeck" }> =>
   request.kind === "tuck" || request.kind === "separateDeck" ? request.replaced : request;
 
 /**

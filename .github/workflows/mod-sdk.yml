@@ -65,12 +65,12 @@ jobs:
       version: ${{ steps.build.outputs.version }}
       tarball: ${{ steps.build.outputs.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG || github.ref }}
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -100,7 +100,7 @@ jobs:
           MC_SDK_PACKAGE_NAME: ${{ vars.MC_SDK_PACKAGE_NAME || '@champions-digital-game/mod-sdk' }}
         run: pnpm --filter @mc/mod-sdk smoke:dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mod-sdk-tarball
           path: packages/mod-sdk/dist-npm/*.tgz
@@ -125,11 +125,11 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
     # No checkout of pack code and no install: this job only moves the tarball the build job made.
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: mod-sdk-tarball
           path: dist

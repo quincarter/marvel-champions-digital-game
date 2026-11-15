@@ -310,11 +310,7 @@ function tableAssociationsOf(
   };
 }
 
-const normalize = (text: string): string =>
-  text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+const normalize = (text: string): string => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 /**
  * `entries`, narrowed to the ones matching `query` in their term, definition, or an associated card's name — case- and

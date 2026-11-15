@@ -53,11 +53,11 @@
   },
   "devDependencies": {
     "lint-staged": "^17.6.0",
-    "oxfmt": "^0.72.0",
-    "oxlint": "^1.87.0",
-    "playwright": "^1.64.0",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "playwright": "^1.65.1",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   },
   "lint-staged": {
     "*.{ts,mts,cts,js,mjs,cjs}": [

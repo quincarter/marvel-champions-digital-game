@@ -20,6 +20,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "wrangler": "4.151.1"
+    "wrangler": "4.162.0"
   }
 }

@@ -77,11 +77,11 @@ jobs:
     env:
       STAGING: ${{ github.workspace }}/pack-artifact/staging
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -187,7 +187,7 @@ jobs:
             (cd "$STAGING" && find . -mindepth 2 -maxdepth 2 -type d | sed 's|^\./||' | sort)
           } > "$STAGING/../staged.txt"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: staged-packs
           path: pack-artifact
@@ -216,13 +216,13 @@ jobs:
     # No pnpm install and no mc-pack here: this job only moves the files the build job staged, and runs this repo's
     # own scripts (Node built-ins only) on them.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: staged-packs
           path: pack-artifact
