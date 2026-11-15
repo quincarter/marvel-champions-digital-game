@@ -165,6 +165,8 @@ export class PastGamesScene extends Phaser.Scene {
    * Back and in again) checks it after each wait and stands down rather than act on this one.
    */
   #visit = 0;
+  /** Back has started the fade out: no action starts until the next visit (a Watch begun now would land nowhere). */
+  #leaving = false;
   /** Where the focus ring is: the side panel's actions take the stick and Page keys for the details. */
   #focusKey: string | null = null;
 
@@ -174,6 +176,7 @@ export class PastGamesScene extends Phaser.Scene {
 
   create(): void {
     this.#alive = true;
+    this.#leaving = false;
     this.#visit += 1;
     this.#busy = null;
     this.#status = null;
@@ -240,7 +243,7 @@ export class PastGamesScene extends Phaser.Scene {
 
   /** True while `visit` is still this scene's visit: a wait that began in an earlier one acts on nothing. */
   #current(visit: number): boolean {
-    return this.#alive && this.#visit === visit;
+    return this.#alive && !this.#leaving && this.#visit === visit;
   }
 
   async #load(): Promise<void> {
@@ -255,7 +258,9 @@ export class PastGamesScene extends Phaser.Scene {
     // A replay being put on the board (Watch, or a picked file) is not walked away from: once it is installed on the session
     // only the board's own shutdown takes it down, and a Title fade already running would swallow the board's start.
     if (this.#busy?.action === "watch") return;
-    // Anything else still waiting (a Share, an Export) stands down from here, not from the fade's end.
+    // Anything else still waiting (a Share, an Export) stands down from here, not from the fade's end, and nothing new
+    // starts during the fade.
+    this.#leaving = true;
     this.#visit += 1;
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.title);
@@ -309,7 +314,7 @@ export class PastGamesScene extends Phaser.Scene {
   // ---- actions --------------------------------------------------------------------------------------------------
 
   #act(row: PastGameRow, action: PastGameAction): void {
-    if (this.#busy) return;
+    if (this.#busy || this.#leaving) return;
     switch (action) {
       case "watch":
         void this.#watch(row);
@@ -419,7 +424,7 @@ export class PastGamesScene extends Phaser.Scene {
 
   /** "Open a replay file": a replay someone else made, watched on the board; Exit comes back here. */
   async #openFile(): Promise<void> {
-    if (this.#busy) return;
+    if (this.#busy || this.#leaving) return;
     const visit = this.#visit;
     this.#setBusy({ id: "", action: "file" }, visit);
     try {
