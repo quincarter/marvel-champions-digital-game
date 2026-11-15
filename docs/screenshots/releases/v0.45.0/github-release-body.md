@@ -69,6 +69,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - Discarding a resource to get rid of Kang's Temporal obligations offers only cards with the named printed resource, so picking a wild card no longer leaves Confirm stuck (#717, reported by Funguykawhi).
 - Extras arrives with its tile pictures in place and fades in without stepping (a locked tile's gray picture is baked once, off the main thread, instead of filtered every frame), and the Mod Store's first-visit notice opens with its portraits and words (#716)
 - An action with a "discard a card" cost is no longer hidden when System Shock is in hand: the default pick skips the card you cannot choose to discard.
+- Opening Title, Extras and the Mod Store does less on the main thread: progress is read and worked out in a worker, pictures are scaled to the size they are drawn at in a worker before they are uploaded, and Extras is not drawn a second time when nothing changed (#722)
 
 ### Engine
 
@@ -117,6 +118,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - The current status page is up to date: what's playable now, and what v0.45.0 brings
 - The architecture page shows the content, mod template and Mod Store registry repositories and how their content reaches the game
 - Community packs: record the creators' Discord permissions for Night Thrasher, Yondu, Gwenpool, Throg, Carnage and Mephisto (BlueHG's OK for Yondu's nemesis set is still secondhand)
+- Yondu: record BlueHG's permission as an indirect yes through DesignHacker, accepted by the owner
 
 ### Special thanks
 
