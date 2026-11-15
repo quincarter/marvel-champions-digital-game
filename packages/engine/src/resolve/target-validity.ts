@@ -652,7 +652,8 @@ export function readsDeck(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(readsDeck);
   if (value === null || typeof value !== "object") return false;
   const record = value as Readonly<Record<string, unknown>>;
-  if (record.zone === "deck") return true;
+  // A `zone` selector names one zone or a list ("search your deck and discard pile"): a list naming the deck reads it.
+  if (record.zone === "deck" || (Array.isArray(record.zone) && record.zone.includes("deck"))) return true;
   if (Array.isArray(record.zones) && record.zones.includes("deck")) return true;
   if ((record.kind === "scenarioDeck" || record.kind === "separateDeck") && record.zones === undefined) return true;
   if (record.kind === "encounter" && record.zones === undefined) return true;
