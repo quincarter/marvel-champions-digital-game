@@ -15,6 +15,8 @@ export interface GrayPictureRequest {
 export interface GrayPictureReply {
   readonly id: number;
   readonly bitmap: ImageBitmap | null;
+  /** The bake failed in the worker (a fetch it couldn't make, a decode error), not a missing picture: bake it here. */
+  readonly failed?: boolean;
 }
 
 /** How long a bake may take in the worker before it is done on the main thread instead. */
@@ -38,20 +40,30 @@ function grayWorker(): Worker | null {
       name: "mc-picture-gray",
     });
     made.onmessage = (event: MessageEvent<GrayPictureReply>) => {
-      pending.get(event.data.id)?.(event.data.bitmap);
-      pending.delete(event.data.id);
+      const { id, bitmap, failed } = event.data;
+      const settle = pending.get(id);
+      pending.delete(id);
+      if (settle) settle(failed ? UNAVAILABLE : bitmap);
+      else bitmap?.close(); // Answered after its request timed out: nobody is waiting for it.
     };
-    made.onerror = () => {
-      // A worker that fails to start answers nothing: let everything waiting on it go, and bake on the main thread.
-      for (const settle of pending.values()) settle(UNAVAILABLE);
-      pending.clear();
-      worker = null;
-    };
+    made.onerror = () => retireWorker();
     worker = made;
   } catch {
     worker = null;
   }
   return worker;
+}
+
+/**
+ * Stops using the worker (it failed to start, or stopped answering): everything waiting on it goes to the main thread,
+ * and so does every later bake, rather than each one waiting out the timeout.
+ */
+function retireWorker(): void {
+  const retired = worker;
+  worker = null;
+  retired?.terminate();
+  for (const settle of pending.values()) settle(UNAVAILABLE);
+  pending.clear();
 }
 
 /** The picture decoded the way `decodedPicture` does (fetched, then `createImageBitmap`), or as a CORS image. */
@@ -112,6 +124,7 @@ export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLC
     const timer = setTimeout(() => {
       pending.delete(id);
       resolve(UNAVAILABLE);
+      if (worker === baker) retireWorker();
     }, GRAY_WORKER_TIMEOUT_MS);
     pending.set(id, (reply) => {
       clearTimeout(timer);
