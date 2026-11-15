@@ -269,10 +269,16 @@ const SCREEN_HOLD_FADE_MS = 1_000_000;
  * fades it in; at most `motion.screenHoldMaxMs` after the hold began. For a screen whose first draw is followed at
  * once by another as its data arrives (unlocks, saves, a catalog, a picture), which would otherwise be seen filling
  * in and blinking as it redraws. Call it in `create`, right after `fadeScreenIn`; several calls wait for all their
- * promises. While held, the screen's labels are painted on the main thread (`holdLabelsOnMain`): nothing is on
- * screen yet, so a long frame is not seen, and the screen fades in whole. A no-op under reduced motion, and once the
+ * promises. While held, the screen's labels are painted by the text worker, as at any other time (issue #722: painting
+ * them on the main thread here made a 17 ms frame of its own); the hold waits for them, so
+ * the screen fades in whole. A no-op under reduced motion, and once the
  * screen's entrance has begun.
  */
+/** True while `scene` is held on the void, waiting to fade in (`holdScreenFor`). */
+export function isScreenHeld(scene: Phaser.Scene): boolean {
+  return holds.has(scene);
+}
+
 export function holdScreenFor(scene: Phaser.Scene, promise: Promise<unknown>): void {
   const held = holds.get(scene);
   if (held) {
@@ -305,6 +311,9 @@ function startHold(scene: Phaser.Scene, durationMs: number): ScreenHold {
     if (holds.get(scene) !== hold) return;
     const ready = waiting === 0 && labelsWaitingForPaint() === 0;
     if (!ready && performance.now() - startedAt < motion.screenHoldMaxMs) return;
+    // Out of time with labels the worker hasn't painted yet (a slow device): paint them on the main thread in this last
+    // held frame, so the screen still fades in whole. One long frame, on the void, and only then.
+    if (labelsWaitingForPaint() > 0) holdLabelsOnMain(scene, true);
     stop();
     camera.fadeIn(durationMs, r, g, b);
   };
@@ -319,7 +328,6 @@ function startHold(scene: Phaser.Scene, durationMs: number): ScreenHold {
     cancel: stop,
   };
   holds.set(scene, hold);
-  holdLabelsOnMain(scene, true);
   scene.events.on("render", check);
   scene.events.once("shutdown", () => {
     if (holds.get(scene) === hold) stop();

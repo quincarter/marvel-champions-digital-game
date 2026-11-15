@@ -23,21 +23,30 @@ import { noteModInstalls, readModInstalls } from "./mod-installs.js";
 import { readDeckFeats } from "./deck-feats.js";
 import {
   NO_HISTORY,
-  achievementPointsOf,
+  achievementDefOf,
   achievementStatuses,
-  isAchievementEarned,
-  lifetimePointsOf,
-  type AchievementHistory,
+  type AchievementDef,
+  type AchievementStatus,
 } from "./achievements.js";
+import {
+  computeProgress,
+  definitionsHistoryOf,
+  statusesOf,
+  type MeasuredAchievement,
+  type ProgressCampaigns,
+  type ProgressInputs,
+  type ProgressResult,
+  type ProgressSaves,
+} from "./progress-compute.js";
+import { progressOffMain } from "./progress-client.js";
 import { earnedItemIdsOf, shownStandInsOf, type EarnedItemId } from "./earned-items.js";
-import { Extras, NO_EXTRAS_PROGRESS, extrasProgressOf, type ExtrasProgress } from "./extras.js";
+import { Extras, NO_EXTRAS_PROGRESS, type ExtrasProgress } from "./extras.js";
 import {
   NO_PROGRESS,
   UNLOCK_PREFS_VERSION,
   Unlocks,
   devUnlockAllFrom,
   parseUnlockPrefs,
-  progressOf,
   sameProgress,
   type UnlockPrefs,
   type UnlockProgress,
@@ -80,7 +89,14 @@ function writePrefs(prefs: UnlockPrefs): void {
 const devUnlockAll = typeof location !== "undefined" && devUnlockAllFrom(location.search);
 
 let progress: UnlockProgress = NO_PROGRESS;
-let history: AchievementHistory = NO_HISTORY;
+/** What the main thread passed to the last refresh (prefs, packs): the definitions are listed from it. */
+let progressInputs: ProgressInputs | null = null;
+/** Each achievement as the last refresh measured it. */
+let measured: readonly MeasuredAchievement[] = [];
+let statusesCache: readonly AchievementStatus[] | null = null;
+/** Refreshes started, and the newest one whose result is in. */
+let refreshesStarted = 0;
+let refreshApplied = 0;
 /** Ids earned as of the last refresh, in definition order; null until a refresh has read the stores. */
 let earnedIds: readonly string[] | null = null;
 let achievementPoints = 0;
@@ -99,9 +115,18 @@ export function unlocks(): Unlocks {
   return current;
 }
 
-/** The save history the Trophy Room reads achievements from (`achievements.ts`), as of the last refresh. */
-export function achievementHistory(): AchievementHistory {
-  return history;
+/**
+ * Every achievement as of the last refresh, earned or not, with its progress: what the Trophy Room lists. Measured off
+ * the main thread where it can be (issue #722), so the main thread holds the result, never the save history.
+ */
+export function achievementStatusesNow(): readonly AchievementStatus[] {
+  statusesCache ??= progressInputs ? statusesOf(progressInputs, measured) : achievementStatuses(NO_HISTORY);
+  return statusesCache;
+}
+
+/** One achievement's definition, a pack's own included (what the "Achievement unlocked" toast shows). */
+export function achievementDefNow(id: string): AchievementDef | undefined {
+  return achievementDefOf(id, progressInputs ? definitionsHistoryOf(progressInputs) : NO_HISTORY);
 }
 
 /**
@@ -137,28 +162,17 @@ function modInstalls(): Promise<InstalledPack[]> {
  * the same read, and the Extras screen redraws after it regardless.
  */
 export async function refreshUnlocks(): Promise<boolean> {
-  const [saves, campaigns, savedDecks] = await Promise.all([
-    appSession().store.listSaves(),
-    campaignService()
-      .storage.list()
-      .catch(() => []),
-    deckStorage()
-      .list()
-      .catch(() => []),
-  ]);
-  const deckFeats = readDeckFeats();
+  const refresh = ++refreshesStarted;
+  const saves = (await appSession().store.listSaves()) as ProgressSaves;
   // Mods (docs/custom-content-packs.md section 11.12): every installed pack is noted once, for good, so removing a mod
   // never takes its install achievements back. The achievements of the packs loaded now come from the loaded runtimes.
   const installedPacks = await modInstalls().catch((): InstalledPack[] => []);
   noteModInstalls(installedPacks.map((pack) => ({ id: pack.id, kind: pack.manifest.kind })));
-  const nextHistory: AchievementHistory = {
-    saves,
-    campaigns,
+  const inputs: ProgressInputs = {
     howToPlay: howToPlayProgressOf(guidePrefs()),
     // The player's own switch, not the `?unlock=all` dev param.
     unlockedEverything: unlockedEverythingEver((prefs ?? readPrefs()).unlockAll),
-    // A deck built before the feat was noted still counts while it is in your decks.
-    decks: { ...deckFeats, built: deckFeats.built || savedDecks.some((deck) => deck.source.kind === "userBuilt") },
+    deckFeats: readDeckFeats(),
     mods: {
       installed: readModInstalls(),
       // Every installed pack's list, active or not (a pack switched off keeps its locked rows); a loaded runtime wins.
@@ -180,19 +194,22 @@ export async function refreshUnlocks(): Promise<boolean> {
       ],
     },
   };
-  const nextEarned = achievementStatuses(nextHistory)
-    .filter((status) => status.earned)
-    .map((status) => status.def.id);
-  earnedIds = nextEarned;
-  const nextExtras = extrasProgressOf(saves, campaigns, nextEarned);
-  if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
-    extrasProgress = nextExtras;
+  // The campaign and deck reads and the math run in the progress worker (issue #722); here only where it can't.
+  const result = (await progressOffMain(inputs, saves)) ?? (await progressOnMain(inputs, saves));
+  // A refresh started earlier but finished later (two in flight: Title's and a pack change's) never rolls back a newer one.
+  if (refresh < refreshApplied) return false;
+  refreshApplied = refresh;
+  progressInputs = inputs;
+  measured = result.measured;
+  statusesCache = null;
+  earnedIds = result.earnedIds;
+  if (JSON.stringify(result.extrasProgress) !== JSON.stringify(extrasProgress)) {
+    extrasProgress = result.extrasProgress;
     currentExtras = null;
   }
-  history = nextHistory;
-  lifetimePoints = lifetimePointsOf(history);
-  const next = progressOf(saves, campaigns);
-  const nextAchievementPoints = achievementPointsOf(history);
+  lifetimePoints = result.lifetimePoints;
+  const next = result.progress;
+  const nextAchievementPoints = result.achievementPoints;
   if (sameProgress(next, progress) && nextAchievementPoints === achievementPoints) {
     applyEarnedItems();
     return false;
@@ -203,6 +220,23 @@ export async function refreshUnlocks(): Promise<boolean> {
   currentExtras = null;
   applyEarnedItems();
   return true;
+}
+
+/** The fallback: the same reads and math as the progress worker, on the main thread. */
+async function progressOnMain(inputs: ProgressInputs, saves: ProgressSaves): Promise<ProgressResult> {
+  const [campaigns, savedDecks] = await Promise.all([
+    campaignService()
+      .storage.list()
+      .catch(() => []),
+    deckStorage()
+      .list()
+      .catch(() => []),
+  ]);
+  return computeProgress(inputs, {
+    saves,
+    campaigns: campaigns as unknown as ProgressCampaigns,
+    decksBuilt: savedDecks.some((deck) => deck.source.kind === "userBuilt"),
+  });
 }
 
 /**
@@ -218,7 +252,7 @@ export function dropUnlockCaches(): void {
 /** The earned items this player has (`earned-items.ts`): their achievements, from the same reads as `unlocks()`. */
 export function earnedItems(): ReadonlySet<EarnedItemId> {
   return earnedItemIdsOf(
-    (id) => isAchievementEarned(id, history),
+    (id) => earnedIds?.includes(id) ?? false,
     unlocks().everything,
     PROMO_SETS.some((set) => extras().isOpen(set.earn)),
   );

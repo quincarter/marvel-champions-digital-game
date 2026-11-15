@@ -17,8 +17,8 @@
  */
 import type Phaser from "phaser";
 import { canvasOf } from "./bitmap-canvas.js";
-import { decodedGrayPicture } from "./gray-picture-client.js";
-import { grayKeyOf, type Size } from "./grayscale.js";
+import { decodedBakedPicture } from "./picture-bake-client.js";
+import { GRAY_BUCKETS, grayKeyOf, scaledKeyOf, type Size } from "./grayscale.js";
 import { focusedOffset, type PictureFocus } from "./focus.js";
 
 export { focusedOffset, type PictureFocus };
@@ -76,23 +76,73 @@ interface Waiter {
 }
 const inFlight = new WeakMap<Phaser.Textures.TextureManager, Map<string, Waiter[]>>();
 
+const failureListeners = new Set<(key: string) => void>();
+
+/**
+ * Calls `listener` with the key of every picture whose load fails, until the returned function is called. Waiters of a
+ * failed load are never told (telling them would have a screen that redraws on arrival ask again, and fail again, for
+ * good), so a screen waiting for its pictures (`ui/picture-wait.ts`) listens here to stop waiting for it.
+ */
+export function onPictureLoadFailed(listener: (key: string) => void): () => void {
+  failureListeners.add(listener);
+  return () => failureListeners.delete(listener);
+}
+
+/**
+ * Whether the texture `key` has settled in `scene`'s texture manager: loaded, or not loading any more (a load that
+ * failed is forgotten, and its waiters are never told). What a screen waiting for its pictures checks
+ * (`ui/picture-wait.ts`), so one missing picture can't hold it until the cap.
+ */
+export function isPictureSettled(scene: Phaser.Scene, key: string): boolean {
+  const textures = scene.textures;
+  return textures.exists(key) || !(inFlight.get(textures)?.has(key) ?? false);
+}
+
 export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onReady: () => void): string | null {
   return ensureTextureLoaded(scene, picture.key, () => decodedPicture(picture.url), onReady);
 }
 
 /**
- * `ensurePictureLoaded` for the picture's gray copy, baked once off the main thread (`art/gray-picture-client.ts`), for
- * a picture drawn gray without a filter re-rendering it every frame (issue #716), baked to cover `slot` (device
- * pixels, `graySlotOf`). Returns the gray texture's key.
+ * `ensurePictureLoaded` for a copy of the picture baked for the slot it is drawn in (`graySlotOf`, device pixels),
+ * off the main thread (`art/picture-bake-client.ts`): scaled to that size (issue #722), so a small tile doesn't upload
+ * a 2400 x 3600 picture, and gray when `gray` (issue #716), so a locked tile draws without a filter re-rendering it
+ * every frame. Returns the baked texture's key (`bakedKeyOf`).
  */
-export function ensureGrayPictureLoaded(
+export function ensureBakedPictureLoaded(
   scene: Phaser.Scene,
   picture: Picture,
   slot: Size,
+  gray: boolean,
   onReady: () => void,
 ): string | null {
-  return ensureTextureLoaded(scene, grayKeyOf(picture.key, slot), () => decodedGrayPicture(picture.url, slot), onReady);
+  const exact = bakedKeyOf(picture, slot, gray);
+  if (!scene.textures.exists(exact)) {
+    // A copy already in that covers this slot (baked for a larger one, or the full picture) draws now, with nothing to
+    // wait for: the Saga's featured cover, the same picture as a tile already on screen, used to start a bake and
+    // redraw the whole screen when it landed, under the player's next tap.
+    const loaded = loadedCopyCovering(scene, picture, slot, gray);
+    if (loaded) return loaded;
+  }
+  return ensureTextureLoaded(scene, exact, () => decodedBakedPicture(picture.url, slot, gray), onReady);
 }
+
+/** The key of a copy of `picture` already loaded that covers `slot`: a larger bucket's, or (in color) the original. */
+function loadedCopyCovering(scene: Phaser.Scene, picture: Picture, slot: Size, gray: boolean): string | null {
+  const textures = scene.textures;
+  for (const width of GRAY_BUCKETS) {
+    if (width < slot.width) continue;
+    for (const height of GRAY_BUCKETS) {
+      if (height < slot.height) continue;
+      const key = bakedKeyOf(picture, { width, height }, gray);
+      if (textures.exists(key)) return key;
+    }
+  }
+  return !gray && textures.exists(picture.key) ? picture.key : null;
+}
+
+/** The texture key of `picture`'s copy baked for `slot` (gray or not): what `ensureBakedPictureLoaded` loads. */
+export const bakedKeyOf = (picture: Picture, slot: Size, gray: boolean): string =>
+  gray ? grayKeyOf(picture.key, slot) : scaledKeyOf(picture.key, slot);
 
 function ensureTextureLoaded(
   scene: Phaser.Scene,
@@ -120,6 +170,7 @@ function ensureTextureLoaded(
     loads.delete(key);
     if (source && !textures.exists(key)) textures.addImage(key, source as HTMLImageElement);
     notify(textures, loads, source ? waiters : []);
+    if (!source) for (const listener of [...failureListeners]) listener(key);
   };
   decode().then(settle, () => settle(null));
   return null;

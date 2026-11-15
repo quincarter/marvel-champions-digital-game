@@ -173,14 +173,21 @@ export class CampaignSagaScene extends Phaser.Scene {
     const [summaries] = await Promise.all([campaignService().storage.list(), refreshUnlocks().catch(() => false)]);
     if (!this.sys.isActive()) return;
     const unlocked = unlocks();
-    this.#rows = campaignSagaRows(summaries, {
+    const rows = campaignSagaRows(summaries, {
       customVolumes: customSagaVolumes(loadedPacks(), summaries),
       identityNameOf,
       // The Saga is not translated yet: its lock text sits in English sentences.
       waveLockOf: (campaignId) => unlocked.campaignLock(campaignId, "en"),
       openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
     });
-    this.#featured = defaultFeaturedVolume(this.#rows);
+    // A second load (installed packs arriving a moment after boot, or a pack change) that finds the shelf as it is
+    // draws nothing: rebuilding the whole screen under a player's finger dropped the tap it was in the middle of. When
+    // something did change, the volume the player picked stays picked.
+    const built = this.#rows.length > 0;
+    if (built && JSON.stringify(rows) === JSON.stringify(this.#rows)) return;
+    const keepFeatured = built && rows.some((row) => row.volume.number === this.#featured);
+    this.#rows = rows;
+    if (!keepFeatured) this.#featured = defaultFeaturedVolume(this.#rows);
     this.#rebuild();
   }
 

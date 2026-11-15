@@ -32,9 +32,12 @@ import {
   campaignFrame,
   drawPicture,
   drawTopBar,
+  drawnPictureKey,
   heroPicture,
+  isPhoneWidth,
+  preloadDrawnPicture,
 } from "../ui/campaign-chrome.js";
-import { ensurePictureLoaded } from "../art/pictures.js";
+import { isPictureSettled, onPictureLoadFailed } from "../art/pictures.js";
 import { PictureWait, settleWithin } from "../ui/picture-wait.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -43,7 +46,7 @@ import { McButton, McScrollPanel, McTabs, fitText, fitWrapped } from "../ui/widg
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { ListScroll } from "../view/list-scroll.js";
-import type { Rect } from "../view/layout.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { extrasRowCount, extrasTileAt, extrasTileRect, type ExtrasGrid } from "../view/extras-model.js";
 import {
   LOADING_TEXT,
@@ -119,6 +122,7 @@ import { modNoticeSeen } from "../platform/mod-notice-seen.js";
 import {
   MOD_NOTICE_LINES,
   MOD_STORE_BETA_CAPTION,
+  modNoticeLayoutOf,
   modNoticeControlLabelOf,
   showNoticeBeforeInstall,
   showNoticeOnOpen,
@@ -271,12 +275,25 @@ export class ModStoreScene extends Phaser.Scene {
 
   /** The mods notice's speaker portraits, loading: settles once both are in the texture manager. */
   #loadNoticePortraits(): Promise<void> {
-    const wait = new PictureWait();
-    for (const line of MOD_NOTICE_LINES) {
+    const wait = new PictureWait((key) => isPictureSettled(this, key));
+    // A portrait that fails to load is settled too, so the notice opens without it rather than at the cap.
+    const offFailures = onPictureLoadFailed(wait.arrived);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offFailures);
+    const { width, height } = this.scale.gameSize;
+    const layout = modNoticeLayoutOf(width, height, isPhoneWidth(formFactorFor(width, height)));
+    MOD_NOTICE_LINES.forEach((line, index) => {
       const picture = heroPicture(line.identityId);
-      if (picture && ensurePictureLoaded(this, picture, wait.arrived) === null) wait.expect();
-    }
-    return wait.settled();
+      const portrait = layout.speakers[index]?.portrait;
+      if (!picture || !portrait) return;
+      // The same copy the notice draws (`drawPicture` in `scenes/mod-notice.ts`), baked for its portrait's size.
+      if (preloadDrawnPicture(this, picture, portrait, wait.arrived) === null) {
+        const key = drawnPictureKey(picture, portrait);
+        if (key) wait.expect(key);
+      }
+    });
+    const settled = wait.settled();
+    void settled.then(offFailures);
+    return settled;
   }
 
   /** Each opening of the store: the first-visit notice, opened once its portraits are in, belongs to one of them. */

@@ -61,6 +61,7 @@
 
 import Phaser from "phaser";
 import { ListScroll, thumbOf } from "../view/list-scroll.js";
+import { overBuildBudget } from "../view/build-budget.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import { withinTapSlop } from "../view/press-arm.js";
 import { listWantsHandCursor } from "../view/list-cursor.js";
@@ -130,6 +131,13 @@ export interface McVirtualListOptions {
    */
   readonly activateOnHold?: boolean;
   /**
+   * The first build's time budget, for a screen built while it is held on the void (issue #722): rows are drawn until
+   * this many milliseconds have gone, and the rest on the frames after (their labels painted off the main thread), so
+   * no one frame builds the whole window. `ready` settles once every row in the window is drawn. Absent draws them all
+   * at once, as before.
+   */
+  readonly buildBudgetMs?: number;
+  /**
    * Uniform rows only: a scroll comes to rest on a row boundary (after a drag, a coast or a wheel), so a row is never
    * left half under whatever sits above the list. The caller sizes the list to a whole number of rows so the last
    * position is a boundary too.
@@ -158,6 +166,12 @@ export class McVirtualList {
   readonly #track: Phaser.GameObjects.Rectangle;
   readonly #thumb: Phaser.GameObjects.Rectangle;
   readonly #rows = new Map<number, VirtualListRow>();
+  #destroyed = false;
+  #markReady!: () => void;
+  /** Settles once the first build has drawn every row in the window (at once, without `buildBudgetMs`). */
+  readonly ready: Promise<void> = new Promise((resolve) => {
+    this.#markReady = resolve;
+  });
   readonly #onDestroy: (() => void)[] = [];
   #drag = new DragGesture();
   readonly #activateOnHold: boolean;
@@ -257,7 +271,7 @@ export class McVirtualList {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy());
 
     this.#layoutTrack();
-    this.#redrawWindow(true);
+    this.#redrawWindow(true, options.buildBudgetMs);
   }
 
   /** Variable-height rows: lays every row's top out once per count. A no-op for a uniform list. */
@@ -387,6 +401,8 @@ export class McVirtualList {
 
   /** Torn down at the start of every scene rebuild (not just on shutdown), so its listeners never double up across the fresh instance the scene creates next. */
   destroy(): void {
+    this.#destroyed = true;
+    this.#markReady();
     for (const fn of this.#onDestroy.splice(0)) fn();
     this.#setHandCursor(false);
     this.#snapTimer?.remove();
@@ -595,7 +611,9 @@ export class McVirtualList {
    * thumb drag, keyboard paging) reduces to, and the reason none of them
    * touch the owning scene.
    */
-  #redrawWindow(forceRedrawVisible: boolean): void {
+  #redrawWindow(forceRedrawVisible: boolean, budgetMs?: number): void {
+    const startedAt = performance.now();
+    let deferred = false;
     const window = this.#windowNow();
     const wanted = new Set<number>();
     for (let i = window.start; i < window.end; i++) wanted.add(i);
@@ -608,6 +626,11 @@ export class McVirtualList {
     }
     for (const index of wanted) {
       if (this.#rows.has(index)) continue;
+      // Over the build's budget with a row drawn already: the rest wait for the next frame.
+      if (overBuildBudget(budgetMs, this.#rows.size, performance.now() - startedAt)) {
+        deferred = true;
+        break;
+      }
       const zeroScrollRect: Rect = {
         x: this.#rect.x,
         y: this.#rect.y + this.#topOf(index),
@@ -636,6 +659,12 @@ export class McVirtualList {
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
     }
     this.#drawHint(thumb !== null);
+    if (deferred) {
+      // The rows still missing are drawn on the next frame (a scroll or rebuild in between draws them anyway).
+      this.#scene.events.once(Phaser.Scenes.Events.POST_UPDATE, () => {
+        if (!this.#destroyed) this.#redrawWindow(false, budgetMs);
+      });
+    } else this.#markReady();
   }
 
   /** The bottom (and top) fade and the "more" cue, shown only while rows continue past that edge. */

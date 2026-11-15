@@ -1,18 +1,19 @@
 /**
- * Bakes a picture's gray copy off the main thread (issue #716): fetches and decodes it, mixes its pixels to gray
- * (`art/grayscale.ts`) on an `OffscreenCanvas`, and hands the bitmap back. The main thread only uploads it.
+ * Bakes a picture off the main thread: fetches and decodes it, scales it to the slot it is drawn in (issue #722), mixes
+ * its pixels to gray when asked (issue #716, `art/grayscale.ts`) on an `OffscreenCanvas`, and hands the bitmap back.
+ * The main thread only uploads it.
  */
 import { bakedSizeOf, grayscalePixels, type Size } from "../art/grayscale.js";
-import type { GrayPictureReply, GrayPictureRequest } from "../art/gray-picture-client.js";
+import type { BakeReply, BakeRequest } from "../art/picture-bake-client.js";
 
 /** The client compiles with the DOM lib only, so this names the members of the worker global that are used. */
 interface WorkerGlobal {
-  postMessage(message: GrayPictureReply, transfer?: Transferable[]): void;
-  addEventListener(type: "message", listener: (event: MessageEvent<GrayPictureRequest>) => void): void;
+  postMessage(message: BakeReply, transfer?: Transferable[]): void;
+  addEventListener(type: "message", listener: (event: MessageEvent<BakeRequest>) => void): void;
 }
 const worker = self as unknown as WorkerGlobal;
 
-async function grayBitmapOf(url: string, slot: Size): Promise<ImageBitmap | null> {
+async function bakedBitmapOf(url: string, slot: Size, gray: boolean): Promise<ImageBitmap | null> {
   const response = await fetch(url);
   if (!response.ok) return null;
   const source = await createImageBitmap(await response.blob());
@@ -26,15 +27,17 @@ async function grayBitmapOf(url: string, slot: Size): Promise<ImageBitmap | null
   context.imageSmoothingQuality = "high";
   context.drawImage(source, 0, 0, size.width, size.height);
   source.close();
-  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  grayscalePixels(pixels.data);
-  context.putImageData(pixels, 0, 0);
+  if (gray) {
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    grayscalePixels(pixels.data);
+    context.putImageData(pixels, 0, 0);
+  }
   return canvas.transferToImageBitmap();
 }
 
 worker.addEventListener("message", (event) => {
-  const { id, url, slot } = event.data;
-  grayBitmapOf(url, slot).then(
+  const { id, url, slot, gray } = event.data;
+  bakedBitmapOf(url, slot, gray).then(
     (bitmap) => worker.postMessage({ id, bitmap }, bitmap ? [bitmap] : []),
     () => worker.postMessage({ id, bitmap: null, failed: true }),
   );

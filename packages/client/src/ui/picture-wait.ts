@@ -5,35 +5,46 @@
  * Plain TypeScript, no Phaser: the scenes own the drawing.
  */
 export class PictureWait {
-  #pending = false;
+  /** The texture keys drawn without their picture, still on their way. */
+  readonly #pending = new Set<string>();
   #promise: Promise<void> | null = null;
   #resolve: (() => void) | null = null;
 
-  /** Something was drawn without its picture, which is on its way. */
-  expect(): void {
-    this.#pending = true;
+  /**
+   * `isLoaded` says whether a texture key has settled (`isPictureSettled`: loaded, or its load failed and was
+   * forgotten): `ensurePictureLoaded` tells a waiter once
+   * per batch, and a batch need not hold every picture waited for (#713 review: Deadpool's and Spider-Man's portraits
+   * can land in different batches), so each arrival checks which of the expected keys are in.
+   */
+  constructor(private readonly isLoaded: (key: string) => boolean) {}
+
+  /** The picture with this texture key was drawn without, and is on its way. */
+  expect(key: string): void {
+    if (!this.isLoaded(key)) this.#pending.add(key);
   }
 
   /**
-   * The pictures being waited for have arrived: settles the wait. An arrow property, so the same function can be
-   * handed to `ensurePictureLoaded` for every picture, which then tells it once per batch.
+   * A batch of pictures arrived: the keys now in stop being waited for, and the wait settles once none is left. An
+   * arrow property, so the same function can be handed to `ensurePictureLoaded` for every picture, which then tells
+   * it once per batch.
    */
   readonly arrived = (): void => {
-    this.#pending = false;
+    for (const key of [...this.#pending]) if (this.isLoaded(key)) this.#pending.delete(key);
+    if (this.#pending.size > 0) return;
     const resolve = this.#resolve;
     this.#promise = null;
     this.#resolve = null;
     resolve?.();
   };
 
-  /** True while a picture expected since the last arrival is still on its way. */
+  /** True while a picture expected is still on its way. */
   get pending(): boolean {
-    return this.#pending;
+    return this.#pending.size > 0;
   }
 
-  /** Settles when the pictures expected so far have arrived, or at once when none are expected. */
+  /** Settles when every picture expected so far has arrived, or at once when none is expected. */
   settled(): Promise<void> {
-    if (!this.#pending) return Promise.resolve();
+    if (this.#pending.size === 0) return Promise.resolve();
     this.#promise ??= new Promise<void>((resolve) => {
       this.#resolve = resolve;
     });

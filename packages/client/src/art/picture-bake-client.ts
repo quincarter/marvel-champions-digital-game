@@ -1,18 +1,21 @@
 /**
- * A picture's gray copy, as a canvas Phaser can upload (issue #716). Baked in `workers/picture-gray.worker.ts` where
- * the browser has workers and `OffscreenCanvas`; elsewhere on the main thread, the same mix (`art/grayscale.ts`).
+ * A picture baked for the slot it is drawn in, as a canvas Phaser can upload: scaled to that size (issue #722), and
+ * gray when asked (issue #716). Baked in `workers/picture-bake.worker.ts` where the browser has workers and
+ * `OffscreenCanvas`; elsewhere on the main thread, the same way (`art/grayscale.ts`).
  */
 import { canvasOf } from "./bitmap-canvas.js";
 import { bakedSizeOf, grayscalePixels, type Size } from "./grayscale.js";
 
-export interface GrayPictureRequest {
+export interface BakeRequest {
   readonly id: number;
   readonly url: string;
   /** The slot it is drawn in, in device pixels: it is baked no larger than that needs. */
   readonly slot: Size;
+  /** Mixed to gray (a locked tile's ghost). */
+  readonly gray: boolean;
 }
 
-export interface GrayPictureReply {
+export interface BakeReply {
   readonly id: number;
   readonly bitmap: ImageBitmap | null;
   /** The bake failed in the worker (a fetch it couldn't make, a decode error), not a missing picture: bake it here. */
@@ -20,7 +23,7 @@ export interface GrayPictureReply {
 }
 
 /** How long a bake may take in the worker before it is done on the main thread instead. */
-export const GRAY_WORKER_TIMEOUT_MS = 4000;
+export const BAKE_WORKER_TIMEOUT_MS = 4000;
 
 /** No answer from the worker (it failed to start, or was stopped): the picture is baked on the main thread. */
 const UNAVAILABLE = "unavailable" as const;
@@ -32,16 +35,16 @@ let answers = 0;
 let nextId = 1;
 const pending = new Map<number, (answer: WorkerAnswer) => void>();
 
-function grayWorker(): Worker | null {
+function bakeWorker(): Worker | null {
   if (worker !== undefined) return worker;
   worker = null;
   if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") return null;
   try {
-    const made = new Worker(new URL("../workers/picture-gray.worker.ts", import.meta.url), {
+    const made = new Worker(new URL("../workers/picture-bake.worker.ts", import.meta.url), {
       type: "module",
-      name: "mc-picture-gray",
+      name: "mc-picture-bake",
     });
-    made.onmessage = (event: MessageEvent<GrayPictureReply>) => {
+    made.onmessage = (event: MessageEvent<BakeReply>) => {
       answers++;
       const { id, bitmap, failed } = event.data;
       const settle = pending.get(id);
@@ -89,7 +92,7 @@ async function decodedSource(url: string): Promise<ImageBitmap | HTMLImageElemen
 }
 
 /** Bakes on the main thread, where there is no worker to do it (or it didn't answer). */
-async function grayOnMain(url: string, slot: Size): Promise<HTMLCanvasElement | null> {
+async function bakeOnMain(url: string, slot: Size, gray: boolean): Promise<HTMLCanvasElement | null> {
   const source = await decodedSource(url);
   if (!source) return null;
   const width = source instanceof HTMLImageElement ? source.naturalWidth : source.width;
@@ -103,6 +106,7 @@ async function grayOnMain(url: string, slot: Size): Promise<HTMLCanvasElement | 
   context.imageSmoothingQuality = "high";
   context.drawImage(source, 0, 0, size.width, size.height);
   if (!(source instanceof HTMLImageElement)) source.close();
+  if (!gray) return canvas;
   try {
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
     grayscalePixels(pixels.data);
@@ -114,14 +118,14 @@ async function grayOnMain(url: string, slot: Size): Promise<HTMLCanvasElement | 
 }
 
 /**
- * The gray copy of the picture at `url`, baked to cover `slot`, or null when it can't be loaded. A worker that answers
- * nothing at all for `GRAY_WORKER_TIMEOUT_MS` (stopped under memory pressure, a fetch that hangs) is not waited on for
+ * The picture at `url` baked to cover `slot` (gray when asked), or null when it can't be loaded. A worker that answers
+ * nothing at all for `BAKE_WORKER_TIMEOUT_MS` (stopped under memory pressure, a fetch that hangs) is not waited on for
  * good: it is retired and the bake moves to the main thread, so the picture's key never stays loading. A worker that
  * answered other bakes meanwhile is only slow, and is given another period rather than moving the work back here.
  */
-export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLCanvasElement | null> {
-  const baker = grayWorker();
-  if (!baker) return grayOnMain(url, slot);
+export async function decodedBakedPicture(url: string, slot: Size, gray: boolean): Promise<HTMLCanvasElement | null> {
+  const baker = bakeWorker();
+  if (!baker) return bakeOnMain(url, slot, gray);
   const id = nextId++;
   const absolute = new URL(url, document.baseURI).href;
   const answer = await new Promise<WorkerAnswer>((resolve) => {
@@ -130,14 +134,14 @@ export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLC
     const expire = (): void => {
       if (worker === baker && answers !== heard) {
         heard = answers;
-        timer = setTimeout(expire, GRAY_WORKER_TIMEOUT_MS);
+        timer = setTimeout(expire, BAKE_WORKER_TIMEOUT_MS);
         return;
       }
       pending.delete(id);
       resolve(UNAVAILABLE);
       if (worker === baker) retireWorker();
     };
-    timer = setTimeout(expire, GRAY_WORKER_TIMEOUT_MS);
+    timer = setTimeout(expire, BAKE_WORKER_TIMEOUT_MS);
     pending.set(id, (reply) => {
       clearTimeout(timer);
       resolve(reply);
@@ -146,9 +150,10 @@ export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLC
       id,
       url: absolute,
       slot: { width: slot.width, height: slot.height },
-    } satisfies GrayPictureRequest);
+      gray,
+    } satisfies BakeRequest);
   });
-  if (answer === UNAVAILABLE) return grayOnMain(url, slot);
+  if (answer === UNAVAILABLE) return bakeOnMain(url, slot, gray);
   // The worker's own null is a picture that didn't load (a 404): fetching it again here would fail the same way.
   return answer ? canvasOf(answer) : null;
 }
