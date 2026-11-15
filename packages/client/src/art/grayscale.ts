@@ -18,7 +18,7 @@ export function grayscalePixels(data: Uint8ClampedArray): void {
 }
 
 /** The sizes a gray copy is baked for: the smallest that covers what is drawn, so one bake serves similar slots. */
-export const GRAY_BUCKETS = [128, 256, 512, 1024, 2048] as const;
+export const GRAY_BUCKETS = [128, 256, 512, 1024, 2048, 4096] as const;
 
 /** The bucket for a slot `pixels` device pixels long. */
 export function grayBucket(pixels: number): number {
@@ -50,3 +50,9 @@ export function bakedSizeOf(source: Size, slot: Size): Size {
 
 /** A picture's gray copy's texture key, beside the picture's own: one per slot bucket. */
 export const grayKeyOf = (key: string, slot: Size): string => `${key}#gray@${slot.width}x${slot.height}`;
+
+/**
+ * A picture's color copy scaled to a slot (issue #722): uploading a 2400 x 3600 picture for a 180-pixel tile cost the
+ * frame it landed in. One per slot bucket, like the gray copies.
+ */
+export const scaledKeyOf = (key: string, slot: Size): string => `${key}#@${slot.width}x${slot.height}`;

@@ -17,8 +17,8 @@
  */
 import type Phaser from "phaser";
 import { canvasOf } from "./bitmap-canvas.js";
-import { decodedGrayPicture } from "./gray-picture-client.js";
-import { grayKeyOf, type Size } from "./grayscale.js";
+import { decodedBakedPicture } from "./picture-bake-client.js";
+import { grayKeyOf, scaledKeyOf, type Size } from "./grayscale.js";
 import { focusedOffset, type PictureFocus } from "./focus.js";
 
 export { focusedOffset, type PictureFocus };
@@ -81,18 +81,29 @@ export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onRea
 }
 
 /**
- * `ensurePictureLoaded` for the picture's gray copy, baked once off the main thread (`art/gray-picture-client.ts`), for
- * a picture drawn gray without a filter re-rendering it every frame (issue #716), baked to cover `slot` (device
- * pixels, `graySlotOf`). Returns the gray texture's key.
+ * `ensurePictureLoaded` for a copy of the picture baked for the slot it is drawn in (`graySlotOf`, device pixels),
+ * off the main thread (`art/picture-bake-client.ts`): scaled to that size (issue #722), so a small tile doesn't upload
+ * a 2400 x 3600 picture, and gray when `gray` (issue #716), so a locked tile draws without a filter re-rendering it
+ * every frame. Returns the baked texture's key (`bakedKeyOf`).
  */
-export function ensureGrayPictureLoaded(
+export function ensureBakedPictureLoaded(
   scene: Phaser.Scene,
   picture: Picture,
   slot: Size,
+  gray: boolean,
   onReady: () => void,
 ): string | null {
-  return ensureTextureLoaded(scene, grayKeyOf(picture.key, slot), () => decodedGrayPicture(picture.url, slot), onReady);
+  return ensureTextureLoaded(
+    scene,
+    bakedKeyOf(picture, slot, gray),
+    () => decodedBakedPicture(picture.url, slot, gray),
+    onReady,
+  );
 }
+
+/** The texture key of `picture`'s copy baked for `slot` (gray or not): what `ensureBakedPictureLoaded` loads. */
+export const bakedKeyOf = (picture: Picture, slot: Size, gray: boolean): string =>
+  gray ? grayKeyOf(picture.key, slot) : scaledKeyOf(picture.key, slot);
 
 function ensureTextureLoaded(
   scene: Phaser.Scene,

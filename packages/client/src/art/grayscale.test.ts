@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { bakedSizeOf, grayBucket, grayKeyOf, graySlotOf, grayscalePixels } from "./grayscale.js";
+import { bakedSizeOf, grayBucket, grayKeyOf, graySlotOf, grayscalePixels, scaledKeyOf } from "./grayscale.js";
 
 describe("grayscalePixels (issue #716)", () => {
   test("each pixel becomes the mean of its channels, as Phaser's grayscale(1) filter draws it", () => {
@@ -27,7 +27,8 @@ describe("gray copy sizes", () => {
     expect(grayBucket(128)).toBe(128);
     expect(grayBucket(129)).toBe(256);
     expect(grayBucket(370)).toBe(512);
-    expect(grayBucket(5000)).toBe(2048);
+    expect(grayBucket(3000)).toBe(4096);
+    expect(grayBucket(9000)).toBe(4096);
   });
 
   test("the slot is the drawn rect in device pixels", () => {
@@ -58,6 +59,11 @@ describe("gray copy sizes", () => {
 
   test("an empty source still gives a drawable size", () => {
     expect(bakedSizeOf({ width: 0, height: 0 }, { width: 256, height: 256 })).toEqual({ width: 1, height: 1 });
+  });
+
+  test("a color copy scaled to a slot has its own key, apart from the gray one (#722)", () => {
+    expect(scaledKeyOf("art/villains/klaw", { width: 256, height: 128 })).toBe("art/villains/klaw#@256x128");
+    expect(scaledKeyOf("k", { width: 256, height: 128 })).not.toBe(grayKeyOf("k", { width: 256, height: 128 }));
   });
 
   test("the key names the picture and the slot", () => {

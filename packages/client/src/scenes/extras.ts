@@ -17,7 +17,7 @@
  */
 import Phaser from "phaser";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
+import { bangers, campaignFrame, drawPicture, drawTopBar, drawnPictureKey } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText } from "../ui/widgets.js";
@@ -94,7 +94,7 @@ export class ExtrasScene extends Phaser.Scene {
   /** The Promo Cards tab's tiles as drawn, for the hover popover: a locked one shows what there is to earn. */
   #promoTiles: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
   /** Tiles drawn before their pictures loaded: the screen's entrance waits for them (issue #716). */
-  #pictures = new PictureWait();
+  #pictures = new PictureWait(() => false);
 
   constructor() {
     super(SCENES.extras);
@@ -108,7 +108,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.#tab = data.tab ?? this.#tab;
     this.#redrawQueued = false;
     this.#alive = true;
-    this.#pictures = new PictureWait();
+    this.#pictures = new PictureWait((key) => this.textures.exists(key));
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     // A glyph that would hang over another control is not drawn (the phone's Back hint, over the Trophy Room button).
@@ -146,11 +146,15 @@ export class ExtrasScene extends Phaser.Scene {
     // while it is still on the void, not across the fade (issue #716). The hold is capped, so a slow picture can't
     // keep the screen dark.
     holdScreenFor(this, this.#pictures.settled());
+    // Drawn again only when the read changed something the shelf shows (an unlock, or Extras progress, which makes a
+    // new `extras()`): a redraw of the whole screen was a second long frame on every visit (issue #722).
+    const shown = extras();
     holdScreenFor(
       this,
       refreshUnlocks()
         .catch(() => false)
-        .then(() => {
+        .then((changed) => {
+          if (!changed && extras() === shown) return;
           this.#draw();
           holdScreenFor(this, this.#pictures.settled());
         }),
@@ -580,7 +584,8 @@ export class ExtrasScene extends Phaser.Scene {
       objects.push(slot);
       // Only a picture whose load was started is waited for (an empty slot starts none).
       if (tile.thumb && art.width > 0 && art.height > 0) {
-        this.#pictures.expect();
+        const key = drawnPictureKey(tile.thumb, art, !tile.open);
+        if (key) this.#pictures.expect(key);
         waiting.push(() => {
           if (!slot.active || slot.list[0] !== initial) return;
           const arrived = drawPicture(this, tile.thumb, art, this.#pictureArrived, pictureOptions);

@@ -10,7 +10,7 @@
 import Phaser from "phaser";
 import { CAMPAIGN_ART, campaignArtboardFor, campaignCoverFor, campaignPageFor } from "../art/campaign-art.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
-import { coverFit, ensureGrayPictureLoaded, ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import { bakedKeyOf, coverFit, ensureBakedPictureLoaded, type Picture } from "../art/pictures.js";
 import { graySlotOf } from "../art/grayscale.js";
 import { currentRenderScale } from "./render-scale.js";
 import { ART_CATALOG } from "../art/scenario-art.js";
@@ -472,11 +472,15 @@ export function drawPicture(
   } = {},
 ): Phaser.GameObjects.Image | null {
   if (!picture || rect.width <= 0 || rect.height <= 0) return null;
-  // Gray is baked into its own texture (issue #716): a grayscale filter re-renders its picture through a framebuffer
-  // every frame the screen draws, which made a shelf of locked tiles step through its fade.
-  const key = options.grayscale
-    ? ensureGrayPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), onReady)
-    : ensurePictureLoaded(scene, picture, onReady);
+  // Baked for the slot (issue #722): scaled to the size it is drawn at, so the upload is small, and gray in its own
+  // texture when asked (issue #716), since a grayscale filter re-renders its picture through a framebuffer every frame.
+  const key = ensureBakedPictureLoaded(
+    scene,
+    picture,
+    graySlotOf(rect, currentRenderScale()),
+    options.grayscale ?? false,
+    onReady,
+  );
   if (!key) return null;
   const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
   // A picture's own focus point (a hero's `focus.json`) wins over the caller's per-screen default on the axis it names.
@@ -494,6 +498,30 @@ export function drawPicture(
     .setCrop(cropX, cropY, fit.cropWidth, fit.cropHeight)
     .setAlpha(options.alpha ?? 1);
   return image;
+}
+
+/**
+ * The texture key `drawPicture` draws `picture` from in `rect`: what a screen waiting for its pictures expects
+ * (`ui/picture-wait.ts`), or null when nothing would be drawn.
+ */
+export function drawnPictureKey(picture: Picture | null, rect: Rect, grayscale = false): string | null {
+  if (!picture || rect.width <= 0 || rect.height <= 0) return null;
+  return bakedKeyOf(picture, graySlotOf(rect, currentRenderScale()), grayscale);
+}
+
+/**
+ * Starts loading what `drawPicture` would draw `picture` from in `rect`, without drawing it: a screen preloading
+ * pictures for something it opens next (the Mod Store's notice portraits). The key once loaded, else null.
+ */
+export function preloadDrawnPicture(
+  scene: Phaser.Scene,
+  picture: Picture,
+  rect: Rect,
+  onReady: () => void,
+  grayscale = false,
+): string | null {
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  return ensureBakedPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), grayscale, onReady);
 }
 
 /** Finished issues read as back issues: grayscale (C07). Uses Phaser 4's color-matrix filter when available. */
