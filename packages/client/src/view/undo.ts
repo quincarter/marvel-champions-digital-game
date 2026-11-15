@@ -261,6 +261,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   scenarioSetupInstructionResolved: [STOPS, "setup"],
   schemeDefeated: [ALLOWED, "threat changes, face up"],
   schemeResolved: [STOPS, "the villain phase"],
+  searchFoundNothing: [STOPS, "a search looked through a deck"],
   separateDeckReset: [STOPS, "a deck reset shuffles"],
   separatedCardFlipped: [STOPS, "turns a hidden face up"],
   setAsideModularSetShuffledIn: [STOPS, "a shuffle spends the RNG"],

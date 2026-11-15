@@ -217,6 +217,7 @@ import {
   canDealDamageTo,
   divisionCanRemoveThreat,
   isRequiredChoice,
+  isOptionalSearch,
   isRequiredSearch,
   optionLacksValidTarget,
   readsDeck,
@@ -2173,12 +2174,18 @@ function choseNothing(
   frame: Frame<"effects">,
   effect: Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>,
   noCandidates: boolean,
+  chooser?: PlayerId,
 ): void {
   const required = noCandidates && isRequiredChoice(effect);
   const search = noCandidates && isRequiredSearch(effect);
   const unresolved = required || search;
   if (required) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot, choice: effect.kind });
   if (search) emit(ctx, { type: "preThenUnresolved", cause: "searchFoundNothing" });
+  // An optional search ("may search ... for X") that found no card the player can take still tells them so: the step
+  // would otherwise pass with nothing in the log (owner decision 2026-11-08, Call for Backup / Build Support).
+  if (noCandidates && chooser && isOptionalSearch(effect)) {
+    emit(ctx, { type: "searchFoundNothing", playerId: chooser, slot: effect.slot });
+  }
   setFrame(ctx, {
     ...frame,
     cursor: frame.cursor + 1,
@@ -2262,7 +2269,7 @@ function executeChooseCards(
   const fitting = limit ? mostCardsUnderTotal(Object.values(values), limit.atMost) : candidates.length;
   const max = Math.min(effect.max, candidates.length, fitting);
   if (!chooser || max === 0) {
-    choseNothing(ctx, frame, effect, candidates.length === 0);
+    choseNothing(ctx, frame, effect, candidates.length === 0, chooser);
     return;
   }
   // One card found by a search the enemy team must make, or one candidate of a hidden-hand pick (owner answer 211):

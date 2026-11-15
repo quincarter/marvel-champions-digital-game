@@ -1379,8 +1379,9 @@ export type QueryExclusion =
   /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names, or no card of its `canAttachToCategory`. */
   | "cannotAttachTo"
   /**
-   * The query's `canEnterPlay` asks for a card that can enter play, and this one cannot: a card in play matches it
-   * under the unique rule, or a `RuleSpec cannotEnterPlay` names it.
+   * The query's `canEnterPlay` asks for a card that can enter play, and this one cannot (`canBePutIntoPlay`): a card in
+   * play matches it under the unique rule, a `RuleSpec cannotEnterPlay` names it, "Max N per player" stops it, or an
+   * upgrade has no legal host.
    */
   | "cannotEnterPlay"
   /** A `cannotFlip` rule names it, and the query's `canFlip` asks for a card that can be flipped. */
@@ -1620,26 +1621,8 @@ export function explainQuery(
   // "Chooses 1 set-aside upgrade and puts it into play": not a unique card that matches one in play.
   if (query.canEnterPlay !== undefined) {
     const [forPlayer] = resolvePlayers(state, query.canEnterPlay, context);
-    if (uniqueEntryBlocker(state, context.deps ?? DEFAULT_DEPS, id, forPlayer ?? null, context.selfInstanceId ?? null))
-      return "cannotEnterPlay";
-    // Nor a card a rule keeps out of play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43).
-    if (!cardsInPlay(state).includes(id) && cannotEnterPlay(state, context.deps ?? DEFAULT_DEPS, id, forPlayer ?? null))
-      return "cannotEnterPlay";
-    // Nor another copy of a "Max N per player" card that player already controls (RRG 1.8 "Max, Maximum", p. 28;
-    // docs/phase7-wave9.md §4.1 Q37 = A), as the effect itself refuses it (`admitUnderPlayerMax`): an upgrade when the
-    // maximum leaves it no host, any other card by the player it would enter play under.
-    if (forPlayer && !cardsInPlay(state).includes(id)) {
-      const deps = context.deps ?? DEFAULT_DEPS;
-      const overMax =
-        cardOf(state, id)?.type === "upgrade"
-          ? upgradeHostCandidates(state, deps, id, forPlayer).length > 0 &&
-            putIntoPlayHostCandidates(state, deps, id, forPlayer).length === 0
-          : maxPerPlayerReached(state, id, forPlayer) !== null;
-      if (overMax) return "cannotEnterPlay";
-      // Nor a "[type] form only" card while that player's identity is in another form (RRG 1.8 "Play, Put into Play",
-      // p. 32), as the effect refuses it (`admitFormOnly`).
-      if (formOnlyFault(state, id, forPlayer) !== null) return "cannotEnterPlay";
-    }
+    const entry = { controllerStated: query.canEnterPlayControllerStated === true, bringer: context.selfInstanceId };
+    if (!canBePutIntoPlay(state, context.deps ?? DEFAULT_DEPS, id, forPlayer ?? null, entry)) return "cannotEnterPlay";
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id, context.controllerId)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
@@ -4721,6 +4704,60 @@ export function countsTowardHandSize(state: GameState, id: InstanceId, deps: Eng
   return !printedAbilityRefs(card).some((ref) => {
     const trigger = deps.abilities[ref.id]?.trigger;
     return trigger?.kind === "constant" && trigger.notCountedTowardHandSize === true;
+  });
+}
+
+/**
+ * Whether an effect that puts `id` into play (`EffectSpec putIntoPlay`) as `putter` would put it into play, read before
+ * it resolves (`TargetQuery.canEnterPlay`): the checks `putIntoPlay` makes as it applies (`resolve/apply-effect.ts`), so
+ * a choice of a card to put into play offers only cards the effect would not refuse (RRG 1.8 "Target", p. 43; owner
+ * decision docs/phase7-wave9.md §4.1 Q37 = A). A card already in play is not entering and is read by the unique rule
+ * alone. `putter` null (a ref naming nobody) checks the unique rule against every area and the `cannotEnterPlay` rules.
+ *
+ * - "[type] form only" (RRG 1.8 "Play, Put into Play", p. 32) is read under `putter`, as `admitFormOnly` reads it.
+ * - The rest is read under each player the card could enter play under: `putter`, and for a card printed "Play under
+ *   any player's control" any other player still in the game when the effect does not state the controller
+ *   (`putIntoPlayControlIsChosen`; FFG ruling Nov 21, 2025, Build Support / Boot Camp). It can be put into play when
+ *   one of them allows it: the unique rule (RRG 1.8 "Unique Icon", pp. 45-46), no `RuleSpec cannotEnterPlay`, and
+ *   "Max N per player" (RRG 1.8 "Max, Maximum", p. 28).
+ * - An upgrade needs a legal host under that player (`putIntoPlayHostCandidates`, which also reads "Max N per player"
+ *   on each host's controller): with none it "remains in its prior state or game area" (RRG 1.8 "Attach To", p. 8) and
+ *   the effect refuses it (`noLegalHost`). One that enters play unattached (`attachedOnlyWhileInPlay`) needs no host,
+ *   but is still refused when the maximum takes away every host it would have had (`admitUnderPlayerMax`).
+ */
+export function canBePutIntoPlay(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  putter: PlayerId | null,
+  {
+    controllerStated = false,
+    bringer = null,
+  }: {
+    /** The effect states the controller ("put it into play under your control", `putIntoPlay.controllerStated`). */
+    readonly controllerStated?: boolean;
+    /** The card whose ability puts it into play (`uniqueEntryBlocker`'s linked-card exemption). */
+    readonly bringer?: InstanceId | null;
+  } = {},
+): boolean {
+  const entering = !cardsInPlay(state).includes(id);
+  if (putter === null || !entering) {
+    if (uniqueEntryBlocker(state, deps, id, putter, bringer)) return false;
+    return !(entering && cannotEnterPlay(state, deps, id, null));
+  }
+  if (formOnlyFault(state, id, putter) !== null) return false;
+  const card = cardOf(state, id);
+  const anyPlayer = !controllerStated && card && "playRestrictions" in card && card.playRestrictions?.anyPlayerControl;
+  const under = anyPlayer
+    ? [putter, ...playerOrder(state).flatMap((p) => (p.playerId === putter ? [] : [p.playerId]))]
+    : [putter];
+  return under.some((player) => {
+    if (uniqueEntryBlocker(state, deps, id, player, bringer)) return false;
+    if (cannotEnterPlay(state, deps, id, player)) return false;
+    if (card?.type !== "upgrade") return maxPerPlayerReached(state, id, player) === null;
+    if (putIntoPlayHostCandidates(state, deps, id, player).length > 0) return true;
+    // No host the maximum leaves it (`admitUnderPlayerMax` refuses it), or none at all (`noLegalHost`).
+    return attachedOnlyWhileInPlay(state, id, deps) && upgradeHostCandidates(state, deps, id, player).length === 0;
   });
 }
 

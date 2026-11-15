@@ -19,6 +19,7 @@ import { replay, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
+import { matchesQuery } from "./select.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -150,5 +151,33 @@ describe("Build Support / Boot Camp (ruling Nov 21, 2025): put into play under a
     const { state, asked } = play(start(1), FETCH.card, null);
     expect(asked).toEqual([]);
     expect(campsIn(state, P1)).toHaveLength(1);
+  });
+});
+
+describe("`TargetQuery.canEnterPlay` reads every player a 'Play under any player's control' card could enter under", () => {
+  const context = { selfInstanceId: null, controllerId: P1, event: null, bindings: {}, deps };
+  /** A copy of P1's out of play, wherever it is (deck, discard pile or hand). */
+  const spareCamp = (state: GameState): InstanceId => {
+    const seat = mustPlayer(state, P1);
+    const id = [...seat.deck, ...seat.discard, ...seat.hand].find((i) => state.instances[i]?.cardId === CAMP.id);
+    if (!id) throw new Error("no camp out of play");
+    return id;
+  };
+  it("a copy the finder already controls still matches while another player can take it", () => {
+    const one = play(start(), FETCH.card, P1).state;
+    const next = spareCamp(one);
+    expect(matchesQuery(one, next, { canEnterPlay: you }, context)).toBe(true);
+    // "… put it into play under your control" reads the finder alone.
+    expect(matchesQuery(one, next, { canEnterPlay: you, canEnterPlayControllerStated: true }, context)).toBe(false);
+  });
+  it("no copy matches once every player controls one", () => {
+    const one = play(start(), FETCH.card, P1).state;
+    const both = play(one, FETCH.card, P2).state;
+    expect(campsIn(both, P2)).toHaveLength(1);
+    expect(matchesQuery(both, spareCamp(both), { canEnterPlay: you }, context)).toBe(false);
+  });
+  it("with one player, one copy in play is the limit", () => {
+    const one = play(start(1), FETCH.card, null).state;
+    expect(matchesQuery(one, spareCamp(one), { canEnterPlay: you }, context)).toBe(false);
   });
 });
