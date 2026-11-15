@@ -10,6 +10,7 @@ import { hit, surface, typeRole } from "../tokens.js";
 import { bangers, drawPicture, heroPicture, isPhoneWidth, speechBubble } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
+import { holdLabelsOnMain } from "../ui/lazy-text.js";
 import { setMask } from "../ui/rex.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
@@ -51,12 +52,17 @@ export class ModNoticeOverlay extends Phaser.Scene {
     this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, { onCancel: () => this.#answer("close"), primary: () => "close" });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      holdLabelsOnMain(this, false);
       this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       giveBack(paused);
     });
+    // Its first frame shows its words, not empty bubbles filled a few frames later by the text worker (issue #716): a
+    // handful of labels, painted on the main thread for that one render.
+    holdLabelsOnMain(this, true);
+    this.events.once(Phaser.Scenes.Events.RENDER, () => holdLabelsOnMain(this, false));
     this.#draw();
   }
 
