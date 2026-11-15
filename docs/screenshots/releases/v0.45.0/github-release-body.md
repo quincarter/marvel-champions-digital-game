@@ -1,6 +1,6 @@
 ## The Mod Store Is Open
 
-Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697). @AlecHolland1582 reported both fixes, the blank Briefing on Android (#692) and Stealth Training (#700). Elektra and Iron Fist are on the way. Thank you!
+Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697). @AlecHolland1582 reported both fixes, the blank Briefing on Android (#692) and Stealth Training (#700). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
 
 **[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the fixes from your reports and the thank-you wall.
 
@@ -51,6 +51,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - The landing page holds back a release's news and report screenshots until GitHub publishes it, and redeploys when a release is published so its downloads and news are current
 - The landing page's bar names the game in full, Marvel Champions, with Digital Edition beside it, and its section links and language names make room on smaller screens
 - The web game moves to https://marvel.champions-digital-game.com on Cloudflare: the apps' web-version, sync guide and Discord links point there, and the release reports open on the landing site
+- Dependencies updated to their latest compatible versions
 
 ### Fixed
 
@@ -61,6 +62,8 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - The Mod Store's pack tiles and card pictures, and the Extras tiles, show the hand cursor on hover
 - The Briefing no longer goes blank on some Android phones when it asks a question with a speaker above it, such as Ronan's Kree Supremacy call after the Market (#692)
 - Stealth Training now responds when you exactly defeat Secure the Landing Pad, and the log names the side scheme instead of Cosmo for the threat removed and the defeat (#700)
+- Moving between Title, Extras and the Mod Store is smooth: each screen fades in once it is fully drawn instead of filling in and blinking as its text, saves and pictures arrive, and the Extras tabs switch without a hitch
+- A minion's target line no longer repeats its hit points when the attack preview already shows them
 
 ### Engine
 
@@ -104,6 +107,8 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - The post-1.7 rulings transcript now runs to October 12, 2026
 - Removed the mod store's leftover PR screenshots from docs/pr-screenshots.
 - The v0.45.0 release report and announcement cover Past games next to replays
+- The current status page is up to date: what's playable now, and what v0.45.0 brings
+- The architecture page shows the content, mod template and Mod Store registry repositories and how their content reaches the game
 
 ### Special thanks
 
