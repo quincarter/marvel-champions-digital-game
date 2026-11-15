@@ -40,17 +40,21 @@ export async function marvelCdbImport(pathname: string, upstreamFetch: typeof fe
   const kind = match[1] as "decklist" | "deck";
   const id = match[2]!;
   let upstream: Response;
+  let body: string;
   try {
     // A private or unknown `deck` redirects to MarvelCDB's HTML login page, which `interpretDeckResponse` reads as
     // "nothing at that id" from its content type.
     upstream = await upstreamFetch(marvelCdbDeckUrl(kind, id));
+    // Inside the try as well: a connection reset or a truncated body rejects here, and gets the same JSON error as a
+    // failed request rather than the runtime's own 500.
+    body = await upstream.text();
   } catch (cause) {
     return answer(
       deckImportError(502, `could not reach MarvelCDB: ${cause instanceof Error ? cause.message : String(cause)}`),
     );
   }
   const contentType = upstream.headers.get("content-type") ?? "";
-  return answer(interpretDeckResponse(kind, id, { ok: upstream.ok, contentType, body: await upstream.text() }));
+  return answer(interpretDeckResponse(kind, id, { ok: upstream.ok, contentType, body }));
 }
 
 export async function handleGameRequest(

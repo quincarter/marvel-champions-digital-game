@@ -56,6 +56,23 @@ describe("the game Worker", () => {
     expect(down.status).toBe(502);
     expect(((await down.json()) as { error: string }).error).toContain("offline");
   });
+
+  test("answers a body that breaks off mid-read with the same JSON error", async () => {
+    const broken = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"id":'));
+        controller.error(new Error("connection reset"));
+      },
+    });
+    const response = await handleGameRequest(
+      request("/api/marvelcdb-import/decklist/1"),
+      env,
+      async () => new Response(broken, { headers: { "content-type": "application/json" } }),
+    );
+    expect(response.status).toBe(502);
+    expect(response.headers.get("content-type")).toBe("application/json");
+    expect(((await response.json()) as { error: string }).error).toContain("connection reset");
+  });
 });
 
 describe("the game's Cloudflare config", () => {
@@ -63,6 +80,14 @@ describe("the game's Cloudflare config", () => {
   const redirects = read("cloudflare/game/_redirects");
   const headers = read("cloudflare/game/_headers");
   const netlify = read("../../netlify.toml");
+
+  test("declares the game's address as its custom domain, so a deploy keeps it", () => {
+    const host = new URL(GAME_URL).host;
+    expect(wrangler).toContain(`"routes": [{ "pattern": "${host}", "custom_domain": true }]`);
+    const landing = read("wrangler.landing.jsonc");
+    for (const host of [new URL(LANDING_URL).host, `www.${new URL(LANDING_URL).host}`])
+      expect(landing).toContain(`{ "pattern": "${host}", "custom_domain": true }`);
+  });
 
   test("sends only the MarvelCDB route to the script, matching the client's route", () => {
     expect(wrangler).toContain(`"run_worker_first": ["${MARVELCDB_IMPORT_ROUTE}*"]`);

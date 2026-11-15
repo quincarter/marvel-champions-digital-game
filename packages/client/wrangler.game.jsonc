@@ -12,8 +12,9 @@
 // files, with nothing near its 25 MiB a file (docs/custom-content-packs.md §4.1). A third card language would pass
 // 20,000 and need a paid plan.
 //
-// The custom domain is attached in the Cloudflare dashboard (Workers & Pages > mc-game > Settings > Domains & Routes),
-// not here, so a deploy never changes DNS.
+// The custom domain is declared here, not attached in the dashboard: this file is the source of truth for the Worker,
+// so a later deploy can't drop a domain it doesn't list. The first deploy creates the domain and its DNS record; the
+// API token needs Zone > Workers Routes > Edit (and Zone > Zone > Read) on champions-digital-game.com for that.
 {
   "name": "mc-game",
   "main": "./src/edge/game-worker.ts",
@@ -28,7 +29,9 @@
     // Must match MARVELCDB_IMPORT_ROUTE in src/edge/game-routes.ts.
     "run_worker_first": ["/api/marvelcdb-import/*"],
   },
-  // A workers.dev address to check a deploy before the custom domain points at it.
+  "routes": [{ "pattern": "marvel.champions-digital-game.com", "custom_domain": true }],
+  // Kept beside the custom domain (with routes it would default to off): an address to check a deploy on when the
+  // domain misbehaves. Nobody plays there, so its saves never compete with the real address's.
   "workers_dev": true,
   "preview_urls": false,
 }
