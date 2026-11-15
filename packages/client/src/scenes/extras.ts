@@ -25,7 +25,8 @@ import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { drawNowPlayingPanel, type NowPlayingPanel } from "../ui/now-playing-panel.js";
 import { earnedSongsOf } from "../view/music-player.js";
-import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { fadeScreenIn, goToScreen, holdScreenFor, revealWhenPainted } from "../ui/transitions.js";
+import { paintScrolledIn } from "../ui/lazy-text.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
 import {
@@ -77,6 +78,11 @@ export class ExtrasScene extends Phaser.Scene {
   #hints!: GlyphHints;
   #obstacles: Rect[] = [];
   #redrawQueued = false;
+  /**
+   * The next draw shows a different tab's shelf: its tiles' labels are painted off the main thread and the shelf
+   * fades in once they are, so the tap that changes tab isn't held while some forty labels are painted.
+   */
+  #freshShelf = false;
   /** Between `create` and shutdown. Not `sys.isActive()`, which is still false while `create` itself draws. */
   #alive = false;
   /** The Music tab's expanded player (#191), whose progress bar moves every frame. */
@@ -130,9 +136,13 @@ export class ExtrasScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    void refreshUnlocks()
-      .catch(() => false)
-      .then(() => this.#draw());
+    // The shelf as the saves have it now: drawn before the screen fades in, rather than redrawn as it does.
+    holdScreenFor(
+      this,
+      refreshUnlocks()
+        .catch(() => false)
+        .then(() => this.#draw()),
+    );
   }
 
   #scroll(tab: ExtrasTab): ListScroll {
@@ -181,6 +191,7 @@ export class ExtrasScene extends Phaser.Scene {
   #select(tab: ExtrasTab): void {
     if (tab === this.#tab) return;
     this.#tab = tab;
+    this.#freshShelf = true;
     this.#draw();
   }
 
@@ -418,20 +429,32 @@ export class ExtrasScene extends Phaser.Scene {
     const rows = extrasRowCount(tiles.length, grid);
     const playing = appSession().music?.nowPlaying()?.key ?? null;
 
-    let list: McVirtualList;
-    list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: grid.rowHeight,
-      count: rows,
-      scroll: this.#scroll(this.#tab),
-      background: false,
-      renderRow: (rowIndex, rect) => this.#renderRow(tiles, rowIndex, rect, grid, playing),
-      onRowActivate: (rowIndex, pointer) => {
-        const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
-        if (index !== null) this.#activate(tiles[index]!);
-      },
-      rowPressableAt: (rowIndex, pointer) => extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
-    });
+    const fresh = this.#freshShelf;
+    this.#freshShelf = false;
+    const appearing: Phaser.GameObjects.GameObject[] = [];
+    let collecting = fresh;
+    const makeList = (): McVirtualList =>
+      new McVirtualList(this, {
+        rect: listRect,
+        rowHeight: grid.rowHeight,
+        count: rows,
+        scroll: this.#scroll(this.#tab),
+        background: false,
+        renderRow: (rowIndex, rect) => {
+          const row = this.#renderRow(tiles, rowIndex, rect, grid, playing);
+          if (collecting) appearing.push(...row.objects);
+          return row;
+        },
+        onRowActivate: (rowIndex, pointer) => {
+          const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
+          if (index !== null) this.#activate(tiles[index]!);
+        },
+        rowPressableAt: (rowIndex, pointer) =>
+          extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
+      });
+    const list = fresh ? paintScrolledIn(makeList) : makeList();
+    collecting = false;
+    if (fresh) revealWhenPainted(this, appearing);
     this.#list = list;
     this.#promoTiles =
       this.#tab === "promos"

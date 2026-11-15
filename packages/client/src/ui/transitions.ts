@@ -30,8 +30,9 @@
 import type Phaser from "phaser";
 import { appSession } from "../session.js";
 import { motion, surface } from "../tokens.js";
-import { isStartPending } from "../scenes/scene-loader.js";
-import { prewarmTextPainter } from "./lazy-text.js";
+import { isStartPending, LAZY_SCENE_KEYS, sceneLoader } from "../scenes/scene-loader.js";
+import { needed } from "../scenes/scene-order.js";
+import { holdLabelsOnMain, labelsWaitingForPaint, prewarmTextPainter } from "./lazy-text.js";
 
 type Fadeable = Phaser.GameObjects.GameObject & { alpha: number; y: number; setAlpha(value: number): unknown };
 
@@ -230,13 +231,130 @@ export class OverlayMotion {
 
 /**
  * A full screen's own entrance: fade in from the void. Call at the end of a
- * screen scene's `create`. A no-op under reduced motion.
+ * screen scene's `create`. A no-op under reduced motion. A screen that has data
+ * still to arrive can hold this entrance until it has (`holdScreenFor`).
  */
 export function fadeScreenIn(scene: Phaser.Scene, durationMs: number = motion.screenFadeMs): void {
   if (reduced()) return;
   const { r, g, b } = rgbOf(surface.void.hex);
   scene.cameras.main.fadeIn(durationMs, r, g, b);
+  const entrance: Entrance = { durationMs, frame: scene.sys.game.loop.frame };
+  entrances.set(scene, entrance);
+  scene.events.once("shutdown", () => {
+    if (entrances.get(scene) === entrance) entrances.delete(scene);
+  });
 }
+
+/** A `fadeScreenIn` just made: a `holdScreenFor` in the same frame turns it into a held entrance. */
+interface Entrance {
+  readonly durationMs: number;
+  readonly frame: number;
+}
+
+const entrances = new WeakMap<Phaser.Scene, Entrance>();
+
+/** A screen's entrance waiting to begin (`holdScreenFor`). */
+interface ScreenHold {
+  wait(promise: Promise<unknown>): void;
+  cancel(): void;
+}
+
+const holds = new WeakMap<Phaser.Scene, ScreenHold>();
+
+/** The held fade's nominal length: long enough that it never moves while it is reset each frame. */
+const SCREEN_HOLD_FADE_MS = 1_000_000;
+
+/**
+ * Keeps a screen on the void until `promise` settles and the screen has rendered with every label painted, then
+ * fades it in; at most `motion.screenHoldMaxMs` after the hold began. For a screen whose first draw is followed at
+ * once by another as its data arrives (unlocks, saves, a catalog, a picture), which would otherwise be seen filling
+ * in and blinking as it redraws. Call it in `create`, right after `fadeScreenIn`; several calls wait for all their
+ * promises. While held, the screen's labels are painted on the main thread (`holdLabelsOnMain`): nothing is on
+ * screen yet, so a long frame is not seen, and the screen fades in whole. A no-op under reduced motion, and once the
+ * screen's entrance has begun.
+ */
+export function holdScreenFor(scene: Phaser.Scene, promise: Promise<unknown>): void {
+  const held = holds.get(scene);
+  if (held) {
+    held.wait(promise);
+    return;
+  }
+  const entrance = entrances.get(scene);
+  if (!entrance || entrance.frame !== scene.sys.game.loop.frame) return;
+  entrances.delete(scene);
+  startHold(scene, entrance.durationMs).wait(promise);
+}
+
+function startHold(scene: Phaser.Scene, durationMs: number): ScreenHold {
+  const { r, g, b } = rgbOf(surface.void.hex);
+  const camera = scene.cameras.main;
+  const startedAt = performance.now();
+  let waiting = 0;
+  // Held as a fade-in that does not advance: the camera's fade is still running, which is what the idle renderer,
+  // `goToScreen` and a screen waiting on `FADE_IN_COMPLETE` read.
+  camera.fadeIn(SCREEN_HOLD_FADE_MS, r, g, b, () => {
+    if (holds.get(scene) === hold) (camera.fadeEffect as unknown as { _elapsed: number })._elapsed = 0;
+  });
+  const stop = (): void => {
+    holds.delete(scene);
+    holdLabelsOnMain(scene, false);
+    scene.events.off("render", check);
+  };
+  // After a render, not before it: labels are painted when they are drawn, so only then is "nothing waiting" true.
+  const check = (): void => {
+    if (holds.get(scene) !== hold) return;
+    const ready = waiting === 0 && labelsWaitingForPaint() === 0;
+    if (!ready && performance.now() - startedAt < motion.screenHoldMaxMs) return;
+    stop();
+    camera.fadeIn(durationMs, r, g, b);
+  };
+  const hold: ScreenHold = {
+    wait: (promise) => {
+      waiting++;
+      const settled = (): void => {
+        waiting--;
+      };
+      void promise.then(settled, settled);
+    },
+    cancel: stop,
+  };
+  holds.set(scene, hold);
+  holdLabelsOnMain(scene, true);
+  scene.events.on("render", check);
+  scene.events.once("shutdown", () => {
+    if (holds.get(scene) === hold) stop();
+  });
+  return hold;
+}
+
+/**
+ * Objects just drawn whose labels may still be painting (a new tab's shelf, drawn through `paintScrolledIn`): hidden
+ * until every label waiting on the text worker is in (or `motion.revealMaxMs` has passed), then faded in over
+ * `motion.revealMs`. Under reduced motion they are simply shown.
+ */
+export function revealWhenPainted(scene: Phaser.Scene, objects: readonly Phaser.GameObjects.GameObject[]): void {
+  if (reduced()) return;
+  // A label is painted when it is first measured or drawn, and a hidden one is never drawn: measure them now, so
+  // what they need is under way before they are hidden.
+  for (const object of objects) if (isText(object)) void object.width;
+  const targets = fadeables(objects).map((object) => ({ object, alpha: object.alpha }));
+  for (const { object } of targets) object.setAlpha(0);
+  const startedAt = performance.now();
+  const check = (): void => {
+    if (performance.now() - startedAt < motion.revealMaxMs && labelsWaitingForPaint() > 0) return;
+    scene.events.off("postupdate", check);
+    for (const { object, alpha } of targets) {
+      if (!object.scene) continue;
+      scene.tweens.add({ targets: object, alpha, duration: motion.revealMs, ease: "Quad.easeOut" });
+    }
+  };
+  // On update, not render: the idle renderer draws nothing while these are hidden, and their labels were measured
+  // above, so nothing waits on a render.
+  scene.events.on("postupdate", check);
+  scene.events.once("shutdown", () => scene.events.off("postupdate", check));
+}
+
+const isText = (object: Phaser.GameObjects.GameObject): object is Phaser.GameObjects.Text => object.type === "Text";
 
 /**
  * Leaves this screen for `key`: fade out to the void, then `scene.start`.
@@ -268,10 +386,42 @@ export function goToScreen(
   // your seats again, forever. Every screen change passes an object, empty when the caller has nothing to say.
   data ??= {};
   // The chunk of the screen being left for is still arriving (`scenes/scene-loader.ts`): a second tap must not queue a second start.
-  if (isStartPending(scene.scene)) return;
+  if (isStartPending(scene.scene) || preloading.has(scene)) return;
   // The next screen's labels are painted in the text worker; start it now if it ended, so the fade covers its start.
   prewarmTextPainter();
-  if (reduced() || durationMs <= 0) {
+  // The next screen's code first, while this one is still up and answering: fading out and then waiting on a chunk
+  // left the void on screen for as long as the download took. Tried once: a chunk that fails to load is left to the
+  // scene loader, which reports it, as before.
+  const loader = sceneLoader();
+  const missing = loader ? needed(key).filter((one) => LAZY_SCENE_KEYS.includes(one) && !loader.isRegistered(one)) : [];
+  if (loader && missing.length > 0) {
+    preloading.add(scene);
+    let left = false;
+    const leave = (): void => {
+      left = true;
+      preloading.delete(scene);
+    };
+    scene.events.once("shutdown", leave);
+    void Promise.all(missing.map((one) => loader.load(one)))
+      .catch(() => undefined)
+      .finally(() => {
+        // The screen was left (or reopened, as Phaser reuses the instance) meanwhile: that tap no longer applies.
+        if (left) return;
+        scene.events.off("shutdown", leave);
+        preloading.delete(scene);
+        leaveScreen(scene, key, data, durationMs);
+      });
+    return;
+  }
+  leaveScreen(scene, key, data, durationMs);
+}
+
+/** `goToScreen` once the next screen's code is in. */
+function leaveScreen(scene: Phaser.Scene, key: string, data: object, durationMs: number): void {
+  // Still on the void, waiting to fade in: there is nothing on screen to fade out.
+  const hold = holds.get(scene);
+  if (reduced() || durationMs <= 0 || hold) {
+    hold?.cancel();
     scene.scene.start(key, data);
     return;
   }
@@ -281,6 +431,9 @@ export function goToScreen(
   camera.once("camerafadeoutcomplete", () => scene.scene.start(key, data));
   camera.fadeOut(durationMs, r, g, b);
 }
+
+/** Screens whose `goToScreen` is waiting on the next screen's code, so a second tap meanwhile is ignored. */
+const preloading = new WeakSet<Phaser.Scene>();
 
 const rgbOf = (hex: number): { r: number; g: number; b: number } => ({
   r: (hex >> 16) & 0xff,

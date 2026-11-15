@@ -21,6 +21,11 @@
  * the fade-in hides a label that draws a frame late. A label the worker can't paint exactly (`workerCanPaint`), a
  * Canvas renderer, a missing worker or a worker that fails all take the main-thread path below.
  *
+ * Painted labels are kept (`label-bitmap-cache.ts`): a redraw that makes a label again with the same text, style and
+ * size reuses its pixels at once instead of painting it again, and labels waiting on the worker for the same pixels
+ * share one job. A screen held on the void before its entrance (`holdLabelsOnMain`, from `fadeScreenIn`) paints
+ * here, where a long frame is not seen, so it fades in whole.
+ *
  * Installed by replacing the `text` factory (`installLazyText`), so every
  * `scene.add.text(...)` in the app gets it without naming it. A `Text` built
  * with `new` directly is untouched.
@@ -33,6 +38,7 @@ import { documentFontReady, installFontMetricsCache } from "./font-metrics.js";
 import { layoutText, WidthCache, workerCanPaint, type LayoutInput } from "./text-layout.js";
 import { TextPainter, type PaintTarget, type PainterDeps } from "./text-painter.js";
 import type { PaintJob } from "./text-paint-protocol.js";
+import { LabelBitmapCache, labelKeyOf } from "./label-bitmap-cache.js";
 
 /** The faces the text worker is given: the ones `main.ts` bundles. A label in any other family is painted here. */
 const WORKER_FAMILIES: ReadonlySet<string> = new Set(["Bangers", "Public Sans", "IBM Plex Mono"]);
@@ -65,6 +71,15 @@ const painterDeps: PainterDeps = {
 };
 
 let painter: TextPainter | null = null;
+/** Labels already painted, by everything their pixels depend on (`label-bitmap-cache.ts`). */
+const painted = new LabelBitmapCache();
+
+/** A label laid out and ready to paint: its job, its frame size and its cache key (null when it must not be kept). */
+interface PlannedPaint {
+  readonly job: Omit<PaintJob, "id">;
+  readonly frame: { readonly width: number; readonly height: number };
+  readonly key: string | null;
+}
 /** Above zero while `paintScrolledIn` runs. */
 let scrolledInDepth = 0;
 
@@ -101,6 +116,39 @@ export function prewarmTextPainter(): void {
   textPainter()?.wants();
 }
 
+/** Screens held on the void before their entrance (`fadeScreenIn`): see `holdLabelsOnMain`. */
+const heldScenes = new WeakSet<Phaser.Scene>();
+
+/**
+ * While `scene` is held on the void, waiting to fade in, its labels are painted here rather than in the worker: the
+ * screen shows nothing yet, so a long frame there is not seen, and every label is ready in that one frame instead of
+ * arriving over the next several. False when the screen fades in.
+ */
+export function holdLabelsOnMain(scene: Phaser.Scene, held: boolean): void {
+  if (!held) {
+    heldScenes.delete(scene);
+    return;
+  }
+  heldScenes.add(scene);
+  // The screen's first draw ran before it was held: what it measured then went to the worker. Paint those here too.
+  const visit = (objects: readonly Phaser.GameObjects.GameObject[]): void => {
+    for (const object of objects) {
+      if (object instanceof McLazyText) {
+        if (object.shared) object.repaintHere();
+      } else {
+        const inner = (object as { list?: unknown }).list;
+        if (Array.isArray(inner)) visit(inner as Phaser.GameObjects.GameObject[]);
+      }
+    }
+  };
+  visit(scene.children.list);
+}
+
+/** How many labels are waiting on the text worker: while any are, some text on screen is not drawn yet. */
+export function labelsWaitingForPaint(): number {
+  return awaited.size;
+}
+
 /** True while `scene` is in its first frames (see `WORKER_YOUTH_FRAMES`). */
 function sceneIsYoung(scene: Phaser.Scene | undefined): boolean {
   const loop = scene?.sys?.game?.loop;
@@ -130,7 +178,7 @@ interface StyleInternals {
   metrics: { ascent: number; descent: number; fontSize: number };
 }
 
-export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
+export class McLazyText extends Phaser.GameObjects.Text {
   // `declare`, never initialized: the base constructor already calls `updateText`, and a field initializer would
   // run after it and wipe the flag it set.
   declare private lazyDirty: boolean | undefined;
@@ -140,6 +188,8 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
   declare private workerPainted: boolean | undefined;
   /** Made inside `paintScrolledIn`: the worker paints it even after the screen's first frames. */
   declare private scrolledIn: boolean | undefined;
+  /** The worker paint this label waits on, shared with every other label waiting on the same pixels. */
+  declare shared: SharedPaint | undefined;
 
   override updateText(): this {
     this.lazyDirty = true;
@@ -151,13 +201,49 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
   flush(): void {
     if (!this.lazyDirty) return;
     this.lazyDirty = false;
-    if (!this.paintInWorker()) this.paintOnMain();
+    const plan = this.planPaint();
+    if (plan) {
+      const known = plan.key === null ? undefined : painted.get(plan.key);
+      if (known) {
+        // The same label was painted before (a redraw making it again): reuse those pixels, at once.
+        this.leaveShared();
+        this.applyCanvas(known.canvas, known.canvasWidth, known.canvasHeight, known.resolution);
+        return;
+      }
+      if (this.paintInWorker(plan)) return;
+    }
+    this.paintOnMain();
+    if (plan?.key) this.rememberMainPaint(plan.key, plan);
+  }
+
+  /** Keeps a copy of what Phaser just painted, when it is the canvas `plan` describes. */
+  private rememberMainPaint(key: string, plan: PlannedPaint): void {
+    const own = this.canvas;
+    if (own.width !== plan.job.width || own.height !== plan.job.height) return;
+    const copy = document.createElement("canvas");
+    copy.width = own.width;
+    copy.height = own.height;
+    const context = copy.getContext("2d");
+    if (!context) return;
+    context.drawImage(own, 0, 0);
+    painted.set(key, {
+      canvas: copy,
+      canvasWidth: plan.frame.width,
+      canvasHeight: plan.frame.height,
+      resolution: plan.job.resolution,
+    });
+  }
+
+  /** Stops waiting on the worker and paints now, the way `flush` would in a held screen. */
+  repaintHere(): void {
+    this.leaveShared();
+    this.lazyDirty = true;
+    this.flush();
   }
 
   /** Phaser's own paint: measure, size the canvas, draw, upload. */
   paintOnMain(): void {
-    textPainter()?.forget(this.workerJob);
-    this.workerJob = undefined;
+    this.leaveShared();
     // The label's frame and texture were last sized for a worker bitmap, not for this canvas: make `updateText` see
     // a size change so it resizes both.
     if (this.workerPainted) {
@@ -168,13 +254,28 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
   }
 
   override preDestroy(): void {
-    textPainter()?.forget(this.workerJob);
-    this.workerJob = undefined;
+    this.leaveShared(true);
     super.preDestroy();
   }
 
-  /** Puts a worker bitmap in this label's texture, sizing the frame as `updateText` does for its own canvas. */
-  applyBitmap(bitmap: ImageBitmap, canvasWidth: number, canvasHeight: number, resolution: number): void {
+  /**
+   * Stops waiting on the worker. The job is dropped once no label waits on it, unless the label is being destroyed
+   * (`keep`): a redraw is usually about to make the same label again, which then joins the job instead of starting
+   * another, and its pixels are kept for later. A label laid out again (a new text, a font size being fitted) does
+   * not want its old pixels.
+   */
+  leaveShared(keep = false): void {
+    this.shared?.leave(this, keep);
+    this.shared = undefined;
+    this.workerJob = undefined;
+  }
+
+  /**
+   * Puts painted pixels that are not this label's own canvas into its texture (a worker bitmap, a cached paint),
+   * sizing the frame as `updateText` does for its own canvas.
+   */
+  applyCanvas(canvas: HTMLCanvasElement, canvasWidth: number, canvasHeight: number, resolution: number): void {
+    this.shared = undefined;
     this.workerJob = undefined;
     this.workerPainted = true;
     this.frame.setSize(canvasWidth, canvasHeight);
@@ -182,25 +283,18 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
     this.frame.source.resolution = resolution;
     this.frame.updateUVs();
     const source = this.frame.source;
-    source.glTexture = (this.renderer as unknown as GlRenderer).canvasToTexture(
-      canvasOf(bitmap),
-      source.glTexture,
-      true,
-    );
+    source.glTexture = (this.renderer as unknown as GlRenderer).canvasToTexture(canvas, source.glTexture, true);
   }
 
   /**
-   * Lays the label out here (its size must be known now) and queues the painting for the worker. False when this
-   * label should be painted by Phaser instead.
+   * Lays the label out here (its size must be known now) and describes its painting as a worker job, which is also
+   * its cache key. Null when only Phaser can paint this label (a style the worker can't reproduce, no WebGL).
    */
-  private paintInWorker(): boolean {
-    const worker = textPainter();
+  private planPaint(): PlannedPaint | null {
     const style = this.style;
-    if (!worker || !(this.renderer as { gl?: unknown } | undefined)?.gl) return false;
-    if (typeof style.color !== "string" || typeof style.stroke !== "string") return false;
-    if (!workerCanPaint(style, WORKER_FAMILIES)) return false;
-    if (!this.scrolledIn && !sceneIsYoung(this.scene)) return false;
-    if (!worker.wants()) return false;
+    if (!(this.renderer as { gl?: unknown } | undefined)?.gl) return null;
+    if (typeof style.color !== "string" || typeof style.stroke !== "string") return null;
+    if (!workerCanPaint(style, WORKER_FAMILIES)) return null;
 
     const context = this.context;
     const padding = this.padding;
@@ -273,11 +367,104 @@ export class McLazyText extends Phaser.GameObjects.Text implements PaintTarget {
       },
       lines: layout.lines,
     };
-    this.workerJob = worker.submit(this, this.workerJob, job, {
-      width: layout.canvasWidth,
-      height: layout.canvasHeight,
-    });
+    // A label painted before its font finished loading has the fallback's pixels: never kept.
+    const fontReady = layout.lines.every((line) => documentFontReady(font, line.text || " "));
+    return {
+      job,
+      frame: { width: layout.canvasWidth, height: layout.canvasHeight },
+      key: fontReady ? labelKeyOf(job) : null,
+    };
+  }
+
+  /** Queues `plan` for the worker. False when this label should be painted by Phaser instead. */
+  private paintInWorker(plan: PlannedPaint): boolean {
+    const worker = textPainter();
+    if (!worker) return false;
+    // A held screen paints everything here, rows drawn ahead in a list's overscan included (`holdLabelsOnMain`).
+    if (heldScenes.has(this.scene)) return false;
+    if (!this.scrolledIn && !sceneIsYoung(this.scene)) return false;
+    if (!worker.wants()) return false;
+    this.leaveShared();
+    // The same pixels already on their way (another "LOCKED" chip, or this label as the last redraw made it): wait
+    // on that job rather than painting them twice.
+    let shared = plan.key === null ? undefined : inFlight.get(plan.key);
+    if (!shared) {
+      shared = new SharedPaint(plan.key);
+      shared.id = worker.submit(shared, undefined, plan.job, plan.frame);
+      if (plan.key !== null) inFlight.set(plan.key, shared);
+    }
+    shared.join(this);
+    this.shared = shared;
+    this.workerJob = shared.id;
     return true;
+  }
+}
+
+/** Worker paints on their way, by cache key. */
+const inFlight = new Map<string, SharedPaint>();
+/** Worker paints some label is waiting on: not those kept on only for the cache after their labels went. */
+const awaited = new Set<SharedPaint>();
+
+/** One worker job and the labels waiting on its pixels: the painter's target, on behalf of them all. */
+class SharedPaint implements PaintTarget {
+  id = 0;
+  readonly #key: string | null;
+  readonly #labels = new Set<McLazyText>();
+  /** Every label waiting on it was destroyed; it is still painted, for the cache and for a label made again. */
+  #orphaned = false;
+
+  constructor(key: string | null) {
+    this.#key = key;
+  }
+
+  /** Wanted while a label waits on it, or (its last label destroyed) while its pixels can be kept for the next redraw. */
+  get active(): boolean {
+    return this.#labels.size > 0 || this.#orphaned;
+  }
+
+  join(label: McLazyText): void {
+    this.#orphaned = false;
+    this.#labels.add(label);
+    awaited.add(this);
+  }
+
+  leave(label: McLazyText, keep: boolean): void {
+    this.#labels.delete(label);
+    if (this.#labels.size > 0) return;
+    awaited.delete(this);
+    if (keep && this.#key !== null) {
+      this.#orphaned = true;
+      return;
+    }
+    this.#orphaned = false;
+    textPainter()?.forget(this.id);
+    this.#done();
+  }
+
+  applyBitmap(bitmap: ImageBitmap, canvasWidth: number, canvasHeight: number, resolution: number): void {
+    this.#done();
+    const canvas = canvasOf(bitmap);
+    if (this.#key !== null) painted.set(this.#key, { canvas, canvasWidth, canvasHeight, resolution });
+    for (const label of this.#take()) label.applyCanvas(canvas, canvasWidth, canvasHeight, resolution);
+  }
+
+  paintOnMain(): void {
+    this.#done();
+    for (const label of this.#take()) label.paintOnMain();
+  }
+
+  /** No later label joins this job. */
+  #done(): void {
+    if (this.#key !== null && inFlight.get(this.#key) === this) inFlight.delete(this.#key);
+  }
+
+  /** The labels still waiting on this job, which stop waiting on it. */
+  #take(): McLazyText[] {
+    const labels = [...this.#labels].filter((label) => label.shared === this);
+    this.#labels.clear();
+    awaited.delete(this);
+    for (const label of labels) label.shared = undefined;
+    return labels;
   }
 }
 
