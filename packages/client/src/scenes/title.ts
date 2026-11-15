@@ -38,6 +38,12 @@ import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
+import {
+  OLD_SAVE_OPEN_ID,
+  OLD_SAVE_PAGE_URL,
+  dismissOldSaveNotice,
+  oldSaveNoticeWanted,
+} from "../platform/old-save-notice.js";
 import { steamInstall, type SteamInstall } from "../platform/steam-install.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
@@ -160,6 +166,8 @@ export class TitleScene extends Phaser.Scene {
   #removeError: string | null = null;
   /** A newer release with an installer for this platform (native apps only), once GitHub has answered. */
   #update: AvailableUpdate | null = null;
+  /** The web game's "Looking for your old save?" banner (`platform/old-save-notice.ts`), until it is closed. */
+  #oldSave = false;
   /** The Install for Steam script's record of this install, once read (`platform/steam-install.ts`). */
   #steam: SteamInstall | null = null;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
@@ -240,6 +248,7 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    this.#oldSave = oldSaveNoticeWanted(detectPlatform());
     this.scale.on("resize", this.#rebuild, this);
     this.#hints = new GlyphHints(this);
     // The footer says when power saving mode is on (`platform/power-saving.ts`).
@@ -447,7 +456,8 @@ export class TitleScene extends Phaser.Scene {
       height,
       continuable: this.#continuable !== null,
       games: this.#listedGames().length,
-      update: this.#update !== null,
+      // The native apps' update banner and the web game's old-save banner share the slot; a build only ever has one.
+      update: this.#update !== null || this.#oldSave,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
       noticeBar: RELEASE_NOTICE_ON,
@@ -983,6 +993,7 @@ export class TitleScene extends Phaser.Scene {
    */
   #drawUpdateBanner(banner: Rect | null): readonly string[] {
     const update = this.#update;
+    if (!update && this.#oldSave && banner) return this.#drawOldSaveBanner(banner);
     if (!update || !banner) return [];
     const all = updateActions(update, this.#steam?.canUpdate === true);
     const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
@@ -1007,33 +1018,55 @@ export class TitleScene extends Phaser.Scene {
       const rect = parts.buttons[index]!;
       const { url } = action;
       const open = (): void => (url === null ? this.#openSteamUpdate(update) : openExternal(url));
-      this.#buttons.push(
-        new McButton(this, {
-          kind: action.id === "update-notes" ? "secondary" : "primary",
-          label: action.label,
-          type: typeRole.rowTitle,
-          rect,
-          onClick: open,
-        }),
-      );
-      this.#stops.set(action.id, { rect, activate: open });
+      this.#bannerButton(action.id, action.id === "update-notes" ? "secondary" : "primary", action.label, rect, open);
     });
-    const close = (): void => {
+    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
       dismissUpdate(update.version);
       this.#update = null;
       this.#rebuild();
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "×",
-        type: typeRole.rowTitle,
-        rect: parts.dismiss,
-        onClick: close,
-      }),
-    );
-    this.#stops.set(UPDATE_DISMISS_ID, { rect: parts.dismiss, activate: close });
+    });
     return actions.map((action) => action.id);
+  }
+
+  /**
+   * The web game's "Looking for your old save?" banner (issue #723, `platform/old-save-notice.ts`), in the update
+   * banner's slot and colors: one button to the moved page at the old address, whose steps recover the saves the
+   * browser kept there, and a close button that hides it for good. Returns its focus stops.
+   */
+  #drawOldSaveBanner(banner: Rect): readonly string[] {
+    const parts = updateBannerParts(banner, 1);
+    this.add
+      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.inkOnHue.hex);
+    const heading = this.add
+      .text(parts.text.x, parts.text.y, t("title.oldSave"), textStyle(typeRole.label, surface.inkOnHue.hex))
+      .setLetterSpacing(1);
+    fitText(heading, parts.textWidth, typeRole.label.size);
+    const detail = this.add.text(
+      parts.text.x,
+      parts.text.y + 16,
+      t("title.oldSaveDetail"),
+      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+    );
+    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
+    this.#bannerButton(OLD_SAVE_OPEN_ID, "primary", t("title.oldSaveOpen"), parts.buttons[0]!, () =>
+      openExternal(OLD_SAVE_PAGE_URL),
+    );
+    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
+      dismissOldSaveNotice();
+      this.#oldSave = false;
+      this.#rebuild();
+    });
+    return [OLD_SAVE_OPEN_ID];
+  }
+
+  /** A banner button: drawn, a focus stop, and the press glyph while a pad or the keyboard has it focused. */
+  #bannerButton(id: string, kind: "primary" | "secondary", label: string, rect: Rect, activate: () => void): void {
+    const button = new McButton(this, { kind, label, type: typeRole.rowTitle, rect, onClick: activate });
+    this.#buttons.push(button);
+    this.#stops.set(id, { rect, activate });
+    this.#hints?.button(button, ["activate"], "ink", { when: () => this.#route?.focused === id });
   }
 
   #openSteamUpdate(update: AvailableUpdate): void {

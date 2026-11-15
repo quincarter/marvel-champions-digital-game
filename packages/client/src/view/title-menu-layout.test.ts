@@ -244,6 +244,22 @@ describe("titleMenuLayout", () => {
     }
   });
 
+  test("on a phone the top-row buttons, level with the eyebrow, clear the banner (#723)", () => {
+    // The Report, music, language and theme buttons are 40px tall, centered on the 16px eyebrow (`scenes/title.ts`).
+    for (const [width, height] of [
+      [375, 667],
+      [390, 844],
+      [412, 924],
+    ] as const) {
+      for (const noticeBar of [false, true]) {
+        const offered = titleMenuLayout({ width, height, continuable: true, update: true, noticeBar });
+        const banner = offered.updateBanner!;
+        const topRowTop = offered.eyebrow.y + offered.eyebrow.height / 2 - 20;
+        expect(topRowTop, `${width}x${height}`).toBeGreaterThanOrEqual(banner.y + banner.height + 4);
+      }
+    }
+  });
+
   test("the banner's buttons are touch-sized, inside it, and leave the text its room", () => {
     // 1280 fits one row; a phone and a portrait tablet's art panel stack the buttons under the text.
     for (const [width, height] of [
