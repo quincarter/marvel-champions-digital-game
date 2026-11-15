@@ -1,0 +1,3 @@
+kind: Fixed
+body: Extras arrives with its tile pictures in place and fades in without stepping (a locked tile's gray picture is baked once, off the main thread, instead of filtered every frame), and the Mod Store's first-visit notice opens with its portraits and words (#716)
+time: 2026-11-15T05:57:29.3098708-05:00

@@ -17,6 +17,8 @@
  */
 import type Phaser from "phaser";
 import { canvasOf } from "./bitmap-canvas.js";
+import { decodedGrayPicture } from "./gray-picture-client.js";
+import { grayKeyOf, type Size } from "./grayscale.js";
 import { focusedOffset, type PictureFocus } from "./focus.js";
 
 export { focusedOffset, type PictureFocus };
@@ -75,14 +77,37 @@ interface Waiter {
 const inFlight = new WeakMap<Phaser.Textures.TextureManager, Map<string, Waiter[]>>();
 
 export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onReady: () => void): string | null {
+  return ensureTextureLoaded(scene, picture.key, () => decodedPicture(picture.url), onReady);
+}
+
+/**
+ * `ensurePictureLoaded` for the picture's gray copy, baked once off the main thread (`art/gray-picture-client.ts`), for
+ * a picture drawn gray without a filter re-rendering it every frame (issue #716), baked to cover `slot` (device
+ * pixels, `graySlotOf`). Returns the gray texture's key.
+ */
+export function ensureGrayPictureLoaded(
+  scene: Phaser.Scene,
+  picture: Picture,
+  slot: Size,
+  onReady: () => void,
+): string | null {
+  return ensureTextureLoaded(scene, grayKeyOf(picture.key, slot), () => decodedGrayPicture(picture.url, slot), onReady);
+}
+
+function ensureTextureLoaded(
+  scene: Phaser.Scene,
+  key: string,
+  decode: () => Promise<HTMLImageElement | HTMLCanvasElement | null>,
+  onReady: () => void,
+): string | null {
   const textures = scene.textures;
-  if (textures.exists(picture.key)) return picture.key;
+  if (textures.exists(key)) return key;
   let loads = inFlight.get(textures);
   if (!loads) {
     loads = new Map();
     inFlight.set(textures, loads);
   }
-  const waiting = loads.get(picture.key);
+  const waiting = loads.get(key);
   if (waiting) {
     // A scene that redraws while the picture loads asks again with the same callback: wait once, not once per redraw.
     if (!waiting.some((waiter) => waiter.scene === scene && waiter.onReady === onReady))
@@ -90,13 +115,13 @@ export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onRea
     return null;
   }
   const waiters: Waiter[] = [{ scene, onReady }];
-  loads.set(picture.key, waiters);
+  loads.set(key, waiters);
   const settle = (source: HTMLImageElement | HTMLCanvasElement | null): void => {
-    loads.delete(picture.key);
-    if (source && !textures.exists(picture.key)) textures.addImage(picture.key, source as HTMLImageElement);
+    loads.delete(key);
+    if (source && !textures.exists(key)) textures.addImage(key, source as HTMLImageElement);
     notify(textures, loads, source ? waiters : []);
   };
-  decodedPicture(picture.url).then(settle, () => settle(null));
+  decode().then(settle, () => settle(null));
   return null;
 }
 

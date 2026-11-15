@@ -55,6 +55,8 @@ import type { SideStoryReaderData } from "./side-story-reader.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, pickReplayFile, replayErrorKey } from "../replay/replay-files.js";
 import { watchReplay } from "./replay-entry.js";
+import { PictureWait } from "../ui/picture-wait.js";
+import { markRenderDirty } from "../ui/idle-render.js";
 
 export interface ExtrasSceneData {
   /** The tab to open on: a story read comes back to Stories. Defaults to the tab open last time. */
@@ -91,6 +93,8 @@ export class ExtrasScene extends Phaser.Scene {
   #hover: HoverPreview | null = null;
   /** The Promo Cards tab's tiles as drawn, for the hover popover: a locked one shows what there is to earn. */
   #promoTiles: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
+  /** Tiles drawn before their pictures loaded: the screen's entrance waits for them (issue #716). */
+  #pictures = new PictureWait();
 
   constructor() {
     super(SCENES.extras);
@@ -104,6 +108,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.#tab = data.tab ?? this.#tab;
     this.#redrawQueued = false;
     this.#alive = true;
+    this.#pictures = new PictureWait();
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     // A glyph that would hang over another control is not drawn (the phone's Back hint, over the Trophy Room button).
@@ -136,14 +141,33 @@ export class ExtrasScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    // The shelf as the saves have it now: drawn before the screen fades in, rather than redrawn as it does.
+    // The shelf as the saves have it now: drawn before the screen fades in, rather than redrawn as it does. Its tiles'
+    // pictures are waited for too, so the screen arrives with them in place and their first upload and render happen
+    // while it is still on the void, not across the fade (issue #716). The hold is capped, so a slow picture can't
+    // keep the screen dark.
+    holdScreenFor(this, this.#pictures.settled());
     holdScreenFor(
       this,
       refreshUnlocks()
         .catch(() => false)
-        .then(() => this.#draw()),
+        .then(() => {
+          this.#draw();
+          holdScreenFor(this, this.#pictures.settled());
+        }),
     );
   }
+
+  /**
+   * Pictures arrived (once per batch, `ensurePictureLoaded`): the drawn tiles waiting for them fill themselves in
+   * (`McVirtualList#refreshRows`) rather than the whole screen being drawn again, which made the first fade into
+   * Extras step through 100–190 ms frames (issue #716). One stable function, so the loader tells it once per batch.
+   */
+  readonly #pictureArrived = (): void => {
+    if (!this.#alive) return;
+    this.#list?.refreshRows();
+    markRenderDirty();
+    this.#pictures.arrived();
+  };
 
   #scroll(tab: ExtrasTab): ListScroll {
     let scroll = this.#scrolls.get(tab);
@@ -513,18 +537,19 @@ export class ExtrasScene extends Phaser.Scene {
     playing: string | null,
   ): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
+    const waiting: (() => void)[] = [];
     for (let column = 0; column < grid.columns; column += 1) {
       const index = rowIndex * grid.columns + column;
       const tile = tiles[index];
       if (!tile) break;
       const tileRect = extrasTileRect(index, grid, rect);
       if (this.#tab === "music") objects.push(...this.#drawTrackRow(tile, tileRect, playing));
-      else objects.push(...this.#drawTile(tile, tileRect));
+      else objects.push(...this.#drawTile(tile, tileRect, waiting));
     }
-    return { objects };
+    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
   }
 
-  #drawTile(tile: ExtrasTileView, rect: Rect): Phaser.GameObjects.GameObject[] {
+  #drawTile(tile: ExtrasTileView, rect: Rect, waiting: (() => void)[]): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const captionHeight = 52;
     const art: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - captionHeight };
@@ -535,22 +560,32 @@ export class ExtrasScene extends Phaser.Scene {
     objects.push(ground);
 
     const portrait = this.#tab === "heroes" || this.#tab === "villains" || this.#tab === "promos";
-    const image = drawPicture(this, tile.thumb, art, () => this.#requestRedraw(), {
+    const pictureOptions = {
       focusY: portrait ? 0.2 : 0.4,
       // Locked: a gray ghost of the picture on the ink ground, so the shelf shows what there is to earn.
       ...(tile.open ? {} : { grayscale: true, alpha: 0.3 }),
-    });
+    };
+    const image = drawPicture(this, tile.thumb, art, this.#pictureArrived, pictureOptions);
     if (image) {
       objects.push(image);
     } else {
-      // No picture yet: the entry's initial, big and faint, so the shelf still reads as a shelf.
-      objects.push(
-        this.add
-          .text(art.x + art.width / 2, art.y + art.height / 2, tile.title.charAt(0).toUpperCase(), {
-            ...textStyle(bangers(Math.round(art.height * 0.5)), surface.paper.hex, 0.18),
-          })
-          .setOrigin(0.5),
-      );
+      // No picture yet: the entry's initial, big and faint, so the shelf still reads as a shelf, in a slot the picture
+      // takes over in place when it arrives.
+      const initial = this.add
+        .text(art.x + art.width / 2, art.y + art.height / 2, tile.title.charAt(0).toUpperCase(), {
+          ...textStyle(bangers(Math.round(art.height * 0.5)), surface.paper.hex, 0.18),
+        })
+        .setOrigin(0.5);
+      const slot = this.add.container(0, 0, [initial]);
+      objects.push(slot);
+      if (tile.thumb) {
+        this.#pictures.expect();
+        waiting.push(() => {
+          if (!slot.active || slot.list[0] !== initial) return;
+          const arrived = drawPicture(this, tile.thumb, art, this.#pictureArrived, pictureOptions);
+          if (arrived) slot.removeAll(true).add(arrived);
+        });
+      }
     }
 
     // The status chip, top-left: what a tap does, or that it's locked.

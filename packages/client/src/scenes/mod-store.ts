@@ -25,8 +25,17 @@ import {
   type AnyCard,
   type PackIndex,
 } from "@mc/content";
-import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { CAMPAIGN_TOP_BAR, bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
+import { accent, hit, ink, motion, signal, surface, typeRole } from "../tokens.js";
+import {
+  CAMPAIGN_TOP_BAR,
+  bangers,
+  campaignFrame,
+  drawPicture,
+  drawTopBar,
+  heroPicture,
+} from "../ui/campaign-chrome.js";
+import { ensurePictureLoaded } from "../art/pictures.js";
+import { PictureWait, settleWithin } from "../ui/picture-wait.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
@@ -108,6 +117,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { modNoticeSeen } from "../platform/mod-notice-seen.js";
 import {
+  MOD_NOTICE_LINES,
   MOD_STORE_BETA_CAPTION,
   modNoticeControlLabelOf,
   showNoticeBeforeInstall,
@@ -244,8 +254,26 @@ export class ModStoreScene extends Phaser.Scene {
     fadeScreenIn(this);
     // The catalog (usually the saved copy, at once) before the store fades in, not a "Loading" page swapped for it.
     holdScreenFor(this, this.#load());
-    // The first time the store opens, the heads-up about mods shows over it (remembered once answered).
-    if (showNoticeOnOpen(modNoticeSeen())) this.#showNotice();
+    // The first time the store opens, the heads-up about mods shows over it (remembered once answered), once its two
+    // portraits are in: they load while the store is held, so the notice opens with them rather than with letters
+    // that turn into faces a moment later (issue #716). A portrait that never loads holds it no longer than the hold.
+    if (showNoticeOnOpen(modNoticeSeen())) {
+      const portraits = settleWithin(this.#loadNoticePortraits(), motion.screenHoldMaxMs);
+      holdScreenFor(this, portraits);
+      void portraits.then(() => {
+        if (this.sys.isActive()) this.#showNotice();
+      });
+    }
+  }
+
+  /** The mods notice's speaker portraits, loading: settles once both are in the texture manager. */
+  #loadNoticePortraits(): Promise<void> {
+    const wait = new PictureWait();
+    for (const line of MOD_NOTICE_LINES) {
+      const picture = heroPicture(line.identityId);
+      if (picture && ensurePictureLoaded(this, picture, wait.arrived) === null) wait.expect();
+    }
+    return wait.settled();
   }
 
   /** Inspect or the mods notice is over the store: the list's hand cursor stands down. */

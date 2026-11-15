@@ -10,7 +10,9 @@
 import Phaser from "phaser";
 import { CAMPAIGN_ART, campaignArtboardFor, campaignCoverFor, campaignPageFor } from "../art/campaign-art.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
-import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import { coverFit, ensureGrayPictureLoaded, ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import { graySlotOf } from "../art/grayscale.js";
+import { currentRenderScale } from "./render-scale.js";
 import { ART_CATALOG } from "../art/scenario-art.js";
 import { accent, border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { formFactorFor, type FormFactor, type Rect } from "../view/layout.js";
@@ -470,7 +472,11 @@ export function drawPicture(
   } = {},
 ): Phaser.GameObjects.Image | null {
   if (!picture || rect.width <= 0 || rect.height <= 0) return null;
-  const key = ensurePictureLoaded(scene, picture, onReady);
+  // Gray is baked into its own texture (issue #716): a grayscale filter re-renders its picture through a framebuffer
+  // every frame the screen draws, which made a shelf of locked tiles step through its fade.
+  const key = options.grayscale
+    ? ensureGrayPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), onReady)
+    : ensurePictureLoaded(scene, picture, onReady);
   if (!key) return null;
   const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
   // A picture's own focus point (a hero's `focus.json`) wins over the caller's per-screen default on the axis it names.
@@ -487,7 +493,6 @@ export function drawPicture(
     .setScale(fit.scale)
     .setCrop(cropX, cropY, fit.cropWidth, fit.cropHeight)
     .setAlpha(options.alpha ?? 1);
-  if (options.grayscale) desaturate(image);
   return image;
 }
 
