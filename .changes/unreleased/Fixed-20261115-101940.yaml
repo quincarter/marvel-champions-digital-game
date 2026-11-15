@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Opening Title, Extras and the Mod Store does less on the main thread: progress is read and worked out in a worker, pictures are scaled to the size they are drawn at in a worker before they are uploaded, and Extras is not drawn a second time when nothing changed (#722)'
+time: 2026-11-15T10:19:40.0551946-05:00

@@ -40,13 +40,8 @@ import {
   type TrophySort,
   type TrophyView,
 } from "../view/trophy-room-model.js";
-import {
-  ACHIEVEMENTS,
-  ACHIEVEMENT_FAMILIES,
-  achievementStatuses,
-  type AchievementFamily,
-} from "../progression/achievements.js";
-import { achievementHistory, lifetimeChampionPoints, refreshUnlocks } from "../progression/progression.js";
+import { ACHIEVEMENTS, ACHIEVEMENT_FAMILIES, type AchievementFamily } from "../progression/achievements.js";
+import { achievementStatusesNow, lifetimeChampionPoints, refreshUnlocks } from "../progression/progression.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
@@ -257,7 +252,7 @@ export class TrophyRoomScene extends Phaser.Scene {
 
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
-    const statuses = achievementStatuses(achievementHistory());
+    const statuses = achievementStatusesNow();
     const header = trophyHeaderOf(lifetimeChampionPoints(), statuses);
     const rows = trophyRowsOf(statuses, this.#view);
     this.#rows = rows;
