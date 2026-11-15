@@ -247,6 +247,13 @@ export class ModStoreScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     this.#hints = new GlyphHints(this, () => this.#obstacles);
+    // A pad that put the caret in the search box can take it out again (B, A or Start). Bound before the route, so the
+    // A that focuses the field is not also read as the press that leaves it (`text-field-escape.ts`).
+    bindTextFieldEscape(
+      this,
+      () => this.#searchInput,
+      () => this.#overlayUp(),
+    );
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       // X (G / H on the keyboard) reopens the heads-up about mods.
@@ -260,12 +267,6 @@ export class ModStoreScene extends Phaser.Scene {
       },
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
     });
-    // A pad that put the caret in the search box can take it out again (B, A or Start).
-    bindTextFieldEscape(
-      this,
-      () => this.#searchInput,
-      () => this.#overlayUp(),
-    );
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
       area: (pointer) => screenHoverArea(this, pointer),
