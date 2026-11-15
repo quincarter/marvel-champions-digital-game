@@ -149,9 +149,11 @@ jobs:
             echo "::notice::${MC_SDK_PACKAGE_NAME}@${VERSION} is already on npm."
             exit 0
           fi
-          # Trusted publishing needs npm 11.5.1 or later (https://docs.npmjs.com/trusted-publishers).
+          # Trusted publishing needs npm 11.5.1 or later (https://docs.npmjs.com/trusted-publishers); Node 24 bundles it.
+          # Not upgraded here: this job holds secrets, so it installs nothing (scripts/check-workflow-secrets.mjs).
           if ! node -e 'const [a,b,c]=process.argv[1].split(".").map(Number);process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)' "$(npm --version)"; then
-            npm install -g npm@11
+            echo "::error::npm $(npm --version) is older than 11.5.1, which npm trusted publishing needs."
+            exit 1
           fi
           ARGS=(publish "$TARBALL" --provenance --access public)
           if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
