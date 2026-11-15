@@ -7,7 +7,8 @@
  *
  * Usage: pnpm packs:fetch [--from <registry checkout>] [--force]
  *   --from <dir>   copy from a local checkout of the registry instead of fetching the pinned commit (every time)
- *   --force        fetch again even when the pinned commit is already in place
+ *   --force        fetch again even when the pinned commit is already in place, and replace pack folders this script
+ *                  didn't put there (without it, such a folder stops the run before anything changes)
  *
  * Environment: MC_ASSETS_CACHE (the shared cache folder, as pnpm assets:fetch uses), MC_PACKS=none (skip).
  * The registry is fetched into <cache>/registry.git once, then only the pinned commit. A pack folder this script put
@@ -87,6 +88,17 @@ const ids = fs
   .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(packs, entry.name, "pack.json")))
   .map((entry) => entry.name)
   .sort();
+// A folder this script didn't put there (an older checkout's copy of a pack, or one being worked on) is never replaced
+// without --force: the folder is gitignored, so anything lost there is hard to get back.
+const unowned = ids.filter((id) => !state.ids.includes(id) && fs.existsSync(path.join(DEST, id)));
+if (unowned.length > 0 && !force) {
+  if (!from) fs.rmSync(path.dirname(packs), { recursive: true, force: true });
+  console.error(
+    `[packs] content-packs/community/ already has ${unowned.join(", ")}, not put there by pnpm packs:fetch. ` +
+      "Move them aside (or delete them) and run it again, or pass --force to replace them.",
+  );
+  process.exit(1);
+}
 fs.mkdirSync(DEST, { recursive: true });
 for (const id of state.ids) {
   if (!ids.includes(id)) fs.rmSync(path.join(DEST, id), { recursive: true, force: true });

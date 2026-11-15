@@ -1,4 +1,5 @@
-// node --test scripts/ (pnpm test:scripts). pnpm packs:fetch with --from: a local registry checkout is copied every time.
+// node --test scripts/ (pnpm test:scripts). pnpm packs:fetch with --from: a local registry checkout is copied every time, and folders it
+// didn't put there are left alone.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -31,5 +32,23 @@ describe("packs-fetch.mjs --from", () => {
     write("1.0.1");
     assert.equal(run().status, 0);
     assert.equal(copied(), "1.0.1");
+  });
+
+  it("leaves a folder it didn't put there alone, unless --force", () => {
+    const own = path.join(temp, "own");
+    const ownDest = path.join(own, "community");
+    fs.mkdirSync(path.join(ownDest, "fan-a"), { recursive: true });
+    fs.writeFileSync(path.join(ownDest, "fan-a", "work.txt"), "unsaved work");
+    const runAt = (...extra) =>
+      spawnSync(process.execPath, [script, "--from", registry, ...extra], {
+        encoding: "utf8",
+        env: { ...process.env, MC_PACKS_DEST: ownDest },
+      });
+    const refused = runAt();
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /fan-a, not put there by pnpm packs:fetch/);
+    assert.equal(fs.readFileSync(path.join(ownDest, "fan-a", "work.txt"), "utf8"), "unsaved work");
+    assert.equal(runAt("--force").status, 0);
+    assert.equal(fs.existsSync(path.join(ownDest, "fan-a", "work.txt")), false);
   });
 });
