@@ -6,21 +6,21 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.45.0/index.es.html)**
 
-![The numbers: 8 mods in the store, 7 creators and 66 built-in packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-01-the-numbers.jpg)
+![The numbers: 8 mods in the store, 7 creators and 66 built-in packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-01-the-numbers.jpg)
 
-![The Mod Store opens: the store's eight packs, the heads-up from Deadpool and Spider-Man on a phone, Mephisto's page, what's in the store (with Throg coming next) and how mods play](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-02-the-mod-store-opens.jpg)
+![The Mod Store opens: the store's eight packs, the heads-up from Deadpool and Spider-Man on a phone, Mephisto's page, what's in the store (with Throg coming next) and how mods play](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-02-the-mod-store-opens.jpg)
 
-![Watch it back: a replay on the board with its bar on desktop and on a phone, where to find replays and how to share them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-03-watch-it-back.jpg)
+![Watch it back: a replay on the board with its bar on desktop and on a phone, where to find replays and how to share them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-03-watch-it-back.jpg)
 
-![A home of its own: the new landing page, and what happens to your saves now that the game has moved](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
+![A home of its own: the new landing page, and what happens to your saves now that the game has moved](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
 
-![You asked, we fixed: the Briefing on Android and Stealth Training, reported by @AlecHolland1582, and two search fixes by @bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
+![You asked, we fixed: the Briefing on Android and Stealth Training, reported by @AlecHolland1582, and two search fixes by @bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
 
-![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, every product built the way a mod is, and smoother screen changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
+![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, every product built the way a mod is, and smoother screen changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
 
-![Thank you to bluefireF5ran, the pack creators, Kravenprime and AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-07-thank-you.jpg)
+![Thank you to bluefireF5ran, the pack creators, Kravenprime and AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-07-thank-you.jpg)
 
-![Code shipped since v0.44.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/1b0d38871fee3a68c7bdcfb1ff4771cd0ca984ca/docs/screenshots/releases/v0.45.0/v0-45-0-release-08-code-shipped.jpg)
+![Code shipped since v0.44.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-08-code-shipped.jpg)
 
 ---
 
