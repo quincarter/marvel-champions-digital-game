@@ -48,6 +48,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - Captain America, Ms. Marvel, Thor, Black Widow and Hulk use the owner's new scans of their hero and nemesis cards, and Vision's Intangible face shows the owner's scan instead of a photo
 - Mod Store publish: versioned R2 uploads are immutable (every object checked first, conditional puts with sha256 metadata), so a race with the registry publisher never mixes files
 - The landing page holds back a release's news and report screenshots until GitHub publishes it, and redeploys when a release is published so its downloads and news are current
+- The landing page's bar names the game in full, Marvel Champions, with Digital Edition beside it, and its section links and language names make room on smaller screens
 
 ### Fixed
 
@@ -98,6 +99,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 
 - Design proposal for downloadable custom content packs (fan heroes and scenarios outside the app build)
 - The post-1.7 rulings transcript now runs to October 12, 2026
+- Removed the mod store's leftover PR screenshots from docs/pr-screenshots.
 
 ### Special thanks
 
