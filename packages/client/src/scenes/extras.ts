@@ -578,7 +578,8 @@ export class ExtrasScene extends Phaser.Scene {
         .setOrigin(0.5);
       const slot = this.add.container(0, 0, [initial]);
       objects.push(slot);
-      if (tile.thumb) {
+      // Only a picture whose load was started is waited for (an empty slot starts none).
+      if (tile.thumb && art.width > 0 && art.height > 0) {
         this.#pictures.expect();
         waiting.push(() => {
           if (!slot.active || slot.list[0] !== initial) return;

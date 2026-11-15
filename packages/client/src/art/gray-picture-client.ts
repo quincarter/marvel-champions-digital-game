@@ -17,9 +17,16 @@ export interface GrayPictureReply {
   readonly bitmap: ImageBitmap | null;
 }
 
+/** How long a bake may take in the worker before it is done on the main thread instead. */
+export const GRAY_WORKER_TIMEOUT_MS = 4000;
+
+/** No answer from the worker (it failed to start, or was stopped): the picture is baked on the main thread. */
+const UNAVAILABLE = "unavailable" as const;
+type WorkerAnswer = ImageBitmap | null | typeof UNAVAILABLE;
+
 let worker: Worker | null | undefined;
 let nextId = 1;
-const pending = new Map<number, (bitmap: ImageBitmap | null) => void>();
+const pending = new Map<number, (answer: WorkerAnswer) => void>();
 
 function grayWorker(): Worker | null {
   if (worker !== undefined) return worker;
@@ -36,7 +43,7 @@ function grayWorker(): Worker | null {
     };
     made.onerror = () => {
       // A worker that fails to start answers nothing: let everything waiting on it go, and bake on the main thread.
-      for (const settle of pending.values()) settle(null);
+      for (const settle of pending.values()) settle(UNAVAILABLE);
       pending.clear();
       worker = null;
     };
@@ -47,42 +54,76 @@ function grayWorker(): Worker | null {
   return worker;
 }
 
-/** Bakes on the main thread, where there is no worker to do it. */
-async function grayOnMain(url: string, slot: Size): Promise<HTMLCanvasElement | null> {
-  const image = await new Promise<HTMLImageElement | null>((resolve) => {
-    const loading = new Image();
-    loading.onload = () => resolve(loading);
-    loading.onerror = () => resolve(null);
-    loading.src = url;
+/** The picture decoded the way `decodedPicture` does (fetched, then `createImageBitmap`), or as a CORS image. */
+async function decodedSource(url: string): Promise<ImageBitmap | HTMLImageElement | null> {
+  if (typeof createImageBitmap === "function" && typeof fetch === "function") {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return await createImageBitmap(await response.blob());
+    } catch {
+      // Fall through to the plain image.
+    }
+  }
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = url;
   });
-  if (!image) return null;
+}
+
+/** Bakes on the main thread, where there is no worker to do it (or it didn't answer). */
+async function grayOnMain(url: string, slot: Size): Promise<HTMLCanvasElement | null> {
+  const source = await decodedSource(url);
+  if (!source) return null;
+  const width = source instanceof HTMLImageElement ? source.naturalWidth : source.width;
+  const height = source instanceof HTMLImageElement ? source.naturalHeight : source.height;
+  const size = bakedSizeOf({ width, height }, slot);
   const canvas = document.createElement("canvas");
-  const size = bakedSizeOf({ width: image.naturalWidth, height: image.naturalHeight }, slot);
   canvas.width = size.width;
   canvas.height = size.height;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return null;
   context.imageSmoothingQuality = "high";
-  context.drawImage(image, 0, 0, size.width, size.height);
-  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  grayscalePixels(pixels.data);
-  context.putImageData(pixels, 0, 0);
+  context.drawImage(source, 0, 0, size.width, size.height);
+  if (!(source instanceof HTMLImageElement)) source.close();
+  try {
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    grayscalePixels(pixels.data);
+    context.putImageData(pixels, 0, 0);
+  } catch {
+    return null; // A picture the page may not read back (cross-origin without CORS): no gray copy.
+  }
   return canvas;
 }
 
-/** The gray copy of the picture at `url`, baked to cover `slot`, or null when it can't be loaded. */
+/**
+ * The gray copy of the picture at `url`, baked to cover `slot`, or null when it can't be loaded. A worker that doesn't
+ * answer within `GRAY_WORKER_TIMEOUT_MS` (stopped under memory pressure, a fetch that hangs) is not waited on for
+ * good: the bake moves to the main thread, so the picture's key never stays loading.
+ */
 export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLCanvasElement | null> {
   const baker = grayWorker();
   if (!baker) return grayOnMain(url, slot);
   const id = nextId++;
   const absolute = new URL(url, document.baseURI).href;
-  const bitmap = await new Promise<ImageBitmap | null>((resolve) => {
-    pending.set(id, resolve);
+  const answer = await new Promise<WorkerAnswer>((resolve) => {
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      resolve(UNAVAILABLE);
+    }, GRAY_WORKER_TIMEOUT_MS);
+    pending.set(id, (reply) => {
+      clearTimeout(timer);
+      resolve(reply);
+    });
     baker.postMessage({
       id,
       url: absolute,
       slot: { width: slot.width, height: slot.height },
     } satisfies GrayPictureRequest);
   });
-  return bitmap ? canvasOf(bitmap) : grayOnMain(url, slot);
+  if (answer === UNAVAILABLE) return grayOnMain(url, slot);
+  // The worker's own null is a picture that didn't load (a 404): fetching it again here would fail the same way.
+  return answer ? canvasOf(answer) : null;
 }

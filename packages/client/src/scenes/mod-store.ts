@@ -257,11 +257,14 @@ export class ModStoreScene extends Phaser.Scene {
     // The first time the store opens, the heads-up about mods shows over it (remembered once answered), once its two
     // portraits are in: they load while the store is held, so the notice opens with them rather than with letters
     // that turn into faces a moment later (issue #716). A portrait that never loads holds it no longer than the hold.
+    // Tied to this visit, and asked again when they are in: the player may have opened the notice (About mods) and
+    // answered it meanwhile, or left the store and come back.
     if (showNoticeOnOpen(modNoticeSeen())) {
+      const visit = ++this.#visit;
       const portraits = settleWithin(this.#loadNoticePortraits(), motion.screenHoldMaxMs);
       holdScreenFor(this, portraits);
       void portraits.then(() => {
-        if (this.sys.isActive()) this.#showNotice();
+        if (visit === this.#visit && this.sys.isActive() && showNoticeOnOpen(modNoticeSeen())) this.#showNotice();
       });
     }
   }
@@ -275,6 +278,9 @@ export class ModStoreScene extends Phaser.Scene {
     }
     return wait.settled();
   }
+
+  /** Each opening of the store: the first-visit notice, opened once its portraits are in, belongs to one of them. */
+  #visit = 0;
 
   /** Inspect or the mods notice is over the store: the list's hand cursor stands down. */
   #overlayUp(): boolean {
