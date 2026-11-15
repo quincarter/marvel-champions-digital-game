@@ -112,6 +112,7 @@ import { basicPowerCostNeeds } from "./basic-power-uses.js";
 import { dealToCostChoices } from "./deal-to-cost.js";
 import {
   attachmentReachOf,
+  cannotChooseToDiscard,
   costsPayableByAnyPlayer,
   formChangeCostsFor,
   playDestinationsOf,
@@ -789,7 +790,10 @@ function discardPicks(
   const matching = (owner: PlayerId): InstanceId[] =>
     (getPlayer(state, owner)?.hand ?? [])
       .filter((id) => id !== source)
-      .filter((id) => !filter || matchesQuery(state, id, filter, context));
+      .filter((id) => !filter || matchesQuery(state, id, filter, context))
+      // "You cannot choose to discard this card from your hand" (System Shock, 21185): `planCost` refuses it as a pick,
+      // so a default that picked it would make the whole action look unpayable (`handDiscardCandidates` agrees).
+      .filter((id) => !cannotChooseToDiscard(state, deps, id));
   const hand = hands.flatMap(matching);
   if (combined) {
     // "… with a combined resource cost of 3 or more" (`DiscardCombined`): the fewest cards that reach it, largest

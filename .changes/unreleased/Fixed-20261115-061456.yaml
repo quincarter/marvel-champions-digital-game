@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An action with a "discard a card" cost is no longer hidden when System Shock is in hand: the default pick skips the card you cannot choose to discard.'
+time: 2026-11-15T06:14:56.2534504-05:00

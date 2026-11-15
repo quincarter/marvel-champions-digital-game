@@ -109,6 +109,38 @@ describe("§3.13 abilities active in hand", () => {
     const { state } = playFree(given.state, deps, DISCARD_ONE.card.id);
     expect(mustPlayer(state, P1).hand).toContain(given.id);
   });
+
+  it("a 'discard 1 card →' cost is still offered with System Shock in hand: the default pick skips it (PR #718)", () => {
+    // System Shock has no printed resources, so the cheapest-first default used to pick it, `planCost` refused that
+    // pick, and `legalActions` greyed out a cost the other hand card pays.
+    const ability = stubAbility("discard-cost.action", {
+      trigger: { kind: "action" },
+      cost: { discardFromHand: { min: 1, max: 1 } },
+      effects: [],
+    } satisfies AbilityDefinition);
+    const card = stubEvent({ id: "discard-cost", cost: 0, abilities: [ability.ref] });
+    const costDeps = depsOf(SHOCK_ACTION, SHOCK_RULE, ability);
+    const base = gameAtFirstTurn({ cards: [SHOCK, PIP, card], deps: costDeps, deck: [SHOCK.id, PIP.id, card.id] });
+    const shock = giveCard(base, P1, SHOCK.id);
+    const pip = giveCard(shock.state, P1, PIP.id);
+    const event = giveCard(pip.state, P1, card.id);
+    const state: GameState = {
+      ...event.state,
+      players: event.state.players.map((each) =>
+        each.playerId === P1 ? { ...each, hand: [shock.id, pip.id, event.id] } : each,
+      ),
+    };
+    const actions = legalActions(state, P1, costDeps);
+    if (actions.kind !== "turn") throw new Error(`not a turn: ${actions.kind}`);
+    const play = actions.legal.find(
+      (entry) => entry.action.kind === "playCard" && entry.action.instanceId === event.id,
+    );
+    expect(play, "the event is offered").toBeDefined();
+    expect((play!.example as { costChoices?: { discard?: readonly InstanceId[] } }).costChoices?.discard).toEqual([
+      pip.id,
+    ]);
+    expect(applyCommand(state, play!.example, costDeps).ok).toBe(true);
+  });
 });
 
 /**
