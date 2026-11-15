@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
+    "game:build:cloudflare": "pnpm build && node -e \"for (const f of ['_headers', '_redirects']) require('node:fs').copyFileSync('cloudflare/game/' + f, 'dist/' + f)\"",
     "site:build:moved": "vite build --config vite.site.config.ts --mode moved",
     "site:build:landing": "vite build --config vite.site.config.ts --mode landing",
     "site:dev:moved": "vite --config vite.site.config.ts --mode moved",

@@ -1,0 +1,14 @@
+# Copied into the game's build for Cloudflare (`pnpm game:build:cloudflare`, wrangler.game.jsonc). Never in public/:
+# Netlify reads a _headers in its publish directory too, and keeps netlify.toml's [[headers]] instead. These are those
+# cache headers: the card scans and Vite's hashed assets never change at one address.
+/card-art/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/card-art-es/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/card-art-en/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

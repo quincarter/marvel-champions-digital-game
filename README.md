@@ -16,7 +16,7 @@ A digital, rules-accurate implementation of **Marvel Champions: The Card Game** 
 to be a genuinely playable video game driven by a deterministic rules engine.
 
 <p align="center">
-  <a href="https://marvel-champions-digital-game.netlify.app/"><img src=".github/assets/readme/play-in-browser.svg" alt="Play in your browser" height="48"></a>
+  <a href="https://marvel.champions-digital-game.com/"><img src=".github/assets/readme/play-in-browser.svg" alt="Play in your browser" height="48"></a>
 </p>
 
 <p align="center">
@@ -46,7 +46,7 @@ Cartas en español, con los escaneos de <a href="https://github.com/alaintxu/mc-
 <p align="center">
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.44.0/MarvelChampions-0.44.0-ES-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux-es.svg" alt="Descargar para Linux, AppImage (español)" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.44.0/MarvelChampions-0.44.0-ES-Android.apk"><img src=".github/assets/readme/download-android-es.svg" alt="Descargar para Android (español)" height="48"></a>
-  <a href="https://marvel-champions-digital-game.netlify.app/"><img src=".github/assets/readme/play-in-browser-es.svg" alt="Jugar en el navegador" height="48"></a>
+  <a href="https://marvel.champions-digital-game.com/"><img src=".github/assets/readme/play-in-browser-es.svg" alt="Jugar en el navegador" height="48"></a>
 </p>
 
 <p align="center"><sub>The web version carries both languages: it starts in your browser's language, and the globe button next to the music button switches it. For the Spanish <code>.msi</code>, <code>.deb</code> or <code>.rpm</code>, look for <code>-ES-</code> in <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>.<br>

@@ -6,6 +6,8 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 *.keystore
+# Wrangler's local state (`wrangler dev` on wrangler.game.jsonc)
+.wrangler/
 
 # Local environment variables
 .env

@@ -29,7 +29,8 @@
       "allow": [
         { "url": "https://github.com/quincarter/marvel-champions-digital-game/*" },
         { "url": "https://marvelcdb.com/*" },
-        { "url": "https://marvel-champions-digital-game.netlify.app/*" },
+        { "url": "https://marvel.champions-digital-game.com/*" },
+        { "url": "https://champions-digital-game.com/*" },
         { "url": "https://gideonsgaming.com/*" }
       ]
     }

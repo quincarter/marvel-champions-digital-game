@@ -20,7 +20,7 @@ describe("releaseReportUrl", () => {
 
   test("in the native apps it is the production site", () => {
     expect(releaseReportUrl("tauri://localhost/", true)).toBe(RELEASE_REPORT_SITE_URL);
-    expect(RELEASE_REPORT_SITE_URL).toBe(`https://marvel-champions-digital-game.netlify.app/${REPORT}`);
+    expect(RELEASE_REPORT_SITE_URL).toBe(`https://champions-digital-game.com/${REPORT}`);
   });
 
   test("a page url that cannot be resolved against falls back to the site", () => {
@@ -40,7 +40,7 @@ test("a Spanish player opens the Spanish report, here or on the production site"
     `http://localhost:5193/${spanish}`,
   );
   expect(releaseReportUrl("tauri://localhost/", true, RELEASE_NOTICE_VERSION, "es")).toBe(
-    `https://marvel-champions-digital-game.netlify.app/${spanish}`,
+    `https://champions-digital-game.com/${spanish}`,
   );
   expect(releaseReportUrl("http://localhost:5193/", false, "v9.1.0", "es")).toBe(
     "http://localhost:5193/releases/index.html?lang=es#v9.1.0",
@@ -53,10 +53,10 @@ describe("releaseHistoryUrl", () => {
       "http://localhost:5193/releases/index.html?lang=en#v0.40.0",
     );
     expect(releaseHistoryUrl("0.40.0", "tauri://localhost/", true, "es")).toBe(
-      "https://marvel-champions-digital-game.netlify.app/releases/index.html?lang=es#v0.40.0",
+      "https://champions-digital-game.com/releases/index.html?lang=es#v0.40.0",
     );
     expect(releaseHistoryUrl("0.40.0", "not a url", false)).toBe(
-      "https://marvel-champions-digital-game.netlify.app/releases/index.html?lang=en#v0.40.0",
+      "https://champions-digital-game.com/releases/index.html?lang=en#v0.40.0",
     );
   });
 });

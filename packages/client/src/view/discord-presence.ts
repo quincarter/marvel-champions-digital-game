@@ -9,6 +9,8 @@
  * deck"). Discord shows strings of 2 to 128 characters, so every string is clipped here, never cut by the Rust side.
  */
 
+import { GAME_URL } from "../site/site-urls.js";
+
 /** The shape `discord_set_activity` takes (camelCase), a mirror of the Rust `DiscordActivity`. */
 export interface DiscordActivity {
   readonly details?: string;
@@ -22,8 +24,8 @@ export interface DiscordActivity {
   readonly buttons?: readonly { readonly label: string; readonly url: string }[];
 }
 
-/** Where the deployed site (which carries every card scan under `/card-art/`) lives. */
-export const PRESENCE_SITE_URL = "https://marvel-champions-digital-game.netlify.app";
+/** Where the deployed game (which carries every card scan under `/card-art/`) lives, with no trailing slash. */
+export const PRESENCE_SITE_URL = GAME_URL.replace(/\/$/, "");
 /** The page "Get the game" opens: the latest GitHub release carries every installer. */
 export const PRESENCE_DOWNLOAD_URL = "https://github.com/quincarter/marvel-champions-digital-game/releases/latest";
 /** The asset key of the game's logo in the Discord application's Rich Presence art. */

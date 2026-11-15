@@ -83,6 +83,11 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 - **Release on Merge to Main** (`.github/workflows/release-on-merge.yml`): keeps the release pull request current and
   publishes the release when it merges.
 - **E2E** (`.github/workflows/e2e.yml`): dispatch only.
+- **Build and deploy the game to Cloudflare** (a job in the CI workflow, `main` only): builds the client as the
+  Netlify production build does, with `packages/client/cloudflare/game/`'s `_headers` and `_redirects`
+  (`pnpm --filter @mc/client game:build:cloudflare`), and deploys it to the `mc-game` Worker
+  (`packages/client/wrangler.game.jsonc`), the game at https://marvel.champions-digital-game.com. It skips until the
+  Cloudflare secrets below exist, and "All checks" ignores it. Pull requests keep their Netlify previews.
 - **Deploy the sync Worker** (a job in the CI workflow): deploys `packages/sync-worker` to Cloudflare, production on
   `main` and the staging Worker on pull requests. It skips until the Cloudflare secrets below exist, and "All checks"
   ignores it.
@@ -343,7 +348,7 @@ reporter, go in `.github/credits.json`.
 
 A release with a report page in `packages/client/public/releases/<version>/` also moves the Title screen's notice bar
 to it: set `RELEASE_NOTICE_VERSION` in `packages/client/src/view/release-notice.ts` and the `/shadowland-info.html`
-redirect in `netlify.toml`, which older builds' bar opens.
+redirect in `netlify.toml` and `packages/client/cloudflare/game/_redirects`, which older builds' bar opens.
 
 `mise ship-it` (or `pnpm ship-it`) builds and stages the native packages locally.
 

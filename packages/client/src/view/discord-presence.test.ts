@@ -139,6 +139,7 @@ describe("helpers", () => {
 
   test("publicArtUrl", () => {
     expect(publicArtUrl("/card-art/a.png")).toBe(`${PRESENCE_SITE_URL}/card-art/a.png`);
+    expect(PRESENCE_SITE_URL).toBe("https://marvel.champions-digital-game.com");
     expect(publicArtUrl("https://example.com/a.png")).toBe("https://example.com/a.png");
     expect(publicArtUrl("a.png")).toBeNull();
     expect(publicArtUrl(null)).toBeNull();
