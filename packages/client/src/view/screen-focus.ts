@@ -483,6 +483,7 @@ export function titleMenuFocusOrder(input: {
     "campaign",
     ...(input.civilWar ? ["civil-war"] : []),
     "extras",
+    "past-games",
     "trophies",
     "stats",
     "how-to-play",
@@ -646,4 +647,23 @@ export interface SetupWalkthroughFocusInput {
  */
 export function setupWalkthroughFocusOrder(input: SetupWalkthroughFocusInput): readonly string[] {
   return [...input.optionIds.map((id) => `option:${id}`), "confirm", "decline"];
+}
+
+/**
+ * Past games (#706): Back, the three filter tabs and "Open a replay file", each game's row top to bottom, then the
+ * details' Watch, Share, Export and Log. (A phone's popup routes only its own close button and actions.)
+ */
+export function pastGamesFocusOrder(gameIds: readonly string[]): readonly string[] {
+  return [
+    "back",
+    "filter:all",
+    "filter:won",
+    "filter:lost",
+    "open-file",
+    ...gameIds.map((id) => `game:${id}`),
+    "action:watch",
+    "action:share",
+    "action:export",
+    "action:log",
+  ];
 }

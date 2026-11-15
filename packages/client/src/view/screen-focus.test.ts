@@ -12,6 +12,7 @@ import {
   settingsFocusOrder,
   tableSetupFocusOrder,
   titleFocusOrder,
+  pastGamesFocusOrder,
   titleMenuFocusOrder,
   gamesListFocusOrder,
   villainPhaseFocusOrder,
@@ -620,6 +621,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "past-games",
       "trophies",
       "stats",
       "how-to-play",
@@ -632,6 +634,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "past-games",
       "trophies",
       "stats",
       "how-to-play",
@@ -659,6 +662,22 @@ describe("screen focus routes", () => {
     expect(open[open.indexOf("civil-war") + 1]).toBe("extras");
   });
 
+  test("Past games: Back, the filters and the file button, each game's row, then the details' four actions", () => {
+    expect(pastGamesFocusOrder(["a", "b"])).toEqual([
+      "back",
+      "filter:all",
+      "filter:won",
+      "filter:lost",
+      "open-file",
+      "game:a",
+      "game:b",
+      "action:watch",
+      "action:share",
+      "action:export",
+      "action:log",
+    ]);
+  });
+
   test("Scenario select: Customize sits just before next, only while it is drawn", () => {
     expect(scenarioSelectFocusOrder({ scenarioIds: ["civil-war-builder", "a"], customize: true })).toEqual([
       "back",
@@ -678,6 +697,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "past-games",
       "trophies",
       "stats",
       "how-to-play",

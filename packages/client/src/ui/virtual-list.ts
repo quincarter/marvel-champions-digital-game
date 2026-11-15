@@ -119,6 +119,11 @@ export interface McVirtualListOptions {
   /** True while something sits over the list (Inspect, a notice): the hand cursor is not shown then. */
   readonly cursorBlocked?: () => boolean;
   /**
+   * True while something modal sits over the list (Past games' phone popup): the list's wheel and drag, which it hears
+   * scene-wide rather than through a hit area a shield could cover, leave it where it is.
+   */
+  readonly inputBlocked?: () => boolean;
+  /**
    * A row whose tap only reads it (the Decks pool, where a tap opens Inspect): a press held there opens it at once,
    * as a long press does on the table, without waiting for the lift, and the list allows a held finger's wobble
    * (`HOLD_SLOP_PX`) before it scrolls. A finger is never still, and the list's usual 6 px made every hold a scroll.
@@ -170,6 +175,7 @@ export class McVirtualList {
   #onRowActivate: ((index: number, pointer: Phaser.Input.Pointer) => void) | undefined;
   readonly #rowPressableAt: ((index: number, pointer: Phaser.Input.Pointer) => boolean) | undefined;
   readonly #cursorBlocked: (() => boolean) | undefined;
+  readonly #inputBlocked: (() => boolean) | undefined;
   /** True while this list has set the scene's default cursor to the hand. */
   #handCursor = false;
   #thumbDragStartY = 0;
@@ -195,6 +201,7 @@ export class McVirtualList {
     this.#onRowActivate = options.onRowActivate;
     this.#rowPressableAt = options.rowPressableAt;
     this.#cursorBlocked = options.cursorBlocked;
+    this.#inputBlocked = options.inputBlocked;
     this.#activateOnHold = options.activateOnHold === true;
     if (this.#activateOnHold) this.#drag = new DragGesture({ tapThresholdPx: HOLD_SLOP_PX });
     this.#scroll = options.scroll;
@@ -413,6 +420,7 @@ export class McVirtualList {
   }
 
   #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void {
+    if (this.#inputBlocked?.()) return;
     const { rect } = this;
     if (pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height)
       return;
@@ -473,6 +481,7 @@ export class McVirtualList {
   }
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
+    if (this.#inputBlocked?.()) return;
     if (!pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x)) return;
     this.#momentum.stop();
     this.#drag.start(pointer.id, pointer.y, pointer.downTime);

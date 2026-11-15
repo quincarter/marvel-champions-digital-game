@@ -188,7 +188,10 @@ export interface TitleMenuLayout {
   readonly campaign: Rect;
   /** "Civil War!", directly under Campaign; null until the Civil War box is unlocked. */
   readonly civilWar: Rect | null;
+  /** "Extras", the left half of its row. */
   readonly extras: Rect;
+  /** "Past games" (#706): finished games to watch, share or export; the right half of the Extras row. */
+  readonly pastGames: Rect;
   /** "Trophy Room": achievements, rank and lifetime points, right under Extras; the left half of its row. */
   readonly trophies: Rect;
   /** "Your stats", the right half of the Trophy Room's row: the two read the same history. */
@@ -227,6 +230,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.campaign,
     ...(layout.civilWar ? [layout.civilWar] : []),
     layout.extras,
+    layout.pastGames,
     layout.trophies,
     layout.stats,
     layout.howToPlay,
@@ -416,9 +420,10 @@ function titleMenuLayoutAt(
     civilWar = { x: left, y, width: column, height: hit.target };
     y += hit.target + gap;
   }
-  const extras: Rect = { x: left, y, width: column, height: hit.target };
-  y += hit.target + gap;
   const halfColumn = Math.floor((column - 10) / 2);
+  const extras: Rect = { x: left, y, width: halfColumn, height: hit.target };
+  const pastGames: Rect = { x: left + column - halfColumn, y, width: halfColumn, height: hit.target };
+  y += hit.target + gap;
   const trophies: Rect = { x: left, y, width: halfColumn, height: hit.target };
   const stats: Rect = { x: left + column - halfColumn, y, width: halfColumn, height: hit.target };
   y += hit.target + gap;
@@ -485,6 +490,7 @@ function titleMenuLayoutAt(
     campaign,
     civilWar,
     extras,
+    pastGames,
     trophies,
     stats,
     howToPlay,

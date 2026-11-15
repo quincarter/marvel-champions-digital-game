@@ -47,6 +47,8 @@ export const SCENES = {
   /** Every achievement, the player's rank and lifetime points (`scenes/trophy-room.ts`), reached from Title and Extras. */
   trophyRoom: "TrophyRoom",
   playerStats: "PlayerStats",
+  /** Past games (`scenes/past-games.ts`, #706): finished games to watch, share or export, reached from Title. */
+  pastGames: "PastGames",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
   /** The Mod Store (`scenes/mod-store.ts`): browse, install, update and remove community packs, reached from Extras. */
