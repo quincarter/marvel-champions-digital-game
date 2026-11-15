@@ -487,6 +487,7 @@ export function titleMenuFocusOrder(input: {
     "trophies",
     "stats",
     "how-to-play",
+    "mod-store",
     "settings",
     ...(input.quit ? ["quit"] : []),
     ...(input.discord ? ["discord"] : []),
