@@ -81,6 +81,18 @@ const inFlight = new WeakMap<Phaser.Textures.TextureManager, Map<string, Waiter[
  * failed is forgotten, and its waiters are never told). What a screen waiting for its pictures checks
  * (`ui/picture-wait.ts`), so one missing picture can't hold it until the cap.
  */
+const failureListeners = new Set<(key: string) => void>();
+
+/**
+ * Calls `listener` with the key of every picture whose load fails, until the returned function is called. Waiters of a
+ * failed load are never told (telling them would have a screen that redraws on arrival ask again, and fail again, for
+ * good), so a screen waiting for its pictures (`ui/picture-wait.ts`) listens here to stop waiting for it.
+ */
+export function onPictureLoadFailed(listener: (key: string) => void): () => void {
+  failureListeners.add(listener);
+  return () => failureListeners.delete(listener);
+}
+
 export function isPictureSettled(scene: Phaser.Scene, key: string): boolean {
   const textures = scene.textures;
   return textures.exists(key) || !(inFlight.get(textures)?.has(key) ?? false);
@@ -141,6 +153,7 @@ function ensureTextureLoaded(
     loads.delete(key);
     if (source && !textures.exists(key)) textures.addImage(key, source as HTMLImageElement);
     notify(textures, loads, source ? waiters : []);
+    if (!source) for (const listener of [...failureListeners]) listener(key);
   };
   decode().then(settle, () => settle(null));
   return null;

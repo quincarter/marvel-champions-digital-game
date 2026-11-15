@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type Phaser from "phaser";
-import { ensurePictureLoaded, isPictureSettled, PICTURE_BATCH_MS, type Picture } from "./pictures.js";
+import {
+  ensurePictureLoaded,
+  isPictureSettled,
+  onPictureLoadFailed,
+  PICTURE_BATCH_MS,
+  type Picture,
+} from "./pictures.js";
+import { PictureWait } from "../ui/picture-wait.js";
 
 /** A stand-in for the DOM `Image`: the test settles each one by hand. */
 class FakeImage {
@@ -235,5 +242,51 @@ describe("isPictureSettled (#713 review)", () => {
     expect(isPictureSettled(scene.asScene, "good")).toBe(true);
     expect(textures.exists("missing")).toBe(false);
     expect(isPictureSettled(scene.asScene, "missing")).toBe(true);
+  });
+});
+
+describe("a picture that fails after an earlier batch was told (#713 review)", () => {
+  test("the wait settles when the last picture fails, not at the cap", async () => {
+    vi.useFakeTimers();
+    try {
+      const textures = new FakeTextures();
+      const scene = new FakeScene(textures);
+      const wait = new PictureWait((key) => isPictureSettled(scene.asScene, key));
+      const off = onPictureLoadFailed(wait.arrived);
+      const a: Picture = { key: "a", url: "/a.png" };
+      const b: Picture = { key: "b", url: "/b.png" };
+      ensurePictureLoaded(scene.asScene, a, wait.arrived);
+      ensurePictureLoaded(scene.asScene, b, wait.arrived);
+      wait.expect("a");
+      wait.expect("b");
+      let done = false;
+      void wait.settled().then(() => (done = true));
+      // A arrives; B is still loading when the batch timer flushes, so only A's batch is told.
+      FakeImage.all.find((i) => i.src === "/a.png")!.onload?.();
+      await vi.advanceTimersByTimeAsync(PICTURE_BATCH_MS + 1);
+      expect(done).toBe(false);
+      // Then B fails: its waiters are never told, but the failure listener is.
+      FakeImage.all.find((i) => i.src === "/b.png")!.onerror?.();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(done).toBe(true);
+      off();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a failure listener stops hearing once it is removed", async () => {
+    const textures = new FakeTextures();
+    const scene = new FakeScene(textures);
+    const heard: string[] = [];
+    const off = onPictureLoadFailed((key) => heard.push(key));
+    ensurePictureLoaded(scene.asScene, { key: "x", url: "/x.png" }, () => undefined);
+    FakeImage.all.find((i) => i.src === "/x.png")!.onerror?.();
+    await settled();
+    off();
+    ensurePictureLoaded(scene.asScene, { key: "y", url: "/y.png" }, () => undefined);
+    FakeImage.all.find((i) => i.src === "/y.png")!.onerror?.();
+    await settled();
+    expect(heard).toEqual(["x"]);
   });
 });
