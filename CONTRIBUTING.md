@@ -285,38 +285,22 @@ GitHub's 2 GiB limit per asset.
 The QA and design screenshots in `artifacts/` never ship. They are the `artifacts` archive bundle, fetched only by
 name: `pnpm assets:fetch artifacts`.
 
-The community content packs' pictures (`content-packs/community/<id>/cards/<lang>/` and `alt-art/<lang>/`) are the
-optional `pack-art` bundles, one per pack (`pack-art-<id>`), each owning the media files under its pack's folder. The
-game doesn't use them, so a plain `pnpm assets:fetch` (and `assets:pack --all`) skips them; `pnpm assets:fetch
-pack-art` installs them, and `pnpm assets:pack pack-art-<id>` publishes a pack's changed pictures.
-
 CI fetches the bundles each job needs through `.github/actions/assets`, caching the zips by the manifest's hash.
 
-## Publishing packs
+## Community packs
 
-The Mod Store's catalog (`index.json`) and the packs it lists live in the R2 bucket `mc-packs`
-([docs/custom-content-packs.md §11](docs/custom-content-packs.md#11-the-mod-store-issue-677-2026-11-10)). The repo's own
-packs under `content-packs/` (the samples and `community/*`) publish through `.github/workflows/publish-packs.yml`;
-packs creators submit go through the registry repo instead.
+The community content packs (Carnage, Gwenpool, Mephisto and the rest) live in the Mod Store registry repo,
+[quincarter/marvel-champions-mods](https://github.com/quincarter/marvel-champions-mods), as `packs/<id>/` folders,
+and the registry's own workflow publishes them to the store
+([docs/custom-content-packs.md §11](docs/custom-content-packs.md#11-the-mod-store-issue-677-2026-11-10)). Change a
+pack there, by pull request. This repo publishes no packs.
 
-- **When:** on a push to `main` that changes `content-packs/**`, or a manual run (a dry run by default: it builds and
-  prints the `index.json` it would upload).
-- **What:** it fetches the `pack-art` bundles, builds every pack with `mc-pack build`, uploads each one's zip,
-  `pack.json`, `preview.json` and `thumb.webp` to `<id>/<version>/`, then upserts the built packs into `index.json`
-  (other packs and older versions stay; `approved` keeps its first date; `latest` is the highest SemVer version;
-  `scripts/lib/pack-index.mjs`). The build runs pack code, so it is its own job with no secrets; a second job holds
-  the R2 secrets and only uploads (§11.9). The `index.json` write is conditional on its ETag and retried when the
-  registry's publish wrote in between (§11.5).
-- **Withdrawn packs stay withdrawn.** A publish never lists a withdrawn pack again; a manual run with the
-  `unwithdraw` input (pack ids, comma-separated) does.
-- **Versions never change once published.** A version already in the bucket with the same zip is skipped; with a
-  different zip the run fails: bump `version` in the pack's `pack.json`. That includes a change to a pack's pictures
-  (pack its `pack-art-<id>` bundle and bump the version in the same pull request) and an SDK change that alters the
-  built zip.
-- **Settings (the owner):** the Actions secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` (an R2
-  token with Object Read & Write on `mc-packs`), and the variable `PACKS_BASE_URL` (where the bucket is served, e.g.
-  `https://packs.<domain>`); `R2_BUCKET` overrides the bucket name. Without the secrets the workflow builds the packs
-  and skips the upload with a notice.
+Some of this repo's tests use them as fixtures: the mod SDK's per-pack tests, the client's pack and house-rule tests and
+the Mod Store e2e specs. `pnpm packs:fetch` (`scripts/packs-fetch.mjs`) puts them in `content-packs/community/`
+(gitignored) from the registry at the commit `content-packs/community.json` pins, and CI runs it before the unit tests
+and wherever it fetches media. Run it once in a fresh checkout, next to `pnpm assets:fetch`, and again after the pin
+changes; `--from <registry checkout>` copies a local checkout's packs instead. To test against newer packs, bump the
+pinned commit.
 
 ## Releases
 

@@ -50,17 +50,18 @@ flowchart LR
   T[mod template] -- "Use this template" --> C[creator's pack repo]
   C -- "tag v*: mc-pack build, release zip" --> R[marvel-champions-mods<br/>registry PR]
   R -- "merge: publish" --> B[(R2: packs.champions-digital-game.com<br/>index.json + pack zips)]
-  G[this repo: content-packs/community] -- "push to main: publish-packs.yml" --> B
+  K[marvel-champions-mods<br/>packs kept there: packs/&lt;id&gt;/] -- "merge: publish" --> B
   B -- "catalog, install zip" --> S[Mod Store in the client]
   S --> P[PackStore on the device]
   P -- "validated in a worker" --> E[pool + AbilityRegistry for a new game]
 ```
 
-- **Two publishers, one catalog.** The registry publishes the packs creators submit (`source: "registry"` in
-  `index.json`). This repo's `.github/workflows/publish-packs.yml` publishes the packs in `content-packs/community/`
-  that the owner imported with their creators' permission (`source: "game"`). Each pack id belongs to one publisher,
-  a published version is never overwritten, and older versions stay so saves that used them still load. Both refuse
-  a pack whose permission isn't recorded (`mc-pack validate --publish`).
+- **One publisher, the registry.** It publishes the packs creators submit from their own repos, and the community
+  packs the owner imported with their creators' permission, which it keeps itself as `packs/<id>/` folders (they
+  moved there from this repo's `content-packs/community/` on 2026-11-15, keeping their ids and every published
+  version). A published version is never overwritten, older versions stay so saves that used them still load, and a
+  pack whose permission isn't recorded is refused (`mc-pack validate --publish`). This repo fetches the community
+  packs only as test fixtures (`pnpm packs:fetch`).
 - **In the client**, `packs/catalog.ts` reads `index.json` and keeps the last good copy for offline use. The Mod Store
   installs a pack's zip into the `PackStore` (`packs/pack-store.ts`) on every platform. At boot and after each
   install, `packs/active-packs.ts` validates every installed pack in a worker and adds the ones that pass to the card

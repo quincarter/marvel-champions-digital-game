@@ -7,7 +7,6 @@
  *   pnpm assets:pack card-art-wave9   after adding or fixing scans of a wave 9 pack
  *   pnpm assets:pack music-scenarios  after adding a scenario's battle track
  *   pnpm assets:pack --all --dry-run  zip and hash every default bundle, upload nothing, change nothing
- *   pnpm assets:pack pack-art-carnage-nep  a community pack's pictures (optional bundles are packed by name)
  *
  * A bundle whose zip comes out byte for byte the same as the manifest's is left alone. A changed one gets a new
  * release tagged `<bundle>-<first 12 hex of its sha256>`; the old release stays, so older commits still fetch what

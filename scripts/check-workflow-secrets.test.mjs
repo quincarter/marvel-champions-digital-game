@@ -18,8 +18,7 @@ describe("this repo's workflows", () => {
     );
   });
 
-  it("build the packs and the SDK in their own jobs, apart from the uploads", () => {
-    assert.deepEqual(byFile["publish-packs.yml"].packCodeJobs, ["build"]);
+  it("build the SDK in its own job, apart from the upload", () => {
     assert.deepEqual(byFile["mod-sdk.yml"].packCodeJobs, ["build"]);
   });
 });
