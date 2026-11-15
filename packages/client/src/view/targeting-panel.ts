@@ -172,7 +172,7 @@ function minionLine(
   const current = remainingHitPoints(state, instanceId, deps);
   const max = maxHitPoints(state, instanceId, deps);
   // Only the target's own lines start with its HP; another card's are prefixed with that card's name.
-  const said = lines.some((line) => /^(\d+|∞) HP/.test(line));
+  const said = lines.some((line) => /^(\d+|∞) HP\b/.test(line));
   const hp = said || current === undefined || max === undefined ? null : `${hpFraction(Math.max(0, current), max)} HP`;
   const parts = [engaged ? `Engaged with ${engaged}` : null, hp].filter((part) => part !== null);
   return parts.length > 0 ? parts.join(" · ") : null;
