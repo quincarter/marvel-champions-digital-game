@@ -692,6 +692,10 @@
               <b>House rules:</b> Lost Traits by Bluefire, and GMW Fixes by Gideon's Gaming, which brings the Balanced
               option for The Galaxy's Most Wanted.
             </li>
+            <li>
+              <b>Coming next:</b> Throg by Patatasaurio and Caurel is in the game as a draft, and joins the store once
+              its authors confirm the curators' fixes.
+            </li>
           </ul>
         </div>
         <div class="box">
@@ -855,9 +859,12 @@
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
-        <div class="lab">Issues #692 and #700</div>
+        <div class="lab">Issues #692 and #700 · PRs #714 and #715</div>
       </div>
-      <p class="lead"><b>Both of these came from one player's reports.</b> Thank you, @AlecHolland1582.</p>
+      <p class="lead">
+        <b>Two came from one player's reports, and two from a contributor who found and fixed them.</b> Thank you,
+        @AlecHolland1582 and @bluefireF5ran.
+      </p>
       <div class="cards">
         <div class="paper">
           <div class="eb">#692 · reported by @AlecHolland1582</div>
@@ -876,6 +883,25 @@
             over to Cosmo first. The log names the side scheme, not Cosmo, for the threat removed and the defeat.
           </p>
           <div class="src">RRG 1.8 "Response", p. 38</div>
+        </div>
+        <div class="paper">
+          <div class="eb">#714 · fixed by @bluefireF5ran</div>
+          <h3>Searches offer what can enter play</h3>
+          <p>
+            Build Support, Call for Backup and Lock and Load let each player search for a card and put it into play.
+            They now offer only cards that <b>can enter play</b>: not a unique card already in play, and not an upgrade
+            with nothing to attach to. A search that finds nothing says so in the log.
+          </p>
+          <div class="src">RRG 1.8 "Target", p. 43</div>
+        </div>
+        <div class="paper">
+          <div class="eb">#715 · fixed by @bluefireF5ran</div>
+          <h3>An empty search still resolves</h3>
+          <p>
+            A required search of your deck and discard pile can be made with <b>nothing to find</b>, as any search can,
+            and a "then" after a search that found nothing is skipped, as the rules say.
+          </p>
+          <div class="src">RRG 1.8 "Target", p. 43; "Then", p. 44</div>
         </div>
       </div>
 
@@ -946,8 +972,8 @@
           <div class="person wide">
             <h3>@bluefireF5ran</h3>
             <p>
-              Curated every community pack in the store, made the Lost Traits house rule, and brought Mephisto's Spanish
-              card faces and art.
+              Curated every community pack in the store, made the Lost Traits house rule, brought Mephisto's Spanish
+              card faces and art, and fixed how searches offer cards, <b>#714</b> and <b>#715</b>.
             </p>
           </div>
           <div class="person wide">
@@ -977,22 +1003,22 @@
       <section class="stats" aria-label="Code shipped since v0.44.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">15</div>
+          <div class="n">17</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">1,266</div>
+          <div class="n">1,279</div>
           <p>across the engine, the cards, the client, the mod SDK and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">92,874</div>
+          <div class="n c-green">93,582</div>
           <p>the Mod Store, the SDK, replays, the new site and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">4,119</div>
+          <div class="n c-red">4,173</div>
           <p>across the same pull requests.</p>
         </div>
       </section>
