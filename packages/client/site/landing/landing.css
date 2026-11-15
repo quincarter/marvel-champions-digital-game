@@ -777,6 +777,24 @@ body {
 }
 
 /* ---- Narrow ---- */
+/* The bar holds the full name, Marvel Champions, beside the language toggle and both buttons: the section links go
+   first, then the toggle shortens to EN and ES, before anything wraps. */
+.bar .btn.small {
+  white-space: nowrap;
+}
+@media (max-width: 1200px) {
+  .nav {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .bar .lang .name {
+    display: none;
+  }
+  .bar .lang .code {
+    display: inline;
+  }
+}
 @media (max-width: 1000px) {
   .nav {
     display: none;
@@ -840,7 +858,7 @@ body {
     display: inline;
   }
   .brand b {
-    font-size: 24px;
+    font-size: 20px;
   }
   .bar .btn.small {
     white-space: nowrap;

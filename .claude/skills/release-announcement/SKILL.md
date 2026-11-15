@@ -1,6 +1,6 @@
 ---
 name: release-announcement
-description: Write a release's announcement from its open `chore(release): vX.Y.Z` pull request - the release-notes header, the report page at /releases/<version>/ and the images, in the style of the v0.38.0, v0.39.0 and v0.40.0 announcements. Use when someone asks for a release report, announcement, what's-new page or release notes header, or points at a release PR to write up.
+description: Write a release's announcement from its open `chore(release): vX.Y.Z` pull request - the release-notes header, the report page at /releases/<version>/ (on the game's site and the champions-digital-game.com landing site), the images, the GitHub release body and the Discord post, and bring the landing page up to date with the release. In the style of the v0.38.0 to v0.45.0 announcements. Use when someone asks for a release report, announcement, what's-new page, release notes header or Discord post, or points at a release PR to write up.
 ---
 
 # Write a release announcement
@@ -10,7 +10,7 @@ Every announcement goes out in **English and Spanish**. The input is the release
 goes in **before** the release PR is merged. The web build carries it first, but nobody sees it on the release
 history's list until GitHub calls that release latest, so it can merge ahead of the release safely.
 
-The v0.40.0, v0.39.0 and v0.38.0 announcements are the models. Read all three before writing: `packages/client/public/releases/` for the v0.39.0 and v0.40.0 pages, and `docs/screenshots/releases/` for each release's images and headers. v0.38.0 has no page, so read its ten images and `gh release view v0.38.0`; it shows how to carry a call to action, "We need your controller", through a release. Build the page directly in the repo. The PR's Netlify preview is where it gets reviewed, so there is no artifact step.
+The v0.45.0, v0.40.0, v0.39.0 and v0.38.0 announcements are the models. Read all three before writing: `packages/client/public/releases/` for the v0.39.0 and v0.40.0 pages, and `docs/screenshots/releases/` for each release's images and headers. v0.38.0 has no page, so read its ten images and `gh release view v0.38.0`; it shows how to carry a call to action, "We need your controller", through a release. Build the page directly in the repo. The PR's Netlify preview is where it gets reviewed, so there is no artifact step.
 
 ## 1. Gather
 
@@ -35,14 +35,52 @@ node scripts/release-credits.mjs notes <previous> origin/main <version>
 - Group the changes into stories a player would care about, biggest first. Bug fixes from reports go together under
   "You asked, we fixed", with the reporter on each. Internal work goes in "Also in" or nowhere.
 
+## 1a. Where the report is published
+
+A report is published in two places from the same folder, `packages/client/public/releases/<version>/`:
+
+- **The game's site** (Netlify today): `public/` ships with the client build, so the report is at
+  `/releases/<version>/` there, inside the history page at `/releases/#<version>`, and in every app bundle.
+- **The landing site, champions-digital-game.com** (the assets-only Worker `mc-landing`, PR #698): its build
+  (`vite.site.config.ts`, `releasePagesPlugin`) copies `public/releases` and `public/fonts` beside the landing page,
+  so the report and the history page are at `champions-digital-game.com/releases/<version>/` too, with their Play links
+  pointed at the game (`GAME_URL`). Nothing is copied by hand.
+
+The landing page itself is built from the same sources (`landingDataPlugin`), so the report also feeds it:
+
+- **News:** the latest release's headline and first paragraph come from `release-notes-header.md` (English) and
+  `docs/releases/es/<version>.md` (Spanish), with a button to the report. A release is in the feed only once
+  `.changes/<version>.md` exists, which the release PR's merge writes.
+- **See it in action:** after the game's own screens, the stage shows the first desktop screenshots of the newest
+  reports (the first three `<figure>`s of each report, minus any whose file name contains `phone`). So put the
+  release's best desktop screenshot first, and name every phone screenshot `*-phone.webp`.
+- **Downloads:** the latest GitHub release's assets, asked of GitHub when the page opens and baked in at build time as
+  the fallback.
+- **Held until published:** news and stage screenshots of a release newer than GitHub's latest wait
+  (`src/site/landing/published.ts`), as the history page's list does, because the release PR merges to `main` before
+  its downloads are published.
+- **Redeploys:** every deploy of the landing page goes through `landing-deploy.yml`, one at a time, building from
+  `main` as it is when its turn comes. CI calls it on every push to `main` (`deploy-landing-main` in
+  `netlify-deploy.yml`), and `release-on-merge.yml` calls it again once it publishes the release, so the new version's
+  news, screenshots and baked-in downloads go live with the release. A release published by hand from a
+  draft needs `gh workflow run landing-deploy.yml --repo quincarter/marvel-champions-digital-game` after it's
+  published.
+
+Report links in the header, the GitHub release body and the Discord post use
+`https://champions-digital-game.com/releases/<version>/` once that address answers
+(`curl -sI https://champions-digital-game.com/releases/` returns 200). Until the domain is attached to `mc-landing`,
+use the game's site, `https://marvel-champions-digital-game.netlify.app/releases/<version>/`: once the game moves,
+that address forwards `/releases/*` to the landing site (the moved page's `_redirects`), so the link keeps working.
+The `og:image` follows the same rule.
+
 ## 2. Write the header
 
 `docs/screenshots/releases/<version>/release-notes-header.md`, as in v0.39.0 and v0.40.0:
 
 1. `## A short headline`, the release's story. The history page shows it in its list.
 2. One paragraph naming the big changes and thanking people, with `#123` and `@handle`.
-3. `**[Read the full <version> report on the site ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/)**:`
-   and a line of what's in it.
+3. `**[Read the full <version> report on the site ↗](<report address>/releases/<version>/)**:` and a line of what's
+   in it, with the address from step 1a.
 4. The section images (step 5). They are required: this is what the GitHub release description shows.
 
 ## 3. Build the report
@@ -93,7 +131,7 @@ first, get it final, then translate it, so the two say the same thing.
 - The build adds the notice that says the Spanish is AI translated. The history page drops it and shows its own bar
   while Spanish is on.
 - The header gets one line under its English report link:
-  `**[Lee el informe completo en español ↗](https://marvel-champions-digital-game.netlify.app/releases/<version>/index.es.html)**`.
+  `**[Lee el informe completo en español ↗](<report address>/releases/<version>/index.es.html)**`.
 - Screenshots and the GitHub release's section images stay in English, since the game's own text is English.
 - Say in the PR's Action Items that a Spanish speaker should read it, and name the lines you weren't sure of.
 
@@ -110,11 +148,31 @@ and easy to read. Every release needs them.
   pinned to the commit that adds them. Commit the images first, then the header that names that commit. Cut them only
   once Code shipped is final (step 7), or that image and its alt text go stale.
 
+## 5a. The GitHub release body and the Discord post
+
+Both are files in `docs/screenshots/releases/<version>/`, for Quin to read and post. Never publish the GitHub release
+or post to Discord yourself.
+
+- `github-release-body.md`: the header (headline, paragraph, report links and section images), a `---` line, then the
+  release PR's notes from `## [<version>]` through **Special thanks**. Quin puts it on top of the release once it's
+  published (`gh release edit <version> --notes-file …`). The release workflow writes the draft's notes, so edit a
+  draft only if Quin asks.
+- `discord-post.md`: one message for Discord #announcements, English first, then the same in Spanish, under 4,000
+  characters in all (Discord's limit with Nitro; count with `wc -m`). No image links: the report link unfurls with
+  `og.jpg`. A headline, a few short bullets of what players get, the report links in both languages, the downloads
+  link (`https://github.com/quincarter/marvel-champions-digital-game/releases/tag/<version>`) and a thank-you naming
+  the reporters and contributors. Plain words, no em dashes.
+- **Say only what's live.** A feature that needs setup outside the repo (a Cloudflare bucket, a domain, a secret, an
+  npm token) is described by what it does, with no address or date promised, until the setup is confirmed. Check with
+  `curl` (a domain answering, a Worker route returning its own error rather than a DNS failure) and say in the PR what
+  you checked. A hero pack marked not ready is "on the way", never playable.
+
 ## 6. Wire it in
 
 - `RELEASE_NOTICE_VERSION` in `packages/client/src/view/release-notice.ts`, which `view/release-notice.test.ts` checks
   has a report.
-- The `/shadowland-info.html` redirect in `netlify.toml`, which older builds' title bar opens.
+- The `/shadowland-info.html` redirect in `netlify.toml`, which older builds' title bar opens. It lives wherever the
+  game itself is served; if the game has moved off Netlify, update the redirect in its new host's config too.
 - A changie fragment: `changie new -k Added -b "The <version> release report has its own page on the site, at /releases/<version>/"`.
 
 ## 7. Check and ship
@@ -124,6 +182,18 @@ and easy to read. Every release needs them.
 - The history page only finds a report through `.changes/<version>.md`, which the release writes. To check the report
   inside it, write a short temporary `.changes/<version>.md`, restart the dev server (the notes are read when it
   starts), and delete the file afterwards.
+- **The landing page.** Build it (`pnpm --filter @mc/client site:build:landing`, which needs the art:
+  `pnpm assets:fetch art`) with the temporary `.changes/<version>.md` in place, and serve `packages/client/dist-landing`
+  with any static server. The news should still show the previous release, since GitHub hasn't published the new one.
+  Then load it with GitHub's latest answered as the new version (in Playwright, `page.route` on
+  `https://api.github.com/repos/quincarter/marvel-champions-digital-game/releases/latest`, fulfilling the real response
+  with `tag_name` swapped), and check that the news shows the new headline and paragraph and links
+  `releases/<version>/index.html`, that the stage shows the new report's first desktop screenshots, and that
+  `/releases/<version>/` and `/releases/<version>/index.es.html` open on the landing site. Screenshot the landing
+  page's top and news and the report served from `dist-landing` at `se`, `pixel`, `tablet-portrait`, `tablet` and
+  `desktop` for the PR. Delete the temporary `.changes` file afterwards.
+- Another worktree's dev server may hold port 5173. Run yours on another port and set `MC_DEV_HOST` (for example
+  `MC_DEV_HOST=http://localhost:5191`) for `shoot-release-report.mjs`.
 - Open `/releases/index.html?lang=es#<version>` too, and press the toggle on it: the page stays on the release and the
   report and notes swap language.
 - `node scripts/shoot-release-report.mjs <version> sizes` shoots `se`, `pixel`, `tablet-portrait`, `tablet` and
@@ -136,5 +206,6 @@ and easy to read. Every release needs them.
   `git diff --cached --shortstat <previous>`. Put them in the page, cut the images, commit, and re-pin the header.
 - The release PR is regenerated on every merge. If anything lands on `main` after you start, re-read its notes and
   recount before this PR merges.
-- The PR says what the report covers, and asks Quin to read the copy, in both languages, under **Action Items**. It merges before the
-  release PR.
+- The PR says what the report covers, and asks Quin to read the copy, in both languages, under **Action Items**, along
+  with posting the release body and the Discord post once the release is published, and any setup outside the repo
+  that a feature or the report links still wait on. It merges before the release PR.

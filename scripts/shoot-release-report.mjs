@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Screenshot a release report for its pull request and cut the section images the GitHub release carries. The dev
- * server must be up on http://localhost:5173. `.claude/skills/release-announcement/SKILL.md` says when to run each.
+ * server must be up on http://localhost:5173, or on the address in MC_DEV_HOST (another worktree's server may hold 5173). `.claude/skills/release-announcement/SKILL.md` says when to run each.
  *
  *   node scripts/shoot-release-report.mjs v0.41.0 sizes [out]
  *     → report-<size>.png at se, pixel, tablet-portrait, tablet and desktop, and history-<size>.png, the report inside
@@ -23,7 +23,7 @@ const SIZES = {
   tablet: [1024, 768],
   desktop: [1440, 980],
 };
-const HOST = "http://localhost:5173";
+const HOST = process.env.MC_DEV_HOST ?? "http://localhost:5173";
 /** The sections' page width: at a scale of 2 each image is about 2848 px wide. */
 const SECTION_WIDTH = 1424;
 /** Dark ground kept around a section so the images read as one page. */
