@@ -1,6 +1,6 @@
 ## The Mod Store Is Open
 
-Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported the blank Briefing on Android (#692) and Stealth Training (#700), and @bluefireF5ran fixed which cards Build Support, Call for Backup and Lock and Load offer and how a search with nothing to find resolves (#714, #715). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
+Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported the blank Briefing on Android (#692) and Stealth Training (#700), Funguykawhi reported Kang's obligations on Discord (#717), and @bluefireF5ran fixed which cards Build Support, Call for Backup and Lock and Load offer and how a search with nothing to find resolves (#714, #715). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
 
 **[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the fixes from your reports and the thank-you wall.
 
@@ -14,7 +14,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 
 ![A home of its own: the new landing page, and what happens to your saves now that the game has moved](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
 
-![You asked, we fixed: the Briefing on Android and Stealth Training, reported by @AlecHolland1582, and two search fixes by @bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
+![You asked, we fixed: the Briefing on Android and Stealth Training, reported by @AlecHolland1582, Kang's obligations, reported by Funguykawhi, and two search fixes by @bluefireF5ran](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
 
 ![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, every product built the way a mod is, and smoother screen changes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/2210b97f7bfd119eee223e51aaeff5cc1b119eb0/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
 
@@ -65,7 +65,9 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - Stealth Training now responds when you exactly defeat Secure the Landing Pad, and the log names the side scheme instead of Cosmo for the threat removed and the defeat (#700)
 - Moving between Title, Extras and the Mod Store is smooth: each screen fades in once it is fully drawn instead of filling in and blinking as its text, saves and pictures arrive, and the Extras tabs switch without a hitch
 - A minion's target line no longer repeats its hit points when the attack preview already shows them
+- Discarding a resource to get rid of Kang's Temporal obligations offers only cards with the named printed resource, so picking a wild card no longer leaves Confirm stuck (#717, reported by Funguykawhi).
 - Extras arrives with its tile pictures in place and fades in without stepping (a locked tile's gray picture is baked once, off the main thread, instead of filtered every frame), and the Mod Store's first-visit notice opens with its portraits and words (#716)
+- An action with a "discard a card" cost is no longer hidden when System Shock is in hand: the default pick skips the card you cannot choose to discard.
 
 ### Engine
 
@@ -113,9 +115,11 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - The v0.45.0 release report and announcement cover Past games next to replays
 - The current status page is up to date: what's playable now, and what v0.45.0 brings
 - The architecture page shows the content, mod template and Mod Store registry repositories and how their content reaches the game
+- Community packs: record the creators' Discord permissions for Night Thrasher, Yondu, Gwenpool, Throg, Carnage and Mephisto (BlueHG's OK for Yondu's nemesis set is still secondhand)
 
 ### Special thanks
 
 - @AlecHolland1582 reported #692 and #700.
 - @bluefireF5ran wrote #714 and #715.
 - @Kravenprime reported #661.
+- Funguykawhi reported #717 on Discord.
