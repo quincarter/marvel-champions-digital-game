@@ -26,3 +26,10 @@ runs:
         BUNDLES: ${{ inputs.bundles }}
       # $BUNDLES is split into words on purpose.
       run: node scripts/assets-fetch.mjs --prune $BUNDLES
+    # The community content packs, from the Mod Store registry at the commit content-packs/community.json pins: the
+    # client's pack tests and the Mod Store e2e specs read them.
+    - name: Fetch the community packs
+      shell: bash
+      env:
+        MC_ASSETS_CACHE: ${{ runner.temp }}/mc-assets
+      run: node scripts/packs-fetch.mjs
