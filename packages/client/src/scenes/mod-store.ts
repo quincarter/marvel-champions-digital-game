@@ -700,7 +700,7 @@ export class ModStoreScene extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): void {
-    const { width, height, phone, gutter, top } = frame;
+    const { width, phone, gutter, top } = frame;
     const captionBottom = this.#drawBetaCaption({ x: gutter, y: top + 12, width: width - gutter * 2 }, phone);
     if (phone) {
       this.#drawPhoneBrowse(frame, captionBottom + 10, stops, order);
