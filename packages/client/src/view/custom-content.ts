@@ -5,8 +5,8 @@
  */
 import { isCustomCardCode, type Deck } from "@mc/content";
 
-/** The badge's words: a text label, never color alone. */
-export const CUSTOM_BADGE = "CUSTOM";
+/** The badge's words: a text label, never color alone. "MOD PACK", the owner's pick (issue #734). */
+export const CUSTOM_BADGE = "MOD PACK";
 
 /** Why a deck with custom cards cannot be exported (the button's `reason`). */
 export const CUSTOM_EXPORT_REASON = "This deck has custom pack cards, which MarvelCDB does not know.";

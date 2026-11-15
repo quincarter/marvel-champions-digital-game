@@ -5,7 +5,15 @@
 import { PLAYABLE_PACK_KINDS, satisfiesApp } from "./pack-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { packCampaignsOf, readPackInput, validatePack, SUPPORTED_DSL_FEATURES } from "@mc/mod-sdk";
-import { parsePackAchievements, type AnyCard, type EncounterSet, type PackManifest, type Scenario } from "@mc/content";
+import {
+  parsePackAchievements,
+  parsePackUnlock,
+  parsePackWave,
+  type AnyCard,
+  type EncounterSet,
+  type PackManifest,
+  type Scenario,
+} from "@mc/content";
 import type { PackRuntime } from "./pack-runtime.js";
 
 export type PackLoadResult =
@@ -71,6 +79,9 @@ export function loadPackRuntime(
           ? { achievements: parsePackAchievements(manifest.achievements) }
           : {}),
         ...(manifest.houseRule ? { houseRule: { ...manifest.houseRule, description: manifest.description } } : {}),
+        // Where the player may mix it in, and how it unlocks when custom content does not start unlocked (issue #734).
+        ...(parsePackWave(manifest.wave) ? { wave: parsePackWave(manifest.wave)! } : {}),
+        ...(parsePackUnlock(manifest.unlock) !== "open" ? { unlock: parsePackUnlock(manifest.unlock) } : {}),
       },
     };
   } catch (error) {

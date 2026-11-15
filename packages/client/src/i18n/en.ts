@@ -198,6 +198,8 @@ export const en = {
   "unlock.finish": "Finish {campaign}",
   "unlock.toUnlock": "{hint} to unlock {name}",
   "unlock.playOn": "Play on",
+  "unlock.modPoints": "A mod pack: unlock it with champion points",
+  "unlock.modWins": "Win {count} more different scenarios to unlock this mod pack for free, or use champion points",
   "unlock.captionOrPts": "{short} · or {cost} pts",
   "unlock.everythingTitle": "Unlock everything for free?",
   "unlock.everythingBody":

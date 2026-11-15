@@ -41,6 +41,10 @@ export interface PackRuntime {
    * other pack. A game carries a house-rule pack only while its rule is on (`withLoadedPacks`).
    */
   readonly houseRule?: PackHouseRule & { readonly description: string };
+  /** The release wave (`Cycle.id`) the pack's heroes and scenarios sit beside when mixed in (issue #734); absent: none. */
+  readonly wave?: string;
+  /** How its heroes and scenarios unlock when new custom content does not start unlocked (issue #734); absent: open. */
+  readonly unlock?: "open" | "points" | "wins";
 }
 
 /** Whether a pack is a house rule (changes official cards, adds none). */
