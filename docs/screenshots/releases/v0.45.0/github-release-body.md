@@ -1,26 +1,26 @@
 ## The Mod Store Is Open
 
-Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared (#693), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697). @AlecHolland1582 reported both fixes, the blank Briefing on Android (#692) and Stealth Training (#700). Elektra and Iron Fist are on the way. Thank you!
+Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697). @AlecHolland1582 reported both fixes, the blank Briefing on Android (#692) and Stealth Training (#700). Elektra and Iron Fist are on the way. Thank you!
 
-**[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays, the new website, the fixes from your reports and the thank-you wall.
+**[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the fixes from your reports and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.45.0/index.es.html)**
 
-![The numbers: 8 mods in the store, 7 creators and 66 built-in packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-01-the-numbers.jpg)
+![The numbers: 8 mods in the store, 7 creators and 66 built-in packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-01-the-numbers.jpg)
 
-![The Mod Store opens: the store's eight packs, the heads-up from Deadpool and Spider-Man on a phone, Mephisto's page, what's in the store and how mods play](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-02-the-mod-store-opens.jpg)
+![The Mod Store opens: the store's eight packs, the heads-up from Deadpool and Spider-Man on a phone, Mephisto's page, what's in the store and how mods play](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-02-the-mod-store-opens.jpg)
 
-![Watch it back: a replay on the board with its bar on desktop and on a phone, where to find replays and how to share them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-03-watch-it-back.jpg)
+![Watch it back: a replay on the board with its bar on desktop and on a phone, where to find replays and how to share them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-03-watch-it-back.jpg)
 
-![A home of its own: the new landing page, and what happens to your saves when the game moves](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
+![A home of its own: the new landing page, and what happens to your saves when the game moves](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
 
-![You asked, we fixed: the Briefing on Android and Stealth Training, both reported by @AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
+![You asked, we fixed: the Briefing on Android and Stealth Training, both reported by @AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
 
-![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, and every product built the way a mod is](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
+![Also in v0.45.0: rules, new scans, Elektra and Iron Fist on the way, and every product built the way a mod is](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-06-also-in-v0-45-0.jpg)
 
-![Thank you to bluefireF5ran, the pack creators, Kravenprime and AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-07-thank-you.jpg)
+![Thank you to bluefireF5ran, the pack creators, Kravenprime and AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-07-thank-you.jpg)
 
-![Code shipped since v0.44.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f35c49ca6e22c331b6d319c0608368e30cd8f5e6/docs/screenshots/releases/v0.45.0/v0-45-0-release-08-code-shipped.jpg)
+![Code shipped since v0.44.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4e8110cd8981226a0703c22ef0524ee2514ae1fd/docs/screenshots/releases/v0.45.0/v0-45-0-release-08-code-shipped.jpg)
 
 ---
 
@@ -39,6 +39,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - A hero pack can be marked not ready: its hero can't be picked or seated (decks show "Not ready yet"), and its cards stay out of deck building and import
 - Elektra and Iron Fist hero pictures and an Iron Fist and Luke Cage team-up picture
 - The v0.45.0 release report has its own page on the site, at /releases/v0.45.0/
+- Past games: every finished game, listed from the Title with its villain, heroes and how it went, to watch again, share as a link or export (#706)
 
 ### Changed
 
@@ -49,6 +50,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - Mod Store publish: versioned R2 uploads are immutable (every object checked first, conditional puts with sha256 metadata), so a race with the registry publisher never mixes files
 - The landing page holds back a release's news and report screenshots until GitHub publishes it, and redeploys when a release is published so its downloads and news are current
 - The landing page's bar names the game in full, Marvel Champions, with Digital Edition beside it, and its section links and language names make room on smaller screens
+- The web game moves to https://marvel.champions-digital-game.com on Cloudflare: the apps' web-version, sync guide and Discord links point there, and the release reports open on the landing site
 
 ### Fixed
 
@@ -94,12 +96,14 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - Mephisto 1.1.1 follows its author's rulings: Slothful Endurance prevents attacks below the doubled DEF, and Alter the Deal just shuffles back when you control no Bargain
 - Gwenpool 0.2.2: the corrected That's Not How the Game Ends face (both wild resources, the whole corner headshot)
 - Elektra (MC63) and Iron Fist (MC64) hero pack cards are in the card pool, transcribed from Hall of Heroes and FFG previews, with provisional obligation and nemesis cards; both heroes are marked not ready
+- The Punisher 0.2.0 follows the author's V3.0: Rachel Cole-Alves attaches to War on Crime instead of engaging a player, a star on Frank's War 1B, new flavor and pictures; Mephisto 1.1.2 has two corrected Spanish faces
 
 ### Docs
 
 - Design proposal for downloadable custom content packs (fan heroes and scenarios outside the app build)
 - The post-1.7 rulings transcript now runs to October 12, 2026
 - Removed the mod store's leftover PR screenshots from docs/pr-screenshots.
+- The v0.45.0 release report and announcement cover Past games next to replays
 
 ### Special thanks
 
