@@ -553,6 +553,17 @@ jobs:
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  # The landing page, built again now that the release is GitHub's latest: its news, report screenshots and baked-in
+  # downloads wait for that (landing-deploy.yml). A draft release (the publish input off) gets it when published by hand.
+  landing:
+    name: Landing page
+    needs: [check-and-cut-release, finalize-release]
+    if: needs.check-and-cut-release.outputs.should_release == 'true' && needs.check-and-cut-release.outputs.publish != 'false'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/landing-deploy.yml
+    secrets: inherit
+
   finalize-release:
     name: Finalize Release Manifest
     needs: [check-and-cut-release, desktop-builds, android-build]
