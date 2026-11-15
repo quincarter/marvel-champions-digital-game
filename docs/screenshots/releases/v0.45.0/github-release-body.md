@@ -1,8 +1,8 @@
 ## The Mod Store Is Open
 
-Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported the blank Briefing on Android (#692) and Stealth Training (#700), and @bluefireF5ran fixed which cards Build Support, Call for Backup and Lock and Load offer and how a search with nothing to find resolves (#714, #715). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
+Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported the blank Briefing on Android (#692) and Stealth Training (#700), and @bluefireF5ran fixed which cards Build Support, Call for Backup and Lock and Load offer and how a search with nothing to find resolves (#714, #715), and translated the guide chooser, Scenario select and the unlock prompts into Spanish (#719). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
 
-**[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the fixes from your reports and the thank-you wall.
+**[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the new game screens in Spanish, the fixes from your reports and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.45.0/index.es.html)**
 
@@ -39,6 +39,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - A hero pack can be marked not ready: its hero can't be picked or seated (decks show "Not ready yet"), and its cards stay out of deck building and import
 - Elektra and Iron Fist hero pictures and an Iron Fist and Luke Cage team-up picture
 - The v0.45.0 release report has its own page on the site, at /releases/v0.45.0/
+- The first New game screens (guide chooser, scenario select, unlock confirm) read in Spanish when the language is Spanish, with plural messages in the translation layer (#390)
 - Past games: every finished game, listed from the Title with its villain, heroes and how it went, to watch again, share as a link or export (#706)
 
 ### Changed
@@ -113,9 +114,10 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 - The v0.45.0 release report and announcement cover Past games next to replays
 - The current status page is up to date: what's playable now, and what v0.45.0 brings
 - The architecture page shows the content, mod template and Mod Store registry repositories and how their content reaches the game
+- The v0.45.0 release report and announcement cover the new game screens in Spanish (#719)
 
 ### Special thanks
 
 - @AlecHolland1582 reported #692 and #700.
-- @bluefireF5ran wrote #714 and #715.
+- @bluefireF5ran wrote #714, #715 and #719.
 - @Kravenprime reported #661.
