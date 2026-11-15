@@ -30,10 +30,7 @@
 
 /** Strips accents and case, so "café" matches "cafe" and "ENERGY" matches "energy". */
 export function normalizeSearch(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
 /** True when `query` (trimmed, normalized) is empty, or found in any of `haystacks`. */

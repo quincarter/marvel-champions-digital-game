@@ -38,12 +38,7 @@ const OPEN_VOLUMES = campaignSagaRows([])
   }));
 
 /** Box name as drawn: uppercase, lines joined ("THE RISE\nOF RED SKULL"), curly apostrophes folded to straight. */
-const flat = (text: string): string =>
-  text
-    .replace(/\s+/g, " ")
-    .replace(/[‘’]/g, "'")
-    .trim()
-    .toUpperCase();
+const flat = (text: string): string => text.replace(/\s+/g, " ").replace(/[‘’]/g, "'").trim().toUpperCase();
 
 /** The default cast a box pre-fills, by volume id, where the issue names it (MojoMania's own roster was once empty). */
 const EXPECTED_CAST: Readonly<Record<string, readonly string[]>> = {

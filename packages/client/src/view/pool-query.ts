@@ -140,12 +140,7 @@ export function parsePoolQuery(text: string): PoolQuery {
 
 /** Lowercase, accents and periods dropped, "_" and "-" read as spaces: "S.H.I.E.L.D." is "shield". */
 const norm = (text: string): string =>
-  text
-    .replace(/\./g, "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[_-]/g, " ")
-    .toLowerCase();
+  text.replace(/\./g, "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[_-]/g, " ").toLowerCase();
 
 const iconsOf = (card: AnyCard): Readonly<Partial<Record<string, number>>> =>
   "producesIcons" in card && card.producesIcons

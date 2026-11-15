@@ -50,7 +50,7 @@ jobs:
     steps:
       # Full history for the tags, without every old blob: the repo's history is several GB, mostly images, and a full
       # clone of it once hung this step. Nothing here reads an old commit's files (git describe, git log and changie).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: blob:none
@@ -101,9 +101,9 @@ jobs:
     if: needs.decide.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -134,7 +134,7 @@ jobs:
       publish: ${{ steps.cut.outputs.publish }}
     steps:
       # Blobless for the same reason as in `decide`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: blob:none
@@ -297,7 +297,7 @@ jobs:
     env:
       MC_CARD_LANG: ${{ matrix.lang }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.check-and-cut-release.outputs.tag }}
 
@@ -307,9 +307,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential curl wget file libssl-dev libxdo-dev libudev-dev libpulse-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -416,7 +416,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ needs.check-and-cut-release.outputs.tag }}" release/* --clobber
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: marvel-champions-${{ matrix.artifact }}-${{ matrix.lang }}
           if-no-files-found: warn
@@ -435,21 +435,21 @@ jobs:
     env:
       MC_CARD_LANG: ${{ matrix.lang }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.check-and-cut-release.outputs.tag }}
 
       - uses: ./.github/actions/free-disk
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
 
       - name: Setup Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: "temurin"
           java-version: "21"
@@ -528,7 +528,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: marvel-champions-android-${{ matrix.lang }}
           if-no-files-found: warn
@@ -570,13 +570,13 @@ jobs:
     if: needs.check-and-cut-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.check-and-cut-release.outputs.tag }}
 
       # After every English asset is up (desktop-builds and android-build upload those themselves).
       - name: Download the other languages' installers
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: marvel-champions-*-es
           path: localized

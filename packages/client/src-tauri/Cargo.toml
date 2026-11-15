@@ -24,7 +24,7 @@ log = "0.4"
 # Tauri's default features minus `compression`: it brotli-compresses all of
 # dist/ (136 MB, mostly already-compressed card art and audio) at quality 9 on
 # every release compile, minutes per build and twice for macOS universal.
-tauri = { version = "2.12.3", default-features = false, features = [
+tauri = { version = "2.12.4", default-features = false, features = [
   "wry",
   "common-controls-v6",
   "dynamic-acl",
@@ -32,7 +32,7 @@ tauri = { version = "2.12.3", default-features = false, features = [
   "dbus",
 ] }
 tauri-plugin-log = "2"
-tauri-plugin-http = "2.8.2"
+tauri-plugin-http = "2.9.0"
 tauri-plugin-opener = "2"
 # The desktop Save dialog for exporting save data (src/save_file.rs).
 tauri-plugin-dialog = "2"

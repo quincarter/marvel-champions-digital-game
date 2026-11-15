@@ -133,10 +133,7 @@ const speakerOf = (speaker: unknown): StorySpeaker => speaker as StorySpeaker;
 export function storyOfPackCampaign(campaign: PackCampaign): CampaignStory {
   const story = campaign.story;
   const nodes = campaign.definition.graph.nodes;
-  const line = (
-    value: { readonly speaker: unknown; readonly text: string } | undefined,
-    fallback: string,
-  ): StoryLine =>
+  const line = (value: { readonly speaker: unknown; readonly text: string } | undefined, fallback: string): StoryLine =>
     value ? { speaker: speakerOf(value.speaker), text: value.text } : { speaker: { kind: "narrator" }, text: fallback };
   const issues: IssueStory[] = nodes.map((node) => {
     const own = story?.issues?.find((issue) => issue.nodeId === (node.id as string));
