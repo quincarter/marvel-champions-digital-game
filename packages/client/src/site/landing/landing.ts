@@ -100,20 +100,22 @@ interface StageShot {
  * then the newest release reports' desktop screenshots. Phone screenshots are framed for a tall screen; the stage is
  * wide.
  */
-const shots: readonly StageShot[] = [
-  { src: scenarioShot, caption: "shots.scenario" },
-  { src: seatsShot, caption: "shots.seats" },
-  { src: setupShot, caption: "shots.setup" },
-  { src: boardShot, caption: "shots.board" },
-  ...publishedOnly(SCREENSHOTS, latestTag)
-    .filter((s) => !/phone/i.test(s.src))
-    .slice(0, 2)
-    .map((s) => ({
-      src: s.src,
-      caption: { en: `${s.version} · ${s.caption.en}`, es: `${s.version} · ${s.caption.es}` },
-      alt: s.alt,
-    })),
-];
+function stageShots(): readonly StageShot[] {
+  return [
+    { src: scenarioShot, caption: "shots.scenario" },
+    { src: seatsShot, caption: "shots.seats" },
+    { src: setupShot, caption: "shots.setup" },
+    { src: boardShot, caption: "shots.board" },
+    ...publishedOnly(SCREENSHOTS, latestTag)
+      .filter((s) => !/phone/i.test(s.src))
+      .slice(0, 2)
+      .map((s) => ({
+        src: s.src,
+        caption: { en: `${s.version} · ${s.caption.en}`, es: `${s.version} · ${s.caption.es}` },
+        alt: s.alt,
+      })),
+  ];
+}
 
 const captionOf = (s: StageShot): string => (typeof s.caption === "string" ? t(s.caption) : s.caption[language]);
 
@@ -268,7 +270,7 @@ const storySection = pinnedSection("story", true);
 
 function drawShots(): void {
   shotsSection.draw(
-    shots.map((s) => ({ src: s.src, alt: s.alt?.[language] ?? captionOf(s), caption: captionOf(s) })),
+    stageShots().map((s) => ({ src: s.src, alt: s.alt?.[language] ?? captionOf(s), caption: captionOf(s) })),
     (n) => t("shots.pick", { n }),
   );
 }
@@ -509,10 +511,11 @@ onScrollFrame(() => {
 
 void fetchLatestRelease(LATEST_RELEASE_API).then((latest) => {
   const next = latest ?? BUILT_RELEASE;
-  // A release published since the build (or one the build's GitHub call missed) joins the news.
+  // A release published since the build (or one the build's GitHub call missed) joins the news and the stage.
   if (next && next.tag_name !== latestTag) {
     latestTag = next.tag_name;
     drawNews();
+    drawShots();
   }
   // The build's copy already shows that release: leave the panel (and any focus in it) alone.
   if (next === null ? release === null : release !== "loading" && release?.tag_name === next.tag_name) return;

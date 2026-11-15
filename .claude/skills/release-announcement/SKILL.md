@@ -59,9 +59,10 @@ The landing page itself is built from the same sources (`landingDataPlugin`), so
 - **Held until published:** news and stage screenshots of a release newer than GitHub's latest wait
   (`src/site/landing/published.ts`), as the history page's list does, because the release PR merges to `main` before
   its downloads are published.
-- **Redeploys:** CI deploys the landing page on every push to `main` (`deploy-landing` in `netlify-deploy.yml`), and
-  `release-on-merge.yml` deploys it again through `landing-deploy.yml` once it publishes the release, so the new
-  version's news, screenshots and baked-in downloads go live with the release. A release published by hand from a
+- **Redeploys:** every deploy of the landing page goes through `landing-deploy.yml`, one at a time, building from
+  `main` as it is when its turn comes. CI calls it on every push to `main` (`deploy-landing-main` in
+  `netlify-deploy.yml`), and `release-on-merge.yml` calls it again once it publishes the release, so the new version's
+  news, screenshots and baked-in downloads go live with the release. A release published by hand from a
   draft needs `gh workflow run landing-deploy.yml --repo quincarter/marvel-champions-digital-game` after it's
   published.
 
