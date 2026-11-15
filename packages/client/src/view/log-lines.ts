@@ -1101,6 +1101,12 @@ function describe(
     // discard-cost payment as any evidence it happened.
     case "playerDeckReset":
       return { text: `${possessive(event.playerId)} deck is shuffled from the discard pile.`, voice: "scenario" };
+    // An optional search that found no card the player could take (owner decision 2026-11-08): said, not silent.
+    case "searchFoundNothing":
+      return {
+        text: `${who(event.playerId)} found no card to take in ${event.playerId === viewer ? "your" : "their"} search.`,
+        voice: "player",
+      };
     case "cardPutIntoPlayFacedown":
       return { text: `A facedown ${event.as} entered play engaged with ${who(event.playerId)}.`, voice: "villain" };
     case "gameEnded":

@@ -10,7 +10,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { cardId } from "@mc/content";
+import { WAVE2_CARDS, cardId } from "@mc/content";
 import type { CardInstance } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { forcedResponse, placeThreat, theMainScheme } from "../../dsl/index.js";
@@ -703,6 +703,116 @@ describe("When Defeated: each player may search their deck and discard pile", ()
     );
     expect(playedOf(state, "40007")).toBeDefined();
   });
+  it("Build Support leaves out a unique support that cannot enter play: Graymalkin already in play", () => {
+    // RRG 1.8 "Unique" (p. 45): a copy of a unique card in play cannot be put into play, so it is no valid pick
+    // (RRG 1.8 "Target", p. 43; the owner's Q37 = A reading for Winter, Widow, Soldier, Spy).
+    const { state: base, scheme } = inPlayScheme([CABLE], "40027");
+    const placed = intoPlay(base, "40007");
+    const staged = patchInstance(placed.state, scheme, { threat: 2 });
+    const offered = offeredCards(staged, declineCard, basicThwart(P1, cableOf(staged), scheme));
+    expect(offered).toEqual(["40021", "40022"]);
+  });
+  it("Build Support with no support the player can put into play tells them so, and asks nothing", () => {
+    // Owner decision 2026-11-08: a player with no valid card is told (`searchFoundNothing`), not passed silently.
+    // Graymalkin is in play (unique), and E.V.A. and Uncanny X-Force are taken out of the deck by surgery.
+    const { state: base, scheme } = inPlayScheme([CABLE], "40027");
+    const placed = intoPlay(base, "40007").state;
+    const gone = new Set(["40021", "40022"]);
+    const stripped: GameState = {
+      ...placed,
+      players: placed.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              deck: p.deck.filter((id) => !gone.has(codeOf(placed, id))),
+              discard: p.discard.filter((id) => !gone.has(codeOf(placed, id))),
+            }
+          : p,
+      ),
+    };
+    const offered = offeredCards(
+      patchInstance(stripped, scheme, { threat: 2 }),
+      declineCard,
+      basicThwart(P1, cableOf(stripped), scheme),
+    );
+    expect(offered).toEqual([]);
+    const { state, events } = defeat(stripped, scheme, declineCard);
+    expect(events.filter((e) => e.type === "searchFoundNothing")).toEqual([
+      { type: "searchFoundNothing", playerId: P1, slot: "found" },
+    ]);
+    expect(state.victoryDisplay).toContain(scheme);
+  });
+  it("Build Support with a support to take logs no searchFoundNothing", () => {
+    const { state: base, scheme } = inPlayScheme([CABLE], "40027");
+    const { events } = defeat(base, scheme, declineCard);
+    expect(events.some((e) => e.type === "searchFoundNothing")).toBe(false);
+  });
+
+  // FFG ruling Nov 21, 2025 (Build Support / Boot Camp): the card found enters play as playing it would, so Boot Camp
+  // ("Play under any player's control. Max 1 per player.", `wsp` 13016) may go under another player's control. A copy
+  // its finder cannot control is still a valid pick while another player can take it (RRG 1.8 "Max", p. 28).
+  const BOOT_CAMP = WAVE2_CARDS.find((card) => card.id === "13016")!;
+  /** Boot Camp copies by surgery: one in each of `inPlayOf`'s play areas and one in P1's deck. */
+  function withBootCamps(state: GameState, inPlayOf: readonly PlayerId[]): { state: GameState; found: InstanceId } {
+    let s: GameState = { ...state, cardPool: { ...state.cardPool, [BOOT_CAMP.id]: BOOT_CAMP } };
+    const copy = (owner: PlayerId, n: number): InstanceId => {
+      const given = injectIntoHand(s, owner, "13016");
+      const id = `${given.id}-${n}` as InstanceId;
+      const { [given.id]: instance, ...rest } = given.state.instances;
+      s = {
+        ...given.state,
+        instances: { ...rest, [id]: { ...instance!, instanceId: id } },
+        players: given.state.players.map((p) => ({ ...p, hand: p.hand.filter((x) => x !== given.id) })),
+      };
+      return id;
+    };
+    inPlayOf.forEach((player, n) => {
+      const id = copy(player, n);
+      s = {
+        ...s,
+        players: s.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
+      };
+    });
+    const found = copy(P1, inPlayOf.length);
+    s = { ...s, players: s.players.map((p) => (p.playerId === P1 ? { ...p, deck: [found, ...p.deck] } : p)) };
+    return { state: s, found };
+  }
+  it("Build Support offers Boot Camp its finder already controls when another player can take it, and puts it there", () => {
+    const { state: base, scheme } = inPlayScheme([CABLE, SPIDER_MAN], "40027");
+    const { state: staged, found } = withBootCamps(base, [P1]);
+    const offered = offeredCards(
+      patchInstance(staged, scheme, { threat: 2 }),
+      declineCard,
+      basicThwart(P1, cableOf(staged), scheme),
+    );
+    expect(offered).toContain("13016");
+    const controlAsked: string[][] = [];
+    const pick: Picker = (s) => {
+      const c = s.pendingChoice;
+      if (c?.prompt.kind === "choosePlayer" && c.prompt.slot === "putIntoPlayController") {
+        controlAsked.push(c.options.map((o) => o.optionId));
+        return [P2];
+      }
+      if (c?.prompt.kind === "chooseCards") return c.playerId === P1 ? [found] : [];
+      return firstLegal(s);
+    };
+    const { state, events } = defeat(staged, scheme, pick);
+    expect(controlAsked).toEqual([[P1, P2]]);
+    expect(inPlay(state, P2)).toContain(found);
+    expect(inst(state, found)).toMatchObject({ controllerId: P2, ownerId: P1 });
+    expect(events.some((e) => e.type === "putIntoPlayRefused")).toBe(false);
+  });
+  it("Build Support leaves out Boot Camp when every player already controls one", () => {
+    const { state: base, scheme } = inPlayScheme([CABLE, SPIDER_MAN], "40027");
+    const { state: staged } = withBootCamps(base, [P1, P2]);
+    const offered = offeredCards(
+      patchInstance(staged, scheme, { threat: 2 }),
+      declineCard,
+      basicThwart(P1, cableOf(staged), scheme),
+    );
+    expect(offered).not.toContain("13016");
+    expect(offered).toContain("40007");
+  });
   it("Establish Perimeter gives each identity a tough status card (two players: both)", () => {
     const one = inPlayScheme([CABLE], "40020");
     const done = defeat(one.state, one.scheme, firstLegal);
@@ -1332,8 +1442,9 @@ describe("Lock and Load (40019): When Defeated, each player may put a WEAPON upg
     expect(inst(state, deadpool.id).attachments.map((id) => codeOf(state, id))).toEqual(["40030"]);
     expect(inst(state, hopeOf(state)).attachments).toEqual([]);
   });
-  // RRG 1.8 "Attach To" (p. 8): with no legal host "it remains in its prior state or game area".
-  it("Sidearm with no ally in play does not enter play: it stays in the deck, which is shuffled", () => {
+  // RRG 1.8 "Attach To" (p. 8): with no legal host "it remains in its prior state or game area", so the put into play
+  // would do nothing with it and it is no card to choose (RRG 1.8 "Target", p. 43; owner Q37 = A).
+  it("Sidearm with no ally in play is not offered; the identity WEAPONs still are, and the deck is shuffled", () => {
     const { state: ready_, scheme } = ready();
     // Hope Summers out of play by surgery.
     const hope = hopeOf(ready_);
@@ -1342,14 +1453,14 @@ describe("Lock and Load (40019): When Defeated, each player may put a WEAPON upg
       players: ready_.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== hope) })),
       removedFromGame: [...ready_.removedFromGame, hope],
     };
-    const { state, events } = defeat(
-      base,
-      scheme,
-      chain(cardChoice("40030"), () => []),
-    );
+    expect(sidearms(base).length).toBeGreaterThan(0);
+    const staged = patchInstance(base, scheme, { threat: 2 });
+    const offered = offeredCards(staged, declineCard, basicThwart(P1, cableOf(staged), scheme));
+    expect(offered).not.toContain("40030");
+    expect(offered).toContain("40029");
+    const { state, events } = defeat(base, scheme, declineCard);
     expect(sidearms(state)).toHaveLength(sidearms(base).length);
-    expect(sidearms(state).every((id) => inst(state, id).attachedTo === null)).toBe(true);
-    expect(events.filter((e) => e.type === "putIntoPlayRefused")).toHaveLength(1);
+    expect(events.some((e) => e.type === "putIntoPlayRefused")).toBe(false);
     expect(events.filter((e) => e.type === "deckShuffled")).toHaveLength(1);
     expect(state.victoryDisplay).toContain(scheme);
   });

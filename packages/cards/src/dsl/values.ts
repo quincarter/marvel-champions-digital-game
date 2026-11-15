@@ -398,9 +398,18 @@ export const canAttachToCategory = (
  * "… chooses 1 set-aside SPECIALIZATION upgrade and puts it into play under their control" (`x23` 43021), as a choice
  * among the cards the unique rule lets enter play: `query("upgrade", { trait, ...canEnterPlay(thatPlayer) })`. A unique
  * card that matches a card already in play "cannot be played or put into play" (RRG 1.8 "Unique Icon", pp. 45–46), so
- * it is not offered; the engine decides with the check `putIntoPlay` makes. The player is who it would enter play under.
+ * it is not offered; the engine decides with the checks `putIntoPlay` makes (`canBePutIntoPlay`: unique, "Max N per
+ * player", "cannot enter play", "[type] form only", an upgrade's legal host). The player is who puts it into play. A
+ * "Play under any player's control" card is offered when it could enter under any player, as the `putIntoPlay` lets
+ * them choose; pass `{ controllerStated: true }` when that `putIntoPlay` states the controller (it does then too).
  */
-export const canEnterPlay = (player: PlayerRef): Pick<TargetQuery, "canEnterPlay"> => ({ canEnterPlay: player });
+export const canEnterPlay = (
+  player: PlayerRef,
+  opts: { readonly controllerStated?: boolean } = {},
+): Pick<TargetQuery, "canEnterPlay" | "canEnterPlayControllerStated"> => ({
+  canEnterPlay: player,
+  ...(opts.controllerStated ? { canEnterPlayControllerStated: true as const } : {}),
+});
 /**
  * "Flip 1 PSI-ENERGY upgrade", "you may flip this card", as a choice among the cards that can be flipped:
  * `query("upgrade", { trait: PSI_ENERGY, controller: "you", ...canFlip })`. A card a `cannotFlip` rule names is left

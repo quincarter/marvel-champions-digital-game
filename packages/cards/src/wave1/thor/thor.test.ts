@@ -5,6 +5,7 @@ import {
   characterProfile,
   remainingHitPoints,
   traitsOf,
+  type GameEvent,
 } from "@mc/engine";
 import {
   answer,
@@ -28,6 +29,7 @@ import {
 } from "../../testing/harness.js";
 import { TRAIT } from "../../dsl/index.js";
 import { wave1Scenario } from "../setup.js";
+import { ASGARD } from "./local.js";
 import { runThor, stackFromSetAside, startThorGame, THOR_DEPS } from "./testing.js";
 
 // Real wave 1 content: the Thor (Aggression) precon against Rhino, standard, solo.
@@ -113,6 +115,41 @@ describe("Thor kit", () => {
     expect(atChoice.pendingChoice?.options.map((o) => o.optionId)).toContain(helmet);
     const after = settle(answer(atChoice, [helmet], THOR_DEPS), firstLegal, undefined, THOR_DEPS);
     expect(playerOf(after, P1).hand).toContain(helmet);
+  });
+
+  it("For Asgard!: with no Asgard card in deck or discard it is still played, finds nothing and shuffles", () => {
+    // RRG 1.8 "Target" (p. 43): "An ability with a search effect requires only a searchable game area in order to
+    // initiate." Searching deck and discard pile together is still a search.
+    const start = thorVsRhino();
+    const given = moveToHand(start, P1, "06004");
+    const [card] = given.ids as [never];
+    const asgard = (id: never) => traitsOf(given.state, id, THOR_DEPS).includes(ASGARD);
+    const state = {
+      ...given.state,
+      players: given.state.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              deck: p.deck.filter((id) => !asgard(id as never)),
+              discard: p.discard.filter((id) => !asgard(id as never)),
+            }
+          : p,
+      ),
+    };
+    const played = applyCommand(state, play(P1, card, payWith(state, P1, 1, [card])), THOR_DEPS);
+    if (!played.ok) throw new Error(played.error.message);
+    // Logged as a search that found nothing (RRG 1.8 "'Then'", p. 44), not as a required target choice with none.
+    const causes = played.events.flatMap((e) => (e.type === "preThenUnresolved" ? [e.cause] : []));
+    expect(causes).toEqual(["searchFoundNothing"]);
+    expect(played.events.some((e) => e.type === "choiceFoundNothing")).toBe(false);
+    // RRG 1.8 "Search" (p. 39): a search that finds nothing still shuffles the searched deck.
+    const shuffles = (events: readonly GameEvent[]) =>
+      events.filter((e) => e.type === "deckShuffled" && e.zone.kind === "deck");
+    const after = settle(played.state, firstLegal, undefined, THOR_DEPS);
+    expect(shuffles(played.events)).toHaveLength(1);
+    expect(after.pendingChoice).toBeNull();
+    expect(playerOf(after, P1).hand).not.toContain(card);
+    expect(playerOf(after, P1).discard).toContain(card);
   });
 
   it("Hammer Throw: exhausts Mjolnir, deals 8 overkill damage, returns Mjolnir to hand", () => {

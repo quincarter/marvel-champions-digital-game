@@ -201,6 +201,7 @@ export const TARGET_QUERY_FIELDS: readonly string[] = [
   "canAttachTo",
   "canAttachToCategory",
   "canEnterPlay",
+  "canEnterPlayControllerStated",
   "canFlip",
   "facedown",
   "starIcon",

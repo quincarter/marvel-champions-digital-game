@@ -1117,8 +1117,12 @@ describe("X-Bunker (41023)", () => {
   });
   it("X = 0: nothing to search, no card is added (the support is still exhausted)", () => {
     const { state: s, id } = bunker(alterEgoGame());
-    const { state } = driveEventsPicking(WAVE7_DEPS, s, firstLegal, use(P1, id, BUNKER));
+    const { state, events } = driveEventsPicking(WAVE7_DEPS, s, firstLegal, use(P1, id, BUNKER));
     expect(handOf(state)).toHaveLength(handOf(s).length);
+    // "Searches the top X cards" is a search (`chooseCards.search`), not a look: finding nothing is logged.
+    expect(events.filter((e) => e.type === "searchFoundNothing")).toEqual([
+      { type: "searchFoundNothing", playerId: P1, slot: "found" },
+    ]);
   });
   it("hero form Psylocke (PSIONIC, X-FORCE) has no MUTANT identity: nobody can be chosen, so it cannot be used", () => {
     const { state: s, id } = bunker(heroGame());
